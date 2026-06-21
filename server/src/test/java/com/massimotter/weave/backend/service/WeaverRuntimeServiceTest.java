@@ -6,7 +6,6 @@ import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WeaverRuntimeProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
-import com.massimotter.weave.backend.weaver.WeaverToolRegistry;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -365,7 +364,7 @@ class WeaverRuntimeServiceTest {
                 new WeaveSecurityProperties("weave-app", "weave-app"),
                 capabilities,
                 runtimeProperties);
-        return new WeaverRuntimeService(capabilityService, capabilities, runtimeProperties, audit, new WeaverToolRegistry(audit));
+        return new WeaverRuntimeService(capabilityService, capabilities, runtimeProperties, audit);
     }
 
     private WeaverRuntimeProperties runtimeProperties(boolean enabled) {

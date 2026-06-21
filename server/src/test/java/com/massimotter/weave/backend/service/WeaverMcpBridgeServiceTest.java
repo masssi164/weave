@@ -180,7 +180,7 @@ class WeaverMcpBridgeServiceTest {
                 new WeaveSecurityProperties("weave-app", "weave-app"),
                 capabilities,
                 runtimeProperties);
-        return new WeaverRuntimeService(capabilityService, capabilities, runtimeProperties, audit, new WeaverToolRegistry(audit));
+        return new WeaverRuntimeService(capabilityService, capabilities, runtimeProperties, audit);
     }
 
     private Jwt jwt() {

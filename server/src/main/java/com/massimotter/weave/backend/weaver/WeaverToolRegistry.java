@@ -27,7 +27,7 @@ public class WeaverToolRegistry {
     public List<WeaverDomainToolDefinition> discover(List<String> grantedCapabilities) {
         List<String> safeCapabilities = grantedCapabilities == null ? List.of() : grantedCapabilities;
         return definitions.values().stream()
-                .filter(definition -> safeCapabilities.contains(definition.requiredCapability()))
+                .filter(definition -> capabilityGranted(safeCapabilities, definition.requiredCapability()))
                 .toList();
     }
 
@@ -40,7 +40,7 @@ public class WeaverToolRegistry {
                     "auditRef", auditRef(request.toolName(), governanceDenial)));
             return blocked(request.toolName(), governanceDenial, "Weaver tool invocation failed closed before provider access.");
         }
-        if (definition == null || !request.grantedCapabilities().contains(definition.requiredCapability())) {
+        if (definition == null || !capabilityGranted(request.grantedCapabilities(), definition.requiredCapability())) {
             audit(request.userRef(), request.runtimeProfileHash(), request.toolName(), "blocked", Map.of(
                     "reason", "not_granted",
                     "auditRef", auditRef(request.toolName(), "blocked")));
@@ -56,7 +56,7 @@ public class WeaverToolRegistry {
         boolean approvalReceiptValidated = false;
         if (definition.writeLike()) {
             WeaverApprovalReceipt approvalReceipt = request.approvalReceipt();
-            if (approvalReceipt == null || !approvalReceipt.validFor(request.userRef(), request.toolName())) {
+            if (approvalReceipt == null || !approvalReceipt.validFor(request.userRef(), request.toolName(), canonicalScopeRefs(request.input()))) {
                 audit(request.userRef(), request.runtimeProfileHash(), request.toolName(), "approval_required", Map.of(
                         "domain", definition.domain(),
                         "approvalReceiptValidated", false,
@@ -167,6 +167,21 @@ public class WeaverToolRegistry {
                 || normalized.endsWith(".*");
     }
 
+    private boolean capabilityGranted(List<String> grantedCapabilities, String requiredCapability) {
+        if (grantedCapabilities.contains(requiredCapability)) {
+            return true;
+        }
+        String legacy = switch (requiredCapability) {
+            case "calendar.read" -> "weaver.calendar_read";
+            case "calendar.manage_events" -> "weaver.calendar_create_event";
+            case "boards.read" -> "weaver.boards_read";
+            case "boards.update_task" -> "weaver.boards_write";
+            case "chat.read" -> "weaver.chat_read";
+            default -> requiredCapability;
+        };
+        return grantedCapabilities.contains(legacy);
+    }
+
     private WeaverToolInvocationResult blocked(String toolName, String status, String message) {
         return new WeaverToolInvocationResult(
                 toolName,
@@ -183,6 +198,15 @@ public class WeaverToolRegistry {
         copyCanonicalRef(input, refs, "decisionRef", "decision");
         copyCanonicalRef(input, refs, "boardTaskRef", "boardTask");
         return Map.copyOf(refs);
+    }
+
+    private List<String> canonicalScopeRefs(Map<String, Object> input) {
+        return canonicalRefs(input).values().stream()
+                .filter(String.class::isInstance)
+                .map(String.class::cast)
+                .filter(ref -> ref.startsWith("board-task:") || ref.startsWith("event:") || ref.startsWith("message:"))
+                .sorted()
+                .toList();
     }
 
     private void copyCanonicalRef(Map<String, Object> input, Map<String, Object> refs, String inputKey, String outputKey) {
@@ -238,6 +262,23 @@ public class WeaverToolRegistry {
                 tool.inputSchema(),
                 List.of("providerCredentials", "rawProviderPayload", "secretRef.value"),
                 tool.description())));
+        add(registry, new WeaverDomainToolDefinition(
+                "chat.search_messages",
+                "v1",
+                "chat-channels",
+                WeaverToolMode.READ,
+                "weaver.chat_read",
+                WeaverApprovalRequirement.NONE,
+                Map.of(
+                        "type", "object",
+                        "additionalProperties", false,
+                        "properties", Map.of(
+                                "spaceRef", Map.of("type", "string"),
+                                "query", Map.of("type", "string"),
+                                "limit", Map.of("type", "integer", "minimum", 1, "maximum", 50)),
+                        "description", "Validated by the Weave chat-channels facade before provider access."),
+                List.of("providerCredentials", "rawProviderPayload", "secretRef.value"),
+                "Weaver chat search exposed only through Weave capability grants."));
         return Collections.unmodifiableMap(registry);
     }
 
