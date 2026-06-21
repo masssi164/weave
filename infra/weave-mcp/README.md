@@ -1,3 +1,7 @@
+# Deprecated Python Weave MCP gateway
+
+Status: transitional/deprecated after issue #818. New member/Weaver-facing MCP work belongs in `weave-contract` and `weave-mcp-server`; this Python path remains only as historical/local evidence until Java parity is complete and release owners remove it deliberately.
+
 # Weave MCP gateway skeleton
 
 Status: Sprint 17 local RC evidence skeleton, disabled by default unless bound by a generated RuntimeProfile projection.
