@@ -23,13 +23,16 @@ public record WeaverApprovalReceipt(
         auditRef = safe(auditRef);
     }
 
-    public boolean validFor(String actorRef, String action, List<String> requiredScopeRefs) {
+    public boolean validFor(String actorRef, String action, List<String> requiredScopeRefs, String expectedPolicyVersion) {
         List<String> safeRequiredScopeRefs = List.copyOf(requiredScopeRefs == null ? List.of() : requiredScopeRefs);
+        String safeExpectedPolicyVersion = safe(expectedPolicyVersion).equals("unspecified") ? "policy:support-safe-bridge-v1" : safe(expectedPolicyVersion);
         return !receiptRef.isBlank()
                 && this.actorRef.equals(actorRef)
                 && this.action.equals(action)
                 && scopeRefs.containsAll(safeRequiredScopeRefs)
                 && !policyVersion.isBlank()
+                && policyVersion.startsWith("policy:")
+                && (safeExpectedPolicyVersion.isBlank() || policyVersion.equals(safeExpectedPolicyVersion))
                 && auditRef.startsWith("audit://")
                 && expiresInFuture();
     }

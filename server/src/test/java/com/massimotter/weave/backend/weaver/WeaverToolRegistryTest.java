@@ -125,7 +125,7 @@ class WeaverToolRegistryTest {
                         "approval:abc123",
                         "user:abc123",
                         "boards.comment",
-                        List.of("board-task:WEAVE-601"),
+                        List.of("space:control-room", "board-task:WEAVE-601"),
                         "policy:test",
                         future(),
                         "audit://weaver-approval/test")));
@@ -178,7 +178,7 @@ class WeaverToolRegistryTest {
                         future(),
                         "audit://weaver-approval/test")));
 
-        assertThat(result.status()).isEqualTo("approval_scope_mismatch");
+        assertThat(result.status()).isEqualTo("approval_receipt_invalid");
         assertThat(result.approvalRequired()).isFalse();
         assertThat(result.redactedResult()).containsEntry("approvalReceiptValidated", false);
         assertThat(result.redactedResult().get("canonicalRefs").toString())
@@ -186,7 +186,7 @@ class WeaverToolRegistryTest {
                 .doesNotContain("WEAVE-601");
         assertThat(audit.events()).hasSize(1);
         assertThat(audit.events().get(0).payload())
-                .containsEntry("status", "approval_scope_mismatch")
+                .containsEntry("status", "approval_receipt_invalid")
                 .containsEntry("approvalReceiptValidated", false)
                 .containsEntry("serverApprovalDecision", false);
         assertThat(audit.events().get(0).payload().toString()).doesNotContain("Looks good", "provider payload", "secret");

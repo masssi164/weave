@@ -109,23 +109,17 @@ class WeaverMcpBridgeServiceTest {
     }
 
     @Test
-    void approvedWriteToolDispatchesThroughMemberDomainFacadeBoundary() {
+    void approvalRefAloneDoesNotAuthorizeWriteToolDispatch() {
         Fixture fixture = fixture();
         var profile = fixture.runtimeService.profileFor(jwt());
-        when(fixture.dispatcher.dispatch("calendar.create_event", Map.of("title", "Planning")))
-                .thenReturn(Map.of(
-                        "status", "ok",
-                        "supportSafe", true,
-                        "event", Map.of("id", "calendar-event:created"),
-                        "auditRef", "audit://calendar/create/support-safe",
-                        "rawProviderPayload", "redacted"));
 
         var response = fixture.bridge.invokeMcpTool(jwt(), MemberMcpToolCatalog.SERVER_NAMESPACE, "calendar.create_event",
-                request("calendar.create_event", profile.runtimeProfileHash(), profile.userRef(), new ApprovalReceiptRef("approval://calendar-create/1"), Map.of("title", "Planning")));
+                request("calendar.create_event", profile.runtimeProfileHash(), profile.userRef(), new ApprovalReceiptRef("approval://calendar-create/1"), Map.of("title", "Planning", "calendarRef", "calendar:team")));
 
-        assertThat(response.status()).isEqualTo(ToolInvocationStatus.SUCCESS);
-        assertThat(response.structuredContent().get("structuredContent").toString()).contains("calendar-event:created");
-        verify(fixture.dispatcher).dispatch("calendar.create_event", Map.of("title", "Planning"));
+        assertThat(response.status()).isEqualTo(ToolInvocationStatus.DENIED);
+        assertThat(response.structuredContent()).containsEntry("approvalRequired", true);
+        assertThat(response.structuredContent().toString()).contains("approval_required");
+        verifyNoInteractions(fixture.dispatcher);
     }
 
     private BridgeInvocationRequest request(String toolName, String profileHash, String userRef, ApprovalReceiptRef approvalReceiptRef, Map<String, Object> arguments) {

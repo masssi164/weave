@@ -17,8 +17,6 @@ import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.ToolInvocationStatu
 import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.WeaveMcpContentBlock;
 import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.WeaveMcpRef;
 import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.WeaveMcpToolCatalog;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -148,18 +146,10 @@ public class WeaverMcpBridgeService {
     }
 
     private WeaverApprovalReceipt approvalReceipt(BridgeInvocationRequest request) {
-        ApprovalReceiptRef ref = request.runtime().approvalReceiptRef();
-        if (ref == null) {
-            return null;
-        }
-        return new WeaverApprovalReceipt(
-                ref.value(),
-                request.runtime().userRef().value(),
-                request.toolName(),
-                List.of(request.runtime().runtimeProfileRef().value()),
-                "support-safe-bridge-v1",
-                Instant.now().plus(5, ChronoUnit.MINUTES).toString(),
-                request.runtime().auditRef());
+        // A receipt ref is only a correlation pointer. Until the bridge receives a
+        // server-verifiable ApprovalReceipt payload/source, it must not fabricate
+        // actor/action/scope/policy/expiry/audit bindings from that ref.
+        return null;
     }
 
     private BridgeInvocationResponse bridgeInvocationResponse(String toolName, ToolInvocationStatus status, String auditRef, String message, Map<String, Object> structuredContent) {

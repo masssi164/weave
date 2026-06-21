@@ -11,6 +11,8 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -18,6 +20,7 @@ public class WeaverToolRegistry {
 
     private final AuditEventPublisher auditEventPublisher;
     private final Map<String, WeaverDomainToolDefinition> definitions;
+    private final ConcurrentMap<String, Boolean> consumedApprovalReceipts = new ConcurrentHashMap<>();
 
     public WeaverToolRegistry(AuditEventPublisher auditEventPublisher) {
         this.auditEventPublisher = auditEventPublisher;
@@ -67,8 +70,9 @@ public class WeaverToolRegistry {
                 return blocked(request.toolName(), terminalApprovalStatus, "Weaver action failed closed after the user runtime did not approve it.");
             }
             List<String> requiredScopeRefs = canonicalScopeRefs(request.input());
-            if (approvalReceipt == null || !approvalReceipt.validFor(request.userRef(), request.toolName(), requiredScopeRefs)) {
-                String status = approvalReceipt == null ? "approval_required" : "approval_scope_mismatch";
+            String expectedPolicyVersion = expectedPolicyVersion(request.input());
+            if (approvalReceipt == null || !approvalReceipt.validFor(request.userRef(), request.toolName(), requiredScopeRefs, expectedPolicyVersion)) {
+                String status = approvalReceipt == null ? "approval_required" : "approval_receipt_invalid";
                 audit(request.userRef(), request.runtimeProfileHash(), request.toolName(), status, Map.of(
                         "domain", definition.domain(),
                         "approvalAuthority", "user_openclaw_runtime",
@@ -91,6 +95,15 @@ public class WeaverToolRegistry {
                         approvalReceipt == null
                                 ? "This action requires a valid approval receipt before Weaver may continue."
                                 : "Approval receipt scope does not match the Weaver tool invocation.");
+            }
+            String receiptKey = request.userRef() + "|" + request.toolName() + "|" + approvalReceipt.receiptRef();
+            if (consumedApprovalReceipts.putIfAbsent(receiptKey, true) != null) {
+                audit(request.userRef(), request.runtimeProfileHash(), request.toolName(), "duplicate_approval_receipt", Map.of(
+                        "domain", definition.domain(),
+                        "approvalReceiptValidated", false,
+                        "approvalReceiptRef", approvalReceipt.receiptRef(),
+                        "auditRef", auditRef(request.toolName(), "duplicate_approval_receipt")));
+                return blocked(request.toolName(), "duplicate_approval_receipt", "Approval receipt replay was blocked before provider access.");
             }
             approvalReceiptValidated = true;
         }
@@ -153,6 +166,7 @@ public class WeaverToolRegistry {
             return "overbroad_grant";
         }
         if (definition != null && request.scopedToolGrants().stream()
+                .filter(grant -> !definition.name().equals(grant))
                 .anyMatch(grant -> grant.startsWith(definition.domain() + ".") || grant.endsWith(".*"))) {
             return "overbroad_grant";
         }
@@ -171,7 +185,18 @@ public class WeaverToolRegistry {
         if (normalized.contains("timeout") || normalized.contains("expired")) {
             return "approval_timeout";
         }
+        if (normalized.contains("revoked")) {
+            return "approval_revoked";
+        }
         return null;
+    }
+
+    private String expectedPolicyVersion(Map<String, Object> input) {
+        if (input == null) {
+            return "";
+        }
+        Object value = input.get("policyVersion");
+        return value instanceof String policyVersion ? policyVersion.strip() : "";
     }
 
     private boolean runtimeTokenExpired(String runtimeTokenExpiresAt) {
@@ -222,8 +247,15 @@ public class WeaverToolRegistry {
     private Map<String, Object> canonicalRefs(Map<String, Object> input) {
         Map<String, Object> refs = new LinkedHashMap<>();
         copyCanonicalRef(input, refs, "spaceRef", "space");
+        copyCanonicalRef(input, refs, "channelRef", "channel");
+        copyCanonicalRef(input, refs, "threadRef", "thread");
         copyCanonicalRef(input, refs, "decisionRef", "decision");
         copyCanonicalRef(input, refs, "boardTaskRef", "boardTask");
+        copyCanonicalRef(input, refs, "taskRef", "task");
+        copyCanonicalRef(input, refs, "calendarRef", "calendar");
+        copyCanonicalRef(input, refs, "eventRef", "event");
+        copyCanonicalRef(input, refs, "messageRef", "message");
+        copyCanonicalRef(input, refs, "fileRef", "file");
         return Map.copyOf(refs);
     }
 
@@ -231,7 +263,15 @@ public class WeaverToolRegistry {
         return canonicalRefs(input).values().stream()
                 .filter(String.class::isInstance)
                 .map(String.class::cast)
-                .filter(ref -> ref.startsWith("board-task:") || ref.startsWith("event:") || ref.startsWith("message:"))
+                .filter(ref -> ref.startsWith("space:")
+                        || ref.startsWith("channel:")
+                        || ref.startsWith("thread:")
+                        || ref.startsWith("board-task:")
+                        || ref.startsWith("task:")
+                        || ref.startsWith("calendar:")
+                        || ref.startsWith("event:")
+                        || ref.startsWith("message:")
+                        || ref.startsWith("file:"))
                 .sorted()
                 .toList();
     }
@@ -244,7 +284,16 @@ public class WeaverToolRegistry {
     }
 
     private boolean canonicalRef(String ref) {
-        return ref.startsWith("space:") || ref.startsWith("decision:") || ref.startsWith("board-task:");
+        return ref.startsWith("space:")
+                || ref.startsWith("channel:")
+                || ref.startsWith("thread:")
+                || ref.startsWith("decision:")
+                || ref.startsWith("board-task:")
+                || ref.startsWith("task:")
+                || ref.startsWith("calendar:")
+                || ref.startsWith("event:")
+                || ref.startsWith("message:")
+                || ref.startsWith("file:");
     }
 
     private String auditRef(String toolName, String status) {
