@@ -156,20 +156,22 @@ class LocalQwenMcpToolBridgeTest {
     }
 
     @Test
-    void revokedRuntimeProfileIsDeniedByToolRegistryPolicyGuard() {
+    void runtimeProfileRevocationMarkerIsCorrelationOnlyForMcpToolPolicy() {
         InMemoryAuditEventPublisher auditPublisher = new InMemoryAuditEventPublisher();
         LocalQwenMcpToolBridge bridge = new LocalQwenMcpToolBridge(new WeaverToolRegistry(auditPublisher));
 
         var turn = bridge.execute(request("calendar.search_events", true, Map.of("spaceRef", "space:default")));
 
-        assertThat(turn.allowed()).isFalse();
-        assertThat(turn.decision()).isEqualTo("runtime_profile_revoked");
+        assertThat(turn.allowed()).isTrue();
+        assertThat(turn.decision()).isEqualTo("ok");
         assertThat(turn.supportSafeEvidence())
-                .containsEntry("denyState", "runtime_profile_revoked")
-                .containsEntry("toolResultFedBackToModel", false);
+                .containsEntry("denyState", "allowed")
+                .containsEntry("toolResultFedBackToModel", true);
         assertThat(auditPublisher.events()).hasSize(1);
         assertThat(auditPublisher.events().get(0).payload())
-                .containsEntry("decision", "runtime_profile_revoked")
+                .containsEntry("decision", "invoked")
+                .containsEntry("runtimeProfileAuthority", "correlation_only")
+                .containsEntry("policyEnforcementPoint", "weave-mcp-server")
                 .containsEntry("runtimeProfileHash", "rph-qwen-tool-test");
     }
 

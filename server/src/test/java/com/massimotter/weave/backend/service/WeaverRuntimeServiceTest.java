@@ -99,7 +99,8 @@ class WeaverRuntimeServiceTest {
                 .containsKey("mcpServerBindings");
         assertThat(profile.channelProjection().get("runtimeProfileFetch").toString())
                 .contains("fetchRef=weave-runtime-profile://" + profile.runtimeProfileHash())
-                .contains("signatureRequired=true", "revocationChecked=true", "rawProfileBodyReturnedToMembers=false");
+                .contains("runtimeProfileAuthority=correlation_only", "policyEnforcementPoint=weave-mcp-server", "rawProfileBodyReturnedToMembers=false")
+                .doesNotContain("signatureRequired=true", "revocationChecked=true");
         assertThat(profile.channelProjection().get("mcpServerBindings").toString())
                 .contains("weave-domain-tools", "streamable-http")
                 .contains("runtimeProfileFetchRef=weave-runtime-profile://" + profile.runtimeProfileHash())

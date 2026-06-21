@@ -11,7 +11,7 @@ Weaver is the optional personal-assistant product line inside Weave. Sprint 8 de
 
 ## Runtime profile contract
 
-The signed `WeaverRuntimeProfile` is the single source consumed by the OpenClaw-derived Weaver runtime. The runtime may render an internal `openclaw.json`, channel/plugin entries, MCP server entries, tool filters, model defaults, and sandbox settings, but those files are generated implementation artifacts. Normal members must not edit them or use the raw OpenClaw dashboard/config wizard to bypass Weave policy.
+The `WeaverRuntimeProfile` is a support-safe runtime projection consumed by the OpenClaw-derived Weaver runtime, not the hard authorization boundary for governed tool calls. The runtime may render an internal `openclaw.json`, channel/plugin entries, MCP server entries, tool filters, model defaults, and sandbox settings, but those files are generated implementation artifacts and correlation inputs only. Normal members must not edit them or use the raw OpenClaw dashboard/config wizard to bypass Weave policy. Weave MCP is the policy-enforcement point for tool invocation: it validates transport/resource auth, user/workspace policy, current tool scope, explicit consent, ApprovalReceipts where required, and auditability before any provider access.
 
 A Weaver runtime profile must be generated per user and per organization. The profile contains only support-safe, auditable grants.
 
@@ -30,7 +30,7 @@ A Weaver runtime profile must be generated per user and per organization. The pr
 
 Minimum profile fields for the next implementation slice:
 
-- profile version, signature, `runtimeProfileHash`, expiry, revocation status, and rollback pointer;
+- profile version, `runtimeProfileHash`, expiry, support-safe integrity/correlation metadata, and rollback pointer;
 - model provider aliases, default, fallback order, and user-selectable alias list from admin policy;
 - domain capability catalog including `chat.read`, `chat.send`, `files.read`, `calendar.read`, and `weaver.enabled`;
 - stable `channels.weave-chat` projection plus Weave Chat-domain routing metadata; Matrix, Teams, iMessage, Slack, Telegram, or another supported provider are backend providerRefs, not separate member/runtime channel configs;
@@ -43,11 +43,11 @@ Admin Chat provider changes are provider migrations, not member adapter switches
 
 ## Per-user runtime container lifecycle
 
-The infrastructure lifecycle contract is defined in `infra/docs/weaver-runtime-lifecycle.md` and the executable static projection is `infra/weave-workspace/weaver-runtime-lifecycle.contract.json`. One active user/trust boundary maps to one active runtime context/container. The trust boundary is the organization, immutable subject, effective capability profile, signed `runtimeProfileHash`, and revocation generation; another browser session for the same boundary attaches to that context instead of creating a second container.
+The infrastructure lifecycle contract is defined in `infra/docs/weaver-runtime-lifecycle.md` and the executable static projection is `infra/weave-workspace/weaver-runtime-lifecycle.contract.json`. One active user/trust boundary maps to one active runtime context/container. The trust boundary is the organization, immutable subject, effective capability profile, current server-side policy/session state, and support-safe `runtimeProfileHash` correlation; another browser session for the same boundary attaches to that context instead of creating a second container.
 
 Each runtime context uses separate `stateDir`, `workspaceDir`, and `agentDir` volumes with opaque support-safe refs, a read-only base filesystem, explicit CPU/memory/process/disk quotas, and no implicit host mounts such as Docker socket, SSH agent, keychain, operator home, or raw OpenClaw dashboard. Default egress is deny. The allowed network targets are internal Weave API, internal Weave MCP Gateway, and explicitly allowed channel/MCP proxies that enforce the same RuntimeProfile and short-lived runtime token.
 
-Profile reload, restart, rollback, and revocation are lifecycle operations, not ad-hoc container edits. Grant/model/approval/audit changes may reload when the loader proves they are safe. Image, network, filesystem, memory, workspace, and sandbox changes require restart. Rollback may activate only the previous signed profile when it is unexpired, not revoked, and compatible with the current policy floor. Revocation stops the container, revokes runtime tokens, denies new tool calls, and preserves only support-safe audit evidence.
+Profile reload, restart, rollback, and revocation are lifecycle operations, not ad-hoc container edits. Here, revocation means server-side session, runtime-token, or tool-grant revocation; the `WeaverRuntimeProfile` remains a support-safe projection and correlation artifact, not the hard authorization boundary. Grant/model/approval/audit changes may reload when the loader proves they are safe. Image, network, filesystem, memory, workspace, and sandbox changes require restart. Rollback may activate only a compatible previous projection under the current server-side policy floor. Revocation of sessions, runtime tokens, or tool grants stops or narrows the container as applicable, denies new tool calls at Weave MCP, and preserves only support-safe audit evidence.
 
 ## Capability rule
 
