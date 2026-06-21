@@ -72,21 +72,21 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get providerCategoryChatDetail =>
-      'Matrix/Chat ist die aktuelle Dogfood-Auswahl hinter der Weave-Chat-Oberfläche.';
+      'Chat ist der aktuelle Dogfood-Dienst hinter der Weave-Chat-Oberfläche.';
 
   @override
   String get providerCategoryFilesTitle => 'Dateien';
 
   @override
   String get providerCategoryFilesDetail =>
-      'Nextcloud/Files ist die aktuelle Dogfood-Speicherauswahl hinter der Weave-Datei-Fassade.';
+      'Dateispeicher ist der aktuelle Dogfood-Dienst hinter der Weave-Datei-Fassade.';
 
   @override
   String get providerCategoryCalendarTitle => 'Kalender';
 
   @override
   String get providerCategoryCalendarDetail =>
-      'Nextcloud/Calendar-Anbindung ist die aktuelle Dogfood-Auswahl hinter der Weave-Kalender-Fassade.';
+      'Kalender-Synchronisierung ist der aktuelle Dogfood-Dienst hinter der Weave-Kalender-Fassade.';
 
   @override
   String get providerCategoryBoardsTitle => 'Boards/Aufgaben';
@@ -335,7 +335,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get firstRunDescription =>
-      'Du hast dich einmal per Weave-SSO angemeldet. Weave prüft Profil und Zusammenarbeitsmodule; separate Matrix- oder Nextcloud-Zugangsdaten sind nicht nötig.';
+      'Du hast dich einmal per Weave-SSO angemeldet. Weave prüft Profil und Zusammenarbeitsmodule; separate Zugangsdaten für Chat, Dateien oder Kalender sind nicht nötig.';
 
   @override
   String get firstRunIdentitySectionTitle => 'Deine Weave-Identität';
@@ -886,7 +886,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get filesProductBoundaryBody =>
-      'Dateiaktionen nutzen die Weave-Backend-Fassade. Nextcloud bleibt Speicheranbieter sowie Admin-/Fallback-Oberfläche; rohe Anbieterpfade und Zugangsdaten gehören nicht zur normalen Dateien-UX.';
+      'Dateiaktionen laufen über die Weave-Workspace-Dienst-Fassade. Dateispeicher bleibt Teil der Admin- und Fallback-Ebene; rohe Dienstpfade und Zugangsdaten gehören nicht zur normalen Dateien-Oberfläche.';
 
   @override
   String get filesConnectButton => 'Dateien verbinden';
@@ -1221,14 +1221,14 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get helpWhatIsWeaveBody =>
-      'Weave ist eine Zusammenarbeits-App für Teams, die einen barrierearmen Workspace nutzen möchten, ohne Datensouveränität aufzugeben. Chat, Dateien, Kontoeinstellungen und weitere Zusammenarbeitsmodule erscheinen in Weave, während offene Dienste wie Matrix, Nextcloud, Keycloak und das Weave-Backend im Hintergrund arbeiten.';
+      'Weave ist eine Zusammenarbeits-App für Teams, die einen barrierearmen Workspace nutzen möchten, ohne Datensouveränität aufzugeben. Chat, Dateien, Kontoeinstellungen und weitere Zusammenarbeitsmodule erscheinen in Weave, während offene Dienste im Hintergrund hinter Weave-Fassaden arbeiten.';
 
   @override
   String get helpSignInTitle => 'Anmelden: Grundlagen';
 
   @override
   String get helpSignInBody =>
-      'Nutze die Workspace-Adresse deines Admins und melde dich dann einmal mit Weave-SSO an. Für die normale Nutzung solltest du keine separaten Matrix- oder Nextcloud-Passwörter brauchen. Wenn die Anmeldung scheitert oder in einer Schleife hängt, prüfe deine Verbindung, bestätige die Serveradresse in den Einstellungen und frage einen Admin, ob deine Einladung oder dein Konto aktiv ist.';
+      'Nutze die Workspace-Adresse deines Admins und melde dich dann einmal mit Weave-SSO an. Für die normale Nutzung solltest du keine separaten Passwörter für Chat, Dateien oder Kalender brauchen. Wenn die Anmeldung scheitert oder in einer Schleife hängt, prüfe deine Verbindung, bestätige die Serveradresse in den Einstellungen und frage einen Admin, ob deine Einladung oder dein Konto aktiv ist.';
 
   @override
   String get helpChatTitle => 'Chat';
@@ -1271,7 +1271,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get helpPrivacySecurityBody =>
-      'Dein Workspace kontrolliert seine eigenen Dienste und Daten. Weave nutzt SSO für den Zugriff und zeigt den Matrix-Sicherheitsstatus ehrlich an. Gehe nicht davon aus, dass Chat vollständig Ende-zu-Ende-verschlüsselt ist, solange Weave nicht meldet, dass Matrix-Verschlüsselung, Wiederherstellung und Gerätevertrauen gesund sind. Bewahre Wiederherstellungsschlüssel sicher auf und melde verlorene Geräte deinem Admin.';
+      'Dein Workspace kontrolliert seine eigenen Dienste und Daten. Weave nutzt SSO für den Zugriff und zeigt den Chat-Sicherheitsstatus ehrlich an. Gehe nicht davon aus, dass jeder Chat vollständig Ende-zu-Ende-verschlüsselt ist, solange Weave nicht meldet, dass verschlüsselte Räume, Wiederherstellung und Gerätevertrauen gesund sind. Bewahre Wiederherstellungsschlüssel sicher auf und melde verlorene Geräte deinem Admin.';
 
   @override
   String get settingsShellModulesTitle => 'Shell-Module';
@@ -1319,7 +1319,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get chatSecuritySectionDescription =>
-      'Weave behandelt Matrix-Verschlüsselung nur dann als gesund, wenn Secret Storage, Cross-Signing, Wiederherstellung und Gerätevertrauen vollständig eingerichtet sind.';
+      'Weave bewertet verschlüsselte Chaträume nur dann als gesund, wenn Secret Storage, Cross-Signing, Wiederherstellung und Gerätevertrauen vollständig eingerichtet sind.';
 
   @override
   String get chatSecurityRecoveryKeyTitle =>
@@ -1471,7 +1471,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get chatSecuritySetupDescriptionSignedOut =>
-      'Öffne Chat und verbinde Matrix, bevor du die Verschlüsselung verwaltest.';
+      'Öffne Chat und verbinde deine Chat-Sitzung, bevor du die Sicherheit verschlüsselter Räume verwaltest.';
 
   @override
   String get chatSecuritySetupDescriptionNotInitialized =>
@@ -1491,7 +1491,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get chatSecuritySetupDescriptionUnavailable =>
-      'Matrix-Verschlüsselung ist auf dieser Plattform nicht verfügbar.';
+      'Sicherheit für verschlüsselte Chaträume ist auf dieser Plattform nicht verfügbar.';
 
   @override
   String get chatSecurityCurrentDeviceDescriptionVerified =>

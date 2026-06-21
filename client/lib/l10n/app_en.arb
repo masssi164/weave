@@ -72,7 +72,7 @@
   "@providerCategoryChatTitle": {
     "description": "Provider category title for chat"
   },
-  "providerCategoryChatDetail": "Matrix/Chat is the current dogfood choice behind the Weave chat surface.",
+  "providerCategoryChatDetail": "Chat is the current dogfood service behind the Weave Chat surface.",
   "@providerCategoryChatDetail": {
     "description": "Provider category detail for chat"
   },
@@ -80,7 +80,7 @@
   "@providerCategoryFilesTitle": {
     "description": "Provider category title for files"
   },
-  "providerCategoryFilesDetail": "Nextcloud/Files is the current dogfood storage choice behind the Weave files facade.",
+  "providerCategoryFilesDetail": "File storage is the current dogfood service behind the Weave Files facade.",
   "@providerCategoryFilesDetail": {
     "description": "Provider category detail for files"
   },
@@ -88,7 +88,7 @@
   "@providerCategoryCalendarTitle": {
     "description": "Provider category title for calendar"
   },
-  "providerCategoryCalendarDetail": "Nextcloud/Calendar backing is the current dogfood choice behind the Weave calendar facade.",
+  "providerCategoryCalendarDetail": "Calendar sync is the current dogfood service behind the Weave Calendar facade.",
   "@providerCategoryCalendarDetail": {
     "description": "Provider category detail for calendar"
   },
@@ -373,7 +373,7 @@
   "firstRunSignedOutSemanticLabel": "Sign in to view your Weave first-run status. We need an active Weave SSO session before we can check your profile, role, and module readiness. Action: Go to sign in",
   "firstRunReadyTitle": "Your Weave workspace is ready",
   "firstRunNeedsAttentionTitle": "Your Weave workspace is being prepared",
-  "firstRunDescription": "You signed in once with Weave SSO. Weave is checking your profile and collaboration modules; no separate Matrix or Nextcloud credentials are needed.",
+  "firstRunDescription": "You signed in once with Weave SSO. Weave is checking your profile and collaboration modules; no separate Chat, Files, or Calendar credentials are needed.",
   "firstRunIdentitySectionTitle": "Your Weave identity",
   "firstRunIdentitySectionDescription": "This profile and role come from the Weave backend contract after SSO.",
   "firstRunDisplayNameLabel": "Name",
@@ -936,7 +936,7 @@
   "@filesProductBoundaryTitle": {
     "description": "Title for a Files card explaining the product/provider boundary"
   },
-  "filesProductBoundaryBody": "Files actions use the Weave backend facade. Nextcloud remains the storage provider and admin/fallback surface; raw provider paths and credentials are not part of the normal Files UX.",
+  "filesProductBoundaryBody": "Files actions use the Weave workspace service facade. File storage stays behind the admin/fallback surface; raw service paths and credentials are not part of the normal Files UX.",
   "@filesProductBoundaryBody": {
     "description": "Body for a Files card explaining the product/provider boundary"
   },
@@ -1388,7 +1388,7 @@
   "@helpWhatIsWeaveTitle": {
     "description": "Help section title explaining the product"
   },
-  "helpWhatIsWeaveBody": "Weave is a collaboration app for teams that want one accessible workspace without giving up data sovereignty. Chat, files, account settings, and additional collaboration modules are presented through Weave while open services such as Matrix, Nextcloud, Keycloak, and the Weave backend work behind the scenes.",
+  "helpWhatIsWeaveBody": "Weave is a collaboration app for teams that want an accessible workspace without giving up data sovereignty. Chat, files, account settings, and other collaboration modules appear in Weave while open services work behind Weave facades in the background.",
   "@helpWhatIsWeaveBody": {
     "description": "Help copy explaining what Weave is"
   },
@@ -1396,7 +1396,7 @@
   "@helpSignInTitle": {
     "description": "Help section title for sign-in basics"
   },
-  "helpSignInBody": "Use the workspace address provided by your admin, then sign in once with Weave SSO. You should not need separate Matrix or Nextcloud passwords for normal use. If sign-in loops or fails, check your connection, confirm the server address in Settings, and ask an admin whether your invite or account is active.",
+  "helpSignInBody": "Use the workspace address from your admin, then sign in once with Weave SSO. For normal use, you should not need separate Chat, Files, or Calendar passwords. If sign-in fails or loops, check your connection, confirm the server address in Settings, and ask an admin whether your invitation or account is active.",
   "@helpSignInBody": {
     "description": "Help copy for sign-in basics and recovery"
   },
@@ -1444,7 +1444,7 @@
   "@helpPrivacySecurityTitle": {
     "description": "Help section title for privacy and security basics"
   },
-  "helpPrivacySecurityBody": "Your workspace controls its own services and data. Weave uses SSO for access and shows Matrix security status honestly. Do not assume chat is fully end-to-end encrypted unless Weave says the Matrix encryption, recovery, and device-trust gates are healthy. Keep recovery keys in a safe place and report lost devices to your admin.",
+  "helpPrivacySecurityBody": "Your workspace controls its own services and data. Weave uses SSO for access and reports the Chat security status honestly. Do not assume every chat is fully end-to-end encrypted unless Weave shows that encrypted rooms, recovery, and device trust are healthy. Keep recovery keys safe and report lost devices to your admin.",
   "@helpPrivacySecurityBody": {
     "description": "Help copy for privacy and security basics"
   },
