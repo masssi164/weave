@@ -5,7 +5,11 @@ import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WeaverRuntimeProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
+import com.massimotter.weave.backend.model.WeaverRuntimeProfileResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
+import com.massimotter.weave.backend.weaver.WeaverApprovalReceipt;
+import com.massimotter.weave.backend.weaver.WeaverToolInvocationRequest;
+import com.massimotter.weave.backend.weaver.WeaverToolRegistry;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -158,6 +162,172 @@ class WeaverRuntimeServiceTest {
         assertThat(serverProjection.toString())
                 .contains("weave-domain-tools", "routingPlaneSeparated=true", "channels.weave-chat")
                 .doesNotContain("Bearer ", "openclaw.json");
+    }
+
+    @Test
+    void provesWeaverChatConsentAndMcpApprovalReceiptIntegrationFailsClosed() {
+        InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
+        WeaverRuntimeService service = service(true, runtimePropertiesWithChatSendTool(), audit);
+        WeaverToolRegistry registry = new WeaverToolRegistry(audit);
+        Jwt member = jwt("member@example.invalid", List.of("member"), List.of("weave-weaver-runtime", "chat.send"));
+        var profile = service.profileFor(member);
+
+        assertThat(profile.channelProjection())
+                .containsEntry("channelId", "channels.weave-chat")
+                .containsEntry("mcpServersProjectedSeparately", true)
+                .doesNotContainKeys("chat.send_message", "inboundMcpTransport");
+        assertThat(profile.mcpProjection().toString())
+                .contains("chat.send_message", "routingPlaneSeparated=true")
+                .doesNotContain("Bearer ", "openclaw.json", "rawProviderPayload");
+
+        Map<String, String> channelConsentStatusEvidence = Map.of(
+                "messageId", "message:member-request-001",
+                "turnId", "turn:weaver-852-001",
+                "prompt", "Send this message to channel:weave-chat-general in space:control-room?",
+                "approvalRequired", "Approval required before Weaver may send this message.",
+                "approved", "Approved. Weaver may continue with the governed tool.",
+                "denied", "Denied. No message was sent.",
+                "expired", "Expired. Please review the request again.",
+                "revoked", "Revoked. Please request approval again before sending.",
+                "alreadyUsed", "Already used. This approval cannot be replayed.",
+                "unavailable", "Tool temporarily unavailable. No message was sent.");
+        assertThat(channelConsentStatusEvidence.values())
+                .allSatisfy(value -> assertThat(value)
+                        .isNotBlank()
+                        .doesNotContain("#00ff00", "green-only", "red-only", "Bearer ", "openclaw.json"));
+        assertThat(channelConsentStatusEvidence)
+                .containsEntry("messageId", "message:member-request-001")
+                .containsEntry("turnId", "turn:weaver-852-001");
+
+        var denied = registry.invoke(chatSendRequest(profile, Map.of(
+                        "spaceRef", "space:control-room",
+                        "threadRef", "thread:weave-chat-general"),
+                null));
+
+        assertThat(denied.status()).isEqualTo("approval_required");
+        assertThat(denied.approvalRequired()).isTrue();
+        assertThat(denied.redactedResult())
+                .containsEntry("approvalReceiptValidated", false)
+                .containsEntry("auditRef", "audit://weaver-tool/chat.send_message/approval_required");
+
+        WeaverApprovalReceipt explicitlyDeniedReceipt = new WeaverApprovalReceipt(
+                "approval:chat-send:denied",
+                profile.userRef(),
+                "chat.send_message",
+                List.of("space:control-room", "thread:weave-chat-general"),
+                "policy:v32",
+                Instant.now().plusSeconds(300).toString(),
+                "audit://weaver-approval/denied");
+        var explicitlyDenied = registry.invoke(chatSendRequest(profile, Map.of(
+                        "spaceRef", "space:control-room",
+                        "threadRef", "thread:weave-chat-general",
+                        "policyVersion", "policy:v32"),
+                explicitlyDeniedReceipt));
+        assertThat(explicitlyDenied.status()).isEqualTo("approval_denied");
+
+        WeaverApprovalReceipt revokedReceipt = new WeaverApprovalReceipt(
+                "approval:chat-send:revoked",
+                profile.userRef(),
+                "chat.send_message",
+                List.of("space:control-room", "thread:weave-chat-general"),
+                "policy:v32",
+                Instant.now().plusSeconds(300).toString(),
+                "audit://weaver-approval/revoked");
+        var revoked = registry.invoke(chatSendRequest(profile, Map.of(
+                        "spaceRef", "space:control-room",
+                        "threadRef", "thread:weave-chat-general",
+                        "policyVersion", "policy:v32"),
+                revokedReceipt));
+        assertThat(revoked.status()).isEqualTo("approval_revoked");
+
+        WeaverApprovalReceipt expiredReceipt = new WeaverApprovalReceipt(
+                "approval:chat-send:expired",
+                profile.userRef(),
+                "chat.send_message",
+                List.of("space:control-room"),
+                "policy:v32",
+                Instant.now().minusSeconds(60).toString(),
+                "audit://weaver-approval/expired");
+        var expired = registry.invoke(chatSendRequest(profile, Map.of("spaceRef", "space:control-room"), expiredReceipt));
+        assertThat(expired.status()).isEqualTo("approval_timeout");
+        assertThat(expired.redactedResult()).containsEntry("auditRef", "audit://weaver-tool/chat.send_message/approval_timeout");
+
+        WeaverApprovalReceipt policyMismatchReceipt = new WeaverApprovalReceipt(
+                "approval:chat-send:policy-mismatch",
+                profile.userRef(),
+                "chat.send_message",
+                List.of("space:control-room", "thread:weave-chat-general"),
+                "policy:v31",
+                Instant.now().plusSeconds(300).toString(),
+                "audit://weaver-approval/policy-mismatch");
+        var policyMismatch = registry.invoke(chatSendRequest(profile, Map.of(
+                        "spaceRef", "space:control-room",
+                        "threadRef", "thread:weave-chat-general",
+                        "policyVersion", "policy:v32"),
+                policyMismatchReceipt));
+        assertThat(policyMismatch.status()).isEqualTo("approval_receipt_invalid");
+
+        WeaverApprovalReceipt validReceipt = new WeaverApprovalReceipt(
+                "approval:chat-send:32:001",
+                profile.userRef(),
+                "chat.send_message",
+                List.of("space:control-room", "thread:weave-chat-general"),
+                "policy:v32",
+                Instant.now().plusSeconds(300).toString(),
+                "audit://weaver-approval/chat-send/001");
+        WeaverToolInvocationRequest approvedRequest = chatSendRequest(profile, Map.of(
+                        "spaceRef", "space:control-room",
+                        "threadRef", "thread:weave-chat-general",
+                        "policyVersion", "policy:v32"),
+                validReceipt);
+        var approved = registry.invoke(approvedRequest);
+        var duplicate = registry.invoke(approvedRequest);
+        var mcpDown = service.profileByHash(member, "sha256:mcp-down-or-profile-unavailable");
+
+        assertThat(approved.status()).isEqualTo("ok");
+        assertThat(approved.approvalRequired()).isFalse();
+        assertThat(approved.redactedResult())
+                .containsEntry("approvalReceiptAuditRef", "audit://weaver-approval/chat-send/001")
+                .containsEntry("rawProviderPayload", "redacted")
+                .containsEntry("auditRef", "audit://weaver-tool/chat.send_message/invoked");
+        assertThat(duplicate.status()).isEqualTo("duplicate_approval_receipt");
+        assertThat(duplicate.redactedResult()).containsEntry("auditRef", "audit://weaver-tool/chat.send_message/duplicate_approval_receipt");
+        assertThat(mcpDown.enabled()).isFalse();
+        assertThat(mcpDown.posture()).isEqualTo("runtime-profile-hash-not-issued");
+
+        assertThat(audit.events())
+                .filteredOn(event -> event.action() == AuditAction.WEAVER_TOOL_INVOCATION_RECORDED)
+                .extracting(event -> event.payload().get("decision"))
+                .contains(
+                        "approval_required",
+                        "approval_denied",
+                        "approval_revoked",
+                        "approval_timeout",
+                        "approval_receipt_invalid",
+                        "invoked",
+                        "duplicate_approval_receipt");
+        assertThat(audit.events().toString())
+                .doesNotContain("member@example.invalid", "Bearer ", "refresh_token", "openclaw.json", "raw-provider", "private prompt");
+    }
+
+    private WeaverToolInvocationRequest chatSendRequest(
+            WeaverRuntimeProfileResponse profile,
+            Map<String, Object> input,
+            WeaverApprovalReceipt approvalReceipt) {
+        return new WeaverToolInvocationRequest(
+                "chat.send_message",
+                profile.userRef(),
+                profile.runtimeProfileHash(),
+                profile.userRef(),
+                profile.signature(),
+                profile.revoked(),
+                String.valueOf(profile.supportSafeProfileReceipt().getOrDefault("runtimeTokenExpiresAt", "")),
+                true,
+                profile.allowedCapabilities(),
+                profile.toolAllowlist(),
+                input,
+                approvalReceipt == null ? null : approvalReceipt.receiptRef(),
+                approvalReceipt);
     }
 
     @Test
@@ -386,7 +556,7 @@ class WeaverRuntimeServiceTest {
                 false);
     }
 
-    private WeaverRuntimeProperties runtimePropertiesWithWriteTool() {
+    private WeaverRuntimeProperties runtimePropertiesWithChatSendTool() {
         return new WeaverRuntimeProperties(
                 true,
                 null,
@@ -395,9 +565,9 @@ class WeaverRuntimeServiceTest {
                 null,
                 null,
                 List.of("weave-weaver-runtime"),
-                List.of("files.read", "calendar.manage_events", "weaver.exec_disabled"),
+                List.of("files.read", "chat.send", "weaver.exec_disabled"),
                 List.of("weave-files-readonly"),
-                List.of("files.read", "calendar.create_event"),
+                List.of("files.read", "chat.send_message"),
                 false,
                 false,
                 true,
