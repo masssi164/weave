@@ -122,15 +122,6 @@ public class WeaverToolRegistry {
     }
 
     private String governanceDenial(WeaverToolInvocationRequest request, WeaverDomainToolDefinition definition) {
-        if (!request.runtimeProfileSignature().startsWith("weave-signature:v1:")) {
-            return "runtime_profile_unsigned";
-        }
-        if (!request.userRef().equals(request.runtimeProfileUserRef())) {
-            return "runtime_profile_user_mismatch";
-        }
-        if (request.runtimeProfileRevoked()) {
-            return "runtime_profile_revoked";
-        }
         if (runtimeTokenExpired(request.runtimeTokenExpiresAt())) {
             return "runtime_token_expired";
         }
@@ -228,6 +219,8 @@ public class WeaverToolRegistry {
         Map<String, Object> safePayload = new LinkedHashMap<>(payload);
         String safeUserRef = userRef == null || userRef.isBlank() ? "user:unknown" : userRef;
         safePayload.putIfAbsent("runtimeProfileHash", runtimeProfileHash);
+        safePayload.putIfAbsent("runtimeProfileAuthority", "correlation_only");
+        safePayload.putIfAbsent("policyEnforcementPoint", "weave-mcp-server");
         safePayload.putIfAbsent("user", safeUserRef);
         safePayload.put("toolName", toolName);
         safePayload.putIfAbsent("tool", toolName);

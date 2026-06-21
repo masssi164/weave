@@ -148,16 +148,105 @@ class WeaverToolRegistryTest {
     }
 
     @Test
-    void failsClosedForUnsignedRevokedExpiredMismatchedConsentAndOverbroadGovernance() {
+    void mismatchedApprovalReceiptScopeFailsClosedBeforeInvocation() {
         InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
         WeaverToolRegistry registry = new WeaverToolRegistry(audit);
 
-        assertThat(registry.invoke(governedRequest("runtime_profile_unsigned", "", false, future(), true, "user:abc123", List.of("boards.comment"))).status())
-                .isEqualTo("runtime_profile_unsigned");
-        assertThat(registry.invoke(governedRequest("runtime_profile_user_mismatch", signature(), false, future(), true, "user:other", List.of("boards.comment"))).status())
-                .isEqualTo("runtime_profile_user_mismatch");
-        assertThat(registry.invoke(governedRequest("runtime_profile_revoked", signature(), true, future(), true, "user:abc123", List.of("boards.comment"))).status())
-                .isEqualTo("runtime_profile_revoked");
+        var result = registry.invoke(new WeaverToolInvocationRequest(
+                "boards.comment",
+                "user:abc123",
+                "sha256:scope-mismatch000000000000000000000000000000000000000000000000",
+                "user:abc123",
+                signature(),
+                false,
+                future(),
+                true,
+                List.of("weaver.boards_write"),
+                List.of("boards.comment"),
+                Map.of(
+                        "spaceRef", "space:control-room",
+                        "decisionRef", "decision:governed-weaver",
+                        "boardTaskRef", "board-task:WEAVE-602",
+                        "body", "Looks good"),
+                "approval:abc123",
+                new WeaverApprovalReceipt(
+                        "approval:abc123",
+                        "user:abc123",
+                        "boards.comment",
+                        List.of("space:control-room", "decision:governed-weaver", "board-task:WEAVE-601"),
+                        "policy:test",
+                        future(),
+                        "audit://weaver-approval/test")));
+
+        assertThat(result.status()).isEqualTo("approval_scope_mismatch");
+        assertThat(result.approvalRequired()).isFalse();
+        assertThat(result.redactedResult()).containsEntry("approvalReceiptValidated", false);
+        assertThat(result.redactedResult().get("canonicalRefs").toString())
+                .contains("space:control-room", "decision:governed-weaver", "board-task:WEAVE-602")
+                .doesNotContain("WEAVE-601");
+        assertThat(audit.events()).hasSize(1);
+        assertThat(audit.events().get(0).payload())
+                .containsEntry("status", "approval_scope_mismatch")
+                .containsEntry("approvalReceiptValidated", false)
+                .containsEntry("serverApprovalDecision", false);
+        assertThat(audit.events().get(0).payload().toString()).doesNotContain("Looks good", "provider payload", "secret");
+    }
+
+    @Test
+    void runtimeDeniedOrTimedOutApprovalFailsClosedWithoutServerDecision() {
+        InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
+        WeaverToolRegistry registry = new WeaverToolRegistry(audit);
+
+        var denied = registry.invoke(new WeaverToolInvocationRequest(
+                "boards.comment",
+                "user:abc123",
+                "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+                List.of("weaver.boards_write"),
+                Map.of("boardTaskRef", "board-task:WEAVE-833", "body", "provider payload must stay out"),
+                "approval:denied:user-runtime"));
+        var timedOut = registry.invoke(new WeaverToolInvocationRequest(
+                "boards.comment",
+                "user:abc123",
+                "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                List.of("weaver.boards_write"),
+                Map.of("boardTaskRef", "board-task:WEAVE-833", "body", "provider payload must stay out"),
+                "approval:timeout:user-runtime"));
+
+        assertThat(denied.status()).isEqualTo("approval_denied");
+        assertThat(timedOut.status()).isEqualTo("approval_timeout");
+        assertThat(denied.approvalRequired()).isFalse();
+        assertThat(timedOut.approvalRequired()).isFalse();
+        assertThat(audit.events()).hasSize(2);
+        assertThat(audit.events()).allSatisfy(event -> assertThat(event.payload())
+                .containsEntry("approvalAuthority", "user_openclaw_runtime")
+                .containsEntry("serverApprovalDecision", false)
+                .containsEntry("supportSafe", true));
+        assertThat(audit.events().toString()).doesNotContain("provider payload", "secret", "Bearer ");
+    }
+
+    @Test
+    void readOnlyToolsDoNotRequestApprovalToAvoidApprovalFatigue() {
+        InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
+        WeaverToolRegistry registry = new WeaverToolRegistry(audit);
+
+        var result = registry.invoke(new WeaverToolInvocationRequest(
+                "calendar.search_events",
+                "user:abc123",
+                "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+                List.of("weaver.calendar_read"),
+                Map.of("query", "today"),
+                null));
+
+        assertThat(result.status()).isEqualTo("ok");
+        assertThat(result.approvalRequired()).isFalse();
+        assertThat(result.redactedResult()).containsEntry("approvalAuthority", "not_required");
+    }
+
+    @Test
+    void failsClosedForServerPolicyConsentExpiryAndOverbroadGovernanceButNotRuntimeProfileMarkers() {
+        InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
+        WeaverToolRegistry registry = new WeaverToolRegistry(audit);
+
         assertThat(registry.invoke(governedRequest("runtime_token_expired", signature(), false, Instant.now().minusSeconds(60).toString(), true, "user:abc123", List.of("boards.comment"))).status())
                 .isEqualTo("runtime_token_expired");
         assertThat(registry.invoke(governedRequest("consent_required", signature(), false, future(), false, "user:abc123", List.of("boards.comment"))).status())
@@ -165,21 +254,46 @@ class WeaverToolRegistryTest {
         assertThat(registry.invoke(governedRequest("overbroad_grant", signature(), false, future(), true, "user:abc123", List.of("boards.*"))).status())
                 .isEqualTo("overbroad_grant");
 
-        assertThat(audit.events()).hasSize(6);
+        assertThat(audit.events()).hasSize(3);
         assertThat(audit.events()).extracting(event -> event.payload().get("status"))
                 .containsExactly(
-                        "runtime_profile_unsigned",
-                        "runtime_profile_user_mismatch",
-                        "runtime_profile_revoked",
                         "runtime_token_expired",
                         "consent_required",
                         "overbroad_grant");
         assertThat(audit.events()).allSatisfy(event -> {
             assertThat(event.action()).isEqualTo(AuditAction.WEAVER_TOOL_INVOCATION_RECORDED);
-            assertThat(event.payload()).containsEntry("supportSafe", true);
+            assertThat(event.payload())
+                    .containsEntry("supportSafe", true)
+                    .containsEntry("runtimeProfileAuthority", "correlation_only")
+                    .containsEntry("policyEnforcementPoint", "weave-mcp-server");
             assertThat(event.payload()).containsKeys("runtimeProfileHash", "user", "tool", "decision", "auditRef");
             assertThat(event.payload().toString()).doesNotContain("prompt", "Bearer ", "refresh_token", "providerRoom");
         });
+    }
+
+    @Test
+    void runtimeProfileMarkersAreCorrelationOnlyAndCannotOverrideServerPolicyApproval() {
+        InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
+        WeaverToolRegistry registry = new WeaverToolRegistry(audit);
+
+        var unsignedMismatchedRevokedProfile = registry.invoke(governedRequest(
+                "profile_marker_correlation_only",
+                "",
+                true,
+                future(),
+                true,
+                "user:other",
+                List.of("boards.comment")));
+
+        assertThat(unsignedMismatchedRevokedProfile.status()).isEqualTo("approval_required");
+        assertThat(unsignedMismatchedRevokedProfile.approvalRequired()).isTrue();
+        assertThat(audit.events()).hasSize(1);
+        assertThat(audit.events().get(0).payload())
+                .containsEntry("status", "approval_required")
+                .containsEntry("runtimeProfileAuthority", "correlation_only")
+                .containsEntry("policyEnforcementPoint", "weave-mcp-server");
+        assertThat(audit.events().get(0).payload().toString())
+                .doesNotContain("runtime_profile_unsigned", "runtime_profile_user_mismatch", "runtime_profile_revoked");
     }
 
     @Test

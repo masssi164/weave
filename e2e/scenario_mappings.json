@@ -1032,7 +1032,7 @@
         {
           "path": "docs/architecture/weaver-openclaw-profile.md",
           "fragments": [
-            "The signed `WeaverRuntimeProfile` is the single source consumed by the OpenClaw-derived Weaver runtime.",
+            "The `WeaverRuntimeProfile` is a support-safe runtime projection consumed by the OpenClaw-derived Weaver runtime, not the hard authorization boundary for governed tool calls.",
             "Matrix, Teams, iMessage, Slack, Telegram, or another supported provider are backend providerRefs",
             "Admin Chat provider changes are provider migrations, not member adapter switches"
           ]

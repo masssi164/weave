@@ -98,7 +98,8 @@ class WeaverRuntimeServiceTest {
                 .doesNotContainKeys("mcp", "mcpServerBindings");
         assertThat(profile.channelProjection().get("runtimeProfileFetch").toString())
                 .contains("fetchRef=weave-runtime-profile://" + profile.runtimeProfileHash())
-                .contains("signatureRequired=true", "revocationChecked=true", "rawProfileBodyReturnedToMembers=false");
+                .contains("runtimeProfileAuthority=correlation_only", "policyEnforcementPoint=weave-mcp-server", "rawProfileBodyReturnedToMembers=false")
+                .doesNotContain("signatureRequired=true", "revocationChecked=true");
         assertThat(profile.mcpProjection())
                 .containsEntry("supportSafe", true)
                 .containsEntry("denyByDefault", true)
