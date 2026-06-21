@@ -146,10 +146,22 @@ public class WeaverMcpBridgeService {
     }
 
     private WeaverApprovalReceipt approvalReceipt(BridgeInvocationRequest request) {
-        // A receipt ref is only a correlation pointer. Until the bridge receives a
-        // server-verifiable ApprovalReceipt payload/source, it must not fabricate
-        // actor/action/scope/policy/expiry/audit bindings from that ref.
-        return null;
+        if (request.approvalReceipt() == null) {
+            return null;
+        }
+        var receipt = request.approvalReceipt();
+        if (request.runtime().approvalReceiptRef() != null
+                && !request.runtime().approvalReceiptRef().value().equals(receipt.receiptRef())) {
+            return null;
+        }
+        return new WeaverApprovalReceipt(
+                receipt.receiptRef(),
+                receipt.actorRef(),
+                receipt.action(),
+                receipt.scopeRefs(),
+                receipt.policyVersion(),
+                receipt.expiresAt(),
+                receipt.auditRef());
     }
 
     private BridgeInvocationResponse bridgeInvocationResponse(String toolName, ToolInvocationStatus status, String auditRef, String message, Map<String, Object> structuredContent) {

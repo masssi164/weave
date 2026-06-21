@@ -21,6 +21,25 @@ public final class WeaveMcpBridgeDtos {
         }
     }
 
+    public record ApprovalReceipt(
+            String receiptRef,
+            String actorRef,
+            String action,
+            List<String> scopeRefs,
+            String policyVersion,
+            String expiresAt,
+            String auditRef) {
+        public ApprovalReceipt {
+            receiptRef = WeaveMcpTypes.text(receiptRef, "receiptRef");
+            actorRef = WeaveMcpTypes.text(actorRef, "actorRef");
+            action = WeaveMcpTypes.text(action, "action");
+            scopeRefs = WeaveMcpTypes.copyStrings(scopeRefs);
+            policyVersion = WeaveMcpTypes.text(policyVersion, "policyVersion");
+            expiresAt = WeaveMcpTypes.text(expiresAt, "expiresAt");
+            auditRef = WeaveMcpTypes.text(auditRef, "auditRef");
+        }
+    }
+
     public record RuntimeInvocationContext(
             WeaveMcpRef orgRef,
             WeaveMcpRef userRef,
@@ -105,11 +124,15 @@ public final class WeaveMcpBridgeDtos {
         }
     }
 
-    public record BridgeInvocationRequest(String toolName, Map<String, Object> arguments, RuntimeInvocationContext runtime) {
+    public record BridgeInvocationRequest(String toolName, Map<String, Object> arguments, RuntimeInvocationContext runtime, ApprovalReceipt approvalReceipt) {
         public BridgeInvocationRequest {
             toolName = WeaveMcpTypes.text(toolName, "toolName");
             arguments = WeaveMcpTypes.copyMap(arguments);
             if (runtime == null) throw new IllegalArgumentException("runtime must not be null");
+        }
+
+        public BridgeInvocationRequest(String toolName, Map<String, Object> arguments, RuntimeInvocationContext runtime) {
+            this(toolName, arguments, runtime, null);
         }
     }
 

@@ -188,6 +188,8 @@ class WeaverRuntimeServiceTest {
                 "approved", "Approved. Weaver may continue with the governed tool.",
                 "denied", "Denied. No message was sent.",
                 "expired", "Expired. Please review the request again.",
+                "revoked", "Revoked. Please request approval again before sending.",
+                "alreadyUsed", "Already used. This approval cannot be replayed.",
                 "unavailable", "Tool temporarily unavailable. No message was sent.");
         assertThat(channelConsentStatusEvidence.values())
                 .allSatisfy(value -> assertThat(value)
@@ -199,7 +201,7 @@ class WeaverRuntimeServiceTest {
 
         var denied = registry.invoke(chatSendRequest(profile, Map.of(
                         "spaceRef", "space:control-room",
-                        "channelRef", "channel:weave-chat-general"),
+                        "threadRef", "thread:weave-chat-general"),
                 null));
 
         assertThat(denied.status()).isEqualTo("approval_required");
@@ -212,13 +214,13 @@ class WeaverRuntimeServiceTest {
                 "approval:chat-send:denied",
                 profile.userRef(),
                 "chat.send_message",
-                List.of("space:control-room", "channel:weave-chat-general"),
+                List.of("space:control-room", "thread:weave-chat-general"),
                 "policy:v32",
                 Instant.now().plusSeconds(300).toString(),
                 "audit://weaver-approval/denied");
         var explicitlyDenied = registry.invoke(chatSendRequest(profile, Map.of(
                         "spaceRef", "space:control-room",
-                        "channelRef", "channel:weave-chat-general",
+                        "threadRef", "thread:weave-chat-general",
                         "policyVersion", "policy:v32"),
                 explicitlyDeniedReceipt));
         assertThat(explicitlyDenied.status()).isEqualTo("approval_denied");
@@ -227,13 +229,13 @@ class WeaverRuntimeServiceTest {
                 "approval:chat-send:revoked",
                 profile.userRef(),
                 "chat.send_message",
-                List.of("space:control-room", "channel:weave-chat-general"),
+                List.of("space:control-room", "thread:weave-chat-general"),
                 "policy:v32",
                 Instant.now().plusSeconds(300).toString(),
                 "audit://weaver-approval/revoked");
         var revoked = registry.invoke(chatSendRequest(profile, Map.of(
                         "spaceRef", "space:control-room",
-                        "channelRef", "channel:weave-chat-general",
+                        "threadRef", "thread:weave-chat-general",
                         "policyVersion", "policy:v32"),
                 revokedReceipt));
         assertThat(revoked.status()).isEqualTo("approval_revoked");
@@ -254,13 +256,13 @@ class WeaverRuntimeServiceTest {
                 "approval:chat-send:policy-mismatch",
                 profile.userRef(),
                 "chat.send_message",
-                List.of("space:control-room", "channel:weave-chat-general"),
+                List.of("space:control-room", "thread:weave-chat-general"),
                 "policy:v31",
                 Instant.now().plusSeconds(300).toString(),
                 "audit://weaver-approval/policy-mismatch");
         var policyMismatch = registry.invoke(chatSendRequest(profile, Map.of(
                         "spaceRef", "space:control-room",
-                        "channelRef", "channel:weave-chat-general",
+                        "threadRef", "thread:weave-chat-general",
                         "policyVersion", "policy:v32"),
                 policyMismatchReceipt));
         assertThat(policyMismatch.status()).isEqualTo("approval_receipt_invalid");
@@ -269,13 +271,13 @@ class WeaverRuntimeServiceTest {
                 "approval:chat-send:32:001",
                 profile.userRef(),
                 "chat.send_message",
-                List.of("space:control-room", "channel:weave-chat-general"),
+                List.of("space:control-room", "thread:weave-chat-general"),
                 "policy:v32",
                 Instant.now().plusSeconds(300).toString(),
                 "audit://weaver-approval/chat-send/001");
         WeaverToolInvocationRequest approvedRequest = chatSendRequest(profile, Map.of(
                         "spaceRef", "space:control-room",
-                        "channelRef", "channel:weave-chat-general",
+                        "threadRef", "thread:weave-chat-general",
                         "policyVersion", "policy:v32"),
                 validReceipt);
         var approved = registry.invoke(approvedRequest);

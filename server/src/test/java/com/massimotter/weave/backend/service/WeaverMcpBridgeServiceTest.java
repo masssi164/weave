@@ -8,6 +8,7 @@ import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
 import com.massimotter.weave.backend.weaver.MemberDomainToolDispatcher;
 import com.massimotter.weave.backend.weaver.WeaverToolRegistry;
 import com.massimotter.weave.contract.mcp.MemberMcpToolCatalog;
+import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.ApprovalReceipt;
 import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.ApprovalReceiptRef;
 import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.BridgeInvocationRequest;
 import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.RuntimeInvocationContext;
@@ -122,7 +123,44 @@ class WeaverMcpBridgeServiceTest {
         verifyNoInteractions(fixture.dispatcher);
     }
 
+    @Test
+    void verifiableApprovalReceiptWithCanonicalScopeAuthorizesWriteToolDispatch() {
+        Fixture fixture = fixture();
+        var profile = fixture.runtimeService.profileFor(jwt());
+        when(fixture.dispatcher.dispatch("calendar.create_event", Map.of("title", "Planning", "calendarRef", "calendar:team", "policyVersion", "policy:support-safe-bridge-v1")))
+                .thenReturn(Map.of(
+                        "status", "ok",
+                        "supportSafe", true,
+                        "event", Map.of("id", "calendar-event:created"),
+                        "auditRef", "audit://calendar/create/support-safe",
+                        "rawProviderPayload", "redacted"));
+
+        var response = fixture.bridge.invokeMcpTool(jwt(), MemberMcpToolCatalog.SERVER_NAMESPACE, "calendar.create_event",
+                request(
+                        "calendar.create_event",
+                        profile.runtimeProfileHash(),
+                        profile.userRef(),
+                        new ApprovalReceiptRef("approval://calendar-create/1"),
+                        Map.of("title", "Planning", "calendarRef", "calendar:team", "policyVersion", "policy:support-safe-bridge-v1"),
+                        new ApprovalReceipt(
+                                "approval://calendar-create/1",
+                                profile.userRef(),
+                                "calendar.create_event",
+                                List.of("calendar:team"),
+                                "policy:support-safe-bridge-v1",
+                                Instant.now().plusSeconds(300).toString(),
+                                "audit://weaver-approval/calendar-create/1")));
+
+        assertThat(response.status()).isEqualTo(ToolInvocationStatus.SUCCESS);
+        assertThat(response.structuredContent().get("structuredContent").toString()).contains("calendar-event:created");
+        verify(fixture.dispatcher).dispatch("calendar.create_event", Map.of("title", "Planning", "calendarRef", "calendar:team", "policyVersion", "policy:support-safe-bridge-v1"));
+    }
+
     private BridgeInvocationRequest request(String toolName, String profileHash, String userRef, ApprovalReceiptRef approvalReceiptRef, Map<String, Object> arguments) {
+        return request(toolName, profileHash, userRef, approvalReceiptRef, arguments, null);
+    }
+
+    private BridgeInvocationRequest request(String toolName, String profileHash, String userRef, ApprovalReceiptRef approvalReceiptRef, Map<String, Object> arguments, ApprovalReceipt approvalReceipt) {
         return new BridgeInvocationRequest(toolName, arguments, new RuntimeInvocationContext(
                 new WeaveMcpRef("org:workspace"),
                 new WeaveMcpRef(userRef),
@@ -133,7 +171,8 @@ class WeaverMcpBridgeServiceTest {
                 approvalReceiptRef,
                 null,
                 List.of(),
-                List.of()));
+                List.of()),
+                approvalReceipt);
     }
 
     private Fixture fixture() {
