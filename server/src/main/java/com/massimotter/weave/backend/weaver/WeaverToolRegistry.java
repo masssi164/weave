@@ -56,21 +56,41 @@ public class WeaverToolRegistry {
         boolean approvalReceiptValidated = false;
         if (definition.writeLike()) {
             WeaverApprovalReceipt approvalReceipt = request.approvalReceipt();
-            if (approvalReceipt == null || !approvalReceipt.validFor(request.userRef(), request.toolName(), canonicalScopeRefs(request.input()))) {
-                audit(request.userRef(), request.runtimeProfileHash(), request.toolName(), "approval_required", Map.of(
+            String terminalApprovalStatus = terminalApprovalStatus(request.approvalReceiptRef(), approvalReceipt);
+            if (terminalApprovalStatus != null) {
+                audit(request.userRef(), request.runtimeProfileHash(), request.toolName(), terminalApprovalStatus, Map.of(
                         "domain", definition.domain(),
+                        "approvalAuthority", "user_openclaw_runtime",
                         "approvalReceiptValidated", false,
-                        "auditRef", auditRef(request.toolName(), "approval_required")));
+                        "serverApprovalDecision", false,
+                        "auditRef", auditRef(request.toolName(), terminalApprovalStatus)));
+                return blocked(request.toolName(), terminalApprovalStatus, "Weaver action failed closed after the user runtime did not approve it.");
+            }
+            List<String> requiredScopeRefs = canonicalScopeRefs(request.input());
+            if (approvalReceipt == null || !approvalReceipt.validFor(request.userRef(), request.toolName(), requiredScopeRefs)) {
+                String status = approvalReceipt == null ? "approval_required" : "approval_scope_mismatch";
+                audit(request.userRef(), request.runtimeProfileHash(), request.toolName(), status, Map.of(
+                        "domain", definition.domain(),
+                        "approvalAuthority", "user_openclaw_runtime",
+                        "approvalReceiptValidated", false,
+                        "serverApprovalDecision", false,
+                        "canonicalRefs", requiredScopeRefs,
+                        "auditRef", auditRef(request.toolName(), status)));
                 return new WeaverToolInvocationResult(
                         request.toolName(),
-                        "approval_required",
-                        true,
+                        status,
+                        approvalReceipt == null,
                         true,
                         Map.of(
                                 "approvalPolicy", definition.approvalRequirement().name(),
+                                "approvalAuthority", "user_openclaw_runtime",
+                                "serverApprovalDecision", false,
                                 "approvalReceiptValidated", false,
-                                "auditRef", auditRef(request.toolName(), "approval_required")),
-                        "This action requires a valid approval receipt before Weaver may continue.");
+                                "canonicalRefs", canonicalRefs(request.input()),
+                                "auditRef", auditRef(request.toolName(), status)),
+                        approvalReceipt == null
+                                ? "This action requires a valid approval receipt before Weaver may continue."
+                                : "Approval receipt scope does not match the Weaver tool invocation.");
             }
             approvalReceiptValidated = true;
         }
@@ -99,6 +119,7 @@ public class WeaverToolRegistry {
         base.put("approvalReceiptAuditRef", request.approvalReceipt() == null ? "none" : request.approvalReceipt().auditRef());
         base.put("rawProviderPayload", "redacted");
         base.put("auditRef", auditRef(request.toolName(), "invoked"));
+        base.put("approvalAuthority", definition.writeLike() ? "user_openclaw_runtime" : "not_required");
         if ("identity.read".equals(definition.name())) {
             base.put("identity", Map.of(
                     "userRef", request.userRef(),
@@ -134,6 +155,21 @@ public class WeaverToolRegistry {
         if (definition != null && request.scopedToolGrants().stream()
                 .anyMatch(grant -> grant.startsWith(definition.domain() + ".") || grant.endsWith(".*"))) {
             return "overbroad_grant";
+        }
+        return null;
+    }
+
+    private String terminalApprovalStatus(String approvalReceiptRef, WeaverApprovalReceipt approvalReceipt) {
+        String marker = approvalReceipt != null ? approvalReceipt.receiptRef() : approvalReceiptRef;
+        if (marker == null) {
+            return null;
+        }
+        String normalized = marker.strip().toLowerCase();
+        if (normalized.contains("denied") || normalized.contains("deny")) {
+            return "approval_denied";
+        }
+        if (normalized.contains("timeout") || normalized.contains("expired")) {
+            return "approval_timeout";
         }
         return null;
     }
