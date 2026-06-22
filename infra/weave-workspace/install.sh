@@ -452,6 +452,19 @@ keycloak_admin_get_query() {
     "http://${LOOPBACK_HOST}:${TF_VAR_keycloak_host_port}${path}"
 }
 
+keycloak_admin_put_json() {
+  local path="$1"
+  local body="$2"
+  local token=""
+
+  token="$(keycloak_admin_token)"
+  curl -fsS -X PUT \
+    -H "Authorization: Bearer ${token}" \
+    -H 'Content-Type: application/json' \
+    --data "${body}" \
+    "http://${LOOPBACK_HOST}:${TF_VAR_keycloak_host_port}${path}" >/dev/null
+}
+
 keycloak_json_id_by_field() {
   local field="$1"
   local value="$2"
@@ -538,6 +551,23 @@ keycloak_lookup_client_mapper_id() {
 
   keycloak_admin_get "/admin/realms/${TF_VAR_tenant_slug}/clients/${client_uuid}/protocol-mappers/models" |
     keycloak_json_id_by_field name "${name}"
+}
+
+ensure_keycloak_test_user_password() {
+  local user_id=""
+  local body=""
+
+  if ! create_test_user_enabled; then
+    return
+  fi
+
+  [[ -n "${TF_VAR_test_user_password:-}" ]] || fail "Cannot repair Keycloak test-user credentials without TF_VAR_test_user_password."
+  user_id="$(keycloak_lookup_user_id test)"
+  [[ -n "${user_id}" ]] || fail "Cannot repair Keycloak test-user credentials because user test was not found."
+
+  body="$(jq -cn --arg password "${TF_VAR_test_user_password}" '{type:"password", temporary:false, value:$password}')"
+  keycloak_admin_put_json "/admin/realms/${TF_VAR_tenant_slug}/users/${user_id}/reset-password" "${body}"
+  log "Ensured Keycloak integration test-user credential matches the current test-stack SecretRef."
 }
 
 ensure_existing_keycloak_terraform_state() {
@@ -1695,6 +1725,7 @@ main() {
 
   log "Applying Keycloak configuration module..."
   terraform_apply "${KEYCLOAK_DIR}"
+  ensure_keycloak_test_user_password
 
   log "Waiting for Weave backend readiness..."
   wait_for_http_200 "Weave backend" "http://${LOOPBACK_HOST}:${TF_VAR_backend_host_port}/api/health/ready"
