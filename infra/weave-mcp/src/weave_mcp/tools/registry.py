@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from ..client import WeaveBackendClient
+from ..openapi_routes import assert_route_map_matches_openapi, require_openapi_route
 from ..schemas.common import (
     McpDenied,
     RuntimeContext,
@@ -15,6 +16,8 @@ from ..schemas.common import (
 from ..redaction import assert_support_safe
 
 Handler = Callable[[RuntimeContext, dict[str, Any], WeaveBackendClient], dict[str, Any]]
+
+assert_route_map_matches_openapi()
 
 TOOL_DEFINITIONS: dict[str, ToolDefinition] = {
     "admin.get_readiness": ToolDefinition(
@@ -106,13 +109,23 @@ HANDLERS: dict[str, Handler] = {
 def discover(ctx: RuntimeContext | None) -> list[dict[str, Any]]:
     grants = ctx.capability_grants if ctx is not None else frozenset()
     allowed_tools = ctx.allowed_tools if ctx is not None else frozenset()
-    return [
-        definition.discovery(definition.capability in grants and definition.name in allowed_tools)
-        for definition in TOOL_DEFINITIONS.values()
-    ]
+    discovered: list[dict[str, Any]] = []
+    for definition in TOOL_DEFINITIONS.values():
+        route = require_openapi_route(definition.name)
+        tool = definition.discovery(definition.capability in grants and definition.name in allowed_tools)
+        tool["meta"] = {
+            **tool["meta"],
+            "openApiOperationId": route.operation_id,
+            "openApiMethod": route.method,
+            "openApiPath": route.path,
+            "exposure": "explicit-openapi-route-map",
+        }
+        discovered.append(tool)
+    return discovered
 
 
 def invoke(name: str, ctx: RuntimeContext, payload: dict[str, Any], client: WeaveBackendClient) -> dict[str, Any]:
+    require_openapi_route(name)
     definition = TOOL_DEFINITIONS.get(name)
     if definition is None:
         raise McpDenied("unknown-tool")
