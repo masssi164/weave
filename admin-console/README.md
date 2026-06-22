@@ -21,7 +21,11 @@ Separate React + MUI admin surface for organization owners, admins, and operator
 cd admin-console
 npm install
 npm run ci
+npm run generate:openapi
+npm run check:openapi
 ```
+
+OpenAPI consumer types are generated from the server-owned artifact at `contracts/openapi/weave-openapi.json`. Use the root commands `./gradlew generateOpenApiContract generateAdminOpenApiTypes` after server contract changes and `./gradlew checkOpenApiContractFresh checkAdminOpenApiTypesFresh` to fail on stale generated artifacts.
 
 ## Dependency update policy
 

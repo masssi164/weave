@@ -1,5 +1,8 @@
 package com.massimotter.weave.backend.controller;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -7,6 +10,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -27,7 +31,7 @@ class OpenApiDocumentationTest {
 
     @Test
     void exposesOpenApiDescription() throws Exception {
-        mockMvc.perform(get("/v3/api-docs"))
+        MvcResult result = mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.openapi").value(startsWith("3.")))
                 .andExpect(jsonPath("$.info.title").value("Weave Backend API"))
@@ -95,6 +99,14 @@ class OpenApiDocumentationTest {
                 .andExpect(jsonPath("$.components.schemas.ApiErrorResponse.properties.message.type").value("string"))
                 .andExpect(jsonPath("$.components.schemas.ApiErrorResponse.properties.requestId.type").value("string"))
                 .andExpect(jsonPath("$.components.responses.UnauthorizedError.description").value("Missing or invalid bearer token."))
-                .andExpect(jsonPath("$.components.securitySchemes['bearer-jwt'].type").value("http"));
+                .andExpect(jsonPath("$.components.securitySchemes['bearer-jwt'].type").value("http"))
+                .andReturn();
+
+        String exportPath = System.getProperty("weave.openapi.export.path");
+        if (exportPath != null && !exportPath.isBlank()) {
+            Path path = Path.of(exportPath);
+            Files.createDirectories(path.getParent());
+            Files.writeString(path, result.getResponse().getContentAsString());
+        }
     }
 }
