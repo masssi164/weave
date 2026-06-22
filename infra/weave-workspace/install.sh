@@ -467,6 +467,60 @@ ensure_terraform_network_state() {
   fi
 }
 
+terraform_state_has() {
+  local address="$1"
+
+  "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" state show "${address}" >/dev/null 2>&1
+}
+
+import_existing_docker_volume_state() {
+  local address="$1"
+  local name="$2"
+
+  if terraform_state_has "${address}"; then
+    return
+  fi
+
+  if docker volume inspect "${name}" >/dev/null 2>&1; then
+    log "Importing existing Docker volume ${name} into OpenTofu state..."
+    "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" import -input=false "${address}" "${name}"
+  fi
+}
+
+import_existing_docker_container_state() {
+  local address="$1"
+  local name="$2"
+  local container_id=""
+
+  if terraform_state_has "${address}"; then
+    return
+  fi
+
+  if docker container inspect "${name}" >/dev/null 2>&1; then
+    container_id="$(docker container inspect --format '{{.ID}}' "${name}")"
+    log "Importing existing Docker container ${name} into OpenTofu state..."
+    "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" import -input=false "${address}" "${container_id}"
+  fi
+}
+
+ensure_existing_stack_terraform_state() {
+  "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" init -input=false
+
+  import_existing_docker_volume_state module.postgres.docker_volume.data weave_db_data
+  import_existing_docker_volume_state module.reverse_proxy.docker_volume.data weave_caddy_data
+  import_existing_docker_volume_state module.reverse_proxy.docker_volume.config weave_caddy_config
+  import_existing_docker_volume_state module.keycloak.docker_volume.data weave_keycloak_data
+  import_existing_docker_volume_state module.nextcloud.docker_volume.data weave_nextcloud_data
+
+  import_existing_docker_container_state module.postgres.docker_container.this weave-db
+  import_existing_docker_container_state module.reverse_proxy.docker_container.this weave-proxy
+  import_existing_docker_container_state module.keycloak.docker_container.this weave-keycloak
+  import_existing_docker_container_state module.backend.docker_container.this weave-backend
+  import_existing_docker_container_state module.matrix.docker_container.mas weave-mas
+  import_existing_docker_container_state module.matrix.docker_container.synapse weave-synapse
+  import_existing_docker_container_state module.nextcloud.docker_container.this weave-nextcloud
+}
+
 terraform_output_raw() {
   local dir="$1"
   local name="$2"
@@ -1379,6 +1433,7 @@ main() {
   source "${SYNAPSE_VOLUME_HELPER}"
   ensure_terraform_network_state
   synapse_reconcile_terraform_state
+  ensure_existing_stack_terraform_state
 
   log "Applying infrastructure module..."
   terraform_apply "${INFRA_DIR}"
