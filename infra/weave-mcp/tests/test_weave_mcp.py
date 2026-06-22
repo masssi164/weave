@@ -14,6 +14,7 @@ from unittest.mock import patch
 
 from weave_mcp.app import WeaveMcpGateway, serve
 from weave_mcp.config import WeaveMcpConfig
+from weave_mcp.openapi_routes import OPENAPI_ROUTE_MAP, assert_route_map_matches_openapi, load_openapi_contract, require_openapi_route
 from weave_mcp.schemas.common import McpDenied
 
 PROJECTION_HMAC_SECRET = "dev-runtime-profile-projection-secret"
@@ -97,12 +98,30 @@ class WeaveMcpGatewayTest(unittest.TestCase):
         self.assertTrue(tools["calendar.create_event"]["meta"]["approval"] == "required")
         self.assertTrue(tools["boards.comment"]["meta"]["approval"] == "required")
         self.assertTrue(all(tool["meta"]["transport"] == "streamable-http" for tool in tools.values()))
+        self.assertTrue(all(tool["meta"]["exposure"] == "explicit-openapi-route-map" for tool in tools.values()))
+        self.assertEqual(tools["calendar.search_events"]["meta"]["openApiOperationId"], "list")
+        self.assertEqual(tools["calendar.search_events"]["meta"]["openApiPath"], "/api/calendar/events")
         discovery_text = json.dumps(body, sort_keys=True).lower()
         self.assertNotIn("nextcloud", discovery_text)
         self.assertNotIn("caldav", discovery_text)
         self.assertNotIn("providerref", discovery_text)
         self.assertNotIn("credentialref://", discovery_text)
         self.assertFalse(any(tool["name"].startswith(("nextcloud.", "caldav.")) for tool in tools.values()))
+
+    def test_openapi_route_map_is_explicit_and_fails_closed_on_drift(self) -> None:
+        contract = load_openapi_contract()
+        assert_route_map_matches_openapi(contract)
+        self.assertEqual(set(OPENAPI_ROUTE_MAP), set(RUNTIME_PROFILE_PROJECTION["allowedTools"]))
+
+        drifted = json.loads(json.dumps(contract))
+        drifted["paths"]["/api/calendar/events"]["get"]["operationId"] = "renamedCalendarSearch"
+        with self.assertRaises(McpDenied) as raised:
+            assert_route_map_matches_openapi(drifted)
+        self.assertEqual(raised.exception.reason, "openapi-operationid-drift-for-calendar.search_events")
+
+        with self.assertRaises(McpDenied) as unknown:
+            require_openapi_route("calendar.raw_rest_mirror")
+        self.assertEqual(unknown.exception.reason, "unknown-tool")
 
     def test_discovery_uses_runtime_profile_projection_not_caller_grant_headers(self) -> None:
         profile = {**RUNTIME_PROFILE_PROJECTION, "allowedTools": ["calendar.search_events"], "capabilityGrants": ["weaver.calendar_read"]}

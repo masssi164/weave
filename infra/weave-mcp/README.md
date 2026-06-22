@@ -31,7 +31,7 @@ Discovery requires runtime context headers. Policy comes from the generated Runt
 - `X-Weave-Runtime-Profile` — support-safe profile hash
 - `X-Weave-Runtime-Profile-Projection` — base64url JSON containing `runtimeProfileHash`, `enabled`, `revoked`, `serverKey`, `transport`, `credentialRef`, `capabilityGrants`, `allowedTools`, `auditRef`, and `projectionSignature` references only
 
-The Sprint 16/Sprint 32 proof tools are:
+The Sprint 16/Sprint 32 proof tools are exposed through an explicit Python route map validated against the server-owned OpenAPI artifact (`contracts/openapi/weave-openapi.json`). Route exposure is deny-by-default: adding a backend OpenAPI route does not create an MCP tool unless the reviewed `OPENAPI_ROUTE_MAP` lists the tool, method, path, and expected `operationId`. The current proof tools are:
 
 - `admin.get_readiness` (read-only)
 - `weaver.get_runtime_profile_projection` (read-only)
