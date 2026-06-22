@@ -56,13 +56,14 @@ Start with:
 1. [Developer Handbook](developer-handbook.md) — local prerequisites, Java 21+ requirement, Gradle gates, client/server/admin/infra workflows, and evidence expectations.
 2. [Lane-based PR and release workflow](gitflow-pr-workflow.md) — branch, review, label, release-note, and merge rules.
 3. [Spec-driven development for Weave](spec-driven-development.md) — pinned spec corpus, conformance lifecycle, evidence gates, and agent orchestration.
-4. [AI-assisted delivery orchestration](agent-team-orchestration.md) — repo-safe roles, handoff briefs, runtime-boundary guardrails, and optimization loop.
-5. [Canonical domains](architecture/canonical-domains.md) — product-owned domain registry for identity, people, spaces, chat, files, documents, calendar, boards, calls, decisions, notifications, health, and Weaver.
-6. [Provider portability contract](architecture/provider-portability.md) — adapter manifests, mapping tables, reports, and no-unaccounted-data-loss rules.
-7. [Weaver OpenClaw-derived runtime profile](architecture/weaver-openclaw-profile.md) — future optional PA runtime foundation and blockers.
-8. [Canonical feature models](canonical-feature-models.md) — provider-neutral domain vocabulary.
-9. [Accessible workflow context contract](workflow-context-contract.md) — linear workflow primitives, context references, agent dry-run rules, and the MVP slice before a visual builder.
-10. [Architecture](architecture.md) and [Diagrams](diagrams/index.md) — facades, data flow, and domain diagrams.
+4. [Specification source of truth](specification-source-of-truth.md) — product corpus, repo-local spec inventory, implementation evidence, and Weaver/OpenClaw runtime boundary.
+5. [AI-assisted delivery orchestration](agent-team-orchestration.md) — repo-safe roles, handoff briefs, runtime-boundary guardrails, and optimization loop.
+6. [Canonical domains](architecture/canonical-domains.md) — product-owned domain registry for identity, people, spaces, chat, files, documents, calendar, boards, calls, decisions, notifications, health, and Weaver.
+7. [Provider portability contract](architecture/provider-portability.md) — adapter manifests, mapping tables, reports, and no-unaccounted-data-loss rules.
+8. [Weaver OpenClaw-derived runtime profile](architecture/weaver-openclaw-profile.md) — future optional PA runtime foundation and blockers.
+9. [Canonical feature models](canonical-feature-models.md) — provider-neutral domain vocabulary.
+10. [Accessible workflow context contract](workflow-context-contract.md) — linear workflow primitives, context references, agent dry-run rules, and the MVP slice before a visual builder.
+11. [Architecture](architecture.md) and [Diagrams](diagrams/index.md) — facades, data flow, and domain diagrams.
 
 ### Security / compliance reviewer
 
@@ -82,6 +83,7 @@ Implementation conformance docs and product-facing projections:
 - [v0.1 Golden Path readiness](v0.1-golden-path.md)
 - [Weave product line and Weaver integration plan](product-line-and-weaver-plan.md)
 - [Spec-driven development for Weave](spec-driven-development.md)
+- [Specification source of truth](specification-source-of-truth.md)
 - [AI-assisted delivery orchestration](agent-team-orchestration.md)
 - [Canonical domains](architecture/canonical-domains.md)
 - [Provider portability contract](architecture/provider-portability.md)

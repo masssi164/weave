@@ -14,7 +14,16 @@ This implementation repository is the **conformance and evidence truth**. It con
 - Specification truth: the corpus at the lockfile `specCorpus.localPath` (default `../weave-specs`), pinned by `specs/weave-specs.lock.json`.
 - Implementation/evidence truth: this repo, GitHub issues/PRs/checks, CI artifacts, and checked-in release evidence.
 - Generated docs/indexes/projections are not canonical.
-- Legacy `specs/0000-*` through `specs/0007-*` remain transitional implementation-conformance artifacts until migrated into the spec corpus. They must not override the corpus.
+- Repo-local spec packets are classified in `specs/spec-inventory.yaml`. Transitional packets and fixtures must not override the corpus, including newer packets such as local dogfood topology, domain-first MCP, full-product target, and governed Weaver PA target.
+
+
+## Inventory
+
+The classification for every repo-local spec-like artifact is maintained in:
+
+- `specs/spec-inventory.yaml`
+
+Use that inventory before editing, deleting, or citing repo-local packets. It records which artifacts are transitional conformance packets, conformance fixtures, or implementation evidence, and points to likely corpus owners for migration.
 
 ## Required workflow
 
