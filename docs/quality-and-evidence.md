@@ -57,11 +57,18 @@ It writes `build/evidence/ci-summary.json` even when the Gradle build fails, so 
 
 These checks are intentionally cheap enough for normal pull requests and do not require live credentials.
 
-## Live-stack evidence
+## Live-stack and persistent test-stack evidence
 
 The live-stack path is expensive and runs on a dedicated self-hosted macOS ARM64 runner. Use it when a change affects sign-in, backend facade contracts, Matrix/files/calendar live behavior, acceptance scenarios, or integration boundaries.
 
-The workflow prepares an acceptance evidence directory, runs the app-level live-stack E2E, and uploads support-safe acceptance evidence from the run. The artifact set includes `release-evidence-manifest.json`, which names the source lane, commit, workflow run metadata, artifact list, and RC promotion rule. On failure, the same uploaded artifact may include `failure-diagnostics/` with `failure-summary.md`, `failure-summary.json`, `container-status.tsv`, `failed-markers.json`, redacted readiness output, and a redacted support-bundle reference. It must not include blindly dumped raw container logs. Do not cite a single workflow run ID as a permanent product claim; link to the workflow, the relevant docs, the manifest, and the PR evidence instead.
+There are two live lanes:
+
+- `Live Stack E2E` (`.github/workflows/live-stack-e2e.yml`) is disposable release-candidate evidence. It bootstraps a stack, runs app-level live-stack E2E, uploads support-safe acceptance evidence, then tears the stack down.
+- `Test Stack Deploy` (`.github/workflows/test-stack-deploy.yml`) is the persistent LAN dogfood stack for the `test` branch. It updates the local `weave.test` stack idempotently and leaves it running for human testing.
+
+The persistent test stack is the required bridge between `dev` and `main`: a commit may be promoted to `main` only after it is contained in `dev`, contained in `test`, and has a successful `Test Stack Deploy` run on `test`. See [Dev/Test/Main promotion flow](dev-test-main-promotion-flow.md).
+
+The disposable live-stack workflow prepares an acceptance evidence directory, runs the app-level live-stack E2E, and uploads support-safe acceptance evidence from the run. The artifact set includes `release-evidence-manifest.json`, which names the source lane, commit, workflow run metadata, artifact list, and RC promotion rule. On failure, the same uploaded artifact may include `failure-diagnostics/` with `failure-summary.md`, `failure-summary.json`, `container-status.tsv`, `failed-markers.json`, redacted readiness output, and a redacted support-bundle reference. It must not include blindly dumped raw container logs. Do not cite a single workflow run ID as a permanent product claim; link to the workflow, the relevant docs, the manifest, and the PR evidence instead.
 
 ## Interpreting pass/fail states
 
