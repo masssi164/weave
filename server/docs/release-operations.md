@@ -19,7 +19,8 @@ Optional:
 - `WEAVE_MATRIX_HOMESERVER_URL`: public Matrix homeserver URL, defaults to `https://matrix.weave.test`
 - `WEAVE_FILES_PRODUCT_URL`: public files product surface, defaults to `https://weave.test/files`
 - `WEAVE_CALENDAR_PRODUCT_URL`: public calendar product surface, defaults to `https://weave.test/calendar`
-- `WEAVE_NEXTCLOUD_BASE_URL`: canonical Nextcloud URL, defaults to `https://files.weave.test`
+- `WEAVE_NEXTCLOUD_PUBLIC_BASE_URL`: support-safe public Nextcloud technical/admin/protocol fallback exposed in platform config, defaults to `WEAVE_NEXTCLOUD_BASE_URL` or `https://files.weave.test`
+- `WEAVE_NEXTCLOUD_BASE_URL`: backend-internal Nextcloud adapter origin for WebDAV/CalDAV calls, defaults to `https://files.weave.test` outside container stacks
 - `WEAVE_ONBOARDING_MATRIX_PROVISIONING_STATE`: optional first-run Matrix provisioning override (`not_configured`, `pending`, `ready`, `degraded`, `failed`); blank derives status from the chat capability
 - `WEAVE_ONBOARDING_NEXTCLOUD_PROVISIONING_STATE`: optional first-run Nextcloud provisioning override (`not_configured`, `pending`, `ready`, `degraded`, `failed`); blank derives status from files/calendar capability and Nextcloud route configuration
 - `WEAVE_PROFILE_STORAGE_PATH`: durable JSON file path for mutable profile overrides accepted by `PATCH /api/profile`, defaults to `./data/profile-overrides.json`
