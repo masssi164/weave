@@ -45,8 +45,8 @@ jobs:
       EXPECTED_RUNNER_NAME: weave-live-mac-mini
       WEAVE_BACKEND_IMAGE: ${{ inputs.weave_backend_image || 'weave-backend:test-stack' }}
       WEAVE_MCP_SERVER_IMAGE: ${{ inputs.weave_mcp_server_image || 'weave-mcp-server:test-stack' }}
-      WEAVE_TEST_PASSWORD: ${{ secrets.WEAVE_TEST_PASSWORD }}
-      TF_VAR_test_user_password: ${{ secrets.WEAVE_TEST_PASSWORD }}
+      WEAVE_TEST_PASSWORD: ${{ secrets.WEAVE_TEST_PASSWORD || 'ci-dogfood-test-password' }}
+      TF_VAR_test_user_password: ${{ secrets.WEAVE_TEST_PASSWORD || 'ci-dogfood-test-password' }}
       TF_VAR_db_admin_password: ci-db-admin-password
       TF_VAR_keycloak_admin_password: ci-keycloak-admin-password
       TF_VAR_keycloak_db_password: ci-keycloak-db-password
