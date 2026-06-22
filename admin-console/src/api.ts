@@ -1,3 +1,12 @@
+import type {
+  GeneratedAdminAuditEventResponse,
+  GeneratedAdminControlPlaneResponse,
+  GeneratedCapabilityWhitelistResponse,
+  GeneratedIdentityProviderReadinessResponse,
+  GeneratedProviderReadinessTestRequest,
+  GeneratedProviderReadinessTestResponse,
+} from "./generated/openapi";
+
 export type CapabilityState =
   | "ready"
   | "disabled"
@@ -740,18 +749,21 @@ export class AdminControlPlaneApi {
   ) {}
 
   async getControlPlane(): Promise<ControlPlaneResponse> {
-    const controlPlane = await this.request<ServerControlPlaneResponse>(
+    const controlPlane = await this.request<GeneratedAdminControlPlaneResponse>(
       "/admin/control-plane",
     );
     const auditEvents = await this.listAuditEvents().catch(() => []);
-    return normalizeControlPlane(controlPlane, auditEvents);
+    return normalizeControlPlane(
+      controlPlane as ServerControlPlaneResponse,
+      auditEvents,
+    );
   }
 
   async updateWhitelistPolicy(
     allowedCapabilities: string[],
     profileKey = "workspace-admin",
   ): Promise<WhitelistPolicy> {
-    const response = await this.request<ServerWhitelistPolicy>(
+    const response = await this.request<GeneratedCapabilityWhitelistResponse>(
       "/admin/policies/capability-whitelist",
       {
         method: "PATCH",
@@ -762,7 +774,7 @@ export class AdminControlPlaneApi {
         }),
       },
     );
-    return normalizeWhitelist(response);
+    return normalizeWhitelist(response as ServerWhitelistPolicy);
   }
 
   async updateWeaverDistributionPolicy(
@@ -875,23 +887,25 @@ export class AdminControlPlaneApi {
   }
 
   async getIdentityProviderReadiness(): Promise<IdentityProviderReadiness> {
-    const response = await this.request<ServerIdentityProviderReadiness>(
+    const response = await this.request<GeneratedIdentityProviderReadinessResponse>(
       "/admin/identity/readiness",
     );
-    return normalizeIdentityProviderReadiness(response);
+    return normalizeIdentityProviderReadiness(
+      response as ServerIdentityProviderReadiness,
+    );
   }
 
   async testProviderReadiness(
     providerKey: string,
   ): Promise<{ providerKey: string; state: CapabilityState; summary: string }> {
-    const response = await this.request<{
-      providerKey?: string;
-      state?: string;
-      readiness?: string;
-    }>("/admin/providers/readiness-tests", {
-      method: "POST",
-      body: JSON.stringify({ providerKey }),
-    });
+    const request: GeneratedProviderReadinessTestRequest = { providerKey };
+    const response = await this.request<GeneratedProviderReadinessTestResponse>(
+      "/admin/providers/readiness-tests",
+      {
+        method: "POST",
+        body: JSON.stringify(request),
+      },
+    );
     return {
       providerKey: response.providerKey ?? providerKey,
       state: normalizeState(response.state ?? response.readiness),
@@ -901,7 +915,7 @@ export class AdminControlPlaneApi {
   }
 
   async listAuditEvents(): Promise<AuditEvent[]> {
-    const events = await this.request<ServerAuditEvent[]>(
+    const events = await this.request<GeneratedAdminAuditEventResponse[]>(
       "/admin/audit/events",
     );
     return events.map((event) => ({

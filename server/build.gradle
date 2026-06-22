@@ -32,6 +32,9 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+    if (System.getProperty('weave.openapi.export.path') != null) {
+        systemProperty 'weave.openapi.export.path', System.getProperty('weave.openapi.export.path')
+    }
 }
 
 tasks.matching { it.name == 'wrapper' }.configureEach {
