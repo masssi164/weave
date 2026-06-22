@@ -43,9 +43,9 @@ jobs:
       - self-hosted
       - macOS
       - ARM64
-      - weave-live
     timeout-minutes: 75
     env:
+      EXPECTED_RUNNER_NAME: weave-live-mac-mini
       WEAVE_BACKEND_IMAGE: ${{ inputs.weave_backend_image || github.event.inputs.weave_backend_image || 'weave-backend:live-stack-ci' }}
       WEAVE_MCP_SERVER_IMAGE: ${{ inputs.weave_mcp_server_image || github.event.inputs.weave_mcp_server_image || 'weave-mcp-server:live-stack-ci' }}
       WEAVE_TEST_PASSWORD: ${{ secrets.WEAVE_TEST_PASSWORD }}
@@ -84,6 +84,15 @@ jobs:
         shell: bash
 
     steps:
+      - name: Verify dedicated live runner
+        run: |
+          set -euo pipefail
+          echo "runner=${RUNNER_NAME:-unknown}"
+          if [[ "${RUNNER_NAME:-}" != "${EXPECTED_RUNNER_NAME}" ]]; then
+            echo "::error::Live Stack E2E must run only on ${EXPECTED_RUNNER_NAME}; got ${RUNNER_NAME:-unknown}." >&2
+            exit 1
+          fi
+
       - name: Check out weave
         uses: actions/checkout@v5
         with:

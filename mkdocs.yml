@@ -43,6 +43,7 @@ nav:
       - Lane-based PR and release workflow: gitflow-pr-workflow.md
       - DevOps branching model: devops/branching-model.md
       - DevOps release flow: devops/release-flow.md
+      - Dev/Test/Main promotion flow: dev-test-main-promotion-flow.md
       - DevOps release notes policy: devops/release-notes.md
       - DevOps spec governance: devops/spec-governance.md
       - Architecture: architecture.md
