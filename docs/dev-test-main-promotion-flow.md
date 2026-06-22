@@ -1,27 +1,27 @@
-# Dev → Test → Main promotion flow
+# Dev → Dogfood → Main promotion flow
 
 Status: active delivery policy.
 
 Weave uses three promotion lanes:
 
 - `dev`: normal integration branch. Feature PRs land here after ordinary CI, issue acceptance, and review/evidence gates.
-- `test`: persistent LAN dogfood branch. Advancing this branch deploys or updates the local test stack on the dedicated Mac runner.
-- `main`: stable/release-facing branch. A commit may reach `main` only after it has been integrated through `dev` and successfully deployed through `test`.
+- `dogfood`: persistent LAN dogfood branch. Advancing this branch deploys or updates the local test stack on the dedicated Mac runner. This branch is named `dogfood` because legacy `test/...` branches already occupy Git's `refs/heads/test/` namespace.
+- `main`: stable/release-facing branch. A commit may reach `main` only after it has been integrated through `dev` and successfully deployed through `dogfood`.
 
 ## Why this exists
 
 `dev` proves that the repository builds and the offline/product-contract gates pass. It does not prove that Massimo can open Weave on a real device against a live local stack.
 
-`test` is the always-testable LAN stack. It is intended for human dogfood, physical iPhone checks, and integration evidence against the same deployed stack instead of one-off local shells.
+`dogfood` is the always-testable LAN stack. It is intended for human dogfood, physical iPhone checks, and integration evidence against the same deployed stack instead of one-off local shells.
 
-`main` must not receive commits that have bypassed either `dev` integration or `test` dogfood deployment.
+`main` must not receive commits that have bypassed either `dev` integration or `dogfood` deployment.
 
 ## Persistent LAN test stack
 
 The test stack is deployed by the `Test Stack Deploy` GitHub Actions workflow:
 
 - workflow file: `.github/workflows/test-stack-deploy.yml`
-- trigger: push to `test` or manual `workflow_dispatch`
+- trigger: push to `dogfood` or manual `workflow_dispatch`
 - runner: dedicated self-hosted macOS ARM64 runner `weave-live-mac-mini`
 - public local entrypoint: `https://weave.test:44443/`
 - platform config: `https://api.weave.test:44443/api/platform/config`
@@ -33,7 +33,7 @@ The workflow uses the repo infrastructure scripts as implementation detail:
 - `infra/weave-workspace/smoke-test.sh`
 - `infra/weave-workspace/operator-check.sh`
 
-Humans should not need to run those directly for normal test-stack use. The visible entrypoint is the `test` branch deployment result and the iPhone app pointed at the dogfood stack.
+Humans should not need to run those directly for normal test-stack use. The visible entrypoint is the `dogfood` branch deployment result and the iPhone app pointed at the dogfood stack.
 
 ## Update vs reset
 
@@ -52,8 +52,8 @@ Destructive reset is manual only through the workflow input `reset_stack=true`. 
 The `Main Promotion Gate` workflow enforces the branch order:
 
 1. the candidate commit is contained in `origin/dev`;
-2. the same candidate commit is contained in `origin/test`;
-3. a successful `Test Stack Deploy` workflow run exists for that commit on branch `test`;
+2. the same candidate commit is contained in `origin/dogfood`;
+3. a successful `Test Stack Deploy` workflow run exists for that commit on branch `dogfood`;
 4. the root contract-authority architecture check still passes.
 
 If any of these checks fail, the candidate is not eligible for `main`.
@@ -62,7 +62,7 @@ Bootstrap note: GitHub only treats new workflow files as branch-protection candi
 
 ## Provider model
 
-The persistent `test` stack is a disposable Weave-owned dogfood environment. It should not attach to Massimo's `~/server` services by default.
+The persistent `dogfood` stack is a disposable Weave-owned dogfood environment. It should not attach to Massimo's `~/server` services by default.
 
 Default local providers:
 
@@ -94,5 +94,5 @@ A change that affects sign-in, backend facade contracts, OpenAPI consumers, MCP/
 - ordinary PR CI on `dev`;
 - generated OpenAPI/admin/client freshness where relevant;
 - MCP/root architecture gates where relevant;
-- persistent `test` stack deployment;
+- persistent `dogfood` stack deployment;
 - targeted human or automated dogfood evidence before promotion to `main`.

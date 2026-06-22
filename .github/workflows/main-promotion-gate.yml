@@ -21,8 +21,8 @@ permissions:
   pull-requests: read
 
 jobs:
-  verify-dev-test-promotion:
-    name: Verify dev → test evidence before main
+  verify-dev-dogfood-promotion:
+    name: Verify dev → dogfood evidence before main
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -37,14 +37,14 @@ jobs:
           echo "sha=${candidate}" >> "$GITHUB_OUTPUT"
           echo "Candidate SHA: ${candidate}"
 
-      - name: Verify candidate is contained in dev and test
+      - name: Verify candidate is contained in dev and dogfood
         run: |
           set -euo pipefail
           candidate="${{ steps.candidate.outputs.sha }}"
-          git fetch origin dev test main --prune
-          for branch in dev test; do
+          git fetch origin dev dogfood main --prune
+          for branch in dev dogfood; do
             if ! git merge-base --is-ancestor "$candidate" "origin/${branch}"; then
-              echo "::error::Candidate ${candidate} is not contained in origin/${branch}. Main promotion requires dev first, then test." >&2
+              echo "::error::Candidate ${candidate} is not contained in origin/${branch}. Main promotion requires dev first, then dogfood." >&2
               exit 1
             fi
           done
@@ -58,11 +58,11 @@ jobs:
         run: |
           set -euo pipefail
           candidate="${{ steps.candidate.outputs.sha }}"
-          runs_json="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/test-stack-deploy.yml/runs?branch=test&head_sha=${candidate}&status=success&per_page=10")"
+          runs_json="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/test-stack-deploy.yml/runs?branch=dogfood&head_sha=${candidate}&status=success&per_page=10")"
           count="$(python3 -c 'import json,sys; print(len(json.load(sys.stdin).get("workflow_runs", [])))' <<<"$runs_json")"
           if [[ "$count" == "0" ]]; then
-            echo "::error::No successful Test Stack Deploy workflow run found for ${candidate} on branch test." >&2
-            echo "Push/merge the candidate to test and wait for the persistent LAN stack deployment to pass before opening/promoting to main." >&2
+            echo "::error::No successful Test Stack Deploy workflow run found for ${candidate} on branch dogfood." >&2
+            echo "Push/merge the candidate to dogfood and wait for the persistent LAN stack deployment to pass before opening/promoting to main." >&2
             exit 1
           fi
           run_url="$(python3 -c 'import json,sys; runs=json.load(sys.stdin).get("workflow_runs", []); print(runs[0].get("html_url", ""))' <<<"$runs_json")"

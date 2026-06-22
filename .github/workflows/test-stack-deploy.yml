@@ -3,7 +3,7 @@ name: Test Stack Deploy
 on:
   push:
     branches:
-      - test
+      - dogfood
   workflow_dispatch:
     inputs:
       reset_stack:
