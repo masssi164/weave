@@ -390,6 +390,249 @@ wait_for_keycloak_admin_login() {
   fail "Keycloak admin login never became ready at ${token_url} for user ${TF_VAR_keycloak_admin_username}"
 }
 
+
+keycloak_admin_token() {
+  local token_url="http://${LOOPBACK_HOST}:${TF_VAR_keycloak_host_port}/realms/master/protocol/openid-connect/token"
+  local response=""
+  local token=""
+
+  response="$(curl -fsS -X POST "${token_url}" \
+    -H 'Content-Type: application/x-www-form-urlencoded' \
+    --data-urlencode 'client_id=admin-cli' \
+    --data-urlencode "username=${TF_VAR_keycloak_admin_username}" \
+    --data-urlencode "password=${TF_VAR_keycloak_admin_password}" \
+    --data-urlencode 'grant_type=password')"
+  token="$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("access_token", ""))' <<<"${response}")"
+  [[ -n "${token}" ]] || fail "Keycloak admin token response did not contain an access_token."
+  printf '%s' "${token}"
+}
+
+keycloak_state_has() {
+  local address="$1"
+
+  "${WEAVE_IAC_BIN}" -chdir="${KEYCLOAK_DIR}" state show "${address}" >/dev/null 2>&1
+}
+
+keycloak_import_if_missing() {
+  local address="$1"
+  local import_id="$2"
+
+  if keycloak_state_has "${address}"; then
+    return
+  fi
+
+  if [[ -z "${import_id}" || "${import_id}" == */ || "${import_id}" == *'//'* ]]; then
+    return
+  fi
+
+  log "Importing existing Keycloak resource ${address} into OpenTofu state..."
+  "${WEAVE_IAC_BIN}" -chdir="${KEYCLOAK_DIR}" import -input=false "${address}" "${import_id}"
+}
+
+keycloak_admin_get() {
+  local path="$1"
+  local token=""
+
+  token="$(keycloak_admin_token)"
+  curl -fsS \
+    -H "Authorization: Bearer ${token}" \
+    "http://${LOOPBACK_HOST}:${TF_VAR_keycloak_host_port}${path}"
+}
+
+keycloak_admin_get_query() {
+  local path="$1"
+  local query_key="$2"
+  local query_value="$3"
+  local token=""
+
+  token="$(keycloak_admin_token)"
+  curl -fsS -G \
+    -H "Authorization: Bearer ${token}" \
+    --data-urlencode "${query_key}=${query_value}" \
+    "http://${LOOPBACK_HOST}:${TF_VAR_keycloak_host_port}${path}"
+}
+
+keycloak_json_id_by_field() {
+  local field="$1"
+  local value="$2"
+
+  python3 -c 'import json,sys
+field, value = sys.argv[1], sys.argv[2]
+data = json.load(sys.stdin)
+if isinstance(data, dict):
+    data = [data]
+for item in data:
+    if item.get(field) == value:
+        print(item.get("id", ""))
+        break
+' "${field}" "${value}"
+}
+
+keycloak_json_group_id_by_name() {
+  local name="$1"
+
+  python3 -c 'import json,sys
+name = sys.argv[1]
+def walk(groups):
+    for group in groups:
+        if group.get("name") == name:
+            print(group.get("id", ""))
+            return True
+        if walk(group.get("subGroups") or []):
+            return True
+    return False
+walk(json.load(sys.stdin))
+' "${name}"
+}
+
+keycloak_realm_exists() {
+  keycloak_admin_get "/admin/realms/${TF_VAR_tenant_slug}" >/dev/null 2>&1
+}
+
+keycloak_lookup_client_uuid() {
+  local client_id="$1"
+
+  keycloak_admin_get_query "/admin/realms/${TF_VAR_tenant_slug}/clients" clientId "${client_id}" |
+    keycloak_json_id_by_field clientId "${client_id}"
+}
+
+keycloak_lookup_client_scope_id() {
+  local name="$1"
+
+  keycloak_admin_get "/admin/realms/${TF_VAR_tenant_slug}/client-scopes" |
+    keycloak_json_id_by_field name "${name}"
+}
+
+keycloak_lookup_group_id() {
+  local name="$1"
+
+  keycloak_admin_get_query "/admin/realms/${TF_VAR_tenant_slug}/groups" search "${name}" |
+    keycloak_json_group_id_by_name "${name}"
+}
+
+keycloak_lookup_role_id() {
+  local name="$1"
+
+  keycloak_admin_get "/admin/realms/${TF_VAR_tenant_slug}/roles/${name}" 2>/dev/null |
+    keycloak_json_id_by_field name "${name}" || true
+}
+
+keycloak_lookup_user_id() {
+  local username="$1"
+
+  keycloak_admin_get_query "/admin/realms/${TF_VAR_tenant_slug}/users" username "${username}" |
+    keycloak_json_id_by_field username "${username}"
+}
+
+keycloak_lookup_client_scope_mapper_id() {
+  local client_scope_id="$1"
+  local name="$2"
+
+  keycloak_admin_get "/admin/realms/${TF_VAR_tenant_slug}/client-scopes/${client_scope_id}/protocol-mappers/models" |
+    keycloak_json_id_by_field name "${name}"
+}
+
+keycloak_lookup_client_mapper_id() {
+  local client_uuid="$1"
+  local name="$2"
+
+  keycloak_admin_get "/admin/realms/${TF_VAR_tenant_slug}/clients/${client_uuid}/protocol-mappers/models" |
+    keycloak_json_id_by_field name "${name}"
+}
+
+ensure_existing_keycloak_terraform_state() {
+  local client_scope_id=""
+  local mapper_id=""
+  local uuid=""
+
+  "${WEAVE_IAC_BIN}" -chdir="${KEYCLOAK_DIR}" init -input=false
+
+  if ! keycloak_realm_exists; then
+    return
+  fi
+
+  keycloak_import_if_missing module.tenant_identity.keycloak_realm.tenant "${TF_VAR_tenant_slug}"
+
+  for role in owner admin operator member guest; do
+    uuid="$(keycloak_lookup_role_id "${role}")"
+    keycloak_import_if_missing "module.tenant_identity.keycloak_role.weave_product[\"${role}\"]" "${TF_VAR_tenant_slug}/${uuid}"
+  done
+
+  for group_key_and_name in \
+    owner:workspace-owners \
+    admin:workspace-admins \
+    operator:workspace-operators \
+    member:workspace-members \
+    guest:workspace-guests; do
+    local group_key="${group_key_and_name%%:*}"
+    local group_name="${group_key_and_name#*:}"
+    uuid="$(keycloak_lookup_group_id "${group_name}")"
+    keycloak_import_if_missing "module.tenant_identity.keycloak_group.weave_product_role[\"${group_key}\"]" "${TF_VAR_tenant_slug}/${uuid}"
+  done
+
+  for group_key_and_name in \
+    board_editors:weave-board-editors \
+    calendar_editors:weave-calendar-editors \
+    document_editors:weave-document-editors \
+    meeting_hosts:weave-meeting-hosts \
+    decision_records:weave-decision-recorders \
+    weaver_pilot:weave-weaver-pilot \
+    weaver_runtime:weave-weaver-runtime \
+    weaver_group:weaver-group; do
+    local group_key="${group_key_and_name%%:*}"
+    local group_name="${group_key_and_name#*:}"
+    uuid="$(keycloak_lookup_group_id "${group_name}")"
+    keycloak_import_if_missing "module.tenant_identity.keycloak_group.weave_capability[\"${group_key}\"]" "${TF_VAR_tenant_slug}/${uuid}"
+  done
+
+  for client_key_and_id in \
+    weave_app:weave-app \
+    weave_backend:weave-backend \
+    weave_admin_console:weave-admin-console \
+    matrix_mas:matrix-mas \
+    nextcloud:nextcloud; do
+    local client_key="${client_key_and_id%%:*}"
+    local client_id="${client_key_and_id#*:}"
+    uuid="$(keycloak_lookup_client_uuid "${client_id}")"
+    keycloak_import_if_missing "module.tenant_identity.keycloak_openid_client.client[\"${client_key}\"]" "${TF_VAR_tenant_slug}/${uuid}"
+  done
+
+  client_scope_id="$(keycloak_lookup_client_scope_id 'weave:workspace')"
+  keycloak_import_if_missing module.tenant_identity.keycloak_openid_client_scope.weave_workspace "${TF_VAR_tenant_slug}/${client_scope_id}"
+
+  for mapper_address_and_name in \
+    module.tenant_identity.keycloak_openid_hardcoded_claim_protocol_mapper.weave_tenant_id:weave-tenant-id \
+    module.tenant_identity.keycloak_openid_hardcoded_claim_protocol_mapper.weave_organization_name:weave-organization-name \
+    module.tenant_identity.keycloak_openid_audience_protocol_mapper.weave_backend_audience:weave-app-audience \
+    module.tenant_identity.keycloak_openid_audience_protocol_mapper.nextcloud_bearer_audience:nextcloud-bearer-audience; do
+    local mapper_address="${mapper_address_and_name%%:*}"
+    local mapper_name="${mapper_address_and_name#*:}"
+    mapper_id="$(keycloak_lookup_client_scope_mapper_id "${client_scope_id}" "${mapper_name}")"
+    keycloak_import_if_missing "${mapper_address}" "${TF_VAR_tenant_slug}/client-scope/${client_scope_id}/${mapper_id}"
+  done
+
+  for client_key_and_mapper in \
+    weave_app:module.tenant_identity.keycloak_openid_group_membership_protocol_mapper.weave_app_groups \
+    weave_admin_console:module.tenant_identity.keycloak_openid_group_membership_protocol_mapper.weave_admin_console_groups \
+    nextcloud:module.tenant_identity.keycloak_openid_group_membership_protocol_mapper.nextcloud_groups; do
+    local client_key="${client_key_and_mapper%%:*}"
+    local mapper_address="${client_key_and_mapper#*:}"
+    case "${client_key}" in
+      weave_app) uuid="$(keycloak_lookup_client_uuid 'weave-app')" ;;
+      weave_admin_console) uuid="$(keycloak_lookup_client_uuid 'weave-admin-console')" ;;
+      nextcloud) uuid="$(keycloak_lookup_client_uuid 'nextcloud')" ;;
+      *) fail "Unsupported Keycloak group mapper client key ${client_key}" ;;
+    esac
+    mapper_id="$(keycloak_lookup_client_mapper_id "${uuid}" groups)"
+    keycloak_import_if_missing "${mapper_address}" "${TF_VAR_tenant_slug}/client/${uuid}/${mapper_id}"
+  done
+
+  if create_test_user_enabled; then
+    uuid="$(keycloak_lookup_user_id test)"
+    keycloak_import_if_missing 'module.tenant_identity.keycloak_user.test[0]' "${TF_VAR_tenant_slug}/${uuid}"
+  fi
+}
+
 wait_for_nextcloud() {
   local attempts="${1:-120}"
   local sleep_seconds="${2:-5}"
@@ -1448,6 +1691,7 @@ main() {
 
   log "Waiting for Keycloak admin login readiness..."
   wait_for_keycloak_admin_login 90 2
+  ensure_existing_keycloak_terraform_state
 
   log "Applying Keycloak configuration module..."
   terraform_apply "${KEYCLOAK_DIR}"
