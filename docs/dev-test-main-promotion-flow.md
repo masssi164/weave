@@ -1,27 +1,27 @@
-# Dev → Dogfood → Main promotion flow
+# Dev → Test → Main promotion flow
 
 Status: active delivery policy.
 
 Weave uses three promotion lanes:
 
 - `dev`: normal integration branch. Feature PRs land here after ordinary CI, issue acceptance, and review/evidence gates.
-- `dogfood`: persistent LAN dogfood branch. Advancing this branch deploys or updates the local test stack on the dedicated Mac runner. This branch is named `dogfood` because legacy `test/...` branches already occupy Git's `refs/heads/test/` namespace.
-- `main`: stable/release-facing branch. A commit may reach `main` only after it has been integrated through `dev` and successfully deployed through `dogfood`.
+- `test`: persistent test-candidate branch. A `dev` -> `test` PR is the integration candidate for live E2E and human dogfood evidence on the dedicated Mac runner.
+- `main`: stable/release-facing branch. A commit may reach `main` only after it has been integrated through `dev`, validated through the `dev` -> `test` candidate, and backed by validated release evidence.
 
 ## Why this exists
 
 `dev` proves that the repository builds and the offline/product-contract gates pass. It does not prove that Massimo can open Weave on a real device against a live local stack.
 
-`dogfood` is the always-testable LAN stack. It is intended for human dogfood, physical iPhone checks, and integration evidence against the same deployed stack instead of one-off local shells.
+`test` is the always-testable LAN stack lane. It is intended for human dogfood, physical iPhone checks, and integration evidence against the same deployed stack instead of one-off local shells.
 
-`main` must not receive commits that have bypassed either `dev` integration or `dogfood` deployment.
+`main` must not receive commits that have bypassed either `dev` integration, the `dev` -> `test` E2E candidate, or validated release evidence.
 
 ## Persistent LAN test stack
 
-The test stack is deployed by the `Test Stack Deploy` GitHub Actions workflow:
+The test stack is deployed from the accepted `dev` -> `test` candidate by the `Test Stack Deploy` GitHub Actions workflow:
 
 - workflow file: `.github/workflows/test-stack-deploy.yml`
-- trigger: push to `dogfood` or manual `workflow_dispatch`
+- trigger: push to `test` or manual `workflow_dispatch`
 - runner: dedicated self-hosted macOS ARM64 runner `weave-live-mac-mini`
 - public local entrypoint: `https://weave.test:44443/`
 - platform config: `https://api.weave.test:44443/api/platform/config`
@@ -33,7 +33,7 @@ The workflow uses the repo infrastructure scripts as implementation detail:
 - `infra/weave-workspace/smoke-test.sh`
 - `infra/weave-workspace/operator-check.sh`
 
-Humans should not need to run those directly for normal test-stack use. The visible entrypoint is the `dogfood` branch deployment result and the iPhone app pointed at the dogfood stack.
+Humans should not need to run those directly for normal test-stack use. The visible entrypoint is the `test` branch deployment result and the iPhone app pointed at the test stack.
 
 ## Update vs reset
 
@@ -52,8 +52,8 @@ Destructive reset is manual only through the workflow input `reset_stack=true`. 
 The `Main Promotion Gate` workflow enforces the branch order:
 
 1. the candidate commit is contained in `origin/dev`;
-2. the same candidate commit is contained in `origin/dogfood`;
-3. a successful `Test Stack Deploy` workflow run exists for that commit on branch `dogfood`;
+2. the same candidate commit is contained in `origin/test` via a reviewed `dev` -> `test` candidate;
+3. a successful E2E / `Test Stack Deploy` workflow run exists for that commit on branch `test`;
 4. the root contract-authority architecture check still passes.
 
 If any of these checks fail, the candidate is not eligible for `main`.
@@ -62,7 +62,7 @@ Bootstrap note: GitHub only treats new workflow files as branch-protection candi
 
 ## Provider model
 
-The persistent `dogfood` stack is a disposable Weave-owned dogfood environment. It should not attach to Massimo's `~/server` services by default.
+The persistent `test` stack is a disposable Weave-owned dogfood environment. It should not attach to Massimo's `~/server` services by default.
 
 Default local providers:
 
@@ -81,7 +81,7 @@ Attaching to existing home services such as Authentik, Nextcloud, or Forgejo und
 The desired tester experience is:
 
 1. install/trust the Weave Local Development CA once on the iPhone;
-2. install or open the dogfood app build configured for `https://api.weave.test:44443/api/platform/config`;
+2. install or open the test-candidate app build configured for `https://api.weave.test:44443/api/platform/config`;
 3. sign in once;
 4. later open Weave and return to the same test-stack organization without re-running setup scripts.
 
@@ -94,5 +94,5 @@ A change that affects sign-in, backend facade contracts, OpenAPI consumers, MCP/
 - ordinary PR CI on `dev`;
 - generated OpenAPI/admin/client freshness where relevant;
 - MCP/root architecture gates where relevant;
-- persistent `dogfood` stack deployment;
-- targeted human or automated dogfood evidence before promotion to `main`.
+- persistent `test` stack deployment from the `dev` -> `test` candidate;
+- targeted human or automated E2E/dogfood evidence returned to the linked feature PR / owning agent before promotion to `main`.

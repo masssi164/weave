@@ -64,9 +64,9 @@ The live-stack path is expensive and runs on a dedicated self-hosted macOS ARM64
 There are two live lanes:
 
 - `Live Stack E2E` (`.github/workflows/live-stack-e2e.yml`) is disposable release-candidate evidence. It bootstraps a stack, runs app-level live-stack E2E, uploads support-safe acceptance evidence, then tears the stack down.
-- `Test Stack Deploy` (`.github/workflows/test-stack-deploy.yml`) is the persistent LAN dogfood stack for the `dogfood` branch. It updates the local `weave.test` stack idempotently and leaves it running for human testing.
+- `Test Stack Deploy` (`.github/workflows/test-stack-deploy.yml`) is the persistent LAN test-candidate stack for the `test` branch. It updates the local `weave.test` stack idempotently and leaves it running for human testing.
 
-The persistent test stack is the required bridge between `dev` and `main`: a commit may be promoted to `main` only after it is contained in `dev`, contained in `dogfood`, and has a successful `Test Stack Deploy` run on `dogfood`. See [Dev/Dogfood/Main promotion flow](dev-test-main-promotion-flow.md).
+The persistent test stack is the required bridge between `dev` and `main`: a commit may be promoted to `main` only after it is contained in `dev`, promoted through the reviewed `dev` -> `test` candidate, and has successful E2E / `Test Stack Deploy` evidence on `test`. The E2E result plus linked feature PR context returns to OpenClaw / the relevant owning agent before any `test` -> `main` release promotion. See [Dev/Test/Main promotion flow](dev-test-main-promotion-flow.md).
 
 The disposable live-stack workflow prepares an acceptance evidence directory, runs the app-level live-stack E2E, and uploads support-safe acceptance evidence from the run. The artifact set includes `release-evidence-manifest.json`, which names the source lane, commit, workflow run metadata, artifact list, and RC promotion rule. On failure, the same uploaded artifact may include `failure-diagnostics/` with `failure-summary.md`, `failure-summary.json`, `container-status.tsv`, `failed-markers.json`, redacted readiness output, and a redacted support-bundle reference. It must not include blindly dumped raw container logs. Do not cite a single workflow run ID as a permanent product claim; link to the workflow, the relevant docs, the manifest, and the PR evidence instead.
 
