@@ -127,7 +127,10 @@ def provider_reference_files(roots: list[str]) -> list[str]:
             if not path.is_file():
                 continue
             rel = str(path.relative_to(ROOT))
-            if any(part in {".generated", ".terraform", "build"} for part in path.relative_to(ROOT).parts):
+            rel_path = path.relative_to(ROOT)
+            if any(part in {".generated", ".terraform", "build"} for part in rel_path.parts):
+                continue
+            if rel_path.parts[:3] == ("client", "lib", "generated"):
                 continue
             if path.name.startswith("terraform.tfstate"):
                 continue
