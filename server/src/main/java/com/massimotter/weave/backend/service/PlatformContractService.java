@@ -267,14 +267,14 @@ public class PlatformContractService {
             return new PlatformStatusResponse.DiagnosticStatus(
                     "up",
                     "ready",
-                    "The canonical Nextcloud technical route is configured for backend files/calendar diagnostics.",
+                    "The support-safe public Nextcloud fallback route is configured for files/calendar diagnostics.",
                     null);
         }
         return new PlatformStatusResponse.DiagnosticStatus(
                 "degraded",
                 "degraded",
-                "The canonical Nextcloud technical route is not configured.",
-                "Set WEAVE_NEXTCLOUD_BASE_URL to the raw Nextcloud/admin/protocol origin, for example https://files.weave.test.");
+                "The support-safe public Nextcloud fallback route is not configured.",
+                "Set WEAVE_NEXTCLOUD_PUBLIC_BASE_URL to the public Nextcloud/admin/protocol origin, for example https://files.weave.test.");
     }
 
     private PlatformStatusResponse.DiagnosticCheck check(

@@ -17,7 +17,8 @@ This document is the backend runtime reference for operators and local integrati
 - `WEAVE_MATRIX_HOMESERVER_URL`: public Matrix homeserver URL, defaults to `https://matrix.weave.test`.
 - `WEAVE_FILES_PRODUCT_URL`: public files product surface, defaults to `https://weave.test/files`.
 - `WEAVE_CALENDAR_PRODUCT_URL`: public calendar product surface, defaults to `https://weave.test/calendar`.
-- `WEAVE_NEXTCLOUD_BASE_URL`: canonical raw Nextcloud technical/admin/protocol URL, defaults to `https://files.weave.test`.
+- `WEAVE_NEXTCLOUD_PUBLIC_BASE_URL`: support-safe public Nextcloud technical/admin/protocol fallback exposed in platform config, defaults to `WEAVE_NEXTCLOUD_BASE_URL` or `https://files.weave.test`.
+- `WEAVE_NEXTCLOUD_BASE_URL`: backend-internal Nextcloud adapter origin for WebDAV/CalDAV calls, defaults to `https://files.weave.test` outside container stacks.
 - `WEAVE_TARGET_MOBILE`: advertise mobile as a supported client target, defaults to `true`.
 - `WEAVE_TARGET_DESKTOP`: advertise desktop as a supported client target, defaults to `true`.
 - `WEAVE_TARGET_WEB`: advertise web as a supported client target, defaults to `false`.
