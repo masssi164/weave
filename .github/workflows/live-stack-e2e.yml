@@ -4,9 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       weave_backend_image:
-        description: "Backend image to boot inside the infra stack; ghcr.io/* is pulled, other refs are built from monorepo server/"
+        description: "Backend image to boot inside the infra stack; ghcr.io/* is pulled, other refs are built from CI-built server JAR artifacts"
         required: false
         default: "weave-backend:live-stack-ci"
+      weave_mcp_server_image:
+        description: "MCP server image built from CI-built weave-mcp-server JAR artifacts; ghcr.io/* is pulled"
+        required: false
+        default: "weave-mcp-server:live-stack-ci"
   schedule:
     # Nightly release-evidence run on the dedicated self-hosted live runner.
     - cron: "17 2 * * *"
@@ -16,6 +20,10 @@ on:
         type: string
         required: false
         default: "weave-backend:live-stack-ci"
+      weave_mcp_server_image:
+        type: string
+        required: false
+        default: "weave-mcp-server:live-stack-ci"
     secrets:
       WEAVE_TEST_PASSWORD:
         required: true
@@ -39,6 +47,7 @@ jobs:
     timeout-minutes: 75
     env:
       WEAVE_BACKEND_IMAGE: ${{ inputs.weave_backend_image || github.event.inputs.weave_backend_image || 'weave-backend:live-stack-ci' }}
+      WEAVE_MCP_SERVER_IMAGE: ${{ inputs.weave_mcp_server_image || github.event.inputs.weave_mcp_server_image || 'weave-mcp-server:live-stack-ci' }}
       WEAVE_TEST_PASSWORD: ${{ secrets.WEAVE_TEST_PASSWORD }}
       TF_VAR_test_user_password: ${{ secrets.WEAVE_TEST_PASSWORD }}
       TF_VAR_db_admin_password: ci-db-admin-password
@@ -110,6 +119,12 @@ jobs:
           echo "DOCKER_CONFIG=$DOCKER_CONFIG" >> "$GITHUB_ENV"
           docker --config "$DOCKER_CONFIG" info >/dev/null
 
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -123,6 +138,10 @@ jobs:
         with:
           tofu_version: 1.10.6
           tofu_wrapper: false
+
+      - name: Build Java runtime artifacts
+        working-directory: weave
+        run: ./gradlew --no-daemon --max-workers=1 :server:bootJar :weave-mcp-server:bootJar
 
       - name: Ensure local Weave hostnames resolve on the runner
         run: |
@@ -166,8 +185,19 @@ jobs:
             echo "Pulling published backend image for live-stack evidence."
             docker --config "${DOCKER_CONFIG}" pull "${WEAVE_BACKEND_IMAGE}"
           else
-            echo "Building backend image from monorepo server/ for live-stack evidence."
-            docker buildx build --load -t "${WEAVE_BACKEND_IMAGE}" weave/server
+            echo "Building backend runtime image from CI-built server JAR artifact."
+            docker buildx build --load -t "${WEAVE_BACKEND_IMAGE}" -f weave/server/Dockerfile weave
+          fi
+
+      - name: Prepare MCP server image
+        run: |
+          set -euo pipefail
+          if [[ "${WEAVE_MCP_SERVER_IMAGE}" == ghcr.io/* ]]; then
+            echo "Pulling published MCP server image for live-stack evidence."
+            docker --config "${DOCKER_CONFIG}" pull "${WEAVE_MCP_SERVER_IMAGE}"
+          else
+            echo "Building MCP server runtime image from CI-built weave-mcp-server JAR artifact."
+            docker buildx build --load -t "${WEAVE_MCP_SERVER_IMAGE}" -f weave/weave-mcp-server/Dockerfile weave
           fi
 
       - name: Bootstrap local stack

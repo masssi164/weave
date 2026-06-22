@@ -13,10 +13,6 @@ java {
     }
 }
 
-repositories {
-    mavenCentral()
-}
-
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.springframework.boot:spring-boot-starter-web'
@@ -38,7 +34,7 @@ tasks.named('test') {
     useJUnitPlatform()
 }
 
-tasks.named('wrapper') {
+tasks.matching { it.name == 'wrapper' }.configureEach {
     gradleVersion = '8.7'
     distributionType = Wrapper.DistributionType.ALL
 }
