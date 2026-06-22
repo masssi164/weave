@@ -39,6 +39,7 @@ nav:
       - Overview: developer-handbook.md
       - Weave operating model: weave-operating-model.md
       - Spec-driven development: spec-driven-development.md
+      - Specification source of truth: specification-source-of-truth.md
       - AI-assisted delivery orchestration: agent-team-orchestration.md
       - Lane-based PR and release workflow: gitflow-pr-workflow.md
       - DevOps branching model: devops/branching-model.md
