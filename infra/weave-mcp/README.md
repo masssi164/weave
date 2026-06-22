@@ -1,6 +1,6 @@
-# Deprecated Python Weave MCP gateway
+# Python Weave MCP gateway
 
-Status: transitional/deprecated after issue #818. New member/Weaver-facing MCP work belongs in `weave-contract` and `weave-mcp-server`; this Python path remains only as historical/local evidence until Java parity is complete and release owners remove it deliberately.
+Status: transitional architecture target after ADR-004. Issue #818 temporarily moved member/Weaver-facing MCP work toward `weave-contract` and `weave-mcp-server`; ADR-004 pivots the long-term path back to server-owned OpenAPI as contract authority. This Python gateway is the intended OpenAPI-consuming MCP adapter path, still disabled by default until the migration lands.
 
 # Weave MCP gateway skeleton
 

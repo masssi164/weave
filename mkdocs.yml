@@ -55,6 +55,7 @@ nav:
       - Space anchor contract: space-anchor-contract.md
       - No-unaccounted-data-loss portability contract: architecture/no-unaccounted-data-loss.md
       - Weaver OpenClaw-derived runtime profile: architecture/weaver-openclaw-profile.md
+      - ADR-004 server OpenAPI contract authority: architecture/adr-004-server-openapi-contract-authority.md
       - Acceptance contracts: acceptance-contracts.md
       - Quality and evidence: quality-and-evidence.md
       - Build, evidence, and delivery system: build-evidence-delivery-system.md

@@ -1,12 +1,13 @@
-# Weave contract and Java MCP server
+# Weave contract and MCP server transition
 
-Issue #818 introduces a contract-first member/Weaver/MCP boundary.
+Issue #818 introduced a contract-first member/Weaver/MCP boundary. ADR-004 supersedes the long-term authority model: `server` and its OpenAPI artifact are now the canonical contract authority for member, Admin Console, and MCP consumers.
 
 ## Modules
 
-- `weave-contract` is the shared source for member and Weaver-facing MCP DTOs, canonical member/MCP domain metadata, capability names, tool metadata, and generated-schema hints.
-- `server` depends on `weave-contract` for governed Weaver domain tool discovery and invocation metadata. Authorization, approval, audit, provider selection, and business logic remain server-side.
-- `weave-mcp-server` is a thin Java/Spring Boot MCP JSON-RPC adapter. It exposes MCP `initialize`, `tools/list`, and `tools/call`, uses shared DTO/schema metadata from `weave-contract`, and delegates calls to `weave-server` APIs.
+- `server` owns domains, validation, authorization, approval, audit, provider selection, support-safe errors, and the OpenAPI contract artifact.
+- `weave-contract` is transitional compatibility debt. New hand-written canonical domain truth must not be added here; move authority into server/OpenAPI and treat this module as removable or generated-only after migration.
+- `weave-mcp-server` is a transitional Java/Spring Boot MCP JSON-RPC adapter. It exposes MCP `initialize`, `tools/list`, and `tools/call`, but must not become a second contract authority.
+- `infra/weave-mcp` is the Python MCP path selected for the OpenAPI-consuming adapter. It should consume server OpenAPI with deny-by-default route maps/allowlists and delegate policy-sensitive actions to the server.
 
 Admin/control-plane DTOs, adapter assignment/provenance records, SecretRef diagnostics, provider-native payloads, and provider IDs remain server-local unless a later explicit architecture review moves them.
 
