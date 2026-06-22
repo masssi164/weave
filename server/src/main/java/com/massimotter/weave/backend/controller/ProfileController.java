@@ -40,6 +40,7 @@ public class ProfileController {
 
     @GetMapping("/api/profile")
     @Operation(
+            operationId = "getProductProfile",
             summary = "Get the authenticated product profile",
             description = "Returns the product-owned profile facade for the authenticated caller.")
     @ApiResponse(responseCode = "200", description = "Product profile snapshot.",
@@ -50,6 +51,7 @@ public class ProfileController {
 
     @PatchMapping("/api/profile")
     @Operation(
+            operationId = "updateProductProfile",
             summary = "Update the authenticated product profile",
             description = "Partially updates mutable product profile fields and returns the updated profile snapshot.")
     @ApiResponses({
@@ -66,6 +68,7 @@ public class ProfileController {
 
     @GetMapping("/api/profile/sync-status")
     @Operation(
+            operationId = "getProductProfileSyncStatus",
             summary = "Get product profile module sync status",
             description = "Returns frontend-safe Matrix and Nextcloud profile synchronization state for the authenticated caller.")
     @ApiResponse(responseCode = "200", description = "Profile sync status.",
@@ -76,6 +79,7 @@ public class ProfileController {
 
     @GetMapping("/api/profile/readiness")
     @Operation(
+            operationId = "getProductProfileReadiness",
             summary = "Get product profile facade readiness",
             description = "Returns support-safe readiness for the backend-owned profile facade without exposing provider credentials or upstream URLs.")
     @ApiResponse(responseCode = "200", description = "Profile facade readiness.",
