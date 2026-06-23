@@ -128,7 +128,7 @@ void main() {
       required ServerConfiguration? configuration,
       InMemorySecureStore? secureStore,
       FirstRunStatus? firstRunStatus,
-      Future<FirstRunStatus?> Function()? firstRunStatusLoader,
+      Future<FirstRunLoadResult> Function()? firstRunStatusLoader,
     }) {
       final container = ProviderContainer.test(
         overrides: [
@@ -150,7 +150,11 @@ void main() {
           firstRunStatusProvider.overrideWith(
             (ref) =>
                 firstRunStatusLoader?.call() ??
-                Future.value(firstRunStatus ?? buildTestFirstRunStatus()),
+                Future.value(
+                  FirstRunLoadResult.authenticated(
+                    firstRunStatus ?? buildTestFirstRunStatus(),
+                  ),
+                ),
           ),
           userProfileProvider.overrideWith((ref) async => null),
           workspaceConnectionStateProvider.overrideWithValue(
@@ -271,7 +275,8 @@ void main() {
         find.text('Your Weave workspace is being prepared'),
         findsOneWidget,
       );
-      expect(find.text('Wait briefly, then refresh status.'), findsOneWidget);
+      expect(find.text('Chat is still being prepared.'), findsOneWidget);
+      expect(find.textContaining('Matrix'), findsNothing);
     });
 
     testWidgets('redirects the hidden calendar route back to chat when ready', (
@@ -381,7 +386,7 @@ void main() {
       expect(find.byType(SignInScreen), findsOneWidget);
     });
 
-    testWidgets('lets signed-out first-run recovery reach sign-in', (
+    testWidgets('routes signed-out first-run result to sign-in recovery', (
       tester,
     ) async {
       final secureStore = InMemorySecureStore();
@@ -392,7 +397,7 @@ void main() {
       final container = createContainer(
         configuration: buildTestConfiguration(),
         secureStore: secureStore,
-        firstRunStatusLoader: () async => null,
+        firstRunStatusLoader: () async => const FirstRunLoadResult.signedOut(),
       );
       addTearDown(container.dispose);
 
@@ -404,13 +409,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.byType(FirstRunScreen), findsOneWidget);
-      expect(find.text('Go to sign in'), findsOneWidget);
-
-      await tester.tap(find.text('Go to sign in'));
-      await tester.pumpAndSettle();
-
       expect(find.byType(SignInScreen), findsOneWidget);
+      expect(find.byType(FirstRunScreen), findsNothing);
       expect(
         container
             .read(appRouterProvider)

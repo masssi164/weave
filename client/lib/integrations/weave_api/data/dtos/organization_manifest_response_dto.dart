@@ -1,110 +1,66 @@
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/app/domain/entities/organization_manifest_snapshot.dart';
+import 'package:weave/generated/openapi_models.dart' as openapi;
 import 'package:weave/integrations/weave_api/data/dtos/workspace_capabilities_response_dto.dart';
 
-class OrganizationManifestResponseDto {
-  const OrganizationManifestResponseDto({
-    required this.manifestVersion,
-    required this.organizationId,
-    required this.displayName,
-    required this.organizationAuthUrl,
-    required this.generatedAt,
-    required this.supportSafe,
-    required this.providerConfigurationExposed,
-    required this.diagnosticsExposed,
-    required this.whitelistingOwner,
-    required this.clientResponsibilities,
-    required this.adminConsoleResponsibilities,
-    required this.memberCapabilityStates,
-    required this.capabilities,
-  });
-
-  factory OrganizationManifestResponseDto.fromJson(Map<String, dynamic> json) {
-    final organizationAuthUrl = Uri.tryParse(
-      _string(json['organizationAuthUrl'], fallback: ''),
-    );
-    if (organizationAuthUrl == null ||
-        !organizationAuthUrl.isAbsolute ||
-        organizationAuthUrl.host.isEmpty ||
-        organizationAuthUrl.userInfo.isNotEmpty ||
-        organizationAuthUrl.hasQuery ||
-        organizationAuthUrl.hasFragment ||
-        (organizationAuthUrl.scheme != 'https' &&
-            organizationAuthUrl.scheme != 'http')) {
+extension OrganizationManifestResponseMapper
+    on openapi.OrganizationManifestResponse {
+  OrganizationManifestSnapshot toSnapshot() {
+    final authUrl = Uri.tryParse(_string(organizationAuthUrl, fallback: ''));
+    if (authUrl == null ||
+        !authUrl.isAbsolute ||
+        authUrl.host.isEmpty ||
+        authUrl.userInfo.isNotEmpty ||
+        authUrl.hasQuery ||
+        authUrl.hasFragment ||
+        (authUrl.scheme != 'https' && authUrl.scheme != 'http')) {
       throw const AppFailure.unknown(
         'The backend returned an invalid organization auth URL.',
       );
     }
-    final supportSafe = _bool(json['supportSafe']);
-    final providerConfigurationExposed = _bool(
-      json['providerConfigurationExposed'],
-    );
-    final diagnosticsExposed = _bool(json['diagnosticsExposed']);
-    if (!supportSafe || providerConfigurationExposed || diagnosticsExposed) {
+
+    final safe = supportSafe == true;
+    final exposesProviders = providerConfigurationExposed == true;
+    final exposesDiagnostics = diagnosticsExposed == true;
+    if (!safe || exposesProviders || exposesDiagnostics) {
       throw const AppFailure.unknown(
         'The backend returned an unsafe organization manifest payload.',
       );
     }
 
-    return OrganizationManifestResponseDto(
-      manifestVersion: _string(json['manifestVersion'], fallback: 'unknown'),
-      organizationId: _requiredText(json['organizationId'], 'organizationId'),
-      displayName: _requiredText(json['displayName'], 'displayName'),
-      organizationAuthUrl: organizationAuthUrl,
-      generatedAt: _dateTime(json['generatedAt']),
-      supportSafe: supportSafe,
-      providerConfigurationExposed: providerConfigurationExposed,
-      diagnosticsExposed: diagnosticsExposed,
-      whitelistingOwner: _string(
-        json['whitelistingOwner'],
-        fallback: 'unknown',
-      ),
-      clientResponsibilities: _safeStringList(json['clientResponsibilities']),
+    return OrganizationManifestSnapshot(
+      manifestVersion: _string(manifestVersion, fallback: 'unknown'),
+      organizationId: _requiredText(organizationId, 'organizationId'),
+      displayName: _requiredText(displayName, 'displayName'),
+      organizationAuthUrl: authUrl,
+      generatedAt: _dateTime(generatedAt),
+      supportSafe: safe,
+      providerConfigurationExposed: exposesProviders,
+      diagnosticsExposed: exposesDiagnostics,
+      whitelistingOwner: _string(whitelistingOwner, fallback: 'unknown'),
+      clientResponsibilities: _safeStringList(clientResponsibilities),
       adminConsoleResponsibilities: _safeStringList(
-        json['adminConsoleResponsibilities'],
+        adminConsoleResponsibilities,
       ),
-      memberCapabilityStates: _memberCapabilityStates(
-        json['memberCapabilityStates'],
-      ),
-      capabilities: WorkspaceCapabilitiesResponseDto.fromJson(
-        _map(json['capabilities']),
-      ),
+      memberCapabilityStates: _memberCapabilityStates(memberCapabilityStates),
+      capabilities: _requiredCapabilities(capabilities).toSnapshot(),
     );
   }
+}
 
-  final String manifestVersion;
-  final String organizationId;
-  final String displayName;
-  final Uri organizationAuthUrl;
-  final DateTime? generatedAt;
-  final bool supportSafe;
-  final bool providerConfigurationExposed;
-  final bool diagnosticsExposed;
-  final String whitelistingOwner;
-  final List<String> clientResponsibilities;
-  final List<String> adminConsoleResponsibilities;
-  final Map<String, MemberCapabilityState> memberCapabilityStates;
-  final WorkspaceCapabilitiesResponseDto capabilities;
-
-  OrganizationManifestSnapshot toSnapshot() => OrganizationManifestSnapshot(
-    manifestVersion: manifestVersion,
-    organizationId: organizationId,
-    displayName: displayName,
-    organizationAuthUrl: organizationAuthUrl,
-    generatedAt: generatedAt,
-    supportSafe: supportSafe,
-    providerConfigurationExposed: providerConfigurationExposed,
-    diagnosticsExposed: diagnosticsExposed,
-    whitelistingOwner: whitelistingOwner,
-    clientResponsibilities: clientResponsibilities,
-    adminConsoleResponsibilities: adminConsoleResponsibilities,
-    memberCapabilityStates: memberCapabilityStates,
-    capabilities: capabilities.toSnapshot(),
+openapi.WorkspaceCapabilitiesResponse _requiredCapabilities(
+  openapi.WorkspaceCapabilitiesResponse? value,
+) {
+  if (value != null) return value;
+  throw const AppFailure.unknown(
+    'The backend returned an invalid organization manifest payload.',
   );
 }
 
-Map<String, MemberCapabilityState> _memberCapabilityStates(Object? value) {
-  final raw = _map(value);
+Map<String, MemberCapabilityState> _memberCapabilityStates(
+  Map<String, Object?>? value,
+) {
+  final raw = value ?? const <String, Object?>{};
   return raw.map((key, value) {
     if (value is! String) {
       throw const AppFailure.unknown(
@@ -130,25 +86,13 @@ MemberCapabilityState _memberCapabilityState(String rawValue) {
   };
 }
 
-Map<String, dynamic> _map(Object? value) {
-  if (value is Map<String, dynamic>) {
-    return value;
-  }
-  throw const AppFailure.unknown(
-    'The backend returned an invalid organization manifest payload.',
-  );
+List<String> _safeStringList(List<String>? value) {
+  return value?.map(_cleanText).toList(growable: false) ?? const <String>[];
 }
 
-List<String> _safeStringList(Object? value) {
-  if (value is! List<dynamic>) {
-    return const <String>[];
-  }
-  return value.whereType<String>().map(_cleanText).toList(growable: false);
-}
+String _safeText(String? value) => value is String ? _cleanText(value) : '';
 
-String _safeText(Object? value) => value is String ? _cleanText(value) : '';
-
-String _requiredText(Object? value, String field) {
+String _requiredText(String? value, String field) {
   final cleaned = _safeText(value);
   if (cleaned.isEmpty) {
     throw AppFailure.unknown(
@@ -159,16 +103,12 @@ String _requiredText(Object? value, String field) {
   return cleaned;
 }
 
-String _string(Object? value, {required String fallback}) {
-  return value is String && value.trim().isNotEmpty ? value.trim() : fallback;
+String _string(String? value, {required String fallback}) {
+  return value != null && value.trim().isNotEmpty ? value.trim() : fallback;
 }
 
-bool _bool(Object? value) => value == true;
-
-DateTime? _dateTime(Object? value) {
-  if (value is! String) {
-    return null;
-  }
+DateTime? _dateTime(String? value) {
+  if (value == null) return null;
   return DateTime.tryParse(value);
 }
 

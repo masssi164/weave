@@ -4,10 +4,7 @@ abstract final class FeatureFlags {
   static const migrationDryRun = bool.fromEnvironment(
     'WEAVE_MIGRATION_DRY_RUN',
   );
-  static const legacyDirectMatrixChat = bool.fromEnvironment(
-    'WEAVE_LEGACY_DIRECT_MATRIX_CHAT',
-  );
 
   static const hasFeatureGatedSurfaces =
-      guestPortal || interopAdmin || migrationDryRun || legacyDirectMatrixChat;
+      guestPortal || interopAdmin || migrationDryRun;
 }

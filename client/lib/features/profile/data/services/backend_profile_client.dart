@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/profile/data/dtos/user_profile_dto.dart';
 import 'package:weave/features/profile/domain/entities/user_profile.dart';
+import 'package:weave/generated/openapi_models.dart' as openapi;
 import 'package:weave/integrations/weave_api/data/services/weave_api_uri_builder.dart';
 
 class BackendProfileClient {
@@ -35,7 +36,7 @@ class BackendProfileClient {
           'The Weave backend returned an invalid profile payload.',
         );
       }
-      return UserProfileDto.fromJson(decoded).toDomain();
+      return openapi.AuthenticatedUserResponse.fromJson(decoded).toDomain();
     } on AppFailure {
       rethrow;
     } catch (error) {
@@ -55,7 +56,7 @@ class BackendProfileClient {
       () => _httpClient.patch(
         weaveApiUri(baseUrl, const ['api', 'profile']),
         headers: _headers(accessToken),
-        body: jsonEncode(userProfileUpdateToJson(update)),
+        body: jsonEncode(userProfileUpdateToOpenApi(update).toJson()),
       ),
     );
 
@@ -70,7 +71,7 @@ class BackendProfileClient {
           'The Weave backend returned an invalid profile update payload.',
         );
       }
-      return UserProfileDto.fromJson(decoded).toDomain();
+      return openapi.ProductProfileResponse.fromJson(decoded).toDomain();
     } on AppFailure {
       rethrow;
     } catch (error) {

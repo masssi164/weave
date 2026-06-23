@@ -1,304 +1,149 @@
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
+import 'package:weave/generated/openapi_models.dart' as openapi;
 
-class FirstRunStatusDto {
-  const FirstRunStatusDto({
-    required this.identity,
-    required this.invite,
-    required this.access,
-    required this.profile,
-    required this.moduleProvisioning,
-    required this.firstRunComplete,
-    required this.actions,
-  });
-
-  factory FirstRunStatusDto.fromJson(Map<String, dynamic> json) {
-    return FirstRunStatusDto(
-      identity: FirstRunIdentityDto.fromJson(_object(json, 'identity')),
-      invite: FirstRunInviteStatusDto.fromJson(_object(json, 'invite')),
-      access: FirstRunAccessDto.fromJson(_object(json, 'access')),
-      profile: FirstRunProfileStatusDto.fromJson(_object(json, 'profile')),
-      moduleProvisioning: FirstRunModuleProvisioningDto.fromJson(
-        _object(json, 'moduleProvisioning'),
-      ),
-      firstRunComplete: _bool(json, 'firstRunComplete'),
-      actions: _stringList(json['actions']),
-    );
-  }
-
-  final FirstRunIdentityDto identity;
-  final FirstRunInviteStatusDto invite;
-  final FirstRunAccessDto access;
-  final FirstRunProfileStatusDto profile;
-  final FirstRunModuleProvisioningDto moduleProvisioning;
-  final bool firstRunComplete;
-  final List<String> actions;
-
+extension OnboardingStatusResponseMapper on openapi.OnboardingStatusResponse {
   FirstRunStatus toDomain() {
+    final identity = this.identity;
+    final invite = this.invite;
+    final access = this.access;
+    final profile = this.profile;
+    final moduleProvisioning = this.moduleProvisioning;
+
+    if (identity == null ||
+        invite == null ||
+        access == null ||
+        profile == null ||
+        moduleProvisioning == null ||
+        firstRunComplete == null) {
+      throw const AppFailure.unknown(
+        'The Weave backend returned an invalid onboarding status payload.',
+        cause: 'Missing required onboarding status fields.',
+      );
+    }
+
     return FirstRunStatus(
       identity: identity.toDomain(),
       invite: invite.toDomain(),
       access: access.toDomain(),
-      profile: profile.toDomain(),
+      profile: profile.toFirstRunDomain(),
       moduleProvisioning: moduleProvisioning.toDomain(),
-      firstRunComplete: firstRunComplete,
-      actions: actions,
+      firstRunComplete: firstRunComplete!,
+      actions: actions ?? const <String>[],
     );
   }
 }
 
-class FirstRunIdentityDto {
-  const FirstRunIdentityDto({
-    required this.userId,
-    required this.username,
-    required this.emailVerified,
-    required this.displayName,
-    required this.locale,
-    required this.timezone,
-    required this.roles,
-    required this.groups,
-    this.email,
-  });
-
-  factory FirstRunIdentityDto.fromJson(Map<String, dynamic> json) {
-    final username = _string(json, 'username');
-    return FirstRunIdentityDto(
-      userId: _string(json, 'userId'),
-      username: username,
-      email: json['email'] as String?,
-      emailVerified: _bool(json, 'emailVerified'),
-      displayName: _optionalString(json, 'displayName') ?? username,
-      locale: _optionalString(json, 'locale') ?? 'en',
-      timezone: _optionalString(json, 'timezone') ?? 'UTC',
-      roles: _stringList(json['roles']),
-      groups: _stringList(json['groups']),
-    );
-  }
-
-  final String userId;
-  final String username;
-  final String? email;
-  final bool emailVerified;
-  final String displayName;
-  final String locale;
-  final String timezone;
-  final List<String> roles;
-  final List<String> groups;
-
+extension _IdentityMapper on openapi.Identity {
   FirstRunIdentity toDomain() {
+    final requiredUsername = _requiredString(username, 'identity.username');
     return FirstRunIdentity(
-      userId: userId,
-      username: username,
+      userId: _requiredString(userId, 'identity.userId'),
+      username: requiredUsername,
       email: email,
-      emailVerified: emailVerified,
-      displayName: displayName,
-      locale: locale,
-      timezone: timezone,
-      roles: roles,
-      groups: groups,
+      emailVerified: _requiredBool(emailVerified, 'identity.emailVerified'),
+      displayName: _optionalNonBlank(displayName) ?? requiredUsername,
+      locale: _optionalNonBlank(locale) ?? 'en',
+      timezone: _optionalNonBlank(timezone) ?? 'UTC',
+      roles: roles ?? const <String>[],
+      groups: groups ?? const <String>[],
     );
   }
 }
 
-class FirstRunInviteStatusDto {
-  const FirstRunInviteStatusDto({
-    required this.status,
-    required this.message,
-    this.action,
-  });
-
-  factory FirstRunInviteStatusDto.fromJson(Map<String, dynamic> json) {
-    return FirstRunInviteStatusDto(
-      status: _string(json, 'status'),
-      message: _string(json, 'message'),
-      action: _optionalString(json, 'action'),
-    );
-  }
-
-  final String status;
-  final String message;
-  final String? action;
-
+extension _InviteStatusMapper on openapi.InviteStatus {
   FirstRunInviteStatus toDomain() {
     return FirstRunInviteStatus(
-      status: status,
-      message: message,
-      action: action,
+      status: _requiredString(status, 'invite.status'),
+      message: _requiredString(message, 'invite.message'),
+      action: _optionalNonBlank(action),
     );
   }
 }
 
-class FirstRunAccessDto {
-  const FirstRunAccessDto({
-    required this.primaryRole,
-    required this.roles,
-    required this.groups,
-    required this.canAdministerWorkspace,
-    required this.canInviteUsers,
-    required this.canUseWorkspaceModules,
-  });
-
-  factory FirstRunAccessDto.fromJson(Map<String, dynamic> json) {
-    return FirstRunAccessDto(
-      primaryRole: _string(json, 'primaryRole'),
-      roles: _stringList(json['roles']),
-      groups: _stringList(json['groups']),
-      canAdministerWorkspace: _bool(json, 'canAdministerWorkspace'),
-      canInviteUsers: _bool(json, 'canInviteUsers'),
-      canUseWorkspaceModules: _bool(json, 'canUseWorkspaceModules'),
-    );
-  }
-
-  final String primaryRole;
-  final List<String> roles;
-  final List<String> groups;
-  final bool canAdministerWorkspace;
-  final bool canInviteUsers;
-  final bool canUseWorkspaceModules;
-
+extension _AccessMapper on openapi.Access {
   FirstRunAccess toDomain() {
     return FirstRunAccess(
-      primaryRole: primaryRole,
-      roles: roles,
-      groups: groups,
-      canAdministerWorkspace: canAdministerWorkspace,
-      canInviteUsers: canInviteUsers,
-      canUseWorkspaceModules: canUseWorkspaceModules,
+      primaryRole: _requiredString(primaryRole, 'access.primaryRole'),
+      roles: roles ?? const <String>[],
+      groups: groups ?? const <String>[],
+      canAdministerWorkspace: _requiredBool(
+        canAdministerWorkspace,
+        'access.canAdministerWorkspace',
+      ),
+      canInviteUsers: _requiredBool(canInviteUsers, 'access.canInviteUsers'),
+      canUseWorkspaceModules: _requiredBool(
+        canUseWorkspaceModules,
+        'access.canUseWorkspaceModules',
+      ),
     );
   }
 }
 
-class FirstRunProfileStatusDto {
-  const FirstRunProfileStatusDto({
-    required this.status,
-    required this.missing,
-    required this.message,
-    this.action,
-  });
-
-  factory FirstRunProfileStatusDto.fromJson(Map<String, dynamic> json) {
-    return FirstRunProfileStatusDto(
-      status: _string(json, 'status'),
-      missing: _stringList(json['missing']),
-      message: _string(json, 'message'),
-      action: _optionalString(json, 'action'),
-    );
-  }
-
-  final String status;
-  final List<String> missing;
-  final String message;
-  final String? action;
-
-  FirstRunProfileStatus toDomain() {
+extension _ProfileStatusMapper on openapi.ProfileStatus {
+  FirstRunProfileStatus toFirstRunDomain() {
     return FirstRunProfileStatus(
-      status: status,
-      missing: missing,
-      message: message,
-      action: action,
+      status: _requiredString(status, 'profile.status'),
+      missing: missing ?? const <String>[],
+      message: _requiredString(message, 'profile.message'),
+      action: _optionalNonBlank(action),
     );
   }
 }
 
-class FirstRunModuleProvisioningDto {
-  const FirstRunModuleProvisioningDto({
-    required this.identity,
-    required this.profile,
-    required this.matrix,
-    required this.nextcloud,
-  });
-
-  factory FirstRunModuleProvisioningDto.fromJson(Map<String, dynamic> json) {
-    return FirstRunModuleProvisioningDto(
-      identity: FirstRunModuleStatusDto.fromJson(_object(json, 'identity')),
-      profile: FirstRunModuleStatusDto.fromJson(_object(json, 'profile')),
-      matrix: FirstRunModuleStatusDto.fromJson(_object(json, 'matrix')),
-      nextcloud: FirstRunModuleStatusDto.fromJson(_object(json, 'nextcloud')),
-    );
-  }
-
-  final FirstRunModuleStatusDto identity;
-  final FirstRunModuleStatusDto profile;
-  final FirstRunModuleStatusDto matrix;
-  final FirstRunModuleStatusDto nextcloud;
-
+extension _ModuleProvisioningMapper on openapi.ModuleProvisioning {
   FirstRunModuleProvisioning toDomain() {
     return FirstRunModuleProvisioning(
-      identity: identity.toDomain(),
-      profile: profile.toDomain(),
-      matrix: matrix.toDomain(),
-      nextcloud: nextcloud.toDomain(),
+      identity: _requiredModule(identity, 'moduleProvisioning.identity'),
+      profile: _requiredModule(profile, 'moduleProvisioning.profile'),
+      matrix: _requiredModule(matrix, 'moduleProvisioning.matrix'),
+      nextcloud: _requiredModule(nextcloud, 'moduleProvisioning.nextcloud'),
     );
   }
 }
 
-class FirstRunModuleStatusDto {
-  const FirstRunModuleStatusDto({
-    required this.state,
-    required this.message,
-    this.action,
-  });
-
-  factory FirstRunModuleStatusDto.fromJson(Map<String, dynamic> json) {
-    return FirstRunModuleStatusDto(
-      state: _provisioningState(_string(json, 'state')),
-      message: _string(json, 'message'),
-      action: _optionalString(json, 'action'),
+FirstRunModuleStatus _requiredModule(openapi.ModuleStatus? value, String path) {
+  if (value == null) {
+    throw AppFailure.unknown(
+      'The Weave backend returned an invalid onboarding status payload.',
+      cause: 'Missing required $path.',
     );
   }
+  return value.toFirstRunDomain(path);
+}
 
-  final FirstRunProvisioningState state;
-  final String message;
-  final String? action;
-
-  FirstRunModuleStatus toDomain() {
-    return FirstRunModuleStatus(state: state, message: message, action: action);
+extension _ModuleStatusMapper on openapi.ModuleStatus {
+  FirstRunModuleStatus toFirstRunDomain(String path) {
+    return FirstRunModuleStatus(
+      state: _provisioningState(_requiredString(state, '$path.state')),
+      message: _requiredString(message, '$path.message'),
+      action: _optionalNonBlank(action),
+    );
   }
 }
 
-Map<String, dynamic> _object(Map<String, dynamic> json, String key) {
-  final value = json[key];
-  if (value is Map<String, dynamic>) {
+String _requiredString(String? value, String path) {
+  if (value != null) {
     return value;
   }
   throw AppFailure.unknown(
     'The Weave backend returned an invalid onboarding status payload.',
-    cause: 'Expected object for $key.',
+    cause: 'Expected string for $path.',
   );
 }
 
-String _string(Map<String, dynamic> json, String key) {
-  final value = json[key];
-  if (value is String) {
+bool _requiredBool(bool? value, String path) {
+  if (value != null) {
     return value;
   }
   throw AppFailure.unknown(
     'The Weave backend returned an invalid onboarding status payload.',
-    cause: 'Expected string for $key.',
+    cause: 'Expected boolean for $path.',
   );
 }
 
-String? _optionalString(Map<String, dynamic> json, String key) {
-  final value = json[key];
-  return value is String && value.trim().isNotEmpty ? value : null;
-}
-
-bool _bool(Map<String, dynamic> json, String key) {
-  final value = json[key];
-  if (value is bool) {
-    return value;
-  }
-  throw AppFailure.unknown(
-    'The Weave backend returned an invalid onboarding status payload.',
-    cause: 'Expected boolean for $key.',
-  );
-}
-
-List<String> _stringList(Object? value) {
-  if (value is! List) {
-    return const <String>[];
-  }
-  return value.whereType<String>().toList(growable: false);
+String? _optionalNonBlank(String? value) {
+  return value != null && value.trim().isNotEmpty ? value : null;
 }
 
 FirstRunProvisioningState _provisioningState(String rawValue) {

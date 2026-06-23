@@ -19,6 +19,7 @@ import 'package:weave/features/files/domain/entities/file_upload_request.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
+import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
 import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
 import 'package:weave/features/profile/domain/entities/user_profile.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
@@ -347,7 +348,8 @@ void main() {
             ),
             userProfileProvider.overrideWith((ref) async => _memberProfile),
             firstRunStatusProvider.overrideWith(
-              (ref) async => buildTestFirstRunStatus(),
+              (ref) async =>
+                  FirstRunLoadResult.authenticated(buildTestFirstRunStatus()),
             ),
             weaveApiClientProvider.overrideWithValue(weaveApiClient),
           ],

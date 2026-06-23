@@ -63,7 +63,9 @@ void main() {
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
             ),
-            firstRunStatusProvider.overrideWith((ref) async => null),
+            firstRunStatusProvider.overrideWith(
+              (ref) async => const FirstRunLoadResult.signedOut(),
+            ),
           ],
         ),
       );
@@ -107,7 +109,9 @@ void main() {
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
             ),
-            firstRunStatusProvider.overrideWith((ref) async => null),
+            firstRunStatusProvider.overrideWith(
+              (ref) async => const FirstRunLoadResult.signedOut(),
+            ),
           ],
         ),
       );
@@ -212,7 +216,9 @@ void main() {
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
             ),
-            firstRunStatusProvider.overrideWith((ref) async => null),
+            firstRunStatusProvider.overrideWith(
+              (ref) async => const FirstRunLoadResult.signedOut(),
+            ),
           ],
         ),
       );
@@ -260,7 +266,9 @@ void main() {
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
             ),
-            firstRunStatusProvider.overrideWith((ref) async => null),
+            firstRunStatusProvider.overrideWith(
+              (ref) async => const FirstRunLoadResult.signedOut(),
+            ),
           ],
         );
         addTearDown(container.dispose);
@@ -314,11 +322,13 @@ void main() {
                 securityRepository,
               ),
               firstRunStatusProvider.overrideWith(
-                (ref) async => _chatFirstRunStatus(
-                  const FirstRunModuleStatus(
-                    state: FirstRunProvisioningState.failed,
-                    message: 'Internal provider detail should not render.',
-                    action: 'Internal provider action should not render.',
+                (ref) async => FirstRunLoadResult.authenticated(
+                  _chatFirstRunStatus(
+                    const FirstRunModuleStatus(
+                      state: FirstRunProvisioningState.failed,
+                      message: 'Internal provider detail should not render.',
+                      action: 'Internal provider action should not render.',
+                    ),
                   ),
                 ),
               ),
@@ -381,7 +391,9 @@ void main() {
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
             ),
-            firstRunStatusProvider.overrideWith((ref) async => null),
+            firstRunStatusProvider.overrideWith(
+              (ref) async => const FirstRunLoadResult.signedOut(),
+            ),
           ],
         ),
       );
@@ -453,7 +465,9 @@ void main() {
               chatSecurityRepositoryProvider.overrideWithValue(
                 securityRepository,
               ),
-              firstRunStatusProvider.overrideWith((ref) async => null),
+              firstRunStatusProvider.overrideWith(
+                (ref) async => const FirstRunLoadResult.signedOut(),
+              ),
             ],
           ),
         );
@@ -527,7 +541,9 @@ void main() {
               chatSecurityRepositoryProvider.overrideWithValue(
                 securityRepository,
               ),
-              firstRunStatusProvider.overrideWith((ref) async => null),
+              firstRunStatusProvider.overrideWith(
+                (ref) async => const FirstRunLoadResult.signedOut(),
+              ),
             ],
           ),
         );
@@ -600,7 +616,9 @@ void main() {
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
             ),
-            firstRunStatusProvider.overrideWith((ref) async => null),
+            firstRunStatusProvider.overrideWith(
+              (ref) async => const FirstRunLoadResult.signedOut(),
+            ),
           ],
         ),
       );
@@ -664,7 +682,9 @@ void main() {
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
             ),
-            firstRunStatusProvider.overrideWith((ref) async => null),
+            firstRunStatusProvider.overrideWith(
+              (ref) async => const FirstRunLoadResult.signedOut(),
+            ),
           ],
         ),
       );
@@ -729,7 +749,9 @@ void main() {
         overrides: [
           chatRepositoryProvider.overrideWithValue(repository),
           chatSecurityRepositoryProvider.overrideWithValue(securityRepository),
-          firstRunStatusProvider.overrideWith((ref) async => null),
+          firstRunStatusProvider.overrideWith(
+            (ref) async => const FirstRunLoadResult.signedOut(),
+          ),
         ],
       );
       addTearDown(container.dispose);
@@ -801,7 +823,9 @@ void main() {
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
             ),
-            firstRunStatusProvider.overrideWith((ref) async => null),
+            firstRunStatusProvider.overrideWith(
+              (ref) async => const FirstRunLoadResult.signedOut(),
+            ),
           ],
         ),
       );
@@ -834,7 +858,9 @@ void main() {
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
             ),
-            firstRunStatusProvider.overrideWith((ref) async => null),
+            firstRunStatusProvider.overrideWith(
+              (ref) async => const FirstRunLoadResult.signedOut(),
+            ),
           ],
         ),
       );
@@ -868,7 +894,9 @@ void main() {
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
             ),
-            firstRunStatusProvider.overrideWith((ref) async => null),
+            firstRunStatusProvider.overrideWith(
+              (ref) async => const FirstRunLoadResult.signedOut(),
+            ),
             agentCapabilityPolicyProvider.overrideWithValue(
               const AsyncData(
                 AgentCapabilityPolicy(
