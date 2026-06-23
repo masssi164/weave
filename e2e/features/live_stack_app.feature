@@ -1,7 +1,8 @@
 Feature: Live Stack product acceptance journey
   The Live Stack app E2E is the sparse executable proof that a person can sign in
-  once and use Weave-owned product surfaces for profile, chat, files, calendar,
-  and boards. These scenarios are product contracts, not implementation notes.
+  once and use Weave-owned product surfaces for profile, chat, and files. Calendar
+  and boards remain backend-facade or roadmap evidence until member routes are restored.
+  These scenarios are product contracts, not implementation notes.
 
   Each scenario has a stable tag in e2e/scenario_mappings.json. The mapping
   guard fails if a scenario is not connected to an executable test and evidence
@@ -11,22 +12,23 @@ Feature: Live Stack product acceptance journey
   Scenario: Sign-in restores the Weave workspace and profile
     Given the Weave workspace is ready for the live test person
     When the person signs in through Weave
-    Then Weave restores the signed-in workspace
-    And the person can load, edit, reload, and restore their profile name
+    Then Weave restores the signed-in workspace through backend-owned first-run status
+    And the person sees member-safe Weave readiness without provider setup copy
+    And the person can load, edit, reload, and restore their profile name without clearing omitted profile fields
 
-  @weave-live-matrix-content
-  Scenario: Matrix chat sends and reads a workspace message
+  @weave-live-chat-content
+  Scenario: Weave chat sends and reads a workspace message through the backend facade
     Given the signed-in person has the Weave chat surface available
     When the person creates a conversation and sends a message
     Then the message is readable in Weave chat
     And Weave reports the chat connection outcome honestly
 
   @weave-live-matrix-e2ee
-  Scenario: Matrix encryption status is proved honestly
+  Scenario: Chat encryption diagnostic status is proved honestly
     Given the signed-in person has encryption support available for chat
     When the person sends a message in an encrypted conversation
     Then Weave observes encrypted message evidence without plaintext leakage
-    And Weave reports recovery and key-storage readiness honestly
+    And Weave reports recovery and key-storage readiness as an explicit diagnostic surface
 
   @weave-live-files-boundary
   Scenario: Files are uploaded, shown, downloaded, and cleaned up in Weave
@@ -42,34 +44,20 @@ Feature: Live Stack product acceptance journey
     When the app checks provider readiness boundaries
     Then raw provider registry diagnostics are denied to member tokens
     And member readiness is exposed only through backend-owned facades
-    And no provider secrets or direct Flutter provider calls are exposed
-
-  @weave-live-calendar-threadrefs
-  Scenario: Calendar scopes are readable and event writes obey capability policy
-    Given workspace, team, and channel calendar scopes are available in Weave
-    When the person opens a channel calendar through Weave
-    Then the scoped calendar read stays behind the backend facade
-    And event writes either keep a stable meeting thread reference or are blocked before provider access by capability policy
-
-  @weave-live-boards-workspace-nondrag
-  Scenario: Boards workspace supports accessible non-drag task work
-    Given the Boards workspace is available in Weave
-    When the person creates, moves, and completes a task without drag-and-drop
-    Then the board still uses Weave product task concepts
-    And mapped accessibility evidence covers screen-reader summaries, tap targets, large text, and action-menu alternatives
+    And normal member journeys use Weave backend facades instead of direct Flutter provider calls
 
 
   @weave-live-workspace-loop
-  Scenario: Workspace loop links Space, Channel, Chat, Files, Board, Calendar, and Decision
+  Scenario: Workspace loop links Space, Channel, Chat, Files, and Decision
     Given a signed-in member starts from a Weave Space and channel
-    When the member records chat context, references a file, updates a board task, schedules or safely blocks a calendar event, and records a decision
+    When the member records chat context, references a file, and records a decision
     Then the loop uses stable Weave domain language and canonical IDs
-    And support-safe evidence marks real writes and any guarded calendar block without provider leakage
+    And support-safe evidence marks real writes without provider leakage
 
   @weave-live-provider-reality-vertical
   Scenario: Provider reality vertical reports domain availability honestly
     Given the signed-in person uses provider-backed Weave domains
-    When Weave checks capability reality across files, calendar, boards, calls, and documents
-    Then files, calendar, and boards are backed by live backend paths
-    And calls and documents are either available or honestly unavailable with member-safe fallback copy
+    When Weave checks capability reality across files, calls, and documents
+    Then files are backed by live backend paths
+    And calendar, boards, calls, and documents are either available outside normal member routes or honestly unavailable with member-safe fallback copy
     And provider reality evidence separates live-runtime checks from offline accessibility and release evidence

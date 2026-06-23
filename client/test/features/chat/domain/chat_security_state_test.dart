@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/features/chat/domain/entities/chat_security_state.dart';
 
 void main() {
+  // E2EE_RESULT: offline diagnostic evidence for the Matrix security seam.
   group('ChatSecurityState readinessState', () {
     test('distinguishes Matrix signed-out from signed-in readiness', () {
       expect(

@@ -18,6 +18,7 @@ Feature: Weave v0.1 dogfood production release
     Then release-scope surfaces use available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later states
     And the member does not see preview, scaffold, roadmap, or raw provider setup copy
     And provider diagnostics stay in admin/operator health surfaces
+    And removed Calendar and Deck member routes are absent instead of hidden behind redirects
 
   @weave-v01-admin-provider-categories
   Scenario: Admin sees provider categories before member use

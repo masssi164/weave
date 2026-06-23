@@ -78,7 +78,8 @@ void main() {
               _SignedOutChatSecurityRepository(),
             ),
             firstRunStatusProvider.overrideWith(
-              (ref) async => _releaseFirstRunStatus(),
+              (ref) async =>
+                  FirstRunLoadResult.authenticated(_releaseFirstRunStatus()),
             ),
             userProfileProvider.overrideWith((ref) async => _ownerProfile),
             workspaceConnectionStateProvider.overrideWithValue(

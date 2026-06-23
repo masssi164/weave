@@ -63,7 +63,9 @@ void main() {
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
             ),
-            firstRunStatusProvider.overrideWith((ref) async => null),
+            firstRunStatusProvider.overrideWith(
+              (ref) async => const FirstRunLoadResult.signedOut(),
+            ),
           ],
         ),
       );
@@ -107,7 +109,9 @@ void main() {
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
             ),
-            firstRunStatusProvider.overrideWith((ref) async => null),
+            firstRunStatusProvider.overrideWith(
+              (ref) async => const FirstRunLoadResult.signedOut(),
+            ),
           ],
         ),
       );
@@ -212,7 +216,9 @@ void main() {
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
             ),
-            firstRunStatusProvider.overrideWith((ref) async => null),
+            firstRunStatusProvider.overrideWith(
+              (ref) async => const FirstRunLoadResult.signedOut(),
+            ),
           ],
         ),
       );
@@ -260,7 +266,9 @@ void main() {
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
             ),
-            firstRunStatusProvider.overrideWith((ref) async => null),
+            firstRunStatusProvider.overrideWith(
+              (ref) async => const FirstRunLoadResult.signedOut(),
+            ),
           ],
         );
         addTearDown(container.dispose);
@@ -314,11 +322,13 @@ void main() {
                 securityRepository,
               ),
               firstRunStatusProvider.overrideWith(
-                (ref) async => _chatFirstRunStatus(
-                  const FirstRunModuleStatus(
-                    state: FirstRunProvisioningState.failed,
-                    message: 'Internal provider detail should not render.',
-                    action: 'Internal provider action should not render.',
+                (ref) async => FirstRunLoadResult.authenticated(
+                  _chatFirstRunStatus(
+                    const FirstRunModuleStatus(
+                      state: FirstRunProvisioningState.failed,
+                      message: 'Internal provider detail should not render.',
+                      action: 'Internal provider action should not render.',
+                    ),
                   ),
                 ),
               ),
@@ -381,7 +391,9 @@ void main() {
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
             ),
-            firstRunStatusProvider.overrideWith((ref) async => null),
+            firstRunStatusProvider.overrideWith(
+              (ref) async => const FirstRunLoadResult.signedOut(),
+            ),
           ],
         ),
       );
@@ -453,7 +465,9 @@ void main() {
               chatSecurityRepositoryProvider.overrideWithValue(
                 securityRepository,
               ),
-              firstRunStatusProvider.overrideWith((ref) async => null),
+              firstRunStatusProvider.overrideWith(
+                (ref) async => const FirstRunLoadResult.signedOut(),
+              ),
             ],
           ),
         );
@@ -527,7 +541,9 @@ void main() {
               chatSecurityRepositoryProvider.overrideWithValue(
                 securityRepository,
               ),
-              firstRunStatusProvider.overrideWith((ref) async => null),
+              firstRunStatusProvider.overrideWith(
+                (ref) async => const FirstRunLoadResult.signedOut(),
+              ),
             ],
           ),
         );
@@ -557,58 +573,6 @@ void main() {
         );
       },
     );
-
-    testWidgets('shows the Matrix security banner when attention is needed', (
-      tester,
-    ) async {
-      final repository = FakeChatRepository(
-        loadConversationsHandler: () async => const <ChatConversation>[
-          ChatConversation(
-            id: '!room:home.internal',
-            title: 'Project',
-            previewType: ChatConversationPreviewType.encrypted,
-            unreadCount: 0,
-            isInvite: false,
-            isDirectMessage: false,
-          ),
-        ],
-      );
-      final securityRepository = FakeChatSecurityRepository(
-        loadSecurityStateHandler: ({bool refresh = false}) async {
-          return const ChatSecurityState(
-            isMatrixSignedIn: true,
-            bootstrapState: ChatSecurityBootstrapState.recoveryRequired,
-            accountVerificationState:
-                ChatAccountVerificationState.verificationRequired,
-            deviceVerificationState: ChatDeviceVerificationState.unverified,
-            keyBackupState: ChatKeyBackupState.recoveryRequired,
-            roomEncryptionReadiness:
-                ChatRoomEncryptionReadiness.encryptedRoomsNeedAttention,
-            secretStorageReady: true,
-            crossSigningReady: true,
-            hasEncryptedConversations: true,
-            verificationSession: ChatVerificationSession.none(),
-          );
-        },
-      );
-
-      await tester.pumpWidget(
-        createTestApp(
-          const ChatScreen(),
-          overrides: [
-            chatRepositoryProvider.overrideWithValue(repository),
-            chatSecurityRepositoryProvider.overrideWithValue(
-              securityRepository,
-            ),
-            firstRunStatusProvider.overrideWith((ref) async => null),
-          ],
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('Matrix security needs attention'), findsOneWidget);
-      expect(find.text('Open security settings'), findsOneWidget);
-    });
 
     testWidgets('keeps unread recent room metadata within the tile', (
       tester,
@@ -664,7 +628,9 @@ void main() {
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
             ),
-            firstRunStatusProvider.overrideWith((ref) async => null),
+            firstRunStatusProvider.overrideWith(
+              (ref) async => const FirstRunLoadResult.signedOut(),
+            ),
           ],
         ),
       );
@@ -729,7 +695,9 @@ void main() {
         overrides: [
           chatRepositoryProvider.overrideWithValue(repository),
           chatSecurityRepositoryProvider.overrideWithValue(securityRepository),
-          firstRunStatusProvider.overrideWith((ref) async => null),
+          firstRunStatusProvider.overrideWith(
+            (ref) async => const FirstRunLoadResult.signedOut(),
+          ),
         ],
       );
       addTearDown(container.dispose);
@@ -801,7 +769,9 @@ void main() {
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
             ),
-            firstRunStatusProvider.overrideWith((ref) async => null),
+            firstRunStatusProvider.overrideWith(
+              (ref) async => const FirstRunLoadResult.signedOut(),
+            ),
           ],
         ),
       );
@@ -834,7 +804,9 @@ void main() {
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
             ),
-            firstRunStatusProvider.overrideWith((ref) async => null),
+            firstRunStatusProvider.overrideWith(
+              (ref) async => const FirstRunLoadResult.signedOut(),
+            ),
           ],
         ),
       );
@@ -868,7 +840,9 @@ void main() {
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
             ),
-            firstRunStatusProvider.overrideWith((ref) async => null),
+            firstRunStatusProvider.overrideWith(
+              (ref) async => const FirstRunLoadResult.signedOut(),
+            ),
             agentCapabilityPolicyProvider.overrideWithValue(
               const AsyncData(
                 AgentCapabilityPolicy(

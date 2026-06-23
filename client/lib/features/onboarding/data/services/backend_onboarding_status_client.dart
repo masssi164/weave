@@ -2,9 +2,10 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
-import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/onboarding/data/dtos/first_run_status_dto.dart';
+import 'package:weave/features/onboarding/domain/entities/first_run_load_failure.dart';
 import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
+import 'package:weave/generated/openapi_models.dart' as openapi;
 import 'package:weave/integrations/weave_api/data/services/weave_api_uri_builder.dart';
 
 class BackendOnboardingStatusClient {
@@ -29,40 +30,29 @@ class BackendOnboardingStatusClient {
           )
           .timeout(const Duration(seconds: 8));
     } catch (error) {
-      throw AppFailure.unknown(
-        'Unable to reach the Weave onboarding backend right now.',
-        cause: error,
-      );
+      throw FirstRunBackendUnavailableFailure(error);
     }
 
     if (response.statusCode == 401 || response.statusCode == 403) {
-      throw const AppFailure.unknown(
-        'The Weave backend rejected the current onboarding session.',
-      );
+      throw const FirstRunUnauthorizedFailure();
     }
 
     if (response.statusCode != 200) {
-      throw AppFailure.unknown(
-        'The Weave backend could not load onboarding status.',
-        cause: response.statusCode,
-      );
+      throw FirstRunBackendUnavailableFailure(response.statusCode);
     }
 
     try {
       final decoded = jsonDecode(response.body);
       if (decoded is! Map<String, dynamic>) {
-        throw const AppFailure.unknown(
-          'The Weave backend returned an invalid onboarding status payload.',
+        throw const FirstRunInvalidPayloadFailure(
+          'Expected a JSON object for onboarding status.',
         );
       }
-      return FirstRunStatusDto.fromJson(decoded).toDomain();
-    } on AppFailure {
+      return openapi.OnboardingStatusResponse.fromJson(decoded).toDomain();
+    } on FirstRunInvalidPayloadFailure {
       rethrow;
     } catch (error) {
-      throw AppFailure.unknown(
-        'Unable to decode onboarding status from the Weave backend.',
-        cause: error,
-      );
+      throw FirstRunInvalidPayloadFailure(error);
     }
   }
 }

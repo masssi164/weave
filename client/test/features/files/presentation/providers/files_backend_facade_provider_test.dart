@@ -8,6 +8,7 @@ import 'package:http/testing.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/domain/entities/auth_state.dart';
 import 'package:weave/features/auth/domain/repositories/auth_session_repository.dart';
+import 'package:weave/features/auth/presentation/providers/auth_session_repository_provider.dart';
 import 'package:weave/features/files/data/repositories/backend_files_repository.dart';
 import 'package:weave/features/files/domain/entities/file_entry.dart';
 import 'package:weave/features/files/domain/entities/file_upload_request.dart';
@@ -16,6 +17,7 @@ import 'package:weave/features/files/domain/entities/files_failure.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
+import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
 
 import '../../../../helpers/auth_test_data.dart';
 import '../../../../helpers/server_config_test_data.dart';
@@ -67,20 +69,25 @@ class _FakeAuthSessionRepository implements AuthSessionRepository {
 
 void main() {
   group('filesRepositoryProvider backend-facade seam', () {
-    test('uses the backend facade as the MVP default', () {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
-
-      expect(container.read(useBackendFilesFacadeProvider), isTrue);
-    });
-
-    test('keeps direct Nextcloud behind an explicit fallback switch', () {
+    test('always uses the backend facade in release client paths', () {
       final container = ProviderContainer(
-        overrides: [useBackendFilesFacadeProvider.overrideWithValue(false)],
+        overrides: [
+          serverConfigurationRepositoryProvider.overrideWithValue(
+            _FakeServerConfigurationRepository(buildTestConfiguration()),
+          ),
+          authSessionRepositoryProvider.overrideWithValue(
+            _FakeAuthSessionRepository(
+              AuthState.authenticated(buildTestAuthSession()),
+            ),
+          ),
+        ],
       );
       addTearDown(container.dispose);
 
-      expect(container.read(useBackendFilesFacadeProvider), isFalse);
+      expect(
+        container.read(filesRepositoryProvider),
+        isA<BackendFilesRepository>(),
+      );
     });
   });
 

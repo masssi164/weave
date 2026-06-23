@@ -10,8 +10,6 @@ abstract final class AppRoutes {
   static const chat = '/chat';
   static const chatRoomRelative = 'rooms/:roomId';
   static const files = '/files';
-  static const calendar = '/calendar';
-  static const deck = '/deck';
   static const settings = '/settings';
   static const help = '/help';
 

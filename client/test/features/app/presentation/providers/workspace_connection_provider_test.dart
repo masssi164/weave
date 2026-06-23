@@ -84,33 +84,12 @@ void main() {
     });
 
     test(
-      'maps Matrix security attention into a degraded integration',
+      'maps configured chat readiness without direct Matrix diagnostics',
       () async {
         final container = ProviderContainer.test(
           overrides: [
             savedServerConfigurationProvider.overrideWith(
               (ref) async => buildTestConfiguration(),
-            ),
-            chatSecurityRepositoryProvider.overrideWithValue(
-              FakeChatSecurityRepository(
-                loadSecurityStateHandler: ({bool refresh = false}) async {
-                  return const ChatSecurityState(
-                    isMatrixSignedIn: true,
-                    bootstrapState: ChatSecurityBootstrapState.recoveryRequired,
-                    accountVerificationState:
-                        ChatAccountVerificationState.verified,
-                    deviceVerificationState:
-                        ChatDeviceVerificationState.verified,
-                    keyBackupState: ChatKeyBackupState.recoveryRequired,
-                    roomEncryptionReadiness:
-                        ChatRoomEncryptionReadiness.encryptedRoomsNeedAttention,
-                    secretStorageReady: false,
-                    crossSigningReady: true,
-                    hasEncryptedConversations: true,
-                    verificationSession: ChatVerificationSession.none(),
-                  );
-                },
-              ),
             ),
           ],
         );
@@ -120,11 +99,8 @@ void main() {
           matrixIntegrationConnectionProvider.future,
         );
 
-        expect(state.status, IntegrationConnectionStatus.degraded);
-        expect(
-          state.recoveryRequirement,
-          IntegrationRecoveryRequirement.completeSetup,
-        );
+        expect(state.status, IntegrationConnectionStatus.connected);
+        expect(state.recoveryRequirement, IntegrationRecoveryRequirement.none);
       },
     );
 
@@ -217,7 +193,7 @@ void main() {
     );
 
     test(
-      'keeps shell access ready while service readiness stays degraded',
+      'keeps shell access ready when backend facade services are ready',
       () async {
         final container = ProviderContainer.test(
           overrides: [
@@ -273,7 +249,7 @@ void main() {
         expect(workspace.requireValue.shellAccessReady, isTrue);
         expect(
           workspace.requireValue.status,
-          IntegrationConnectionStatus.degraded,
+          IntegrationConnectionStatus.connected,
         );
         expect(
           capabilities.requireValue.shellAccess.readiness,
@@ -281,7 +257,7 @@ void main() {
         );
         expect(
           capabilities.requireValue.chat.readiness,
-          WorkspaceCapabilityReadiness.degraded,
+          WorkspaceCapabilityReadiness.ready,
         );
         expect(
           capabilities.requireValue.files.readiness,

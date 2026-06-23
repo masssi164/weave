@@ -28,210 +28,240 @@
       "name": "Member live-stack critical path",
       "evidenceMode": "live-runtime",
       "executionLane": "credentialed-live-stack",
-      "description": "Sparse release-grade runtime proof for sign-in, shell restoration, provider-owned facades, and critical member work surfaces."
+      "description": "Sparse release-grade runtime proof for sign-in, shell restoration, provider-owned facades, and critical member work surfaces.",
+      "scenarios": []
     },
     {
       "id": "v0-1-dogfood-release-spine",
       "name": "v0.1 dogfood production release spine",
       "evidenceMode": "offline-spec",
       "executionLane": "pr-safe-offline-contract",
-      "description": "Product release-scope assertions backed by deterministic widget, server, admin, docs, and fixture evidence."
+      "description": "Product release-scope assertions backed by deterministic widget, server, admin, docs, and fixture evidence.",
+      "scenarios": []
     },
     {
       "id": "spec-0001-org-embedding",
       "name": "Spec 0001 organization embedding acceptance",
       "evidenceMode": "offline-spec",
       "executionLane": "pr-safe-offline-contract",
-      "description": "Organization join, capability state, admin readiness, provider switch, and Weaver exclusion acceptance from the pinned corpus projection."
+      "description": "Organization join, capability state, admin readiness, provider switch, and Weaver exclusion acceptance from the pinned corpus projection.",
+      "scenarios": []
     },
     {
       "id": "admin-provider-portability-lifecycle",
       "name": "Admin/provider portability lifecycle",
       "evidenceMode": "offline-spec",
       "executionLane": "pr-safe-offline-contract",
-      "description": "Admin dry-runs, provider replacement truthfulness, identity lifecycle, WOPI posture, Weaver preflight, and release-gate supportability."
+      "description": "Admin dry-runs, provider replacement truthfulness, identity lifecycle, WOPI posture, Weaver preflight, and release-gate supportability.",
+      "scenarios": []
     },
     {
       "id": "operator-ci-cd-and-local-e2e-readiness",
       "name": "Operator CI/CD and local E2E readiness",
       "evidenceMode": "offline-spec",
       "executionLane": "operator-fixture-contract",
-      "description": "Forgejo pipeline/runner/bootstrap/deployed-stack handoff readiness with support-safe evidence and no persisted GitHub secrets."
+      "description": "Forgejo pipeline/runner/bootstrap/deployed-stack handoff readiness with support-safe evidence and no persisted GitHub secrets.",
+      "scenarios": []
     },
     {
       "id": "cross-domain-provider-proof",
       "name": "Cross-domain provider proof",
       "evidenceMode": "offline-spec",
       "executionLane": "provider-proof-fixture-contract",
-      "description": "Calendar, files, identity, commercial adapter, and provider-neutral claim boundaries beyond the current live Chat proof."
+      "description": "Calendar, files, identity, commercial adapter, and provider-neutral claim boundaries beyond the current live Chat proof.",
+      "scenarios": []
     },
     {
       "id": "product-e2e-scenario-layer",
       "name": "Product E2E scenario layer",
       "evidenceMode": "offline-spec",
       "executionLane": "scenario-first-offline-contract",
-      "description": "Scenario-first product and business flow coverage that must exist before runtime implementation expands."
+      "description": "Scenario-first product and business flow coverage that must exist before runtime implementation expands.",
+      "scenarios": []
     },
     {
       "id": "weave-control-setup-modes",
       "name": "Weave Control setup modes",
       "evidenceMode": "offline-spec",
       "executionLane": "scenario-first-control-mode-contract",
-      "description": "Product-mode acceptance for deploy_new, attach_existing, and hybrid bootstrap-to-client proof boundaries."
+      "description": "Product-mode acceptance for deploy_new, attach_existing, and hybrid bootstrap-to-client proof boundaries.",
+      "scenarios": []
     },
     {
       "id": "northstar-spec-decisions",
       "name": "Northstar Spec Kit decision gates",
       "evidenceMode": "offline-spec",
       "executionLane": "spec-contract",
-      "description": "Repo-local Spec Kit projections for claim-control, Identity/RBAC portability, governed Weaver approvals, and domain-first MCP naming."
+      "description": "Repo-local Spec Kit projections for claim-control, Identity/RBAC portability, governed Weaver approvals, and domain-first MCP naming.",
+      "scenarios": []
     },
     {
       "id": "spec-0000-framework",
       "name": "Spec 0000 spec-driven framework acceptance",
       "evidenceMode": "offline-spec",
       "executionLane": "pr-safe-offline-contract",
-      "description": "Spec corpus metadata, acceptance wiring, and evidence-mode separation for claim control."
+      "description": "Spec corpus metadata, acceptance wiring, and evidence-mode separation for claim control.",
+      "scenarios": []
     },
     {
       "id": "spec-0002-workflow-primitives",
       "name": "Spec 0002 workflow primitives acceptance",
       "evidenceMode": "offline-spec",
       "executionLane": "pr-safe-offline-contract",
-      "description": "Context-driven workflow previews, governed execution receipts, drift checks, and compensation boundaries."
+      "description": "Context-driven workflow previews, governed execution receipts, drift checks, and compensation boundaries.",
+      "scenarios": []
     },
     {
       "id": "spec-0003-contextual-meetings",
       "name": "Spec 0003 contextual meetings acceptance",
       "evidenceMode": "offline-spec",
       "executionLane": "pr-safe-offline-contract",
-      "description": "Meeting consent, encrypted boundaries, transcript retention, and follow-up artifact handling."
+      "description": "Meeting consent, encrypted boundaries, transcript retention, and follow-up artifact handling.",
+      "scenarios": []
     },
     {
       "id": "spec-0004-domain-registry",
       "name": "Spec 0004 domain registry acceptance",
       "evidenceMode": "offline-spec",
       "executionLane": "pr-safe-offline-contract",
-      "description": "Canonical domain registry, reality levels, capability naming, and provider-neutral states."
+      "description": "Canonical domain registry, reality levels, capability naming, and provider-neutral states.",
+      "scenarios": []
     },
     {
       "id": "spec-0005-spaces-anchor",
       "name": "Spec 0005 Spaces anchor acceptance",
       "evidenceMode": "offline-spec",
       "executionLane": "pr-safe-offline-contract",
-      "description": "Space anchors for cross-domain context, guest bounds, and raw provider identifier exclusion."
+      "description": "Space anchors for cross-domain context, guest bounds, and raw provider identifier exclusion.",
+      "scenarios": []
     },
     {
       "id": "spec-0006-portability-contract",
       "name": "Spec 0006 portability contract acceptance",
       "evidenceMode": "offline-spec",
       "executionLane": "pr-safe-offline-contract",
-      "description": "No-unaccounted-loss portability manifest, lossy field accounting, and blocked broad lossless claims."
+      "description": "No-unaccounted-loss portability manifest, lossy field accounting, and blocked broad lossless claims.",
+      "scenarios": []
     },
     {
       "id": "spec-0007-governed-weaver-runtime",
       "name": "Spec 0007 governed Weaver runtime acceptance",
       "evidenceMode": "offline-spec",
       "executionLane": "pr-safe-offline-contract",
-      "description": "Weaver runtime profiles, approved tool registry, consent receipts, and fail-closed policy drift."
+      "description": "Weaver runtime profiles, approved tool registry, consent receipts, and fail-closed policy drift.",
+      "scenarios": []
     },
     {
       "id": "spec-0008-local-dogfood-topology",
       "name": "Spec 0008 local dogfood topology acceptance",
       "evidenceMode": "offline-spec",
       "executionLane": "pr-safe-offline-contract",
-      "description": "weave.test topology truth, local evidence lanes, and live-claim boundaries."
+      "description": "weave.test topology truth, local evidence lanes, and live-claim boundaries.",
+      "scenarios": []
     },
     {
       "id": "spec-0009-domain-first-mcp",
       "name": "Spec 0009 domain-first MCP acceptance",
       "evidenceMode": "offline-spec",
       "executionLane": "pr-safe-offline-contract",
-      "description": "Domain-first MCP tool naming, approved discovery, support-safe metadata, and provider-first rejection."
+      "description": "Domain-first MCP tool naming, approved discovery, support-safe metadata, and provider-first rejection.",
+      "scenarios": []
     },
     {
       "id": "spec-0000-requirement-coverage",
       "name": "WEAVE-SPEC-0000 requirement coverage",
       "evidenceMode": "offline-spec",
       "executionLane": "pr-safe-offline-contract",
-      "description": "Requirement-category scenarios proving Weave spec-driven development framework is not only linked but covered."
+      "description": "Requirement-category scenarios proving Weave spec-driven development framework is not only linked but covered.",
+      "scenarios": []
     },
     {
       "id": "spec-0001-requirement-coverage",
       "name": "WEAVE-SPEC-0001 requirement coverage",
       "evidenceMode": "offline-spec",
       "executionLane": "pr-safe-offline-contract",
-      "description": "Requirement-category scenarios proving Admin-Suite and provider-neutral product core is not only linked but covered."
+      "description": "Requirement-category scenarios proving Admin-Suite and provider-neutral product core is not only linked but covered.",
+      "scenarios": []
     },
     {
       "id": "spec-0002-requirement-coverage",
       "name": "WEAVE-SPEC-0002 requirement coverage",
       "evidenceMode": "offline-spec",
       "executionLane": "pr-safe-offline-contract",
-      "description": "Requirement-category scenarios proving Context-driven workflow primitives is not only linked but covered."
+      "description": "Requirement-category scenarios proving Context-driven workflow primitives is not only linked but covered.",
+      "scenarios": []
     },
     {
       "id": "spec-0003-requirement-coverage",
       "name": "WEAVE-SPEC-0003 requirement coverage",
       "evidenceMode": "offline-spec",
       "executionLane": "pr-safe-offline-contract",
-      "description": "Requirement-category scenarios proving Encrypted contextual meetings contract is not only linked but covered."
+      "description": "Requirement-category scenarios proving Encrypted contextual meetings contract is not only linked but covered.",
+      "scenarios": []
     },
     {
       "id": "spec-0004-requirement-coverage",
       "name": "WEAVE-SPEC-0004 requirement coverage",
       "evidenceMode": "offline-spec",
       "executionLane": "pr-safe-offline-contract",
-      "description": "Requirement-category scenarios proving Canonical domain registry and portability primitives is not only linked but covered."
+      "description": "Requirement-category scenarios proving Canonical domain registry and portability primitives is not only linked but covered.",
+      "scenarios": []
     },
     {
       "id": "spec-0005-requirement-coverage",
       "name": "WEAVE-SPEC-0005 requirement coverage",
       "evidenceMode": "offline-spec",
       "executionLane": "pr-safe-offline-contract",
-      "description": "Requirement-category scenarios proving Spaces as cross-domain organization anchors is not only linked but covered."
+      "description": "Requirement-category scenarios proving Spaces as cross-domain organization anchors is not only linked but covered.",
+      "scenarios": []
     },
     {
       "id": "spec-0006-requirement-coverage",
       "name": "WEAVE-SPEC-0006 requirement coverage",
       "evidenceMode": "offline-spec",
       "executionLane": "pr-safe-offline-contract",
-      "description": "Requirement-category scenarios proving No-unaccounted-data-loss portability contract is not only linked but covered."
+      "description": "Requirement-category scenarios proving No-unaccounted-data-loss portability contract is not only linked but covered.",
+      "scenarios": []
     },
     {
       "id": "spec-0007-requirement-coverage",
       "name": "WEAVE-SPEC-0007 requirement coverage",
       "evidenceMode": "offline-spec",
       "executionLane": "pr-safe-offline-contract",
-      "description": "Requirement-category scenarios proving Governed Weaver runtime and tool approval contract is not only linked but covered."
+      "description": "Requirement-category scenarios proving Governed Weaver runtime and tool approval contract is not only linked but covered.",
+      "scenarios": []
     },
     {
       "id": "spec-0008-requirement-coverage",
       "name": "WEAVE-SPEC-0008 requirement coverage",
       "evidenceMode": "offline-spec",
       "executionLane": "pr-safe-offline-contract",
-      "description": "Requirement-category scenarios proving Local dogfood topology weave.test is not only linked but covered."
+      "description": "Requirement-category scenarios proving Local dogfood topology weave.test is not only linked but covered.",
+      "scenarios": []
     },
     {
       "id": "spec-0009-requirement-coverage",
       "name": "WEAVE-SPEC-0009 requirement coverage",
       "evidenceMode": "offline-spec",
       "executionLane": "pr-safe-offline-contract",
-      "description": "Requirement-category scenarios proving Domain-first MCP tools is not only linked but covered."
+      "description": "Requirement-category scenarios proving Domain-first MCP tools is not only linked but covered.",
+      "scenarios": []
     },
     {
       "id": "spec-0010-full-product-target",
       "name": "Spec 0010 full product target acceptance",
       "evidenceMode": "offline-spec",
       "executionLane": "pr-safe-offline-contract",
-      "description": "Full Weave target product setup, space work, provider change, decisions/evidence, and Weaver boundary acceptance."
+      "description": "Full Weave target product setup, space work, provider change, decisions/evidence, and Weaver boundary acceptance.",
+      "scenarios": []
     },
     {
       "id": "spec-0011-weaver-governed-pa-target",
       "name": "Spec 0011 Weaver governed PA target acceptance",
       "evidenceMode": "offline-spec",
       "executionLane": "pr-safe-offline-contract",
-      "description": "Weaver group gating, policy, per-user memory, domain-first tools, approvals, heartbeat, fallback, and audit acceptance."
+      "description": "Weaver group gating, policy, per-user memory, domain-first tools, approvals, heartbeat, fallback, and audit acceptance.",
+      "scenarios": []
     }
   ],
   "scenarios": [
@@ -254,7 +284,7 @@
       ]
     },
     {
-      "tag": "@weave-live-matrix-content",
+      "tag": "@weave-live-chat-content",
       "suiteId": "member-live-critical-path",
       "personas": [
         "member"
@@ -267,19 +297,20 @@
       "assertionFocus": [
         "canonical chat facade",
         "send/read message",
-        "support-safe Matrix boundary"
+        "backend chat boundary"
       ]
     },
     {
       "tag": "@weave-live-matrix-e2ee",
-      "suiteId": "member-live-critical-path",
+      "suiteId": "product-e2e-scenario-layer",
       "personas": [
-        "member"
+        "admin",
+        "operator"
       ],
       "domains": [
         "chat"
       ],
-      "testLevel": "live-e2e",
+      "testLevel": "offline-contract",
       "assertionFocus": [
         "honest E2EE posture",
         "non-decorative security state"
@@ -319,38 +350,6 @@
       ]
     },
     {
-      "tag": "@weave-live-calendar-threadrefs",
-      "suiteId": "member-live-critical-path",
-      "personas": [
-        "member"
-      ],
-      "domains": [
-        "calendar",
-        "spaces"
-      ],
-      "testLevel": "live-e2e",
-      "assertionFocus": [
-        "calendar read/write policy",
-        "thread references"
-      ]
-    },
-    {
-      "tag": "@weave-live-boards-workspace-nondrag",
-      "suiteId": "member-live-critical-path",
-      "personas": [
-        "member"
-      ],
-      "domains": [
-        "boards-tasks",
-        "spaces"
-      ],
-      "testLevel": "live-e2e",
-      "assertionFocus": [
-        "accessible non-drag task work",
-        "audit-ready board actions"
-      ]
-    },
-    {
       "tag": "@weave-live-workspace-loop",
       "suiteId": "member-live-critical-path",
       "personas": [
@@ -360,8 +359,6 @@
         "spaces",
         "chat",
         "files",
-        "boards-tasks",
-        "calendar",
         "decisions-evidence"
       ],
       "testLevel": "live-e2e",

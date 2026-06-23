@@ -773,6 +773,78 @@ abstract class AppLocalizations {
   /// **'Next steps'**
   String get firstRunNextStepsTitle;
 
+  /// No description provided for @firstRunProfileReadyGuidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Your profile is ready for Weave.'**
+  String get firstRunProfileReadyGuidance;
+
+  /// No description provided for @firstRunProfilePendingGuidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Your profile is still being prepared.'**
+  String get firstRunProfilePendingGuidance;
+
+  /// No description provided for @firstRunChatReadyGuidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat is ready for this workspace.'**
+  String get firstRunChatReadyGuidance;
+
+  /// No description provided for @firstRunChatPendingGuidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat is still being prepared.'**
+  String get firstRunChatPendingGuidance;
+
+  /// No description provided for @firstRunFilesReadyGuidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Files are ready for this workspace.'**
+  String get firstRunFilesReadyGuidance;
+
+  /// No description provided for @firstRunFilesPendingGuidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Files are still being prepared.'**
+  String get firstRunFilesPendingGuidance;
+
+  /// No description provided for @firstRunCalendarReadyGuidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar is ready for this workspace.'**
+  String get firstRunCalendarReadyGuidance;
+
+  /// No description provided for @firstRunCalendarPendingGuidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar is still being prepared.'**
+  String get firstRunCalendarPendingGuidance;
+
+  /// No description provided for @firstRunModuleUnavailableGuidance.
+  ///
+  /// In en, this message translates to:
+  /// **'This Weave capability is not available for this workspace yet.'**
+  String get firstRunModuleUnavailableGuidance;
+
+  /// No description provided for @firstRunModuleDegradedGuidance.
+  ///
+  /// In en, this message translates to:
+  /// **'This Weave capability is available with limited functionality.'**
+  String get firstRunModuleDegradedGuidance;
+
+  /// No description provided for @firstRunModuleActionNeededGuidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace setup needs admin attention.'**
+  String get firstRunModuleActionNeededGuidance;
+
+  /// No description provided for @firstRunNextStepAdminAttention.
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace setup needs admin attention before every capability is ready.'**
+  String get firstRunNextStepAdminAttention;
+
   /// No description provided for @firstRunRefreshButton.
   ///
   /// In en, this message translates to:
@@ -4514,7 +4586,7 @@ abstract class AppLocalizations {
   /// Description text on the sign-in screen
   ///
   /// In en, this message translates to:
-  /// **'Weave is configured. Use your provider account in the system browser to open the authenticated app shell.'**
+  /// **'Use your Weave workspace sign-in to continue. Your invite or organization account opens the app securely in the system browser.'**
   String get signInDescription;
 
   /// Title for the sign-in configuration summary card
@@ -4522,12 +4594,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Current sign-in configuration'**
   String get signInConfigurationTitle;
-
-  /// Summary line showing the provider label on the sign-in screen
-  ///
-  /// In en, this message translates to:
-  /// **'Provider: {value}'**
-  String signInConfigurationProvider(String value);
 
   /// Summary line showing the issuer URL on the sign-in screen
   ///
@@ -5535,7 +5601,7 @@ abstract class AppLocalizations {
   /// First-run guidance for owner/admin users
   ///
   /// In en, this message translates to:
-  /// **'Your role can administer workspace setup. Keep OIDC, realm, organization, invite, and service endpoint changes here or in Settings; normal users should only need one Weave sign-in.'**
+  /// **'Your role can manage workspace setup. Use admin settings for organization access, invitations, capability readiness, and recovery tasks; normal members should only need one Weave sign-in.'**
   String get firstRunAdminSetupDescription;
 
   /// Settings card title for AI agent capability governance

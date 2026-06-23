@@ -388,6 +388,50 @@ class AppLocalizationsEn extends AppLocalizations {
   String get firstRunNextStepsTitle => 'Next steps';
 
   @override
+  String get firstRunProfileReadyGuidance => 'Your profile is ready for Weave.';
+
+  @override
+  String get firstRunProfilePendingGuidance =>
+      'Your profile is still being prepared.';
+
+  @override
+  String get firstRunChatReadyGuidance => 'Chat is ready for this workspace.';
+
+  @override
+  String get firstRunChatPendingGuidance => 'Chat is still being prepared.';
+
+  @override
+  String get firstRunFilesReadyGuidance =>
+      'Files are ready for this workspace.';
+
+  @override
+  String get firstRunFilesPendingGuidance => 'Files are still being prepared.';
+
+  @override
+  String get firstRunCalendarReadyGuidance =>
+      'Calendar is ready for this workspace.';
+
+  @override
+  String get firstRunCalendarPendingGuidance =>
+      'Calendar is still being prepared.';
+
+  @override
+  String get firstRunModuleUnavailableGuidance =>
+      'This Weave capability is not available for this workspace yet.';
+
+  @override
+  String get firstRunModuleDegradedGuidance =>
+      'This Weave capability is available with limited functionality.';
+
+  @override
+  String get firstRunModuleActionNeededGuidance =>
+      'Workspace setup needs admin attention.';
+
+  @override
+  String get firstRunNextStepAdminAttention =>
+      'Workspace setup needs admin attention before every capability is ready.';
+
+  @override
   String get firstRunRefreshButton => 'Refresh status';
 
   @override
@@ -2700,15 +2744,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get signInDescription =>
-      'Weave is configured. Use your provider account in the system browser to open the authenticated app shell.';
+      'Use your Weave workspace sign-in to continue. Your invite or organization account opens the app securely in the system browser.';
 
   @override
   String get signInConfigurationTitle => 'Current sign-in configuration';
-
-  @override
-  String signInConfigurationProvider(String value) {
-    return 'Provider: $value';
-  }
 
   @override
   String signInConfigurationIssuer(String value) {
@@ -3359,7 +3398,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get firstRunAdminSetupDescription =>
-      'Your role can administer workspace setup. Keep OIDC, realm, organization, invite, and service endpoint changes here or in Settings; normal users should only need one Weave sign-in.';
+      'Your role can manage workspace setup. Use admin settings for organization access, invitations, capability readiness, and recovery tasks; normal members should only need one Weave sign-in.';
 
   @override
   String get agentCapabilityPolicyTitle => 'AI agent capability governance';
