@@ -3083,6 +3083,12 @@ abstract class AppLocalizations {
   /// **'Matrix homeserver changed'**
   String get settingsWorkspaceInvalidationMatrixHomeserverChanged;
 
+  /// Provider-neutral invalidation label for chat configuration changes
+  ///
+  /// In en, this message translates to:
+  /// **'Chat configuration changed'**
+  String get settingsWorkspaceInvalidationChatConfigurationChanged;
+
   /// Invalidation label for Nextcloud base URL changes
   ///
   /// In en, this message translates to:

@@ -297,20 +297,23 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.text('Last change: Matrix homeserver changed', findRichText: true),
+        find.text(
+          'Last change: Chat configuration changed',
+          findRichText: true,
+        ),
         findsOneWidget,
       );
       expect(
         find.text('E2EE gate: Not validated', findRichText: true),
-        findsOneWidget,
+        findsNothing,
       );
       expect(
         find.text('Server-readable bodies: No', findRichText: true),
-        findsOneWidget,
+        findsNothing,
       );
       expect(
         find.text('Agent writes: Blocked/fail-closed', findRichText: true),
-        findsOneWidget,
+        findsNothing,
       );
       await tester.scrollUntilVisible(
         find.text('AI agent capability governance'),

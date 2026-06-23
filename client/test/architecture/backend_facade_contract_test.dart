@@ -160,6 +160,17 @@ void main() {
           source,
           isNot(contains('chat_security_repository_provider.dart')),
         );
+        expect(source, isNot(contains('weaveApiMatrixE2eeDiagnosticProvider')));
+        expect(source, isNot(contains('MatrixE2eeDiagnostic')));
+        expect(source, isNot(contains('settingsWorkspaceMatrixE2eeGateLabel')));
+        expect(
+          source,
+          isNot(contains('settingsWorkspaceMatrixServerBodiesLabel')),
+        );
+        expect(
+          source,
+          isNot(contains('settingsWorkspaceMatrixAgentWritesLabel')),
+        );
       }
     },
   );

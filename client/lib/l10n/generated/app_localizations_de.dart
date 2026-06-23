@@ -1858,6 +1858,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'Matrix-Homeserver geändert';
 
   @override
+  String get settingsWorkspaceInvalidationChatConfigurationChanged =>
+      'Chat-Konfiguration geändert';
+
+  @override
   String get settingsWorkspaceInvalidationNextcloudBaseUrlChanged =>
       'Nextcloud-Basis-URL geändert';
 

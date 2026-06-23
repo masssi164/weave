@@ -413,6 +413,7 @@
   "settingsWorkspaceCapabilityLabel": "Bereitschaft",
   "settingsWorkspaceConnectionLabel": "Verbindung",
   "settingsWorkspaceLastChangeLabel": "Letzte Änderung",
+  "settingsWorkspaceInvalidationChatConfigurationChanged": "Chat-Konfiguration geändert",
   "settingsWorkspaceMatrixE2eeGateLabel": "E2EE-Gate",
   "settingsWorkspaceMatrixE2eeValidated": "Validiert",
   "settingsWorkspaceMatrixE2eeNotValidated": "Nicht validiert",

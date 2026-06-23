@@ -2067,6 +2067,10 @@
   "@settingsWorkspaceInvalidationMatrixHomeserverChanged": {
     "description": "Invalidation label for Matrix homeserver changes"
   },
+  "settingsWorkspaceInvalidationChatConfigurationChanged": "Chat configuration changed",
+  "@settingsWorkspaceInvalidationChatConfigurationChanged": {
+    "description": "Provider-neutral invalidation label for chat configuration changes"
+  },
   "settingsWorkspaceInvalidationNextcloudBaseUrlChanged": "Nextcloud base URL changed",
   "@settingsWorkspaceInvalidationNextcloudBaseUrlChanged": {
     "description": "Invalidation label for Nextcloud base URL changes"

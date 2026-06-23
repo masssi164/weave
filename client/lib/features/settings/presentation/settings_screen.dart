@@ -14,7 +14,6 @@ import 'package:weave/core/widgets/error_state.dart';
 import 'package:weave/core/widgets/loading_state.dart';
 import 'package:weave/core/widgets/weave_logo.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
-import 'package:weave/features/app/domain/entities/matrix_e2ee_diagnostic.dart';
 import 'package:weave/features/app/domain/entities/provider_stack_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
@@ -1250,7 +1249,6 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
     final workspace = ref.watch(workspaceConnectionStateProvider);
     final capabilities = ref.watch(workspaceCapabilitySnapshotProvider);
     final backendState = ref.watch(weaveBackendConnectionStateProvider);
-    final matrixDiagnostic = ref.watch(weaveApiMatrixE2eeDiagnosticProvider);
     final canViewWorkspaceHealth = ref
         .watch(userProfileProvider)
         .maybeWhen(
@@ -1302,7 +1300,6 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
                       ref.invalidate(
                         weaveApiWorkspaceCapabilitySnapshotProvider,
                       );
-                      ref.invalidate(weaveApiMatrixE2eeDiagnosticProvider);
                       ref.invalidate(weaveApiProviderStackSnapshotProvider);
                       ref.invalidate(
                         weaveApiOfficeCapabilitiesSnapshotProvider,
@@ -1333,7 +1330,6 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
                   label: l10n.settingsWorkspaceChatLabel,
                   capability: capabilitySnapshot.chat,
                   connection: workspaceState.matrix,
-                  matrixDiagnostic: matrixDiagnostic.asData?.value,
                 ),
                 const Divider(height: 32),
                 _WorkspaceReadinessRow(
@@ -1360,7 +1356,6 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
               ref.invalidate(matrixIntegrationConnectionProvider);
               ref.invalidate(nextcloudIntegrationConnectionProvider);
               ref.invalidate(weaveApiWorkspaceCapabilitySnapshotProvider);
-              ref.invalidate(weaveApiMatrixE2eeDiagnosticProvider);
               ref.invalidate(weaveApiProviderStackSnapshotProvider);
               ref.invalidate(weaveApiOfficeCapabilitiesSnapshotProvider);
             },
@@ -2017,13 +2012,11 @@ class _WorkspaceReadinessRow extends StatelessWidget {
     required this.label,
     required this.capability,
     required this.connection,
-    this.matrixDiagnostic,
   });
 
   final String label;
   final WorkspaceCapabilityState capability;
   final IntegrationConnectionState connection;
-  final MatrixE2eeDiagnostic? matrixDiagnostic;
 
   @override
   Widget build(BuildContext context) {
@@ -2065,26 +2058,6 @@ class _WorkspaceReadinessRow extends StatelessWidget {
                     connection.lastInvalidation!.reason,
                   ),
                 ),
-              if (matrixDiagnostic case final diagnostic?) ...[
-                _StatusPill(
-                  label: l10n.settingsWorkspaceMatrixE2eeGateLabel,
-                  value: diagnostic.isValidated
-                      ? l10n.settingsWorkspaceMatrixE2eeValidated
-                      : l10n.settingsWorkspaceMatrixE2eeNotValidated,
-                ),
-                _StatusPill(
-                  label: l10n.settingsWorkspaceMatrixServerBodiesLabel,
-                  value: diagnostic.keepsMessageBodiesOpaque
-                      ? l10n.settingsWorkspaceMatrixServerBodiesOpaque
-                      : l10n.settingsWorkspaceMatrixServerBodiesReadable,
-                ),
-                _StatusPill(
-                  label: l10n.settingsWorkspaceMatrixAgentWritesLabel,
-                  value: diagnostic.keepsAgentsAndConnectorsFailClosed
-                      ? l10n.settingsWorkspaceMatrixAgentWritesBlocked
-                      : l10n.settingsWorkspaceMatrixAgentWritesReview,
-                ),
-              ],
             ],
           ),
         ],
@@ -2152,7 +2125,7 @@ class _WorkspaceReadinessRow extends StatelessWidget {
       IntegrationInvalidationReason.authConfigurationChanged =>
         l10n.settingsWorkspaceInvalidationAuthConfigurationChanged,
       IntegrationInvalidationReason.matrixHomeserverChanged =>
-        l10n.settingsWorkspaceInvalidationMatrixHomeserverChanged,
+        l10n.settingsWorkspaceInvalidationChatConfigurationChanged,
       IntegrationInvalidationReason.nextcloudBaseUrlChanged =>
         l10n.settingsWorkspaceInvalidationNextcloudBaseUrlChanged,
       IntegrationInvalidationReason.backendApiBaseUrlChanged =>
