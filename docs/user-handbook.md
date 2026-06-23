@@ -4,8 +4,8 @@ This handbook is for people using a Weave organization after an owner/admin has 
 
 ## Onboarding and login
 
-1. Open the organization invite, deep link, or organization auth URL from your admin.
-2. Complete SSO in the configured identity provider.
+1. Open the organization enrollment handoff link, deep link, or organization auth URL from your admin. The link helps the app find the organization; it is not bearer access.
+2. Complete SSO in the configured identity provider. Your provisioned account and organization/workspace membership decide whether you can enter.
 3. Weave fetches the authenticated organization manifest and shows only the work surfaces and capability states available to you.
 
 If your organization is not usable yet, Weave should explain the impact in plain language from the provider-neutral manifest vocabulary: `available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, or `coming_later`. Provider setup details stay with admins/operators.

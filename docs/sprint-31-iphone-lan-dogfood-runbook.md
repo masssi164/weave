@@ -17,7 +17,7 @@ WEAVE_LAN_HOST=<Mac LAN IP> tools/weavectl profile apply \
 
 For dry validation before the stack is listening, use `--preflight-mode validate-only`. The command writes one run id under `build/evidence/local-lan-dogfood/<run-id>/` with `readiness.json`, `handoff.json`, and `evidence.json`.
 
-The command rejects `localhost`, `127.0.0.1`, `0.0.0.0`, container-only names, and Mac-only `.local` assumptions before handoff output. Handoff evidence stores refs and endpoint classes, not raw secrets or provider diagnostics. The handoff includes one canonical product join URL (`/join`) plus a `weave:/join?...` local-dev fallback. Both point at the public `/api/platform/config` app-start discovery contract; the member client must not derive provider topology from a guessed base URL.
+The command rejects `localhost`, `127.0.0.1`, `0.0.0.0`, container-only names, and Mac-only `.local` assumptions before handoff output. Handoff evidence stores refs and endpoint classes, not raw secrets or provider diagnostics. The handoff includes one canonical product join URL (`/join`) plus a `weave:/join?...` local-dev fallback. These are non-secret enrollment handoff links, not bearer access. Real access control is the provisioned account, organization/workspace membership, and identity-provider session. Both handoff links point at the public `/api/platform/config` app-start discovery contract; the member client must not derive provider topology from a guessed base URL.
 
 ## What Massimo should see
 
@@ -33,15 +33,15 @@ It includes the local CA downloads, iPhone trust steps, DNS-first service links,
 infra/weave-workspace/local-invite-link.sh --json
 ```
 
-Default invite link to give Massimo:
+Default non-secret enrollment handoff link to give Massimo:
 
 ```text
 https://weave.test:44443/join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-massimo-dogfood
 ```
 
-Give Massimo the QR/link from `handoff.json` or the deterministic local invite above and say:
+Give Massimo the QR/link from `handoff.json` or the deterministic local handoff above and say:
 
-> Open this Weave invite on the iPhone while it is on the same LAN as the Mac. It starts sign-in and then opens the Weave workspace home.
+> Open this Weave enrollment handoff on the iPhone while it is on the same LAN as the Mac. It is not a secret access token; your account and membership control access. It starts sign-in and then opens the Weave workspace home.
 
 Expected tester path:
 

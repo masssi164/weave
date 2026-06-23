@@ -13,10 +13,11 @@ This page is the compact working contract for Weave delivery. It keeps sprint, r
 
 ## Branch and release model
 
-- `main` is protected stable and release truth; only promoted `rc/*` branches or documented emergency `hotfix/*` exceptions target it.
-- `dev` is the protected integration lane for normal issue, bugfix, documentation, and spec-integration PRs.
+- `dev` is the protected integration lane. Normal feature, bugfix, documentation, and spec-integration branches are cut from `dev` and PR back to `dev` with review/refactor loops, feature tests, acceptance/Gherkin/Cucumber mappings, docs/evidence, and PR-safe gates.
+- `dogfood` is the persistent LAN candidate and human-validation lane. Promotion PRs from `dev` to `dogfood` run full or feature-relevant E2E/live validation; missing feature-relevant scenarios or deterministic mappings must be added by this stage at the latest. Merges deploy/update the persistent dogfood stack.
+- `main` is protected stable and release-capable truth after green dogfood E2E/live evidence and required human-test signoff; documented emergency `hotfix/*` exceptions are allowed.
 - `future/*` lanes hold larger not-yet-release-ready product lines and periodically reconcile back to `dev`.
-- `rc/<version>` lanes are cut from `dev` for release-candidate stabilization, full Live Stack E2E, and release evidence before promotion to `main`.
+- `rc/<version>` lanes are optional later release hardening for named releases; they are not the ordinary human dogfood path and must not bypass `dev` -> `dogfood` -> `main`.
 - `hotfix/*` lanes are cut from `main` for urgent stable-line fixes and must be backported or merged into `dev`.
 - Every PR declares its target lane, linked issue, release-note text or explicit none reason, spec impact, gates run, and exactly one release-notes label:
   - `release-notes-feature`
@@ -29,7 +30,8 @@ This page is the compact working contract for Weave delivery. It keeps sprint, r
 ## Environments
 
 - Local developer machines and disposable worktrees remain temporary environments. The durable `dev` branch is an integration lane, not a deployed environment.
-- `testing`/`staging` is a GitHub Environment or workflow target for release-candidate verification and Live Stack E2E evidence.
+- `dogfood` is the persistent LAN test/human-validation stack. Its enrollment handoff links are non-secret handoff links; real access control is account and membership provisioning plus the identity-provider session.
+- `testing`/`staging` is a GitHub Environment or workflow target for dogfood candidate validation, optional release-candidate verification, and Live Stack E2E evidence.
 - `production` is a GitHub Environment guarded by manual approval and release evidence.
 - Live Stack E2E is release evidence, not a replacement for local or PR-safe gates.
 

@@ -4,15 +4,15 @@ Status: active delivery policy.
 
 Weave uses three promotion lanes:
 
-- `dev`: normal integration branch. Feature PRs land here after ordinary CI, issue acceptance, and review/evidence gates.
-- `dogfood`: persistent LAN dogfood branch. Advancing this branch deploys or updates the local test stack on the dedicated Mac runner. This branch is named `dogfood` because legacy `test/...` branches already occupy Git's `refs/heads/test/` namespace.
-- `main`: stable/release-facing branch. A commit may reach `main` only after it has been integrated through `dev` and successfully deployed through `dogfood`.
+- `dev`: normal integration branch and the base for feature branches. Feature PRs are cut from `dev` and return to `dev` after the review/refactor loop, feature-specific tests, acceptance/Gherkin/Cucumber mappings, docs/evidence, and PR-safe CI/contracts/unit/acceptance/docs gates.
+- `dogfood`: persistent LAN dogfood branch and candidate/test-stack promotion lane. Promotion PRs from `dev` to `dogfood` run the feature-relevant E2E/live/dogfood validation for that candidate; missing feature-relevant Gherkin/Cucumber scenarios or deterministic mappings must be added by this stage at the latest. Advancing this branch deploys or updates the local test stack on the dedicated Mac runner. This branch is named `dogfood` because legacy `test/...` branches already occupy Git's `refs/heads/test/` namespace.
+- `main`: stable/release-capable branch after dogfood validation. A commit may reach `main` only after it has been integrated through `dev`, validated through `dogfood`, and has green dogfood E2E/live evidence plus human-test signoff where the change requires it.
 
 ## Why this exists
 
-`dev` proves that the repository builds and the offline/product-contract gates pass. It does not prove that Massimo can open Weave on a real device against a live local stack.
+`dev` proves that the repository builds and the offline/product-contract gates pass. Feature work belongs here first: branch from `dev`, PR back to `dev`, and add the feature-specific tests, acceptance scenarios, documentation, and evidence while the review/refactor loop is still cheap.
 
-`dogfood` is the always-testable LAN stack. It is intended for human dogfood, physical iPhone checks, and integration evidence against the same deployed stack instead of one-off local shells.
+`dogfood` is the always-testable LAN stack and candidate validation truth. It is intended for human dogfood, physical iPhone checks, and integration evidence against the same deployed stack instead of one-off local shells. It is not a disposable release-only stack.
 
 `main` must not receive commits that have bypassed either `dev` integration or `dogfood` deployment.
 
@@ -22,6 +22,7 @@ The test stack is deployed by the `Test Stack Deploy` GitHub Actions workflow:
 
 - workflow file: `.github/workflows/test-stack-deploy.yml`
 - trigger: push to `dogfood` or manual `workflow_dispatch`
+- candidate E2E workflow: `.github/workflows/live-stack-e2e.yml` on promotion PRs targeting `dogfood` and manual dispatch
 - runner: dedicated self-hosted macOS ARM64 runner `weave-live-mac-mini`
 - public local entrypoint: `https://weave.test:44443/`
 - platform config: `https://api.weave.test:44443/api/platform/config`
@@ -47,14 +48,21 @@ The persistent test stack defaults to update mode:
 
 Destructive reset is manual only through the workflow input `reset_stack=true`. It removes local test-stack data and must not be used as the normal promotion path.
 
+## Dogfood candidate validation
+
+A promotion PR from `dev` to `dogfood` is the normal place for full or feature-relevant live validation. The `Live Stack E2E` workflow must run against the promotion candidate, generate acceptance-contract evidence from `e2e/features/` and `e2e/scenario_mappings.json`, and upload support-safe artifacts. It may destructively reset its temporary validation stack, but the persistent dogfood stack is updated separately by `Test Stack Deploy` after the candidate lands on `dogfood`.
+
+The old pattern of a scheduled destructive full-E2E run from `main` is not the target model. `main` may keep lightweight smoke, release, or tag checks, but it must not be the primary noisy/destructive full-stack reset lane.
+
 ## Main promotion gate
 
 The `Main Promotion Gate` workflow enforces the branch order:
 
 1. the candidate commit is contained in `origin/dev`;
 2. the same candidate commit is contained in `origin/dogfood`;
-3. a successful `Test Stack Deploy` workflow run exists for that commit on branch `dogfood`;
-4. the root contract-authority architecture check still passes.
+3. successful dogfood candidate E2E/live evidence exists for that commit;
+4. a successful `Test Stack Deploy` workflow run exists for that commit on branch `dogfood`;
+5. the root contract-authority architecture check still passes.
 
 If any of these checks fail, the candidate is not eligible for `main`.
 
@@ -85,7 +93,7 @@ The desired tester experience is:
 3. sign in once;
 4. later open Weave and return to the same test-stack organization without re-running setup scripts.
 
-Invite/QR handoff remains useful for first enrollment and reset cases, but should not be required every time the app opens.
+Invite/QR handoff remains useful for first enrollment and reset cases, but should not be required every time the app opens. Wording must be precise: the current join/handoff link is a non-secret enrollment handoff, not bearer access. Actual access control is the provisioned account, organization/workspace membership, and identity-provider session.
 
 ## Release discipline
 
@@ -94,5 +102,6 @@ A change that affects sign-in, backend facade contracts, OpenAPI consumers, MCP/
 - ordinary PR CI on `dev`;
 - generated OpenAPI/admin/client freshness where relevant;
 - MCP/root architecture gates where relevant;
+- promotion PR evidence from `dev` to `dogfood`, including feature-relevant Gherkin/Cucumber scenarios or deterministic mappings;
 - persistent `dogfood` stack deployment;
 - targeted human or automated dogfood evidence before promotion to `main`.

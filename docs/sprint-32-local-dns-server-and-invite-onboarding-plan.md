@@ -4,14 +4,14 @@ Status: implemented locally for Sprint 32 dogfood verification. This is an imple
 
 ## Sprint goal
 
-Make the local dogfood stack DNS-first for `*.weave.test`, keep any LAN host/IP input non-canonical, bootstrap the local CA from `weave.test`, and prove that a member can join Weave by invitation link, QR code, or normal credential login without seeing raw provider configuration.
+Make the local dogfood stack DNS-first for `*.weave.test`, keep any LAN host/IP input non-canonical, bootstrap the local CA from `weave.test`, and prove that a member can join Weave by non-secret enrollment handoff link, QR code, or normal credential login without seeing raw provider configuration. Account provisioning, organization/workspace membership, and the identity-provider session remain the real access-control boundary.
 
 ## Governing context
 
 - Current branch: `feat/enterprise-app-start-ux`.
 - Current dogfood contract: DNS-first `weave.test` / `*.weave.test`; LAN IPs are not canonical app, issuer, service, or CA URLs.
 - New operator fact: Massimo added LAN DNS for `*.weave.test`.
-- Product direction: Weave remains provider-neutral and organization-first. Normal members consume invite/auth URL plus `/api/platform/config`; they must not configure Matrix, Nextcloud, raw provider URLs, secrets, diagnostics, or admin setup details.
+- Product direction: Weave remains provider-neutral and organization-first. Normal members consume non-secret enrollment handoff/auth URL plus `/api/platform/config`; they must not configure Matrix, Nextcloud, raw provider URLs, secrets, diagnostics, or admin setup details.
 - Sprint 31 baseline: physical iPhone LAN dogfood used a single LAN host/IP path-routed fallback because local DNS could not be assumed.
 - Sprint 32 correction: local DNS can now be assumed for Massimo's LAN dogfood profile, so DNS names become canonical. The LAN host/IP may remain an operator input for SAN/debug compatibility, but it is not an advertised app/service/CA URL truth.
 
@@ -82,7 +82,7 @@ DNS-first path:
   - Auth/IAM: `https://auth.weave.test:44443/realms/weave` or canonical-port equivalent.
   - Matrix: `https://matrix.weave.test:44443` or canonical-port equivalent.
   - Files technical fallback: `https://files.weave.test:44443` or canonical-port equivalent.
-- Native app startup uses `/join` and `/api/platform/config`; the app does not derive provider topology from a guessed base URL.
+- Native app startup uses `/join` and `/api/platform/config`; `/join` is an enrollment handoff, not bearer access, and the app does not derive provider topology from a guessed base URL.
 - Services that call back into local HTTPS trust the same central local CA instead of disabling verification.
 
 IP fallback and CA bootstrap path:
@@ -230,38 +230,38 @@ Evidence:
 - Relevant client analysis gate if surrounding code changes require it.
 ```
 
-### 5. Invitation link, QR, and IAM URL onboarding flow
+### 5. Enrollment handoff link, QR, and IAM URL onboarding flow
 
 Acceptance criteria:
 
-- Admin/operator can produce a support-safe invitation handoff containing only refs, organization/workspace context, and discovery URL; no secrets or provider diagnostics appear in the link or QR payload.
-- The same payload can be rendered as a URL, QR code source, and app/deep link fallback.
+- Admin/operator can produce a support-safe enrollment handoff containing only refs, organization/workspace context, and discovery URL; no secrets or provider diagnostics appear in the link or QR payload.
+- The same non-secret payload can be rendered as a URL, QR code source, and app/deep link fallback.
 - Member can alternatively enter the organization IAM/auth URL, such as `https://auth.weave.test[:port]/realms/weave`, and the app can discover or derive the platform config through an explicit supported contract rather than guessing provider topology.
-- Invitation flow is inspired by organizations: invite link/QR for most members; IAM URL plus credentials/SSO for credential-based entry; both land in the same authenticated workspace/home path.
-- Expiry, revocation, tenant/workspace binding, and audit are specified or explicitly deferred with follow-up issues before production/customer claims.
+- Enrollment flow is organization-shaped: handoff link/QR for most members; IAM URL plus credentials/SSO for credential-based entry; both land in the same authenticated workspace/home path.
+- The handoff is not bearer access. Real access control is the provisioned account, organization/workspace membership, and identity-provider session; expiry/revocation for handoff usability is specified or explicitly deferred before production/customer claims.
 - Accessibility: QR has adjacent copyable link text and screen-reader label; manual IAM URL entry has validation errors that do not rely on color alone.
-- Acceptance is mapped to e2e/product scenarios for member join through invite, organization URL, or deep link.
+- Acceptance is mapped to e2e/product scenarios for member join through handoff, organization URL, or deep link.
 
 Recommended issue draft:
 
 ```markdown
-Title: onboarding: prepare invite link, QR, and IAM URL member join flow
+Title: onboarding: prepare enrollment handoff link, QR, and IAM URL member join flow
 
 Body:
-Implement the first test invitation flow for Weave local dogfood. Members should join through an invitation link or QR code, or manually enter the IAM/auth URL and authenticate with credentials/SSO. The app must still consume `/api/platform/config` and must not expose raw provider setup to normal members.
+Implement the first test enrollment handoff flow for Weave local dogfood. Members should join through a non-secret handoff link or QR code, or manually enter the IAM/auth URL and authenticate with credentials/SSO. The app must still consume `/api/platform/config` and must not expose raw provider setup to normal members. The handoff is not bearer access; account provisioning and organization/workspace membership remain the access-control boundary.
 
 Acceptance:
-- Operator/admin flow emits a support-safe invite URL and QR payload with no secrets, raw provider diagnostics, Matrix URL, Nextcloud URL, or credential URL.
-- Native app consumes the invite/deep link, fetches `/api/platform/config`, starts SSO, and lands in workspace/home.
+- Operator/admin flow emits a support-safe enrollment handoff URL and QR payload with no secrets, raw provider diagnostics, Matrix URL, Nextcloud URL, or credential URL.
+- Native app consumes the handoff/deep link, fetches `/api/platform/config`, starts SSO, and lands in workspace/home.
 - Manual IAM URL entry is supported through a documented discovery path and does not ask for provider internals.
-- Invite link/QR and IAM URL paths share the same authenticated organization manifest/capability state after login.
-- Tests or e2e mapping cover link, QR payload, IAM URL entry, invalid/expired invite, and no-secret redaction.
+- Handoff link/QR and IAM URL paths share the same authenticated organization manifest/capability state after login.
+- Tests or e2e mapping cover link, QR payload, IAM URL entry, invalid/expired handoff, no-secret redaction, and account/membership-based denial.
 - QR/manual entry UI is accessible and localizable.
 
 Evidence:
 - onboarding unit/widget tests
 - acceptance/e2e scenario mapping update
-- local dogfood smoke command with emitted invite/QR payload
+- local dogfood smoke command with emitted handoff/QR payload
 ```
 
 ## Implemented in the first DNS-first slice
@@ -271,14 +271,14 @@ Evidence:
 - Certificate SAN generation includes `weave.test`, `*.weave.test`, and concrete service hostnames.
 - Caddy advertises CA bootstrap on `http://weave.test:44080/weave-local-ca.pem`.
 - App handoff validation permits the intentional `weave.test` / `*.weave.test` LAN DNS domain and rejects LAN-IP app-start links, loopback, container-only names, and unrelated `.local` names.
-- Client tests cover invite link onboarding, deterministic QR payload/decode, DNS-first app-start config consumption, and existing credential-login integration coverage.
+- Client tests cover non-secret enrollment handoff onboarding, deterministic QR payload/decode, DNS-first app-start config consumption, and existing credential-login integration coverage.
 - `client/ios/Podfile.lock` remains pre-existing/unassessed working-tree state.
 
 ## Suggested follow-up issue DAG
 
 - First: review and land the local DNS-first infra/client slice.
 - Second: run the same evidence on the physical iPhone after installing/trusting `Weave Local Development CA`.
-- Third: improve visible invite/QR/IAM URL onboarding UX beyond the deterministic parser/discovery contracts.
+- Third: improve visible enrollment handoff/QR/IAM URL onboarding UX beyond the deterministic parser/discovery contracts.
 - Final: sprint closure report with Massimo's physical-device result.
 
 ## Risks and open decisions
