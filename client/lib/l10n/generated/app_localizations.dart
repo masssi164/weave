@@ -2255,18 +2255,6 @@ abstract class AppLocalizations {
   /// **'Shell module preferences could not be saved. Try changing the setting again.'**
   String get settingsShellModulesError;
 
-  /// Section title for Matrix security status and actions in settings
-  ///
-  /// In en, this message translates to:
-  /// **'Matrix security'**
-  String get chatSecuritySectionTitle;
-
-  /// Description shown above the Matrix security section in settings
-  ///
-  /// In en, this message translates to:
-  /// **'Weave only treats Matrix encryption as healthy when secret storage, cross-signing, recovery, and device trust are all in place.'**
-  String get chatSecuritySectionDescription;
-
   /// Title shown when the app displays the generated Matrix recovery key
   ///
   /// In en, this message translates to:

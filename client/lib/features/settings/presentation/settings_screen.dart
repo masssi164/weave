@@ -23,7 +23,6 @@ import 'package:weave/features/agents/presentation/providers/agent_capability_po
 import 'package:weave/features/agents/presentation/widgets/agent_capability_policy_card.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/auth/presentation/providers/auth_flow_controller.dart';
-import 'package:weave/features/chat/presentation/widgets/chat_security_settings_section.dart';
 import 'package:weave/features/connectors/presentation/providers/connector_preview_provider.dart';
 import 'package:weave/features/connectors/presentation/widgets/connector_settings_preview_card.dart';
 import 'package:weave/features/guests/presentation/providers/guest_preview_provider.dart';
@@ -87,8 +86,6 @@ class SettingsScreen extends ConsumerWidget {
                   ],
                   const SizedBox(height: 32),
                   _AdminSetupSection(configuration: configuration),
-                  const SizedBox(height: 32),
-                  const ChatSecuritySettingsSection(),
                   const SizedBox(height: 32),
                   Text(
                     l10n.settingsSignOutTitle,

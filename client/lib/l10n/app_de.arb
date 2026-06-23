@@ -438,8 +438,6 @@
   "settingsWorkspaceInvalidationExplicitSignOut": "Manuell abgemeldet",
   "settingsWorkspaceInvalidationRestartSetup": "Einrichtung neu gestartet",
   "settingsWorkspaceInvalidationBackendApiBaseUrlChanged": "Backend-API-URL geändert",
-  "chatSecuritySectionTitle": "Matrix-Sicherheit",
-  "chatSecuritySectionDescription": "Weave bewertet verschlüsselte Chaträume nur dann als gesund, wenn Secret Storage, Cross-Signing, Wiederherstellung und Gerätevertrauen vollständig eingerichtet sind.",
   "chatSecurityRecoveryKeyTitle": "Diesen Matrix-Wiederherstellungsschlüssel jetzt sichern",
   "chatSecurityRecoveryKeyDescription": "Weave verlässt sich für diesen Schlüssel nicht auf app-internen Speicher, weil sicherer Speicher nach Neuinstallation, Gerätewechsel oder manchen Wiederherstellungen verschwinden kann. Bewahren Sie ihn in Ihrem Passwortmanager oder an einem anderen sicheren Ort auf.",
   "chatSecurityBannerTitle": "Matrix-Sicherheit braucht Aufmerksamkeit",

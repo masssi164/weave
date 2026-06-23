@@ -18,8 +18,8 @@ Sync and offline behavior:
 - support offline or stale-cache rendering without collapsing the whole timeline
 
 Current security surfaces:
-- `presentation/widgets/chat_security_settings_section.dart` is the main UI for Matrix bootstrap, recovery, and verification actions even though it is hosted from Settings
-- `presentation/widgets/chat_security_banner.dart` should only summarize actionable encrypted-room risk and route users to Settings for details
+- normal member Settings must not host Matrix bootstrap, recovery, or verification controls; keep direct Matrix security flows fenced as diagnostic/internal seams until a governed product surface is specified
+- `presentation/widgets/chat_security_banner.dart` should only summarize actionable encrypted-room risk without leaking raw SDK state names or provider diagnostics
 - verification UX currently supports SAS emoji/numbers and recovery-key unlock for SSSS-backed verification continuation; QR flows are intentionally unsupported until the client advertises those methods explicitly
 
 Accessibility:

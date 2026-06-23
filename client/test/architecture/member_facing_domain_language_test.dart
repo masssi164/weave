@@ -51,10 +51,8 @@ void main() {
           contains('Gerätevertrauen'),
         ),
       );
-      expect(
-        de['chatSecuritySectionDescription'],
-        contains('verschlüsselte Chaträume'),
-      );
+      expect(en, isNot(contains('chatSecuritySectionDescription')));
+      expect(de, isNot(contains('chatSecuritySectionDescription')));
     });
 
     test('does not use dogfood provider labels in member handbook copy', () {

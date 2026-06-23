@@ -1349,13 +1349,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Shell module preferences could not be saved. Try changing the setting again.';
 
   @override
-  String get chatSecuritySectionTitle => 'Matrix security';
-
-  @override
-  String get chatSecuritySectionDescription =>
-      'Weave only treats Matrix encryption as healthy when secret storage, cross-signing, recovery, and device trust are all in place.';
-
-  @override
   String get chatSecurityRecoveryKeyTitle =>
       'Save this Matrix recovery key now';
 

@@ -1361,13 +1361,6 @@ class AppLocalizationsDe extends AppLocalizations {
       'Shell-Modul-Einstellungen konnten nicht gespeichert werden. Versuche, die Einstellung erneut zu ändern.';
 
   @override
-  String get chatSecuritySectionTitle => 'Matrix-Sicherheit';
-
-  @override
-  String get chatSecuritySectionDescription =>
-      'Weave bewertet verschlüsselte Chaträume nur dann als gesund, wenn Secret Storage, Cross-Signing, Wiederherstellung und Gerätevertrauen vollständig eingerichtet sind.';
-
-  @override
   String get chatSecurityRecoveryKeyTitle =>
       'Diesen Matrix-Wiederherstellungsschlüssel jetzt sichern';
 

@@ -132,11 +132,16 @@ void main() {
     final securityProvider = await File(
       'lib/features/chat/presentation/providers/chat_security_repository_provider.dart',
     ).readAsString();
+    final settingsScreen = await File(
+      'lib/features/settings/presentation/settings_screen.dart',
+    ).readAsString();
     expect(
       securityProvider,
       contains('Diagnostic-only Matrix E2EE/security seam'),
     );
     expect(securityProvider, contains('until #895'));
+    expect(settingsScreen, isNot(contains('ChatSecuritySettingsSection')));
+    expect(settingsScreen, isNot(contains('chatSecurityRepositoryProvider')));
   });
 
   test('member Chat screen stays on Weave-domain readiness language', () async {

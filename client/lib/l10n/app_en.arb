@@ -1510,14 +1510,6 @@
   "@settingsShellModulesError": {
     "description": "Error shown when shell module preferences cannot load or save"
   },
-  "chatSecuritySectionTitle": "Matrix security",
-  "@chatSecuritySectionTitle": {
-    "description": "Section title for Matrix security status and actions in settings"
-  },
-  "chatSecuritySectionDescription": "Weave only treats Matrix encryption as healthy when secret storage, cross-signing, recovery, and device trust are all in place.",
-  "@chatSecuritySectionDescription": {
-    "description": "Description shown above the Matrix security section in settings"
-  },
   "chatSecurityRecoveryKeyTitle": "Save this Matrix recovery key now",
   "@chatSecurityRecoveryKeyTitle": {
     "description": "Title shown when the app displays the generated Matrix recovery key"
