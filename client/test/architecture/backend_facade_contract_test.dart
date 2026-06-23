@@ -139,6 +139,31 @@ void main() {
     expect(securityProvider, contains('until #895'));
   });
 
+  test(
+    'normal member surfaces do not mount Matrix security diagnostics',
+    () async {
+      final chatScreen = await File(
+        'lib/features/chat/presentation/chat_screen.dart',
+      ).readAsString();
+      final settingsScreen = await File(
+        'lib/features/settings/presentation/settings_screen.dart',
+      ).readAsString();
+
+      for (final source in <String>[chatScreen, settingsScreen]) {
+        expect(source, isNot(contains('chatSecurityProvider')));
+        expect(source, isNot(contains('ChatSecurityBanner')));
+        expect(source, isNot(contains('ChatSecuritySettingsSection')));
+        expect(source, isNot(contains('chat_security_provider.dart')));
+        expect(source, isNot(contains('chat_security_banner.dart')));
+        expect(source, isNot(contains('chat_security_settings_section.dart')));
+        expect(
+          source,
+          isNot(contains('chat_security_repository_provider.dart')),
+        );
+      }
+    },
+  );
+
   test('member Chat screen stays on Weave-domain readiness language', () async {
     final screen = await File(
       'lib/features/chat/presentation/chat_screen.dart',
