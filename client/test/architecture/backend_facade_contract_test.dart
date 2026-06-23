@@ -89,12 +89,14 @@ void main() {
       expect(filesMapper, contains('OpenApiResourcePage<FileEntry>'));
       expect(filesMapper, isNot(contains('Nextcloud')));
 
-      for (final file in <String>[
-        'lib/features/chat/domain/repositories/chat_repository.dart',
-        'lib/features/chat/presentation/providers/chat_provider.dart',
-        'lib/features/files/domain/repositories/files_repository.dart',
-        'lib/features/files/presentation/providers/files_provider.dart',
-      ]) {
+      final featureBoundaryFiles = <String>[
+        'lib/features/chat/domain',
+        'lib/features/chat/presentation',
+        'lib/features/files/domain',
+        'lib/features/files/presentation',
+      ].expand(_dartFilesUnder);
+
+      for (final file in featureBoundaryFiles) {
         final source = await File(file).readAsString();
         expect(
           source,
@@ -235,4 +237,12 @@ void main() {
       expect(memberChatCopy, isNot(contains(forbidden)), reason: forbidden);
     }
   });
+}
+
+Iterable<String> _dartFilesUnder(String directoryPath) {
+  return Directory(directoryPath)
+      .listSync(recursive: true)
+      .whereType<File>()
+      .where((file) => file.path.endsWith('.dart'))
+      .map((file) => file.path.replaceAll(r'\', '/'));
 }

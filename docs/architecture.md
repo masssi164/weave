@@ -152,12 +152,12 @@ Each feature follows the same three layers:
 
 Shared integrations follow the same layering under `lib/integrations/<integration>/` when multiple features need the same protocol/platform boundary.
 
-Current repository-first stub boundaries:
+Current feature repository boundaries:
 
 - `auth` -> `AuthSessionRepository` + `OidcClient`
-- `chat` -> `ChatRepository` + `MatrixClient`
-- `integrations/nextcloud` -> `NextcloudConnectionService` + `NextcloudAuthClient` + `NextcloudSessionRepository` + shared providers
-- `files` -> `FilesRepository` + `NextcloudDavClient`
+- `chat` -> `ChatRepository` + backend Chat facade OpenAPI DTO mapping in `data/`; Matrix SDK access is fenced to legacy/diagnostic chat-owned services until #895 removes or replaces that seam
+- `files` -> `FilesRepository` + backend Files facade OpenAPI DTO mapping in `data/`; direct Nextcloud/WebDAV transport stays outside normal member UI paths
+- `integrations/nextcloud` -> transitional Nextcloud auth/session helpers only for fenced legacy or provider-owned integration work; normal member Files presentation must use the backend Files facade
 - `calendar` -> `CalendarRepository` + backend `CalendarFacadeClient` (no direct Flutter-to-CalDAV product path)
 - `deck` / future `tasks_boards` -> exploratory board repository/client boundaries; future work should use a provider-neutral Weave model with adapters
 
@@ -172,11 +172,11 @@ Boundary rule:
 - features may depend on integrations, but integrations must not depend on feature presentation state or feature-owned transport mappings they are meant to support
 
 ## Session separation
-App auth, Matrix auth, and shared Nextcloud session handling are intentionally separate concerns:
+App auth, legacy Matrix diagnostic auth, and transitional Nextcloud integration state are intentionally separate concerns:
 
 - `auth/` owns the app-level OIDC session that decides whether the shell is reachable
-- `chat/` owns Matrix protocol discovery, Matrix Native OAuth 2.0 login, refresh, logout, and SDK persistence
-- `integrations/nextcloud/` consumes app-auth state when available, but owns Nextcloud bearer/app-password selection, secure Nextcloud session persistence, reconnect rules, and app-password revocation
+- `chat/data/repositories/BackendChatRepository` consumes the Weave app session and calls the canonical backend Chat facade; remaining Matrix protocol discovery, Matrix Native OAuth 2.0 login, refresh, logout, and SDK persistence are fenced legacy/diagnostic seams pending #895
+- `files/data/repositories/BackendFilesRepository` consumes the Weave app session and calls the canonical backend Files facade; `integrations/nextcloud/` remains transitional provider-integration code rather than the normal member Files path
 - the app does not assume an app-level OIDC access token is also a Matrix access token
 - the app does not assume an app-level OIDC token can be persisted as a raw Nextcloud bearer session; persisted Nextcloud bearer sessions are stored as tokenless markers and rehydrated from app auth state
 - changing the Matrix homeserver invalidates the Matrix session without redesigning bootstrap

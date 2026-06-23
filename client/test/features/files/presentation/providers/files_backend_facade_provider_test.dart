@@ -218,6 +218,29 @@ void main() {
       },
     );
 
+    test('fails closed when OpenAPI files response misses items', () async {
+      final client = MockClient(
+        (_) async => http.Response(jsonEncode({'path': '/Team'}), 200),
+      );
+
+      await expectLater(
+        repository(client).listDirectory('/Team'),
+        throwsA(
+          isA<FilesFailure>()
+              .having(
+                (failure) => failure.type,
+                'type',
+                FilesFailureType.protocol,
+              )
+              .having(
+                (failure) => failure.message,
+                'message',
+                contains('without items'),
+              ),
+        ),
+      );
+    });
+
     test(
       'creates folders, prepares downloads, and deletes via backend endpoints',
       () async {

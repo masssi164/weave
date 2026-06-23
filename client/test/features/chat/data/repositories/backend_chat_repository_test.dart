@@ -6,10 +6,13 @@ import 'package:http/testing.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/domain/entities/auth_state.dart';
 import 'package:weave/features/auth/domain/repositories/auth_session_repository.dart';
+import 'package:weave/features/chat/data/dtos/chat_openapi_mappers.dart';
 import 'package:weave/features/chat/data/repositories/backend_chat_repository.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
+import 'package:weave/generated/openapi_models.dart' as openapi;
+import 'package:weave/integrations/weave_api/domain/entities/openapi_feature_adapter.dart';
 
 import '../../../../helpers/auth_test_data.dart';
 import '../../../../helpers/server_config_test_data.dart';
@@ -99,7 +102,7 @@ void main() {
             },
           ],
           'readiness': {
-            'impactState': 'available',
+            'impactState': 'usable',
             'memberImpact': 'Weave Chat is available.',
             'diagnosticsRedacted': true,
             'grantedCapabilities': ['chat.message.read'],
@@ -179,7 +182,7 @@ void main() {
       (_) async => http.Response(
         jsonEncode({
           'domain': 'chat',
-          'memberState': 'not_configured',
+          'memberState': 'misconfigured',
           'memberImpact': 'Ask an admin to finish Chat setup.',
           'supportSafe': true,
           'downstreamDiagnosticsExposedToMember': false,
@@ -197,6 +200,37 @@ void main() {
           'Ask an admin to finish Chat setup.',
         ),
       ),
+    );
+  });
+
+  test('maps server Chat readiness states into adapter states', () {
+    expect(
+      const openapi.ChatReadiness(
+        memberState: 'ready',
+        memberImpact: 'Ready.',
+      ).toFeatureReadiness().state,
+      OpenApiFeatureCapabilityState.available,
+    );
+    expect(
+      const openapi.ChatReadiness(
+        memberState: 'misconfigured',
+        memberImpact: 'Ask an admin to finish Chat setup.',
+      ).toFeatureReadiness().state,
+      OpenApiFeatureCapabilityState.notConfigured,
+    );
+    expect(
+      const openapi.ChatReadiness(
+        memberState: 'disabled',
+        memberImpact: 'Chat is disabled.',
+      ).toFeatureReadiness().state,
+      OpenApiFeatureCapabilityState.disabled,
+    );
+    expect(
+      const openapi.ChatReadinessResponse(
+        impactState: 'policy-blocked',
+        memberImpact: 'Chat is blocked by policy.',
+      ).toFeatureReadiness().state,
+      OpenApiFeatureCapabilityState.disabledByPolicy,
     );
   });
 }

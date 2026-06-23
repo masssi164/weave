@@ -1,5 +1,6 @@
 enum OpenApiFeatureCapabilityState {
   available,
+  disabled,
   disabledByPolicy,
   notConfigured,
   degraded,
@@ -14,10 +15,14 @@ enum OpenApiFeatureCapabilityState {
       case 'usable':
       case 'ready':
         return OpenApiFeatureCapabilityState.available;
+      case 'disabled':
+        return OpenApiFeatureCapabilityState.disabled;
       case 'disabled_by_policy':
       case 'policy_blocked':
+      case 'policy-blocked':
         return OpenApiFeatureCapabilityState.disabledByPolicy;
       case 'not_configured':
+      case 'misconfigured':
         return OpenApiFeatureCapabilityState.notConfigured;
       case 'degraded':
         return OpenApiFeatureCapabilityState.degraded;
