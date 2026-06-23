@@ -84,7 +84,7 @@ Shell destinations:
 - **Channels** contain team/topic rooms and remain the main collaboration spine for future channel workspaces.
 - **AI chats** provide a distinct home for specialized assistant and agent chats instead of mixing them into ordinary DMs.
 
-The first implementation slice keeps Matrix as the conversation source, classifies direct messages versus channels from existing room metadata, and renders honest empty states for favorites and AI chats until backend/product metadata is ready. Channel detail treats a channel as a workspace container, but normal member copy may only show available product surfaces or impact-level unavailable states. Files, board/task, calendar, and meeting setup details stay behind admin/operator Workspace Health until the corresponding backend capability is enabled; channel UX must not expose provider setup diagnostics or preview claims.
+The current member Chat path uses the backend Chat facade as the conversation source. Flutter maps `/api/chat/*` OpenAPI DTOs inside `features/chat/data/` and presents Weave-domain conversations, messages, and readiness through `ChatRepository`. Channel detail treats a channel as a workspace container, but normal member copy may only show available product surfaces or impact-level unavailable states. Files, board/task, calendar, and meeting setup details stay behind admin/operator Workspace Health until the corresponding backend capability is enabled; channel UX must not expose provider setup diagnostics or preview claims.
 
 The server now owns a Chat domain facade seam. Member routes under `/api/chat/*` return Weave-domain readiness/conversation/message contracts and fail closed for missing, unsupported, degraded, blocked, or unconfigured Chat mappings. Admin/operator routes under `/api/admin/chat/*` may show support-safe selected mapping, redacted readiness diagnostics, and migration dry-run/preflight reports; destructive migration apply is intentionally out of scope.
 
@@ -192,7 +192,7 @@ Matrix E2EE state also stays inside `features/chat/`:
 - verification state must stay chat-owned as well; SDK states such as `askSSSS` are surfaced as recovery/unlock prompts rather than exposed directly in widgets
 - current verification support is limited to SAS emoji/numbers plus SSSS unlock; QR verification remains out of scope until the client explicitly supports QR methods end-to-end
 
-The current Matrix integration uses:
+The remaining Matrix integration is a fenced legacy/diagnostic seam pending #895. It uses:
 
 - the configured Matrix homeserver URL from `ServerConfiguration`
 - `Client.checkHomeserver(..., fetchAuthMetadata: true)` for capability discovery
@@ -201,12 +201,12 @@ The current Matrix integration uses:
 - Matrix SDK crypto setup helpers for first-device bootstrap, recovery reconnect, and self-verification continuation
 
 ## Nextcloud integration split
-Nextcloud is now split into:
+Normal member Files uses the backend Files facade through `BackendFilesRepository`; Flutter maps `/api/files/*` OpenAPI DTOs inside `features/files/data/` and presents Weave-domain `DirectoryListing` and `FileEntry` objects. The transitional Nextcloud integration is now split into fenced provider-owned helpers:
 
-- `integrations/nextcloud/` for shared auth, session, account validation, login-flow handling, revoke policy, provider wiring, and connection lifecycle orchestration
-- `features/files/` for DAV directory browsing, file-entry mapping, and file-facing presentation/state
+- `integrations/nextcloud/` for legacy/shared auth, session, account validation, login-flow handling, revoke policy, provider wiring, and connection lifecycle orchestration where a fenced provider adapter still needs it
+- `features/files/` for backend Files facade calls, OpenAPI DTO-to-domain mapping, and file-facing presentation/state
 
-This keeps the current Files UX intact while making the same Nextcloud platform layer reusable for future Calendar or provider-adapter board work without importing `features/files/`.
+This keeps the current Files UX intact while moving provider transport behind backend domain services. Future Calendar or provider-adapter board work must not import `features/files/` or add direct member UI provider setup paths.
 
 ## Calendar backend facade scope
 
