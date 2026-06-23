@@ -52,20 +52,36 @@ jobs:
             echo "Candidate is already contained in origin/main."
           fi
 
+      - name: Verify successful dogfood candidate Live Stack E2E for candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          candidate="${{ steps.candidate.outputs.sha }}"
+          runs_json="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/live-stack-e2e.yml/runs?head_sha=${candidate}&status=completed&per_page=20")"
+          count="$(python3 -c 'import json,sys; print(sum(1 for run in json.load(sys.stdin).get("workflow_runs", []) if run.get("conclusion") == "success"))' <<<"$runs_json")"
+          if [[ "$count" == "0" ]]; then
+            echo "::error::No successful Live Stack E2E workflow run found for ${candidate}." >&2
+            echo "Open or update the dev -> dogfood promotion PR and wait for dogfood candidate Live Stack E2E evidence before promoting to main." >&2
+            exit 1
+          fi
+          run_url="$(python3 -c 'import json,sys; runs=[run for run in json.load(sys.stdin).get("workflow_runs", []) if run.get("conclusion") == "success"]; print(runs[0].get("html_url", "") if runs else "")' <<<"$runs_json")"
+          echo "Successful dogfood candidate Live Stack E2E evidence: ${run_url}"
+
       - name: Verify successful persistent test-stack deploy for candidate
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           candidate="${{ steps.candidate.outputs.sha }}"
-          runs_json="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/test-stack-deploy.yml/runs?branch=dogfood&head_sha=${candidate}&status=success&per_page=10")"
-          count="$(python3 -c 'import json,sys; print(len(json.load(sys.stdin).get("workflow_runs", [])))' <<<"$runs_json")"
+          runs_json="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/test-stack-deploy.yml/runs?branch=dogfood&head_sha=${candidate}&status=completed&per_page=10")"
+          count="$(python3 -c 'import json,sys; print(sum(1 for run in json.load(sys.stdin).get("workflow_runs", []) if run.get("conclusion") == "success"))' <<<"$runs_json")"
           if [[ "$count" == "0" ]]; then
             echo "::error::No successful Test Stack Deploy workflow run found for ${candidate} on branch dogfood." >&2
             echo "Push/merge the candidate to dogfood and wait for the persistent LAN stack deployment to pass before opening/promoting to main." >&2
             exit 1
           fi
-          run_url="$(python3 -c 'import json,sys; runs=json.load(sys.stdin).get("workflow_runs", []); print(runs[0].get("html_url", ""))' <<<"$runs_json")"
+          run_url="$(python3 -c 'import json,sys; runs=[run for run in json.load(sys.stdin).get("workflow_runs", []) if run.get("conclusion") == "success"]; print(runs[0].get("html_url", "") if runs else "")' <<<"$runs_json")"
           echo "Successful test-stack evidence: ${run_url}"
 
       - name: Verify root contract authority checks still pass
