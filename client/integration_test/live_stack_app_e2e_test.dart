@@ -20,14 +20,11 @@ import 'package:weave/features/auth/data/services/flutter_appauth_oidc_client.da
 import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
 import 'package:weave/features/calendar/domain/repositories/calendar_repository.dart';
 import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
-import 'package:weave/features/chat/data/repositories/matrix_chat_repository.dart';
 import 'package:weave/features/chat/data/services/matrix_auth_browser.dart';
 import 'package:weave/features/chat/data/services/matrix_client_factory.dart';
 import 'package:weave/features/chat/data/services/matrix_client_factory_io.dart';
-import 'package:weave/features/chat/data/services/matrix_conversation_service.dart';
-import 'package:weave/features/chat/data/services/matrix_room_service.dart';
-import 'package:weave/features/chat/data/services/matrix_session_service.dart';
 import 'package:weave/features/chat/domain/entities/chat_room_timeline.dart';
+import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/features/chat/domain/entities/chat_security_state.dart';
 import 'package:weave/features/chat/domain/repositories/chat_repository.dart';
 import 'package:weave/features/chat/presentation/providers/chat_security_repository_provider.dart';
@@ -293,14 +290,7 @@ void main() {
       );
       profileRestored = true;
 
-      final chatRepository = MatrixChatRepository(
-        sessionService: container.read(matrixSessionServiceProvider),
-        conversationService: container.read(matrixConversationServiceProvider),
-        roomService: container.read(matrixRoomServiceProvider),
-        serverConfigurationRepository: container.read(
-          serverConfigurationRepositoryProvider,
-        ),
-      );
+      final chatRepository = container.read(chatRepositoryProvider);
       var matrixConnected = false;
       Object? matrixConnectError;
       try {
@@ -313,7 +303,7 @@ void main() {
         final connectError = _supportSafeDiagnostic(matrixConnectError);
         // ignore: avoid_print
         print(
-          'MATRIX_RESULT connected=false '
+          'CHAT_BACKEND_RESULT connected=false '
           'testHarnessDirectMatrix=true '
           'productDirectProviderCallsAllowed=false '
           'connectError=$connectError',
@@ -347,10 +337,11 @@ void main() {
         'matchedMessages=${deliveredMessage.length}',
       );
 
-      // Keep the Matrix outcome visible while still validating the backend files path.
+      // Keep the harness-only Matrix bootstrap visible without making it a
+      // member-product evidence marker.
       // ignore: avoid_print
       print(
-        'MATRIX_RESULT connected=$matrixConnected '
+        'CHAT_BACKEND_RESULT connected=$matrixConnected '
         'testHarnessDirectMatrix=true '
         'productDirectProviderCallsAllowed=false',
       );
@@ -739,7 +730,7 @@ void main() {
 
       // ignore: avoid_print
       print(
-        'CALENDAR_RESULT eventId=$calendarEventId '
+        'CALENDAR_DIAGNOSTIC_RESULT eventId=$calendarEventId '
         'scopes=${calendarScopes.scopes.map((scope) => scope.type).join(',')} '
         'workspaceScopes=${workspaceScopes.length} '
         'teamScopes=${teamScopes.length} '
@@ -875,7 +866,7 @@ void main() {
           boardsTasksAfter.any((task) => task['id'] == taskId);
       // ignore: avoid_print
       print(
-        'BOARDS_RESULT boardId=$boardId taskId=$taskId '
+        'BOARDS_DIAGNOSTIC_RESULT boardId=$boardId taskId=$taskId '
         'provider=${boardsCapabilities['provider']} '
         'releaseStatus=${boardsWorkspace['releaseStatus']} '
         'workspace=${boardsWorkspace['workspace']} '

@@ -37,6 +37,13 @@ void main() {
 
       expect(find.byType(WeaveLogo), findsOneWidget);
       expect(find.text('Sign in to continue'), findsOneWidget);
+      expect(
+        find.textContaining('Use your Weave workspace sign-in'),
+        findsOneWidget,
+      );
+      for (final term in ['provider', 'OIDC', 'SAML', 'Matrix', 'Nextcloud']) {
+        expect(find.textContaining(term), findsNothing);
+      }
     });
 
     testWidgets('exposes the logo semantics on the sign-in screen', (

@@ -28,6 +28,7 @@ import 'package:weave/features/files/domain/entities/file_upload_request.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
+import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
 import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
@@ -398,7 +399,8 @@ void main() {
               FakeChatSecurityRepository(),
             ),
             firstRunStatusProvider.overrideWith(
-              (ref) async => buildTestFirstRunStatus(),
+              (ref) async =>
+                  FirstRunLoadResult.authenticated(buildTestFirstRunStatus()),
             ),
             filesRepositoryProvider.overrideWithValue(
               _MutableFilesRepository(
@@ -532,7 +534,8 @@ void main() {
                 FakeChatSecurityRepository(),
               ),
               firstRunStatusProvider.overrideWith(
-                (ref) async => buildTestFirstRunStatus(),
+                (ref) async =>
+                    FirstRunLoadResult.authenticated(buildTestFirstRunStatus()),
               ),
               userProfileProvider.overrideWith((ref) async => null),
               filesRepositoryProvider.overrideWithValue(filesRepository),
@@ -640,7 +643,8 @@ void main() {
               FakeChatSecurityRepository(),
             ),
             firstRunStatusProvider.overrideWith(
-              (ref) async => buildTestFirstRunStatus(),
+              (ref) async =>
+                  FirstRunLoadResult.authenticated(buildTestFirstRunStatus()),
             ),
             userProfileProvider.overrideWith((ref) async => null),
             filesRepositoryProvider.overrideWithValue(filesRepository),
@@ -729,7 +733,8 @@ void main() {
                 FakeChatSecurityRepository(),
               ),
               firstRunStatusProvider.overrideWith(
-                (ref) async => buildTestFirstRunStatus(),
+                (ref) async =>
+                    FirstRunLoadResult.authenticated(buildTestFirstRunStatus()),
               ),
               userProfileProvider.overrideWith((ref) async => null),
               filesRepositoryProvider.overrideWithValue(filesRepository),

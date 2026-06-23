@@ -8,6 +8,7 @@ import 'package:weave/features/app/domain/entities/organization_manifest_snapsho
 import 'package:weave/features/app/domain/entities/provider_stack_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_home_snapshot.dart';
+import 'package:weave/generated/openapi_models.dart' as openapi;
 import 'package:weave/integrations/weave_api/data/dtos/organization_manifest_response_dto.dart';
 import 'package:weave/integrations/weave_api/data/dtos/platform_status_response_dto.dart';
 import 'package:weave/integrations/weave_api/data/dtos/provider_stack_response_dto.dart';
@@ -83,7 +84,7 @@ class HttpWeaveApiClient implements WeaveApiClient {
           'Unable to decode the organization manifest from the Weave backend.',
     );
 
-    return OrganizationManifestResponseDto.fromJson(payload).toSnapshot();
+    return openapi.OrganizationManifestResponse.fromJson(payload).toSnapshot();
   }
 
   @override
@@ -102,7 +103,7 @@ class HttpWeaveApiClient implements WeaveApiClient {
           'Unable to decode workspace capabilities from the Weave backend.',
     );
 
-    return WorkspaceCapabilitiesResponseDto.fromJson(payload).toSnapshot();
+    return openapi.WorkspaceCapabilitiesResponse.fromJson(payload).toSnapshot();
   }
 
   @override
@@ -119,7 +120,7 @@ class HttpWeaveApiClient implements WeaveApiClient {
       decodeFailureMessage: 'Unable to decode Weave Home from the backend.',
     );
 
-    return WorkspaceHomeResponseDto.fromJson(payload).toSnapshot();
+    return openapi.WorkspaceHomeResponse.fromJson(payload).toSnapshot();
   }
 
   @override

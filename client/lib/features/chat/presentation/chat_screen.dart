@@ -11,8 +11,6 @@ import 'package:weave/features/chat/presentation/chat_room_screen.dart';
 import 'package:weave/features/chat/presentation/providers/chat_provider.dart';
 import 'package:weave/features/agents/domain/entities/agent_capability_policy.dart';
 import 'package:weave/features/agents/presentation/providers/agent_capability_policy_provider.dart';
-import 'package:weave/features/chat/presentation/providers/chat_security_provider.dart';
-import 'package:weave/features/chat/presentation/widgets/chat_security_banner.dart';
 import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
 import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
@@ -28,29 +26,16 @@ class ChatScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final state = ref.watch(chatProvider);
-    final securityState = ref.watch(chatSecurityProvider);
     final chatProvisioning = switch (ref.watch(
       chatProvisioningStatusProvider,
     )) {
       AsyncData(value: final status) => status,
       _ => null,
     };
-    final security = securityState.security;
-    final showSecurityBanner =
-        security != null &&
-        security.isMatrixSignedIn &&
-        ChatSecurityBanner.messageForSecurity(l10n, security) != null;
 
     return CustomScrollView(
       slivers: [
         SliverAppBar.large(title: Text(l10n.chatScreenTitle)),
-        if (showSecurityBanner)
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-            sliver: SliverToBoxAdapter(
-              child: ChatSecurityBanner(security: security),
-            ),
-          ),
         if (chatProvisioning != null && !chatProvisioning.isReady)
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),

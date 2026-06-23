@@ -13,7 +13,11 @@ FirstRunStatus buildTestFirstRunStatus({
   ),
   FirstRunModuleStatus nextcloud = const FirstRunModuleStatus(
     state: FirstRunProvisioningState.ready,
-    message: 'Nextcloud files/calendar provisioning is ready for this user.',
+    message: 'Files provisioning is ready for this user.',
+  ),
+  FirstRunModuleStatus calendar = const FirstRunModuleStatus(
+    state: FirstRunProvisioningState.ready,
+    message: 'Calendar provisioning is ready for this user.',
   ),
   FirstRunAccess access = const FirstRunAccess(
     primaryRole: 'member',
@@ -59,6 +63,7 @@ FirstRunStatus buildTestFirstRunStatus({
       profile: profileModule,
       matrix: matrix,
       nextcloud: nextcloud,
+      calendar: calendar,
     ),
     firstRunComplete: firstRunComplete,
     actions: actions,

@@ -393,6 +393,52 @@ class AppLocalizationsDe extends AppLocalizations {
   String get firstRunNextStepsTitle => 'Nächste Schritte';
 
   @override
+  String get firstRunProfileReadyGuidance =>
+      'Dein Profil ist für Weave bereit.';
+
+  @override
+  String get firstRunProfilePendingGuidance =>
+      'Dein Profil wird noch vorbereitet.';
+
+  @override
+  String get firstRunChatReadyGuidance =>
+      'Chat ist für diesen Arbeitsbereich bereit.';
+
+  @override
+  String get firstRunChatPendingGuidance => 'Chat wird noch vorbereitet.';
+
+  @override
+  String get firstRunFilesReadyGuidance =>
+      'Dateien sind für diesen Arbeitsbereich bereit.';
+
+  @override
+  String get firstRunFilesPendingGuidance => 'Dateien werden noch vorbereitet.';
+
+  @override
+  String get firstRunCalendarReadyGuidance =>
+      'Kalender ist für diesen Arbeitsbereich bereit.';
+
+  @override
+  String get firstRunCalendarPendingGuidance =>
+      'Kalender wird noch vorbereitet.';
+
+  @override
+  String get firstRunModuleUnavailableGuidance =>
+      'Diese Weave-Funktion ist für diesen Arbeitsbereich noch nicht verfügbar.';
+
+  @override
+  String get firstRunModuleDegradedGuidance =>
+      'Diese Weave-Funktion ist mit eingeschränkter Funktionalität verfügbar.';
+
+  @override
+  String get firstRunModuleActionNeededGuidance =>
+      'Die Einrichtung des Arbeitsbereichs benötigt Admin-Aufmerksamkeit.';
+
+  @override
+  String get firstRunNextStepAdminAttention =>
+      'Die Einrichtung des Arbeitsbereichs benötigt Admin-Aufmerksamkeit, bevor alle Funktionen bereit sind.';
+
+  @override
   String get firstRunRefreshButton => 'Status aktualisieren';
 
   @override
@@ -2732,15 +2778,10 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get signInDescription =>
-      'Weave ist konfiguriert. Verwende dein Provider-Konto im Systembrowser, um die authentifizierte App zu öffnen.';
+      'Melde dich mit deinem Weave-Arbeitsbereich an, um fortzufahren. Deine Einladung oder dein Organisationskonto öffnet die App sicher im Systembrowser.';
 
   @override
   String get signInConfigurationTitle => 'Aktuelle Anmeldekonfiguration';
-
-  @override
-  String signInConfigurationProvider(String value) {
-    return 'Provider: $value';
-  }
 
   @override
   String signInConfigurationIssuer(String value) {
@@ -3405,7 +3446,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get firstRunAdminSetupDescription =>
-      'Deine Rolle darf die Workspace-Einrichtung verwalten. OIDC-, Realm-, Organisations-, Einladungs- und Dienstendpunkt-Änderungen gehören hier oder in die Einstellungen; normale Nutzer sollen nur eine Weave-Anmeldung brauchen.';
+      'Deine Rolle darf die Einrichtung des Arbeitsbereichs verwalten. Nutze die Admin-Einstellungen für Organisationszugang, Einladungen, Funktionsbereitschaft und Wiederherstellung; normale Mitglieder sollen nur eine Weave-Anmeldung brauchen.';
 
   @override
   String get agentCapabilityPolicyTitle =>

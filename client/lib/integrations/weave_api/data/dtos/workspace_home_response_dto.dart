@@ -1,197 +1,77 @@
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_home_snapshot.dart';
+import 'package:weave/generated/openapi_models.dart' as openapi;
 import 'package:weave/integrations/weave_api/data/dtos/workspace_capabilities_response_dto.dart';
 
-class WorkspaceHomeResponseDto {
-  const WorkspaceHomeResponseDto({
-    required this.version,
-    required this.readiness,
-    required this.summary,
-    required this.sections,
-    required this.actions,
-    required this.supportSafe,
-  });
-
-  factory WorkspaceHomeResponseDto.fromJson(Map<String, dynamic> json) {
-    final version = json['version'];
-    final readiness = json['readiness'];
-    final summary = json['summary'];
-    final sections = json['sections'];
-    final actions = json['actions'];
-    final supportSafe = json['supportSafe'];
-
-    if (version is! int ||
-        readiness is! String ||
-        summary is! String ||
-        sections is! List ||
-        actions is! List ||
-        supportSafe is! bool) {
-      throw const AppFailure.unknown(
-        'The backend returned an invalid Weave Home payload.',
-      );
-    }
-
-    return WorkspaceHomeResponseDto(
-      version: version,
-      readiness: readiness,
-      summary: summary,
-      sections: sections
-          .map(_readMap)
-          .map(WorkspaceHomeSectionDto.fromJson)
-          .toList(growable: false),
-      actions: actions
-          .map(_readMap)
-          .map(WorkspaceHomeActionDto.fromJson)
-          .toList(growable: false),
-      supportSafe: supportSafe,
-    );
-  }
-
-  final int version;
-  final String readiness;
-  final String summary;
-  final List<WorkspaceHomeSectionDto> sections;
-  final List<WorkspaceHomeActionDto> actions;
-  final bool supportSafe;
-
+extension WorkspaceHomeResponseMapper on openapi.WorkspaceHomeResponse {
   WorkspaceHomeSnapshot toSnapshot() {
     return WorkspaceHomeSnapshot(
-      version: version,
-      readiness: _parseReadiness(readiness),
-      summary: _supportSafeText(summary),
-      sections: sections
-          .map((section) => section.toSection())
-          .toList(growable: false),
-      actions: actions
-          .map((action) => action.toAction())
-          .toList(growable: false),
-      supportSafe: supportSafe,
+      version: _requiredInt(version, 'version'),
+      readiness: _parseReadiness(_requiredText(readiness, 'readiness')),
+      summary: _supportSafeText(_requiredText(summary, 'summary')),
+      sections: _requiredList(
+        sections,
+        'sections',
+      ).map((section) => section.toSection()).toList(growable: false),
+      actions: _requiredList(
+        actions,
+        'actions',
+      ).map((action) => action.toAction()).toList(growable: false),
+      supportSafe: _requiredBool(supportSafe, 'supportSafe'),
     );
   }
 }
 
-class WorkspaceHomeSectionDto {
-  const WorkspaceHomeSectionDto({
-    required this.key,
-    required this.title,
-    required this.readiness,
-    required this.summary,
-    required this.itemCount,
-    required this.accessible,
-    required this.productRoute,
-  });
-
-  factory WorkspaceHomeSectionDto.fromJson(Map<String, dynamic> json) {
-    final key = json['key'];
-    final title = json['title'];
-    final readiness = json['readiness'];
-    final summary = json['summary'];
-    final itemCount = json['itemCount'];
-    final accessible = json['accessible'];
-    final productRoute = json['productRoute'];
-
-    if (key is! String ||
-        title is! String ||
-        readiness is! String ||
-        summary is! String ||
-        itemCount is! int ||
-        accessible is! bool ||
-        productRoute is! String) {
-      throw const AppFailure.unknown(
-        'The backend returned an invalid Weave Home section.',
-      );
-    }
-
-    return WorkspaceHomeSectionDto(
-      key: key,
-      title: title,
-      readiness: readiness,
-      summary: summary,
-      itemCount: itemCount,
-      accessible: accessible,
-      productRoute: productRoute,
-    );
-  }
-
-  final String key;
-  final String title;
-  final String readiness;
-  final String summary;
-  final int itemCount;
-  final bool accessible;
-  final String productRoute;
-
+extension WorkspaceHomeSectionResponseMapper
+    on openapi.WorkspaceHomeSectionResponse {
   WorkspaceHomeSection toSection() {
     return WorkspaceHomeSection(
-      key: _supportSafeText(key),
-      title: _supportSafeText(title),
-      readiness: _parseReadiness(readiness),
-      summary: _supportSafeText(summary),
-      itemCount: itemCount < 0 ? 0 : itemCount,
-      accessible: accessible,
-      productRoute: _productRoute(productRoute),
+      key: _supportSafeText(_requiredText(key, 'section.key')),
+      title: _supportSafeText(_requiredText(title, 'section.title')),
+      readiness: _parseReadiness(_requiredText(readiness, 'section.readiness')),
+      summary: _supportSafeText(_requiredText(summary, 'section.summary')),
+      itemCount: (_requiredInt(itemCount, 'section.itemCount')) < 0
+          ? 0
+          : itemCount!,
+      accessible: _requiredBool(accessible, 'section.accessible'),
+      productRoute: _productRoute(
+        _requiredText(productRoute, 'section.productRoute'),
+      ),
     );
   }
 }
 
-class WorkspaceHomeActionDto {
-  const WorkspaceHomeActionDto({
-    required this.key,
-    required this.label,
-    required this.productRoute,
-    required this.reason,
-  });
-
-  factory WorkspaceHomeActionDto.fromJson(Map<String, dynamic> json) {
-    final key = json['key'];
-    final label = json['label'];
-    final productRoute = json['productRoute'];
-    final reason = json['reason'];
-
-    if (key is! String ||
-        label is! String ||
-        productRoute is! String ||
-        reason is! String) {
-      throw const AppFailure.unknown(
-        'The backend returned an invalid Weave Home action.',
-      );
-    }
-
-    return WorkspaceHomeActionDto(
-      key: key,
-      label: label,
-      productRoute: productRoute,
-      reason: reason,
-    );
-  }
-
-  final String key;
-  final String label;
-  final String productRoute;
-  final String reason;
-
+extension WorkspaceHomeActionResponseMapper
+    on openapi.WorkspaceHomeActionResponse {
   WorkspaceHomeAction toAction() {
     return WorkspaceHomeAction(
-      key: _supportSafeText(key),
-      label: _supportSafeText(label),
-      productRoute: _productRoute(productRoute),
-      reason: _supportSafeText(reason),
+      key: _supportSafeText(_requiredText(key, 'action.key')),
+      label: _supportSafeText(_requiredText(label, 'action.label')),
+      productRoute: _productRoute(
+        _requiredText(productRoute, 'action.productRoute'),
+      ),
+      reason: _supportSafeText(_requiredText(reason, 'action.reason')),
     );
   }
 }
 
-Map<String, dynamic> _readMap(Object? value) {
-  if (value is Map<String, dynamic>) {
-    return value;
-  }
-  throw const AppFailure.unknown(
-    'The backend returned an invalid Weave Home list item.',
+T _required<T>(T? value, String field) {
+  if (value != null) return value;
+  throw AppFailure.unknown(
+    'The backend returned an invalid Weave Home payload.',
+    cause: '$field is required.',
   );
 }
 
+String _requiredText(String? value, String field) => _required(value, field);
+int _requiredInt(int? value, String field) => _required(value, field);
+bool _requiredBool(bool? value, String field) => _required(value, field);
+List<T> _requiredList<T>(List<T>? value, String field) =>
+    _required(value, field);
+
 WorkspaceCapabilityReadiness _parseReadiness(String rawValue) {
-  return WorkspaceCapabilityStatusDto(
+  return openapi.WorkspaceCapabilityStatusResponse(
     enabled: true,
     readiness: rawValue,
   ).toCapabilityState(WorkspaceCapability.shellAccess).readiness;

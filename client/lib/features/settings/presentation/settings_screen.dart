@@ -1315,7 +1315,7 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
                 ],
                 const SizedBox(height: 16),
                 Text(
-                  _workspaceSummary(l10n, workspaceState),
+                  _workspaceSummary(l10n, workspaceState, capabilitySnapshot),
                   style: theme.textTheme.bodyMedium,
                 ),
                 if (providerStackSnapshot case final stack?) ...[
@@ -1374,6 +1374,17 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
     );
   }
 
+  bool _releaseServicesNeedAttention(WorkspaceCapabilitySnapshot capabilities) {
+    return <WorkspaceCapabilityState>[
+      capabilities.chat,
+      capabilities.files,
+    ].any(
+      (capability) =>
+          capability.readiness == WorkspaceCapabilityReadiness.blocked ||
+          capability.readiness == WorkspaceCapabilityReadiness.degraded,
+    );
+  }
+
   String? _backendFailureMessage(
     AppLocalizations l10n,
     WeaveBackendConnectionState backendState,
@@ -1394,7 +1405,13 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
   String _workspaceSummary(
     AppLocalizations l10n,
     WorkspaceConnectionState workspace,
+    WorkspaceCapabilitySnapshot capabilities,
   ) {
+    if (workspace.shellAccessReady &&
+        _releaseServicesNeedAttention(capabilities)) {
+      return l10n.settingsWorkspaceSummaryDegraded;
+    }
+
     if (workspace.status == IntegrationConnectionStatus.connected) {
       return l10n.settingsWorkspaceSummaryConnected;
     }

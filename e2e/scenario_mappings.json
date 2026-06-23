@@ -14,21 +14,20 @@
       "evidenceMode": "live-runtime"
     },
     {
-      "tag": "@weave-live-matrix-content",
-      "scenario": "Matrix chat sends and reads a workspace message",
+      "tag": "@weave-live-chat-content",
+      "scenario": "Weave chat sends and reads a workspace message through the backend facade",
       "feature": "e2e/features/live_stack_app.feature",
       "executableTest": "client/integration_test/live_stack_app_e2e_test.dart",
       "evidenceMarkers": [
-        "CHAT_RESULT",
-        "MATRIX_RESULT"
+        "CHAT_RESULT"
       ],
       "evidenceMode": "live-runtime",
       "additionalEvidence": [
         {
-          "path": "client/test/features/chat/data/repositories/matrix_chat_repository_test.dart",
+          "path": "client/test/architecture/backend_facade_contract_test.dart",
           "fragments": [
-            "maps Matrix timeline message safety states into chat entities",
-            "send and read-marker failures remain support-safe chat failures"
+            "primary chat provider is wired through the backend Chat facade",
+            "member Chat screen stays on Weave-domain readiness language"
           ]
         },
         {
@@ -42,26 +41,19 @@
     },
     {
       "tag": "@weave-live-matrix-e2ee",
-      "scenario": "Matrix encryption status is proved honestly",
+      "scenario": "Chat encryption diagnostic status is proved honestly",
       "feature": "e2e/features/live_stack_app.feature",
-      "executableTest": "client/integration_test/live_stack_app_e2e_test.dart",
+      "executableTest": "client/test/features/chat/domain/chat_security_state_test.dart",
       "evidenceMarkers": [
         "E2EE_RESULT"
       ],
-      "evidenceMode": "live-runtime",
+      "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
           "path": "client/test/features/chat/domain/chat_security_state_test.dart",
           "fragments": [
             "distinguishes Matrix signed-out from signed-in readiness",
             "distinguishes E2EE unavailable and encrypted timeline states"
-          ]
-        },
-        {
-          "path": "docs/provider-replacement-and-anti-silo-contract.md",
-          "fragments": [
-            "Matrix Chat portability boundary",
-            "Matrix/Synapse is the v0.1 real-time Chat path"
           ]
         }
       ]
@@ -91,43 +83,14 @@
             "provider stack readiness stays behind admin/operator backend facades",
             "direct Flutter provider calls remain blocked for optional provider stack modules"
           ]
-        }
-      ],
-      "evidenceMode": "live-runtime"
-    },
-    {
-      "tag": "@weave-live-calendar-threadrefs",
-      "scenario": "Calendar scopes are readable and event writes obey capability policy",
-      "feature": "e2e/features/live_stack_app.feature",
-      "executableTest": "client/integration_test/live_stack_app_e2e_test.dart",
-      "evidenceMarkers": [
-        "CALENDAR_RESULT"
-      ],
-      "evidenceMode": "live-runtime"
-    },
-    {
-      "tag": "@weave-live-boards-workspace-nondrag",
-      "scenario": "Boards workspace supports accessible non-drag task work",
-      "feature": "e2e/features/live_stack_app.feature",
-      "executableTest": "client/integration_test/live_stack_app_e2e_test.dart",
-      "evidenceMarkers": [
-        "BOARDS_RESULT"
-      ],
-      "additionalEvidence": [
-        {
-          "path": "client/test/features/boards/boards_workspace_screen_test.dart",
-          "fragments": [
-            "offers non-drag task actions with gated feedback",
-            "exposes screen-reader summaries for board, columns, and tasks",
-            "meets tap-target accessibility guidelines",
-            "keeps critical workspace copy reachable with large text"
-          ]
         },
         {
-          "path": "client/test/features/boards/data/backend_boards_workspace_repository_test.dart",
+          "path": "client/test/architecture/backend_facade_contract_test.dart",
           "fragments": [
-            "posts accessible non-drag move, status, decision-link, and complete actions to backend facade",
-            "\"targetColumnId\":\"done\",\"targetPosition\":2"
+            "primary files provider is wired through the backend-facade seam",
+            "primary chat provider is wired through the backend Chat facade",
+            "onboarding status uses generated OpenAPI DTO source of truth",
+            "profile facade uses generated OpenAPI DTO source of truth"
           ]
         }
       ],
@@ -135,7 +98,7 @@
     },
     {
       "tag": "@weave-live-workspace-loop",
-      "scenario": "Workspace loop links Space, Channel, Chat, Files, Board, Calendar, and Decision",
+      "scenario": "Workspace loop links Space, Channel, Chat, Files, and Decision",
       "feature": "e2e/features/live_stack_app.feature",
       "executableTest": "client/integration_test/live_stack_app_e2e_test.dart",
       "evidenceMarkers": [
@@ -146,16 +109,8 @@
         {
           "path": "docs/v0.1-golden-path.md",
           "fragments": [
-            "The member enters a Space control room and uses one canonical Space identity across Weave product surfaces: chat, files, boards/tasks, calendar, decisions, and read-only Weaver scout where policy allows.",
-            "Ready as a dogfood Workspace control room: one support-safe Space ID links chat, files, board, calendar, and decision evidence without claiming full domain parity",
             "Release evidence states whether a capability is available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later.",
             "Evidence artifacts must be sanitized: no secrets, tokens, cookies, private keys, credential-bearing URLs, raw provider bodies, or full private live logs."
-          ]
-        },
-        {
-          "path": "docs/quality-and-evidence.md",
-          "fragments": [
-            "Missing required markers such as `BOARDS_RESULT` block RC promotion until a green rerun or explicit release-owner waiver exists."
           ]
         }
       ]
@@ -169,13 +124,6 @@
         "PROVIDER_REALITY_RESULT"
       ],
       "additionalEvidence": [
-        {
-          "path": "docs/accessibility-release-gate.md",
-          "fragments": [
-            "Sprint 11 provider-reality accessibility replacement scope",
-            "Release evidence distinguishes live-runtime checks from offline/spec checks"
-          ]
-        },
         {
           "path": "docs/evidence/sprint-11-manual-accessibility-evidence-template.md",
           "fragments": [
@@ -252,6 +200,12 @@
           "fragments": [
             "A member opens an organization URL, invite link, or deep link after an admin has provisioned the organization.",
             "The member completes SSO and lands in Weave without raw provider setup."
+          ]
+        },
+        {
+          "path": "client/test/architecture/release_scope_contract_test.dart",
+          "fragments": [
+            "Router removes obsolete calendar and deck member routes"
           ]
         }
       ],

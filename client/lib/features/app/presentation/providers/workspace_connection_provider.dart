@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
@@ -6,9 +5,6 @@ import 'package:weave/features/app/domain/entities/integration_invalidation.dart
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
 import 'package:weave/features/app/presentation/providers/workspace_invalidation_provider.dart';
-import 'package:weave/features/chat/domain/entities/chat_failure.dart';
-import 'package:weave/features/chat/domain/entities/chat_security_state.dart';
-import 'package:weave/features/chat/presentation/providers/chat_security_repository_provider.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
 import 'package:weave/features/files/domain/entities/files_failure.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
@@ -43,23 +39,11 @@ final matrixIntegrationConnectionProvider =
         );
       }
 
-      if (kIsWeb) {
-        return IntegrationConnectionState(
-          integration: WorkspaceIntegration.matrix,
-          status: IntegrationConnectionStatus.unavailableOnPlatform,
-          recoveryRequirement: IntegrationRecoveryRequirement.switchPlatform,
-          lastInvalidation: invalidation,
-        );
-      }
-
-      try {
-        final security = await ref
-            .watch(chatSecurityRepositoryProvider)
-            .loadSecurityState(refresh: false);
-        return _mapMatrixConnectionState(security, invalidation);
-      } on ChatFailure catch (failure) {
-        return _mapMatrixFailure(failure, invalidation);
-      }
+      return IntegrationConnectionState(
+        integration: WorkspaceIntegration.matrix,
+        status: IntegrationConnectionStatus.connected,
+        lastInvalidation: invalidation,
+      );
     });
 
 final nextcloudIntegrationConnectionProvider =
@@ -180,83 +164,6 @@ IntegrationConnectionState _mapAppAuthConnectionState(
       integration: WorkspaceIntegration.appAuth,
       status: IntegrationConnectionStatus.degraded,
       recoveryRequirement: IntegrationRecoveryRequirement.reauthenticate,
-      lastInvalidation: invalidation,
-    ),
-  };
-}
-
-IntegrationConnectionState _mapMatrixConnectionState(
-  ChatSecurityState security,
-  IntegrationInvalidation? invalidation,
-) {
-  if (!security.isMatrixSignedIn) {
-    return IntegrationConnectionState(
-      integration: WorkspaceIntegration.matrix,
-      status: IntegrationConnectionStatus.disconnected,
-      recoveryRequirement: IntegrationRecoveryRequirement.connect,
-      lastInvalidation: invalidation,
-    );
-  }
-
-  final requiresSecurityRecovery =
-      security.bootstrapState == ChatSecurityBootstrapState.notInitialized ||
-      security.bootstrapState ==
-          ChatSecurityBootstrapState.partiallyInitialized ||
-      security.bootstrapState == ChatSecurityBootstrapState.recoveryRequired ||
-      security.bootstrapState == ChatSecurityBootstrapState.unavailable ||
-      security.accountVerificationState ==
-          ChatAccountVerificationState.verificationRequired ||
-      security.deviceVerificationState !=
-          ChatDeviceVerificationState.verified ||
-      security.keyBackupState == ChatKeyBackupState.missing ||
-      security.keyBackupState == ChatKeyBackupState.recoveryRequired ||
-      security.roomEncryptionReadiness ==
-          ChatRoomEncryptionReadiness.encryptedRoomsNeedAttention ||
-      security.verificationSession.isActionable;
-
-  return IntegrationConnectionState(
-    integration: WorkspaceIntegration.matrix,
-    status: requiresSecurityRecovery
-        ? IntegrationConnectionStatus.degraded
-        : IntegrationConnectionStatus.connected,
-    recoveryRequirement: requiresSecurityRecovery
-        ? IntegrationRecoveryRequirement.completeSetup
-        : IntegrationRecoveryRequirement.none,
-    lastInvalidation: invalidation,
-  );
-}
-
-IntegrationConnectionState _mapMatrixFailure(
-  ChatFailure failure,
-  IntegrationInvalidation? invalidation,
-) {
-  return switch (failure.type) {
-    ChatFailureType.configuration ||
-    ChatFailureType.unsupportedConfiguration => IntegrationConnectionState(
-      integration: WorkspaceIntegration.matrix,
-      status: IntegrationConnectionStatus.misconfigured,
-      recoveryRequirement: IntegrationRecoveryRequirement.reviewConfiguration,
-      lastInvalidation: invalidation,
-    ),
-    ChatFailureType.sessionRequired ||
-    ChatFailureType.cancelled => IntegrationConnectionState(
-      integration: WorkspaceIntegration.matrix,
-      status: IntegrationConnectionStatus.disconnected,
-      recoveryRequirement: IntegrationRecoveryRequirement.connect,
-      lastInvalidation: invalidation,
-    ),
-    ChatFailureType.unsupportedPlatform => IntegrationConnectionState(
-      integration: WorkspaceIntegration.matrix,
-      status: IntegrationConnectionStatus.unavailableOnPlatform,
-      recoveryRequirement: IntegrationRecoveryRequirement.switchPlatform,
-      lastInvalidation: invalidation,
-    ),
-    ChatFailureType.protocol ||
-    ChatFailureType.storage ||
-    ChatFailureType.unknown => IntegrationConnectionState(
-      integration: WorkspaceIntegration.matrix,
-      status: IntegrationConnectionStatus.degraded,
-      recoveryRequirement: IntegrationRecoveryRequirement.connect,
       lastInvalidation: invalidation,
     ),
   };
