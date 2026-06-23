@@ -34,6 +34,9 @@ registerRootCommandTask('generateAdminOpenApiTypes', ['python3', 'tools/generate
 registerRootCommandTask('checkAdminOpenApiTypesFresh', ['bash', '-lc', 'tmp=$(mktemp); cp admin-console/src/generated/openapi.ts "$tmp"; python3 tools/generate_admin_openapi_types.py; cmp -s "$tmp" admin-console/src/generated/openapi.ts || { echo "Admin OpenAPI generated types are stale. Run ./gradlew generateAdminOpenApiTypes and commit the result." >&2; git --no-pager diff -- admin-console/src/generated/openapi.ts >&2 || true; rm -f "$tmp"; exit 1; }; rm -f "$tmp"'], 'Fail when Admin Console generated OpenAPI types are stale.')
 registerRootCommandTask('generateClientOpenApiModels', ['bash', '-lc', 'python3 tools/generate_client_openapi_models.py && dart format client/lib/generated/openapi_models.dart'], 'Generate Flutter/Dart JSON models from the server-owned OpenAPI artifact.')
 registerRootCommandTask('checkClientOpenApiModelsFresh', ['bash', '-lc', 'tmp=$(mktemp); cp client/lib/generated/openapi_models.dart "$tmp"; python3 tools/generate_client_openapi_models.py; dart format client/lib/generated/openapi_models.dart >/dev/null; cmp -s "$tmp" client/lib/generated/openapi_models.dart || { echo "Flutter OpenAPI generated models are stale. Run ./gradlew generateClientOpenApiModels and commit the result." >&2; git --no-pager diff -- client/lib/generated/openapi_models.dart >&2 || true; rm -f "$tmp"; exit 1; }; rm -f "$tmp"'], 'Fail when Flutter/Dart generated OpenAPI models are stale.')
+tasks.named('clientCi') {
+    dependsOn 'checkClientOpenApiModelsFresh'
+}
 registerRootCommandTask('pythonMcpCi', ['bash', 'infra/weave-workspace/tests/weave-mcp-server-test.sh'], 'Run the transitional Python Weave MCP gateway unit smoke tests from the root build.')
 tasks.register('javaMcpServerCi') {
     group = 'verification'

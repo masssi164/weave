@@ -3,13 +3,14 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/domain/repositories/auth_session_repository.dart';
+import 'package:weave/features/chat/data/dtos/chat_openapi_mappers.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
-import 'package:weave/features/chat/domain/entities/chat_message.dart';
 import 'package:weave/features/chat/domain/entities/chat_room_timeline.dart';
 import 'package:weave/features/chat/domain/repositories/chat_repository.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
+import 'package:weave/generated/openapi_models.dart' as openapi;
 
 class BackendChatRepository implements ChatRepository {
   const BackendChatRepository({
@@ -27,16 +28,10 @@ class BackendChatRepository implements ChatRepository {
   @override
   Future<List<ChatConversation>> loadConversations() async {
     final payload = await _getJson('/api/chat/conversations');
-    final conversations = payload['conversations'];
-    if (conversations is! List<dynamic>) {
-      throw const ChatFailure.configuration(
-        'The Weave Chat facade returned an invalid conversation list.',
-      );
-    }
-    final values = conversations
-        .whereType<Map<String, dynamic>>()
-        .map(_conversationFromJson)
-        .toList(growable: false);
+    final page = openapi.ChatConversationsResponse.fromJson(
+      payload,
+    ).toConversationPage();
+    final values = [...page.resources];
     values.sort((a, b) {
       final activityComparison =
           (b.lastActivityAt ?? DateTime.fromMillisecondsSinceEpoch(0))
@@ -54,23 +49,9 @@ class BackendChatRepository implements ChatRepository {
   @override
   Future<ChatRoomTimeline> loadRoomTimeline(String roomId) async {
     final payload = await _getJson('/api/chat/conversations/$roomId/messages');
-    final messages = payload['messages'];
-    if (messages is! List<dynamic>) {
-      throw const ChatFailure.configuration(
-        'The Weave Chat facade returned an invalid timeline.',
-      );
-    }
-    final parsedMessages = messages
-        .whereType<Map<String, dynamic>>()
-        .map(_messageFromJson)
-        .toList(growable: false);
-    return ChatRoomTimeline(
-      roomId: roomId,
-      roomTitle: roomId,
-      isInvite: false,
-      canSendMessages: true,
-      messages: parsedMessages,
-    );
+    return openapi.ChatMessagesResponse.fromJson(
+      payload,
+    ).toRoomTimeline(roomId);
   }
 
   @override
@@ -78,10 +59,14 @@ class BackendChatRepository implements ChatRepository {
     required String roomId,
     required String message,
   }) async {
+    final request = openapi.ChatSendMessageRequest(
+      text: message,
+      attachmentRefs: const <String>[],
+    );
     await _requestJson(
       'POST',
       '/api/chat/conversations/$roomId/messages',
-      body: <String, Object?>{'text': message, 'attachmentRefs': <String>[]},
+      body: request.toJson(),
     );
   }
 
@@ -94,13 +79,11 @@ class BackendChatRepository implements ChatRepository {
   @override
   Future<void> connect() async {
     final readiness = await _getJson('/api/chat/readiness');
-    final state = readiness['impactState'] ?? readiness['memberState'];
-    if (state != 'usable' && state != 'ready') {
-      throw ChatFailure.configuration(
-        readiness['memberImpact'] is String
-            ? readiness['memberImpact'] as String
-            : 'Weave Chat is not ready in this workspace.',
-      );
+    final featureReadiness = openapi.ChatReadiness.fromJson(
+      readiness,
+    ).toFeatureReadiness();
+    if (!featureReadiness.isUsable) {
+      throw ChatFailure.configuration(featureReadiness.memberImpact);
     }
   }
 
@@ -112,41 +95,6 @@ class BackendChatRepository implements ChatRepository {
 
   @override
   Future<void> clearSession() => _authSessionRepository.clearLocalSession();
-
-  ChatConversation _conversationFromJson(Map<String, dynamic> json) {
-    final id = _readString(json, 'id');
-    final title = _readString(json, 'title');
-    final kind = json['kind'] is String ? json['kind'] as String : 'channel';
-    return ChatConversation(
-      id: id,
-      title: title,
-      previewType: ChatConversationPreviewType.text,
-      previewText: 'Weave Chat conversation',
-      lastActivityAt: _readDateTime(json['lastMessageAt']),
-      unreadCount: 0,
-      isInvite: false,
-      isDirectMessage: kind == 'direct',
-      isAiChat: kind == 'ai',
-    );
-  }
-
-  ChatMessage _messageFromJson(Map<String, dynamic> json) {
-    final redacted = json['encryptedProviderContentRedacted'] == true;
-    return ChatMessage(
-      id: _readString(json, 'id'),
-      senderId: _readString(json, 'senderRef'),
-      senderDisplayName: _readString(json, 'senderRef'),
-      sentAt:
-          _readDateTime(json['sentAt']) ??
-          DateTime.fromMillisecondsSinceEpoch(0),
-      isMine: json['isMine'] == true,
-      deliveryState: ChatMessageDeliveryState.sent,
-      contentType: redacted
-          ? ChatMessageContentType.encrypted
-          : ChatMessageContentType.text,
-      text: json['text'] is String ? json['text'] as String : null,
-    );
-  }
 
   Future<Map<String, dynamic>> _getJson(String path) {
     return _requestJson('GET', path);
@@ -207,22 +155,5 @@ class BackendChatRepository implements ChatRepository {
       issuer: configuration.oidcIssuerUrl,
       clientId: configuration.oidcClientRegistration.clientId.trim(),
     );
-  }
-
-  String _readString(Map<String, dynamic> json, String key) {
-    final value = json[key];
-    if (value is String && value.trim().isNotEmpty) {
-      return value.trim();
-    }
-    throw ChatFailure.configuration(
-      'The Weave Chat facade returned an invalid "$key" value.',
-    );
-  }
-
-  DateTime? _readDateTime(Object? value) {
-    if (value is! String || value.trim().isEmpty) {
-      return null;
-    }
-    return DateTime.tryParse(value)?.toLocal();
   }
 }

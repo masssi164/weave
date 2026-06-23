@@ -166,6 +166,8 @@ Presentation depends on repository contracts and Riverpod providers only. It doe
 Boundary rule:
 
 - feature-specific mapping stays in the feature
+- generated OpenAPI DTOs are transport contracts for feature `data/` mappers, not presentation or domain models
+- shared OpenAPI adapter primitives may represent reusable resource pages, readiness/capability states, support-safe errors, and future watch-stream envelopes, while Chat, Files, and other features keep feature-specific repository methods where their semantics differ
 - reusable external-service auth/session/orchestration belongs in an integration layer
 - features may depend on integrations, but integrations must not depend on feature presentation state or feature-owned transport mappings they are meant to support
 
