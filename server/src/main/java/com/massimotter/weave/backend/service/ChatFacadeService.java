@@ -185,14 +185,14 @@ public class ChatFacadeService {
         WorkspaceCapabilityProperties.Capability chat = workspaceCapabilityProperties.chat();
         if (!chat.enabled()) {
             return new ChatReadinessResponse(
-                    "disabled",
+                    "disabled_by_policy",
                     "Chat is disabled by workspace policy.",
                     granted,
                     true);
         }
         if (jwt != null && !granted.contains("chat.read")) {
             return new ChatReadinessResponse(
-                    "policy-blocked",
+                    "disabled_by_policy",
                     "Chat is blocked by your role or group policy. Ask an admin if you need access.",
                     granted,
                     true);
@@ -200,14 +200,14 @@ public class ChatFacadeService {
         WorkspaceCapabilityReadiness configured = chat.readiness();
         if (configured == WorkspaceCapabilityReadiness.READY || (configured == null && hasText(chat.dependencyUrl()))) {
             return new ChatReadinessResponse(
-                    "usable",
+                    "available",
                     "Weave Chat is available through the workspace Chat domain.",
                     granted,
                     true);
         }
         if (configured == WorkspaceCapabilityReadiness.UNAVAILABLE) {
             return new ChatReadinessResponse(
-                    "disabled",
+                    "unavailable",
                     "Chat is not available in this workspace. Ask an admin to review Workspace Health.",
                     granted,
                     true);
@@ -603,13 +603,13 @@ public class ChatFacadeService {
         workspaceCapabilityService.requireCapability(jwt, capability, DOMAIN, operation);
         WorkspaceCapabilityProperties.Capability chat = workspaceCapabilityProperties.chat();
         if (!chat.enabled()) {
-            throw chatUnavailable("disabled", "Chat is disabled by workspace policy.", operation);
+            throw chatUnavailable("disabled_by_policy", "Chat is disabled by workspace policy.", operation);
         }
         WorkspaceCapabilityReadiness configured = chat.readiness();
         if (configured == WorkspaceCapabilityReadiness.READY || (configured == null && hasText(chat.dependencyUrl()))) {
             return;
         }
-        String impact = configured == WorkspaceCapabilityReadiness.UNAVAILABLE ? "disabled" : "degraded";
+        String impact = configured == WorkspaceCapabilityReadiness.UNAVAILABLE ? "unavailable" : "degraded";
         throw chatUnavailable(impact, "Chat is not ready through the Weave Chat facade.", operation);
     }
 
@@ -629,7 +629,7 @@ public class ChatFacadeService {
                             "module", DOMAIN,
                             "contextId", principal.contextId(),
                             "permission", permission.name().toLowerCase(Locale.ROOT),
-                            "policyState", "policy-blocked",
+                            "policyState", "disabled_by_policy",
                             "reason", decision.reason(),
                             "diagnosticsRedacted", true));
         }

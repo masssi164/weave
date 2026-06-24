@@ -371,13 +371,39 @@ extension OfficeLaunchOpenApiMapper on openapi.OfficeLaunchResponse {
   );
 }
 
-OfficeLaunchSnapshot officeLaunchFailClosedSnapshot(Map<String, dynamic> json) {
-  final error = openapi.ApiErrorResponse.fromJson(json);
+OfficeLaunchSnapshot officeLaunchFailClosedSnapshot(
+  Map<String, dynamic> errorEnvelope,
+) {
+  final fallbackRequestId = _nullableString(errorEnvelope['requestId']) ?? '';
+  final error = openapi.ApiErrorResponse.fromJson({
+    'code': _string(
+      errorEnvelope['code'],
+      fallback: 'office-launch-fail-closed',
+    ),
+    'details': errorEnvelope['details'] is Map<String, dynamic>
+        ? errorEnvelope['details']
+        : <String, Object?>{},
+    'memberImpact': errorEnvelope['memberImpact'],
+    'message': _string(
+      errorEnvelope['message'],
+      fallback: 'office-launch-fail-closed',
+    ),
+    'requestId': fallbackRequestId,
+    'supportRef': _string(
+      errorEnvelope['supportRef'],
+      fallback: _supportRef(fallbackRequestId),
+    ),
+  });
   return OfficeLaunchSnapshot.failClosed(
     errorCode: _string(error.code, fallback: 'office-launch-fail-closed'),
     message: _safeText(error.message),
     requestId: _nullableString(error.requestId),
   );
+}
+
+String _supportRef(String requestId) {
+  final value = requestId.isEmpty ? 'office-launch-fail-closed' : requestId;
+  return ['support', value].join(':');
 }
 
 ProviderCategoryReadiness _providerCategoryReadiness(String value) {

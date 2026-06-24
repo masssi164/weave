@@ -77,7 +77,7 @@ export type GeneratedChatProviderMappingRecord = {
   "downstreamErrorsReturned"?: boolean;
   "failClosed"?: boolean;
   "lossyMappingWarnings"?: string[];
-  "readinessState"?: "degraded" | "disabled" | "misconfigured" | "policy_blocked" | "ready" | "unavailable";
+  "readinessState"?: "available" | "coming_later" | "degraded" | "disabled_by_policy" | "not_configured" | "unavailable";
   "secretsReturned"?: boolean;
   "selectedByAdmin"?: boolean;
   "selectedProviderKey"?: string;
@@ -120,7 +120,7 @@ export type GeneratedChatReadiness = {
   "failClosed"?: boolean;
   "memberClientMayConfigureProvider"?: boolean;
   "memberImpact"?: string;
-  "memberState"?: "degraded" | "disabled" | "misconfigured" | "policy_blocked" | "ready" | "unavailable";
+  "memberState"?: "available" | "coming_later" | "degraded" | "disabled_by_policy" | "not_configured" | "unavailable";
   "migrationDryRunRequired"?: boolean;
   "providerMapping"?: GeneratedChatProviderMappingRecord;
   "supportSafe"?: boolean;
@@ -130,7 +130,7 @@ export type GeneratedChatReadiness = {
 export type GeneratedChatReadinessResponse = {
   "diagnosticsRedacted": boolean;
   "grantedCapabilities": string[];
-  "impactState": "degraded" | "disabled" | "policy-blocked" | "usable";
+  "impactState": "available" | "coming_later" | "degraded" | "disabled_by_policy" | "not_configured" | "unavailable";
   "memberImpact": string;
 };
 

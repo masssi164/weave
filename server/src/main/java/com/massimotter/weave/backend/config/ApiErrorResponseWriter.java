@@ -46,15 +46,37 @@ public class ApiErrorResponseWriter {
         if (additionalDetails != null) {
             details.putAll(additionalDetails);
         }
+        String supportRef = supportSafeText(details.get("supportRef"), "support:" + requestId);
+        String memberImpact = supportSafeText(details.get("memberImpact"), null);
         objectMapper.writeValue(response.getWriter(), new ApiErrorResponse(
                 code,
                 message,
                 details,
-                requestId));
+                requestId,
+                supportRef,
+                memberImpact));
     }
 
     private String defaultCode(HttpStatus status) {
         return status.name().toLowerCase().replace('_', '-');
+    }
+
+    private String supportSafeText(Object value, String fallback) {
+        if (!(value instanceof String text) || text.isBlank()) {
+            return fallback;
+        }
+        String trimmed = text.trim();
+        String lower = trimmed.toLowerCase();
+        if (lower.contains("authorization:")
+                || lower.contains("bearer ")
+                || lower.contains("password")
+                || lower.contains("secret")
+                || lower.contains("token")
+                || lower.contains("http://")
+                || lower.contains("https://")) {
+            return fallback;
+        }
+        return trimmed;
     }
 
 }

@@ -51,7 +51,7 @@ public final class CanonicalDomainFacadeSupport {
         WorkspaceCapabilitiesResponse capabilities = workspaceCapabilityService.snapshot(jwt);
         WorkspaceCapabilityStatusResponse primaryCapability = definition.primaryCapability(capabilities);
         CanonicalMemberState policyState = policyState(primaryCapability);
-        if (policyState == CanonicalMemberState.POLICY_BLOCKED || policyState == CanonicalMemberState.DISABLED) {
+        if (policyState == CanonicalMemberState.POLICY_BLOCKED) {
             return readinessWithoutProviderLookup(primaryCapability, policyState, includeAdminDiagnostics);
         }
 
@@ -166,7 +166,7 @@ public final class CanonicalDomainFacadeSupport {
             return CanonicalMemberState.POLICY_BLOCKED;
         }
         if (capability.policyState() == WorkspaceCapabilityPolicyState.DISABLED || !capability.enabled()) {
-            return CanonicalMemberState.DISABLED;
+            return CanonicalMemberState.POLICY_BLOCKED;
         }
         return CanonicalMemberState.READY;
     }
@@ -179,7 +179,7 @@ public final class CanonicalDomainFacadeSupport {
             return CanonicalMemberState.POLICY_BLOCKED;
         }
         if (primaryCapability.policyState() == WorkspaceCapabilityPolicyState.DISABLED || !primaryCapability.enabled()) {
-            return CanonicalMemberState.DISABLED;
+            return CanonicalMemberState.POLICY_BLOCKED;
         }
         if (maybeSelection.isEmpty()) {
             return CanonicalMemberState.MISCONFIGURED;
@@ -189,7 +189,7 @@ public final class CanonicalDomainFacadeSupport {
         }
         ProviderStatusResponse provider = maybeProvider.get();
         if (!provider.enabled() || provider.state() == ProviderState.DISABLED) {
-            return CanonicalMemberState.DISABLED;
+            return CanonicalMemberState.POLICY_BLOCKED;
         }
         if (!provider.configured() || provider.state() == ProviderState.NOT_CONFIGURED) {
             return CanonicalMemberState.MISCONFIGURED;
@@ -307,7 +307,6 @@ public final class CanonicalDomainFacadeSupport {
             case READY -> capabilityImpact == null || capabilityImpact.isBlank()
                     ? definition.label() + " are available through Weave."
                     : capabilityImpact;
-            case DISABLED -> definition.label() + " are disabled by workspace policy.";
             case DEGRADED -> definition.label() + " are degraded. Ask an admin to review Workspace Health.";
             case POLICY_BLOCKED -> definition.label() + " are blocked by your role or group policy. Ask an admin if you need access.";
             case UNAVAILABLE -> definition.label() + " are unavailable for this workspace right now.";
@@ -330,7 +329,6 @@ public final class CanonicalDomainFacadeSupport {
         return switch (state) {
             case READY -> 0;
             case DEGRADED -> 1;
-            case DISABLED -> 2;
             case MISCONFIGURED -> 3;
             case UNAVAILABLE -> 4;
             case POLICY_BLOCKED -> 5;

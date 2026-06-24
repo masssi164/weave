@@ -168,10 +168,12 @@ class ProviderCategoryContractSnapshot {
 
   bool get keepsMemberSemanticsStable =>
       !normalMembersConfigureProviders &&
-      stableMemberImpactStates.contains('usable') &&
-      stableMemberImpactStates.contains('disabled') &&
+      stableMemberImpactStates.contains('available') &&
+      stableMemberImpactStates.contains('disabled_by_policy') &&
+      stableMemberImpactStates.contains('not_configured') &&
       stableMemberImpactStates.contains('degraded') &&
-      stableMemberImpactStates.contains('policy-blocked');
+      stableMemberImpactStates.contains('unavailable') &&
+      stableMemberImpactStates.contains('coming_later');
 }
 
 class ProviderChoiceModelSnapshot {

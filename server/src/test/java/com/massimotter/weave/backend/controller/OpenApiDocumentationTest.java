@@ -12,6 +12,7 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -98,6 +99,14 @@ class OpenApiDocumentationTest {
                 .andExpect(jsonPath("$.components.schemas.ApiErrorResponse.properties.code.type").value("string"))
                 .andExpect(jsonPath("$.components.schemas.ApiErrorResponse.properties.message.type").value("string"))
                 .andExpect(jsonPath("$.components.schemas.ApiErrorResponse.properties.requestId.type").value("string"))
+                .andExpect(jsonPath("$.components.schemas.ApiErrorResponse.properties.supportRef.type").value("string"))
+                .andExpect(jsonPath("$.components.schemas.ApiErrorResponse.properties.memberImpact.type").value("string"))
+                .andExpect(jsonPath("$.components.schemas.ApiErrorResponse.required", hasItems(
+                        "code",
+                        "message",
+                        "details",
+                        "requestId",
+                        "supportRef")))
                 .andExpect(jsonPath("$.components.responses.UnauthorizedError.description").value("Missing or invalid bearer token."))
                 .andExpect(jsonPath("$.components.securitySchemes['bearer-jwt'].type").value("http"))
                 .andReturn();

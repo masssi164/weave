@@ -12,17 +12,10 @@ enum OpenApiFeatureCapabilityState {
   static OpenApiFeatureCapabilityState fromApi(String? value) {
     switch (value) {
       case 'available':
-      case 'usable':
-      case 'ready':
         return OpenApiFeatureCapabilityState.available;
-      case 'disabled':
-        return OpenApiFeatureCapabilityState.disabled;
       case 'disabled_by_policy':
-      case 'policy_blocked':
-      case 'policy-blocked':
         return OpenApiFeatureCapabilityState.disabledByPolicy;
       case 'not_configured':
-      case 'misconfigured':
         return OpenApiFeatureCapabilityState.notConfigured;
       case 'degraded':
         return OpenApiFeatureCapabilityState.degraded;
@@ -30,8 +23,6 @@ enum OpenApiFeatureCapabilityState {
         return OpenApiFeatureCapabilityState.unavailable;
       case 'coming_later':
         return OpenApiFeatureCapabilityState.comingLater;
-      case 'unsupported':
-        return OpenApiFeatureCapabilityState.unsupported;
       default:
         return OpenApiFeatureCapabilityState.unknown;
     }
