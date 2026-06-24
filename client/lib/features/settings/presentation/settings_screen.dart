@@ -1251,13 +1251,15 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
     final workspace = ref.watch(workspaceConnectionStateProvider);
     final capabilities = ref.watch(workspaceCapabilitySnapshotProvider);
     final backendState = ref.watch(weaveBackendConnectionStateProvider);
-    final matrixDiagnostic = ref.watch(weaveApiMatrixE2eeDiagnosticProvider);
     final canViewWorkspaceHealth = ref
         .watch(userProfileProvider)
         .maybeWhen(
           data: (profile) => profile?.canAdministerWorkspace ?? false,
           orElse: () => false,
         );
+    final matrixDiagnostic = canViewWorkspaceHealth
+        ? ref.watch(weaveApiMatrixE2eeDiagnosticProvider).asData?.value
+        : null;
     final providerStackSnapshot = canViewWorkspaceHealth
         ? ref.watch(weaveApiProviderStackSnapshotProvider).asData?.value
         : null;
@@ -1333,20 +1335,20 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
                 _WorkspaceReadinessRow(
                   label: l10n.settingsWorkspaceChatLabel,
                   capability: capabilitySnapshot.chat,
-                  connection: workspaceState.matrix,
-                  matrixDiagnostic: matrixDiagnostic.asData?.value,
+                  connection: workspaceState.chat,
+                  matrixDiagnostic: matrixDiagnostic,
                 ),
                 const Divider(height: 32),
                 _WorkspaceReadinessRow(
                   label: l10n.settingsWorkspaceFilesLabel,
                   capability: capabilitySnapshot.files,
-                  connection: workspaceState.nextcloud,
+                  connection: workspaceState.files,
                 ),
                 const Divider(height: 32),
                 _WorkspaceReadinessRow(
                   label: l10n.settingsWorkspaceCalendarLabel,
                   capability: capabilitySnapshot.calendar,
-                  connection: workspaceState.nextcloud,
+                  connection: workspaceState.files,
                 ),
               ],
             ),
@@ -1358,8 +1360,6 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
                 unawaited(ref.read(appBootstrapProvider.notifier).retry());
               }
               ref.invalidate(appAuthIntegrationConnectionProvider);
-              ref.invalidate(matrixIntegrationConnectionProvider);
-              ref.invalidate(nextcloudIntegrationConnectionProvider);
               ref.invalidate(weaveApiWorkspaceCapabilitySnapshotProvider);
               ref.invalidate(weaveApiMatrixE2eeDiagnosticProvider);
               ref.invalidate(weaveApiProviderStackSnapshotProvider);
@@ -2155,10 +2155,10 @@ class _WorkspaceReadinessRow extends StatelessWidget {
     return switch (reason) {
       IntegrationInvalidationReason.authConfigurationChanged =>
         l10n.settingsWorkspaceInvalidationAuthConfigurationChanged,
-      IntegrationInvalidationReason.matrixHomeserverChanged =>
-        l10n.settingsWorkspaceInvalidationMatrixHomeserverChanged,
-      IntegrationInvalidationReason.nextcloudBaseUrlChanged =>
-        l10n.settingsWorkspaceInvalidationNextcloudBaseUrlChanged,
+      IntegrationInvalidationReason.chatConfigurationChanged =>
+        l10n.settingsWorkspaceInvalidationChatConfigurationChanged,
+      IntegrationInvalidationReason.filesConfigurationChanged =>
+        l10n.settingsWorkspaceInvalidationFilesConfigurationChanged,
       IntegrationInvalidationReason.backendApiBaseUrlChanged =>
         l10n.settingsWorkspaceInvalidationBackendApiBaseUrlChanged,
       IntegrationInvalidationReason.explicitSignOut =>

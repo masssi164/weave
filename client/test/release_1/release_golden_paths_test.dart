@@ -342,13 +342,13 @@ AsyncValue<WorkspaceConnectionState> _workspaceConnectionState() {
         integration: WorkspaceIntegration.appAuth,
         status: IntegrationConnectionStatus.connected,
       ),
-      matrix: IntegrationConnectionState(
-        integration: WorkspaceIntegration.matrix,
+      chat: IntegrationConnectionState(
+        integration: WorkspaceIntegration.chat,
         status: IntegrationConnectionStatus.degraded,
         recoveryRequirement: IntegrationRecoveryRequirement.reauthenticate,
       ),
-      nextcloud: IntegrationConnectionState(
-        integration: WorkspaceIntegration.nextcloud,
+      files: IntegrationConnectionState(
+        integration: WorkspaceIntegration.files,
         status: IntegrationConnectionStatus.connected,
       ),
     ),

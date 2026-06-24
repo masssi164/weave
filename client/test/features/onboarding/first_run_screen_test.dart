@@ -32,7 +32,7 @@ void main() {
 
       expect(find.text('Your Weave workspace is ready'), findsOneWidget);
       expect(find.text('Alice Example'), findsOneWidget);
-      expect(find.text('member'), findsOneWidget);
+      expect(find.text('Member'), findsOneWidget);
       expect(find.text('Chat'), findsOneWidget);
       expect(find.text('Files'), findsOneWidget);
       expect(find.text('Calendar'), findsOneWidget);

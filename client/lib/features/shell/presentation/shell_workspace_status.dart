@@ -49,8 +49,8 @@ class ShellWorkspaceStatus extends ConsumerWidget {
               retryLabel: l10n.retryButton,
               onRetry: () {
                 ref.invalidate(appAuthIntegrationConnectionProvider);
-                ref.invalidate(matrixIntegrationConnectionProvider);
-                ref.invalidate(nextcloudIntegrationConnectionProvider);
+                ref.invalidate(weaveApiWorkspaceCapabilitySnapshotProvider);
+                ref.invalidate(weaveApiWorkspaceHomeProvider);
               },
             ),
             _ => LoadingState(
@@ -170,15 +170,16 @@ class _HomeDailyLoopSummary extends StatelessWidget {
     final semanticSections = visibleSections
         .map((section) => '${section.title}: ${section.summary}')
         .join('. ');
+    final homeTitle = AppLocalizations.of(context).chatOverviewTitle;
 
     return Semantics(
       container: true,
-      label: 'Weave Home. ${home.summary}. $semanticSections',
+      label: '$homeTitle. ${home.summary}. $semanticSections',
       child: ExcludeSemantics(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Weave Home', style: theme.textTheme.titleSmall),
+            Text(homeTitle, style: theme.textTheme.titleSmall),
             const SizedBox(height: 4),
             Text(home.summary, style: theme.textTheme.bodyMedium),
             const SizedBox(height: 8),
