@@ -771,7 +771,9 @@ void main() {
                   : 'Calendar write remains blocked by capability policy.',
             ],
             'followUpRefs': <String>[
-              workspaceLoopCalendarRef,
+              calendarManageEventsAllowed
+                  ? 'calendar:e2e-created'
+                  : workspaceLoopCalendarRef,
               'evidence:workspace-loop-live-stack',
             ],
             'references': <Map<String, String>>[
