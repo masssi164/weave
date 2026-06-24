@@ -28,11 +28,11 @@
   "@setupProviderStepDescription": {
     "description": "Description shown in the setup provider step"
   },
-  "setupServicesStepTitle": "Review Service Endpoints",
+  "setupServicesStepTitle": "Review Backend API",
   "@setupServicesStepTitle": {
     "description": "Title for the setup services step"
   },
-  "setupServicesStepDescription": "Review the current dogfood service endpoints derived from the identity issuer. These provider URLs stay admin/operator configuration, not normal member setup.",
+  "setupServicesStepDescription": "Review the Weave backend API endpoint derived from the organization sign-in issuer. Provider service URLs stay in admin/support diagnostics, not member setup.",
   "@setupServicesStepDescription": {
     "description": "Description shown in the setup services step"
   },
@@ -3098,6 +3098,18 @@
   "serverConfigurationServicesHelper": "Defaults for Matrix, Nextcloud, and the backend API are derived from the issuer host. Edit them if your services live elsewhere.",
   "@serverConfigurationServicesHelper": {
     "description": "Helper text for the service endpoints section"
+  },
+  "serverConfigurationBackendApiHelper": "The member client stores the Weave backend API endpoint for organization capability and workspace state. Provider service URLs stay in admin/support diagnostics.",
+  "@serverConfigurationBackendApiHelper": {
+    "description": "Helper text for backend API-only member handoff/recovery configuration"
+  },
+  "serverConfigurationIdentityEndpointTitle": "Identity endpoint",
+  "@serverConfigurationIdentityEndpointTitle": {
+    "description": "Title for the identity endpoint section in setup and settings"
+  },
+  "serverConfigurationIdentityEndpointHelper": "Provider selection is owned by the Weave Admin Console and backend control plane. This member client stores only canonical Weave endpoints needed to sign in.",
+  "@serverConfigurationIdentityEndpointHelper": {
+    "description": "Helper text for the identity endpoint section in setup and settings"
   },
   "serverConfigurationMatrixLabel": "Matrix Homeserver URL",
   "@serverConfigurationMatrixLabel": {

@@ -267,8 +267,14 @@ void main() {
     );
 
     test(
-      'prefers backend capability readiness when a backend snapshot exists',
+      'prefers backend capability readiness without restoring provider sessions',
       () async {
+        final filesRepository = _FakeFilesRepository(
+          connectionState: FilesConnectionState.connected(
+            baseUrl: Uri.parse('https://files.home.internal'),
+            accountLabel: 'alice',
+          ),
+        );
         final container = ProviderContainer.test(
           overrides: [
             appBootstrapProvider.overrideWith(
@@ -299,14 +305,7 @@ void main() {
                 },
               ),
             ),
-            filesRepositoryProvider.overrideWithValue(
-              _FakeFilesRepository(
-                connectionState: FilesConnectionState.connected(
-                  baseUrl: Uri.parse('https://files.home.internal'),
-                  accountLabel: 'alice',
-                ),
-              ),
-            ),
+            filesRepositoryProvider.overrideWithValue(filesRepository),
             weaveApiWorkspaceCapabilitySnapshotProvider.overrideWith(
               (ref) async => const WorkspaceCapabilitySnapshot(
                 shellAccess: WorkspaceCapabilityState(
@@ -336,8 +335,6 @@ void main() {
         addTearDown(container.dispose);
 
         await container.read(appBootstrapProvider.future);
-        await container.read(matrixIntegrationConnectionProvider.future);
-        await container.read(nextcloudIntegrationConnectionProvider.future);
         await container.read(
           weaveApiWorkspaceCapabilitySnapshotProvider.future,
         );
@@ -354,6 +351,72 @@ void main() {
           capabilities.requireValue.files.readiness,
           WorkspaceCapabilityReadiness.blocked,
         );
+        expect(filesRepository.restoreConnectionCalls, 0);
+      },
+    );
+
+    test(
+      'workspace connection uses backend readiness without restoring provider sessions',
+      () async {
+        final filesRepository = _FakeFilesRepository(
+          connectionState: FilesConnectionState.connected(
+            baseUrl: Uri.parse('https://files.home.internal'),
+            accountLabel: 'alice',
+          ),
+        );
+        final container = ProviderContainer.test(
+          overrides: [
+            appBootstrapProvider.overrideWith(
+              () => _FakeAppBootstrap(const BootstrapState.ready()),
+            ),
+            savedServerConfigurationProvider.overrideWith(
+              (ref) async => buildTestConfiguration(),
+            ),
+            filesRepositoryProvider.overrideWithValue(filesRepository),
+            weaveApiWorkspaceCapabilitySnapshotProvider.overrideWith(
+              (ref) async => const WorkspaceCapabilitySnapshot(
+                shellAccess: WorkspaceCapabilityState(
+                  capability: WorkspaceCapability.shellAccess,
+                  readiness: WorkspaceCapabilityReadiness.ready,
+                ),
+                chat: WorkspaceCapabilityState(
+                  capability: WorkspaceCapability.chat,
+                  readiness: WorkspaceCapabilityReadiness.ready,
+                ),
+                files: WorkspaceCapabilityState(
+                  capability: WorkspaceCapability.files,
+                  readiness: WorkspaceCapabilityReadiness.degraded,
+                ),
+                calendar: WorkspaceCapabilityState(
+                  capability: WorkspaceCapability.calendar,
+                  readiness: WorkspaceCapabilityReadiness.unavailable,
+                ),
+                boards: WorkspaceCapabilityState(
+                  capability: WorkspaceCapability.boards,
+                  readiness: WorkspaceCapabilityReadiness.unavailable,
+                ),
+              ),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        await container.read(appBootstrapProvider.future);
+        await container.read(
+          weaveApiWorkspaceCapabilitySnapshotProvider.future,
+        );
+
+        final workspace = container.read(workspaceConnectionStateProvider);
+
+        expect(
+          workspace.requireValue.matrix.status,
+          IntegrationConnectionStatus.connected,
+        );
+        expect(
+          workspace.requireValue.nextcloud.status,
+          IntegrationConnectionStatus.connected,
+        );
+        expect(filesRepository.restoreConnectionCalls, 0);
       },
     );
   });

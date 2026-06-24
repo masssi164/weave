@@ -32,11 +32,11 @@ class AppLocalizationsDe extends AppLocalizations {
       'Die Admin-Einrichtung beginnt mit der Kategorie Identität/IDM und hält Chat, Dateien, Kalender, Boards/Aufgaben, Besprechungen/Anrufe, Dokumente/Zusammenarbeit und Weaver als Provider-Kategorien sichtbar, bevor Mitglieder beitreten.';
 
   @override
-  String get setupServicesStepTitle => 'Dienstendpunkte prüfen';
+  String get setupServicesStepTitle => 'Backend-API prüfen';
 
   @override
   String get setupServicesStepDescription =>
-      'Prüfe die aktuellen Dogfood-Service-Endpunkte, die aus dem Identitäts-Issuer abgeleitet wurden. Diese Provider-URLs bleiben Admin-/Operator-Konfiguration, nicht normale Mitglieder-Einrichtung.';
+      'Prüfe den Weave-Backend-API-Endpunkt, der aus dem Organisations-Login abgeleitet wurde. Provider-Service-URLs bleiben in Admin-/Support-Diagnosen, nicht in der Mitglieder-Einrichtung.';
 
   @override
   String get providerCategorySummaryTitle => 'Provider-Kategorien';
@@ -2721,6 +2721,17 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get serverConfigurationServicesHelper =>
       'Standardwerte für Matrix, Nextcloud und die Backend-API werden aus dem Issuer-Host abgeleitet. Ändere sie, wenn deine Dienste anderswo liegen.';
+
+  @override
+  String get serverConfigurationBackendApiHelper =>
+      'Der Mitglieder-Client speichert den Weave-Backend-API-Endpunkt für Organisationsfunktionen und Workspace-Status. Provider-Service-URLs bleiben in Admin-/Support-Diagnosen.';
+
+  @override
+  String get serverConfigurationIdentityEndpointTitle => 'Identitätsendpunkt';
+
+  @override
+  String get serverConfigurationIdentityEndpointHelper =>
+      'Provider-Auswahl gehört in die Weave Admin Console und Backend-Control-Plane. Dieser Mitglieder-Client speichert nur kanonische Weave-Endpunkte für die Anmeldung.';
 
   @override
   String get serverConfigurationMatrixLabel => 'Matrix-Homeserver-URL';

@@ -143,13 +143,13 @@ abstract class AppLocalizations {
   /// Title for the setup services step
   ///
   /// In en, this message translates to:
-  /// **'Review Service Endpoints'**
+  /// **'Review Backend API'**
   String get setupServicesStepTitle;
 
   /// Description shown in the setup services step
   ///
   /// In en, this message translates to:
-  /// **'Review the current dogfood service endpoints derived from the identity issuer. These provider URLs stay admin/operator configuration, not normal member setup.'**
+  /// **'Review the Weave backend API endpoint derived from the organization sign-in issuer. Provider service URLs stay in admin/support diagnostics, not member setup.'**
   String get setupServicesStepDescription;
 
   /// Title for the provider category summary shown to admins during setup and workspace health
@@ -4498,6 +4498,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Defaults for Matrix, Nextcloud, and the backend API are derived from the issuer host. Edit them if your services live elsewhere.'**
   String get serverConfigurationServicesHelper;
+
+  /// Helper text for backend API-only member handoff/recovery configuration
+  ///
+  /// In en, this message translates to:
+  /// **'The member client stores the Weave backend API endpoint for organization capability and workspace state. Provider service URLs stay in admin/support diagnostics.'**
+  String get serverConfigurationBackendApiHelper;
+
+  /// Title for the identity endpoint section in setup and settings
+  ///
+  /// In en, this message translates to:
+  /// **'Identity endpoint'**
+  String get serverConfigurationIdentityEndpointTitle;
+
+  /// Helper text for the identity endpoint section in setup and settings
+  ///
+  /// In en, this message translates to:
+  /// **'Provider selection is owned by the Weave Admin Console and backend control plane. This member client stores only canonical Weave endpoints needed to sign in.'**
+  String get serverConfigurationIdentityEndpointHelper;
 
   /// Label for the Matrix homeserver URL field
   ///

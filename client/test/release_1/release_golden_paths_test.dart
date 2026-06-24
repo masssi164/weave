@@ -123,9 +123,9 @@ void main() {
         await tester.tap(find.text('Next'));
         await tester.pumpAndSettle();
 
-        expect(find.text('Review Service Endpoints'), findsOneWidget);
-        expect(find.text('https://matrix.weave.test'), findsWidgets);
-        expect(find.text('https://files.weave.test'), findsWidgets);
+        expect(find.text('Review Backend API'), findsOneWidget);
+        expect(find.text('https://matrix.weave.test'), findsNothing);
+        expect(find.text('https://files.weave.test'), findsNothing);
         expect(find.text('https://api.weave.test/api'), findsWidgets);
 
         await tester.tap(find.text('Finish'));
