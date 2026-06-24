@@ -15,7 +15,7 @@ void main() {
           for (final match in _responseDtoPattern.allMatches(source)) {
             final className = match.group(1)!;
             if (!_isOpenApiCoveredResponseDto(className)) continue;
-            if (_isAllowed(file, _legacyResponseDtoAllowlist)) continue;
+            if (_isResponseDtoAllowed(file, className)) continue;
             findings.add('$file defines $className');
           }
         }
@@ -134,18 +134,43 @@ const _legacyResponseDtoAllowlist = <LegacyFence>[
   LegacyFence(
     path:
         'lib/integrations/weave_api/data/dtos/platform_status_response_dto.dart',
-    issue: '#906',
+    issue: '#904',
+    classNames: ['PlatformStatusResponseDto'],
     reason:
         'Diagnostic/admin platform status remains hand-written until provider '
-        'reachability and diagnostic seams are split from normal member state.',
+        'stack DTO collapse and diagnostic seams are split from normal member '
+        'state.',
   ),
   LegacyFence(
     path:
         'lib/integrations/weave_api/data/dtos/provider_stack_response_dto.dart',
-    issue: '#906',
+    issue: '#904',
+    classNames: [
+      'ProviderRegistryResponseDto',
+      'ProviderCategoryStatusResponseDto',
+      'ProviderAdapterReadinessEvidenceResponseDto',
+      'ProviderCategoryContractResponseDto',
+      'ProviderChoiceModelResponseDto',
+      'ProviderStatusResponseDto',
+      'DevopsSummaryResponseDto',
+      'LinkedSourceProjectResponseDto',
+      'SourceRepositoryResponseDto',
+      'DevopsIssueSummaryResponseDto',
+      'DevopsMergeRequestSummaryResponseDto',
+      'DevopsPipelineSummaryResponseDto',
+      'DevopsJobSummaryResponseDto',
+      'DevopsReleaseSummaryResponseDto',
+      'OfficeCapabilitiesResponseDto',
+      'OfficeProviderCandidateResponseDto',
+      'OfficeCapabilityFlagsResponseDto',
+      'OfficePermissionModelResponseDto',
+      'OfficeLockSessionReadinessResponseDto',
+      'OfficeLaunchResponseDto',
+      'OfficeLaunchErrorResponseDto',
+    ],
     reason:
-        'Provider registry DTO collapse is deferred to the provider seam slice; '
-        'normal member reachability remains fenced by this test file.',
+        'The monolithic provider stack DTO family is deferred to the provider '
+        'stack collapse slice; normal member reachability remains fenced here.',
   ),
 ];
 
@@ -160,7 +185,7 @@ const _rawJsonMemberFacadeAllowlist = <LegacyFence>[
   LegacyFence(
     path:
         'lib/features/boards/data/repositories/backend_boards_workspace_repository.dart',
-    issue: '#904',
+    issue: '#903',
     reason:
         'Boards still parses raw facade JSON until the Boards OpenAPI adapter '
         'slice replaces it with generated Boards*Response models.',
@@ -175,7 +200,7 @@ const _rawJsonMemberFacadeAllowlist = <LegacyFence>[
   LegacyFence(
     path:
         'lib/integrations/weave_api/data/dtos/platform_status_response_dto.dart',
-    issue: '#906',
+    issue: '#904',
     reason:
         'Platform status is diagnostic/admin-only until provider reachability is '
         'split from normal member paths.',
@@ -183,7 +208,7 @@ const _rawJsonMemberFacadeAllowlist = <LegacyFence>[
   LegacyFence(
     path:
         'lib/integrations/weave_api/data/dtos/provider_stack_response_dto.dart',
-    issue: '#906',
+    issue: '#904',
     reason:
         'Provider registry raw parsing is fenced until the provider stack DTO '
         'collapse uses generated OpenAPI models.',
@@ -209,7 +234,7 @@ const _memberProviderGraphAllowlist = <LegacyFence>[
   LegacyFence(
     path:
         'lib/features/chat/presentation/providers/chat_security_provider.dart',
-    issue: '#906',
+    issue: '#895',
     reason:
         'Chat security is an explicit diagnostic-only Matrix seam and must not '
         'be reached from normal member settings or primary Chat flows.',
@@ -217,7 +242,7 @@ const _memberProviderGraphAllowlist = <LegacyFence>[
   LegacyFence(
     path:
         'lib/features/chat/presentation/providers/chat_security_repository_provider.dart',
-    issue: '#906',
+    issue: '#895',
     reason:
         'Diagnostic-only Matrix repository seam remains until providergraph '
         'reachability is removed from member surfaces.',
@@ -225,10 +250,17 @@ const _memberProviderGraphAllowlist = <LegacyFence>[
   LegacyFence(
     path:
         'lib/features/chat/presentation/widgets/chat_security_settings_section.dart',
-    issue: '#906',
+    issue: '#895',
     reason:
         'Diagnostic widget is allowed only while it is not mounted from normal '
         'member Settings or primary Chat routes.',
+  ),
+  LegacyFence(
+    path: 'lib/features/boards/presentation/boards_workspace_screen.dart',
+    issue: '#903',
+    reason:
+        'Boards presentation still maps OpenProject adapter vocabulary until '
+        'the Boards OpenAPI adapter exposes provider-neutral domain state.',
   ),
   LegacyFence(
     path:
@@ -302,7 +334,7 @@ const _hardcodedCopyAllowlist = <LegacyFence>[
   LegacyFence(
     path:
         'lib/features/boards/data/repositories/backend_boards_workspace_repository.dart',
-    issue: '#904',
+    issue: '#903',
     reason:
         'Boards data-layer messages are fenced until the Boards OpenAPI adapter '
         'and localized failure mapping land.',
@@ -310,21 +342,21 @@ const _hardcodedCopyAllowlist = <LegacyFence>[
   LegacyFence(
     path:
         'lib/features/boards/data/repositories/static_boards_workspace_repository.dart',
-    issue: '#904',
+    issue: '#903',
     reason:
         'Static Boards demo data remains fenced until Boards uses generated '
         'OpenAPI models and localized member copy.',
   ),
   LegacyFence(
     path: 'lib/features/boards/data/services/',
-    issue: '#904',
+    issue: '#903',
     reason:
         'Boards normalizer/fallback text remains fenced until Boards uses '
         'generated OpenAPI models and localized member copy.',
   ),
   LegacyFence(
     path: 'lib/features/boards/domain/entities/',
-    issue: '#904',
+    issue: '#903',
     reason:
         'Boards domain fallback labels remain fenced until Boards uses '
         'generated OpenAPI models and localized member copy.',
@@ -467,7 +499,7 @@ const _hardcodedCopyAllowlist = <LegacyFence>[
   LegacyFence(
     path:
         'lib/integrations/weave_api/data/dtos/platform_status_response_dto.dart',
-    issue: '#906',
+    issue: '#904',
     reason:
         'Platform diagnostic validation messages remain fenced with the '
         'diagnostic provider seam.',
@@ -475,7 +507,7 @@ const _hardcodedCopyAllowlist = <LegacyFence>[
   LegacyFence(
     path:
         'lib/integrations/weave_api/data/dtos/provider_stack_response_dto.dart',
-    issue: '#906',
+    issue: '#904',
     reason:
         'Provider registry validation messages remain fenced with provider '
         'stack DTO collapse and diagnostic separation.',
@@ -524,6 +556,16 @@ final _rawProviderReachabilityPatterns = <RegExp>[
   RegExp(r'nextcloud[A-Z_a-z]'),
   RegExp(r'Matrix[A-Z_a-z]'),
   RegExp(r'matrix[A-Z_a-z]'),
+  RegExp(r'\bCalDAV\b|\bcaldav[A-Z_a-z]'),
+  RegExp(r'\bOpenProject\b|\bopenproject\b'),
+  RegExp(r'\bLiveKit\b|\blivekit[A-Z_a-z]'),
+  RegExp(
+    r'import .*integrations/(?:nextcloud|matrix|caldav|openproject|livekit)',
+  ),
+  RegExp(r'\b[a-zA-Z0-9_]*(?:ProviderService|ProviderRepository)\b'),
+  RegExp(
+    r'\b(?:watch|read)\([a-zA-Z0-9_]*(?:ProviderService|ProviderRepository)Provider\b',
+  ),
   RegExp(r'platformStatus'),
   RegExp(r'providerStack'),
   RegExp(r'/api/providers'),
@@ -556,12 +598,16 @@ Iterable<String> _normalMemberProviderGraphFiles() sync* {
     'lib/features/boards/presentation',
     'lib/features/calendar/presentation',
     'lib/features/chat/presentation',
+    'lib/features/connectors/presentation',
     'lib/features/files/presentation',
+    'lib/features/guests/presentation',
+    'lib/features/help/presentation',
     'lib/features/onboarding/presentation',
     'lib/features/profile/presentation',
     'lib/features/server_config/presentation',
     'lib/features/settings/presentation',
     'lib/features/shell/presentation',
+    'lib/features/workflows/presentation',
   ];
   for (final root in roots) {
     final directory = Directory(root);
@@ -656,6 +702,16 @@ bool _isAllowed(String path, List<LegacyFence> allowlist) {
   });
 }
 
+bool _isResponseDtoAllowed(String path, String className) {
+  final normalized = _normalize(path);
+  return _legacyResponseDtoAllowlist.any((fence) {
+    final pathMatches =
+        fence.path == normalized || normalized.startsWith(fence.path);
+    if (!pathMatches) return false;
+    return fence.classNames == null || fence.classNames!.contains(className);
+  });
+}
+
 String _normalize(String path) {
   final normalized = path.replaceAll(r'\', '/');
   return normalized.startsWith('./') ? normalized.substring(2) : normalized;
@@ -666,9 +722,11 @@ class LegacyFence {
     required this.path,
     required this.issue,
     required this.reason,
+    this.classNames,
   });
 
   final String path;
   final String issue;
   final String reason;
+  final List<String>? classNames;
 }
