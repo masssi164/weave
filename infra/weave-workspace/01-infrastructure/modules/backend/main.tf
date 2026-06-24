@@ -137,7 +137,7 @@ resource "docker_container" "this" {
   upload {
     file        = var.provider_selections_storage_path
     source      = var.provider_selections_source
-    source_hash = filesha256(var.provider_selections_source)
+    source_hash = var.provider_selections_source_hash
   }
 
   networks_advanced {

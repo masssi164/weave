@@ -535,6 +535,7 @@ module "backend" {
   boards_openproject_base_url                      = var.boards_openproject_base_url
   boards_openproject_api_token                     = var.boards_openproject_api_token
   provider_selections_source                       = local_sensitive_file.generated["provider_selections"].filename
+  provider_selections_source_hash                  = sha256(local.generated_files["provider_selections"].content)
   provider_selections_storage_path                 = "/app/provider-selections.json"
   oidc_issuer_uri                                  = local.keycloak_issuer_url
   oidc_jwk_set_uri                                 = local.keycloak_jwk_set_uri
