@@ -556,9 +556,11 @@ final _rawProviderReachabilityPatterns = <RegExp>[
   RegExp(r'nextcloud[A-Z_a-z]'),
   RegExp(r'Matrix[A-Z_a-z]'),
   RegExp(r'matrix[A-Z_a-z]'),
-  RegExp(r'\bCalDAV\b|\bcaldav[A-Z_a-z]|\bcalDav[A-Z_a-z]'),
-  RegExp(r'\bOpenProject\b|\bopenproject\b|\bopenProject[A-Z_a-z]'),
-  RegExp(r'\bLiveKit\b|\blivekit[A-Z_a-z]|\bliveKit[A-Z_a-z]'),
+  RegExp(r'\bCalDAV\b|\bcaldav[A-Z_a-z]|\bcalDav\b|\bcalDav[A-Z_a-z]'),
+  RegExp(
+    r'\bOpenProject\b|\bopenproject\b|\bopenProject\b|\bopenProject[A-Z_a-z]',
+  ),
+  RegExp(r'\bLiveKit\b|\blivekit[A-Z_a-z]|\bliveKit\b|\bliveKit[A-Z_a-z]'),
   RegExp(
     r'import .*integrations/(?:nextcloud|matrix|caldav|openproject|livekit)',
   ),
