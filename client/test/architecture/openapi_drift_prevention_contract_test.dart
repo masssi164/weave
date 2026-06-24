@@ -176,21 +176,6 @@ const _legacyResponseDtoAllowlist = <LegacyFence>[
 
 const _rawJsonMemberFacadeAllowlist = <LegacyFence>[
   LegacyFence(
-    path: 'lib/features/calendar/data/services/calendar_facade_client.dart',
-    issue: '#903',
-    reason:
-        'Calendar still parses raw facade JSON until the Calendar OpenAPI adapter '
-        'slice replaces it with generated Calendar*Response models.',
-  ),
-  LegacyFence(
-    path:
-        'lib/features/boards/data/repositories/backend_boards_workspace_repository.dart',
-    issue: '#903',
-    reason:
-        'Boards still parses raw facade JSON until the Boards OpenAPI adapter '
-        'slice replaces it with generated Boards*Response models.',
-  ),
-  LegacyFence(
     path: 'lib/features/files/data/repositories/backend_files_repository.dart',
     issue: '#908',
     reason:

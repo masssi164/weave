@@ -4,9 +4,11 @@ import 'package:http/http.dart' as http;
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/domain/repositories/auth_session_repository.dart';
+import 'package:weave/features/calendar/data/dtos/calendar_openapi_mappers.dart';
 import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
+import 'package:weave/generated/openapi_models.dart' as openapi;
 
 /// HTTP client for the Weave backend calendar product facade.
 ///
@@ -36,20 +38,9 @@ class CalendarFacadeClient {
       fallbackMessage: 'Unable to load calendar scopes from the Weave backend.',
     );
     _ensureSuccess(response, successCodes: const {200});
-    final payload = _decodeObject(response.body);
-    final rawScopes = payload['scopes'];
-    if (rawScopes is! List) {
-      throw const AppFailure.unknown(
-        'The Weave backend returned an invalid calendar scopes payload.',
-      );
-    }
-    final scopes = rawScopes
-        .whereType<Map<String, dynamic>>()
-        .map(_decodeScope)
-        .toList(growable: false);
-    return CalendarScopeList(
-      scopes: scopes.isEmpty ? const [CalendarScope.workspace] : scopes,
-    );
+    return openapi.CalendarScopesResponse.fromJson(
+      _decodeObject(response.body),
+    ).toDomain();
   }
 
   Future<CalendarEventList> listEvents({
@@ -80,19 +71,9 @@ class CalendarFacadeClient {
       fallbackMessage: 'Unable to load calendar events from the Weave backend.',
     );
     _ensureSuccess(response, successCodes: const {200});
-    final payload = _decodeObject(response.body);
-    final rawEvents = payload['events'];
-    if (rawEvents is! List) {
-      throw const AppFailure.unknown(
-        'The Weave backend returned an invalid calendar payload.',
-      );
-    }
-    final responseScope = _decodeScope(payload['scope']);
-    final events = rawEvents
-        .whereType<Map<String, dynamic>>()
-        .map((event) => _decodeEvent(event, defaultScope: responseScope))
-        .toList(growable: false);
-    return CalendarEventList(scope: responseScope, events: events);
+    return openapi.CalendarEventsResponse.fromJson(
+      _decodeObject(response.body),
+    ).toDomain();
   }
 
   Future<CalendarClientSetup> clientSetup() async {
@@ -107,36 +88,9 @@ class CalendarFacadeClient {
           'Unable to load calendar setup metadata from the Weave backend.',
     );
     _ensureSuccess(response, successCodes: const {200});
-    final payload = _decodeObject(response.body);
-    final endpoints = _decodeObjectValue(
-      payload['endpoints'],
-      'calendar setup endpoints',
-    );
-    final rawOptions = payload['options'];
-    if (rawOptions is! List) {
-      throw const AppFailure.unknown(
-        'The Weave backend returned calendar setup data without options.',
-      );
-    }
-
-    return CalendarClientSetup(
-      scope: _decodeScope(payload['scope']),
-      username: _readString(payload, 'username'),
-      endpoints: CalendarExternalEndpoints(
-        serverUrl: _readString(endpoints, 'serverUrl'),
-        caldavDiscoveryUrl: _readString(endpoints, 'caldavDiscoveryUrl'),
-        principalUrl: _readString(endpoints, 'principalUrl'),
-      ),
-      credentialPolicy: _readString(payload, 'credentialPolicy'),
-      accessModel: _decodeAccessModel(payload['accessModel']),
-      credentialReadiness: _decodeCredentialReadiness(
-        payload['credentialReadiness'],
-      ),
-      options: rawOptions
-          .whereType<Map<String, dynamic>>()
-          .map(_decodeSetupOption)
-          .toList(growable: false),
-    );
+    return openapi.CalendarClientSetupResponse.fromJson(
+      _decodeObject(response.body),
+    ).toDomain();
   }
 
   Future<CalendarEvent> readEvent(String id) async {
@@ -150,7 +104,9 @@ class CalendarFacadeClient {
       fallbackMessage: 'Unable to read the calendar event.',
     );
     _ensureSuccess(response, successCodes: const {200});
-    return _decodeEvent(_decodeObject(response.body));
+    return openapi.CalendarEventResponse.fromJson(
+      _decodeObject(response.body),
+    ).toDomain();
   }
 
   Future<CalendarEvent> createEvent(CalendarEventDraft draft) async {
@@ -165,7 +121,9 @@ class CalendarFacadeClient {
       fallbackMessage: 'Unable to create the calendar event.',
     );
     _ensureSuccess(response, successCodes: const {200});
-    return _decodeEvent(_decodeObject(response.body));
+    return openapi.CalendarEventResponse.fromJson(
+      _decodeObject(response.body),
+    ).toDomain();
   }
 
   Future<CalendarEvent> updateEvent({
@@ -183,7 +141,9 @@ class CalendarFacadeClient {
       fallbackMessage: 'Unable to update the calendar event.',
     );
     _ensureSuccess(response, successCodes: const {200});
-    return _decodeEvent(_decodeObject(response.body));
+    return openapi.CalendarEventResponse.fromJson(
+      _decodeObject(response.body),
+    ).toDomain();
   }
 
   Future<void> deleteEvent(String id) async {
@@ -319,221 +279,6 @@ class CalendarFacadeClient {
     );
   }
 
-  CalendarEvent _decodeEvent(
-    Map<String, dynamic> json, {
-    CalendarScope defaultScope = CalendarScope.workspace,
-  }) {
-    final eventScope = _decodeScope(json['scope'], defaultScope: defaultScope);
-    return CalendarEvent(
-      id: _readString(json, 'id'),
-      title: _readString(json, 'title'),
-      description: _readNullableString(json, 'description'),
-      startTime: _readDateTime(json, 'startsAt'),
-      endTime: _readDateTime(json, 'endsAt'),
-      timezone: _readNullableString(json, 'timezone'),
-      location: _readNullableString(json, 'location'),
-      allDay: json['allDay'] == true,
-      etag: _readNullableString(json, 'etag'),
-      scope: eventScope,
-      threadRef: _decodeThreadRef(json['threadRef'], defaultScope: eventScope),
-      attendees: _decodeAttendees(json['attendees']),
-      providerRef: _decodeProviderRef(json['providerRef']),
-      updatedAt: _readNullableDateTime(json, 'updatedAt'),
-    );
-  }
-
-  CalendarScope _decodeScope(
-    Object? rawScope, {
-    CalendarScope defaultScope = CalendarScope.workspace,
-  }) {
-    if (rawScope is! Map<String, dynamic>) {
-      return defaultScope;
-    }
-
-    final rawType = rawScope['type'];
-    final type = rawType is String ? rawType.trim() : '';
-    if (type.isEmpty) {
-      return defaultScope;
-    }
-
-    final rawLabel = rawScope['label'];
-    final label = rawLabel is String && rawLabel.trim().isNotEmpty
-        ? rawLabel.trim()
-        : switch (type) {
-            'workspace' => CalendarScope.workspace.label,
-            _ => type,
-          };
-
-    final rawId = rawScope['id'];
-    final rawWorkspaceId = rawScope['workspaceId'];
-    final rawContextId = rawScope['contextId'];
-    final rawTeamId = rawScope['teamId'];
-    final rawChannelId = rawScope['channelId'];
-    final rawAccessModel = rawScope['accessModel'];
-
-    final teamId = rawTeamId is String && rawTeamId.trim().isNotEmpty
-        ? rawTeamId.trim()
-        : null;
-    final channelId = rawChannelId is String && rawChannelId.trim().isNotEmpty
-        ? rawChannelId.trim()
-        : null;
-    final fallbackId = switch (type) {
-      'team' => teamId == null ? 'team' : 'team:$teamId',
-      'channel' => channelId == null ? 'channel' : 'channel:$channelId',
-      _ => defaultScope.id,
-    };
-
-    return CalendarScope(
-      id: rawId is String && rawId.trim().isNotEmpty
-          ? rawId.trim()
-          : fallbackId,
-      type: type,
-      label: label,
-      workspaceId: rawWorkspaceId is String && rawWorkspaceId.trim().isNotEmpty
-          ? rawWorkspaceId.trim()
-          : defaultScope.workspaceId,
-      contextId: rawContextId is String && rawContextId.trim().isNotEmpty
-          ? rawContextId.trim()
-          : _defaultContextId(type, teamId: teamId, channelId: channelId),
-      teamId: teamId,
-      channelId: channelId,
-      accessModel: rawAccessModel is String && rawAccessModel.trim().isNotEmpty
-          ? rawAccessModel.trim()
-          : defaultScope.accessModel,
-      capabilities: _readStringList(rawScope['capabilities']),
-    );
-  }
-
-  CalendarThreadRef _decodeThreadRef(
-    Object? rawThreadRef, {
-    required CalendarScope defaultScope,
-  }) {
-    if (rawThreadRef is! Map<String, dynamic>) {
-      return CalendarThreadRef.forScope(defaultScope);
-    }
-
-    final rawContextId = rawThreadRef['contextId'];
-    final contextId = rawContextId is String && rawContextId.trim().isNotEmpty
-        ? rawContextId.trim()
-        : defaultScope.contextId;
-    final rawKind = rawThreadRef['kind'];
-
-    return CalendarThreadRef(
-      kind: rawKind is String && rawKind.trim().isNotEmpty
-          ? rawKind.trim()
-          : 'context',
-      contextId: contextId,
-      meetingThreadId: _readNullableString(rawThreadRef, 'meetingThreadId'),
-      channelId: _readNullableString(rawThreadRef, 'channelId'),
-      matrixRoomId: _readNullableString(rawThreadRef, 'matrixRoomId'),
-      matrixThreadId: _readNullableString(rawThreadRef, 'matrixThreadId'),
-      boardTaskIds: _readStringList(rawThreadRef['boardTaskIds']),
-    );
-  }
-
-  List<CalendarAttendee> _decodeAttendees(Object? rawAttendees) {
-    if (rawAttendees is! List) {
-      return const [];
-    }
-
-    return rawAttendees
-        .whereType<Map<String, dynamic>>()
-        .map((attendee) {
-          return CalendarAttendee(
-            name: _readNullableString(attendee, 'name'),
-            email: _readNullableString(attendee, 'email'),
-            role: _readNullableString(attendee, 'role'),
-            responseStatus: _readNullableString(attendee, 'responseStatus'),
-          );
-        })
-        .toList(growable: false);
-  }
-
-  CalendarProviderRef? _decodeProviderRef(Object? rawProviderRef) {
-    if (rawProviderRef is! Map<String, dynamic>) {
-      return null;
-    }
-
-    return CalendarProviderRef(
-      provider: _readString(rawProviderRef, 'provider'),
-      objectKind: _readString(rawProviderRef, 'objectKind'),
-      opaqueId: _readNullableString(rawProviderRef, 'opaqueId'),
-      etag: _readNullableString(rawProviderRef, 'etag'),
-      lastSyncedAt: _readNullableDateTime(rawProviderRef, 'lastSyncedAt'),
-      rawProviderPathExposed: rawProviderRef['rawProviderPathExposed'] == true,
-    );
-  }
-
-  String _defaultContextId(String type, {String? teamId, String? channelId}) {
-    return switch (type) {
-      'team' => 'team-${teamId ?? 'engineering'}',
-      'channel' => 'channel-${channelId ?? 'engineering-general'}',
-      _ => 'workspace-default',
-    };
-  }
-
-  CalendarAccessModel _decodeAccessModel(Object? rawAccessModel) {
-    if (rawAccessModel is! Map<String, dynamic>) {
-      return CalendarAccessModel.workspaceBlockedPrivateCalendars;
-    }
-
-    return CalendarAccessModel(
-      type: _readString(rawAccessModel, 'type'),
-      productScope: _readString(rawAccessModel, 'productScope'),
-      privateUserCalendarsAvailable:
-          rawAccessModel['privateUserCalendarsAvailable'] == true,
-      privateUserCalendarsReason: _readString(
-        rawAccessModel,
-        'privateUserCalendarsReason',
-      ),
-      externalClientCredentialModel: _readString(
-        rawAccessModel,
-        'externalClientCredentialModel',
-      ),
-      notes: _readStringList(rawAccessModel['notes']),
-    );
-  }
-
-  CalendarCredentialReadiness _decodeCredentialReadiness(
-    Object? rawCredentialReadiness,
-  ) {
-    if (rawCredentialReadiness is! Map<String, dynamic>) {
-      return CalendarCredentialReadiness.blockedUntilRevocableCredentials;
-    }
-
-    return CalendarCredentialReadiness(
-      status: _readString(rawCredentialReadiness, 'status'),
-      appleProfileSigned: rawCredentialReadiness['appleProfileSigned'] == true,
-      appleProfilePasswordIncluded:
-          rawCredentialReadiness['appleProfilePasswordIncluded'] == true,
-      revocableCredentialsAvailable:
-          rawCredentialReadiness['revocableCredentialsAvailable'] == true,
-      readOnlySubscriptionTokensAvailable:
-          rawCredentialReadiness['readOnlySubscriptionTokensAvailable'] == true,
-      backendActorCredentialsExposed:
-          rawCredentialReadiness['backendActorCredentialsExposed'] == true,
-      blockers: _readStringList(rawCredentialReadiness['blockers']),
-    );
-  }
-
-  CalendarClientSetupOption _decodeSetupOption(Map<String, dynamic> json) {
-    final rawGuidance = json['guidance'];
-    return CalendarClientSetupOption(
-      platform: _readString(json, 'platform'),
-      method: _readString(json, 'method'),
-      available: json['available'] == true,
-      actionUrl: _readNullableString(json, 'actionUrl'),
-      unavailableReason: _readNullableString(json, 'unavailableReason'),
-      guidance: _readStringList(rawGuidance),
-    );
-  }
-
-  List<String> _readStringList(Object? value) {
-    return value is List
-        ? value.whereType<String>().toList(growable: false)
-        : const [];
-  }
-
   Map<String, dynamic> _decodeObject(String body) {
     try {
       final payload = jsonDecode(body);
@@ -548,63 +293,17 @@ class CalendarFacadeClient {
     );
   }
 
-  Map<String, dynamic> _decodeObjectValue(Object? value, String label) {
-    if (value is Map<String, dynamic>) {
-      return value;
-    }
-    throw AppFailure.unknown('The Weave backend returned invalid $label.');
-  }
-
   String? _errorMessage(String body) {
     try {
-      final payload = jsonDecode(body);
-      if (payload is Map<String, dynamic>) {
-        final message = payload['message'];
+      final decoded = jsonDecode(body);
+      if (decoded is Map<String, dynamic>) {
+        final message = decoded['message'];
         if (message is String && message.trim().isNotEmpty) {
           return message;
         }
       }
     } catch (_) {
       return null;
-    }
-    return null;
-  }
-
-  String _readString(Map<String, dynamic> json, String key) {
-    final value = json[key];
-    if (value is String && value.trim().isNotEmpty) {
-      return value;
-    }
-    throw AppFailure.unknown(
-      'The Weave backend returned a calendar event without $key.',
-    );
-  }
-
-  String? _readNullableString(Map<String, dynamic> json, String key) {
-    final value = json[key];
-    if (value is String && value.trim().isNotEmpty) {
-      return value;
-    }
-    return null;
-  }
-
-  DateTime _readDateTime(Map<String, dynamic> json, String key) {
-    final value = json[key];
-    if (value is String) {
-      final parsed = DateTime.tryParse(value);
-      if (parsed != null) {
-        return parsed;
-      }
-    }
-    throw AppFailure.unknown(
-      'The Weave backend returned a calendar event without a valid $key.',
-    );
-  }
-
-  DateTime? _readNullableDateTime(Map<String, dynamic> json, String key) {
-    final value = json[key];
-    if (value is String && value.trim().isNotEmpty) {
-      return DateTime.tryParse(value);
     }
     return null;
   }
