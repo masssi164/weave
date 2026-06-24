@@ -13,6 +13,10 @@ import 'package:weave/features/chat/domain/entities/chat_message.dart';
 import 'package:weave/features/chat/domain/entities/chat_room_timeline.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_security_repository_provider.dart';
+import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
+import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
+import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
+import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/files/domain/entities/directory_listing.dart';
 import 'package:weave/features/files/domain/entities/file_entry.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
@@ -25,6 +29,9 @@ import 'package:weave/features/server_config/domain/entities/server_configuratio
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
 import 'package:weave/features/shell/data/repositories/shared_preferences_shell_module_preferences_repository.dart';
+import 'package:weave/features/shell/presentation/shell_workspace_status.dart';
+import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
+import 'package:weave/l10n/generated/app_localizations.dart';
 import 'package:weave/main.dart';
 
 import '../../helpers/auth_test_data.dart';
@@ -205,6 +212,91 @@ void main() {
 
       expect(find.text('Workspace setup is admin-only'), findsOneWidget);
       expect(find.text('Server Configuration'), findsNothing);
+    });
+
+    testWidgets('workspace status localizes backend recovery states', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            workspaceConnectionStateProvider.overrideWithValue(
+              const AsyncData(
+                WorkspaceConnectionState(
+                  appAuth: IntegrationConnectionState(
+                    integration: WorkspaceIntegration.appAuth,
+                    status: IntegrationConnectionStatus.connected,
+                  ),
+                  matrix: IntegrationConnectionState(
+                    integration: WorkspaceIntegration.matrix,
+                    status: IntegrationConnectionStatus.connected,
+                  ),
+                  nextcloud: IntegrationConnectionState(
+                    integration: WorkspaceIntegration.nextcloud,
+                    status: IntegrationConnectionStatus.connected,
+                  ),
+                ),
+              ),
+            ),
+            workspaceCapabilitySnapshotProvider.overrideWithValue(
+              const AsyncData(
+                WorkspaceCapabilitySnapshot(
+                  shellAccess: WorkspaceCapabilityState(
+                    capability: WorkspaceCapability.shellAccess,
+                    readiness: WorkspaceCapabilityReadiness.ready,
+                  ),
+                  chat: WorkspaceCapabilityState(
+                    capability: WorkspaceCapability.chat,
+                    readiness: WorkspaceCapabilityReadiness.degraded,
+                    memberImpact: 'RAW SHELL BACKEND MEMBER IMPACT',
+                  ),
+                  files: WorkspaceCapabilityState(
+                    capability: WorkspaceCapability.files,
+                    readiness: WorkspaceCapabilityReadiness.ready,
+                  ),
+                  calendar: WorkspaceCapabilityState(
+                    capability: WorkspaceCapability.calendar,
+                    readiness: WorkspaceCapabilityReadiness.unavailable,
+                  ),
+                  boards: WorkspaceCapabilityState(
+                    capability: WorkspaceCapability.boards,
+                    readiness: WorkspaceCapabilityReadiness.blocked,
+                  ),
+                ),
+              ),
+            ),
+            weaveApiWorkspaceHomeProvider.overrideWith((ref) async => null),
+          ],
+          child: const MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(body: ShellWorkspaceStatus()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('RAW SHELL BACKEND MEMBER IMPACT'), findsNothing);
+      expect(find.widgetWithText(Chip, 'Chat: Limited'), findsOneWidget);
+      expect(
+        find.widgetWithText(Chip, 'Calendar: Coming later'),
+        findsOneWidget,
+      );
+      expect(
+        find.widgetWithText(Chip, 'Boards: Admin setup needed'),
+        findsOneWidget,
+      );
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Semantics &&
+              (widget.properties.label?.contains(
+                    'Support reference: Not provided.',
+                  ) ??
+                  false),
+        ),
+        findsWidgets,
+      );
     });
 
     testWidgets('shows recent room and file quick links in the shell', (

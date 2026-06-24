@@ -2005,6 +2005,67 @@ class AppLocalizationsDe extends AppLocalizations {
   String get settingsWorkspaceImpactLabel => 'Member-Auswirkung';
 
   @override
+  String get settingsWorkspaceRecoveryLabel => 'Wiederherstellung';
+
+  @override
+  String get settingsWorkspaceRecoveryAvailable => 'Verfügbar';
+
+  @override
+  String get settingsWorkspaceRecoveryDisabledByPolicy =>
+      'Per Policy deaktiviert';
+
+  @override
+  String get settingsWorkspaceRecoveryNotConfigured =>
+      'Admin-Einrichtung nötig';
+
+  @override
+  String get settingsWorkspaceRecoveryDegraded => 'Eingeschränkt';
+
+  @override
+  String get settingsWorkspaceRecoveryUnavailable => 'Nicht verfügbar';
+
+  @override
+  String get settingsWorkspaceRecoveryComingLater => 'Kommt später';
+
+  @override
+  String get settingsWorkspaceRecoveryAvailableAction =>
+      'Es ist keine Wiederherstellungsaktion nötig.';
+
+  @override
+  String get settingsWorkspaceRecoveryDisabledByPolicyAction =>
+      'Frage eine Workspace-Adminperson, falls deine Rolle oder Gruppe Zugriff erhalten soll.';
+
+  @override
+  String get settingsWorkspaceRecoveryNotConfiguredAction =>
+      'Eine Workspace-Adminperson muss die Einrichtung abschließen, bevor Mitglieder diese Capability nutzen können.';
+
+  @override
+  String get settingsWorkspaceRecoveryDegradedAction =>
+      'Du kannst weiterarbeiten, aber einige Aktionen können eingeschränkt sein, bis der Workspace-Status wiederhergestellt ist.';
+
+  @override
+  String get settingsWorkspaceRecoveryUnavailableAction =>
+      'Diese Capability ist im aktuellen Workspace-Status nicht verfügbar.';
+
+  @override
+  String get settingsWorkspaceRecoveryComingLaterAction =>
+      'Diese Capability bleibt verborgen, bis die Organisation sie für Mitglieder aktiviert.';
+
+  @override
+  String get settingsWorkspaceRecoverySupportRefUnavailable =>
+      'Nicht bereitgestellt';
+
+  @override
+  String settingsWorkspaceRecoverySemanticLabel(
+    String capability,
+    String state,
+    String recovery,
+    String supportRef,
+  ) {
+    return '$capability. Status: $state. Wiederherstellung: $recovery. Support-Referenz: $supportRef.';
+  }
+
+  @override
   String settingsProviderStackSemanticLabel(
     String backendOwnedFacades,
     String flutterCalls,

@@ -429,7 +429,6 @@ WorkspaceCapabilityState _mergeWorkspaceCapabilityState({
     recoveryRequirement: local.recoveryRequirement,
     policyState: backend.policyState,
     profileKey: backend.profileKey,
-    memberImpact: backend.memberImpact,
     grantedCapabilities: backend.grantedCapabilities,
   );
 }
@@ -559,7 +558,5 @@ WorkspaceCapabilityState _mapDisabledPolicyCapability(
     capability: capability,
     readiness: WorkspaceCapabilityReadiness.unavailable,
     policyState: WorkspaceCapabilityPolicyState.disabled,
-    memberImpact:
-        'This capability is disabled by workspace policy until an admin enables it.',
   );
 }

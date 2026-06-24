@@ -2234,6 +2234,80 @@
   "@settingsWorkspaceImpactLabel": {
     "description": "Label for member impact in admin readiness"
   },
+  "settingsWorkspaceRecoveryLabel": "Recovery",
+  "@settingsWorkspaceRecoveryLabel": {
+    "description": "Label for localized member recovery guidance in workspace readiness"
+  },
+  "settingsWorkspaceRecoveryAvailable": "Available",
+  "@settingsWorkspaceRecoveryAvailable": {
+    "description": "Member capability recovery state when a capability is available"
+  },
+  "settingsWorkspaceRecoveryDisabledByPolicy": "Disabled by policy",
+  "@settingsWorkspaceRecoveryDisabledByPolicy": {
+    "description": "Member capability recovery state when policy disables a capability"
+  },
+  "settingsWorkspaceRecoveryNotConfigured": "Admin setup needed",
+  "@settingsWorkspaceRecoveryNotConfigured": {
+    "description": "Member capability recovery state when admin setup is required"
+  },
+  "settingsWorkspaceRecoveryDegraded": "Limited",
+  "@settingsWorkspaceRecoveryDegraded": {
+    "description": "Member capability recovery state when a capability is degraded"
+  },
+  "settingsWorkspaceRecoveryUnavailable": "Unavailable",
+  "@settingsWorkspaceRecoveryUnavailable": {
+    "description": "Member capability recovery state when a capability is unavailable"
+  },
+  "settingsWorkspaceRecoveryComingLater": "Coming later",
+  "@settingsWorkspaceRecoveryComingLater": {
+    "description": "Member capability recovery state when a capability is intentionally hidden until enabled"
+  },
+  "settingsWorkspaceRecoveryAvailableAction": "No recovery action is needed.",
+  "@settingsWorkspaceRecoveryAvailableAction": {
+    "description": "Recovery guidance for an available workspace capability"
+  },
+  "settingsWorkspaceRecoveryDisabledByPolicyAction": "Ask a workspace admin if your role or group should receive access.",
+  "@settingsWorkspaceRecoveryDisabledByPolicyAction": {
+    "description": "Recovery guidance for a policy-disabled workspace capability"
+  },
+  "settingsWorkspaceRecoveryNotConfiguredAction": "A workspace admin needs to finish setup before members can use this capability.",
+  "@settingsWorkspaceRecoveryNotConfiguredAction": {
+    "description": "Recovery guidance for a workspace capability that needs admin setup"
+  },
+  "settingsWorkspaceRecoveryDegradedAction": "You can keep working, but some actions may be limited until workspace readiness recovers.",
+  "@settingsWorkspaceRecoveryDegradedAction": {
+    "description": "Recovery guidance for a degraded workspace capability"
+  },
+  "settingsWorkspaceRecoveryUnavailableAction": "This capability is not available in the current workspace state.",
+  "@settingsWorkspaceRecoveryUnavailableAction": {
+    "description": "Recovery guidance for an unavailable workspace capability"
+  },
+  "settingsWorkspaceRecoveryComingLaterAction": "This capability stays hidden until the organization enables it for members.",
+  "@settingsWorkspaceRecoveryComingLaterAction": {
+    "description": "Recovery guidance for a workspace capability that is intentionally coming later"
+  },
+  "settingsWorkspaceRecoverySupportRefUnavailable": "Not provided",
+  "@settingsWorkspaceRecoverySupportRefUnavailable": {
+    "description": "Support reference fallback when the capability endpoint does not provide a support reference"
+  },
+  "settingsWorkspaceRecoverySemanticLabel": "{capability}. State: {state}. Recovery: {recovery}. Support reference: {supportRef}.",
+  "@settingsWorkspaceRecoverySemanticLabel": {
+    "description": "Accessibility label for workspace capability recovery state",
+    "placeholders": {
+      "capability": {
+        "type": "String"
+      },
+      "state": {
+        "type": "String"
+      },
+      "recovery": {
+        "type": "String"
+      },
+      "supportRef": {
+        "type": "String"
+      }
+    }
+  },
   "settingsProviderStackSemanticLabel": "Provider stack readiness. Backend-owned facades: {backendOwnedFacades}. Flutter provider calls: {flutterCalls}.",
   "@settingsProviderStackSemanticLabel": {
     "description": "Accessibility label for provider readiness summary",
