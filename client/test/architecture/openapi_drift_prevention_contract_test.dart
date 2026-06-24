@@ -249,13 +249,6 @@ const _hardcodedCopyAllowlist = <LegacyFence>[
         'member-facing recovery codes replace displayable strings.',
   ),
   LegacyFence(
-    path: 'lib/features/app/domain/entities/workspace_capability_snapshot.dart',
-    issue: '#908',
-    reason:
-        'Capability state fallback text is transitional until localized member '
-        'recovery view models own all visible copy.',
-  ),
-  LegacyFence(
     path: 'lib/features/app/domain/use_cases/',
     issue: '#908',
     reason:
@@ -268,14 +261,6 @@ const _hardcodedCopyAllowlist = <LegacyFence>[
     reason:
         'Provider stack snapshot fallback text remains fenced until provider '
         'readiness is split into admin diagnostics and member capability state.',
-  ),
-  LegacyFence(
-    path:
-        'lib/features/app/presentation/providers/workspace_connection_provider.dart',
-    issue: '#908',
-    reason:
-        'Workspace connection still maps capability fallback copy directly '
-        'until localized recovery view models own visible member text.',
   ),
   LegacyFence(
     path:
@@ -449,14 +434,6 @@ const _hardcodedCopyAllowlist = <LegacyFence>[
     reason:
         'Platform diagnostic validation messages remain fenced with the '
         'diagnostic provider seam.',
-  ),
-  LegacyFence(
-    path:
-        'lib/integrations/weave_api/data/dtos/workspace_capabilities_response_dto.dart',
-    issue: '#908',
-    reason:
-        'Workspace capability fallback text is fenced until localized member '
-        'recovery view models own visible copy.',
   ),
   LegacyFence(
     path:

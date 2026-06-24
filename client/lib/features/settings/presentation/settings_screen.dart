@@ -18,6 +18,7 @@ import 'package:weave/features/app/domain/entities/matrix_e2ee_diagnostic.dart';
 import 'package:weave/features/app/domain/entities/provider_stack_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
+import 'package:weave/features/app/presentation/workspace_capability_recovery_presenter.dart';
 import 'package:weave/features/agents/domain/entities/agent_capability_policy.dart';
 import 'package:weave/features/agents/presentation/providers/agent_capability_policy_provider.dart';
 import 'package:weave/features/agents/presentation/widgets/agent_capability_policy_card.dart';
@@ -512,7 +513,7 @@ class _WeaverMemberSettingsCard extends StatelessWidget {
         : l10n.weaverMemberUnavailableTitle;
     final description = available
         ? l10n.weaverMemberDescription
-        : state.memberImpact ?? l10n.weaverMemberUnavailableDescription;
+        : l10n.weaverMemberUnavailableDescription;
 
     return Card(
       elevation: 0,
@@ -2029,6 +2030,7 @@ class _WorkspaceReadinessRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
+    final recovery = workspaceCapabilityRecoveryPresentation(l10n, capability);
 
     return MergeSemantics(
       child: Column(
@@ -2052,11 +2054,13 @@ class _WorkspaceReadinessRow extends StatelessWidget {
                 label: l10n.settingsWorkspacePolicyLabel,
                 value: _policyLabel(l10n, capability.policyState),
               ),
-              if (capability.memberImpact case final impact?)
-                _StatusPill(
-                  label: l10n.settingsWorkspaceImpactLabel,
-                  value: impact,
+              Semantics(
+                label: recovery.semanticLabel(l10n, label),
+                child: _StatusPill(
+                  label: l10n.settingsWorkspaceRecoveryLabel,
+                  value: recovery.recovery,
                 ),
+              ),
               if (connection.lastInvalidation != null)
                 _StatusPill(
                   label: l10n.settingsWorkspaceLastChangeLabel,

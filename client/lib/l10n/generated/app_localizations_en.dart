@@ -1980,6 +1980,64 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsWorkspaceImpactLabel => 'Member impact';
 
   @override
+  String get settingsWorkspaceRecoveryLabel => 'Recovery';
+
+  @override
+  String get settingsWorkspaceRecoveryAvailable => 'Available';
+
+  @override
+  String get settingsWorkspaceRecoveryDisabledByPolicy => 'Disabled by policy';
+
+  @override
+  String get settingsWorkspaceRecoveryNotConfigured => 'Admin setup needed';
+
+  @override
+  String get settingsWorkspaceRecoveryDegraded => 'Limited';
+
+  @override
+  String get settingsWorkspaceRecoveryUnavailable => 'Unavailable';
+
+  @override
+  String get settingsWorkspaceRecoveryComingLater => 'Coming later';
+
+  @override
+  String get settingsWorkspaceRecoveryAvailableAction =>
+      'No recovery action is needed.';
+
+  @override
+  String get settingsWorkspaceRecoveryDisabledByPolicyAction =>
+      'Ask a workspace admin if your role or group should receive access.';
+
+  @override
+  String get settingsWorkspaceRecoveryNotConfiguredAction =>
+      'A workspace admin needs to finish setup before members can use this capability.';
+
+  @override
+  String get settingsWorkspaceRecoveryDegradedAction =>
+      'You can keep working, but some actions may be limited until workspace readiness recovers.';
+
+  @override
+  String get settingsWorkspaceRecoveryUnavailableAction =>
+      'This capability is not available in the current workspace state.';
+
+  @override
+  String get settingsWorkspaceRecoveryComingLaterAction =>
+      'This capability stays hidden until the organization enables it for members.';
+
+  @override
+  String get settingsWorkspaceRecoverySupportRefUnavailable => 'Not provided';
+
+  @override
+  String settingsWorkspaceRecoverySemanticLabel(
+    String capability,
+    String state,
+    String recovery,
+    String supportRef,
+  ) {
+    return '$capability. State: $state. Recovery: $recovery. Support reference: $supportRef.';
+  }
+
+  @override
   String settingsProviderStackSemanticLabel(
     String backendOwnedFacades,
     String flutterCalls,

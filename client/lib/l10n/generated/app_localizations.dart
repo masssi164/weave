@@ -3321,6 +3321,101 @@ abstract class AppLocalizations {
   /// **'Member impact'**
   String get settingsWorkspaceImpactLabel;
 
+  /// Label for localized member recovery guidance in workspace readiness
+  ///
+  /// In en, this message translates to:
+  /// **'Recovery'**
+  String get settingsWorkspaceRecoveryLabel;
+
+  /// Member capability recovery state when a capability is available
+  ///
+  /// In en, this message translates to:
+  /// **'Available'**
+  String get settingsWorkspaceRecoveryAvailable;
+
+  /// Member capability recovery state when policy disables a capability
+  ///
+  /// In en, this message translates to:
+  /// **'Disabled by policy'**
+  String get settingsWorkspaceRecoveryDisabledByPolicy;
+
+  /// Member capability recovery state when admin setup is required
+  ///
+  /// In en, this message translates to:
+  /// **'Admin setup needed'**
+  String get settingsWorkspaceRecoveryNotConfigured;
+
+  /// Member capability recovery state when a capability is degraded
+  ///
+  /// In en, this message translates to:
+  /// **'Limited'**
+  String get settingsWorkspaceRecoveryDegraded;
+
+  /// Member capability recovery state when a capability is unavailable
+  ///
+  /// In en, this message translates to:
+  /// **'Unavailable'**
+  String get settingsWorkspaceRecoveryUnavailable;
+
+  /// Member capability recovery state when a capability is intentionally hidden until enabled
+  ///
+  /// In en, this message translates to:
+  /// **'Coming later'**
+  String get settingsWorkspaceRecoveryComingLater;
+
+  /// Recovery guidance for an available workspace capability
+  ///
+  /// In en, this message translates to:
+  /// **'No recovery action is needed.'**
+  String get settingsWorkspaceRecoveryAvailableAction;
+
+  /// Recovery guidance for a policy-disabled workspace capability
+  ///
+  /// In en, this message translates to:
+  /// **'Ask a workspace admin if your role or group should receive access.'**
+  String get settingsWorkspaceRecoveryDisabledByPolicyAction;
+
+  /// Recovery guidance for a workspace capability that needs admin setup
+  ///
+  /// In en, this message translates to:
+  /// **'A workspace admin needs to finish setup before members can use this capability.'**
+  String get settingsWorkspaceRecoveryNotConfiguredAction;
+
+  /// Recovery guidance for a degraded workspace capability
+  ///
+  /// In en, this message translates to:
+  /// **'You can keep working, but some actions may be limited until workspace readiness recovers.'**
+  String get settingsWorkspaceRecoveryDegradedAction;
+
+  /// Recovery guidance for an unavailable workspace capability
+  ///
+  /// In en, this message translates to:
+  /// **'This capability is not available in the current workspace state.'**
+  String get settingsWorkspaceRecoveryUnavailableAction;
+
+  /// Recovery guidance for a workspace capability that is intentionally coming later
+  ///
+  /// In en, this message translates to:
+  /// **'This capability stays hidden until the organization enables it for members.'**
+  String get settingsWorkspaceRecoveryComingLaterAction;
+
+  /// Support reference fallback when the capability endpoint does not provide a support reference
+  ///
+  /// In en, this message translates to:
+  /// **'Not provided'**
+  String get settingsWorkspaceRecoverySupportRefUnavailable;
+
+  /// Accessibility label for workspace capability recovery state
+  ///
+  /// In en, this message translates to:
+  /// **'{capability}. State: {state}. Recovery: {recovery}. Support reference: {supportRef}.'**
+  String settingsWorkspaceRecoverySemanticLabel(
+    String capability,
+    String state,
+    String recovery,
+    String supportRef,
+  );
+
   /// Accessibility label for provider readiness summary
   ///
   /// In en, this message translates to:

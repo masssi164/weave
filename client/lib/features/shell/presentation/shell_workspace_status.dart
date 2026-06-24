@@ -7,6 +7,7 @@ import 'package:weave/core/widgets/loading_state.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
 import 'package:weave/features/app/domain/entities/workspace_home_snapshot.dart';
+import 'package:weave/features/app/presentation/workspace_capability_recovery_presenter.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
@@ -129,19 +130,19 @@ class _WorkspaceSummary extends StatelessWidget {
               children: [
                 _CapabilityChip(
                   label: l10n.settingsWorkspaceChatLabel,
-                  readiness: capabilities.chat.readiness,
+                  capability: capabilities.chat,
                 ),
                 _CapabilityChip(
                   label: l10n.settingsWorkspaceFilesLabel,
-                  readiness: capabilities.files.readiness,
+                  capability: capabilities.files,
                 ),
                 _CapabilityChip(
                   label: l10n.settingsWorkspaceCalendarLabel,
-                  readiness: capabilities.calendar.readiness,
+                  capability: capabilities.calendar,
                 ),
                 _CapabilityChip(
                   label: l10n.settingsWorkspaceBoardsLabel,
-                  readiness: capabilities.boards.readiness,
+                  capability: capabilities.boards,
                 ),
               ],
             ),
@@ -188,7 +189,10 @@ class _HomeDailyLoopSummary extends StatelessWidget {
                   .map(
                     (section) => _CapabilityChip(
                       label: '${section.title} (${section.itemCount})',
-                      readiness: section.readiness,
+                      capability: WorkspaceCapabilityState(
+                        capability: WorkspaceCapability.shellAccess,
+                        readiness: section.readiness,
+                      ),
                     ),
                   )
                   .toList(growable: false),
@@ -206,40 +210,33 @@ class _HomeDailyLoopSummary extends StatelessWidget {
 }
 
 class _CapabilityChip extends StatelessWidget {
-  const _CapabilityChip({required this.label, required this.readiness});
+  const _CapabilityChip({required this.label, required this.capability});
 
   final String label;
-  final WorkspaceCapabilityReadiness readiness;
+  final WorkspaceCapabilityState capability;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final color = switch (readiness) {
+    final l10n = AppLocalizations.of(context);
+    final recovery = workspaceCapabilityRecoveryPresentation(l10n, capability);
+    final color = switch (capability.readiness) {
       WorkspaceCapabilityReadiness.ready => theme.colorScheme.primary,
       WorkspaceCapabilityReadiness.degraded => theme.colorScheme.tertiary,
       WorkspaceCapabilityReadiness.blocked => theme.colorScheme.error,
       WorkspaceCapabilityReadiness.unavailable =>
         theme.colorScheme.onSurfaceVariant,
     };
-    final readinessLabel = switch (readiness) {
-      WorkspaceCapabilityReadiness.ready => AppLocalizations.of(
-        context,
-      ).firstRunStateReady,
-      WorkspaceCapabilityReadiness.degraded => AppLocalizations.of(
-        context,
-      ).firstRunStateDegraded,
-      WorkspaceCapabilityReadiness.blocked => AppLocalizations.of(
-        context,
-      ).firstRunStateActionNeeded,
-      WorkspaceCapabilityReadiness.unavailable => AppLocalizations.of(
-        context,
-      ).firstRunStateUnavailable,
-    };
 
-    return Chip(
-      side: BorderSide(color: color),
-      label: Text('$label: $readinessLabel'),
-      visualDensity: VisualDensity.compact,
+    return Semantics(
+      label: recovery.semanticLabel(l10n, label),
+      child: ExcludeSemantics(
+        child: Chip(
+          side: BorderSide(color: color),
+          label: Text('$label: ${recovery.stateLabel}'),
+          visualDensity: VisualDensity.compact,
+        ),
+      ),
     );
   }
 }
