@@ -63,6 +63,8 @@ jobs:
       TF_VAR_create_test_user: 'true'
       TF_VAR_boards_runtime_enabled: 'true'
       TF_VAR_boards_provider: local-workspace
+      TF_VAR_provider_stack_profile: local-live
+      TF_VAR_provider_stack_readiness: ready
       TF_VAR_tenant_domain: weave.test
       TF_VAR_proxy_http_host_port: '44080'
       TF_VAR_proxy_host_port: '44443'
