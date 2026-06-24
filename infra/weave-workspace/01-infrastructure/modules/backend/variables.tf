@@ -267,6 +267,11 @@ variable "provider_selections_source" {
   type        = string
 }
 
+variable "provider_selections_source_hash" {
+  description = "Content hash for the generated support-safe provider selection seed."
+  type        = string
+}
+
 variable "provider_selections_storage_path" {
   description = "Container path used by the backend provider selection repository."
   type        = string
