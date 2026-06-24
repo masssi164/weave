@@ -211,7 +211,7 @@ void main() {
                 .having(
                   (failure) => failure.message,
                   'message',
-                  contains('without id'),
+                  contains('invalid files listing'),
                 ),
           ),
         );
@@ -235,7 +235,7 @@ void main() {
               .having(
                 (failure) => failure.message,
                 'message',
-                contains('without items'),
+                contains('invalid files listing'),
               ),
         ),
       );

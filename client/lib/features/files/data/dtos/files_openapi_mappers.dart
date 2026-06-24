@@ -8,12 +8,6 @@ const _filesFeatureKey = 'files';
 
 extension FileListResponseOpenApiMapper on openapi.FileListResponse {
   OpenApiResourcePage<FileEntry> toFileEntryPage() {
-    final itemDtos = items;
-    if (itemDtos == null) {
-      throw const FilesFailure.protocol(
-        'The Weave backend returned a files listing without items.',
-      );
-    }
     return OpenApiResourcePage<FileEntry>(
       featureKey: _filesFeatureKey,
       readiness: const OpenApiFeatureReadiness(
@@ -21,7 +15,7 @@ extension FileListResponseOpenApiMapper on openapi.FileListResponse {
         state: OpenApiFeatureCapabilityState.available,
         memberImpact: 'Weave Files are available.',
       ),
-      resources: itemDtos
+      resources: items
           .map((item) => item.toDomainEntry())
           .toList(growable: false),
     );

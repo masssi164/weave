@@ -87,18 +87,55 @@ void main() {
         jsonEncode({
           'domain': 'chat',
           'source': 'weave-backend',
+          'releaseStatus': 'canonical-domain-facade',
           'conversations': [
             {
               'id': 'chat:quiet',
+              'contextId': 'workspace-default',
               'title': 'Quiet',
               'kind': 'channel',
               'lastMessageAt': '2026-05-01T09:00:00Z',
+              'membership': {
+                'principalRef': 'user:me',
+                'state': 'joined',
+                'role': 'member',
+              },
+              'historyPolicy': {
+                'policyKey': 'workspace-default-history',
+                'visibility': 'joined-members',
+                'backendReadable': true,
+                'encryptedProviderContentRedacted': true,
+              },
+              'attachmentPolicy': {
+                'attachmentRefsSupported': true,
+                'maxAttachmentRefs': 8,
+                'rawProviderMediaUrlsExposed': false,
+              },
+              'availableActions': ['send-message'],
             },
             {
               'id': 'chat:recent',
+              'contextId': 'workspace-default',
               'title': 'Recent',
               'kind': 'direct',
               'lastMessageAt': '2026-05-01T10:00:00Z',
+              'membership': {
+                'principalRef': 'user:me',
+                'state': 'joined',
+                'role': 'member',
+              },
+              'historyPolicy': {
+                'policyKey': 'workspace-default-history',
+                'visibility': 'joined-members',
+                'backendReadable': true,
+                'encryptedProviderContentRedacted': true,
+              },
+              'attachmentPolicy': {
+                'attachmentRefsSupported': true,
+                'maxAttachmentRefs': 8,
+                'rawProviderMediaUrlsExposed': false,
+              },
+              'availableActions': ['send-message'],
             },
           ],
           'readiness': {
@@ -145,6 +182,9 @@ void main() {
               'sentAt': '2026-05-01T10:01:00Z',
               'isMine': true,
               'text': 'Hello Weave',
+              'attachmentRefs': <Object>[],
+              'encryptedProviderContentRedacted': false,
+              'deliveryEvidence': <String, Object>{},
             }),
             200,
           );
@@ -152,6 +192,12 @@ void main() {
         return http.Response(
           jsonEncode({
             'conversationId': 'chat:recent',
+            'readiness': {
+              'impactState': 'usable',
+              'memberImpact': 'Weave Chat is available.',
+              'diagnosticsRedacted': true,
+              'grantedCapabilities': ['chat.message.read'],
+            },
             'messages': [
               {
                 'id': 'message:1',
@@ -160,6 +206,9 @@ void main() {
                 'sentAt': '2026-05-01T10:00:00Z',
                 'isMine': false,
                 'text': 'Ready',
+                'attachmentRefs': <Object>[],
+                'encryptedProviderContentRedacted': false,
+                'deliveryEvidence': <String, Object>{},
               },
             ],
           }),
@@ -229,8 +278,40 @@ void main() {
       const openapi.ChatReadinessResponse(
         impactState: 'policy-blocked',
         memberImpact: 'Chat is blocked by policy.',
+        grantedCapabilities: <String>[],
+        diagnosticsRedacted: true,
       ).toFeatureReadiness().state,
       OpenApiFeatureCapabilityState.disabledByPolicy,
+    );
+  });
+
+  test('fails closed when generated Chat payload misses required fields', () {
+    final client = MockClient(
+      (_) async => http.Response(
+        jsonEncode({
+          'domain': 'chat',
+          'releaseStatus': 'canonical-domain-facade',
+          'source': 'weave-backend',
+          'readiness': {
+            'impactState': 'usable',
+            'memberImpact': 'Weave Chat is available.',
+            'diagnosticsRedacted': true,
+            'grantedCapabilities': ['chat.message.read'],
+          },
+        }),
+        200,
+      ),
+    );
+
+    expect(
+      repository(client).loadConversations(),
+      throwsA(
+        isA<ChatFailure>().having(
+          (failure) => failure.message,
+          'message',
+          'The Weave Chat facade returned an invalid conversation list.',
+        ),
+      ),
     );
   });
 }

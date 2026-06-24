@@ -133,4 +133,16 @@ void main() {
       }
     },
   );
+
+  test('normal member settings cannot reach Matrix security diagnostics', () {
+    final settings = File(
+      'lib/features/settings/presentation/settings_screen.dart',
+    ).readAsStringSync();
+
+    expect(settings, isNot(contains('ChatSecuritySettingsSection')));
+    expect(settings, isNot(contains('chat_security_settings_section.dart')));
+    expect(settings, isNot(contains('chatSecurityProvider')));
+    expect(settings, isNot(contains('chatSecurityRepositoryProvider')));
+    expect(settings, isNot(contains('MatrixChatSecurityRepository')));
+  });
 }

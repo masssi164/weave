@@ -31,7 +31,7 @@ extension ChatReadinessResponseOpenApiMapper on openapi.ChatReadinessResponse {
         memberImpact,
         'Weave Chat readiness unknown.',
       ),
-      capabilities: (grantedCapabilities ?? const <String>[])
+      capabilities: grantedCapabilities
           .map(
             (capability) => OpenApiFeatureCapability(
               key: capability,
@@ -39,25 +39,17 @@ extension ChatReadinessResponseOpenApiMapper on openapi.ChatReadinessResponse {
             ),
           )
           .toList(growable: false),
-      diagnosticsRedacted: diagnosticsRedacted ?? true,
+      diagnosticsRedacted: diagnosticsRedacted,
     );
   }
 }
 
 extension ChatConversationsOpenApiMapper on openapi.ChatConversationsResponse {
   OpenApiResourcePage<ChatConversation> toConversationPage() {
-    final conversationDtos = conversations;
-    if (conversationDtos == null) {
-      throw const ChatFailure.configuration(
-        'The Weave Chat facade returned an invalid conversation list.',
-      );
-    }
     return OpenApiResourcePage<ChatConversation>(
       featureKey: _chatFeatureKey,
-      readiness:
-          readiness?.toFeatureReadiness() ??
-          OpenApiFeatureReadiness.unknown(_chatFeatureKey),
-      resources: conversationDtos
+      readiness: readiness.toFeatureReadiness(),
+      resources: conversations
           .map((conversation) => conversation.toDomainConversation())
           .toList(growable: false),
     );
@@ -66,19 +58,13 @@ extension ChatConversationsOpenApiMapper on openapi.ChatConversationsResponse {
 
 extension ChatMessagesOpenApiMapper on openapi.ChatMessagesResponse {
   ChatRoomTimeline toRoomTimeline(String fallbackConversationId) {
-    final messageDtos = messages;
-    if (messageDtos == null) {
-      throw const ChatFailure.configuration(
-        'The Weave Chat facade returned an invalid timeline.',
-      );
-    }
     final roomId = _fallbackText(conversationId, fallbackConversationId);
     return ChatRoomTimeline(
       roomId: roomId,
       roomTitle: roomId,
       isInvite: false,
       canSendMessages: true,
-      messages: messageDtos
+      messages: messages
           .map((message) => message.toDomainMessage(roomId))
           .toList(growable: false),
     );
@@ -111,7 +97,7 @@ extension ChatMessageResponseOpenApiMapper on openapi.ChatMessageResponse {
       id: _requiredText(id, 'id'),
       senderId: sender,
       senderDisplayName: sender,
-      sentAt: _readDateTime(sentAt) ?? DateTime.fromMillisecondsSinceEpoch(0),
+      sentAt: _requiredDateTime(sentAt, 'sentAt'),
       isMine: isMine == true,
       deliveryState: ChatMessageDeliveryState.sent,
       contentType: redacted
@@ -142,4 +128,14 @@ DateTime? _readDateTime(String? value) {
     return null;
   }
   return DateTime.tryParse(value)?.toLocal();
+}
+
+DateTime _requiredDateTime(String value, String key) {
+  final parsed = DateTime.tryParse(value);
+  if (parsed == null) {
+    throw ChatFailure.configuration(
+      'The Weave Chat facade returned an invalid "$key" value.',
+    );
+  }
+  return parsed.toLocal();
 }

@@ -11,6 +11,7 @@ import 'package:weave/features/chat/domain/repositories/chat_repository.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 import 'package:weave/generated/openapi_models.dart' as openapi;
+import 'package:weave/integrations/weave_api/domain/entities/openapi_feature_adapter.dart';
 
 class BackendChatRepository implements ChatRepository {
   const BackendChatRepository({
@@ -28,9 +29,7 @@ class BackendChatRepository implements ChatRepository {
   @override
   Future<List<ChatConversation>> loadConversations() async {
     final payload = await _getJson('/api/chat/conversations');
-    final page = openapi.ChatConversationsResponse.fromJson(
-      payload,
-    ).toConversationPage();
+    final page = _decodeConversations(payload);
     final values = [...page.resources];
     values.sort((a, b) {
       final activityComparison =
@@ -49,9 +48,7 @@ class BackendChatRepository implements ChatRepository {
   @override
   Future<ChatRoomTimeline> loadRoomTimeline(String roomId) async {
     final payload = await _getJson('/api/chat/conversations/$roomId/messages');
-    return openapi.ChatMessagesResponse.fromJson(
-      payload,
-    ).toRoomTimeline(roomId);
+    return _decodeMessages(payload, roomId);
   }
 
   @override
@@ -137,6 +134,39 @@ class BackendChatRepository implements ChatRepository {
     throw const ChatFailure.configuration(
       'The Weave Chat facade returned an invalid response.',
     );
+  }
+
+  OpenApiResourcePage<ChatConversation> _decodeConversations(
+    Map<String, dynamic> payload,
+  ) {
+    try {
+      return openapi.ChatConversationsResponse.fromJson(
+        payload,
+      ).toConversationPage();
+    } on ChatFailure {
+      rethrow;
+    } catch (_) {
+      throw const ChatFailure.configuration(
+        'The Weave Chat facade returned an invalid conversation list.',
+      );
+    }
+  }
+
+  ChatRoomTimeline _decodeMessages(
+    Map<String, dynamic> payload,
+    String fallbackRoomId,
+  ) {
+    try {
+      return openapi.ChatMessagesResponse.fromJson(
+        payload,
+      ).toRoomTimeline(fallbackRoomId);
+    } on ChatFailure {
+      rethrow;
+    } catch (_) {
+      throw const ChatFailure.configuration(
+        'The Weave Chat facade returned an invalid timeline.',
+      );
+    }
   }
 
   Future<ServerConfiguration> _loadConfiguration() async {

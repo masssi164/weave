@@ -31,6 +31,56 @@ http.StreamedResponse _jsonResponse(
   );
 }
 
+Map<String, Object?> _capability({
+  required bool enabled,
+  required String readiness,
+  String policyState = 'allowed',
+  List<String> grantedCapabilities = const <String>[],
+}) {
+  return {
+    'enabled': enabled,
+    'readiness': readiness,
+    'policyState': policyState,
+    'grantedCapabilities': grantedCapabilities,
+  };
+}
+
+Map<String, Object?> _workspaceCapabilitiesJson({
+  Map<String, Object?> overrides = const <String, Object?>{},
+}) {
+  return {
+    'shellAccess': _capability(enabled: true, readiness: 'ready'),
+    'chat': _capability(
+      enabled: true,
+      readiness: 'ready',
+      grantedCapabilities: const ['chat.read', 'chat.send'],
+    ),
+    'files': _capability(enabled: true, readiness: 'ready'),
+    'calendar': _capability(enabled: true, readiness: 'ready'),
+    'boards': _capability(enabled: true, readiness: 'ready'),
+    'meetingsCalls': _capability(
+      enabled: false,
+      readiness: 'unavailable',
+      policyState: 'disabled',
+    ),
+    'documentsCollaboration': _capability(
+      enabled: false,
+      readiness: 'unavailable',
+      policyState: 'disabled',
+    ),
+    'decisionsEvidence': _capability(enabled: true, readiness: 'ready'),
+    'manualsHelp': _capability(enabled: true, readiness: 'ready'),
+    'releaseEvidence': _capability(enabled: true, readiness: 'ready'),
+    'adminControlPlane': _capability(enabled: true, readiness: 'ready'),
+    'weaver': _capability(
+      enabled: false,
+      readiness: 'unavailable',
+      policyState: 'disabled',
+    ),
+    ...overrides,
+  };
+}
+
 Map<String, Object?> _organizationManifestJson({
   String organizationAuthUrl = 'https://auth.weave.test/realms/weave',
   bool supportSafe = true,
@@ -70,39 +120,16 @@ Map<String, Object?> _organizationManifestJson({
       'meetings': 'not_configured',
       'forms-contacts': 'coming_later',
     },
-    'capabilities': {
-      'shellAccess': {
-        'enabled': true,
-        'readiness': 'ready',
-        'policyState': 'allowed',
+    'capabilities': _workspaceCapabilitiesJson(
+      overrides: {
+        'calendar': _capability(enabled: true, readiness: 'degraded'),
+        'boards': _capability(
+          enabled: true,
+          readiness: 'blocked',
+          policyState: 'policy_blocked',
+        ),
       },
-      'chat': {
-        'enabled': true,
-        'readiness': 'ready',
-        'policyState': 'allowed',
-        'grantedCapabilities': ['chat.read', 'chat.send'],
-      },
-      'files': {
-        'enabled': true,
-        'readiness': 'ready',
-        'policyState': 'allowed',
-      },
-      'calendar': {
-        'enabled': true,
-        'readiness': 'degraded',
-        'policyState': 'allowed',
-      },
-      'boards': {
-        'enabled': true,
-        'readiness': 'blocked',
-        'policyState': 'policy_blocked',
-      },
-      'weaver': {
-        'enabled': false,
-        'readiness': 'unavailable',
-        'policyState': 'disabled',
-      },
-    },
+    ),
   };
 }
 
@@ -113,13 +140,23 @@ void main() {
       final client = HttpWeaveApiClient(
         httpClient: _RecordingHttpClient((request) async {
           capturedRequest = request;
-          return _jsonResponse({
-            'shellAccess': {'enabled': true, 'readiness': 'ready'},
-            'chat': {'enabled': true, 'readiness': 'degraded'},
-            'files': {'enabled': true, 'readiness': 'ready'},
-            'calendar': {'enabled': false, 'readiness': 'unavailable'},
-            'boards': {'enabled': false, 'readiness': 'unavailable'},
-          });
+          return _jsonResponse(
+            _workspaceCapabilitiesJson(
+              overrides: {
+                'chat': _capability(enabled: true, readiness: 'degraded'),
+                'calendar': _capability(
+                  enabled: false,
+                  readiness: 'unavailable',
+                  policyState: 'disabled',
+                ),
+                'boards': _capability(
+                  enabled: false,
+                  readiness: 'unavailable',
+                  policyState: 'disabled',
+                ),
+              },
+            ),
+          );
         }),
       );
 
@@ -373,13 +410,7 @@ void main() {
         final client = HttpWeaveApiClient(
           httpClient: _RecordingHttpClient((request) async {
             capturedRequest = request;
-            return _jsonResponse({
-              'shellAccess': {'enabled': true, 'readiness': 'ready'},
-              'chat': {'enabled': true, 'readiness': 'ready'},
-              'files': {'enabled': true, 'readiness': 'ready'},
-              'calendar': {'enabled': true, 'readiness': 'ready'},
-              'boards': {'enabled': true, 'readiness': 'ready'},
-            });
+            return _jsonResponse(_workspaceCapabilitiesJson());
           }),
         );
 
@@ -402,13 +433,7 @@ void main() {
         final client = HttpWeaveApiClient(
           httpClient: _RecordingHttpClient((request) async {
             capturedRequest = request;
-            return _jsonResponse({
-              'shellAccess': {'enabled': true, 'readiness': 'ready'},
-              'chat': {'enabled': true, 'readiness': 'ready'},
-              'files': {'enabled': true, 'readiness': 'ready'},
-              'calendar': {'enabled': true, 'readiness': 'ready'},
-              'boards': {'enabled': true, 'readiness': 'ready'},
-            });
+            return _jsonResponse(_workspaceCapabilitiesJson());
           }),
         );
 
