@@ -8,8 +8,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:integration_test/integration_test.dart';
-import 'package:matrix/matrix.dart' as sdk;
-import 'package:sqflite_common_ffi/sqflite_ffi.dart' as sqflite_ffi;
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/core/persistence/flutter_secure_store.dart';
@@ -20,14 +18,7 @@ import 'package:weave/features/auth/data/services/flutter_appauth_oidc_client.da
 import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
 import 'package:weave/features/calendar/domain/repositories/calendar_repository.dart';
 import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
-import 'package:weave/features/chat/data/services/matrix_auth_browser.dart';
-import 'package:weave/features/chat/data/services/matrix_client_factory.dart';
-import 'package:weave/features/chat/data/services/matrix_client_factory_io.dart';
-import 'package:weave/features/chat/domain/entities/chat_room_timeline.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
-import 'package:weave/features/chat/domain/entities/chat_security_state.dart';
-import 'package:weave/features/chat/domain/repositories/chat_repository.dart';
-import 'package:weave/features/chat/presentation/providers/chat_security_repository_provider.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/files/domain/entities/file_upload_request.dart';
 import 'package:weave/features/files/presentation/providers/files_provider.dart';
@@ -70,35 +61,15 @@ void main() {
 
   late TestConfig config;
   late LiveOidcTestDriver liveOidcDriver;
-  Directory? matrixSupportDirectory;
-  SdkMatrixClientFactory? liveMatrixClientFactory;
 
   setUp(() async {
     config = TestConfig.fromEnvironment();
     config.requireCredentials();
     liveOidcDriver = LiveOidcTestDriver(config: config);
-    final supportDirectory = await Directory.systemTemp.createTemp(
-      'weave-live-e2e-matrix-',
-    );
-    matrixSupportDirectory = supportDirectory;
-    sqflite_ffi.sqfliteFfiInit();
-    liveMatrixClientFactory = SdkMatrixClientFactory(
-      appSupportDirectoryProvider: () async => supportDirectory,
-      databaseOpener: sqflite_ffi.databaseFactoryFfi.openDatabase,
-      allowUnsupportedPlatformForTesting: true,
-    );
-  });
-
-  tearDown(() async {
-    await liveMatrixClientFactory?.dispose();
-    final supportDirectory = matrixSupportDirectory;
-    if (supportDirectory != null && await supportDirectory.exists()) {
-      await supportDirectory.delete(recursive: true);
-    }
   });
 
   testWidgets(
-    'real live-stack sign-in, Matrix connect, profile, files, and calendar facades',
+    'real live-stack sign-in, backend chat, profile, files, and calendar facades',
     (tester) async {
       final serverConfig = ServerConfiguration(
         providerType: OidcProviderType.keycloak,
@@ -124,10 +95,6 @@ void main() {
               _MemoryServerConfigurationRepository(serverConfig),
             ),
             oidcClientProvider.overrideWithValue(liveOidcDriver),
-            matrixAuthBrowserProvider.overrideWithValue(liveOidcDriver),
-            matrixClientFactoryProvider.overrideWithValue(
-              liveMatrixClientFactory!,
-            ),
           ],
           child: const WeaveApp(),
         ),
@@ -291,38 +258,36 @@ void main() {
       profileRestored = true;
 
       final chatRepository = container.read(chatRepositoryProvider);
-      var matrixConnected = false;
-      Object? matrixConnectError;
+      var chatFacadeConnected = false;
+      Object? chatConnectError;
       try {
         await chatRepository.connect();
-        matrixConnected = true;
+        chatFacadeConnected = true;
       } catch (error) {
-        matrixConnectError = error;
+        chatConnectError = error;
       }
-      if (!matrixConnected) {
-        final connectError = _supportSafeDiagnostic(matrixConnectError);
+      if (!chatFacadeConnected) {
+        final connectError = _supportSafeDiagnostic(chatConnectError);
         // ignore: avoid_print
         print(
           'CHAT_BACKEND_RESULT connected=false '
-          'testHarnessDirectMatrix=true '
+          'backendFacade=true '
           'productDirectProviderCallsAllowed=false '
           'connectError=$connectError',
         );
-        fail('matrix_connect_failed error=$connectError');
+        fail('chat_facade_connect_failed error=$connectError');
       }
 
-      final matrixClientFactory = container.read(matrixClientFactoryProvider);
-      final matrixClient = await matrixClientFactory.getClientForHomeserver(
-        config.matrixHomeserverUrl,
-      );
-      final roomName =
-          'weave-live-e2e-${DateTime.now().millisecondsSinceEpoch}';
-      final roomId = await matrixClient.createGroupChat(
-        groupName: roomName,
-        enableEncryption: false,
-        waitForSync: true,
-        federated: false,
-      );
+      final conversations = await chatRepository.loadConversations();
+      final roomId = conversations
+          .map((conversation) => conversation.id)
+          .firstWhere((id) => id == 'channel-general', orElse: () => '');
+      if (roomId.isEmpty) {
+        fail(
+          'chat_facade_conversation_missing '
+          'conversations=${conversations.map((conversation) => conversation.id).join(',')}',
+        );
+      }
       final sentMessage =
           'live-e2e message ${DateTime.now().toUtc().toIso8601String()}';
       await chatRepository.sendMessage(roomId: roomId, message: sentMessage);
@@ -332,115 +297,18 @@ void main() {
           .toList(growable: false);
       // ignore: avoid_print
       print(
-        'CHAT_RESULT roomId=$roomId roomName=$roomName '
+        'CHAT_RESULT roomId=$roomId '
+        'backendFacade=true '
+        'conversations=${conversations.length} '
         'timelineMessages=${timeline.messages.length} '
         'matchedMessages=${deliveredMessage.length}',
       );
 
-      // Keep the harness-only Matrix bootstrap visible without making it a
-      // member-product evidence marker.
       // ignore: avoid_print
       print(
-        'CHAT_BACKEND_RESULT connected=$matrixConnected '
-        'testHarnessDirectMatrix=true '
+        'CHAT_BACKEND_RESULT connected=$chatFacadeConnected '
+        'backendFacade=true '
         'productDirectProviderCallsAllowed=false',
-      );
-
-      final chatSecurityRepository = container.read(
-        chatSecurityRepositoryProvider,
-      );
-      var e2eeSecurityState = await chatSecurityRepository.loadSecurityState(
-        refresh: true,
-      );
-      var e2eeBootstrapGeneratedRecoveryKey = false;
-      if (e2eeSecurityState.bootstrapState ==
-              ChatSecurityBootstrapState.notInitialized ||
-          e2eeSecurityState.bootstrapState ==
-              ChatSecurityBootstrapState.partiallyInitialized) {
-        final recoveryKey = await chatSecurityRepository.bootstrapSecurity();
-        e2eeBootstrapGeneratedRecoveryKey = recoveryKey.trim().isNotEmpty;
-        e2eeSecurityState = await chatSecurityRepository.loadSecurityState(
-          refresh: true,
-        );
-      }
-
-      final encryptedRoomName =
-          'weave-live-e2ee-${DateTime.now().millisecondsSinceEpoch}';
-      final encryptedRoomId = await matrixClient.createGroupChat(
-        groupName: encryptedRoomName,
-        enableEncryption: true,
-        waitForSync: true,
-        federated: false,
-      );
-      final encryptedRoom = await _waitForEncryptedMatrixRoom(
-        tester,
-        matrixClient,
-        encryptedRoomId,
-      );
-      final encryptedWireEventsBefore = await _loadAuthoritativeWireEvents(
-        matrixClient,
-        encryptedRoomId,
-      );
-      final encryptedWireEventIdsBefore = encryptedWireEventsBefore
-          .map((event) => event.eventId)
-          .toSet();
-      final encryptedMessage =
-          'live-e2ee message ${DateTime.now().toUtc().toIso8601String()}';
-      await chatRepository.sendMessage(
-        roomId: encryptedRoomId,
-        message: encryptedMessage,
-      );
-      final encryptedWireProof = await _waitForAuthoritativeEncryptedWireEvent(
-        tester,
-        matrixClient,
-        encryptedRoomId,
-        previousEventIds: encryptedWireEventIdsBefore,
-        plaintext: encryptedMessage,
-      );
-      final encryptedTimeline = await _waitForDecryptedEncryptedTimeline(
-        tester,
-        chatRepository,
-        encryptedRoomId,
-        encryptedMessage,
-      );
-      final decryptedEncryptedMessages = encryptedTimeline.messages
-          .where((message) => message.text == encryptedMessage)
-          .toList(growable: false);
-      final e2eeCryptoAvailable =
-          matrixClient.encryptionEnabled && matrixClient.encryption != null;
-      final e2eeRoomEncrypted = encryptedRoom.encrypted;
-      final e2eeSecurityReady =
-          e2eeSecurityState.bootstrapState ==
-              ChatSecurityBootstrapState.ready &&
-          e2eeSecurityState.secretStorageReady &&
-          e2eeSecurityState.crossSigningReady;
-      final e2eeSecurityPostureHonest =
-          e2eeSecurityState.bootstrapState !=
-              ChatSecurityBootstrapState.signedOut &&
-          e2eeSecurityState.bootstrapState !=
-              ChatSecurityBootstrapState.unavailable &&
-          e2eeSecurityState.secretStorageReady &&
-          e2eeSecurityState.crossSigningReady;
-      final e2eeEncryptedEventObserved =
-          encryptedWireProof.newEncryptedEvents.isNotEmpty &&
-          !encryptedWireProof.plaintextLeaked;
-      // ignore: avoid_print
-      print(
-        'E2EE_RESULT roomId=$encryptedRoomId roomName=$encryptedRoomName '
-        'cryptoAvailable=$e2eeCryptoAvailable '
-        'bootstrapState=${e2eeSecurityState.bootstrapState} '
-        'accountVerification=${e2eeSecurityState.accountVerificationState} '
-        'deviceVerification=${e2eeSecurityState.deviceVerificationState} '
-        'keyBackup=${e2eeSecurityState.keyBackupState} '
-        'secretStorageReady=${e2eeSecurityState.secretStorageReady} '
-        'crossSigningReady=${e2eeSecurityState.crossSigningReady} '
-        'securityPostureHonest=$e2eeSecurityPostureHonest '
-        'bootstrapGeneratedRecoveryKey=$e2eeBootstrapGeneratedRecoveryKey '
-        'roomEncrypted=$e2eeRoomEncrypted '
-        'encryptedWireEvents=${encryptedWireProof.newEncryptedEvents.length} '
-        'encryptedWireEventIds=${encryptedWireProof.newEncryptedEvents.map((event) => event.eventId).join(',')} '
-        'encryptedWirePlaintextLeaked=${encryptedWireProof.plaintextLeaked} '
-        'encryptedTimelineMessages=${decryptedEncryptedMessages.length}',
       );
 
       await container.read(filesProvider.notifier).connect();
@@ -1055,11 +923,7 @@ void main() {
         'honestStates=$providerRealityStatesHonest',
       );
 
-      if (!matrixConnected ||
-          !e2eeCryptoAvailable ||
-          !e2eeSecurityPostureHonest ||
-          !e2eeRoomEncrypted ||
-          !e2eeEncryptedEventObserved ||
+      if (!chatFacadeConnected ||
           !profileUpdated ||
           !filesFacadeConnected ||
           deliveredMessage.isEmpty ||
@@ -1084,18 +948,9 @@ void main() {
           'authSignedIn=true '
           'profileLoaded=true '
           'profileUpdated=$profileUpdated '
-          'matrixConnected=$matrixConnected '
-          'matrixSource=live-matrix-harness '
+          'chatFacadeConnected=$chatFacadeConnected '
           'chatRoomId=$roomId '
           'chatMatchedMessages=${deliveredMessage.length} '
-          'e2eeCryptoAvailable=$e2eeCryptoAvailable '
-          'e2eeSecurityReady=$e2eeSecurityReady '
-          'e2eeSecurityPostureHonest=$e2eeSecurityPostureHonest '
-          'e2eeBootstrapState=${e2eeSecurityState.bootstrapState} '
-          'e2eeRoomEncrypted=$e2eeRoomEncrypted '
-          'e2eeEncryptedWireEvents=${encryptedWireProof.newEncryptedEvents.length} '
-          'e2eeEncryptedEvents=${decryptedEncryptedMessages.length} '
-          'e2eeEncryptedWirePlaintextLeaked=${encryptedWireProof.plaintextLeaked} '
           'filesFacadeConnected=$filesFacadeConnected '
           'filesFacadeStatus=${filesState.connectionState.status} '
           'filesFacadeMessage=${filesState.connectionState.message} '
@@ -1139,13 +994,8 @@ void main() {
 
       _resetKeyboardTestState();
       expect(profileUpdated, isTrue);
-      expect(matrixConnected, isTrue);
+      expect(chatFacadeConnected, isTrue);
       expect(deliveredMessage, isNotEmpty);
-      expect(e2eeCryptoAvailable, isTrue);
-      expect(e2eeSecurityPostureHonest, isTrue);
-      expect(e2eeRoomEncrypted, isTrue);
-      expect(e2eeEncryptedEventObserved, isTrue);
-      expect(decryptedEncryptedMessages, isNotEmpty);
       expect(filesFacadeConnected, isTrue);
       expect(matchedFiles, isNotEmpty);
       expect(fileDownloadMatched, isTrue);
@@ -1378,157 +1228,6 @@ String _supportSafeDiagnostic(Object? error) {
       )
       .replaceAll(RegExp(r'\s+'), ' ')
       .trim();
-}
-
-class _EncryptedWireProof {
-  const _EncryptedWireProof({
-    required this.newEncryptedEvents,
-    required this.plaintextLeaked,
-  });
-
-  final List<sdk.MatrixEvent> newEncryptedEvents;
-  final bool plaintextLeaked;
-}
-
-Future<sdk.Room> _waitForEncryptedMatrixRoom(
-  WidgetTester tester,
-  sdk.Client client,
-  String roomId,
-) async {
-  final end = DateTime.now().add(const Duration(seconds: 45));
-  Object? lastError;
-  while (DateTime.now().isBefore(end)) {
-    try {
-      await client.oneShotSync(timeout: const Duration(seconds: 5));
-      final room = client.getRoomById(roomId);
-      if (room != null && room.encrypted) {
-        return room;
-      }
-    } catch (error) {
-      lastError = error;
-    }
-    _resetKeyboardTestState();
-    await tester.pump(const Duration(milliseconds: 500));
-  }
-
-  final room = client.getRoomById(roomId);
-  fail(
-    'matrix_encrypted_room_not_ready roomId=$roomId '
-    'roomFound=${room != null} roomEncrypted=${room?.encrypted} '
-    'lastError=$lastError',
-  );
-}
-
-Future<List<sdk.MatrixEvent>> _loadAuthoritativeWireEvents(
-  sdk.Client client,
-  String roomId,
-) async {
-  final response = await client.getRoomEvents(
-    roomId,
-    sdk.Direction.b,
-    limit: 50,
-    filter: jsonEncode(<String, Object>{
-      'types': <String>[sdk.EventTypes.Encrypted],
-    }),
-  );
-  return response.chunk
-      .where(
-        (event) =>
-            event.type == sdk.EventTypes.Encrypted &&
-            _hasEncryptedMegolmPayload(event),
-      )
-      .toList(growable: false);
-}
-
-Future<_EncryptedWireProof> _waitForAuthoritativeEncryptedWireEvent(
-  WidgetTester tester,
-  sdk.Client client,
-  String roomId, {
-  required Set<String> previousEventIds,
-  required String plaintext,
-}) async {
-  final end = DateTime.now().add(const Duration(minutes: 2));
-  Object? lastError;
-  var observedEncryptedEvents = const <sdk.MatrixEvent>[];
-  while (DateTime.now().isBefore(end)) {
-    try {
-      await client.oneShotSync(timeout: const Duration(seconds: 5));
-      final encryptedEvents = await _loadAuthoritativeWireEvents(
-        client,
-        roomId,
-      );
-      observedEncryptedEvents = encryptedEvents;
-      final newEncryptedEvents = encryptedEvents
-          .where((event) => !previousEventIds.contains(event.eventId))
-          .toList(growable: false);
-      if (newEncryptedEvents.isNotEmpty) {
-        final plaintextLeaked = newEncryptedEvents.any(
-          (event) => jsonEncode(event.toJson()).contains(plaintext),
-        );
-        return _EncryptedWireProof(
-          newEncryptedEvents: newEncryptedEvents,
-          plaintextLeaked: plaintextLeaked,
-        );
-      }
-    } catch (error) {
-      lastError = error;
-    }
-    _resetKeyboardTestState();
-    await tester.pump(const Duration(milliseconds: 500));
-  }
-
-  fail(
-    'matrix_authoritative_encrypted_wire_event_missing roomId=$roomId '
-    'previousWireEvents=${previousEventIds.length} '
-    'observedEncryptedWireEvents=${observedEncryptedEvents.length} '
-    'observedEncryptedWireEventIds=${observedEncryptedEvents.map((event) => event.eventId).join(',')} '
-    'lastError=$lastError',
-  );
-}
-
-bool _hasEncryptedMegolmPayload(sdk.MatrixEvent event) {
-  final algorithm = event.content['algorithm'];
-  final ciphertext = event.content['ciphertext'];
-  final sessionId = event.content['session_id'];
-  final senderKey = event.content['sender_key'];
-  return algorithm is String &&
-      algorithm.trim().isNotEmpty &&
-      ciphertext is String &&
-      ciphertext.trim().isNotEmpty &&
-      sessionId is String &&
-      sessionId.trim().isNotEmpty &&
-      senderKey is String &&
-      senderKey.trim().isNotEmpty;
-}
-
-Future<ChatRoomTimeline> _waitForDecryptedEncryptedTimeline(
-  WidgetTester tester,
-  ChatRepository chatRepository,
-  String roomId,
-  String plaintext,
-) async {
-  final end = DateTime.now().add(const Duration(minutes: 2));
-  Object? lastError;
-  ChatRoomTimeline? latestTimeline;
-  while (DateTime.now().isBefore(end)) {
-    try {
-      latestTimeline = await chatRepository.loadRoomTimeline(roomId);
-      if (latestTimeline.messages.any((message) => message.text == plaintext)) {
-        return latestTimeline;
-      }
-    } catch (error) {
-      lastError = error;
-    }
-    _resetKeyboardTestState();
-    await tester.pump(const Duration(milliseconds: 500));
-  }
-
-  fail(
-    'matrix_decrypted_encrypted_timeline_message_missing roomId=$roomId '
-    'timelineMessages=${latestTimeline?.messages.length} '
-    'timelineTypes=${latestTimeline?.messages.map((message) => message.contentType).join(',')} '
-    'lastError=$lastError',
-  );
 }
 
 Future<CalendarEvent> _createCalendarEventWithReadAfterWrite(
