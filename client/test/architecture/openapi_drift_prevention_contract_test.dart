@@ -141,37 +141,6 @@ const _legacyResponseDtoAllowlist = <LegacyFence>[
         'stack DTO collapse and diagnostic seams are split from normal member '
         'state.',
   ),
-  LegacyFence(
-    path:
-        'lib/integrations/weave_api/data/dtos/provider_stack_response_dto.dart',
-    issue: '#904',
-    classNames: [
-      'ProviderRegistryResponseDto',
-      'ProviderCategoryStatusResponseDto',
-      'ProviderAdapterReadinessEvidenceResponseDto',
-      'ProviderCategoryContractResponseDto',
-      'ProviderChoiceModelResponseDto',
-      'ProviderStatusResponseDto',
-      'DevopsSummaryResponseDto',
-      'LinkedSourceProjectResponseDto',
-      'SourceRepositoryResponseDto',
-      'DevopsIssueSummaryResponseDto',
-      'DevopsMergeRequestSummaryResponseDto',
-      'DevopsPipelineSummaryResponseDto',
-      'DevopsJobSummaryResponseDto',
-      'DevopsReleaseSummaryResponseDto',
-      'OfficeCapabilitiesResponseDto',
-      'OfficeProviderCandidateResponseDto',
-      'OfficeCapabilityFlagsResponseDto',
-      'OfficePermissionModelResponseDto',
-      'OfficeLockSessionReadinessResponseDto',
-      'OfficeLaunchResponseDto',
-      'OfficeLaunchErrorResponseDto',
-    ],
-    reason:
-        'The monolithic provider stack DTO family is deferred to the provider '
-        'stack collapse slice; normal member reachability remains fenced here.',
-  ),
 ];
 
 const _rawJsonMemberFacadeAllowlist = <LegacyFence>[
@@ -189,14 +158,6 @@ const _rawJsonMemberFacadeAllowlist = <LegacyFence>[
     reason:
         'Platform status is diagnostic/admin-only until provider reachability is '
         'split from normal member paths.',
-  ),
-  LegacyFence(
-    path:
-        'lib/integrations/weave_api/data/dtos/provider_stack_response_dto.dart',
-    issue: '#904',
-    reason:
-        'Provider registry raw parsing is fenced until the provider stack DTO '
-        'collapse uses generated OpenAPI models.',
   ),
 ];
 
@@ -488,14 +449,6 @@ const _hardcodedCopyAllowlist = <LegacyFence>[
     reason:
         'Platform diagnostic validation messages remain fenced with the '
         'diagnostic provider seam.',
-  ),
-  LegacyFence(
-    path:
-        'lib/integrations/weave_api/data/dtos/provider_stack_response_dto.dart',
-    issue: '#904',
-    reason:
-        'Provider registry validation messages remain fenced with provider '
-        'stack DTO collapse and diagnostic separation.',
   ),
   LegacyFence(
     path:
