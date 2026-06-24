@@ -39,16 +39,16 @@ class ApplyServerConfigurationChanges {
     if (result.matrixHomeserverChanged) {
       await _chatSessionPort.clearSession();
       _workspaceInvalidationPort.invalidate(
-        integration: WorkspaceIntegration.matrix,
-        reason: IntegrationInvalidationReason.matrixHomeserverChanged,
+        integration: WorkspaceIntegration.chat,
+        reason: IntegrationInvalidationReason.chatConfigurationChanged,
       );
     }
 
     if (result.nextcloudBaseUrlChanged) {
       await _filesSessionPort.disconnect();
       _workspaceInvalidationPort.invalidate(
-        integration: WorkspaceIntegration.nextcloud,
-        reason: IntegrationInvalidationReason.nextcloudBaseUrlChanged,
+        integration: WorkspaceIntegration.files,
+        reason: IntegrationInvalidationReason.filesConfigurationChanged,
       );
     }
 

@@ -127,7 +127,7 @@ class FilesViewState {
 class FilesController extends AsyncNotifier<FilesViewState> {
   @override
   Future<FilesViewState> build() async {
-    ref.watch(integrationInvalidationProvider(WorkspaceIntegration.nextcloud));
+    ref.watch(integrationInvalidationProvider(WorkspaceIntegration.files));
     await ref.watch(savedServerConfigurationProvider.future);
     return _loadInitialState();
   }

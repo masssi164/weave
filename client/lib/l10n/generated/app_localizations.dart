@@ -707,6 +707,66 @@ abstract class AppLocalizations {
   /// **'Invite'**
   String get firstRunInviteStatusLabel;
 
+  /// No description provided for @firstRunRoleOwner.
+  ///
+  /// In en, this message translates to:
+  /// **'Owner'**
+  String get firstRunRoleOwner;
+
+  /// No description provided for @firstRunRoleAdmin.
+  ///
+  /// In en, this message translates to:
+  /// **'Admin'**
+  String get firstRunRoleAdmin;
+
+  /// No description provided for @firstRunRoleOperator.
+  ///
+  /// In en, this message translates to:
+  /// **'Operator'**
+  String get firstRunRoleOperator;
+
+  /// No description provided for @firstRunRoleMember.
+  ///
+  /// In en, this message translates to:
+  /// **'Member'**
+  String get firstRunRoleMember;
+
+  /// No description provided for @firstRunRoleGuest.
+  ///
+  /// In en, this message translates to:
+  /// **'Guest'**
+  String get firstRunRoleGuest;
+
+  /// No description provided for @firstRunRoleUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace role'**
+  String get firstRunRoleUnknown;
+
+  /// No description provided for @firstRunInviteAccepted.
+  ///
+  /// In en, this message translates to:
+  /// **'Accepted'**
+  String get firstRunInviteAccepted;
+
+  /// No description provided for @firstRunInvitePending.
+  ///
+  /// In en, this message translates to:
+  /// **'Pending'**
+  String get firstRunInvitePending;
+
+  /// No description provided for @firstRunInviteExpired.
+  ///
+  /// In en, this message translates to:
+  /// **'Expired'**
+  String get firstRunInviteExpired;
+
+  /// No description provided for @firstRunInviteUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Unavailable'**
+  String get firstRunInviteUnavailable;
+
   /// No description provided for @firstRunModuleSectionTitle.
   ///
   /// In en, this message translates to:
@@ -3077,17 +3137,17 @@ abstract class AppLocalizations {
   /// **'Auth configuration changed'**
   String get settingsWorkspaceInvalidationAuthConfigurationChanged;
 
-  /// Invalidation label for Matrix homeserver changes
+  /// Invalidation label for chat configuration changes
   ///
   /// In en, this message translates to:
-  /// **'Matrix homeserver changed'**
-  String get settingsWorkspaceInvalidationMatrixHomeserverChanged;
+  /// **'Chat configuration changed'**
+  String get settingsWorkspaceInvalidationChatConfigurationChanged;
 
-  /// Invalidation label for Nextcloud base URL changes
+  /// Invalidation label for files configuration changes
   ///
   /// In en, this message translates to:
-  /// **'Nextcloud base URL changed'**
-  String get settingsWorkspaceInvalidationNextcloudBaseUrlChanged;
+  /// **'Files configuration changed'**
+  String get settingsWorkspaceInvalidationFilesConfigurationChanged;
 
   /// Invalidation label for explicit sign-outs
   ///

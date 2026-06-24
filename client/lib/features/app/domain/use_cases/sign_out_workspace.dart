@@ -42,11 +42,11 @@ class SignOutWorkspace {
       reason: IntegrationInvalidationReason.explicitSignOut,
     );
     _workspaceInvalidationPort.invalidate(
-      integration: WorkspaceIntegration.matrix,
+      integration: WorkspaceIntegration.chat,
       reason: IntegrationInvalidationReason.explicitSignOut,
     );
     _workspaceInvalidationPort.invalidate(
-      integration: WorkspaceIntegration.nextcloud,
+      integration: WorkspaceIntegration.files,
       reason: IntegrationInvalidationReason.explicitSignOut,
     );
     _workspaceInvalidationPort.invalidate(

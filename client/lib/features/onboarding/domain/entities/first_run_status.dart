@@ -115,7 +115,7 @@ class FirstRunModuleProvisioning {
       calendar ??
       const FirstRunModuleStatus(
         state: FirstRunProvisioningState.notConfigured,
-        message: 'Calendar is not available from this Weave backend yet.',
+        message: '',
       );
 }
 

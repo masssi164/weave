@@ -34,11 +34,11 @@ class RestartWorkspaceSetup {
       reason: IntegrationInvalidationReason.restartSetup,
     );
     _workspaceInvalidationPort.invalidate(
-      integration: WorkspaceIntegration.matrix,
+      integration: WorkspaceIntegration.chat,
       reason: IntegrationInvalidationReason.restartSetup,
     );
     _workspaceInvalidationPort.invalidate(
-      integration: WorkspaceIntegration.nextcloud,
+      integration: WorkspaceIntegration.files,
       reason: IntegrationInvalidationReason.restartSetup,
     );
     _workspaceInvalidationPort.invalidate(

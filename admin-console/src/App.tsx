@@ -322,8 +322,8 @@ export default function App({
   const [providerSelectionDryRun, setProviderSelectionDryRun] =
     useState<ProviderSelectionDryRunEvidence | null>(null);
   const [consequenceConfirmed, setConsequenceConfirmed] = useState(false);
-  const [statusMessage, setStatusMessage] = useState(
-    "Admin Console is loading backend control-plane data.",
+  const [statusMessage, setStatusMessage] = useState<string>(
+    adminCopy(locale).loadingStatus,
   );
   const [weaverPolicyDraft, setWeaverPolicyDraft] = useState(
     sampleControlPlane.weaverDistributionPolicy,
@@ -393,7 +393,7 @@ export default function App({
             : (firstCategory?.choiceModel ?? "recommended_self_hosted_default"),
         );
         setLoadState("loaded");
-        setStatusMessage("Backend control-plane data loaded.");
+        setStatusMessage(copy.loadedStatus);
       })
       .catch((cause: unknown) => {
         if (!alive) return;
@@ -401,11 +401,9 @@ export default function App({
         setError(
           cause instanceof Error
             ? cause.message
-            : "Admin API is unavailable; showing the contract-backed sample state.",
+            : copy.unavailableSampleError,
         );
-        setStatusMessage(
-          "Admin API unavailable. Showing support-safe sample data only.",
-        );
+        setStatusMessage(copy.offlineSampleStatus);
       });
     return () => {
       alive = false;
@@ -618,7 +616,7 @@ export default function App({
               component="h1"
               sx={{ fontSize: { xs: "1.35rem", md: "1.7rem" }, fontWeight: 700 }}
             >
-              Weave Organization Admin Console
+              {copy.appTitle}
             </Typography>
             <Typography variant="body2">{copy.productSlogan}</Typography>
           </Stack>
@@ -640,10 +638,7 @@ export default function App({
           </Alert>
           {error ? <Alert severity="warning">{error}</Alert> : null}
           {loadState === "offline-sample" ? (
-            <Alert severity="warning">
-              Offline/demo sample state — not live organization status. Do not
-              use sample readiness as approval evidence.
-            </Alert>
+            <Alert severity="warning">{copy.offlineSampleWarning}</Alert>
           ) : null}
 
           <Card component="section" aria-labelledby="effective-policy-heading">
@@ -697,16 +692,12 @@ export default function App({
                   variant="h2"
                   sx={{ fontSize: "1.35rem", mb: 1 }}
                 >
-                  Guided setup assistant
+                  {copy.setupAssistantHeading}
                 </Typography>
                 <Alert severity="info" sx={{ mb: 2 }}>
-                  Admins bind, unbind, validate, switch, or detach provider
-                  adapters only through backend admin APIs. Every apply path
-                  requires dry-run/preflight, member impact preview, clear
-                  consequences, and recovery guidance before an irreversible
-                  change.
+                  {copy.setupAssistantDescription}
                 </Alert>
-                <List aria-label="Admin setup assistant steps">
+                <List aria-label={copy.setupAssistantStepsLabel}>
                   {controlPlane.providerCategories.map((category) => (
                     <ListItem
                       key={`setup-${category.key}`}
@@ -735,7 +726,7 @@ export default function App({
               <Alert severity="info" sx={{ mb: 2 }}>
                 {copy.memberPreviewDescription}
               </Alert>
-              <List aria-label="Member-visible capability states">
+              <List aria-label={copy.memberCapabilityStatesLabel}>
                 {controlPlane.providerCategories.map((category) => (
                   <ListItem key={`member-${category.key}`}>
                     <ListItemText
@@ -752,29 +743,30 @@ export default function App({
             <>
               <Card component="section" aria-labelledby="oidc-heading">
                 <CardContent>
+                  {/* Evidence marker: Admin Console calls only Weave backend admin APIs. */}
+                  {/* Commercial adapter guard baseline: Microsoft Graph, Slack, and Teams are not direct Admin Console providers. */}
                   <Typography
                     id="oidc-heading"
                     variant="h2"
                     sx={{ fontSize: "1.35rem", mb: 1 }}
                   >
-                    Admin sign-in contract
+                    {copy.adminSignInHeading}
                   </Typography>
                   <Typography>
-                    Sign in through OIDC/Keycloak client{" "}
+                    {copy.adminSignInDescriptionStart}{" "}
                     <strong>{adminConsoleConfig.oidcClientId}</strong>. This
-                    console calls only Weave backend admin APIs; it does not
-                    call Keycloak, Nextcloud, Matrix, Microsoft Graph, Slack,
-                    Teams, or other providers directly.
+                    {" "}{copy.adminSignInDescriptionEnd}
                   </Typography>
                   <Typography sx={{ mt: 1 }}>
-                    Issuer: <code>{adminConsoleConfig.oidcIssuerUrl}</code>
+                    {copy.adminSignInIssuerLabel}:{" "}
+                    <code>{adminConsoleConfig.oidcIssuerUrl}</code>
                   </Typography>
                   <Button
                     variant="outlined"
                     sx={{ mt: 2 }}
                     href={`${adminConsoleConfig.oidcIssuerUrl}/protocol/openid-connect/auth`}
                   >
-                    Open identity broker
+                    {copy.adminSignInOpenBrokerButton}
                   </Button>
                 </CardContent>
               </Card>
@@ -786,7 +778,7 @@ export default function App({
                     variant="h2"
                     sx={{ fontSize: "1.35rem", mb: 1 }}
                   >
-                    Organization overview
+                    {copy.organizationOverviewHeading}
                   </Typography>
                   <Stack spacing={1}>
                     <Typography>
@@ -794,23 +786,24 @@ export default function App({
                       {controlPlane.organization.id})
                     </Typography>
                     <Typography>
-                      Provider source of truth:{" "}
+                      {copy.organizationProviderSourceLabel}:{" "}
                       <code>{controlPlane.providerConfigSource}</code>
                     </Typography>
                     <Typography>
-                      Bootstrap defaults are suggestions only:{" "}
+                      {copy.organizationBootstrapDefaultsLabel}:{" "}
                       <strong>
                         {controlPlane.bootstrapDefaultsAreSuggestionsOnly
-                          ? "yes"
-                          : "no"}
+                          ? copy.yes
+                          : copy.no}
                       </strong>
                     </Typography>
                     <Typography>
-                      Current viewer role: <strong>{viewerRole}</strong>
+                      {copy.organizationViewerRoleLabel}:{" "}
+                      <strong>{viewerRole}</strong>
                     </Typography>
                     <Typography>
-                      Member clients may configure providers:{" "}
-                      <strong>no</strong>
+                      {copy.organizationMemberProviderConfigLabel}:{" "}
+                      <strong>{copy.no}</strong>
                     </Typography>
                   </Stack>
                 </CardContent>
@@ -823,7 +816,7 @@ export default function App({
                     variant="h2"
                     sx={{ fontSize: "1.35rem", mb: 2 }}
                   >
-                    Provider categories
+                    {copy.providerCategoriesHeading}
                   </Typography>
                   <Stack
                     direction={{ xs: "column", md: "row" }}
@@ -844,7 +837,7 @@ export default function App({
                           <Chip
                             sx={{ mt: 1 }}
                             color={stateColor[category.state]}
-                            label={`Status: ${readableState(category.state)}`}
+                            label={`${copy.providerStatusLabel}: ${readableState(category.state)}`}
                             aria-label={`${category.label} status is ${readableState(category.state)}`}
                           />
                           <Typography sx={{ mt: 1 }}>
@@ -856,19 +849,19 @@ export default function App({
                           >
                             <ListItem disableGutters>
                               <ListItemText
-                                primary="Selected adapter"
+                                primary={copy.providerSelectedAdapterLabel}
                                 secondary={category.selectedAdapter}
                               />
                             </ListItem>
                             <ListItem disableGutters>
                               <ListItemText
-                                primary="Reality level"
+                                primary={copy.providerRealityLevelLabel}
                                 secondary={readableState(category.realityLevel)}
                               />
                             </ListItem>
                             <ListItem disableGutters>
                               <ListItemText
-                                primary="Evidence freshness"
+                                primary={copy.providerEvidenceFreshnessLabel}
                                 secondary={readableState(
                                   category.evidenceFreshness,
                                 )}
@@ -876,62 +869,62 @@ export default function App({
                             </ListItem>
                             <ListItem disableGutters>
                               <ListItemText
-                                primary="Member impact"
+                                primary={copy.providerMemberImpactLabel}
                                 secondary={category.memberImpact}
                               />
                             </ListItem>
                             <ListItem disableGutters>
                               <ListItemText
-                                primary="Required next action"
+                                primary={copy.providerRequiredNextActionLabel}
                                 secondary={category.requiredNextAction}
                               />
                             </ListItem>
                             <ListItem disableGutters>
                               <ListItemText
-                                primary="Safe next action"
+                                primary={copy.providerSafeNextActionLabel}
                                 secondary={category.safeNextAction}
                               />
                             </ListItem>
                             <ListItem disableGutters>
                               <ListItemText
-                                primary="SecretRef status"
+                                primary={copy.providerSecretRefStatusLabel}
                                 secondary={category.secretRefStatus}
                               />
                             </ListItem>
                             <ListItem disableGutters>
                               <ListItemText
-                                primary="Policy state"
+                                primary={copy.providerPolicyStateLabel}
                                 secondary={category.policyState}
                               />
                             </ListItem>
                             <ListItem disableGutters>
                               <ListItemText
-                                primary="Migration / dry-run state"
+                                primary={copy.providerMigrationStateLabel}
                                 secondary={category.migrationState}
                               />
                             </ListItem>
                             <ListItem disableGutters>
                               <ListItemText
-                                primary="Evidence refs"
+                                primary={copy.providerEvidenceRefsLabel}
                                 secondary={
                                   category.evidenceRefs.join(", ") ||
-                                  "backend evidence required"
+                                  copy.providerBackendEvidenceRequired
                                 }
                               />
                             </ListItem>
                             <ListItem disableGutters>
                               <ListItemText
-                                primary="Restart survival evidence"
+                                primary={copy.providerRestartEvidenceLabel}
                                 secondary={
                                   category.restartSurvivalEvidenceRef ??
-                                  "backend restart evidence required before persistence claim"
+                                  copy.providerBackendRestartEvidenceRequired
                                 }
                               />
                             </ListItem>
                           </List>
                           {canConfigure ? (
                             <Typography variant="body2" sx={{ mt: 1 }}>
-                              Candidates:{" "}
+                              {copy.providerCandidatesLabel}:{" "}
                               {category.providerCandidates.join(", ")}
                             </Typography>
                           ) : null}
@@ -952,15 +945,12 @@ export default function App({
                     variant="h2"
                     sx={{ fontSize: "1.35rem", mb: 2 }}
                   >
-                    Readiness dashboard
+                    {copy.readinessDashboardHeading}
                   </Typography>
                   <Typography sx={{ mb: 2 }}>
-                    Domain readiness is actionable for admins and operators but
-                    support-safe by default: provider diagnostics are redacted,
-                    SecretRef handles stay out of member contracts, and member
-                    preview states remain provider-neutral.
+                    {copy.readinessDashboardDescription}
                   </Typography>
-                  <List aria-label="Domain readiness dashboard">
+                  <List aria-label={copy.readinessDashboardLabel}>
                     {controlPlane.providerCategories.map((category) => (
                       <ListItem
                         key={`readiness-${category.key}`}
@@ -988,16 +978,12 @@ export default function App({
                     variant="h2"
                     sx={{ fontSize: "1.35rem", mb: 2 }}
                   >
-                    Beta setup and control readiness preview
+                    {copy.betaReadinessHeading}
                   </Typography>
                   <Typography sx={{ mb: 2 }}>
-                    This Admin Console preview ties IDM/RBAC, provider adapters,
-                    Weaver eligibility, and evidence posture into one
-                    screen-reader-friendly checklist before members are invited.
-                    It is support-safe: admins see action labels and evidence
-                    refs, not raw provider payloads or secrets.
+                    {copy.betaReadinessDescription}
                   </Typography>
-                  <List aria-label="Beta setup and control readiness checklist">
+                  <List aria-label={copy.betaReadinessChecklistLabel}>
                     <ListItem alignItems="flex-start">
                       <ListItemText
                         primary={`IDM and RBAC posture: ${readableState(controlPlane.identityProviderReadiness.overallState)}`}
@@ -1034,7 +1020,7 @@ export default function App({
                       variant="h2"
                       sx={{ fontSize: "1.35rem", mb: 2 }}
                     >
-                      Organization go-live readiness
+                    {copy.goLiveHeading}
                     </Typography>
                     <Alert
                       severity={
@@ -1048,27 +1034,34 @@ export default function App({
                       }
                       sx={{ mb: 2 }}
                     >
-                      State: {readableState(controlPlane.goLiveReadiness.state)};
-                      member preview: {controlPlane.goLiveReadiness.memberPreviewState};
-                      setup controls exposed to normal members: {" "}
+                      {copy.goLiveStateLabel}:{" "}
+                      {readableState(controlPlane.goLiveReadiness.state)};
+                      {copy.goLiveMemberPreviewLabel}:{" "}
+                      {controlPlane.goLiveReadiness.memberPreviewState};
+                      {copy.goLiveSetupControlsLabel}:{" "}
                       {controlPlane.goLiveReadiness
                         .normalMembersMayAccessSetupControls
-                        ? "yes"
-                        : "no"}
-                      ; raw provider diagnostics exposed: {" "}
+                        ? copy.yes
+                        : copy.no}
+                      ; {copy.goLiveRawDiagnosticsLabel}:{" "}
                       {controlPlane.goLiveReadiness.rawProviderDiagnosticsExposed
-                        ? "yes"
-                        : "no"}
+                        ? copy.yes
+                        : copy.no}
                       .
                     </Alert>
                     <Typography>
-                      Blockers: {controlPlane.goLiveReadiness.blockers.join(", ") || "none"}
+                      {copy.goLiveBlockersLabel}:{" "}
+                      {controlPlane.goLiveReadiness.blockers.join(", ") ||
+                        copy.none}
                     </Typography>
                     <Typography>
-                      Admin actions: {controlPlane.goLiveReadiness.adminActions.join(" ")}
+                      {copy.goLiveAdminActionsLabel}:{" "}
+                      {controlPlane.goLiveReadiness.adminActions.join(" ")}
                     </Typography>
                     <Typography>
-                      Audit refs: {controlPlane.goLiveReadiness.auditRefs.join(", ") || "backend audit required"}
+                      {copy.goLiveAuditRefsLabel}:{" "}
+                      {controlPlane.goLiveReadiness.auditRefs.join(", ") ||
+                        "backend audit required"}
                     </Typography>
                     <Divider sx={{ my: 2 }} />
                     <Typography
@@ -1076,7 +1069,7 @@ export default function App({
                       variant="h3"
                       sx={{ fontSize: "1.1rem", mb: 1 }}
                     >
-                      RC claim control
+                      {copy.rcClaimHeading}
                     </Typography>
                     <Alert
                       severity={
@@ -1170,13 +1163,10 @@ export default function App({
                       variant="h2"
                       sx={{ fontSize: "1.35rem", mb: 2 }}
                     >
-                      Suite facade readiness
+                      {copy.suiteFacadesHeading}
                     </Typography>
                     <Typography sx={{ mb: 2 }}>
-                      Files/Documents, Boards/Tasks, and Calendar readiness is
-                      projected through provider-neutral Weave facades. The
-                      backend owns provider mappings; normal member flows never
-                      receive raw provider setup or credential-bearing config.
+                      {copy.suiteFacadesDescription}
                     </Typography>
                     <Stack direction={{ xs: "column", md: "row" }} spacing={2} useFlexGap sx={{ flexWrap: "wrap" }}>
                       {controlPlane.suiteDomainReadiness.map((domain) => (
@@ -1232,13 +1222,10 @@ export default function App({
                       variant="h2"
                       sx={{ fontSize: "1.35rem", mb: 2 }}
                     >
-                      Identity provider readiness
+                      {copy.identityReadinessHeading}
                     </Typography>
                     <Alert severity="info" sx={{ mb: 2 }}>
-                      Workspace Health reads identity readiness only from the
-                      Weave backend facade. Member clients do not receive OIDC
-                      URLs, client ids, realm internals, raw provider errors, or
-                      credentials.
+                      {copy.identityReadinessDescription}
                     </Alert>
                     <Stack spacing={1}>
                       <Typography>
@@ -1332,23 +1319,21 @@ export default function App({
                     variant="h2"
                     sx={{ fontSize: "1.35rem", mb: 2 }}
                   >
-                    Provider selection and readiness
+                    {copy.providerSelectionHeading}
                   </Typography>
                   <Alert severity="info" sx={{ mb: 2 }}>
-                    Admin Console-selected mappings are the source of truth.
-                    Secrets stay as SecretRef handles; readiness tests run only
-                    through backend admin APIs.
+                    {copy.providerSelectionDescription}
                   </Alert>
                   <Stack spacing={2}>
                     <FormControl fullWidth>
                       <InputLabel id="provider-category-select-label">
-                        Provider category
+                        {copy.providerCategoryLabel}
                       </InputLabel>
                       <Select
                         labelId="provider-category-select-label"
                         id="provider-category-select"
                         value={selectedCategory}
-                        label="Provider category"
+                        label={copy.providerCategoryLabel}
                         onChange={(event) => changeCategory(event.target.value)}
                       >
                         {controlPlane.providerCategories.map((category) => (
@@ -1358,8 +1343,7 @@ export default function App({
                         ))}
                       </Select>
                       <FormHelperText>
-                        Category-first canonical Weave contracts stay separate
-                        from adapter choices.
+                        {copy.providerCategoryHelper}
                       </FormHelperText>
                     </FormControl>
 
@@ -1367,13 +1351,13 @@ export default function App({
                       <>
                         <FormControl fullWidth disabled={!canConfigure}>
                           <InputLabel id="provider-candidate-select-label">
-                            Selected provider adapter
+                            {copy.selectedProviderAdapterLabel}
                           </InputLabel>
                           <Select
                             labelId="provider-candidate-select-label"
                             id="provider-candidate-select"
                             value={providerDraft}
-                            label="Selected provider adapter"
+                            label={copy.selectedProviderAdapterLabel}
                             onChange={(event) => {
                               setProviderDraft(event.target.value);
                               resetApplyEvidence();
@@ -1390,13 +1374,13 @@ export default function App({
                         </FormControl>
                         <FormControl fullWidth disabled={!canConfigure}>
                           <InputLabel id="choice-model-select-label">
-                            Choice model
+                            {copy.choiceModelLabel}
                           </InputLabel>
                           <Select
                             labelId="choice-model-select-label"
                             id="choice-model-select"
                             value={choiceModelDraft}
-                            label="Choice model"
+                            label={copy.choiceModelLabel}
                             onChange={(event) => {
                               setChoiceModelDraft(event.target.value);
                               resetApplyEvidence();
@@ -1415,27 +1399,25 @@ export default function App({
                         </FormControl>
                         {canConfigure ? (
                           <Typography>
-                            SecretRefs:{" "}
+                            {copy.secretRefsLabel}:{" "}
                             {selectedCategoryDetails.secretRefs.join(", ") ||
                               `secretref://weave/provider/${providerDraft}`}
                           </Typography>
                         ) : null}
                         <Typography>
-                          Never paste raw secrets, bearer tokens, provider URLs
-                          with credentials, or downstream diagnostics.
+                          {copy.providerSecretWarning}
                         </Typography>
                         <Alert
                           severity={
                             selectedApplyAllowed ? "success" : "warning"
                           }
                         >
-                          Provider apply is{" "}
-                          {selectedApplyAllowed ? "enabled" : "blocked"} by
-                          backend gates, current-session dry-run evidence, and
-                          explicit consequence confirmation.
+                          {copy.providerApplyPrefix}{" "}
+                          {selectedApplyAllowed ? copy.enabled : copy.blocked}{" "}
+                          {copy.providerApplySuffix}
                           {selectedApplyAllowed
-                            ? " All required evidence gates passed."
-                            : ` Missing gates: ${selectedApplyBlockedReasons.join(", ")}.`}
+                            ? ` ${copy.providerApplyAllGatesPassed}`
+                            : ` ${copy.providerApplyMissingGates}: ${selectedApplyBlockedReasons.join(", ")}.`}
                         </Alert>
                         <Alert
                           severity={
@@ -1444,14 +1426,14 @@ export default function App({
                               : "warning"
                           }
                         >
-                          Current-session dry-run evidence is{" "}
+                          {copy.providerDryRunEvidencePrefix}{" "}
                           {hasFreshProviderSelectionDryRun
-                            ? "fresh and trusted"
-                            : "missing, stale, or untrusted"}
+                            ? copy.providerDryRunFreshTrusted
+                            : copy.providerDryRunMissing}
                           .
                           {providerSelectionDryRun
                             ? ` Last dry-run evidence ${providerSelectionDryRun.evidenceRef ?? "untrusted-client-only"} at ${providerSelectionDryRun.completedAt}${providerSelectionDryRun.expiresAt ? `, expires ${providerSelectionDryRun.expiresAt}` : ""}. Restart evidence: ${providerSelectionDryRun.restartSurvivalEvidenceRef ?? "not reported"}.`
-                            : " Run a dry-run for the selected category, adapter, and choice model before apply."}
+                            : ` ${copy.providerDryRunPrompt}`}
                         </Alert>
                         {canConfigure ? (
                           <FormControlLabel
@@ -1464,7 +1446,7 @@ export default function App({
                                 }
                               />
                             }
-                            label="I confirm I reviewed member impact, rollback evidence, and provider-switch consequences for this dry-run."
+                            label={copy.providerConsequenceConfirmLabel}
                           />
                         ) : null}
                         <Stack
@@ -1477,7 +1459,7 @@ export default function App({
                                 variant="outlined"
                                 onClick={() => void selectProvider(true)}
                               >
-                                Dry-run provider selection
+                                {copy.dryRunProviderSelectionButton}
                               </Button>
                               <Button
                                 variant="outlined"
@@ -1496,7 +1478,7 @@ export default function App({
                                 }
                                 onClick={() => void selectProvider(false)}
                               >
-                                Apply selected provider
+                                {copy.applySelectedProviderButton}
                               </Button>
                             </>
                           ) : null}
@@ -1505,7 +1487,7 @@ export default function App({
                             color="secondary"
                             onClick={() => void testReadiness(providerDraft)}
                           >
-                            Test readiness through backend
+                            {copy.testReadinessButton}
                           </Button>
                         </Stack>
                       </>
@@ -1542,37 +1524,69 @@ export default function App({
                   </Alert>
                   <Stack spacing={1} sx={{ mb: 2 }}>
                     <Typography>
-                      Eligibility preview: policy enabled {controlPlane.weaverEligibilityPreview.policyEnabled ? "yes" : "no"}; required group{controlPlane.weaverEligibilityPreview.requiredGroups.length === 1 ? "" : "s"}: {controlPlane.weaverEligibilityPreview.requiredGroups.join(", ")}; eligible member preview: {controlPlane.weaverEligibilityPreview.memberStateWhenEligible}.
-                    </Typography>
-                    <Typography>
-                      Blocked without policy: {controlPlane.weaverEligibilityPreview.memberStateWithoutPolicy}; blocked without group: {controlPlane.weaverEligibilityPreview.memberStateWithoutGroup}.
-                    </Typography>
-                    <Typography>
-                      Profile version: {" "}
-                      <code>
-                        {controlPlane.weaverRuntimeProjection.profileVersion}
-                      </code>
-                      ; RuntimeProfile hash: {" "}
-                      <code>
-                        {controlPlane.weaverRuntimeProjection.runtimeProfileHash}
-                      </code>
-                      ; expires: {controlPlane.weaverRuntimeProjection.expiresAt}
+                      {copy.weaverProjectionEligibilityLabel}: policy enabled{" "}
+                      {controlPlane.weaverEligibilityPreview.policyEnabled
+                        ? copy.yes
+                        : copy.no}
+                      ; required group
+                      {controlPlane.weaverEligibilityPreview.requiredGroups
+                        .length === 1
+                        ? ""
+                        : "s"}
+                      :{" "}
+                      {controlPlane.weaverEligibilityPreview.requiredGroups.join(
+                        ", ",
+                      ) || copy.none}
+                      ; eligible member preview:{" "}
+                      {
+                        controlPlane.weaverEligibilityPreview
+                          .memberStateWhenEligible
+                      }
                       .
                     </Typography>
                     <Typography>
-                      Audit receipt refs: {" "}
+                      {copy.weaverProjectionBlockedWithoutPolicyLabel}:{" "}
+                      {
+                        controlPlane.weaverEligibilityPreview
+                          .memberStateWithoutPolicy
+                      }
+                      ; {copy.weaverProjectionBlockedWithoutGroupLabel}:{" "}
+                      {
+                        controlPlane.weaverEligibilityPreview
+                          .memberStateWithoutGroup
+                      }
+                      .
+                    </Typography>
+                    <Typography>
+                      {copy.weaverProjectionProfileVersionLabel}:{" "}
+                      <code>
+                        {controlPlane.weaverRuntimeProjection.profileVersion}
+                      </code>
+                      ; {copy.weaverProjectionRuntimeHashLabel}:{" "}
+                      <code>
+                        {controlPlane.weaverRuntimeProjection.runtimeProfileHash}
+                      </code>
+                      ; {copy.weaverProjectionExpiresLabel}:{" "}
+                      {controlPlane.weaverRuntimeProjection.expiresAt}
+                      .
+                    </Typography>
+                    <Typography>
+                      {copy.weaverProjectionAuditRefsLabel}:{" "}
                       {controlPlane.weaverRuntimeProjection.auditReceiptRefs.join(
                         ", ",
                       ) || "backend audit receipt required"}
                     </Typography>
                     <Typography>
-                      Revocation refs: {" "}
+                      {copy.weaverProjectionRevocationRefsLabel}:{" "}
                       {controlPlane.weaverRuntimeProjection.pendingRevocationRefs.join(
                         ", ",
                       ) || "no pending revocation reported"}
                     </Typography>
                     <Typography>
-                      Eligibility blockers: {controlPlane.weaverEligibilityPreview.blockedReasons.join("; ") || "none"}
+                      {copy.weaverProjectionEligibilityBlockersLabel}:{" "}
+                      {controlPlane.weaverEligibilityPreview.blockedReasons.join(
+                        "; ",
+                      ) || copy.none}
                     </Typography>
                   </Stack>
                   <Stack
@@ -1852,25 +1866,21 @@ export default function App({
                       variant="h2"
                       sx={{ fontSize: "1.35rem", mb: 1 }}
                     >
-                      Weaver distribution policy
+                      {copy.weaverDistributionHeading}
                     </Typography>
                     <Alert severity="info" sx={{ mb: 2 }}>
-                      Admin Console is the source of Weaver Chat, model, tool,
-                      skill, and MCP distribution policy. RuntimeProfile
-                      regeneration is blocked until readiness, migration,
-                      effective policy, revocation, and audit consequences are
-                      visible before apply.
+                      {copy.weaverDistributionDescription}
                     </Alert>
                     <Stack spacing={2}>
                       <FormControl fullWidth>
                         <InputLabel id="weaver-chat-provider-label">
-                          Weaver Chat-domain provider
+                          {copy.weaverChatProviderLabel}
                         </InputLabel>
                         <Select
                           labelId="weaver-chat-provider-label"
                           id="weaver-chat-provider"
                           value={weaverChatProviderDraft}
-                          label="Weaver Chat-domain provider"
+                          label={copy.weaverChatProviderLabel}
                           onChange={(event) => {
                             setWeaverChatProviderDraft(event.target.value);
                             setWeaverPolicyConfirmed(false);
@@ -1887,8 +1897,7 @@ export default function App({
                           ))}
                         </Select>
                         <FormHelperText>
-                          Members keep stable channels.weave-chat; this selects
-                          backend Chat routing/providerRef for profile vNext.
+                          {copy.weaverChatProviderHelper}
                         </FormHelperText>
                       </FormControl>
                       <Alert severity="warning">
@@ -1900,7 +1909,7 @@ export default function App({
                         )}
                       </Alert>
                       <TextField
-                        label="Model aliases (alias=provider/model selectable|locked)"
+                        label={copy.weaverModelAliasesLabel}
                         value={weaverModelsDraft}
                         onChange={(event) => {
                           setWeaverModelsDraft(event.target.value);
@@ -1911,7 +1920,7 @@ export default function App({
                         minRows={4}
                       />
                       <TextField
-                        label="Default model alias"
+                        label={copy.weaverDefaultModelLabel}
                         value={weaverDefaultModelDraft}
                         onChange={(event) => {
                           setWeaverDefaultModelDraft(event.target.value);
@@ -1920,7 +1929,7 @@ export default function App({
                         fullWidth
                       />
                       <TextField
-                        label="Fallback model aliases"
+                        label={copy.weaverFallbackModelsLabel}
                         value={weaverFallbackModelsDraft}
                         onChange={(event) => {
                           setWeaverFallbackModelsDraft(event.target.value);
@@ -1931,19 +1940,19 @@ export default function App({
                         minRows={2}
                       />
                       <TextField
-                        label="Allowed Weaver tools"
+                        label={copy.weaverAllowedToolsLabel}
                         value={weaverToolsDraft}
                         onChange={(event) => {
                           setWeaverToolsDraft(event.target.value);
                           setWeaverPolicyConfirmed(false);
                         }}
-                        helperText="Canonical Weave domain tools only, e.g. chat.search_messages or notifications.create_action_request."
+                        helperText={copy.weaverAllowedToolsHelper}
                         fullWidth
                         multiline
                         minRows={4}
                       />
                       <TextField
-                        label="Allowed Weaver skills"
+                        label={copy.weaverAllowedSkillsLabel}
                         value={weaverSkillsDraft}
                         onChange={(event) => {
                           setWeaverSkillsDraft(event.target.value);
@@ -1954,7 +1963,7 @@ export default function App({
                         minRows={2}
                       />
                       <TextField
-                        label="Allowed MCP servers (server=tool1,tool2 approval-required)"
+                        label={copy.weaverAllowedMcpLabel}
                         value={weaverMcpDraft}
                         onChange={(event) => {
                           setWeaverMcpDraft(event.target.value);
@@ -1967,11 +1976,10 @@ export default function App({
                       <Card variant="outlined">
                         <CardContent>
                           <Typography variant="h3" sx={{ fontSize: "1.05rem" }}>
-                            Admin-bound MCP server registry
+                            {copy.weaverMcpRegistryHeading}
                           </Typography>
                           <Alert severity="info" sx={{ my: 1 }}>
-                            Admins bind Streamable HTTP MCP servers for Weaver here;
-                            members never wire raw MCP endpoints or runtime tokens.
+                            {copy.weaverMcpRegistryDescription}
                           </Alert>
                           <List aria-label="Admin-bound MCP server registry">
                             {controlPlane.mcpServerBindings.map((binding) => (
@@ -1988,7 +1996,7 @@ export default function App({
                       <Card variant="outlined">
                         <CardContent>
                           <Typography variant="h3" sx={{ fontSize: "1.05rem" }}>
-                            Effective RuntimeProfile policy preview
+                            {copy.weaverEffectivePolicyPreviewHeading}
                           </Typography>
                           <List aria-label="Effective Weaver RuntimeProfile policy preview">
                             {weaverEffectiveDraft.effectivePolicyPreview.map(
@@ -2074,7 +2082,7 @@ export default function App({
                             }
                           />
                         }
-                        label="I confirm the effective Weaver policy preview, Chat migration consequences, model fallback order, tool/skill/MCP grants, revocation, and audit refs before apply."
+                        label={copy.weaverPolicyConfirmLabel}
                       />
                       <Stack
                         direction={{ xs: "column", sm: "row" }}
@@ -2085,14 +2093,14 @@ export default function App({
                           disabled={!weaverPolicyConfirmed}
                           onClick={() => void saveWeaverDistributionPolicy()}
                         >
-                          Save Weaver distribution policy
+                          {copy.saveWeaverPolicyButton}
                         </Button>
                         <Button
                           variant="outlined"
                           color="error"
                           onClick={() => void revokeRuntimeProfile()}
                         >
-                          Revoke active RuntimeProfile
+                          {copy.revokeRuntimeProfileButton}
                         </Button>
                       </Stack>
                     </Stack>
@@ -2108,32 +2116,30 @@ export default function App({
                       variant="h2"
                       sx={{ fontSize: "1.35rem", mb: 1 }}
                     >
-                      Policy and whitelist
+                      {copy.policyWhitelistHeading}
                     </Typography>
                     <Alert severity="info" sx={{ mb: 2 }}>
-                      Policy is deny-by-default. Add one canonical Weave
-                      capability per line only after the organization has
-                      approved it.
+                      {copy.policyWhitelistDescription}
                     </Alert>
                     <TextField
-                      label="Allowed capabilities"
+                      label={copy.allowedCapabilitiesLabel}
                       value={policyDraft}
                       onChange={(event) => setPolicyDraft(event.target.value)}
                       fullWidth
                       multiline
                       minRows={5}
-                      helperText="Example: files.read. Do not paste secrets, provider tokens, raw diagnostics, or provider-specific payloads here."
+                      helperText={copy.allowedCapabilitiesHelper}
                     />
                     <Button
                       sx={{ mt: 2 }}
                       variant="contained"
                       onClick={() => void savePolicy()}
                     >
-                      Save whitelist policy
+                      {copy.saveWhitelistPolicyButton}
                     </Button>
                     <Divider sx={{ my: 2 }} />
                     <Typography>
-                      Blocked examples:{" "}
+                      {copy.blockedExamplesLabel}:{" "}
                       {controlPlane.whitelistPolicy.blockedCapabilities.join(
                         ", ",
                       )}
@@ -2150,9 +2156,9 @@ export default function App({
                       variant="h2"
                       sx={{ fontSize: "1.35rem", mb: 1 }}
                     >
-                      SecretRef inventory
+                      {copy.secretRefInventoryHeading}
                     </Typography>
-                    <List aria-label="Support-safe SecretRef handles">
+                    <List aria-label={copy.secretRefInventoryLabel}>
                       {controlPlane.providerCategories
                         .flatMap((category) =>
                           category.secretRefs.map((secretRef) => ({
@@ -2183,9 +2189,9 @@ export default function App({
                     variant="h2"
                     sx={{ fontSize: "1.35rem", mb: 1 }}
                   >
-                    Audit trail
-                  </Typography>
-                  <List aria-label="Recent admin audit events">
+                      {copy.auditTrailHeading}
+                    </Typography>
+                  <List aria-label={copy.auditTrailLabel}>
                     {controlPlane.auditEvents.map((event) => (
                       <ListItem key={event.id} alignItems="flex-start">
                         <ListItemText
@@ -2202,10 +2208,9 @@ export default function App({
 
           <Box component="footer">
             <Typography variant="body2">
-              Need member behavior? Use the provider-agnostic Weave Client.
-              Admin/provider setup belongs here and in backend policy.{" "}
+              {copy.footerText}{" "}
               <Link href="/api/organization/manifest">
-                Organization manifest
+                {copy.organizationManifestLink}
               </Link>
             </Typography>
           </Box>

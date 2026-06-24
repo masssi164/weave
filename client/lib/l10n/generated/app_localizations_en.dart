@@ -355,6 +355,36 @@ class AppLocalizationsEn extends AppLocalizations {
   String get firstRunInviteStatusLabel => 'Invite';
 
   @override
+  String get firstRunRoleOwner => 'Owner';
+
+  @override
+  String get firstRunRoleAdmin => 'Admin';
+
+  @override
+  String get firstRunRoleOperator => 'Operator';
+
+  @override
+  String get firstRunRoleMember => 'Member';
+
+  @override
+  String get firstRunRoleGuest => 'Guest';
+
+  @override
+  String get firstRunRoleUnknown => 'Workspace role';
+
+  @override
+  String get firstRunInviteAccepted => 'Accepted';
+
+  @override
+  String get firstRunInvitePending => 'Pending';
+
+  @override
+  String get firstRunInviteExpired => 'Expired';
+
+  @override
+  String get firstRunInviteUnavailable => 'Unavailable';
+
+  @override
   String get firstRunModuleSectionTitle => 'Module readiness';
 
   @override
@@ -1830,12 +1860,12 @@ class AppLocalizationsEn extends AppLocalizations {
       'Auth configuration changed';
 
   @override
-  String get settingsWorkspaceInvalidationMatrixHomeserverChanged =>
-      'Matrix homeserver changed';
+  String get settingsWorkspaceInvalidationChatConfigurationChanged =>
+      'Chat configuration changed';
 
   @override
-  String get settingsWorkspaceInvalidationNextcloudBaseUrlChanged =>
-      'Nextcloud base URL changed';
+  String get settingsWorkspaceInvalidationFilesConfigurationChanged =>
+      'Files configuration changed';
 
   @override
   String get settingsWorkspaceInvalidationExplicitSignOut =>

@@ -381,6 +381,16 @@
   "firstRunEmailLabel": "Email",
   "firstRunRoleLabel": "Role",
   "firstRunInviteStatusLabel": "Invite",
+  "firstRunRoleOwner": "Owner",
+  "firstRunRoleAdmin": "Admin",
+  "firstRunRoleOperator": "Operator",
+  "firstRunRoleMember": "Member",
+  "firstRunRoleGuest": "Guest",
+  "firstRunRoleUnknown": "Workspace role",
+  "firstRunInviteAccepted": "Accepted",
+  "firstRunInvitePending": "Pending",
+  "firstRunInviteExpired": "Expired",
+  "firstRunInviteUnavailable": "Unavailable",
   "firstRunModuleSectionTitle": "Module readiness",
   "firstRunProfileModuleTitle": "Profile",
   "firstRunChatModuleTitle": "Chat",
@@ -2063,13 +2073,13 @@
   "@settingsWorkspaceInvalidationAuthConfigurationChanged": {
     "description": "Invalidation label for auth configuration changes"
   },
-  "settingsWorkspaceInvalidationMatrixHomeserverChanged": "Matrix homeserver changed",
-  "@settingsWorkspaceInvalidationMatrixHomeserverChanged": {
-    "description": "Invalidation label for Matrix homeserver changes"
+  "settingsWorkspaceInvalidationChatConfigurationChanged": "Chat configuration changed",
+  "@settingsWorkspaceInvalidationChatConfigurationChanged": {
+    "description": "Invalidation label for chat configuration changes"
   },
-  "settingsWorkspaceInvalidationNextcloudBaseUrlChanged": "Nextcloud base URL changed",
-  "@settingsWorkspaceInvalidationNextcloudBaseUrlChanged": {
-    "description": "Invalidation label for Nextcloud base URL changes"
+  "settingsWorkspaceInvalidationFilesConfigurationChanged": "Files configuration changed",
+  "@settingsWorkspaceInvalidationFilesConfigurationChanged": {
+    "description": "Invalidation label for files configuration changes"
   },
   "settingsWorkspaceInvalidationExplicitSignOut": "Explicit sign-out",
   "@settingsWorkspaceInvalidationExplicitSignOut": {

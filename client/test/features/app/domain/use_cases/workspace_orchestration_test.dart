@@ -146,11 +146,11 @@ void main() {
         IntegrationInvalidationReason.explicitSignOut,
       );
       expect(
-        workspaceInvalidationPort.lastReasonFor(WorkspaceIntegration.matrix),
+        workspaceInvalidationPort.lastReasonFor(WorkspaceIntegration.chat),
         IntegrationInvalidationReason.explicitSignOut,
       );
       expect(
-        workspaceInvalidationPort.lastReasonFor(WorkspaceIntegration.nextcloud),
+        workspaceInvalidationPort.lastReasonFor(WorkspaceIntegration.files),
         IntegrationInvalidationReason.explicitSignOut,
       );
       expect(
@@ -208,13 +208,11 @@ void main() {
           IntegrationInvalidationReason.restartSetup,
         );
         expect(
-          workspaceInvalidationPort.lastReasonFor(WorkspaceIntegration.matrix),
+          workspaceInvalidationPort.lastReasonFor(WorkspaceIntegration.chat),
           IntegrationInvalidationReason.restartSetup,
         );
         expect(
-          workspaceInvalidationPort.lastReasonFor(
-            WorkspaceIntegration.nextcloud,
-          ),
+          workspaceInvalidationPort.lastReasonFor(WorkspaceIntegration.files),
           IntegrationInvalidationReason.restartSetup,
         );
         expect(
@@ -254,8 +252,8 @@ void main() {
       expect(chatSessionPort.clearSessionCalls, 1);
       expect(filesSessionPort.disconnectCalls, 0);
       expect(
-        workspaceInvalidationPort.lastReasonFor(WorkspaceIntegration.matrix),
-        IntegrationInvalidationReason.matrixHomeserverChanged,
+        workspaceInvalidationPort.lastReasonFor(WorkspaceIntegration.chat),
+        IntegrationInvalidationReason.chatConfigurationChanged,
       );
     });
 
@@ -285,8 +283,8 @@ void main() {
       expect(chatSessionPort.clearSessionCalls, 0);
       expect(filesSessionPort.disconnectCalls, 1);
       expect(
-        workspaceInvalidationPort.lastReasonFor(WorkspaceIntegration.nextcloud),
-        IntegrationInvalidationReason.nextcloudBaseUrlChanged,
+        workspaceInvalidationPort.lastReasonFor(WorkspaceIntegration.files),
+        IntegrationInvalidationReason.filesConfigurationChanged,
       );
     });
 

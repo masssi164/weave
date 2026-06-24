@@ -804,12 +804,12 @@ void main() {
 
         expect(workspace.shellAccessReady, isTrue);
         expect(
-          workspace.nextcloud.status,
+          workspace.files.status,
           IntegrationConnectionStatus.disconnected,
         );
         expect(
-          workspace.nextcloud.lastInvalidation?.reason,
-          IntegrationInvalidationReason.nextcloudBaseUrlChanged,
+          workspace.files.lastInvalidation?.reason,
+          IntegrationInvalidationReason.filesConfigurationChanged,
         );
         expect(
           capabilities.files.readiness,

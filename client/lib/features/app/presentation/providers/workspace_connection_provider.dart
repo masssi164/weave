@@ -5,10 +5,6 @@ import 'package:weave/features/app/domain/entities/integration_invalidation.dart
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
 import 'package:weave/features/app/presentation/providers/workspace_invalidation_provider.dart';
-import 'package:weave/features/files/domain/entities/files_connection_state.dart';
-import 'package:weave/features/files/domain/entities/files_failure.dart';
-import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
-import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
 import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
 
 final appAuthIntegrationConnectionProvider =
@@ -20,57 +16,6 @@ final appAuthIntegrationConnectionProvider =
       return bootstrap.whenData(
         (state) => _mapAppAuthConnectionState(state, invalidation),
       );
-    });
-
-final matrixIntegrationConnectionProvider =
-    FutureProvider<IntegrationConnectionState>((ref) async {
-      final invalidation = ref.watch(
-        integrationInvalidationProvider(WorkspaceIntegration.matrix),
-      );
-      final configuration = await ref.watch(
-        savedServerConfigurationProvider.future,
-      );
-      if (configuration == null) {
-        return IntegrationConnectionState(
-          integration: WorkspaceIntegration.matrix,
-          status: IntegrationConnectionStatus.misconfigured,
-          recoveryRequirement: IntegrationRecoveryRequirement.completeSetup,
-          lastInvalidation: invalidation,
-        );
-      }
-
-      return IntegrationConnectionState(
-        integration: WorkspaceIntegration.matrix,
-        status: IntegrationConnectionStatus.connected,
-        lastInvalidation: invalidation,
-      );
-    });
-
-final nextcloudIntegrationConnectionProvider =
-    FutureProvider<IntegrationConnectionState>((ref) async {
-      final invalidation = ref.watch(
-        integrationInvalidationProvider(WorkspaceIntegration.nextcloud),
-      );
-      final configuration = await ref.watch(
-        savedServerConfigurationProvider.future,
-      );
-      if (configuration == null) {
-        return IntegrationConnectionState(
-          integration: WorkspaceIntegration.nextcloud,
-          status: IntegrationConnectionStatus.misconfigured,
-          recoveryRequirement: IntegrationRecoveryRequirement.completeSetup,
-          lastInvalidation: invalidation,
-        );
-      }
-
-      try {
-        final connectionState = await ref
-            .watch(filesRepositoryProvider)
-            .restoreConnection();
-        return _mapNextcloudConnectionState(connectionState, invalidation);
-      } on FilesFailure catch (failure) {
-        return _mapNextcloudFailure(failure, invalidation);
-      }
     });
 
 final workspaceConnectionStateProvider =
@@ -92,37 +37,39 @@ final workspaceConnectionStateProvider =
           _mapBackendFacadeConnectionState(
             appAuth: appAuth.requireValue,
             capabilities: backendSnapshot,
-            matrixInvalidation: ref.watch(
-              integrationInvalidationProvider(WorkspaceIntegration.matrix),
+            chatInvalidation: ref.watch(
+              integrationInvalidationProvider(WorkspaceIntegration.chat),
             ),
-            nextcloudInvalidation: ref.watch(
-              integrationInvalidationProvider(WorkspaceIntegration.nextcloud),
+            filesInvalidation: ref.watch(
+              integrationInvalidationProvider(WorkspaceIntegration.files),
             ),
           ),
         );
       }
 
-      final matrix = ref.watch(matrixIntegrationConnectionProvider);
-      final nextcloud = ref.watch(nextcloudIntegrationConnectionProvider);
-
       if (appAuth.hasError) {
         return AsyncError(appAuth.error!, appAuth.stackTrace!);
       }
-      if (matrix.hasError) {
-        return AsyncError(matrix.error!, matrix.stackTrace!);
+      if (backendCapabilities.hasError) {
+        return AsyncError(
+          backendCapabilities.error!,
+          backendCapabilities.stackTrace!,
+        );
       }
-      if (nextcloud.hasError) {
-        return AsyncError(nextcloud.error!, nextcloud.stackTrace!);
-      }
-      if (appAuth.isLoading || matrix.isLoading || nextcloud.isLoading) {
+      if (appAuth.isLoading || backendCapabilities.isLoading) {
         return const AsyncLoading();
       }
 
       return AsyncData(
-        WorkspaceConnectionState(
+        _mapBackendFacadeConnectionState(
           appAuth: appAuth.requireValue,
-          matrix: matrix.requireValue,
-          nextcloud: nextcloud.requireValue,
+          capabilities: _mapBackendFacadeLocalSnapshot(appAuth.requireValue),
+          chatInvalidation: ref.watch(
+            integrationInvalidationProvider(WorkspaceIntegration.chat),
+          ),
+          filesInvalidation: ref.watch(
+            integrationInvalidationProvider(WorkspaceIntegration.files),
+          ),
         ),
       );
     });
@@ -130,20 +77,20 @@ final workspaceConnectionStateProvider =
 WorkspaceConnectionState _mapBackendFacadeConnectionState({
   required IntegrationConnectionState appAuth,
   required WorkspaceCapabilitySnapshot capabilities,
-  IntegrationInvalidation? matrixInvalidation,
-  IntegrationInvalidation? nextcloudInvalidation,
+  IntegrationInvalidation? chatInvalidation,
+  IntegrationInvalidation? filesInvalidation,
 }) {
   return WorkspaceConnectionState(
     appAuth: appAuth,
-    matrix: _mapBackendCapabilityConnection(
-      integration: WorkspaceIntegration.matrix,
+    chat: _mapBackendCapabilityConnection(
+      integration: WorkspaceIntegration.chat,
       capability: capabilities.chat,
-      invalidation: matrixInvalidation,
+      invalidation: chatInvalidation,
     ),
-    nextcloud: _mapBackendCapabilityConnection(
-      integration: WorkspaceIntegration.nextcloud,
+    files: _mapBackendCapabilityConnection(
+      integration: WorkspaceIntegration.files,
       capability: capabilities.files,
-      invalidation: nextcloudInvalidation,
+      invalidation: filesInvalidation,
     ),
   );
 }
@@ -204,20 +151,22 @@ final workspaceCapabilitySnapshotProvider =
         return const AsyncLoading();
       }
 
-      final localSnapshot = _mapWorkspaceCapabilitySnapshot(
-        workspace.requireValue,
-      );
-
       return switch (backendCapabilities) {
         AsyncData(value: final snapshot) => AsyncData(
           snapshot == null
-              ? localSnapshot
+              ? _mapBackendFacadeLocalSnapshot(workspace.requireValue.appAuth)
               : _mergeWorkspaceCapabilitySnapshots(
-                  localSnapshot: localSnapshot,
+                  localSnapshot: _mapBackendFacadeLocalSnapshot(
+                    workspace.requireValue.appAuth,
+                  ),
                   backendSnapshot: snapshot,
                 ),
         ),
-        AsyncLoading() || AsyncError() => AsyncData(localSnapshot),
+        AsyncLoading() => const AsyncLoading(),
+        AsyncError(:final error, :final stackTrace) => AsyncError(
+          error,
+          stackTrace,
+        ),
       };
     });
 
@@ -256,107 +205,6 @@ IntegrationConnectionState _mapAppAuthConnectionState(
       lastInvalidation: invalidation,
     ),
   };
-}
-
-IntegrationConnectionState _mapNextcloudConnectionState(
-  FilesConnectionState connectionState,
-  IntegrationInvalidation? invalidation,
-) {
-  return switch (connectionState.status) {
-    FilesConnectionStatus.misconfigured => IntegrationConnectionState(
-      integration: WorkspaceIntegration.nextcloud,
-      status: IntegrationConnectionStatus.misconfigured,
-      recoveryRequirement: IntegrationRecoveryRequirement.reviewConfiguration,
-      lastInvalidation: invalidation,
-    ),
-    FilesConnectionStatus.disconnected => IntegrationConnectionState(
-      integration: WorkspaceIntegration.nextcloud,
-      status: IntegrationConnectionStatus.disconnected,
-      recoveryRequirement: IntegrationRecoveryRequirement.connect,
-      lastInvalidation: invalidation,
-    ),
-    FilesConnectionStatus.connected => IntegrationConnectionState(
-      integration: WorkspaceIntegration.nextcloud,
-      status: IntegrationConnectionStatus.connected,
-      lastInvalidation: invalidation,
-    ),
-    FilesConnectionStatus.invalid => IntegrationConnectionState(
-      integration: WorkspaceIntegration.nextcloud,
-      status: IntegrationConnectionStatus.requiresReauthentication,
-      recoveryRequirement: IntegrationRecoveryRequirement.reauthenticate,
-      lastInvalidation: invalidation,
-    ),
-  };
-}
-
-IntegrationConnectionState _mapNextcloudFailure(
-  FilesFailure failure,
-  IntegrationInvalidation? invalidation,
-) {
-  return switch (failure.type) {
-    FilesFailureType.configuration => IntegrationConnectionState(
-      integration: WorkspaceIntegration.nextcloud,
-      status: IntegrationConnectionStatus.misconfigured,
-      recoveryRequirement: IntegrationRecoveryRequirement.reviewConfiguration,
-      lastInvalidation: invalidation,
-    ),
-    FilesFailureType.sessionRequired ||
-    FilesFailureType.cancelled => IntegrationConnectionState(
-      integration: WorkspaceIntegration.nextcloud,
-      status: IntegrationConnectionStatus.disconnected,
-      recoveryRequirement: IntegrationRecoveryRequirement.connect,
-      lastInvalidation: invalidation,
-    ),
-    FilesFailureType.invalidCredentials => IntegrationConnectionState(
-      integration: WorkspaceIntegration.nextcloud,
-      status: IntegrationConnectionStatus.requiresReauthentication,
-      recoveryRequirement: IntegrationRecoveryRequirement.reauthenticate,
-      lastInvalidation: invalidation,
-    ),
-    FilesFailureType.unsupportedPlatform => IntegrationConnectionState(
-      integration: WorkspaceIntegration.nextcloud,
-      status: IntegrationConnectionStatus.unavailableOnPlatform,
-      recoveryRequirement: IntegrationRecoveryRequirement.switchPlatform,
-      lastInvalidation: invalidation,
-    ),
-    FilesFailureType.protocol ||
-    FilesFailureType.storage ||
-    FilesFailureType.unknown => IntegrationConnectionState(
-      integration: WorkspaceIntegration.nextcloud,
-      status: IntegrationConnectionStatus.degraded,
-      recoveryRequirement: IntegrationRecoveryRequirement.connect,
-      lastInvalidation: invalidation,
-    ),
-  };
-}
-
-WorkspaceCapabilitySnapshot _mapWorkspaceCapabilitySnapshot(
-  WorkspaceConnectionState connection,
-) {
-  final shellAccess = _mapShellAccessCapability(connection.appAuth);
-
-  return WorkspaceCapabilitySnapshot(
-    shellAccess: shellAccess,
-    chat: _mapServiceCapability(
-      capability: WorkspaceCapability.chat,
-      shellAccess: connection.appAuth,
-      integration: connection.matrix,
-    ),
-    files: _mapServiceCapability(
-      capability: WorkspaceCapability.files,
-      shellAccess: connection.appAuth,
-      integration: connection.nextcloud,
-    ),
-    calendar: _mapFutureCapability(
-      capability: WorkspaceCapability.calendar,
-      shellAccess: connection.appAuth,
-    ),
-    boards: _mapFutureCapability(
-      capability: WorkspaceCapability.boards,
-      shellAccess: connection.appAuth,
-    ),
-    weaver: _mapDisabledPolicyCapability(WorkspaceCapability.weaver),
-  );
 }
 
 WorkspaceCapabilitySnapshot _mapBackendFacadeLocalSnapshot(
@@ -466,70 +314,6 @@ WorkspaceCapabilityState _mapShellAccessCapability(
         recoveryRequirement: appAuth.recoveryRequirement,
       ),
   };
-}
-
-WorkspaceCapabilityState _mapServiceCapability({
-  required WorkspaceCapability capability,
-  required IntegrationConnectionState shellAccess,
-  required IntegrationConnectionState integration,
-}) {
-  if (shellAccess.status != IntegrationConnectionStatus.connected) {
-    return WorkspaceCapabilityState(
-      capability: capability,
-      readiness: WorkspaceCapabilityReadiness.blocked,
-      connectionStatus: integration.status,
-      recoveryRequirement: shellAccess.recoveryRequirement,
-    );
-  }
-
-  return switch (integration.status) {
-    IntegrationConnectionStatus.connected => WorkspaceCapabilityState(
-      capability: capability,
-      readiness: WorkspaceCapabilityReadiness.ready,
-      connectionStatus: integration.status,
-      recoveryRequirement: integration.recoveryRequirement,
-    ),
-    IntegrationConnectionStatus.degraded => WorkspaceCapabilityState(
-      capability: capability,
-      readiness: WorkspaceCapabilityReadiness.degraded,
-      connectionStatus: integration.status,
-      recoveryRequirement: integration.recoveryRequirement,
-    ),
-    IntegrationConnectionStatus.unavailableOnPlatform =>
-      WorkspaceCapabilityState(
-        capability: capability,
-        readiness: WorkspaceCapabilityReadiness.unavailable,
-        connectionStatus: integration.status,
-        recoveryRequirement: integration.recoveryRequirement,
-      ),
-    IntegrationConnectionStatus.disconnected ||
-    IntegrationConnectionStatus.misconfigured ||
-    IntegrationConnectionStatus.requiresReauthentication =>
-      WorkspaceCapabilityState(
-        capability: capability,
-        readiness: WorkspaceCapabilityReadiness.blocked,
-        connectionStatus: integration.status,
-        recoveryRequirement: integration.recoveryRequirement,
-      ),
-  };
-}
-
-WorkspaceCapabilityState _mapFutureCapability({
-  required WorkspaceCapability capability,
-  required IntegrationConnectionState shellAccess,
-}) {
-  if (shellAccess.status != IntegrationConnectionStatus.connected) {
-    return WorkspaceCapabilityState(
-      capability: capability,
-      readiness: WorkspaceCapabilityReadiness.blocked,
-      recoveryRequirement: shellAccess.recoveryRequirement,
-    );
-  }
-
-  return WorkspaceCapabilityState(
-    capability: capability,
-    readiness: WorkspaceCapabilityReadiness.unavailable,
-  );
 }
 
 WorkspaceCapabilityState _mapBackendOwnedCapability({

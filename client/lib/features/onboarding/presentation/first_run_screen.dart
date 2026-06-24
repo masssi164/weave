@@ -281,11 +281,11 @@ class _IdentityCard extends StatelessWidget {
                   ),
                   _DetailRow(
                     label: l10n.firstRunRoleLabel,
-                    value: status.access.primaryRole,
+                    value: _roleLabel(l10n, status.access.primaryRole),
                   ),
                   _DetailRow(
                     label: l10n.firstRunInviteStatusLabel,
-                    value: status.invite.status,
+                    value: _inviteStatusLabel(l10n, status.invite.status),
                   ),
                 ],
               ),
@@ -506,6 +506,27 @@ String _stateLabel(AppLocalizations l10n, FirstRunProvisioningState state) {
     FirstRunProvisioningState.ready => l10n.firstRunStateReady,
     FirstRunProvisioningState.degraded => l10n.firstRunStateDegraded,
     FirstRunProvisioningState.failed => l10n.firstRunStateActionNeeded,
+  };
+}
+
+String _roleLabel(AppLocalizations l10n, String role) {
+  return switch (role.trim().toLowerCase()) {
+    'owner' => l10n.firstRunRoleOwner,
+    'admin' => l10n.firstRunRoleAdmin,
+    'operator' => l10n.firstRunRoleOperator,
+    'member' => l10n.firstRunRoleMember,
+    'guest' => l10n.firstRunRoleGuest,
+    _ => l10n.firstRunRoleUnknown,
+  };
+}
+
+String _inviteStatusLabel(AppLocalizations l10n, String status) {
+  return switch (status.trim().toLowerCase()) {
+    'accepted' || 'active' || 'ready' => l10n.firstRunInviteAccepted,
+    'pending' => l10n.firstRunInvitePending,
+    'expired' => l10n.firstRunInviteExpired,
+    'revoked' || 'disabled' => l10n.firstRunInviteUnavailable,
+    _ => l10n.firstRunInviteUnavailable,
   };
 }
 

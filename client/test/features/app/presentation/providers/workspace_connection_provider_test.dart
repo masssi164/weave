@@ -1,10 +1,7 @@
-import 'dart:async';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
-import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
@@ -83,114 +80,25 @@ void main() {
       );
     });
 
-    test(
-      'maps configured chat readiness without direct Matrix diagnostics',
-      () async {
-        final container = ProviderContainer.test(
-          overrides: [
-            savedServerConfigurationProvider.overrideWith(
-              (ref) async => buildTestConfiguration(),
-            ),
-          ],
-        );
-        addTearDown(container.dispose);
-
-        final state = await container.read(
-          matrixIntegrationConnectionProvider.future,
-        );
-
-        expect(state.status, IntegrationConnectionStatus.connected);
-        expect(state.recoveryRequirement, IntegrationRecoveryRequirement.none);
-      },
-    );
-
-    test('maps invalid Nextcloud credentials into reauthentication', () async {
+    test('propagates backend capability errors instead of local fallback', () {
+      final error = StateError('Backend capabilities failed.');
       final container = ProviderContainer.test(
         overrides: [
-          savedServerConfigurationProvider.overrideWith(
-            (ref) async => buildTestConfiguration(),
+          appBootstrapProvider.overrideWith(
+            () => _FakeAppBootstrap(const BootstrapState.ready()),
           ),
-          filesRepositoryProvider.overrideWithValue(
-            _FakeFilesRepository(
-              connectionState: FilesConnectionState.invalid(
-                baseUrl: Uri.parse('https://files.home.internal'),
-              ),
-            ),
+          weaveApiWorkspaceCapabilitySnapshotProvider.overrideWith(
+            (ref) => throw error,
           ),
         ],
       );
       addTearDown(container.dispose);
 
-      final state = await container.read(
-        nextcloudIntegrationConnectionProvider.future,
-      );
+      final state = container.read(workspaceConnectionStateProvider);
 
-      expect(
-        state.status,
-        IntegrationConnectionStatus.requiresReauthentication,
-      );
-      expect(
-        state.recoveryRequirement,
-        IntegrationRecoveryRequirement.reauthenticate,
-      );
+      expect(state.hasError, isTrue);
+      expect(state.error, same(error));
     });
-
-    test(
-      'maps missing Nextcloud configuration to setup-required without restoring a session',
-      () async {
-        final filesRepository = _FakeFilesRepository(
-          connectionState: const FilesConnectionState.misconfigured(),
-        );
-        final container = ProviderContainer.test(
-          overrides: [
-            savedServerConfigurationProvider.overrideWith((ref) async => null),
-            filesRepositoryProvider.overrideWithValue(filesRepository),
-          ],
-        );
-        addTearDown(container.dispose);
-
-        final state = await container.read(
-          nextcloudIntegrationConnectionProvider.future,
-        );
-
-        expect(state.status, IntegrationConnectionStatus.misconfigured);
-        expect(
-          state.recoveryRequirement,
-          IntegrationRecoveryRequirement.completeSetup,
-        );
-        expect(filesRepository.restoreConnectionCalls, 0);
-      },
-    );
-
-    test(
-      'returns an aggregate error when one integration fails while another is still loading',
-      () {
-        final loadingCompleter = Completer<IntegrationConnectionState>();
-        final error = StateError('App auth failed.');
-        final container = ProviderContainer.test(
-          overrides: [
-            appAuthIntegrationConnectionProvider.overrideWithValue(
-              AsyncError<IntegrationConnectionState>(error, StackTrace.empty),
-            ),
-            matrixIntegrationConnectionProvider.overrideWith(
-              (ref) => loadingCompleter.future,
-            ),
-            nextcloudIntegrationConnectionProvider.overrideWith(
-              (ref) async => const IntegrationConnectionState(
-                integration: WorkspaceIntegration.nextcloud,
-                status: IntegrationConnectionStatus.connected,
-              ),
-            ),
-          ],
-        );
-        addTearDown(container.dispose);
-
-        final state = container.read(workspaceConnectionStateProvider);
-
-        expect(state.hasError, isTrue);
-        expect(state.error, same(error));
-      },
-    );
 
     test(
       'keeps shell access ready when backend facade services are ready',
@@ -233,14 +141,38 @@ void main() {
                 ),
               ),
             ),
+            weaveApiWorkspaceCapabilitySnapshotProvider.overrideWith(
+              (ref) async => const WorkspaceCapabilitySnapshot(
+                shellAccess: WorkspaceCapabilityState(
+                  capability: WorkspaceCapability.shellAccess,
+                  readiness: WorkspaceCapabilityReadiness.ready,
+                ),
+                chat: WorkspaceCapabilityState(
+                  capability: WorkspaceCapability.chat,
+                  readiness: WorkspaceCapabilityReadiness.ready,
+                ),
+                files: WorkspaceCapabilityState(
+                  capability: WorkspaceCapability.files,
+                  readiness: WorkspaceCapabilityReadiness.ready,
+                ),
+                calendar: WorkspaceCapabilityState(
+                  capability: WorkspaceCapability.calendar,
+                  readiness: WorkspaceCapabilityReadiness.unavailable,
+                ),
+                boards: WorkspaceCapabilityState(
+                  capability: WorkspaceCapability.boards,
+                  readiness: WorkspaceCapabilityReadiness.unavailable,
+                ),
+              ),
+            ),
           ],
         );
         addTearDown(container.dispose);
 
         await container.read(appBootstrapProvider.future);
-        await container.read(matrixIntegrationConnectionProvider.future);
-        await container.read(nextcloudIntegrationConnectionProvider.future);
-
+        await container.read(
+          weaveApiWorkspaceCapabilitySnapshotProvider.future,
+        );
         final workspace = container.read(workspaceConnectionStateProvider);
         final capabilities = container.read(
           workspaceCapabilitySnapshotProvider,
@@ -409,11 +341,11 @@ void main() {
         final workspace = container.read(workspaceConnectionStateProvider);
 
         expect(
-          workspace.requireValue.matrix.status,
+          workspace.requireValue.chat.status,
           IntegrationConnectionStatus.connected,
         );
         expect(
-          workspace.requireValue.nextcloud.status,
+          workspace.requireValue.files.status,
           IntegrationConnectionStatus.connected,
         );
         expect(filesRepository.restoreConnectionCalls, 0);

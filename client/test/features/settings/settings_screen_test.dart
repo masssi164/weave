@@ -65,18 +65,18 @@ AsyncValue<WorkspaceConnectionState> _workspaceConnectionState() {
         integration: WorkspaceIntegration.appAuth,
         status: IntegrationConnectionStatus.connected,
       ),
-      matrix: IntegrationConnectionState(
-        integration: WorkspaceIntegration.matrix,
+      chat: IntegrationConnectionState(
+        integration: WorkspaceIntegration.chat,
         status: IntegrationConnectionStatus.degraded,
         recoveryRequirement: IntegrationRecoveryRequirement.completeSetup,
         lastInvalidation: IntegrationInvalidation(
-          integration: WorkspaceIntegration.matrix,
-          reason: IntegrationInvalidationReason.matrixHomeserverChanged,
+          integration: WorkspaceIntegration.chat,
+          reason: IntegrationInvalidationReason.chatConfigurationChanged,
           sequence: 1,
         ),
       ),
-      nextcloud: IntegrationConnectionState(
-        integration: WorkspaceIntegration.nextcloud,
+      files: IntegrationConnectionState(
+        integration: WorkspaceIntegration.files,
         status: IntegrationConnectionStatus.connected,
       ),
     ),
@@ -309,7 +309,10 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.text('Last change: Matrix homeserver changed', findRichText: true),
+        find.text(
+          'Last change: Chat configuration changed',
+          findRichText: true,
+        ),
         findsOneWidget,
       );
       expect(
@@ -1213,20 +1216,11 @@ void main() {
               (ref) => InMemoryPreferencesStore(),
             ),
             appBootstrapProvider.overrideWith(() => bootstrap),
-            matrixIntegrationConnectionProvider.overrideWith(
-              (ref) async => const IntegrationConnectionState(
-                integration: WorkspaceIntegration.matrix,
-                status: IntegrationConnectionStatus.connected,
-              ),
-            ),
-            nextcloudIntegrationConnectionProvider.overrideWith(
-              (ref) async => const IntegrationConnectionState(
-                integration: WorkspaceIntegration.nextcloud,
-                status: IntegrationConnectionStatus.connected,
-              ),
-            ),
             chatSecurityRepositoryProvider.overrideWithValue(
               FakeChatSecurityRepository(),
+            ),
+            weaveApiWorkspaceCapabilitySnapshotProvider.overrideWith(
+              (ref) async => _workspaceCapabilitySnapshot().requireValue,
             ),
             weaveBackendConnectionStateProvider.overrideWithValue(
               WeaveBackendConnectionState.connected,
@@ -1263,10 +1257,6 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(bootstrap.retryCalls, 1);
-        expect(
-          find.text('Shell access and the mapped services are ready.'),
-          findsOneWidget,
-        );
       },
     );
   });
