@@ -558,10 +558,12 @@ void main() {
                     ],
                     'adapterModules': ['identity-realm', 'matrix-auth'],
                     'stableMemberImpactStates': [
-                      'usable',
-                      'disabled',
+                      'available',
+                      'disabled_by_policy',
+                      'not_configured',
                       'degraded',
-                      'policy-blocked',
+                      'unavailable',
+                      'coming_later',
                     ],
                     'adminSelectable': true,
                     'normalMembersConfigureProviders': false,
@@ -625,10 +627,12 @@ void main() {
                     ],
                     'adapterModules': [],
                     'stableMemberImpactStates': [
-                      'usable',
-                      'disabled',
+                      'available',
+                      'disabled_by_policy',
+                      'not_configured',
                       'degraded',
-                      'policy-blocked',
+                      'unavailable',
+                      'coming_later',
                     ],
                     'adminSelectable': true,
                     'normalMembersConfigureProviders': false,
@@ -1002,7 +1006,9 @@ void main() {
             'code': 'office-provider-not-configured',
             'message':
                 'Office launch is fail-closed until the backend provider is configured.',
+            'details': <String, Object?>{},
             'requestId': 'request-123',
+            'supportRef': 'support:request-123',
           }, statusCode: 503);
         }),
       );

@@ -139,7 +139,7 @@ void main() {
             },
           ],
           'readiness': {
-            'impactState': 'usable',
+            'impactState': 'available',
             'memberImpact': 'Weave Chat is available.',
             'diagnosticsRedacted': true,
             'grantedCapabilities': ['chat.message.read'],
@@ -193,7 +193,7 @@ void main() {
           jsonEncode({
             'conversationId': 'chat:recent',
             'readiness': {
-              'impactState': 'usable',
+              'impactState': 'available',
               'memberImpact': 'Weave Chat is available.',
               'diagnosticsRedacted': true,
               'grantedCapabilities': ['chat.message.read'],
@@ -231,7 +231,7 @@ void main() {
       (_) async => http.Response(
         jsonEncode({
           'domain': 'chat',
-          'memberState': 'misconfigured',
+          'memberState': 'not_configured',
           'memberImpact': 'Ask an admin to finish Chat setup.',
           'supportSafe': true,
           'downstreamDiagnosticsExposedToMember': false,
@@ -255,34 +255,46 @@ void main() {
   test('maps server Chat readiness states into adapter states', () {
     expect(
       const openapi.ChatReadiness(
-        memberState: 'ready',
+        memberState: 'available',
         memberImpact: 'Ready.',
       ).toFeatureReadiness().state,
       OpenApiFeatureCapabilityState.available,
     );
     expect(
       const openapi.ChatReadiness(
-        memberState: 'misconfigured',
+        memberState: 'not_configured',
         memberImpact: 'Ask an admin to finish Chat setup.',
       ).toFeatureReadiness().state,
       OpenApiFeatureCapabilityState.notConfigured,
     );
     expect(
       const openapi.ChatReadiness(
-        memberState: 'disabled',
+        memberState: 'disabled_by_policy',
         memberImpact: 'Chat is disabled.',
       ).toFeatureReadiness().state,
-      OpenApiFeatureCapabilityState.disabled,
+      OpenApiFeatureCapabilityState.disabledByPolicy,
     );
     expect(
       const openapi.ChatReadinessResponse(
-        impactState: 'policy-blocked',
+        impactState: 'disabled_by_policy',
         memberImpact: 'Chat is blocked by policy.',
         grantedCapabilities: <String>[],
         diagnosticsRedacted: true,
       ).toFeatureReadiness().state,
       OpenApiFeatureCapabilityState.disabledByPolicy,
     );
+    for (final legacyAlias in <String>[
+      'ready',
+      'usable',
+      'policy_blocked',
+      'policy-blocked',
+      'misconfigured',
+    ]) {
+      expect(
+        OpenApiFeatureCapabilityState.fromApi(legacyAlias),
+        OpenApiFeatureCapabilityState.unknown,
+      );
+    }
   });
 
   test('fails closed when generated Chat payload misses required fields', () {
@@ -293,7 +305,7 @@ void main() {
           'releaseStatus': 'canonical-domain-facade',
           'source': 'weave-backend',
           'readiness': {
-            'impactState': 'usable',
+            'impactState': 'available',
             'memberImpact': 'Weave Chat is available.',
             'diagnosticsRedacted': true,
             'grantedCapabilities': ['chat.message.read'],

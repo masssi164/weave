@@ -166,7 +166,7 @@ class ChatControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.contractVersion").value("chat-domain-facade-v1"))
                 .andExpect(jsonPath("$.domain").value("chat"))
-                .andExpect(jsonPath("$.memberState").value("misconfigured"))
+                .andExpect(jsonPath("$.memberState").value("not_configured"))
                 .andExpect(jsonPath("$.memberClientMayConfigureProvider").value(false))
                 .andExpect(jsonPath("$.providerMapping").doesNotExist())
                 .andExpect(content().string(not(containsString("secretref://"))))
@@ -227,7 +227,7 @@ class ChatControllerTest {
                 .andExpect(jsonPath("$.domain").value("chat"))
                 .andExpect(jsonPath("$.releaseStatus").value("canonical-domain-facade"))
                 .andExpect(jsonPath("$.source").value("weave-chat-domain-facade"))
-                .andExpect(jsonPath("$.readiness.impactState").value("usable"))
+                .andExpect(jsonPath("$.readiness.impactState").value("available"))
                 .andExpect(jsonPath("$.readiness.diagnosticsRedacted").value(true))
                 .andExpect(jsonPath("$.readiness.grantedCapabilities[0]").value("chat.read"))
                 .andExpect(jsonPath("$.conversations[0].id").value("channel-general"))
@@ -586,7 +586,7 @@ class ChatControllerTest {
                         false,
                         true,
                         List.of()),
-                Map.of("domain", "chat", "state", "misconfigured", "diagnosticsExposed", false),
+                Map.of("domain", "chat", "state", "not_configured", "diagnosticsExposed", false),
                 Instant.parse("2026-05-25T08:00:00Z"));
     }
 

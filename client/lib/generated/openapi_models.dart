@@ -262,31 +262,39 @@ class AdminControlPlaneResponse {
 
 class ApiErrorResponse {
   const ApiErrorResponse({
-    this.code,
-    this.details,
-    this.message,
-    this.requestId,
+    required this.code,
+    required this.details,
+    this.memberImpact,
+    required this.message,
+    required this.requestId,
+    required this.supportRef,
   });
 
   factory ApiErrorResponse.fromJson(Map<String, dynamic> json) =>
       ApiErrorResponse(
-        code: json["code"] as String?,
-        details: (json["details"] as Map<String, dynamic>?)
-            ?.cast<String, Object?>(),
-        message: json["message"] as String?,
-        requestId: json["requestId"] as String?,
+        code: json["code"] as String,
+        details: (json["details"] as Map<String, dynamic>)
+            .cast<String, Object?>(),
+        memberImpact: json["memberImpact"] as String?,
+        message: json["message"] as String,
+        requestId: json["requestId"] as String,
+        supportRef: json["supportRef"] as String,
       );
 
-  final String? code;
-  final Map<String, Object?>? details;
-  final String? message;
-  final String? requestId;
+  final String code;
+  final Map<String, Object?> details;
+  final String? memberImpact;
+  final String message;
+  final String requestId;
+  final String supportRef;
 
   Map<String, dynamic> toJson() => {
     "code": _openApiJsonValue(code),
     "details": _openApiJsonValue(details),
+    "memberImpact": _openApiJsonValue(memberImpact),
     "message": _openApiJsonValue(message),
     "requestId": _openApiJsonValue(requestId),
+    "supportRef": _openApiJsonValue(supportRef),
   };
 }
 

@@ -198,8 +198,13 @@
             "description": "Non-secret diagnostic details for this failure.",
             "type": "object"
           },
+          "memberImpact": {
+            "description": "Optional member-facing impact state or recovery hint owned by the backend facade.",
+            "example": "unavailable",
+            "type": "string"
+          },
           "message": {
-            "description": "Operator-facing explanation of what failed.",
+            "description": "Support-safe explanation of what failed.",
             "example": "Bearer authentication is required to access this endpoint.",
             "type": "string"
           },
@@ -207,8 +212,20 @@
             "description": "Correlation identifier for support and log lookup.",
             "example": "8c2f4d7a-4d5f-4f88-92e8-4fcbb81dd527",
             "type": "string"
+          },
+          "supportRef": {
+            "description": "Stable reference members can share with support without provider payloads.",
+            "example": "support:8c2f4d7a-4d5f-4f88-92e8-4fcbb81dd527",
+            "type": "string"
           }
         },
+        "required": [
+          "code",
+          "details",
+          "message",
+          "requestId",
+          "supportRef"
+        ],
         "type": "object"
       },
       "ApprovalReceipt": {
@@ -1766,11 +1783,11 @@
           "readinessState": {
             "description": "Stable product-level Chat state returned to member clients.",
             "enum": [
+              "available",
+              "coming_later",
               "degraded",
-              "disabled",
-              "misconfigured",
-              "policy_blocked",
-              "ready",
+              "disabled_by_policy",
+              "not_configured",
               "unavailable"
             ],
             "type": "string"
@@ -1954,11 +1971,11 @@
           "memberState": {
             "description": "Stable product-level Chat state returned to member clients.",
             "enum": [
+              "available",
+              "coming_later",
               "degraded",
-              "disabled",
-              "misconfigured",
-              "policy_blocked",
-              "ready",
+              "disabled_by_policy",
+              "not_configured",
               "unavailable"
             ],
             "type": "string"
@@ -2000,12 +2017,14 @@
           "impactState": {
             "description": "Stable member impact state.",
             "enum": [
+              "available",
+              "coming_later",
               "degraded",
-              "disabled",
-              "policy-blocked",
-              "usable"
+              "disabled_by_policy",
+              "not_configured",
+              "unavailable"
             ],
-            "example": "usable",
+            "example": "available",
             "type": "string"
           },
           "memberImpact": {
