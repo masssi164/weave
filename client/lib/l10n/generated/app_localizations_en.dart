@@ -32,11 +32,11 @@ class AppLocalizationsEn extends AppLocalizations {
       'Admin setup starts with the identity/IDM category and keeps chat, files, calendar, boards/tasks, meetings/calls, documents/collaboration, and Weaver visible as provider categories before members join.';
 
   @override
-  String get setupServicesStepTitle => 'Review Service Endpoints';
+  String get setupServicesStepTitle => 'Review Backend API';
 
   @override
   String get setupServicesStepDescription =>
-      'Review the current dogfood service endpoints derived from the identity issuer. These provider URLs stay admin/operator configuration, not normal member setup.';
+      'Review the Weave backend API endpoint derived from the organization sign-in issuer. Provider service URLs stay in admin/support diagnostics, not member setup.';
 
   @override
   String get providerCategorySummaryTitle => 'Provider categories';
@@ -2687,6 +2687,17 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get serverConfigurationServicesHelper =>
       'Defaults for Matrix, Nextcloud, and the backend API are derived from the issuer host. Edit them if your services live elsewhere.';
+
+  @override
+  String get serverConfigurationBackendApiHelper =>
+      'The member client stores the Weave backend API endpoint for organization capability and workspace state. Provider service URLs stay in admin/support diagnostics.';
+
+  @override
+  String get serverConfigurationIdentityEndpointTitle => 'Identity endpoint';
+
+  @override
+  String get serverConfigurationIdentityEndpointHelper =>
+      'Provider selection is owned by the Weave Admin Console and backend control plane. This member client stores only canonical Weave endpoints needed to sign in.';
 
   @override
   String get serverConfigurationMatrixLabel => 'Matrix Homeserver URL';

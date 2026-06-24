@@ -76,6 +76,32 @@ final nextcloudIntegrationConnectionProvider =
 final workspaceConnectionStateProvider =
     Provider<AsyncValue<WorkspaceConnectionState>>((ref) {
       final appAuth = ref.watch(appAuthIntegrationConnectionProvider);
+      final backendCapabilities = ref.watch(
+        weaveApiWorkspaceCapabilitySnapshotProvider,
+      );
+
+      if (backendCapabilities case AsyncData(value: final backendSnapshot?)) {
+        if (appAuth.hasError) {
+          return AsyncError(appAuth.error!, appAuth.stackTrace!);
+        }
+        if (appAuth.isLoading) {
+          return const AsyncLoading();
+        }
+
+        return AsyncData(
+          _mapBackendFacadeConnectionState(
+            appAuth: appAuth.requireValue,
+            capabilities: backendSnapshot,
+            matrixInvalidation: ref.watch(
+              integrationInvalidationProvider(WorkspaceIntegration.matrix),
+            ),
+            nextcloudInvalidation: ref.watch(
+              integrationInvalidationProvider(WorkspaceIntegration.nextcloud),
+            ),
+          ),
+        );
+      }
+
       final matrix = ref.watch(matrixIntegrationConnectionProvider);
       final nextcloud = ref.watch(nextcloudIntegrationConnectionProvider);
 
@@ -101,13 +127,76 @@ final workspaceConnectionStateProvider =
       );
     });
 
+WorkspaceConnectionState _mapBackendFacadeConnectionState({
+  required IntegrationConnectionState appAuth,
+  required WorkspaceCapabilitySnapshot capabilities,
+  IntegrationInvalidation? matrixInvalidation,
+  IntegrationInvalidation? nextcloudInvalidation,
+}) {
+  return WorkspaceConnectionState(
+    appAuth: appAuth,
+    matrix: _mapBackendCapabilityConnection(
+      integration: WorkspaceIntegration.matrix,
+      capability: capabilities.chat,
+      invalidation: matrixInvalidation,
+    ),
+    nextcloud: _mapBackendCapabilityConnection(
+      integration: WorkspaceIntegration.nextcloud,
+      capability: capabilities.files,
+      invalidation: nextcloudInvalidation,
+    ),
+  );
+}
+
+IntegrationConnectionState _mapBackendCapabilityConnection({
+  required WorkspaceIntegration integration,
+  required WorkspaceCapabilityState capability,
+  IntegrationInvalidation? invalidation,
+}) {
+  if (invalidation != null) {
+    return IntegrationConnectionState(
+      integration: integration,
+      status: IntegrationConnectionStatus.disconnected,
+      recoveryRequirement: IntegrationRecoveryRequirement.reviewConfiguration,
+      lastInvalidation: invalidation,
+    );
+  }
+
+  return switch (capability.readiness) {
+    WorkspaceCapabilityReadiness.ready ||
+    WorkspaceCapabilityReadiness.degraded ||
+    WorkspaceCapabilityReadiness.unavailable ||
+    WorkspaceCapabilityReadiness.blocked => IntegrationConnectionState(
+      integration: integration,
+      status: IntegrationConnectionStatus.connected,
+    ),
+  };
+}
+
 final workspaceCapabilitySnapshotProvider =
     Provider<AsyncValue<WorkspaceCapabilitySnapshot>>((ref) {
-      final workspace = ref.watch(workspaceConnectionStateProvider);
       final backendCapabilities = ref.watch(
         weaveApiWorkspaceCapabilitySnapshotProvider,
       );
+      final appAuth = ref.watch(appAuthIntegrationConnectionProvider);
 
+      if (backendCapabilities case AsyncData(value: final backendSnapshot?)) {
+        if (appAuth.hasError) {
+          return AsyncError(appAuth.error!, appAuth.stackTrace!);
+        }
+        if (appAuth.isLoading) {
+          return const AsyncLoading();
+        }
+
+        return AsyncData(
+          _mergeWorkspaceCapabilitySnapshots(
+            localSnapshot: _mapBackendFacadeLocalSnapshot(appAuth.requireValue),
+            backendSnapshot: backendSnapshot,
+          ),
+        );
+      }
+
+      final workspace = ref.watch(workspaceConnectionStateProvider);
       if (workspace.hasError) {
         return AsyncError(workspace.error!, workspace.stackTrace!);
       }
@@ -270,6 +359,33 @@ WorkspaceCapabilitySnapshot _mapWorkspaceCapabilitySnapshot(
   );
 }
 
+WorkspaceCapabilitySnapshot _mapBackendFacadeLocalSnapshot(
+  IntegrationConnectionState appAuth,
+) {
+  final shellAccess = _mapShellAccessCapability(appAuth);
+
+  return WorkspaceCapabilitySnapshot(
+    shellAccess: shellAccess,
+    chat: _mapBackendOwnedCapability(
+      capability: WorkspaceCapability.chat,
+      shellAccess: appAuth,
+    ),
+    files: _mapBackendOwnedCapability(
+      capability: WorkspaceCapability.files,
+      shellAccess: appAuth,
+    ),
+    calendar: _mapBackendOwnedCapability(
+      capability: WorkspaceCapability.calendar,
+      shellAccess: appAuth,
+    ),
+    boards: _mapBackendOwnedCapability(
+      capability: WorkspaceCapability.boards,
+      shellAccess: appAuth,
+    ),
+    weaver: _mapDisabledPolicyCapability(WorkspaceCapability.weaver),
+  );
+}
+
 WorkspaceCapabilitySnapshot _mergeWorkspaceCapabilitySnapshots({
   required WorkspaceCapabilitySnapshot localSnapshot,
   required WorkspaceCapabilitySnapshot backendSnapshot,
@@ -414,6 +530,25 @@ WorkspaceCapabilityState _mapFutureCapability({
   return WorkspaceCapabilityState(
     capability: capability,
     readiness: WorkspaceCapabilityReadiness.unavailable,
+  );
+}
+
+WorkspaceCapabilityState _mapBackendOwnedCapability({
+  required WorkspaceCapability capability,
+  required IntegrationConnectionState shellAccess,
+}) {
+  if (shellAccess.status != IntegrationConnectionStatus.connected) {
+    return WorkspaceCapabilityState(
+      capability: capability,
+      readiness: WorkspaceCapabilityReadiness.blocked,
+      recoveryRequirement: shellAccess.recoveryRequirement,
+    );
+  }
+
+  return WorkspaceCapabilityState(
+    capability: capability,
+    readiness: WorkspaceCapabilityReadiness.ready,
+    connectionStatus: IntegrationConnectionStatus.connected,
   );
 }
 

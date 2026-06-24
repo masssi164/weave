@@ -7,8 +7,8 @@
   "setupTitle": "Weave beitreten",
   "setupProviderStepTitle": "Provider-Kategorien konfigurieren",
   "setupProviderStepDescription": "Die Admin-Einrichtung beginnt mit der Kategorie Identität/IDM und hält Chat, Dateien, Kalender, Boards/Aufgaben, Besprechungen/Anrufe, Dokumente/Zusammenarbeit und Weaver als Provider-Kategorien sichtbar, bevor Mitglieder beitreten.",
-  "setupServicesStepTitle": "Dienstendpunkte prüfen",
-  "setupServicesStepDescription": "Prüfe die aktuellen Dogfood-Service-Endpunkte, die aus dem Identitäts-Issuer abgeleitet wurden. Diese Provider-URLs bleiben Admin-/Operator-Konfiguration, nicht normale Mitglieder-Einrichtung.",
+  "setupServicesStepTitle": "Backend-API prüfen",
+  "setupServicesStepDescription": "Prüfe den Weave-Backend-API-Endpunkt, der aus dem Organisations-Login abgeleitet wurde. Provider-Service-URLs bleiben in Admin-/Support-Diagnosen, nicht in der Mitglieder-Einrichtung.",
   "providerCategorySummaryTitle": "Provider-Kategorien",
   "@providerCategorySummaryTitle": {
     "description": "Titel der Provider-Kategorien-Zusammenfassung für Admins in Einrichtung und Workspace Health"
@@ -804,6 +804,9 @@
   "serverConfigurationClientIdHelper": "Gib die public/native Client-ID ein, die für Weave bei diesem Issuer registriert ist.",
   "serverConfigurationServicesLabel": "Dienstendpunkte",
   "serverConfigurationServicesHelper": "Standardwerte für Matrix, Nextcloud und die Backend-API werden aus dem Issuer-Host abgeleitet. Ändere sie, wenn deine Dienste anderswo liegen.",
+  "serverConfigurationBackendApiHelper": "Der Mitglieder-Client speichert den Weave-Backend-API-Endpunkt für Organisationsfunktionen und Workspace-Status. Provider-Service-URLs bleiben in Admin-/Support-Diagnosen.",
+  "serverConfigurationIdentityEndpointTitle": "Identitätsendpunkt",
+  "serverConfigurationIdentityEndpointHelper": "Provider-Auswahl gehört in die Weave Admin Console und Backend-Control-Plane. Dieser Mitglieder-Client speichert nur kanonische Weave-Endpunkte für die Anmeldung.",
   "serverConfigurationMatrixLabel": "Matrix-Homeserver-URL",
   "serverConfigurationNextcloudLabel": "Nextcloud-Basis-URL",
   "serverConfigurationBackendApiLabel": "Backend-API-Basis-URL",
