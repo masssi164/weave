@@ -128,10 +128,10 @@ export type GeneratedChatReadiness = {
 };
 
 export type GeneratedChatReadinessResponse = {
-  "diagnosticsRedacted"?: boolean;
-  "grantedCapabilities"?: string[];
-  "impactState"?: "degraded" | "disabled" | "policy-blocked" | "usable";
-  "memberImpact"?: string;
+  "diagnosticsRedacted": boolean;
+  "grantedCapabilities": string[];
+  "impactState": "degraded" | "disabled" | "policy-blocked" | "usable";
+  "memberImpact": string;
 };
 
 export type GeneratedConsequencePreview = {

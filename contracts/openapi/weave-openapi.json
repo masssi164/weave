@@ -1434,6 +1434,11 @@
             "type": "boolean"
           }
         },
+        "required": [
+          "attachmentRefsSupported",
+          "maxAttachmentRefs",
+          "rawProviderMediaUrlsExposed"
+        ],
         "type": "object"
       },
       "ChatConversationResponse": {
@@ -1482,6 +1487,16 @@
             "type": "string"
           }
         },
+        "required": [
+          "attachmentPolicy",
+          "availableActions",
+          "contextId",
+          "historyPolicy",
+          "id",
+          "kind",
+          "membership",
+          "title"
+        ],
         "type": "object"
       },
       "ChatConversationsResponse": {
@@ -1512,6 +1527,13 @@
             "type": "string"
           }
         },
+        "required": [
+          "conversations",
+          "domain",
+          "readiness",
+          "releaseStatus",
+          "source"
+        ],
         "type": "object"
       },
       "ChatHistoryPolicy": {
@@ -1561,6 +1583,12 @@
             "type": "string"
           }
         },
+        "required": [
+          "backendReadable",
+          "encryptedProviderContentRedacted",
+          "policyKey",
+          "visibility"
+        ],
         "type": "object"
       },
       "ChatMembershipResponse": {
@@ -1582,6 +1610,11 @@
             "type": "string"
           }
         },
+        "required": [
+          "principalRef",
+          "role",
+          "state"
+        ],
         "type": "object"
       },
       "ChatMessageResponse": {
@@ -1637,6 +1670,16 @@
             "type": "string"
           }
         },
+        "required": [
+          "attachmentRefs",
+          "conversationId",
+          "deliveryEvidence",
+          "encryptedProviderContentRedacted",
+          "id",
+          "isMine",
+          "senderRef",
+          "sentAt"
+        ],
         "type": "object"
       },
       "ChatMessagesResponse": {
@@ -1657,6 +1700,11 @@
             "$ref": "#/components/schemas/ChatReadinessResponse"
           }
         },
+        "required": [
+          "conversationId",
+          "messages",
+          "readiness"
+        ],
         "type": "object"
       },
       "ChatMigrationPreflightRequest": {
@@ -1965,6 +2013,12 @@
             "type": "string"
           }
         },
+        "required": [
+          "diagnosticsRedacted",
+          "grantedCapabilities",
+          "impactState",
+          "memberImpact"
+        ],
         "type": "object"
       },
       "ChatSendMessageRequest": {
@@ -3377,6 +3431,13 @@
             "type": "string"
           }
         },
+        "required": [
+          "downloadable",
+          "id",
+          "name",
+          "path",
+          "type"
+        ],
         "type": "object"
       },
       "FileListResponse": {
@@ -3398,6 +3459,10 @@
             "$ref": "#/components/schemas/FileQuotaResponse"
           }
         },
+        "required": [
+          "items",
+          "path"
+        ],
         "type": "object"
       },
       "FileQuotaResponse": {
@@ -3425,6 +3490,9 @@
             "$ref": "#/components/schemas/FileItemResponse"
           }
         },
+        "required": [
+          "item"
+        ],
         "type": "object"
       },
       "GoLiveReadinessResponse": {

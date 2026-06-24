@@ -181,6 +181,67 @@ void main() {
     );
 
     test(
+      'fails closed when OpenAPI files response misses item identity',
+      () async {
+        final client = MockClient(
+          (_) async => http.Response(
+            jsonEncode({
+              'path': '/Team',
+              'items': [
+                {
+                  'name': 'readme.md',
+                  'path': '/Team/readme.md',
+                  'type': 'file',
+                },
+              ],
+            }),
+            200,
+          ),
+        );
+
+        await expectLater(
+          repository(client).listDirectory('/Team'),
+          throwsA(
+            isA<FilesFailure>()
+                .having(
+                  (failure) => failure.type,
+                  'type',
+                  FilesFailureType.protocol,
+                )
+                .having(
+                  (failure) => failure.message,
+                  'message',
+                  contains('invalid files listing'),
+                ),
+          ),
+        );
+      },
+    );
+
+    test('fails closed when OpenAPI files response misses items', () async {
+      final client = MockClient(
+        (_) async => http.Response(jsonEncode({'path': '/Team'}), 200),
+      );
+
+      await expectLater(
+        repository(client).listDirectory('/Team'),
+        throwsA(
+          isA<FilesFailure>()
+              .having(
+                (failure) => failure.type,
+                'type',
+                FilesFailureType.protocol,
+              )
+              .having(
+                (failure) => failure.message,
+                'message',
+                contains('invalid files listing'),
+              ),
+        ),
+      );
+    });
+
+    test(
       'creates folders, prepares downloads, and deletes via backend endpoints',
       () async {
         final requests = <http.Request>[];

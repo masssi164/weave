@@ -59,6 +59,55 @@ void main() {
     expect(client, isNot(contains('UserProfileDto.fromJson')));
   });
 
+  test(
+    'Chat and Files facades map generated OpenAPI DTOs in data only',
+    () async {
+      final chatRepository = await File(
+        'lib/features/chat/data/repositories/backend_chat_repository.dart',
+      ).readAsString();
+      final chatMapper = await File(
+        'lib/features/chat/data/dtos/chat_openapi_mappers.dart',
+      ).readAsString();
+      final filesRepository = await File(
+        'lib/features/files/data/repositories/backend_files_repository.dart',
+      ).readAsString();
+      final filesMapper = await File(
+        'lib/features/files/data/dtos/files_openapi_mappers.dart',
+      ).readAsString();
+
+      expect(chatRepository, contains('openapi.ChatConversationsResponse'));
+      expect(chatRepository, contains('openapi.ChatMessagesResponse'));
+      expect(chatRepository, contains('openapi.ChatSendMessageRequest'));
+      expect(chatMapper, contains('openapi.ChatConversationResponse'));
+      expect(chatMapper, contains('OpenApiResourcePage<ChatConversation>'));
+      expect(chatMapper, isNot(contains('Matrix')));
+
+      expect(filesRepository, contains('openapi.FileListResponse'));
+      expect(filesRepository, contains('openapi.FileItemResponse'));
+      expect(filesRepository, contains('openapi.CreateFolderRequest'));
+      expect(filesMapper, contains('openapi.FileListResponse'));
+      expect(filesMapper, contains('OpenApiResourcePage<FileEntry>'));
+      expect(filesMapper, isNot(contains('Nextcloud')));
+
+      final featureBoundaryFiles = <String>[
+        'lib/features/chat/domain',
+        'lib/features/chat/presentation',
+        'lib/features/files/domain',
+        'lib/features/files/presentation',
+      ].expand(_dartFilesUnder);
+
+      for (final file in featureBoundaryFiles) {
+        final source = await File(file).readAsString();
+        expect(
+          source,
+          isNot(contains('generated/openapi_models.dart')),
+          reason:
+              '$file must consume feature domain models, not raw OpenAPI DTOs.',
+        );
+      }
+    },
+  );
+
   test('workspace API DTOs use generated OpenAPI response models', () async {
     final client = await File(
       'lib/integrations/weave_api/data/services/weave_api_client.dart',
@@ -188,4 +237,12 @@ void main() {
       expect(memberChatCopy, isNot(contains(forbidden)), reason: forbidden);
     }
   });
+}
+
+Iterable<String> _dartFilesUnder(String directoryPath) {
+  return Directory(directoryPath)
+      .listSync(recursive: true)
+      .whereType<File>()
+      .where((file) => file.path.endsWith('.dart'))
+      .map((file) => file.path.replaceAll(r'\', '/'));
 }
