@@ -556,9 +556,9 @@ final _rawProviderReachabilityPatterns = <RegExp>[
   RegExp(r'nextcloud[A-Z_a-z]'),
   RegExp(r'Matrix[A-Z_a-z]'),
   RegExp(r'matrix[A-Z_a-z]'),
-  RegExp(r'\bCalDAV\b|\bcaldav[A-Z_a-z]'),
-  RegExp(r'\bOpenProject\b|\bopenproject\b'),
-  RegExp(r'\bLiveKit\b|\blivekit[A-Z_a-z]'),
+  RegExp(r'\bCalDAV\b|\bcaldav[A-Z_a-z]|\bcalDav[A-Z_a-z]'),
+  RegExp(r'\bOpenProject\b|\bopenproject\b|\bopenProject[A-Z_a-z]'),
+  RegExp(r'\bLiveKit\b|\blivekit[A-Z_a-z]|\bliveKit[A-Z_a-z]'),
   RegExp(
     r'import .*integrations/(?:nextcloud|matrix|caldav|openproject|livekit)',
   ),
@@ -708,7 +708,9 @@ bool _isResponseDtoAllowed(String path, String className) {
     final pathMatches =
         fence.path == normalized || normalized.startsWith(fence.path);
     if (!pathMatches) return false;
-    return fence.classNames == null || fence.classNames!.contains(className);
+    return fence.classNames != null &&
+        fence.classNames!.isNotEmpty &&
+        fence.classNames!.contains(className);
   });
 }
 
