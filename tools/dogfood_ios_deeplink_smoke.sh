@@ -19,6 +19,7 @@ fail() {
 [[ "${BUILD_MODE}" == "profile" || "${BUILD_MODE}" == "release" ]] || fail "WEAVE_IOS_BUILD_MODE must be profile or release"
 
 mkdir -p "${EVIDENCE_DIR}"
+EVIDENCE_DIR="$(cd "${EVIDENCE_DIR}" && pwd)"
 
 (
   cd "${CLIENT_DIR}"
@@ -27,6 +28,19 @@ mkdir -p "${EVIDENCE_DIR}"
   xcrun devicectl device info apps --device "${DEVICE_ID}" --bundle-id com.massimotter.weave --json-output "${EVIDENCE_DIR}/ios-installed-app.json" >/dev/null
   xcrun devicectl device process launch --device "${DEVICE_ID}" --terminate-existing --payload-url "${DEEPLINK}" com.massimotter.weave
 )
+
+sleep "${WEAVE_IOS_HANDOFF_SETTLE_SECONDS:-3}"
+
+mkdir -p "${EVIDENCE_DIR}/appdata"
+xcrun devicectl device copy from \
+  --device "${DEVICE_ID}" \
+  --domain-type appDataContainer \
+  --domain-identifier com.massimotter.weave \
+  --source Library/Preferences/com.massimotter.weave.plist \
+  --destination "${EVIDENCE_DIR}/appdata/com.massimotter.weave.plist" >/dev/null
+plutil -p "${EVIDENCE_DIR}/appdata/com.massimotter.weave.plist" > "${EVIDENCE_DIR}/ios-app-preferences.txt"
+grep -q "last_handoff_consumed_v1" "${EVIDENCE_DIR}/ios-app-preferences.txt" \
+  || fail "last_handoff_consumed_v1 was not written after deeplink launch"
 
 cat > "${EVIDENCE_DIR}/ios-deeplink-smoke.json" <<JSON
 {
@@ -42,3 +56,4 @@ JSON
 
 echo "ios_install_evidence=${EVIDENCE_DIR}/ios-installed-app.json"
 echo "ios_smoke_evidence=${EVIDENCE_DIR}/ios-deeplink-smoke.json"
+echo "ios_preferences_evidence=${EVIDENCE_DIR}/ios-app-preferences.txt"
