@@ -4114,4 +4114,9 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get memberHandoffErrorGuidance =>
       'Die Einladung ist möglicherweise abgelaufen, unvollständig oder noch nicht bereit. Bitte deinen Workspace-Admin um eine neue Einladung oder Organisations-Anmelde-URL.';
+
+  @override
+  String memberHandoffErrorCode(String code) {
+    return 'Fehlercode: $code';
+  }
 }

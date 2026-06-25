@@ -4808,5 +4808,14 @@
   "memberHandoffErrorGuidance": "The invite may be expired, incomplete, or not ready yet. Ask your workspace admin for a fresh invite or organization sign-in link.",
   "@memberHandoffErrorGuidance": {
     "description": "Support-safe guidance when member handoff consumption fails"
+  },
+  "memberHandoffErrorCode": "Error code: {code}",
+  "@memberHandoffErrorCode": {
+    "description": "Support-safe handoff failure code shown with the member handoff error",
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
   }
 }

@@ -4057,4 +4057,9 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get memberHandoffErrorGuidance =>
       'The invite may be expired, incomplete, or not ready yet. Ask your workspace admin for a fresh invite or organization sign-in link.';
+
+  @override
+  String memberHandoffErrorCode(String code) {
+    return 'Error code: $code';
+  }
 }

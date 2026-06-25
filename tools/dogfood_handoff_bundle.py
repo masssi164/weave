@@ -140,7 +140,7 @@ def main() -> int:
     parser.add_argument("--workspace", default="home")
     parser.add_argument("--profile", default="local-lan-dogfood")
     parser.add_argument("--product-base-url", default="https://weave.test:44443")
-    parser.add_argument("--platform-config-url", default="https://api.weave.test:44443/api/platform/config")
+    parser.add_argument("--platform-config-url", default="https://weave.test:44443/api/platform/config")
     parser.add_argument("--ca-url", default="http://weave.test:44080/weave-local-ca.pem")
     parser.add_argument("--ca-lan-fallback-url", default="http://192.168.178.88:44080/weave-local-ca.pem")
     parser.add_argument("--cert-dir", type=Path, default=DEFAULT_CERT_DIR)

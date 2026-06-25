@@ -6617,6 +6617,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The invite may be expired, incomplete, or not ready yet. Ask your workspace admin for a fresh invite or organization sign-in link.'**
   String get memberHandoffErrorGuidance;
+
+  /// Support-safe handoff failure code shown with the member handoff error
+  ///
+  /// In en, this message translates to:
+  /// **'Error code: {code}'**
+  String memberHandoffErrorCode(String code);
 }
 
 class _AppLocalizationsDelegate

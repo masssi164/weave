@@ -1416,5 +1416,14 @@
   "memberHandoffErrorGuidance": "Die Einladung ist möglicherweise abgelaufen, unvollständig oder noch nicht bereit. Bitte deinen Workspace-Admin um eine neue Einladung oder Organisations-Anmelde-URL.",
   "@memberHandoffErrorGuidance": {
     "description": "Support-safe guidance when member handoff consumption fails"
+  },
+  "memberHandoffErrorCode": "Fehlercode: {code}",
+  "@memberHandoffErrorCode": {
+    "description": "Support-safe handoff failure code shown with the member handoff error",
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
   }
 }

@@ -24,7 +24,13 @@ class ConsumeMemberHandoff {
   final PreferencesStore? _evidenceStore;
 
   Future<MemberHandoff> call(Uri uri) async {
-    final handoff = const MemberHandoffParser().parse(uri);
+    final MemberHandoff handoff;
+    try {
+      handoff = const MemberHandoffParser().parse(uri);
+    } catch (error) {
+      await _recordRawHandoffFailure(uri, error);
+      rethrow;
+    }
     try {
       final appStart = await _discoveryClient.fetch(handoff);
       await _repository.saveConfiguration(
@@ -46,7 +52,8 @@ class ConsumeMemberHandoff {
       await _recordHandoffEvidence(
         handoff,
         result: 'failed',
-        errorCode: _supportSafeErrorCode(error),
+        errorCode: supportSafeHandoffErrorCode(error),
+        phase: _supportSafeFailurePhase(error),
       );
       rethrow;
     }
@@ -57,12 +64,34 @@ class ConsumeMemberHandoff {
     MemberHandoff handoff, {
     required String result,
     String? errorCode,
+    String? phase,
   }) async {
     await _evidenceStore?.setString(
       lastHandoffConsumedStorageKey,
       jsonEncode(
-        _handoffEvidence(handoff, result: result, errorCode: errorCode),
+        _handoffEvidence(
+          handoff,
+          result: result,
+          errorCode: errorCode,
+          phase: phase,
+        ),
       ),
+    );
+  }
+
+  Future<void> _recordRawHandoffFailure(Uri uri, Object error) async {
+    await _evidenceStore?.setString(
+      lastHandoffConsumedStorageKey,
+      jsonEncode(<String, Object>{
+        'schemaVersion': 'weave.client.last_handoff_consumed.v1',
+        'recordedAt': DateTime.now().toUtc().toIso8601String(),
+        'result': 'failed',
+        'phase': 'parse',
+        'inviteScheme': uri.scheme,
+        'inviteHost': uri.host,
+        'errorCode': supportSafeHandoffErrorCode(error),
+        'supportSafe': true,
+      }),
     );
   }
 
@@ -70,6 +99,7 @@ class ConsumeMemberHandoff {
     MemberHandoff handoff, {
     required String result,
     String? errorCode,
+    String? phase,
   }) {
     return <String, Object>{
       'schemaVersion': 'weave.client.last_handoff_consumed.v1',
@@ -83,21 +113,30 @@ class ConsumeMemberHandoff {
       'platformConfigPath': handoff.platformConfigUrl.path,
       'result': result,
       if (errorCode != null) 'errorCode': errorCode,
+      if (phase != null) 'phase': phase,
       'supportSafe': true,
     };
   }
 
-  String _supportSafeErrorCode(Object error) {
-    if (error is AppFailure) {
-      final message = error.message;
-      final separator = message.indexOf(':');
-      return separator > 0 ? message.substring(0, separator) : message;
+  String _supportSafeFailurePhase(Object error) {
+    final code = supportSafeHandoffErrorCode(error);
+    if (code.startsWith('WEAVE-APP-START-')) {
+      return 'app_start_discovery';
     }
-    return error.runtimeType.toString();
+    return 'save_configuration';
   }
 }
 
 const lastHandoffConsumedStorageKey = 'last_handoff_consumed_v1';
+
+String supportSafeHandoffErrorCode(Object error) {
+  if (error is AppFailure) {
+    final message = error.message;
+    final separator = message.indexOf(':');
+    return separator > 0 ? message.substring(0, separator) : message;
+  }
+  return error.runtimeType.toString();
+}
 
 class AppStartConfiguration {
   const AppStartConfiguration({
@@ -122,14 +161,31 @@ class AppStartDiscoveryClient {
   final http.Client _httpClient;
 
   Future<AppStartConfiguration> fetch(MemberHandoff handoff) async {
-    final response = await _httpClient.get(
-      handoff.platformConfigUrl,
-      headers: {
-        'Accept': 'application/json',
-        'X-Weave-Handoff-Ref': handoff.handoffRef,
-        'X-Weave-Handoff-Run-Id': handoff.runId,
-      },
-    );
+    final primaryUri = handoff.platformConfigUrl;
+    try {
+      return await _fetchFrom(primaryUri, handoff);
+    } on AppFailure catch (error) {
+      final fallbackUri = _productOriginPlatformConfigUrl(handoff);
+      if (!_shouldRetryOnProductOrigin(error, primaryUri, fallbackUri)) {
+        rethrow;
+      }
+      return _fetchFrom(fallbackUri, handoff);
+    }
+  }
+
+  Future<AppStartConfiguration> _fetchFrom(
+    Uri uri,
+    MemberHandoff handoff,
+  ) async {
+    final http.Response response;
+    try {
+      response = await _httpClient.get(uri, headers: _headers(handoff));
+    } catch (error) {
+      throw AppFailure.bootstrap(
+        '${_transportErrorCode(error)}: The workspace start configuration could not be reached.',
+        cause: error,
+      );
+    }
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw AppFailure.bootstrap(
         'WEAVE-APP-START-DISCOVERY-FAILED: The workspace start configuration could not be loaded.',
@@ -139,6 +195,62 @@ class AppStartDiscoveryClient {
 
     final payload = _decodeJsonObject(response.body);
     return _configurationFromJson(payload, handoff);
+  }
+
+  Map<String, String> _headers(MemberHandoff handoff) => {
+    'Accept': 'application/json',
+    'X-Weave-Handoff-Ref': handoff.handoffRef,
+    'X-Weave-Handoff-Run-Id': handoff.runId,
+  };
+
+  Uri _productOriginPlatformConfigUrl(MemberHandoff handoff) => Uri(
+    scheme: handoff.productBaseUrl.scheme,
+    host: handoff.productBaseUrl.host,
+    port: handoff.productBaseUrl.hasPort ? handoff.productBaseUrl.port : null,
+    path: '/api/platform/config',
+  );
+
+  bool _shouldRetryOnProductOrigin(
+    AppFailure error,
+    Uri primaryUri,
+    Uri fallbackUri,
+  ) {
+    if (primaryUri == fallbackUri) {
+      return false;
+    }
+    final code = _errorCode(error);
+    return code == 'WEAVE-APP-START-DNS-FAILED' ||
+        code == 'WEAVE-APP-START-TLS-FAILED' ||
+        code == 'WEAVE-APP-START-NETWORK-FAILED' ||
+        code == 'WEAVE-APP-START-TIMEOUT';
+  }
+
+  String _errorCode(AppFailure error) {
+    final separator = error.message.indexOf(':');
+    return separator > 0
+        ? error.message.substring(0, separator)
+        : error.message;
+  }
+
+  String _transportErrorCode(Object error) {
+    final type = error.runtimeType.toString();
+    final message = error.toString().toLowerCase();
+    if (type.contains('TimeoutException')) {
+      return 'WEAVE-APP-START-TIMEOUT';
+    }
+    if (type.contains('HandshakeException') ||
+        message.contains('certificate') ||
+        message.contains('cert_verify') ||
+        message.contains('trust')) {
+      return 'WEAVE-APP-START-TLS-FAILED';
+    }
+    if (type.contains('SocketException') ||
+        message.contains('failed host lookup') ||
+        message.contains('nodename nor servname') ||
+        message.contains('name or service not known')) {
+      return 'WEAVE-APP-START-DNS-FAILED';
+    }
+    return 'WEAVE-APP-START-NETWORK-FAILED';
   }
 
   Map<String, dynamic> _decodeJsonObject(String body) {
