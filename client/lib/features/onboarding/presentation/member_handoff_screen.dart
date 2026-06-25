@@ -13,6 +13,7 @@ import 'package:weave/core/widgets/loading_state.dart';
 import 'package:weave/core/widgets/success_state.dart';
 import 'package:weave/features/app/presentation/providers/app_application_providers.dart';
 import 'package:weave/features/auth/domain/entities/auth_failure.dart';
+import 'package:weave/features/auth/presentation/auth_failure_message.dart';
 import 'package:weave/features/onboarding/domain/entities/member_handoff.dart';
 import 'package:weave/features/onboarding/domain/use_cases/consume_member_handoff.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
@@ -124,7 +125,7 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
                 if (_signInFailure != null) ...[
                   const SizedBox(height: 16),
                   Text(
-                    _signInFailure!.message,
+                    authFailureMessage(l10n, _signInFailure!),
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: Theme.of(context).colorScheme.error,
                     ),

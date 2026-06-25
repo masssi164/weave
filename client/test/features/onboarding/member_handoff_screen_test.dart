@@ -8,6 +8,7 @@ import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/features/app/domain/use_cases/sign_in_with_oidc.dart';
 import 'package:weave/features/app/presentation/providers/app_application_providers.dart';
+import 'package:weave/features/auth/domain/entities/auth_failure.dart';
 import 'package:weave/features/onboarding/domain/entities/member_handoff.dart';
 import 'package:weave/features/onboarding/domain/use_cases/consume_member_handoff.dart';
 import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
@@ -47,6 +48,17 @@ class _RecordingSignInWithOidc implements SignInWithOidc {
     callCount += 1;
     this.isInteractiveSignInSupported = isInteractiveSignInSupported;
     return completer.future;
+  }
+}
+
+class _FailingSignInWithOidc implements SignInWithOidc {
+  const _FailingSignInWithOidc(this.failure);
+
+  final AuthFailure failure;
+
+  @override
+  Future<void> call({required bool isInteractiveSignInSupported}) async {
+    throw failure;
   }
 }
 
@@ -167,6 +179,67 @@ void main() {
 
       expect(signIn.callCount, 1);
       expect(signIn.isInteractiveSignInSupported, isTrue);
+    });
+
+    testWidgets('localizes sign-in failures on the handoff ready action', (
+      tester,
+    ) async {
+      final preferencesStore = InMemoryPreferencesStore();
+      final container = ProviderContainer.test(
+        overrides: [
+          preferencesStoreProvider.overrideWith((ref) => preferencesStore),
+          consumeMemberHandoffProvider.overrideWithValue(
+            _SuccessfulConsumeMemberHandoff(
+              MemberHandoff(
+                handoffRef: 'handoff-s32-massimo-dogfood-home',
+                profile: 'local-lan-dogfood',
+                runId: 's32-massimo-dogfood',
+                organizationSlug: 'massimo-dogfood',
+                workspaceSlug: 'home',
+                platformConfigUrl: Uri.parse(
+                  'https://weave.test:44443/api/platform/config',
+                ),
+                productBaseUrl: Uri.parse('https://weave.test:44443'),
+              ),
+            ),
+          ),
+          signInWithOidcProvider.overrideWithValue(
+            const _FailingSignInWithOidc(
+              AuthFailure.protocol(
+                'Offline tokens not allowed for the user or client',
+              ),
+            ),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: MemberHandoffScreen(
+              uri: Uri.parse(
+                'weave://join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-massimo-dogfood&product_base_url=https%3A%2F%2Fweave.test%3A44443&platform_config_url=https%3A%2F%2Fweave.test%3A44443%2Fapi%2Fplatform%2Fconfig',
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Sign In'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'This organization has not allowed long-lived mobile sessions for this account yet. Ask an admin/operator to enable mobile session access, then sign in again.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Offline tokens not allowed'), findsNothing);
     });
 
     testWidgets('shows and records a support-safe handoff failure code', (

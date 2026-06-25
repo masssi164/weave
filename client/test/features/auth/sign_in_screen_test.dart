@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/core/widgets/weave_logo.dart';
 import 'package:weave/features/auth/domain/entities/auth_failure.dart';
+import 'package:weave/features/auth/presentation/auth_failure_message.dart';
 import 'package:weave/features/auth/presentation/sign_in_screen.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 

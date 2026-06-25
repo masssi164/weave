@@ -9,7 +9,7 @@ import 'package:weave/core/router/app_routes.dart';
 import 'package:weave/core/widgets/error_state.dart';
 import 'package:weave/core/widgets/loading_state.dart';
 import 'package:weave/core/widgets/weave_logo.dart';
-import 'package:weave/features/auth/domain/entities/auth_failure.dart';
+import 'package:weave/features/auth/presentation/auth_failure_message.dart';
 import 'package:weave/features/auth/presentation/providers/auth_flow_controller.dart';
 import 'package:weave/features/onboarding/domain/use_cases/consume_member_handoff.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
@@ -231,23 +231,6 @@ class _HandoffReadyCard extends StatelessWidget {
       ),
     );
   }
-}
-
-String authFailureMessage(AppLocalizations l10n, AuthFailure failure) {
-  final message = failure.message.toLowerCase();
-  if (message.contains('offline tokens not allowed') ||
-      message.contains('offline_access')) {
-    return l10n.signInOfflineSessionNotAllowed;
-  }
-
-  return switch (failure.type) {
-    AuthFailureType.cancelled => l10n.signInCancelled,
-    AuthFailureType.configuration => l10n.signInConfigurationFailure,
-    AuthFailureType.protocol => l10n.signInProtocolFailure,
-    AuthFailureType.storage => l10n.signInStorageFailure,
-    AuthFailureType.unsupportedPlatform => l10n.signInUnsupportedPlatform,
-    AuthFailureType.unknown => l10n.signInUnknownFailure,
-  };
 }
 
 class _MissingConfigurationCard extends StatelessWidget {
