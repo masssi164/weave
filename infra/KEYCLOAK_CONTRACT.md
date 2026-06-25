@@ -63,6 +63,12 @@ export WEAVE_OIDC_CLIENT_ID=weave-app
 
 The Flutter app requests `openid profile email offline_access weave:workspace` for mobile sign-in. `weave:workspace` is also assigned as a default app scope so backend-bound access tokens include it when command-line smoke tests request only `openid profile email`. Long-lived mobile sessions are intentional for normal members: the dogfood realm grants the built-in Keycloak `offline_access` role to `owner`, `admin`, `operator`, and `member` product groups, while `guest` stays excluded until a separate guest-session policy exists.
 
+Dogfood/local realm email is captured by Mailpit only:
+
+- SMTP endpoint: `weave-mailpit:1025` on the Docker network.
+- Operator inbox: `http://127.0.0.1:8025`.
+- No external delivery is configured for dogfood/local mail.
+
 ### Weave Backend
 
 - Keycloak client ID: `weave-backend`

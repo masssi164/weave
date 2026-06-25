@@ -819,6 +819,7 @@ ensure_existing_stack_terraform_state() {
   import_existing_docker_container_state module.postgres.docker_container.this weave-db
   import_existing_docker_container_state module.reverse_proxy.docker_container.this weave-proxy
   import_existing_docker_container_state module.keycloak.docker_container.this weave-keycloak
+  import_existing_docker_container_state module.mailpit.docker_container.this weave-mailpit
   import_existing_docker_container_state module.backend.docker_container.this weave-backend
   import_existing_docker_container_state module.matrix.docker_container.mas weave-mas
   import_existing_docker_container_state module.matrix.docker_container.synapse weave-synapse
@@ -1702,6 +1703,7 @@ print_summary() {
   log "- Matrix versions: $(client_matrix_public_url)/_matrix/client/versions"
   log "- Matrix default rooms: #announcements:$(public_host "${TF_VAR_matrix_subdomain}"), #general:$(public_host "${TF_VAR_matrix_subdomain}"), #help:$(public_host "${TF_VAR_matrix_subdomain}")"
   log "- Raw Nextcloud: $(nextcloud_public_url)/"
+  log "- Dogfood mail inbox: http://127.0.0.1:${TF_VAR_mailpit_web_host_port:-8025}"
   log
   log "Admin credentials (local/dev only):"
   log "- Keycloak admin user: ${TF_VAR_keycloak_admin_username} (password stored in ${BOOTSTRAP_ENV_FILE})"

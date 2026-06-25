@@ -22,6 +22,7 @@ locals {
     db        = "weave-db"
     proxy     = "weave-proxy"
     keycloak  = "weave-keycloak"
+    mailpit   = "weave-mailpit"
     backend   = "weave-backend"
     mas       = "weave-mas"
     synapse   = "weave-synapse"
@@ -452,6 +453,16 @@ module "keycloak" {
   admin_username       = var.keycloak_admin_username
   admin_password       = var.keycloak_admin_password
   depends_on           = [terraform_data.network_ready, terraform_data.postgres_bootstrap]
+}
+
+module "mailpit" {
+  source = "./modules/mailpit"
+
+  network_name   = docker_network.weave_network.name
+  container_name = local.service_names.mailpit
+  image_name     = var.mailpit_image
+  web_host_port  = var.mailpit_web_host_port
+  depends_on     = [terraform_data.network_ready]
 }
 
 module "backend" {

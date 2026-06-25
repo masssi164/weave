@@ -92,6 +92,24 @@ variable "keycloak_admin_password" {
   sensitive   = true
 }
 
+variable "keycloak_smtp_host" {
+  description = "SMTP host used by the dogfood/local Keycloak realm."
+  type        = string
+  default     = "weave-mailpit"
+}
+
+variable "keycloak_smtp_port" {
+  description = "SMTP port used by the dogfood/local Keycloak realm."
+  type        = string
+  default     = "1025"
+}
+
+variable "keycloak_smtp_from" {
+  description = "From address used by the dogfood/local Keycloak realm."
+  type        = string
+  default     = "no-reply@weave.test"
+}
+
 variable "matrix_mas_client_secret" {
   description = "Fixed client secret for the matrix-mas confidential client."
   type        = string

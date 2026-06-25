@@ -159,6 +159,15 @@ resource "keycloak_realm" "tenant" {
   edit_username_allowed          = false
   reset_password_allowed         = true
   duplicate_emails_allowed       = false
+
+  smtp_server {
+    host              = var.smtp_host
+    port              = var.smtp_port
+    from              = var.smtp_from
+    from_display_name = "Weave Dogfood"
+    ssl               = false
+    starttls          = false
+  }
 }
 
 resource "keycloak_user" "test" {

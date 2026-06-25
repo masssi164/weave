@@ -10,7 +10,7 @@ The Weave mobile app may request `offline_access`. If the identity provider deni
 
 ## Dogfood mail catcher
 
-Use Mailpit for dogfood-only mail capture. It belongs in `infra/weave-workspace` as a local/dogfood profile service with:
+Use Mailpit for dogfood-only mail capture. It belongs in `infra/weave-workspace` as a local/dogfood service with:
 
 - SMTP endpoint for stack services: `weave-mailpit:1025`.
 - Operator web/API inbox: `http://127.0.0.1:8025` by default, optionally proxied only on dogfood/local profiles.
@@ -52,7 +52,7 @@ The ready/prepared screen must not reappear after successful credentials unless 
 
 ## Remaining implementation slices
 
-- Add Mailpit to the dogfood infrastructure profile and wire Keycloak/backend email settings to the local SMTP endpoint.
+- Extend Mailpit coverage beyond Keycloak if backend-owned outbound email becomes part of dogfood.
 - Convert the current handoff/sign-in flow into a typed onboarding state machine instead of relying on route side effects.
 - Add widget/integration tests for every localized state above.
 - Add dogfood runbook steps for app reinstall, manual login, session restore, and Mailpit inbox verification.
