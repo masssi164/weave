@@ -521,7 +521,7 @@ grep -Fq '/api/platform/config' <<<"${product_start_page}" || fail "Smoke check 
 grep -Fq 'handoff-s32-massimo-dogfood-home' <<<"${product_start_page}" || fail "Smoke check failed: start page should include the default local invite guidance"
 grep -Fq 'weave://join?handoff_ref=handoff-s32-massimo-dogfood-home' <<<"${product_start_page}" || fail "Smoke check failed: start page should include the app custom-scheme handoff link"
 grep -Fq "product_base_url=${WEAVE_PUBLIC_BASE_URL}" <<<"${product_start_page}" || fail "Smoke check failed: custom-scheme handoff should include the product base URL"
-grep -Fq "platform_config_url=${WEAVE_BASE_URL}/api/platform/config" <<<"${product_start_page}" || fail "Smoke check failed: custom-scheme handoff should include the platform config URL"
+grep -Fq "platform_config_url=$(public_url "${TF_VAR_api_subdomain:-api}")/api/platform/config" <<<"${product_start_page}" || fail "Smoke check failed: custom-scheme handoff should include the platform config URL"
 grep -Fq 'passwords, tokens, client secrets, or credential URLs' <<<"${product_start_page}" || fail "Smoke check failed: start page should warn that secrets are not embedded"
 [[ "${product_start_page}" != *"127.0.0.1"* && "${product_start_page}" != *"localhost"* && "${product_start_page}" != *"192.168."* ]] || \
   fail "Smoke check failed: Product start page must not expose LAN IP, loopback, or localhost URLs"
