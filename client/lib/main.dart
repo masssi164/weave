@@ -19,32 +19,7 @@ const _pendingDeepLinkKey = 'pending_deep_link_url';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  setStartupInitialLocation(
-    await _initialAppLinkLocation() ?? await _consumePendingDeepLinkLocation(),
-  );
   runApp(const ProviderScope(child: WeaveApp()));
-}
-
-Future<String?> _initialAppLinkLocation() async {
-  try {
-    final initialLink = await AppLinks().getInitialLink();
-    if (initialLink == null) {
-      return null;
-    }
-    return initialLocationForDefaultRoute(initialLink.toString());
-  } catch (_) {
-    return null;
-  }
-}
-
-Future<String?> _consumePendingDeepLinkLocation() async {
-  final preferences = SharedPreferencesAsync();
-  final pendingDeepLink = await preferences.getString(_pendingDeepLinkKey);
-  if (pendingDeepLink == null || pendingDeepLink.isEmpty) {
-    return null;
-  }
-  await preferences.remove(_pendingDeepLinkKey);
-  return initialLocationForDefaultRoute(pendingDeepLink);
 }
 
 /// Root widget for the Weave collaboration app.

@@ -23,8 +23,83 @@ class _ThrowingConsumeMemberHandoff implements ConsumeMemberHandoff {
   }
 }
 
+class _SuccessfulConsumeMemberHandoff implements ConsumeMemberHandoff {
+  const _SuccessfulConsumeMemberHandoff(this.handoff);
+
+  final MemberHandoff handoff;
+
+  @override
+  Future<MemberHandoff> call(Uri uri) async => handoff;
+}
+
 void main() {
   group('MemberHandoffScreen', () {
+    testWidgets(
+      'shows handoff-ready UI and records visible state after success',
+      (tester) async {
+        final preferencesStore = InMemoryPreferencesStore();
+        final container = ProviderContainer.test(
+          overrides: [
+            preferencesStoreProvider.overrideWith((ref) => preferencesStore),
+            consumeMemberHandoffProvider.overrideWithValue(
+              _SuccessfulConsumeMemberHandoff(
+                MemberHandoff(
+                  handoffRef: 'handoff-s32-massimo-dogfood-home',
+                  profile: 'local-lan-dogfood',
+                  runId: 's32-massimo-dogfood',
+                  organizationSlug: 'massimo-dogfood',
+                  workspaceSlug: 'home',
+                  platformConfigUrl: Uri.parse(
+                    'https://weave.test:44443/api/platform/config',
+                  ),
+                  productBaseUrl: Uri.parse('https://weave.test:44443'),
+                ),
+              ),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: MaterialApp(
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: MemberHandoffScreen(
+                uri: Uri.parse(
+                  'weave://join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-massimo-dogfood&product_base_url=https%3A%2F%2Fweave.test%3A44443&platform_config_url=https%3A%2F%2Fweave.test%3A44443%2Fapi%2Fplatform%2Fconfig',
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.pump();
+
+        expect(find.text('Workspace ready for sign-in'), findsOneWidget);
+        expect(find.textContaining('massimo-dogfood/home'), findsOneWidget);
+        expect(find.text('Sign In'), findsOneWidget);
+
+        final rawVisibleState = preferencesStore.rawString(
+          dogfoodVisibleStateStorageKey,
+        );
+        expect(rawVisibleState, isNotNull);
+        final visibleState =
+            jsonDecode(rawVisibleState!) as Map<String, dynamic>;
+        expect(
+          visibleState['schemaVersion'],
+          'weave.client.dogfood_visible_state.v1',
+        );
+        expect(visibleState['state'], 'handoff_ready');
+        expect(visibleState['handoffRef'], 'handoff-s32-massimo-dogfood-home');
+        expect(visibleState['runId'], 's32-massimo-dogfood');
+        expect(visibleState['organizationSlug'], 'massimo-dogfood');
+        expect(visibleState['workspaceSlug'], 'home');
+        expect(visibleState['supportSafe'], isTrue);
+      },
+    );
+
     testWidgets('shows and records a support-safe handoff failure code', (
       tester,
     ) async {
@@ -76,6 +151,15 @@ void main() {
       expect(evidence['errorCode'], 'WEAVE-APP-START-TLS-FAILED');
       expect(evidence['handoffRef'], 'handoff-s32-massimo-dogfood-home');
       expect(evidence['supportSafe'], isTrue);
+
+      final rawVisibleState = preferencesStore.rawString(
+        dogfoodVisibleStateStorageKey,
+      );
+      expect(rawVisibleState, isNotNull);
+      final visibleState = jsonDecode(rawVisibleState!) as Map<String, dynamic>;
+      expect(visibleState['state'], 'handoff_error');
+      expect(visibleState['errorCode'], 'WEAVE-APP-START-TLS-FAILED');
+      expect(visibleState['supportSafe'], isTrue);
     });
   });
 }

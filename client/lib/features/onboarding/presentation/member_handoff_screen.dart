@@ -9,9 +9,13 @@ import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/core/router/app_routes.dart';
 import 'package:weave/core/widgets/error_state.dart';
 import 'package:weave/core/widgets/loading_state.dart';
+import 'package:weave/core/widgets/success_state.dart';
+import 'package:weave/features/onboarding/domain/entities/member_handoff.dart';
 import 'package:weave/features/onboarding/domain/use_cases/consume_member_handoff.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
+
+const dogfoodVisibleStateStorageKey = 'dogfood_visible_state_v1';
 
 final consumeMemberHandoffProvider = Provider<ConsumeMemberHandoff>((ref) {
   final httpClient = http.Client();
@@ -35,6 +39,8 @@ class MemberHandoffScreen extends ConsumerStatefulWidget {
 
 class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
   Object? _failure;
+  MemberHandoff? _handoff;
+  String? _lastVisibleStateRecorded;
 
   @override
   void initState() {
@@ -44,10 +50,12 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
 
   Future<void> _consume() async {
     try {
-      await ref.read(consumeMemberHandoffProvider).call(widget.uri);
+      final handoff = await ref
+          .read(consumeMemberHandoffProvider)
+          .call(widget.uri);
       ref.invalidate(appBootstrapProvider);
       if (mounted) {
-        context.go(AppRoutes.signIn);
+        setState(() => _handoff = handoff);
       }
     } catch (error) {
       final errorCode = supportSafeHandoffErrorCode(error);
@@ -64,7 +72,8 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
     final failure = _failure;
     if (failure != null) {
       final errorCode = supportSafeHandoffErrorCode(failure);
-      final errorCodeText = 'Fehlercode: $errorCode';
+      final errorCodeText = l10n.memberHandoffErrorCode(errorCode);
+      _recordVisibleStateOnce('handoff_error', errorCode: errorCode);
       return Scaffold(
         body: SafeArea(
           child: Center(
@@ -83,6 +92,26 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
         ),
       );
     }
+    final handoff = _handoff;
+    if (handoff != null) {
+      _recordVisibleStateOnce('handoff_ready', handoff: handoff);
+      return Scaffold(
+        body: SafeArea(
+          child: Center(
+            child: SuccessState(
+              message: l10n.memberHandoffReadyTitle,
+              guidance: l10n.memberHandoffReadyGuidance(
+                handoff.organizationSlug,
+                handoff.workspaceSlug,
+              ),
+              actionLabel: l10n.signInButton,
+              onAction: () => context.go(AppRoutes.signIn),
+            ),
+          ),
+        ),
+      );
+    }
+    _recordVisibleStateOnce('handoff_loading');
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -140,5 +169,44 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
       return 'app_start_discovery';
     }
     return 'save_configuration';
+  }
+
+  void _recordVisibleStateOnce(
+    String state, {
+    MemberHandoff? handoff,
+    String? errorCode,
+  }) {
+    final key = [
+      state,
+      handoff?.handoffRef ?? '',
+      handoff?.runId ?? '',
+      errorCode ?? '',
+    ].join('|');
+    if (_lastVisibleStateRecorded == key) {
+      return;
+    }
+    _lastVisibleStateRecorded = key;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await ref
+          .read(preferencesStoreProvider)
+          .setString(
+            dogfoodVisibleStateStorageKey,
+            jsonEncode(<String, Object>{
+              'schemaVersion': 'weave.client.dogfood_visible_state.v1',
+              'recordedAt': DateTime.now().toUtc().toIso8601String(),
+              'route': AppRoutes.join,
+              'state': state,
+              if (handoff != null) ...{
+                'handoffRef': handoff.handoffRef,
+                'runId': handoff.runId,
+                'organizationSlug': handoff.organizationSlug,
+                'workspaceSlug': handoff.workspaceSlug,
+                'profile': handoff.profile,
+              },
+              if (errorCode != null) 'errorCode': errorCode,
+              'supportSafe': true,
+            }),
+          );
+    });
   }
 }

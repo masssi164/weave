@@ -4108,6 +4108,14 @@ class AppLocalizationsDe extends AppLocalizations {
       'Wir bereiten die Anmeldung für diesen Workspace vor.';
 
   @override
+  String get memberHandoffReadyTitle => 'Workspace bereit zur Anmeldung';
+
+  @override
+  String memberHandoffReadyGuidance(String organization, String workspace) {
+    return 'Weave hat $organization/$workspace aus der Einladung vorbereitet. Fahre als Nächstes mit der Workspace-Anmeldung fort.';
+  }
+
+  @override
   String get memberHandoffErrorTitle =>
       'Diese Weave-Einladung konnte nicht geöffnet werden';
 

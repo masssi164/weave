@@ -1409,6 +1409,22 @@
   "@memberHandoffLoadingHint": {
     "description": "Loading hint while consuming a member handoff"
   },
+  "memberHandoffReadyTitle": "Workspace bereit zur Anmeldung",
+  "@memberHandoffReadyTitle": {
+    "description": "Success title shown after a member handoff is consumed and before sign-in"
+  },
+  "memberHandoffReadyGuidance": "Weave hat {organization}/{workspace} aus der Einladung vorbereitet. Fahre als Nächstes mit der Workspace-Anmeldung fort.",
+  "@memberHandoffReadyGuidance": {
+    "description": "Success guidance shown after a member handoff is consumed and before sign-in",
+    "placeholders": {
+      "organization": {
+        "type": "String"
+      },
+      "workspace": {
+        "type": "String"
+      }
+    }
+  },
   "memberHandoffErrorTitle": "Diese Weave-Einladung konnte nicht geöffnet werden",
   "@memberHandoffErrorTitle": {
     "description": "Error title when member handoff consumption fails"

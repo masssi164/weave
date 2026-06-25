@@ -6606,6 +6606,18 @@ abstract class AppLocalizations {
   /// **'We are preparing sign-in for this workspace.'**
   String get memberHandoffLoadingHint;
 
+  /// Success title shown after a member handoff is consumed and before sign-in
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace ready for sign-in'**
+  String get memberHandoffReadyTitle;
+
+  /// Success guidance shown after a member handoff is consumed and before sign-in
+  ///
+  /// In en, this message translates to:
+  /// **'Weave prepared {organization}/{workspace} from the invite. Continue with workspace sign-in next.'**
+  String memberHandoffReadyGuidance(String organization, String workspace);
+
   /// Error title when member handoff consumption fails
   ///
   /// In en, this message translates to:

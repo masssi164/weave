@@ -4052,6 +4052,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'We are preparing sign-in for this workspace.';
 
   @override
+  String get memberHandoffReadyTitle => 'Workspace ready for sign-in';
+
+  @override
+  String memberHandoffReadyGuidance(String organization, String workspace) {
+    return 'Weave prepared $organization/$workspace from the invite. Continue with workspace sign-in next.';
+  }
+
+  @override
   String get memberHandoffErrorTitle => 'We could not open this Weave invite';
 
   @override
