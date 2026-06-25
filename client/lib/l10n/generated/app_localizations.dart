@@ -4768,6 +4768,28 @@ abstract class AppLocalizations {
   /// **'Current sign-in configuration'**
   String get signInConfigurationTitle;
 
+  /// Support-safe guidance shown when a dogfood handoff has prepared the sign-in route
+  ///
+  /// In en, this message translates to:
+  /// **'Your Weave invite selected the workspace sign-in endpoint. Continue with SSO; if this does not work, ask an admin/operator to refresh the invite and mention WEAVE-SSO-NOT-COMPLETE.'**
+  String get signInHandoffConfigurationDescription;
+
+  /// Title shown after the app consumed a member handoff
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace invite ready'**
+  String get signInHandoffReadyTitle;
+
+  /// Evidence message shown after the app consumed a member handoff
+  ///
+  /// In en, this message translates to:
+  /// **'Weave consumed the dogfood handoff for {organization}/{workspace}. Continue with SSO for run {runId}.'**
+  String signInHandoffReadyDescription(
+    String organization,
+    String workspace,
+    String runId,
+  );
+
   /// Summary line showing the issuer URL on the sign-in screen
   ///
   /// In en, this message translates to:

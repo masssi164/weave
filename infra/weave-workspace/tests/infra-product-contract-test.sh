@@ -6,6 +6,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO_DIR="$(cd -- "${ROOT_DIR}/.." && pwd)"
+MONOREPO_DIR="$(cd -- "${REPO_DIR}/.." && pwd)"
 
 fail() {
   printf '%s\n' "$*" >&2
@@ -52,8 +53,11 @@ openproject_live_e2e="${ROOT_DIR}/openproject-boards-live-e2e.sh"
 caddy_template="${ROOT_DIR}/01-infrastructure/templates/Caddyfile.tpl"
 support_bundle="${ROOT_DIR}/support-bundle.sh"
 local_invite_script="${ROOT_DIR}/local-invite-link.sh"
+dogfood_handoff_bundle="${MONOREPO_DIR}/tools/dogfood_handoff_bundle.py"
+dogfood_ios_smoke="${MONOREPO_DIR}/tools/dogfood_ios_deeplink_smoke.sh"
+dogfood_cert_smoke="${MONOREPO_DIR}/tools/dogfood_cert_persistence_smoke.py"
 
-for file in "${backend_main}" "${infra_main}" "${infra_outputs}" "${install_script}" "${release_verify}" "${keycloak_main}" "${release_env}" "${admin_doc}" "${caldav_doc}" "${connector_doc}" "${matrix_workspace_doc}" "${matrix_e2ee_doc}" "${openproject_doc}" "${openproject_compose}" "${provider_stack_compose}" "${provider_stack_check}" "${openproject_live_e2e}" "${support_bundle}" "${caddy_template}" "${local_invite_script}"; do
+for file in "${backend_main}" "${infra_main}" "${infra_outputs}" "${install_script}" "${release_verify}" "${keycloak_main}" "${release_env}" "${admin_doc}" "${caldav_doc}" "${connector_doc}" "${matrix_workspace_doc}" "${matrix_e2ee_doc}" "${openproject_doc}" "${openproject_compose}" "${provider_stack_compose}" "${provider_stack_check}" "${openproject_live_e2e}" "${support_bundle}" "${caddy_template}" "${local_invite_script}" "${dogfood_handoff_bundle}" "${dogfood_ios_smoke}" "${dogfood_cert_smoke}"; do
   [[ -f "${file}" ]] || fail "Missing expected contract file: ${file}"
 done
 
@@ -301,6 +305,12 @@ assert_file_contains "${infra_outputs}" 'WEAVE_LOCAL_CA_URL'
 assert_file_contains "${install_script}" 'export WEAVE_LOCAL_CA_URL'
 assert_file_contains "${install_script}" 'http://${TF_VAR_tenant_domain}:${TF_VAR_proxy_http_host_port}/weave-local-ca.pem'
 assert_file_contains "${install_script}" '- Local CA:   http://${TF_VAR_tenant_domain}:${TF_VAR_proxy_http_host_port}/weave-local-ca.pem'
+assert_file_contains "${install_script}" 'restore_default_local_tls_from_state'
+assert_file_contains "${install_script}" 'persist_default_local_tls_to_state'
+assert_file_contains "${install_script}" 'WEAVE_LOCAL_TLS_STATE_DIR'
+assert_file_contains "${infra_main}" 'tls_certs_dir      = local.caddy_certs_dir'
+assert_file_contains "${ROOT_DIR}/01-infrastructure/modules/reverse-proxy/main.tf" 'host_path      = var.tls_certs_dir'
+assert_file_contains "${ROOT_DIR}/01-infrastructure/modules/reverse-proxy/main.tf" 'container_path = "/certs"'
 assert_file_contains "${ROOT_DIR}/smoke-test.sh" 'local_lan_host is non-canonical'
 assert_file_contains "${ROOT_DIR}/operator-check.sh" 'local_lan_host is non-canonical'
 assert_file_contains "${caddy_template}" 'http://${ca_bootstrap_host}'
@@ -316,6 +326,11 @@ assert_file_contains "${caddy_template}" 'passwords, tokens, client secrets, or 
 assert_file_contains "${local_invite_script}" 'base_url="${WEAVE_PUBLIC_BASE_URL:-https://weave.test:44443}"'
 assert_file_contains "${local_invite_script}" 'handoff-s32-massimo-dogfood-home'
 assert_file_contains "${local_invite_script}" 'json.dumps(result, separators=(",", ":"), sort_keys=True)'
+assert_file_contains "${dogfood_handoff_bundle}" 'weave.dogfood.handoff-bundle.v1'
+assert_file_contains "${dogfood_handoff_bundle}" 'profile-or-release'
+assert_file_contains "${dogfood_ios_smoke}" 'debug builds are invalid'
+assert_file_contains "${dogfood_ios_smoke}" 'last_handoff_consumed_v1'
+assert_file_contains "${dogfood_cert_smoke}" 'weave.dogfood.cert-persistence-smoke.v1'
 assert_file_absent "${install_script}" 'http://${TF_VAR_local_lan_host}:${TF_VAR_proxy_http_host_port}/weave-local-ca.pem'
 assert_file_absent "${infra_outputs}" 'local_lan_url'
 

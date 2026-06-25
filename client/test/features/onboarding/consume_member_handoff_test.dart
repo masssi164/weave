@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:weave/core/persistence/preferences_store.dart';
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/onboarding/domain/use_cases/consume_member_handoff.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
@@ -24,14 +25,40 @@ class _RecordingServerConfigurationRepository
   }
 }
 
+class _RecordingPreferencesStore implements PreferencesStore {
+  final strings = <String, String>{};
+
+  @override
+  Future<bool?> getBool(String key) async => null;
+
+  @override
+  Future<String?> getString(String key) async => strings[key];
+
+  @override
+  Future<void> remove(String key) async {
+    strings.remove(key);
+  }
+
+  @override
+  Future<void> setBool(String key, bool value) async {}
+
+  @override
+  Future<void> setString(String key, String value) async {
+    strings[key] = value;
+  }
+}
+
 void main() {
   test('saves DNS-first weave.test app-start configuration', () async {
     final repository = _RecordingServerConfigurationRepository();
+    final evidenceStore = _RecordingPreferencesStore();
     final httpClient = MockClient((request) async {
       expect(
         request.url.toString(),
         'https://weave.test:44443/api/platform/config',
       );
+      expect(request.headers['X-Weave-Handoff-Ref'], 'invite-abc123');
+      expect(request.headers['X-Weave-Handoff-Run-Id'], 's32-check');
       return http.Response(
         jsonEncode({
           'publicBaseUrl': 'https://weave.test:44443',
@@ -50,6 +77,7 @@ void main() {
     await ConsumeMemberHandoff(
       repository: repository,
       discoveryClient: AppStartDiscoveryClient(httpClient: httpClient),
+      evidenceStore: evidenceStore,
     ).call(
       Uri.parse(
         'https://weave.test:44443/join?handoff_ref=invite-abc123&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-check',
@@ -74,6 +102,17 @@ void main() {
       saved.serviceEndpoints.nextcloudBaseUrl.toString(),
       'https://weave.test:44443/files',
     );
+    final evidence =
+        jsonDecode(evidenceStore.strings[lastHandoffConsumedStorageKey]!)
+            as Map<String, dynamic>;
+    expect(evidence['schemaVersion'], 'weave.client.last_handoff_consumed.v1');
+    expect(evidence['handoffRef'], 'invite-abc123');
+    expect(evidence['organizationSlug'], 'massimo-dogfood');
+    expect(evidence['workspaceSlug'], 'home');
+    expect(evidence['platformConfigHost'], 'weave.test');
+    expect(evidence['platformConfigPath'], '/api/platform/config');
+    expect(evidence['result'], 'saved_configuration');
+    expect(evidence['supportSafe'], isTrue);
   });
 
   test('saves app-start configuration from public platform config', () async {

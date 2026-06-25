@@ -3274,6 +3274,29 @@
   "@signInConfigurationTitle": {
     "description": "Title for the sign-in configuration summary card"
   },
+  "signInHandoffConfigurationDescription": "Your Weave invite selected the workspace sign-in endpoint. Continue with SSO; if this does not work, ask an admin/operator to refresh the invite and mention WEAVE-SSO-NOT-COMPLETE.",
+  "@signInHandoffConfigurationDescription": {
+    "description": "Support-safe guidance shown when a dogfood handoff has prepared the sign-in route"
+  },
+  "signInHandoffReadyTitle": "Workspace invite ready",
+  "@signInHandoffReadyTitle": {
+    "description": "Title shown after the app consumed a member handoff"
+  },
+  "signInHandoffReadyDescription": "Weave consumed the dogfood handoff for {organization}/{workspace}. Continue with SSO for run {runId}.",
+  "@signInHandoffReadyDescription": {
+    "description": "Evidence message shown after the app consumed a member handoff",
+    "placeholders": {
+      "organization": {
+        "type": "String"
+      },
+      "workspace": {
+        "type": "String"
+      },
+      "runId": {
+        "type": "String"
+      }
+    }
+  },
   "signInConfigurationIssuer": "Issuer: {value}",
   "@signInConfigurationIssuer": {
     "description": "Summary line showing the issuer URL on the sign-in screen",

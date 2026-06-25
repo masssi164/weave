@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:weave/core/persistence/preferences_store.dart';
 import 'package:http/http.dart' as http;
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/onboarding/domain/entities/member_handoff.dart';
@@ -13,11 +14,14 @@ class ConsumeMemberHandoff {
   const ConsumeMemberHandoff({
     required ServerConfigurationRepository repository,
     required AppStartDiscoveryClient discoveryClient,
+    PreferencesStore? evidenceStore,
   }) : _repository = repository,
-       _discoveryClient = discoveryClient;
+       _discoveryClient = discoveryClient,
+       _evidenceStore = evidenceStore;
 
   final ServerConfigurationRepository _repository;
   final AppStartDiscoveryClient _discoveryClient;
+  final PreferencesStore? _evidenceStore;
 
   Future<MemberHandoff> call(Uri uri) async {
     final handoff = const MemberHandoffParser().parse(uri);
@@ -36,9 +40,34 @@ class ConsumeMemberHandoff {
         ),
       ),
     );
+    await _evidenceStore?.setString(
+      lastHandoffConsumedStorageKey,
+      jsonEncode(_handoffEvidence(handoff, result: 'saved_configuration')),
+    );
     return handoff;
   }
+
+  Map<String, Object> _handoffEvidence(
+    MemberHandoff handoff, {
+    required String result,
+  }) {
+    return {
+      'schemaVersion': 'weave.client.last_handoff_consumed.v1',
+      'recordedAt': DateTime.now().toUtc().toIso8601String(),
+      'handoffRef': handoff.handoffRef,
+      'runId': handoff.runId,
+      'organizationSlug': handoff.organizationSlug,
+      'workspaceSlug': handoff.workspaceSlug,
+      'profile': handoff.profile,
+      'platformConfigHost': handoff.platformConfigUrl.host,
+      'platformConfigPath': handoff.platformConfigUrl.path,
+      'result': result,
+      'supportSafe': true,
+    };
+  }
 }
+
+const lastHandoffConsumedStorageKey = 'last_handoff_consumed_v1';
 
 class AppStartConfiguration {
   const AppStartConfiguration({
@@ -65,7 +94,11 @@ class AppStartDiscoveryClient {
   Future<AppStartConfiguration> fetch(MemberHandoff handoff) async {
     final response = await _httpClient.get(
       handoff.platformConfigUrl,
-      headers: const {'Accept': 'application/json'},
+      headers: {
+        'Accept': 'application/json',
+        'X-Weave-Handoff-Ref': handoff.handoffRef,
+        'X-Weave-Handoff-Run-Id': handoff.runId,
+      },
     );
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw AppFailure.bootstrap(

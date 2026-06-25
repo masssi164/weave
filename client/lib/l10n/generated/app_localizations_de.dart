@@ -2886,6 +2886,22 @@ class AppLocalizationsDe extends AppLocalizations {
   String get signInConfigurationTitle => 'Aktuelle Anmeldekonfiguration';
 
   @override
+  String get signInHandoffConfigurationDescription =>
+      'Deine Weave-Einladung hat den Arbeitsbereich-Anmeldeendpunkt ausgewählt. Fahre mit SSO fort; falls das nicht klappt, bitte eine Admin-/Operator-Person um eine neue Einladung und nenne WEAVE-SSO-NOT-COMPLETE.';
+
+  @override
+  String get signInHandoffReadyTitle => 'Arbeitsbereich-Einladung bereit';
+
+  @override
+  String signInHandoffReadyDescription(
+    String organization,
+    String workspace,
+    String runId,
+  ) {
+    return 'Weave hat den Dogfood-Handoff für $organization/$workspace verarbeitet. Fahre mit SSO für Lauf $runId fort.';
+  }
+
+  @override
   String signInConfigurationIssuer(String value) {
     return 'Issuer: $value';
   }

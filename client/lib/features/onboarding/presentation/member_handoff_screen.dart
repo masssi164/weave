@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:go_router/go_router.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
+import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/core/router/app_routes.dart';
 import 'package:weave/core/widgets/error_state.dart';
 import 'package:weave/core/widgets/loading_state.dart';
@@ -16,6 +17,7 @@ final consumeMemberHandoffProvider = Provider<ConsumeMemberHandoff>((ref) {
   return ConsumeMemberHandoff(
     repository: ref.watch(serverConfigurationRepositoryProvider),
     discoveryClient: AppStartDiscoveryClient(httpClient: httpClient),
+    evidenceStore: ref.watch(preferencesStoreProvider),
   );
 });
 

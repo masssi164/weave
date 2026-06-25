@@ -426,6 +426,7 @@ module "reverse_proxy" {
   tls_cert_file      = local.caddy_tls_cert_file
   tls_key_file       = local.caddy_tls_key_file
   tls_ca_file        = local.caddy_tls_ca_file
+  tls_certs_dir      = local.caddy_certs_dir
   data_volume_name   = "weave_caddy_data"
   config_volume_name = "weave_caddy_config"
   public_hosts       = local.public_hosts
