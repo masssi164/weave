@@ -4832,6 +4832,48 @@ abstract class AppLocalizations {
   /// **'Weave still needs a valid issuer URL and client ID before it can open the browser sign-in flow.'**
   String get signInMissingConfigurationDescription;
 
+  /// Localized auth failure shown when the user cancels sign-in
+  ///
+  /// In en, this message translates to:
+  /// **'Sign-in was cancelled.'**
+  String get signInCancelled;
+
+  /// Localized auth failure shown when local sign-in configuration is invalid
+  ///
+  /// In en, this message translates to:
+  /// **'The sign-in configuration is incomplete. Ask an admin/operator to refresh the invite.'**
+  String get signInConfigurationFailure;
+
+  /// Localized generic protocol auth failure
+  ///
+  /// In en, this message translates to:
+  /// **'Sign-in could not be completed. Ask an admin/operator to check the identity setup and mention WEAVE-SSO-NOT-COMPLETE.'**
+  String get signInProtocolFailure;
+
+  /// Localized auth failure shown when secure storage fails
+  ///
+  /// In en, this message translates to:
+  /// **'Weave could not save the session on this device. Check device storage/security settings, then try again.'**
+  String get signInStorageFailure;
+
+  /// Localized auth failure shown on unsupported platforms
+  ///
+  /// In en, this message translates to:
+  /// **'This device cannot open the secure Weave sign-in flow.'**
+  String get signInUnsupportedPlatform;
+
+  /// Localized fallback auth failure
+  ///
+  /// In en, this message translates to:
+  /// **'Weave could not sign in right now. Try again or ask an admin/operator to refresh the invite.'**
+  String get signInUnknownFailure;
+
+  /// Localized auth failure shown when the identity provider rejects the offline_access scope
+  ///
+  /// In en, this message translates to:
+  /// **'This organization has not allowed long-lived mobile sessions for this account yet. Ask an admin/operator to enable mobile session access, then sign in again.'**
+  String get signInOfflineSessionNotAllowed;
+
   /// Settings section title for the authenticated Weave profile
   ///
   /// In en, this message translates to:

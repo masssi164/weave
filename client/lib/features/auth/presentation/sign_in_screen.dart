@@ -9,6 +9,7 @@ import 'package:weave/core/router/app_routes.dart';
 import 'package:weave/core/widgets/error_state.dart';
 import 'package:weave/core/widgets/loading_state.dart';
 import 'package:weave/core/widgets/weave_logo.dart';
+import 'package:weave/features/auth/domain/entities/auth_failure.dart';
 import 'package:weave/features/auth/presentation/providers/auth_flow_controller.dart';
 import 'package:weave/features/onboarding/domain/use_cases/consume_member_handoff.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
@@ -130,8 +131,8 @@ class SignInScreen extends ConsumerWidget {
                                   ).textTheme.titleMedium,
                                 ),
                                 const SizedBox(height: 12),
-                                const Text(
-                                  'Your Weave invite selected the workspace sign-in endpoint. Continue with SSO; if this does not work, ask an admin/operator to refresh the invite and mention WEAVE-SSO-NOT-COMPLETE.',
+                                Text(
+                                  l10n.signInHandoffConfigurationDescription,
                                 ),
                               ],
                             ),
@@ -140,7 +141,7 @@ class SignInScreen extends ConsumerWidget {
                         if (authState.failure != null) ...[
                           const SizedBox(height: 16),
                           Text(
-                            authState.failure!.message,
+                            authFailureMessage(l10n, authState.failure!),
                             style: Theme.of(context).textTheme.bodyMedium
                                 ?.copyWith(
                                   color: Theme.of(context).colorScheme.error,
@@ -203,6 +204,7 @@ class _HandoffReadyCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final organization = evidence['organizationSlug']?.toString() ?? 'unknown';
     final workspace = evidence['workspaceSlug']?.toString() ?? 'unknown';
     final runId = evidence['runId']?.toString() ?? 'unknown';
@@ -213,18 +215,39 @@ class _HandoffReadyCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Workspace invite ready',
+              l10n.signInHandoffReadyTitle,
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 12),
             Text(
-              'Weave consumed the dogfood handoff for $organization/$workspace. Continue with SSO for run $runId.',
+              l10n.signInHandoffReadyDescription(
+                organization,
+                workspace,
+                runId,
+              ),
             ),
           ],
         ),
       ),
     );
   }
+}
+
+String authFailureMessage(AppLocalizations l10n, AuthFailure failure) {
+  final message = failure.message.toLowerCase();
+  if (message.contains('offline tokens not allowed') ||
+      message.contains('offline_access')) {
+    return l10n.signInOfflineSessionNotAllowed;
+  }
+
+  return switch (failure.type) {
+    AuthFailureType.cancelled => l10n.signInCancelled,
+    AuthFailureType.configuration => l10n.signInConfigurationFailure,
+    AuthFailureType.protocol => l10n.signInProtocolFailure,
+    AuthFailureType.storage => l10n.signInStorageFailure,
+    AuthFailureType.unsupportedPlatform => l10n.signInUnsupportedPlatform,
+    AuthFailureType.unknown => l10n.signInUnknownFailure,
+  };
 }
 
 class _MissingConfigurationCard extends StatelessWidget {

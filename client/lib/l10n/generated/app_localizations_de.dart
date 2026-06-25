@@ -2929,6 +2929,33 @@ class AppLocalizationsDe extends AppLocalizations {
       'Weave benötigt noch eine gültige Issuer-URL und Client-ID, bevor der Browser-Anmeldefluss gestartet werden kann.';
 
   @override
+  String get signInCancelled => 'Die Anmeldung wurde abgebrochen.';
+
+  @override
+  String get signInConfigurationFailure =>
+      'Die Anmeldekonfiguration ist unvollständig. Bitte eine Admin-/Operator-Person um eine neue Einladung.';
+
+  @override
+  String get signInProtocolFailure =>
+      'Die Anmeldung konnte nicht abgeschlossen werden. Bitte eine Admin-/Operator-Person, die Identitätseinrichtung zu prüfen, und nenne WEAVE-SSO-NOT-COMPLETE.';
+
+  @override
+  String get signInStorageFailure =>
+      'Weave konnte die Sitzung auf diesem Gerät nicht speichern. Prüfe Speicher- und Sicherheitseinstellungen des Geräts und versuche es erneut.';
+
+  @override
+  String get signInUnsupportedPlatform =>
+      'Dieses Gerät kann den sicheren Weave-Anmeldefluss nicht öffnen.';
+
+  @override
+  String get signInUnknownFailure =>
+      'Weave konnte dich gerade nicht anmelden. Versuche es erneut oder bitte eine Admin-/Operator-Person um eine neue Einladung.';
+
+  @override
+  String get signInOfflineSessionNotAllowed =>
+      'Diese Organisation erlaubt für dieses Konto noch keine langlebigen mobilen Sitzungen. Bitte eine Admin-/Operator-Person, mobilen Sitzungszugriff zu aktivieren, und melde dich dann erneut an.';
+
+  @override
   String get profileSectionTitle => 'Weave-Profil';
 
   @override

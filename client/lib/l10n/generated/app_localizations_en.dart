@@ -2891,6 +2891,33 @@ class AppLocalizationsEn extends AppLocalizations {
       'Weave still needs a valid issuer URL and client ID before it can open the browser sign-in flow.';
 
   @override
+  String get signInCancelled => 'Sign-in was cancelled.';
+
+  @override
+  String get signInConfigurationFailure =>
+      'The sign-in configuration is incomplete. Ask an admin/operator to refresh the invite.';
+
+  @override
+  String get signInProtocolFailure =>
+      'Sign-in could not be completed. Ask an admin/operator to check the identity setup and mention WEAVE-SSO-NOT-COMPLETE.';
+
+  @override
+  String get signInStorageFailure =>
+      'Weave could not save the session on this device. Check device storage/security settings, then try again.';
+
+  @override
+  String get signInUnsupportedPlatform =>
+      'This device cannot open the secure Weave sign-in flow.';
+
+  @override
+  String get signInUnknownFailure =>
+      'Weave could not sign in right now. Try again or ask an admin/operator to refresh the invite.';
+
+  @override
+  String get signInOfflineSessionNotAllowed =>
+      'This organization has not allowed long-lived mobile sessions for this account yet. Ask an admin/operator to enable mobile session access, then sign in again.';
+
+  @override
   String get profileSectionTitle => 'Weave profile';
 
   @override

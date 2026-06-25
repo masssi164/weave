@@ -58,9 +58,10 @@ export WEAVE_OIDC_CLIENT_ID=weave-app
 - Sign-in redirect URI: `com.massimotter.weave:/oauthredirect`
 - Post-logout redirect URI: `com.massimotter.weave:/logout`
 - Default API scope: `weave:workspace`
+- Optional long-lived session scope: `offline_access`
 - Resource Owner Password Grant: disabled by default, enabled only when `create_test_user=true`
 
-The Flutter app may request `openid profile email`; `weave:workspace` is assigned as a default app scope so backend-bound access tokens include it.
+The Flutter app requests `openid profile email offline_access weave:workspace` for mobile sign-in. `weave:workspace` is also assigned as a default app scope so backend-bound access tokens include it when command-line smoke tests request only `openid profile email`. Long-lived mobile sessions are intentional for normal members: the dogfood realm grants the built-in Keycloak `offline_access` role to `owner`, `admin`, `operator`, and `member` product groups, while `guest` stays excluded until a separate guest-session policy exists.
 
 ### Weave Backend
 
@@ -118,6 +119,7 @@ A mobile access token for `weave-app` must include:
 - `client_id`: `weave-app` when present
 - `aud`: includes `weave-app`
 - `scope`: includes `openid`, requested profile scopes, and `weave:workspace`
+- refresh token: present for mobile app sign-in when the user belongs to an offline-session-entitled product group and the app requested `offline_access`
 
 The backend accepts the token only when:
 
