@@ -27,9 +27,9 @@ Feature: Weave v0.1 dogfood production release
     And the member taps Sign In, completes first-login activation, sets their password, and returns to Weave
     Then Weave records support-safe handoff_ready, ready_for_sso, sso_in_progress, authenticated, workspace_bootstrap_loading, and workspace_ready evidence
     And the authenticated session is restored after force-quit and reopen
-    And reinstall plus manual sign-in from the saved organization configuration reaches the workspace
+    And trust-preserving app-state reset plus manual sign-in from the saved organization configuration reaches the workspace
     And Mailpit captures dogfood identity mail locally without external delivery
-    And dogfood trust evidence proves stable local TLS certificates, stable iOS signing/provisioning, and no repeated developer trust prompt after normal reinstall or update
+    And dogfood trust evidence proves stable local TLS certificates, stable iOS signing/provisioning, and no repeated Developer App trust prompt after normal update or app-state reset
     And no member-visible state leaks raw provider errors, setup internals, tokens, credentials, or secret references
 
   @weave-v01-admin-provider-categories

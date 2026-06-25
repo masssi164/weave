@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
 import 'package:weave/core/bootstrap/presentation/bootstrap_gate.dart';
@@ -13,9 +14,18 @@ import 'package:weave/core/router/app_router.dart';
 import 'package:weave/core/theme/app_theme.dart';
 import 'package:weave/core/theme/app_theme_preference.dart';
 import 'package:weave/core/theme/app_theme_preference_provider.dart';
+import 'package:weave/features/auth/data/repositories/oidc_auth_session_repository.dart';
+import 'package:weave/features/onboarding/domain/entities/member_auth_onboarding_state.dart';
+import 'package:weave/features/onboarding/domain/use_cases/consume_member_handoff.dart';
+import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
+import 'package:weave/features/server_config/data/repositories/shared_preferences_server_configuration_repository.dart';
+import 'package:weave/integrations/nextcloud/data/repositories/secure_nextcloud_session_repository.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
 const _pendingDeepLinkKey = 'pending_deep_link_url';
+const _dogfoodResetQueryKey = 'dogfood_reset';
+const _dogfoodResetAppStateValue = 'app_state';
+const _dogfoodLocalProfile = 'local-lan-dogfood';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -40,7 +50,7 @@ class _WeaveAppState extends ConsumerState<WeaveApp>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _linkSubscription = AppLinks().uriLinkStream.listen(
-      _openAppLink,
+      (uri) => unawaited(_openAppLink(uri)),
       onError: (_) {},
     );
     _schedulePendingDeepLinkPoll();
@@ -68,14 +78,14 @@ class _WeaveAppState extends ConsumerState<WeaveApp>
     _pendingDeepLinkTimers.add(
       Timer(const Duration(milliseconds: 250), () {
         if (mounted) {
-          _openPendingNativeDeepLink();
+          unawaited(_openPendingNativeDeepLink());
         }
       }),
     );
     _pendingDeepLinkTimers.add(
       Timer(const Duration(seconds: 2), () {
         if (mounted) {
-          _openPendingNativeDeepLink();
+          unawaited(_openPendingNativeDeepLink());
         }
       }),
     );
@@ -106,19 +116,56 @@ class _WeaveAppState extends ConsumerState<WeaveApp>
       if (location != AppRoutes.welcome) {
         setStartupInitialLocation(location);
       }
-      _openAppLink(uri);
+      await _openAppLink(uri);
     }
   }
 
-  void _openAppLink(Uri uri) {
+  Future<void> _openAppLink(Uri uri) async {
     final location = initialLocationForDefaultRoute(uri.toString());
     if (location == AppRoutes.welcome || !mounted) {
       return;
     }
+    await _maybeResetDogfoodAppState(uri);
     try {
       ref.read(appRouterProvider).go(location);
     } catch (_) {
       setStartupInitialLocation(location);
+    }
+  }
+
+  Future<void> _maybeResetDogfoodAppState(Uri uri) async {
+    if (uri.queryParameters[_dogfoodResetQueryKey] !=
+            _dogfoodResetAppStateValue ||
+        uri.queryParameters['profile'] != _dogfoodLocalProfile) {
+      return;
+    }
+    final preferences = SharedPreferencesAsync();
+    for (final key in const [
+      serverConfigurationStorageKey,
+      legacySetupCompleteKey,
+      lastHandoffConsumedStorageKey,
+      dogfoodAuthStateStorageKey,
+      dogfoodVisibleStateStorageKey,
+    ]) {
+      try {
+        await preferences.remove(key);
+      } catch (_) {}
+    }
+    const secureStorage = FlutterSecureStorage(
+      iOptions: IOSOptions(
+        accessibility: KeychainAccessibility.first_unlock_this_device,
+      ),
+      mOptions: MacOsOptions(
+        accessibility: KeychainAccessibility.first_unlock_this_device,
+      ),
+    );
+    for (final key in const [
+      authSessionStorageKey,
+      nextcloudSessionStorageKey,
+    ]) {
+      try {
+        await secureStorage.delete(key: key);
+      } catch (_) {}
     }
   }
 

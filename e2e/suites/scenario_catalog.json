@@ -436,7 +436,7 @@
       "testLevel": "live-e2e",
       "assertionFocus": [
         "fresh iOS invite activation",
-        "session restore and reinstall recovery",
+        "session restore and trust-preserving app-state reset recovery",
         "local Mailpit capture",
         "support-safe onboarding evidence",
         "local TLS and iOS signing trust stability"
