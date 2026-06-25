@@ -8,6 +8,7 @@ BUILD_MODE="${WEAVE_IOS_BUILD_MODE:-profile}"
 DEEPLINK="${WEAVE_DOGFOOD_DEEPLINK:-}"
 EVIDENCE_DIR="${WEAVE_DOGFOOD_EVIDENCE_DIR:-${ROOT_DIR}/build/dogfood}"
 BUNDLE_ID="com.massimotter.weave"
+FLUTTER_BIN="${FLUTTER_BIN:-${HOME}/flutter/bin/flutter}"
 
 fail() {
   echo "dogfood iOS smoke failed: $*" >&2
@@ -18,13 +19,15 @@ fail() {
 [[ -n "${DEEPLINK}" ]] || fail "set WEAVE_DOGFOOD_DEEPLINK to the current weave://join URL"
 [[ "${BUILD_MODE}" != "debug" ]] || fail "debug builds are invalid for installed iOS custom-scheme smoke; use profile or release"
 [[ "${BUILD_MODE}" == "profile" || "${BUILD_MODE}" == "release" ]] || fail "WEAVE_IOS_BUILD_MODE must be profile or release"
+[[ -x "${FLUTTER_BIN}" ]] || FLUTTER_BIN="$(command -v flutter || true)"
+[[ -n "${FLUTTER_BIN}" && -x "${FLUTTER_BIN}" ]] || fail "flutter was not found; set FLUTTER_BIN"
 
 mkdir -p "${EVIDENCE_DIR}"
 EVIDENCE_DIR="$(cd "${EVIDENCE_DIR}" && pwd)"
 
 (
   cd "${CLIENT_DIR}"
-  flutter build ios "--${BUILD_MODE}"
+  "${FLUTTER_BIN}" build ios "--${BUILD_MODE}"
   if [[ "${WEAVE_IOS_RESET_APP_DATA:-1}" == "1" ]]; then
     xcrun devicectl device uninstall app --device "${DEVICE_ID}" "${BUNDLE_ID}" >/dev/null 2>&1 || true
   fi
@@ -48,6 +51,8 @@ grep -q "last_handoff_consumed_v1" "${EVIDENCE_DIR}/ios-app-preferences.txt" \
   || fail "last_handoff_consumed_v1 was not written after deeplink launch"
 grep -q "dogfood_visible_state_v1" "${EVIDENCE_DIR}/ios-app-preferences.txt" \
   || fail "dogfood_visible_state_v1 was not written after deeplink launch; visible UI readiness is unproven"
+grep -q "dogfood_auth_state_v1" "${EVIDENCE_DIR}/ios-app-preferences.txt" \
+  || fail "dogfood_auth_state_v1 was not written after deeplink launch; typed auth onboarding readiness is unproven"
 
 DEEPLINK="${DEEPLINK}" PREFS_PLIST="${EVIDENCE_DIR}/appdata/com.massimotter.weave.plist" python3 - <<'PY'
 import json
@@ -76,6 +81,7 @@ def load_json_key(key: str) -> dict:
 
 handoff = load_json_key("last_handoff_consumed_v1")
 visible = load_json_key("dogfood_visible_state_v1")
+auth_state = load_json_key("dogfood_auth_state_v1")
 
 checks = [
     (handoff.get("result") == "saved_configuration", "handoff result is not saved_configuration"),
@@ -86,12 +92,17 @@ checks = [
     (visible.get("handoffRef") == expected_handoff_ref, "visible handoffRef does not match deeplink"),
     (visible.get("runId") == expected_run_id, "visible runId does not match deeplink"),
     (visible.get("supportSafe") is True, "visible evidence is not supportSafe=true"),
+    (auth_state.get("state") == "ready_for_sso", "auth onboarding state is not ready_for_sso"),
+    (auth_state.get("handoffRef") == expected_handoff_ref, "auth onboarding handoffRef does not match deeplink"),
+    (auth_state.get("runId") == expected_run_id, "auth onboarding runId does not match deeplink"),
+    (auth_state.get("supportSafe") is True, "auth onboarding evidence is not supportSafe=true"),
 ]
 for ok, message in checks:
     if not ok:
         raise SystemExit(message)
 
 print("ios_visible_state=handoff_ready")
+print("ios_auth_state=ready_for_sso")
 PY
 
 cat > "${EVIDENCE_DIR}/ios-deeplink-smoke.json" <<JSON
@@ -102,6 +113,7 @@ cat > "${EVIDENCE_DIR}/ios-deeplink-smoke.json" <<JSON
   "deviceId": "${DEVICE_ID}",
   "deeplinkLaunchAttempted": true,
   "visibleStateRequired": "handoff_ready",
+  "authStateRequired": "ready_for_sso",
   "rawLaunchIsNotSufficient": true,
   "requiredFollowUp": "Continue from the visible handoff-ready screen into SSO and landing."
 }

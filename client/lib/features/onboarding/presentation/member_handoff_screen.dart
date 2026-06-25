@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
+import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/core/router/app_routes.dart';
@@ -14,8 +15,11 @@ import 'package:weave/core/widgets/success_state.dart';
 import 'package:weave/features/app/presentation/providers/app_application_providers.dart';
 import 'package:weave/features/auth/domain/entities/auth_failure.dart';
 import 'package:weave/features/auth/presentation/auth_failure_message.dart';
+import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
+import 'package:weave/features/onboarding/domain/entities/member_auth_onboarding_state.dart';
 import 'package:weave/features/onboarding/domain/entities/member_handoff.dart';
 import 'package:weave/features/onboarding/domain/use_cases/consume_member_handoff.dart';
+import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
@@ -30,6 +34,13 @@ final consumeMemberHandoffProvider = Provider<ConsumeMemberHandoff>((ref) {
     evidenceStore: ref.watch(preferencesStoreProvider),
   );
 });
+
+final memberAuthOnboardingStateRecorderProvider =
+    Provider<MemberAuthOnboardingStateRecorder>((ref) {
+      return MemberAuthOnboardingStateRecorder(
+        store: ref.watch(preferencesStoreProvider),
+      );
+    });
 
 class MemberHandoffScreen extends ConsumerStatefulWidget {
   const MemberHandoffScreen({super.key, required this.uri});
@@ -152,15 +163,43 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
   }
 
   Future<void> _startSignIn(BuildContext context) async {
+    final handoff = _handoff;
     setState(() {
       _signInBusy = true;
       _signInFailure = null;
     });
     try {
       await ref
+          .read(memberAuthOnboardingStateRecorderProvider)
+          .record(MemberAuthOnboardingStage.ssoInProgress, handoff: handoff);
+      await ref
           .read(signInWithOidcProvider)
           .call(isInteractiveSignInSupported: _isInteractiveSignInSupported);
-      ref.invalidate(appBootstrapProvider);
+      await ref
+          .read(memberAuthOnboardingStateRecorderProvider)
+          .record(MemberAuthOnboardingStage.authenticated, handoff: handoff);
+      await ref
+          .read(memberAuthOnboardingStateRecorderProvider)
+          .record(
+            MemberAuthOnboardingStage.workspaceBootstrapLoading,
+            handoff: handoff,
+          );
+      await ref.read(appBootstrapProvider.notifier).retry();
+      final bootstrap = ref.read(appBootstrapProvider).asData?.value;
+      final workspaceReady =
+          bootstrap?.phase == BootstrapPhase.ready &&
+          await _hasAuthenticatedFirstRunStatus();
+      await ref
+          .read(memberAuthOnboardingStateRecorderProvider)
+          .record(
+            workspaceReady
+                ? MemberAuthOnboardingStage.workspaceReady
+                : MemberAuthOnboardingStage.recoverableError,
+            handoff: handoff,
+            errorCode: workspaceReady
+                ? null
+                : 'WEAVE-WORKSPACE-BOOTSTRAP-NOT-READY',
+          );
       if (mounted) {
         setState(() => _signInBusy = false);
         if (context.mounted) {
@@ -169,19 +208,26 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
       }
     } on AuthFailure catch (failure) {
       if (mounted) {
+        await ref
+            .read(memberAuthOnboardingStateRecorderProvider)
+            .recordAuthFailure(failure, handoff: handoff);
         setState(() {
           _signInBusy = false;
           _signInFailure = failure;
         });
       }
     } catch (error) {
+      final failure = AuthFailure.unknown(
+        'Unable to sign in right now.',
+        cause: error,
+      );
+      await ref
+          .read(memberAuthOnboardingStateRecorderProvider)
+          .recordAuthFailure(failure, handoff: handoff);
       if (mounted) {
         setState(() {
           _signInBusy = false;
-          _signInFailure = AuthFailure.unknown(
-            'Unable to sign in right now.',
-            cause: error,
-          );
+          _signInFailure = failure;
         });
       }
     }
@@ -194,6 +240,15 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
     return defaultTargetPlatform == TargetPlatform.android ||
         defaultTargetPlatform == TargetPlatform.iOS ||
         defaultTargetPlatform == TargetPlatform.macOS;
+  }
+
+  Future<bool> _hasAuthenticatedFirstRunStatus() async {
+    try {
+      final status = await ref.read(firstRunStatusProvider.future);
+      return status is FirstRunAuthenticated;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<void> _recordVisibleFailure(String errorCode) async {

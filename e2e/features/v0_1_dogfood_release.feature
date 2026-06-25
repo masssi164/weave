@@ -20,6 +20,18 @@ Feature: Weave v0.1 dogfood production release
     And provider diagnostics stay in admin/operator health surfaces
     And removed Calendar and Deck member routes are absent instead of hidden behind redirects
 
+  @weave-v01-dogfood-member-invite-activation
+  Scenario: Dogfood member invite activation reaches the workspace
+    Given an admin has provisioned a dogfood member invite without passwords, bearer tokens, provider payloads, or raw secrets
+    When the member opens the current invite deeplink on a fresh iOS install
+    And the member taps Sign In, completes first-login activation, sets their password, and returns to Weave
+    Then Weave records support-safe handoff_ready, ready_for_sso, sso_in_progress, authenticated, workspace_bootstrap_loading, and workspace_ready evidence
+    And the authenticated session is restored after force-quit and reopen
+    And reinstall plus manual sign-in from the saved organization configuration reaches the workspace
+    And Mailpit captures dogfood identity mail locally without external delivery
+    And dogfood trust evidence proves stable local TLS certificates, stable iOS signing/provisioning, and no repeated developer trust prompt after normal reinstall or update
+    And no member-visible state leaks raw provider errors, setup internals, tokens, credentials, or secret references
+
   @weave-v01-admin-provider-categories
   Scenario: Admin sees provider categories before member use
     Given an owner or admin opens Workspace Health before inviting members

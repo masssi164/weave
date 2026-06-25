@@ -9,6 +9,7 @@ import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/features/app/domain/use_cases/sign_in_with_oidc.dart';
 import 'package:weave/features/app/presentation/providers/app_application_providers.dart';
 import 'package:weave/features/auth/domain/entities/auth_failure.dart';
+import 'package:weave/features/onboarding/domain/entities/member_auth_onboarding_state.dart';
 import 'package:weave/features/onboarding/domain/entities/member_handoff.dart';
 import 'package:weave/features/onboarding/domain/use_cases/consume_member_handoff.dart';
 import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
@@ -179,6 +180,16 @@ void main() {
 
       expect(signIn.callCount, 1);
       expect(signIn.isInteractiveSignInSupported, isTrue);
+
+      final rawAuthState = preferencesStore.rawString(
+        dogfoodAuthStateStorageKey,
+      );
+      expect(rawAuthState, isNotNull);
+      final authState = jsonDecode(rawAuthState!) as Map<String, dynamic>;
+      expect(authState['schemaVersion'], 'weave.client.dogfood_auth_state.v1');
+      expect(authState['state'], 'sso_in_progress');
+      expect(authState['handoffRef'], 'handoff-s32-massimo-dogfood-home');
+      expect(authState['supportSafe'], isTrue);
     });
 
     testWidgets('localizes sign-in failures on the handoff ready action', (
@@ -240,6 +251,15 @@ void main() {
         findsOneWidget,
       );
       expect(find.textContaining('Offline tokens not allowed'), findsNothing);
+
+      final rawAuthState = preferencesStore.rawString(
+        dogfoodAuthStateStorageKey,
+      );
+      expect(rawAuthState, isNotNull);
+      final authState = jsonDecode(rawAuthState!) as Map<String, dynamic>;
+      expect(authState['state'], 'recoverable_error');
+      expect(authState['errorCode'], 'WEAVE-MOBILE-OFFLINE-SESSION-DENIED');
+      expect(authState['supportSafe'], isTrue);
     });
 
     testWidgets('shows and records a support-safe handoff failure code', (

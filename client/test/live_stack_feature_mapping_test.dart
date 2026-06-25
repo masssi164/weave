@@ -234,6 +234,7 @@ void main() {
         'Local Forgejo PipelineProvider gates dispatch and observes support-safe run status',
         'Weave Home starts the daily work loop',
         'A normal member sees a user-ready organization flow',
+        'Dogfood member invite activation reaches the workspace',
         'Admin sees provider categories before member use',
         'Organization manifest keeps member client separate from admin console',
         'Admin health enforces provider readiness and member policy boundaries',

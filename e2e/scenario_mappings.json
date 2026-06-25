@@ -212,6 +212,71 @@
       "evidenceMode": "offline-spec"
     },
     {
+      "tag": "@weave-v01-dogfood-member-invite-activation",
+      "scenario": "Dogfood member invite activation reaches the workspace",
+      "feature": "e2e/features/v0_1_dogfood_release.feature",
+      "executableTest": "tools/dogfood_member_onboarding_gate.sh",
+      "evidenceMarkers": [
+        "DOGFOOD_MEMBER_ONBOARDING_RESULT",
+        "DOGFOOD_TRUST_STABILITY_RESULT"
+      ],
+      "evidenceMode": "live-runtime",
+      "additionalEvidence": [
+        {
+          "path": "client/test/features/onboarding/consume_member_handoff_test.dart",
+          "fragments": [
+            "ready_for_sso",
+            "recoverable_error",
+            "weave.client.dogfood_auth_state.v1"
+          ]
+        },
+        {
+          "path": "client/test/features/onboarding/member_handoff_screen_test.dart",
+          "fragments": [
+            "sso_in_progress",
+            "WEAVE-MOBILE-OFFLINE-SESSION-DENIED",
+            "Offline tokens not allowed"
+          ]
+        },
+        {
+          "path": "tools/dogfood_ios_deeplink_smoke.sh",
+          "fragments": [
+            "dogfood_auth_state_v1",
+            "ready_for_sso",
+            "rawLaunchIsNotSufficient"
+          ]
+        },
+        {
+          "path": "tools/dogfood_ios_simulator_onboarding_smoke.sh",
+          "fragments": [
+            "SIMULATOR_E2E_GREEN",
+            "pending_native_deeplink_url",
+            "ready_for_sso",
+            "physical iPhone SSO"
+          ]
+        },
+        {
+          "path": "tools/dogfood_trust_stability_check.py",
+          "fragments": [
+            "DOGFOOD_TRUST_STABILITY_RESULT",
+            "DOGFOOD_TRUST_STABILITY_BLOCKED",
+            "developerTrustStatus",
+            "localTlsStable",
+            "signingStable"
+          ]
+        },
+        {
+          "path": "docs/dogfood-auth-onboarding-plan.md",
+          "fragments": [
+            "Fresh install, handoff link, successful SSO, app lands in workspace/home and persists a refresh/offline token.",
+            "Reinstall app, open same current handoff, manual login succeeds and records fresh handoff evidence.",
+            "Dogfood Mailpit check: test/reset emails are captured locally, visible to operator, and not sent externally.",
+            "Repeated developer-team/profile trust prompts are a dogfood blocker"
+          ]
+        }
+      ]
+    },
+    {
       "tag": "@weave-v01-admin-provider-categories",
       "scenario": "Admin sees provider categories before member use",
       "feature": "e2e/features/v0_1_dogfood_release.feature",

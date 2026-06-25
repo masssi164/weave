@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:weave/core/persistence/preferences_store.dart';
 import 'package:weave/core/failures/app_failure.dart';
+import 'package:weave/features/onboarding/domain/entities/member_auth_onboarding_state.dart';
 import 'package:weave/features/onboarding/domain/use_cases/consume_member_handoff.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
@@ -113,6 +114,16 @@ void main() {
     expect(evidence['platformConfigPath'], '/api/platform/config');
     expect(evidence['result'], 'saved_configuration');
     expect(evidence['supportSafe'], isTrue);
+
+    final authState =
+        jsonDecode(evidenceStore.strings[dogfoodAuthStateStorageKey]!)
+            as Map<String, dynamic>;
+    expect(authState['schemaVersion'], 'weave.client.dogfood_auth_state.v1');
+    expect(authState['state'], 'ready_for_sso');
+    expect(authState['handoffRef'], 'invite-abc123');
+    expect(authState['organizationSlug'], 'massimo-dogfood');
+    expect(authState['workspaceSlug'], 'home');
+    expect(authState['supportSafe'], isTrue);
   });
 
   test(
@@ -205,6 +216,13 @@ void main() {
       expect(evidence['errorCode'], 'WEAVE-APP-START-DNS-FAILED');
       expect(evidence['handoffRef'], 'handoff-s32-massimo-dogfood-home');
       expect(evidence['supportSafe'], isTrue);
+
+      final authState =
+          jsonDecode(evidenceStore.strings[dogfoodAuthStateStorageKey]!)
+              as Map<String, dynamic>;
+      expect(authState['state'], 'recoverable_error');
+      expect(authState['errorCode'], 'WEAVE-APP-START-DNS-FAILED');
+      expect(authState['supportSafe'], isTrue);
     },
   );
 

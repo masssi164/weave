@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:weave/core/persistence/preferences_store.dart';
 import 'package:http/http.dart' as http;
 import 'package:weave/core/failures/app_failure.dart';
+import 'package:weave/features/onboarding/domain/entities/member_auth_onboarding_state.dart';
 import 'package:weave/features/onboarding/domain/entities/member_handoff.dart';
 import 'package:weave/features/server_config/domain/entities/oidc_client_registration.dart';
 import 'package:weave/features/server_config/domain/entities/oidc_provider_type.dart';
@@ -32,7 +33,15 @@ class ConsumeMemberHandoff {
       rethrow;
     }
     try {
+      await _recordAuthOnboardingState(
+        MemberAuthOnboardingStage.handoffReceived,
+        handoff,
+      );
       final appStart = await _discoveryClient.fetch(handoff);
+      await _recordAuthOnboardingState(
+        MemberAuthOnboardingStage.platformConfigLoaded,
+        handoff,
+      );
       await _repository.saveConfiguration(
         ServerConfiguration(
           providerType: OidcProviderType.keycloak,
@@ -48,6 +57,10 @@ class ConsumeMemberHandoff {
         ),
       );
       await _recordHandoffEvidence(handoff, result: 'saved_configuration');
+      await _recordAuthOnboardingState(
+        MemberAuthOnboardingStage.readyForSso,
+        handoff,
+      );
     } catch (error) {
       await _recordHandoffEvidence(
         handoff,
@@ -55,9 +68,28 @@ class ConsumeMemberHandoff {
         errorCode: supportSafeHandoffErrorCode(error),
         phase: _supportSafeFailurePhase(error),
       );
+      await _recordAuthOnboardingState(
+        MemberAuthOnboardingStage.recoverableError,
+        handoff,
+        errorCode: supportSafeHandoffErrorCode(error),
+      );
       rethrow;
     }
     return handoff;
+  }
+
+  Future<void> _recordAuthOnboardingState(
+    MemberAuthOnboardingStage stage,
+    MemberHandoff handoff, {
+    String? errorCode,
+  }) async {
+    final store = _evidenceStore;
+    if (store == null) {
+      return;
+    }
+    await MemberAuthOnboardingStateRecorder(
+      store: store,
+    ).record(stage, handoff: handoff, errorCode: errorCode);
   }
 
   Future<void> _recordHandoffEvidence(

@@ -126,6 +126,12 @@ def write_markdown(path: Path, payload: dict[str, object]) -> None:
         "",
         f"- Installed-client smoke mode: `{ios['requiredBuildMode']}`",
         f"- Debug builds valid for installed-client deeplink smoke: `{ios['debugBuildsAllowed']}`",
+        f"- Bundle ID: `{ios['bundleId']}`",
+        f"- Team ID: `{ios['teamId']}`",
+        f"- Wi-Fi install preferred: `{ios['wifiInstallPreferred']}`",
+        f"- USB fallback only: `{ios['usbFallbackOnly']}`",
+        f"- Repeated developer trust allowed: `{ios['repeatedDeveloperTrustAllowed']}`",
+        f"- Trust stability marker: `{ios['trustStabilityEvidenceMarker']}`",
         "",
     ]
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -201,10 +207,15 @@ def main() -> int:
         },
         "iosClient": {
             "bundleId": "com.massimotter.weave",
+            "teamId": "KNDHGC2KV6",
             "requiredBuildMode": "profile-or-release",
             "debugBuildsAllowed": False,
             "installEvidenceRequired": True,
             "handoffConsumedEvidenceKey": "last_handoff_consumed_v1",
+            "wifiInstallPreferred": True,
+            "usbFallbackOnly": True,
+            "repeatedDeveloperTrustAllowed": False,
+            "trustStabilityEvidenceMarker": "DOGFOOD_TRUST_STABILITY_RESULT",
         },
         "supportSafe": True,
     }
