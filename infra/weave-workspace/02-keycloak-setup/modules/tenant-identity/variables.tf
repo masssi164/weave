@@ -34,6 +34,21 @@ variable "matrix_mas_client_secret" {
   sensitive   = true
 }
 
+variable "smtp_host" {
+  description = "SMTP host used by the dogfood/local Keycloak realm."
+  type        = string
+}
+
+variable "smtp_port" {
+  description = "SMTP port used by the dogfood/local Keycloak realm."
+  type        = string
+}
+
+variable "smtp_from" {
+  description = "From address used by the dogfood/local Keycloak realm."
+  type        = string
+}
+
 variable "create_test_user" {
   description = "Create a test user for integration testing. Do not enable in production."
   type        = bool

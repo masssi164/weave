@@ -15,6 +15,7 @@ class SuccessState extends StatelessWidget {
     this.actionLabel,
     this.onAction,
     this.semanticLabel,
+    this.liveRegion = true,
   });
 
   /// Localised user-facing success title.
@@ -35,6 +36,10 @@ class SuccessState extends StatelessWidget {
   /// Optional full screen-reader label for the live success-state region.
   final String? semanticLabel;
 
+  /// Whether screen readers should announce this success state as a live
+  /// update.
+  final bool liveRegion;
+
   @override
   Widget build(BuildContext context) {
     return StatePanel(
@@ -45,6 +50,7 @@ class SuccessState extends StatelessWidget {
       actionLabel: actionLabel,
       onAction: onAction,
       semanticLabel: semanticLabel,
+      liveRegion: liveRegion,
     );
   }
 }

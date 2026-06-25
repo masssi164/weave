@@ -33,6 +33,15 @@ output "nextcloud_backend_actor_username" {
   value       = var.nextcloud_backend_actor_username
 }
 
+output "mailpit_smtp_endpoint" {
+  description = "Dogfood/local SMTP endpoint captured by Mailpit."
+  value       = module.mailpit.smtp_endpoint
+}
+
+output "mailpit_web_endpoint" {
+  description = "Loopback-only Mailpit operator inbox URL."
+  value       = module.mailpit.web_endpoint
+}
 
 output "app_config" {
   description = "No-secret public endpoint contract for Weave native clients and local tests."

@@ -848,6 +848,9 @@
   "signInTitle": "Zum Fortfahren anmelden",
   "signInDescription": "Melde dich mit deinem Weave-Arbeitsbereich an, um fortzufahren. Deine Einladung oder dein Organisationskonto öffnet die App sicher im Systembrowser.",
   "signInConfigurationTitle": "Aktuelle Anmeldekonfiguration",
+  "signInHandoffConfigurationDescription": "Deine Weave-Einladung hat den Arbeitsbereich-Anmeldeendpunkt ausgewählt. Fahre mit SSO fort; falls das nicht klappt, bitte eine Admin-/Operator-Person um eine neue Einladung und nenne WEAVE-SSO-NOT-COMPLETE.",
+  "signInHandoffReadyTitle": "Arbeitsbereich-Einladung bereit",
+  "signInHandoffReadyDescription": "Weave hat den Dogfood-Handoff für {organization}/{workspace} verarbeitet. Fahre mit SSO für Lauf {runId} fort.",
   "signInConfigurationIssuer": "Issuer: {value}",
   "signInConfigurationClientId": "Client-ID: {value}",
   "signInButton": "Anmelden",
@@ -855,6 +858,13 @@
   "signInBackToSetupButton": "Zurück zur Einrichtung",
   "signInMissingConfigurationTitle": "Einrichtung abschließen, um dich anzumelden",
   "signInMissingConfigurationDescription": "Weave benötigt noch eine gültige Issuer-URL und Client-ID, bevor der Browser-Anmeldefluss gestartet werden kann.",
+  "signInCancelled": "Die Anmeldung wurde abgebrochen.",
+  "signInConfigurationFailure": "Die Anmeldekonfiguration ist unvollständig. Bitte eine Admin-/Operator-Person um eine neue Einladung.",
+  "signInProtocolFailure": "Die Anmeldung konnte nicht abgeschlossen werden. Bitte eine Admin-/Operator-Person, die Identitätseinrichtung zu prüfen, und nenne WEAVE-SSO-NOT-COMPLETE.",
+  "signInStorageFailure": "Weave konnte die Sitzung auf diesem Gerät nicht speichern. Prüfe Speicher- und Sicherheitseinstellungen des Geräts und versuche es erneut.",
+  "signInUnsupportedPlatform": "Dieses Gerät kann den sicheren Weave-Anmeldefluss nicht öffnen.",
+  "signInUnknownFailure": "Weave konnte dich gerade nicht anmelden. Versuche es erneut oder bitte eine Admin-/Operator-Person um eine neue Einladung.",
+  "signInOfflineSessionNotAllowed": "Diese Organisation erlaubt für dieses Konto noch keine langlebigen mobilen Sitzungen. Bitte eine Admin-/Operator-Person, mobilen Sitzungszugriff zu aktivieren, und melde dich dann erneut an.",
   "profileSectionTitle": "Weave-Profil",
   "profileSectionDescription": "Dieses Profil kommt aus der Weave-Backend-Identitätsfassade und wird von Produktmodulen gemeinsam genutzt.",
   "profileLoadFailure": "Das Weave-Profil konnte gerade nicht geladen werden.",
@@ -1406,6 +1416,22 @@
   "@memberHandoffLoadingHint": {
     "description": "Loading hint while consuming a member handoff"
   },
+  "memberHandoffReadyTitle": "Workspace bereit zur Anmeldung",
+  "@memberHandoffReadyTitle": {
+    "description": "Success title shown after a member handoff is consumed and before sign-in"
+  },
+  "memberHandoffReadyGuidance": "Weave hat {organization}/{workspace} aus der Einladung vorbereitet. Fahre als Nächstes mit der Workspace-Anmeldung fort.",
+  "@memberHandoffReadyGuidance": {
+    "description": "Success guidance shown after a member handoff is consumed and before sign-in",
+    "placeholders": {
+      "organization": {
+        "type": "String"
+      },
+      "workspace": {
+        "type": "String"
+      }
+    }
+  },
   "memberHandoffErrorTitle": "Diese Weave-Einladung konnte nicht geöffnet werden",
   "@memberHandoffErrorTitle": {
     "description": "Error title when member handoff consumption fails"
@@ -1413,5 +1439,14 @@
   "memberHandoffErrorGuidance": "Die Einladung ist möglicherweise abgelaufen, unvollständig oder noch nicht bereit. Bitte deinen Workspace-Admin um eine neue Einladung oder Organisations-Anmelde-URL.",
   "@memberHandoffErrorGuidance": {
     "description": "Support-safe guidance when member handoff consumption fails"
+  },
+  "memberHandoffErrorCode": "Fehlercode: {code}",
+  "@memberHandoffErrorCode": {
+    "description": "Support-safe handoff failure code shown with the member handoff error",
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
   }
 }
