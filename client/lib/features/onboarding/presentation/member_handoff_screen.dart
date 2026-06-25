@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,6 +11,8 @@ import 'package:weave/core/router/app_routes.dart';
 import 'package:weave/core/widgets/error_state.dart';
 import 'package:weave/core/widgets/loading_state.dart';
 import 'package:weave/core/widgets/success_state.dart';
+import 'package:weave/features/app/presentation/providers/app_application_providers.dart';
+import 'package:weave/features/auth/domain/entities/auth_failure.dart';
 import 'package:weave/features/onboarding/domain/entities/member_handoff.dart';
 import 'package:weave/features/onboarding/domain/use_cases/consume_member_handoff.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
@@ -39,8 +42,10 @@ class MemberHandoffScreen extends ConsumerStatefulWidget {
 
 class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
   Object? _failure;
+  AuthFailure? _signInFailure;
   MemberHandoff? _handoff;
   String? _lastVisibleStateRecorded;
+  bool _signInBusy = false;
 
   @override
   void initState() {
@@ -97,18 +102,36 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
       return Scaffold(
         body: SafeArea(
           child: Center(
-            child: SuccessState(
-              message: l10n.memberHandoffReadyTitle,
-              guidance: l10n.memberHandoffReadyGuidance(
-                handoff.organizationSlug,
-                handoff.workspaceSlug,
-              ),
-              actionLabel: l10n.signInButton,
-              liveRegion: false,
-              onAction: () {
-                ref.invalidate(appBootstrapProvider);
-                context.go(AppRoutes.signIn);
-              },
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SuccessState(
+                  message: l10n.memberHandoffReadyTitle,
+                  guidance: l10n.memberHandoffReadyGuidance(
+                    handoff.organizationSlug,
+                    handoff.workspaceSlug,
+                  ),
+                  actionLabel: _signInBusy
+                      ? l10n.signInInProgress
+                      : l10n.signInButton,
+                  liveRegion: false,
+                  onAction: _signInBusy
+                      ? null
+                      : () {
+                          _startSignIn(context);
+                        },
+                ),
+                if (_signInFailure != null) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    _signInFailure!.message,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ],
             ),
           ),
         ),
@@ -125,6 +148,51 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _startSignIn(BuildContext context) async {
+    setState(() {
+      _signInBusy = true;
+      _signInFailure = null;
+    });
+    try {
+      await ref
+          .read(signInWithOidcProvider)
+          .call(isInteractiveSignInSupported: _isInteractiveSignInSupported);
+      ref.invalidate(appBootstrapProvider);
+      if (mounted) {
+        setState(() => _signInBusy = false);
+        if (context.mounted) {
+          context.go(AppRoutes.firstRun);
+        }
+      }
+    } on AuthFailure catch (failure) {
+      if (mounted) {
+        setState(() {
+          _signInBusy = false;
+          _signInFailure = failure;
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _signInBusy = false;
+          _signInFailure = AuthFailure.unknown(
+            'Unable to sign in right now.',
+            cause: error,
+          );
+        });
+      }
+    }
+  }
+
+  bool get _isInteractiveSignInSupported {
+    if (kIsWeb) {
+      return false;
+    }
+    return defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS ||
+        defaultTargetPlatform == TargetPlatform.macOS;
   }
 
   Future<void> _recordVisibleFailure(String errorCode) async {

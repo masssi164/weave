@@ -1,10 +1,13 @@
 import 'dart:convert';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
+import 'package:weave/features/app/domain/use_cases/sign_in_with_oidc.dart';
+import 'package:weave/features/app/presentation/providers/app_application_providers.dart';
 import 'package:weave/features/onboarding/domain/entities/member_handoff.dart';
 import 'package:weave/features/onboarding/domain/use_cases/consume_member_handoff.dart';
 import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
@@ -30,6 +33,21 @@ class _SuccessfulConsumeMemberHandoff implements ConsumeMemberHandoff {
 
   @override
   Future<MemberHandoff> call(Uri uri) async => handoff;
+}
+
+class _RecordingSignInWithOidc implements SignInWithOidc {
+  _RecordingSignInWithOidc();
+
+  final Completer<void> completer = Completer<void>();
+  var callCount = 0;
+  bool? isInteractiveSignInSupported;
+
+  @override
+  Future<void> call({required bool isInteractiveSignInSupported}) {
+    callCount += 1;
+    this.isInteractiveSignInSupported = isInteractiveSignInSupported;
+    return completer.future;
+  }
 }
 
 void main() {
@@ -99,6 +117,57 @@ void main() {
         expect(visibleState['supportSafe'], isTrue);
       },
     );
+
+    testWidgets('starts interactive sign-in from the handoff ready action', (
+      tester,
+    ) async {
+      final preferencesStore = InMemoryPreferencesStore();
+      final signIn = _RecordingSignInWithOidc();
+      final container = ProviderContainer.test(
+        overrides: [
+          preferencesStoreProvider.overrideWith((ref) => preferencesStore),
+          consumeMemberHandoffProvider.overrideWithValue(
+            _SuccessfulConsumeMemberHandoff(
+              MemberHandoff(
+                handoffRef: 'handoff-s32-massimo-dogfood-home',
+                profile: 'local-lan-dogfood',
+                runId: 's32-massimo-dogfood',
+                organizationSlug: 'massimo-dogfood',
+                workspaceSlug: 'home',
+                platformConfigUrl: Uri.parse(
+                  'https://weave.test:44443/api/platform/config',
+                ),
+                productBaseUrl: Uri.parse('https://weave.test:44443'),
+              ),
+            ),
+          ),
+          signInWithOidcProvider.overrideWithValue(signIn),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: MemberHandoffScreen(
+              uri: Uri.parse(
+                'weave://join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-massimo-dogfood&product_base_url=https%3A%2F%2Fweave.test%3A44443&platform_config_url=https%3A%2F%2Fweave.test%3A44443%2Fapi%2Fplatform%2Fconfig',
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Sign In'));
+      await tester.pump();
+
+      expect(signIn.callCount, 1);
+      expect(signIn.isInteractiveSignInSupported, isTrue);
+    });
 
     testWidgets('shows and records a support-safe handoff failure code', (
       tester,
