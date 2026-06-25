@@ -125,7 +125,9 @@ class _WeaveAppState extends ConsumerState<WeaveApp>
     if (location == AppRoutes.welcome || !mounted) {
       return;
     }
-    await _maybeResetDogfoodAppState(uri);
+    if (await _resetDogfoodAppStateIfRequested(uri)) {
+      return;
+    }
     try {
       ref.read(appRouterProvider).go(location);
     } catch (_) {
@@ -133,11 +135,11 @@ class _WeaveAppState extends ConsumerState<WeaveApp>
     }
   }
 
-  Future<void> _maybeResetDogfoodAppState(Uri uri) async {
+  Future<bool> _resetDogfoodAppStateIfRequested(Uri uri) async {
     if (uri.queryParameters[_dogfoodResetQueryKey] !=
             _dogfoodResetAppStateValue ||
         uri.queryParameters['profile'] != _dogfoodLocalProfile) {
-      return;
+      return false;
     }
     final preferences = SharedPreferencesAsync();
     for (final key in const [
@@ -167,6 +169,14 @@ class _WeaveAppState extends ConsumerState<WeaveApp>
         await secureStorage.delete(key: key);
       } catch (_) {}
     }
+    final cleanQuery = Map<String, String>.from(uri.queryParameters)
+      ..remove(_dogfoodResetQueryKey);
+    final cleanUri = uri.replace(queryParameters: cleanQuery);
+    try {
+      await preferences.setString(_pendingDeepLinkKey, cleanUri.toString());
+    } catch (_) {}
+    _schedulePendingDeepLinkPoll();
+    return true;
   }
 
   @override
