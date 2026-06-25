@@ -53,7 +53,6 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
       final handoff = await ref
           .read(consumeMemberHandoffProvider)
           .call(widget.uri);
-      ref.invalidate(appBootstrapProvider);
       if (mounted) {
         setState(() => _handoff = handoff);
       }
@@ -105,7 +104,10 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
                 handoff.workspaceSlug,
               ),
               actionLabel: l10n.signInButton,
-              onAction: () => context.go(AppRoutes.signIn),
+              onAction: () {
+                ref.invalidate(appBootstrapProvider);
+                context.go(AppRoutes.signIn);
+              },
             ),
           ),
         ),
