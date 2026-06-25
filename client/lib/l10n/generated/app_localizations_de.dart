@@ -4151,6 +4151,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'Die Einladung ist möglicherweise abgelaufen, unvollständig oder noch nicht bereit. Bitte deinen Workspace-Admin um eine neue Einladung oder Organisations-Anmelde-URL.';
 
   @override
+  String get memberHandoffTlsErrorGuidance =>
+      'Weave konnte die Startkonfiguration des Workspaces nicht über vertrauenswürdiges TLS erreichen. Für lokales Dogfood installiere die Weave Local Development CA auf diesem iPhone und aktiviere volles Vertrauen, oder bitte deinen Admin um eine öffentlich vertrauenswürdige Organisations-Anmelde-URL.';
+
+  @override
   String memberHandoffErrorCode(String code) {
     return 'Fehlercode: $code';
   }

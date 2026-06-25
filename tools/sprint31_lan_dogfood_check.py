@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -47,8 +48,22 @@ def read(rel: str) -> str:
         fail(f"missing required file: {rel}")
 
 
-def run(args: list[str], expect_success: bool = True) -> subprocess.CompletedProcess[str]:
-    result = subprocess.run(args, cwd=ROOT, text=True, capture_output=True, check=False)
+def run(
+    args: list[str],
+    expect_success: bool = True,
+    env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    command_env = os.environ.copy()
+    if env:
+        command_env.update(env)
+    result = subprocess.run(
+        args,
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+        env=command_env,
+    )
     if expect_success and result.returncode != 0:
         fail(f"command failed: {' '.join(args)}\n{result.stdout}\n{result.stderr}")
     if not expect_success and result.returncode == 0:
@@ -146,6 +161,38 @@ def main() -> None:
     android_manifest = read("client/android/app/src/main/AndroidManifest.xml")
     if "weave_member_handoff" not in android_manifest or "android:scheme=\"weave\"" not in android_manifest:
         fail("Android must register a separate Weave member handoff scheme on MainActivity")
+    ios_smoke = read("tools/dogfood_ios_deeplink_smoke.sh")
+    for phrase in [
+        "WEAVE_IOS_LOCAL_CA_TRUST_STATUS",
+        "ios-local-tls-preflight.json",
+        "PHYSICAL_DEVICE_TLS_PENDING",
+    ]:
+        if phrase not in ios_smoke:
+            fail(f"iOS physical smoke missing local TLS preflight guard: {phrase}")
+    with tempfile.TemporaryDirectory() as tmp:
+        result = run(
+            [
+                "bash",
+                "tools/dogfood_ios_deeplink_smoke.sh",
+            ],
+            expect_success=False,
+            env={
+                "WEAVE_IOS_DEVICE_ID": "placeholder-device",
+                "WEAVE_DOGFOOD_DEEPLINK": (
+                    "weave://join?handoff_ref=handoff-s32-massimo-dogfood-home"
+                    "&run_id=s32-massimo-dogfood"
+                    "&platform_config_url=https%3A%2F%2Fweave.test%3A44443%2Fapi%2Fplatform%2Fconfig"
+                ),
+                "WEAVE_IOS_LOCAL_CA_TRUST_STATUS": "manual_pending",
+                "WEAVE_DOGFOOD_EVIDENCE_DIR": tmp,
+                "FLUTTER_BIN": "/usr/bin/true",
+            },
+        )
+        if "PHYSICAL_DEVICE_TLS_PENDING" not in result.stderr:
+            fail("iOS physical smoke must fail before launch when local CA trust is pending")
+        preflight = Path(tmp) / "ios-local-tls-preflight.json"
+        if not preflight.exists():
+            fail("iOS physical smoke must write local TLS preflight evidence before failing")
 
     for rel in [
         "docs/sprint-31-iphone-lan-dogfood-runbook.md",
@@ -157,6 +204,15 @@ def main() -> None:
             if phrase not in text:
                 fail(f"{rel} missing {phrase}")
         assert_no_forbidden(rel)
+    runbook = read("docs/sprint-31-iphone-lan-dogfood-runbook.md")
+    for phrase in [
+        "WEAVE-APP-START-TLS-FAILED",
+        "PHYSICAL_DEVICE_TLS_PENDING",
+        "publicly trusted dogfood endpoint",
+        "simulator handoff evidence is not physical-device E2E",
+    ]:
+        if phrase not in runbook:
+            fail(f"runbook missing physical TLS boundary: {phrase}")
 
     print("sprint31-lan-dogfood-check: ok")
 

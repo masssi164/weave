@@ -4853,6 +4853,10 @@
   "@memberHandoffErrorGuidance": {
     "description": "Support-safe guidance when member handoff consumption fails"
   },
+  "memberHandoffTlsErrorGuidance": "Weave could not reach the workspace start configuration over trusted TLS. For local dogfood, install and fully trust the Weave Local Development CA on this iPhone, or ask your admin for a publicly trusted organization sign-in link.",
+  "@memberHandoffTlsErrorGuidance": {
+    "description": "Support-safe guidance when member handoff consumption fails because platform config TLS trust is missing"
+  },
   "memberHandoffErrorCode": "Error code: {code}",
   "@memberHandoffErrorCode": {
     "description": "Support-safe handoff failure code shown with the member handoff error",
