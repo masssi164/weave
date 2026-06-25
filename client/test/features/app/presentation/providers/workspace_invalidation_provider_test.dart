@@ -12,8 +12,8 @@ void main() {
       container
           .read(workspaceInvalidationProvider.notifier)
           .invalidate(
-            integration: WorkspaceIntegration.matrix,
-            reason: IntegrationInvalidationReason.matrixHomeserverChanged,
+            integration: WorkspaceIntegration.chat,
+            reason: IntegrationInvalidationReason.chatConfigurationChanged,
           );
 
       final state = container.read(workspaceInvalidationProvider);

@@ -32,15 +32,30 @@ class FirstRunScreen extends ConsumerWidget {
             retryLabel: l10n.retryButton,
             onRetry: () => ref.invalidate(firstRunStatusProvider),
           ),
-          data: (status) => status == null
-              ? ErrorState(
-                  message: l10n.firstRunSignedOutMessage,
-                  guidance: l10n.firstRunSignedOutGuidance,
-                  retryLabel: l10n.firstRunSignInAction,
-                  onRetry: () => context.go(AppRoutes.signIn),
-                  semanticLabel: l10n.firstRunSignedOutSemanticLabel,
-                )
-              : _FirstRunStatusView(status: status),
+          data: (result) => switch (result) {
+            FirstRunAuthenticated(:final status) => _FirstRunStatusView(
+              status: status,
+            ),
+            FirstRunSignedOut() || FirstRunUnauthorized() => ErrorState(
+              message: l10n.firstRunSignedOutMessage,
+              guidance: l10n.firstRunSignedOutGuidance,
+              retryLabel: l10n.firstRunSignInAction,
+              onRetry: () => context.go(AppRoutes.signIn),
+              semanticLabel: l10n.firstRunSignedOutSemanticLabel,
+            ),
+            FirstRunBackendUnavailable() => ErrorState(
+              message: l10n.firstRunLoadFailure,
+              guidance: l10n.firstRunLoadFailureGuidance,
+              retryLabel: l10n.retryButton,
+              onRetry: () => ref.invalidate(firstRunStatusProvider),
+            ),
+            FirstRunInvalidPayload() => ErrorState(
+              message: l10n.firstRunLoadFailure,
+              guidance: l10n.firstRunLoadFailureGuidance,
+              retryLabel: l10n.retryButton,
+              onRetry: () => ref.invalidate(firstRunStatusProvider),
+            ),
+          },
         ),
       ),
     );
@@ -115,8 +130,13 @@ class _FirstRunStatusView extends ConsumerWidget {
                         state: status.profile.isReady
                             ? FirstRunProvisioningState.ready
                             : FirstRunProvisioningState.pending,
-                        message: status.profile.message,
-                        action: status.profile.action,
+                        message: _productModuleMessage(
+                          l10n,
+                          _FirstRunProductModule.profile,
+                          status.profile.isReady
+                              ? FirstRunProvisioningState.ready
+                              : FirstRunProvisioningState.pending,
+                        ),
                       ),
                       _ModuleStatusCard(
                         width: useTwoColumns
@@ -126,11 +146,14 @@ class _FirstRunStatusView extends ConsumerWidget {
                         title: l10n.firstRunChatModuleTitle,
                         stateLabel: _stateLabel(
                           l10n,
-                          status.moduleProvisioning.matrix.state,
+                          status.moduleProvisioning.chat.state,
                         ),
-                        state: status.moduleProvisioning.matrix.state,
-                        message: status.moduleProvisioning.matrix.message,
-                        action: status.moduleProvisioning.matrix.action,
+                        state: status.moduleProvisioning.chat.state,
+                        message: _productModuleMessage(
+                          l10n,
+                          _FirstRunProductModule.chat,
+                          status.moduleProvisioning.chat.state,
+                        ),
                       ),
                       _ModuleStatusCard(
                         width: useTwoColumns
@@ -140,11 +163,14 @@ class _FirstRunStatusView extends ConsumerWidget {
                         title: l10n.firstRunFilesModuleTitle,
                         stateLabel: _stateLabel(
                           l10n,
-                          status.moduleProvisioning.nextcloud.state,
+                          status.moduleProvisioning.files.state,
                         ),
-                        state: status.moduleProvisioning.nextcloud.state,
-                        message: status.moduleProvisioning.nextcloud.message,
-                        action: status.moduleProvisioning.nextcloud.action,
+                        state: status.moduleProvisioning.files.state,
+                        message: _productModuleMessage(
+                          l10n,
+                          _FirstRunProductModule.files,
+                          status.moduleProvisioning.files.state,
+                        ),
                       ),
                       _ModuleStatusCard(
                         width: useTwoColumns
@@ -154,11 +180,15 @@ class _FirstRunStatusView extends ConsumerWidget {
                         title: l10n.firstRunCalendarModuleTitle,
                         stateLabel: _stateLabel(
                           l10n,
-                          status.moduleProvisioning.nextcloud.state,
+                          status.moduleProvisioning.calendarReadiness.state,
                         ),
-                        state: status.moduleProvisioning.nextcloud.state,
-                        message: status.moduleProvisioning.nextcloud.message,
-                        action: status.moduleProvisioning.nextcloud.action,
+                        state:
+                            status.moduleProvisioning.calendarReadiness.state,
+                        message: _productModuleMessage(
+                          l10n,
+                          _FirstRunProductModule.calendar,
+                          status.moduleProvisioning.calendarReadiness.state,
+                        ),
                       ),
                     ],
                   );
@@ -166,7 +196,7 @@ class _FirstRunStatusView extends ConsumerWidget {
               ),
               if (status.actions.isNotEmpty) ...[
                 const SizedBox(height: 24),
-                _NextStepsCard(actions: status.actions),
+                _NextStepsCard(actions: [l10n.firstRunNextStepAdminAttention]),
               ],
               const SizedBox(height: 24),
               Wrap(
@@ -251,11 +281,11 @@ class _IdentityCard extends StatelessWidget {
                   ),
                   _DetailRow(
                     label: l10n.firstRunRoleLabel,
-                    value: status.access.primaryRole,
+                    value: _roleLabel(l10n, status.access.primaryRole),
                   ),
                   _DetailRow(
                     label: l10n.firstRunInviteStatusLabel,
-                    value: status.invite.status,
+                    value: _inviteStatusLabel(l10n, status.invite.status),
                   ),
                 ],
               ),
@@ -330,7 +360,6 @@ class _ModuleStatusCard extends StatelessWidget {
     required this.stateLabel,
     required this.state,
     required this.message,
-    this.action,
   });
 
   final double width;
@@ -339,7 +368,6 @@ class _ModuleStatusCard extends StatelessWidget {
   final String stateLabel;
   final FirstRunProvisioningState state;
   final String message;
-  final String? action;
 
   @override
   Widget build(BuildContext context) {
@@ -350,8 +378,7 @@ class _ModuleStatusCard extends StatelessWidget {
       width: width,
       child: Semantics(
         container: true,
-        label:
-            '$title. $stateLabel. $message${action == null ? '' : '. $action'}',
+        label: '$title. $stateLabel. $message',
         child: ExcludeSemantics(
           child: Card(
             elevation: 0,
@@ -389,15 +416,6 @@ class _ModuleStatusCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   Text(message, style: theme.textTheme.bodyMedium),
-                  if (action != null) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      action!,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
                 ],
               ),
             ),
@@ -479,6 +497,8 @@ class _DetailRow extends StatelessWidget {
   }
 }
 
+enum _FirstRunProductModule { profile, chat, files, calendar }
+
 String _stateLabel(AppLocalizations l10n, FirstRunProvisioningState state) {
   return switch (state) {
     FirstRunProvisioningState.notConfigured => l10n.firstRunStateUnavailable,
@@ -486,6 +506,52 @@ String _stateLabel(AppLocalizations l10n, FirstRunProvisioningState state) {
     FirstRunProvisioningState.ready => l10n.firstRunStateReady,
     FirstRunProvisioningState.degraded => l10n.firstRunStateDegraded,
     FirstRunProvisioningState.failed => l10n.firstRunStateActionNeeded,
+  };
+}
+
+String _roleLabel(AppLocalizations l10n, String role) {
+  return switch (role.trim().toLowerCase()) {
+    'owner' => l10n.firstRunRoleOwner,
+    'admin' => l10n.firstRunRoleAdmin,
+    'operator' => l10n.firstRunRoleOperator,
+    'member' => l10n.firstRunRoleMember,
+    'guest' => l10n.firstRunRoleGuest,
+    _ => l10n.firstRunRoleUnknown,
+  };
+}
+
+String _inviteStatusLabel(AppLocalizations l10n, String status) {
+  return switch (status.trim().toLowerCase()) {
+    'accepted' || 'active' || 'ready' => l10n.firstRunInviteAccepted,
+    'pending' => l10n.firstRunInvitePending,
+    'expired' => l10n.firstRunInviteExpired,
+    'revoked' || 'disabled' => l10n.firstRunInviteUnavailable,
+    _ => l10n.firstRunInviteUnavailable,
+  };
+}
+
+String _productModuleMessage(
+  AppLocalizations l10n,
+  _FirstRunProductModule module,
+  FirstRunProvisioningState state,
+) {
+  return switch (state) {
+    FirstRunProvisioningState.ready => switch (module) {
+      _FirstRunProductModule.profile => l10n.firstRunProfileReadyGuidance,
+      _FirstRunProductModule.chat => l10n.firstRunChatReadyGuidance,
+      _FirstRunProductModule.files => l10n.firstRunFilesReadyGuidance,
+      _FirstRunProductModule.calendar => l10n.firstRunCalendarReadyGuidance,
+    },
+    FirstRunProvisioningState.pending => switch (module) {
+      _FirstRunProductModule.profile => l10n.firstRunProfilePendingGuidance,
+      _FirstRunProductModule.chat => l10n.firstRunChatPendingGuidance,
+      _FirstRunProductModule.files => l10n.firstRunFilesPendingGuidance,
+      _FirstRunProductModule.calendar => l10n.firstRunCalendarPendingGuidance,
+    },
+    FirstRunProvisioningState.notConfigured =>
+      l10n.firstRunModuleUnavailableGuidance,
+    FirstRunProvisioningState.degraded => l10n.firstRunModuleDegradedGuidance,
+    FirstRunProvisioningState.failed => l10n.firstRunModuleActionNeededGuidance,
   };
 }
 

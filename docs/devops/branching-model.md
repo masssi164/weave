@@ -4,24 +4,27 @@ Weave uses a lane-based flow. The goal is a stable basis where the pinned specif
 
 ## Lanes
 
-- `main` is protected stable and release truth.
-  - It must contain release-ready code and release evidence only.
+- `main` is protected stable and release-capable truth.
+  - It must contain dogfood-validated code and release evidence only.
   - Normal product work does not target `main` directly.
-  - PRs to `main` are limited to promoted `rc/*` branches or documented emergency `hotfix/*` exceptions.
+  - PRs to `main` normally promote `dogfood` after green dogfood E2E/live evidence and required human signoff; documented emergency `hotfix/*` exceptions are allowed.
   - Release tags are generated from `main`.
 - `dev` is the protected integration lane.
-  - Issue branches, bugfix branches, documentation branches, and spec-integration branches normally target `dev`.
+  - Issue branches, bugfix branches, documentation branches, and spec-integration branches are cut from current `dev` and normally target `dev`.
+  - Review/refactor loops, feature-specific tests, acceptance/Gherkin/Cucumber scenarios, docs/evidence, and PR-safe CI/contracts/unit/acceptance/docs gates happen here when possible.
   - `dev` is allowed to be ahead of the current release, but it must stay buildable and evidence-backed.
-  - CI/spec gates run here before release-candidate cutting.
 - `future/*` lanes hold larger product lines that are not release-ready yet.
   - They must keep spec reconciliation explicit.
   - They periodically PR back into `dev` in reviewable slices.
   - They are not a shortcut around release notes, linked issues, or acceptance evidence.
-- `rc/<version>` lanes are release-candidate and E2E lanes.
-  - Cut them from `dev` when the candidate scope is ready.
-  - Only stabilization fixes, release evidence, and release-note corrections belong here.
-  - Full Live Stack E2E and release-evidence gates run here before promotion.
-  - A green and reviewed `rc/*` branch promotes to `main` by PR.
+- `dogfood` is the persistent LAN test-stack and human dogfood lane.
+  - Promote `dev` to `dogfood` by PR when a candidate is ready for live validation.
+  - Full or feature-relevant Live Stack E2E, dogfood evidence, and missing scenario/mapping updates belong on this promotion by the latest.
+  - Merging to `dogfood` deploys or updates the persistent LAN stack for human/iPhone/accessibility validation.
+  - A green and signed-off `dogfood` candidate promotes to `main` by PR.
+- `rc/<version>` lanes are optional later release-hardening lanes.
+  - Cut them from `main` or `dogfood` only when a named release needs extra stabilization, release notes, packaging, or publication evidence beyond ordinary dogfood validation.
+  - `rc/*` is not the normal human dogfood path and must not bypass `dev` -> `dogfood` -> `main`.
 - `hotfix/*` lanes are emergency exceptions.
   - Cut them from `main` for urgent release-truth fixes.
   - PR them to `main`, then backport or merge the fix into `dev` so the lanes do not diverge silently.
@@ -50,7 +53,7 @@ Every PR declares:
 
 Branch protection should make the lane names meaningful:
 
-- protect `main`, `dev`, and active `rc/*` branches;
+- protect `main`, `dev`, `dogfood`, and active `rc/*` branches;
 - require reviews and green required checks before merge;
 - require linear or squash history according to the repository merge policy;
 - prevent direct pushes except for documented administrator recovery;

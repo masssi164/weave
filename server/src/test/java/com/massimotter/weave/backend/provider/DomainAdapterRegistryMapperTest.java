@@ -113,7 +113,13 @@ class DomainAdapterRegistryMapperTest {
     void categoryContractCarriesAntiSiloDomainAdapterFit() {
         var contract = ProviderCapabilityContracts.contract("chat", Set.of(ProviderModule.MATRIX));
 
-        assertThat(contract.stableMemberImpactStates()).containsExactly("usable", "disabled", "degraded", "policy-blocked");
+        assertThat(contract.stableMemberImpactStates()).containsExactly(
+                "available",
+                "disabled_by_policy",
+                "not_configured",
+                "degraded",
+                "unavailable",
+                "coming_later");
         assertThat(contract.canonicalObjects()).contains("WeaveConversation", "WeaveMessage", "WeaveMembership");
         assertThat(contract.externalAdapters()).contains("microsoft-teams", "slack");
         assertThat(contract.lossyMappingRisks()).contains("Slack broadcast/thread semantics", "Teams channel permissions");
@@ -127,7 +133,13 @@ class DomainAdapterRegistryMapperTest {
         CORE_DOMAIN_OBJECTS.forEach((category, canonicalObjects) -> {
             var contract = ProviderCapabilityContracts.contract(category, modulesFor(category));
 
-            assertThat(contract.stableMemberImpactStates()).containsExactly("usable", "disabled", "degraded", "policy-blocked");
+            assertThat(contract.stableMemberImpactStates()).containsExactly(
+                    "available",
+                    "disabled_by_policy",
+                    "not_configured",
+                    "degraded",
+                    "unavailable",
+                    "coming_later");
             assertThat(contract.canonicalObjects()).containsExactlyInAnyOrderElementsOf(canonicalObjects);
             assertThat(contract.sourceOfTruth()).isNotBlank();
             assertThat(contract.lossyMappingRisks()).isNotEmpty();

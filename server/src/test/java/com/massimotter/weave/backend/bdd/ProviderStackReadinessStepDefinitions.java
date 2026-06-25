@@ -224,7 +224,13 @@ public class ProviderStackReadinessStepDefinitions {
 
         for (String categoryKey : List.of("identity-idm", "chat", "files", "boards-tasks")) {
             assertThat(stringsFrom(categoryByKey(categoryKey).at("/contract/stableMemberImpactStates")))
-                    .containsExactlyInAnyOrder("usable", "disabled", "degraded", "policy-blocked");
+                    .containsExactlyInAnyOrder(
+                            "available",
+                            "disabled_by_policy",
+                            "not_configured",
+                            "degraded",
+                            "unavailable",
+                            "coming_later");
         }
     }
 
@@ -232,7 +238,13 @@ public class ProviderStackReadinessStepDefinitions {
     public void memberImpactStatesAreStableAcrossProviderAdapters() {
         for (JsonNode category : iterable(lastJson.path("categories"))) {
             assertThat(stringsFrom(category.at("/contract/stableMemberImpactStates")))
-                    .containsExactlyInAnyOrder("usable", "disabled", "degraded", "policy-blocked");
+                    .containsExactlyInAnyOrder(
+                            "available",
+                            "disabled_by_policy",
+                            "not_configured",
+                            "degraded",
+                            "unavailable",
+                            "coming_later");
             assertThat(category.at("/contract/normalMembersConfigureProviders").asBoolean()).isFalse();
             assertThat(category.path("memberImpact").asText()).doesNotContain("secret", "Authorization", "access_token");
         }

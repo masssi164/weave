@@ -103,7 +103,7 @@ make offline-contract-test
 
 ## Lane-based PR and release workflow
 
-Use the lane-based DevOps flow: protected `main` for stable release truth, protected `dev` for integration, `future/*` for larger not-yet-release-ready lines, `rc/*` for release candidates and Live Stack E2E evidence, and `hotfix/*` for emergency stable-line fixes. See [Weave DevOps branching model](devops/branching-model.md), [release flow](devops/release-flow.md), [release notes policy](devops/release-notes.md), and [spec governance](devops/spec-governance.md). Every PR must deliberately choose exactly one release-notes label before review/merge:
+Use the lane-based DevOps flow: protected `dev` for integration and normal feature PRs, protected `dogfood` for persistent LAN candidate/human validation, protected `main` for stable release-capable truth, `future/*` for larger not-yet-release-ready lines, optional `rc/*` for later release hardening, and `hotfix/*` for emergency stable-line fixes. See [Weave DevOps branching model](devops/branching-model.md), [release flow](devops/release-flow.md), [release notes policy](devops/release-notes.md), and [spec governance](devops/spec-governance.md). Every PR must deliberately choose exactly one release-notes label before review/merge:
 
 - `release-notes-feature`
 - `release-notes-bugfix`

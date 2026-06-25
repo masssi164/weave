@@ -32,11 +32,11 @@ class AppLocalizationsEn extends AppLocalizations {
       'Admin setup starts with the identity/IDM category and keeps chat, files, calendar, boards/tasks, meetings/calls, documents/collaboration, and Weaver visible as provider categories before members join.';
 
   @override
-  String get setupServicesStepTitle => 'Review Service Endpoints';
+  String get setupServicesStepTitle => 'Review Backend API';
 
   @override
   String get setupServicesStepDescription =>
-      'Review the current dogfood service endpoints derived from the identity issuer. These provider URLs stay admin/operator configuration, not normal member setup.';
+      'Review the Weave backend API endpoint derived from the organization sign-in issuer. Provider service URLs stay in admin/support diagnostics, not member setup.';
 
   @override
   String get providerCategorySummaryTitle => 'Provider categories';
@@ -355,6 +355,36 @@ class AppLocalizationsEn extends AppLocalizations {
   String get firstRunInviteStatusLabel => 'Invite';
 
   @override
+  String get firstRunRoleOwner => 'Owner';
+
+  @override
+  String get firstRunRoleAdmin => 'Admin';
+
+  @override
+  String get firstRunRoleOperator => 'Operator';
+
+  @override
+  String get firstRunRoleMember => 'Member';
+
+  @override
+  String get firstRunRoleGuest => 'Guest';
+
+  @override
+  String get firstRunRoleUnknown => 'Workspace role';
+
+  @override
+  String get firstRunInviteAccepted => 'Accepted';
+
+  @override
+  String get firstRunInvitePending => 'Pending';
+
+  @override
+  String get firstRunInviteExpired => 'Expired';
+
+  @override
+  String get firstRunInviteUnavailable => 'Unavailable';
+
+  @override
   String get firstRunModuleSectionTitle => 'Module readiness';
 
   @override
@@ -386,6 +416,50 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get firstRunNextStepsTitle => 'Next steps';
+
+  @override
+  String get firstRunProfileReadyGuidance => 'Your profile is ready for Weave.';
+
+  @override
+  String get firstRunProfilePendingGuidance =>
+      'Your profile is still being prepared.';
+
+  @override
+  String get firstRunChatReadyGuidance => 'Chat is ready for this workspace.';
+
+  @override
+  String get firstRunChatPendingGuidance => 'Chat is still being prepared.';
+
+  @override
+  String get firstRunFilesReadyGuidance =>
+      'Files are ready for this workspace.';
+
+  @override
+  String get firstRunFilesPendingGuidance => 'Files are still being prepared.';
+
+  @override
+  String get firstRunCalendarReadyGuidance =>
+      'Calendar is ready for this workspace.';
+
+  @override
+  String get firstRunCalendarPendingGuidance =>
+      'Calendar is still being prepared.';
+
+  @override
+  String get firstRunModuleUnavailableGuidance =>
+      'This Weave capability is not available for this workspace yet.';
+
+  @override
+  String get firstRunModuleDegradedGuidance =>
+      'This Weave capability is available with limited functionality.';
+
+  @override
+  String get firstRunModuleActionNeededGuidance =>
+      'Workspace setup needs admin attention.';
+
+  @override
+  String get firstRunNextStepAdminAttention =>
+      'Workspace setup needs admin attention before every capability is ready.';
 
   @override
   String get firstRunRefreshButton => 'Refresh status';
@@ -1786,12 +1860,12 @@ class AppLocalizationsEn extends AppLocalizations {
       'Auth configuration changed';
 
   @override
-  String get settingsWorkspaceInvalidationMatrixHomeserverChanged =>
-      'Matrix homeserver changed';
+  String get settingsWorkspaceInvalidationChatConfigurationChanged =>
+      'Chat configuration changed';
 
   @override
-  String get settingsWorkspaceInvalidationNextcloudBaseUrlChanged =>
-      'Nextcloud base URL changed';
+  String get settingsWorkspaceInvalidationFilesConfigurationChanged =>
+      'Files configuration changed';
 
   @override
   String get settingsWorkspaceInvalidationExplicitSignOut =>
@@ -1934,6 +2008,64 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsWorkspaceImpactLabel => 'Member impact';
+
+  @override
+  String get settingsWorkspaceRecoveryLabel => 'Recovery';
+
+  @override
+  String get settingsWorkspaceRecoveryAvailable => 'Available';
+
+  @override
+  String get settingsWorkspaceRecoveryDisabledByPolicy => 'Disabled by policy';
+
+  @override
+  String get settingsWorkspaceRecoveryNotConfigured => 'Admin setup needed';
+
+  @override
+  String get settingsWorkspaceRecoveryDegraded => 'Limited';
+
+  @override
+  String get settingsWorkspaceRecoveryUnavailable => 'Unavailable';
+
+  @override
+  String get settingsWorkspaceRecoveryComingLater => 'Coming later';
+
+  @override
+  String get settingsWorkspaceRecoveryAvailableAction =>
+      'No recovery action is needed.';
+
+  @override
+  String get settingsWorkspaceRecoveryDisabledByPolicyAction =>
+      'Ask a workspace admin if your role or group should receive access.';
+
+  @override
+  String get settingsWorkspaceRecoveryNotConfiguredAction =>
+      'A workspace admin needs to finish setup before members can use this capability.';
+
+  @override
+  String get settingsWorkspaceRecoveryDegradedAction =>
+      'You can keep working, but some actions may be limited until workspace readiness recovers.';
+
+  @override
+  String get settingsWorkspaceRecoveryUnavailableAction =>
+      'This capability is not available in the current workspace state.';
+
+  @override
+  String get settingsWorkspaceRecoveryComingLaterAction =>
+      'This capability stays hidden until the organization enables it for members.';
+
+  @override
+  String get settingsWorkspaceRecoverySupportRefUnavailable => 'Not provided';
+
+  @override
+  String settingsWorkspaceRecoverySemanticLabel(
+    String capability,
+    String state,
+    String recovery,
+    String supportRef,
+  ) {
+    return '$capability. State: $state. Recovery: $recovery. Support reference: $supportRef.';
+  }
 
   @override
   String settingsProviderStackSemanticLabel(
@@ -2645,6 +2777,17 @@ class AppLocalizationsEn extends AppLocalizations {
       'Defaults for Matrix, Nextcloud, and the backend API are derived from the issuer host. Edit them if your services live elsewhere.';
 
   @override
+  String get serverConfigurationBackendApiHelper =>
+      'The member client stores the Weave backend API endpoint for organization capability and workspace state. Provider service URLs stay in admin/support diagnostics.';
+
+  @override
+  String get serverConfigurationIdentityEndpointTitle => 'Identity endpoint';
+
+  @override
+  String get serverConfigurationIdentityEndpointHelper =>
+      'Provider selection is owned by the Weave Admin Console and backend control plane. This member client stores only canonical Weave endpoints needed to sign in.';
+
+  @override
   String get serverConfigurationMatrixLabel => 'Matrix Homeserver URL';
 
   @override
@@ -2700,15 +2843,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get signInDescription =>
-      'Weave is configured. Use your provider account in the system browser to open the authenticated app shell.';
+      'Use your Weave workspace sign-in to continue. Your invite or organization account opens the app securely in the system browser.';
 
   @override
   String get signInConfigurationTitle => 'Current sign-in configuration';
-
-  @override
-  String signInConfigurationProvider(String value) {
-    return 'Provider: $value';
-  }
 
   @override
   String signInConfigurationIssuer(String value) {
@@ -3359,7 +3497,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get firstRunAdminSetupDescription =>
-      'Your role can administer workspace setup. Keep OIDC, realm, organization, invite, and service endpoint changes here or in Settings; normal users should only need one Weave sign-in.';
+      'Your role can manage workspace setup. Use admin settings for organization access, invitations, capability readiness, and recovery tasks; normal members should only need one Weave sign-in.';
 
   @override
   String get agentCapabilityPolicyTitle => 'AI agent capability governance';

@@ -86,36 +86,38 @@ void main() {
     expect(chatScreen, isNot(contains('agentChatPreviewProvider')));
   });
 
-  test(
-    'Router keeps feature-gated calendar and boards surfaces out of default navigation',
-    () async {
-      final routerSource = await File(
-        'lib/core/router/app_router.dart',
-      ).readAsString();
-      final shellSource = await File(
-        'lib/features/shell/presentation/app_shell.dart',
-      ).readAsString();
+  test('Router removes obsolete calendar and deck member routes', () async {
+    final routerSource = await File(
+      'lib/core/router/app_router.dart',
+    ).readAsString();
+    final routesSource = await File(
+      'lib/core/router/app_routes.dart',
+    ).readAsString();
+    final shellSource = await File(
+      'lib/features/shell/presentation/app_shell.dart',
+    ).readAsString();
 
-      expect(routerSource, contains('onHiddenReleaseOneRoute'));
-      expect(
-        routerSource,
-        contains('state.matchedLocation == AppRoutes.calendar'),
-      );
-      expect(routerSource, contains('state.matchedLocation == AppRoutes.deck'));
-      expect(routerSource, contains('return AppRoutes.chat'));
+    expect(routerSource, isNot(contains('onHiddenReleaseOneRoute')));
+    expect(routerSource, isNot(contains('AppRoutes.calendar')));
+    expect(routerSource, isNot(contains('AppRoutes.deck')));
+    expect(routerSource, isNot(contains('CalendarScreen')));
+    expect(routerSource, isNot(contains('DeckScreen')));
+    expect(routesSource, isNot(contains('/calendar')));
+    expect(routesSource, isNot(contains('/deck')));
+    expect(
+      File(
+        'lib/features/calendar/presentation/calendar_screen.dart',
+      ).existsSync(),
+      isFalse,
+    );
+    expect(File('lib/features/deck').existsSync(), isFalse);
 
-      expect(routerSource, isNot(contains('CalendarScreen')));
-      expect(routerSource, isNot(contains('DeckScreen')));
-      expect(routerSource, isNot(contains('path: AppRoutes.calendar')));
-      expect(routerSource, isNot(contains('path: AppRoutes.deck')));
-
-      expect(shellSource, contains('l10n.navChat'));
-      expect(shellSource, contains('l10n.navFiles'));
-      expect(shellSource, contains('l10n.navSettings'));
-      expect(shellSource, isNot(contains('navCalendar')));
-      expect(shellSource, isNot(contains('navDeck')));
-    },
-  );
+    expect(shellSource, contains('l10n.navChat'));
+    expect(shellSource, contains('l10n.navFiles'));
+    expect(shellSource, contains('l10n.navSettings'));
+    expect(shellSource, isNot(contains('navCalendar')));
+    expect(shellSource, isNot(contains('navDeck')));
+  });
 
   test(
     'README screenshots keep current product surfaces separate from roadmap surfaces',

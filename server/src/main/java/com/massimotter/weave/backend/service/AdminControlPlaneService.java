@@ -87,10 +87,12 @@ import static com.massimotter.weave.backend.model.IdentityKeyFormat.PRIMARY_IDEN
 public class AdminControlPlaneService {
 
     private static final List<String> STABLE_MEMBER_IMPACT_STATES = List.of(
-            "ready",
-            "disabled",
+            "available",
+            "disabled_by_policy",
+            "not_configured",
             "degraded",
-            "policy-blocked");
+            "unavailable",
+            "coming_later");
     private static final Set<String> SIMULATION_ROLES = Set.of("owner", "admin", "operator", "member", "guest");
     private static final Set<String> SIMULATION_GROUPS = Set.of(
             "weave-calendar-editors",

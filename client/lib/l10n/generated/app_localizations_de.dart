@@ -32,11 +32,11 @@ class AppLocalizationsDe extends AppLocalizations {
       'Die Admin-Einrichtung beginnt mit der Kategorie Identität/IDM und hält Chat, Dateien, Kalender, Boards/Aufgaben, Besprechungen/Anrufe, Dokumente/Zusammenarbeit und Weaver als Provider-Kategorien sichtbar, bevor Mitglieder beitreten.';
 
   @override
-  String get setupServicesStepTitle => 'Dienstendpunkte prüfen';
+  String get setupServicesStepTitle => 'Backend-API prüfen';
 
   @override
   String get setupServicesStepDescription =>
-      'Prüfe die aktuellen Dogfood-Service-Endpunkte, die aus dem Identitäts-Issuer abgeleitet wurden. Diese Provider-URLs bleiben Admin-/Operator-Konfiguration, nicht normale Mitglieder-Einrichtung.';
+      'Prüfe den Weave-Backend-API-Endpunkt, der aus dem Organisations-Login abgeleitet wurde. Provider-Service-URLs bleiben in Admin-/Support-Diagnosen, nicht in der Mitglieder-Einrichtung.';
 
   @override
   String get providerCategorySummaryTitle => 'Provider-Kategorien';
@@ -360,6 +360,36 @@ class AppLocalizationsDe extends AppLocalizations {
   String get firstRunInviteStatusLabel => 'Einladung';
 
   @override
+  String get firstRunRoleOwner => 'Owner';
+
+  @override
+  String get firstRunRoleAdmin => 'Admin';
+
+  @override
+  String get firstRunRoleOperator => 'Operator';
+
+  @override
+  String get firstRunRoleMember => 'Mitglied';
+
+  @override
+  String get firstRunRoleGuest => 'Gast';
+
+  @override
+  String get firstRunRoleUnknown => 'Workspace-Rolle';
+
+  @override
+  String get firstRunInviteAccepted => 'Angenommen';
+
+  @override
+  String get firstRunInvitePending => 'Ausstehend';
+
+  @override
+  String get firstRunInviteExpired => 'Abgelaufen';
+
+  @override
+  String get firstRunInviteUnavailable => 'Nicht verfügbar';
+
+  @override
   String get firstRunModuleSectionTitle => 'Modulbereitschaft';
 
   @override
@@ -391,6 +421,52 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get firstRunNextStepsTitle => 'Nächste Schritte';
+
+  @override
+  String get firstRunProfileReadyGuidance =>
+      'Dein Profil ist für Weave bereit.';
+
+  @override
+  String get firstRunProfilePendingGuidance =>
+      'Dein Profil wird noch vorbereitet.';
+
+  @override
+  String get firstRunChatReadyGuidance =>
+      'Chat ist für diesen Arbeitsbereich bereit.';
+
+  @override
+  String get firstRunChatPendingGuidance => 'Chat wird noch vorbereitet.';
+
+  @override
+  String get firstRunFilesReadyGuidance =>
+      'Dateien sind für diesen Arbeitsbereich bereit.';
+
+  @override
+  String get firstRunFilesPendingGuidance => 'Dateien werden noch vorbereitet.';
+
+  @override
+  String get firstRunCalendarReadyGuidance =>
+      'Kalender ist für diesen Arbeitsbereich bereit.';
+
+  @override
+  String get firstRunCalendarPendingGuidance =>
+      'Kalender wird noch vorbereitet.';
+
+  @override
+  String get firstRunModuleUnavailableGuidance =>
+      'Diese Weave-Funktion ist für diesen Arbeitsbereich noch nicht verfügbar.';
+
+  @override
+  String get firstRunModuleDegradedGuidance =>
+      'Diese Weave-Funktion ist mit eingeschränkter Funktionalität verfügbar.';
+
+  @override
+  String get firstRunModuleActionNeededGuidance =>
+      'Die Einrichtung des Arbeitsbereichs benötigt Admin-Aufmerksamkeit.';
+
+  @override
+  String get firstRunNextStepAdminAttention =>
+      'Die Einrichtung des Arbeitsbereichs benötigt Admin-Aufmerksamkeit, bevor alle Funktionen bereit sind.';
 
   @override
   String get firstRunRefreshButton => 'Status aktualisieren';
@@ -1808,12 +1884,12 @@ class AppLocalizationsDe extends AppLocalizations {
       'Anmeldekonfiguration geändert';
 
   @override
-  String get settingsWorkspaceInvalidationMatrixHomeserverChanged =>
-      'Matrix-Homeserver geändert';
+  String get settingsWorkspaceInvalidationChatConfigurationChanged =>
+      'Chat-Konfiguration geändert';
 
   @override
-  String get settingsWorkspaceInvalidationNextcloudBaseUrlChanged =>
-      'Nextcloud-Basis-URL geändert';
+  String get settingsWorkspaceInvalidationFilesConfigurationChanged =>
+      'Dateien-Konfiguration geändert';
 
   @override
   String get settingsWorkspaceInvalidationExplicitSignOut =>
@@ -1957,6 +2033,67 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get settingsWorkspaceImpactLabel => 'Member-Auswirkung';
+
+  @override
+  String get settingsWorkspaceRecoveryLabel => 'Wiederherstellung';
+
+  @override
+  String get settingsWorkspaceRecoveryAvailable => 'Verfügbar';
+
+  @override
+  String get settingsWorkspaceRecoveryDisabledByPolicy =>
+      'Per Policy deaktiviert';
+
+  @override
+  String get settingsWorkspaceRecoveryNotConfigured =>
+      'Admin-Einrichtung nötig';
+
+  @override
+  String get settingsWorkspaceRecoveryDegraded => 'Eingeschränkt';
+
+  @override
+  String get settingsWorkspaceRecoveryUnavailable => 'Nicht verfügbar';
+
+  @override
+  String get settingsWorkspaceRecoveryComingLater => 'Kommt später';
+
+  @override
+  String get settingsWorkspaceRecoveryAvailableAction =>
+      'Es ist keine Wiederherstellungsaktion nötig.';
+
+  @override
+  String get settingsWorkspaceRecoveryDisabledByPolicyAction =>
+      'Frage eine Workspace-Adminperson, falls deine Rolle oder Gruppe Zugriff erhalten soll.';
+
+  @override
+  String get settingsWorkspaceRecoveryNotConfiguredAction =>
+      'Eine Workspace-Adminperson muss die Einrichtung abschließen, bevor Mitglieder diese Capability nutzen können.';
+
+  @override
+  String get settingsWorkspaceRecoveryDegradedAction =>
+      'Du kannst weiterarbeiten, aber einige Aktionen können eingeschränkt sein, bis der Workspace-Status wiederhergestellt ist.';
+
+  @override
+  String get settingsWorkspaceRecoveryUnavailableAction =>
+      'Diese Capability ist im aktuellen Workspace-Status nicht verfügbar.';
+
+  @override
+  String get settingsWorkspaceRecoveryComingLaterAction =>
+      'Diese Capability bleibt verborgen, bis die Organisation sie für Mitglieder aktiviert.';
+
+  @override
+  String get settingsWorkspaceRecoverySupportRefUnavailable =>
+      'Nicht bereitgestellt';
+
+  @override
+  String settingsWorkspaceRecoverySemanticLabel(
+    String capability,
+    String state,
+    String recovery,
+    String supportRef,
+  ) {
+    return '$capability. Status: $state. Wiederherstellung: $recovery. Support-Referenz: $supportRef.';
+  }
 
   @override
   String settingsProviderStackSemanticLabel(
@@ -2677,6 +2814,17 @@ class AppLocalizationsDe extends AppLocalizations {
       'Standardwerte für Matrix, Nextcloud und die Backend-API werden aus dem Issuer-Host abgeleitet. Ändere sie, wenn deine Dienste anderswo liegen.';
 
   @override
+  String get serverConfigurationBackendApiHelper =>
+      'Der Mitglieder-Client speichert den Weave-Backend-API-Endpunkt für Organisationsfunktionen und Workspace-Status. Provider-Service-URLs bleiben in Admin-/Support-Diagnosen.';
+
+  @override
+  String get serverConfigurationIdentityEndpointTitle => 'Identitätsendpunkt';
+
+  @override
+  String get serverConfigurationIdentityEndpointHelper =>
+      'Provider-Auswahl gehört in die Weave Admin Console und Backend-Control-Plane. Dieser Mitglieder-Client speichert nur kanonische Weave-Endpunkte für die Anmeldung.';
+
+  @override
   String get serverConfigurationMatrixLabel => 'Matrix-Homeserver-URL';
 
   @override
@@ -2732,15 +2880,10 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get signInDescription =>
-      'Weave ist konfiguriert. Verwende dein Provider-Konto im Systembrowser, um die authentifizierte App zu öffnen.';
+      'Melde dich mit deinem Weave-Arbeitsbereich an, um fortzufahren. Deine Einladung oder dein Organisationskonto öffnet die App sicher im Systembrowser.';
 
   @override
   String get signInConfigurationTitle => 'Aktuelle Anmeldekonfiguration';
-
-  @override
-  String signInConfigurationProvider(String value) {
-    return 'Provider: $value';
-  }
 
   @override
   String signInConfigurationIssuer(String value) {
@@ -3405,7 +3548,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get firstRunAdminSetupDescription =>
-      'Deine Rolle darf die Workspace-Einrichtung verwalten. OIDC-, Realm-, Organisations-, Einladungs- und Dienstendpunkt-Änderungen gehören hier oder in die Einstellungen; normale Nutzer sollen nur eine Weave-Anmeldung brauchen.';
+      'Deine Rolle darf die Einrichtung des Arbeitsbereichs verwalten. Nutze die Admin-Einstellungen für Organisationszugang, Einladungen, Funktionsbereitschaft und Wiederherstellung; normale Mitglieder sollen nur eine Weave-Anmeldung brauchen.';
 
   @override
   String get agentCapabilityPolicyTitle =>

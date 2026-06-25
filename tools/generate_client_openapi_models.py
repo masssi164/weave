@@ -47,13 +47,14 @@ def refs_in(value: Any) -> set[str]:
     return found
 
 
-def type_for(schema: dict[str, Any] | None) -> str:
+def type_for(schema: dict[str, Any] | None, *, required: bool = False) -> str:
     if not schema:
         return "Object?"
     if "$ref" in schema:
-        return f"{pascal(schema['$ref'].split('/')[-1])}?"
+        base = pascal(schema["$ref"].split("/")[-1])
+        return base if required else f"{base}?"
     if "allOf" in schema and schema["allOf"]:
-        return type_for(schema["allOf"][0])
+        return type_for(schema["allOf"][0], required=required)
     if "oneOf" in schema or "anyOf" in schema:
         return "Object?"
     schema_type = schema.get("type")
@@ -77,25 +78,37 @@ def type_for(schema: dict[str, Any] | None) -> str:
         base = "String"
     else:
         base = "Object?"
-    return base if nullable or base.endswith("?") else f"{base}?"
+    if nullable or base.endswith("?"):
+        return base
+    return base if required else f"{base}?"
 
 
 def read_expr(field_type: str, key: str) -> str:
     value = f"json[{json.dumps(key)}]"
+    if field_type == "String": return f"{value} as String"
     if field_type == "String?": return f"{value} as String?"
+    if field_type == "bool": return f"{value} as bool"
     if field_type == "bool?": return f"{value} as bool?"
+    if field_type == "int": return f"({value} as num).toInt()"
     if field_type == "int?": return f"({value} as num?)?.toInt()"
+    if field_type == "num": return f"{value} as num"
     if field_type == "num?": return f"{value} as num?"
     if field_type.startswith("List<"):
-        inner = field_type[len("List<"):-2]
+        nullable = field_type.endswith("?")
+        inner = field_type[len("List<"):-2 if nullable else -1]
         if inner in {"String", "bool", "int", "num", "Object"}:
             conv = "e"
             if inner == "int": conv = "(e as num).toInt()"
             elif inner != "Object": conv = f"e as {inner}"
-            return f"({value} as List<dynamic>?)?.map((e) => {conv}).toList()"
-        return f"({value} as List<dynamic>?)?.map((e) => {inner}.fromJson(e as Map<String, dynamic>)).toList()"
+            cast = f"{value} as List<dynamic>{'?' if nullable else ''}"
+            return f"({cast}){'?' if nullable else ''}.map((e) => {conv}).toList()"
+        cast = f"{value} as List<dynamic>{'?' if nullable else ''}"
+        return f"({cast}){'?' if nullable else ''}.map((e) => {inner}.fromJson(e as Map<String, dynamic>)).toList()"
     if field_type.startswith("Map<"):
-        return f"({value} as Map<String, dynamic>?)?.cast<String, Object?>()"
+        nullable = field_type.endswith("?")
+        return f"({value} as Map<String, dynamic>{'?' if nullable else ''}){'?' if nullable else ''}.cast<String, Object?>()"
+    if not field_type.endswith("?") and field_type not in {"Object"}:
+        return f"{field_type}.fromJson({value} as Map<String, dynamic>)"
     if field_type.endswith("?") and field_type[:-1] not in {"Object"}:
         cls = field_type[:-1]
         return f"{value} == null ? null : {cls}.fromJson({value} as Map<String, dynamic>)"
@@ -105,17 +118,21 @@ def read_expr(field_type: str, key: str) -> str:
 def emit_class(name: str, schema: dict[str, Any]) -> list[str]:
     cls = pascal(name)
     props = schema.get("properties") if isinstance(schema.get("properties"), dict) else {}
+    required_props = set(schema.get("required", [])) if isinstance(schema.get("required"), list) else set()
     lines = [f"class {cls} {{"]
-    params = [f"this.{camel(k)}" for k in sorted(props)]
+    params = [
+        f"{'required ' if k in required_props else ''}this.{camel(k)}"
+        for k in sorted(props)
+    ]
     lines.append(f"  const {cls}({{{', '.join(params)}}});" if params else f"  const {cls}();")
     lines.append("")
     lines.append(f"  factory {cls}.fromJson(Map<String, dynamic> json) => {cls}(")
     for k, v in sorted(props.items()):
-        lines.append(f"    {camel(k)}: {read_expr(type_for(v), k)},")
+        lines.append(f"    {camel(k)}: {read_expr(type_for(v, required=k in required_props), k)},")
     lines.append("  );")
     lines.append("")
     for k, v in sorted(props.items()):
-        lines.append(f"  final {type_for(v)} {camel(k)};")
+        lines.append(f"  final {type_for(v, required=k in required_props)} {camel(k)};")
     if props: lines.append("")
     lines.append("  Map<String, dynamic> toJson() => {")
     for k in sorted(props):

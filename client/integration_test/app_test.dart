@@ -115,13 +115,13 @@ void main() {
     );
     expect(
       container.read(
-        integrationInvalidationProvider(WorkspaceIntegration.matrix),
+        integrationInvalidationProvider(WorkspaceIntegration.chat),
       ),
       isNull,
     );
     expect(
       container.read(
-        integrationInvalidationProvider(WorkspaceIntegration.nextcloud),
+        integrationInvalidationProvider(WorkspaceIntegration.files),
       ),
       isNull,
     );

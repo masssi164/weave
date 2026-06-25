@@ -115,6 +115,56 @@ class ProviderRegistryTest {
                 .containsEntry("rawProviderErrorsReturned", false);
     }
 
+    @Test
+    void localLiveSelectionMarksRecommendedDogfoodAdapterConfigured() {
+        InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
+        selections.save(new ProviderSelection(
+                "chat",
+                "synapse-homeserver",
+                "recommended_self_hosted_default",
+                "secretref://weave/provider/synapse-homeserver/signing-key",
+                "actor:local-live-bootstrap",
+                Instant.parse("2026-01-01T00:00:00Z"),
+                true,
+                true,
+                false,
+                List.of()));
+        ProviderRegistry registry = new ProviderRegistry(
+                List.of(StaticProviderPort.pending(
+                        ProviderModule.MATRIX,
+                        "synapse-homeserver",
+                        "Chat adapter candidate.",
+                        Set.of("chat.read"),
+                        Set.of("direct-flutter-provider-api"),
+                        List.of("synapse", "slack", "microsoft-teams"),
+                        Map.of())),
+                capabilityService(),
+                selections,
+                "local-live");
+
+        ProviderRegistryResponse response = registry.status();
+
+        ProviderStatusResponse provider = response.providers().get(0);
+        assertThat(provider.enabled()).isTrue();
+        assertThat(provider.configured()).isTrue();
+        assertThat(provider.state()).isEqualTo(ProviderState.CONFIGURED);
+        assertThat(provider.readiness()).isEqualTo("configured");
+        assertThat(provider.diagnostics())
+                .containsEntry("selectedByAdmin", true)
+                .containsEntry("choiceModel", "recommended_self_hosted_default")
+                .containsEntry("secretsReturned", false);
+        ProviderCategoryStatusResponse chat = response.categories().stream()
+                .filter(category -> category.category().equals("chat"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(chat.readiness()).isEqualTo(ProviderCategoryReadiness.READY);
+        assertThat(chat.adapterEvidence()).singleElement().satisfies(evidence -> {
+            assertThat(evidence.configured()).isTrue();
+            assertThat(evidence.reachable()).isTrue();
+            assertThat(evidence.health()).isEqualTo("configured");
+        });
+    }
+
     private WorkspaceCapabilityService capabilityService() {
         WorkspaceCapabilityService service = Mockito.mock(WorkspaceCapabilityService.class);
         when(service.snapshot()).thenReturn(new WorkspaceCapabilitiesResponse(

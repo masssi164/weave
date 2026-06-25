@@ -42,16 +42,16 @@ class IntegrationConnectionState {
 class WorkspaceConnectionState {
   const WorkspaceConnectionState({
     required this.appAuth,
-    required this.matrix,
-    required this.nextcloud,
+    required this.chat,
+    required this.files,
   });
 
   final IntegrationConnectionState appAuth;
-  final IntegrationConnectionState matrix;
-  final IntegrationConnectionState nextcloud;
+  final IntegrationConnectionState chat;
+  final IntegrationConnectionState files;
 
   List<IntegrationConnectionState> get serviceIntegrations =>
-      <IntegrationConnectionState>[matrix, nextcloud];
+      <IntegrationConnectionState>[chat, files];
 
   bool get shellAccessReady =>
       appAuth.status == IntegrationConnectionStatus.connected;

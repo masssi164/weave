@@ -10,6 +10,7 @@ import 'package:weave/features/chat/presentation/chat_room_screen.dart';
 import 'package:weave/features/chat/presentation/chat_screen.dart';
 import 'package:weave/features/files/presentation/files_screen.dart';
 import 'package:weave/features/help/presentation/help_screen.dart';
+import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
 import 'package:weave/features/onboarding/presentation/first_run_screen.dart';
 import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
 import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
@@ -39,14 +40,6 @@ GoRouter appRouter(Ref ref) {
       final onSignIn = state.matchedLocation == AppRoutes.signIn;
       final onJoin = state.matchedLocation == AppRoutes.join;
       final onFirstRun = state.matchedLocation == AppRoutes.firstRun;
-      final onHiddenReleaseOneRoute =
-          state.matchedLocation == AppRoutes.calendar ||
-          state.matchedLocation == AppRoutes.deck;
-
-      if (onHiddenReleaseOneRoute) {
-        return AppRoutes.chat;
-      }
-
       switch (bootstrapState.phase) {
         case BootstrapPhase.loading:
         case BootstrapPhase.error:
@@ -57,20 +50,19 @@ GoRouter appRouter(Ref ref) {
           return onSignIn ? null : AppRoutes.signIn;
         case BootstrapPhase.ready:
           try {
-            final status = await ref.read(firstRunStatusProvider.future);
-            if (status == null) {
-              return (onFirstRun || onSignIn) ? null : AppRoutes.firstRun;
-            }
-
-            if (!status.firstRunComplete) {
-              return onFirstRun ? null : AppRoutes.firstRun;
-            }
-
-            if (onOnboarding || onSignIn) {
-              return AppRoutes.chat;
-            }
-
-            return null;
+            final result = await ref.read(firstRunStatusProvider.future);
+            return switch (result) {
+              FirstRunAuthenticated(:final status) =>
+                !status.firstRunComplete
+                    ? (onFirstRun ? null : AppRoutes.firstRun)
+                    : (onOnboarding || onSignIn || onFirstRun
+                          ? AppRoutes.chat
+                          : null),
+              FirstRunSignedOut() ||
+              FirstRunUnauthorized() => onSignIn ? null : AppRoutes.signIn,
+              FirstRunBackendUnavailable() || FirstRunInvalidPayload() =>
+                onFirstRun ? null : AppRoutes.firstRun,
+            };
           } catch (_) {
             return onFirstRun ? null : AppRoutes.firstRun;
           }

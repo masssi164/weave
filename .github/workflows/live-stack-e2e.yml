@@ -1,6 +1,14 @@
 name: Live Stack E2E
 
 on:
+  pull_request:
+    branches:
+      - dogfood
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
   workflow_dispatch:
     inputs:
       weave_backend_image:
@@ -11,9 +19,6 @@ on:
         description: "MCP server image built from CI-built weave-mcp-server JAR artifacts; ghcr.io/* is pulled"
         required: false
         default: "weave-mcp-server:live-stack-ci"
-  schedule:
-    # Nightly release-evidence run on the dedicated self-hosted live runner.
-    - cron: "17 2 * * *"
   workflow_call:
     inputs:
       weave_backend_image:
@@ -66,6 +71,8 @@ jobs:
       TF_VAR_create_test_user: 'true'
       TF_VAR_boards_runtime_enabled: 'true'
       TF_VAR_boards_provider: local-workspace
+      TF_VAR_provider_stack_profile: local-live
+      TF_VAR_provider_stack_readiness: ready
       TF_VAR_tenant_domain: weave.test
       TF_VAR_proxy_http_host_port: '44080'
       TF_VAR_proxy_host_port: '44443'
@@ -280,7 +287,7 @@ jobs:
             --test-log "$WEAVE_ACCEPTANCE_TEST_LOG" \
             --append-summary "$GITHUB_STEP_SUMMARY" \
             --source live-stack-e2e \
-            --lane release-candidate-live-evidence \
+            --lane dogfood-candidate-live-evidence \
             --commit "$GITHUB_SHA" \
             --run-id "$GITHUB_RUN_ID" \
             --run-attempt "$GITHUB_RUN_ATTEMPT" \

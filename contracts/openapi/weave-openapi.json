@@ -198,8 +198,13 @@
             "description": "Non-secret diagnostic details for this failure.",
             "type": "object"
           },
+          "memberImpact": {
+            "description": "Optional member-facing impact state or recovery hint owned by the backend facade.",
+            "example": "unavailable",
+            "type": "string"
+          },
           "message": {
-            "description": "Operator-facing explanation of what failed.",
+            "description": "Support-safe explanation of what failed.",
             "example": "Bearer authentication is required to access this endpoint.",
             "type": "string"
           },
@@ -207,8 +212,20 @@
             "description": "Correlation identifier for support and log lookup.",
             "example": "8c2f4d7a-4d5f-4f88-92e8-4fcbb81dd527",
             "type": "string"
+          },
+          "supportRef": {
+            "description": "Stable reference members can share with support without provider payloads.",
+            "example": "support:8c2f4d7a-4d5f-4f88-92e8-4fcbb81dd527",
+            "type": "string"
           }
         },
+        "required": [
+          "code",
+          "details",
+          "message",
+          "requestId",
+          "supportRef"
+        ],
         "type": "object"
       },
       "ApprovalReceipt": {
@@ -1434,6 +1451,11 @@
             "type": "boolean"
           }
         },
+        "required": [
+          "attachmentRefsSupported",
+          "maxAttachmentRefs",
+          "rawProviderMediaUrlsExposed"
+        ],
         "type": "object"
       },
       "ChatConversationResponse": {
@@ -1482,6 +1504,16 @@
             "type": "string"
           }
         },
+        "required": [
+          "attachmentPolicy",
+          "availableActions",
+          "contextId",
+          "historyPolicy",
+          "id",
+          "kind",
+          "membership",
+          "title"
+        ],
         "type": "object"
       },
       "ChatConversationsResponse": {
@@ -1512,6 +1544,13 @@
             "type": "string"
           }
         },
+        "required": [
+          "conversations",
+          "domain",
+          "readiness",
+          "releaseStatus",
+          "source"
+        ],
         "type": "object"
       },
       "ChatHistoryPolicy": {
@@ -1561,6 +1600,12 @@
             "type": "string"
           }
         },
+        "required": [
+          "backendReadable",
+          "encryptedProviderContentRedacted",
+          "policyKey",
+          "visibility"
+        ],
         "type": "object"
       },
       "ChatMembershipResponse": {
@@ -1582,6 +1627,11 @@
             "type": "string"
           }
         },
+        "required": [
+          "principalRef",
+          "role",
+          "state"
+        ],
         "type": "object"
       },
       "ChatMessageResponse": {
@@ -1637,6 +1687,16 @@
             "type": "string"
           }
         },
+        "required": [
+          "attachmentRefs",
+          "conversationId",
+          "deliveryEvidence",
+          "encryptedProviderContentRedacted",
+          "id",
+          "isMine",
+          "senderRef",
+          "sentAt"
+        ],
         "type": "object"
       },
       "ChatMessagesResponse": {
@@ -1657,6 +1717,11 @@
             "$ref": "#/components/schemas/ChatReadinessResponse"
           }
         },
+        "required": [
+          "conversationId",
+          "messages",
+          "readiness"
+        ],
         "type": "object"
       },
       "ChatMigrationPreflightRequest": {
@@ -1718,11 +1783,11 @@
           "readinessState": {
             "description": "Stable product-level Chat state returned to member clients.",
             "enum": [
+              "available",
+              "coming_later",
               "degraded",
-              "disabled",
-              "misconfigured",
-              "policy_blocked",
-              "ready",
+              "disabled_by_policy",
+              "not_configured",
               "unavailable"
             ],
             "type": "string"
@@ -1906,11 +1971,11 @@
           "memberState": {
             "description": "Stable product-level Chat state returned to member clients.",
             "enum": [
+              "available",
+              "coming_later",
               "degraded",
-              "disabled",
-              "misconfigured",
-              "policy_blocked",
-              "ready",
+              "disabled_by_policy",
+              "not_configured",
               "unavailable"
             ],
             "type": "string"
@@ -1952,12 +2017,14 @@
           "impactState": {
             "description": "Stable member impact state.",
             "enum": [
+              "available",
+              "coming_later",
               "degraded",
-              "disabled",
-              "policy-blocked",
-              "usable"
+              "disabled_by_policy",
+              "not_configured",
+              "unavailable"
             ],
-            "example": "usable",
+            "example": "available",
             "type": "string"
           },
           "memberImpact": {
@@ -1965,6 +2032,12 @@
             "type": "string"
           }
         },
+        "required": [
+          "diagnosticsRedacted",
+          "grantedCapabilities",
+          "impactState",
+          "memberImpact"
+        ],
         "type": "object"
       },
       "ChatSendMessageRequest": {
@@ -3377,6 +3450,13 @@
             "type": "string"
           }
         },
+        "required": [
+          "downloadable",
+          "id",
+          "name",
+          "path",
+          "type"
+        ],
         "type": "object"
       },
       "FileListResponse": {
@@ -3398,6 +3478,10 @@
             "$ref": "#/components/schemas/FileQuotaResponse"
           }
         },
+        "required": [
+          "items",
+          "path"
+        ],
         "type": "object"
       },
       "FileQuotaResponse": {
@@ -3425,6 +3509,9 @@
             "$ref": "#/components/schemas/FileItemResponse"
           }
         },
+        "required": [
+          "item"
+        ],
         "type": "object"
       },
       "GoLiveReadinessResponse": {

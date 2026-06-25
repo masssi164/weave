@@ -262,6 +262,20 @@ variable "boards_openproject_api_token" {
   sensitive   = true
 }
 
+variable "provider_selections_source" {
+  description = "Generated support-safe provider selection seed copied into the backend container."
+  type        = string
+}
+
+variable "provider_selections_source_hash" {
+  description = "Content hash for the generated support-safe provider selection seed."
+  type        = string
+}
+
+variable "provider_selections_storage_path" {
+  description = "Container path used by the backend provider selection repository."
+  type        = string
+}
 
 variable "provider_stack_profile" {
   description = "Provider-stack runtime posture profile. The default fail-closed profile advertises provider seams without enabling provider runtimes or secrets."

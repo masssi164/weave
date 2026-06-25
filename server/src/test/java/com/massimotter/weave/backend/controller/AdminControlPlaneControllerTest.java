@@ -235,7 +235,8 @@ class AdminControlPlaneControllerTest {
                 .andExpect(jsonPath("$.weaverEligibilityPreview.memberStateWithoutGroup").value("disabled_by_policy"))
                 .andExpect(jsonPath("$.whitelist.denyByDefault").value(true))
                 .andExpect(jsonPath("$.whitelist.normalMembersMayAuthorPolicy").value(false))
-                .andExpect(jsonPath("$.whitelist.stableMemberImpactStates[*]", hasItems("ready", "disabled", "degraded", "policy-blocked")))
+                .andExpect(jsonPath("$.whitelist.stableMemberImpactStates[*]", hasItems(
+                        "available", "disabled_by_policy", "not_configured", "degraded", "unavailable", "coming_later")))
                 .andExpect(jsonPath("$.whitelist.profileCapabilities['guest-deny-default']").isArray())
                 .andExpect(jsonPath("$.identityProviderReadiness.contractVersion").value("identity-provider-readiness-v1"))
                 .andExpect(jsonPath("$.identityProviderReadiness.backendOwnedFacade").value(true))

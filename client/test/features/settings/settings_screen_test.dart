@@ -65,18 +65,18 @@ AsyncValue<WorkspaceConnectionState> _workspaceConnectionState() {
         integration: WorkspaceIntegration.appAuth,
         status: IntegrationConnectionStatus.connected,
       ),
-      matrix: IntegrationConnectionState(
-        integration: WorkspaceIntegration.matrix,
+      chat: IntegrationConnectionState(
+        integration: WorkspaceIntegration.chat,
         status: IntegrationConnectionStatus.degraded,
         recoveryRequirement: IntegrationRecoveryRequirement.completeSetup,
         lastInvalidation: IntegrationInvalidation(
-          integration: WorkspaceIntegration.matrix,
-          reason: IntegrationInvalidationReason.matrixHomeserverChanged,
+          integration: WorkspaceIntegration.chat,
+          reason: IntegrationInvalidationReason.chatConfigurationChanged,
           sequence: 1,
         ),
       ),
-      nextcloud: IntegrationConnectionState(
-        integration: WorkspaceIntegration.nextcloud,
+      files: IntegrationConnectionState(
+        integration: WorkspaceIntegration.files,
         status: IntegrationConnectionStatus.connected,
       ),
     ),
@@ -129,6 +129,7 @@ AsyncValue<WorkspaceCapabilitySnapshot> _workspaceCapabilitySnapshot() {
         readiness: WorkspaceCapabilityReadiness.degraded,
         connectionStatus: IntegrationConnectionStatus.degraded,
         recoveryRequirement: IntegrationRecoveryRequirement.completeSetup,
+        memberImpact: 'RAW BACKEND MEMBER IMPACT MUST NOT DISPLAY',
       ),
       files: WorkspaceCapabilityState(
         capability: WorkspaceCapability.files,
@@ -297,7 +298,21 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.text('Last change: Matrix homeserver changed', findRichText: true),
+        find.text('RAW BACKEND MEMBER IMPACT MUST NOT DISPLAY'),
+        findsNothing,
+      );
+      expect(
+        find.text(
+          'Recovery: You can keep working, but some actions may be limited until workspace readiness recovers.',
+          findRichText: true,
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.text(
+          'Last change: Chat configuration changed',
+          findRichText: true,
+        ),
         findsOneWidget,
       );
       expect(
@@ -551,6 +566,93 @@ void main() {
         expect(find.text('Server Configuration'), findsNothing);
       },
     );
+
+    testWidgets('localizes unavailable Mein Weaver copy', (tester) async {
+      tester.view.physicalSize = const Size(1200, 2400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      const capabilities = AsyncData(
+        WorkspaceCapabilitySnapshot(
+          shellAccess: WorkspaceCapabilityState(
+            capability: WorkspaceCapability.shellAccess,
+            readiness: WorkspaceCapabilityReadiness.ready,
+            policyState: WorkspaceCapabilityPolicyState.allowed,
+          ),
+          chat: WorkspaceCapabilityState(
+            capability: WorkspaceCapability.chat,
+            readiness: WorkspaceCapabilityReadiness.ready,
+            policyState: WorkspaceCapabilityPolicyState.allowed,
+          ),
+          files: WorkspaceCapabilityState(
+            capability: WorkspaceCapability.files,
+            readiness: WorkspaceCapabilityReadiness.ready,
+            policyState: WorkspaceCapabilityPolicyState.allowed,
+          ),
+          calendar: WorkspaceCapabilityState(
+            capability: WorkspaceCapability.calendar,
+            readiness: WorkspaceCapabilityReadiness.unavailable,
+          ),
+          boards: WorkspaceCapabilityState(
+            capability: WorkspaceCapability.boards,
+            readiness: WorkspaceCapabilityReadiness.unavailable,
+          ),
+          weaver: WorkspaceCapabilityState(
+            capability: WorkspaceCapability.weaver,
+            readiness: WorkspaceCapabilityReadiness.unavailable,
+            policyState: WorkspaceCapabilityPolicyState.disabled,
+            memberImpact: 'RAW WEAVER BACKEND MEMBER IMPACT',
+          ),
+        ),
+      );
+      final container = ProviderContainer.test(
+        overrides: [
+          preferencesStoreProvider.overrideWith(
+            (ref) => InMemoryPreferencesStore(buildStoredConfiguration()),
+          ),
+          chatSecurityRepositoryProvider.overrideWithValue(
+            FakeChatSecurityRepository(),
+          ),
+          workspaceConnectionStateProvider.overrideWithValue(
+            _workspaceConnectionState(),
+          ),
+          workspaceCapabilitySnapshotProvider.overrideWithValue(capabilities),
+          weaveApiWorkspaceCapabilitySnapshotProvider.overrideWith(
+            (ref) async => capabilities.requireValue,
+          ),
+          weaveBackendConnectionStateProvider.overrideWithValue(
+            WeaveBackendConnectionState.connected,
+          ),
+          weaveApiMatrixE2eeDiagnosticProvider.overrideWith(
+            (ref) async => _matrixDiagnostic,
+          ),
+          userProfileProvider.overrideWith((ref) async => _memberProfile),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(body: SettingsScreen()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Weaver unavailable'), findsOneWidget);
+      expect(find.text('RAW WEAVER BACKEND MEMBER IMPACT'), findsNothing);
+      expect(
+        find.textContaining(
+          'Your workspace has not enabled a governed Weaver profile',
+        ),
+        findsOneWidget,
+      );
+    });
 
     testWidgets('keeps provider diagnostics admin-only for members', (
       tester,
@@ -1114,20 +1216,11 @@ void main() {
               (ref) => InMemoryPreferencesStore(),
             ),
             appBootstrapProvider.overrideWith(() => bootstrap),
-            matrixIntegrationConnectionProvider.overrideWith(
-              (ref) async => const IntegrationConnectionState(
-                integration: WorkspaceIntegration.matrix,
-                status: IntegrationConnectionStatus.connected,
-              ),
-            ),
-            nextcloudIntegrationConnectionProvider.overrideWith(
-              (ref) async => const IntegrationConnectionState(
-                integration: WorkspaceIntegration.nextcloud,
-                status: IntegrationConnectionStatus.connected,
-              ),
-            ),
             chatSecurityRepositoryProvider.overrideWithValue(
               FakeChatSecurityRepository(),
+            ),
+            weaveApiWorkspaceCapabilitySnapshotProvider.overrideWith(
+              (ref) async => _workspaceCapabilitySnapshot().requireValue,
             ),
             weaveBackendConnectionStateProvider.overrideWithValue(
               WeaveBackendConnectionState.connected,
@@ -1164,10 +1257,6 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(bootstrap.retryCalls, 1);
-        expect(
-          find.text('Shell access and the mapped services are ready.'),
-          findsOneWidget,
-        );
       },
     );
   });

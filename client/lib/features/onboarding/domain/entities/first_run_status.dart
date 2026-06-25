@@ -98,16 +98,64 @@ class FirstRunModuleProvisioning {
     required this.profile,
     required this.matrix,
     required this.nextcloud,
+    this.calendar,
   });
 
   final FirstRunModuleStatus identity;
   final FirstRunModuleStatus profile;
   final FirstRunModuleStatus matrix;
   final FirstRunModuleStatus nextcloud;
+  final FirstRunModuleStatus? calendar;
 
   // The backend contract still carries provider-shaped storage while member
   // surfaces consume stable Weave product modules.
   FirstRunModuleStatus get chat => matrix;
+  FirstRunModuleStatus get files => nextcloud;
+  FirstRunModuleStatus get calendarReadiness =>
+      calendar ??
+      const FirstRunModuleStatus(
+        state: FirstRunProvisioningState.notConfigured,
+        message: '',
+      );
+}
+
+sealed class FirstRunLoadResult {
+  const FirstRunLoadResult();
+
+  const factory FirstRunLoadResult.authenticated(FirstRunStatus status) =
+      FirstRunAuthenticated;
+  const factory FirstRunLoadResult.signedOut() = FirstRunSignedOut;
+  const factory FirstRunLoadResult.unauthorized() = FirstRunUnauthorized;
+  const factory FirstRunLoadResult.backendUnavailable(Object error) =
+      FirstRunBackendUnavailable;
+  const factory FirstRunLoadResult.invalidPayload(Object error) =
+      FirstRunInvalidPayload;
+}
+
+class FirstRunAuthenticated extends FirstRunLoadResult {
+  const FirstRunAuthenticated(this.status);
+
+  final FirstRunStatus status;
+}
+
+class FirstRunSignedOut extends FirstRunLoadResult {
+  const FirstRunSignedOut();
+}
+
+class FirstRunUnauthorized extends FirstRunLoadResult {
+  const FirstRunUnauthorized();
+}
+
+class FirstRunBackendUnavailable extends FirstRunLoadResult {
+  const FirstRunBackendUnavailable(this.error);
+
+  final Object error;
+}
+
+class FirstRunInvalidPayload extends FirstRunLoadResult {
+  const FirstRunInvalidPayload(this.error);
+
+  final Object error;
 }
 
 class FirstRunStatus {

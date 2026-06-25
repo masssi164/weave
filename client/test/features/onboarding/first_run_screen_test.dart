@@ -22,7 +22,8 @@ void main() {
           const FirstRunScreen(),
           overrides: [
             firstRunStatusProvider.overrideWith(
-              (ref) async => buildTestFirstRunStatus(),
+              (ref) async =>
+                  FirstRunLoadResult.authenticated(buildTestFirstRunStatus()),
             ),
           ],
         ),
@@ -31,7 +32,7 @@ void main() {
 
       expect(find.text('Your Weave workspace is ready'), findsOneWidget);
       expect(find.text('Alice Example'), findsOneWidget);
-      expect(find.text('member'), findsOneWidget);
+      expect(find.text('Member'), findsOneWidget);
       expect(find.text('Chat'), findsOneWidget);
       expect(find.text('Files'), findsOneWidget);
       expect(find.text('Calendar'), findsOneWidget);
@@ -53,14 +54,16 @@ void main() {
           const FirstRunScreen(),
           overrides: [
             firstRunStatusProvider.overrideWith(
-              (ref) async => buildTestFirstRunStatus(
-                access: const FirstRunAccess(
-                  primaryRole: 'owner',
-                  roles: ['owner'],
-                  groups: ['workspace-default'],
-                  canAdministerWorkspace: true,
-                  canInviteUsers: true,
-                  canUseWorkspaceModules: true,
+              (ref) async => FirstRunLoadResult.authenticated(
+                buildTestFirstRunStatus(
+                  access: const FirstRunAccess(
+                    primaryRole: 'owner',
+                    roles: ['owner'],
+                    groups: ['workspace-default'],
+                    canAdministerWorkspace: true,
+                    canInviteUsers: true,
+                    canUseWorkspaceModules: true,
+                  ),
                 ),
               ),
             ),
@@ -71,9 +74,12 @@ void main() {
 
       expect(find.text('Owner/admin setup responsibilities'), findsOneWidget);
       expect(
-        find.textContaining('normal users should only need'),
+        find.textContaining('normal members should only need'),
         findsOneWidget,
       );
+      for (final term in ['OIDC', 'realm', 'service endpoint', 'provider']) {
+        expect(find.textContaining(term), findsNothing);
+      }
     });
 
     testWidgets('shows pending and degraded module actions accessibly', (
@@ -84,27 +90,32 @@ void main() {
           const FirstRunScreen(),
           overrides: [
             firstRunStatusProvider.overrideWith(
-              (ref) async => buildTestFirstRunStatus(
-                firstRunComplete: false,
-                profile: const FirstRunProfileStatus(
-                  status: 'pending',
-                  missing: ['email_verified'],
-                  message:
-                      'The Weave profile is waiting for email verification.',
-                  action: 'Verify your email, then refresh status.',
+              (ref) async => FirstRunLoadResult.authenticated(
+                buildTestFirstRunStatus(
+                  firstRunComplete: false,
+                  profile: const FirstRunProfileStatus(
+                    status: 'pending',
+                    missing: ['email_verified'],
+                    message:
+                        'The Weave profile is waiting for email verification.',
+                    action: 'Verify your email, then refresh status.',
+                  ),
+                  matrix: const FirstRunModuleStatus(
+                    state: FirstRunProvisioningState.pending,
+                    message: 'Chat provisioning is pending.',
+                    action: 'Wait briefly, then retry.',
+                  ),
+                  nextcloud: const FirstRunModuleStatus(
+                    state: FirstRunProvisioningState.degraded,
+                    message: 'Files are available but degraded.',
+                    action: 'Ask an admin to check service health.',
+                  ),
+                  calendar: const FirstRunModuleStatus(
+                    state: FirstRunProvisioningState.notConfigured,
+                    message: 'Calendar is not available yet.',
+                  ),
+                  actions: ['Verify your email, then refresh status.'],
                 ),
-                matrix: const FirstRunModuleStatus(
-                  state: FirstRunProvisioningState.pending,
-                  message: 'Matrix chat provisioning is pending.',
-                  action: 'Wait briefly, then retry.',
-                ),
-                nextcloud: const FirstRunModuleStatus(
-                  state: FirstRunProvisioningState.degraded,
-                  message:
-                      'Nextcloud files/calendar is available but degraded.',
-                  action: 'Ask an admin to check service health.',
-                ),
-                actions: ['Verify your email, then refresh status.'],
               ),
             ),
           ],
@@ -121,11 +132,69 @@ void main() {
       expect(find.text('Next steps'), findsOneWidget);
       expect(
         find.text('Verify your email, then refresh status.'),
-        findsWidgets,
+        findsNothing,
+      );
+      expect(
+        find.text(
+          'Workspace setup needs admin attention before every capability is ready.',
+        ),
+        findsOneWidget,
       );
       expect(find.text('Continue to chat'), findsNothing);
       await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
       await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+    });
+
+    testWidgets('keeps provider diagnostics out of member readiness cards', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        createTestApp(
+          const FirstRunScreen(),
+          overrides: [
+            firstRunStatusProvider.overrideWith(
+              (ref) async => FirstRunLoadResult.authenticated(
+                buildTestFirstRunStatus(
+                  firstRunComplete: false,
+                  matrix: const FirstRunModuleStatus(
+                    state: FirstRunProvisioningState.failed,
+                    message: 'Matrix homeserver failed federation check.',
+                    action: 'Inspect Synapse workers.',
+                  ),
+                  nextcloud: const FirstRunModuleStatus(
+                    state: FirstRunProvisioningState.degraded,
+                    message: 'Nextcloud WebDAV mount is degraded.',
+                    action: 'Check Nextcloud app passwords.',
+                  ),
+                  calendar: const FirstRunModuleStatus(
+                    state: FirstRunProvisioningState.notConfigured,
+                    message: 'CalDAV backend missing.',
+                    action: 'Configure CalDAV provider.',
+                  ),
+                  actions: ['Fix Matrix and Nextcloud provider setup.'],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      for (final term in [
+        'Matrix',
+        'homeserver',
+        'Synapse',
+        'Nextcloud',
+        'WebDAV',
+        'CalDAV',
+        'provider',
+      ]) {
+        expect(find.textContaining(term), findsNothing);
+      }
+      expect(find.text('Chat'), findsOneWidget);
+      expect(find.text('Files'), findsOneWidget);
+      expect(find.text('Calendar'), findsOneWidget);
+      expect(find.text('Workspace setup needs admin attention.'), findsWidgets);
     });
 
     testWidgets('recovers from load failures with guidance and retry', (
@@ -197,7 +266,11 @@ void main() {
       await tester.pumpWidget(
         createTestRouterApp(
           router,
-          overrides: [firstRunStatusProvider.overrideWith((ref) async => null)],
+          overrides: [
+            firstRunStatusProvider.overrideWith(
+              (ref) async => const FirstRunLoadResult.signedOut(),
+            ),
+          ],
         ),
       );
       await tester.pumpAndSettle();
@@ -230,5 +303,11 @@ class _RetryingFirstRunStatusRepository implements FirstRunStatusRepository {
   final FirstRunStatus? Function() _load;
 
   @override
-  Future<FirstRunStatus?> loadStatus() async => _load();
+  Future<FirstRunLoadResult> loadStatus() async {
+    final status = _load();
+    if (status == null) {
+      return const FirstRunLoadResult.backendUnavailable('backend unavailable');
+    }
+    return FirstRunLoadResult.authenticated(status);
+  }
 }

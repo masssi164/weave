@@ -207,7 +207,8 @@ class ProviderRegistryControllerTest {
                 .andExpect(jsonPath("$.categories[?(@.category == 'release-evidence')].contract.defaultAdapters[*]", hasItems("release-evidence")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'admin-control-plane')].contract.defaultAdapters[*]", hasItems("weave-health-facade")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'weaver')].readiness", hasItems("disabled")))
-                .andExpect(jsonPath("$.categories[*].contract.stableMemberImpactStates[*]", hasItems("usable", "disabled", "degraded", "policy-blocked")))
+                .andExpect(jsonPath("$.categories[*].contract.stableMemberImpactStates[*]", hasItems(
+                        "available", "disabled_by_policy", "not_configured", "degraded", "unavailable", "coming_later")))
                 .andExpect(jsonPath("$.categories[*].contract.normalMembersConfigureProviders", hasItems(false)))
                 .andExpect(jsonPath("$.categories[?(@.category == 'chat')].contract.defaultAdapters[*]", hasItems("synapse-homeserver")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'chat')].contract.externalAdapters[*]", hasItems("microsoft-teams", "slack")))

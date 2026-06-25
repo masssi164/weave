@@ -114,7 +114,7 @@ public final class NonChatDomainFacadeOperationGuard {
             case MISCONFIGURED -> SupportSafeFacadeError.NOT_CONFIGURED;
             case DEGRADED -> SupportSafeFacadeError.DEGRADED;
             case POLICY_BLOCKED -> SupportSafeFacadeError.POLICY_BLOCKED;
-            case UNAVAILABLE, DISABLED -> SupportSafeFacadeError.UNAVAILABLE;
+            case UNAVAILABLE -> SupportSafeFacadeError.UNAVAILABLE;
             case UNSUPPORTED -> SupportSafeFacadeError.UNSUPPORTED;
             case READY -> SupportSafeFacadeError.PROVIDER_FAILURE;
         };

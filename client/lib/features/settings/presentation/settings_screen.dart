@@ -18,12 +18,12 @@ import 'package:weave/features/app/domain/entities/matrix_e2ee_diagnostic.dart';
 import 'package:weave/features/app/domain/entities/provider_stack_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
+import 'package:weave/features/app/presentation/workspace_capability_recovery_presenter.dart';
 import 'package:weave/features/agents/domain/entities/agent_capability_policy.dart';
 import 'package:weave/features/agents/presentation/providers/agent_capability_policy_provider.dart';
 import 'package:weave/features/agents/presentation/widgets/agent_capability_policy_card.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/auth/presentation/providers/auth_flow_controller.dart';
-import 'package:weave/features/chat/presentation/widgets/chat_security_settings_section.dart';
 import 'package:weave/features/connectors/presentation/providers/connector_preview_provider.dart';
 import 'package:weave/features/connectors/presentation/widgets/connector_settings_preview_card.dart';
 import 'package:weave/features/guests/presentation/providers/guest_preview_provider.dart';
@@ -87,8 +87,6 @@ class SettingsScreen extends ConsumerWidget {
                   ],
                   const SizedBox(height: 32),
                   _AdminSetupSection(configuration: configuration),
-                  const SizedBox(height: 32),
-                  const ChatSecuritySettingsSection(),
                   const SizedBox(height: 32),
                   Text(
                     l10n.settingsSignOutTitle,
@@ -515,7 +513,7 @@ class _WeaverMemberSettingsCard extends StatelessWidget {
         : l10n.weaverMemberUnavailableTitle;
     final description = available
         ? l10n.weaverMemberDescription
-        : state.memberImpact ?? l10n.weaverMemberUnavailableDescription;
+        : l10n.weaverMemberUnavailableDescription;
 
     return Card(
       elevation: 0,
@@ -1253,13 +1251,15 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
     final workspace = ref.watch(workspaceConnectionStateProvider);
     final capabilities = ref.watch(workspaceCapabilitySnapshotProvider);
     final backendState = ref.watch(weaveBackendConnectionStateProvider);
-    final matrixDiagnostic = ref.watch(weaveApiMatrixE2eeDiagnosticProvider);
     final canViewWorkspaceHealth = ref
         .watch(userProfileProvider)
         .maybeWhen(
           data: (profile) => profile?.canAdministerWorkspace ?? false,
           orElse: () => false,
         );
+    final matrixDiagnostic = canViewWorkspaceHealth
+        ? ref.watch(weaveApiMatrixE2eeDiagnosticProvider).asData?.value
+        : null;
     final providerStackSnapshot = canViewWorkspaceHealth
         ? ref.watch(weaveApiProviderStackSnapshotProvider).asData?.value
         : null;
@@ -1315,7 +1315,7 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
                 ],
                 const SizedBox(height: 16),
                 Text(
-                  _workspaceSummary(l10n, workspaceState),
+                  _workspaceSummary(l10n, workspaceState, capabilitySnapshot),
                   style: theme.textTheme.bodyMedium,
                 ),
                 if (providerStackSnapshot case final stack?) ...[
@@ -1335,20 +1335,20 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
                 _WorkspaceReadinessRow(
                   label: l10n.settingsWorkspaceChatLabel,
                   capability: capabilitySnapshot.chat,
-                  connection: workspaceState.matrix,
-                  matrixDiagnostic: matrixDiagnostic.asData?.value,
+                  connection: workspaceState.chat,
+                  matrixDiagnostic: matrixDiagnostic,
                 ),
                 const Divider(height: 32),
                 _WorkspaceReadinessRow(
                   label: l10n.settingsWorkspaceFilesLabel,
                   capability: capabilitySnapshot.files,
-                  connection: workspaceState.nextcloud,
+                  connection: workspaceState.files,
                 ),
                 const Divider(height: 32),
                 _WorkspaceReadinessRow(
                   label: l10n.settingsWorkspaceCalendarLabel,
                   capability: capabilitySnapshot.calendar,
-                  connection: workspaceState.nextcloud,
+                  connection: workspaceState.files,
                 ),
               ],
             ),
@@ -1360,8 +1360,6 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
                 unawaited(ref.read(appBootstrapProvider.notifier).retry());
               }
               ref.invalidate(appAuthIntegrationConnectionProvider);
-              ref.invalidate(matrixIntegrationConnectionProvider);
-              ref.invalidate(nextcloudIntegrationConnectionProvider);
               ref.invalidate(weaveApiWorkspaceCapabilitySnapshotProvider);
               ref.invalidate(weaveApiMatrixE2eeDiagnosticProvider);
               ref.invalidate(weaveApiProviderStackSnapshotProvider);
@@ -1371,6 +1369,17 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
           _ => LoadingState(message: l10n.loadingLabel),
         },
       ),
+    );
+  }
+
+  bool _releaseServicesNeedAttention(WorkspaceCapabilitySnapshot capabilities) {
+    return <WorkspaceCapabilityState>[
+      capabilities.chat,
+      capabilities.files,
+    ].any(
+      (capability) =>
+          capability.readiness == WorkspaceCapabilityReadiness.blocked ||
+          capability.readiness == WorkspaceCapabilityReadiness.degraded,
     );
   }
 
@@ -1394,7 +1403,13 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
   String _workspaceSummary(
     AppLocalizations l10n,
     WorkspaceConnectionState workspace,
+    WorkspaceCapabilitySnapshot capabilities,
   ) {
+    if (workspace.shellAccessReady &&
+        _releaseServicesNeedAttention(capabilities)) {
+      return l10n.settingsWorkspaceSummaryDegraded;
+    }
+
     if (workspace.status == IntegrationConnectionStatus.connected) {
       return l10n.settingsWorkspaceSummaryConnected;
     }
@@ -2015,6 +2030,7 @@ class _WorkspaceReadinessRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
+    final recovery = workspaceCapabilityRecoveryPresentation(l10n, capability);
 
     return MergeSemantics(
       child: Column(
@@ -2038,11 +2054,13 @@ class _WorkspaceReadinessRow extends StatelessWidget {
                 label: l10n.settingsWorkspacePolicyLabel,
                 value: _policyLabel(l10n, capability.policyState),
               ),
-              if (capability.memberImpact case final impact?)
-                _StatusPill(
-                  label: l10n.settingsWorkspaceImpactLabel,
-                  value: impact,
+              Semantics(
+                label: recovery.semanticLabel(l10n, label),
+                child: _StatusPill(
+                  label: l10n.settingsWorkspaceRecoveryLabel,
+                  value: recovery.recovery,
                 ),
+              ),
               if (connection.lastInvalidation != null)
                 _StatusPill(
                   label: l10n.settingsWorkspaceLastChangeLabel,
@@ -2137,10 +2155,10 @@ class _WorkspaceReadinessRow extends StatelessWidget {
     return switch (reason) {
       IntegrationInvalidationReason.authConfigurationChanged =>
         l10n.settingsWorkspaceInvalidationAuthConfigurationChanged,
-      IntegrationInvalidationReason.matrixHomeserverChanged =>
-        l10n.settingsWorkspaceInvalidationMatrixHomeserverChanged,
-      IntegrationInvalidationReason.nextcloudBaseUrlChanged =>
-        l10n.settingsWorkspaceInvalidationNextcloudBaseUrlChanged,
+      IntegrationInvalidationReason.chatConfigurationChanged =>
+        l10n.settingsWorkspaceInvalidationChatConfigurationChanged,
+      IntegrationInvalidationReason.filesConfigurationChanged =>
+        l10n.settingsWorkspaceInvalidationFilesConfigurationChanged,
       IntegrationInvalidationReason.backendApiBaseUrlChanged =>
         l10n.settingsWorkspaceInvalidationBackendApiBaseUrlChanged,
       IntegrationInvalidationReason.explicitSignOut =>

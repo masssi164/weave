@@ -246,6 +246,83 @@ generated_files = {
       mas_matrix_secret           = var.mas_matrix_secret
     })
   }
+  provider_selections = {
+    filename = "${path.module}/.generated/provider-selections.json"
+    content = jsonencode({
+      "identity-idm" = {
+        category                = "identity-idm"
+        providerKey             = "keycloak-realm"
+        choiceModel             = "recommended_self_hosted_default"
+        secretRef               = "secretref://weave/provider/keycloak-realm/client-secret"
+        selectedBy              = "actor:local-live-bootstrap"
+        selectedAt              = "2026-01-01T00:00:00Z"
+        applied                 = true
+        supportSafe             = true
+        migrationDryRunRequired = false
+        lossyMappingNotes       = []
+      }
+      chat = {
+        category                = "chat"
+        providerKey             = "synapse-homeserver"
+        choiceModel             = "recommended_self_hosted_default"
+        secretRef               = "secretref://weave/provider/synapse-homeserver/signing-key"
+        selectedBy              = "actor:local-live-bootstrap"
+        selectedAt              = "2026-01-01T00:00:00Z"
+        applied                 = true
+        supportSafe             = true
+        migrationDryRunRequired = false
+        lossyMappingNotes       = []
+      }
+      files = {
+        category                = "files"
+        providerKey             = "nextcloud-files"
+        choiceModel             = "recommended_self_hosted_default"
+        secretRef               = "secretref://weave/provider/nextcloud-files/backend-token"
+        selectedBy              = "actor:local-live-bootstrap"
+        selectedAt              = "2026-01-01T00:00:00Z"
+        applied                 = true
+        supportSafe             = true
+        migrationDryRunRequired = false
+        lossyMappingNotes       = []
+      }
+      calendar = {
+        category                = "calendar"
+        providerKey             = "nextcloud-caldav"
+        choiceModel             = "recommended_self_hosted_default"
+        secretRef               = "secretref://weave/provider/nextcloud-caldav/backend-token"
+        selectedBy              = "actor:local-live-bootstrap"
+        selectedAt              = "2026-01-01T00:00:00Z"
+        applied                 = true
+        supportSafe             = true
+        migrationDryRunRequired = false
+        lossyMappingNotes       = []
+      }
+      "boards-tasks" = {
+        category                = "boards-tasks"
+        providerKey             = "openproject-primary"
+        choiceModel             = "recommended_self_hosted_default"
+        secretRef               = "secretref://weave/provider/openproject-primary/api-token"
+        selectedBy              = "actor:local-live-bootstrap"
+        selectedAt              = "2026-01-01T00:00:00Z"
+        applied                 = true
+        supportSafe             = true
+        migrationDryRunRequired = false
+        lossyMappingNotes       = []
+      }
+      "meetings-calls" = {
+        category                = "meetings-calls"
+        providerKey             = "livekit"
+        choiceModel             = "recommended_self_hosted_default"
+        secretRef               = "secretref://weave/provider/livekit/api-key"
+        selectedBy              = "actor:local-live-bootstrap"
+        selectedAt              = "2026-01-01T00:00:00Z"
+        applied                 = true
+        supportSafe             = true
+        migrationDryRunRequired = false
+        lossyMappingNotes       = []
+      }
+    })
+  }
 }
 }
 
@@ -457,12 +534,15 @@ module "backend" {
   boards_openproject_auth_mode                     = var.boards_openproject_auth_mode
   boards_openproject_base_url                      = var.boards_openproject_base_url
   boards_openproject_api_token                     = var.boards_openproject_api_token
+  provider_selections_source                       = local_sensitive_file.generated["provider_selections"].filename
+  provider_selections_source_hash                  = sha256(local.generated_files["provider_selections"].content)
+  provider_selections_storage_path                 = "/app/provider-selections.json"
   oidc_issuer_uri                                  = local.keycloak_issuer_url
   oidc_jwk_set_uri                                 = local.keycloak_jwk_set_uri
   oidc_required_audience                           = local.weave_backend_audience
   client_id                                        = local.weave_app_client_id
   healthcheck_path                                 = "/api/health/ready"
-  depends_on                                       = [terraform_data.network_ready, module.keycloak]
+  depends_on                                       = [terraform_data.network_ready, module.keycloak, local_sensitive_file.generated]
 }
 
 module "matrix" {

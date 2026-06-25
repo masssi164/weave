@@ -53,7 +53,7 @@ class ChatController extends Notifier<ChatUiState> {
   @override
   ChatUiState build() {
     final invalidation = ref.watch(
-      integrationInvalidationProvider(WorkspaceIntegration.matrix),
+      integrationInvalidationProvider(WorkspaceIntegration.chat),
     );
     final sessionGeneration = invalidation?.sequence ?? 0;
     if (_sessionGeneration != sessionGeneration) {
@@ -166,11 +166,11 @@ class ChatController extends Notifier<ChatUiState> {
   bool _shouldAutoConnect(IntegrationInvalidationReason? invalidationReason) {
     return switch (invalidationReason) {
       null => true,
-      IntegrationInvalidationReason.matrixHomeserverChanged ||
+      IntegrationInvalidationReason.chatConfigurationChanged ||
       IntegrationInvalidationReason.explicitSignOut ||
       IntegrationInvalidationReason.restartSetup => false,
       IntegrationInvalidationReason.authConfigurationChanged ||
-      IntegrationInvalidationReason.nextcloudBaseUrlChanged ||
+      IntegrationInvalidationReason.filesConfigurationChanged ||
       IntegrationInvalidationReason.backendApiBaseUrlChanged => true,
     };
   }

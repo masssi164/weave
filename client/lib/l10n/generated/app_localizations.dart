@@ -143,13 +143,13 @@ abstract class AppLocalizations {
   /// Title for the setup services step
   ///
   /// In en, this message translates to:
-  /// **'Review Service Endpoints'**
+  /// **'Review Backend API'**
   String get setupServicesStepTitle;
 
   /// Description shown in the setup services step
   ///
   /// In en, this message translates to:
-  /// **'Review the current dogfood service endpoints derived from the identity issuer. These provider URLs stay admin/operator configuration, not normal member setup.'**
+  /// **'Review the Weave backend API endpoint derived from the organization sign-in issuer. Provider service URLs stay in admin/support diagnostics, not member setup.'**
   String get setupServicesStepDescription;
 
   /// Title for the provider category summary shown to admins during setup and workspace health
@@ -707,6 +707,66 @@ abstract class AppLocalizations {
   /// **'Invite'**
   String get firstRunInviteStatusLabel;
 
+  /// No description provided for @firstRunRoleOwner.
+  ///
+  /// In en, this message translates to:
+  /// **'Owner'**
+  String get firstRunRoleOwner;
+
+  /// No description provided for @firstRunRoleAdmin.
+  ///
+  /// In en, this message translates to:
+  /// **'Admin'**
+  String get firstRunRoleAdmin;
+
+  /// No description provided for @firstRunRoleOperator.
+  ///
+  /// In en, this message translates to:
+  /// **'Operator'**
+  String get firstRunRoleOperator;
+
+  /// No description provided for @firstRunRoleMember.
+  ///
+  /// In en, this message translates to:
+  /// **'Member'**
+  String get firstRunRoleMember;
+
+  /// No description provided for @firstRunRoleGuest.
+  ///
+  /// In en, this message translates to:
+  /// **'Guest'**
+  String get firstRunRoleGuest;
+
+  /// No description provided for @firstRunRoleUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace role'**
+  String get firstRunRoleUnknown;
+
+  /// No description provided for @firstRunInviteAccepted.
+  ///
+  /// In en, this message translates to:
+  /// **'Accepted'**
+  String get firstRunInviteAccepted;
+
+  /// No description provided for @firstRunInvitePending.
+  ///
+  /// In en, this message translates to:
+  /// **'Pending'**
+  String get firstRunInvitePending;
+
+  /// No description provided for @firstRunInviteExpired.
+  ///
+  /// In en, this message translates to:
+  /// **'Expired'**
+  String get firstRunInviteExpired;
+
+  /// No description provided for @firstRunInviteUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Unavailable'**
+  String get firstRunInviteUnavailable;
+
   /// No description provided for @firstRunModuleSectionTitle.
   ///
   /// In en, this message translates to:
@@ -772,6 +832,78 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Next steps'**
   String get firstRunNextStepsTitle;
+
+  /// No description provided for @firstRunProfileReadyGuidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Your profile is ready for Weave.'**
+  String get firstRunProfileReadyGuidance;
+
+  /// No description provided for @firstRunProfilePendingGuidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Your profile is still being prepared.'**
+  String get firstRunProfilePendingGuidance;
+
+  /// No description provided for @firstRunChatReadyGuidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat is ready for this workspace.'**
+  String get firstRunChatReadyGuidance;
+
+  /// No description provided for @firstRunChatPendingGuidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat is still being prepared.'**
+  String get firstRunChatPendingGuidance;
+
+  /// No description provided for @firstRunFilesReadyGuidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Files are ready for this workspace.'**
+  String get firstRunFilesReadyGuidance;
+
+  /// No description provided for @firstRunFilesPendingGuidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Files are still being prepared.'**
+  String get firstRunFilesPendingGuidance;
+
+  /// No description provided for @firstRunCalendarReadyGuidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar is ready for this workspace.'**
+  String get firstRunCalendarReadyGuidance;
+
+  /// No description provided for @firstRunCalendarPendingGuidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar is still being prepared.'**
+  String get firstRunCalendarPendingGuidance;
+
+  /// No description provided for @firstRunModuleUnavailableGuidance.
+  ///
+  /// In en, this message translates to:
+  /// **'This Weave capability is not available for this workspace yet.'**
+  String get firstRunModuleUnavailableGuidance;
+
+  /// No description provided for @firstRunModuleDegradedGuidance.
+  ///
+  /// In en, this message translates to:
+  /// **'This Weave capability is available with limited functionality.'**
+  String get firstRunModuleDegradedGuidance;
+
+  /// No description provided for @firstRunModuleActionNeededGuidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace setup needs admin attention.'**
+  String get firstRunModuleActionNeededGuidance;
+
+  /// No description provided for @firstRunNextStepAdminAttention.
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace setup needs admin attention before every capability is ready.'**
+  String get firstRunNextStepAdminAttention;
 
   /// No description provided for @firstRunRefreshButton.
   ///
@@ -3005,17 +3137,17 @@ abstract class AppLocalizations {
   /// **'Auth configuration changed'**
   String get settingsWorkspaceInvalidationAuthConfigurationChanged;
 
-  /// Invalidation label for Matrix homeserver changes
+  /// Invalidation label for chat configuration changes
   ///
   /// In en, this message translates to:
-  /// **'Matrix homeserver changed'**
-  String get settingsWorkspaceInvalidationMatrixHomeserverChanged;
+  /// **'Chat configuration changed'**
+  String get settingsWorkspaceInvalidationChatConfigurationChanged;
 
-  /// Invalidation label for Nextcloud base URL changes
+  /// Invalidation label for files configuration changes
   ///
   /// In en, this message translates to:
-  /// **'Nextcloud base URL changed'**
-  String get settingsWorkspaceInvalidationNextcloudBaseUrlChanged;
+  /// **'Files configuration changed'**
+  String get settingsWorkspaceInvalidationFilesConfigurationChanged;
 
   /// Invalidation label for explicit sign-outs
   ///
@@ -3248,6 +3380,101 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Member impact'**
   String get settingsWorkspaceImpactLabel;
+
+  /// Label for localized member recovery guidance in workspace readiness
+  ///
+  /// In en, this message translates to:
+  /// **'Recovery'**
+  String get settingsWorkspaceRecoveryLabel;
+
+  /// Member capability recovery state when a capability is available
+  ///
+  /// In en, this message translates to:
+  /// **'Available'**
+  String get settingsWorkspaceRecoveryAvailable;
+
+  /// Member capability recovery state when policy disables a capability
+  ///
+  /// In en, this message translates to:
+  /// **'Disabled by policy'**
+  String get settingsWorkspaceRecoveryDisabledByPolicy;
+
+  /// Member capability recovery state when admin setup is required
+  ///
+  /// In en, this message translates to:
+  /// **'Admin setup needed'**
+  String get settingsWorkspaceRecoveryNotConfigured;
+
+  /// Member capability recovery state when a capability is degraded
+  ///
+  /// In en, this message translates to:
+  /// **'Limited'**
+  String get settingsWorkspaceRecoveryDegraded;
+
+  /// Member capability recovery state when a capability is unavailable
+  ///
+  /// In en, this message translates to:
+  /// **'Unavailable'**
+  String get settingsWorkspaceRecoveryUnavailable;
+
+  /// Member capability recovery state when a capability is intentionally hidden until enabled
+  ///
+  /// In en, this message translates to:
+  /// **'Coming later'**
+  String get settingsWorkspaceRecoveryComingLater;
+
+  /// Recovery guidance for an available workspace capability
+  ///
+  /// In en, this message translates to:
+  /// **'No recovery action is needed.'**
+  String get settingsWorkspaceRecoveryAvailableAction;
+
+  /// Recovery guidance for a policy-disabled workspace capability
+  ///
+  /// In en, this message translates to:
+  /// **'Ask a workspace admin if your role or group should receive access.'**
+  String get settingsWorkspaceRecoveryDisabledByPolicyAction;
+
+  /// Recovery guidance for a workspace capability that needs admin setup
+  ///
+  /// In en, this message translates to:
+  /// **'A workspace admin needs to finish setup before members can use this capability.'**
+  String get settingsWorkspaceRecoveryNotConfiguredAction;
+
+  /// Recovery guidance for a degraded workspace capability
+  ///
+  /// In en, this message translates to:
+  /// **'You can keep working, but some actions may be limited until workspace readiness recovers.'**
+  String get settingsWorkspaceRecoveryDegradedAction;
+
+  /// Recovery guidance for an unavailable workspace capability
+  ///
+  /// In en, this message translates to:
+  /// **'This capability is not available in the current workspace state.'**
+  String get settingsWorkspaceRecoveryUnavailableAction;
+
+  /// Recovery guidance for a workspace capability that is intentionally coming later
+  ///
+  /// In en, this message translates to:
+  /// **'This capability stays hidden until the organization enables it for members.'**
+  String get settingsWorkspaceRecoveryComingLaterAction;
+
+  /// Support reference fallback when the capability endpoint does not provide a support reference
+  ///
+  /// In en, this message translates to:
+  /// **'Not provided'**
+  String get settingsWorkspaceRecoverySupportRefUnavailable;
+
+  /// Accessibility label for workspace capability recovery state
+  ///
+  /// In en, this message translates to:
+  /// **'{capability}. State: {state}. Recovery: {recovery}. Support reference: {supportRef}.'**
+  String settingsWorkspaceRecoverySemanticLabel(
+    String capability,
+    String state,
+    String recovery,
+    String supportRef,
+  );
 
   /// Accessibility label for provider readiness summary
   ///
@@ -4427,6 +4654,24 @@ abstract class AppLocalizations {
   /// **'Defaults for Matrix, Nextcloud, and the backend API are derived from the issuer host. Edit them if your services live elsewhere.'**
   String get serverConfigurationServicesHelper;
 
+  /// Helper text for backend API-only member handoff/recovery configuration
+  ///
+  /// In en, this message translates to:
+  /// **'The member client stores the Weave backend API endpoint for organization capability and workspace state. Provider service URLs stay in admin/support diagnostics.'**
+  String get serverConfigurationBackendApiHelper;
+
+  /// Title for the identity endpoint section in setup and settings
+  ///
+  /// In en, this message translates to:
+  /// **'Identity endpoint'**
+  String get serverConfigurationIdentityEndpointTitle;
+
+  /// Helper text for the identity endpoint section in setup and settings
+  ///
+  /// In en, this message translates to:
+  /// **'Provider selection is owned by the Weave Admin Console and backend control plane. This member client stores only canonical Weave endpoints needed to sign in.'**
+  String get serverConfigurationIdentityEndpointHelper;
+
   /// Label for the Matrix homeserver URL field
   ///
   /// In en, this message translates to:
@@ -4514,7 +4759,7 @@ abstract class AppLocalizations {
   /// Description text on the sign-in screen
   ///
   /// In en, this message translates to:
-  /// **'Weave is configured. Use your provider account in the system browser to open the authenticated app shell.'**
+  /// **'Use your Weave workspace sign-in to continue. Your invite or organization account opens the app securely in the system browser.'**
   String get signInDescription;
 
   /// Title for the sign-in configuration summary card
@@ -4522,12 +4767,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Current sign-in configuration'**
   String get signInConfigurationTitle;
-
-  /// Summary line showing the provider label on the sign-in screen
-  ///
-  /// In en, this message translates to:
-  /// **'Provider: {value}'**
-  String signInConfigurationProvider(String value);
 
   /// Summary line showing the issuer URL on the sign-in screen
   ///
@@ -5535,7 +5774,7 @@ abstract class AppLocalizations {
   /// First-run guidance for owner/admin users
   ///
   /// In en, this message translates to:
-  /// **'Your role can administer workspace setup. Keep OIDC, realm, organization, invite, and service endpoint changes here or in Settings; normal users should only need one Weave sign-in.'**
+  /// **'Your role can manage workspace setup. Use admin settings for organization access, invitations, capability readiness, and recovery tasks; normal members should only need one Weave sign-in.'**
   String get firstRunAdminSetupDescription;
 
   /// Settings card title for AI agent capability governance

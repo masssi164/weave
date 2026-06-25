@@ -7,10 +7,12 @@ import java.util.Set;
 public final class ProviderCapabilityContracts {
 
     private static final List<String> STABLE_MEMBER_IMPACT_STATES = List.of(
-            "usable",
-            "disabled",
+            "available",
+            "disabled_by_policy",
+            "not_configured",
             "degraded",
-            "policy-blocked");
+            "unavailable",
+            "coming_later");
 
     private static final Map<String, Definition> DEFINITIONS = Map.ofEntries(
             Map.entry("identity-idm", new Definition(

@@ -109,7 +109,7 @@ void main() {
       expect(find.text('Nextcloud Base URL'), findsNothing);
     });
 
-    testWidgets('derives service endpoints from the issuer host', (
+    testWidgets('derives backend API handoff from the issuer host', (
       tester,
     ) async {
       await tester.pumpWidget(buildApp());
@@ -130,10 +130,17 @@ void main() {
       await tester.tap(find.text('Next'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Review Service Endpoints'), findsOneWidget);
-      expect(find.text('https://matrix.home.internal'), findsWidgets);
-      expect(find.text('https://files.home.internal'), findsWidgets);
+      expect(find.text('Review Backend API'), findsOneWidget);
+      expect(
+        find.textContaining('The member client stores the Weave backend API'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Defaults for Matrix'), findsNothing);
+      expect(find.text('https://matrix.home.internal'), findsNothing);
+      expect(find.text('https://files.home.internal'), findsNothing);
       expect(find.text('https://api.home.internal/api'), findsWidgets);
+      expect(_textFieldWithLabel('Matrix Homeserver URL'), findsNothing);
+      expect(_textFieldWithLabel('Nextcloud Base URL'), findsNothing);
       expect(find.text('Finish'), findsOneWidget);
     });
 
@@ -154,10 +161,6 @@ void main() {
       await tester.tap(find.text('Next'));
       await tester.pumpAndSettle();
 
-      await tester.enterText(
-        _textFieldWithLabel('Nextcloud Base URL'),
-        'https://files.home.internal',
-      );
       await tester.tap(find.text('Finish'));
       await tester.pumpAndSettle();
 
@@ -166,6 +169,8 @@ void main() {
       final raw = preferencesStore.rawString(serverConfigurationStorageKey);
       final json = jsonDecode(raw!) as Map<String, dynamic>;
       expect(json['oidcClientId'], 'weave-app');
+      expect(json['matrixHomeserverUrl'], 'https://matrix.home.internal');
+      expect(json['nextcloudBaseUrl'], 'https://files.home.internal');
       expect(json['backendApiBaseUrl'], 'https://api.home.internal/api');
     });
 

@@ -1,68 +1,59 @@
+import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/profile/domain/entities/user_profile.dart';
+import 'package:weave/generated/openapi_models.dart' as openapi;
 
-class UserProfileDto {
-  const UserProfileDto({
-    required this.userId,
-    required this.username,
-    required this.emailVerified,
-    required this.displayName,
-    required this.locale,
-    required this.timezone,
-    required this.roles,
-    required this.groups,
-    this.email,
-  });
-
-  factory UserProfileDto.fromJson(Map<String, dynamic> json) {
-    return UserProfileDto(
-      userId: json['userId'] as String,
-      username: json['username'] as String,
-      email: json['email'] as String?,
-      emailVerified: json['emailVerified'] as bool? ?? false,
-      displayName: json['displayName'] as String? ?? json['username'] as String,
-      locale: json['locale'] as String? ?? 'en',
-      timezone: json['timezone'] as String? ?? 'UTC',
-      roles: _stringList(json['roles']),
-      groups: _stringList(json['groups']),
-    );
-  }
-
-  final String userId;
-  final String username;
-  final String? email;
-  final bool emailVerified;
-  final String displayName;
-  final String locale;
-  final String timezone;
-  final List<String> roles;
-  final List<String> groups;
-
+extension AuthenticatedUserResponseMapper on openapi.AuthenticatedUserResponse {
   UserProfile toDomain() {
+    final requiredUsername = _requiredString(username, 'username');
     return UserProfile(
-      userId: userId,
-      username: username,
+      userId: _requiredString(userId, 'userId'),
+      username: requiredUsername,
       email: email,
-      emailVerified: emailVerified,
-      displayName: displayName,
-      locale: locale,
-      timezone: timezone,
-      roles: roles,
-      groups: groups,
+      emailVerified: emailVerified ?? false,
+      displayName: _optionalNonBlank(displayName) ?? requiredUsername,
+      locale: _optionalNonBlank(locale) ?? 'en',
+      timezone: _optionalNonBlank(timezone) ?? 'UTC',
+      roles: roles ?? const <String>[],
+      groups: groups ?? const <String>[],
     );
-  }
-
-  static List<String> _stringList(Object? value) {
-    if (value is! List) {
-      return const <String>[];
-    }
-    return value.whereType<String>().toList(growable: false);
   }
 }
 
-Map<String, Object?> userProfileUpdateToJson(UserProfileUpdate update) {
-  return {
-    if (update.displayName != null) 'displayName': update.displayName,
-    if (update.locale != null) 'locale': update.locale,
-    if (update.timezone != null) 'timezone': update.timezone,
-  };
+extension ProductProfileResponseMapper on openapi.ProductProfileResponse {
+  UserProfile toDomain() {
+    final requiredUsername = _requiredString(username, 'username');
+    return UserProfile(
+      userId: _requiredString(userId, 'userId'),
+      username: requiredUsername,
+      email: email,
+      emailVerified: emailVerified ?? false,
+      displayName: _optionalNonBlank(displayName) ?? requiredUsername,
+      locale: _optionalNonBlank(locale) ?? 'en',
+      timezone: _optionalNonBlank(timezone) ?? 'UTC',
+      roles: const <String>[],
+      groups: const <String>[],
+    );
+  }
+}
+
+openapi.UpdateProductProfileRequest userProfileUpdateToOpenApi(
+  UserProfileUpdate update,
+) {
+  return openapi.UpdateProductProfileRequest(
+    displayName: update.displayName,
+    locale: update.locale,
+    timezone: update.timezone,
+  );
+}
+
+String _requiredString(String? value, String field) {
+  if (value != null) return value;
+  throw AppFailure.unknown(
+    'The Weave backend returned an invalid profile payload.',
+    cause: '$field is required.',
+  );
+}
+
+String? _optionalNonBlank(String? value) {
+  return value != null && value.trim().isNotEmpty ? value : null;
 }
