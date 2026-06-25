@@ -95,6 +95,7 @@ ${weave_site_addresses} {
     <h2 id="start-app">2. Start or join the app</h2>
     <p>Open the app-start discovery contract at <a href="${client_public_url}/api/platform/config">${client_public_url}/api/platform/config</a> if you need to verify product-gateway app-start, or at <a href="${api_public_url}/api/platform/config">${api_public_url}/api/platform/config</a> for the canonical API host.</p>
     <p>Default Massimo invite/join link: <a href="/join?handoff_ref=handoff-s32-massimo-dogfood-home&amp;org=massimo-dogfood&amp;workspace=home&amp;profile=local-lan-dogfood&amp;run_id=s32-massimo-dogfood">${client_public_url}/join?handoff_ref=handoff-s32-massimo-dogfood-home&amp;org=massimo-dogfood&amp;workspace=home&amp;profile=local-lan-dogfood&amp;run_id=s32-massimo-dogfood</a></p>
+    <p>App custom-scheme link for installed-client handoff testing: <a href="weave://join?handoff_ref=handoff-s32-massimo-dogfood-home&amp;org=massimo-dogfood&amp;workspace=home&amp;profile=local-lan-dogfood&amp;run_id=s32-massimo-dogfood&amp;product_base_url=${client_public_url}&amp;platform_config_url=${api_public_url}/api/platform/config">weave://join?handoff_ref=handoff-s32-massimo-dogfood-home&amp;org=massimo-dogfood&amp;workspace=home&amp;profile=local-lan-dogfood&amp;run_id=s32-massimo-dogfood&amp;product_base_url=${client_public_url}&amp;platform_config_url=${api_public_url}/api/platform/config</a></p>
     <p>The QR payload should be the same DNS-first join URL. The app should fetch platform config, start sign-in, and land in workspace home.</p>
   </section>
 
