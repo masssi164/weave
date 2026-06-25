@@ -84,6 +84,20 @@ def main() -> None:
         fail("Sprint 31 profile must use the unified weavectl profile apply pipeline")
     if profile.get("publicDnsRequired") or profile.get("trustedInternetTlsRequired"):
         fail("local-lan-dogfood must not require public DNS or trusted internet TLS")
+    route_policy = profile.get("physicalDogfoodRoutePolicy", {})
+    if not isinstance(route_policy, dict):
+        fail("profile must include physicalDogfoodRoutePolicy")
+    expected_policy = {
+        "simulatorCertInjectionCountsAsPhysicalProof": False,
+        "preferredMassimoRoute": "public-trusted-https",
+        "localFallback": "persistent-local-ca-and-leaf",
+        "localCaRotationRequiresExplicitRequest": True,
+        "defaultPhysicalReset": "update-in-place",
+        "freshSemantics": "app-state-reset",
+    }
+    for key, expected in expected_policy.items():
+        if route_policy.get(key) != expected:
+            fail(f"profile physical dogfood route policy mismatch for {key}: {route_policy.get(key)!r}")
     for item in FORBIDDEN_MEMBER_INPUTS:
         if item not in profile.get("forbiddenMemberInputs", []):
             fail(f"profile must forbid member input: {item}")
@@ -193,6 +207,49 @@ def main() -> None:
         preflight = Path(tmp) / "ios-local-tls-preflight.json"
         if not preflight.exists():
             fail("iOS physical smoke must write local TLS preflight evidence before failing")
+    handoff_bundle = read("tools/dogfood_handoff_bundle.py")
+    for phrase in [
+        "dogfoodRoute",
+        "public-trusted-https",
+        "local-stable-ca",
+        "simulatorCertInjectionIsPhysicalProof",
+        "secretsInLinksAllowed",
+        "mailpitLocalSafetyRequired",
+    ]:
+        if phrase not in handoff_bundle:
+            fail(f"handoff bundle missing dogfood route evidence: {phrase}")
+    with tempfile.TemporaryDirectory() as tmp:
+        run(
+            [
+                "python3",
+                "tools/dogfood_handoff_bundle.py",
+                "--dogfood-route-mode",
+                "public-trusted-https",
+                "--product-base-url",
+                "https://dogfood.example.invalid",
+                "--platform-config-url",
+                "https://dogfood.example.invalid/api/platform/config",
+                "--output-dir",
+                tmp,
+            ],
+        )
+        handoff = json.loads((Path(tmp) / "handoff.json").read_text(encoding="utf-8"))
+        route = handoff.get("dogfoodRoute", {})
+        if not isinstance(route, dict):
+            fail("handoff bundle must emit dogfoodRoute evidence")
+        expected_route = {
+            "mode": "public-trusted-https",
+            "publicRouteRecommended": True,
+            "publiclyTrustedHttpsRequired": True,
+            "supportSafeInviteLinksRequired": True,
+            "secretsInLinksAllowed": False,
+            "rawProviderPayloadsAllowed": False,
+            "mailpitLocalSafetyRequired": True,
+            "simulatorCertInjectionIsPhysicalProof": False,
+        }
+        for key, expected in expected_route.items():
+            if route.get(key) != expected:
+                fail(f"public dogfood route evidence mismatch for {key}: {route.get(key)!r}")
 
     for rel in [
         "docs/sprint-31-iphone-lan-dogfood-runbook.md",
@@ -208,6 +265,8 @@ def main() -> None:
     for phrase in [
         "WEAVE-APP-START-TLS-FAILED",
         "PHYSICAL_DEVICE_TLS_PENDING",
+        "simulator CA injection is not physical dogfood proof",
+        "public HTTPS route with a publicly trusted certificate",
         "publicly trusted dogfood endpoint",
         "simulator handoff evidence is not physical-device E2E",
     ]:

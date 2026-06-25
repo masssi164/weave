@@ -11,7 +11,7 @@ import tempfile
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -103,11 +103,14 @@ def write_markdown(path: Path, payload: dict[str, object]) -> None:
     tester = payload["testerVisible"]  # type: ignore[index]
     certs = payload["certificates"]  # type: ignore[index]
     ios = payload["iosClient"]  # type: ignore[index]
+    route = payload["dogfoodRoute"]  # type: ignore[index]
     lines = [
         "# Weave Dogfood Handoff",
         "",
         f"- Run ID: `{payload['runId']}`",
         f"- Commit: `{payload['stackCommit']}`",
+        f"- Route mode: `{route['mode']}`",
+        f"- Public route recommended: `{route['publicRouteRecommended']}`",
         f"- Web join URL: `{tester['webJoinUrl']}`",
         f"- iOS deeplink: `{tester['deepLink']}`",
         f"- CA URL: `{certs['caUrl']}`",
@@ -117,10 +120,19 @@ def write_markdown(path: Path, payload: dict[str, object]) -> None:
         "",
         "## iPhone Checklist",
         "",
-        "1. Install/trust the Weave Local Development CA.",
-        "2. Update the current Weave iOS profile or release binary in place; use app-state reset for fresh semantics.",
-        "3. Open the deeplink from Safari or Matrix.",
-        "4. Confirm Weave shows the handoff-aware workspace sign-in state.",
+        "1. Prefer a public HTTPS dogfood route with a publicly trusted certificate for Massimo-facing tests.",
+        "2. If using local HTTPS, reuse the same persisted Weave Local Development CA and leaf certificate; do not rotate unless explicitly requested.",
+        "3. Update the current Weave iOS profile or release binary in place; use app-state reset for fresh semantics.",
+        "4. Open the deeplink from Safari or Matrix.",
+        "5. Confirm Weave shows the handoff-aware workspace sign-in state.",
+        "",
+        "## Public Route Acceptance",
+        "",
+        f"- Stable base URL required: `{route['stableBaseUrlRequired']}`",
+        f"- Publicly trusted HTTPS required for public route: `{route['publiclyTrustedHttpsRequired']}`",
+        f"- Support-safe invite links required: `{route['supportSafeInviteLinksRequired']}`",
+        f"- Secrets in links allowed: `{route['secretsInLinksAllowed']}`",
+        f"- Mailpit/local mail safety still required: `{route['mailpitLocalSafetyRequired']}`",
         "",
         "## Build Requirement",
         "",
@@ -154,6 +166,12 @@ def main() -> int:
     parser.add_argument("--ca-url", default="http://weave.test:44080/weave-local-ca.pem")
     parser.add_argument("--ca-lan-fallback-url", default="http://192.168.178.88:44080/weave-local-ca.pem")
     parser.add_argument("--cert-dir", type=Path, default=DEFAULT_CERT_DIR)
+    parser.add_argument(
+        "--dogfood-route-mode",
+        choices=["local-stable-ca", "public-trusted-https"],
+        default=None,
+        help="Evidence mode for Massimo-facing dogfood links.",
+    )
     parser.add_argument("--leaf-host", default="weave.test")
     parser.add_argument("--leaf-connect-host", default="127.0.0.1")
     parser.add_argument("--leaf-port", type=int, default=44443)
@@ -172,6 +190,15 @@ def main() -> int:
     deep_link_query["platform_config_url"] = args.platform_config_url
     web_join_url = f"{args.product_base_url}/join?{urlencode(query)}"
     deep_link = f"weave://join?{urlencode(deep_link_query)}"
+    product_base = urlparse(args.product_base_url)
+    inferred_public_route = (
+        product_base.scheme == "https"
+        and product_base.hostname not in {"weave.test", "api.weave.test"}
+        and not str(product_base.hostname or "").endswith(".weave.test")
+    )
+    route_mode = args.dogfood_route_mode or (
+        "public-trusted-https" if inferred_public_route else "local-stable-ca"
+    )
 
     ca_file = args.cert_dir / "weave-local-ca.pem"
     leaf_file = args.cert_dir / "weave.test.pem"
@@ -198,6 +225,20 @@ def main() -> int:
             "deepLink": deep_link,
             "platformConfigUrl": args.platform_config_url,
         },
+        "dogfoodRoute": {
+            "mode": route_mode,
+            "simulatorCertInjectionIsPhysicalProof": False,
+            "physicalE2eGate": "physical-or-public-route-e2e",
+            "publicRouteRecommended": True,
+            "stableBaseUrlRequired": True,
+            "publiclyTrustedHttpsRequired": route_mode == "public-trusted-https",
+            "localStableCaAllowed": route_mode == "local-stable-ca",
+            "localCaRotationRequiresExplicitRequest": True,
+            "supportSafeInviteLinksRequired": True,
+            "secretsInLinksAllowed": False,
+            "rawProviderPayloadsAllowed": False,
+            "mailpitLocalSafetyRequired": True,
+        },
         "certificates": {
             "caUrl": args.ca_url,
             "caLanFallbackUrl": args.ca_lan_fallback_url,
@@ -205,6 +246,8 @@ def main() -> int:
             "leafSha256Fingerprint": leaf_fingerprint,
             "leafSubject": leaf_subject,
             "persistedHostDirectory": str(args.cert_dir),
+            "rotationPolicy": "never_rotate_unless_explicit",
+            "physicalIphoneMustAlreadyTrustStableCa": route_mode == "local-stable-ca",
             "fingerprintSource": "host-files"
             if ca_file.exists() and leaf_file.exists()
             else "live-endpoints",
