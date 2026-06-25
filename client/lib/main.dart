@@ -55,22 +55,84 @@ class WeaveApp extends ConsumerStatefulWidget {
   ConsumerState<WeaveApp> createState() => _WeaveAppState();
 }
 
-class _WeaveAppState extends ConsumerState<WeaveApp> {
+class _WeaveAppState extends ConsumerState<WeaveApp>
+    with WidgetsBindingObserver {
   StreamSubscription<Uri>? _linkSubscription;
+  final List<Timer> _pendingDeepLinkTimers = [];
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _linkSubscription = AppLinks().uriLinkStream.listen(
       _openAppLink,
       onError: (_) {},
     );
+    _schedulePendingDeepLinkPoll();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _linkSubscription?.cancel();
+    for (final timer in _pendingDeepLinkTimers) {
+      timer.cancel();
+    }
+    _pendingDeepLinkTimers.clear();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _schedulePendingDeepLinkPoll();
+    }
+  }
+
+  void _schedulePendingDeepLinkPoll() {
+    _pendingDeepLinkTimers.add(
+      Timer(const Duration(milliseconds: 250), () {
+        if (mounted) {
+          _openPendingNativeDeepLink();
+        }
+      }),
+    );
+    _pendingDeepLinkTimers.add(
+      Timer(const Duration(seconds: 2), () {
+        if (mounted) {
+          _openPendingNativeDeepLink();
+        }
+      }),
+    );
+  }
+
+  Future<void> _openPendingNativeDeepLink() async {
+    final SharedPreferencesAsync preferences;
+    try {
+      preferences = SharedPreferencesAsync();
+    } catch (_) {
+      return;
+    }
+    final String? pendingDeepLink;
+    try {
+      pendingDeepLink = await preferences.getString(_pendingDeepLinkKey);
+    } catch (_) {
+      return;
+    }
+    if (pendingDeepLink == null || pendingDeepLink.isEmpty) {
+      return;
+    }
+    try {
+      await preferences.remove(_pendingDeepLinkKey);
+    } catch (_) {}
+    final uri = Uri.tryParse(pendingDeepLink);
+    if (uri != null) {
+      final location = initialLocationForDefaultRoute(uri.toString());
+      if (location != AppRoutes.welcome) {
+        setStartupInitialLocation(location);
+      }
+      _openAppLink(uri);
+    }
   }
 
   void _openAppLink(Uri uri) {
@@ -78,7 +140,11 @@ class _WeaveAppState extends ConsumerState<WeaveApp> {
     if (location == AppRoutes.welcome || !mounted) {
       return;
     }
-    ref.read(appRouterProvider).go(location);
+    try {
+      ref.read(appRouterProvider).go(location);
+    } catch (_) {
+      setStartupInitialLocation(location);
+    }
   }
 
   @override

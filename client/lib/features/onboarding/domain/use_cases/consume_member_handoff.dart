@@ -25,33 +25,53 @@ class ConsumeMemberHandoff {
 
   Future<MemberHandoff> call(Uri uri) async {
     final handoff = const MemberHandoffParser().parse(uri);
-    final appStart = await _discoveryClient.fetch(handoff);
-    await _repository.saveConfiguration(
-      ServerConfiguration(
-        providerType: OidcProviderType.keycloak,
-        oidcIssuerUrl: appStart.oidcIssuerUrl,
-        oidcClientRegistration: OidcClientRegistration.manual(
-          clientId: appStart.oidcClientId,
+    try {
+      final appStart = await _discoveryClient.fetch(handoff);
+      await _repository.saveConfiguration(
+        ServerConfiguration(
+          providerType: OidcProviderType.keycloak,
+          oidcIssuerUrl: appStart.oidcIssuerUrl,
+          oidcClientRegistration: OidcClientRegistration.manual(
+            clientId: appStart.oidcClientId,
+          ),
+          serviceEndpoints: ServiceEndpoints(
+            matrixHomeserverUrl: appStart.matrixHomeserverUrl,
+            nextcloudBaseUrl: appStart.nextcloudBaseUrl,
+            backendApiBaseUrl: appStart.backendApiBaseUrl,
+          ),
         ),
-        serviceEndpoints: ServiceEndpoints(
-          matrixHomeserverUrl: appStart.matrixHomeserverUrl,
-          nextcloudBaseUrl: appStart.nextcloudBaseUrl,
-          backendApiBaseUrl: appStart.backendApiBaseUrl,
-        ),
-      ),
-    );
+      );
+      await _recordHandoffEvidence(handoff, result: 'saved_configuration');
+    } catch (error) {
+      await _recordHandoffEvidence(
+        handoff,
+        result: 'failed',
+        errorCode: _supportSafeErrorCode(error),
+      );
+      rethrow;
+    }
+    return handoff;
+  }
+
+  Future<void> _recordHandoffEvidence(
+    MemberHandoff handoff, {
+    required String result,
+    String? errorCode,
+  }) async {
     await _evidenceStore?.setString(
       lastHandoffConsumedStorageKey,
-      jsonEncode(_handoffEvidence(handoff, result: 'saved_configuration')),
+      jsonEncode(
+        _handoffEvidence(handoff, result: result, errorCode: errorCode),
+      ),
     );
-    return handoff;
   }
 
   Map<String, Object> _handoffEvidence(
     MemberHandoff handoff, {
     required String result,
+    String? errorCode,
   }) {
-    return {
+    return <String, Object>{
       'schemaVersion': 'weave.client.last_handoff_consumed.v1',
       'recordedAt': DateTime.now().toUtc().toIso8601String(),
       'handoffRef': handoff.handoffRef,
@@ -62,8 +82,18 @@ class ConsumeMemberHandoff {
       'platformConfigHost': handoff.platformConfigUrl.host,
       'platformConfigPath': handoff.platformConfigUrl.path,
       'result': result,
+      if (errorCode != null) 'errorCode': errorCode,
       'supportSafe': true,
     };
+  }
+
+  String _supportSafeErrorCode(Object error) {
+    if (error is AppFailure) {
+      final message = error.message;
+      final separator = message.indexOf(':');
+      return separator > 0 ? message.substring(0, separator) : message;
+    }
+    return error.runtimeType.toString();
   }
 }
 
