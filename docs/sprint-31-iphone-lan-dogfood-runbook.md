@@ -12,8 +12,8 @@ Treat the earlier faulty handoff PR as evidence that local unit/widget and CI ch
 2. Run the onboarding E2E gate in the iOS Simulator from that `dev` state.
 3. Proceed to dogfood promotion/candidate installation only after the simulator gate prints `SIMULATOR_E2E_GREEN`.
 4. Install the dogfood candidate on Massimo's physical iPhone over Wi-Fi when `devicectl` can reach it; if Wi-Fi reachability fails, use USB as the fallback transport after pairing/authorization.
-5. Verify trust stability before handing the build to Massimo: normal stack restart/recreate must preserve the local TLS CA and leaf certificate unless explicit rotation is requested, and normal iOS update/app-state reset must not require Massimo to trust the development team/profile again.
-6. Report `READY_FOR_MASSIMO_TEST` only after the candidate is installable and all relevant onboarding E2E evidence is green, or report `BLOCKED` with the exact failing command/check/device step.
+5. Verify trust stability before handing the build to Massimo: normal stack restart/recreate must preserve the local TLS CA and leaf certificate unless explicit rotation is requested, the physical iPhone must have the Weave Local Development CA installed and fully trusted before platform-config fetch, and normal iOS update/app-state reset must not require Massimo to trust the development team/profile again.
+6. Report `READY_FOR_MASSIMO_TEST` only after the physical iPhone can fetch platform config over trusted TLS and all relevant onboarding E2E evidence is green. If the app shows `WEAVE-APP-START-TLS-FAILED`, report `PHYSICAL_DEVICE_TLS_PENDING`; simulator handoff evidence is not physical-device E2E.
 
 From the repo root, after starting the local stack on a phone-reachable Mac LAN address:
 
@@ -39,6 +39,8 @@ tools/dogfood_handoff_bundle.py
 This writes `build/dogfood/handoff.json` and `build/dogfood/handoff.md` with the current `weave://join` deeplink, web join URL, local CA URLs, CA/leaf fingerprints when local cert files exist, stack commit, and iOS profile/release smoke requirements. Send the generated artifact contents, not a stale chat transcript. If the CA or leaf fingerprint changes between normal reruns, treat that as a trust-stability blocker unless the run explicitly requested certificate rotation.
 
 Installed iOS client smoke must use a profile or release build. Debug builds and raw `devicectl` process launch success are not valid dogfood evidence for iOS custom-scheme launch. Use `tools/dogfood_ios_deeplink_smoke.sh` with `WEAVE_IOS_BUILD_MODE=profile` or `release`; this proves `last_handoff_consumed_v1`, `dogfood_visible_state_v1=handoff_ready`, and `dogfood_auth_state_v1=ready_for_sso` from the app container. It is still only the handoff gate. Full member onboarding evidence additionally requires Sign In, account activation, saved session, workspace entry, restore, reinstall/manual login, and Mailpit capture. Wi-Fi install is preferred, USB is a fallback only, and both install paths use the same stable bundle ID, provisioning Team ID `KNDHGC2KV6`, developer certificate label `Apple Development: massimo164@me.com (6RUS2Z848X)`, signing identity/profile class, and developer-trust assumptions. If a normal update or trust-preserving app-state reset prompts Massimo to trust the development team/profile again, the dogfood path is not ready for Massimo.
+
+For local dogfood HTTPS, the physical smoke has a pre-launch TLS preflight. Set `WEAVE_IOS_LOCAL_CA_TRUST_STATUS=trusted` only after the Weave Local Development CA profile is installed on the iPhone and full trust is enabled in Settings > General > About > Certificate Trust Settings. If that state is not confirmed, the runner exits before install/launch with `PHYSICAL_DEVICE_TLS_PENDING` and writes `build/dogfood/ios-local-tls-preflight.json`. This is a precondition, not E2E success. iOS does not provide a support-safe non-interactive way for this runner to install and fully trust a local root CA; for a no-manual-CA tester flow, use a publicly trusted dogfood endpoint or stable installed configuration instead of relying on local CA setup.
 
 Do not uninstall the physical iPhone app by default. Apple can remove the Developer App trust anchor when the last app signed by a developer is deleted, which turns the next launch into a manual `Apple Development: massimo164@me.com (6RUS2Z848X)` trust step. The physical runner therefore defaults to `WEAVE_IOS_RESET_MODE=update_in_place`. For fresh-install semantics without deleting the app, use `WEAVE_IOS_RESET_MODE=app_state`; the runner appends a dogfood-only reset marker to the handoff so Weave clears saved configuration, handoff evidence, auth session, Nextcloud session, and dogfood evidence before consuming the link. Use `WEAVE_IOS_RESET_MODE=destructive_uninstall` only as an explicit physical-trust-disruptive reset and record that it may require a new Developer App trust approval. If repeated trust remains part of the development-runner path, prefer TestFlight/internal or ad-hoc distribution for professional dogfood handoff instead of asking Massimo to repeat device-management trust.
 
@@ -124,6 +126,7 @@ If the simulator gate is green but the phone is unplugged or Wi-Fi-unreachable, 
 
 ```sh
 WEAVE_IOS_DEVICE_ID=<plugged-iphone-id> \
+WEAVE_IOS_LOCAL_CA_TRUST_STATUS=trusted \
 WEAVE_IOS_RESET_MODE=app_state \
 WEAVE_DOGFOOD_DEEPLINK='<current weave://join... URL>' \
 tools/dogfood_ios_deeplink_smoke.sh

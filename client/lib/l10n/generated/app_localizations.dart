@@ -6672,6 +6672,12 @@ abstract class AppLocalizations {
   /// **'The invite may be expired, incomplete, or not ready yet. Ask your workspace admin for a fresh invite or organization sign-in link.'**
   String get memberHandoffErrorGuidance;
 
+  /// Support-safe guidance when member handoff consumption fails because platform config TLS trust is missing
+  ///
+  /// In en, this message translates to:
+  /// **'Weave could not reach the workspace start configuration over trusted TLS. For local dogfood, install and fully trust the Weave Local Development CA on this iPhone, or ask your admin for a publicly trusted organization sign-in link.'**
+  String get memberHandoffTlsErrorGuidance;
+
   /// Support-safe handoff failure code shown with the member handoff error
   ///
   /// In en, this message translates to:

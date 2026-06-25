@@ -4094,6 +4094,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'The invite may be expired, incomplete, or not ready yet. Ask your workspace admin for a fresh invite or organization sign-in link.';
 
   @override
+  String get memberHandoffTlsErrorGuidance =>
+      'Weave could not reach the workspace start configuration over trusted TLS. For local dogfood, install and fully trust the Weave Local Development CA on this iPhone, or ask your admin for a publicly trusted organization sign-in link.';
+
+  @override
   String memberHandoffErrorCode(String code) {
     return 'Error code: $code';
   }

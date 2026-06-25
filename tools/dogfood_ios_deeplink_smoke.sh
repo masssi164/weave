@@ -13,6 +13,8 @@ INSTALL_TRANSPORT="${WEAVE_IOS_INSTALL_TRANSPORT:-wifi}"
 RESET_MODE="${WEAVE_IOS_RESET_MODE:-update_in_place}"
 EXPECTED_TEAM_ID="${WEAVE_IOS_EXPECTED_TEAM_ID:-KNDHGC2KV6}"
 EXPECTED_DEVELOPER_CERT_TEAM_ID="${WEAVE_IOS_EXPECTED_DEVELOPER_CERT_TEAM_ID:-6RUS2Z848X}"
+LOCAL_CA_TRUST_STATUS="${WEAVE_IOS_LOCAL_CA_TRUST_STATUS:-not_verified}"
+PLATFORM_CONFIG_URL="${WEAVE_DOGFOOD_PLATFORM_CONFIG_URL:-}"
 
 fail() {
   echo "dogfood iOS smoke failed: $*" >&2
@@ -26,6 +28,7 @@ fail() {
 [[ -z "${WEAVE_IOS_RESET_APP_DATA:-}" ]] || fail "WEAVE_IOS_RESET_APP_DATA is deprecated because uninstall can destroy Developer App trust; use WEAVE_IOS_RESET_MODE=update_in_place, app_state, or destructive_uninstall"
 [[ "${INSTALL_TRANSPORT}" == "wifi" || "${INSTALL_TRANSPORT}" == "usb" || "${INSTALL_TRANSPORT}" == "unknown" ]] || fail "WEAVE_IOS_INSTALL_TRANSPORT must be wifi, usb, or unknown"
 [[ "${RESET_MODE}" == "update_in_place" || "${RESET_MODE}" == "app_state" || "${RESET_MODE}" == "destructive_uninstall" ]] || fail "WEAVE_IOS_RESET_MODE must be update_in_place, app_state, or destructive_uninstall"
+[[ "${LOCAL_CA_TRUST_STATUS}" == "trusted" || "${LOCAL_CA_TRUST_STATUS}" == "manual_pending" || "${LOCAL_CA_TRUST_STATUS}" == "publicly_trusted" || "${LOCAL_CA_TRUST_STATUS}" == "not_required" || "${LOCAL_CA_TRUST_STATUS}" == "not_verified" ]] || fail "WEAVE_IOS_LOCAL_CA_TRUST_STATUS must be trusted, manual_pending, publicly_trusted, not_required, or not_verified"
 [[ -x "${FLUTTER_BIN}" ]] || FLUTTER_BIN="$(command -v flutter || true)"
 [[ -n "${FLUTTER_BIN}" && -x "${FLUTTER_BIN}" ]] || fail "flutter was not found; set FLUTTER_BIN"
 
@@ -43,6 +46,63 @@ query["dogfood_reset"] = "app_state"
 print(urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment)))
 PY
 )"
+fi
+
+if [[ -z "${PLATFORM_CONFIG_URL}" ]]; then
+  PLATFORM_CONFIG_URL="$(DEEPLINK="${DEEPLINK}" python3 - <<'PY'
+import os
+from urllib.parse import parse_qs, unquote, urlparse, urlunparse
+
+query = parse_qs(urlparse(os.environ["DEEPLINK"]).query)
+value = query.get("platform_config_url", [""])[0]
+if value:
+    print(unquote(value))
+else:
+    product_base_url = unquote(query.get("product_base_url", [""])[0])
+    parsed = urlparse(product_base_url)
+    print(urlunparse((parsed.scheme, parsed.netloc, "/api/platform/config", "", "", "")) if parsed.scheme and parsed.netloc else "")
+PY
+)"
+fi
+LOCAL_DOGFOOD_TLS_REQUIRED="$(PLATFORM_CONFIG_URL="${PLATFORM_CONFIG_URL}" python3 - <<'PY'
+import os
+from urllib.parse import urlparse
+
+url = os.environ.get("PLATFORM_CONFIG_URL", "")
+parsed = urlparse(url)
+host = parsed.hostname or ""
+requires_local_ca = (
+    parsed.scheme == "https"
+    and (
+        host.endswith("weave.test")
+        or host.endswith(".weave.test")
+        or parsed.port == 44443
+    )
+)
+print("1" if requires_local_ca else "0")
+PY
+)"
+cat > "${EVIDENCE_DIR}/ios-local-tls-preflight.json" <<JSON
+{
+  "schemaVersion": "weave.dogfood.ios-local-tls-preflight.v1",
+  "supportSafe": true,
+  "platformConfigUrl": "${PLATFORM_CONFIG_URL}",
+  "localDogfoodTlsRequired": $([[ "${LOCAL_DOGFOOD_TLS_REQUIRED}" == "1" ]] && echo true || echo false),
+  "iosLocalCaTrustStatus": "${LOCAL_CA_TRUST_STATUS}",
+  "manualPrecondition": "For local dogfood TLS, install the Weave Local Development CA profile on the iPhone and enable full trust before launching Weave.",
+  "failureCodeWhenPending": "PHYSICAL_DEVICE_TLS_PENDING"
+}
+JSON
+if [[ "${LOCAL_DOGFOOD_TLS_REQUIRED}" == "1" ]]; then
+  case "${LOCAL_CA_TRUST_STATUS}" in
+    trusted|publicly_trusted) ;;
+    manual_pending)
+      fail "PHYSICAL_DEVICE_TLS_PENDING: install the Weave Local Development CA profile on the iPhone, enable full trust in Settings > General > About > Certificate Trust Settings, then rerun with WEAVE_IOS_LOCAL_CA_TRUST_STATUS=trusted"
+      ;;
+    *)
+      fail "PHYSICAL_DEVICE_TLS_PENDING: local dogfood platform config uses HTTPS with the Weave local CA; confirm iPhone CA trust first with WEAVE_IOS_LOCAL_CA_TRUST_STATUS=trusted or use a publicly trusted dogfood endpoint"
+      ;;
+  esac
 fi
 
 xcrun devicectl device info details \

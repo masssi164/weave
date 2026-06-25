@@ -89,15 +89,18 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
     if (failure != null) {
       final errorCode = supportSafeHandoffErrorCode(failure);
       final errorCodeText = l10n.memberHandoffErrorCode(errorCode);
+      final guidance = errorCode == 'WEAVE-APP-START-TLS-FAILED'
+          ? l10n.memberHandoffTlsErrorGuidance
+          : l10n.memberHandoffErrorGuidance;
       _recordVisibleStateOnce('handoff_error', errorCode: errorCode);
       return Scaffold(
         body: SafeArea(
           child: Center(
             child: ErrorState(
               message: l10n.memberHandoffErrorTitle,
-              guidance: '${l10n.memberHandoffErrorGuidance}\n$errorCodeText',
+              guidance: '$guidance\n$errorCodeText',
               semanticLabel:
-                  '${l10n.memberHandoffErrorTitle}. ${l10n.memberHandoffErrorGuidance}. $errorCodeText',
+                  '${l10n.memberHandoffErrorTitle}. $guidance. $errorCodeText',
               retryLabel: l10n.retryButton,
               onRetry: () {
                 setState(() => _failure = null);

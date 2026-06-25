@@ -297,6 +297,13 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('We could not open this Weave invite'), findsOneWidget);
+      expect(
+        find.textContaining(
+          'Weave could not reach the workspace start configuration over trusted TLS.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('The invite may be expired'), findsNothing);
       expect(find.textContaining('WEAVE-APP-START-TLS-FAILED'), findsOneWidget);
 
       final rawEvidence = preferencesStore.rawString(
