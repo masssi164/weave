@@ -19,6 +19,14 @@ Use Mailpit for dogfood-only mail capture. It belongs in `infra/weave-workspace`
 
 This replaces ambiguous "mail catcher/mailkit-style" wording with one concrete local stack component.
 
+## Activation invite lifecycle
+
+Dogfood member activation must not depend on publishing a password or long-lived token. The operator creates or refreshes the identity with `infra/weave-workspace/activate-user.sh`, which now provisions the account in a pending required-action state and asks Keycloak to send a short-lived one-time activation email to Mailpit.
+
+The QR/deeplink remains bootstrap-only. It may contain the non-secret handoff or invite reference, organization/workspace context, route mode, CA/public-route guidance, and platform-config URL. It must not contain passwords, bearer tokens, refresh tokens, Keycloak action-token URLs, raw provider payloads, SecretRefs, or credential URLs. Treat the action URL inside Mailpit as a secret identity-provider artifact: open it only in the system browser activation path and never paste it into docs, logs, app preferences, QR payloads, GitHub comments, or support bundles.
+
+Support-safe activation evidence may record hashed username/email, the invite reference, role/group, required action names, TTL, and whether Mailpit captured the message. It must not record the action URL or token value.
+
 ## Onboarding state machine
 
 The member app should model these states explicitly:
@@ -39,6 +47,7 @@ The ready/prepared screen must not reappear after successful credentials unless 
 
 - Delivery gate: implement against `dev`, run the onboarding E2E gate in the iOS Simulator from the current `dev` state, and only then promote/install the dogfood candidate for physical iPhone testing.
 - Trust-preserving app-state reset or first install, handoff link, successful SSO, app lands in workspace/home and persists a refresh/offline token.
+- Operator-created activation invite uses Keycloak required actions with a short TTL, Mailpit capture, support-safe evidence, and no initial password output.
 - Force-quit/reopen with saved session, no login prompt, backend profile/capability bootstrap succeeds.
 - Expired access token with valid refresh/offline token, refresh succeeds without interactive login.
 - Missing `offline_access` role, app shows localized offline-session entitlement guidance in English and German.

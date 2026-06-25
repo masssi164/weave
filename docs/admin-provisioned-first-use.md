@@ -47,7 +47,7 @@ v0.1 keeps the compact role vocabulary below, while the strategy contract sharpe
 | `member` | Lands in the ready workspace after invite/activation. | No OIDC/provider/infra setup. Sees only complete capabilities or simple impact/fallback states such as “Calendar is unavailable; ask an admin.” |
 | `guest` | Lands only in explicitly permitted guest scopes. | No workspace setup, provider diagnostics, or member/admin affordances. |
 
-The current realm/role generator contract lives in `infra/KEYCLOAK_CONTRACT.md`, `infra/weave-workspace/02-keycloak-setup`, and the local/dev activation helper documented in `infra/docs/admin-user-activation.md`. Those operator paths are not normal-user help.
+The current realm/role generator contract lives in `infra/KEYCLOAK_CONTRACT.md`, `infra/weave-workspace/02-keycloak-setup`, and the local/dev activation helper documented in `infra/docs/admin-user-activation.md`. The helper creates a one-time required-action activation invite and rejects initial-password distribution. Those operator paths are not normal-user help.
 
 ## Capability state taxonomy
 

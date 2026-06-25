@@ -113,7 +113,7 @@ ${weave_site_addresses} {
 
   <section aria-labelledby="secrets" class="warning">
     <h2 id="secrets">Secrets are not embedded here</h2>
-    <p>This page, invite link, and QR payload contain no passwords, tokens, client secrets, or credential URLs. The test password remains in <code>.generated/bootstrap.env</code> only, specifically <code>infra/weave-workspace/.generated/bootstrap.env</code>.</p>
+	    <p>This page, invite link, and QR payload contain no passwords, tokens, client secrets, credential URLs, or activation action links. Account activation uses the identity-provider required-action flow; one-time action links belong only in the local Mailpit capture and must not be copied into docs, QR codes, logs, or app storage.</p>
   </section>
 </main>
 </body>
