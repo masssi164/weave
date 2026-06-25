@@ -104,6 +104,7 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
                 handoff.workspaceSlug,
               ),
               actionLabel: l10n.signInButton,
+              liveRegion: false,
               onAction: () {
                 ref.invalidate(appBootstrapProvider);
                 context.go(AppRoutes.signIn);
