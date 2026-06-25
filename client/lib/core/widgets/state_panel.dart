@@ -22,6 +22,7 @@ class StatePanel extends StatelessWidget {
     this.onAction,
     this.semanticLabel,
     this.outlinedAction = false,
+    this.liveRegion = true,
   });
 
   /// State category. This controls default icon and container color.
@@ -49,6 +50,11 @@ class StatePanel extends StatelessWidget {
   /// Renders the optional action as an outlined button when true.
   final bool outlinedAction;
 
+  /// Whether assistive technologies should announce this panel as a live
+  /// update. Keep enabled for transient loading/error states, but disable for
+  /// stable success states that remain on screen while the user explores them.
+  final bool liveRegion;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -63,7 +69,7 @@ class StatePanel extends StatelessWidget {
         child: Semantics(
           container: true,
           explicitChildNodes: true,
-          liveRegion: true,
+          liveRegion: liveRegion,
           label: effectiveSemanticLabel,
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 360),

@@ -124,6 +124,20 @@ class _FakeOidcClient implements OidcClient {
 
 void main() {
   group('AppRouter', () {
+    test('uses welcome as the normal launch route', () {
+      expect(initialLocationForDefaultRoute('/'), AppRoutes.welcome);
+      expect(initialLocationForDefaultRoute(''), AppRoutes.welcome);
+    });
+
+    test('uses join route for installed iOS custom-scheme launch', () {
+      expect(
+        initialLocationForDefaultRoute(
+          'weave://join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-massimo-dogfood&product_base_url=https://weave.test:44443&platform_config_url=https://api.weave.test:44443/api/platform/config',
+        ),
+        '/join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-massimo-dogfood&product_base_url=https://weave.test:44443&platform_config_url=https://api.weave.test:44443/api/platform/config',
+      );
+    });
+
     ProviderContainer createContainer({
       required ServerConfiguration? configuration,
       InMemorySecureStore? secureStore,

@@ -48,6 +48,11 @@ variable "tls_ca_file" {
   type        = string
 }
 
+variable "tls_certs_dir" {
+  description = "Host directory containing generated local TLS material mounted into /certs."
+  type        = string
+}
+
 variable "data_volume_name" {
   description = "Docker volume name used for Caddy runtime data."
   type        = string
