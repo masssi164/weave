@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import plistlib
 import re
@@ -35,7 +36,13 @@ def main() -> int:
     parser.add_argument("--installed-app-json", type=Path, default=ROOT / "build/dogfood/ios-installed-app.json")
     parser.add_argument("--expected-bundle-id", default="com.massimotter.weave")
     parser.add_argument("--expected-team-id", default="KNDHGC2KV6")
+    parser.add_argument("--expected-developer-cert-team-id", default="6RUS2Z848X")
     parser.add_argument("--install-transport", choices=["wifi", "usb", "unknown"], default="unknown")
+    parser.add_argument(
+        "--install-reset-mode",
+        choices=["update_in_place", "app_state", "destructive_uninstall", "unknown"],
+        default="unknown",
+    )
     parser.add_argument(
         "--developer-trust-status",
         choices=["trusted", "blocked_by_device_policy", "not_verified"],
@@ -50,7 +57,12 @@ def main() -> int:
 
     handoff = read_json(args.handoff_json)
     cert_result = check_certs(args.cert_dir, handoff)
-    signing_result = check_signing(args.app, args.expected_bundle_id, args.expected_team_id)
+    signing_result = check_signing(
+        args.app,
+        args.expected_bundle_id,
+        args.expected_team_id,
+        args.expected_developer_cert_team_id,
+    )
     install_result = check_installed_app(args.installed_app_json, args.expected_bundle_id)
 
     result: dict[str, Any] = {
@@ -58,7 +70,10 @@ def main() -> int:
         "supportSafe": True,
         "bundleId": args.expected_bundle_id,
         "teamId": args.expected_team_id,
+        "developerCertificateTeamId": args.expected_developer_cert_team_id,
         "installTransport": args.install_transport,
+        "installResetMode": args.install_reset_mode,
+        "trustDisruptiveResetUsed": args.install_reset_mode == "destructive_uninstall",
         "wifiPreferred": True,
         "usbFallbackOnly": args.install_transport != "usb",
         "localTlsStable": cert_result["stable"],
@@ -97,6 +112,10 @@ def main() -> int:
     if args.developer_trust_status != "trusted":
         blocked_reasons.append(
             "iOS developer profile trust is not verified; repeated trust prompts remain possible",
+        )
+    if args.install_reset_mode == "destructive_uninstall":
+        blocked_reasons.append(
+            "physical reset used app uninstall; this can remove the Developer App trust anchor",
         )
 
     result["blockedReasons"] = blocked_reasons
@@ -164,7 +183,12 @@ def cert_fingerprint(path: Path) -> str | None:
     return output.split("=", 1)[1]
 
 
-def check_signing(app: Path, expected_bundle_id: str, expected_team_id: str) -> dict[str, Any]:
+def check_signing(
+    app: Path,
+    expected_bundle_id: str,
+    expected_team_id: str,
+    expected_developer_cert_team_id: str,
+) -> dict[str, Any]:
     provision = app / "embedded.mobileprovision"
     info_plist = app / "Info.plist"
     if not app.exists() or not provision.exists() or not info_plist.exists():
@@ -179,6 +203,20 @@ def check_signing(app: Path, expected_bundle_id: str, expected_team_id: str) -> 
 
     info = plistlib.loads(info_plist.read_bytes())
     profile = decode_mobileprovision(provision)
+    codesign = subprocess.check_output(
+        ["codesign", "-dv", "--verbose=4", str(app)],
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    developer_certificate = next(
+        (
+            line.split("=", 1)[1]
+            for line in codesign.splitlines()
+            if line.startswith("Authority=Apple Development:")
+        ),
+        "",
+    )
+    developer_certificate_team_id = certificate_team_id(developer_certificate)
     teams = profile.get("TeamIdentifier", [])
     entitlements = profile.get("Entitlements", {})
     application_identifier = ""
@@ -188,6 +226,7 @@ def check_signing(app: Path, expected_bundle_id: str, expected_team_id: str) -> 
     stable = (
         bundle_id == expected_bundle_id
         and expected_team_id in teams
+        and developer_certificate_team_id == expected_developer_cert_team_id
         and application_identifier.endswith(f".{expected_bundle_id}")
     )
     return {
@@ -196,6 +235,13 @@ def check_signing(app: Path, expected_bundle_id: str, expected_team_id: str) -> 
             "appPresent": True,
             "bundleIdMatches": bundle_id == expected_bundle_id,
             "teamIdMatches": expected_team_id in teams,
+            "developerCertificateTeamIdMatches": developer_certificate_team_id
+            == expected_developer_cert_team_id,
+            "developerCertificateName": developer_certificate,
+            "developerCertificateTeamId": developer_certificate_team_id,
+            "provisioningProfileName": str(profile.get("Name", "")),
+            "provisioningProfileUuid": str(profile.get("UUID", "")),
+            "provisioningProfileSha256": hashlib.sha256(provision.read_bytes()).hexdigest(),
             "profileApplicationIdentifierMatches": application_identifier.endswith(
                 f".{expected_bundle_id}",
             ),
@@ -209,6 +255,11 @@ def decode_mobileprovision(path: Path) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise SystemExit(f"{path} did not decode to a plist dictionary")
     return data
+
+
+def certificate_team_id(authority: str) -> str:
+    match = re.search(r"\(([^)]+)\)$", authority)
+    return match.group(1) if match else ""
 
 
 def check_installed_app(path: Path, expected_bundle_id: str) -> dict[str, Any]:

@@ -38,13 +38,13 @@ The ready/prepared screen must not reappear after successful credentials unless 
 ## Acceptance test matrix
 
 - Delivery gate: implement against `dev`, run the onboarding E2E gate in the iOS Simulator from the current `dev` state, and only then promote/install the dogfood candidate for physical iPhone testing.
-- Fresh install, handoff link, successful SSO, app lands in workspace/home and persists a refresh/offline token.
+- Trust-preserving app-state reset or first install, handoff link, successful SSO, app lands in workspace/home and persists a refresh/offline token.
 - Force-quit/reopen with saved session, no login prompt, backend profile/capability bootstrap succeeds.
 - Expired access token with valid refresh/offline token, refresh succeeds without interactive login.
 - Missing `offline_access` role, app shows localized offline-session entitlement guidance in English and German.
 - User cancels SSO, app shows localized cancelled state and stays ready for retry.
 - Wrong/stale handoff origin, app shows localized invite refresh guidance without raw provider URLs.
-- Reinstall app, open same current handoff, manual login succeeds and records fresh handoff evidence.
+- Trust-preserving app-state reset, open same current handoff, manual login succeeds and records fresh handoff evidence without deleting the Developer App trust anchor.
 - Manual sign-in from saved configuration without handoff, successful workspace/home entry.
 - Guest account without offline entitlement remains denied with localized policy copy until guest policy exists.
 - i18n check: no new sign-in/onboarding user-facing strings bypass ARB/localization.
@@ -52,8 +52,9 @@ The ready/prepared screen must not reappear after successful credentials unless 
 - Dogfood Mailpit check: test/reset emails are captured locally, visible to operator, and not sent externally.
 - Physical iPhone candidate check: install over Wi-Fi when device reachability works; if Wi-Fi install is unavailable, install over USB before asking Massimo to test.
 - Trust stability check: the local TLS CA and leaf certificate fingerprints remain stable across normal stack restart/recreate unless explicit rotation is requested.
-- iOS signing trust check: the dogfood app keeps the same bundle ID, Team ID, signing identity/profile class, and installed-app trust assumptions across reinstall/update. A normal reinstall/update must not ask Massimo to trust the developer again.
-- Trust-domain evidence distinguishes local TLS trust for `weave.test`, iOS app signing/developer trust for the installed app, and AppAuth/OIDC browser/session trust.
+- iOS signing trust check: the dogfood app keeps the same bundle ID `com.massimotter.weave`, provisioning Team ID `KNDHGC2KV6`, developer certificate label `Apple Development: massimo164@me.com (6RUS2Z848X)`, signing identity/profile class, and installed-app trust assumptions across normal update or app-state reset. A normal update/app-state reset must not ask Massimo to trust the developer again.
+- Physical reset check: update-in-place is the default, app-state reset is the trust-preserving fresh path, and destructive uninstall is explicit opt-in because it can remove the Developer App trust anchor.
+- Trust-domain evidence distinguishes Apple Developer Mode, Developer App trust, local TLS trust for `weave.test`, iOS app signing/provisioning stability for the installed app, and AppAuth/OIDC browser/session trust.
 - Repeated developer-team/profile trust prompts are a dogfood blocker, even if Wi-Fi or USB install technically succeeds.
 
 ## Remaining implementation slices
@@ -61,5 +62,5 @@ The ready/prepared screen must not reappear after successful credentials unless 
 - Extend Mailpit coverage beyond Keycloak if backend-owned outbound email becomes part of dogfood.
 - Convert the current handoff/sign-in flow into a typed onboarding state machine instead of relying on route side effects.
 - Add widget/integration tests for every localized state above.
-- Add dogfood runbook steps for app reinstall, manual login, session restore, and Mailpit inbox verification.
-- Add trust-stability evidence for local cert persistence, stable iOS signing/provisioning, and no repeated developer trust prompt after normal reinstall/update.
+- Add dogfood runbook steps for trust-preserving app-state reset, manual login, session restore, and Mailpit inbox verification.
+- Add trust-stability evidence for local cert persistence, stable iOS signing/provisioning, and no repeated developer trust prompt after normal update/app-state reset.
