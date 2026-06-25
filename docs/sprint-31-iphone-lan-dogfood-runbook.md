@@ -89,6 +89,22 @@ It includes the local CA downloads, iPhone trust steps, DNS-first service links,
 infra/weave-workspace/local-invite-link.sh --json
 ```
 
+Before handing Massimo the QR/link, create the pending activation invite without an initial password:
+
+```sh
+cd infra/weave-workspace
+./activate-user.sh \
+  --username massimo \
+  --email massimo@example.test \
+  --display-name 'Massimo Dogfood' \
+  --role member \
+  --invite-ref handoff-s32-massimo-dogfood-home \
+  --activation-lifespan 900 \
+  --evidence-file ../../build/dogfood/activation-massimo-home.json
+```
+
+This sends a short-lived Keycloak required-action email to Mailpit. The Mailpit action URL is a secret one-time identity-provider artifact; do not put it in the QR, field manual, logs, screenshots, app storage, or GitHub comments.
+
 Default non-secret enrollment handoff link to give Massimo:
 
 ```text
@@ -106,7 +122,7 @@ Expected tester path before Massimo is asked to try the build:
 3. Tap or scan the invite/QR/handoff.
 4. The app fetches `/api/platform/config`, saves OIDC/API/facade configuration, writes `last_handoff_consumed_v1`, writes `dogfood_auth_state_v1=ready_for_sso`, and shows a handoff-aware workspace sign-in state.
 5. Tap Sign In. The copied app preferences must move to `dogfood_auth_state_v1=sso_in_progress`; a no-op Sign In button is a hard failure.
-6. Complete the identity first-login path, including account activation and password setup. Passkey/WebAuthn setup should be offered when the dogfood identity profile supports it; otherwise record the support-safe unsupported reason.
+6. Complete the identity first-login path in the system browser from the Keycloak required-action activation flow, including account activation and password setup. Passkey/WebAuthn setup should be offered when the dogfood identity profile supports it; otherwise record the support-safe unsupported reason. Do not type a password into the Weave app.
 7. After returning to Weave, copied app preferences must show `dogfood_auth_state_v1=workspace_ready`, and Weave must enter the authenticated workspace/home without raw provider/setup copy.
 8. Force-quit and reopen the app. The saved mobile session must restore without another interactive login.
 9. Run the trust-preserving app-state reset path, open the current handoff or organization sign-in path, and complete manual login to the workspace again. This proves fresh-session/manual-login recovery from a user perspective without deleting the Developer App trust anchor. A true uninstall/reinstall is a separate physical-trust-disruptive reset and must be explicitly requested.

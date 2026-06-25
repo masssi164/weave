@@ -328,7 +328,8 @@ assert_file_contains "${caddy_template}" '@product_api path /api/*'
 assert_file_contains "${caddy_template}" 'reverse_proxy ${api_upstream}'
 assert_file_contains "${infra_main}" 'client_public_url     = local.client_public_url'
 assert_file_contains "${caddy_template}" 'handoff-s32-massimo-dogfood-home'
-assert_file_contains "${caddy_template}" 'passwords, tokens, client secrets, or credential URLs'
+assert_file_contains "${caddy_template}" 'passwords, tokens, client secrets, credential URLs, or activation action links'
+assert_file_contains "${caddy_template}" 'Account activation uses the identity-provider required-action flow'
 assert_file_contains "${local_invite_script}" 'base_url="${WEAVE_PUBLIC_BASE_URL:-https://weave.test:44443}"'
 assert_file_contains "${local_invite_script}" 'handoff-s32-massimo-dogfood-home'
 assert_file_contains "${local_invite_script}" 'json.dumps(result, separators=(",", ":"), sort_keys=True)'
@@ -344,10 +345,11 @@ invite_json="$(${local_invite_script} --json)"
 printf '%s' "${invite_json}" | jq -e '
   .inviteLink == "https://weave.test:44443/join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-massimo-dogfood" and
   .qrPayload == .inviteLink and
+  .activationInviteRef == "handoff-s32-massimo-dogfood-home" and
   .platformConfigUrl == "https://weave.test:44443/api/platform/config" and
   .org == "massimo-dogfood" and
   .workspace == "home" and
-  (.secretPolicy | contains(".generated/bootstrap.env"))
+  (.secretPolicy | contains("required-action flow"))
 ' >/dev/null || fail "Default local invite JSON does not match the no-secret DNS-first handoff contract"
 printf '%s' "${invite_json}" | grep -Eiq '127\.0\.0\.1|localhost|192\.168\.|password=|token=|secret=' && \
   fail "Default local invite JSON leaked non-DNS or credential-bearing data"

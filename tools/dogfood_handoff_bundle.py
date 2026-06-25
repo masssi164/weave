@@ -113,6 +113,8 @@ def write_markdown(path: Path, payload: dict[str, object]) -> None:
         f"- Public route recommended: `{route['publicRouteRecommended']}`",
         f"- Web join URL: `{tester['webJoinUrl']}`",
         f"- iOS deeplink: `{tester['deepLink']}`",
+        f"- Activation invite ref: `{tester['activationInviteRef']}`",
+        f"- Activation secret location: `{tester['activationSecretLocation']}`",
         f"- CA URL: `{certs['caUrl']}`",
         f"- CA LAN fallback: `{certs['caLanFallbackUrl']}`",
         f"- CA SHA256: `{certs['caSha256Fingerprint'] or 'unavailable until certs exist locally'}`",
@@ -224,6 +226,8 @@ def main() -> int:
             "webJoinUrl": web_join_url,
             "deepLink": deep_link,
             "platformConfigUrl": args.platform_config_url,
+            "activationInviteRef": args.handoff_ref,
+            "activationSecretLocation": "identity-provider-required-action-mail-only",
         },
         "dogfoodRoute": {
             "mode": route_mode,
