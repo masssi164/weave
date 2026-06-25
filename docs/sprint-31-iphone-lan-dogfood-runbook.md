@@ -9,8 +9,8 @@ Sprint 31 prepares Massimo's first real physical iPhone test on the same LAN as 
 Treat the earlier faulty handoff PR as evidence that local unit/widget and CI checks are not enough. The dogfood/member onboarding delivery order is:
 
 1. Implement and review the change against the `dev` integration state.
-2. Run the onboarding E2E gate in the iOS Simulator from that `dev` state.
-3. Proceed to dogfood promotion/candidate installation only after the simulator gate prints `SIMULATOR_E2E_GREEN`.
+2. Run the onboarding E2E gate in the iOS Simulator from that `dev` state as a fast preflight only; simulator CA injection is not physical dogfood proof.
+3. Proceed to dogfood promotion/candidate installation only after the simulator gate prints `SIMULATOR_E2E_GREEN`, then prove either stable local CA trust on the physical iPhone or a public HTTPS route with a publicly trusted certificate.
 4. Install the dogfood candidate on Massimo's physical iPhone over Wi-Fi when `devicectl` can reach it; if Wi-Fi reachability fails, use USB as the fallback transport after pairing/authorization.
 5. Verify trust stability before handing the build to Massimo: normal stack restart/recreate must preserve the local TLS CA and leaf certificate unless explicit rotation is requested, the physical iPhone must have the Weave Local Development CA installed and fully trusted before platform-config fetch, and normal iOS update/app-state reset must not require Massimo to trust the development team/profile again.
 6. Report `READY_FOR_MASSIMO_TEST` only after the physical iPhone can fetch platform config over trusted TLS and all relevant onboarding E2E evidence is green. If the app shows `WEAVE-APP-START-TLS-FAILED`, report `PHYSICAL_DEVICE_TLS_PENDING`; simulator handoff evidence is not physical-device E2E.
@@ -30,13 +30,15 @@ For dry validation before the stack is listening, use `--preflight-mode validate
 
 The command rejects `localhost`, `127.0.0.1`, `0.0.0.0`, container-only names, and Mac-only `.local` assumptions before handoff output. Handoff evidence stores refs and endpoint classes, not raw secrets or provider diagnostics. The handoff includes one canonical product join URL (`/join`) plus a `weave:/join?...` local-dev fallback. These are non-secret enrollment handoff links, not bearer access. Real access control is the provisioned account, organization/workspace membership, and identity-provider session. Both handoff links point at the public `/api/platform/config` app-start discovery contract; the member client must not derive provider topology from a guessed base URL.
 
+For Massimo-facing dogfood, prefer a public HTTPS route with a publicly trusted certificate when it is available. A public route removes repeated local CA trust friction and makes invite links realistic. Its acceptance contract is: stable base URL, real HTTPS trust, generated support-safe invite links, no secrets in links, no raw provider payloads, and Mailpit/dogfood mail constraints still local/safe as needed. Keep the local `weave.test` route as an acceptable fallback only when the same local CA and leaf certificate persist across normal stack restarts and reruns.
+
 For the persistent `weave.test` dogfood lane, generate the current handoff bundle before sending tester instructions:
 
 ```sh
 tools/dogfood_handoff_bundle.py
 ```
 
-This writes `build/dogfood/handoff.json` and `build/dogfood/handoff.md` with the current `weave://join` deeplink, web join URL, local CA URLs, CA/leaf fingerprints when local cert files exist, stack commit, and iOS profile/release smoke requirements. Send the generated artifact contents, not a stale chat transcript. If the CA or leaf fingerprint changes between normal reruns, treat that as a trust-stability blocker unless the run explicitly requested certificate rotation.
+This writes `build/dogfood/handoff.json` and `build/dogfood/handoff.md` with the current `weave://join` deeplink, web join URL, dogfood route mode, local CA URLs, CA/leaf fingerprints when local cert files exist, stack commit, and iOS profile/release smoke requirements. Send the generated artifact contents, not a stale chat transcript. If the CA or leaf fingerprint changes between normal reruns, treat that as a trust-stability blocker unless the run explicitly requested certificate rotation. For public-route handoffs, run it with `--dogfood-route-mode public-trusted-https --product-base-url https://<stable-public-dogfood-host> --platform-config-url https://<stable-public-dogfood-host>/api/platform/config`; the generated support-safe links must still be non-secret enrollment handoff links.
 
 Installed iOS client smoke must use a profile or release build. Debug builds and raw `devicectl` process launch success are not valid dogfood evidence for iOS custom-scheme launch. Use `tools/dogfood_ios_deeplink_smoke.sh` with `WEAVE_IOS_BUILD_MODE=profile` or `release`; this proves `last_handoff_consumed_v1`, `dogfood_visible_state_v1=handoff_ready`, and `dogfood_auth_state_v1=ready_for_sso` from the app container. It is still only the handoff gate. Full member onboarding evidence additionally requires Sign In, account activation, saved session, workspace entry, restore, reinstall/manual login, and Mailpit capture. Wi-Fi install is preferred, USB is a fallback only, and both install paths use the same stable bundle ID, provisioning Team ID `KNDHGC2KV6`, developer certificate label `Apple Development: massimo164@me.com (6RUS2Z848X)`, signing identity/profile class, and developer-trust assumptions. If a normal update or trust-preserving app-state reset prompts Massimo to trust the development team/profile again, the dogfood path is not ready for Massimo.
 
@@ -71,7 +73,7 @@ When Massimo's physical iPhone is not reachable, run the simulator handoff gate 
 tools/dogfood_ios_simulator_onboarding_smoke.sh
 ```
 
-The simulator smoke boots or reuses an iPhone simulator, installs the local dogfood CA, builds the iOS simulator app, clears app data, installs Weave, injects the same pending native deeplink URL that the iOS URL bridge consumes, and verifies `handoff_ready` plus `ready_for_sso` support-safe preferences. It prints `SIMULATOR_E2E_GREEN` only for that simulator-covered scope. It does not replace physical-device evidence because `simctl openurl` can stop on Apple's "Open in Weave?" consent sheet and simulator runs do not prove the real iPhone trust profile, AppAuth browser handoff, account activation, saved session restore, reinstall/manual login, or Mailpit capture.
+The simulator smoke boots or reuses an iPhone simulator, installs the local dogfood CA, builds the iOS simulator app, clears app data, installs Weave, injects the same pending native deeplink URL that the iOS URL bridge consumes, and verifies `handoff_ready` plus `ready_for_sso` support-safe preferences. It prints `SIMULATOR_E2E_GREEN` only for that simulator-covered scope. It does not replace physical-device evidence because simulator-only certificate injection is repeatable in a way physical iPhone testing is not, `simctl openurl` can stop on Apple's "Open in Weave?" consent sheet, and simulator runs do not prove the real iPhone trust profile, AppAuth browser handoff, account activation, saved session restore, reinstall/manual login, or Mailpit capture.
 
 ## What Massimo should see
 

@@ -9,6 +9,8 @@ Use this checklist after `weavectl profile apply` emits the run id. Do not paste
 - Evidence directory:
 - Handoff artifact:
 - Readiness artifact:
+- Dogfood route mode: public trusted HTTPS preferred / local stable CA fallback.
+- Public route acceptance: stable base URL / publicly trusted certificate / support-safe invite links / no secrets in links / no raw provider payloads / Mailpit dogfood mail remains local-safe.
 - LAN assumption: iPhone and Mac are on the same LAN, with client isolation disabled.
 - Preflight result: pass / fail with stable code only.
 - Local TLS trust result: `DOGFOOD_TRUST_STABILITY_RESULT` / `DOGFOOD_TRUST_STABILITY_BLOCKED`.
@@ -24,7 +26,7 @@ Use this checklist after `weavectl profile apply` emits the run id. Do not paste
 
 1. Install or update Weave on the physical iPhone over Wi-Fi when reachable; use USB only as fallback.
 2. Confirm the install keeps bundle ID `com.massimotter.weave`, provisioning Team ID `KNDHGC2KV6`, developer certificate label `Apple Development: massimo164@me.com (6RUS2Z848X)`, and the same signing/provisioning trust assumptions. A normal update or trust-preserving app-state reset must not require trusting the Developer App again.
-3. Confirm local TLS trust separately: the Weave Local Development CA and leaf certificate match the latest handoff fingerprint baseline unless explicit rotation was requested, and the iPhone has installed the CA profile and enabled full trust before Weave is launched.
+3. For public-route dogfood, confirm the generated links use the stable public HTTPS base URL and publicly trusted certificate. For local-route dogfood, confirm the Weave Local Development CA and leaf certificate match the latest handoff fingerprint baseline unless explicit rotation was requested, and the iPhone has installed the CA profile and enabled full trust before Weave is launched.
 4. Scan the QR or open the handoff link from the emitted handoff artifact.
 5. Confirm the handoff opens Weave sign-in without asking for OIDC issuer, OIDC client ID, Matrix URL, Nextcloud URL, provider hostname, TLS certificate, provider diagnostics, SecretRef, or credential URL.
 6. Complete SSO.
@@ -35,6 +37,7 @@ Use this checklist after `weavectl profile apply` emits the run id. Do not paste
 
 - Device: physical iPhone, model/iOS version optional.
 - Handoff type: QR / link / deep link / organization URL.
+- Route type: public trusted HTTPS / local stable CA.
 - SSO result: pass / fail.
 - Workspace/home result: pass / fail.
 - Local TLS trust: stable / rotated by explicit request / blocked.
