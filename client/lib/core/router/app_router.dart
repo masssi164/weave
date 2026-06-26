@@ -59,9 +59,6 @@ GoRouter appRouter(Ref ref) {
         case BootstrapPhase.needsSignIn:
           return (onSignIn || onJoin) ? null : AppRoutes.signIn;
         case BootstrapPhase.ready:
-          if (onJoin) {
-            return null;
-          }
           try {
             final result = await ref.read(firstRunStatusProvider.future);
             return switch (result) {

@@ -66,6 +66,9 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
   }
 
   Future<void> _consume() async {
+    if (await _redirectIfAuthenticated()) {
+      return;
+    }
     try {
       final handoff = await ref
           .read(consumeMemberHandoffProvider)
@@ -79,6 +82,43 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
       if (mounted) {
         setState(() => _failure = error);
       }
+    }
+  }
+
+  Future<bool> _redirectIfAuthenticated() async {
+    final bootstrap = ref.read(appBootstrapProvider).asData?.value;
+    if (bootstrap?.phase != BootstrapPhase.ready) {
+      return false;
+    }
+    try {
+      final status = await ref.read(firstRunStatusProvider.future);
+      if (status is! FirstRunAuthenticated || !mounted) {
+        return false;
+      }
+      final handoff = _tryParseHandoff();
+      if (handoff != null) {
+        await ref
+            .read(memberAuthOnboardingStateRecorderProvider)
+            .record(MemberAuthOnboardingStage.workspaceReady, handoff: handoff);
+        _recordVisibleStateOnce('authenticated_redirect', handoff: handoff);
+      }
+      if (!mounted) {
+        return true;
+      }
+      context.go(
+        status.status.firstRunComplete ? AppRoutes.chat : AppRoutes.firstRun,
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  MemberHandoff? _tryParseHandoff() {
+    try {
+      return const MemberHandoffParser().parse(widget.uri);
+    } catch (_) {
+      return null;
     }
   }
 

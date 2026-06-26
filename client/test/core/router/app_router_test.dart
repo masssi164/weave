@@ -1,7 +1,10 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/persistence/flutter_secure_store.dart';
+import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/core/router/app_routes.dart';
 import 'package:weave/core/router/app_router.dart';
 import 'package:weave/features/auth/data/dtos/auth_session_dto.dart';
@@ -18,7 +21,9 @@ import 'package:weave/features/files/domain/entities/files_connection_state.dart
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
 import 'package:weave/features/help/presentation/help_screen.dart';
 import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
+import 'package:weave/features/onboarding/domain/entities/member_auth_onboarding_state.dart';
 import 'package:weave/features/onboarding/presentation/first_run_screen.dart';
+import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
 import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
 import 'package:weave/features/onboarding/presentation/welcome_screen.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
@@ -141,6 +146,7 @@ void main() {
     ProviderContainer createContainer({
       required ServerConfiguration? configuration,
       InMemorySecureStore? secureStore,
+      InMemoryPreferencesStore? preferencesStore,
       FirstRunStatus? firstRunStatus,
       Future<FirstRunLoadResult> Function()? firstRunStatusLoader,
     }) {
@@ -153,6 +159,9 @@ void main() {
           ),
           secureStoreProvider.overrideWithValue(
             secureStore ?? InMemorySecureStore(),
+          ),
+          preferencesStoreProvider.overrideWith(
+            (ref) => preferencesStore ?? InMemoryPreferencesStore(),
           ),
           oidcClientProvider.overrideWithValue(_FakeOidcClient()),
           chatRepositoryProvider.overrideWithValue(FakeChatRepository()),
@@ -250,6 +259,56 @@ void main() {
       expect(find.byType(FirstRunScreen), findsNothing);
       expect(find.byType(NavigationBar), findsOneWidget);
     });
+
+    testWidgets(
+      'does not replay a dogfood join link after authentication is ready',
+      (tester) async {
+        setStartupInitialLocation(
+          '/join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-massimo-dogfood&product_base_url=https://weave.test:44443&platform_config_url=https://weave.test:44443/api/platform/config',
+        );
+        addTearDown(() => setStartupInitialLocation(null));
+        final secureStore = InMemorySecureStore();
+        final preferencesStore = InMemoryPreferencesStore();
+        await secureStore.write(
+          authSessionStorageKey,
+          AuthSessionDto.fromSession(buildTestAuthSession()).encode(),
+        );
+        final container = createContainer(
+          configuration: buildTestConfiguration(),
+          secureStore: secureStore,
+          preferencesStore: preferencesStore,
+        );
+        addTearDown(container.dispose);
+
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: const WeaveApp(),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.byType(MemberHandoffScreen), findsNothing);
+        expect(find.byType(FirstRunScreen), findsNothing);
+        expect(find.byType(NavigationBar), findsOneWidget);
+        expect(
+          container
+              .read(appRouterProvider)
+              .routeInformationProvider
+              .value
+              .uri
+              .path,
+          AppRoutes.chat,
+        );
+        final rawAuthState = preferencesStore.rawString(
+          dogfoodAuthStateStorageKey,
+        );
+        expect(rawAuthState, isNotNull);
+        final authState = jsonDecode(rawAuthState!) as Map<String, dynamic>;
+        expect(authState['state'], 'workspace_ready');
+        expect(authState['handoffRef'], 'handoff-s32-massimo-dogfood-home');
+      },
+    );
 
     testWidgets('redirects pending first-run users to status guidance', (
       tester,
