@@ -162,9 +162,10 @@ void main() {
       await pumpReadyShell(tester);
 
       expect(find.byType(NavigationBar), findsOneWidget);
-      expect(find.byIcon(Icons.chat_bubble), findsOneWidget);
+      expect(find.byIcon(Icons.home), findsOneWidget);
+      expect(find.byIcon(Icons.chat_bubble_outline), findsWidgets);
       expect(find.byIcon(Icons.folder_outlined), findsOneWidget);
-      expect(find.byIcon(Icons.calendar_today_outlined), findsNothing);
+      expect(find.byIcon(Icons.calendar_today_outlined), findsOneWidget);
       expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
       expect(find.byIcon(Icons.dashboard_outlined), findsNothing);
     });
@@ -181,7 +182,8 @@ void main() {
 
       final navigationContext = tester.element(find.byType(NavigationBar));
       expect(Theme.of(navigationContext).brightness, Brightness.dark);
-      expect(find.byIcon(Icons.chat_bubble), findsOneWidget);
+      expect(find.byIcon(Icons.home), findsOneWidget);
+      expect(find.byIcon(Icons.chat_bubble_outline), findsWidgets);
       expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
     });
 
@@ -197,7 +199,8 @@ void main() {
 
         expect(find.text('Recent activity'), findsNothing);
         expect(find.byType(NavigationBar), findsOneWidget);
-        expect(find.byIcon(Icons.chat_bubble), findsOneWidget);
+        expect(find.byIcon(Icons.home), findsOneWidget);
+        expect(find.byIcon(Icons.chat_bubble_outline), findsWidgets);
         expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
       },
     );

@@ -1,10 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:weave/features/shell/domain/entities/shell_module.dart';
-import 'package:weave/features/shell/presentation/providers/shell_module_preferences_provider.dart';
-import 'package:weave/features/shell/presentation/shell_recent_activity.dart';
-import 'package:weave/features/shell/presentation/shell_workspace_status.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
 /// The main application shell rendered by [StatefulShellRoute].
@@ -12,42 +7,18 @@ import 'package:weave/l10n/generated/app_localizations.dart';
 /// Renders a [Scaffold] with a Material 3 [NavigationBar] at the bottom.
 /// The [navigationShell] is provided by GoRouter and manages the active
 /// branch's widget tree via an [IndexedStack] internally.
-class AppShell extends ConsumerWidget {
+class AppShell extends StatelessWidget {
   const AppShell({super.key, required this.navigationShell});
 
   /// The navigation shell created by [StatefulShellRoute.indexedStack].
   final StatefulNavigationShell navigationShell;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final modulePreferences = ref.watch(shellModulePreferencesProvider);
-    final modules =
-        modulePreferences.asData?.value.orderedModules ?? ShellModule.values;
-    final visibleModules = modules
-        .where(
-          (module) => modulePreferences.asData?.value.isVisible(module) ?? true,
-        )
-        .toList(growable: false);
-
-    final showLandingModules =
-        navigationShell.currentIndex == 0 && visibleModules.isNotEmpty;
 
     return Scaffold(
-      body: Column(
-        children: [
-          if (showLandingModules)
-            SizedBox(
-              height: 128,
-              child: SingleChildScrollView(
-                child: Column(
-                  children: visibleModules.map(_buildModule).toList(),
-                ),
-              ),
-            ),
-          Expanded(child: navigationShell),
-        ],
-      ),
+      body: navigationShell,
       bottomNavigationBar: NavigationBar(
         selectedIndex: navigationShell.currentIndex,
         onDestinationSelected: (index) => navigationShell.goBranch(
@@ -55,6 +26,17 @@ class AppShell extends ConsumerWidget {
           initialLocation: index == navigationShell.currentIndex,
         ),
         destinations: [
+          NavigationDestination(
+            icon: Icon(
+              Icons.home_outlined,
+              semanticLabel: l10n.chatOverviewTitle,
+            ),
+            selectedIcon: Icon(
+              Icons.home,
+              semanticLabel: l10n.chatOverviewTitle,
+            ),
+            label: l10n.chatOverviewTitle,
+          ),
           NavigationDestination(
             icon: Icon(
               Icons.chat_bubble_outline,
@@ -79,6 +61,17 @@ class AppShell extends ConsumerWidget {
           ),
           NavigationDestination(
             icon: Icon(
+              Icons.calendar_today_outlined,
+              semanticLabel: l10n.semanticCalendarIcon,
+            ),
+            selectedIcon: Icon(
+              Icons.calendar_today,
+              semanticLabel: l10n.semanticCalendarIcon,
+            ),
+            label: l10n.navCalendar,
+          ),
+          NavigationDestination(
+            icon: Icon(
               Icons.settings_outlined,
               semanticLabel: l10n.semanticSettingsIcon,
             ),
@@ -91,12 +84,5 @@ class AppShell extends ConsumerWidget {
         ],
       ),
     );
-  }
-
-  Widget _buildModule(ShellModule module) {
-    return switch (module) {
-      ShellModule.workspaceStatus => const ShellWorkspaceStatus(),
-      ShellModule.recentActivity => const ShellRecentActivity(),
-    };
   }
 }

@@ -5,11 +5,13 @@ import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/core/router/app_routes.dart';
 import 'package:weave/features/auth/presentation/sign_in_screen.dart';
+import 'package:weave/features/calendar/presentation/calendar_screen.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/presentation/chat_room_screen.dart';
 import 'package:weave/features/chat/presentation/chat_screen.dart';
 import 'package:weave/features/files/presentation/files_screen.dart';
 import 'package:weave/features/help/presentation/help_screen.dart';
+import 'package:weave/features/home/presentation/home_screen.dart';
 import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
 import 'package:weave/features/onboarding/presentation/first_run_screen.dart';
 import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
@@ -66,7 +68,7 @@ GoRouter appRouter(Ref ref) {
                 !status.firstRunComplete
                     ? (onFirstRun ? null : AppRoutes.firstRun)
                     : (onOnboarding || onSignIn || onFirstRun
-                          ? AppRoutes.chat
+                          ? AppRoutes.home
                           : null),
               FirstRunSignedOut() ||
               FirstRunUnauthorized() => onSignIn ? null : AppRoutes.signIn,
@@ -110,6 +112,14 @@ GoRouter appRouter(Ref ref) {
           StatefulShellBranch(
             routes: [
               GoRoute(
+                path: AppRoutes.home,
+                builder: (context, state) => const HomeScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
                 path: AppRoutes.chat,
                 builder: (context, state) => const ChatScreen(),
                 routes: [
@@ -125,6 +135,14 @@ GoRouter appRouter(Ref ref) {
                     },
                   ),
                 ],
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.calendar,
+                builder: (context, state) => const CalendarScreen(),
               ),
             ],
           ),

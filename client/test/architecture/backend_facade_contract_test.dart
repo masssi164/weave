@@ -135,29 +135,24 @@ void main() {
     }
   });
 
-  test(
-    'calendar member route is removed while backend facade stays fenced',
-    () async {
-      final provider = await File(
-        'lib/features/calendar/presentation/providers/calendar_provider.dart',
-      ).readAsString();
-      final router = await File(
-        'lib/core/router/app_router.dart',
-      ).readAsString();
+  test('calendar member route stays behind the backend facade seam', () async {
+    final provider = await File(
+      'lib/features/calendar/presentation/providers/calendar_provider.dart',
+    ).readAsString();
+    final router = await File('lib/core/router/app_router.dart').readAsString();
+    final screen = await File(
+      'lib/features/calendar/presentation/calendar_screen.dart',
+    ).readAsString();
 
-      expect(provider, contains('CalendarFacadeClient'));
-      expect(provider, isNot(contains('CalDavClient')));
-      expect(provider, isNot(contains('caldav_client.dart')));
-      expect(
-        File(
-          'lib/features/calendar/presentation/calendar_screen.dart',
-        ).existsSync(),
-        isFalse,
-      );
-      expect(router, isNot(contains('CalendarScreen')));
-      expect(router, isNot(contains('AppRoutes.calendar')));
-    },
-  );
+    expect(provider, contains('CalendarFacadeClient'));
+    expect(provider, isNot(contains('CalDavClient')));
+    expect(provider, isNot(contains('caldav_client.dart')));
+    expect(screen, contains('workspaceCapabilitySnapshotProvider'));
+    expect(screen, isNot(contains('CalDavClient')));
+    expect(screen, isNot(contains('caldav_client.dart')));
+    expect(router, contains('CalendarScreen'));
+    expect(router, contains('AppRoutes.calendar'));
+  });
 
   test('primary chat provider is wired through the backend Chat facade', () async {
     final source = await File(

@@ -178,9 +178,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
         return _fillStateSliver(
           child: EmptyState(
             message: l10n.filesDisconnectedTitle,
-            guidance:
-                state.directoryFailure?.message ??
-                l10n.filesDisconnectedMessage,
+            guidance: l10n.filesDisconnectedMessage,
             icon: Icons.cloud_off_outlined,
             actionLabel: l10n.filesConnectButton,
             onAction: state.isBusy
@@ -194,8 +192,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
         return _fillStateSliver(
           child: ErrorState(
             message: l10n.filesSessionExpiredTitle,
-            guidance:
-                connectionState.message ?? l10n.filesInvalidSessionMessage,
+            guidance: l10n.filesInvalidSessionMessage,
             retryLabel: l10n.filesReconnectButton,
             onRetry: state.isBusy
                 ? null
@@ -220,7 +217,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
           return _fillStateSliver(
             child: ErrorState(
               message: l10n.filesLoadErrorTitle,
-              guidance: directoryFailure.message,
+              guidance: l10n.settingsWorkspaceRecoveryUnavailableAction,
               retryLabel: l10n.retryButton,
               onRetry: state.isBusy
                   ? null
