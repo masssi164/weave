@@ -18,7 +18,9 @@ import 'package:weave/features/app/domain/entities/workspace_connection_state.da
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_security_repository_provider.dart';
 import 'package:weave/features/profile/domain/entities/user_profile.dart';
+import 'package:weave/features/profile/domain/repositories/user_profile_repository.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
+import 'package:weave/features/profile/presentation/widgets/profile_summary_card.dart';
 import 'package:weave/features/server_config/data/repositories/shared_preferences_server_configuration_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
 import 'package:weave/features/settings/presentation/settings_screen.dart';
@@ -56,6 +58,33 @@ Finder _textFieldWithLabel(String label) {
   return find.byWidgetPredicate(
     (widget) => widget is TextField && widget.decoration?.labelText == label,
   );
+}
+
+class _FakeUserProfileRepository implements UserProfileRepository {
+  _FakeUserProfileRepository(this.profile);
+
+  UserProfile profile;
+  UserProfileUpdate? lastUpdate;
+
+  @override
+  Future<UserProfile?> loadProfile() async => profile;
+
+  @override
+  Future<UserProfile> updateProfile(UserProfileUpdate update) async {
+    lastUpdate = update;
+    profile = UserProfile(
+      userId: profile.userId,
+      username: profile.username,
+      displayName: update.displayName ?? profile.displayName,
+      locale: update.locale ?? profile.locale,
+      timezone: update.timezone ?? profile.timezone,
+      email: profile.email,
+      emailVerified: profile.emailVerified,
+      roles: profile.roles,
+      groups: profile.groups,
+    );
+    return profile;
+  }
 }
 
 AsyncValue<WorkspaceConnectionState> _workspaceConnectionState() {
@@ -497,6 +526,53 @@ void main() {
         find.textContaining('Flutter does not call Nextcloud'),
         findsNothing,
       );
+    });
+
+    testWidgets('uses a language picker instead of requiring locale codes', (
+      tester,
+    ) async {
+      final profileRepository = _FakeUserProfileRepository(_memberProfile);
+      final container = ProviderContainer.test(
+        overrides: [
+          userProfileProvider.overrideWith((ref) async => _memberProfile),
+          userProfileRepositoryProvider.overrideWithValue(profileRepository),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: SingleChildScrollView(child: ProfileSummaryCard()),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(_textFieldWithLabel('Locale'), findsNothing);
+      expect(find.text('English'), findsWidgets);
+
+      final languagePicker = find.byType(DropdownButtonFormField<String>);
+      expect(languagePicker, findsOneWidget);
+      await tester.scrollUntilVisible(
+        languagePicker,
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(languagePicker);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('German').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Save profile'));
+      await tester.pumpAndSettle();
+
+      expect(profileRepository.lastUpdate?.locale, 'de');
+      expect(find.text('Profile saved.'), findsOneWidget);
     });
 
     testWidgets(
