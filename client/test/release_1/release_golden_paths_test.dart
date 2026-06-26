@@ -145,6 +145,11 @@ void main() {
           BootstrapPhase.ready,
         );
         await _continueFirstRunIfPresent(tester);
+        expect(find.text('Weave Home'), findsWidgets);
+
+        await tester.tap(_navigationDestination('Chat'));
+        await tester.pumpAndSettle();
+
         final releaseRoomTile = find.widgetWithText(ListTile, 'Release Room');
         expect(releaseRoomTile, findsWidgets);
 
