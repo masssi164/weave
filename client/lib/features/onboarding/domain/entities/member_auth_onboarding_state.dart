@@ -5,6 +5,7 @@ import 'package:weave/features/auth/domain/entities/auth_failure.dart';
 import 'package:weave/features/onboarding/domain/entities/member_handoff.dart';
 
 const dogfoodAuthStateStorageKey = 'dogfood_auth_state_v1';
+const dogfoodAuthStateHistoryStorageKey = 'dogfood_auth_state_history_v1';
 
 enum MemberAuthOnboardingStage {
   handoffReceived('handoff_received'),
@@ -63,15 +64,30 @@ class MemberAuthOnboardingStateRecorder {
     MemberHandoff? handoff,
     String? errorCode,
   }) async {
+    final snapshot = MemberAuthOnboardingSnapshot(
+      stage: stage,
+      handoff: handoff,
+      errorCode: errorCode,
+    ).toSupportSafeJson();
+    await _store.setString(dogfoodAuthStateStorageKey, jsonEncode(snapshot));
+    await _appendHistory(snapshot);
+  }
+
+  Future<void> _appendHistory(Map<String, Object> snapshot) async {
+    final rawHistory = await _store.getString(
+      dogfoodAuthStateHistoryStorageKey,
+    );
+    final history = <Object>[];
+    if (rawHistory != null && rawHistory.isNotEmpty) {
+      final decoded = jsonDecode(rawHistory);
+      if (decoded is List) {
+        history.addAll(decoded.whereType<Map<String, Object?>>());
+      }
+    }
+    history.add(snapshot);
     await _store.setString(
-      dogfoodAuthStateStorageKey,
-      jsonEncode(
-        MemberAuthOnboardingSnapshot(
-          stage: stage,
-          handoff: handoff,
-          errorCode: errorCode,
-        ).toSupportSafeJson(),
-      ),
+      dogfoodAuthStateHistoryStorageKey,
+      jsonEncode(history),
     );
   }
 

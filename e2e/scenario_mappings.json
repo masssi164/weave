@@ -248,6 +248,15 @@
           ]
         },
         {
+          "path": "tools/dogfood_onboarding_evidence_check.py",
+          "fragments": [
+            "dogfood_auth_state_history_v1",
+            "workspace_bootstrap_loading",
+            "auth history does not prove browser return",
+            "DOGFOOD_MEMBER_ONBOARDING_RESULT"
+          ]
+        },
+        {
           "path": "tools/dogfood_ios_simulator_onboarding_smoke.sh",
           "fragments": [
             "SIMULATOR_E2E_GREEN",
