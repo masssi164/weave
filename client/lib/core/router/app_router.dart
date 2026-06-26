@@ -141,18 +141,18 @@ GoRouter appRouter(Ref ref) {
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: AppRoutes.calendar,
-                builder: (context, state) => const CalendarScreen(),
+                path: AppRoutes.files,
+                builder: (context, state) => FilesScreen(
+                  initialPath: state.uri.queryParameters['path'] ?? '/',
+                ),
               ),
             ],
           ),
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: AppRoutes.files,
-                builder: (context, state) => FilesScreen(
-                  initialPath: state.uri.queryParameters['path'] ?? '/',
-                ),
+                path: AppRoutes.calendar,
+                builder: (context, state) => const CalendarScreen(),
               ),
             ],
           ),

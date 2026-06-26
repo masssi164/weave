@@ -217,6 +217,45 @@ void main() {
       expect(find.text('Server Configuration'), findsNothing);
     });
 
+    testWidgets('maps Files and Calendar destinations to matching branches', (
+      tester,
+    ) async {
+      final filesRepository = FakeFilesRepository(
+        connectionState: FilesConnectionState.connected(
+          baseUrl: Uri.parse('https://api.weave.test/api'),
+          accountLabel: 'Weave files',
+        ),
+        listings: {
+          '/': DirectoryListing(
+            path: '/',
+            entries: [
+              FileEntry(
+                id: 'file-1',
+                name: 'Roadmap.md',
+                path: '/Roadmap.md',
+                isDirectory: false,
+                modifiedAt: DateTime(2026, 6, 26, 12),
+              ),
+            ],
+          ),
+        },
+      );
+
+      await pumpReadyShell(tester, filesRepository: filesRepository);
+
+      await tester.tap(find.byIcon(Icons.folder_outlined));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Roadmap.md'), findsOneWidget);
+      expect(find.text('Calendar is unavailable'), findsNothing);
+
+      await tester.tap(find.byIcon(Icons.calendar_today_outlined));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Calendar is unavailable'), findsOneWidget);
+      expect(find.text('Roadmap.md'), findsNothing);
+    });
+
     testWidgets('workspace status localizes backend recovery states', (
       tester,
     ) async {

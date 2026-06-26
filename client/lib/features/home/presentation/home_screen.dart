@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:weave/core/widgets/weave_logo.dart';
 import 'package:weave/features/shell/domain/entities/shell_module.dart';
 import 'package:weave/features/shell/presentation/providers/shell_module_preferences_provider.dart';
 import 'package:weave/features/shell/presentation/shell_recent_activity.dart';
@@ -22,7 +23,21 @@ class HomeScreen extends ConsumerWidget {
         .toList(growable: false);
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.chatOverviewTitle)),
+      appBar: AppBar(
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            WeaveLogo(
+              semanticLabel: l10n.semanticWeaveLogo,
+              width: 40,
+              framed: false,
+              excludeFromSemantics: true,
+            ),
+            const SizedBox(width: 12),
+            Flexible(child: Text(l10n.chatOverviewTitle)),
+          ],
+        ),
+      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.only(bottom: 24),
