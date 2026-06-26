@@ -29,7 +29,15 @@ final rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 String? _startupInitialLocation;
 
 void setStartupInitialLocation(String? location) {
-  _startupInitialLocation = location;
+  if (location == null) {
+    _startupInitialLocation = null;
+    return;
+  }
+
+  final uri = Uri.tryParse(location);
+  _startupInitialLocation = uri == null
+      ? location
+      : normalizedJoinRouteLocation(uri) ?? location;
 }
 
 /// Top-level [GoRouter] exposed as a Riverpod provider so that
@@ -45,6 +53,14 @@ GoRouter appRouter(Ref ref) {
         initialLocationForDefaultRoute(
           WidgetsBinding.instance.platformDispatcher.defaultRouteName,
         ),
+    onException: (context, state, router) {
+      final normalizedLocation = initialLocationForDefaultRoute(
+        state.uri.toString(),
+      );
+      if (normalizedLocation != AppRoutes.welcome) {
+        router.go(normalizedLocation);
+      }
+    },
     redirect: (context, state) async {
       final onOnboarding =
           state.matchedLocation == AppRoutes.welcome ||
@@ -67,7 +83,7 @@ GoRouter appRouter(Ref ref) {
               FirstRunAuthenticated(:final status) =>
                 !status.firstRunComplete
                     ? (onFirstRun ? null : AppRoutes.firstRun)
-                    : (onOnboarding || onSignIn || onFirstRun
+                    : (onOnboarding || onSignIn || onJoin || onFirstRun
                           ? AppRoutes.home
                           : null),
               FirstRunSignedOut() ||
@@ -180,14 +196,26 @@ String initialLocationForDefaultRoute(String defaultRouteName) {
     return AppRoutes.welcome;
   }
 
-  if (uri.scheme == 'weave' && (uri.host == 'join' || uri.path == '/join')) {
-    final query = uri.hasQuery ? '?${uri.query}' : '';
-    return '${AppRoutes.join}$query';
-  }
-
-  if (uri.scheme.isEmpty && uri.path == AppRoutes.join) {
-    return uri.toString();
+  final normalizedJoinLocation = normalizedJoinRouteLocation(uri);
+  if (normalizedJoinLocation != null) {
+    return normalizedJoinLocation;
   }
 
   return AppRoutes.welcome;
 }
+
+String? normalizedJoinRouteLocation(Uri uri) {
+  final isCustomSchemeJoin =
+      uri.scheme == 'weave' && uri.host == 'join' && _isEmptyOrRootPath(uri);
+  final isCustomSchemePathJoin =
+      uri.scheme == 'weave' && uri.host.isEmpty && uri.path == AppRoutes.join;
+  final isInAppJoin = uri.scheme.isEmpty && uri.path == AppRoutes.join;
+  if (!isCustomSchemeJoin && !isCustomSchemePathJoin && !isInAppJoin) {
+    return null;
+  }
+
+  final query = uri.hasQuery ? '?${uri.query}' : '';
+  return '${AppRoutes.join}$query';
+}
+
+bool _isEmptyOrRootPath(Uri uri) => uri.path.isEmpty || uri.path == '/';

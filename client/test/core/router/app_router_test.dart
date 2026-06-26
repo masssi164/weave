@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -181,6 +179,38 @@ void main() {
       );
     });
 
+    test('uses join route for installed iOS custom-scheme launch with slash', () {
+      expect(
+        initialLocationForDefaultRoute(
+          'weave://join/?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-massimo-dogfood&product_base_url=https%3A%2F%2Fweave.test%3A44443&platform_config_url=https%3A%2F%2Fweave.test%3A44443%2Fapi%2Fplatform%2Fconfig',
+        ),
+        '/join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-massimo-dogfood&product_base_url=https%3A%2F%2Fweave.test%3A44443&platform_config_url=https%3A%2F%2Fweave.test%3A44443%2Fapi%2Fplatform%2Fconfig',
+      );
+    });
+
+    test('normalizes join links from app scheme and in-app routes', () {
+      expect(
+        normalizedJoinRouteLocation(
+          Uri.parse('weave://join/?handoff_ref=handoff-1'),
+        ),
+        '/join?handoff_ref=handoff-1',
+      );
+      expect(
+        normalizedJoinRouteLocation(
+          Uri.parse('weave:/join?handoff_ref=handoff-2'),
+        ),
+        '/join?handoff_ref=handoff-2',
+      );
+      expect(
+        normalizedJoinRouteLocation(Uri.parse('/join?handoff_ref=handoff-3')),
+        '/join?handoff_ref=handoff-3',
+      );
+      expect(
+        normalizedJoinRouteLocation(Uri.parse('weave://settings')),
+        isNull,
+      );
+    });
+
     ProviderContainer createContainer({
       required ServerConfiguration? configuration,
       InMemorySecureStore? secureStore,
@@ -339,17 +369,41 @@ void main() {
               .value
               .uri
               .path,
-          AppRoutes.chat,
+          AppRoutes.home,
         );
-        final rawAuthState = preferencesStore.rawString(
-          dogfoodAuthStateStorageKey,
-        );
-        expect(rawAuthState, isNotNull);
-        final authState = jsonDecode(rawAuthState!) as Map<String, dynamic>;
-        expect(authState['state'], 'workspace_ready');
-        expect(authState['handoffRef'], 'handoff-s32-massimo-dogfood-home');
+        expect(preferencesStore.rawString(dogfoodAuthStateStorageKey), isNull);
       },
     );
+
+    testWidgets('normalizes startup custom-scheme join links before routing', (
+      tester,
+    ) async {
+      setStartupInitialLocation(
+        'weave://join/?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-massimo-dogfood&product_base_url=https%3A%2F%2Fweave.test%3A44443&platform_config_url=https%3A%2F%2Fweave.test%3A44443%2Fapi%2Fplatform%2Fconfig',
+      );
+      addTearDown(() => setStartupInitialLocation(null));
+      final container = createContainer(configuration: null);
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const WeaveApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(MemberHandoffScreen), findsOneWidget);
+      expect(
+        container
+            .read(appRouterProvider)
+            .routeInformationProvider
+            .value
+            .uri
+            .toString(),
+        '/join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-massimo-dogfood&product_base_url=https%3A%2F%2Fweave.test%3A44443&platform_config_url=https%3A%2F%2Fweave.test%3A44443%2Fapi%2Fplatform%2Fconfig',
+      );
+    });
 
     testWidgets('redirects pending first-run users to status guidance', (
       tester,
