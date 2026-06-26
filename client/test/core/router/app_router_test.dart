@@ -17,6 +17,9 @@ import 'package:weave/features/app/domain/entities/workspace_capability_snapshot
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/auth/presentation/sign_in_screen.dart';
+import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
+import 'package:weave/features/calendar/domain/repositories/calendar_repository.dart';
+import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
 import 'package:weave/features/help/presentation/help_screen.dart';
@@ -127,6 +130,41 @@ class _FakeOidcClient implements OidcClient {
   }
 }
 
+class _FakeCalendarRepository implements CalendarRepository {
+  @override
+  Future<CalendarEvent> createEvent(CalendarEventDraft draft) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> deleteEvent(String id) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<CalendarClientSetup> loadClientSetup() {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<CalendarEventList> loadEvents({CalendarScope? scope}) async {
+    return CalendarEventList(scope: scope ?? CalendarScope.workspace);
+  }
+
+  @override
+  Future<CalendarScopeList> loadScopes() async => const CalendarScopeList();
+
+  @override
+  Future<CalendarEvent> readEvent(String id) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<CalendarEvent> updateEvent(String id, CalendarEventDraft draft) {
+    throw UnimplementedError();
+  }
+}
+
 void main() {
   group('AppRouter', () {
     test('uses welcome as the normal launch route', () {
@@ -169,6 +207,9 @@ void main() {
             FakeFilesRepository(
               connectionState: const FilesConnectionState.disconnected(),
             ),
+          ),
+          calendarRepositoryProvider.overrideWithValue(
+            _FakeCalendarRepository(),
           ),
           firstRunStatusProvider.overrideWith(
             (ref) =>

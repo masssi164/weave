@@ -82,7 +82,11 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.enterText(find.byType(TextFormField).at(0), 'Alice Updated');
-      await tester.enterText(find.byType(TextFormField).at(1), 'de');
+      await tester.ensureVisible(find.byType(DropdownButtonFormField<String>));
+      await tester.tap(find.byType(DropdownButtonFormField<String>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('German').last);
+      await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('Save profile'));
       await tester.tap(find.text('Save profile'));
       await tester.pumpAndSettle();
