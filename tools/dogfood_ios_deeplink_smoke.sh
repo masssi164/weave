@@ -15,6 +15,8 @@ EXPECTED_TEAM_ID="${WEAVE_IOS_EXPECTED_TEAM_ID:-KNDHGC2KV6}"
 EXPECTED_DEVELOPER_CERT_TEAM_ID="${WEAVE_IOS_EXPECTED_DEVELOPER_CERT_TEAM_ID:-6RUS2Z848X}"
 LOCAL_CA_TRUST_STATUS="${WEAVE_IOS_LOCAL_CA_TRUST_STATUS:-not_verified}"
 PLATFORM_CONFIG_URL="${WEAVE_DOGFOOD_PLATFORM_CONFIG_URL:-}"
+EXPECTED_VISIBLE_STATE="${WEAVE_IOS_EXPECTED_VISIBLE_STATE:-handoff_ready}"
+EXPECTED_AUTH_STATE="${WEAVE_IOS_EXPECTED_AUTH_STATE:-ready_for_sso}"
 
 fail() {
   echo "dogfood iOS smoke failed: $*" >&2
@@ -197,14 +199,14 @@ cat > "${EVIDENCE_DIR}/ios-deeplink-smoke.json" <<JSON
   "expectedTeamId": "${EXPECTED_TEAM_ID}",
   "expectedDeveloperCertificateTeamId": "${EXPECTED_DEVELOPER_CERT_TEAM_ID}",
   "deeplinkLaunchAttempted": true,
-  "visibleStateRequired": "handoff_ready",
-  "authStateRequired": "ready_for_sso",
+  "visibleStateRequired": "${EXPECTED_VISIBLE_STATE}",
+  "authStateRequired": "${EXPECTED_AUTH_STATE}",
   "rawLaunchIsNotSufficient": true,
   "requiredFollowUp": "Continue from the visible handoff-ready screen into SSO and landing."
 }
 JSON
 
-DEEPLINK="${DEEPLINK}" PREFS_PLIST="${EVIDENCE_DIR}/appdata/com.massimotter.weave.plist" python3 - <<'PY'
+DEEPLINK="${DEEPLINK}" EXPECTED_VISIBLE_STATE="${EXPECTED_VISIBLE_STATE}" EXPECTED_AUTH_STATE="${EXPECTED_AUTH_STATE}" PREFS_PLIST="${EVIDENCE_DIR}/appdata/com.massimotter.weave.plist" python3 - <<'PY'
 import json
 import os
 import plistlib
@@ -216,6 +218,8 @@ deeplink = os.environ["DEEPLINK"]
 query = parse_qs(urlparse(deeplink).query)
 expected_handoff_ref = query.get("handoff_ref", [""])[0]
 expected_run_id = query.get("run_id", [""])[0]
+expected_visible_state = os.environ["EXPECTED_VISIBLE_STATE"]
+expected_auth_state = os.environ["EXPECTED_AUTH_STATE"]
 
 with open(prefs_path, "rb") as handle:
     prefs = plistlib.load(handle)
@@ -238,11 +242,11 @@ checks = [
     (handoff.get("handoffRef") == expected_handoff_ref, "handoffRef does not match deeplink"),
     (handoff.get("runId") == expected_run_id, "runId does not match deeplink"),
     (handoff.get("supportSafe") is True, "handoff evidence is not supportSafe=true"),
-    (visible.get("state") == "handoff_ready", "visible state is not handoff_ready"),
+    (visible.get("state") == expected_visible_state, f"visible state is not {expected_visible_state}"),
     (visible.get("handoffRef") == expected_handoff_ref, "visible handoffRef does not match deeplink"),
     (visible.get("runId") == expected_run_id, "visible runId does not match deeplink"),
     (visible.get("supportSafe") is True, "visible evidence is not supportSafe=true"),
-    (auth_state.get("state") == "ready_for_sso", "auth onboarding state is not ready_for_sso"),
+    (auth_state.get("state") == expected_auth_state, f"auth onboarding state is not {expected_auth_state}"),
     (auth_state.get("handoffRef") == expected_handoff_ref, "auth onboarding handoffRef does not match deeplink"),
     (auth_state.get("runId") == expected_run_id, "auth onboarding runId does not match deeplink"),
     (auth_state.get("supportSafe") is True, "auth onboarding evidence is not supportSafe=true"),
@@ -251,8 +255,8 @@ for ok, message in checks:
     if not ok:
         raise SystemExit(message)
 
-print("ios_visible_state=handoff_ready")
-print("ios_auth_state=ready_for_sso")
+print(f"ios_visible_state={expected_visible_state}")
+print(f"ios_auth_state={expected_auth_state}")
 PY
 
 cat > "${EVIDENCE_DIR}/ios-deeplink-smoke.json" <<JSON
@@ -268,8 +272,8 @@ cat > "${EVIDENCE_DIR}/ios-deeplink-smoke.json" <<JSON
   "expectedTeamId": "${EXPECTED_TEAM_ID}",
   "expectedDeveloperCertificateTeamId": "${EXPECTED_DEVELOPER_CERT_TEAM_ID}",
   "deeplinkLaunchAttempted": true,
-  "visibleStateRequired": "handoff_ready",
-  "authStateRequired": "ready_for_sso",
+  "visibleStateRequired": "${EXPECTED_VISIBLE_STATE}",
+  "authStateRequired": "${EXPECTED_AUTH_STATE}",
   "rawLaunchIsNotSufficient": true,
   "requiredFollowUp": "Continue from the visible handoff-ready screen into SSO and landing."
 }
