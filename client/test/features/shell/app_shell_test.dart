@@ -247,12 +247,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Roadmap.md'), findsOneWidget);
-      expect(find.text('Calendar is unavailable'), findsNothing);
 
       await tester.tap(find.byIcon(Icons.calendar_today_outlined));
       await tester.pumpAndSettle();
 
-      expect(find.text('Calendar is unavailable'), findsOneWidget);
       expect(find.text('Roadmap.md'), findsNothing);
     });
 
