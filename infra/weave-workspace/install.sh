@@ -88,6 +88,7 @@ readonly PERSISTED_TF_VARS=(
   TF_VAR_context_authorization_bootstrap_enabled
   TF_VAR_context_authorization_bootstrap_context_id
   TF_VAR_context_authorization_bootstrap_principal_ref
+  TF_VAR_context_authorization_dogfood_principal_ref
   TF_VAR_context_authorization_bootstrap_role
   TF_VAR_openproject_image
   TF_VAR_openproject_host_port
@@ -374,6 +375,13 @@ persist_bootstrap_env() {
       printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_PRINCIPAL_REF=%q\n' "${TF_VAR_context_authorization_bootstrap_principal_ref}"
       printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_ROLE=%q\n' "${TF_VAR_context_authorization_bootstrap_role}"
       printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_SOURCE=%q\n' "local-dev-bootstrap"
+      if [[ -n "${TF_VAR_context_authorization_dogfood_principal_ref}" ]]; then
+        printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_1_TENANT_ID=%q\n' "${TF_VAR_context_authorization_default_tenant_id}"
+        printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_1_CONTEXT_ID=%q\n' "${TF_VAR_context_authorization_bootstrap_context_id}"
+        printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_1_PRINCIPAL_REF=%q\n' "${TF_VAR_context_authorization_dogfood_principal_ref}"
+        printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_1_ROLE=%q\n' "${TF_VAR_context_authorization_bootstrap_role}"
+        printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_1_SOURCE=%q\n' "local-dogfood-bootstrap"
+      fi
     fi
     printf 'export WEAVE_MATRIX_HOMESERVER_URL=%q\n' "$(client_matrix_public_url)"
     printf 'export WEAVE_OIDC_ISSUER_URL=%q\n' "$(integration_test_oidc_issuer_url)"
@@ -1283,6 +1291,7 @@ ensure_default_inputs() {
     "TF_VAR_context_authorization_principal_ref_prefix=user:"
     "TF_VAR_context_authorization_bootstrap_context_id=workspace-default"
     "TF_VAR_context_authorization_bootstrap_principal_ref=user:test"
+    "TF_VAR_context_authorization_dogfood_principal_ref=user:massimo"
     "TF_VAR_context_authorization_bootstrap_role=MEMBER"
     "TF_VAR_openproject_image=openproject/openproject:15"
     "TF_VAR_openproject_host_port=48086"

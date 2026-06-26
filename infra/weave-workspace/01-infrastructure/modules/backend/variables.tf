@@ -186,6 +186,11 @@ variable "context_authorization_bootstrap_principal_ref" {
   type        = string
 }
 
+variable "context_authorization_dogfood_principal_ref" {
+  description = "Optional additional local dogfood principal reference granted the same bootstrap Context/Space membership."
+  type        = string
+}
+
 variable "context_authorization_bootstrap_role" {
   description = "Context role granted to the bootstrap principal."
   type        = string

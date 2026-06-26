@@ -103,6 +103,13 @@ resource "docker_container" "this" {
     "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_PRINCIPAL_REF=${var.context_authorization_bootstrap_principal_ref}",
     "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_ROLE=${var.context_authorization_bootstrap_role}",
     "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_SOURCE=local-dev-bootstrap",
+    ] : [], var.context_authorization_bootstrap_enabled && var.context_authorization_dogfood_principal_ref != "" ? [
+    "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_1_TENANT_ID=${var.context_authorization_default_tenant_id}",
+    "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_1_CONTEXT_ID=${var.context_authorization_bootstrap_context_id}",
+    "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_1_PRINCIPAL_REF=${var.context_authorization_dogfood_principal_ref}",
+    "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_1_ROLE=${var.context_authorization_bootstrap_role}",
+    "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_1_SOURCE=local-dogfood-bootstrap",
+    ] : [], var.context_authorization_bootstrap_enabled ? [
     # Project the deterministic workspace membership to the seeded team/channel
     # Contexts used by the live-stack Calendar facade E2E. This keeps the
     # product ReBAC path fail-closed unless the local/dev bootstrap is explicitly

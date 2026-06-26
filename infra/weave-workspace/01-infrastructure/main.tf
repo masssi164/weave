@@ -505,6 +505,7 @@ module "backend" {
   context_authorization_bootstrap_enabled          = var.context_authorization_bootstrap_enabled
   context_authorization_bootstrap_context_id       = var.context_authorization_bootstrap_context_id
   context_authorization_bootstrap_principal_ref    = var.context_authorization_bootstrap_principal_ref
+  context_authorization_dogfood_principal_ref      = var.context_authorization_dogfood_principal_ref
   context_authorization_bootstrap_role             = var.context_authorization_bootstrap_role
   interop_enabled                                  = false
   interop_slack_enabled                            = false
