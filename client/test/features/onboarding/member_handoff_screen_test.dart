@@ -4,17 +4,24 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
+import 'package:weave/core/router/app_routes.dart';
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/features/app/domain/use_cases/sign_in_with_oidc.dart';
+import 'package:weave/features/app/domain/use_cases/resolve_app_bootstrap.dart';
 import 'package:weave/features/app/presentation/providers/app_application_providers.dart';
 import 'package:weave/features/auth/domain/entities/auth_failure.dart';
 import 'package:weave/features/onboarding/domain/entities/member_auth_onboarding_state.dart';
+import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
 import 'package:weave/features/onboarding/domain/entities/member_handoff.dart';
 import 'package:weave/features/onboarding/domain/use_cases/consume_member_handoff.dart';
 import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
+import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
+import '../../helpers/first_run_status_fixture.dart';
 import '../../helpers/in_memory_stores.dart';
 
 class _ThrowingConsumeMemberHandoff implements ConsumeMemberHandoff {
@@ -61,6 +68,13 @@ class _FailingSignInWithOidc implements SignInWithOidc {
   Future<void> call({required bool isInteractiveSignInSupported}) async {
     throw failure;
   }
+}
+
+class _ReadyResolveAppBootstrap implements ResolveAppBootstrap {
+  const _ReadyResolveAppBootstrap();
+
+  @override
+  Future<BootstrapState> call() async => const BootstrapState.ready();
 }
 
 void main() {
@@ -191,6 +205,108 @@ void main() {
       expect(authState['handoffRef'], 'handoff-s32-massimo-dogfood-home');
       expect(authState['supportSafe'], isTrue);
     });
+
+    testWidgets(
+      'records browser return and workspace-ready evidence after successful sign-in',
+      (tester) async {
+        final preferencesStore = InMemoryPreferencesStore();
+        final signIn = _RecordingSignInWithOidc();
+        final router = GoRouter(
+          initialLocation: '/join',
+          routes: [
+            GoRoute(
+              path: '/join',
+              builder: (context, state) => MemberHandoffScreen(
+                uri: Uri.parse(
+                  'weave://join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-massimo-dogfood&product_base_url=https%3A%2F%2Fweave.test%3A44443&platform_config_url=https%3A%2F%2Fweave.test%3A44443%2Fapi%2Fplatform%2Fconfig',
+                ),
+              ),
+            ),
+            GoRoute(
+              path: AppRoutes.firstRun,
+              builder: (context, state) =>
+                  const Scaffold(body: Text('First run workspace shell')),
+            ),
+          ],
+        );
+        final container = ProviderContainer.test(
+          overrides: [
+            preferencesStoreProvider.overrideWith((ref) => preferencesStore),
+            consumeMemberHandoffProvider.overrideWithValue(
+              _SuccessfulConsumeMemberHandoff(
+                MemberHandoff(
+                  handoffRef: 'handoff-s32-massimo-dogfood-home',
+                  profile: 'local-lan-dogfood',
+                  runId: 's32-massimo-dogfood',
+                  organizationSlug: 'massimo-dogfood',
+                  workspaceSlug: 'home',
+                  platformConfigUrl: Uri.parse(
+                    'https://weave.test:44443/api/platform/config',
+                  ),
+                  productBaseUrl: Uri.parse('https://weave.test:44443'),
+                ),
+              ),
+            ),
+            signInWithOidcProvider.overrideWithValue(signIn),
+            resolveAppBootstrapProvider.overrideWithValue(
+              const _ReadyResolveAppBootstrap(),
+            ),
+            firstRunStatusProvider.overrideWith(
+              (ref) async =>
+                  FirstRunLoadResult.authenticated(buildTestFirstRunStatus()),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+        addTearDown(router.dispose);
+
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: MaterialApp.router(
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              routerConfig: router,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Sign In'));
+        await tester.pump();
+        signIn.completer.complete();
+        await tester.pumpAndSettle();
+
+        expect(find.text('First run workspace shell'), findsOneWidget);
+
+        final rawAuthState = preferencesStore.rawString(
+          dogfoodAuthStateStorageKey,
+        );
+        expect(rawAuthState, isNotNull);
+        final authState = jsonDecode(rawAuthState!) as Map<String, dynamic>;
+        expect(authState['state'], 'workspace_ready');
+        expect(authState['handoffRef'], 'handoff-s32-massimo-dogfood-home');
+        expect(authState['supportSafe'], isTrue);
+
+        final rawHistory = preferencesStore.rawString(
+          dogfoodAuthStateHistoryStorageKey,
+        );
+        expect(rawHistory, isNotNull);
+        final history = jsonDecode(rawHistory!) as List<dynamic>;
+        expect(
+          history
+              .cast<Map<String, dynamic>>()
+              .map((entry) => entry['state'])
+              .toList(),
+          containsAllInOrder([
+            'sso_in_progress',
+            'authenticated',
+            'workspace_bootstrap_loading',
+            'workspace_ready',
+          ]),
+        );
+      },
+    );
 
     testWidgets('localizes sign-in failures on the handoff ready action', (
       tester,

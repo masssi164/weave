@@ -59,6 +59,7 @@ The ready/prepared screen must not reappear after successful credentials unless 
 - i18n check: no new sign-in/onboarding user-facing strings bypass ARB/localization.
 - Accessibility check: ready/error states are screen-reader reachable, controls keep 48x48 logical touch targets, and retry/back actions have labels.
 - Dogfood Mailpit check: test/reset emails are captured locally, visible to operator, and not sent externally.
+- Return-to-app gate: copied app preferences include `dogfood_auth_state_history_v1` proving `sso_in_progress`, `authenticated`, `workspace_bootstrap_loading`, and `workspace_ready` in order. A lone final `workspace_ready` value without that history is not dogfood completion evidence.
 - Physical iPhone candidate check: install over Wi-Fi when device reachability works; if Wi-Fi install is unavailable, install over USB before asking Massimo to test.
 - Trust stability check: the local TLS CA and leaf certificate fingerprints remain stable across normal stack restart/recreate unless explicit rotation is requested.
 - iOS signing trust check: the dogfood app keeps the same bundle ID `com.massimotter.weave`, provisioning Team ID `KNDHGC2KV6`, developer certificate label `Apple Development: massimo164@me.com (6RUS2Z848X)`, signing identity/profile class, and installed-app trust assumptions across normal update or app-state reset. A normal update/app-state reset must not ask Massimo to trust the developer again.
