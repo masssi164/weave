@@ -140,6 +140,8 @@ python3 tools/dogfood_onboarding_evidence_check.py \
 
 The command emits `DOGFOOD_MEMBER_ONBOARDING_RESULT` only when the copied app state is support-safe, reaches `workspace_ready`, and includes `dogfood_auth_state_history_v1` with `sso_in_progress`, `authenticated`, `workspace_bootstrap_loading`, and `workspace_ready` in order. That ordered history is the support-safe proof that Sign In opened the browser flow, the app returned after successful credentials, and workspace bootstrap completed. Use `--skip-mailpit` only for a local dry run; it is not sufficient dogfood completion evidence.
 
+The release acceptance contract records this scenario as live runtime evidence scoped to source `dogfood-member-onboarding`. The generic `live-stack-e2e` lane proves stack login/chat/files/provider/workspace markers, but it must not claim or block on the member invite activation markers unless `tools/dogfood_member_onboarding_gate.sh` produced the dogfood onboarding log.
+
 If the simulator gate is green but the phone is unplugged or Wi-Fi-unreachable, report `SIMULATOR_E2E_GREEN` and `PHYSICAL_DEVICE_E2E_PENDING` separately. The smallest remaining physical command sequence is:
 
 ```sh

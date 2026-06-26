@@ -221,6 +221,9 @@
         "DOGFOOD_TRUST_STABILITY_RESULT"
       ],
       "evidenceMode": "live-runtime",
+      "runtimeSources": [
+        "dogfood-member-onboarding"
+      ],
       "additionalEvidence": [
         {
           "path": "client/test/features/onboarding/consume_member_handoff_test.dart",

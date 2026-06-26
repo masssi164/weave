@@ -81,7 +81,11 @@ void main(List<String> args) {
   final mappings = loadScenarioMappings(root, mappingPath);
   final runtimeEvidence = testLogPath == null
       ? RuntimeEvidence.notCollected()
-      : extractRuntimeEvidence(File(_join(root.path, testLogPath)), mappings);
+      : extractRuntimeEvidence(
+          File(_join(root.path, testLogPath)),
+          mappings,
+          source: evidenceSource,
+        );
   final result = validateAcceptanceContract(
     root: root,
     scenarios: scenarios,
@@ -352,7 +356,7 @@ ScenarioMappingResult _validateScenarioMapping(
       );
     }
     if (runtimeEvidence.wasCollected &&
-        mapping.evidenceMode.requiresRuntimeObservation &&
+        mapping.requiresRuntimeObservationFor(runtimeEvidence.source) &&
         !runtimeObserved) {
       findings.add(
         AcceptanceFinding(
@@ -391,7 +395,8 @@ ScenarioMappingResult _validateScenarioMapping(
     }
   }
 
-  final runtimeStatus = !mapping.evidenceMode.requiresRuntimeObservation
+  final runtimeStatus =
+      !mapping.requiresRuntimeObservationFor(runtimeEvidence.source)
       ? RuntimeScenarioStatus.notRequired
       : runtimeEvidence.wasCollected
       ? markerResults.every((marker) => marker.runtimeObserved)
@@ -409,13 +414,14 @@ ScenarioMappingResult _validateScenarioMapping(
 
 RuntimeEvidence extractRuntimeEvidence(
   File logFile,
-  List<ScenarioMapping> mappings,
-) {
+  List<ScenarioMapping> mappings, {
+  String? source,
+}) {
   if (!logFile.existsSync()) {
     return RuntimeEvidence.notCollected();
   }
   final expectedMarkers = mappings
-      .where((mapping) => mapping.evidenceMode.requiresRuntimeObservation)
+      .where((mapping) => mapping.requiresRuntimeObservationFor(source))
       .expand((mapping) => mapping.evidenceMarkers)
       .toSet();
   final markers = <String, SanitizedEvidenceMarker>{};
@@ -433,6 +439,7 @@ RuntimeEvidence extractRuntimeEvidence(
   }
   return RuntimeEvidence(
     wasCollected: true,
+    source: source,
     markers: Map<String, SanitizedEvidenceMarker>.unmodifiable(markers),
   );
 }
@@ -544,6 +551,9 @@ String renderMarkdownSummary(
               .map(
                 (marker) => evidenceMode == EvidenceMode.offlineSpec
                     ? '${marker.marker}:offline-spec'
+                    : scenarioResult.runtimeStatus ==
+                          RuntimeScenarioStatus.notRequired
+                    ? '${marker.marker}:mapped'
                     : runtimeEvidence.wasCollected
                     ? '${marker.marker}:${marker.runtimeObserved ? 'seen' : 'missing'}'
                     : '${marker.marker}:mapped',
@@ -702,6 +712,7 @@ class ScenarioMapping {
     required this.featurePath,
     required this.executableTest,
     required this.evidenceMode,
+    this.runtimeSources = const <String>[],
     required this.evidenceMarkers,
     required this.additionalEvidence,
   });
@@ -716,6 +727,8 @@ class ScenarioMapping {
         json['evidenceMode'] as String?,
         executableTest: json['executableTest']! as String,
       ),
+      runtimeSources: ((json['runtimeSources'] as List?) ?? const <Object>[])
+          .cast<String>(),
       evidenceMarkers: (json['evidenceMarkers']! as List).cast<String>(),
       additionalEvidence:
           ((json['additionalEvidence'] as List?) ?? const <Object>[])
@@ -733,8 +746,14 @@ class ScenarioMapping {
   final String featurePath;
   final String executableTest;
   final EvidenceMode evidenceMode;
+  final List<String> runtimeSources;
   final List<String> evidenceMarkers;
   final List<AdditionalEvidenceMapping> additionalEvidence;
+
+  bool requiresRuntimeObservationFor(String? source) =>
+      evidenceMode.requiresRuntimeObservation &&
+      (runtimeSources.isEmpty ||
+          (source != null && runtimeSources.contains(source)));
 
   Map<String, Object?> toJson() => <String, Object?>{
     'tag': tag,
@@ -742,6 +761,7 @@ class ScenarioMapping {
     'feature': featurePath,
     'executableTest': executableTest,
     'evidenceMode': evidenceMode.jsonValue,
+    if (runtimeSources.isNotEmpty) 'runtimeSources': runtimeSources,
     'evidenceMarkers': evidenceMarkers,
     if (additionalEvidence.isNotEmpty)
       'additionalEvidence': additionalEvidence
@@ -893,20 +913,27 @@ enum RuntimeScenarioStatus {
 }
 
 class RuntimeEvidence {
-  const RuntimeEvidence({required this.wasCollected, required this.markers});
+  const RuntimeEvidence({
+    required this.wasCollected,
+    this.source,
+    required this.markers,
+  });
 
   factory RuntimeEvidence.notCollected() => const RuntimeEvidence(
     wasCollected: false,
+    source: null,
     markers: <String, SanitizedEvidenceMarker>{},
   );
 
   final bool wasCollected;
+  final String? source;
   final Map<String, SanitizedEvidenceMarker> markers;
 
   Set<String> get observedMarkers => markers.keys.toSet();
 
   Map<String, Object?> toJson() => <String, Object?>{
     'wasCollected': wasCollected,
+    'source': source,
     'markers': markers.map((key, value) => MapEntry(key, value.toJson())),
   };
 }
