@@ -162,11 +162,39 @@ void main() {
       await pumpReadyShell(tester);
 
       expect(find.byType(NavigationBar), findsOneWidget);
-      expect(find.byIcon(Icons.home), findsOneWidget);
-      expect(find.byIcon(Icons.chat_bubble_outline), findsWidgets);
-      expect(find.byIcon(Icons.folder_outlined), findsOneWidget);
-      expect(find.byIcon(Icons.calendar_today_outlined), findsOneWidget);
-      expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
+      final navigationBar = find.byType(NavigationBar);
+      expect(
+        find.descendant(of: navigationBar, matching: find.byIcon(Icons.home)),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: navigationBar,
+          matching: find.byIcon(Icons.chat_bubble_outline),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: navigationBar,
+          matching: find.byIcon(Icons.folder_outlined),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: navigationBar,
+          matching: find.byIcon(Icons.calendar_today_outlined),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: navigationBar,
+          matching: find.byIcon(Icons.settings_outlined),
+        ),
+        findsOneWidget,
+      );
       expect(find.byIcon(Icons.dashboard_outlined), findsNothing);
     });
 
@@ -525,6 +553,8 @@ void main() {
 
       final roadmapChip = find.widgetWithText(ActionChip, 'Roadmap.md');
       await tester.ensureVisible(roadmapChip);
+      await tester.drag(find.byType(ListView).first, const Offset(0, -160));
+      await tester.pumpAndSettle();
       await tester.tap(roadmapChip);
       await tester.pumpAndSettle();
 
