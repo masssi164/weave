@@ -205,7 +205,7 @@
         {
           "path": "client/test/architecture/release_scope_contract_test.dart",
           "fragments": [
-            "Router removes obsolete calendar and deck member routes"
+            "Router exposes current member routes and keeps obsolete deck removed"
           ]
         }
       ],
