@@ -24,6 +24,12 @@ part 'app_router.g.dart';
 /// Global navigator key for the root [GoRouter].
 final rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 
+String? _startupInitialLocation;
+
+void setStartupInitialLocation(String? location) {
+  _startupInitialLocation = location;
+}
+
 /// Top-level [GoRouter] exposed as a Riverpod provider so that
 /// the router can read the resolved bootstrap state for redirects.
 @riverpod
@@ -32,7 +38,11 @@ GoRouter appRouter(Ref ref) {
 
   return GoRouter(
     navigatorKey: rootNavigatorKey,
-    initialLocation: AppRoutes.welcome,
+    initialLocation:
+        _startupInitialLocation ??
+        initialLocationForDefaultRoute(
+          WidgetsBinding.instance.platformDispatcher.defaultRouteName,
+        ),
     redirect: (context, state) async {
       final onOnboarding =
           state.matchedLocation == AppRoutes.welcome ||
@@ -47,8 +57,11 @@ GoRouter appRouter(Ref ref) {
         case BootstrapPhase.needsSetup:
           return (onOnboarding || onJoin) ? null : AppRoutes.welcome;
         case BootstrapPhase.needsSignIn:
-          return onSignIn ? null : AppRoutes.signIn;
+          return (onSignIn || onJoin) ? null : AppRoutes.signIn;
         case BootstrapPhase.ready:
+          if (onJoin) {
+            return null;
+          }
           try {
             final result = await ref.read(firstRunStatusProvider.future);
             return switch (result) {
@@ -140,4 +153,26 @@ GoRouter appRouter(Ref ref) {
       ),
     ],
   );
+}
+
+String initialLocationForDefaultRoute(String defaultRouteName) {
+  if (defaultRouteName.isEmpty || defaultRouteName == '/') {
+    return AppRoutes.welcome;
+  }
+
+  final uri = Uri.tryParse(defaultRouteName);
+  if (uri == null) {
+    return AppRoutes.welcome;
+  }
+
+  if (uri.scheme == 'weave' && (uri.host == 'join' || uri.path == '/join')) {
+    final query = uri.hasQuery ? '?${uri.query}' : '';
+    return '${AppRoutes.join}$query';
+  }
+
+  if (uri.scheme.isEmpty && uri.path == AppRoutes.join) {
+    return uri.toString();
+  }
+
+  return AppRoutes.welcome;
 }

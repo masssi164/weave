@@ -96,6 +96,24 @@ void main() {
       );
     });
 
+    test(
+      'accepts routed in-app join handoff shape from installed iOS launch',
+      () {
+        final handoff = const MemberHandoffParser().parse(
+          Uri.parse(
+            '/join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-massimo-dogfood&product_base_url=https%3A%2F%2Fweave.test%3A44443&platform_config_url=https%3A%2F%2Fweave.test%3A44443%2Fapi%2Fplatform%2Fconfig',
+          ),
+        );
+
+        expect(handoff.handoffRef, 'handoff-s32-massimo-dogfood-home');
+        expect(handoff.productBaseUrl.toString(), 'https://weave.test:44443/');
+        expect(
+          handoff.platformConfigUrl.toString(),
+          'https://weave.test:44443/api/platform/config',
+        );
+      },
+    );
+
     test('generates deterministic QR payload matching the invite contract', () {
       final payload = const MemberHandoffPayloadBuilder().qrPayload(
         productBaseUrl: Uri.parse('https://weave.test:44443'),

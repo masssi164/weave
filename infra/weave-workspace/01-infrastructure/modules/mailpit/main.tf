@@ -11,59 +11,23 @@ resource "docker_image" "this" {
   keep_locally = true
 }
 
-resource "docker_volume" "data" {
-  name = var.data_volume_name
-}
-
-resource "docker_volume" "config" {
-  name = var.config_volume_name
-}
-
 resource "docker_container" "this" {
   name    = var.container_name
   image   = docker_image.this.image_id
   restart = "unless-stopped"
   depends_on = [
     docker_image.this,
-    docker_volume.data,
-    docker_volume.config,
   ]
 
   ports {
-    internal = 80
-    external = var.http_host_port
-  }
-
-  ports {
-    internal = 443
-    external = var.https_host_port
-  }
-
-  upload {
-    file        = "/etc/caddy/Caddyfile"
-    content     = var.caddyfile_content
-    source_hash = sha256(var.caddyfile_content)
-  }
-
-  volumes {
-    volume_name    = docker_volume.data.name
-    container_path = "/data"
-  }
-
-  volumes {
-    volume_name    = docker_volume.config.name
-    container_path = "/config"
-  }
-
-  volumes {
-    host_path      = var.tls_certs_dir
-    container_path = "/certs"
-    read_only      = true
+    internal = 8025
+    external = var.web_host_port
+    ip       = "127.0.0.1"
   }
 
   networks_advanced {
     name    = var.network_name
-    aliases = distinct(concat([var.container_name], values(var.public_hosts)))
+    aliases = [var.container_name]
   }
 
   lifecycle {

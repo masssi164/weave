@@ -103,6 +103,18 @@ variable "keycloak_management_host_port" {
   default     = 9000
 }
 
+variable "mailpit_image" {
+  description = "Mailpit image used for dogfood/local-only mail capture."
+  type        = string
+  default     = "axllent/mailpit:v1.27"
+}
+
+variable "mailpit_web_host_port" {
+  description = "Loopback-only host port for the Mailpit web/API inbox."
+  type        = number
+  default     = 8025
+}
+
 variable "mas_host_port" {
   description = "Direct host port for Matrix Authentication Service."
   type        = number

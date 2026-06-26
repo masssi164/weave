@@ -2849,6 +2849,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String get signInConfigurationTitle => 'Current sign-in configuration';
 
   @override
+  String get signInHandoffConfigurationDescription =>
+      'Your Weave invite selected the workspace sign-in endpoint. Continue with SSO; if this does not work, ask an admin/operator to refresh the invite and mention WEAVE-SSO-NOT-COMPLETE.';
+
+  @override
+  String get signInHandoffReadyTitle => 'Workspace invite ready';
+
+  @override
+  String signInHandoffReadyDescription(
+    String organization,
+    String workspace,
+    String runId,
+  ) {
+    return 'Weave consumed the dogfood handoff for $organization/$workspace. Continue with SSO for run $runId.';
+  }
+
+  @override
   String signInConfigurationIssuer(String value) {
     return 'Issuer: $value';
   }
@@ -2873,6 +2889,33 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get signInMissingConfigurationDescription =>
       'Weave still needs a valid issuer URL and client ID before it can open the browser sign-in flow.';
+
+  @override
+  String get signInCancelled => 'Sign-in was cancelled.';
+
+  @override
+  String get signInConfigurationFailure =>
+      'The sign-in configuration is incomplete. Ask an admin/operator to refresh the invite.';
+
+  @override
+  String get signInProtocolFailure =>
+      'Sign-in could not be completed. Ask an admin/operator to check the identity setup and mention WEAVE-SSO-NOT-COMPLETE.';
+
+  @override
+  String get signInStorageFailure =>
+      'Weave could not save the session on this device. Check device storage/security settings, then try again.';
+
+  @override
+  String get signInUnsupportedPlatform =>
+      'This device cannot open the secure Weave sign-in flow.';
+
+  @override
+  String get signInUnknownFailure =>
+      'Weave could not sign in right now. Try again or ask an admin/operator to refresh the invite.';
+
+  @override
+  String get signInOfflineSessionNotAllowed =>
+      'This organization has not allowed long-lived mobile sessions for this account yet. Ask an admin/operator to enable mobile session access, then sign in again.';
 
   @override
   String get profileSectionTitle => 'Weave profile';
@@ -4036,9 +4079,26 @@ class AppLocalizationsEn extends AppLocalizations {
       'We are preparing sign-in for this workspace.';
 
   @override
+  String get memberHandoffReadyTitle => 'Workspace ready for sign-in';
+
+  @override
+  String memberHandoffReadyGuidance(String organization, String workspace) {
+    return 'Weave prepared $organization/$workspace from the invite. Continue with workspace sign-in next.';
+  }
+
+  @override
   String get memberHandoffErrorTitle => 'We could not open this Weave invite';
 
   @override
   String get memberHandoffErrorGuidance =>
       'The invite may be expired, incomplete, or not ready yet. Ask your workspace admin for a fresh invite or organization sign-in link.';
+
+  @override
+  String get memberHandoffTlsErrorGuidance =>
+      'Weave could not reach the workspace start configuration over trusted TLS. For local dogfood, install and fully trust the Weave Local Development CA on this iPhone, or ask your admin for a publicly trusted organization sign-in link.';
+
+  @override
+  String memberHandoffErrorCode(String code) {
+    return 'Error code: $code';
+  }
 }

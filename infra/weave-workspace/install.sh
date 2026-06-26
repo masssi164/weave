@@ -203,6 +203,67 @@ normalize_repo_local_paths() {
   normalize_repo_local_cert_path_var TF_VAR_caddy_tls_ca_file
 }
 
+local_tls_state_dir() {
+  if [[ "${WEAVE_LOCAL_TLS_STATE_DIR:-}" == "none" ]]; then
+    return 1
+  fi
+
+  printf '%s\n' "${WEAVE_LOCAL_TLS_STATE_DIR:-${XDG_STATE_HOME:-${HOME}/.local/state}/weave/dogfood/caddy/certs}"
+}
+
+using_default_local_tls_paths() {
+  local generated_dir="${INFRA_DIR}/.generated/caddy/certs"
+
+  [[ "${TF_VAR_caddy_tls_cert_file}" == "${generated_dir}/weave.test.pem" ]] &&
+    [[ "${TF_VAR_caddy_tls_key_file}" == "${generated_dir}/weave.test-key.pem" ]] &&
+    [[ "${TF_VAR_caddy_tls_ca_file}" == "${generated_dir}/weave-local-ca.pem" ]]
+}
+
+restore_default_local_tls_from_state() {
+  using_default_local_tls_paths || return 0
+
+  local state_dir
+  state_dir="$(local_tls_state_dir)" || return 0
+  [[ -d "${state_dir}" ]] || return 0
+
+  local file
+  for file in \
+    weave.test.pem \
+    weave.test-key.pem \
+    weave-local-ca.pem \
+    weave-local-ca-key.pem \
+    weave-local-ca.srl; do
+    if [[ -f "${state_dir}/${file}" && ! -f "${INFRA_DIR}/.generated/caddy/certs/${file}" ]]; then
+      mkdir -p "${INFRA_DIR}/.generated/caddy/certs"
+      cp "${state_dir}/${file}" "${INFRA_DIR}/.generated/caddy/certs/${file}"
+    fi
+  done
+}
+
+persist_default_local_tls_to_state() {
+  using_default_local_tls_paths || return 0
+
+  local state_dir
+  state_dir="$(local_tls_state_dir)" || return 0
+  mkdir -p "${state_dir}"
+  chmod 700 "${state_dir}"
+
+  local file
+  for file in \
+    weave.test.pem \
+    weave.test-key.pem \
+    weave-local-ca.pem \
+    weave-local-ca-key.pem \
+    weave-local-ca.srl; do
+    if [[ -f "${INFRA_DIR}/.generated/caddy/certs/${file}" ]]; then
+      cp "${INFRA_DIR}/.generated/caddy/certs/${file}" "${state_dir}/${file}"
+    fi
+  done
+
+  chmod 600 "${state_dir}"/*-key.pem 2>/dev/null || true
+  chmod 644 "${state_dir}"/*.pem 2>/dev/null || true
+}
+
 load_persisted_env() {
   if [[ ! -f "${BOOTSTRAP_ENV_FILE}" ]]; then
     return
@@ -758,6 +819,7 @@ ensure_existing_stack_terraform_state() {
   import_existing_docker_container_state module.postgres.docker_container.this weave-db
   import_existing_docker_container_state module.reverse_proxy.docker_container.this weave-proxy
   import_existing_docker_container_state module.keycloak.docker_container.this weave-keycloak
+  import_existing_docker_container_state module.mailpit.docker_container.this weave-mailpit
   import_existing_docker_container_state module.backend.docker_container.this weave-backend
   import_existing_docker_container_state module.matrix.docker_container.mas weave-mas
   import_existing_docker_container_state module.matrix.docker_container.synapse weave-synapse
@@ -1334,6 +1396,8 @@ ensure_local_tls_certificates() {
 
   ca_key_file="${ca_file%.*}-key.pem"
 
+  restore_default_local_tls_from_state
+
   if [[ -f "${cert_file}" && -f "${key_file}" && -f "${ca_file}" ]]; then
     local host
     local missing_hosts=()
@@ -1361,6 +1425,7 @@ ensure_local_tls_certificates() {
     done
 
     if (( ${#missing_hosts[@]} == 0 )); then
+      persist_default_local_tls_to_state
       return
     fi
 
@@ -1436,6 +1501,7 @@ ensure_local_tls_certificates() {
   chmod 644 "${cert_file}"
 
   rm -f -- "${csr_file}" "${ext_file}"
+  persist_default_local_tls_to_state
 }
 
 ensure_nextcloud_installed() {
@@ -1637,6 +1703,7 @@ print_summary() {
   log "- Matrix versions: $(client_matrix_public_url)/_matrix/client/versions"
   log "- Matrix default rooms: #announcements:$(public_host "${TF_VAR_matrix_subdomain}"), #general:$(public_host "${TF_VAR_matrix_subdomain}"), #help:$(public_host "${TF_VAR_matrix_subdomain}")"
   log "- Raw Nextcloud: $(nextcloud_public_url)/"
+  log "- Dogfood mail inbox: http://127.0.0.1:${TF_VAR_mailpit_web_host_port:-8025}"
   log
   log "Admin credentials (local/dev only):"
   log "- Keycloak admin user: ${TF_VAR_keycloak_admin_username} (password stored in ${BOOTSTRAP_ENV_FILE})"

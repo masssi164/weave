@@ -421,6 +421,28 @@
       ]
     },
     {
+      "tag": "@weave-v01-dogfood-member-invite-activation",
+      "suiteId": "member-live-critical-path",
+      "personas": [
+        "member",
+        "operator"
+      ],
+      "domains": [
+        "identity-idm",
+        "spaces",
+        "admin-health-ops",
+        "operator-release"
+      ],
+      "testLevel": "live-e2e",
+      "assertionFocus": [
+        "fresh iOS invite activation",
+        "session restore and trust-preserving app-state reset recovery",
+        "local Mailpit capture",
+        "support-safe onboarding evidence",
+        "local TLS and iOS signing trust stability"
+      ]
+    },
+    {
       "tag": "@weave-v01-admin-provider-categories",
       "suiteId": "v0-1-dogfood-release-spine",
       "personas": [
