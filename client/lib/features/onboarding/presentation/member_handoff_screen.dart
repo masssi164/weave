@@ -106,7 +106,7 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
         return true;
       }
       context.go(
-        status.status.firstRunComplete ? AppRoutes.chat : AppRoutes.firstRun,
+        status.status.firstRunComplete ? AppRoutes.home : AppRoutes.firstRun,
       );
       return true;
     } catch (_) {

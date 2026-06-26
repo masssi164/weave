@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -371,7 +373,14 @@ void main() {
               .path,
           AppRoutes.home,
         );
-        expect(preferencesStore.rawString(dogfoodAuthStateStorageKey), isNull);
+        final rawAuthState = preferencesStore.rawString(
+          dogfoodAuthStateStorageKey,
+        );
+        expect(rawAuthState, isNotNull);
+        final authState = jsonDecode(rawAuthState!) as Map<String, dynamic>;
+        expect(authState['state'], 'workspace_ready');
+        expect(authState['handoffRef'], 'handoff-s32-massimo-dogfood-home');
+        expect(authState['supportSafe'], isTrue);
       },
     );
 

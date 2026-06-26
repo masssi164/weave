@@ -83,7 +83,7 @@ GoRouter appRouter(Ref ref) {
               FirstRunAuthenticated(:final status) =>
                 !status.firstRunComplete
                     ? (onFirstRun ? null : AppRoutes.firstRun)
-                    : (onOnboarding || onSignIn || onJoin || onFirstRun
+                    : (onOnboarding || onSignIn || onFirstRun
                           ? AppRoutes.home
                           : null),
               FirstRunSignedOut() ||
