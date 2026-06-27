@@ -142,6 +142,9 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get navHome => 'Home';
+
+  @override
   String get navChat => 'Chat';
 
   @override
@@ -269,6 +272,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get semanticCloseButton => 'Close';
+
+  @override
+  String get semanticHomeIcon => 'Home';
 
   @override
   String get semanticChatIcon => 'Chat messages';
@@ -1203,7 +1209,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsBrandSectionDescription =>
-      'Weave focuses on accessible, data-sovereign collaboration: chat, files, shared calendars, E2EE architecture, and boards behind clear gates.';
+      'Tune Weave for this device: appearance, language, profile context, module visibility, and safe sign-out.';
 
   @override
   String get settingsThemeTitle => 'Appearance';

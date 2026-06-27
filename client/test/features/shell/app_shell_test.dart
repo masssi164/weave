@@ -184,7 +184,7 @@ void main() {
       expect(
         find.descendant(
           of: navigationBar,
-          matching: find.byIcon(Icons.calendar_today_outlined),
+          matching: find.byIcon(Icons.calendar_month_outlined),
         ),
         findsOneWidget,
       );
@@ -196,6 +196,26 @@ void main() {
         findsOneWidget,
       );
       expect(find.byIcon(Icons.dashboard_outlined), findsNothing);
+      expect(
+        find.descendant(of: navigationBar, matching: find.text('Home')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: navigationBar, matching: find.text('Chat')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: navigationBar, matching: find.text('Files')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: navigationBar, matching: find.text('Calendar')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: navigationBar, matching: find.text('Settings')),
+        findsOneWidget,
+      );
     });
 
     testWidgets('applies the persisted personal theme across the shell', (
@@ -276,7 +296,7 @@ void main() {
 
       expect(find.text('Roadmap.md'), findsOneWidget);
 
-      await tester.tap(find.byIcon(Icons.calendar_today_outlined));
+      await tester.tap(find.byIcon(Icons.calendar_month_outlined));
       await tester.pumpAndSettle();
 
       expect(find.text('Roadmap.md'), findsNothing);

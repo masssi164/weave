@@ -145,6 +145,9 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String get navHome => 'Start';
+
+  @override
   String get navChat => 'Chat';
 
   @override
@@ -274,6 +277,9 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get semanticCloseButton => 'Schließen';
+
+  @override
+  String get semanticHomeIcon => 'Startseite';
 
   @override
   String get semanticChatIcon => 'Chat-Nachrichten';
@@ -1212,7 +1218,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get settingsBrandSectionDescription =>
-      'Weave bringt Nachrichten, Dateien und Kalender in einem Workspace zusammen, während auf diesem Bildschirm die Serververbindung dahinter verwaltet wird.';
+      'Passe Weave für dieses Gerät an: Darstellung, Sprache, Profil, Modulansicht und sichere Abmeldung.';
 
   @override
   String get settingsThemeTitle => 'Darstellung';
