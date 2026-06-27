@@ -2111,6 +2111,66 @@ abstract class AppLocalizations {
   /// **'Appearance preferences could not be saved. Try changing the setting again.'**
   String get settingsThemeError;
 
+  /// Settings section title for personal app language selection
+  ///
+  /// In en, this message translates to:
+  /// **'Language'**
+  String get settingsLanguageTitle;
+
+  /// Settings description explaining personal app language selection
+  ///
+  /// In en, this message translates to:
+  /// **'Choose the app language for this device. Device language follows iOS, Android, or desktop.'**
+  String get settingsLanguageDescription;
+
+  /// Language option title for system/default mode
+  ///
+  /// In en, this message translates to:
+  /// **'Use device language'**
+  String get settingsLanguageSystemTitle;
+
+  /// Language option description for system/default mode
+  ///
+  /// In en, this message translates to:
+  /// **'Follow your device language setting.'**
+  String get settingsLanguageSystemDescription;
+
+  /// Language option title for English
+  ///
+  /// In en, this message translates to:
+  /// **'English'**
+  String get settingsLanguageEnglishTitle;
+
+  /// Language option description for English
+  ///
+  /// In en, this message translates to:
+  /// **'Show Weave in English.'**
+  String get settingsLanguageEnglishDescription;
+
+  /// Language option title for German
+  ///
+  /// In en, this message translates to:
+  /// **'German'**
+  String get settingsLanguageGermanTitle;
+
+  /// Language option description for German
+  ///
+  /// In en, this message translates to:
+  /// **'Show Weave in German.'**
+  String get settingsLanguageGermanDescription;
+
+  /// Loading state for language preference settings
+  ///
+  /// In en, this message translates to:
+  /// **'Loading language preferences…'**
+  String get settingsLanguageLoading;
+
+  /// Error shown when language preferences cannot load or save
+  ///
+  /// In en, this message translates to:
+  /// **'Language preferences could not be saved. Try changing the setting again.'**
+  String get settingsLanguageError;
+
   /// Title for the settings entry point to in-app help
   ///
   /// In en, this message translates to:

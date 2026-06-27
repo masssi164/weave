@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
+import 'package:weave/core/l10n/shared_preferences_app_locale_preference_repository.dart';
 import 'package:weave/core/persistence/flutter_secure_store.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
@@ -253,6 +254,79 @@ void main() {
       expect(find.text('SimulatorProof.md'), findsNothing);
     },
   );
+
+  testWidgets('settings language change updates the running app locale', (
+    tester,
+  ) async {
+    final secureStore = InMemorySecureStore({
+      authSessionStorageKey: AuthSessionDto.fromSession(
+        buildTestAuthSession(),
+      ).encode(),
+    });
+    final preferencesStore = InMemoryPreferencesStore({
+      appLocalePreferenceStorageKey: 'en',
+    });
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          preferencesStoreProvider.overrideWith((ref) => preferencesStore),
+          serverConfigurationRepositoryProvider.overrideWith(
+            (ref) => _FakeServerConfigurationRepository(
+              configuration: buildTestConfiguration(),
+            ),
+          ),
+          secureStoreProvider.overrideWithValue(secureStore),
+          oidcClientProvider.overrideWithValue(_FakeOidcClient()),
+          chatRepositoryProvider.overrideWithValue(FakeChatRepository()),
+          chatSecurityRepositoryProvider.overrideWithValue(
+            FakeChatSecurityRepository(),
+          ),
+          userProfileProvider.overrideWith((ref) async => _memberProfile),
+          firstRunStatusProvider.overrideWith(
+            (ref) async =>
+                FirstRunLoadResult.authenticated(buildTestFirstRunStatus()),
+          ),
+          filesRepositoryProvider.overrideWithValue(
+            FakeFilesRepository(
+              connectionState: const FilesConnectionState.disconnected(),
+            ),
+          ),
+          calendarRepositoryProvider.overrideWithValue(
+            const _FakeCalendarRepository(),
+          ),
+          workspaceCapabilitySnapshotProvider.overrideWithValue(
+            const AsyncData(_readyCapabilities),
+          ),
+        ],
+        child: const WeaveApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.widget<MaterialApp>(find.byType(MaterialApp)).locale,
+      const Locale('en'),
+    );
+
+    await tester.tap(find.byIcon(Icons.settings_outlined));
+    await tester.pumpAndSettle();
+    expect(find.text('Settings'), findsWidgets);
+
+    final germanOption = find.text('German');
+    await tester.ensureVisible(germanOption);
+    await tester.pumpAndSettle();
+    await tester.tap(germanOption);
+    await tester.pumpAndSettle();
+
+    expect(preferencesStore.rawString(appLocalePreferenceStorageKey), 'de');
+    expect(
+      tester.widget<MaterialApp>(find.byType(MaterialApp)).locale,
+      const Locale('de'),
+    );
+    expect(find.text('Einstellungen'), findsWidgets);
+    expect(find.text('Settings'), findsNothing);
+  });
 }
 
 Finder _localizedCreateEventFinder() {

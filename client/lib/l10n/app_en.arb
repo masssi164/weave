@@ -1374,6 +1374,46 @@
   "@settingsThemeError": {
     "description": "Error shown when theme preferences cannot load or save"
   },
+  "settingsLanguageTitle": "Language",
+  "@settingsLanguageTitle": {
+    "description": "Settings section title for personal app language selection"
+  },
+  "settingsLanguageDescription": "Choose the app language for this device. Device language follows iOS, Android, or desktop.",
+  "@settingsLanguageDescription": {
+    "description": "Settings description explaining personal app language selection"
+  },
+  "settingsLanguageSystemTitle": "Use device language",
+  "@settingsLanguageSystemTitle": {
+    "description": "Language option title for system/default mode"
+  },
+  "settingsLanguageSystemDescription": "Follow your device language setting.",
+  "@settingsLanguageSystemDescription": {
+    "description": "Language option description for system/default mode"
+  },
+  "settingsLanguageEnglishTitle": "English",
+  "@settingsLanguageEnglishTitle": {
+    "description": "Language option title for English"
+  },
+  "settingsLanguageEnglishDescription": "Show Weave in English.",
+  "@settingsLanguageEnglishDescription": {
+    "description": "Language option description for English"
+  },
+  "settingsLanguageGermanTitle": "German",
+  "@settingsLanguageGermanTitle": {
+    "description": "Language option title for German"
+  },
+  "settingsLanguageGermanDescription": "Show Weave in German.",
+  "@settingsLanguageGermanDescription": {
+    "description": "Language option description for German"
+  },
+  "settingsLanguageLoading": "Loading language preferences…",
+  "@settingsLanguageLoading": {
+    "description": "Loading state for language preference settings"
+  },
+  "settingsLanguageError": "Language preferences could not be saved. Try changing the setting again.",
+  "@settingsLanguageError": {
+    "description": "Error shown when language preferences cannot load or save"
+  },
   "settingsHelpTitle": "Help and user handbook",
   "@settingsHelpTitle": {
     "description": "Title for the settings entry point to in-app help"

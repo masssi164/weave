@@ -7,6 +7,7 @@ import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/core/config/feature_flags.dart';
 import 'package:weave/core/failures/app_failure.dart';
+import 'package:weave/core/l10n/shared_preferences_app_locale_preference_repository.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/core/theme/shared_preferences_app_theme_preference_repository.dart';
 import 'package:weave/core/widgets/weave_logo.dart';
@@ -303,13 +304,21 @@ void main() {
       expect(find.text('Appearance'), findsOneWidget);
       expect(find.text('Use device setting'), findsOneWidget);
       expect(find.text('Dark'), findsOneWidget);
+      expect(find.text('Language'), findsOneWidget);
+      expect(find.text('Use device language'), findsOneWidget);
+      expect(find.text('German'), findsOneWidget);
 
       await tester.drag(find.byType(CustomScrollView), const Offset(0, -260));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Dark'));
       await tester.pump();
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -420));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('German'));
+      await tester.pump();
 
       expect(store.rawString(appThemePreferenceStorageKey), 'dark');
+      expect(store.rawString(appLocalePreferenceStorageKey), 'de');
       expect(
         find.text(
           'Tune Weave for this device: appearance, language, profile context, module visibility, and safe sign-out.',
@@ -1327,9 +1336,10 @@ void main() {
           findsNothing,
         );
 
-        await tester.drag(find.byType(CustomScrollView), const Offset(0, -760));
+        final retryButton = find.text('Retry');
+        await tester.ensureVisible(retryButton);
         await tester.pumpAndSettle();
-        await tester.tap(find.text('Retry'));
+        await tester.tap(retryButton);
         await tester.pumpAndSettle();
 
         expect(bootstrap.retryCalls, 1);

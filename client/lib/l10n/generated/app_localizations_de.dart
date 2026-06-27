@@ -1264,6 +1264,40 @@ class AppLocalizationsDe extends AppLocalizations {
       'Darstellungseinstellungen konnten nicht gespeichert werden. Versuche, die Einstellung erneut zu ändern.';
 
   @override
+  String get settingsLanguageTitle => 'Sprache';
+
+  @override
+  String get settingsLanguageDescription =>
+      'Wähle die App-Sprache für dieses Gerät. Die Geräteeinstellung folgt iOS, Android oder Desktop.';
+
+  @override
+  String get settingsLanguageSystemTitle => 'Gerätesprache verwenden';
+
+  @override
+  String get settingsLanguageSystemDescription =>
+      'Folgt der Spracheinstellung deines Geräts.';
+
+  @override
+  String get settingsLanguageEnglishTitle => 'Englisch';
+
+  @override
+  String get settingsLanguageEnglishDescription =>
+      'Zeigt Weave auf Englisch an.';
+
+  @override
+  String get settingsLanguageGermanTitle => 'Deutsch';
+
+  @override
+  String get settingsLanguageGermanDescription => 'Zeigt Weave auf Deutsch an.';
+
+  @override
+  String get settingsLanguageLoading => 'Spracheinstellungen werden geladen…';
+
+  @override
+  String get settingsLanguageError =>
+      'Spracheinstellungen konnten nicht gespeichert werden. Versuche, die Einstellung erneut zu ändern.';
+
+  @override
   String get settingsHelpTitle => 'Hilfe und Benutzerhandbuch';
 
   @override
