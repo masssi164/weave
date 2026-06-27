@@ -9,6 +9,8 @@ import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
 import 'package:weave/core/bootstrap/presentation/bootstrap_gate.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/core/failures/app_failure.dart';
+import 'package:weave/core/l10n/app_locale_preference.dart';
+import 'package:weave/core/l10n/app_locale_preference_provider.dart';
 import 'package:weave/core/router/app_routes.dart';
 import 'package:weave/core/router/app_router.dart';
 import 'package:weave/core/theme/app_theme.dart';
@@ -216,18 +218,27 @@ class _WeaveAppState extends ConsumerState<WeaveApp>
           data: (selection) => selection,
           orElse: () => const AppThemeSelection(),
         );
+    final localeSelection = ref
+        .watch(appLocalePreferenceProvider)
+        .maybeWhen(
+          data: (selection) => selection,
+          orElse: () => const AppLocaleSelection(),
+        );
     final profileLocale = _profileLocale(
       ref
           .watch(userProfileProvider)
           .maybeWhen(data: (profile) => profile?.locale, orElse: () => null),
     );
+    final appLocale = localeSelection.userPreference == null
+        ? profileLocale
+        : localeSelection.locale;
     return MaterialApp.router(
       title: 'Weave',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightFor(themeSelection),
       darkTheme: AppTheme.darkFor(themeSelection),
       themeMode: themeSelection.themeMode,
-      locale: profileLocale,
+      locale: appLocale,
       routerConfig: router,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,

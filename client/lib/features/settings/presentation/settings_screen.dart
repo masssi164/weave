@@ -7,6 +7,8 @@ import 'package:weave/core/a11y/semantic_button.dart';
 import 'package:weave/core/a11y/semantic_list_tile.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/core/config/feature_flags.dart';
+import 'package:weave/core/l10n/app_locale_preference.dart';
+import 'package:weave/core/l10n/app_locale_preference_provider.dart';
 import 'package:weave/core/router/app_routes.dart';
 import 'package:weave/core/theme/app_theme_preference.dart';
 import 'package:weave/core/theme/app_theme_preference_provider.dart';
@@ -69,6 +71,8 @@ class SettingsScreen extends ConsumerWidget {
                   const _SettingsBrandCard(),
                   const SizedBox(height: 32),
                   const _ThemePreferenceSection(),
+                  const SizedBox(height: 32),
+                  const _LanguagePreferenceSection(),
                   const SizedBox(height: 32),
                   const ProfileSummaryCard(),
                   const SizedBox(height: 32),
@@ -1211,6 +1215,134 @@ class _ThemePreferenceTile extends StatelessWidget {
       AppThemePreference.dark => l10n.settingsThemeDarkDescription,
       AppThemePreference.highContrast =>
         l10n.settingsThemeHighContrastDescription,
+    };
+  }
+}
+
+class _LanguagePreferenceSection extends ConsumerWidget {
+  const _LanguagePreferenceSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final selection = ref.watch(appLocalePreferenceProvider);
+
+    return Card(
+      elevation: 0,
+      color: theme.colorScheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: BorderSide(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Semantics(
+              header: true,
+              child: Text(
+                l10n.settingsLanguageTitle,
+                style: theme.textTheme.titleLarge,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              l10n.settingsLanguageDescription,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 12),
+            switch (selection) {
+              AsyncData(value: final value) => RadioGroup<AppLocalePreference>(
+                groupValue: value.effectivePreference,
+                onChanged: (preference) {
+                  if (preference == null) {
+                    return;
+                  }
+                  unawaited(
+                    ref
+                        .read(appLocalePreferenceProvider.notifier)
+                        .setUserPreference(preference),
+                  );
+                },
+                child: Column(
+                  children: [
+                    for (final preference in AppLocalePreference.values)
+                      _LanguagePreferenceTile(
+                        preference: preference,
+                        selected: value.effectivePreference == preference,
+                      ),
+                  ],
+                ),
+              ),
+              AsyncError() => ErrorState(
+                message: l10n.settingsLanguageError,
+                retryLabel: l10n.retryButton,
+                onRetry: () => ref.invalidate(appLocalePreferenceProvider),
+              ),
+              _ => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Text(
+                  l10n.settingsLanguageLoading,
+                  style: theme.textTheme.bodyMedium,
+                ),
+              ),
+            },
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LanguagePreferenceTile extends StatelessWidget {
+  const _LanguagePreferenceTile({
+    required this.preference,
+    required this.selected,
+  });
+
+  final AppLocalePreference preference;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
+    return RadioListTile<AppLocalePreference>.adaptive(
+      contentPadding: EdgeInsets.zero,
+      value: preference,
+      selected: selected,
+      title: Text(_title(l10n)),
+      subtitle: Text(_description(l10n)),
+      controlAffinity: ListTileControlAffinity.leading,
+      secondary: ExcludeSemantics(child: Icon(_icon)),
+    );
+  }
+
+  IconData get _icon {
+    return switch (preference) {
+      AppLocalePreference.system => Icons.language_outlined,
+      AppLocalePreference.english => Icons.translate_outlined,
+      AppLocalePreference.german => Icons.translate_outlined,
+    };
+  }
+
+  String _title(AppLocalizations l10n) {
+    return switch (preference) {
+      AppLocalePreference.system => l10n.settingsLanguageSystemTitle,
+      AppLocalePreference.english => l10n.settingsLanguageEnglishTitle,
+      AppLocalePreference.german => l10n.settingsLanguageGermanTitle,
+    };
+  }
+
+  String _description(AppLocalizations l10n) {
+    return switch (preference) {
+      AppLocalePreference.system => l10n.settingsLanguageSystemDescription,
+      AppLocalePreference.english => l10n.settingsLanguageEnglishDescription,
+      AppLocalePreference.german => l10n.settingsLanguageGermanDescription,
     };
   }
 }

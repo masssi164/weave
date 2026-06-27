@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:weave/core/l10n/shared_preferences_app_locale_preference_repository.dart';
 import 'package:weave/core/persistence/flutter_secure_store.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/core/theme/shared_preferences_app_theme_preference_repository.dart';
@@ -233,6 +234,22 @@ void main() {
       expect(find.byIcon(Icons.home), findsOneWidget);
       expect(find.byIcon(Icons.chat_bubble_outline), findsWidgets);
       expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
+    });
+
+    testWidgets('applies the persisted app language to MaterialApp locale', (
+      tester,
+    ) async {
+      await pumpReadyShell(
+        tester,
+        preferencesStore: InMemoryPreferencesStore({
+          appLocalePreferenceStorageKey: 'de',
+        }),
+      );
+
+      final app = tester.widget<MaterialApp>(find.byType(MaterialApp));
+      expect(app.locale, const Locale('de'));
+      expect(find.text('Einstellungen'), findsOneWidget);
+      expect(find.text('Settings'), findsNothing);
     });
 
     testWidgets(

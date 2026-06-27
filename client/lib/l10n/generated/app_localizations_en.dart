@@ -1254,6 +1254,39 @@ class AppLocalizationsEn extends AppLocalizations {
       'Appearance preferences could not be saved. Try changing the setting again.';
 
   @override
+  String get settingsLanguageTitle => 'Language';
+
+  @override
+  String get settingsLanguageDescription =>
+      'Choose the app language for this device. Device language follows iOS, Android, or desktop.';
+
+  @override
+  String get settingsLanguageSystemTitle => 'Use device language';
+
+  @override
+  String get settingsLanguageSystemDescription =>
+      'Follow your device language setting.';
+
+  @override
+  String get settingsLanguageEnglishTitle => 'English';
+
+  @override
+  String get settingsLanguageEnglishDescription => 'Show Weave in English.';
+
+  @override
+  String get settingsLanguageGermanTitle => 'German';
+
+  @override
+  String get settingsLanguageGermanDescription => 'Show Weave in German.';
+
+  @override
+  String get settingsLanguageLoading => 'Loading language preferences…';
+
+  @override
+  String get settingsLanguageError =>
+      'Language preferences could not be saved. Try changing the setting again.';
+
+  @override
   String get settingsHelpTitle => 'Help and user handbook';
 
   @override
