@@ -11,10 +11,13 @@ import 'package:weave/features/calendar/presentation/providers/calendar_provider
 import '../../helpers/test_app.dart';
 
 class _FakeCalendarRepository implements CalendarRepository {
-  _FakeCalendarRepository({required List<CalendarEvent> events})
-    : events = List<CalendarEvent>.of(events);
+  _FakeCalendarRepository({
+    required List<CalendarEvent> events,
+    this.failCreates = false,
+  }) : events = List<CalendarEvent>.of(events);
 
   final List<CalendarEvent> events;
+  final bool failCreates;
   final List<CalendarEventDraft> createdDrafts = <CalendarEventDraft>[];
   final List<String> deletedIds = <String>[];
 
@@ -65,6 +68,9 @@ class _FakeCalendarRepository implements CalendarRepository {
   @override
   Future<CalendarEvent> createEvent(CalendarEventDraft draft) async {
     createdDrafts.add(draft);
+    if (failCreates) {
+      throw StateError('create failed');
+    }
     final event = CalendarEvent(
       id: 'created-${createdDrafts.length}',
       title: draft.title,
@@ -215,6 +221,52 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(repository.deletedIds.single, 'created-1');
+    });
+
+    testWidgets('keeps the calendar visible when saving an event fails', (
+      tester,
+    ) async {
+      final repository = _FakeCalendarRepository(
+        events: [
+          CalendarEvent(
+            id: 'event-1',
+            title: 'Design review',
+            startTime: DateTime(2026, 6, 27, 10),
+            endTime: DateTime(2026, 6, 27, 11),
+          ),
+        ],
+        failCreates: true,
+      );
+
+      await tester.pumpWidget(
+        createTestApp(
+          const CalendarScreen(),
+          overrides: [
+            workspaceCapabilitySnapshotProvider.overrideWithValue(
+              const AsyncData(_readySnapshot),
+            ),
+            calendarRepositoryProvider.overrideWithValue(repository),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Create event'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).first, 'Planning sync');
+      await tester.tap(find.text('Save event'));
+      await tester.pumpAndSettle();
+
+      expect(repository.createdDrafts.single.title, 'Planning sync');
+      expect(find.text('Design review'), findsOneWidget);
+      expect(
+        find.text('The calendar could not save that change right now.'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Calendar event details are unavailable right now.'),
+        findsNothing,
+      );
     });
   });
 }

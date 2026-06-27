@@ -29,6 +29,7 @@ import 'package:weave/features/onboarding/presentation/first_run_screen.dart';
 import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
 import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
 import 'package:weave/features/onboarding/presentation/welcome_screen.dart';
+import 'package:weave/features/profile/domain/entities/user_profile.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
@@ -219,6 +220,7 @@ void main() {
       InMemoryPreferencesStore? preferencesStore,
       FirstRunStatus? firstRunStatus,
       Future<FirstRunLoadResult> Function()? firstRunStatusLoader,
+      UserProfile? userProfile,
     }) {
       final container = ProviderContainer.test(
         overrides: [
@@ -252,7 +254,7 @@ void main() {
                   ),
                 ),
           ),
-          userProfileProvider.overrideWith((ref) async => null),
+          userProfileProvider.overrideWith((ref) async => userProfile),
           workspaceConnectionStateProvider.overrideWithValue(
             _workspaceConnectionState(),
           ),
@@ -331,6 +333,40 @@ void main() {
 
       expect(find.byType(FirstRunScreen), findsNothing);
       expect(find.byType(NavigationBar), findsOneWidget);
+    });
+
+    testWidgets('uses the saved profile locale for the app language', (
+      tester,
+    ) async {
+      final secureStore = InMemorySecureStore();
+      await secureStore.write(
+        authSessionStorageKey,
+        AuthSessionDto.fromSession(buildTestAuthSession()).encode(),
+      );
+      final container = createContainer(
+        configuration: buildTestConfiguration(),
+        secureStore: secureStore,
+        userProfile: const UserProfile(
+          userId: 'member-1',
+          username: 'member',
+          displayName: 'Member',
+          locale: 'de',
+          timezone: 'Europe/Berlin',
+          emailVerified: true,
+        ),
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const WeaveApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final app = tester.widget<MaterialApp>(find.byType(MaterialApp));
+      expect(app.locale, const Locale('de'));
     });
 
     testWidgets(

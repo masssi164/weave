@@ -426,10 +426,14 @@ class _ActivityStatusPill extends StatelessWidget {
           children: [
             Icon(icon, size: 18, color: theme.colorScheme.onSurfaceVariant),
             const SizedBox(width: 6),
-            Text(
-              message,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+            Flexible(
+              child: Text(
+                message,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
             ),
             if (actionLabel != null && onAction != null) ...[
