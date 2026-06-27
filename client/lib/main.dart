@@ -18,6 +18,7 @@ import 'package:weave/features/auth/data/repositories/oidc_auth_session_reposito
 import 'package:weave/features/onboarding/domain/entities/member_auth_onboarding_state.dart';
 import 'package:weave/features/onboarding/domain/use_cases/consume_member_handoff.dart';
 import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
+import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
 import 'package:weave/features/server_config/data/repositories/shared_preferences_server_configuration_repository.dart';
 import 'package:weave/integrations/nextcloud/data/repositories/secure_nextcloud_session_repository.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
@@ -215,12 +216,18 @@ class _WeaveAppState extends ConsumerState<WeaveApp>
           data: (selection) => selection,
           orElse: () => const AppThemeSelection(),
         );
+    final profileLocale = _profileLocale(
+      ref
+          .watch(userProfileProvider)
+          .maybeWhen(data: (profile) => profile?.locale, orElse: () => null),
+    );
     return MaterialApp.router(
       title: 'Weave',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightFor(themeSelection),
       darkTheme: AppTheme.darkFor(themeSelection),
       themeMode: themeSelection.themeMode,
+      locale: profileLocale,
       routerConfig: router,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
@@ -238,5 +245,20 @@ class _WeaveAppState extends ConsumerState<WeaveApp>
       supportedLocales: AppLocalizations.supportedLocales,
       home: home,
     );
+  }
+
+  Locale? _profileLocale(String? locale) {
+    final normalizedLocale = locale?.trim();
+    if (normalizedLocale == null || normalizedLocale.isEmpty) {
+      return null;
+    }
+    final languageCode = normalizedLocale
+        .split(RegExp('[-_]'))
+        .first
+        .toLowerCase();
+    if (languageCode == 'en' || languageCode == 'de') {
+      return Locale(languageCode);
+    }
+    return null;
   }
 }
