@@ -312,7 +312,7 @@ void main() {
       expect(store.rawString(appThemePreferenceStorageKey), 'dark');
       expect(
         find.text(
-          'Weave focuses on accessible, data-sovereign collaboration: chat, files, shared calendars, E2EE architecture, and boards behind clear gates.',
+          'Tune Weave for this device: appearance, language, profile context, module visibility, and safe sign-out.',
         ),
         findsOneWidget,
       );

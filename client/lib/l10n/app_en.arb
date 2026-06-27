@@ -164,6 +164,10 @@
       }
     }
   },
+  "navHome": "Home",
+  "@navHome": {
+    "description": "Label for the Home navigation destination"
+  },
   "navChat": "Chat",
   "@navChat": {
     "description": "Label for the Chat navigation destination"
@@ -337,6 +341,10 @@
   "semanticCloseButton": "Close",
   "@semanticCloseButton": {
     "description": "Semantic label for close buttons"
+  },
+  "semanticHomeIcon": "Home",
+  "@semanticHomeIcon": {
+    "description": "Semantic label for the home icon"
   },
   "semanticChatIcon": "Chat messages",
   "@semanticChatIcon": {
@@ -1314,7 +1322,7 @@
   "@settingsScreenTitle": {
     "description": "Title for the settings screen app bar"
   },
-  "settingsBrandSectionDescription": "Weave focuses on accessible, data-sovereign collaboration: chat, files, shared calendars, E2EE architecture, and boards behind clear gates.",
+  "settingsBrandSectionDescription": "Tune Weave for this device: appearance, language, profile context, module visibility, and safe sign-out.",
   "@settingsBrandSectionDescription": {
     "description": "Subtle branded copy shown in the settings header card"
   },

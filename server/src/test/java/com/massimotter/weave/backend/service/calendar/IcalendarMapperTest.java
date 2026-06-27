@@ -121,6 +121,43 @@ class IcalendarMapperTest {
     }
 
     @Test
+    void acceptsCommonGermanTimezoneAliasesWhenWritingIcalendar() {
+        CreateCalendarEventRequest request = new CreateCalendarEventRequest(
+                "Dogfood check",
+                null,
+                OffsetDateTime.parse("2026-06-27T10:00:00+02:00"),
+                OffsetDateTime.parse("2026-06-27T10:30:00+02:00"),
+                "CEST",
+                null,
+                false);
+
+        String icalendar = mapper.toIcalendar(mapper.draftFrom(request));
+
+        assertThat(icalendar).contains("DTSTART;TZID=CEST:20260627T100000");
+        assertThat(mapper.parse(icalendar).startsAt())
+                .isEqualTo(OffsetDateTime.parse("2026-06-27T10:00:00+02:00"));
+    }
+
+    @Test
+    void reportsUnsupportedTimezonesAsInvalidRequests() {
+        CreateCalendarEventRequest request = new CreateCalendarEventRequest(
+                "Dogfood check",
+                null,
+                OffsetDateTime.parse("2026-06-27T10:00:00+02:00"),
+                OffsetDateTime.parse("2026-06-27T10:30:00+02:00"),
+                "Mars/Phobos",
+                null,
+                false);
+
+        assertThatThrownBy(() -> mapper.toIcalendar(mapper.draftFrom(request)))
+                .isInstanceOfSatisfying(CalendarAdapterException.class, exception -> {
+                    assertThat(exception.type()).isEqualTo(CalendarAdapterException.Type.INVALID_REQUEST);
+                    assertThat(exception.details()).containsEntry("field", "timezone");
+                    assertThat(exception.details()).containsEntry("supportSafeReason", "invalid-timezone");
+                });
+    }
+
+    @Test
     void blocksRecurringEventsWithSupportSafeReasonUntilRecurrenceContractExists() {
         assertRecurrenceFieldIsBlocked("RRULE:FREQ=WEEKLY;COUNT=3");
         assertRecurrenceFieldIsBlocked("RDATE:20260503T100000");

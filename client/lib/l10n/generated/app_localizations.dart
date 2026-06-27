@@ -332,6 +332,12 @@ abstract class AppLocalizations {
   /// **'Step {current} of {total}'**
   String setupStepIndicator(int current, int total);
 
+  /// Label for the Home navigation destination
+  ///
+  /// In en, this message translates to:
+  /// **'Home'**
+  String get navHome;
+
   /// Label for the Chat navigation destination
   ///
   /// In en, this message translates to:
@@ -556,6 +562,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Close'**
   String get semanticCloseButton;
+
+  /// Semantic label for the home icon
+  ///
+  /// In en, this message translates to:
+  /// **'Home'**
+  String get semanticHomeIcon;
 
   /// Semantic label for the chat icon
   ///
@@ -2024,7 +2036,7 @@ abstract class AppLocalizations {
   /// Subtle branded copy shown in the settings header card
   ///
   /// In en, this message translates to:
-  /// **'Weave focuses on accessible, data-sovereign collaboration: chat, files, shared calendars, E2EE architecture, and boards behind clear gates.'**
+  /// **'Tune Weave for this device: appearance, language, profile context, module visibility, and safe sign-out.'**
   String get settingsBrandSectionDescription;
 
   /// Settings section title for personal theme selection

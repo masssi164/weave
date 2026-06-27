@@ -101,8 +101,13 @@ void main() {
 
       expect(routerSource, isNot(contains('onHiddenReleaseOneRoute')));
       expect(routerSource, isNot(contains('AppRoutes.deck')));
-      expect(routerSource, contains('AppRoutes.home'));
-      expect(routerSource, contains('AppRoutes.calendar'));
+      _expectInOrder(routerSource, const [
+        'path: AppRoutes.home',
+        'path: AppRoutes.chat',
+        'path: AppRoutes.files',
+        'path: AppRoutes.calendar',
+        'path: AppRoutes.settings',
+      ]);
       expect(routerSource, contains('CalendarScreen'));
       expect(routerSource, isNot(contains('DeckScreen')));
       expect(routesSource, contains('/home'));
@@ -116,10 +121,13 @@ void main() {
       );
       expect(File('lib/features/deck').existsSync(), isFalse);
 
-      expect(shellSource, contains('l10n.navChat'));
-      expect(shellSource, contains('l10n.navFiles'));
-      expect(shellSource, contains('l10n.navCalendar'));
-      expect(shellSource, contains('l10n.navSettings'));
+      _expectInOrder(shellSource, const [
+        'l10n.navHome',
+        'l10n.navChat',
+        'l10n.navFiles',
+        'l10n.navCalendar',
+        'l10n.navSettings',
+      ]);
       expect(shellSource, isNot(contains('navDeck')));
     },
   );
@@ -171,6 +179,15 @@ void main() {
       expect(lowerRoadmap, isNot(contains('preview')));
     },
   );
+}
+
+void _expectInOrder(String source, List<String> markers) {
+  var cursor = -1;
+  for (final marker in markers) {
+    final index = source.indexOf(marker, cursor + 1);
+    expect(index, isNonNegative, reason: '$marker exists after index $cursor');
+    cursor = index;
+  }
 }
 
 String _section(String markdown, String heading) {

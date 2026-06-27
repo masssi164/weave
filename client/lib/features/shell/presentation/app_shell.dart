@@ -29,13 +29,13 @@ class AppShell extends StatelessWidget {
           NavigationDestination(
             icon: Icon(
               Icons.home_outlined,
-              semanticLabel: l10n.chatOverviewTitle,
+              semanticLabel: l10n.semanticHomeIcon,
             ),
             selectedIcon: Icon(
               Icons.home,
-              semanticLabel: l10n.chatOverviewTitle,
+              semanticLabel: l10n.semanticHomeIcon,
             ),
-            label: l10n.chatOverviewTitle,
+            label: l10n.navHome,
           ),
           NavigationDestination(
             icon: Icon(
@@ -61,11 +61,11 @@ class AppShell extends StatelessWidget {
           ),
           NavigationDestination(
             icon: Icon(
-              Icons.calendar_today_outlined,
+              Icons.calendar_month_outlined,
               semanticLabel: l10n.semanticCalendarIcon,
             ),
             selectedIcon: Icon(
-              Icons.calendar_today,
+              Icons.calendar_month,
               semanticLabel: l10n.semanticCalendarIcon,
             ),
             label: l10n.navCalendar,
