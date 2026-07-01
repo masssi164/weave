@@ -494,31 +494,26 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.scrollUntilVisible(
-        find.text('AI agent capability governance'),
-        300,
-        scrollable: find.byType(Scrollable).first,
-      );
-      expect(find.text('AI agent capability governance'), findsOneWidget);
+      expect(find.text('Appearance'), findsOneWidget);
+      expect(find.text('Language'), findsOneWidget);
+      expect(find.text('Weave profile'), findsOneWidget);
+      expect(find.text('Help and user handbook'), findsOneWidget);
+      expect(find.text('Shell modules'), findsOneWidget);
+      expect(find.text('AI agent capability governance'), findsNothing);
       expect(
         find.textContaining('AI agent chats are not enabled'),
-        findsOneWidget,
+        findsNothing,
       );
       expect(
         find.textContaining('Ask a workspace owner or admin'),
-        findsOneWidget,
+        findsNothing,
       );
-
-      await tester.scrollUntilVisible(
-        find.text('Workspace setup is admin-only'),
-        300,
-        scrollable: find.byType(Scrollable).first,
-      );
-      expect(find.text('Workspace setup is admin-only'), findsOneWidget);
+      expect(find.text('Workspace setup is admin-only'), findsNothing);
       expect(
         find.textContaining('Normal users can keep using Weave'),
-        findsOneWidget,
+        findsNothing,
       );
+      expect(find.text('Workspace Readiness'), findsNothing);
       expect(find.text('Server Configuration'), findsNothing);
       expect(find.text('Provider categories'), findsNothing);
       expect(find.text('Identity/IDM'), findsNothing);
@@ -807,7 +802,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Workspace Readiness'), findsOneWidget);
+      expect(find.text('Workspace Readiness'), findsNothing);
       expect(find.text('Provider stack readiness'), findsNothing);
       expect(find.text('Admin/operator readiness cockpit'), findsNothing);
       expect(find.textContaining('nextcloud-files'), findsNothing);
@@ -1313,7 +1308,7 @@ void main() {
             weaveApiMatrixE2eeDiagnosticProvider.overrideWith(
               (ref) async => _matrixDiagnostic,
             ),
-            userProfileProvider.overrideWith((ref) async => null),
+            userProfileProvider.overrideWith((ref) async => _ownerProfile),
           ],
         );
         addTearDown(container.dispose);
