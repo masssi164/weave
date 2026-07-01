@@ -280,7 +280,9 @@ void main() {
 
       expect(find.text('Appearance'), findsOneWidget);
       expect(find.text('Language'), findsOneWidget);
-      expect(find.text('Weave profile'), findsOneWidget);
+      expect(find.text('Profile'), findsOneWidget);
+      expect(find.text('Weave profile'), findsNothing);
+      expect(find.text('Save profile'), findsNothing);
       expect(find.text('Shell modules'), findsOneWidget);
       expect(find.text('Workspace setup is admin-only'), findsNothing);
       expect(find.text('Workspace Readiness'), findsNothing);

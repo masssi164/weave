@@ -32,7 +32,6 @@ import 'package:weave/features/guests/presentation/providers/guest_preview_provi
 import 'package:weave/features/guests/presentation/widgets/guest_access_preview_card.dart';
 import 'package:weave/features/profile/domain/entities/user_profile.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
-import 'package:weave/features/profile/presentation/widgets/profile_summary_card.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/presentation/providers/'
     'server_configuration_form_controller.dart';
@@ -71,7 +70,7 @@ class SettingsScreen extends ConsumerWidget {
                 const SizedBox(height: 32),
                 const _LanguagePreferenceSection(),
                 const SizedBox(height: 32),
-                const ProfileSummaryCard(),
+                const _ProfileSettingsLinkCard(),
                 const SizedBox(height: 32),
                 const _WeaverMemberSettingsSection(),
                 const SizedBox(height: 32),
@@ -185,6 +184,45 @@ class _WorkspaceHealthLinkCard extends StatelessWidget {
           subtitle: Text(l10n.settingsWorkspaceHealthLinkDescription),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => context.push(AppRoutes.workspaceHealth),
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfileSettingsLinkCard extends ConsumerWidget {
+  const _ProfileSettingsLinkCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final profile = ref.watch(userProfileProvider);
+    final subtitle = profile.maybeWhen(
+      data: (user) => user == null
+          ? l10n.settingsProfileLinkSignedOutDescription
+          : l10n.settingsProfileLinkDescription(user.displayName),
+      orElse: () => l10n.settingsProfileLinkLoadingDescription,
+    );
+
+    return Semantics(
+      button: true,
+      child: Card(
+        elevation: 0,
+        color: theme.colorScheme.surfaceContainerLow,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: BorderSide(color: theme.colorScheme.outlineVariant),
+        ),
+        child: ListTile(
+          leading: Icon(
+            Icons.account_circle_outlined,
+            color: theme.colorScheme.primary,
+          ),
+          title: Text(l10n.settingsProfileLinkTitle),
+          subtitle: Text(subtitle),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => context.push(AppRoutes.profile),
         ),
       ),
     );
