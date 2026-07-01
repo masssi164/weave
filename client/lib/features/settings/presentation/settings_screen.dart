@@ -49,8 +49,12 @@ class SettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    final savedConfiguration = ref.watch(savedServerConfigurationProvider);
     final authState = ref.watch(authFlowControllerProvider);
+    final profile = ref.watch(userProfileProvider);
+    final canAdministerWorkspace = profile.maybeWhen(
+      data: (user) => user?.canAdministerWorkspace ?? false,
+      orElse: () => false,
+    );
 
     return CustomScrollView(
       slivers: [
@@ -58,79 +62,99 @@ class SettingsScreen extends ConsumerWidget {
         SliverPadding(
           padding: const EdgeInsets.all(24),
           sliver: SliverToBoxAdapter(
-            child: savedConfiguration.when(
-              loading: () => LoadingState(message: l10n.loadingLabel),
-              error: (error, _) => ErrorState(
-                message: l10n.errorStateLabel,
-                retryLabel: l10n.retryButton,
-                onRetry: () => ref.invalidate(savedServerConfigurationProvider),
-              ),
-              data: (configuration) => Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const _SettingsBrandCard(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const _SettingsBrandCard(),
+                const SizedBox(height: 32),
+                const _ThemePreferenceSection(),
+                const SizedBox(height: 32),
+                const _LanguagePreferenceSection(),
+                const SizedBox(height: 32),
+                const ProfileSummaryCard(),
+                const SizedBox(height: 32),
+                const _WeaverMemberSettingsSection(),
+                const SizedBox(height: 32),
+                const _SettingsHelpCard(),
+                const SizedBox(height: 32),
+                const _ShellModuleVisibilitySettingsSection(),
+                if (canAdministerWorkspace) ...[
                   const SizedBox(height: 32),
-                  const _ThemePreferenceSection(),
-                  const SizedBox(height: 32),
-                  const _LanguagePreferenceSection(),
-                  const SizedBox(height: 32),
-                  const ProfileSummaryCard(),
-                  const SizedBox(height: 32),
-                  const _WorkspaceReadinessCard(),
-                  const SizedBox(height: 32),
-                  const _AgentCapabilityPolicySection(),
-                  const SizedBox(height: 32),
-                  const _WeaverMemberSettingsSection(),
-                  const SizedBox(height: 32),
-                  const _SettingsHelpCard(),
-                  const SizedBox(height: 32),
-                  const _ShellModuleVisibilitySettingsSection(),
-                  if (FeatureFlags.hasFeatureGatedSurfaces) ...[
-                    const SizedBox(height: 32),
-                    const _FeaturePreviewSurfacesSection(),
-                  ],
-                  const SizedBox(height: 32),
-                  _AdminSetupSection(configuration: configuration),
-                  const SizedBox(height: 32),
-                  Text(
-                    l10n.settingsSignOutTitle,
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    l10n.settingsSignOutDescription,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  AccessibleButton(
-                    outlined: true,
-                    onPressed: authState.isBusy
-                        ? null
-                        : () => ref
-                              .read(authFlowControllerProvider.notifier)
-                              .signOut(),
-                    semanticLabel: l10n.settingsSignOutButton,
-                    child: Text(
-                      authState.isBusy
-                          ? l10n.settingsSignOutInProgress
-                          : l10n.settingsSignOutButton,
-                    ),
-                  ),
-                  if (authState.failure != null) ...[
-                    const SizedBox(height: 16),
-                    Text(
-                      authState.failure!.message,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                    ),
-                  ],
+                  const _AdminOnlySettingsSections(),
                 ],
-              ),
+                const SizedBox(height: 32),
+                Text(
+                  l10n.settingsSignOutTitle,
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  l10n.settingsSignOutDescription,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                AccessibleButton(
+                  outlined: true,
+                  onPressed: authState.isBusy
+                      ? null
+                      : () => ref
+                            .read(authFlowControllerProvider.notifier)
+                            .signOut(),
+                  semanticLabel: l10n.settingsSignOutButton,
+                  child: Text(
+                    authState.isBusy
+                        ? l10n.settingsSignOutInProgress
+                        : l10n.settingsSignOutButton,
+                  ),
+                ),
+                if (authState.failure != null) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    authState.failure!.message,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AdminOnlySettingsSections extends ConsumerWidget {
+  const _AdminOnlySettingsSections();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final savedConfiguration = ref.watch(savedServerConfigurationProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _WorkspaceReadinessCard(),
+        const SizedBox(height: 32),
+        const _AgentCapabilityPolicySection(),
+        if (FeatureFlags.hasFeatureGatedSurfaces) ...[
+          const SizedBox(height: 32),
+          const _FeaturePreviewSurfacesSection(),
+        ],
+        const SizedBox(height: 32),
+        savedConfiguration.when(
+          loading: () => LoadingState(message: l10n.loadingLabel),
+          error: (error, _) => ErrorState(
+            message: l10n.errorStateLabel,
+            retryLabel: l10n.retryButton,
+            onRetry: () => ref.invalidate(savedServerConfigurationProvider),
+          ),
+          data: (configuration) =>
+              _AdminSetupSection(configuration: configuration),
         ),
       ],
     );
@@ -1480,7 +1504,6 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
                 _WorkspaceReadinessRow(
                   label: l10n.settingsWorkspaceCalendarLabel,
                   capability: capabilitySnapshot.calendar,
-                  connection: workspaceState.files,
                 ),
               ],
             ),
@@ -2149,13 +2172,13 @@ class _WorkspaceReadinessRow extends StatelessWidget {
   const _WorkspaceReadinessRow({
     required this.label,
     required this.capability,
-    required this.connection,
+    this.connection,
     this.matrixDiagnostic,
   });
 
   final String label;
   final WorkspaceCapabilityState capability;
-  final IntegrationConnectionState connection;
+  final IntegrationConnectionState? connection;
   final MatrixE2eeDiagnostic? matrixDiagnostic;
 
   @override
@@ -2178,10 +2201,11 @@ class _WorkspaceReadinessRow extends StatelessWidget {
                 label: l10n.settingsWorkspaceCapabilityLabel,
                 value: _capabilityLabel(l10n, capability.readiness),
               ),
-              _StatusPill(
-                label: l10n.settingsWorkspaceConnectionLabel,
-                value: _connectionLabel(l10n, connection.status),
-              ),
+              if (connection case final connection?)
+                _StatusPill(
+                  label: l10n.settingsWorkspaceConnectionLabel,
+                  value: _connectionLabel(l10n, connection.status),
+                ),
               _StatusPill(
                 label: l10n.settingsWorkspacePolicyLabel,
                 value: _policyLabel(l10n, capability.policyState),
@@ -2193,13 +2217,10 @@ class _WorkspaceReadinessRow extends StatelessWidget {
                   value: recovery.recovery,
                 ),
               ),
-              if (connection.lastInvalidation != null)
+              if (connection?.lastInvalidation case final invalidation?)
                 _StatusPill(
                   label: l10n.settingsWorkspaceLastChangeLabel,
-                  value: _invalidationLabel(
-                    l10n,
-                    connection.lastInvalidation!.reason,
-                  ),
+                  value: _invalidationLabel(l10n, invalidation.reason),
                 ),
               if (matrixDiagnostic case final diagnostic?) ...[
                 _StatusPill(

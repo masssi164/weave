@@ -278,7 +278,12 @@ void main() {
       await tester.tap(find.byIcon(Icons.settings_outlined));
       await tester.pumpAndSettle();
 
-      expect(find.text('Workspace setup is admin-only'), findsOneWidget);
+      expect(find.text('Appearance'), findsOneWidget);
+      expect(find.text('Language'), findsOneWidget);
+      expect(find.text('Weave profile'), findsOneWidget);
+      expect(find.text('Shell modules'), findsOneWidget);
+      expect(find.text('Workspace setup is admin-only'), findsNothing);
+      expect(find.text('Workspace Readiness'), findsNothing);
       expect(find.text('Server Configuration'), findsNothing);
     });
 
