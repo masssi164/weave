@@ -13,6 +13,7 @@ abstract final class AppRoutes {
   static const files = '/files';
   static const calendar = '/calendar';
   static const settings = '/settings';
+  static const workspaceHealth = '/settings/workspace-health';
   static const help = '/help';
 
   static String chatRoom(String roomId) {
