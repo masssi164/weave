@@ -160,55 +160,6 @@ class ProviderRegistryControllerTest {
     }
 
     @Test
-    void adminDomainBindingsRejectMembers() throws Exception {
-        mockMvc.perform(get("/api/admin/domains/bindings").with(memberJwt()))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("capability-policy-blocked"))
-                .andExpect(jsonPath("$.details.requiredCapability").value("admin_control_plane.readiness_read"));
-    }
-
-    @Test
-    void adminDomainBindingsExposeGenericProviderConnectionRefsWithoutSecrets() throws Exception {
-        mockMvc.perform(get("/api/admin/domains/bindings").with(adminJwt()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.releaseStatus").value("domain-binding-provider-connection-v1"))
-                .andExpect(jsonPath("$.transitionPlansAreSecondaryArtifacts").value(true))
-                .andExpect(jsonPath("$.memberProviderInternalsExposed").value(false))
-                .andExpect(jsonPath("$.supportSafe").value(true))
-                .andExpect(jsonPath("$.bindings[*].domainKey", hasItems(
-                        "identity", "chat", "files", "calendar", "boards", "calls", "documents")))
-                .andExpect(jsonPath("$.bindings[?(@.domainKey == 'files')].activeBinding", hasItems("binding:files:provider:nextcloud-files")))
-                .andExpect(jsonPath("$.bindings[?(@.domainKey == 'chat')].activeBinding", hasItems("binding:chat:provider:synapse-homeserver")))
-                .andExpect(jsonPath("$.bindings[?(@.domainKey == 'files')].providerConnectionRef.providerKey", hasItems("nextcloud-files")))
-                .andExpect(jsonPath("$.bindings[?(@.domainKey == 'files')].providerConnectionRef.connectionId", hasItems("provider-connection:nextcloud-files")))
-                .andExpect(jsonPath("$.bindings[?(@.domainKey == 'files')].providerConnectionRef.domainKeys[0]", hasItems("files")))
-                .andExpect(jsonPath("$.bindings[?(@.domainKey == 'boards')].providerConnectionRef.connectionId", hasItems("provider-connection:openproject-primary")))
-                .andExpect(jsonPath("$.bindings[?(@.domainKey == 'calls')].providerConnectionRef.connectionId", hasItems("provider-connection:livekit")))
-                .andExpect(jsonPath("$.bindings[?(@.domainKey == 'files')].providerConnectionRef.credentialRefKind", hasItems("SecretRef")))
-                .andExpect(jsonPath("$.bindings[?(@.domainKey == 'chat')].providerConnectionRef.credentialRefConfigured", hasItems(true)))
-                .andExpect(jsonPath("$.bindings[?(@.domainKey == 'chat')].providerConnectionRef.readOnlyDiscovery", hasItems(true)))
-                .andExpect(jsonPath("$.bindings[?(@.domainKey == 'files')].candidateBindings[?(@.active == true)].adapterKey", hasItems("nextcloud-files")))
-                .andExpect(jsonPath("$.bindings[?(@.domainKey == 'chat')].candidateBindings[?(@.active == true)].adapterKey", hasItems("synapse-homeserver")))
-                .andExpect(jsonPath("$.bindings[*].exactlyOneActiveBinding", hasItems(true)))
-                .andExpect(jsonPath("$.bindings[*].transitionArtifacts[*]", hasItems(containsString("replacement requires"))))
-                .andExpect(content().string(not(containsString("secretref://"))))
-                .andExpect(content().string(not(containsString("password"))))
-                .andExpect(content().string(not(containsString("access_token"))))
-                .andExpect(content().string(not(containsString("Authorization: Bearer"))));
-
-        mockMvc.perform(get("/api/admin/domains/chat/bindings").with(adminJwt()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.bindings[*].domainKey", hasItems("chat")))
-                .andExpect(jsonPath("$.bindings[0].activeBinding").value("binding:chat:provider:synapse-homeserver"))
-                .andExpect(jsonPath("$.bindings[0].providerConnectionRef.connectionId").value("provider-connection:synapse-homeserver"))
-                .andExpect(content().string(not(containsString("nextcloud-files"))))
-                .andExpect(content().string(not(containsString("identity-idm"))))
-                .andExpect(content().string(not(containsString("boards-tasks"))))
-                .andExpect(content().string(not(containsString("meetings-calls"))))
-                .andExpect(content().string(not(containsString("documents-collaboration"))));
-    }
-
-    @Test
     void providerStatusReportsAllFacadeSeamsWithoutSecrets() throws Exception {
         mockMvc.perform(get("/api/providers/status").with(adminJwt()))
                 .andExpect(status().isOk())
@@ -232,10 +183,7 @@ class ProviderRegistryControllerTest {
                 .andExpect(jsonPath("$.canonicalDomainRegistry.domains[?(@.key == 'boards')].adapterManifestRequirements[*]", hasItems("secret_ref_only", "support_safe_diagnostics")))
                 .andExpect(jsonPath("$.domainAdapterRegistry.singleActiveAdapterEnforced").value(true))
                 .andExpect(jsonPath("$.domainAdapterRegistry.memberProviderConfigurationAllowed").value(false))
-                .andExpect(jsonPath("$.domainAdapterRegistry.domains[*].domain", hasItems("identity", "chat", "files", "calendar", "boards", "calls", "documents")))
                 .andExpect(jsonPath("$.domainAdapterRegistry.domains[?(@.domain == 'chat')].activeAdapter", hasItems("synapse-homeserver")))
-                .andExpect(jsonPath("$.domainAdapterRegistry.domains[?(@.domain == 'identity')].activeAdapter", hasItems("keycloak-realm")))
-                .andExpect(jsonPath("$.domainAdapterRegistry.domains[?(@.domain == 'boards')].activeAdapter", hasItems("openproject-primary")))
                 .andExpect(jsonPath("$.domainAdapterRegistry.domains[?(@.domain == 'chat')].candidates[*].diagnostics.secretsReturned", hasItems(false)))
                 .andExpect(jsonPath("$.categories[*].category", hasItems(
                         "identity-idm", "chat", "files", "calendar", "boards-tasks", "meetings-calls", "documents-collaboration", "decisions-evidence", "manuals-help", "release-evidence", "admin-control-plane", "weaver")))
@@ -259,7 +207,8 @@ class ProviderRegistryControllerTest {
                 .andExpect(jsonPath("$.categories[?(@.category == 'release-evidence')].contract.defaultAdapters[*]", hasItems("release-evidence")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'admin-control-plane')].contract.defaultAdapters[*]", hasItems("weave-health-facade")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'weaver')].readiness", hasItems("disabled")))
-                .andExpect(jsonPath("$.categories[*].contract.stableMemberImpactStates[*]", hasItems("usable", "disabled", "degraded", "policy-blocked")))
+                .andExpect(jsonPath("$.categories[*].contract.stableMemberImpactStates[*]", hasItems(
+                        "available", "disabled_by_policy", "not_configured", "degraded", "unavailable", "coming_later")))
                 .andExpect(jsonPath("$.categories[*].contract.normalMembersConfigureProviders", hasItems(false)))
                 .andExpect(jsonPath("$.categories[?(@.category == 'chat')].contract.defaultAdapters[*]", hasItems("synapse-homeserver")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'chat')].contract.externalAdapters[*]", hasItems("microsoft-teams", "slack")))

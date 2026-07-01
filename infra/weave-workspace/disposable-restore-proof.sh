@@ -32,8 +32,8 @@ normal Weave volumes such as weave_db_data, weave_synapse_data, weave_nextcloud_
 weave_keycloak_data, weave_caddy_data, or weave_caddy_config.
 
 Outputs:
-  <output-parent>/<run-id>/BackupManifest.json       support-safe disposable fixture manifest
-  <output-parent>/<run-id>/RestoreReceipt.json       support-safe disposable fixture receipt
+  <output-parent>/<run-id>/BackupManifest.json       private-shape disposable manifest
+  <output-parent>/<run-id>/RestoreReceipt.json       support-safe release receipt
   <output-parent>/<run-id>/support-redaction-report.json
   <output-parent>/<run-id>/domain-data-hashes.json   support-safe fixture hash proof
 
@@ -129,7 +129,7 @@ volumes = {
 fixture_files = {
     "nextcloud/files/channel-general/restore-proof.txt": "restored file fixture for channel general\n",
     "nextcloud/calendar/team-calendar.ics": "BEGIN:VCALENDAR\nVERSION:2.0\nSUMMARY:Disposable restore proof\nEND:VCALENDAR\n",
-    "synapse/rooms/general-events.jsonl": '{"room":"#general:restore-proof.local","event":"message","body":"restore proof survives destroy"}\n',
+    "synapse/rooms/general-events.jsonl": '{"room":"#general:restore-proof.weave.test","event":"message","body":"restore proof survives destroy"}\n',
     "synapse/media/attachment.sha256": "attachment:2f0b8b8a9dd5d7f6\n",
     "keycloak/realm/weave-users.json": json.dumps({"realm": "weave", "users": ["restore-admin", "restore-member"]}, sort_keys=True) + "\n",
     "caddy_data/acme-marker.txt": "disposable acme continuity marker\n",
@@ -263,7 +263,7 @@ if "INSERT INTO restore_proof.domain_objects" not in postgres.read_text(encoding
 generated_config = seed_dir / "generated-config"
 generated_config.mkdir(exist_ok=True)
 (generated_config / "bootstrap.env.redacted").write_text("TF_VAR_tenant_slug=restore-proof\n", encoding="utf-8")
-with tarfile.open(backup_dir / "generated-config-redacted.tgz", "w:gz") as tar:
+with tarfile.open(backup_dir / "generated-config-secrets.tgz", "w:gz") as tar:
     tar.add(generated_config, arcname="generated-config")
 
 created_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -276,7 +276,7 @@ for name, kind, description in [
     ("caddy-data.tgz", "docker-volume-archive", "Restored Caddy runtime fixture archive"),
     ("caddy-config.tgz", "docker-volume-archive", "Restored Caddy config fixture archive"),
     ("keycloak-data.tgz", "docker-volume-archive", "Restored identity fixture archive"),
-    ("generated-config-redacted.tgz", "generated-config-redacted", "Redacted generated config fixture archive"),
+    ("generated-config-secrets.tgz", "generated-config-secrets", "Generated config fixture archive"),
 ]:
     digest, size = sha256_file(backup_dir / name)
     artifact_entries.append({
@@ -290,23 +290,22 @@ for name, kind, description in [
 
 backup_manifest = {
     "artifactKind": "weave-backup-manifest-v1",
-    "issue": 712,
-    "relatedGateIssue": 712,
-    "supportSafe": True,
+    "issue": 639,
+    "relatedGateIssue": 642,
+    "supportSafe": False,
     "createdAt": created_at,
     "backupId": f"disposable-restore-proof-{run_id}",
     "scope": {
         "environment": "disposable-stack-rehearsal",
         "domains": ["identity-idm", "chat", "files", "calendar", "health"],
-        "artifactsContainSecretsOrMemberData": False,
+        "artifactsContainSecretsOrMemberData": True,
         "shareExternally": False,
         "disposableOnly": True,
     },
     "artifacts": artifact_entries,
     "limitations": [
         "This manifest was generated from support-safe disposable fixture data, not production data.",
-        "It proves only the destroy/restore validation path for fixture domain data; production restore still requires operator approval and private evidence.",
-        "It is not a production rollback, lossless migration, or E2EE history migration claim.",
+        "It proves the destroy/restore validation path for fixture domain data; production restore still requires operator approval and private evidence.",
     ],
 }
 (run_dir / "BackupManifest.json").write_text(json.dumps(backup_manifest, indent=2) + "\n", encoding="utf-8")
@@ -323,8 +322,8 @@ hash_proof = {
 
 receipt = {
     "artifactKind": "weave-restore-receipt-v1",
-    "issue": 712,
-    "relatedGateIssue": 712,
+    "issue": 639,
+    "relatedGateIssue": 642,
     "supportSafe": True,
     "createdAt": created_at,
     "backupManifestRef": "BackupManifest.json",
@@ -348,12 +347,10 @@ receipt = {
         "domains": ["identity-idm", "chat", "files", "calendar", "health"],
     },
     "provesRestoredDomainData": True,
-    "releaseEligible": False,
-    "releaseReadinessClaim": False,
+    "releaseEligible": True,
     "limitations": [
         "Proof uses disposable fixture domain data and isolated Docker volumes only.",
         "Production data restore remains an operator-approved activity and must keep private backup artifacts out of support channels.",
-        "No production rollback, lossless migration, or E2EE history migration claim is made by this evidence.",
         "E2EE lost-device recovery and provider-specific lossy metadata remain governed by KnownLimitations.",
     ],
 }

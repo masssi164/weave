@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/domain/repositories/auth_session_repository.dart';
+import 'package:weave/features/files/data/dtos/files_openapi_mappers.dart';
 import 'package:weave/features/files/domain/entities/directory_listing.dart';
 import 'package:weave/features/files/domain/entities/file_download.dart';
 import 'package:weave/features/files/domain/entities/file_entry.dart';
@@ -14,6 +15,7 @@ import 'package:weave/features/files/domain/entities/files_failure.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
+import 'package:weave/generated/openapi_models.dart' as openapi;
 
 /// Files repository backed by the Weave backend product facade.
 ///
@@ -148,12 +150,16 @@ class BackendFilesRepository
     required String name,
   }) async {
     final context = await _requireContext();
+    final request = openapi.CreateFolderRequest(
+      parentPath: parentPath,
+      name: name,
+    );
     final response = await _sendAuthenticated(
       context,
       (accessToken) => _httpClient.post(
         _apiUri(context.baseUrl, const ['api', 'files', 'folders']),
         headers: _jsonHeaders(accessToken),
-        body: jsonEncode({'parentPath': parentPath, 'name': name}),
+        body: jsonEncode(request.toJson()),
       ),
       fallbackMessage: 'Unable to create the folder through the Weave backend.',
     );
@@ -388,32 +394,21 @@ class BackendFilesRepository
   }
 
   DirectoryListing _decodeListing(String body) {
-    final json = _decodeObject(body);
-    final rawItems = json['items'];
-    if (rawItems is! List) {
+    try {
+      return openapi.FileListResponse.fromJson(
+        _decodeObject(body),
+      ).toDomainListing();
+    } on FilesFailure {
+      rethrow;
+    } catch (error) {
       throw const FilesFailure.protocol(
         'The Weave backend returned an invalid files listing.',
       );
     }
-    return DirectoryListing(
-      path: _readString(json, 'path', fallback: '/'),
-      entries: rawItems
-          .whereType<Map<String, dynamic>>()
-          .map(_decodeEntry)
-          .toList(growable: false),
-    );
   }
 
   FileEntry _decodeEntry(Map<String, dynamic> json) {
-    final type = _readString(json, 'type');
-    return FileEntry(
-      id: _readString(json, 'id'),
-      name: _readString(json, 'name'),
-      path: _readString(json, 'path'),
-      isDirectory: type == 'folder' || type == 'directory',
-      modifiedAt: _readDateTime(json['modifiedAt']),
-      sizeInBytes: _readInt(json['size']),
-    );
+    return openapi.FileItemResponse.fromJson(json).toDomainEntry();
   }
 
   Map<String, dynamic> _decodeObject(String body) {
@@ -443,40 +438,6 @@ class BackendFilesRepository
       return null;
     }
     return null;
-  }
-
-  String _readString(
-    Map<String, dynamic> json,
-    String key, {
-    String? fallback,
-  }) {
-    final value = json[key];
-    if (value is String && value.trim().isNotEmpty) {
-      return value;
-    }
-    if (fallback != null) {
-      return fallback;
-    }
-    throw FilesFailure.protocol(
-      'The Weave backend returned a file item without $key.',
-    );
-  }
-
-  int? _readInt(Object? value) {
-    if (value is int) {
-      return value;
-    }
-    if (value is num) {
-      return value.toInt();
-    }
-    return null;
-  }
-
-  DateTime? _readDateTime(Object? value) {
-    if (value is! String || value.isEmpty) {
-      return null;
-    }
-    return DateTime.tryParse(value);
   }
 
   Map<String, String> _jsonHeaders(String accessToken) {

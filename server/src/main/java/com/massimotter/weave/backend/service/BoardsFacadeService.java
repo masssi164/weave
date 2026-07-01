@@ -125,8 +125,7 @@ public class BoardsFacadeService {
             publishTaskWriteAudit(principal, AuditAction.BOARD_TASK_CREATED, "create_task:" + boardId, Map.of(
                     "command", "create_task",
                     "boardId", boardId,
-                    "columnId", request.columnId(),
-                    "mappingRef", mappingRef("task", boardId + ":" + request.columnId() + ":" + request.title())));
+                    "columnId", request.columnId()));
             return boardsRepository.createTask(new CreateTaskCommand(
                     boardId,
                     request.columnId(),
@@ -147,8 +146,7 @@ public class BoardsFacadeService {
                     "command", "move_task",
                     "taskId", taskId,
                     "targetColumnId", request.targetColumnId(),
-                    "targetPosition", request.targetPosition(),
-                    "mappingRef", mappingRef("task", taskId)));
+                    "targetPosition", request.targetPosition()));
             return boardsRepository.moveTask(new MoveTaskCommand(
                     taskId,
                     request.targetColumnId(),
@@ -163,8 +161,7 @@ public class BoardsFacadeService {
         try {
             publishTaskWriteAudit(principal, AuditAction.BOARD_TASK_COMPLETED, "complete_task:" + taskId, Map.of(
                     "command", "complete_task",
-                    "taskId", taskId,
-                    "mappingRef", mappingRef("task", taskId)));
+                    "taskId", taskId));
             return boardsRepository.completeTask(taskId);
         } catch (BoardsException exception) {
             throw apiError(exception);
@@ -179,8 +176,7 @@ public class BoardsFacadeService {
                     "command", "update_task_status",
                     "taskId", taskId,
                     "status", status.contractName(),
-                    "targetColumnId", request.targetColumnId() == null ? "" : request.targetColumnId(),
-                    "mappingRef", mappingRef("task", taskId)));
+                    "targetColumnId", request.targetColumnId() == null ? "" : request.targetColumnId()));
             return boardsRepository.updateTaskStatus(taskId, status, request.targetColumnId());
         } catch (BoardsException exception) {
             throw apiError(exception);
@@ -193,8 +189,7 @@ public class BoardsFacadeService {
             publishTaskWriteAudit(principal, AuditAction.TASK_DECISION_LINKED, "link_decision:" + taskId, Map.of(
                     "command", "link_decision",
                     "taskId", taskId,
-                    "decisionRef", request.decisionRef() == null ? "" : request.decisionRef(),
-                    "mappingRef", mappingRef("task", taskId)));
+                    "decisionRef", request.decisionRef() == null ? "" : request.decisionRef()));
             return boardsRepository.linkDecision(taskId, request.decisionRef());
         } catch (BoardsException exception) {
             throw apiError(exception);
@@ -329,7 +324,7 @@ public class BoardsFacadeService {
     private Map<String, Object> supportSafeAuditPayload(Map<String, Object> payload) {
         Map<String, Object> safePayload = new LinkedHashMap<>();
         payload.forEach((key, value) -> safePayload.put(key,
-                value instanceof String stringValue && !"mappingRef".equals(key) ? supportSafeAuditString(stringValue) : value));
+                value instanceof String stringValue ? supportSafeAuditString(stringValue) : value));
         return safePayload;
     }
 
@@ -375,28 +370,7 @@ public class BoardsFacadeService {
                 true,
                 true,
                 nextCursors,
-                mappingRefs(projects, boards, tasks),
-                "coming_later",
                 lastSyncedAt(projects, boards, tasks));
-    }
-
-    private Map<String, String> mappingRefs(List<WeaveProject> projects, List<Board> boards, List<TaskItem> tasks) {
-        Map<String, String> refs = new LinkedHashMap<>();
-        projects.forEach(project -> refs.put(project.id(), mappingRef("project", project.id())));
-        boards.forEach(board -> refs.put(board.id(), mappingRef("board", board.id())));
-        tasks.forEach(task -> refs.put(task.id(), mappingRef("task", task.id())));
-        return refs;
-    }
-
-    private String mappingRef(String type, String canonicalId) {
-        return "provider-mapping://boards/" + type + "/" + stableAuditRef(canonicalId);
-    }
-
-    private String stableAuditRef(String source) {
-        if (source == null || source.isBlank()) {
-            return "unknown";
-        }
-        return Integer.toHexString(source.hashCode());
     }
 
     private void addCursor(Map<String, String> nextCursors, String key, String cursor) {

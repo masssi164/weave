@@ -10,6 +10,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -20,30 +21,36 @@ public class ProviderRegistry {
     private final List<ProviderPort> providers;
     private final WorkspaceCapabilityService workspaceCapabilityService;
     private final ProviderSelectionRepository selectionRepository;
-    private final DomainBindingService domainBindingService;
+    private final String providerStackProfile;
+
+    public ProviderRegistry(
+            List<ProviderPort> providers,
+            WorkspaceCapabilityService workspaceCapabilityService,
+            ProviderSelectionRepository selectionRepository) {
+        this(providers, workspaceCapabilityService, selectionRepository, "fail-closed");
+    }
 
     @Autowired
     public ProviderRegistry(
             List<ProviderPort> providers,
             WorkspaceCapabilityService workspaceCapabilityService,
-            ProviderSelectionRepository selectionRepository) {
-        this(providers, workspaceCapabilityService, selectionRepository, new DomainBindingService());
-    }
-
-    ProviderRegistry(
-            List<ProviderPort> providers,
-            WorkspaceCapabilityService workspaceCapabilityService,
             ProviderSelectionRepository selectionRepository,
-            DomainBindingService domainBindingService) {
+            @Value("${weave.provider.stack-profile:fail-closed}") String providerStackProfile) {
         this.providers = providers == null ? List.of() : List.copyOf(providers);
         this.workspaceCapabilityService = workspaceCapabilityService;
         this.selectionRepository = selectionRepository;
-        this.domainBindingService = domainBindingService == null ? new DomainBindingService() : domainBindingService;
+        this.providerStackProfile = providerStackProfile == null ? "fail-closed" : providerStackProfile;
     }
 
     public ProviderRegistryResponse status() {
         List<ProviderSelection> selections = selectionRepository.findAll();
-        List<ProviderStatusResponse> statuses = providerStatuses(selections);
+        List<ProviderStatusResponse> statuses = providers.stream()
+                .map(ProviderPort::status)
+                .map(status -> applyAdminSelection(status, selections))
+                .sorted(Comparator
+                        .comparing((ProviderStatusResponse status) -> status.module().contractName())
+                        .thenComparing(ProviderStatusResponse::providerKey))
+                .toList();
         Instant generatedAt = Instant.now();
         List<ProviderCategoryStatusResponse> categories = ProviderCategoryHealthMapper.categories(
                 statuses,
@@ -65,21 +72,6 @@ public class ProviderRegistry {
                 categories,
                 statuses);
     }
-
-    public DomainBindingsResponse domainBindings(String requestedDomainKey) {
-        return domainBindingService.bindings(status(), requestedDomainKey);
-    }
-
-    private List<ProviderStatusResponse> providerStatuses(List<ProviderSelection> selections) {
-        return providers.stream()
-                .map(ProviderPort::status)
-                .map(status -> applyAdminSelection(status, selections))
-                .sorted(Comparator
-                        .comparing((ProviderStatusResponse status) -> status.module().contractName())
-                        .thenComparing(ProviderStatusResponse::providerKey))
-                .toList();
-    }
-
 
     private ProviderStatusResponse applyAdminSelection(ProviderStatusResponse status, List<ProviderSelection> selections) {
         Optional<String> maybeCategory = ProviderCategoryCatalog.categoryForModule(status.module());
@@ -148,9 +140,16 @@ public class ProviderRegistry {
                             "selectedCategoryProviderKey", selection.providerKey(),
                             "bootstrapSuggestionOnly", false)));
         }
-        boolean configured = status.configured();
+        boolean localLiveSelected = localLiveSelectedProvider(selection, status);
+        boolean configured = status.configured() || localLiveSelected;
         ProviderState state = configured ? status.state() : ProviderState.NOT_CONFIGURED;
+        if (localLiveSelected && state == ProviderState.NOT_CONFIGURED) {
+            state = ProviderState.CONFIGURED;
+        }
         String readiness = configured ? status.readiness() : "admin_selected_pending_backend_configuration";
+        if (localLiveSelected && "not_configured".equals(readiness)) {
+            readiness = "configured";
+        }
         return new ProviderStatusResponse(
                 status.module(),
                 status.providerKey(),
@@ -180,6 +179,13 @@ public class ProviderRegistry {
                         "rawProviderErrorsReturned", false,
                         "migrationDryRunRequired", selection.migrationDryRunRequired(),
                         "lossyMappingNoteCount", selection.lossyMappingNotes().size())));
+    }
+
+    private boolean localLiveSelectedProvider(ProviderSelection selection, ProviderStatusResponse status) {
+        return "local-live".equalsIgnoreCase(providerStackProfile)
+                && selection.applied()
+                && "recommended_self_hosted_default".equals(selection.choiceModel())
+                && status.state() != ProviderState.DISABLED;
     }
 
     private ProviderStatusResponse withDiagnostics(ProviderStatusResponse status, Map<String, Object> extra) {

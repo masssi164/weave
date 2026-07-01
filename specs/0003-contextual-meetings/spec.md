@@ -8,12 +8,13 @@ owner: weave-co-leader
 github_issue: 216
 supersedes: []
 depends_on:
-  - WEAVE-SPEC-0001
-acceptance_features: []
+- WEAVE-SPEC-0001
+acceptance_features:
+- e2e/features/weave_spec_0003_acceptance.feature
 evidence_gates:
-  - ./gradlew specContract
-  - ./gradlew acceptanceContract
-  - flutter test test/features/chat/channel_workspace_test.dart test/architecture/meetings_contract_test.dart
+- ./gradlew specContract
+- ./gradlew acceptanceContract
+- flutter test test/features/chat/channel_workspace_test.dart test/architecture/meetings_contract_test.dart
 ---
 
 # Feature specification: Encrypted contextual meetings contract
@@ -21,6 +22,9 @@ evidence_gates:
 ## Intent
 
 Define Weave's meeting architecture and product boundaries before enabling video/audio calls. Meetings must attach to Weave context, fail closed without backend/media evidence, and be honest about encryption boundaries for signaling, media, captions, transcripts, recordings, and metadata.
+
+2026-06-12 Northstar amendment: the first meeting proof must cover join/start plus captions/transcript, but privacy and participant-visible consent come first. Captions/transcripts are disabled unless policy, retention, storage, redaction, accessibility, and consent evidence are complete for the named scope.
+
 
 ## Product boundaries
 
@@ -98,6 +102,9 @@ Define Weave's meeting architecture and product boundaries before enabling video
 - **FR-008**: Member UI MUST NOT expose provider URLs, meeting tokens, SFU internals, credentials, or raw diagnostics.
 - **FR-009**: Tests or contract checks MUST prevent vague security claims unless boundary evidence is documented.
 - **FR-010**: Meeting capability failures MUST be support-safe and actionable for admin/operator setup.
+- **FR-011**: Join/start evidence MUST include capability, policy, consent, media provider readiness, support-safe audit, and target-branch verification before member availability claims.
+- **FR-012**: Captions/transcripts MUST record explicit participant-visible consent posture, retention/storage boundary, redaction policy, accessibility behavior, and audit evidence before enablement.
+
 
 ## Domain model and contracts
 
@@ -109,8 +116,8 @@ Define Weave's meeting architecture and product boundaries before enabling video
 
 ## Acceptance and evidence mapping
 
-- Gherkin feature path(s): none for proposed fail-closed contract slice.
-- `e2e/scenario_mappings.json` marker(s): none for proposed fail-closed contract slice.
+- Gherkin feature path(s): `e2e/features/northstar_spec_decisions.feature` for join/start, captions/transcripts, consent, privacy, retention, accessibility, and claim-boundary control.
+- `e2e/scenario_mappings.json` marker(s): `NORTHSTAR_MEETING_CONSENT_BOUNDARY`.
 - Unit/widget/backend/admin/contract test path(s): `client/test/features/chat/channel_workspace_test.dart`, `client/test/architecture/meetings_contract_test.dart`.
 - Live Stack E2E required? no; join/start stays disabled.
 - Support-safe evidence artifact(s): local Flutter/Gradle test output; CI summary under `build/evidence/**` when merged through PR.

@@ -54,6 +54,9 @@ module "tenant_identity" {
   admin_console_public_url                = local.public_urls.admin
   matrix_mas_upstream_id                  = local.matrix_mas_upstream_id
   matrix_mas_client_secret                = var.matrix_mas_client_secret
+  smtp_host                               = var.keycloak_smtp_host
+  smtp_port                               = var.keycloak_smtp_port
+  smtp_from                               = var.keycloak_smtp_from
   create_test_user                        = var.create_test_user
   test_user_password                      = var.test_user_password
   context_authorization_default_tenant_id = var.context_authorization_default_tenant_id

@@ -83,6 +83,7 @@ platform_config_url = f"{origin}/api/platform/config"
 result = {
     "inviteLink": invite_link,
     "qrPayload": invite_link,
+    "activationInviteRef": handoff_ref,
     "platformConfigUrl": platform_config_url,
     "productBaseUrl": origin + "/",
     "org": org,
@@ -90,7 +91,7 @@ result = {
     "profile": profile,
     "runId": run_id,
     "handoffRef": handoff_ref,
-    "secretPolicy": "no tokens, passwords, or secrets embedded; local test password remains only in .generated/bootstrap.env",
+    "secretPolicy": "no tokens, passwords, action links, or secrets embedded; account activation uses a one-time identity-provider required-action flow",
 }
 if as_json:
     print(json.dumps(result, separators=(",", ":"), sort_keys=True))

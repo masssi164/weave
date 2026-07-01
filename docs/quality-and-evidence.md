@@ -16,6 +16,7 @@ Weave uses layered evidence so contributors can move quickly while release claim
 | Docs build | User/admin handbook content builds without broken links, secret-pattern docs drift, or image-only instructions. | `build/docs/user` and `build/docs/admin` from `./gradlew docsBuild`. |
 | CI summary artifact | The root Gradle task graph emitted a sanitized summary of commit, branch, tool versions, gate outcomes, artifact paths, and live-E2E skip reason. | `build/evidence/ci-summary.json` from `./gradlew ci` or `./gradlew ciSummary`. |
 | Enterprise release gate contract | Release lanes, required gates, Live Stack artifact names, marker requirements, and waiver rules stay machine-checkable. | [Enterprise release foundation](enterprise-release-foundation.md), `release/enterprise-release-gates.json`, `./gradlew enterpriseReleaseGateCheck`. |
+| Beta readiness claim gates | Sprint 32 Beta claims stay scoped to the end-to-end Admin, User, governed Weaver, and foundation slice, with each claim mapped to CI, E2E, migration dry-run, accessibility smoke, and release-note evidence before promotion. | [Beta readiness slice and claim gates](beta-readiness-claim-gates.md), GitHub issues #830-#836, and the owning issue gates. |
 | Live Stack E2E | A prepared self-hosted stack can boot the app-level journey and upload acceptance evidence artifacts. | `.github/workflows/live-stack-e2e.yml` workflow runs and their uploaded artifacts. |
 
 ## Default PR validation
@@ -56,11 +57,18 @@ It writes `build/evidence/ci-summary.json` even when the Gradle build fails, so 
 
 These checks are intentionally cheap enough for normal pull requests and do not require live credentials.
 
-## Live-stack evidence
+## Live-stack and persistent test-stack evidence
 
 The live-stack path is expensive and runs on a dedicated self-hosted macOS ARM64 runner. Use it when a change affects sign-in, backend facade contracts, Matrix/files/calendar live behavior, acceptance scenarios, or integration boundaries.
 
-The workflow prepares an acceptance evidence directory, installs OpenTofu through the repository-owned bootstrap script with bounded network retries, runs the app-level live-stack E2E, and uploads support-safe acceptance evidence from the run. The artifact set includes `release-evidence-manifest.json`, which names the source lane, commit, workflow run metadata, artifact list, and RC promotion rule. On failure, the same uploaded artifact may include `toolchain-bootstrap.json` for OpenTofu install/setup failures and/or `failure-diagnostics/` with `failure-summary.md`, `failure-summary.json`, `container-status.tsv`, `failed-markers.json`, redacted readiness output, and a redacted support-bundle reference. It must not include blindly dumped raw container logs. Do not cite a single workflow run ID as a permanent product claim; link to the workflow, the relevant docs, the manifest, and the PR evidence instead.
+There are two live lanes:
+
+- `Live Stack E2E` (`.github/workflows/live-stack-e2e.yml`) is disposable release-candidate evidence. It bootstraps a stack, runs app-level live-stack E2E, uploads support-safe acceptance evidence, then tears the stack down.
+- `Test Stack Deploy` (`.github/workflows/test-stack-deploy.yml`) is the persistent LAN dogfood stack for the `dogfood` branch. It updates the local `weave.test` stack idempotently and leaves it running for human testing.
+
+The persistent test stack is the required bridge between `dev` and `main`: a commit may be promoted to `main` only after it is contained in `dev`, contained in `dogfood`, and has a successful `Test Stack Deploy` run on `dogfood`. See [Dev/Dogfood/Main promotion flow](dev-test-main-promotion-flow.md).
+
+The disposable live-stack workflow prepares an acceptance evidence directory, runs the app-level live-stack E2E, and uploads support-safe acceptance evidence from the run. The artifact set includes `release-evidence-manifest.json`, which names the source lane, commit, workflow run metadata, artifact list, and RC promotion rule. On failure, the same uploaded artifact may include `failure-diagnostics/` with `failure-summary.md`, `failure-summary.json`, `container-status.tsv`, `failed-markers.json`, redacted readiness output, and a redacted support-bundle reference. It must not include blindly dumped raw container logs. Do not cite a single workflow run ID as a permanent product claim; link to the workflow, the relevant docs, the manifest, and the PR evidence instead.
 
 ## Interpreting pass/fail states
 
@@ -68,7 +76,6 @@ The workflow prepares an acceptance evidence directory, installs OpenTofu throug
 - **Screenshot drift**: run `make marketing-screenshots`, review the SVG diff as product copy, and commit the regenerated assets if intentional.
 - **Spec contract failure**: fix missing frontmatter/lifecycle metadata, resolve implementation-ready `[NEEDS CLARIFICATION: ...]` markers, or move the spec back to `draft`/`proposed` until the product-core question is answered.
 - **Acceptance mapping failure**: update the scenario-to-test mapping or remove stale scenario claims. Do not leave product acceptance text unmapped.
-- **Live-stack toolchain bootstrap failure**: start with `toolchain-bootstrap.json` in the uploaded evidence artifact. A `toolchain_bootstrap` classification means OpenTofu setup failed before product acceptance could run; fix the runner/network/tool version path and rerun before making product claims.
 - **Live-stack contract failure**: start with `failure-diagnostics/failure-summary.md`, `container-status.tsv`, `health-checks/operator-check.txt`, and `failed-markers.json` in the uploaded evidence artifact. Treat credential, runner, or environment problems as named infrastructure blockers, not product proof. Missing required markers such as `BOARDS_RESULT` block RC promotion until a green rerun or explicit release-owner waiver exists. Operators who need deeper private debugging may rerun diagnostics on the self-hosted runner with private raw-log collection enabled, but those files stay outside uploaded/support evidence.
 - **Accessibility evidence gap**: do not promote the flow as release-ready until the automated and manual evidence in the accessibility gate is complete.
 - **Admin-provisioned first-use failure**: inspect member-visible first-use, settings, and navigation copy first. Normal members must not see provider setup diagnostics, OIDC/provider/infra setup fields, preview/scaffold/coming-soon release-scope language, or raw provider errors; move setup/readiness detail to Workspace Health for admins/operators.
@@ -89,6 +96,7 @@ The workflow prepares an acceptance evidence directory, installs OpenTofu throug
 - [Spec-driven development for Weave](spec-driven-development.md)
 - [Acceptance contracts](acceptance-contracts.md)
 - [Product acceptance flows](product-acceptance-flows.md)
+- [Beta readiness slice and claim gates](beta-readiness-claim-gates.md)
 - [Accessibility Release Gate](accessibility-release-gate.md)
 - [ISO 9241-110 Dogfood UX Gate](iso-9241-110-dogfood-ux-gate.md)
 - [Roadmap and guarded surfaces](roadmap-and-guarded-surfaces.md)

@@ -1,0 +1,110 @@
+{
+  "schemaVersion": "sprint32.beta-path-evidence.v1",
+  "artifactKind": "weave-beta-admin-user-weaver-path-evidence",
+  "issue": 835,
+  "claimBoundary": "deterministic offline evidence for the coherent Beta path; live-stack runtime evidence is still required before release-candidate promotion if no credentialed stack artifact is attached",
+  "supportSafety": {
+    "containsSecrets": false,
+    "containsRawProviderPayloads": false,
+    "containsRawWeaverPrompts": false,
+    "containsEndpointUrls": false,
+    "redactedFields": [
+      "subjectRef",
+      "workspaceRef",
+      "providerDiagnosticRef",
+      "auditCorrelationRef"
+    ]
+  },
+  "story": [
+    {
+      "step": "admin_readiness",
+      "persona": "admin",
+      "evidenceMarker": "BETA_ADMIN_READINESS_RESULT",
+      "assertions": [
+        "organization readiness is validated before member go-live",
+        "identity, chat, files, calendar, boards/tasks, meetings, admin health, and Weaver categories use provider-neutral readiness states",
+        "provider diagnostics are referenced only through support-safe refs"
+      ],
+      "status": "passed_offline_contract"
+    },
+    {
+      "step": "admin_weaver_enablement",
+      "persona": "admin",
+      "evidenceMarker": "BETA_WEAVER_ENABLEMENT_RESULT",
+      "assertions": [
+        "Weaver remains disabled by default",
+        "eligible scope is enabled by policy profile rather than raw runtime configuration",
+        "approved capabilities are user-rights organization-whitelisted"
+      ],
+      "status": "passed_offline_contract"
+    },
+    {
+      "step": "member_workspace_weaver_use",
+      "persona": "member",
+      "evidenceMarker": "BETA_MEMBER_WORKSPACE_RESULT",
+      "assertions": [
+        "member opens a workspace context before invoking Weaver",
+        "member sees canonical capability state language",
+        "Weaver answer avoids provider names unless required for support-safe diagnostics"
+      ],
+      "status": "passed_offline_contract"
+    },
+    {
+      "step": "governed_runtime_tool_path",
+      "persona": "weaver_user",
+      "evidenceMarker": "BETA_GOVERNED_RUNTIME_RESULT",
+      "assertions": [
+        "runtime profile is derived from organization policy and user rights",
+        "MCP/tool execution records approval authority and runtime receipt when required",
+        "server does not silently approve write-like Weaver actions"
+      ],
+      "status": "passed_offline_contract"
+    },
+    {
+      "step": "adapter_continuity_dry_run",
+      "persona": "operator",
+      "evidenceMarker": "BETA_ADAPTER_CONTINUITY_RESULT",
+      "assertions": [
+        "dry-run records preserved, lossy, blocked, rollback, and member-impact categories",
+        "no lossless or no-data-loss claim is made unless every mapped record is accounted for",
+        "dry-run evidence links to adapter-continuity issue evidence without raw payloads"
+      ],
+      "status": "passed_offline_contract"
+    },
+    {
+      "step": "audit_evidence_inspection",
+      "persona": "operator",
+      "evidenceMarker": "BETA_AUDIT_EVIDENCE_RESULT",
+      "assertions": [
+        "audit trail is inspectable by support-safe refs",
+        "evidence excludes secrets, raw provider payloads, raw Weaver prompts, and user content",
+        "live-stack gate is explicitly marked blocked only when environment is unavailable"
+      ],
+      "status": "passed_offline_contract"
+    }
+  ],
+  "accessibilitySmoke": [
+    {
+      "surface": "admin readiness and Weaver enablement",
+      "coverage": "keyboard labels and blocked/available state copy are covered by deterministic Admin evidence references",
+      "status": "supporting_offline_smoke"
+    },
+    {
+      "surface": "member workspace Weaver helper",
+      "coverage": "bounded Weaver helper copy and disabled/available states are covered by client widget evidence references",
+      "status": "supporting_offline_smoke"
+    }
+  ],
+  "linkedEvidence": [
+    "docs/evidence/sprint-32-beta-path-evidence.md",
+    "docs/evidence/sprint-32-adapter-continuity-dry-run.md",
+    "docs/evidence/weaver-approval-runtime-boundary-issue-833.md",
+    "release/provider-lab/weaver-runtime/sprint-32-governed-foundation.fixture.json",
+    "release/provider-lab/weaver-runtime/sprint-32-weaver-mcp-tool-execution.fixture.json"
+  ],
+  "liveStackGate": {
+    "status": "blocked_environment_unavailable",
+    "blockedReason": "No credentialed live stack was available to this offline PR-safe evidence run; local DNS is not treated as the blocker.",
+    "requiredBeforeRcPromotion": true
+  }
+}

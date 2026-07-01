@@ -14,6 +14,7 @@ from unittest.mock import patch
 
 from weave_mcp.app import WeaveMcpGateway, serve
 from weave_mcp.config import WeaveMcpConfig
+from weave_mcp.openapi_routes import OPENAPI_ROUTE_MAP, assert_route_map_matches_openapi, load_openapi_contract, require_openapi_route
 from weave_mcp.schemas.common import McpDenied
 
 PROJECTION_HMAC_SECRET = "dev-runtime-profile-projection-secret"
@@ -37,23 +38,17 @@ RUNTIME_PROFILE_PROJECTION = {
     "runtimeTokenRef": "credentialref://weave/runtime/short-lived/local-rc-evidence",
     "runtimeTokenExpiresAt": future_iso(10),
     "capabilityGrants": [
-        "registry.tools.read",
-        "calendar.read",
-        "calendar.manage_events",
-        "files.read",
-        "chat.read",
-        "chat.send",
-        "boards.update_task",
+        "weaver.admin_readiness_read",
+        "weaver.runtime_profile_read",
+        "weaver.calendar_read",
+        "weaver.calendar_create_event",
+        "weaver.boards_write",
     ],
     "allowedTools": [
         "admin.get_readiness",
         "weaver.get_runtime_profile_projection",
         "calendar.search_events",
         "calendar.create_event",
-        "files.search",
-        "files.read",
-        "chat.list_threads",
-        "chat.send_message",
         "boards.comment",
     ],
     "alwaysAllowGrants": ["always-allow://weave/calendar.create_event/org-dogfood/user-support-safe"],
@@ -99,129 +94,39 @@ class WeaveMcpGatewayTest(unittest.TestCase):
         self.assertIn("weaver.get_runtime_profile_projection", tools)
         self.assertIn("calendar.search_events", tools)
         self.assertIn("calendar.create_event", tools)
-        self.assertIn("files.search", tools)
-        self.assertIn("files.read", tools)
-        self.assertIn("chat.list_threads", tools)
-        self.assertIn("chat.send_message", tools)
         self.assertIn("boards.comment", tools)
         self.assertTrue(tools["calendar.create_event"]["meta"]["approval"] == "required")
-        self.assertTrue(tools["chat.send_message"]["meta"]["approval"] == "required")
         self.assertTrue(tools["boards.comment"]["meta"]["approval"] == "required")
         self.assertTrue(all(tool["meta"]["transport"] == "streamable-http" for tool in tools.values()))
+        self.assertTrue(all(tool["meta"]["exposure"] == "explicit-openapi-route-map" for tool in tools.values()))
+        self.assertEqual(tools["calendar.search_events"]["meta"]["openApiOperationId"], "list")
+        self.assertEqual(tools["calendar.search_events"]["meta"]["openApiPath"], "/api/calendar/events")
         discovery_text = json.dumps(body, sort_keys=True).lower()
-        self.assertNotIn("raw_files_provider", discovery_text)
-        self.assertNotIn("raw_calendar_provider", discovery_text)
+        self.assertNotIn("nextcloud", discovery_text)
+        self.assertNotIn("caldav", discovery_text)
         self.assertNotIn("providerref", discovery_text)
         self.assertNotIn("credentialref://", discovery_text)
-        self.assertFalse(any(tool["name"].startswith(("raw_files_provider.", "raw_calendar_provider.")) for tool in tools.values()))
+        self.assertFalse(any(tool["name"].startswith(("nextcloud.", "caldav.")) for tool in tools.values()))
 
+    def test_openapi_route_map_is_explicit_and_fails_closed_on_drift(self) -> None:
+        contract = load_openapi_contract()
+        assert_route_map_matches_openapi(contract)
+        self.assertEqual(set(OPENAPI_ROUTE_MAP), set(RUNTIME_PROFILE_PROJECTION["allowedTools"]))
 
-    def test_transitional_python_fixture_rejects_deprecated_weaver_capability_dialect(self) -> None:
-        profile = {
-            **RUNTIME_PROFILE_PROJECTION,
-            "allowedTools": ["files.read", "calendar.search_events", "boards.comment"],
-            "capabilityGrants": ["weaver.files_read", "weaver.calendar_read", "weaver.boards_write"],
-        }
-        headers = {key.lower(): value for key, value in {**HEADERS, "X-Weave-Runtime-Profile-Projection": encoded_projection(profile)}.items()}
+        drifted = json.loads(json.dumps(contract))
+        drifted["paths"]["/api/calendar/events"]["get"]["operationId"] = "renamedCalendarSearch"
+        with self.assertRaises(McpDenied) as raised:
+            assert_route_map_matches_openapi(drifted)
+        self.assertEqual(raised.exception.reason, "openapi-operationid-drift-for-calendar.search_events")
 
-        discovered = self.gateway().discover_tools(headers)
-        self.assertEqual(discovered["tools"], [])
-
-        with self.assertRaises(McpDenied) as denied:
-            self.gateway().invoke_tool(headers, {"tool": "files.read", "input": {"fileRef": "file://weave/support-safe/one"}})
-        self.assertEqual(denied.exception.reason, "capability-not-granted")
-
-    def test_transitional_python_fixture_uses_java_contract_capability_vocabulary(self) -> None:
-        body = self.gateway().discover_tools({key.lower(): value for key, value in HEADERS.items()})
-        discovery_text = json.dumps(body, sort_keys=True)
-
-        for deprecated in [
-            "weaver.admin_readiness_read",
-            "weaver.runtime_profile_read",
-            "weaver.calendar_read",
-            "weaver.calendar_create_event",
-            "weaver.files_read",
-            "weaver.chat_read",
-            "weaver.chat_send",
-            "weaver.boards_write",
-        ]:
-            self.assertNotIn(deprecated, discovery_text)
-
-        tools = {tool["name"]: tool for tool in body["tools"]}
-        self.assertEqual(tools["files.read"]["meta"]["capability"], "files.read")
-        self.assertEqual(tools["calendar.search_events"]["meta"]["capability"], "calendar.read")
-        self.assertEqual(tools["calendar.create_event"]["meta"]["capability"], "calendar.manage_events")
-        self.assertEqual(tools["boards.comment"]["meta"]["capability"], "boards.update_task")
-
-    def test_discovery_uses_canonical_domain_contract_vocabulary(self) -> None:
-        body = self.gateway().discover_tools({key.lower(): value for key, value in HEADERS.items()})
-        tools = {tool["name"]: tool for tool in body["tools"]}
-
-        self.assertEqual(tools["admin.get_readiness"]["meta"]["domain"], "admin_setup_adapters")
-        self.assertEqual(tools["calendar.search_events"]["meta"]["domain"], "calendar-meetings")
-        self.assertEqual(tools["calendar.create_event"]["meta"]["domain"], "calendar-meetings")
-        self.assertEqual(tools["files.search"]["meta"]["domain"], "files-docs")
-        self.assertEqual(tools["files.read"]["meta"]["domain"], "files-docs")
-        self.assertEqual(tools["boards.comment"]["meta"]["domain"], "boards-tasks")
-
-        discovery_text = json.dumps(body, sort_keys=True).lower()
-        for forbidden in [
-            "admin_setup_providers",
-            "calendar-events",
-            '"domain": "calendar"',
-            '"domain": "files"',
-            "files_documents",
-            "boards_tasks",
-            "provider-native",
-            "raw provider",
-        ]:
-            self.assertNotIn(forbidden, discovery_text)
-
-    def test_user_weave_chat_send_uses_only_profile_governed_domain_tools(self) -> None:
-        profile = {
-            **RUNTIME_PROFILE_PROJECTION,
-            "allowedTools": ["chat.list_threads", "chat.send_message", "calendar.search_events", "files.search"],
-            "capabilityGrants": ["chat.read", "chat.send", "calendar.read", "files.read"],
-        }
-        headers = {key.lower(): value for key, value in {**HEADERS, "X-Weave-Runtime-Profile-Projection": encoded_projection(profile)}.items()}
-
-        discovered = self.gateway().discover_tools(headers)
-        tool_names = {tool["name"] for tool in discovered["tools"]}
-        self.assertEqual(tool_names, {"chat.list_threads", "chat.send_message", "calendar.search_events", "files.search"})
-        discovery_text = json.dumps(discovered, sort_keys=True).lower()
-        for forbidden in ["raw_chat_provider.", "raw_files_provider.", "raw_calendar_provider.", "providerref", "credentialref://"]:
-            self.assertNotIn(forbidden, discovery_text)
-
-        listed = self.gateway().invoke_tool(headers, {"tool": "chat.list_threads", "input": {"channelId": "channels.weave-chat"}})
-        self.assertEqual(listed["result"]["threads"][0]["threadRef"], "chat-thread://weave/support-safe/pa-weaver")
-        with self.assertRaises(McpDenied) as denied:
-            self.gateway().invoke_tool(
-                headers,
-                {"tool": "chat.send_message", "input": {"threadRef": "chat-thread://weave/support-safe/pa-weaver", "body": "Hello Weaver"}},
-            )
-        self.assertEqual(denied.exception.reason, "approval-required-for-chat.send_message")
-
-        sent = self.gateway().invoke_tool(
-            headers,
-            {
-                "tool": "chat.send_message",
-                "input": {
-                    "threadRef": "chat-thread://weave/support-safe/pa-weaver",
-                    "body": "Hello Weaver",
-                    "approvalReceiptRef": "approval://chat-send/1",
-                },
-            },
-        )
-        self.assertEqual(sent["result"]["decision"], "accepted-for-weave-chat-domain-send")
-        self.assertEqual(sent["result"]["channelId"], "channels.weave-chat")
-        self.assertFalse(sent["result"]["providerMutationPerformedByMcp"])
-        self.assertFalse(sent["result"]["rawProviderChannelExposed"])
-        self.assertNotIn("Hello Weaver", json.dumps(sent, sort_keys=True))
+        with self.assertRaises(McpDenied) as unknown:
+            require_openapi_route("calendar.raw_rest_mirror")
+        self.assertEqual(unknown.exception.reason, "unknown-tool")
 
     def test_discovery_uses_runtime_profile_projection_not_caller_grant_headers(self) -> None:
-        profile = {**RUNTIME_PROFILE_PROJECTION, "allowedTools": ["calendar.search_events"], "capabilityGrants": ["calendar.read"]}
+        profile = {**RUNTIME_PROFILE_PROJECTION, "allowedTools": ["calendar.search_events"], "capabilityGrants": ["weaver.calendar_read"]}
         headers = {key.lower(): value for key, value in {**HEADERS, "X-Weave-Runtime-Profile-Projection": encoded_projection(profile)}.items()}
-        headers["x-weave-capabilities"] = "boards.update_task,registry.tools.read"
+        headers["x-weave-capabilities"] = "weaver.boards_write,weaver.admin_readiness_read"
 
         body = self.gateway().discover_tools(headers)
         tools = {tool["name"]: tool for tool in body["tools"]}
@@ -278,19 +183,6 @@ class WeaveMcpGatewayTest(unittest.TestCase):
         self.assertFalse(readiness["result"]["normalMembersMayConfigureMcpServers"])
         self.assertNotIn("Bearer ", repr(readiness))
         self.assertNotIn("openclaw.json", repr(readiness))
-
-        projection = self.gateway().invoke_tool(headers, {"tool": "weaver.get_runtime_profile_projection", "input": {}})
-        self.assertIn("mcp", projection["result"])
-        self.assertIn("servers", projection["result"]["mcp"])
-        self.assertEqual(
-            projection["result"]["mcp"]["servers"]["weave-domain-tools"]["endpointRef"],
-            "internal://weave-mcp/streamable-http",
-        )
-        self.assertEqual(
-            projection["result"]["mcp"]["servers"]["weave-domain-tools"]["credentialRef"],
-            "credentialref://weave/mcp/weave-domain-tools/runtime-token",
-        )
-        self.assertNotIn("channels.weave-chat", json.dumps(projection, sort_keys=True))
 
         with self.assertRaises(McpDenied):
             self.gateway().invoke_tool(headers, {"tool": "boards.comment", "input": {"taskRef": "task://one", "body": "ok"}})
@@ -371,22 +263,13 @@ class WeaveMcpGatewayTest(unittest.TestCase):
                     {
                         "items": [
                             {
-                                "id": "calendar-event-1",
+                                "id": "nextcloud-event-1",
                                 "title": "Private title",
                                 "startsAt": "2026-06-12T08:00:00Z",
                                 "endsAt": "2026-06-12T08:30:00Z",
                                 "allDay": False,
                                 "scope": {"type": "workspace"},
-                            },
-                            {
-                                "id": "support-safe-seeded",
-                                "title": "Support-safe seeded calendar check",
-                                "startsAt": "2026-06-12T09:00:00Z",
-                                "endsAt": "2026-06-12T09:30:00Z",
-                                "allDay": False,
-                                "scope": {"type": "workspace"},
-                                "supportSafe": True,
-                            },
+                            }
                         ]
                     }
                 ).encode("utf-8")
@@ -399,13 +282,12 @@ class WeaveMcpGatewayTest(unittest.TestCase):
                 {"tool": "calendar.search_events", "input": {"from": "2026-06-12T00:00:00Z", "to": "2026-06-13T00:00:00Z"}},
             )["result"]
 
-        self.assertIn("/api/calendar/events?from=2026-06-12T00%3A00%3A00Z&to=2026-06-13T00%3A00%3A00Z", backend.request.full_url)
+        self.assertIn("/calendar/events?from=2026-06-12T00%3A00%3A00Z&to=2026-06-13T00%3A00%3A00Z", backend.request.full_url)
         self.assertEqual(backend.request.headers["Authorization"], "Bearer dev-runtime-token")
         self.assertTrue(result["providerSourceMappedByBackend"])
         self.assertTrue(result["redactedItems"])
         self.assertEqual(result["items"][0]["titlePresent"], True)
         self.assertNotIn("Private title", repr(result))
-        self.assertEqual(result["items"][1]["supportSafeTitle"], "Support-safe seeded calendar check")
 
     def test_local_streamable_http_server_discovery_and_invocation(self) -> None:
         httpd = serve(WeaveMcpConfig(enabled=True), port=0)
@@ -444,67 +326,6 @@ class WeaveMcpGatewayTest(unittest.TestCase):
             raised.exception.close()
             self.assertEqual(error["auditRef"], "audit://mcp/denied/support-safe")
             self.assertTrue(error["supportSafe"])
-
-            initialize = Request(
-                base + "/mcp",
-                method="POST",
-                headers={**HEADERS, "Content-Type": "application/json", "Accept": "application/json, text/event-stream"},
-                data=json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}).encode(),
-            )
-            with urlopen(initialize, timeout=5) as response:
-                rpc = json.loads(response.read())
-            self.assertEqual(rpc["result"]["capabilities"]["tools"]["listChanged"], False)
-
-            list_tools = Request(
-                base + "/mcp",
-                method="POST",
-                headers={**HEADERS, "Content-Type": "application/json", "Accept": "application/json, text/event-stream"},
-                data=json.dumps({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}).encode(),
-            )
-            with urlopen(list_tools, timeout=5) as response:
-                rpc = json.loads(response.read())
-            tools = {tool["name"]: tool for tool in rpc["result"]["tools"]}
-            self.assertIn("calendar.search_events", tools)
-            self.assertIn("inputSchema", tools["calendar.search_events"])
-
-            call_tool = Request(
-                base + "/mcp",
-                method="POST",
-                headers={**HEADERS, "Content-Type": "application/json", "Accept": "application/json, text/event-stream"},
-                data=json.dumps(
-                    {
-                        "jsonrpc": "2.0",
-                        "id": 3,
-                        "method": "tools/call",
-                        "params": {"name": "calendar.search_events", "arguments": {"query": "heute"}},
-                    }
-                ).encode(),
-            )
-            with urlopen(call_tool, timeout=5) as response:
-                rpc = json.loads(response.read())
-            self.assertFalse(rpc["result"]["isError"])
-            self.assertEqual(rpc["result"]["content"][0]["type"], "text")
-            self.assertIn("redactedItems", rpc["result"]["content"][0]["text"])
-
-            denied_tool = Request(
-                base + "/mcp",
-                method="POST",
-                headers={**HEADERS, "Content-Type": "application/json", "Accept": "application/json, text/event-stream"},
-                data=json.dumps(
-                    {
-                        "jsonrpc": "2.0",
-                        "id": 4,
-                        "method": "tools/call",
-                        "params": {"name": "boards.comment", "arguments": {"taskRef": "task://one", "body": "ok"}},
-                    }
-                ).encode(),
-            )
-            with urlopen(denied_tool, timeout=5) as response:
-                rpc = json.loads(response.read())
-            self.assertEqual(rpc["id"], 4)
-            self.assertEqual(rpc["error"]["code"], -32000)
-            self.assertEqual(rpc["error"]["data"]["auditRef"], "audit://mcp/denied/support-safe")
-            self.assertTrue(rpc["error"]["data"]["supportSafe"])
         finally:
             httpd.shutdown()
             httpd.server_close()

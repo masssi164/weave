@@ -88,12 +88,12 @@ class LocalForgejoPipelineProviderTest {
 
     @Test
     void dispatchRejectsSupportUnsafeCorrelationRefsBeforeReturningThem() {
-        PipelineDispatchRequest urlCorrelation = new PipelineDispatchRequest(new PipelinePreflightRequest(true, true, allSecrets(), allVariables(), false, true, "support_safe_domain_plan_ref"), "https://forgejo.local/org/repo/actions/runs/123", "idem-url");
+        PipelineDispatchRequest urlCorrelation = new PipelineDispatchRequest(new PipelinePreflightRequest(true, true, allSecrets(), allVariables(), false, true, "support_safe_domain_plan_ref"), "https://forgejo.example.invalid/org/repo/actions/runs/123", "idem-url");
         PipelineRunRef urlBlocked = provider.requestDispatch(urlCorrelation);
         assertThat(urlBlocked.status()).isEqualTo(PipelineRunStatus.BLOCKED);
         assertThat(urlBlocked.nextActionCode()).isEqualTo("replace_raw_values_with_secretrefs");
         assertThat(urlBlocked.correlationRef()).isEqualTo("support-unsafe-correlation-ref-redacted");
-        assertThat(urlBlocked.runRef()).doesNotContain("https", "forgejo.local");
+        assertThat(urlBlocked.runRef()).doesNotContain("https", "forgejo.example.invalid");
 
         PipelineDispatchRequest privateKeyCorrelation = new PipelineDispatchRequest(new PipelinePreflightRequest(true, true, allSecrets(), allVariables(), false, true, "support_safe_domain_plan_ref"), "-----BEGIN ENCRYPTED PRIVATE KEY-----", "idem-key");
         PipelineRunRef privateKeyBlocked = provider.requestDispatch(privateKeyCorrelation);

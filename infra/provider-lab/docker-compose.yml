@@ -70,7 +70,7 @@ services:
     depends_on:
       - synapse-postgres
     environment:
-      SYNAPSE_SERVER_NAME: ${WEAVE_LAB_SYNAPSE_SERVER_NAME:-weave-lab.local}
+      SYNAPSE_SERVER_NAME: ${WEAVE_LAB_SYNAPSE_SERVER_NAME:-weave.test}
       SYNAPSE_REPORT_STATS: "no"
     ports:
       - "127.0.0.1:18008:8008"

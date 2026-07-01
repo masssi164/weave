@@ -5,12 +5,12 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 @Schema(description = "Stable product-level Chat state returned to member clients.")
 public enum ChatMemberState {
-    READY("ready"),
-    DISABLED("disabled"),
+    READY("available"),
     DEGRADED("degraded"),
-    POLICY_BLOCKED("policy_blocked"),
+    POLICY_BLOCKED("disabled_by_policy"),
     UNAVAILABLE("unavailable"),
-    MISCONFIGURED("misconfigured");
+    MISCONFIGURED("not_configured"),
+    COMING_LATER("coming_later");
 
     private final String value;
 

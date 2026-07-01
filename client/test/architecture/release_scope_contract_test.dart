@@ -87,32 +87,47 @@ void main() {
   });
 
   test(
-    'Router keeps feature-gated calendar and boards surfaces out of default navigation',
+    'Router exposes current member routes and keeps obsolete deck removed',
     () async {
       final routerSource = await File(
         'lib/core/router/app_router.dart',
+      ).readAsString();
+      final routesSource = await File(
+        'lib/core/router/app_routes.dart',
       ).readAsString();
       final shellSource = await File(
         'lib/features/shell/presentation/app_shell.dart',
       ).readAsString();
 
-      expect(routerSource, contains('onHiddenReleaseOneRoute'));
-      expect(
-        routerSource,
-        contains('state.matchedLocation == AppRoutes.calendar'),
-      );
-      expect(routerSource, contains('state.matchedLocation == AppRoutes.deck'));
-      expect(routerSource, contains('return AppRoutes.chat'));
-
-      expect(routerSource, isNot(contains('CalendarScreen')));
+      expect(routerSource, isNot(contains('onHiddenReleaseOneRoute')));
+      expect(routerSource, isNot(contains('AppRoutes.deck')));
+      _expectInOrder(routerSource, const [
+        'path: AppRoutes.home',
+        'path: AppRoutes.chat',
+        'path: AppRoutes.files',
+        'path: AppRoutes.calendar',
+        'path: AppRoutes.settings',
+      ]);
+      expect(routerSource, contains('CalendarScreen'));
       expect(routerSource, isNot(contains('DeckScreen')));
-      expect(routerSource, isNot(contains('path: AppRoutes.calendar')));
-      expect(routerSource, isNot(contains('path: AppRoutes.deck')));
+      expect(routesSource, contains('/home'));
+      expect(routesSource, contains('/calendar'));
+      expect(routesSource, isNot(contains('/deck')));
+      expect(
+        File(
+          'lib/features/calendar/presentation/calendar_screen.dart',
+        ).existsSync(),
+        isTrue,
+      );
+      expect(File('lib/features/deck').existsSync(), isFalse);
 
-      expect(shellSource, contains('l10n.navChat'));
-      expect(shellSource, contains('l10n.navFiles'));
-      expect(shellSource, contains('l10n.navSettings'));
-      expect(shellSource, isNot(contains('navCalendar')));
+      _expectInOrder(shellSource, const [
+        'l10n.navHome',
+        'l10n.navChat',
+        'l10n.navFiles',
+        'l10n.navCalendar',
+        'l10n.navSettings',
+      ]);
       expect(shellSource, isNot(contains('navDeck')));
     },
   );
@@ -129,7 +144,7 @@ void main() {
 
       expect(imageMatches.map((match) => match.group(1)).toList(), <String>[
         '../docs/assets/marketing/01-setup-start.svg',
-        '../docs/assets/marketing/02-review-workspace-readiness.svg',
+        '../docs/assets/marketing/02-review-service-endpoints.svg',
         '../docs/assets/marketing/03-chat-room.svg',
         '../docs/assets/marketing/04-files-documents.svg',
         '../docs/assets/marketing/05-settings.svg',
@@ -164,6 +179,15 @@ void main() {
       expect(lowerRoadmap, isNot(contains('preview')));
     },
   );
+}
+
+void _expectInOrder(String source, List<String> markers) {
+  var cursor = -1;
+  for (final marker in markers) {
+    final index = source.indexOf(marker, cursor + 1);
+    expect(index, isNonNegative, reason: '$marker exists after index $cursor');
+    cursor = index;
+  }
 }
 
 String _section(String markdown, String heading) {

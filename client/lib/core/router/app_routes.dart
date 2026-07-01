@@ -7,11 +7,11 @@ abstract final class AppRoutes {
   static const signIn = '/sign-in';
   static const join = '/join';
   static const firstRun = '/first-run';
+  static const home = '/home';
   static const chat = '/chat';
   static const chatRoomRelative = 'rooms/:roomId';
   static const files = '/files';
   static const calendar = '/calendar';
-  static const deck = '/deck';
   static const settings = '/settings';
   static const help = '/help';
 

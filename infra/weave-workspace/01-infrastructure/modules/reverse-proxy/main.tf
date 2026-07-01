@@ -45,24 +45,6 @@ resource "docker_container" "this" {
     source_hash = sha256(var.caddyfile_content)
   }
 
-  upload {
-    file        = "/certs/${basename(var.tls_cert_file)}"
-    source      = var.tls_cert_file
-    source_hash = filesha256(var.tls_cert_file)
-  }
-
-  upload {
-    file        = "/certs/${basename(var.tls_key_file)}"
-    source      = var.tls_key_file
-    source_hash = filesha256(var.tls_key_file)
-  }
-
-  upload {
-    file        = "/certs/${basename(var.tls_ca_file)}"
-    source      = var.tls_ca_file
-    source_hash = filesha256(var.tls_ca_file)
-  }
-
   volumes {
     volume_name    = docker_volume.data.name
     container_path = "/data"
@@ -71,6 +53,12 @@ resource "docker_container" "this" {
   volumes {
     volume_name    = docker_volume.config.name
     container_path = "/config"
+  }
+
+  volumes {
+    host_path      = var.tls_certs_dir
+    container_path = "/certs"
+    read_only      = true
   }
 
   networks_advanced {

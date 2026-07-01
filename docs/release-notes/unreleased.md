@@ -11,11 +11,11 @@ Use this page for release-affecting changes that have merged but are not include
 - Sprint 28 adds commercial adapter readiness specs, a go/no-go matrix, and a CI guard that keeps Slack and Microsoft Teams implementation starts blocked until provider-specific proof, admin consent, cost, export, retention, and rollback evidence exist. It does not claim Slack or Teams integration availability.
 - Sprint 26 adds operator recovery guardrails plus support-safe disposable Backup -> Destroy -> Restore -> Validate evidence for fixture domain data; production restore remains operator-approved and private-evidence scoped.
 - Sprint 30 adds the hot-phase dogfood readiness evidence pack, exact agentic AI slogan guard, profile-driven setup fixture for dev/LAN dogfood/public dogfood/production, and governed Weaver contracts for policy, mobile approvals, audit, revocation, and privacy boundaries without claiming public production readiness.
+- Sprint 32 adds guarded Beta readiness claim gates, adapter-continuity dry-run evidence, Admin readiness preview, governed Weaver approval-boundary evidence, member Client + Weaver flow, Admin + User + Weaver E2E/accessibility smoke evidence, and refreshed release/demo evidence. Final Beta-ready wording remains blocked until #836 release evidence merges and the final milestone/CI closure gate is green.
 
 ## Changed
 
 - Public docs and README evidence pointers now identify `v0.1.0-rc.3` as the latest published prerelease and link the RC3 evidence audit.
-- Sprint 32 post-PR-706 setup wording now treats the DNS-first `*.weave.test` onboarding baseline as implementation evidence while keeping Massimo-owned LAN validation and the #762 successor blocker for #591 manual assistive-technology signoff outside automated sprint completion.
 - Sprint 21 product-reality gates now require free/self-hosted provider proof, explicit reality levels, and automated claim blocking before any customer-ready, Weaver-available, provider-interchangeable, production-rollback, or release-ready wording.
 
 ## Fixed
@@ -24,11 +24,11 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Security
 
-- Sprint 32 extends release-readiness claim control with negative checks for public/production release approval, full accessibility, broad provider interchangeability, production restore, and unsupported governed-PA availability wording; support evidence remains limited to redacted summaries that exclude credentials, provider bodies, private prompts, member data, and raw runtime settings.
+- No post-`v0.1.0-rc.3` security release notes yet.
 
 ## Accessibility
 
-- Sprint 18 release-trust claim control keeps manual assistive-technology signoff explicitly blocked by #762 as the open successor to #591; automated tests, support-safe artifacts, release notes, and green Live Stack E2E cannot substitute for real AT reviewer evidence.
+- Sprint 18 release-trust claim control keeps manual assistive-technology signoff explicitly blocked by #591; automated tests, support-safe artifacts, release notes, and green Live Stack E2E cannot substitute for real AT reviewer evidence.
 
 ## Migration/Operator Notes
 
@@ -39,5 +39,5 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Known Issues
 
-- #762 is the current open release blocker carrying the unresolved #591 manual assistive-technology signoff gap. Actual manual assistive-technology signoff is required before public/production release signoff, unless release ownership explicitly records a scoped waiver or successor split.
-- #762 is the active human/manual release blocker successor for the closed #591 accounting thread; #642 operator recovery is satisfied only for disposable fixture-domain restore evidence and does not authorize production restore claims.
+- #591 remains a release blocker: actual manual assistive-technology signoff is required before Sprint 18 milestone closure or public/production release signoff, unless release ownership explicitly splits the remaining manual signoff into a separate accepted blocker.
+- #591 remains the active human/manual release blocker; #642 operator recovery is satisfied only for disposable fixture-domain restore evidence and does not authorize production restore claims.

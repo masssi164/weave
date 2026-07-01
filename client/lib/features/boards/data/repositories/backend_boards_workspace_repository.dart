@@ -3,8 +3,10 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 import 'package:weave/core/failures/app_failure.dart';
+import 'package:weave/features/boards/data/dtos/boards_openapi_mappers.dart';
 import 'package:weave/features/boards/domain/entities/board_workspace.dart';
 import 'package:weave/features/boards/domain/repositories/boards_workspace_repository.dart';
+import 'package:weave/generated/openapi_models.dart' as openapi;
 import 'package:weave/integrations/weave_api/data/services/weave_api_uri_builder.dart';
 
 class BackendBoardsWorkspaceRepository implements BoardsWorkspaceRepository {
@@ -51,13 +53,13 @@ class BackendBoardsWorkspaceRepository implements BoardsWorkspaceRepository {
     }
 
     try {
-      final payload = jsonDecode(response.body);
-      if (payload is! Map<String, dynamic>) {
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) {
         throw const AppFailure.unknown(
           'The Weave backend returned an invalid Boards workspace payload.',
         );
       }
-      return _parseWorkspace(payload);
+      return openapi.BoardsWorkspaceResponse.fromJson(decoded).toDomain();
     } on AppFailure {
       rethrow;
     } catch (error) {
@@ -66,70 +68,6 @@ class BackendBoardsWorkspaceRepository implements BoardsWorkspaceRepository {
         cause: error,
       );
     }
-  }
-
-  BoardWorkspace _parseWorkspace(Map<String, dynamic> payload) {
-    final workspace = payload['workspace'];
-    final releaseStatus = _string(payload['releaseStatus']);
-    final source = _string(payload['source']);
-    if (workspace != true ||
-        releaseStatus != 'active-dogfood-production' ||
-        !_isKnownWorkspaceFacadeSource(source)) {
-      throw const AppFailure.unknown(
-        'The Weave backend returned a Boards workspace outside the active dogfood-production facade.',
-      );
-    }
-
-    final boards = _listOfMaps(payload['boards']);
-    final tasks = _listOfMaps(payload['tasks']);
-    if (boards.isEmpty) {
-      throw const AppFailure.unknown(
-        'The Weave backend returned no Boards workspace board.',
-      );
-    }
-
-    final board = boards.first;
-    final columns = _listOfMaps(board['columns']);
-    return BoardWorkspace(
-      id: _string(board['id'], fallback: 'backend-board'),
-      name: _string(board['name'], fallback: 'Boards workspace'),
-      description: _string(board['description']),
-      source: BoardWorkspaceSource.backendFacade,
-      releaseStatus: releaseStatus,
-      capabilities: _capabilities(payload['capabilities']),
-      columns: [
-        for (final column in columns)
-          BoardColumnWorkspace(
-            id: _string(column['id'], fallback: 'backend-column'),
-            name: _string(column['name'], fallback: 'Column'),
-            semanticStatus: _columnStatus(_string(column['semanticStatus'])),
-            wipLimit: column['wipLimit'] is int
-                ? column['wipLimit'] as int
-                : null,
-            tasks: [
-              for (final task in tasks.where(
-                (task) => task['columnId'] == column['id'],
-              ))
-                BoardTaskWorkspace(
-                  id: _string(task['id'], fallback: 'backend-task'),
-                  title: _string(task['title'], fallback: 'Untitled task'),
-                  description: _string(task['description']),
-                  status: _taskStatus(
-                    _string(task['status']),
-                    _columnStatus(_string(column['semanticStatus'])),
-                  ),
-                  assigneeLabel: _labelList(
-                    task['assigneeRefs'],
-                    fallback: 'Unassigned',
-                  ),
-                  dueLabel: _string(task['dueAt'], fallback: 'No due date'),
-                  labels: _stringList(task['labelRefs']),
-                  priorityLabel: _string(task['priority'], fallback: 'normal'),
-                ),
-            ],
-          ),
-      ],
-    );
   }
 
   Future<void> moveTask({
@@ -225,9 +163,9 @@ class BackendBoardsWorkspaceRepository implements BoardsWorkspaceRepository {
 
   String? _errorCode(String body) {
     try {
-      final payload = jsonDecode(body);
-      return payload is Map<String, dynamic>
-          ? payload['code'] as String?
+      final decoded = jsonDecode(body);
+      return decoded is Map<String, dynamic>
+          ? decoded['code'] as String?
           : null;
     } catch (_) {
       return null;
@@ -251,79 +189,4 @@ class BackendBoardsWorkspaceRepository implements BoardsWorkspaceRepository {
 
   Uri _apiUri(List<String> tailSegments) =>
       weaveApiUri(_apiBaseUrl, ['api', ...tailSegments]);
-}
-
-bool _isKnownWorkspaceFacadeSource(String source) {
-  return const {
-    'local-workspace-backend-facade',
-    'openproject-workspace-sync-backend-facade',
-  }.contains(source);
-}
-
-BoardProviderWorkspaceCapabilities _capabilities(Object? value) {
-  if (value is! Map) {
-    return const BoardProviderWorkspaceCapabilities.blocked();
-  }
-  final json = value.cast<String, dynamic>();
-  return BoardProviderWorkspaceCapabilities(
-    provider: _string(json['provider'], fallback: 'unknown'),
-    enabled: json['enabled'] == true,
-    supported: _stringList(json['supported']),
-    unsupported: _stringList(json['unsupported']),
-    supportSafeSummary: _string(
-      json['supportSafeSummary'],
-      fallback: 'Backend Boards workspace capabilities were not described.',
-    ),
-  );
-}
-
-List<Map<String, dynamic>> _listOfMaps(Object? value) {
-  if (value is! List) {
-    return const [];
-  }
-  return value
-      .whereType<Map>()
-      .map((item) => item.cast<String, dynamic>())
-      .toList(growable: false);
-}
-
-String _string(Object? value, {String fallback = ''}) {
-  if (value is String && value.trim().isNotEmpty) {
-    return value.trim();
-  }
-  return fallback;
-}
-
-List<String> _stringList(Object? value) {
-  if (value is! List) {
-    return const [];
-  }
-  return value
-      .whereType<String>()
-      .map((item) => item.trim())
-      .where((item) => item.isNotEmpty)
-      .toList(growable: false);
-}
-
-String _labelList(Object? value, {required String fallback}) {
-  final values = _stringList(value);
-  return values.isEmpty ? fallback : values.join(', ');
-}
-
-BoardTaskStatus _columnStatus(String value) {
-  return switch (value) {
-    'in_progress' => BoardTaskStatus.inProgress,
-    'blocked' => BoardTaskStatus.blocked,
-    'done' || 'completed' => BoardTaskStatus.done,
-    _ => BoardTaskStatus.notStarted,
-  };
-}
-
-BoardTaskStatus _taskStatus(String value, BoardTaskStatus columnFallback) {
-  return switch (value) {
-    'blocked' => BoardTaskStatus.blocked,
-    'completed' || 'done' => BoardTaskStatus.done,
-    'open' => columnFallback,
-    _ => columnFallback,
-  };
 }

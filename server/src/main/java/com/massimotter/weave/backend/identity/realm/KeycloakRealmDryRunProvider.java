@@ -19,6 +19,7 @@ public class KeycloakRealmDryRunProvider implements IdentityRealmProvider {
     private static final Set<String> KNOWN_ROLES = Set.of("owner", "admin", "operator", "member", "guest");
     private static final Set<String> KNOWN_SCOPES = Set.of("openid", "profile", "email", "weave:workspace", "offline_access");
     private static final Set<String> KNOWN_GROUPS = Set.of(
+            "weaver-group",
             "weave-calendar-editors",
             "weave-board-editors",
             "weave-meeting-hosts",

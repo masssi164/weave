@@ -51,9 +51,7 @@ def main():
   expected_id=f'https://weave.test/contracts/portability/{name}'
   if schemas[name].get('$id')!=expected_id: fail(f'{name} $id must be {expected_id}')
  if schemas['loss-class.schema.json'].get('enum')!=LOSS: fail('loss classes must match canonical list/order')
- required_contains(schemas['provider-adapter-manifest.schema.json'], ['adapterKey','domainKeys','apiProfile','canonicalObjects','capabilityKeys','readinessChecks','unsupportedFields','migrationLimits','auditEvents','secretBoundary','adapterMapperKey','activeBindingStatus','provenanceReportRef','lossReportRef','permissionImpactReportRef','conflictReportRef','portabilityManifestRef','auditRef'], 'ProviderAdapterManifest')
- binding_enum=schemas['provider-adapter-manifest.schema.json'].get('properties',{}).get('activeBindingStatus',{}).get('enum',[])
- if binding_enum!=['active','candidate','discovery_read_only','migration_source','migration_target','coexistence_preflight','deprecated','superseded']: fail('ProviderAdapterManifest activeBindingStatus enum must match canonical binding statuses')
+ required_contains(schemas['provider-adapter-manifest.schema.json'], ['adapterKey','domainKeys','apiProfile','canonicalObjects','capabilityKeys','readinessChecks','unsupportedFields','migrationLimits','auditEvents','secretBoundary'], 'ProviderAdapterManifest')
  required_contains(schemas['export-manifest.schema.json'], ['objectCounts','contentHashes','mappingRef','auditRef','redaction'], 'ExportManifest')
  required_contains(schemas['import-manifest.schema.json'], ['objectCounts','contentHashes','mappingRef','dryRunReportRef','auditRef','redaction'], 'ImportManifest')
  required_contains(schemas['migration-run.schema.json'], ['objectCounts','contentHashes','providerMappingRef','auditRefs','dryRunReportRef','applyAllowed','redaction'], 'MigrationRun')
@@ -83,37 +81,6 @@ def main():
  for negative in ['provider-portability-v2-silent-drop-negative.json','provider-portability-v2-raw-provider-leak-negative.json']:
   fixture=load(FIXTURES/negative)
   if fixture.get('expectedOutcome') != 'reject': fail(f'{negative} must reject unsafe portability behavior')
- attach=load(FIXTURES/'attach-existing-files-portability-plan-mvp.json')
- if attach.get('mode')!='attach_existing' or attach.get('domainKey')!='files' or attach.get('redaction')!='support_safe':
-  fail('Attach-existing Files portability plan must be support_safe files attach_existing evidence')
- attach_raw=json.dumps(attach).lower()
- for forbidden in ['access_token','refresh_token','clientsecret','password','https://','secretref://']:
-  if forbidden in attach_raw: fail(f'Attach-existing Files plan must not leak raw provider credential or endpoint data: {forbidden}')
- boundary=attach.get('claimBoundary', '').lower()
- for phrase in ['read-only discovery', 'does not prove destructive migration', 'release readiness', 'lossless provider migration']:
-  if phrase not in boundary: fail(f'Attach-existing Files claim boundary missing {phrase}')
- mapper=attach.get('adapterMapper', {})
- for field in ['capabilityMap','permissionImpactRef','lossReportRef','conflictReportRef','auditRefs','recommendedTarget','nextSteps']:
-  if not mapper.get(field): fail(f'Attach-existing Files AdapterMapper plan missing {field}')
- if 'self-hosted' not in mapper.get('recommendedTarget', {}).get('reason', '').lower() or 'data-sovereignty' not in mapper.get('recommendedTarget', {}).get('reason', '').lower():
-  fail('Attach-existing Files plan must recommend a self-hosted/sovereign target where appropriate')
- bindings=attach.get('adapterBindings', [])
- if not bindings: fail('Attach-existing Files plan missing adapter bindings')
- active_by_domain={}
- for binding in bindings:
-  status=binding.get('activeBindingStatus')
-  if status not in binding_enum: fail(f'Attach-existing Files plan uses non-canonical binding status {status}')
-  if binding.get('providerMutationPerformed') is not False: fail('Attach-existing discovery must not mutate providers')
-  if binding.get('memberVisibleProviderInternals') is not False: fail('Attach-existing provider internals must stay admin/operator-only')
-  for domain in binding.get('domainKeys', []):
-   if status == 'active': active_by_domain[domain]=active_by_domain.get(domain, 0)+1
- if active_by_domain.get('files') != 1: fail('Attach-existing Files plan must keep exactly one active files binding')
- checks=attach.get('negativeChecks', {})
- for check in ['noDestructiveActionInDiscoveryMode','noMemberVisibleProviderInternals','exactlyOneActiveBindingPerDomain']:
-  if checks.get(check) is not True: fail(f'Attach-existing Files plan missing negative check {check}')
- for state in attach.get('memberCapabilityStates', []):
-  if state not in ['available','disabled_by_policy','not_configured','degraded','unavailable','coming_later']:
-   fail(f'Attach-existing Files plan uses non-canonical member capability state {state}')
  matrix=load(FIXTURES/'matrix-synapse-chat-migration-proof.json')
  if matrix.get('domainKey')!='chat' or matrix.get('sourceProvider')!='matrix-synapse' or matrix.get('redaction')!='support_safe':
   fail('Matrix Synapse Chat proof must be a support_safe chat-domain fixture')

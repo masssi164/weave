@@ -7,6 +7,7 @@ import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/core/config/feature_flags.dart';
 import 'package:weave/core/failures/app_failure.dart';
+import 'package:weave/core/l10n/shared_preferences_app_locale_preference_repository.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/core/theme/shared_preferences_app_theme_preference_repository.dart';
 import 'package:weave/core/widgets/weave_logo.dart';
@@ -18,7 +19,9 @@ import 'package:weave/features/app/domain/entities/workspace_connection_state.da
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_security_repository_provider.dart';
 import 'package:weave/features/profile/domain/entities/user_profile.dart';
+import 'package:weave/features/profile/domain/repositories/user_profile_repository.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
+import 'package:weave/features/profile/presentation/widgets/profile_summary_card.dart';
 import 'package:weave/features/server_config/data/repositories/shared_preferences_server_configuration_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
 import 'package:weave/features/settings/presentation/settings_screen.dart';
@@ -58,6 +61,33 @@ Finder _textFieldWithLabel(String label) {
   );
 }
 
+class _FakeUserProfileRepository implements UserProfileRepository {
+  _FakeUserProfileRepository(this.profile);
+
+  UserProfile profile;
+  UserProfileUpdate? lastUpdate;
+
+  @override
+  Future<UserProfile?> loadProfile() async => profile;
+
+  @override
+  Future<UserProfile> updateProfile(UserProfileUpdate update) async {
+    lastUpdate = update;
+    profile = UserProfile(
+      userId: profile.userId,
+      username: profile.username,
+      displayName: update.displayName ?? profile.displayName,
+      locale: update.locale ?? profile.locale,
+      timezone: update.timezone ?? profile.timezone,
+      email: profile.email,
+      emailVerified: profile.emailVerified,
+      roles: profile.roles,
+      groups: profile.groups,
+    );
+    return profile;
+  }
+}
+
 AsyncValue<WorkspaceConnectionState> _workspaceConnectionState() {
   return const AsyncData(
     WorkspaceConnectionState(
@@ -65,18 +95,18 @@ AsyncValue<WorkspaceConnectionState> _workspaceConnectionState() {
         integration: WorkspaceIntegration.appAuth,
         status: IntegrationConnectionStatus.connected,
       ),
-      matrix: IntegrationConnectionState(
-        integration: WorkspaceIntegration.matrix,
+      chat: IntegrationConnectionState(
+        integration: WorkspaceIntegration.chat,
         status: IntegrationConnectionStatus.degraded,
         recoveryRequirement: IntegrationRecoveryRequirement.completeSetup,
         lastInvalidation: IntegrationInvalidation(
-          integration: WorkspaceIntegration.matrix,
-          reason: IntegrationInvalidationReason.matrixHomeserverChanged,
+          integration: WorkspaceIntegration.chat,
+          reason: IntegrationInvalidationReason.chatConfigurationChanged,
           sequence: 1,
         ),
       ),
-      nextcloud: IntegrationConnectionState(
-        integration: WorkspaceIntegration.nextcloud,
+      files: IntegrationConnectionState(
+        integration: WorkspaceIntegration.files,
         status: IntegrationConnectionStatus.connected,
       ),
     ),
@@ -129,6 +159,7 @@ AsyncValue<WorkspaceCapabilitySnapshot> _workspaceCapabilitySnapshot() {
         readiness: WorkspaceCapabilityReadiness.degraded,
         connectionStatus: IntegrationConnectionStatus.degraded,
         recoveryRequirement: IntegrationRecoveryRequirement.completeSetup,
+        memberImpact: 'RAW BACKEND MEMBER IMPACT MUST NOT DISPLAY',
       ),
       files: WorkspaceCapabilityState(
         capability: WorkspaceCapability.files,
@@ -273,16 +304,24 @@ void main() {
       expect(find.text('Appearance'), findsOneWidget);
       expect(find.text('Use device setting'), findsOneWidget);
       expect(find.text('Dark'), findsOneWidget);
+      expect(find.text('Language'), findsOneWidget);
+      expect(find.text('Use device language'), findsOneWidget);
+      expect(find.text('German'), findsOneWidget);
 
       await tester.drag(find.byType(CustomScrollView), const Offset(0, -260));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Dark'));
       await tester.pump();
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -420));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('German'));
+      await tester.pump();
 
       expect(store.rawString(appThemePreferenceStorageKey), 'dark');
+      expect(store.rawString(appLocalePreferenceStorageKey), 'de');
       expect(
         find.text(
-          'Weave focuses on accessible, data-sovereign collaboration: chat, files, shared calendars, E2EE architecture, and boards behind clear gates.',
+          'Tune Weave for this device: appearance, language, profile context, module visibility, and safe sign-out.',
         ),
         findsOneWidget,
       );
@@ -297,7 +336,21 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.text('Last change: Matrix homeserver changed', findRichText: true),
+        find.text('RAW BACKEND MEMBER IMPACT MUST NOT DISPLAY'),
+        findsNothing,
+      );
+      expect(
+        find.text(
+          'Recovery: You can keep working, but some actions may be limited until workspace readiness recovers.',
+          findRichText: true,
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.text(
+          'Last change: Chat configuration changed',
+          findRichText: true,
+        ),
         findsOneWidget,
       );
       expect(
@@ -352,8 +405,9 @@ void main() {
       expect(find.text('Weaver'), findsOneWidget);
       expect(find.text('Disabled by default'), findsOneWidget);
       expect(find.textContaining('Keycloak/Auth'), findsOneWidget);
-      expect(find.textContaining('Matrix/Chat'), findsOneWidget);
-      expect(find.textContaining('Nextcloud/Files'), findsOneWidget);
+      expect(find.textContaining('Chat'), findsWidgets);
+      expect(find.textContaining('File storage'), findsOneWidget);
+      expect(find.textContaining('Calendar sync'), findsOneWidget);
       expect(
         find.textContaining('OpenProject Boards validation'),
         findsOneWidget,
@@ -483,6 +537,53 @@ void main() {
       );
     });
 
+    testWidgets('uses a language picker instead of requiring locale codes', (
+      tester,
+    ) async {
+      final profileRepository = _FakeUserProfileRepository(_memberProfile);
+      final container = ProviderContainer.test(
+        overrides: [
+          userProfileProvider.overrideWith((ref) async => _memberProfile),
+          userProfileRepositoryProvider.overrideWithValue(profileRepository),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: SingleChildScrollView(child: ProfileSummaryCard()),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(_textFieldWithLabel('Locale'), findsNothing);
+      expect(find.text('English'), findsWidgets);
+
+      final languagePicker = find.byType(DropdownButtonFormField<String>);
+      expect(languagePicker, findsOneWidget);
+      await tester.scrollUntilVisible(
+        languagePicker,
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(languagePicker);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('German').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Save profile'));
+      await tester.pumpAndSettle();
+
+      expect(profileRepository.lastUpdate?.locale, 'de');
+      expect(find.text('Profile saved.'), findsOneWidget);
+    });
+
     testWidgets(
       'shows governed Mein Weaver choices without raw runtime surfaces',
       (tester) async {
@@ -550,6 +651,93 @@ void main() {
         expect(find.text('Server Configuration'), findsNothing);
       },
     );
+
+    testWidgets('localizes unavailable Mein Weaver copy', (tester) async {
+      tester.view.physicalSize = const Size(1200, 2400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      const capabilities = AsyncData(
+        WorkspaceCapabilitySnapshot(
+          shellAccess: WorkspaceCapabilityState(
+            capability: WorkspaceCapability.shellAccess,
+            readiness: WorkspaceCapabilityReadiness.ready,
+            policyState: WorkspaceCapabilityPolicyState.allowed,
+          ),
+          chat: WorkspaceCapabilityState(
+            capability: WorkspaceCapability.chat,
+            readiness: WorkspaceCapabilityReadiness.ready,
+            policyState: WorkspaceCapabilityPolicyState.allowed,
+          ),
+          files: WorkspaceCapabilityState(
+            capability: WorkspaceCapability.files,
+            readiness: WorkspaceCapabilityReadiness.ready,
+            policyState: WorkspaceCapabilityPolicyState.allowed,
+          ),
+          calendar: WorkspaceCapabilityState(
+            capability: WorkspaceCapability.calendar,
+            readiness: WorkspaceCapabilityReadiness.unavailable,
+          ),
+          boards: WorkspaceCapabilityState(
+            capability: WorkspaceCapability.boards,
+            readiness: WorkspaceCapabilityReadiness.unavailable,
+          ),
+          weaver: WorkspaceCapabilityState(
+            capability: WorkspaceCapability.weaver,
+            readiness: WorkspaceCapabilityReadiness.unavailable,
+            policyState: WorkspaceCapabilityPolicyState.disabled,
+            memberImpact: 'RAW WEAVER BACKEND MEMBER IMPACT',
+          ),
+        ),
+      );
+      final container = ProviderContainer.test(
+        overrides: [
+          preferencesStoreProvider.overrideWith(
+            (ref) => InMemoryPreferencesStore(buildStoredConfiguration()),
+          ),
+          chatSecurityRepositoryProvider.overrideWithValue(
+            FakeChatSecurityRepository(),
+          ),
+          workspaceConnectionStateProvider.overrideWithValue(
+            _workspaceConnectionState(),
+          ),
+          workspaceCapabilitySnapshotProvider.overrideWithValue(capabilities),
+          weaveApiWorkspaceCapabilitySnapshotProvider.overrideWith(
+            (ref) async => capabilities.requireValue,
+          ),
+          weaveBackendConnectionStateProvider.overrideWithValue(
+            WeaveBackendConnectionState.connected,
+          ),
+          weaveApiMatrixE2eeDiagnosticProvider.overrideWith(
+            (ref) async => _matrixDiagnostic,
+          ),
+          userProfileProvider.overrideWith((ref) async => _memberProfile),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(body: SettingsScreen()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Weaver unavailable'), findsOneWidget);
+      expect(find.text('RAW WEAVER BACKEND MEMBER IMPACT'), findsNothing);
+      expect(
+        find.textContaining(
+          'Your workspace has not enabled a governed Weaver profile',
+        ),
+        findsOneWidget,
+      );
+    });
 
     testWidgets('keeps provider diagnostics admin-only for members', (
       tester,
@@ -1113,20 +1301,11 @@ void main() {
               (ref) => InMemoryPreferencesStore(),
             ),
             appBootstrapProvider.overrideWith(() => bootstrap),
-            matrixIntegrationConnectionProvider.overrideWith(
-              (ref) async => const IntegrationConnectionState(
-                integration: WorkspaceIntegration.matrix,
-                status: IntegrationConnectionStatus.connected,
-              ),
-            ),
-            nextcloudIntegrationConnectionProvider.overrideWith(
-              (ref) async => const IntegrationConnectionState(
-                integration: WorkspaceIntegration.nextcloud,
-                status: IntegrationConnectionStatus.connected,
-              ),
-            ),
             chatSecurityRepositoryProvider.overrideWithValue(
               FakeChatSecurityRepository(),
+            ),
+            weaveApiWorkspaceCapabilitySnapshotProvider.overrideWith(
+              (ref) async => _workspaceCapabilitySnapshot().requireValue,
             ),
             weaveBackendConnectionStateProvider.overrideWithValue(
               WeaveBackendConnectionState.connected,
@@ -1157,16 +1336,13 @@ void main() {
           findsNothing,
         );
 
-        await tester.drag(find.byType(CustomScrollView), const Offset(0, -760));
+        final retryButton = find.text('Retry');
+        await tester.ensureVisible(retryButton);
         await tester.pumpAndSettle();
-        await tester.tap(find.text('Retry'));
+        await tester.tap(retryButton);
         await tester.pumpAndSettle();
 
         expect(bootstrap.retryCalls, 1);
-        expect(
-          find.text('Shell access and the mapped services are ready.'),
-          findsOneWidget,
-        );
       },
     );
   });

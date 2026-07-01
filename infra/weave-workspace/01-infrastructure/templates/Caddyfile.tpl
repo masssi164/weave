@@ -95,6 +95,7 @@ ${weave_site_addresses} {
     <h2 id="start-app">2. Start or join the app</h2>
     <p>Open the app-start discovery contract at <a href="${client_public_url}/api/platform/config">${client_public_url}/api/platform/config</a> if you need to verify product-gateway app-start, or at <a href="${api_public_url}/api/platform/config">${api_public_url}/api/platform/config</a> for the canonical API host.</p>
     <p>Default Massimo invite/join link: <a href="/join?handoff_ref=handoff-s32-massimo-dogfood-home&amp;org=massimo-dogfood&amp;workspace=home&amp;profile=local-lan-dogfood&amp;run_id=s32-massimo-dogfood">${client_public_url}/join?handoff_ref=handoff-s32-massimo-dogfood-home&amp;org=massimo-dogfood&amp;workspace=home&amp;profile=local-lan-dogfood&amp;run_id=s32-massimo-dogfood</a></p>
+    <p>App custom-scheme link for installed-client handoff testing: <a href="weave://join?handoff_ref=handoff-s32-massimo-dogfood-home&amp;org=massimo-dogfood&amp;workspace=home&amp;profile=local-lan-dogfood&amp;run_id=s32-massimo-dogfood&amp;product_base_url=${client_public_url}&amp;platform_config_url=${api_public_url}/api/platform/config">weave://join?handoff_ref=handoff-s32-massimo-dogfood-home&amp;org=massimo-dogfood&amp;workspace=home&amp;profile=local-lan-dogfood&amp;run_id=s32-massimo-dogfood&amp;product_base_url=${client_public_url}&amp;platform_config_url=${api_public_url}/api/platform/config</a></p>
     <p>The QR payload should be the same DNS-first join URL. The app should fetch platform config, start sign-in, and land in workspace home.</p>
   </section>
 
@@ -112,7 +113,7 @@ ${weave_site_addresses} {
 
   <section aria-labelledby="secrets" class="warning">
     <h2 id="secrets">Secrets are not embedded here</h2>
-    <p>This page, invite link, and QR payload contain no passwords, tokens, client secrets, or credential URLs. The test password remains in <code>.generated/bootstrap.env</code> only, specifically <code>infra/weave-workspace/.generated/bootstrap.env</code>.</p>
+	    <p>This page, invite link, and QR payload contain no passwords, tokens, client secrets, credential URLs, or activation action links. Account activation uses the identity-provider required-action flow; one-time action links belong only in the local Mailpit capture and must not be copied into docs, QR codes, logs, or app storage.</p>
   </section>
 </main>
 </body>
@@ -139,18 +140,6 @@ ${admin_site_addresses} {
 
 	header Content-Type text/plain
 	respond "Weave Organization/Admin Console deploy target. Build the React app from admin-console/ and configure it to call only the Weave backend admin APIs." 200
-}
-
-${mcp_site_addresses} {
-	tls /certs/${tls_cert_filename} /certs/${tls_key_filename}
-	encode zstd gzip
-
-	header {
-		X-Weave-Endpoint "governed-mcp"
-		X-Weave-MCP-Transport "streamable-http"
-	}
-
-	reverse_proxy ${mcp_upstream}
 }
 
 ${auth_site_addresses} {

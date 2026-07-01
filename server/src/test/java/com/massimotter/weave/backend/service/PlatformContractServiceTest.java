@@ -71,7 +71,7 @@ class PlatformContractServiceTest {
     }
 
     @Test
-    void keepsPublicFilesProductUrlSeparateFromTechnicalNextcloudDiagnosticsRoute() {
+    void keepsPublicFilesProductUrlSeparateFromSupportSafeNextcloudFallbackRoute() {
         PlatformContractService service = service(
                 new MatrixChatProperties(false, null, null),
                 true,
@@ -82,16 +82,16 @@ class PlatformContractServiceTest {
                         "https://matrix.weave.test",
                         "https://weave.test/files",
                         "https://weave.test/calendar",
-                        "https://nextcloud.internal",
+                        "https://files.weave.test",
                         null));
 
         var config = service.config();
         var status = service.status("nextcloud-route-test");
 
         assertThat(config.filesProductUrl()).isEqualTo("https://weave.test/files");
-        assertThat(config.nextcloudBaseUrl()).isEqualTo("https://nextcloud.internal");
+        assertThat(config.nextcloudBaseUrl()).isEqualTo("https://files.weave.test");
         assertThat(status.nextcloud().readiness()).isEqualTo("ready");
-        assertThat(status.nextcloud().message()).contains("technical route");
+        assertThat(status.nextcloud().message()).contains("Nextcloud");
     }
 
     private PlatformContractService service(MatrixChatProperties matrixProperties, boolean chatEnabled) {

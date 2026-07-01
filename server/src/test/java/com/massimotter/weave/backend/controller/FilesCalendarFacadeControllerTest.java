@@ -101,9 +101,9 @@ class FilesCalendarFacadeControllerTest {
                         .with(workspaceJwt()))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(header().exists("X-Request-Id"))
-                .andExpect(jsonPath("$.code").value("files-adapter-not-configured"))
+                .andExpect(jsonPath("$.code").value("nextcloud-adapter-not-configured"))
                 .andExpect(jsonPath("$.message").value(
-                        "Files capability is unavailable until an admin completes workspace storage configuration."))
+                        "Files facade is available, but the downstream Nextcloud adapter is not configured yet."))
                 .andExpect(jsonPath("$.details.module").value("files"))
                 .andExpect(jsonPath("$.details.operation").value("list-files"));
     }

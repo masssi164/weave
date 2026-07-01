@@ -57,6 +57,7 @@ resource "docker_container" "this" {
     "WEAVE_CONNECTORS_PUBLIC_SDK_ENABLED=${var.connectors_public_sdk_enabled}",
     "WEAVE_PROVIDER_STACK_PROFILE=${var.provider_stack_profile}",
     "WEAVE_PROVIDER_STACK_READINESS=${var.provider_stack_readiness}",
+    "WEAVE_PROVIDER_SELECTIONS_STORAGE_PATH=${var.provider_selections_storage_path}",
     "WEAVE_DEVOPS_PRIMARY_PROVIDER=${var.devops_primary_provider}",
     "WEAVE_DEVOPS_ALTERNATIVE_PROVIDER=${var.devops_alternative_provider}",
     "WEAVE_DEVOPS_GITLAB_RUNTIME_ENABLED=${var.devops_gitlab_runtime_enabled}",
@@ -102,6 +103,13 @@ resource "docker_container" "this" {
     "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_PRINCIPAL_REF=${var.context_authorization_bootstrap_principal_ref}",
     "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_ROLE=${var.context_authorization_bootstrap_role}",
     "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_SOURCE=local-dev-bootstrap",
+    ] : [], var.context_authorization_bootstrap_enabled && var.context_authorization_dogfood_principal_ref != "" ? [
+    "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_1_TENANT_ID=${var.context_authorization_default_tenant_id}",
+    "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_1_CONTEXT_ID=${var.context_authorization_bootstrap_context_id}",
+    "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_1_PRINCIPAL_REF=${var.context_authorization_dogfood_principal_ref}",
+    "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_1_ROLE=${var.context_authorization_bootstrap_role}",
+    "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_1_SOURCE=local-dogfood-bootstrap",
+    ] : [], var.context_authorization_bootstrap_enabled ? [
     # Project the deterministic workspace membership to the seeded team/channel
     # Contexts used by the live-stack Calendar facade E2E. This keeps the
     # product ReBAC path fail-closed unless the local/dev bootstrap is explicitly
@@ -131,6 +139,12 @@ resource "docker_container" "this" {
     timeout      = "5s"
     retries      = 12
     start_period = "30s"
+  }
+
+  upload {
+    file        = var.provider_selections_storage_path
+    source      = var.provider_selections_source
+    source_hash = var.provider_selections_source_hash
   }
 
   networks_advanced {

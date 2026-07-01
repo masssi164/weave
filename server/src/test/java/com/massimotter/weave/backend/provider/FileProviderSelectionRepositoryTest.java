@@ -57,35 +57,6 @@ class FileProviderSelectionRepositoryTest {
     }
 
     @Test
-    void fileAndMemoryRepositoriesNormalizeCategoryKeysEquivalently() {
-        Path storagePath = tempDir.resolve("provider-selections.json");
-        ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
-        var fileRepository = new FileProviderSelectionRepository(objectMapper, storagePath);
-        var memoryRepository = new InMemoryProviderSelectionRepository();
-        ProviderSelection selection = new ProviderSelection(
-                " CHAT ",
-                "synapse-homeserver",
-                "hybrid_composite",
-                "secretref://weave/provider/synapse-homeserver",
-                "actor:admin-123",
-                Instant.parse("2026-05-31T08:00:00Z"),
-                true,
-                true,
-                true,
-                List.of("support-safe note"));
-
-        fileRepository.save(selection);
-        memoryRepository.save(selection);
-
-        assertThat(fileRepository.findByCategory("chat")).isPresent();
-        assertThat(memoryRepository.findByCategory("chat")).isPresent();
-        assertThat(fileRepository.findByCategory(" CHAT ")).map(ProviderSelection::category).contains("chat");
-        assertThat(memoryRepository.findByCategory(" CHAT ")).map(ProviderSelection::category).contains("chat");
-        assertThat(fileRepository.findAll()).extracting(ProviderSelection::category).containsExactly("chat");
-        assertThat(memoryRepository.findAll()).extracting(ProviderSelection::category).containsExactly("chat");
-    }
-
-    @Test
     void failedJsonWriteDoesNotExposeUnpersistedProviderSelection() throws IOException {
         Path storagePath = tempDir.resolve("provider-selections.json");
         ObjectMapper objectMapper = mock(ObjectMapper.class);

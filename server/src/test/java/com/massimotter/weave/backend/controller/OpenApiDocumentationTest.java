@@ -1,5 +1,8 @@
 package com.massimotter.weave.backend.controller;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -7,7 +10,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -27,7 +32,7 @@ class OpenApiDocumentationTest {
 
     @Test
     void exposesOpenApiDescription() throws Exception {
-        mockMvc.perform(get("/v3/api-docs"))
+        MvcResult result = mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.openapi").value(startsWith("3.")))
                 .andExpect(jsonPath("$.info.title").value("Weave Backend API"))
@@ -39,8 +44,11 @@ class OpenApiDocumentationTest {
                 .andExpect(jsonPath("$.paths['/api/onboarding/status']").exists())
                 .andExpect(jsonPath("$.paths['/api/profile']").exists())
                 .andExpect(jsonPath("$.paths['/api/profile'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/profile'].get.operationId").value("getProductProfile"))
                 .andExpect(jsonPath("$.paths['/api/profile'].patch").exists())
+                .andExpect(jsonPath("$.paths['/api/profile'].patch.operationId").value("updateProductProfile"))
                 .andExpect(jsonPath("$.paths['/api/profile/sync-status']").exists())
+                .andExpect(jsonPath("$.paths['/api/profile/sync-status'].get.operationId").value("getProductProfileSyncStatus"))
                 .andExpect(jsonPath("$.paths['/api/files']").exists())
                 .andExpect(jsonPath("$.paths['/api/files/upload']").exists())
                 .andExpect(jsonPath("$.paths['/api/files/folders']").exists())
@@ -69,6 +77,17 @@ class OpenApiDocumentationTest {
                 .andExpect(jsonPath("$.paths['/api/guest/invitations']").exists())
                 .andExpect(jsonPath("$.paths['/api/migration/dry-runs']").exists())
                 .andExpect(jsonPath("$.paths['/api/admin/providers/replacements/dry-run']").exists())
+                .andExpect(jsonPath("$.paths['/api/admin/control-plane'].get.operationId").value("getAdminControlPlane"))
+                .andExpect(jsonPath("$.paths['/api/admin/policies/capability-whitelist'].get.operationId").value("getCapabilityWhitelist"))
+                .andExpect(jsonPath("$.paths['/api/admin/policies/capability-whitelist'].patch.operationId").value("updateCapabilityWhitelist"))
+                .andExpect(jsonPath("$.paths['/api/admin/providers/readiness-tests'].post.operationId").value("testProviderReadiness"))
+                .andExpect(jsonPath("$.paths['/api/admin/providers/replacements/dry-run'].post.operationId").value("dryRunProviderReplacement"))
+                .andExpect(jsonPath("$.paths['/api/chat/conversations'].get.operationId").value("listChatConversations"))
+                .andExpect(jsonPath("$.paths['/api/chat/conversations/{conversationId}/messages'].get.operationId").value("listChatMessages"))
+                .andExpect(jsonPath("$.paths['/api/chat/conversations/{conversationId}/messages'].post.operationId").value("sendChatMessage"))
+                .andExpect(jsonPath("$.paths['/api/chat/conversations/{conversationId}/weaver/scout/summaries'].post.operationId").value("createWeaverScoutSummary"))
+                .andExpect(jsonPath("$.paths['/api/admin/chat/readiness'].get.operationId").value("getAdminChatReadiness"))
+                .andExpect(jsonPath("$.paths['/api/admin/chat/provider-replacements/dry-run'].post.operationId").value("dryRunChatProviderReplacement"))
                 .andExpect(jsonPath("$.paths['/api/connectors/boundary']").exists())
                 .andExpect(jsonPath("$.paths['/api/connectors/manifest/validate']").exists())
                 .andExpect(jsonPath("$.components.schemas.BoardsWorkspaceResponse.properties.syncMetadata").exists())
@@ -80,7 +99,23 @@ class OpenApiDocumentationTest {
                 .andExpect(jsonPath("$.components.schemas.ApiErrorResponse.properties.code.type").value("string"))
                 .andExpect(jsonPath("$.components.schemas.ApiErrorResponse.properties.message.type").value("string"))
                 .andExpect(jsonPath("$.components.schemas.ApiErrorResponse.properties.requestId.type").value("string"))
+                .andExpect(jsonPath("$.components.schemas.ApiErrorResponse.properties.supportRef.type").value("string"))
+                .andExpect(jsonPath("$.components.schemas.ApiErrorResponse.properties.memberImpact.type").value("string"))
+                .andExpect(jsonPath("$.components.schemas.ApiErrorResponse.required", hasItems(
+                        "code",
+                        "message",
+                        "details",
+                        "requestId",
+                        "supportRef")))
                 .andExpect(jsonPath("$.components.responses.UnauthorizedError.description").value("Missing or invalid bearer token."))
-                .andExpect(jsonPath("$.components.securitySchemes['bearer-jwt'].type").value("http"));
+                .andExpect(jsonPath("$.components.securitySchemes['bearer-jwt'].type").value("http"))
+                .andReturn();
+
+        String exportPath = System.getProperty("weave.openapi.export.path");
+        if (exportPath != null && !exportPath.isBlank()) {
+            Path path = Path.of(exportPath);
+            Files.createDirectories(path.getParent());
+            Files.writeString(path, result.getResponse().getContentAsString());
+        }
     }
 }

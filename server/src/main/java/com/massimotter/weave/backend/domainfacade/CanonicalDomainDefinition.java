@@ -102,14 +102,6 @@ public enum CanonicalDomainDefinition {
         return allCapabilities().contains(capability);
     }
 
-    public boolean knownAdapterBoundaryOperation(String operation) {
-        return adapterBoundaryOperations.contains(operation);
-    }
-
-    public boolean knownObjectKind(String objectKind) {
-        return canonicalObjectKinds.contains(objectKind);
-    }
-
     public Set<String> allCapabilities() {
         return java.util.stream.Stream.concat(readCapabilities.stream(), writeCapabilities.stream())
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
@@ -137,13 +129,5 @@ public enum CanonicalDomainDefinition {
 
     public List<String> canonicalObjectKinds() {
         return canonicalObjectKinds;
-    }
-
-    public List<String> adapterBoundaryOperations() {
-        return adapterBoundaryOperations;
-    }
-
-    public List<String> unsupportedUntilAdapterMapped() {
-        return unsupportedUntilAdapterMapped;
     }
 }

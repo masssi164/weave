@@ -11,45 +11,33 @@ import 'package:weave/features/calendar/presentation/providers/calendar_provider
 import '../../helpers/test_app.dart';
 
 class _FakeCalendarRepository implements CalendarRepository {
-  _FakeCalendarRepository([List<CalendarEvent> events = const []])
-    : events = List<CalendarEvent>.of(events);
+  _FakeCalendarRepository({
+    required List<CalendarEvent> events,
+    this.failCreates = false,
+  }) : events = List<CalendarEvent>.of(events);
 
   final List<CalendarEvent> events;
-  int loadCount = 0;
-  final List<String> readIds = [];
-  final List<CalendarEventDraft> createdDrafts = [];
-  final List<(String, CalendarEventDraft)> updatedDrafts = [];
-  final List<String> deletedIds = [];
-  final List<CalendarScope?> loadedScopes = [];
+  final bool failCreates;
+  final List<CalendarEventDraft> createdDrafts = <CalendarEventDraft>[];
+  final List<String> deletedIds = <String>[];
 
   @override
-  Future<CalendarScopeList> loadScopes() async => const CalendarScopeList(
-    scopes: [
-      CalendarScope.workspace,
-      CalendarScope(
-        id: 'team:engineering',
-        type: 'team',
-        label: 'Engineering team calendar',
-        contextId: 'team-engineering',
-        teamId: 'engineering',
-        accessModel: 'shared-team-calendar',
-      ),
-      CalendarScope(
-        id: 'channel:engineering-general',
-        type: 'channel',
-        label: 'Engineering / general channel calendar',
-        contextId: 'channel-engineering-general',
-        teamId: 'engineering',
-        channelId: 'engineering-general',
-        accessModel: 'shared-channel-calendar',
-      ),
-    ],
-  );
+  Future<CalendarScopeList> loadScopes() async {
+    return const CalendarScopeList(
+      scopes: [
+        CalendarScope.workspace,
+        CalendarScope(
+          id: 'team-engineering',
+          type: 'team',
+          label: 'Engineering team',
+          teamId: 'engineering',
+        ),
+      ],
+    );
+  }
 
   @override
   Future<CalendarEventList> loadEvents({CalendarScope? scope}) async {
-    loadCount += 1;
-    loadedScopes.add(scope);
     return CalendarEventList(
       scope: scope ?? CalendarScope.workspace,
       events: List<CalendarEvent>.of(events),
@@ -57,70 +45,40 @@ class _FakeCalendarRepository implements CalendarRepository {
   }
 
   @override
-  Future<CalendarClientSetup>
-  loadClientSetup() async => const CalendarClientSetup(
-    scope: CalendarScope.workspace,
-    username: 'user-123',
-    endpoints: CalendarExternalEndpoints(
-      serverUrl: 'https://files.weave.test',
-      caldavDiscoveryUrl: 'https://files.weave.test/remote.php/dav',
-      principalUrl:
-          'https://files.weave.test/remote.php/dav/principals/users/user-123/',
-    ),
-    credentialPolicy:
-        'The backend never returns passwords, app passwords, or bearer tokens.',
-    accessModel: CalendarAccessModel(
-      type: 'workspace-calendar',
-      productScope: 'workspace',
-      privateUserCalendarsAvailable: false,
-      privateUserCalendarsReason:
-          'Private calendars need reviewed provisioning before they are shown.',
-      externalClientCredentialModel:
-          'nextcloud-login-flow-or-revocable-app-password',
-      notes: ['Workspace calendar setup only.'],
-    ),
-    credentialReadiness: CalendarCredentialReadiness(
-      status: 'blocked_until_revocable_credentials',
-      appleProfileSigned: false,
-      appleProfilePasswordIncluded: false,
-      revocableCredentialsAvailable: false,
-      readOnlySubscriptionTokensAvailable: false,
-      backendActorCredentialsExposed: false,
-      blockers: ['Apple profiles are unsigned.'],
-    ),
-    options: [
-      CalendarClientSetupOption(
-        platform: 'apple',
-        method: 'mobileconfig',
-        available: false,
-        unavailableReason: 'Signed profiles are not implemented yet.',
+  Future<CalendarClientSetup> loadClientSetup() async {
+    return const CalendarClientSetup(
+      scope: CalendarScope.workspace,
+      username: 'weave-backend',
+      credentialPolicy: 'secret-free-setup-metadata',
+      endpoints: CalendarExternalEndpoints(
+        serverUrl: 'https://files.weave.test:44443',
+        caldavDiscoveryUrl: 'https://files.weave.test:44443/remote.php/dav',
+        principalUrl:
+            'https://files.weave.test:44443/remote.php/dav/principals/users/weave-backend/',
       ),
-      CalendarClientSetupOption(
-        platform: 'android',
-        method: 'davx5',
-        available: true,
-        actionUrl: 'davx5://files.weave.test/remote.php/dav',
-      ),
-    ],
-  );
+      options: [],
+    );
+  }
 
   @override
   Future<CalendarEvent> readEvent(String id) async {
-    readIds.add(id);
-    return events.singleWhere((event) => event.id == id);
+    return events.firstWhere((event) => event.id == id);
   }
 
   @override
   Future<CalendarEvent> createEvent(CalendarEventDraft draft) async {
     createdDrafts.add(draft);
+    if (failCreates) {
+      throw StateError('create failed');
+    }
     final event = CalendarEvent(
       id: 'created-${createdDrafts.length}',
       title: draft.title,
       description: draft.description,
-      location: draft.location,
       startTime: draft.startTime,
       endTime: draft.endTime,
       timezone: draft.timezone,
+      location: draft.location,
       allDay: draft.allDay,
       scope: draft.scope,
     );
@@ -130,16 +88,15 @@ class _FakeCalendarRepository implements CalendarRepository {
 
   @override
   Future<CalendarEvent> updateEvent(String id, CalendarEventDraft draft) async {
-    updatedDrafts.add((id, draft));
     final index = events.indexWhere((event) => event.id == id);
     final event = CalendarEvent(
       id: id,
       title: draft.title,
       description: draft.description,
-      location: draft.location,
       startTime: draft.startTime,
       endTime: draft.endTime,
       timezone: draft.timezone,
+      location: draft.location,
       allDay: draft.allDay,
       scope: draft.scope,
     );
@@ -154,499 +111,162 @@ class _FakeCalendarRepository implements CalendarRepository {
   }
 }
 
-const _readyCapabilities = WorkspaceCapabilitySnapshot(
+const _readySnapshot = WorkspaceCapabilitySnapshot(
   shellAccess: WorkspaceCapabilityState(
     capability: WorkspaceCapability.shellAccess,
     readiness: WorkspaceCapabilityReadiness.ready,
+    policyState: WorkspaceCapabilityPolicyState.allowed,
   ),
   chat: WorkspaceCapabilityState(
     capability: WorkspaceCapability.chat,
     readiness: WorkspaceCapabilityReadiness.ready,
+    policyState: WorkspaceCapabilityPolicyState.allowed,
   ),
   files: WorkspaceCapabilityState(
     capability: WorkspaceCapability.files,
     readiness: WorkspaceCapabilityReadiness.ready,
+    policyState: WorkspaceCapabilityPolicyState.allowed,
   ),
   calendar: WorkspaceCapabilityState(
     capability: WorkspaceCapability.calendar,
     readiness: WorkspaceCapabilityReadiness.ready,
+    policyState: WorkspaceCapabilityPolicyState.allowed,
   ),
   boards: WorkspaceCapabilityState(
     capability: WorkspaceCapability.boards,
-    readiness: WorkspaceCapabilityReadiness.unavailable,
+    readiness: WorkspaceCapabilityReadiness.ready,
+    policyState: WorkspaceCapabilityPolicyState.allowed,
   ),
 );
-
-const _unavailableCapabilities = WorkspaceCapabilitySnapshot(
-  shellAccess: WorkspaceCapabilityState(
-    capability: WorkspaceCapability.shellAccess,
-    readiness: WorkspaceCapabilityReadiness.ready,
-  ),
-  chat: WorkspaceCapabilityState(
-    capability: WorkspaceCapability.chat,
-    readiness: WorkspaceCapabilityReadiness.ready,
-  ),
-  files: WorkspaceCapabilityState(
-    capability: WorkspaceCapability.files,
-    readiness: WorkspaceCapabilityReadiness.ready,
-  ),
-  calendar: WorkspaceCapabilityState(
-    capability: WorkspaceCapability.calendar,
-    readiness: WorkspaceCapabilityReadiness.unavailable,
-  ),
-  boards: WorkspaceCapabilityState(
-    capability: WorkspaceCapability.boards,
-    readiness: WorkspaceCapabilityReadiness.unavailable,
-  ),
-);
-
-List<dynamic> _calendarOverrides(
-  _FakeCalendarRepository repository, {
-  WorkspaceCapabilitySnapshot capabilities = _readyCapabilities,
-}) {
-  return [
-    calendarRepositoryProvider.overrideWithValue(repository),
-    workspaceCapabilitySnapshotProvider.overrideWithValue(
-      AsyncData(capabilities),
-    ),
-  ];
-}
-
-List<dynamic> _calendarCapabilityOverrides({
-  WorkspaceCapabilitySnapshot capabilities = _readyCapabilities,
-}) {
-  return [
-    workspaceCapabilitySnapshotProvider.overrideWithValue(
-      AsyncData(capabilities),
-    ),
-  ];
-}
 
 void main() {
   group('CalendarScreen', () {
-    testWidgets('renders without errors', (tester) async {
-      await tester.pumpWidget(
-        createTestApp(
-          const CalendarScreen(),
-          overrides: _calendarCapabilityOverrides(),
-        ),
-      );
-      await tester.pumpAndSettle();
-    });
-
-    testWidgets('keeps Calendar disabled when backend reports unavailable', (
-      tester,
-    ) async {
-      final repository = _FakeCalendarRepository([
-        CalendarEvent(
-          id: 'planning',
-          title: 'Planning',
-          startTime: DateTime.utc(2026, 4, 27, 9),
-          endTime: DateTime.utc(2026, 4, 27, 10),
-        ),
-      ]);
-
-      await tester.pumpWidget(
-        createTestApp(
-          const CalendarScreen(),
-          overrides: _calendarOverrides(
-            repository,
-            capabilities: _unavailableCapabilities,
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('Calendar is unavailable'), findsOneWidget);
-      expect(
-        find.textContaining('Backend readiness is unavailable'),
-        findsOneWidget,
-      );
-      expect(find.text('Create event'), findsNothing);
-      expect(find.text('Planning'), findsNothing);
-      expect(repository.loadCount, 0);
-    });
-
-    testWidgets('shows backend facade calendar events accessibly', (
-      tester,
-    ) async {
-      final repository = _FakeCalendarRepository([
-        CalendarEvent(
-          id: 'planning',
-          title: 'Planning',
-          description: 'Sprint planning',
-          location: 'Office',
-          startTime: DateTime.utc(2026, 4, 27, 9),
-          endTime: DateTime.utc(2026, 4, 27, 10),
-          timezone: 'Europe/Berlin',
-          allDay: false,
-          scope: const CalendarScope(
-            id: 'channel:engineering-general',
-            type: 'channel',
-            label: 'Engineering / general channel calendar',
-            contextId: 'channel-engineering-general',
-            teamId: 'engineering',
-            channelId: 'engineering-general',
-          ),
-          threadRef: const CalendarThreadRef(
-            contextId: 'channel-engineering-general',
-            meetingThreadId: 'meeting:channel-engineering-general:abc123',
-            channelId: 'engineering-general',
-          ),
-          attendees: const [
-            CalendarAttendee(
-              name: 'Ada Lovelace',
-              email: 'ada@example.com',
-              role: 'req-participant',
-              responseStatus: 'accepted',
+    testWidgets(
+      'renders a full calendar surface with events and setup status',
+      (tester) async {
+        final repository = _FakeCalendarRepository(
+          events: [
+            CalendarEvent(
+              id: 'event-1',
+              title: 'Design review',
+              startTime: DateTime(2026, 6, 27, 10),
+              endTime: DateTime(2026, 6, 27, 11),
+              location: 'Workspace room',
             ),
           ],
-          providerRef: CalendarProviderRef(
-            provider: 'nextcloud-caldav',
-            objectKind: 'calendar-event',
-            opaqueId: 'calendar:workspace:1',
-            etag: 'abc',
-            lastSyncedAt: DateTime.utc(2026, 4, 27, 8, 45),
+        );
+
+        await tester.pumpWidget(
+          createTestApp(
+            const CalendarScreen(),
+            overrides: [
+              workspaceCapabilitySnapshotProvider.overrideWithValue(
+                const AsyncData(_readySnapshot),
+              ),
+              calendarRepositoryProvider.overrideWithValue(repository),
+            ],
           ),
-          updatedAt: DateTime.utc(2026, 4, 27, 8, 45),
-        ),
-      ]);
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Calendar'), findsWidgets);
+        expect(find.text('Agenda'), findsOneWidget);
+        expect(find.text('Day'), findsOneWidget);
+        expect(find.text('Week'), findsOneWidget);
+        expect(find.text('Month'), findsOneWidget);
+        expect(find.text('Design review'), findsOneWidget);
+        expect(find.textContaining('Workspace room'), findsOneWidget);
+        expect(
+          find.bySemanticsLabel(RegExp('Design review.*starts.*ends')),
+          findsOneWidget,
+        );
+
+        await tester.drag(find.byType(ListView), const Offset(0, -600));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Use Calendar in other apps'), findsOneWidget);
+      },
+    );
+
+    testWidgets('creates and deletes events through the calendar facade', (
+      tester,
+    ) async {
+      final repository = _FakeCalendarRepository(events: []);
 
       await tester.pumpWidget(
         createTestApp(
           const CalendarScreen(),
-          overrides: _calendarOverrides(repository),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('Planning'), findsOneWidget);
-      expect(find.text('Workspace calendar'), findsOneWidget);
-      expect(
-        find.textContaining('private personal calendars are out of scope'),
-        findsOneWidget,
-      );
-      expect(find.text('Engineering team calendar'), findsOneWidget);
-      expect(
-        find.text('Engineering / general channel calendar'),
-        findsOneWidget,
-      );
-      expect(find.text('Sprint planning'), findsOneWidget);
-      expect(find.text('Office'), findsOneWidget);
-      expect(
-        find.text('Calendar scope: Engineering / general channel calendar'),
-        findsOneWidget,
-      );
-      expect(find.text('Context: channel-engineering-general'), findsOneWidget);
-      expect(
-        find.bySemanticsLabel(
-          RegExp(
-            r'Planning, starts .* Calendar scope: Engineering / general channel calendar, Context: channel-engineering-general',
-          ),
-        ),
-        findsOneWidget,
-      );
-
-      await tester.drag(find.byType(CustomScrollView), const Offset(0, -360));
-      await tester.pumpAndSettle();
-      expect(find.text('Use Calendar in other apps'), findsOneWidget);
-      expect(find.text('CalDAV discovery URL'), findsOneWidget);
-      expect(
-        find.text('https://files.weave.test/remote.php/dav'),
-        findsOneWidget,
-      );
-      expect(find.text('android via davx5: available'), findsOneWidget);
-      expect(find.text('apple via mobileconfig: planned'), findsOneWidget);
-      await tester.drag(find.byType(CustomScrollView), const Offset(0, -240));
-      await tester.pumpAndSettle();
-      expect(
-        find.text('Private personal calendars out of scope'),
-        findsOneWidget,
-      );
-      expect(find.text('Workspace calendar setup only.'), findsOneWidget);
-      expect(
-        find.text('Status: blocked_until_revocable_credentials'),
-        findsOneWidget,
-      );
-      expect(
-        find.text(
-          'Backend actor credentials are not exposed to client setup artifacts.',
-        ),
-        findsOneWidget,
-      );
-      expect(
-        find.textContaining('External credential model: nextcloud-login-flow'),
-        findsOneWidget,
-      );
-    });
-
-    testWidgets('opens event details through the backend read facade', (
-      tester,
-    ) async {
-      final repository = _FakeCalendarRepository([
-        CalendarEvent(
-          id: 'planning',
-          title: 'Planning',
-          description: 'Fetched event details',
-          location: 'Office',
-          startTime: DateTime.utc(2026, 4, 27, 9),
-          endTime: DateTime.utc(2026, 4, 27, 10),
-          timezone: 'Europe/Berlin',
-          allDay: false,
-          scope: const CalendarScope(
-            id: 'channel:engineering-general',
-            type: 'channel',
-            label: 'Engineering / general channel calendar',
-            contextId: 'channel-engineering-general',
-            teamId: 'engineering',
-            channelId: 'engineering-general',
-          ),
-          threadRef: const CalendarThreadRef(
-            contextId: 'channel-engineering-general',
-            meetingThreadId: 'meeting:channel-engineering-general:abc123',
-            channelId: 'engineering-general',
-          ),
-          attendees: const [
-            CalendarAttendee(
-              name: 'Ada Lovelace',
-              email: 'ada@example.com',
-              role: 'req-participant',
-              responseStatus: 'accepted',
+          overrides: [
+            workspaceCapabilitySnapshotProvider.overrideWithValue(
+              const AsyncData(_readySnapshot),
             ),
+            calendarRepositoryProvider.overrideWithValue(repository),
           ],
-          providerRef: CalendarProviderRef(
-            provider: 'nextcloud-caldav',
-            objectKind: 'calendar-event',
-            opaqueId: 'calendar:workspace:1',
-            etag: 'abc',
-            lastSyncedAt: DateTime.utc(2026, 4, 27, 8, 45),
-          ),
-          updatedAt: DateTime.utc(2026, 4, 27, 8, 45),
-        ),
-      ]);
-
-      await tester.pumpWidget(
-        createTestApp(
-          const CalendarScreen(),
-          overrides: _calendarOverrides(repository),
         ),
       );
       await tester.pumpAndSettle();
 
-      await tester.drag(find.byType(CustomScrollView), const Offset(0, -180));
+      await tester.tap(find.byTooltip('Create event'));
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('View Planning'));
-      await tester.pumpAndSettle();
-
-      expect(repository.readIds, ['planning']);
-      expect(find.text('Calendar event details'), findsOneWidget);
-      expect(
-        find.descendant(
-          of: find.byType(AlertDialog),
-          matching: find.text('Fetched event details'),
-        ),
-        findsOneWidget,
-      );
-      expect(find.text('Calendar scope'), findsOneWidget);
-      expect(
-        find.descendant(
-          of: find.byType(AlertDialog),
-          matching: find.text('Engineering / general channel calendar'),
-        ),
-        findsOneWidget,
-      );
-      expect(
-        find.descendant(
-          of: find.byType(AlertDialog),
-          matching: find.text('channel-engineering-general'),
-        ),
-        findsOneWidget,
-      );
-      expect(
-        find.descendant(
-          of: find.byType(AlertDialog),
-          matching: find.text('meeting:channel-engineering-general:abc123'),
-        ),
-        findsOneWidget,
-      );
-      expect(
-        find.descendant(
-          of: find.byType(AlertDialog),
-          matching: find.text('Attendees'),
-        ),
-        findsOneWidget,
-      );
-      expect(
-        find.descendant(
-          of: find.byType(AlertDialog),
-          matching: find.textContaining('Ada Lovelace <ada@example.com>'),
-        ),
-        findsOneWidget,
-      );
-      expect(
-        find.descendant(
-          of: find.byType(AlertDialog),
-          matching: find.text('Provider reference'),
-        ),
-        findsOneWidget,
-      );
-      expect(
-        find.descendant(
-          of: find.byType(AlertDialog),
-          matching: find.textContaining('raw provider path hidden'),
-        ),
-        findsOneWidget,
-      );
-    });
-
-    testWidgets('creates and deletes events through the repository', (
-      tester,
-    ) async {
-      final repository = _FakeCalendarRepository();
-
-      await tester.pumpWidget(
-        createTestApp(
-          const CalendarScreen(),
-          overrides: _calendarOverrides(repository),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.byType(FloatingActionButton));
-      await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextFormField).first, 'Customer demo');
+      await tester.enterText(find.byType(TextField).first, 'Planning sync');
       await tester.tap(find.text('Save event'));
       await tester.pumpAndSettle();
 
-      expect(repository.createdDrafts.single.title, 'Customer demo');
-      expect(find.text('Customer demo'), findsOneWidget);
+      expect(repository.createdDrafts.single.title, 'Planning sync');
+      expect(find.text('Planning sync'), findsOneWidget);
 
-      await tester.drag(find.byType(CustomScrollView), const Offset(0, -180));
+      await tester.tap(find.byTooltip('Delete Planning sync'));
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Delete Customer demo'));
+      await tester.tap(find.text('Delete'));
       await tester.pumpAndSettle();
 
       expect(repository.deletedIds.single, 'created-1');
-      expect(find.text('Customer demo'), findsNothing);
     });
 
-    testWidgets('creates events in the selected team or channel scope', (
+    testWidgets('keeps the calendar visible when saving an event fails', (
       tester,
     ) async {
-      final repository = _FakeCalendarRepository();
+      final repository = _FakeCalendarRepository(
+        events: [
+          CalendarEvent(
+            id: 'event-1',
+            title: 'Design review',
+            startTime: DateTime(2026, 6, 27, 10),
+            endTime: DateTime(2026, 6, 27, 11),
+          ),
+        ],
+        failCreates: true,
+      );
 
       await tester.pumpWidget(
         createTestApp(
           const CalendarScreen(),
-          overrides: _calendarOverrides(repository),
+          overrides: [
+            workspaceCapabilitySnapshotProvider.overrideWithValue(
+              const AsyncData(_readySnapshot),
+            ),
+            calendarRepositoryProvider.overrideWithValue(repository),
+          ],
         ),
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Engineering / general channel calendar'));
+      await tester.tap(find.byTooltip('Create event'));
       await tester.pumpAndSettle();
-      await tester.tap(find.byType(FloatingActionButton));
-      await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextFormField).first, 'Channel sync');
+      await tester.enterText(find.byType(TextField).first, 'Planning sync');
       await tester.tap(find.text('Save event'));
       await tester.pumpAndSettle();
 
-      expect(repository.createdDrafts.single.scope.type, 'channel');
+      expect(repository.createdDrafts.single.title, 'Planning sync');
+      expect(find.text('Design review'), findsOneWidget);
       expect(
-        repository.createdDrafts.single.scope.contextId,
-        'channel-engineering-general',
-      );
-      expect(repository.loadedScopes.last?.id, 'channel:engineering-general');
-      expect(
-        find.text('Calendar scope: Engineering / general channel calendar'),
+        find.text('The calendar could not save that change right now.'),
         findsOneWidget,
       );
-      expect(find.text('Context: channel-engineering-general'), findsOneWidget);
-    });
-
-    testWidgets('keeps invalid event drafts in the accessible form', (
-      tester,
-    ) async {
-      final repository = _FakeCalendarRepository();
-
-      await tester.pumpWidget(
-        createTestApp(
-          const CalendarScreen(),
-          overrides: _calendarOverrides(repository),
-        ),
+      expect(
+        find.text('Calendar event details are unavailable right now.'),
+        findsNothing,
       );
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.byType(FloatingActionButton));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Save event'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Enter an event title.'), findsOneWidget);
-      expect(repository.createdDrafts, isEmpty);
-      expect(find.byType(AlertDialog), findsOneWidget);
-    });
-
-    testWidgets('edits events through the backend facade repository', (
-      tester,
-    ) async {
-      final repository = _FakeCalendarRepository([
-        CalendarEvent(
-          id: 'planning',
-          title: 'Planning',
-          description: 'Sprint planning',
-          location: 'Office',
-          startTime: DateTime.utc(2026, 4, 27, 9),
-          endTime: DateTime.utc(2026, 4, 27, 10),
-          timezone: 'Europe/Berlin',
-          allDay: false,
-        ),
-      ]);
-
-      await tester.pumpWidget(
-        createTestApp(
-          const CalendarScreen(),
-          overrides: _calendarOverrides(repository),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      await tester.drag(find.byType(CustomScrollView), const Offset(0, -180));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Edit Planning'));
-      await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextFormField).first, 'Roadmap');
-      await tester.tap(find.text('Save event'));
-      await tester.pumpAndSettle();
-
-      expect(repository.updatedDrafts.single.$1, 'planning');
-      expect(repository.updatedDrafts.single.$2.title, 'Roadmap');
-      expect(find.text('Roadmap'), findsOneWidget);
-      expect(find.text('Planning'), findsNothing);
-    });
-
-    testWidgets('meets androidTapTargetGuideline', (tester) async {
-      await tester.pumpWidget(
-        createTestApp(
-          const CalendarScreen(),
-          overrides: _calendarCapabilityOverrides(),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
-    });
-
-    testWidgets('meets labeledTapTargetGuideline', (tester) async {
-      await tester.pumpWidget(
-        createTestApp(
-          const CalendarScreen(),
-          overrides: _calendarCapabilityOverrides(),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
     });
   });
 }

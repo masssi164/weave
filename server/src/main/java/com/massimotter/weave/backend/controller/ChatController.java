@@ -62,7 +62,7 @@ public class ChatController {
     }
 
     @GetMapping({"/api/chat/readiness", "/api/v1/chat/readiness"})
-    @Operation(summary = "Read member-safe Weave Chat readiness")
+    @Operation(operationId = "getChatReadiness", summary = "Read member-safe Weave Chat readiness")
     @ApiResponse(responseCode = "200", description = "Member-safe Chat readiness.",
             content = @Content(schema = @Schema(implementation = ChatReadiness.class)))
     public ChatReadiness readiness(@AuthenticationPrincipal Jwt jwt) {
@@ -70,7 +70,7 @@ public class ChatController {
     }
 
     @GetMapping("/api/chat/conversations")
-    @Operation(summary = "List canonical Weave Chat conversations")
+    @Operation(operationId = "listChatConversations", summary = "List canonical Weave Chat conversations")
     @ApiResponse(responseCode = "200", description = "Provider-neutral Chat conversations.",
             content = @Content(schema = @Schema(implementation = ChatConversationsResponse.class)))
     public ChatConversationsResponse conversations(@AuthenticationPrincipal Jwt jwt) {
@@ -78,7 +78,7 @@ public class ChatController {
     }
 
     @GetMapping("/api/chat/conversations/{conversationId}/messages")
-    @Operation(summary = "List canonical Weave Chat messages")
+    @Operation(operationId = "listChatMessages", summary = "List canonical Weave Chat messages")
     @ApiResponse(responseCode = "200", description = "Provider-neutral Chat messages.",
             content = @Content(schema = @Schema(implementation = ChatMessagesResponse.class)))
     public ChatMessagesResponse messages(
@@ -88,7 +88,7 @@ public class ChatController {
     }
 
     @PostMapping("/api/chat/conversations/{conversationId}/messages")
-    @Operation(summary = "Send a canonical Weave Chat message as an explicit audited user action")
+    @Operation(operationId = "sendChatMessage", summary = "Send a canonical Weave Chat message as an explicit audited user action")
     @ApiResponse(responseCode = "200", description = "Created provider-neutral Chat message.",
             content = @Content(schema = @Schema(implementation = ChatMessageResponse.class)))
     public ChatMessageResponse sendMessage(
@@ -141,7 +141,7 @@ public class ChatController {
     }
 
     @PostMapping({"/api/chat/conversations/{conversationId}/weaver/scout/summaries", "/api/v1/chat/conversations/{conversationId}/weaver/scout/summaries"})
-    @Operation(summary = "Ask read-only Weaver scout for a source-cited channel summary")
+    @Operation(operationId = "createWeaverScoutSummary", summary = "Ask read-only Weaver scout for a source-cited channel summary")
     @ApiResponse(responseCode = "200", description = "Read-only, support-safe Weaver scout response.",
             content = @Content(schema = @Schema(implementation = WeaverScoutSummaryResponse.class)))
     public WeaverScoutSummaryResponse weaverScoutSummary(
@@ -153,14 +153,14 @@ public class ChatController {
 
     @GetMapping({"/api/admin/chat/readiness", "/api/v1/admin/chat/readiness"})
     @PreAuthorize("hasAnyRole('OWNER','ADMIN','OPERATOR')")
-    @Operation(summary = "Get admin Chat readiness", description = "Returns support-safe Chat provider mapping and readiness diagnostics for admins/operators.")
+    @Operation(operationId = "getAdminChatReadiness", summary = "Get admin Chat readiness", description = "Returns support-safe Chat provider mapping and readiness diagnostics for admins/operators.")
     public ChatReadiness adminReadiness(@AuthenticationPrincipal Jwt jwt) {
         return chatDomainFacadeService.adminReadiness(jwt);
     }
 
     @PostMapping({"/api/admin/chat/migration-preflights", "/api/v1/admin/chat/migration-preflights"})
     @PreAuthorize("hasAnyRole('OWNER','ADMIN','OPERATOR')")
-    @Operation(summary = "Dry-run a future Chat provider replacement", description = "Creates a support-safe, audited dry-run report for Chat provider replacement. Destructive apply is intentionally unavailable in this contract.")
+    @Operation(operationId = "createChatMigrationPreflight", summary = "Dry-run a future Chat provider replacement", description = "Creates a support-safe, audited dry-run report for Chat provider replacement. Destructive apply is intentionally unavailable in this contract.")
     public ChatMigrationPreflightReport migrationPreflight(
             @RequestBody(required = false) ChatMigrationPreflightRequest request,
             @AuthenticationPrincipal Jwt jwt) {
@@ -168,7 +168,7 @@ public class ChatController {
     }
 
     @PostMapping("/api/admin/chat/provider-replacements/dry-run")
-    @Operation(summary = "Dry-run a Chat provider replacement with support-safe migration evidence")
+    @Operation(operationId = "dryRunChatProviderReplacement", summary = "Dry-run a Chat provider replacement with support-safe migration evidence")
     @ApiResponse(responseCode = "200", description = "Support-safe provider replacement dry-run report.",
             content = @Content(schema = @Schema(implementation = ChatProviderReplacementDryRunResponse.class)))
     public ChatProviderReplacementDryRunResponse dryRunProviderReplacement(

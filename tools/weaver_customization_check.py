@@ -18,6 +18,7 @@ CLAIMS = ARTIFACT_DIR / "sprint-25-claim-gate.fixture.json"
 SCOREBOARD = ARTIFACT_DIR / "sprint-25-scoreboard.json"
 SPRINT32_GOVERNED = ARTIFACT_DIR / "sprint-32-governed-foundation.fixture.json"
 SPRINT32_MCP_EXECUTION = ARTIFACT_DIR / "sprint-32-weaver-mcp-tool-execution.fixture.json"
+ISSUE719_E2E_RECEIPT = ARTIFACT_DIR / "issue-719-isolated-e2e-receipt.fixture.json"
 EVIDENCE = ROOT / "docs" / "evidence" / "weaver-customization-report.md"
 CLOSURE = ROOT / "docs" / "sprint-25-closure-report.md"
 
@@ -232,6 +233,8 @@ def validate_sprint32_mcp_execution(artifact: dict[str, Any]) -> None:
         fail("Sprint 32 MCP tool execution artifact kind mismatch")
     if artifact.get("githubIssue") != 717 or artifact.get("parentIssue") != 711:
         fail("Sprint 32 MCP tool execution artifact must link #717 and #711")
+    if artifact.get("gapIssue") != 719 or "fixture-only" not in str(artifact.get("evidenceBoundary", "")):
+        fail("Sprint 32 MCP execution must declare fixture-only boundary and #719 E2E gap")
     if "lege ein Ereignis" not in str(artifact.get("userPrompt", "")):
         fail("Sprint 32 MCP tool execution artifact must include the German event creation prompt")
     runtime = artifact.get("runtimeProfile", {})
@@ -257,6 +260,8 @@ def validate_sprint32_mcp_execution(artifact: dict[str, Any]) -> None:
     execution = artifact.get("execution", {})
     if execution.get("tool") != "calendar.create_event" or execution.get("stateChange") != "fixture_event_created":
         fail("Sprint 32 MCP execution must create a fixture event through calendar.create_event")
+    if execution.get("stateStore") != "in-memory fixture" or execution.get("providerMutationPerformedByMcp") is not False:
+        fail("Sprint 32 MCP execution must remain clearly labelled as in-memory fixture state, not provider mutation")
     if execution.get("readbackTool") != "calendar.search_events" or execution.get("readbackVerified") is not True:
         fail("Sprint 32 MCP execution must read back the fixture event")
     if execution.get("finalChatAnswerIncludesAuditRef") is not True or not str(execution.get("auditRef", "")).startswith("audit://mcp/calendar-create/"):
@@ -274,6 +279,47 @@ def validate_sprint32_mcp_execution(artifact: dict[str, Any]) -> None:
     for case_id, case in negatives.items():
         if case.get("auditRequired") is not True or not str(case.get("decision", "")).startswith("deny"):
             fail(f"Sprint 32 MCP execution negative case {case_id} must fail closed with audit")
+
+
+def validate_issue719_e2e_receipt(artifact: dict[str, Any]) -> None:
+    if artifact.get("artifactKind") != "weave-weaver-runtime-issue-719-isolated-e2e-receipt" or artifact.get("githubIssue") != 719:
+        fail("Issue #719 isolated E2E receipt artifact kind mismatch")
+    boundary = str(artifact.get("evidenceBoundary", "")).lower()
+    if "isolated" not in boundary or "customer-ready" not in boundary:
+        fail("Issue #719 receipt must declare isolated/customer-ready claim boundary")
+    identity = artifact.get("keycloakDerivedIdentity", {})
+    groups = set(identity.get("testUserGroups", []))
+    for group in ["weaver-group", "weave-weaver-runtime", "weave-calendar-editors", "weave-weaver-pilot"]:
+        if group not in groups:
+            fail(f"Issue #719 receipt missing Keycloak group {group}")
+    grants = set(identity.get("requiredCapabilityGrants", []))
+    for grant in ["weaver.enabled", "weaver.calendar_read", "weaver.calendar_create_event"]:
+        if grant not in grants:
+            fail(f"Issue #719 receipt missing capability grant {grant}")
+    projection = artifact.get("runtimeProfileProjection", {})
+    if projection.get("header") != "X-Weave-Runtime-Profile-Projection" or projection.get("mcpServerEnabledWhenGranted") is not True:
+        fail("Issue #719 receipt must require signed runtime profile projection header and enabled governed MCP binding")
+    allowed_tools = set(projection.get("allowedTools", []))
+    for tool in ["calendar.search_events", "calendar.create_event"]:
+        if tool not in allowed_tools:
+            fail(f"Issue #719 receipt missing governed MCP tool {tool}")
+    if "write calendar" not in projection.get("rejectedBroadGrantNames", []) or projection.get("containsRawProviderSecrets") is not False:
+        fail("Issue #719 receipt must reject broad grants and raw provider secrets")
+    scenario = artifact.get("eventCreationScenario", {})
+    if "lege ein Ereignis" not in str(scenario.get("prompt", "")):
+        fail("Issue #719 receipt missing German event creation prompt")
+    if scenario.get("writeTool") != "calendar.create_event" or scenario.get("readbackTool") != "calendar.search_events":
+        fail("Issue #719 receipt must create and read back via narrow calendar tools")
+    if scenario.get("approvalRequiredForWrite") is not True or scenario.get("providerMutationPerformedByMcp") is not False:
+        fail("Issue #719 receipt must require approval and avoid claiming direct provider mutation")
+    negatives = load_case_map(artifact.get("negativeCases", []), label="issue719.negativeCases")
+    for case_id in ["missing-weaver-group", "runtime-generator-disabled", "missing-calendar-editor", "broad-write-calendar-grant", "missing-approval"]:
+        if case_id not in negatives or not str(negatives[case_id].get("decision", "")).startswith("deny") or negatives[case_id].get("auditRequired") is not True:
+            fail(f"Issue #719 negative case {case_id} must deny with audit")
+    rejected = "\n".join(artifact.get("claimGate", {}).get("rejectedClaims", []))
+    for phrase in ["customer-ready", "broad write calendar", "providerMutationPerformedByMcp=true"]:
+        if phrase.lower() not in rejected.lower():
+            fail(f"Issue #719 claim gate missing rejected claim {phrase}")
 
 
 def validate_scoreboard(scoreboard: dict[str, Any]) -> None:
@@ -318,7 +364,8 @@ def main() -> None:
     scoreboard = load(SCOREBOARD)
     sprint32_governed = load(SPRINT32_GOVERNED)
     sprint32_mcp_execution = load(SPRINT32_MCP_EXECUTION)
-    for label, artifact in [("profile", profile), ("policy", policy), ("tools", tools), ("claims", claims), ("scoreboard", scoreboard), ("sprint32_governed", sprint32_governed), ("sprint32_mcp_execution", sprint32_mcp_execution)]:
+    issue719_e2e_receipt = load(ISSUE719_E2E_RECEIPT)
+    for label, artifact in [("profile", profile), ("policy", policy), ("tools", tools), ("claims", claims), ("scoreboard", scoreboard), ("sprint32_governed", sprint32_governed), ("sprint32_mcp_execution", sprint32_mcp_execution), ("issue719_e2e_receipt", issue719_e2e_receipt)]:
         if artifact.get("supportSafe") is not True:
             fail(f"{label} must be supportSafe")
         assert_support_safe(artifact, label)
@@ -329,8 +376,9 @@ def main() -> None:
     validate_scoreboard(scoreboard)
     validate_sprint32_governed_foundation(sprint32_governed)
     validate_sprint32_mcp_execution(sprint32_mcp_execution)
+    validate_issue719_e2e_receipt(issue719_e2e_receipt)
     validate_docs()
-    print("weaver-customization-check: ok issues=635,636,637,638,711,717 claims=scoped governed-mcp-execution customer_ready=false")
+    print("weaver-customization-check: ok issues=635,636,637,638,711,717,719 claims=scoped governed-mcp-isolated-e2e customer_ready=false provider_mutation_by_mcp=false")
 
 
 if __name__ == "__main__":

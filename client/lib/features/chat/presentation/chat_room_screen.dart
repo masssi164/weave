@@ -1075,12 +1075,14 @@ class _ChannelWorkspaceSurfacePanel extends StatelessWidget {
 IconData _channelSurfaceIcon(ChannelWorkspaceSurfaceKind kind) {
   return switch (kind) {
     ChannelWorkspaceSurfaceKind.chat => Icons.chat_bubble_outline,
-    ChannelWorkspaceSurfaceKind.decisions =>
-      Icons.assignment_turned_in_outlined,
     ChannelWorkspaceSurfaceKind.files => Icons.folder_outlined,
-    ChannelWorkspaceSurfaceKind.boards => Icons.view_kanban_outlined,
+    ChannelWorkspaceSurfaceKind.documents => Icons.description_outlined,
     ChannelWorkspaceSurfaceKind.calendar => Icons.event_outlined,
     ChannelWorkspaceSurfaceKind.meetings => Icons.video_call_outlined,
+    ChannelWorkspaceSurfaceKind.boards => Icons.view_kanban_outlined,
+    ChannelWorkspaceSurfaceKind.decisions =>
+      Icons.assignment_turned_in_outlined,
+    ChannelWorkspaceSurfaceKind.evidence => Icons.fact_check_outlined,
     ChannelWorkspaceSurfaceKind.weaver => Icons.psychology_alt_outlined,
   };
 }
@@ -1091,12 +1093,16 @@ String _channelSurfaceTabLabel(
 ) {
   return switch (kind) {
     ChannelWorkspaceSurfaceKind.chat => l10n.channelWorkspaceChatTab,
-    ChannelWorkspaceSurfaceKind.decisions =>
-      l10n.chatDecisionEvidenceDecisionsLabel,
     ChannelWorkspaceSurfaceKind.files => l10n.channelWorkspaceFilesTab,
-    ChannelWorkspaceSurfaceKind.boards => l10n.channelWorkspaceBoardsTab,
+    ChannelWorkspaceSurfaceKind.documents =>
+      l10n.providerCategoryDocumentsTitle,
     ChannelWorkspaceSurfaceKind.calendar => l10n.channelWorkspaceCalendarTab,
     ChannelWorkspaceSurfaceKind.meetings => l10n.channelWorkspaceMeetingsTab,
+    ChannelWorkspaceSurfaceKind.boards => l10n.channelWorkspaceBoardsTab,
+    ChannelWorkspaceSurfaceKind.decisions =>
+      l10n.chatDecisionEvidenceDecisionsLabel,
+    ChannelWorkspaceSurfaceKind.evidence =>
+      l10n.chatDecisionEvidenceEvidencePluralLabel,
     ChannelWorkspaceSurfaceKind.weaver => l10n.providerCategoryWeaverTitle,
   };
 }
@@ -1107,12 +1113,15 @@ String _channelSurfacePanelTitle(
 ) {
   return switch (kind) {
     ChannelWorkspaceSurfaceKind.chat => l10n.channelWorkspaceChatTitle,
-    ChannelWorkspaceSurfaceKind.decisions =>
-      l10n.chatDecisionEvidencePanelTitle,
     ChannelWorkspaceSurfaceKind.files => l10n.channelWorkspaceFilesTitle,
-    ChannelWorkspaceSurfaceKind.boards => l10n.channelWorkspaceBoardsTitle,
+    ChannelWorkspaceSurfaceKind.documents =>
+      l10n.providerCategoryDocumentsTitle,
     ChannelWorkspaceSurfaceKind.calendar => l10n.channelWorkspaceCalendarTitle,
     ChannelWorkspaceSurfaceKind.meetings => l10n.channelWorkspaceMeetingsTitle,
+    ChannelWorkspaceSurfaceKind.boards => l10n.channelWorkspaceBoardsTitle,
+    ChannelWorkspaceSurfaceKind.decisions =>
+      l10n.chatDecisionEvidencePanelTitle,
+    ChannelWorkspaceSurfaceKind.evidence => l10n.chatContextEvidenceHintTitle,
     ChannelWorkspaceSurfaceKind.weaver => l10n.chatWeaverScoutPanelTitle,
   };
 }
@@ -1123,15 +1132,19 @@ String _channelSurfacePanelDescription(
 ) {
   return switch (kind) {
     ChannelWorkspaceSurfaceKind.chat => l10n.channelWorkspaceChatDescription,
-    ChannelWorkspaceSurfaceKind.decisions =>
-      l10n.chatDecisionEvidencePanelDescription,
     ChannelWorkspaceSurfaceKind.files => l10n.channelWorkspaceFilesDescription,
-    ChannelWorkspaceSurfaceKind.boards =>
-      l10n.channelWorkspaceBoardsDescription,
+    ChannelWorkspaceSurfaceKind.documents =>
+      l10n.providerCategoryDocumentsDetail,
     ChannelWorkspaceSurfaceKind.calendar =>
       l10n.channelWorkspaceCalendarDescription,
     ChannelWorkspaceSurfaceKind.meetings =>
       l10n.channelWorkspaceMeetingsDescription,
+    ChannelWorkspaceSurfaceKind.boards =>
+      l10n.channelWorkspaceBoardsDescription,
+    ChannelWorkspaceSurfaceKind.decisions =>
+      l10n.chatDecisionEvidencePanelDescription,
+    ChannelWorkspaceSurfaceKind.evidence =>
+      l10n.chatContextEvidenceHintDescription,
     ChannelWorkspaceSurfaceKind.weaver => l10n.chatWeaverScoutPanelDescription,
   };
 }
@@ -1928,6 +1941,7 @@ class _RoomDecisionEvidenceCard extends StatelessWidget {
                     '${l10n.chatDecisionLedgerSourceCount(decision.references.length)}.',
               )
               .join(' ');
+    final auditMetadata = snapshot.auditMetadata;
 
     return Semantics(
       container: true,
@@ -1936,6 +1950,9 @@ class _RoomDecisionEvidenceCard extends StatelessWidget {
         counts,
         ledgerSummary,
         recordSummary,
+        auditMetadata.provenanceSummary,
+        auditMetadata.exportPosture,
+        auditMetadata.auditRefs.join(', '),
         l10n.chatDecisionEvidenceNoBackgroundReading,
       ].join('. '),
       child: ExcludeSemantics(
@@ -2001,6 +2018,28 @@ class _RoomDecisionEvidenceCard extends StatelessWidget {
                   const SizedBox(height: 8),
                   for (final decision in ledgerRecords.take(compact ? 2 : 4))
                     _DecisionLedgerRecordTile(decision: decision),
+                  const SizedBox(height: 8),
+                  Text(
+                    auditMetadata.provenanceSummary,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    auditMetadata.exportPosture,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    auditMetadata.auditRefs.join(' · '),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   const SizedBox(height: 12),
                 ],
                 if (snapshot.records.isEmpty)

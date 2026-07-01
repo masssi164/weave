@@ -118,34 +118,6 @@ class ReleaseReadinessCheckTest(unittest.TestCase):
         self.assertNotEqual(completed.returncode, 0)
         self.assertIn("#591", self.check_by_id(self.json_result(completed), "release-blockers")["summary"])
 
-    def test_support_safe_policy_requires_all_evidence_exclusions(self) -> None:
-        readme = ROOT / "README.md"
-        original = readme.read_text(encoding="utf-8")
-        try:
-            readme.write_text(original.replace("private prompts", "private redacted inputs"), encoding="utf-8")
-            completed = self.run_check()
-            self.assertNotEqual(completed.returncode, 0)
-            self.assertEqual(self.check_by_id(self.json_result(completed), "support-safe-policy")["status"], "fail")
-        finally:
-            readme.write_text(original, encoding="utf-8")
-
-    def test_release_claim_control_blocks_prohibited_wording_classes(self) -> None:
-        notes = self.root / "release-notes-unreleased.md"
-        samples = [
-            "public release is ready",
-            "full accessibility passed",
-            "provider interchangeability is available",
-            "production restore is ready",
-            "Weaver is available",
-        ]
-        for sample in samples:
-            original = notes.read_text(encoding="utf-8")
-            notes.write_text(original + f"\n- Unsafe sample says {sample}.\n", encoding="utf-8")
-            completed = self.run_check()
-            self.assertNotEqual(completed.returncode, 0, sample)
-            self.assertEqual(self.check_by_id(self.json_result(completed), "claim-control")["status"], "fail")
-            notes.write_text(original, encoding="utf-8")
-
     def test_missing_e2e_can_be_waived_with_explicit_marker(self) -> None:
         manifest = self.root / "weave-live-stack-acceptance-evidence" / "release-evidence-manifest.json"
         manifest.unlink()

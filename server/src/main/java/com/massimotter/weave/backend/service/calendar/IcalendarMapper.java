@@ -26,6 +26,14 @@ public class IcalendarMapper {
             .withZone(ZoneOffset.UTC);
     private static final DateTimeFormatter LOCAL_DATE_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss");
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.BASIC_ISO_DATE;
+    private static final Map<String, String> TIMEZONE_ALIASES = Map.of(
+            "CEST", "Europe/Berlin",
+            "CET", "Europe/Berlin",
+            "MESZ", "Europe/Berlin",
+            "MEZ", "Europe/Berlin",
+            "GMT", "UTC",
+            "UTC", "UTC",
+            "Z", "UTC");
 
     public EventDraft draftFrom(CreateCalendarEventRequest request) {
         return new EventDraft(
@@ -221,7 +229,20 @@ public class IcalendarMapper {
         if (timezone == null || timezone.isBlank()) {
             return ZoneOffset.UTC;
         }
-        return ZoneId.of(timezone);
+        String normalized = timezone.trim();
+        String alias = TIMEZONE_ALIASES.get(normalized.toUpperCase(Locale.ROOT));
+        try {
+            return ZoneId.of(alias == null ? normalized : alias);
+        } catch (RuntimeException exception) {
+            throw new CalendarAdapterException(
+                    CalendarAdapterException.Type.INVALID_REQUEST,
+                    "Calendar event timezone is not supported.",
+                    Map.of(
+                            "field", "timezone",
+                            "value", normalized,
+                            "supportSafeReason", "invalid-timezone"),
+                    exception);
+        }
     }
 
     private String timezone(Property property) {

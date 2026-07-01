@@ -11,6 +11,8 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -18,6 +20,7 @@ public class WeaverToolRegistry {
 
     private final AuditEventPublisher auditEventPublisher;
     private final Map<String, WeaverDomainToolDefinition> definitions;
+    private final ConcurrentMap<String, Boolean> consumedApprovalReceipts = new ConcurrentHashMap<>();
 
     public WeaverToolRegistry(AuditEventPublisher auditEventPublisher) {
         this.auditEventPublisher = auditEventPublisher;
@@ -27,7 +30,7 @@ public class WeaverToolRegistry {
     public List<WeaverDomainToolDefinition> discover(List<String> grantedCapabilities) {
         List<String> safeCapabilities = grantedCapabilities == null ? List.of() : grantedCapabilities;
         return definitions.values().stream()
-                .filter(definition -> safeCapabilities.contains(definition.requiredCapability()))
+                .filter(definition -> capabilityGranted(safeCapabilities, definition.requiredCapability()))
                 .toList();
     }
 
@@ -40,7 +43,7 @@ public class WeaverToolRegistry {
                     "auditRef", auditRef(request.toolName(), governanceDenial)));
             return blocked(request.toolName(), governanceDenial, "Weaver tool invocation failed closed before provider access.");
         }
-        if (definition == null || !request.grantedCapabilities().contains(definition.requiredCapability())) {
+        if (definition == null || !capabilityGranted(request.grantedCapabilities(), definition.requiredCapability())) {
             audit(request.userRef(), request.runtimeProfileHash(), request.toolName(), "blocked", Map.of(
                     "reason", "not_granted",
                     "auditRef", auditRef(request.toolName(), "blocked")));
@@ -56,21 +59,51 @@ public class WeaverToolRegistry {
         boolean approvalReceiptValidated = false;
         if (definition.writeLike()) {
             WeaverApprovalReceipt approvalReceipt = request.approvalReceipt();
-            if (approvalReceipt == null || !approvalReceipt.validFor(request.userRef(), request.toolName())) {
-                audit(request.userRef(), request.runtimeProfileHash(), request.toolName(), "approval_required", Map.of(
+            String terminalApprovalStatus = terminalApprovalStatus(request.approvalReceiptRef(), approvalReceipt);
+            if (terminalApprovalStatus != null) {
+                audit(request.userRef(), request.runtimeProfileHash(), request.toolName(), terminalApprovalStatus, Map.of(
                         "domain", definition.domain(),
+                        "approvalAuthority", "user_openclaw_runtime",
                         "approvalReceiptValidated", false,
-                        "auditRef", auditRef(request.toolName(), "approval_required")));
+                        "serverApprovalDecision", false,
+                        "auditRef", auditRef(request.toolName(), terminalApprovalStatus)));
+                return blocked(request.toolName(), terminalApprovalStatus, "Weaver action failed closed after the user runtime did not approve it.");
+            }
+            List<String> requiredScopeRefs = canonicalScopeRefs(request.input());
+            String expectedPolicyVersion = expectedPolicyVersion(request.input());
+            if (approvalReceipt == null || !approvalReceipt.validFor(request.userRef(), request.toolName(), requiredScopeRefs, expectedPolicyVersion)) {
+                String status = approvalReceipt == null ? "approval_required" : "approval_receipt_invalid";
+                audit(request.userRef(), request.runtimeProfileHash(), request.toolName(), status, Map.of(
+                        "domain", definition.domain(),
+                        "approvalAuthority", "user_openclaw_runtime",
+                        "approvalReceiptValidated", false,
+                        "serverApprovalDecision", false,
+                        "canonicalRefs", requiredScopeRefs,
+                        "auditRef", auditRef(request.toolName(), status)));
                 return new WeaverToolInvocationResult(
                         request.toolName(),
-                        "approval_required",
-                        true,
+                        status,
+                        approvalReceipt == null,
                         true,
                         Map.of(
                                 "approvalPolicy", definition.approvalRequirement().name(),
+                                "approvalAuthority", "user_openclaw_runtime",
+                                "serverApprovalDecision", false,
                                 "approvalReceiptValidated", false,
-                                "auditRef", auditRef(request.toolName(), "approval_required")),
-                        "This action requires a valid approval receipt before Weaver may continue.");
+                                "canonicalRefs", canonicalRefs(request.input()),
+                                "auditRef", auditRef(request.toolName(), status)),
+                        approvalReceipt == null
+                                ? "This action requires a valid approval receipt before Weaver may continue."
+                                : "Approval receipt scope does not match the Weaver tool invocation.");
+            }
+            String receiptKey = request.userRef() + "|" + request.toolName() + "|" + approvalReceipt.receiptRef();
+            if (consumedApprovalReceipts.putIfAbsent(receiptKey, true) != null) {
+                audit(request.userRef(), request.runtimeProfileHash(), request.toolName(), "duplicate_approval_receipt", Map.of(
+                        "domain", definition.domain(),
+                        "approvalReceiptValidated", false,
+                        "approvalReceiptRef", approvalReceipt.receiptRef(),
+                        "auditRef", auditRef(request.toolName(), "duplicate_approval_receipt")));
+                return blocked(request.toolName(), "duplicate_approval_receipt", "Approval receipt replay was blocked before provider access.");
             }
             approvalReceiptValidated = true;
         }
@@ -99,6 +132,7 @@ public class WeaverToolRegistry {
         base.put("approvalReceiptAuditRef", request.approvalReceipt() == null ? "none" : request.approvalReceipt().auditRef());
         base.put("rawProviderPayload", "redacted");
         base.put("auditRef", auditRef(request.toolName(), "invoked"));
+        base.put("approvalAuthority", definition.writeLike() ? "user_openclaw_runtime" : "not_required");
         if ("identity.read".equals(definition.name())) {
             base.put("identity", Map.of(
                     "userRef", request.userRef(),
@@ -122,15 +156,6 @@ public class WeaverToolRegistry {
     }
 
     private String governanceDenial(WeaverToolInvocationRequest request, WeaverDomainToolDefinition definition) {
-        if (!request.runtimeProfileSignature().startsWith("weave-signature:v1:")) {
-            return "runtime_profile_unsigned";
-        }
-        if (!request.userRef().equals(request.runtimeProfileUserRef())) {
-            return "runtime_profile_user_mismatch";
-        }
-        if (request.runtimeProfileRevoked()) {
-            return "runtime_profile_revoked";
-        }
         if (runtimeTokenExpired(request.runtimeTokenExpiresAt())) {
             return "runtime_token_expired";
         }
@@ -141,10 +166,37 @@ public class WeaverToolRegistry {
             return "overbroad_grant";
         }
         if (definition != null && request.scopedToolGrants().stream()
+                .filter(grant -> !definition.name().equals(grant))
                 .anyMatch(grant -> grant.startsWith(definition.domain() + ".") || grant.endsWith(".*"))) {
             return "overbroad_grant";
         }
         return null;
+    }
+
+    private String terminalApprovalStatus(String approvalReceiptRef, WeaverApprovalReceipt approvalReceipt) {
+        String marker = approvalReceipt != null ? approvalReceipt.receiptRef() : approvalReceiptRef;
+        if (marker == null) {
+            return null;
+        }
+        String normalized = marker.strip().toLowerCase();
+        if (normalized.contains("denied") || normalized.contains("deny")) {
+            return "approval_denied";
+        }
+        if (normalized.contains("timeout") || normalized.contains("expired")) {
+            return "approval_timeout";
+        }
+        if (normalized.contains("revoked")) {
+            return "approval_revoked";
+        }
+        return null;
+    }
+
+    private String expectedPolicyVersion(Map<String, Object> input) {
+        if (input == null) {
+            return "";
+        }
+        Object value = input.get("policyVersion");
+        return value instanceof String policyVersion ? policyVersion.strip() : "";
     }
 
     private boolean runtimeTokenExpired(String runtimeTokenExpiresAt) {
@@ -167,6 +219,21 @@ public class WeaverToolRegistry {
                 || normalized.endsWith(".*");
     }
 
+    private boolean capabilityGranted(List<String> grantedCapabilities, String requiredCapability) {
+        if (grantedCapabilities.contains(requiredCapability)) {
+            return true;
+        }
+        String legacy = switch (requiredCapability) {
+            case "calendar.read" -> "weaver.calendar_read";
+            case "calendar.manage_events" -> "weaver.calendar_create_event";
+            case "boards.read" -> "weaver.boards_read";
+            case "boards.update_task" -> "weaver.boards_write";
+            case "chat.read" -> "weaver.chat_read";
+            default -> requiredCapability;
+        };
+        return grantedCapabilities.contains(legacy);
+    }
+
     private WeaverToolInvocationResult blocked(String toolName, String status, String message) {
         return new WeaverToolInvocationResult(
                 toolName,
@@ -180,9 +247,33 @@ public class WeaverToolRegistry {
     private Map<String, Object> canonicalRefs(Map<String, Object> input) {
         Map<String, Object> refs = new LinkedHashMap<>();
         copyCanonicalRef(input, refs, "spaceRef", "space");
+        copyCanonicalRef(input, refs, "channelRef", "channel");
+        copyCanonicalRef(input, refs, "threadRef", "thread");
         copyCanonicalRef(input, refs, "decisionRef", "decision");
         copyCanonicalRef(input, refs, "boardTaskRef", "boardTask");
+        copyCanonicalRef(input, refs, "taskRef", "task");
+        copyCanonicalRef(input, refs, "calendarRef", "calendar");
+        copyCanonicalRef(input, refs, "eventRef", "event");
+        copyCanonicalRef(input, refs, "messageRef", "message");
+        copyCanonicalRef(input, refs, "fileRef", "file");
         return Map.copyOf(refs);
+    }
+
+    private List<String> canonicalScopeRefs(Map<String, Object> input) {
+        return canonicalRefs(input).values().stream()
+                .filter(String.class::isInstance)
+                .map(String.class::cast)
+                .filter(ref -> ref.startsWith("space:")
+                        || ref.startsWith("channel:")
+                        || ref.startsWith("thread:")
+                        || ref.startsWith("board-task:")
+                        || ref.startsWith("task:")
+                        || ref.startsWith("calendar:")
+                        || ref.startsWith("event:")
+                        || ref.startsWith("message:")
+                        || ref.startsWith("file:"))
+                .sorted()
+                .toList();
     }
 
     private void copyCanonicalRef(Map<String, Object> input, Map<String, Object> refs, String inputKey, String outputKey) {
@@ -193,7 +284,16 @@ public class WeaverToolRegistry {
     }
 
     private boolean canonicalRef(String ref) {
-        return ref.startsWith("space:") || ref.startsWith("decision:") || ref.startsWith("board-task:");
+        return ref.startsWith("space:")
+                || ref.startsWith("channel:")
+                || ref.startsWith("thread:")
+                || ref.startsWith("decision:")
+                || ref.startsWith("board-task:")
+                || ref.startsWith("task:")
+                || ref.startsWith("calendar:")
+                || ref.startsWith("event:")
+                || ref.startsWith("message:")
+                || ref.startsWith("file:");
     }
 
     private String auditRef(String toolName, String status) {
@@ -204,6 +304,8 @@ public class WeaverToolRegistry {
         Map<String, Object> safePayload = new LinkedHashMap<>(payload);
         String safeUserRef = userRef == null || userRef.isBlank() ? "user:unknown" : userRef;
         safePayload.putIfAbsent("runtimeProfileHash", runtimeProfileHash);
+        safePayload.putIfAbsent("runtimeProfileAuthority", "correlation_only");
+        safePayload.putIfAbsent("policyEnforcementPoint", "weave-mcp-server");
         safePayload.putIfAbsent("user", safeUserRef);
         safePayload.put("toolName", toolName);
         safePayload.putIfAbsent("tool", toolName);
@@ -238,6 +340,23 @@ public class WeaverToolRegistry {
                 tool.inputSchema(),
                 List.of("providerCredentials", "rawProviderPayload", "secretRef.value"),
                 tool.description())));
+        add(registry, new WeaverDomainToolDefinition(
+                "chat.search_messages",
+                "v1",
+                "chat-channels",
+                WeaverToolMode.READ,
+                "weaver.chat_read",
+                WeaverApprovalRequirement.NONE,
+                Map.of(
+                        "type", "object",
+                        "additionalProperties", false,
+                        "properties", Map.of(
+                                "spaceRef", Map.of("type", "string"),
+                                "query", Map.of("type", "string"),
+                                "limit", Map.of("type", "integer", "minimum", 1, "maximum", 50)),
+                        "description", "Validated by the Weave chat-channels facade before provider access."),
+                List.of("providerCredentials", "rawProviderPayload", "secretRef.value"),
+                "Weaver chat search exposed only through Weave capability grants."));
         return Collections.unmodifiableMap(registry);
     }
 

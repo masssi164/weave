@@ -12,7 +12,7 @@ public record WeaverPaChatProperties(
 
     public WeaverPaChatProperties {
         bridgeUrl = hasText(bridgeUrl) ? bridgeUrl.trim() : "";
-        timeout = timeout == null ? Duration.ofSeconds(10) : timeout;
+        timeout = timeout == null ? Duration.ofSeconds(120) : timeout;
         runtimeTokenRef = hasText(runtimeTokenRef) ? runtimeTokenRef.trim() : "credentialref://weave/channels/weave-chat/runtime-token";
     }
 

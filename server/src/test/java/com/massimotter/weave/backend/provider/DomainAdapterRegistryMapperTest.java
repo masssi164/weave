@@ -113,7 +113,13 @@ class DomainAdapterRegistryMapperTest {
     void categoryContractCarriesAntiSiloDomainAdapterFit() {
         var contract = ProviderCapabilityContracts.contract("chat", Set.of(ProviderModule.MATRIX));
 
-        assertThat(contract.stableMemberImpactStates()).containsExactly("usable", "disabled", "degraded", "policy-blocked");
+        assertThat(contract.stableMemberImpactStates()).containsExactly(
+                "available",
+                "disabled_by_policy",
+                "not_configured",
+                "degraded",
+                "unavailable",
+                "coming_later");
         assertThat(contract.canonicalObjects()).contains("WeaveConversation", "WeaveMessage", "WeaveMembership");
         assertThat(contract.externalAdapters()).contains("microsoft-teams", "slack");
         assertThat(contract.lossyMappingRisks()).contains("Slack broadcast/thread semantics", "Teams channel permissions");
@@ -127,7 +133,13 @@ class DomainAdapterRegistryMapperTest {
         CORE_DOMAIN_OBJECTS.forEach((category, canonicalObjects) -> {
             var contract = ProviderCapabilityContracts.contract(category, modulesFor(category));
 
-            assertThat(contract.stableMemberImpactStates()).containsExactly("usable", "disabled", "degraded", "policy-blocked");
+            assertThat(contract.stableMemberImpactStates()).containsExactly(
+                    "available",
+                    "disabled_by_policy",
+                    "not_configured",
+                    "degraded",
+                    "unavailable",
+                    "coming_later");
             assertThat(contract.canonicalObjects()).containsExactlyInAnyOrderElementsOf(canonicalObjects);
             assertThat(contract.sourceOfTruth()).isNotBlank();
             assertThat(contract.lossyMappingRisks()).isNotEmpty();
@@ -153,7 +165,7 @@ class DomainAdapterRegistryMapperTest {
                 category("meetings-calls", ProviderCategoryReadiness.READY, ProviderModule.MEETINGS)), null).domains();
 
         assertThat(domains).extracting(DomainAdapterStatusResponse::domain)
-                .contains("identity", "chat", "files", "calendar", "boards", "calls");
+                .contains("chat", "files", "calendar", "boards-tasks", "meetings-calls");
         assertThat(domains).allSatisfy(domain -> {
             assertThat(domain.singleActiveAdapterValid()).isTrue();
             assertThat(domain.supportSafe()).isTrue();
@@ -164,15 +176,8 @@ class DomainAdapterRegistryMapperTest {
                         .containsEntry("rawProviderErrorsReturned", false);
             });
         });
-        Map<String, String> canonicalDomainsByCategory = Map.of(
-                "identity-idm", "identity",
-                "chat", "chat",
-                "files", "files",
-                "calendar", "calendar",
-                "boards-tasks", "boards",
-                "meetings-calls", "calls");
         MIXED_PROVIDER_POSTURE.forEach((category, adapterKeys) -> assertThat(domains)
-                .filteredOn(domain -> domain.domain().equals(canonicalDomainsByCategory.get(category)))
+                .filteredOn(domain -> domain.domain().equals(category))
                 .singleElement()
                 .satisfies(domain -> assertThat(domain.candidates())
                         .extracting(DomainAdapterCandidateResponse::adapterKey)

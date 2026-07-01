@@ -4,7 +4,7 @@ Weave is one monorepo. `client/`, `server/`, `infra/`, `e2e/`, `docs/`, and `rel
 
 Old `weave-backend` and `weave-infra` checkouts are stale. Ignore them.
 
-Truth split: the canonical fachliche specification truth is the pinned Weave Specification Corpus in `specs/weave-specs.lock.json` (local default `../weave-specs`). This repo is implementation/evidence truth: code, tests, CI, release evidence, GitHub issues/PRs/milestones, and generated or transitional spec projections. If corpus and repo reality disagree, create an explicit spec-change or conformance-fix task; never let implementation state silently redefine product/domain meaning.
+Truth split: the canonical fachliche specification truth is the pinned Weave Specification Corpus in `specs/weave-specs.lock.json` (local default `../weave-specs`). This repo is implementation/evidence truth: code, tests, CI, release evidence, GitHub issues/PRs/milestones, and generated or transitional spec projections. Use `docs/specification-source-of-truth.md` and `specs/spec-inventory.yaml` before citing, editing, deleting, or migrating repo-local specs. If corpus and repo reality disagree, create an explicit spec-change or conformance-fix task; never let implementation state silently redefine product/domain meaning.
 
 Language policy: every `AGENTS.md`, agent prompt, checked-in project instruction, PR body, issue body, code comment, and documentation change must be written in English unless a user-facing localization file explicitly requires another language.
 
@@ -19,7 +19,7 @@ Before coding, opening PRs, merging, or declaring work complete, read and follow
 - `docs/developer-handbook.md` for coding conventions, Gradle gates, generated code, accessibility/i18n, and evidence expectations.
 - `docs/gitflow-pr-workflow.md` for lane-based DevOps flow, protected `main`/`dev`, PR readiness, merge rules, and release-notes labels.
 - `docs/weave-operating-model.md` for delivery lifecycle and governance.
-- `specs/weave-specs.lock.json`, the pinned spec corpus files, `.specify/memory/constitution.md`, `docs/spec-driven-development.md`, and transitional repo-local `specs/` for conformance context.
+- `specs/weave-specs.lock.json`, the pinned spec corpus files, `specs/spec-inventory.yaml`, `.specify/memory/constitution.md`, `docs/spec-driven-development.md`, and transitional repo-local `specs/` for conformance context.
 - Domain docs near the changed area (`client/`, `server/`, `infra/`, `e2e/`, `docs/`).
 
 Default gates: `./gradlew specCorpusConformance`, `./gradlew acceptanceContract`, `./gradlew clientCi`, `./gradlew serverCi`, `./gradlew adminCi`, `./gradlew infraStatic`, `./gradlew docsCheck`, and `./gradlew releaseEvidenceCheck`; use the smallest meaningful subset and `./gradlew ci` for cross-stack changes.

@@ -25,7 +25,7 @@ class ShellRecentActivity extends ConsumerWidget {
     return SafeArea(
       bottom: false,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Semantics(
           container: true,
           label: l10n.shellRecentActivitySemanticLabel,
@@ -34,44 +34,39 @@ class ShellRecentActivity extends ConsumerWidget {
             elevation: 0,
             color: theme.colorScheme.surfaceContainerHighest,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              child: Row(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(
-                    Icons.history,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    l10n.shellRecentActivityTitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleMedium,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          _ActivityGroup(
-                            label: l10n.shellRecentRoomsTitle,
-                            child: _ChatActivityContent(
-                              state: chatState,
-                              onRetry: () =>
-                                  ref.read(chatProvider.notifier).retry(),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          _ActivityGroup(
-                            label: l10n.shellRecentFilesTitle,
-                            child: _FilesActivityContent(
-                              state: filesState,
-                              onRetry: () => ref.invalidate(filesProvider),
-                            ),
-                          ),
-                        ],
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.history,
+                        color: theme.colorScheme.onSurfaceVariant,
                       ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          l10n.shellRecentActivityTitle,
+                          style: theme.textTheme.titleMedium,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _ActivityGroup(
+                    label: l10n.shellRecentRoomsTitle,
+                    child: _ChatActivityContent(
+                      state: chatState,
+                      onRetry: () => ref.read(chatProvider.notifier).retry(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _ActivityGroup(
+                    label: l10n.shellRecentFilesTitle,
+                    child: _FilesActivityContent(
+                      state: filesState,
+                      onRetry: () => ref.invalidate(filesProvider),
                     ),
                   ),
                 ],
@@ -94,18 +89,25 @@ class _ActivityGroup extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          label,
-          style: theme.textTheme.labelLarge?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
+    return Semantics(
+      container: true,
+      explicitChildNodes: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Semantics(
+            header: true,
+            child: Text(
+              label,
+              style: theme.textTheme.labelLarge?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
           ),
-        ),
-        const SizedBox(width: 8),
-        child,
-      ],
+          const SizedBox(height: 8),
+          child,
+        ],
+      ),
     );
   }
 }
@@ -424,10 +426,14 @@ class _ActivityStatusPill extends StatelessWidget {
           children: [
             Icon(icon, size: 18, color: theme.colorScheme.onSurfaceVariant),
             const SizedBox(width: 6),
-            Text(
-              message,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+            Flexible(
+              child: Text(
+                message,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
             ),
             if (actionLabel != null && onAction != null) ...[

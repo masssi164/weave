@@ -77,7 +77,8 @@ class FirstPartyIdentityContractTest {
                         "Bearer authentication is required and must satisfy the first-party Weave token contract."))
                 .andExpect(jsonPath("$.details.status").value(401))
                 .andExpect(jsonPath("$.details.path").value(endsWith(WORKSPACE_CAPABILITIES_PATH)))
-                .andExpect(jsonPath("$.requestId").value(notNullValue()));
+                .andExpect(jsonPath("$.requestId").value(notNullValue()))
+                .andExpect(jsonPath("$.supportRef").value(startsWith("support:")));
     }
 
     @Test
@@ -90,7 +91,8 @@ class FirstPartyIdentityContractTest {
                         "The bearer token is authenticated but missing the required weave:workspace scope."))
                 .andExpect(jsonPath("$.details.status").value(403))
                 .andExpect(jsonPath("$.details.path").value(endsWith(WORKSPACE_CAPABILITIES_PATH)))
-                .andExpect(jsonPath("$.requestId").value(notNullValue()));
+                .andExpect(jsonPath("$.requestId").value(notNullValue()))
+                .andExpect(jsonPath("$.supportRef").value(startsWith("support:")));
     }
 
     @ParameterizedTest

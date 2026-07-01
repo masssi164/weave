@@ -3,7 +3,7 @@
 ## Overview
 Weave uses a feature-first clean architecture with deterministic bootstrap before routing. App-level OIDC bootstrap is resolved before navigation, while protocol-specific or platform-specific code lives either inside the owning feature or in `lib/integrations/<integration>/` when the boundary is shared across multiple features.
 
-Weave is product-first and provider-neutral. It models organization capabilities such as identity, chat, files, calendar, boards/tasks, meetings, decisions, documents/collaboration, embedded manuals, release evidence, and later Weaver. Concrete systems such as Keycloak, Entra ID, Matrix, Teams, Slack, Nextcloud, SharePoint, OpenProject, Jira, or LiveKit attach as provider adapters behind Weave domain contracts. See [Weave product line and Weaver integration plan](product-line-and-weaver-plan.md), [Organization embedding contract](organization-embedding-contract.md), [Identity provisioning strategy](identity-provisioning-strategy.md), [Provider replacement and anti-silo contract](provider-replacement-and-anti-silo-contract.md), [Canonical domains](architecture/canonical-domains.md), [Provider portability contract](architecture/provider-portability.md), and [Weaver OpenClaw-derived runtime profile](architecture/weaver-openclaw-profile.md).
+Weave is product-first and provider-neutral. It models organization capabilities such as identity, chat, files, calendar, boards/tasks, meetings, decisions, documents/collaboration, embedded manuals, release evidence, and later Weaver. Concrete systems such as Keycloak, Entra ID, Matrix, Teams, Slack, Nextcloud, SharePoint, OpenProject, Jira, or LiveKit attach as provider adapters behind Weave domain contracts. The server is the canonical domain, policy, validation, and OpenAPI contract authority for generated client/admin/MCP consumers; see [ADR-004: Server OpenAPI is the contract authority](architecture/adr-004-server-openapi-contract-authority.md). See also [Weave product line and Weaver integration plan](product-line-and-weaver-plan.md), [Organization embedding contract](organization-embedding-contract.md), [Identity provisioning strategy](identity-provisioning-strategy.md), [Provider replacement and anti-silo contract](provider-replacement-and-anti-silo-contract.md), [Canonical domains](architecture/canonical-domains.md), [Provider portability contract](architecture/provider-portability.md), and [Weaver OpenClaw-derived runtime profile](architecture/weaver-openclaw-profile.md).
 
 ## Provider-neutral capability contracts
 
@@ -84,7 +84,7 @@ Shell destinations:
 - **Channels** contain team/topic rooms and remain the main collaboration spine for future channel workspaces.
 - **AI chats** provide a distinct home for specialized assistant and agent chats instead of mixing them into ordinary DMs.
 
-The first implementation slice keeps Matrix as the conversation source, classifies direct messages versus channels from existing room metadata, and renders honest empty states for favorites and AI chats until backend/product metadata is ready. Channel detail treats a channel as a workspace container, but normal member copy may only show available product surfaces or impact-level unavailable states. Files, board/task, calendar, and meeting setup details stay behind admin/operator Workspace Health until the corresponding backend capability is enabled; channel UX must not expose provider setup diagnostics or preview claims.
+The current member Chat path uses the backend Chat facade as the conversation source. Flutter maps `/api/chat/*` OpenAPI DTOs inside `features/chat/data/` and presents Weave-domain conversations, messages, and readiness through `ChatRepository`. Channel detail treats a channel as a workspace container, but normal member copy may only show available product surfaces or impact-level unavailable states. Files, board/task, calendar, and meeting setup details stay behind admin/operator Workspace Health until the corresponding backend capability is enabled; channel UX must not expose provider setup diagnostics or preview claims.
 
 The server now owns a Chat domain facade seam. Member routes under `/api/chat/*` return Weave-domain readiness/conversation/message contracts and fail closed for missing, unsupported, degraded, blocked, or unconfigured Chat mappings. Admin/operator routes under `/api/admin/chat/*` may show support-safe selected mapping, redacted readiness diagnostics, and migration dry-run/preflight reports; destructive migration apply is intentionally out of scope.
 
@@ -152,12 +152,12 @@ Each feature follows the same three layers:
 
 Shared integrations follow the same layering under `lib/integrations/<integration>/` when multiple features need the same protocol/platform boundary.
 
-Current repository-first stub boundaries:
+Current feature repository boundaries:
 
 - `auth` -> `AuthSessionRepository` + `OidcClient`
-- `chat` -> `ChatRepository` + `MatrixClient`
-- `integrations/nextcloud` -> `NextcloudConnectionService` + `NextcloudAuthClient` + `NextcloudSessionRepository` + shared providers
-- `files` -> `FilesRepository` + `NextcloudDavClient`
+- `chat` -> `ChatRepository` + backend Chat facade OpenAPI DTO mapping in `data/`; Matrix SDK access is fenced to legacy/diagnostic chat-owned services until #895 removes or replaces that seam
+- `files` -> `FilesRepository` + backend Files facade OpenAPI DTO mapping in `data/`; direct Nextcloud/WebDAV transport stays outside normal member UI paths
+- `integrations/nextcloud` -> transitional Nextcloud auth/session helpers only for fenced legacy or provider-owned integration work; normal member Files presentation must use the backend Files facade
 - `calendar` -> `CalendarRepository` + backend `CalendarFacadeClient` (no direct Flutter-to-CalDAV product path)
 - `deck` / future `tasks_boards` -> exploratory board repository/client boundaries; future work should use a provider-neutral Weave model with adapters
 
@@ -166,15 +166,17 @@ Presentation depends on repository contracts and Riverpod providers only. It doe
 Boundary rule:
 
 - feature-specific mapping stays in the feature
+- generated OpenAPI DTOs are transport contracts for feature `data/` mappers, not presentation or domain models
+- shared OpenAPI adapter primitives may represent reusable resource pages, readiness/capability states, support-safe errors, and future watch-stream envelopes, while Chat, Files, and other features keep feature-specific repository methods where their semantics differ
 - reusable external-service auth/session/orchestration belongs in an integration layer
 - features may depend on integrations, but integrations must not depend on feature presentation state or feature-owned transport mappings they are meant to support
 
 ## Session separation
-App auth, Matrix auth, and shared Nextcloud session handling are intentionally separate concerns:
+App auth, legacy Matrix diagnostic auth, and transitional Nextcloud integration state are intentionally separate concerns:
 
 - `auth/` owns the app-level OIDC session that decides whether the shell is reachable
-- `chat/` owns Matrix protocol discovery, Matrix Native OAuth 2.0 login, refresh, logout, and SDK persistence
-- `integrations/nextcloud/` consumes app-auth state when available, but owns Nextcloud bearer/app-password selection, secure Nextcloud session persistence, reconnect rules, and app-password revocation
+- `chat/data/repositories/BackendChatRepository` consumes the Weave app session and calls the canonical backend Chat facade; remaining Matrix protocol discovery, Matrix Native OAuth 2.0 login, refresh, logout, and SDK persistence are fenced legacy/diagnostic seams pending #895
+- `files/data/repositories/BackendFilesRepository` consumes the Weave app session and calls the canonical backend Files facade; `integrations/nextcloud/` remains transitional provider-integration code rather than the normal member Files path
 - the app does not assume an app-level OIDC access token is also a Matrix access token
 - the app does not assume an app-level OIDC token can be persisted as a raw Nextcloud bearer session; persisted Nextcloud bearer sessions are stored as tokenless markers and rehydrated from app auth state
 - changing the Matrix homeserver invalidates the Matrix session without redesigning bootstrap
@@ -190,7 +192,7 @@ Matrix E2EE state also stays inside `features/chat/`:
 - verification state must stay chat-owned as well; SDK states such as `askSSSS` are surfaced as recovery/unlock prompts rather than exposed directly in widgets
 - current verification support is limited to SAS emoji/numbers plus SSSS unlock; QR verification remains out of scope until the client explicitly supports QR methods end-to-end
 
-The current Matrix integration uses:
+The remaining Matrix integration is a fenced legacy/diagnostic seam pending #895. It uses:
 
 - the configured Matrix homeserver URL from `ServerConfiguration`
 - `Client.checkHomeserver(..., fetchAuthMetadata: true)` for capability discovery
@@ -199,12 +201,12 @@ The current Matrix integration uses:
 - Matrix SDK crypto setup helpers for first-device bootstrap, recovery reconnect, and self-verification continuation
 
 ## Nextcloud integration split
-Nextcloud is now split into:
+Normal member Files uses the backend Files facade through `BackendFilesRepository`; Flutter maps `/api/files/*` OpenAPI DTOs inside `features/files/data/` and presents Weave-domain `DirectoryListing` and `FileEntry` objects. The transitional Nextcloud integration is now split into fenced provider-owned helpers:
 
-- `integrations/nextcloud/` for shared auth, session, account validation, login-flow handling, revoke policy, provider wiring, and connection lifecycle orchestration
-- `features/files/` for DAV directory browsing, file-entry mapping, and file-facing presentation/state
+- `integrations/nextcloud/` for legacy/shared auth, session, account validation, login-flow handling, revoke policy, provider wiring, and connection lifecycle orchestration where a fenced provider adapter still needs it
+- `features/files/` for backend Files facade calls, OpenAPI DTO-to-domain mapping, and file-facing presentation/state
 
-This keeps the current Files UX intact while making the same Nextcloud platform layer reusable for future Calendar or provider-adapter board work without importing `features/files/`.
+This keeps the current Files UX intact while moving provider transport behind backend domain services. Future Calendar or provider-adapter board work must not import `features/files/` or add direct member UI provider setup paths.
 
 ## Calendar backend facade scope
 

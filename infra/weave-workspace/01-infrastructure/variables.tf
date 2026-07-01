@@ -68,12 +68,6 @@ variable "admin_subdomain" {
   default     = "admin"
 }
 
-variable "mcp_subdomain" {
-  description = "Subdomain used for the governed Weave MCP Streamable HTTP gateway."
-  type        = string
-  default     = "mcp"
-}
-
 variable "public_scheme" {
   description = "Public URL scheme for browser-facing services."
   type        = string
@@ -107,6 +101,18 @@ variable "keycloak_management_host_port" {
   description = "Direct host port for Keycloak management HTTP health endpoints."
   type        = number
   default     = 9000
+}
+
+variable "mailpit_image" {
+  description = "Mailpit image used for dogfood/local-only mail capture."
+  type        = string
+  default     = "axllent/mailpit:v1.27"
+}
+
+variable "mailpit_web_host_port" {
+  description = "Loopback-only host port for the Mailpit web/API inbox."
+  type        = number
+  default     = 8025
 }
 
 variable "mas_host_port" {
@@ -191,12 +197,6 @@ variable "api_upstream" {
   description = "Internal upstream address reserved for the future Weave backend API."
   type        = string
   default     = "weave-backend:8080"
-}
-
-variable "mcp_upstream" {
-  description = "Internal upstream address for the governed Weave MCP Streamable HTTP gateway."
-  type        = string
-  default     = "host.docker.internal:8765"
 }
 
 variable "connector_provider_callbacks_exposed" {
@@ -540,6 +540,12 @@ variable "context_authorization_bootstrap_principal_ref" {
   description = "Principal reference granted local/dev Context/Space membership."
   type        = string
   default     = "user:test"
+}
+
+variable "context_authorization_dogfood_principal_ref" {
+  description = "Optional additional local dogfood principal reference granted the same bootstrap Context/Space membership."
+  type        = string
+  default     = ""
 }
 
 variable "context_authorization_bootstrap_role" {

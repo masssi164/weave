@@ -12,14 +12,6 @@ Weave is planned product-first, not agent-first.
 
 Weave is a provider-neutral organization operating layer and integration suite. It lets an organization keep existing systems for identity, chat, files, calendar, boards/tasks, documents, meetings, decisions, help/manuals, release evidence, and collaboration while presenting them through coherent Weave product concepts.
 
-The first organization setup scenarios are first-class product paths:
-
-- `deploy_new`: a greenfield organization starts with Weave-recommended sovereign/self-hostable providers where practical.
-- `attach_existing`: an existing organization attaches its current provider landscape to Weave so it can regain operational visibility, portability, and data-sovereignty leverage without a disruptive day-one migration.
-- `hybrid`: domains may move at different times; one domain can be self-hosted while another remains on an existing external provider during discovery, coexistence preflight, migration, or cutover planning.
-
-Weave may explain data-sovereignty, jurisdiction, exportability, auditability, vendor-lock-in, and compliance benefits in product/operator language, but it must not present those notes as legal advice. The recommended direction is migration toward self-hosted or otherwise sovereign providers when that is sensible; existing commercial or hyperscaler providers remain valid active bindings during attach, discovery, brownfield coexistence, and planned cutover.
-
 Weaver is a later personal-assistant layer that plugs into this already-governed organization model. It must not define the product architecture by itself.
 
 ## Priority realignment, 2026-05-26
@@ -88,7 +80,7 @@ The product surfaces remain Weave-owned:
 - Workspace/Admin Health for readiness and support;
 - accessible settings and policy-visible capability states.
 
-Provider adapters sit behind Weave contracts. A Microsoft-heavy organization should be able to use Entra ID, Teams, SharePoint, and Planner/Jira-style integrations. A self-hosted organization should be able to use Keycloak, Matrix, Nextcloud, OpenProject, and LiveKit. Mixed setups must be valid across domains, but each Weave product domain has exactly one active adapter/provider binding at a time. Other providers for that domain may be candidates, discovery/read-only sources, migration sources or targets, coexistence/preflight evidence, deprecated, or superseded; they are never simultaneous product truth. Provider swaps are admin-controlled domain migrations, not client rewrites: the server-owned `AdapterMapper` maps provider objects, capabilities, permissions, events, and errors to canonical Weave domain contracts; records provenance, loss, permission-impact, and conflict reports; emits portability manifests and support-safe audit references; and keeps member UX stable.
+Provider adapters sit behind Weave contracts. A Microsoft-heavy organization should be able to use Entra ID, Teams, SharePoint, and Planner/Jira-style integrations. A self-hosted organization should be able to use Keycloak, Matrix, Nextcloud, OpenProject, and LiveKit. Mixed setups must be valid. Provider swaps are admin-controlled domain migrations, not client rewrites: the server owns mapping old provider objects to canonical Weave domain objects, recording migration evidence, surfacing conflicts/lossy fields, and keeping member UX stable.
 
 The contract seam is category-first: feature capabilities for identity/IDM, chat, files, office/docs collaboration, meetings/calls, boards/tasks, calendar, and Weaver runtime are separate from adapter implementations. Workspace Health and policy enforcement must evaluate category contracts and stable member impact states, while concrete providers remain admin-selected adapters.
 
@@ -102,7 +94,7 @@ This means implementation work should add category contracts and adapter seams b
 
 Weaver is optional and later.
 
-When enabled, each eligible user receives a signed `WeaverRuntimeProfile` derived from organization policy and user rights. The v0.1 implementation stance is a managed runtime pool with logical per-user runtime contexts, isolated workspace/state/memory boundaries, internal-only Weave facades, and a sidecar/job-runner path for high-risk tool execution. Per-user Docker containers or MicroVMs are advanced high-isolation deployment options after operational, security, audit, sandbox, and support gates pass; they are not the default product architecture.
+When enabled, each user receives a per-user Weaver runtime derived from OpenClaw and isolated in its own Docker container. The organization provides a baseline runtime and policy; the user may configure their personal workspace and agent defaults inside those boundaries.
 
 The central rule is:
 
@@ -208,7 +200,7 @@ Evidence gate:
 Goal: plug the PA into an already-governed product.
 
 - Add Weaver as a provider/category in the admin portal, initially disabled.
-- Create signed per-user `WeaverRuntimeProfile` records for logical runtime contexts in the managed runtime pool.
+- Create per-user Dockerized Weaver runtime profiles.
 - Generate baseline OpenClaw/Weaver config from Weave policy:
   - per-user workspace;
   - isolated agent directory;
@@ -218,7 +210,6 @@ Goal: plug the PA into an already-governed product.
   - exec disabled or heavily restricted by default.
 - Generate that runtime config only from a signed Weave `WeaverRuntimeProfile`; `openclaw.json`, channel/plugin setup, MCP servers, model defaults/fallbacks, and tool filters are implementation output, not member UX or a second policy source.
 - Treat Chat provider changes as Weave Chat domain migrations. Admin Console selects Matrix, Teams, iMessage, Slack, Telegram, or another supported Chat provider; Weave runs readiness/migration checks, binds credentials through the Credential Broker, updates backend Chat-domain routing/providerRefs, regenerates RuntimeProfile vNext while preserving the stable `channels.weave-chat` OpenClaw channel, and reloads/restarts that channel/runtime if needed.
-- Keep the messaging/channel plane separate from the MCP/tool plane. Weave owns product domains, UI/API, spaces/channels/threads, RBAC/policy, approval policy, audit, RuntimeProfile generation, and the Weave MCP server/domain tools (`#764`). Weaver owns the OpenClaw-derived `weave-chat` ChannelPlugin (`masssi164/weaver#20`), session routing, inbound/outbound Weave Chat messaging, approval hint rendering, and MCP client binding to Weave MCP servers. MCP `chat.send_message` is a domain tool an already-running agent may call; it is not the user-to-Weaver chat channel. Separated channel/MCP proof remains tracked in `#765`, and `#762` still blocks any release/customer-ready claim.
 - Keep raw OpenClaw dashboard/config/wizard surfaces locked down or RBAC-stripped for members. Member `Mein Weaver` settings may cover style, memory/workspace, admin-approved model aliases, allowed skills, and allowed personal MCP connection flows only.
 - Keep MCP servers, skills, `bundle-mcp`, gateway, cron, exec, write, and patch-style tools default-deny unless admin policy explicitly grants a constrained capability. `tools.deny` is the hard global deny layer.
 - Use CredentialRefs and short-lived runtime tokens only; provider secrets, OAuth refresh tokens, channel tokens, and MCP OAuth credentials live behind the Weave Credential Broker.
@@ -254,7 +245,7 @@ Weaver remains disabled by default until a later governed runtime policy exists.
 
 Issue #266 adds the first governed Weaver runtime integration contract without making agents the product model. The Weaver category still follows the product order: provider-neutral Weave suite first, admin/provider/IDM/RBAC/readiness/whitelisting second, optional Weaver PA runtime third.
 
-Weave now generates a support-safe signed Weaver/OpenClaw-derived `WeaverRuntimeProfile` only from organization capability policy. Generated Weaver/OpenClaw config is implementation output from Weave policy, not a second agent policy model. The generated profile includes the baseline runtime profile, logical per-user runtime context, isolated workspace path, isolated agent directory, runtime-pool/sidecar posture, plugin/tool allowlists, and capability allowlist. Dedicated per-user containers or MicroVMs remain advanced high-isolation backing options after gates pass.
+Weave now generates a support-safe per-user Dockerized Weaver/OpenClaw-derived runtime profile only from organization capability policy. Generated Weaver/OpenClaw config is implementation output from Weave policy, not a second agent policy model. The generated profile includes the baseline image/profile, isolated per-user workspace path, isolated agent directory, Docker network posture, plugin/tool allowlists, and capability allowlist.
 
 The default posture remains fail-closed:
 

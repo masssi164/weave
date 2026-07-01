@@ -93,7 +93,7 @@ class _ProfileDetails extends StatelessWidget {
               ),
               _ProfileRow(
                 label: l10n.profileLocaleLabel,
-                value: profile.locale,
+                value: _languageLabel(context, profile.locale),
               ),
               _ProfileRow(
                 label: l10n.profileTimezoneLabel,
@@ -123,8 +123,8 @@ class _ProfileEditForm extends ConsumerStatefulWidget {
 class _ProfileEditFormState extends ConsumerState<_ProfileEditForm> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _displayNameController;
-  late final TextEditingController _localeController;
   late final TextEditingController _timezoneController;
+  late String _selectedLocale;
 
   @override
   void initState() {
@@ -132,7 +132,7 @@ class _ProfileEditFormState extends ConsumerState<_ProfileEditForm> {
     _displayNameController = TextEditingController(
       text: widget.profile.displayName,
     );
-    _localeController = TextEditingController(text: widget.profile.locale);
+    _selectedLocale = _supportedLocale(widget.profile.locale);
     _timezoneController = TextEditingController(text: widget.profile.timezone);
   }
 
@@ -141,7 +141,7 @@ class _ProfileEditFormState extends ConsumerState<_ProfileEditForm> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.profile.userId != widget.profile.userId) {
       _displayNameController.text = widget.profile.displayName;
-      _localeController.text = widget.profile.locale;
+      _selectedLocale = _supportedLocale(widget.profile.locale);
       _timezoneController.text = widget.profile.timezone;
     }
   }
@@ -149,7 +149,6 @@ class _ProfileEditFormState extends ConsumerState<_ProfileEditForm> {
   @override
   void dispose() {
     _displayNameController.dispose();
-    _localeController.dispose();
     _timezoneController.dispose();
     super.dispose();
   }
@@ -195,16 +194,29 @@ class _ProfileEditFormState extends ConsumerState<_ProfileEditForm> {
                 _required(value) ? null : l10n.profileEditRequiredFieldError,
           ),
           const SizedBox(height: 12),
-          TextFormField(
-            controller: _localeController,
-            enabled: !editState.isSaving,
+          DropdownButtonFormField<String>(
+            initialValue: _selectedLocale,
             decoration: InputDecoration(
               labelText: l10n.profileLocaleLabel,
-              helperText: l10n.profileLocaleHelper,
+              helperText: _languageHelper(context),
             ),
-            textInputAction: TextInputAction.next,
-            validator: (value) =>
-                _required(value) ? null : l10n.profileEditRequiredFieldError,
+            items: [
+              for (final locale in _supportedLocales)
+                DropdownMenuItem<String>(
+                  value: locale,
+                  child: Text(_languageLabel(context, locale)),
+                ),
+            ],
+            onChanged: editState.isSaving
+                ? null
+                : (value) {
+                    if (value == null) {
+                      return;
+                    }
+                    setState(() {
+                      _selectedLocale = value;
+                    });
+                  },
           ),
           const SizedBox(height: 12),
           TextFormField(
@@ -257,11 +269,33 @@ class _ProfileEditFormState extends ConsumerState<_ProfileEditForm> {
         .save(
           UserProfileUpdate(
             displayName: _displayNameController.text.trim(),
-            locale: _localeController.text.trim(),
+            locale: _selectedLocale,
             timezone: _timezoneController.text.trim(),
           ),
         );
   }
+}
+
+const _supportedLocales = ['en', 'de'];
+
+String _supportedLocale(String locale) {
+  return _supportedLocales.contains(locale) ? locale : 'en';
+}
+
+String _languageLabel(BuildContext context, String locale) {
+  final isGerman = Localizations.localeOf(context).languageCode == 'de';
+  return switch (locale) {
+    'de' => isGerman ? 'Deutsch' : 'German',
+    'en' => isGerman ? 'Englisch' : 'English',
+    _ => locale,
+  };
+}
+
+String _languageHelper(BuildContext context) {
+  final isGerman = Localizations.localeOf(context).languageCode == 'de';
+  return isGerman
+      ? 'Wähle die Sprache, die Weave für dein Profil verwenden soll.'
+      : 'Choose the language Weave should use for your profile.';
 }
 
 class _ProfileRow extends StatelessWidget {

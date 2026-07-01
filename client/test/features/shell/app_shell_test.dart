@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:weave/core/l10n/shared_preferences_app_locale_preference_repository.dart';
 import 'package:weave/core/persistence/flutter_secure_store.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/core/theme/shared_preferences_app_theme_preference_repository.dart';
@@ -13,10 +14,15 @@ import 'package:weave/features/chat/domain/entities/chat_message.dart';
 import 'package:weave/features/chat/domain/entities/chat_room_timeline.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_security_repository_provider.dart';
+import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
+import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
+import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
+import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/files/domain/entities/directory_listing.dart';
 import 'package:weave/features/files/domain/entities/file_entry.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
+import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
 import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
 import 'package:weave/features/profile/domain/entities/user_profile.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
@@ -24,6 +30,9 @@ import 'package:weave/features/server_config/domain/entities/server_configuratio
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
 import 'package:weave/features/shell/data/repositories/shared_preferences_shell_module_preferences_repository.dart';
+import 'package:weave/features/shell/presentation/shell_workspace_status.dart';
+import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
+import 'package:weave/l10n/generated/app_localizations.dart';
 import 'package:weave/main.dart';
 
 import '../../helpers/auth_test_data.dart';
@@ -117,7 +126,8 @@ void main() {
           ),
           userProfileProvider.overrideWith((ref) async => _memberProfile),
           firstRunStatusProvider.overrideWith(
-            (ref) async => buildTestFirstRunStatus(),
+            (ref) async =>
+                FirstRunLoadResult.authenticated(buildTestFirstRunStatus()),
           ),
           filesRepositoryProvider.overrideWithValue(
             filesRepository ??
@@ -153,11 +163,60 @@ void main() {
       await pumpReadyShell(tester);
 
       expect(find.byType(NavigationBar), findsOneWidget);
-      expect(find.byIcon(Icons.chat_bubble), findsOneWidget);
-      expect(find.byIcon(Icons.folder_outlined), findsOneWidget);
-      expect(find.byIcon(Icons.calendar_today_outlined), findsNothing);
-      expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
+      final navigationBar = find.byType(NavigationBar);
+      expect(
+        find.descendant(of: navigationBar, matching: find.byIcon(Icons.home)),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: navigationBar,
+          matching: find.byIcon(Icons.chat_bubble_outline),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: navigationBar,
+          matching: find.byIcon(Icons.folder_outlined),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: navigationBar,
+          matching: find.byIcon(Icons.calendar_month_outlined),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: navigationBar,
+          matching: find.byIcon(Icons.settings_outlined),
+        ),
+        findsOneWidget,
+      );
       expect(find.byIcon(Icons.dashboard_outlined), findsNothing);
+      expect(
+        find.descendant(of: navigationBar, matching: find.text('Home')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: navigationBar, matching: find.text('Chat')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: navigationBar, matching: find.text('Files')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: navigationBar, matching: find.text('Calendar')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: navigationBar, matching: find.text('Settings')),
+        findsOneWidget,
+      );
     });
 
     testWidgets('applies the persisted personal theme across the shell', (
@@ -172,8 +231,25 @@ void main() {
 
       final navigationContext = tester.element(find.byType(NavigationBar));
       expect(Theme.of(navigationContext).brightness, Brightness.dark);
-      expect(find.byIcon(Icons.chat_bubble), findsOneWidget);
+      expect(find.byIcon(Icons.home), findsOneWidget);
+      expect(find.byIcon(Icons.chat_bubble_outline), findsWidgets);
       expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
+    });
+
+    testWidgets('applies the persisted app language to MaterialApp locale', (
+      tester,
+    ) async {
+      await pumpReadyShell(
+        tester,
+        preferencesStore: InMemoryPreferencesStore({
+          appLocalePreferenceStorageKey: 'de',
+        }),
+      );
+
+      final app = tester.widget<MaterialApp>(find.byType(MaterialApp));
+      expect(app.locale, const Locale('de'));
+      expect(find.text('Einstellungen'), findsOneWidget);
+      expect(find.text('Settings'), findsNothing);
     });
 
     testWidgets(
@@ -188,7 +264,8 @@ void main() {
 
         expect(find.text('Recent activity'), findsNothing);
         expect(find.byType(NavigationBar), findsOneWidget);
-        expect(find.byIcon(Icons.chat_bubble), findsOneWidget);
+        expect(find.byIcon(Icons.home), findsOneWidget);
+        expect(find.byIcon(Icons.chat_bubble_outline), findsWidgets);
         expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
       },
     );
@@ -203,6 +280,128 @@ void main() {
 
       expect(find.text('Workspace setup is admin-only'), findsOneWidget);
       expect(find.text('Server Configuration'), findsNothing);
+    });
+
+    testWidgets('maps Files and Calendar destinations to matching branches', (
+      tester,
+    ) async {
+      final filesRepository = FakeFilesRepository(
+        connectionState: FilesConnectionState.connected(
+          baseUrl: Uri.parse('https://api.weave.test/api'),
+          accountLabel: 'Weave files',
+        ),
+        listings: {
+          '/': DirectoryListing(
+            path: '/',
+            entries: [
+              FileEntry(
+                id: 'file-1',
+                name: 'Roadmap.md',
+                path: '/Roadmap.md',
+                isDirectory: false,
+                modifiedAt: DateTime(2026, 6, 26, 12),
+              ),
+            ],
+          ),
+        },
+      );
+
+      await pumpReadyShell(tester, filesRepository: filesRepository);
+
+      await tester.tap(find.byIcon(Icons.folder_outlined));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Roadmap.md'), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.calendar_month_outlined));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Roadmap.md'), findsNothing);
+    });
+
+    testWidgets('workspace status localizes backend recovery states', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            workspaceConnectionStateProvider.overrideWithValue(
+              const AsyncData(
+                WorkspaceConnectionState(
+                  appAuth: IntegrationConnectionState(
+                    integration: WorkspaceIntegration.appAuth,
+                    status: IntegrationConnectionStatus.connected,
+                  ),
+                  chat: IntegrationConnectionState(
+                    integration: WorkspaceIntegration.chat,
+                    status: IntegrationConnectionStatus.connected,
+                  ),
+                  files: IntegrationConnectionState(
+                    integration: WorkspaceIntegration.files,
+                    status: IntegrationConnectionStatus.connected,
+                  ),
+                ),
+              ),
+            ),
+            workspaceCapabilitySnapshotProvider.overrideWithValue(
+              const AsyncData(
+                WorkspaceCapabilitySnapshot(
+                  shellAccess: WorkspaceCapabilityState(
+                    capability: WorkspaceCapability.shellAccess,
+                    readiness: WorkspaceCapabilityReadiness.ready,
+                  ),
+                  chat: WorkspaceCapabilityState(
+                    capability: WorkspaceCapability.chat,
+                    readiness: WorkspaceCapabilityReadiness.degraded,
+                    memberImpact: 'RAW SHELL BACKEND MEMBER IMPACT',
+                  ),
+                  files: WorkspaceCapabilityState(
+                    capability: WorkspaceCapability.files,
+                    readiness: WorkspaceCapabilityReadiness.ready,
+                  ),
+                  calendar: WorkspaceCapabilityState(
+                    capability: WorkspaceCapability.calendar,
+                    readiness: WorkspaceCapabilityReadiness.unavailable,
+                  ),
+                  boards: WorkspaceCapabilityState(
+                    capability: WorkspaceCapability.boards,
+                    readiness: WorkspaceCapabilityReadiness.blocked,
+                  ),
+                ),
+              ),
+            ),
+            weaveApiWorkspaceHomeProvider.overrideWith((ref) async => null),
+          ],
+          child: const MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(body: ShellWorkspaceStatus()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('RAW SHELL BACKEND MEMBER IMPACT'), findsNothing);
+      expect(find.widgetWithText(Chip, 'Chat: Limited'), findsOneWidget);
+      expect(
+        find.widgetWithText(Chip, 'Calendar: Coming later'),
+        findsOneWidget,
+      );
+      expect(
+        find.widgetWithText(Chip, 'Boards: Admin setup needed'),
+        findsOneWidget,
+      );
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Semantics &&
+              (widget.properties.label?.contains(
+                    'Support reference: Not provided.',
+                  ) ??
+                  false),
+        ),
+        findsWidgets,
+      );
     });
 
     testWidgets('shows recent room and file quick links in the shell', (
@@ -391,6 +590,8 @@ void main() {
 
       final roadmapChip = find.widgetWithText(ActionChip, 'Roadmap.md');
       await tester.ensureVisible(roadmapChip);
+      await tester.drag(find.byType(ListView).first, const Offset(0, -160));
+      await tester.pumpAndSettle();
       await tester.tap(roadmapChip);
       await tester.pumpAndSettle();
 

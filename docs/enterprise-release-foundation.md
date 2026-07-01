@@ -97,7 +97,7 @@ This makes evidence portable: a release owner can inspect one artifact directory
 
 ## Repeatable RC readiness check
 
-Use the local/CI-safe readiness check before creating or promoting an RC tag. The latest published audit is [`v0.1.0-rc.3`](release-v0.1-rc3-evidence.md); the command below is an example shape and each promotion must pass explicit candidate values. Current post-RC3 release readiness is still blocked by #762, the open successor carrying the unresolved #591 manual assistive-technology evidence gap, until actual manual assistive-technology evidence (or an accepted release-owner scope split) exists:
+Use the local/CI-safe readiness check before creating or promoting an RC tag. The latest published audit is [`v0.1.0-rc.3`](release-v0.1-rc3-evidence.md); the command below is an example shape and each promotion must pass explicit candidate values. Current post-RC3 release readiness is still blocked by #591 until actual manual assistive-technology evidence (or an accepted release-owner scope split) exists:
 
 ```sh
 ./gradlew releaseReadinessCheck \

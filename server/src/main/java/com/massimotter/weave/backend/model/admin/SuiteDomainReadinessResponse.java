@@ -17,13 +17,8 @@ public record SuiteDomainReadinessResponse(
         List<String> capabilityStates,
         List<String> supportSafeErrors,
         List<String> portabilityNotes,
-        List<String> jurisdictionExposureNotes,
         List<String> auditRefs,
         String nextAction,
-        String exposureDescriptor,
-        String portabilityContractRef,
-        String auditRequirement,
-        String weaverMode,
         boolean backendOwnedFacade,
         boolean providerMappingOwnedByServer,
         boolean rawProviderConfigExposedToMembers,
@@ -34,7 +29,6 @@ public record SuiteDomainReadinessResponse(
         capabilityStates = capabilityStates == null ? List.of() : List.copyOf(capabilityStates);
         supportSafeErrors = supportSafeErrors == null ? List.of() : List.copyOf(supportSafeErrors);
         portabilityNotes = portabilityNotes == null ? List.of() : List.copyOf(portabilityNotes);
-        jurisdictionExposureNotes = jurisdictionExposureNotes == null ? List.of() : List.copyOf(jurisdictionExposureNotes);
         auditRefs = auditRefs == null ? List.of() : List.copyOf(auditRefs);
         evidence = evidence == null ? Map.of() : Map.copyOf(evidence);
     }

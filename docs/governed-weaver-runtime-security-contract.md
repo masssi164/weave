@@ -84,7 +84,7 @@ Discovery filters by the generated runtime profile's grants. Invocation addition
 
 ## OpenClaw fork and supply-chain posture
 
-Weave treats OpenClaw as runtime substrate. Weave owns policy, grants, profiles, audit, approval receipts, and domain tools.
+Weave treats OpenClaw as runtime substrate. Weave owns policy, grants, profiles, audit, approval receipts, and domain tools. The human approval interaction for a user's runtime remains in the user's OpenClaw/Weaver runtime surface. Server responses may return `approval_required`, `approval_denied`, or `approval_timeout` plus support-safe metadata, but the server must not become a central approval UI or approval decision-maker for the user's container.
 
 Release evidence must capture:
 

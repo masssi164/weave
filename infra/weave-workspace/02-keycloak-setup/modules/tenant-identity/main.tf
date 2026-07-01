@@ -48,6 +48,13 @@ locals {
     guest    = "workspace-guests"
   }
 
+  weave_offline_session_product_roles = toset([
+    "owner",
+    "admin",
+    "operator",
+    "member",
+  ])
+
   weave_capability_groups = {
     board_editors    = "weave-board-editors"
     calendar_editors = "weave-calendar-editors"
@@ -55,10 +62,16 @@ locals {
     meeting_hosts    = "weave-meeting-hosts"
     decision_records = "weave-decision-recorders"
     weaver_pilot     = "weave-weaver-pilot"
+    weaver_runtime   = "weave-weaver-runtime"
+    weaver_group     = "weaver-group"
   }
 
   live_e2e_test_user_capability_groups = [
     "board_editors",
+    "calendar_editors",
+    "weaver_pilot",
+    "weaver_runtime",
+    "weaver_group",
   ]
 
   client_defaults = {
@@ -146,6 +159,15 @@ resource "keycloak_realm" "tenant" {
   edit_username_allowed          = false
   reset_password_allowed         = true
   duplicate_emails_allowed       = false
+
+  smtp_server {
+    host              = var.smtp_host
+    port              = var.smtp_port
+    from              = var.smtp_from
+    from_display_name = "Weave Dogfood"
+    ssl               = false
+    starttls          = false
+  }
 }
 
 resource "keycloak_user" "test" {
@@ -177,6 +199,11 @@ resource "keycloak_role" "weave_product" {
   description = each.value
 }
 
+data "keycloak_role" "offline_access" {
+  realm_id = keycloak_realm.tenant.id
+  name     = "offline_access"
+}
+
 resource "keycloak_group" "weave_product_role" {
   for_each = local.weave_product_role_groups
 
@@ -196,7 +223,10 @@ resource "keycloak_group_roles" "weave_product_role" {
 
   realm_id = keycloak_realm.tenant.id
   group_id = keycloak_group.weave_product_role[each.key].id
-  role_ids = [keycloak_role.weave_product[each.key].id]
+  role_ids = concat(
+    [keycloak_role.weave_product[each.key].id],
+    contains(local.weave_offline_session_product_roles, each.key) ? [data.keycloak_role.offline_access.id] : [],
+  )
 }
 
 resource "keycloak_user_roles" "test_member" {

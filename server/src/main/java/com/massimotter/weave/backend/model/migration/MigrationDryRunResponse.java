@@ -10,6 +10,7 @@ public record MigrationDryRunResponse(
         InventorySummary inventory,
         MappingProposal mappingProposal,
         List<DomainMappingEvidence> domainMappings,
+        List<ContinuityReport> continuityReports,
         UnmappableContentReport unmappableContent,
         ConsentRequirementReport consentRequirements,
         RateLimitBudgetEstimate rateLimitBudget,
@@ -21,6 +22,7 @@ public record MigrationDryRunResponse(
 
     public MigrationDryRunResponse {
         domainMappings = domainMappings == null ? List.of() : List.copyOf(domainMappings);
+        continuityReports = continuityReports == null ? List.of() : List.copyOf(continuityReports);
         cutoverGates = cutoverGates == null ? List.of() : List.copyOf(cutoverGates);
     }
 
@@ -44,6 +46,27 @@ public record MigrationDryRunResponse(
             lossyFields = lossyFields == null ? List.of() : List.copyOf(lossyFields);
             conflicts = conflicts == null ? List.of() : List.copyOf(conflicts);
             assumptions = assumptions == null ? List.of() : List.copyOf(assumptions);
+        }
+    }
+
+    public record ContinuityReport(
+            String domain,
+            java.util.Map<String, Integer> canonicalObjectCounts,
+            String stableIdStrategy,
+            List<String> provenanceRefs,
+            List<String> lossyFields,
+            List<String> permissionImpact,
+            List<String> conflicts,
+            List<String> unsupportedObjects,
+            String abortRollbackPosture,
+            boolean accountedForNoDataLoss) {
+        public ContinuityReport {
+            canonicalObjectCounts = canonicalObjectCounts == null ? java.util.Map.of() : java.util.Map.copyOf(canonicalObjectCounts);
+            provenanceRefs = provenanceRefs == null ? List.of() : List.copyOf(provenanceRefs);
+            lossyFields = lossyFields == null ? List.of() : List.copyOf(lossyFields);
+            permissionImpact = permissionImpact == null ? List.of() : List.copyOf(permissionImpact);
+            conflicts = conflicts == null ? List.of() : List.copyOf(conflicts);
+            unsupportedObjects = unsupportedObjects == null ? List.of() : List.copyOf(unsupportedObjects);
         }
     }
 

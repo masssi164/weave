@@ -25,6 +25,7 @@ import com.massimotter.weave.backend.model.chat.ChatProviderReplacementDryRunRes
 import com.massimotter.weave.backend.model.chat.ChatReadinessResponse;
 import com.massimotter.weave.backend.model.chat.ChatSendMessageRequest;
 import com.massimotter.weave.backend.model.chat.DecisionLedgerCreateRequest;
+import com.massimotter.weave.backend.model.chat.DecisionLedgerEvidencePostureResponse;
 import com.massimotter.weave.backend.model.chat.DecisionLedgerRecordResponse;
 import com.massimotter.weave.backend.model.chat.DecisionLedgerRecordsResponse;
 import com.massimotter.weave.backend.model.chat.DecisionLedgerReferenceRequest;
@@ -66,6 +67,9 @@ public class ChatFacadeService {
     private static final String DEFAULT_MODEL_PROVIDER_KEY = "lmstudio";
     private static final String WEAVER_CHAT_PROVIDER_REF = "provider:chat:selected-by-admin";
     private static final String WEAVER_LMSTUDIO_MODEL_REF = "lmstudio/qwen/qwen3.5-9b";
+    private static final String WEAVER_RUNTIME_PROFILE_VERSION = "weaver-runtime-profile:v1";
+    private static final String WEAVER_RUNTIME_PROFILE_HASH = "runtime-profile:qwen-mcp-weave-chat";
+    private static final String WEAVER_MCP_SERVER_ID = "mcp-weave-domain-tools";
 
     private final WorkspaceCapabilityProperties workspaceCapabilityProperties;
     private final WorkspaceCapabilityService workspaceCapabilityService;
@@ -181,14 +185,14 @@ public class ChatFacadeService {
         WorkspaceCapabilityProperties.Capability chat = workspaceCapabilityProperties.chat();
         if (!chat.enabled()) {
             return new ChatReadinessResponse(
-                    "disabled",
+                    "disabled_by_policy",
                     "Chat is disabled by workspace policy.",
                     granted,
                     true);
         }
         if (jwt != null && !granted.contains("chat.read")) {
             return new ChatReadinessResponse(
-                    "policy-blocked",
+                    "disabled_by_policy",
                     "Chat is blocked by your role or group policy. Ask an admin if you need access.",
                     granted,
                     true);
@@ -196,14 +200,14 @@ public class ChatFacadeService {
         WorkspaceCapabilityReadiness configured = chat.readiness();
         if (configured == WorkspaceCapabilityReadiness.READY || (configured == null && hasText(chat.dependencyUrl()))) {
             return new ChatReadinessResponse(
-                    "usable",
+                    "available",
                     "Weave Chat is available through the workspace Chat domain.",
                     granted,
                     true);
         }
         if (configured == WorkspaceCapabilityReadiness.UNAVAILABLE) {
             return new ChatReadinessResponse(
-                    "disabled",
+                    "unavailable",
                     "Chat is not available in this workspace. Ask an admin to review Workspace Health.",
                     granted,
                     true);
@@ -285,6 +289,14 @@ public class ChatFacadeService {
         responseEvidence.put("lmStudioResponseReceived", assistantEvidence.get("lmStudioResponseReceived"));
         responseEvidence.put("assistantMessageId", assistantMessage.id());
         responseEvidence.put("modelRef", assistantEvidence.get("modelRef"));
+        copySupportSafeEvidence(assistantEvidence, responseEvidence, "runtimeProfileHash");
+        copySupportSafeEvidence(assistantEvidence, responseEvidence, "runtimeProfileVersion");
+        copySupportSafeEvidence(assistantEvidence, responseEvidence, "mcpServerId");
+        copySupportSafeEvidence(assistantEvidence, responseEvidence, "toolId");
+        copySupportSafeEvidence(assistantEvidence, responseEvidence, "auditRef");
+        copySupportSafeEvidence(assistantEvidence, responseEvidence, "approvalState");
+        copySupportSafeEvidence(assistantEvidence, responseEvidence, "denyState");
+        copySupportSafeEvidence(assistantEvidence, responseEvidence, "toolResultFedBackToModel");
         responseEvidence.put("supportSafe", assistantEvidence.getOrDefault("supportSafe", true));
         return new ChatMessageResponse(
                 userMessage.id(),
@@ -316,9 +328,11 @@ public class ChatFacadeService {
                     Map.of(
                             "contextId", conversation.contextId(),
                             "chatProviderRef", WEAVER_CHAT_PROVIDER_REF,
-                            "mcpServerKey", "weave-domain-tools",
-                            "mcpTransport", "streamable-http",
-                            "allowedDomainTools", List.of("chat.list_threads", "chat.send_message", "calendar.search_events", "files.search"),
+                            "runtimeProfileHash", WEAVER_RUNTIME_PROFILE_HASH,
+                            "runtimeProfileVersion", WEAVER_RUNTIME_PROFILE_VERSION,
+                            "mcpServerId", WEAVER_MCP_SERVER_ID,
+                            "offeredToolIds", List.of("calendar.search_events", "chat.search_messages"),
+                            "toolPolicy", "domain-first-read-only-fail-closed",
                             "supportSafe", true,
                             "rawProviderContentIncluded", false)));
         } catch (WeaverPaChatUnavailableException exception) {
@@ -341,12 +355,22 @@ public class ChatFacadeService {
         evidence.put("weaverReceived", result.weaverReceived());
         evidence.put("lmStudioResponseReceived", result.lmStudioResponseReceived());
         evidence.put("auditRef", result.auditRef());
+        evidence.put("runtimeProfileHash", WEAVER_RUNTIME_PROFILE_HASH);
+        evidence.put("runtimeProfileVersion", WEAVER_RUNTIME_PROFILE_VERSION);
+        evidence.put("mcpServerId", WEAVER_MCP_SERVER_ID);
         evidence.put("supportSafe", true);
         evidence.put("rawProviderDiagnosticsExposed", false);
         copySupportSafeEvidence(result.supportSafeEvidence(), evidence, "source");
         copySupportSafeEvidence(result.supportSafeEvidence(), evidence, "liveCall");
         copySupportSafeEvidence(result.supportSafeEvidence(), evidence, "approvedReplyTool");
         copySupportSafeEvidence(result.supportSafeEvidence(), evidence, "unsafeExecTool");
+        copySupportSafeEvidence(result.supportSafeEvidence(), evidence, "runtimeProfileHash");
+        copySupportSafeEvidence(result.supportSafeEvidence(), evidence, "runtimeProfileVersion");
+        copySupportSafeEvidence(result.supportSafeEvidence(), evidence, "mcpServerId");
+        copySupportSafeEvidence(result.supportSafeEvidence(), evidence, "toolId");
+        copySupportSafeEvidence(result.supportSafeEvidence(), evidence, "approvalState");
+        copySupportSafeEvidence(result.supportSafeEvidence(), evidence, "denyState");
+        copySupportSafeEvidence(result.supportSafeEvidence(), evidence, "toolResultFedBackToModel");
         ChatMessageResponse assistantMessage = new ChatMessageResponse(
                 "msg-" + UUID.randomUUID(),
                 conversation.id(),
@@ -378,6 +402,13 @@ public class ChatFacadeService {
                 conversation.id(),
                 conversation.contextId(),
                 false,
+                new DecisionLedgerEvidencePostureResponse(
+                        "Decisions keep Weave-owned provenance through support-safe source refs and actor labels.",
+                        List.of(
+                                "audit://chat/decision-ledger/" + conversation.id(),
+                                "audit://chat/decision-evidence/" + conversation.contextId()),
+                        "Export decision records, source refs, and audit refs through the Weave decisions/evidence contract; raw provider secrets stay backend-only.",
+                        true),
                 List.copyOf(decisionsFor(conversation.id())));
     }
 
@@ -572,13 +603,13 @@ public class ChatFacadeService {
         workspaceCapabilityService.requireCapability(jwt, capability, DOMAIN, operation);
         WorkspaceCapabilityProperties.Capability chat = workspaceCapabilityProperties.chat();
         if (!chat.enabled()) {
-            throw chatUnavailable("disabled", "Chat is disabled by workspace policy.", operation);
+            throw chatUnavailable("disabled_by_policy", "Chat is disabled by workspace policy.", operation);
         }
         WorkspaceCapabilityReadiness configured = chat.readiness();
         if (configured == WorkspaceCapabilityReadiness.READY || (configured == null && hasText(chat.dependencyUrl()))) {
             return;
         }
-        String impact = configured == WorkspaceCapabilityReadiness.UNAVAILABLE ? "disabled" : "degraded";
+        String impact = configured == WorkspaceCapabilityReadiness.UNAVAILABLE ? "unavailable" : "degraded";
         throw chatUnavailable(impact, "Chat is not ready through the Weave Chat facade.", operation);
     }
 
@@ -598,7 +629,7 @@ public class ChatFacadeService {
                             "module", DOMAIN,
                             "contextId", principal.contextId(),
                             "permission", permission.name().toLowerCase(Locale.ROOT),
-                            "policyState", "policy-blocked",
+                            "policyState", "disabled_by_policy",
                             "reason", decision.reason(),
                             "diagnosticsRedacted", true));
         }
