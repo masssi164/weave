@@ -7,10 +7,7 @@ import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/core/config/feature_flags.dart';
 import 'package:weave/core/failures/app_failure.dart';
-import 'package:weave/core/l10n/shared_preferences_app_locale_preference_repository.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
-import 'package:weave/core/theme/shared_preferences_app_theme_preference_repository.dart';
-import 'package:weave/core/widgets/weave_logo.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
 import 'package:weave/features/app/domain/entities/matrix_e2ee_diagnostic.dart';
 import 'package:weave/features/app/domain/entities/provider_stack_snapshot.dart';
@@ -261,7 +258,7 @@ ProviderStatusSnapshot _providerStatus({
 
 void main() {
   group('SettingsScreen', () {
-    testWidgets('loads the saved configuration and persists edits', (
+    testWidgets('workspace health loads the saved configuration and persists edits', (
       tester,
     ) async {
       final store = InMemoryPreferencesStore(buildStoredConfiguration());
@@ -294,37 +291,13 @@ void main() {
           child: const MaterialApp(
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: Scaffold(body: SettingsScreen()),
+            home: Scaffold(body: WorkspaceHealthScreen()),
           ),
         ),
       );
       await tester.pumpAndSettle();
 
-      expect(find.byType(WeaveLogo), findsOneWidget);
-      expect(find.text('Appearance'), findsOneWidget);
-      expect(find.text('Use device setting'), findsOneWidget);
-      expect(find.text('Dark'), findsOneWidget);
-      expect(find.text('Language'), findsOneWidget);
-      expect(find.text('Use device language'), findsOneWidget);
-      expect(find.text('German'), findsOneWidget);
-
-      await tester.drag(find.byType(CustomScrollView), const Offset(0, -260));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Dark'));
-      await tester.pump();
-      await tester.drag(find.byType(CustomScrollView), const Offset(0, -420));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('German'));
-      await tester.pump();
-
-      expect(store.rawString(appThemePreferenceStorageKey), 'dark');
-      expect(store.rawString(appLocalePreferenceStorageKey), 'de');
-      expect(
-        find.text(
-          'Tune Weave for this device: appearance, language, profile context, module visibility, and safe sign-out.',
-        ),
-        findsOneWidget,
-      );
+      expect(find.text('Workspace Health'), findsWidgets);
       expect(find.text('Workspace Readiness'), findsOneWidget);
       expect(FeatureFlags.hasFeatureGatedSurfaces, isFalse);
       expect(find.text('Preview surfaces'), findsNothing);
@@ -365,11 +338,8 @@ void main() {
         find.text('Agent writes: Blocked/fail-closed', findRichText: true),
         findsOneWidget,
       );
-      await tester.scrollUntilVisible(
-        find.text('AI agent capability governance'),
-        300,
-        scrollable: find.byType(Scrollable).first,
-      );
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -900));
+      await tester.pumpAndSettle();
       expect(find.text('AI agent capability governance'), findsOneWidget);
       expect(
         find.textContaining('Owners and admins decide which agent packages'),
@@ -382,18 +352,8 @@ void main() {
         findsOneWidget,
       );
 
-      await tester.scrollUntilVisible(
-        find.text('Help and user handbook'),
-        300,
-        scrollable: find.byType(Scrollable).first,
-      );
-      expect(find.text('Help and user handbook'), findsOneWidget);
-      expect(
-        find.text(
-          'Open practical guidance for using Weave, recovering from issues, and understanding privacy basics.',
-        ),
-        findsOneWidget,
-      );
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -900));
+      await tester.pumpAndSettle();
       expect(find.text('Provider categories'), findsOneWidget);
       expect(find.text('Identity/IDM'), findsOneWidget);
       expect(find.text('Chat'), findsWidgets);
@@ -531,6 +491,43 @@ void main() {
         findsNothing,
       );
     });
+
+    testWidgets(
+      'owner settings link to workspace health without mounting diagnostics',
+      (tester) async {
+        final container = ProviderContainer.test(
+          overrides: [
+            preferencesStoreProvider.overrideWith(
+              (ref) => InMemoryPreferencesStore(buildStoredConfiguration()),
+            ),
+            userProfileProvider.overrideWith((ref) async => _ownerProfile),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: const MaterialApp(
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: Scaffold(body: SettingsScreen()),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Workspace Health'), findsOneWidget);
+        expect(
+          find.textContaining('Open admin setup, provider readiness'),
+          findsOneWidget,
+        );
+        expect(find.text('Workspace Readiness'), findsNothing);
+        expect(find.text('Provider stack readiness'), findsNothing);
+        expect(find.text('Server Configuration'), findsNothing);
+        expect(_textFieldWithLabel('OIDC Issuer URL'), findsNothing);
+      },
+    );
 
     testWidgets('uses a language picker instead of requiring locale codes', (
       tester,
@@ -796,12 +793,13 @@ void main() {
           child: const MaterialApp(
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: Scaffold(body: SettingsScreen()),
+            home: Scaffold(body: WorkspaceHealthScreen()),
           ),
         ),
       );
       await tester.pumpAndSettle();
 
+      expect(find.text('Workspace setup is admin-only'), findsOneWidget);
       expect(find.text('Workspace Readiness'), findsNothing);
       expect(find.text('Provider stack readiness'), findsNothing);
       expect(find.text('Admin/operator readiness cockpit'), findsNothing);
@@ -847,7 +845,7 @@ void main() {
           child: const MaterialApp(
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: Scaffold(body: SettingsScreen()),
+            home: Scaffold(body: WorkspaceHealthScreen()),
           ),
         ),
       );
@@ -1072,7 +1070,7 @@ void main() {
           child: const MaterialApp(
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: Scaffold(body: SettingsScreen()),
+            home: Scaffold(body: WorkspaceHealthScreen()),
           ),
         ),
       );
@@ -1266,7 +1264,7 @@ void main() {
           child: const MaterialApp(
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: Scaffold(body: SettingsScreen()),
+            home: Scaffold(body: WorkspaceHealthScreen()),
           ),
         ),
       );
@@ -1319,7 +1317,7 @@ void main() {
             child: const MaterialApp(
               localizationsDelegates: AppLocalizations.localizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
-              home: Scaffold(body: SettingsScreen()),
+              home: Scaffold(body: WorkspaceHealthScreen()),
             ),
           ),
         );

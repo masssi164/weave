@@ -178,6 +178,10 @@ GoRouter appRouter(Ref ref) {
                 path: AppRoutes.settings,
                 builder: (context, state) => const SettingsScreen(),
               ),
+              GoRoute(
+                path: AppRoutes.workspaceHealth,
+                builder: (context, state) => const WorkspaceHealthScreen(),
+              ),
             ],
           ),
         ],

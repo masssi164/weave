@@ -1322,6 +1322,10 @@
   "@settingsScreenTitle": {
     "description": "Title for the settings screen app bar"
   },
+  "workspaceHealthTitle": "Workspace Health",
+  "@workspaceHealthTitle": {
+    "description": "Title for the admin/support workspace health screen"
+  },
   "settingsBrandSectionDescription": "Tune Weave for this device: appearance, language, profile context, module visibility, and safe sign-out.",
   "@settingsBrandSectionDescription": {
     "description": "Subtle branded copy shown in the settings header card"
@@ -1421,6 +1425,14 @@
   "settingsHelpDescription": "Open practical guidance for using Weave, recovering from issues, and understanding privacy basics.",
   "@settingsHelpDescription": {
     "description": "Description for the settings entry point to in-app help"
+  },
+  "settingsWorkspaceHealthLinkTitle": "Workspace Health",
+  "@settingsWorkspaceHealthLinkTitle": {
+    "description": "Title for the admin-only Settings link to workspace health"
+  },
+  "settingsWorkspaceHealthLinkDescription": "Open admin setup, provider readiness, support-safe diagnostics, and governed agent policy.",
+  "@settingsWorkspaceHealthLinkDescription": {
+    "description": "Description for the admin-only Settings link to workspace health"
   },
   "helpScreenTitle": "Help",
   "@helpScreenTitle": {
