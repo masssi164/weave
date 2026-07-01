@@ -9,12 +9,13 @@ owner: delivery-owner
 github_issue: 428
 supersedes: []
 depends_on:
-  - WEAVE-SPEC-0001
-  - WEAVE-SPEC-0004
-acceptance_features: []
+- WEAVE-SPEC-0001
+- WEAVE-SPEC-0004
+acceptance_features:
+- e2e/features/weave_spec_0005_acceptance.feature
 evidence_gates:
-  - ./gradlew specContract
-  - ./gradlew spaceAnchorCheck
+- ./gradlew specContract
+- ./gradlew spaceAnchorCheck
 ---
 
 # Feature specification: Spaces as cross-domain anchors
@@ -45,9 +46,13 @@ Define Space as the provider-neutral organization context that binds chat, files
 - **FR-003**: Bindings MUST record readiness, source-of-truth, lossy notes, and migration status.
 - **FR-004**: Member-safe references MUST not expose raw provider details.
 - **FR-005**: Weaver MAY reference a Space only through Weave-governed tools and policy.
+- **FR-006**: Northstar workspace claims MUST use Space as the Weave-owned cross-domain context anchor for chat, files, boards, calendar, decisions, and governed Weaver context.
+- **FR-007**: Space domain bindings MUST expose readiness, source of truth, migration state, and lossy notes while hiding raw provider object identifiers from member-facing payloads and evidence.
 
 ## Acceptance and evidence mapping
 
+- Gherkin feature path(s): `e2e/features/northstar_spec_decisions.feature`.
+- `e2e/scenario_mappings.json` marker(s): `NORTHSTAR_SPACE_ANCHOR_CONTEXT`.
 - Tooling test path(s): `tools/space_anchor_check.py`.
 - Fixture: `specs/0005-spaces-anchor/space-anchor-fixture.json`.
 - Evidence gates: `./gradlew specContract`, `./gradlew spaceAnchorCheck`, `./gradlew docsCheck`.

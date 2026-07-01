@@ -35,6 +35,9 @@ Implementation tasks are intentionally split into follow-up PRs from the issue D
 - [x] T031 [#387] Add Admin-Suite readiness/setup UX contract and gate.
 - [ ] T032 [#388] Add provider switch/export-import/cutover/rollback contract and gate.
 - [ ] T033 [#389] Add product-language acceptance/evidence mapping and gate.
+- [ ] T034 [#710/#591] Reflect public/customer-ready claim gates in GitHub issue subtasks: complete automated evidence, manual AT signoff, zero open release blockers, target-branch verification, and support-safe release evidence.
+- [ ] T035 [#719] Keep Weaver visible only as opt-in governed beta/v1 work until isolated Keycloak/MCP live-runtime evidence exists.
+
 
 ## Phase 4: Integration and handoff
 

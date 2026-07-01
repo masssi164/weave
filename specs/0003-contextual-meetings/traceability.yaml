@@ -4,30 +4,54 @@ status: proposed
 github_issue: 216
 release_notes_label: release-notes-feature
 depends_on:
-  - WEAVE-SPEC-0001
+- WEAVE-SPEC-0001
 issue_dag:
   sequential:
-    - issue: 216
-      title: Encrypted contextual meetings
+  - issue: 216
+    title: Encrypted contextual meetings
 domain_entities:
-  - ChannelMeetingPreview
-  - ChannelMeetingAttachPoint
-  - ChannelMeetingEncryptionBoundary
-  - ChannelMeetingUxRequirement
-  - ChannelMeetingControl
+- ChannelMeetingPreview
+- ChannelMeetingAttachPoint
+- ChannelMeetingEncryptionBoundary
+- ChannelMeetingUxRequirement
+- ChannelMeetingControl
 provider_neutral_invariants:
-  - meeting join and start controls fail closed until LiveKit-backed backend media capability is evidenced
-  - meeting surfaces attach to Weave context instead of generic provider links
-  - LiveKit remains the active meetings provider contract while MatrixRTC/Element Call is future comparison only unless provider contracts migrate together
-  - encryption claims name signaling, media, captions, transcripts, recordings, and metadata boundaries
-  - recording and transcription are off by default and require explicit participant-visible consent
-  - member meeting views do not expose provider URLs, tokens, SFU internals, credentials, or raw diagnostics
-acceptance_features: []
+- meeting join and start controls fail closed until LiveKit-backed backend media capability
+  is evidenced
+- meeting surfaces attach to Weave context instead of generic provider links
+- LiveKit remains the active meetings provider contract while MatrixRTC/Element Call
+  is future comparison only unless provider contracts migrate together
+- encryption claims name signaling, media, captions, transcripts, recordings, and metadata boundaries
+- recording and transcription are off by default and require explicit participant-visible
+  consent
+- member meeting views do not expose provider URLs, tokens, SFU internals, credentials,
+  or raw diagnostics
+acceptance_features:
+- e2e/features/weave_spec_0003_acceptance.feature
 evidence_gates:
-  - ./gradlew specContract
-  - ./gradlew acceptanceContract
-  - flutter test test/features/chat/channel_workspace_test.dart test/architecture/meetings_contract_test.dart
+- ./gradlew specContract
+- ./gradlew acceptanceContract
+- flutter test test/features/chat/channel_workspace_test.dart test/architecture/meetings_contract_test.dart
 open_product_core_decisions:
-  - backend facade ownership for LiveKit room/session readiness and token issuance
-  - policy keys for recording, transcription, captions, and participant management
-  - first live meeting join/start acceptance feature
+- backend facade ownership for LiveKit room/session readiness and token issuance
+- policy keys for recording, transcription, captions, and participant management
+- first live meeting join/start acceptance feature
+acceptance_scenarios:
+- tag: '@weave-spec-0003-meeting-consent-boundary'
+  evidence:
+  - client/test/live_stack_feature_mapping_test.dart
+  - e2e/scenario_mappings.json
+  - e2e/suites/scenario_catalog.json
+  assertions:
+  - meeting consent boundary
+  - join blocked until evidence
+  - WEAVE_SPEC_0003_MEETING_CONSENT_BOUNDARY
+- tag: '@weave-spec-0003-transcript-retention-followup'
+  evidence:
+  - client/test/live_stack_feature_mapping_test.dart
+  - e2e/scenario_mappings.json
+  - e2e/suites/scenario_catalog.json
+  assertions:
+  - transcript retention
+  - follow-up evidence
+  - WEAVE_SPEC_0003_TRANSCRIPT_RETENTION_FOLLOWUP

@@ -1,12 +1,35 @@
 corpus:
-  - WEAVE-STEERING-SPEC-KIT-OPERATING-MODEL
-  - WEAVE-MIGRATION-LEGACY-SPECS-20260612
+- WEAVE-STEERING-SPEC-KIT-OPERATING-MODEL
+- WEAVE-MIGRATION-LEGACY-SPECS-20260612
 repo_feature: specs/0008-local-dogfood-topology-weave-test
 prs:
-  - https://github.com/masssi164/weave/pull/723
+- https://github.com/masssi164/weave/pull/723
 gates:
-  - forbidden-domain scan
-  - ./gradlew clientCi
-  - ./gradlew acceptanceContract
-  - ./gradlew specContract
-  - ./gradlew infraStatic
+- forbidden-domain scan
+- ./gradlew clientCi
+- ./gradlew acceptanceContract
+- ./gradlew specContract
+- ./gradlew infraStatic
+acceptance_features:
+- e2e/features/weave_spec_0008_acceptance.feature
+acceptance_scenarios:
+- tag: '@weave-spec-0008-weave-test-canonical-url'
+  evidence:
+  - client/test/live_stack_feature_mapping_test.dart
+  - e2e/scenario_mappings.json
+  - e2e/suites/scenario_catalog.json
+  assertions:
+  - weave.test canonical URL
+  - local topology truth
+  - WEAVE_SPEC_0008_WEAVE_TEST_CANONICAL_URL
+  - '@weave-spec-0008-weave-test-canonical-url'
+- tag: '@weave-spec-0008-local-evidence-does-not-claim-live-runtime'
+  evidence:
+  - client/test/live_stack_feature_mapping_test.dart
+  - e2e/scenario_mappings.json
+  - e2e/suites/scenario_catalog.json
+  assertions:
+  - offline evidence boundary
+  - live runtime proof required
+  - WEAVE_SPEC_0008_LOCAL_EVIDENCE_DOES_NOT_CLAIM_LIVE_RUNTIME
+  - '@weave-spec-0008-local-evidence-does-not-claim-live-runtime'

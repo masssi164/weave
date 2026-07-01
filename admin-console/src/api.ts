@@ -1,3 +1,12 @@
+import type {
+  GeneratedAdminAuditEventResponse,
+  GeneratedAdminControlPlaneResponse,
+  GeneratedCapabilityWhitelistResponse,
+  GeneratedIdentityProviderReadinessResponse,
+  GeneratedProviderReadinessTestRequest,
+  GeneratedProviderReadinessTestResponse,
+} from "./generated/openapi";
+
 export type CapabilityState =
   | "ready"
   | "disabled"
@@ -7,6 +16,7 @@ export type CapabilityState =
   | "misconfigured"
   | "unsupported"
   | "not_configured"
+  | "coming_later"
   | "configured";
 
 export type ProviderRealityLevel =
@@ -80,6 +90,7 @@ export interface IdentityProviderReadinessCard {
   remediation: string;
   nextActions: string[];
   evidenceRefs: string[];
+  diagnostics?: Record<string, unknown>;
 }
 
 export interface IdentityProviderReadiness {
@@ -211,6 +222,19 @@ export interface WeaverRuntimeProjection {
   items: WeaverProjectionItem[];
 }
 
+export interface WeaverEligibilityPreview {
+  policyEnabled: boolean;
+  groupMembershipRequired: boolean;
+  requiredGroups: string[];
+  eligibleCapabilities: string[];
+  memberStateWithoutPolicy: MemberCapabilityState;
+  memberStateWithoutGroup: MemberCapabilityState;
+  memberStateWhenEligible: MemberCapabilityState;
+  blockedReasons: string[];
+  nextActions: string[];
+  auditRefs: string[];
+}
+
 export interface SuiteDomainReadiness {
   domain: string;
   label: string;
@@ -223,13 +247,8 @@ export interface SuiteDomainReadiness {
   capabilityStates: string[];
   supportSafeErrors: string[];
   portabilityNotes: string[];
-  jurisdictionExposureNotes: string[];
   auditRefs: string[];
   nextAction: string;
-  exposureDescriptor: string;
-  portabilityContractRef: string;
-  auditRequirement: string;
-  weaverMode: string;
   backendOwnedFacade: boolean;
   providerMappingOwnedByServer: boolean;
   rawProviderConfigExposedToMembers: boolean;
@@ -422,6 +441,7 @@ export interface ControlPlaneResponse {
   providerCategories: ProviderCategory[];
   identityProviderReadiness: IdentityProviderReadiness;
   weaverRuntimeProjection: WeaverRuntimeProjection;
+  weaverEligibilityPreview: WeaverEligibilityPreview;
   suiteDomainReadiness: SuiteDomainReadiness[];
   goLiveReadiness: GoLiveReadiness;
   whitelistPolicy: WhitelistPolicy;
@@ -484,6 +504,7 @@ interface ServerControlPlaneResponse {
   weaverDistributionPolicy?: ServerWeaverDistributionPolicy;
   identityProviderReadiness?: ServerIdentityProviderReadiness;
   weaverRuntimeProjection?: ServerWeaverRuntimeProjection;
+  weaverEligibilityPreview?: ServerWeaverEligibilityPreview;
   suiteDomainReadiness?: ServerSuiteDomainReadiness[];
   goLiveReadiness?: ServerGoLiveReadiness;
   secretRefs?: Array<{ ref?: string; providerKey?: string }>;
@@ -575,6 +596,19 @@ interface ServerWeaverRuntimeProjection {
   }>;
 }
 
+interface ServerWeaverEligibilityPreview {
+  policyEnabled?: boolean;
+  groupMembershipRequired?: boolean;
+  requiredGroups?: string[];
+  eligibleCapabilities?: string[];
+  memberStateWithoutPolicy?: string;
+  memberStateWithoutGroup?: string;
+  memberStateWhenEligible?: string;
+  blockedReasons?: string[];
+  nextActions?: string[];
+  auditRefs?: string[];
+}
+
 interface ServerSuiteDomainReadiness {
   domain?: string;
   label?: string;
@@ -587,13 +621,8 @@ interface ServerSuiteDomainReadiness {
   capabilityStates?: string[];
   supportSafeErrors?: string[];
   portabilityNotes?: string[];
-  jurisdictionExposureNotes?: string[];
   auditRefs?: string[];
   nextAction?: string;
-  exposureDescriptor?: string;
-  portabilityContractRef?: string;
-  auditRequirement?: string;
-  weaverMode?: string;
   backendOwnedFacade?: boolean;
   providerMappingOwnedByServer?: boolean;
   rawProviderConfigExposedToMembers?: boolean;
@@ -650,6 +679,7 @@ interface ServerIdentityProviderReadiness {
     remediation?: string;
     nextActions?: string[];
     evidenceRefs?: string[];
+    diagnostics?: Record<string, unknown>;
   }>;
   nextActions?: string[];
 }
@@ -719,18 +749,21 @@ export class AdminControlPlaneApi {
   ) {}
 
   async getControlPlane(): Promise<ControlPlaneResponse> {
-    const controlPlane = await this.request<ServerControlPlaneResponse>(
+    const controlPlane = await this.request<GeneratedAdminControlPlaneResponse>(
       "/admin/control-plane",
     );
     const auditEvents = await this.listAuditEvents().catch(() => []);
-    return normalizeControlPlane(controlPlane, auditEvents);
+    return normalizeControlPlane(
+      controlPlane as ServerControlPlaneResponse,
+      auditEvents,
+    );
   }
 
   async updateWhitelistPolicy(
     allowedCapabilities: string[],
     profileKey = "workspace-admin",
   ): Promise<WhitelistPolicy> {
-    const response = await this.request<ServerWhitelistPolicy>(
+    const response = await this.request<GeneratedCapabilityWhitelistResponse>(
       "/admin/policies/capability-whitelist",
       {
         method: "PATCH",
@@ -741,7 +774,7 @@ export class AdminControlPlaneApi {
         }),
       },
     );
-    return normalizeWhitelist(response);
+    return normalizeWhitelist(response as ServerWhitelistPolicy);
   }
 
   async updateWeaverDistributionPolicy(
@@ -854,23 +887,25 @@ export class AdminControlPlaneApi {
   }
 
   async getIdentityProviderReadiness(): Promise<IdentityProviderReadiness> {
-    const response = await this.request<ServerIdentityProviderReadiness>(
+    const response = await this.request<GeneratedIdentityProviderReadinessResponse>(
       "/admin/identity/readiness",
     );
-    return normalizeIdentityProviderReadiness(response);
+    return normalizeIdentityProviderReadiness(
+      response as ServerIdentityProviderReadiness,
+    );
   }
 
   async testProviderReadiness(
     providerKey: string,
   ): Promise<{ providerKey: string; state: CapabilityState; summary: string }> {
-    const response = await this.request<{
-      providerKey?: string;
-      state?: string;
-      readiness?: string;
-    }>("/admin/providers/readiness-tests", {
-      method: "POST",
-      body: JSON.stringify({ providerKey }),
-    });
+    const request: GeneratedProviderReadinessTestRequest = { providerKey };
+    const response = await this.request<GeneratedProviderReadinessTestResponse>(
+      "/admin/providers/readiness-tests",
+      {
+        method: "POST",
+        body: JSON.stringify(request),
+      },
+    );
     return {
       providerKey: response.providerKey ?? providerKey,
       state: normalizeState(response.state ?? response.readiness),
@@ -880,7 +915,7 @@ export class AdminControlPlaneApi {
   }
 
   async listAuditEvents(): Promise<AuditEvent[]> {
-    const events = await this.request<ServerAuditEvent[]>(
+    const events = await this.request<GeneratedAdminAuditEventResponse[]>(
       "/admin/audit/events",
     );
     return events.map((event) => ({
@@ -944,6 +979,9 @@ function normalizeControlPlane(
     identityProviderReadiness: normalizeIdentityProviderReadiness(
       controlPlane.identityProviderReadiness,
     ),
+    weaverEligibilityPreview: normalizeWeaverEligibilityPreview(
+      controlPlane.weaverEligibilityPreview,
+    ),
     weaverRuntimeProjection: normalizeWeaverRuntimeProjection(
       controlPlane.weaverRuntimeProjection,
     ),
@@ -958,6 +996,36 @@ function normalizeControlPlane(
     ),
     mcpServerBindings: normalizeMcpServerBindings(controlPlane.mcpServerBindings),
     auditEvents,
+  };
+}
+
+function normalizeWeaverEligibilityPreview(
+  preview?: ServerWeaverEligibilityPreview,
+): WeaverEligibilityPreview {
+  return {
+    policyEnabled: preview?.policyEnabled ?? false,
+    groupMembershipRequired: preview?.groupMembershipRequired ?? true,
+    requiredGroups: preview?.requiredGroups ?? ["weaver-group"],
+    eligibleCapabilities: preview?.eligibleCapabilities ?? [
+      "weaver.files_read",
+      "weaver.exec_disabled",
+    ],
+    memberStateWithoutPolicy:
+      normalizeMemberCapabilityState(preview?.memberStateWithoutPolicy) ??
+      "disabled_by_policy",
+    memberStateWithoutGroup:
+      normalizeMemberCapabilityState(preview?.memberStateWithoutGroup) ??
+      "disabled_by_policy",
+    memberStateWhenEligible:
+      normalizeMemberCapabilityState(preview?.memberStateWhenEligible) ??
+      "coming_later",
+    blockedReasons: preview?.blockedReasons ?? [
+      "weaver.enabled remains blocked until organization policy enables governed Weaver runtime provisioning",
+    ],
+    nextActions: preview?.nextActions ?? [
+      "Grant weaver.enabled through organization policy before runtime rollout.",
+    ],
+    auditRefs: preview?.auditRefs ?? ["audit://weaver/eligibility-preview"],
   };
 }
 
@@ -1012,23 +1080,10 @@ function normalizeSuiteDomainReadiness(
       "support-safe-errors-required",
     ],
     portabilityNotes: domain.portabilityNotes ?? [],
-    jurisdictionExposureNotes: domain.jurisdictionExposureNotes ?? [
-      "provider/jurisdiction exposure visible to admins only",
-    ],
     auditRefs: domain.auditRefs ?? [],
     nextAction:
       domain.nextAction ??
       "Resolve backend readiness evidence before member go-live.",
-    exposureDescriptor:
-      domain.exposureDescriptor ??
-      "provider and jurisdiction exposure visible; raw diagnostics redacted",
-    portabilityContractRef:
-      domain.portabilityContractRef ??
-      "export/import/lossy/conflict/rollback reports required",
-    auditRequirement:
-      domain.auditRequirement ??
-      "support-safe audit required for readiness and Weaver decisions",
-    weaverMode: domain.weaverMode ?? "model_first_read_only_governed",
     backendOwnedFacade: domain.backendOwnedFacade ?? true,
     providerMappingOwnedByServer: domain.providerMappingOwnedByServer ?? true,
     rawProviderConfigExposedToMembers:
@@ -1110,6 +1165,7 @@ function normalizeIdentityProviderReadiness(
       "Run the backend readiness contract and resolve admin-action-required items.",
     nextActions: card.nextActions ?? [],
     evidenceRefs: card.evidenceRefs ?? [],
+    diagnostics: card.diagnostics ?? {},
   }));
   const versionSkewCards = [
     {
@@ -1600,12 +1656,7 @@ const sampleSuiteDomainReadiness: SuiteDomainReadiness[] = [
       "Export manifests required before provider replacement",
       "Credential-bearing editor URLs remain blocked from support views",
     ],
-    jurisdictionExposureNotes: ["selected adapters may carry provider and subprocessor jurisdiction exposure"],
     auditRefs: ["receipt://suite/files-docs/readiness"],
-    exposureDescriptor: "provider and jurisdiction exposure visible; raw diagnostics redacted",
-    portabilityContractRef: "export/import/lossy/conflict/rollback reports required",
-    auditRequirement: "support-safe audit required for readiness and Weaver decisions",
-    weaverMode: "model_first_read_only_governed",
     nextAction:
       "Confirm checksum, permission, and editor-launch evidence before member writes.",
     backendOwnedFacade: true,
@@ -1630,12 +1681,7 @@ const sampleSuiteDomainReadiness: SuiteDomainReadiness[] = [
     portabilityNotes: [
       "Lossy mapping and conflict reports are required before provider-write apply",
     ],
-    jurisdictionExposureNotes: ["selected adapters may carry provider and subprocessor jurisdiction exposure"],
     auditRefs: ["receipt://suite/boards-tasks/readiness"],
-    exposureDescriptor: "provider and jurisdiction exposure visible; raw diagnostics redacted",
-    portabilityContractRef: "export/import/lossy/conflict/rollback reports required",
-    auditRequirement: "support-safe audit required for readiness and Weaver decisions",
-    weaverMode: "model_first_read_only_governed",
     nextAction:
       "Verify keyboard task flows, conflict states, and audit events before writes.",
     backendOwnedFacade: true,
@@ -1660,12 +1706,7 @@ const sampleSuiteDomainReadiness: SuiteDomainReadiness[] = [
     portabilityNotes: [
       "Private calendar ingestion and credential profile downloads are out of scope",
     ],
-    jurisdictionExposureNotes: ["selected adapters may carry provider and subprocessor jurisdiction exposure"],
     auditRefs: ["receipt://suite/calendar-meetings/readiness"],
-    exposureDescriptor: "provider and jurisdiction exposure visible; raw diagnostics redacted",
-    portabilityContractRef: "export/import/lossy/conflict/rollback reports required",
-    auditRequirement: "support-safe audit required for readiness and Weaver decisions",
-    weaverMode: "model_first_read_only_governed",
     nextAction:
       "Confirm workspace/team/channel event readiness and private-calendar blockers.",
     backendOwnedFacade: true,
@@ -2028,6 +2069,7 @@ function normalizeState(value?: string): CapabilityState {
     case "misconfigured":
     case "unsupported":
     case "not_configured":
+    case "coming_later":
     case "configured":
       return value;
     case "policy_blocked":
@@ -2393,6 +2435,24 @@ export const sampleControlPlane: ControlPlaneResponse = {
     pendingRevocationRefs: ["receipt://weaver/runtime/revocation-preview"],
     auditReceiptRefs: ["receipt://weaver/runtime/profile-regeneration"],
     items: sampleWeaverProjectionItems,
+  },
+  weaverEligibilityPreview: {
+    policyEnabled: false,
+    groupMembershipRequired: true,
+    requiredGroups: ["weaver-group", "weave-weaver-runtime"],
+    eligibleCapabilities: ["weaver.files_read", "weaver.exec_disabled"],
+    memberStateWithoutPolicy: "disabled_by_policy",
+    memberStateWithoutGroup: "disabled_by_policy",
+    memberStateWhenEligible: "coming_later",
+    blockedReasons: [
+      "weaver.enabled remains blocked until organization policy enables governed Weaver runtime provisioning",
+      "members outside weaver-group stay deny-by-default for Weaver runtime provisioning",
+    ],
+    nextActions: [
+      "Grant weaver.enabled through organization policy before runtime rollout.",
+      "Map eligible members into weaver-group only after member impact preview and audit review.",
+    ],
+    auditRefs: ["audit://weaver/eligibility-preview"],
   },
   identityProviderReadiness: {
     contractVersion: "identity-provider-readiness-v1",

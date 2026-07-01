@@ -65,47 +65,36 @@ class WorkspaceCapabilitySnapshot {
       capability: WorkspaceCapability.meetingsCalls,
       readiness: WorkspaceCapabilityReadiness.unavailable,
       policyState: WorkspaceCapabilityPolicyState.disabled,
-      memberImpact: 'Meetings and calls are disabled in this workspace.',
     ),
     this.documentsCollaboration = const WorkspaceCapabilityState(
       capability: WorkspaceCapability.documentsCollaboration,
       readiness: WorkspaceCapabilityReadiness.unavailable,
       policyState: WorkspaceCapabilityPolicyState.disabled,
-      memberImpact:
-          'Documents and collaboration are disabled in this workspace.',
     ),
     this.decisionsEvidence = const WorkspaceCapabilityState(
       capability: WorkspaceCapability.decisionsEvidence,
       readiness: WorkspaceCapabilityReadiness.ready,
       policyState: WorkspaceCapabilityPolicyState.allowed,
-      memberImpact:
-          'Decisions and evidence are represented by the Weave domain model.',
     ),
     this.manualsHelp = const WorkspaceCapabilityState(
       capability: WorkspaceCapability.manualsHelp,
       readiness: WorkspaceCapabilityReadiness.ready,
       policyState: WorkspaceCapabilityPolicyState.allowed,
-      memberImpact: 'Manuals and help are available through Weave.',
     ),
     this.releaseEvidence = const WorkspaceCapabilityState(
       capability: WorkspaceCapability.releaseEvidence,
       readiness: WorkspaceCapabilityReadiness.ready,
       policyState: WorkspaceCapabilityPolicyState.allowed,
-      memberImpact: 'Release evidence is available through Weave.',
     ),
     this.adminControlPlane = const WorkspaceCapabilityState(
       capability: WorkspaceCapability.adminControlPlane,
       readiness: WorkspaceCapabilityReadiness.ready,
       policyState: WorkspaceCapabilityPolicyState.allowed,
-      memberImpact:
-          'Workspace Health exposes support-safe admin readiness only.',
     ),
     this.weaver = const WorkspaceCapabilityState(
       capability: WorkspaceCapability.weaver,
       readiness: WorkspaceCapabilityReadiness.unavailable,
       policyState: WorkspaceCapabilityPolicyState.disabled,
-      memberImpact:
-          'Weaver is disabled by workspace policy until an admin enables a governed runtime profile.',
     ),
   });
 

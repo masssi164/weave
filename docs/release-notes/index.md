@@ -39,6 +39,6 @@ GH_TOKEN=... python3 tools/release_notes_generate.py --repo masssi164/weave --si
 
 Use `--dry-run` to inspect output without writing, and use `--input tools/fixtures/release_notes_prs.json` for deterministic local checks. Issue #293 tracks the remaining automation to publish GitHub release drafts from this source of truth. Checked-in release notes pages remain concise, user/admin/operator-oriented drafts linked to deeper docs when needed.
 
-At release cut, generated notes should move into the versioned release notes file and `unreleased.md` should reset to empty category headings plus any current known blockers. `v0.1.0-rc.3` follows this pattern: versioned notes hold the release facts, while Unreleased is reset for later changes and the current #762 successor blocker for the unresolved #591 manual assistive-technology gap. Run `make release-notes-check` or `make docs-check` before requesting review.
+At release cut, generated notes should move into the versioned release notes file and `unreleased.md` should reset to empty category headings plus any current known blockers. `v0.1.0-rc.3` follows this pattern: versioned notes hold the release facts, while Unreleased is reset for later changes and the current #591 manual assistive-technology blocker. Run `make release-notes-check` or `make docs-check` before requesting review.
 
 Release notes must stay honest about shipped, gated, disabled, degraded, or future behavior. Do not describe preview-only or guarded surfaces as generally available.

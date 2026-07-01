@@ -1,6 +1,6 @@
-# Deprecated Python Weave MCP gateway
+# Python Weave MCP gateway
 
-Status: transitional/deprecated after issue #818. New member/Weaver-facing MCP work belongs in `weave-contract` and `weave-mcp-server`; this Python path remains only as historical/local evidence until Java parity is complete and release owners remove it deliberately. The historical `weaver.*` capability dialect is retired here too: local fixtures must use the Java contract capability vocabulary (`files.read`, `calendar.read`, `calendar.manage_events`, `boards.update_task`, and related domain grants) so this deprecated path cannot drift into a second canonical MCP contract.
+Status: transitional architecture target after ADR-004. Issue #818 temporarily moved member/Weaver-facing MCP work toward `weave-contract` and `weave-mcp-server`; ADR-004 pivots the long-term path back to server-owned OpenAPI as contract authority. This Python gateway is the intended OpenAPI-consuming MCP adapter path, still disabled by default until the migration lands.
 
 # Weave MCP gateway skeleton
 
@@ -29,9 +29,9 @@ Discovery requires runtime context headers. Policy comes from the generated Runt
 - `X-Weave-Org-Id`
 - `X-Weave-User-Ref`
 - `X-Weave-Runtime-Profile` — support-safe profile hash
-- `X-Weave-Runtime-Profile-Projection` — base64url JSON containing `runtimeProfileHash`, `enabled`, `revoked`, the exact RuntimeProfile server binding `mcp.servers.weave-domain-tools`, `transport`, `credentialRef`, `capabilityGrants`, `allowedTools`, `auditRef`, and `projectionSignature` references only
+- `X-Weave-Runtime-Profile-Projection` — base64url JSON containing `runtimeProfileHash`, `enabled`, `revoked`, `serverKey`, `transport`, `credentialRef`, `capabilityGrants`, `allowedTools`, `auditRef`, and `projectionSignature` references only
 
-The Sprint 16/Sprint 32 proof tools are:
+The Sprint 16/Sprint 32 proof tools are exposed through an explicit Python route map validated against the server-owned OpenAPI artifact (`contracts/openapi/weave-openapi.json`). Route exposure is deny-by-default: adding a backend OpenAPI route does not create an MCP tool unless the reviewed `OPENAPI_ROUTE_MAP` lists the tool, method, path, and expected `operationId`. The current proof tools are:
 
 - `admin.get_readiness` (read-only)
 - `weaver.get_runtime_profile_projection` (read-only)

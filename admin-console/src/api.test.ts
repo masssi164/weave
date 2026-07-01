@@ -24,6 +24,7 @@ describe("AdminControlPlaneApi provider boundary", () => {
               "degraded",
               "policy-blocked",
               "admin-action-required",
+              "coming_later",
               "disabled",
             ],
             cards: [
@@ -36,6 +37,20 @@ describe("AdminControlPlaneApi provider boundary", () => {
                 remediation: "Run backend realm dry-run.",
                 nextActions: ["Run dry-run"],
                 evidenceRefs: ["identity-realm-dry-run"],
+              },
+              {
+                key: "provisioning-source-readiness",
+                label: "SCIM, LDAP, and AD provisioning readiness",
+                state: "admin-action-required",
+                summary: "Fixture-backed provisioning source posture.",
+                memberImpact: "degraded",
+                remediation: "Prove immutable anchors before member go-live.",
+                nextActions: ["Record source of truth"],
+                evidenceRefs: ["scim-lifecycle-contract"],
+                diagnostics: {
+                  scimConceptCovered: true,
+                  liveLdapAdConnectorClaimed: false,
+                },
               },
             ],
             nextActions: ["Resolve admin-action-required cards"],
@@ -107,6 +122,11 @@ describe("AdminControlPlaneApi provider boundary", () => {
       false,
     );
     expect(identityReadiness.cards[0]?.memberImpact).toBe("degraded");
+    expect(identityReadiness.stableStates).toContain("coming_later");
+    expect(identityReadiness.cards[1]?.diagnostics).toMatchObject({
+      scimConceptCovered: true,
+      liveLdapAdConnectorClaimed: false,
+    });
     expect(report.supportSafe).toBe(true);
     expect(report.memberImpactStates).toEqual([
       "available",

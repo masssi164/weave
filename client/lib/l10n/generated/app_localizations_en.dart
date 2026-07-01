@@ -16,27 +16,27 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get welcomeSubtitle =>
-      'Your unified collaboration hub for messaging, files, and secure self-hosted access.';
+      'Join your organization through an invite or sign-in handoff. Provider setup stays with your admins.';
 
   @override
-  String get continueButton => 'Get Started';
+  String get continueButton => 'Join your organization';
 
   @override
-  String get setupTitle => 'Setup';
+  String get setupTitle => 'Join Weave';
 
   @override
-  String get setupProviderStepTitle => 'Configure workspace capabilities';
+  String get setupProviderStepTitle => 'Configure provider categories';
 
   @override
   String get setupProviderStepDescription =>
-      'Admin setup starts with organization sign-in and keeps Chat, Files, Calendar, Boards, Meetings, Documents, and Weaver visible as workspace capabilities before members join.';
+      'Admin setup starts with the identity/IDM category and keeps chat, files, calendar, boards/tasks, meetings/calls, documents/collaboration, and Weaver visible as provider categories before members join.';
 
   @override
-  String get setupServicesStepTitle => 'Review Workspace Readiness';
+  String get setupServicesStepTitle => 'Review Backend API';
 
   @override
   String get setupServicesStepDescription =>
-      'Review product-level workspace readiness. Raw service configuration stays in admin/operator recovery, not normal member setup.';
+      'Review the Weave backend API endpoint derived from the organization sign-in issuer. Provider service URLs stay in admin/support diagnostics, not member setup.';
 
   @override
   String get providerCategorySummaryTitle => 'Provider categories';
@@ -70,21 +70,21 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get providerCategoryChatDetail =>
-      'Matrix/Chat is the current dogfood choice behind the Weave chat surface.';
+      'Chat is the current dogfood service behind the Weave Chat surface.';
 
   @override
   String get providerCategoryFilesTitle => 'Files';
 
   @override
   String get providerCategoryFilesDetail =>
-      'Nextcloud/Files is the current dogfood storage choice behind the Weave files facade.';
+      'File storage is the current dogfood service behind the Weave Files facade.';
 
   @override
   String get providerCategoryCalendarTitle => 'Calendar';
 
   @override
   String get providerCategoryCalendarDetail =>
-      'Nextcloud/Calendar backing is the current dogfood choice behind the Weave calendar facade.';
+      'Calendar sync is the current dogfood service behind the Weave Calendar facade.';
 
   @override
   String get providerCategoryBoardsTitle => 'Boards/tasks';
@@ -140,6 +140,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String setupStepIndicator(int current, int total) {
     return 'Step $current of $total';
   }
+
+  @override
+  String get navHome => 'Home';
 
   @override
   String get navChat => 'Chat';
@@ -271,6 +274,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get semanticCloseButton => 'Close';
 
   @override
+  String get semanticHomeIcon => 'Home';
+
+  @override
   String get semanticChatIcon => 'Chat messages';
 
   @override
@@ -330,7 +336,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get firstRunDescription =>
-      'You signed in once with Weave SSO. Weave is checking your profile and collaboration modules; no separate Matrix or Nextcloud credentials are needed.';
+      'You signed in once with Weave SSO. Weave is checking your profile and collaboration modules; no separate Chat, Files, or Calendar credentials are needed.';
 
   @override
   String get firstRunIdentitySectionTitle => 'Your Weave identity';
@@ -353,6 +359,36 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get firstRunInviteStatusLabel => 'Invite';
+
+  @override
+  String get firstRunRoleOwner => 'Owner';
+
+  @override
+  String get firstRunRoleAdmin => 'Admin';
+
+  @override
+  String get firstRunRoleOperator => 'Operator';
+
+  @override
+  String get firstRunRoleMember => 'Member';
+
+  @override
+  String get firstRunRoleGuest => 'Guest';
+
+  @override
+  String get firstRunRoleUnknown => 'Workspace role';
+
+  @override
+  String get firstRunInviteAccepted => 'Accepted';
+
+  @override
+  String get firstRunInvitePending => 'Pending';
+
+  @override
+  String get firstRunInviteExpired => 'Expired';
+
+  @override
+  String get firstRunInviteUnavailable => 'Unavailable';
 
   @override
   String get firstRunModuleSectionTitle => 'Module readiness';
@@ -386,6 +422,50 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get firstRunNextStepsTitle => 'Next steps';
+
+  @override
+  String get firstRunProfileReadyGuidance => 'Your profile is ready for Weave.';
+
+  @override
+  String get firstRunProfilePendingGuidance =>
+      'Your profile is still being prepared.';
+
+  @override
+  String get firstRunChatReadyGuidance => 'Chat is ready for this workspace.';
+
+  @override
+  String get firstRunChatPendingGuidance => 'Chat is still being prepared.';
+
+  @override
+  String get firstRunFilesReadyGuidance =>
+      'Files are ready for this workspace.';
+
+  @override
+  String get firstRunFilesPendingGuidance => 'Files are still being prepared.';
+
+  @override
+  String get firstRunCalendarReadyGuidance =>
+      'Calendar is ready for this workspace.';
+
+  @override
+  String get firstRunCalendarPendingGuidance =>
+      'Calendar is still being prepared.';
+
+  @override
+  String get firstRunModuleUnavailableGuidance =>
+      'This Weave capability is not available for this workspace yet.';
+
+  @override
+  String get firstRunModuleDegradedGuidance =>
+      'This Weave capability is available with limited functionality.';
+
+  @override
+  String get firstRunModuleActionNeededGuidance =>
+      'Workspace setup needs admin attention.';
+
+  @override
+  String get firstRunNextStepAdminAttention =>
+      'Workspace setup needs admin attention before every capability is ready.';
 
   @override
   String get firstRunRefreshButton => 'Refresh status';
@@ -881,7 +961,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get filesProductBoundaryBody =>
-      'Files actions use the Weave backend facade. Nextcloud remains the storage provider and admin/fallback surface; raw provider paths and credentials are not part of the normal Files UX.';
+      'Files actions use the Weave workspace service facade. File storage stays behind the admin/fallback surface; raw service paths and credentials are not part of the normal Files UX.';
 
   @override
   String get filesConnectButton => 'Connect Files';
@@ -1129,7 +1209,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsBrandSectionDescription =>
-      'Weave focuses on accessible, data-sovereign collaboration: chat, files, shared calendars, E2EE architecture, and boards behind clear gates.';
+      'Tune Weave for this device: appearance, language, profile context, module visibility, and safe sign-out.';
 
   @override
   String get settingsThemeTitle => 'Appearance';
@@ -1174,6 +1254,39 @@ class AppLocalizationsEn extends AppLocalizations {
       'Appearance preferences could not be saved. Try changing the setting again.';
 
   @override
+  String get settingsLanguageTitle => 'Language';
+
+  @override
+  String get settingsLanguageDescription =>
+      'Choose the app language for this device. Device language follows iOS, Android, or desktop.';
+
+  @override
+  String get settingsLanguageSystemTitle => 'Use device language';
+
+  @override
+  String get settingsLanguageSystemDescription =>
+      'Follow your device language setting.';
+
+  @override
+  String get settingsLanguageEnglishTitle => 'English';
+
+  @override
+  String get settingsLanguageEnglishDescription => 'Show Weave in English.';
+
+  @override
+  String get settingsLanguageGermanTitle => 'German';
+
+  @override
+  String get settingsLanguageGermanDescription => 'Show Weave in German.';
+
+  @override
+  String get settingsLanguageLoading => 'Loading language preferences…';
+
+  @override
+  String get settingsLanguageError =>
+      'Language preferences could not be saved. Try changing the setting again.';
+
+  @override
   String get settingsHelpTitle => 'Help and user handbook';
 
   @override
@@ -1213,14 +1326,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get helpWhatIsWeaveBody =>
-      'Weave is a collaboration app for teams that want one accessible workspace without giving up data sovereignty. Chat, files, account settings, and additional collaboration modules are presented through Weave while open services such as Matrix, Nextcloud, Keycloak, and the Weave backend work behind the scenes.';
+      'Weave is a collaboration app for teams that want an accessible workspace without giving up data sovereignty. Chat, files, account settings, and other collaboration modules appear in Weave while open services work behind Weave facades in the background.';
 
   @override
   String get helpSignInTitle => 'Sign in basics';
 
   @override
   String get helpSignInBody =>
-      'Use the workspace address provided by your admin, then sign in once with Weave SSO. You should not need separate Matrix or Nextcloud passwords for normal use. If sign-in loops or fails, check your connection, confirm the server address in Settings, and ask an admin whether your invite or account is active.';
+      'Use the workspace address from your admin, then sign in once with Weave SSO. For normal use, you should not need separate Chat, Files, or Calendar passwords. If sign-in fails or loops, check your connection, confirm the server address in Settings, and ask an admin whether your invitation or account is active.';
 
   @override
   String get helpChatTitle => 'Chat';
@@ -1262,7 +1375,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get helpPrivacySecurityBody =>
-      'Your workspace controls its own services and data. Weave uses SSO for access and shows Matrix security status honestly. Do not assume chat is fully end-to-end encrypted unless Weave says the Matrix encryption, recovery, and device-trust gates are healthy. Keep recovery keys in a safe place and report lost devices to your admin.';
+      'Your workspace controls its own services and data. Weave uses SSO for access and reports the Chat security status honestly. Do not assume every chat is fully end-to-end encrypted unless Weave shows that encrypted rooms, recovery, and device trust are healthy. Keep recovery keys safe and report lost devices to your admin.';
 
   @override
   String get settingsShellModulesTitle => 'Shell modules';
@@ -1786,12 +1899,12 @@ class AppLocalizationsEn extends AppLocalizations {
       'Auth configuration changed';
 
   @override
-  String get settingsWorkspaceInvalidationMatrixHomeserverChanged =>
-      'Matrix homeserver changed';
+  String get settingsWorkspaceInvalidationChatConfigurationChanged =>
+      'Chat configuration changed';
 
   @override
-  String get settingsWorkspaceInvalidationNextcloudBaseUrlChanged =>
-      'Nextcloud base URL changed';
+  String get settingsWorkspaceInvalidationFilesConfigurationChanged =>
+      'Files configuration changed';
 
   @override
   String get settingsWorkspaceInvalidationExplicitSignOut =>
@@ -1934,6 +2047,64 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsWorkspaceImpactLabel => 'Member impact';
+
+  @override
+  String get settingsWorkspaceRecoveryLabel => 'Recovery';
+
+  @override
+  String get settingsWorkspaceRecoveryAvailable => 'Available';
+
+  @override
+  String get settingsWorkspaceRecoveryDisabledByPolicy => 'Disabled by policy';
+
+  @override
+  String get settingsWorkspaceRecoveryNotConfigured => 'Admin setup needed';
+
+  @override
+  String get settingsWorkspaceRecoveryDegraded => 'Limited';
+
+  @override
+  String get settingsWorkspaceRecoveryUnavailable => 'Unavailable';
+
+  @override
+  String get settingsWorkspaceRecoveryComingLater => 'Coming later';
+
+  @override
+  String get settingsWorkspaceRecoveryAvailableAction =>
+      'No recovery action is needed.';
+
+  @override
+  String get settingsWorkspaceRecoveryDisabledByPolicyAction =>
+      'Ask a workspace admin if your role or group should receive access.';
+
+  @override
+  String get settingsWorkspaceRecoveryNotConfiguredAction =>
+      'A workspace admin needs to finish setup before members can use this capability.';
+
+  @override
+  String get settingsWorkspaceRecoveryDegradedAction =>
+      'You can keep working, but some actions may be limited until workspace readiness recovers.';
+
+  @override
+  String get settingsWorkspaceRecoveryUnavailableAction =>
+      'This capability is not available in the current workspace state.';
+
+  @override
+  String get settingsWorkspaceRecoveryComingLaterAction =>
+      'This capability stays hidden until the organization enables it for members.';
+
+  @override
+  String get settingsWorkspaceRecoverySupportRefUnavailable => 'Not provided';
+
+  @override
+  String settingsWorkspaceRecoverySemanticLabel(
+    String capability,
+    String state,
+    String recovery,
+    String supportRef,
+  ) {
+    return '$capability. State: $state. Recovery: $recovery. Support reference: $supportRef.';
+  }
 
   @override
   String settingsProviderStackSemanticLabel(
@@ -2645,6 +2816,17 @@ class AppLocalizationsEn extends AppLocalizations {
       'Defaults for Matrix, Nextcloud, and the backend API are derived from the issuer host. Edit them if your services live elsewhere.';
 
   @override
+  String get serverConfigurationBackendApiHelper =>
+      'The member client stores the Weave backend API endpoint for organization capability and workspace state. Provider service URLs stay in admin/support diagnostics.';
+
+  @override
+  String get serverConfigurationIdentityEndpointTitle => 'Identity endpoint';
+
+  @override
+  String get serverConfigurationIdentityEndpointHelper =>
+      'Provider selection is owned by the Weave Admin Console and backend control plane. This member client stores only canonical Weave endpoints needed to sign in.';
+
+  @override
   String get serverConfigurationMatrixLabel => 'Matrix Homeserver URL';
 
   @override
@@ -2700,14 +2882,25 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get signInDescription =>
-      'Weave is configured. Use your provider account in the system browser to open the authenticated app shell.';
+      'Use your Weave workspace sign-in to continue. Your invite or organization account opens the app securely in the system browser.';
 
   @override
   String get signInConfigurationTitle => 'Current sign-in configuration';
 
   @override
-  String signInConfigurationProvider(String value) {
-    return 'Provider: $value';
+  String get signInHandoffConfigurationDescription =>
+      'Your Weave invite selected the workspace sign-in endpoint. Continue with SSO; if this does not work, ask an admin/operator to refresh the invite and mention WEAVE-SSO-NOT-COMPLETE.';
+
+  @override
+  String get signInHandoffReadyTitle => 'Workspace invite ready';
+
+  @override
+  String signInHandoffReadyDescription(
+    String organization,
+    String workspace,
+    String runId,
+  ) {
+    return 'Weave consumed the dogfood handoff for $organization/$workspace. Continue with SSO for run $runId.';
   }
 
   @override
@@ -2735,6 +2928,33 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get signInMissingConfigurationDescription =>
       'Weave still needs a valid issuer URL and client ID before it can open the browser sign-in flow.';
+
+  @override
+  String get signInCancelled => 'Sign-in was cancelled.';
+
+  @override
+  String get signInConfigurationFailure =>
+      'The sign-in configuration is incomplete. Ask an admin/operator to refresh the invite.';
+
+  @override
+  String get signInProtocolFailure =>
+      'Sign-in could not be completed. Ask an admin/operator to check the identity setup and mention WEAVE-SSO-NOT-COMPLETE.';
+
+  @override
+  String get signInStorageFailure =>
+      'Weave could not save the session on this device. Check device storage/security settings, then try again.';
+
+  @override
+  String get signInUnsupportedPlatform =>
+      'This device cannot open the secure Weave sign-in flow.';
+
+  @override
+  String get signInUnknownFailure =>
+      'Weave could not sign in right now. Try again or ask an admin/operator to refresh the invite.';
+
+  @override
+  String get signInOfflineSessionNotAllowed =>
+      'This organization has not allowed long-lived mobile sessions for this account yet. Ask an admin/operator to enable mobile session access, then sign in again.';
 
   @override
   String get profileSectionTitle => 'Weave profile';
@@ -3359,7 +3579,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get firstRunAdminSetupDescription =>
-      'Your role can administer workspace setup. Keep OIDC, realm, organization, invite, and service endpoint changes here or in Settings; normal users should only need one Weave sign-in.';
+      'Your role can manage workspace setup. Use admin settings for organization access, invitations, capability readiness, and recovery tasks; normal members should only need one Weave sign-in.';
 
   @override
   String get agentCapabilityPolicyTitle => 'AI agent capability governance';
@@ -3817,4 +4037,107 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get agentCapabilityAvailabilityDisabledByPolicy =>
       'Disabled by policy';
+
+  @override
+  String get chatWeaverBetaTitle => 'Weaver Beta helper';
+
+  @override
+  String get chatWeaverBetaDescription =>
+      'Weaver stays inside this Weave workspace and can only use approved capabilities. Members see approved Weave actions, not internal runtime catalogs.';
+
+  @override
+  String get chatWeaverBetaConnectedState => 'Connected';
+
+  @override
+  String get chatWeaverBetaUnconnectedState => 'Unconnected';
+
+  @override
+  String get chatWeaverBetaEnabledState => 'Weaver enabled';
+
+  @override
+  String get chatWeaverBetaDisabledState => 'Weaver disabled';
+
+  @override
+  String get chatWeaverBetaCapabilityUnavailableState =>
+      'Capability unavailable';
+
+  @override
+  String get chatWeaverBetaApprovalRequiredState =>
+      'Approval required for sensitive actions';
+
+  @override
+  String get chatWeaverBetaDeniedFailedState => 'Denied or failed safely';
+
+  @override
+  String get chatWeaverBetaSupportSafeResult =>
+      'Results show a summary, status, and audit reference only; secrets and raw provider payloads stay out of the member view.';
+
+  @override
+  String chatWeaverBetaSemanticLabel(
+    String personalState,
+    String channelState,
+    String connectionState,
+  ) {
+    return 'Weaver Beta helper. Personal helper: $personalState. Channel helper: $channelState. Workspace connection: $connectionState. Results are support-safe and do not expose secrets or raw provider payloads.';
+  }
+
+  @override
+  String get setupMemberHandoffTitle =>
+      'Join from an invite or organization sign-in';
+
+  @override
+  String get setupMemberHandoffDescription =>
+      'Open the invite link, /join link, or organization sign-in URL your admin sent you. Weave will prepare your workspace from the organization manifest without asking you to edit provider endpoints.';
+
+  @override
+  String get setupMemberHandoffPrimaryAction =>
+      'I have an invite or sign-in link';
+
+  @override
+  String get setupMemberHandoffPrimaryGuidance =>
+      'Use the link from your browser, email, or chat. If it is missing or expired, ask your workspace admin for a new invite.';
+
+  @override
+  String get setupMemberHandoffAdminNoteTitle => 'Admins and operators';
+
+  @override
+  String get setupMemberHandoffAdminNote =>
+      'Raw provider endpoints are managed in admin or operator recovery, not during normal member onboarding.';
+
+  @override
+  String get setupOpenOperatorRecoveryButton => 'Open operator recovery setup';
+
+  @override
+  String get setupOperatorRecoveryTitle => 'Operator recovery setup';
+
+  @override
+  String get memberHandoffLoadingTitle => 'Opening Weave invite';
+
+  @override
+  String get memberHandoffLoadingHint =>
+      'We are preparing sign-in for this workspace.';
+
+  @override
+  String get memberHandoffReadyTitle => 'Workspace ready for sign-in';
+
+  @override
+  String memberHandoffReadyGuidance(String organization, String workspace) {
+    return 'Weave prepared $organization/$workspace from the invite. Continue with workspace sign-in next.';
+  }
+
+  @override
+  String get memberHandoffErrorTitle => 'We could not open this Weave invite';
+
+  @override
+  String get memberHandoffErrorGuidance =>
+      'The invite may be expired, incomplete, or not ready yet. Ask your workspace admin for a fresh invite or organization sign-in link.';
+
+  @override
+  String get memberHandoffTlsErrorGuidance =>
+      'Weave could not reach the workspace start configuration over trusted TLS. For local dogfood, install and fully trust the Weave Local Development CA on this iPhone, or ask your admin for a publicly trusted organization sign-in link.';
+
+  @override
+  String memberHandoffErrorCode(String code) {
+    return 'Error code: $code';
+  }
 }

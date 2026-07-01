@@ -25,27 +25,30 @@
     "credentialBearingUrlsReturned": false,
     "authorizationSource": "Generated Weave RuntimeProfile projection carrying the capability-policy intersection; caller-supplied capability headers are ignored",
     "auditRequiredForEveryToolCall": true,
-    "approvalReceiptRequiredForWriteDeleteExternalSendProviderSwitch": true
+    "approvalReceiptRequiredForWriteDeleteExternalSendProviderSwitch": true,
+    "approvalAuthority": "user_openclaw_runtime_for_member_tool_actions",
+    "serverApprovalOracleAllowed": false,
+    "approvalFatigueControl": "approval receipts are required only for write/delete/external-send/provider-switch/admin-risk actions; read-only granted tools do not prompt by default"
   },
   "canonicalDomains": [
     {
-      "key": "calendar-meetings",
+      "key": "calendar",
       "label": "Calendar",
-      "toolFamilies": ["calendar.crud", "calendar.availability", "calendar.invite_rsvp", "calendar.recurrence", "calendar.canonical_mapping_ref"],
+      "toolFamilies": ["calendar.crud", "calendar.availability", "calendar.invite_rsvp", "calendar.recurrence", "calendar.provider_source_mapping"],
       "allowedProofTools": ["calendar.search_events", "calendar.read_event"],
       "writeToolsRequireApproval": ["calendar.create_event", "calendar.update_event", "calendar.delete_event", "calendar.invite_attendee"],
-      "forbiddenOutputs": ["privateCalendarTokens", "canonicalCredentialRefOnly", "rawCalendarAdapterPayloads"]
+      "forbiddenOutputs": ["privateCalendarTokens", "providerNativeCredentials", "rawCalDavPayloads"]
     },
     {
-      "key": "files-docs",
+      "key": "files_documents",
       "label": "Files and documents",
       "toolFamilies": ["files.crud", "files.search", "files.metadata", "files.version_content", "files.permissions", "documents.actions"],
       "allowedProofTools": ["files.search", "files.read_metadata"],
       "writeToolsRequireApproval": ["files.upload", "files.delete", "files.share_link", "documents.request_edit_session"],
-      "forbiddenOutputs": ["canonicalSharePolicySecretRef", "rawStorageCredentials", "credentialBearingDownloadUrl"]
+      "forbiddenOutputs": ["providerNativeShareSecret", "rawStorageCredentials", "credentialBearingDownloadUrl"]
     },
     {
-      "key": "boards-tasks",
+      "key": "boards_tasks",
       "label": "Boards and tasks",
       "toolFamilies": ["boards.crud", "tasks.crud", "tasks.assignment", "tasks.labels_status_due_dates", "comments.activity"],
       "allowedProofTools": ["boards.search_tasks", "boards.read_task"],
@@ -69,12 +72,12 @@
       "forbiddenOutputs": ["rawClaimsDump", "idmTokens", "credentialExport"]
     },
     {
-      "key": "admin_setup_adapters",
+      "key": "admin_setup_providers",
       "label": "Admin setup and providers",
-      "toolFamilies": ["adapter_registry", "category_mapping", "readiness_checks", "dry_run", "capability_mapping", "secret_ref_refs"],
+      "toolFamilies": ["provider_registry", "category_mapping", "readiness_checks", "dry_run", "capability_mapping", "secret_ref_refs"],
       "allowedProofTools": ["admin.providers.list_categories", "admin.providers.readiness_summary"],
       "writeToolsRequireApproval": ["admin.providers.select_provider", "admin.providers.run_replacement_dry_run", "admin.providers.apply_mapping"],
-      "forbiddenOutputs": ["SecretRefValues", "adapterAdminTokens", "rawDownstreamErrors"]
+      "forbiddenOutputs": ["SecretRefValues", "providerAdminTokens", "rawDownstreamErrors"]
     },
     {
       "key": "audit_policy",
@@ -82,7 +85,7 @@
       "toolFamilies": ["audit_events", "redaction_views", "policy_simulation", "permission_scopes"],
       "allowedProofTools": ["audit.search_support_safe", "policy.simulate_effective_rights"],
       "writeToolsRequireApproval": ["policy.update_profile", "policy.grant_capability", "policy.revoke_capability"],
-      "forbiddenOutputs": ["unredactedAuditPayload", "memberPrivateMemory", "rawAdapterDiagnostics"]
+      "forbiddenOutputs": ["unredactedAuditPayload", "memberPrivateMemory", "rawProviderDiagnostics"]
     },
     {
       "key": "weaver_runtime_governance",

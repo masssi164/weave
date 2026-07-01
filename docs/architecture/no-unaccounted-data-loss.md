@@ -36,14 +36,6 @@ Machine-readable schemas live under `server/src/main/resources/contracts/portabi
 
 Provider migration apply is impossible until a successful dry-run report exists. A `MigrationRun` follows the canonical lifecycle `discovered`, `preflight_failed`, `preflight_passed`, `exported`, `dry_run_completed`, `blocked`, `approved`, `applying`, `applied`, `verified`, `rolled_back`, and `archived`. A run with `applyAllowed: true` must be in `approved`, `applying`, `applied`, or `verified` state and must include a non-empty dry-run report reference, provider mapping reference, object counts, content hashes, audit references, admin approval, rollback/archive boundary, and post-apply verification reference. Missing reports, conflicts, unclassified losses, incomplete identity mapping, unavailable audit sink, or unsafe redaction force `applyAllowed: false`.
 
-## Attach-existing portability plan MVP
-
-The attach-existing path starts with read-only discovery for organizations that already run a provider landscape and want Weave to reduce hyperscaler dependence without redeploying or destructively migrating current systems. `specs/0006-portability-contract/attach-existing-files-portability-plan-mvp.json` is the bounded Files-domain fixture for this product slice.
-
-The fixture keeps exactly one active Files binding: the existing cloud Files adapter remains `active`, a second handle may be `discovery_read_only`, and the self-hosted/sovereign Files adapter remains `candidate` until separate migration evidence exists. Other canonical binding states remain available for future plans: `migration_source`, `migration_target`, and `coexistence_preflight`.
-
-The AdapterMapper output is intentionally admin/operator-facing. It records a capability map, permission-impact report ref, loss report ref, conflict report ref, audit refs, a recommended self-hosted/sovereign target where the evidence supports it, and cutover/rollback next steps. Discovery mode must not rotate credentials, mutate the provider, import data, delete data, or claim release readiness. Member/App clients consume only stable provider-neutral capability states such as `available`, `degraded`, or `coming_later`; provider names, opaque configuration handles, report refs, and target recommendations stay behind Admin/Operator surfaces.
-
 ## Support-safe redaction
 
 Portability artifacts must contain support-safe identifiers and hashes, not raw provider tokens, credentials, internal endpoints, or opaque downstream error payloads. Raw provider payloads stay server/operator-side and must be redacted before they enter evidence, member preview, issue comments, or docs.

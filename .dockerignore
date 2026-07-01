@@ -1,0 +1,9 @@
+**
+!server/
+!server/build/
+!server/build/libs/
+!server/build/libs/*.jar
+!weave-mcp-server/
+!weave-mcp-server/build/
+!weave-mcp-server/build/libs/
+!weave-mcp-server/build/libs/*.jar

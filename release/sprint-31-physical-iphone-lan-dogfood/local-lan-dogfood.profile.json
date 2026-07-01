@@ -8,6 +8,14 @@
   "memberPhoneAllowed": true,
   "publicDnsRequired": false,
   "trustedInternetTlsRequired": false,
+  "physicalDogfoodRoutePolicy": {
+    "simulatorCertInjectionCountsAsPhysicalProof": false,
+    "preferredMassimoRoute": "public-trusted-https",
+    "localFallback": "persistent-local-ca-and-leaf",
+    "localCaRotationRequiresExplicitRequest": true,
+    "defaultPhysicalReset": "update-in-place",
+    "freshSemantics": "app-state-reset"
+  },
   "rejects": [
     "localhost",
     "127.0.0.1",

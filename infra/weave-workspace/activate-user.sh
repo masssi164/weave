@@ -12,8 +12,12 @@ EMAIL=""
 DISPLAY_NAME=""
 ROLE="member"
 WORKSPACE_GROUP=""
-INITIAL_PASSWORD=""
-TEMPORARY_PASSWORD="true"
+INVITE_REF=""
+ACTIVATION_LIFESPAN_SECONDS="900"
+ACTIVATION_CLIENT_ID="weave-app"
+ACTIVATION_REDIRECT_URI="com.massimotter.weave:/oauthredirect"
+REQUIRED_ACTIONS="VERIFY_EMAIL,UPDATE_PASSWORD"
+EVIDENCE_FILE=""
 DRY_RUN="false"
 
 log() { printf '%s\n' "$*"; }
@@ -23,7 +27,7 @@ usage() {
   cat <<'EOF'
 Usage: ./activate-user.sh --username USERNAME --email EMAIL --display-name NAME --role owner|admin|member|guest [options]
 
-Local/dev owner/admin helper for activating a Weave user in Keycloak.
+Local/dev owner/admin helper for creating a one-time Weave activation invite in Keycloak.
 
 Required:
   --username VALUE        Keycloak username / preferred username.
@@ -33,8 +37,15 @@ Required:
 
 Options:
   --workspace-group VALUE Group claim to assign; default: role-mapped workspace-owners/admins/members/guests.
-  --password VALUE        Initial password. If omitted, a local/dev password is generated.
-  --permanent-password    Mark the initial password as non-temporary. Default is temporary.
+  --invite-ref VALUE      Non-secret invite/handoff reference. Default: activation-USERNAME.
+  --activation-lifespan SECONDS
+                          Keycloak required-action email lifetime. Default: 900.
+  --activation-client-id VALUE
+                          OIDC client used after activation. Default: weave-app.
+  --activation-redirect-uri URI
+                          Redirect after required actions. Default: com.massimotter.weave:/oauthredirect.
+  --required-actions CSV  Keycloak required actions. Default: VERIFY_EMAIL,UPDATE_PASSWORD.
+  --evidence-file PATH    Write support-safe activation evidence JSON.
   --tenant-realm VALUE    Keycloak realm. Default: TF_VAR_tenant_slug or weave.
   --dry-run               Validate and print the support-safe plan without contacting Keycloak.
   -h, --help              Show this help.
@@ -80,8 +91,15 @@ parse_args() {
       --display-name) DISPLAY_NAME="${2:-}"; shift 2 ;;
       --role) ROLE="${2:-}"; shift 2 ;;
       --workspace-group) WORKSPACE_GROUP="${2:-}"; shift 2 ;;
-      --password) INITIAL_PASSWORD="${2:-}"; shift 2 ;;
-      --permanent-password) TEMPORARY_PASSWORD="false"; shift ;;
+      --password|--permanent-password)
+        fail "$1 is no longer supported. Use the required-action activation email flow; do not create or print initial passwords."
+        ;;
+      --invite-ref) INVITE_REF="${2:-}"; shift 2 ;;
+      --activation-lifespan) ACTIVATION_LIFESPAN_SECONDS="${2:-}"; shift 2 ;;
+      --activation-client-id) ACTIVATION_CLIENT_ID="${2:-}"; shift 2 ;;
+      --activation-redirect-uri) ACTIVATION_REDIRECT_URI="${2:-}"; shift 2 ;;
+      --required-actions) REQUIRED_ACTIONS="${2:-}"; shift 2 ;;
+      --evidence-file) EVIDENCE_FILE="${2:-}"; shift 2 ;;
       --tenant-realm) TENANT_REALM="${2:-}"; shift 2 ;;
       --dry-run) DRY_RUN="true"; shift ;;
       -h|--help) usage; exit 0 ;;
@@ -113,22 +131,46 @@ validate_inputs() {
   [[ -n "${DISPLAY_NAME}" ]] || fail "--display-name is required"
   [[ -n "${TENANT_REALM}" ]] || fail "--tenant-realm must not be empty"
   validate_role
+  if [[ -z "${INVITE_REF}" ]]; then
+    INVITE_REF="activation-${USERNAME}"
+  fi
+  [[ "${INVITE_REF}" =~ ^[A-Za-z0-9._:-]{6,96}$ ]] || fail "--invite-ref must be a non-secret support-safe reference"
+  [[ "${ACTIVATION_LIFESPAN_SECONDS}" =~ ^[0-9]+$ ]] || fail "--activation-lifespan must be seconds"
+  (( ACTIVATION_LIFESPAN_SECONDS >= 300 && ACTIVATION_LIFESPAN_SECONDS <= 86400 )) || fail "--activation-lifespan must be between 300 and 86400 seconds"
+  [[ -n "${ACTIVATION_CLIENT_ID}" ]] || fail "--activation-client-id must not be empty"
+  [[ -n "${ACTIVATION_REDIRECT_URI}" ]] || fail "--activation-redirect-uri must not be empty"
+  [[ -n "${REQUIRED_ACTIONS}" ]] || fail "--required-actions must not be empty"
+  grep -Eq '(^|,)[[:space:]]*UPDATE_PASSWORD[[:space:]]*(,|$)' <<<"${REQUIRED_ACTIONS}" || fail "--required-actions must include UPDATE_PASSWORD"
+  for value in "${INVITE_REF}" "${ACTIVATION_CLIENT_ID}" "${ACTIVATION_REDIRECT_URI}" "${REQUIRED_ACTIONS}"; do
+    if grep -Eiq '(password=|token=|access_token|refresh_token|id_token|client_secret|bearer )' <<<"${value}"; then
+      fail "activation invite inputs must not contain credential-like material"
+    fi
+  done
   if [[ -z "${WORKSPACE_GROUP}" ]]; then
     WORKSPACE_GROUP="$(default_group_for_role)"
   fi
   [[ -n "${WORKSPACE_GROUP}" ]] || fail "--workspace-group must not be empty"
 }
 
-generate_password() {
-  if command -v openssl >/dev/null 2>&1; then
-    openssl rand -base64 18 | tr -d '\n'
-  else
-    LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 24
-  fi
-}
-
 require_command() {
   command -v "$1" >/dev/null 2>&1 || fail "Missing required command: $1"
+}
+
+json_required_actions() {
+  jq -cn --arg actions "${REQUIRED_ACTIONS}" \
+    '$actions | split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))'
+}
+
+sha256_value() {
+  printf '%s' "$1" | shasum -a 256 | awk '{print $1}'
+}
+
+redirect_uri_class() {
+  case "${ACTIVATION_REDIRECT_URI}" in
+    com.massimotter.weave:*) printf 'weave-ios-custom-scheme' ;;
+    https:*) printf 'https' ;;
+    *) printf 'other' ;;
+  esac
 }
 
 curl_args() {
@@ -196,7 +238,7 @@ ensure_group_id() {
 }
 
 upsert_user() {
-  local base_url="$1" token="$2" password="$3"
+  local base_url="$1" token="$2"
   local encoded_username users user_id payload first_name last_name
   encoded_username="$(jq -nr --arg value "${USERNAME}" '$value|@uri')"
   users="$(curl_keycloak GET "${base_url}/users?username=${encoded_username}&exact=true" "${token}")"
@@ -214,7 +256,21 @@ upsert_user() {
     --arg email "${EMAIL}" \
     --arg firstName "${first_name}" \
     --arg lastName "${last_name}" \
-    '{username: $username, email: $email, firstName: $firstName, lastName: $lastName, enabled: true, emailVerified: true}')"
+    --arg inviteRef "${INVITE_REF}" \
+    --argjson requiredActions "$(json_required_actions)" \
+    '{
+      username: $username,
+      email: $email,
+      firstName: $firstName,
+      lastName: $lastName,
+      enabled: true,
+      emailVerified: false,
+      requiredActions: $requiredActions,
+      attributes: {
+        weave_invite_ref: [$inviteRef],
+        weave_invite_status: ["pending"]
+      }
+    }')"
 
   if [[ -z "${user_id}" ]]; then
     curl_keycloak POST "${base_url}/users" "${token}" "${payload}" >/dev/null
@@ -226,10 +282,59 @@ upsert_user() {
 
   [[ -n "${user_id}" ]] || fail "Could not create or locate Keycloak user '${USERNAME}'"
 
-  curl_keycloak PUT "${base_url}/users/${user_id}/reset-password" "${token}" \
-    "$(jq -n --arg value "${password}" --argjson temporary "${TEMPORARY_PASSWORD}" '{type: "password", value: $value, temporary: $temporary}')" >/dev/null
-
   printf '%s\n' "${user_id}"
+}
+
+execute_activation_email() {
+  local base_url="$1" token="$2" user_id="$3"
+  local encoded_redirect encoded_client
+  encoded_redirect="$(jq -nr --arg value "${ACTIVATION_REDIRECT_URI}" '$value|@uri')"
+  encoded_client="$(jq -nr --arg value "${ACTIVATION_CLIENT_ID}" '$value|@uri')"
+  curl_keycloak PUT \
+    "${base_url}/users/${user_id}/execute-actions-email?lifespan=${ACTIVATION_LIFESPAN_SECONDS}&client_id=${encoded_client}&redirect_uri=${encoded_redirect}" \
+    "${token}" \
+    "$(json_required_actions)" >/dev/null
+}
+
+write_activation_evidence() {
+  local path="$1" mail_sent="$2"
+  [[ -n "${path}" ]] || return 0
+  mkdir -p "$(dirname -- "${path}")"
+  jq -n \
+    --arg schemaVersion "weave.dogfood.activation-invite.v1" \
+    --arg generatedAt "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+    --arg realm "${TENANT_REALM}" \
+    --arg usernameSha256 "$(sha256_value "${USERNAME}")" \
+    --arg emailSha256 "$(sha256_value "${EMAIL}")" \
+    --arg role "${ROLE}" \
+    --arg workspaceGroup "${WORKSPACE_GROUP}" \
+    --arg inviteRef "${INVITE_REF}" \
+    --arg clientId "${ACTIVATION_CLIENT_ID}" \
+    --arg redirectUriClass "$(redirect_uri_class)" \
+    --argjson activationLifespanSeconds "${ACTIVATION_LIFESPAN_SECONDS}" \
+    --argjson requiredActions "$(json_required_actions)" \
+    --argjson activationMailSent "${mail_sent}" \
+    '{
+      schemaVersion: $schemaVersion,
+      generatedAt: $generatedAt,
+      realm: $realm,
+      usernameSha256: $usernameSha256,
+      emailSha256: $emailSha256,
+      role: $role,
+      workspaceGroup: $workspaceGroup,
+      inviteRef: $inviteRef,
+      activation: {
+        mode: "keycloak-required-actions-email",
+        requiredActions: $requiredActions,
+        lifespanSeconds: $activationLifespanSeconds,
+        clientId: $clientId,
+        redirectUriClass: $redirectUriClass,
+        mailSent: $activationMailSent
+      },
+      qrOrDeeplinkCarriesSecret: false,
+      appStoresActivationSecret: false,
+      supportSafe: true
+    }' >"${path}"
 }
 
 main() {
@@ -237,23 +342,22 @@ main() {
   parse_args "$@"
   validate_inputs
 
-  local generated_password="false"
-  if [[ -z "${INITIAL_PASSWORD}" ]]; then
-    INITIAL_PASSWORD="$(generate_password)"
-    generated_password="true"
-  fi
-
-  log "Weave activation plan"
+  log "Weave activation invite plan"
   log "- realm: ${TENANT_REALM}"
   log "- username: ${USERNAME}"
   log "- email: ${EMAIL}"
   log "- display name: ${DISPLAY_NAME}"
   log "- role: ${ROLE}"
   log "- group: ${WORKSPACE_GROUP}"
-  log "- password: $([[ "${generated_password}" == "true" ]] && printf 'generated local/dev initial password' || printf 'provided by operator')"
-  log "- password mode: $([[ "${TEMPORARY_PASSWORD}" == "true" ]] && printf 'temporary' || printf 'permanent')"
+  log "- invite ref: ${INVITE_REF}"
+  log "- activation mode: Keycloak required-action email"
+  log "- required actions: ${REQUIRED_ACTIONS}"
+  log "- action link lifetime: ${ACTIVATION_LIFESPAN_SECONDS}s"
+  log "- QR/deeplink secrets: none"
 
   if [[ "${DRY_RUN}" == "true" ]]; then
+    write_activation_evidence "${EVIDENCE_FILE}" "false"
+    log "WEAVE_ACTIVATION_INVITE_DRY_RUN inviteRef=${INVITE_REF} supportSafe=true"
     log "Dry run only: Keycloak was not modified."
     return 0
   fi
@@ -271,15 +375,20 @@ main() {
   base_url="$(keycloak_public_url)/admin/realms/${TENANT_REALM}"
   role_json="$(ensure_realm_role "${base_url}" "${token}" "${ROLE}")"
   group_id="$(ensure_group_id "${base_url}" "${token}" "${WORKSPACE_GROUP}")"
-  user_id="$(upsert_user "${base_url}" "${token}" "${INITIAL_PASSWORD}")"
+  user_id="$(upsert_user "${base_url}" "${token}")"
 
   curl_keycloak POST "${base_url}/users/${user_id}/role-mappings/realm" "${token}" "$(jq -n --argjson role "${role_json}" '[$role]')" >/dev/null
   curl_keycloak PUT "${base_url}/users/${user_id}/groups/${group_id}" "${token}" >/dev/null
+  execute_activation_email "${base_url}" "${token}" "${user_id}"
+  write_activation_evidence "${EVIDENCE_FILE}" "true"
 
-  log "Activation complete."
-  log "- User can sign in at $(keycloak_public_url) and should receive realm role '${ROLE}' plus group '${WORKSPACE_GROUP}'."
+  log "Activation invite created."
+  log "- Keycloak sent a one-time required-action email for '${REQUIRED_ACTIONS}' with ${ACTIVATION_LIFESPAN_SECONDS}s lifetime."
+  log "- Dogfood Mailpit should capture the message locally; do not copy the action URL into docs, QR codes, logs, or app storage."
+  log "- After activation, the user should receive realm role '${ROLE}' plus group '${WORKSPACE_GROUP}'."
   log "- Verify through the backend facade with /api/me or the app first-run profile/status screen."
-  log "- Initial password for this local/dev activation: ${INITIAL_PASSWORD}"
+  [[ -n "${EVIDENCE_FILE}" ]] && log "- Support-safe evidence: ${EVIDENCE_FILE}"
+  log "WEAVE_ACTIVATION_INVITE_CREATED inviteRef=${INVITE_REF} requiredActions=${REQUIRED_ACTIONS} lifespanSeconds=${ACTIVATION_LIFESPAN_SECONDS} supportSafe=true"
 }
 
 main "$@"

@@ -201,7 +201,6 @@ class BoardsFacadeServiceTest {
             assertThat(event.tenantId()).isEqualTo("tenant-default");
             assertThat(event.contextId()).isEqualTo("workspace-default");
             assertThat(event.payload()).containsEntry("supportSafe", true);
-            assertThat(event.payload().get("mappingRef").toString()).startsWith("provider-mapping://boards/task/");
         });
     }
 
@@ -292,34 +291,9 @@ class BoardsFacadeServiceTest {
         assertThat(response.syncMetadata().userWriteAudited()).isTrue();
         assertThat(response.syncMetadata().contextScoped()).isTrue();
         assertThat(response.syncMetadata().supportSafe()).isTrue();
-        assertThat(response.syncMetadata().mappingRefs()).isEmpty();
-        assertThat(response.syncMetadata().replacementPreviewState()).isEqualTo("coming_later");
         assertThat(response.projects()).isEmpty();
         assertThat(response.boards()).isEmpty();
         assertThat(response.tasks()).isEmpty();
-    }
-
-    @Test
-    void workspaceReturnsCanonicalMappingRefsForBoardObjects() {
-        BoardsFacadeService service = new BoardsFacadeService(
-                new BoardsRuntimeGuard(true),
-                new LocalWorkspaceBoardsRepository(),
-                request -> ContextAuthorizationDecision.allow("test allow"),
-                contextAuthorizationProperties(),
-                workspaceCapabilityService());
-
-        var response = service.workspace(jwt());
-
-        assertThat(response.syncMetadata().mappingRefs())
-                .containsKeys("local-project-1", "local-board-1", "local-task-contract");
-        assertThat(response.syncMetadata().mappingRefs().get("local-project-1")).startsWith("provider-mapping://boards/project/");
-        assertThat(response.syncMetadata().mappingRefs().get("local-board-1")).startsWith("provider-mapping://boards/board/");
-        assertThat(response.syncMetadata().mappingRefs().get("local-task-contract")).startsWith("provider-mapping://boards/task/");
-        assertThat(response.syncMetadata().mappingRefs().values()).allSatisfy(ref -> {
-            assertThat(ref).startsWith("provider-mapping://boards/");
-            assertThat(ref).doesNotContain("https://").doesNotContain("token").doesNotContain("secret");
-        });
-        assertThat(response.syncMetadata().replacementPreviewState()).isEqualTo("coming_later");
     }
 
     @Test

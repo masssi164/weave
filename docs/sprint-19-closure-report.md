@@ -24,7 +24,7 @@ Date: 2026-06-02
 
 ## Gates and CI evidence
 
-Evidence classification: the PR-train runs below are **historical evidence** valid for the cited commit/run. Current-head release/public-readiness is not claimed by this report; fresh current-head Live Stack E2E, RC evidence, and the #762 successor blocker for Sprint 18 #591 manual assistive-technology signoff are still required where release claims depend on them.
+Evidence classification: the PR-train runs below are **historical evidence** valid for the cited commit/run. Current-head release/public-readiness is not claimed by this report; fresh current-head Live Stack E2E, RC evidence, and Sprint 18 #591 manual assistive-technology signoff are still required where release claims depend on them.
 
 Local gates recorded during the PR train:
 

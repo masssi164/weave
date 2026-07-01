@@ -1,7 +1,10 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/persistence/flutter_secure_store.dart';
+import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/core/router/app_routes.dart';
 import 'package:weave/core/router/app_router.dart';
 import 'package:weave/features/auth/data/dtos/auth_session_dto.dart';
@@ -14,13 +17,19 @@ import 'package:weave/features/app/domain/entities/workspace_capability_snapshot
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/auth/presentation/sign_in_screen.dart';
+import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
+import 'package:weave/features/calendar/domain/repositories/calendar_repository.dart';
+import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
 import 'package:weave/features/help/presentation/help_screen.dart';
 import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
+import 'package:weave/features/onboarding/domain/entities/member_auth_onboarding_state.dart';
 import 'package:weave/features/onboarding/presentation/first_run_screen.dart';
+import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
 import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
 import 'package:weave/features/onboarding/presentation/welcome_screen.dart';
+import 'package:weave/features/profile/domain/entities/user_profile.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
@@ -62,12 +71,12 @@ AsyncValue<WorkspaceConnectionState> _workspaceConnectionState() {
         integration: WorkspaceIntegration.appAuth,
         status: IntegrationConnectionStatus.connected,
       ),
-      matrix: IntegrationConnectionState(
-        integration: WorkspaceIntegration.matrix,
+      chat: IntegrationConnectionState(
+        integration: WorkspaceIntegration.chat,
         status: IntegrationConnectionStatus.connected,
       ),
-      nextcloud: IntegrationConnectionState(
-        integration: WorkspaceIntegration.nextcloud,
+      files: IntegrationConnectionState(
+        integration: WorkspaceIntegration.files,
         status: IntegrationConnectionStatus.connected,
       ),
     ),
@@ -122,13 +131,96 @@ class _FakeOidcClient implements OidcClient {
   }
 }
 
+class _FakeCalendarRepository implements CalendarRepository {
+  @override
+  Future<CalendarEvent> createEvent(CalendarEventDraft draft) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> deleteEvent(String id) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<CalendarClientSetup> loadClientSetup() {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<CalendarEventList> loadEvents({CalendarScope? scope}) async {
+    return CalendarEventList(scope: scope ?? CalendarScope.workspace);
+  }
+
+  @override
+  Future<CalendarScopeList> loadScopes() async => const CalendarScopeList();
+
+  @override
+  Future<CalendarEvent> readEvent(String id) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<CalendarEvent> updateEvent(String id, CalendarEventDraft draft) {
+    throw UnimplementedError();
+  }
+}
+
 void main() {
   group('AppRouter', () {
+    test('uses welcome as the normal launch route', () {
+      expect(initialLocationForDefaultRoute('/'), AppRoutes.welcome);
+      expect(initialLocationForDefaultRoute(''), AppRoutes.welcome);
+    });
+
+    test('uses join route for installed iOS custom-scheme launch', () {
+      expect(
+        initialLocationForDefaultRoute(
+          'weave://join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-massimo-dogfood&product_base_url=https://weave.test:44443&platform_config_url=https://api.weave.test:44443/api/platform/config',
+        ),
+        '/join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-massimo-dogfood&product_base_url=https://weave.test:44443&platform_config_url=https://api.weave.test:44443/api/platform/config',
+      );
+    });
+
+    test('uses join route for installed iOS custom-scheme launch with slash', () {
+      expect(
+        initialLocationForDefaultRoute(
+          'weave://join/?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-massimo-dogfood&product_base_url=https%3A%2F%2Fweave.test%3A44443&platform_config_url=https%3A%2F%2Fweave.test%3A44443%2Fapi%2Fplatform%2Fconfig',
+        ),
+        '/join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-massimo-dogfood&product_base_url=https%3A%2F%2Fweave.test%3A44443&platform_config_url=https%3A%2F%2Fweave.test%3A44443%2Fapi%2Fplatform%2Fconfig',
+      );
+    });
+
+    test('normalizes join links from app scheme and in-app routes', () {
+      expect(
+        normalizedJoinRouteLocation(
+          Uri.parse('weave://join/?handoff_ref=handoff-1'),
+        ),
+        '/join?handoff_ref=handoff-1',
+      );
+      expect(
+        normalizedJoinRouteLocation(
+          Uri.parse('weave:/join?handoff_ref=handoff-2'),
+        ),
+        '/join?handoff_ref=handoff-2',
+      );
+      expect(
+        normalizedJoinRouteLocation(Uri.parse('/join?handoff_ref=handoff-3')),
+        '/join?handoff_ref=handoff-3',
+      );
+      expect(
+        normalizedJoinRouteLocation(Uri.parse('weave://settings')),
+        isNull,
+      );
+    });
+
     ProviderContainer createContainer({
       required ServerConfiguration? configuration,
       InMemorySecureStore? secureStore,
+      InMemoryPreferencesStore? preferencesStore,
       FirstRunStatus? firstRunStatus,
-      Future<FirstRunStatus?> Function()? firstRunStatusLoader,
+      Future<FirstRunLoadResult> Function()? firstRunStatusLoader,
+      UserProfile? userProfile,
     }) {
       final container = ProviderContainer.test(
         overrides: [
@@ -140,6 +232,9 @@ void main() {
           secureStoreProvider.overrideWithValue(
             secureStore ?? InMemorySecureStore(),
           ),
+          preferencesStoreProvider.overrideWith(
+            (ref) => preferencesStore ?? InMemoryPreferencesStore(),
+          ),
           oidcClientProvider.overrideWithValue(_FakeOidcClient()),
           chatRepositoryProvider.overrideWithValue(FakeChatRepository()),
           filesRepositoryProvider.overrideWithValue(
@@ -147,12 +242,19 @@ void main() {
               connectionState: const FilesConnectionState.disconnected(),
             ),
           ),
+          calendarRepositoryProvider.overrideWithValue(
+            _FakeCalendarRepository(),
+          ),
           firstRunStatusProvider.overrideWith(
             (ref) =>
                 firstRunStatusLoader?.call() ??
-                Future.value(firstRunStatus ?? buildTestFirstRunStatus()),
+                Future.value(
+                  FirstRunLoadResult.authenticated(
+                    firstRunStatus ?? buildTestFirstRunStatus(),
+                  ),
+                ),
           ),
-          userProfileProvider.overrideWith((ref) async => null),
+          userProfileProvider.overrideWith((ref) async => userProfile),
           workspaceConnectionStateProvider.overrideWithValue(
             _workspaceConnectionState(),
           ),
@@ -233,6 +335,121 @@ void main() {
       expect(find.byType(NavigationBar), findsOneWidget);
     });
 
+    testWidgets('uses the saved profile locale for the app language', (
+      tester,
+    ) async {
+      final secureStore = InMemorySecureStore();
+      await secureStore.write(
+        authSessionStorageKey,
+        AuthSessionDto.fromSession(buildTestAuthSession()).encode(),
+      );
+      final container = createContainer(
+        configuration: buildTestConfiguration(),
+        secureStore: secureStore,
+        userProfile: const UserProfile(
+          userId: 'member-1',
+          username: 'member',
+          displayName: 'Member',
+          locale: 'de',
+          timezone: 'Europe/Berlin',
+          emailVerified: true,
+        ),
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const WeaveApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final app = tester.widget<MaterialApp>(find.byType(MaterialApp));
+      expect(app.locale, const Locale('de'));
+    });
+
+    testWidgets(
+      'does not replay a dogfood join link after authentication is ready',
+      (tester) async {
+        setStartupInitialLocation(
+          '/join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-massimo-dogfood&product_base_url=https://weave.test:44443&platform_config_url=https://weave.test:44443/api/platform/config',
+        );
+        addTearDown(() => setStartupInitialLocation(null));
+        final secureStore = InMemorySecureStore();
+        final preferencesStore = InMemoryPreferencesStore();
+        await secureStore.write(
+          authSessionStorageKey,
+          AuthSessionDto.fromSession(buildTestAuthSession()).encode(),
+        );
+        final container = createContainer(
+          configuration: buildTestConfiguration(),
+          secureStore: secureStore,
+          preferencesStore: preferencesStore,
+        );
+        addTearDown(container.dispose);
+
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: const WeaveApp(),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.byType(MemberHandoffScreen), findsNothing);
+        expect(find.byType(FirstRunScreen), findsNothing);
+        expect(find.byType(NavigationBar), findsOneWidget);
+        expect(
+          container
+              .read(appRouterProvider)
+              .routeInformationProvider
+              .value
+              .uri
+              .path,
+          AppRoutes.home,
+        );
+        final rawAuthState = preferencesStore.rawString(
+          dogfoodAuthStateStorageKey,
+        );
+        expect(rawAuthState, isNotNull);
+        final authState = jsonDecode(rawAuthState!) as Map<String, dynamic>;
+        expect(authState['state'], 'workspace_ready');
+        expect(authState['handoffRef'], 'handoff-s32-massimo-dogfood-home');
+        expect(authState['supportSafe'], isTrue);
+      },
+    );
+
+    testWidgets('normalizes startup custom-scheme join links before routing', (
+      tester,
+    ) async {
+      setStartupInitialLocation(
+        'weave://join/?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-massimo-dogfood&product_base_url=https%3A%2F%2Fweave.test%3A44443&platform_config_url=https%3A%2F%2Fweave.test%3A44443%2Fapi%2Fplatform%2Fconfig',
+      );
+      addTearDown(() => setStartupInitialLocation(null));
+      final container = createContainer(configuration: null);
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const WeaveApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(MemberHandoffScreen), findsOneWidget);
+      expect(
+        container
+            .read(appRouterProvider)
+            .routeInformationProvider
+            .value
+            .uri
+            .toString(),
+        '/join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-massimo-dogfood&product_base_url=https%3A%2F%2Fweave.test%3A44443&platform_config_url=https%3A%2F%2Fweave.test%3A44443%2Fapi%2Fplatform%2Fconfig',
+      );
+    });
+
     testWidgets('redirects pending first-run users to status guidance', (
       tester,
     ) async {
@@ -263,7 +480,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      container.read(appRouterProvider).go(AppRoutes.calendar);
+      container.read(appRouterProvider).go(AppRoutes.files);
       await tester.pumpAndSettle();
 
       expect(find.byType(FirstRunScreen), findsOneWidget);
@@ -271,43 +488,8 @@ void main() {
         find.text('Your Weave workspace is being prepared'),
         findsOneWidget,
       );
-      expect(find.text('Wait briefly, then refresh status.'), findsOneWidget);
-    });
-
-    testWidgets('redirects the hidden calendar route back to chat when ready', (
-      tester,
-    ) async {
-      final secureStore = InMemorySecureStore();
-      await secureStore.write(
-        authSessionStorageKey,
-        AuthSessionDto.fromSession(buildTestAuthSession()).encode(),
-      );
-      final container = createContainer(
-        configuration: buildTestConfiguration(),
-        secureStore: secureStore,
-      );
-      addTearDown(container.dispose);
-
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: const WeaveApp(),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      container.read(appRouterProvider).go(AppRoutes.calendar);
-      await tester.pumpAndSettle();
-
-      expect(
-        container
-            .read(appRouterProvider)
-            .routeInformationProvider
-            .value
-            .uri
-            .path,
-        AppRoutes.chat,
-      );
+      expect(find.text('Chat is still being prepared.'), findsOneWidget);
+      expect(find.textContaining('Matrix'), findsNothing);
     });
 
     testWidgets('opens the routed help handbook for ready users', (
@@ -381,7 +563,7 @@ void main() {
       expect(find.byType(SignInScreen), findsOneWidget);
     });
 
-    testWidgets('lets signed-out first-run recovery reach sign-in', (
+    testWidgets('routes signed-out first-run result to sign-in recovery', (
       tester,
     ) async {
       final secureStore = InMemorySecureStore();
@@ -392,7 +574,7 @@ void main() {
       final container = createContainer(
         configuration: buildTestConfiguration(),
         secureStore: secureStore,
-        firstRunStatusLoader: () async => null,
+        firstRunStatusLoader: () async => const FirstRunLoadResult.signedOut(),
       );
       addTearDown(container.dispose);
 
@@ -404,13 +586,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.byType(FirstRunScreen), findsOneWidget);
-      expect(find.text('Go to sign in'), findsOneWidget);
-
-      await tester.tap(find.text('Go to sign in'));
-      await tester.pumpAndSettle();
-
       expect(find.byType(SignInScreen), findsOneWidget);
+      expect(find.byType(FirstRunScreen), findsNothing);
       expect(
         container
             .read(appRouterProvider)

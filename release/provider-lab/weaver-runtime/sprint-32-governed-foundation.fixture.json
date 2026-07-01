@@ -147,7 +147,7 @@
       "Weaver can execute arbitrary tools or marketplace MCPs.",
       "Normal members can edit raw OpenClaw config, channels, MCP, secrets, or tool allowlists.",
       "Weaver can perform routine writes or external sends without ApprovalReceipt.",
-      "This evidence closes manual AT or public release blocker #762 / predecessor #591."
+      "This evidence closes manual AT or public release blocker #591."
     ]
   }
 }

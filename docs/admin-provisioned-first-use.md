@@ -47,7 +47,7 @@ v0.1 keeps the compact role vocabulary below, while the strategy contract sharpe
 | `member` | Lands in the ready workspace after invite/activation. | No OIDC/provider/infra setup. Sees only complete capabilities or simple impact/fallback states such as “Calendar is unavailable; ask an admin.” |
 | `guest` | Lands only in explicitly permitted guest scopes. | No workspace setup, provider diagnostics, or member/admin affordances. |
 
-The current realm/role generator contract lives in `infra/KEYCLOAK_CONTRACT.md`, `infra/weave-workspace/02-keycloak-setup`, and the local/dev activation helper documented in `infra/docs/admin-user-activation.md`. Those operator paths are not normal-user help.
+The current realm/role generator contract lives in `infra/KEYCLOAK_CONTRACT.md`, `infra/weave-workspace/02-keycloak-setup`, and the local/dev activation helper documented in `infra/docs/admin-user-activation.md`. The helper creates a one-time required-action activation invite and rejects initial-password distribution. Those operator paths are not normal-user help.
 
 ## Capability state taxonomy
 
@@ -108,4 +108,4 @@ Weaver follows the same admin-provisioned boundary as every other provider categ
 
 Admins/operators control the Weaver category, the runtime generator, the groups that may receive `weaver.enabled`, and the capability/tool allowlist. Normal members do not configure Docker, OpenClaw plugins, provider adapters, service endpoints, or secrets. They either receive an available governed profile or an impact-only disabled_by_policy/not_configured state.
 
-The generated runtime profile is support-safe and runtime profile generation is audited. It includes logical per-user runtime-context metadata, runtime-pool/sidecar isolation posture, plugin/tool allowlists, and allowed capability keys, while exec and elevated surfaces remain disabled by default unless a later constrained admin profile explicitly enables them. Dedicated per-user containers or MicroVMs are advanced high-isolation backing options after operational and security gates pass.
+The generated runtime profile is support-safe and runtime profile generation is audited. It includes per-user Docker isolation metadata, plugin/tool allowlists, and allowed capability keys, while exec and elevated surfaces remain disabled by default unless a later constrained admin profile explicitly enables them.

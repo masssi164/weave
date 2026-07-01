@@ -1,5 +1,7 @@
 {
   "artifactKind": "weave-weaver-runtime-sprint-32-mcp-tool-execution-proof",
+  "evidenceBoundary": "fixture-only; not Keycloak token E2E and not live provider calendar mutation",
+  "gapIssue": 719,
   "supportSafe": true,
   "githubIssue": 717,
   "parentIssue": 711,
@@ -43,6 +45,7 @@
     "readbackTool": "calendar.search_events",
     "readbackVerified": true,
     "providerMutationPerformedByMcp": false,
+    "stateStore": "in-memory fixture",
     "finalChatAnswerIncludesAuditRef": true,
     "auditRef": "audit://mcp/calendar-create/support-safe"
   },

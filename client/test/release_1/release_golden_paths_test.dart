@@ -78,7 +78,8 @@ void main() {
               _SignedOutChatSecurityRepository(),
             ),
             firstRunStatusProvider.overrideWith(
-              (ref) async => _releaseFirstRunStatus(),
+              (ref) async =>
+                  FirstRunLoadResult.authenticated(_releaseFirstRunStatus()),
             ),
             userProfileProvider.overrideWith((ref) async => _ownerProfile),
             workspaceConnectionStateProvider.overrideWithValue(
@@ -106,9 +107,13 @@ void main() {
           container.read(appBootstrapProvider).requireValue.phase,
           BootstrapPhase.needsSetup,
         );
-        expect(find.text('Get Started'), findsOneWidget);
+        expect(find.text('Join your organization'), findsOneWidget);
 
-        await tester.tap(find.text('Get Started'));
+        await tester.tap(find.text('Join your organization'));
+        await tester.pumpAndSettle();
+
+        await tester.ensureVisible(find.text('Open operator recovery setup'));
+        await tester.tap(find.text('Open operator recovery setup'));
         await tester.pumpAndSettle();
 
         await tester.enterText(
@@ -118,9 +123,9 @@ void main() {
         await tester.tap(find.text('Next'));
         await tester.pumpAndSettle();
 
-        expect(find.text('Review Workspace Readiness'), findsOneWidget);
-        expect(find.text('https://matrix.weave.test'), findsWidgets);
-        expect(find.text('https://files.weave.test'), findsWidgets);
+        expect(find.text('Review Backend API'), findsOneWidget);
+        expect(find.text('https://matrix.weave.test'), findsNothing);
+        expect(find.text('https://files.weave.test'), findsNothing);
         expect(find.text('https://api.weave.test/api'), findsWidgets);
 
         await tester.tap(find.text('Finish'));
@@ -140,6 +145,11 @@ void main() {
           BootstrapPhase.ready,
         );
         await _continueFirstRunIfPresent(tester);
+        expect(find.text('Weave Home'), findsWidgets);
+
+        await tester.tap(_navigationDestination('Chat'));
+        await tester.pumpAndSettle();
+
         final releaseRoomTile = find.widgetWithText(ListTile, 'Release Room');
         expect(releaseRoomTile, findsWidgets);
 
@@ -337,13 +347,13 @@ AsyncValue<WorkspaceConnectionState> _workspaceConnectionState() {
         integration: WorkspaceIntegration.appAuth,
         status: IntegrationConnectionStatus.connected,
       ),
-      matrix: IntegrationConnectionState(
-        integration: WorkspaceIntegration.matrix,
+      chat: IntegrationConnectionState(
+        integration: WorkspaceIntegration.chat,
         status: IntegrationConnectionStatus.degraded,
         recoveryRequirement: IntegrationRecoveryRequirement.reauthenticate,
       ),
-      nextcloud: IntegrationConnectionState(
-        integration: WorkspaceIntegration.nextcloud,
+      files: IntegrationConnectionState(
+        integration: WorkspaceIntegration.files,
         status: IntegrationConnectionStatus.connected,
       ),
     ),

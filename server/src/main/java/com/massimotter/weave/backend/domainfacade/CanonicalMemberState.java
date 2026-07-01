@@ -5,13 +5,12 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 @Schema(description = "Stable member-visible state for canonical Weave domain facades.")
 public enum CanonicalMemberState {
-    READY("ready"),
-    DISABLED("disabled"),
+    READY("available"),
     DEGRADED("degraded"),
-    POLICY_BLOCKED("policy_blocked"),
+    POLICY_BLOCKED("disabled_by_policy"),
     UNAVAILABLE("unavailable"),
-    MISCONFIGURED("misconfigured"),
-    UNSUPPORTED("unsupported");
+    MISCONFIGURED("not_configured"),
+    UNSUPPORTED("coming_later");
 
     private final String value;
 

@@ -9,8 +9,8 @@ import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/chat/presentation/chat_room_screen.dart';
 import 'package:weave/features/chat/presentation/providers/chat_provider.dart';
-import 'package:weave/features/chat/presentation/providers/chat_security_provider.dart';
-import 'package:weave/features/chat/presentation/widgets/chat_security_banner.dart';
+import 'package:weave/features/agents/domain/entities/agent_capability_policy.dart';
+import 'package:weave/features/agents/presentation/providers/agent_capability_policy_provider.dart';
 import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
 import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
@@ -26,29 +26,16 @@ class ChatScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final state = ref.watch(chatProvider);
-    final securityState = ref.watch(chatSecurityProvider);
     final chatProvisioning = switch (ref.watch(
       chatProvisioningStatusProvider,
     )) {
       AsyncData(value: final status) => status,
       _ => null,
     };
-    final security = securityState.security;
-    final showSecurityBanner =
-        security != null &&
-        security.isMatrixSignedIn &&
-        ChatSecurityBanner.messageForSecurity(l10n, security) != null;
 
     return CustomScrollView(
       slivers: [
         SliverAppBar.large(title: Text(l10n.chatScreenTitle)),
-        if (showSecurityBanner)
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-            sliver: SliverToBoxAdapter(
-              child: ChatSecurityBanner(security: security),
-            ),
-          ),
         if (chatProvisioning != null && !chatProvisioning.isReady)
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
@@ -384,7 +371,7 @@ class _ChatErrorState extends StatelessWidget {
   }
 }
 
-class _ChatOverviewSliver extends StatelessWidget {
+class _ChatOverviewSliver extends ConsumerWidget {
   const _ChatOverviewSliver({
     required this.conversations,
     required this.onOpenConversation,
@@ -394,9 +381,18 @@ class _ChatOverviewSliver extends StatelessWidget {
   final ValueChanged<ChatConversation> onOpenConversation;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final overview = ChatOverview.fromConversations(conversations);
+    final weaverPolicy = ref
+        .watch(agentCapabilityPolicyProvider)
+        .when(
+          data: (value) => value,
+          error: (_, _) =>
+              AgentCapabilityPolicy.failClosed(canManageCapabilities: false),
+          loading: () =>
+              AgentCapabilityPolicy.failClosed(canManageCapabilities: false),
+        );
 
     return SliverToBoxAdapter(
       child: Padding(
@@ -471,6 +467,8 @@ class _ChatOverviewSliver extends StatelessWidget {
               conversations: overview.aiChats,
               onOpenConversation: onOpenConversation,
             ),
+            const SizedBox(height: 20),
+            _WeaverBetaCard(policy: weaverPolicy),
           ],
         ),
       ),
@@ -618,6 +616,168 @@ class _ChatHomeMetricChip extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _WeaverBetaCard extends StatelessWidget {
+  const _WeaverBetaCard({required this.policy});
+
+  final AgentCapabilityPolicy policy;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final personalAssistant = policy.stateFor(
+      AgentCapability.personalAssistant,
+    );
+    final channelAgent = policy.stateFor(AgentCapability.channelAgent);
+    final personalStatus = _statusFor(l10n, personalAssistant);
+    final channelStatus = _statusFor(l10n, channelAgent);
+    final canStart = personalAssistant.canStart;
+    final semanticLabel = l10n.chatWeaverBetaSemanticLabel(
+      personalStatus.label,
+      channelStatus.label,
+      canStart
+          ? l10n.chatWeaverBetaConnectedState
+          : l10n.chatWeaverBetaUnconnectedState,
+    );
+
+    return Semantics(
+      container: true,
+      liveRegion: true,
+      label: semanticLabel,
+      child: ExcludeSemantics(
+        child: Card(
+          elevation: 0,
+          color: theme.colorScheme.surfaceContainerHighest,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(color: theme.colorScheme.outlineVariant),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.auto_awesome_outlined,
+                      color: theme.colorScheme.primary,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            l10n.chatWeaverBetaTitle,
+                            style: theme.textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            l10n.chatWeaverBetaDescription,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _WeaverStateChip(
+                      label: canStart
+                          ? l10n.chatWeaverBetaConnectedState
+                          : l10n.chatWeaverBetaUnconnectedState,
+                      icon: canStart ? Icons.link : Icons.link_off,
+                    ),
+                    _WeaverStateChip(
+                      label: personalStatus.label,
+                      icon: personalStatus.icon,
+                    ),
+                    _WeaverStateChip(
+                      label: channelStatus.label,
+                      icon: channelStatus.icon,
+                    ),
+                    _WeaverStateChip(
+                      label: l10n.chatWeaverBetaApprovalRequiredState,
+                      icon: Icons.verified_user_outlined,
+                    ),
+                    _WeaverStateChip(
+                      label: l10n.chatWeaverBetaDeniedFailedState,
+                      icon: Icons.report_gmailerrorred_outlined,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  l10n.chatWeaverBetaSupportSafeResult,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  _WeaverStatus _statusFor(AppLocalizations l10n, AgentCapabilityState state) {
+    if (state.canStart) {
+      return _WeaverStatus(
+        l10n.chatWeaverBetaEnabledState,
+        Icons.check_circle_outline,
+      );
+    }
+    return switch (state.availability) {
+      AgentCapabilityAvailability.disabledByPolicy => _WeaverStatus(
+        l10n.chatWeaverBetaDisabledState,
+        Icons.policy_outlined,
+      ),
+      AgentCapabilityAvailability.adminSetupRequired => _WeaverStatus(
+        l10n.chatWeaverBetaCapabilityUnavailableState,
+        Icons.info_outline,
+      ),
+      AgentCapabilityAvailability.blocked => _WeaverStatus(
+        l10n.chatWeaverBetaDeniedFailedState,
+        Icons.report_gmailerrorred_outlined,
+      ),
+    };
+  }
+}
+
+class _WeaverStatus {
+  const _WeaverStatus(this.label, this.icon);
+
+  final String label;
+  final IconData icon;
+}
+
+class _WeaverStateChip extends StatelessWidget {
+  const _WeaverStateChip({required this.label, required this.icon});
+
+  final String label;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Chip(
+      avatar: Icon(icon, size: 18),
+      label: Text(label),
+      backgroundColor: theme.colorScheme.surface,
+      side: BorderSide(color: theme.colorScheme.outlineVariant),
     );
   }
 }

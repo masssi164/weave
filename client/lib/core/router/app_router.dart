@@ -5,11 +5,14 @@ import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/core/router/app_routes.dart';
 import 'package:weave/features/auth/presentation/sign_in_screen.dart';
+import 'package:weave/features/calendar/presentation/calendar_screen.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/presentation/chat_room_screen.dart';
 import 'package:weave/features/chat/presentation/chat_screen.dart';
 import 'package:weave/features/files/presentation/files_screen.dart';
 import 'package:weave/features/help/presentation/help_screen.dart';
+import 'package:weave/features/home/presentation/home_screen.dart';
+import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
 import 'package:weave/features/onboarding/presentation/first_run_screen.dart';
 import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
 import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
@@ -23,6 +26,20 @@ part 'app_router.g.dart';
 /// Global navigator key for the root [GoRouter].
 final rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 
+String? _startupInitialLocation;
+
+void setStartupInitialLocation(String? location) {
+  if (location == null) {
+    _startupInitialLocation = null;
+    return;
+  }
+
+  final uri = Uri.tryParse(location);
+  _startupInitialLocation = uri == null
+      ? location
+      : normalizedJoinRouteLocation(uri) ?? location;
+}
+
 /// Top-level [GoRouter] exposed as a Riverpod provider so that
 /// the router can read the resolved bootstrap state for redirects.
 @riverpod
@@ -31,7 +48,19 @@ GoRouter appRouter(Ref ref) {
 
   return GoRouter(
     navigatorKey: rootNavigatorKey,
-    initialLocation: AppRoutes.welcome,
+    initialLocation:
+        _startupInitialLocation ??
+        initialLocationForDefaultRoute(
+          WidgetsBinding.instance.platformDispatcher.defaultRouteName,
+        ),
+    onException: (context, state, router) {
+      final normalizedLocation = initialLocationForDefaultRoute(
+        state.uri.toString(),
+      );
+      if (normalizedLocation != AppRoutes.welcome) {
+        router.go(normalizedLocation);
+      }
+    },
     redirect: (context, state) async {
       final onOnboarding =
           state.matchedLocation == AppRoutes.welcome ||
@@ -39,14 +68,6 @@ GoRouter appRouter(Ref ref) {
       final onSignIn = state.matchedLocation == AppRoutes.signIn;
       final onJoin = state.matchedLocation == AppRoutes.join;
       final onFirstRun = state.matchedLocation == AppRoutes.firstRun;
-      final onHiddenReleaseOneRoute =
-          state.matchedLocation == AppRoutes.calendar ||
-          state.matchedLocation == AppRoutes.deck;
-
-      if (onHiddenReleaseOneRoute) {
-        return AppRoutes.chat;
-      }
-
       switch (bootstrapState.phase) {
         case BootstrapPhase.loading:
         case BootstrapPhase.error:
@@ -54,23 +75,22 @@ GoRouter appRouter(Ref ref) {
         case BootstrapPhase.needsSetup:
           return (onOnboarding || onJoin) ? null : AppRoutes.welcome;
         case BootstrapPhase.needsSignIn:
-          return onSignIn ? null : AppRoutes.signIn;
+          return (onSignIn || onJoin) ? null : AppRoutes.signIn;
         case BootstrapPhase.ready:
           try {
-            final status = await ref.read(firstRunStatusProvider.future);
-            if (status == null) {
-              return (onFirstRun || onSignIn) ? null : AppRoutes.firstRun;
-            }
-
-            if (!status.firstRunComplete) {
-              return onFirstRun ? null : AppRoutes.firstRun;
-            }
-
-            if (onOnboarding || onSignIn) {
-              return AppRoutes.chat;
-            }
-
-            return null;
+            final result = await ref.read(firstRunStatusProvider.future);
+            return switch (result) {
+              FirstRunAuthenticated(:final status) =>
+                !status.firstRunComplete
+                    ? (onFirstRun ? null : AppRoutes.firstRun)
+                    : (onOnboarding || onSignIn || onFirstRun
+                          ? AppRoutes.home
+                          : null),
+              FirstRunSignedOut() ||
+              FirstRunUnauthorized() => onSignIn ? null : AppRoutes.signIn,
+              FirstRunBackendUnavailable() || FirstRunInvalidPayload() =>
+                onFirstRun ? null : AppRoutes.firstRun,
+            };
           } catch (_) {
             return onFirstRun ? null : AppRoutes.firstRun;
           }
@@ -108,6 +128,14 @@ GoRouter appRouter(Ref ref) {
           StatefulShellBranch(
             routes: [
               GoRoute(
+                path: AppRoutes.home,
+                builder: (context, state) => const HomeScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
                 path: AppRoutes.chat,
                 builder: (context, state) => const ChatScreen(),
                 routes: [
@@ -139,6 +167,14 @@ GoRouter appRouter(Ref ref) {
           StatefulShellBranch(
             routes: [
               GoRoute(
+                path: AppRoutes.calendar,
+                builder: (context, state) => const CalendarScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
                 path: AppRoutes.settings,
                 builder: (context, state) => const SettingsScreen(),
               ),
@@ -149,3 +185,37 @@ GoRouter appRouter(Ref ref) {
     ],
   );
 }
+
+String initialLocationForDefaultRoute(String defaultRouteName) {
+  if (defaultRouteName.isEmpty || defaultRouteName == '/') {
+    return AppRoutes.welcome;
+  }
+
+  final uri = Uri.tryParse(defaultRouteName);
+  if (uri == null) {
+    return AppRoutes.welcome;
+  }
+
+  final normalizedJoinLocation = normalizedJoinRouteLocation(uri);
+  if (normalizedJoinLocation != null) {
+    return normalizedJoinLocation;
+  }
+
+  return AppRoutes.welcome;
+}
+
+String? normalizedJoinRouteLocation(Uri uri) {
+  final isCustomSchemeJoin =
+      uri.scheme == 'weave' && uri.host == 'join' && _isEmptyOrRootPath(uri);
+  final isCustomSchemePathJoin =
+      uri.scheme == 'weave' && uri.host.isEmpty && uri.path == AppRoutes.join;
+  final isInAppJoin = uri.scheme.isEmpty && uri.path == AppRoutes.join;
+  if (!isCustomSchemeJoin && !isCustomSchemePathJoin && !isInAppJoin) {
+    return null;
+  }
+
+  final query = uri.hasQuery ? '?${uri.query}' : '';
+  return '${AppRoutes.join}$query';
+}
+
+bool _isEmptyOrRootPath(Uri uri) => uri.path.isEmpty || uri.path == '/';

@@ -316,6 +316,20 @@ describe("Admin Console MVP", () => {
     expect(
       screen.getByLabelText(/domain readiness dashboard/i),
     ).toHaveTextContent(/member preview: degraded/i);
+    expect(
+      screen.getByRole("heading", {
+        name: /beta setup and control readiness preview/i,
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(/beta setup and control readiness checklist/i),
+    ).toHaveTextContent(/idm and rbac posture: ready/i);
+    expect(
+      screen.getByLabelText(/beta setup and control readiness checklist/i),
+    ).toHaveTextContent(/weaver availability: coming_later/i);
+    expect(
+      screen.getByLabelText(/beta setup and control readiness checklist/i),
+    ).toHaveTextContent(/raw provider diagnostics exposed: no/i);
     expect(screen.getByText(/rc claim control/i)).toBeInTheDocument();
     expect(
       screen.getByLabelText(/rc go-live evidence and release claim gates/i),
@@ -339,7 +353,7 @@ describe("Admin Console MVP", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        /it does not call Keycloak, Nextcloud, Matrix, Microsoft Graph, Slack, Teams/i,
+        /it does not call identity, chat, files, office, task, meeting, or other providers directly/i,
       ),
     ).toBeInTheDocument();
     expect(
@@ -374,6 +388,7 @@ describe("Admin Console MVP", () => {
     expect(screen.getByText(/chat summary read tool/i)).toBeInTheDocument();
     expect(screen.getByText(/workspace triage skill package/i)).toBeInTheDocument();
     expect(screen.getByText(/approved knowledge connector/i)).toBeInTheDocument();
+    expect(screen.getByText(/eligibility preview: policy enabled no; required groups: weaver-group, weave-weaver-runtime; eligible member preview: coming_later/i)).toBeInTheDocument();
     expect(screen.getByText(/admin-bound MCP server registry/i)).toBeInTheDocument();
     expect(screen.getByText(/weave governed domain tools \(streamable-http\)/i)).toBeInTheDocument();
     expect(screen.getByText(/members never wire raw MCP endpoints/i)).toBeInTheDocument();
@@ -397,6 +412,9 @@ describe("Admin Console MVP", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/audit receipt refs:/i)).toHaveTextContent(
       /receipt:\/\/weaver\/runtime\/profile-regeneration/i,
+    );
+    expect(screen.getByText(/eligibility blockers:/i)).toHaveTextContent(
+      /weaver.enabled remains blocked until organization policy enables governed weaver runtime provisioning/i,
     );
     expect(screen.getByText(/revocation refs:/i)).toHaveTextContent(
       /receipt:\/\/weaver\/runtime\/revocation-preview/i,
@@ -991,6 +1009,9 @@ describe("Admin Console MVP", () => {
   });
 
   it("keeps new Admin Console copy in the localization catalog", () => {
+    expect(Object.keys(adminConsoleMessages.de).sort()).toEqual(
+      Object.keys(adminConsoleMessages.en).sort(),
+    );
     expect(adminConsoleMessages.en.effectivePolicyHeading).toBe(
       "Effective policy explanation",
     );
@@ -1009,6 +1030,32 @@ describe("Admin Console MVP", () => {
     expect(adminConsoleMessages.en.memberStateDescription).toContain(
       "stable capability state",
     );
+    expect(adminConsoleMessages.de.memberPreviewDescription).toContain(
+      "Provider-Adapter",
+    );
+    expect(adminConsoleMessages.de.providerSelectionHeading).toBe(
+      "Provider-Auswahl und Bereitschaft",
+    );
+  });
+
+  it("renders German admin chrome without exposing provider setup to members", async () => {
+    render(<App api={mockApi()} viewerRole="member" locale="de" />);
+
+    expect(
+      await screen.findByRole("heading", {
+        name: /weave organisations-admin-konsole/i,
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: /mitgliederfähigkeitsvorschau/i }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText(/Mitgliedszustand/i).length).toBeGreaterThan(0);
+    expect(
+      screen.queryByRole("heading", { name: /provider-auswahl/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /ausgewählten provider/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("queues provider readiness tests through the backend API", async () => {

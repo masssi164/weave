@@ -8,13 +8,13 @@ owner: weave-security-compliance-lead
 github_issue: 433
 supersedes: []
 depends_on:
-  - WEAVE-SPEC-0001
+- WEAVE-SPEC-0001
 acceptance_features:
-  - e2e/features/v0_1_dogfood_release.feature
+- e2e/features/weave_spec_0007_acceptance.feature
 evidence_gates:
-  - ./gradlew specContract
-  - ./gradlew acceptanceContract
-  - ./gradlew serverCi
+- ./gradlew specContract
+- ./gradlew acceptanceContract
+- ./gradlew serverCi
 ---
 
 # Feature specification: Governed Weaver runtime and tool approval contract
@@ -23,18 +23,21 @@ evidence_gates:
 
 Define the first implementation-ready Weaver runtime contract without making Weave agent-first. Weaver remains optional, disabled by default, per-user, auditable, and generated from organization policy plus user rights.
 
+2026-06-12 Northstar amendment: Weaver is visible as an opt-in governed beta/v1 component, not default v0.1 runtime availability. Its approval UX may align with OpenClaw allow-once/deny/scoped-persistent affordances, but product approvals are Weave-domain grants that are scoped, audited, expiring/revocable where persistent, and never equivalent to OpenClaw local exec permissions. A product channel to Weaver and access to Weaver MCP servers are spec/issue work; personal runtime configuration must not be checked into this repo.
+
+
 ## In scope
 
 - OpenClaw-derived per-user runtime profile schema.
 - Clear separation between runtime provider, model provider, and tool provider.
-- Per-user logical isolation boundary for workspace, memory, sessions, runtime context, and high-risk sidecar/job-runner execution.
+- Per-user isolation boundary for workspace, memory, and sessions.
 - Domain-scoped Weave tool registry generated from approved capabilities.
 - Approval receipts for write/delete/external-send/provider-switch actions.
 - Security, privacy, accessibility, and support-safe release evidence requirements.
 
 ## Out of scope
 
-- Starting real runtime containers, MicroVMs, or live high-isolation sandboxes.
+- Starting real runtime containers.
 - Publishing a production image or release.
 - Autonomous Weaver writes without approval receipts.
 - Raw provider-token delivery to runtime.
@@ -56,14 +59,17 @@ Define the first implementation-ready Weaver runtime contract without making Wea
 - **FR-011**: Release evidence MUST capture OpenClaw fork/image digest/SBOM/scan references before any release claim.
 - **FR-012**: Weaver approval UX MUST be screen-reader accessible and must not rely on color-only state.
 - **FR-013**: A `WeaverRuntimeProfile` MUST be the only source consumed by the OpenClaw-derived Weaver runtime. The signed profile MUST include version, hash, revocation metadata, model aliases/defaults/fallbacks, domain provider projections, MCP/tool/skill grants, sandbox/tool-deny policy, CredentialRefs, and audit policy.
-- **FR-014**: Chat provider changes MUST be modeled as admin-governed Weave Chat domain provider migrations. The profile generator MUST normally expose a single stable OpenClaw channel plugin, `channels.weave-chat`, backed by Weave Chat-domain routing; members MUST NOT switch raw chat adapters, provider-named channel plugins, or channel tokens. The channel plugin path is separate from MCP/domain tools: MCP `chat.send_message` is not a user-to-Weaver messaging channel. Implementation ownership stays split across `masssi164/weaver#20` for the `weave-chat` channel plugin and `#764` for the Weave MCP/domain-tool server.
+- **FR-014**: Chat provider changes MUST be modeled as admin-governed Weave Chat domain provider migrations. The profile generator MUST normally expose a single stable OpenClaw channel plugin, `channels.weave-chat`, backed by Weave Chat-domain routing; members MUST NOT switch raw chat adapters, provider-named channel plugins, or channel tokens.
 - **FR-015**: Raw OpenClaw configuration surfaces (`openclaw.json`, `openclaw config`, setup wizard, dashboard controls for gateway/channels/MCP/secrets/sandbox/exec/tool allowlists) MUST be disabled, read-only, or RBAC-stripped for normal members.
 - **FR-016**: Credential handling MUST use Weave Credential Broker references and short-lived runtime tokens. Weaver profiles, logs, prompts, support bundles, and release evidence MUST NOT contain provider secrets, OAuth refresh tokens, cookies, or credential-bearing provider URLs.
 - **FR-017**: Every model, channel, tool, MCP, and provider call MUST emit support-safe audit metadata containing at least `runtimeProfileHash`, user, tool, domain, providerRef, credentialRef where applicable, and policy decision.
 - **FR-018**: `calendar.search_events` MUST delegate to the Weave backend Calendar facade/capability boundary. Provider choice, including any current Nextcloud CalDAV backing, is selected by stack/admin configuration behind that facade and MUST NOT be called directly by the MCP server or exposed in member/runtime discovery metadata.
 - **FR-019**: Discovery metadata MUST expose Weave domain, capability, read/write posture, approval requirement, and support-safe schema only. `providerRef`, adapter URL, credentialRef target detail, and raw downstream diagnostics MUST remain hidden or redacted from normal runtime discovery and fail closed on missing backend authority.
-- **FR-020**: v0.1 runtime scaffolding MUST default to a managed runtime pool with logical per-user runtime contexts and sidecar/job-runner isolation for high-risk tool execution. Per-user Docker containers and MicroVMs are advanced high-isolation options that require explicit production-readiness gates for sandbox strength, lifecycle operations, audit, quotas, patching, support bundles, and incident response.
-- **FR-021**: Runtime pool scheduling MUST never merge two users or trust boundaries into one logical runtime context; profile hash, subject, organization, and policy generation remain part of the isolation key.
+- **FR-020**: `ApprovalReceipt` MUST include subject/principal id, capability/domain/tool id, requested action and parameter summary, risk level, policy decision/version, approval mode (`once`, `scoped_persistent`, `denied`, `revoked`), expiry or revocation ref where applicable, runtime profile version/hash, MCP tool contract version, audit correlation id, and support-safe evidence refs without secrets/raw payloads.
+- **FR-021**: Weaver tool execution MUST fail closed if runtime profile, capability policy, approval receipt, revocation state, or MCP tool contract changed after approval.
+- **FR-022**: Product approval persistence MUST be scoped to the named Weave domain/capability/tool/action and MUST NOT grant generic OpenClaw exec, shell, filesystem, provider-admin, or local-host permission.
+- **FR-023**: Weaver channel/MCP access MUST be mediated by Weave policy and support-safe RuntimeProfile projection; raw personal OpenClaw channel config, MCP endpoint secrets, and operator allowlists are forbidden in repo artifacts.
+
 
 ## Initial tool set
 
@@ -93,12 +99,10 @@ The minimum profile sections are:
 | Chat channel projection | Stable `channels.weave-chat` configuration with Weave API/runtime token/profile hash metadata. ProviderRefs such as `matrix`, `teams`, `imessage`, or `slack` stay behind Weave Chat-domain routing and are not rendered as separate per-user OpenClaw channel configs in the normal Weaver path. |
 | MCP, skills, and tools | Admin-distributed MCP servers/tools/skills only; personal MCPs only through a Weave-approved flow. `tools.deny` remains hard-deny and `bundle-mcp` is disabled unless the profile explicitly permits it. |
 | Credentials | CredentialRefs and short-lived runtime token references only; OAuth refresh/runtime credentials stay behind the Weave Credential Broker. |
-| Sandbox and runtime lifecycle | One active user/trust boundary per runtime context, separate workspace/state/agentDir, internal-only network targets, reload/restart on profile changes, rollback to the previous signed profile, and sidecar/job-runner isolation for high-risk tools. Container or MicroVM backing is an implementation option only after gates pass. |
+| Sandbox and runtime lifecycle | One active user/trust boundary per runtime context/container, separate workspace/state/agentDir, internal-only network targets, reload/restart on profile changes, and rollback to the previous signed profile. |
 | Audit | Required fields for model/channel/tool/MCP/provider calls and denied decisions. |
 
 Provider-change flow: Admin changes the Weave Chat domain provider -> server readiness and migration checks run -> Credential Broker binds new provider credentials -> Weave backend Chat routing/profile version changes -> `WeaverRuntimeProfile` vNext is generated and signed with the same stable `channels.weave-chat` channel id and updated metadata -> channel/runtime reloads or restarts if needed -> member continues through Weave UX.
-
-Channel/tool separation: Weave owns the Chat product API, policy, audit, RuntimeProfile generation, and Weave MCP server/domain tools. Weaver owns the OpenClaw-derived `weave-chat` ChannelPlugin runtime, OpenClaw session routing, inbound/outbound channel messaging, approval hint rendering, and MCP client binding to the Weave MCP server. OpenClaw documentation treats channel plugins (`api.registerChannel(...)`, shared `message` tool, channel-owned config/security/session grammar/outbound/threading) and agent tools/MCP servers (`api.registerTool(...)`, MCP server definitions consumed by runtimes, tool allow/deny policy) as separate extension points. Runtime evidence must prove the channel roundtrip separately from optional same-turn MCP tool calls.
 
 This flow is tracked for the next implementation slice in issue #519 and is not a new Sprint 12 runtime-execution claim.
 

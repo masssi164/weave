@@ -35,3 +35,8 @@
 - [x] T033 [Gate] Run `./gradlew acceptanceContract`.
 - [x] T034 [Review] Run Optimization-Review and address material findings until none remain.
 - [x] T035 [Gate] Re-run spec/docs gates after optimization loop.
+## Phase 4: Northstar coverage hardening
+
+- [x] T040 [Spec] Add Northstar per-spec coverage requirements to the framework projection.
+- [x] T041 [Acceptance] Map Northstar coverage to `e2e/features/northstar_spec_decisions.feature` and `e2e/scenario_mappings.json`.
+- [x] T042 [Gate] Require affected product-core decisions to have mapped Gherkin before implementation or promotion.

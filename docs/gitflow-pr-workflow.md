@@ -1,10 +1,10 @@
 # Lane-based PR and release workflow
 
-Weave uses clear DevOps lanes instead of heavy classic GitFlow: `main` for stable release truth, `dev` for integration, `future/*` for larger not-yet-release-ready lines, `rc/*` for release candidates and Live Stack E2E evidence, and `hotfix/*` for urgent stable-line fixes. Keep changes spec-driven: intent -> issue/spec note -> acceptance/evidence -> implementation -> review. For the full delivery contract, see [Weave operating model](weave-operating-model.md) and the DevOps docs under `docs/devops/`.
+Weave uses clear DevOps lanes instead of heavy classic GitFlow: `dev` for integration, feature branches cut from and returned to `dev`, `dogfood` for persistent LAN candidate/human validation, `main` for stable release-capable truth, `future/*` for larger not-yet-release-ready lines, optional `rc/*` for later release hardening, and `hotfix/*` for urgent stable-line fixes. Keep changes spec-driven: intent -> issue/spec note -> acceptance/evidence -> implementation -> review. For the full delivery contract, see [Weave operating model](weave-operating-model.md) and the DevOps docs under `docs/devops/`.
 
 ## Branch and PR rules
 
-1. Start from the correct current lane: normally `origin/dev`, `future/*` for large future lines, `rc/*` for candidate stabilization, or `origin/main` only for emergency hotfixes.
+1. Start from the correct current lane: normally `origin/dev` for feature/bugfix/docs/spec work, `origin/dev` -> `dogfood` for candidate promotion, `origin/dogfood` -> `main` for stable promotion, `future/*` for large future lines, optional `rc/*` for named release hardening, or `origin/main` only for emergency hotfixes.
 2. Create a focused branch named for the scope, for example `docs/mkdocs-handbook-foundation`, `feat/admin-policy-profiles`, or `fix/chat-empty-state`.
 3. Keep unrelated local files and assistant workspace files out of commits.
 4. Open a PR early enough for CI and review, but mark it draft if it is not review-ready.
@@ -18,8 +18,9 @@ Weave uses clear DevOps lanes instead of heavy classic GitFlow: `main` for stabl
 
 - `dev` is a branch lane for integration; it is not a deployed environment.
 - Local development and temporary previews still use developer machines or disposable worktrees.
-- Testing/staging is represented by GitHub Environments or workflow targets, especially for release-candidate and Live Stack E2E evidence.
-- Release candidates use `rc/<version>` branches cut from `dev`; release tags are generated from `main` after promotion.
+- `dogfood` is the persistent LAN test/human-validation stack. Promotion PRs from `dev` to `dogfood` run full or feature-relevant E2E/live validation; merges to `dogfood` deploy or update the persistent stack.
+- `main` promotion follows dogfood validation and required human signoff.
+- `rc/<version>` branches are optional later release-hardening lanes, not the ordinary human dogfood path; release tags are generated from `main` after promotion.
 - Production releases use final SemVer tags such as `vX.Y.Z` plus explicit production approval.
 - A merge to `main` makes Weave release-capable; it is not an automatic production deploy.
 

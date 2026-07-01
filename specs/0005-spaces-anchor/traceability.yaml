@@ -1,15 +1,35 @@
 spec_id: WEAVE-SPEC-0005
 github_issues:
-  - 428
+- 428
 artifacts:
   fixture:
-    - specs/0005-spaces-anchor/space-anchor-fixture.json
+  - specs/0005-spaces-anchor/space-anchor-fixture.json
   validation:
-    - tools/space_anchor_check.py
+  - tools/space_anchor_check.py
   docs:
-    - docs/space-anchor-contract.md
+  - docs/space-anchor-contract.md
 gates:
-  - ./gradlew specContract
-  - ./gradlew spaceAnchorCheck
-  - ./gradlew docsCheck
-acceptance_features: []
+- ./gradlew specContract
+- ./gradlew spaceAnchorCheck
+- ./gradlew docsCheck
+acceptance_features:
+- e2e/features/weave_spec_0005_acceptance.feature
+acceptance_scenarios:
+- tag: '@weave-spec-0005-space-anchor-cross-domain'
+  evidence:
+  - client/test/live_stack_feature_mapping_test.dart
+  - e2e/scenario_mappings.json
+  - e2e/suites/scenario_catalog.json
+  assertions:
+  - canonical Space context
+  - cross-domain links
+  - WEAVE_SPEC_0005_SPACE_ANCHOR_CROSS_DOMAIN
+- tag: '@weave-spec-0005-guest-bounded-no-provider-ids'
+  evidence:
+  - client/test/live_stack_feature_mapping_test.dart
+  - e2e/scenario_mappings.json
+  - e2e/suites/scenario_catalog.json
+  assertions:
+  - guest bounded access
+  - no raw provider identifiers
+  - WEAVE_SPEC_0005_GUEST_BOUNDED_NO_PROVIDER_IDS

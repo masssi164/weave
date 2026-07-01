@@ -116,19 +116,19 @@ class ProviderRegistryTest {
     }
 
     @Test
-    void domainBindingServiceBuildsCanonicalSecretFreeConnectionRefs() {
+    void localLiveSelectionMarksRecommendedDogfoodAdapterConfigured() {
         InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
         selections.save(new ProviderSelection(
                 "chat",
-                "slack",
-                "external_existing_provider",
-                "secretref://weave/provider/slack",
-                "actor:admin",
-                Instant.parse("2026-05-24T18:00:00Z"),
+                "synapse-homeserver",
+                "recommended_self_hosted_default",
+                "secretref://weave/provider/synapse-homeserver/signing-key",
+                "actor:local-live-bootstrap",
+                Instant.parse("2026-01-01T00:00:00Z"),
                 true,
                 true,
-                true,
-                List.of("Thread and channel semantics require migration dry-run.")));
+                false,
+                List.of()));
         ProviderRegistry registry = new ProviderRegistry(
                 List.of(StaticProviderPort.pending(
                         ProviderModule.MATRIX,
@@ -140,47 +140,29 @@ class ProviderRegistryTest {
                         Map.of())),
                 capabilityService(),
                 selections,
-                new DomainBindingService());
+                "local-live");
 
-        DomainBindingsResponse response = registry.domainBindings(" chat ");
+        ProviderRegistryResponse response = registry.status();
 
-        assertThat(response.releaseStatus()).isEqualTo("domain-binding-provider-connection-v1");
-        assertThat(response.transitionPlansAreSecondaryArtifacts()).isTrue();
-        assertThat(response.memberProviderInternalsExposed()).isFalse();
-        assertThat(response.bindings()).singleElement().satisfies(binding -> {
-            assertThat(binding.domainKey()).isEqualTo("chat");
-            assertThat(binding.activeBinding()).isEqualTo("binding:chat:provider:slack");
-            assertThat(binding.providerConnectionRef()).satisfies(connection -> {
-                assertThat(connection.providerKey()).isEqualTo("slack");
-                assertThat(connection.connectionId()).isEqualTo("provider-connection:slack");
-                assertThat(connection.domainKeys()).containsExactly("chat");
-                assertThat(connection.credentialRefKind()).isEqualTo("SecretRef");
-                assertThat(connection.credentialRefConfigured()).isTrue();
-                assertThat(connection.supportSafe()).isTrue();
-            });
-            assertThat(binding.supportSafe()).isTrue();
+        ProviderStatusResponse provider = response.providers().get(0);
+        assertThat(provider.enabled()).isTrue();
+        assertThat(provider.configured()).isTrue();
+        assertThat(provider.state()).isEqualTo(ProviderState.CONFIGURED);
+        assertThat(provider.readiness()).isEqualTo("configured");
+        assertThat(provider.diagnostics())
+                .containsEntry("selectedByAdmin", true)
+                .containsEntry("choiceModel", "recommended_self_hosted_default")
+                .containsEntry("secretsReturned", false);
+        ProviderCategoryStatusResponse chat = response.categories().stream()
+                .filter(category -> category.category().equals("chat"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(chat.readiness()).isEqualTo(ProviderCategoryReadiness.READY);
+        assertThat(chat.adapterEvidence()).singleElement().satisfies(evidence -> {
+            assertThat(evidence.configured()).isTrue();
+            assertThat(evidence.reachable()).isTrue();
+            assertThat(evidence.health()).isEqualTo("configured");
         });
-        assertThat(response.toString()).doesNotContain("secretref://");
-    }
-
-    @Test
-    void domainBindingFilterDoesNotLeakProviderCategoriesAsDomains() {
-        ProviderRegistry registry = new ProviderRegistry(
-                List.of(StaticProviderPort.pending(
-                        ProviderModule.FILES,
-                        "nextcloud",
-                        "Files adapter candidate.",
-                        Set.of("files.read"),
-                        Set.of("direct-flutter-provider-api"),
-                        List.of("nextcloud", "sharepoint"),
-                        Map.of())),
-                capabilityService(),
-                new InMemoryProviderSelectionRepository(),
-                new DomainBindingService());
-
-        DomainBindingsResponse response = registry.domainBindings("storage");
-
-        assertThat(response.bindings()).isEmpty();
     }
 
     private WorkspaceCapabilityService capabilityService() {

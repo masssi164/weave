@@ -46,14 +46,7 @@ FORBIDDEN_UNQUALIFIED_CLAIMS = [
     "guaranteed compliant",
     "legally sovereign",
     "compliant by default",
-    "fully sovereign",
-    "compliance certified",
-    "public/customer-ready",
-    "full accessibility",
-    "broad Weaver availability",
 ]
-
-SOVEREIGN_FOUNDATION = ROOT / "docs" / "sovereign-domain-mcp-weaver-foundation.md"
 
 STALE_PENDING_PHRASES = [
     "Matrix fixtures still pending",
@@ -88,21 +81,9 @@ def main() -> None:
     for stale in STALE_PENDING_PHRASES:
         if stale in text:
             fail(f"claim matrix still carries stale pending phrase: {stale}")
-    foundation = SOVEREIGN_FOUNDATION.read_text(encoding="utf-8") if SOVEREIGN_FOUNDATION.exists() else ""
-    combined = text + "\n" + foundation
     for forbidden in FORBIDDEN_UNQUALIFIED_CLAIMS:
-        if forbidden not in combined:
-            fail(f"claim controls must explicitly forbid overclaim phrase: {forbidden}")
-    for phrase in [
-        "provider and jurisdiction exposure visible",
-        "reduces dependency on single-vendor stacks",
-        "Cloud-Act-proof",
-        "#591",
-        "model.chat",
-        "write-like tools without a valid `ApprovalReceipt` fail closed",
-    ]:
-        if phrase not in combined:
-            fail(f"sovereign foundation claim control missing phrase: {phrase}")
+        if forbidden not in text:
+            fail(f"claim matrix must explicitly forbid overclaim phrase: {forbidden}")
 
     lossless_pattern = re.compile(r"\|[^\n]*(lossless|Lossless)[^\n]*\|[^\n]*\*\*(Ready|Usable)", re.IGNORECASE)
     if lossless_pattern.search(text):

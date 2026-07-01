@@ -1,8 +1,29 @@
 corpus:
-  - WEAVE-STEERING-SPEC-KIT-OPERATING-MODEL
+- WEAVE-STEERING-SPEC-KIT-OPERATING-MODEL
 repo_feature: specs/0009-domain-first-mcp-tools
 related_repos:
-  - /Users/flotterotter/code/weaver/specs
+- /Users/flotterotter/code/weaver/specs
 gates:
-  - ./gradlew specContract
-  - rg "nextcloud|caldav|matrix" server admin-console client specs -g "*.md" -g "*.yaml"
+- ./gradlew specContract
+- rg "nextcloud|caldav|matrix" server admin-console client specs -g "*.md" -g "*.yaml"
+acceptance_features:
+- e2e/features/weave_spec_0009_acceptance.feature
+acceptance_scenarios:
+- tag: '@weave-spec-0009-domain-first-tool-names'
+  evidence:
+  - client/test/live_stack_feature_mapping_test.dart
+  - e2e/scenario_mappings.json
+  - e2e/suites/scenario_catalog.json
+  assertions:
+  - domain capability tool names
+  - provider adapter names rejected
+  - WEAVE_SPEC_0009_DOMAIN_FIRST_TOOL_NAMES
+- tag: '@weave-spec-0009-tool-discovery-support-safe'
+  evidence:
+  - client/test/live_stack_feature_mapping_test.dart
+  - e2e/scenario_mappings.json
+  - e2e/suites/scenario_catalog.json
+  assertions:
+  - approved discovery
+  - support-safe metadata
+  - WEAVE_SPEC_0009_TOOL_DISCOVERY_SUPPORT_SAFE

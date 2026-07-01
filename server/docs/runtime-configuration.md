@@ -17,7 +17,8 @@ This document is the backend runtime reference for operators and local integrati
 - `WEAVE_MATRIX_HOMESERVER_URL`: public Matrix homeserver URL, defaults to `https://matrix.weave.test`.
 - `WEAVE_FILES_PRODUCT_URL`: public files product surface, defaults to `https://weave.test/files`.
 - `WEAVE_CALENDAR_PRODUCT_URL`: public calendar product surface, defaults to `https://weave.test/calendar`.
-- `WEAVE_NEXTCLOUD_BASE_URL`: canonical raw Nextcloud technical/admin/protocol URL, defaults to `https://files.weave.test`.
+- `WEAVE_NEXTCLOUD_PUBLIC_BASE_URL`: support-safe public Nextcloud technical/admin/protocol fallback exposed in platform config, defaults to `WEAVE_NEXTCLOUD_BASE_URL` or `https://files.weave.test`.
+- `WEAVE_NEXTCLOUD_BASE_URL`: backend-internal Nextcloud adapter origin for WebDAV/CalDAV calls, defaults to `https://files.weave.test` outside container stacks.
 - `WEAVE_TARGET_MOBILE`: advertise mobile as a supported client target, defaults to `true`.
 - `WEAVE_TARGET_DESKTOP`: advertise desktop as a supported client target, defaults to `true`.
 - `WEAVE_TARGET_WEB`: advertise web as a supported client target, defaults to `false`.
@@ -51,8 +52,6 @@ Matrix E2EE status is diagnostic-only until Matrix-native encrypted-room, device
 - `WEAVE_WORKSPACE_CALENDAR_READINESS`: optional explicit calendar readiness override (`ready`, `degraded`, `blocked`, `unavailable`).
 - `WEAVE_WORKSPACE_BOARDS_ENABLED`: enable the boards capability, defaults to `false`.
 - `WEAVE_WORKSPACE_BOARDS_READINESS`: optional explicit boards readiness override (`ready`, `degraded`, `blocked`, `unavailable`).
-
-Runtime defaults are dogfood-stack adapter bindings, not the product model. The product model is domain-first: each domain has exactly one active binding at a time, selected through Control/Admin/Operator setup. Additional providers for the same domain may be candidates, discovery/read-only sources, migration sources/targets, coexistence preflight evidence, deprecated, or superseded; they must not be advertised as simultaneous member-visible product truth. Member clients receive only provider-agnostic capability states.
 
 Capability readiness is intentionally conservative:
 

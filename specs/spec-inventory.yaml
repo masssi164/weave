@@ -1,0 +1,115 @@
+schemaVersion: 1
+purpose: >-
+  Classify specification-like artifacts in this implementation repository so
+  contributors and AI-assisted agents do not treat transitional packets as
+  canonical product/domain truth.
+canonicalProductDomainTruth:
+  lockfile: specs/weave-specs.lock.json
+  owner: pinned Weave Specification Corpus
+  localDefaultPath: ../weave-specs
+implementationEvidenceTruth:
+  owner: this repository
+  includes:
+    - code
+    - tests
+    - CI and Gradle gates
+    - generated projections
+    - support-safe release evidence
+    - GitHub issues, PRs, checks, and milestones
+policies:
+  - Repo-local specs may prove implementation conformance but must not redefine product/domain meaning.
+  - If repo reality conflicts with the pinned corpus, open either a spec-corpus change or an implementation conformance fix.
+  - Deletion or migration of transitional packets must preserve any fixture/evidence value that gates still consume.
+  - Weaver/OpenClaw runtime specifications live in their own repository and are dependency/runtime evidence only for Weave product work.
+artifacts:
+  - path: specs/0000-weave-spec-framework
+    status: transitional-conformance
+    action: keep-until-migrated-or-replaced-by-corpus-manifest
+    notes: Historical framework packet; corpus steering files own canonical method.
+  - path: specs/0001-organization-embedding-product-core
+    status: transitional-conformance
+    action: migrate-product-meaning-to-corpus-then-prune-repo-copy
+    corpusCandidates:
+      - steering/product-constitution.md
+      - steering/domain-context-map.md
+      - domains/identity-idm/spec.md
+      - domains/admin-health-ops/spec.md
+  - path: specs/0002-context-driven-workflows
+    status: transitional-conformance
+    action: migrate-product-meaning-to-corpus-then-prune-repo-copy
+    corpusCandidates:
+      - domains/spaces/spec.md
+      - steering/ubiquitous-language.md
+  - path: specs/0003-contextual-meetings
+    status: transitional-conformance
+    action: migrate-product-meaning-to-corpus-then-prune-repo-copy
+    corpusCandidates:
+      - domains/meetings-calls/spec.md
+      - domains/calendar/spec.md
+      - domains/chat/spec.md
+  - path: specs/0004-domain-registry
+    status: conformance-fixture
+    action: keep-while-generated-domain-registry-and-contract-gates-consume-it
+    corpusCandidates:
+      - steering/domain-context-map.md
+      - generated/manifest.json
+    notes: Contains canonical-domain-registry-v1.json used as repo-side projection/evidence.
+  - path: specs/0005-spaces-anchor
+    status: conformance-fixture
+    action: keep-while-tests-or-evidence-consume-fixtures
+    corpusCandidates:
+      - domains/spaces/spec.md
+  - path: specs/0006-portability-contract
+    status: conformance-fixture
+    action: keep-fixtures-and-migrate-product-policy-to-corpus
+    corpusCandidates:
+      - steering/provider-portability-principles.md
+      - domains/files/spec.md
+      - domains/calendar/spec.md
+      - domains/chat/spec.md
+      - domains/boards-tasks/spec.md
+      - contracts/jsonschema/portability-report.schema.json
+    notes: JSON dry-run and negative fixtures are implementation evidence unless promoted to corpus contracts.
+  - path: specs/0007-governed-weaver-runtime
+    status: transitional-conformance
+    action: split-weave-product-policy-from-weaver-runtime-dependency-evidence
+    corpusCandidates:
+      - domains/weaver-governed-pa/spec.md
+      - steering/openclaw-orchestrator-pattern.md
+    notes: Weaver/OpenClaw runtime implementation proof belongs to the Weaver/OpenClaw runtime repository.
+  - path: specs/0008-local-dogfood-topology-weave-test
+    status: implementation-evidence
+    action: keep-as-repo-owned-dogfood-evidence-unless-replaced-by-release-gate
+    corpusCandidates:
+      - releases/rc-gates/release-candidate-gate.md
+      - steering/devops-conformance.md
+  - path: specs/0009-domain-first-mcp-tools
+    status: transitional-conformance
+    action: keep-until-domain-mcp-contract-is-owned-by-corpus-or-runtime-repo
+    corpusCandidates:
+      - steering/openclaw-orchestrator-pattern.md
+      - domains/weaver-governed-pa/spec.md
+    notes: Domain naming is product truth; MCP runtime mechanics are Weaver/OpenClaw runtime truth.
+  - path: specs/0010-full-product-target
+    status: transitional-conformance
+    action: migrate-product-scope-to-corpus-then-prune-repo-copy
+    corpusCandidates:
+      - steering/product-constitution.md
+      - domains/*/spec.md
+  - path: specs/0011-weaver-governed-pa-target
+    status: transitional-conformance
+    action: split-product-policy-into-corpus-and-runtime-proof-into-weaver-repo
+    corpusCandidates:
+      - domains/weaver-governed-pa/spec.md
+      - steering/openclaw-orchestrator-pattern.md
+  - path: specs/admin-ci-cd-orchestration-contract.md
+    status: implementation-evidence
+    action: keep-as-repo-owned-devops-conformance-unless-migrated-to-corpus-release-gate
+    corpusCandidates:
+      - steering/devops-conformance.md
+      - releases/rc-gates/release-candidate-gate.md
+cleanupSequence:
+  - Add or update corpus files for any remaining product/domain meaning.
+  - Update repo tests/gates to consume corpus contracts or generated projections.
+  - Preserve fixtures that gates still need under evidence or test fixture paths.
+  - Remove migrated repo-local duplicate specs in focused PRs with gate evidence.

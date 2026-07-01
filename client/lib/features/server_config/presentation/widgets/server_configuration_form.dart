@@ -127,10 +127,13 @@ class _ServerConfigurationFormState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('Identity endpoint', style: theme.textTheme.titleMedium),
+        Text(
+          l10n.serverConfigurationIdentityEndpointTitle,
+          style: theme.textTheme.titleMedium,
+        ),
         const SizedBox(height: 8),
         Text(
-          'Provider selection is owned by the Weave Admin Console and backend control plane. This member client stores only canonical Weave endpoints needed to sign in.',
+          l10n.serverConfigurationIdentityEndpointHelper,
           style: theme.textTheme.bodyMedium?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),
@@ -183,55 +186,61 @@ class _ServerConfigurationFormState
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          l10n.serverConfigurationServicesLabel,
+          widget.layout == ServerConfigurationFormLayout.serviceEndpointsOnly
+              ? l10n.serverConfigurationBackendApiLabel
+              : l10n.serverConfigurationServicesLabel,
           style: theme.textTheme.titleMedium,
         ),
         const SizedBox(height: 8),
         Text(
-          l10n.serverConfigurationServicesHelper,
+          widget.layout == ServerConfigurationFormLayout.serviceEndpointsOnly
+              ? l10n.serverConfigurationBackendApiHelper
+              : l10n.serverConfigurationServicesHelper,
           style: theme.textTheme.bodyMedium?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),
         ),
         const SizedBox(height: 16),
-        TextField(
-          controller: _matrixController,
-          keyboardType: TextInputType.url,
-          textInputAction: TextInputAction.next,
-          decoration: InputDecoration(
-            labelText: l10n.serverConfigurationMatrixLabel,
-            hintText: 'https://matrix.home.internal',
-            helperText: formState.derivedMatrixHomeserverUrl.isEmpty
-                ? null
-                : l10n.serverConfigurationDerivedHint(
-                    formState.derivedMatrixHomeserverUrl,
-                  ),
-            errorText: formState.matrixError,
+        if (widget.layout == ServerConfigurationFormLayout.full) ...[
+          TextField(
+            controller: _matrixController,
+            keyboardType: TextInputType.url,
+            textInputAction: TextInputAction.next,
+            decoration: InputDecoration(
+              labelText: l10n.serverConfigurationMatrixLabel,
+              hintText: 'https://matrix.home.internal',
+              helperText: formState.derivedMatrixHomeserverUrl.isEmpty
+                  ? null
+                  : l10n.serverConfigurationDerivedHint(
+                      formState.derivedMatrixHomeserverUrl,
+                    ),
+              errorText: formState.matrixError,
+            ),
+            onChanged: ref
+                .read(serverConfigurationFormControllerProvider.notifier)
+                .updateMatrixHomeserverUrl,
           ),
-          onChanged: ref
-              .read(serverConfigurationFormControllerProvider.notifier)
-              .updateMatrixHomeserverUrl,
-        ),
-        const SizedBox(height: 16),
-        TextField(
-          controller: _nextcloudController,
-          keyboardType: TextInputType.url,
-          textInputAction: TextInputAction.next,
-          decoration: InputDecoration(
-            labelText: l10n.serverConfigurationNextcloudLabel,
-            hintText: 'https://files.home.internal',
-            helperText: formState.derivedNextcloudBaseUrl.isEmpty
-                ? null
-                : l10n.serverConfigurationDerivedHint(
-                    formState.derivedNextcloudBaseUrl,
-                  ),
-            errorText: formState.nextcloudError,
+          const SizedBox(height: 16),
+          TextField(
+            controller: _nextcloudController,
+            keyboardType: TextInputType.url,
+            textInputAction: TextInputAction.next,
+            decoration: InputDecoration(
+              labelText: l10n.serverConfigurationNextcloudLabel,
+              hintText: 'https://files.home.internal',
+              helperText: formState.derivedNextcloudBaseUrl.isEmpty
+                  ? null
+                  : l10n.serverConfigurationDerivedHint(
+                      formState.derivedNextcloudBaseUrl,
+                    ),
+              errorText: formState.nextcloudError,
+            ),
+            onChanged: ref
+                .read(serverConfigurationFormControllerProvider.notifier)
+                .updateNextcloudBaseUrl,
           ),
-          onChanged: ref
-              .read(serverConfigurationFormControllerProvider.notifier)
-              .updateNextcloudBaseUrl,
-        ),
-        const SizedBox(height: 16),
+          const SizedBox(height: 16),
+        ],
         TextField(
           controller: _backendApiController,
           keyboardType: TextInputType.url,

@@ -215,7 +215,7 @@ public class ChatDomainFacadeService {
             return ChatMemberState.POLICY_BLOCKED;
         }
         if (policyState == WorkspaceCapabilityPolicyState.DISABLED || !capabilityEnabled) {
-            return ChatMemberState.DISABLED;
+            return ChatMemberState.POLICY_BLOCKED;
         }
         if (maybeSelection.isEmpty()) {
             return ChatMemberState.MISCONFIGURED;
@@ -225,7 +225,7 @@ public class ChatDomainFacadeService {
         }
         ProviderStatusResponse provider = maybeProvider.get();
         if (!provider.enabled() || provider.state() == ProviderState.DISABLED) {
-            return ChatMemberState.DISABLED;
+            return ChatMemberState.POLICY_BLOCKED;
         }
         if (!provider.configured() || provider.state() == ProviderState.NOT_CONFIGURED) {
             return ChatMemberState.MISCONFIGURED;
@@ -321,11 +321,11 @@ public class ChatDomainFacadeService {
     private String memberImpact(ChatMemberState state, String capabilityImpact) {
         return switch (state) {
             case READY -> "Chat is available through the Weave workspace.";
-            case DISABLED -> "Chat is disabled by workspace policy.";
             case DEGRADED -> "Chat is degraded. You can keep working where available; ask an admin to review Workspace Health.";
             case POLICY_BLOCKED -> "Chat is blocked by your role or group policy. Ask an admin if you need access.";
             case UNAVAILABLE -> "Chat is unavailable for this workspace right now.";
             case MISCONFIGURED -> "Chat is not ready for members in this workspace. Ask an admin to review Workspace Health.";
+            case COMING_LATER -> "Chat is not enabled for this workspace yet.";
         };
     }
 

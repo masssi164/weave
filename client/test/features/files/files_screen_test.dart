@@ -157,14 +157,16 @@ void main() {
       expect(find.text('Weave Files'), findsOneWidget);
       expect(find.text('Weave product boundary'), findsOneWidget);
       expect(
-        find.textContaining('Files actions use the Weave backend facade'),
+        find.textContaining(
+          'Files actions use the Weave workspace service facade',
+        ),
         findsOneWidget,
       );
       expect(find.text('https://files.home.internal'), findsNothing);
       expect(
         find.bySemanticsLabel(
           RegExp(
-            'Weave product boundary.*backend facade.*raw provider paths and credentials',
+            'Weave product boundary.*workspace service facade.*raw service paths and credentials',
             dotAll: true,
           ),
         ),

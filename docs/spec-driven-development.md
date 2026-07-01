@@ -44,15 +44,23 @@ This repo owns:
 - GitHub issue/PR/milestone state;
 - generated projections or historical transitional specs that prove conformance.
 
+## Repo-local spec inventory
+
+Repo-local spec-like artifacts are classified in `specs/spec-inventory.yaml`. Treat that file as the implementation repository inventory for transitional packets, conformance fixtures, and repo-owned evidence. It does not replace the pinned corpus; it explains how this repo still depends on local packets while migration/conformance work continues.
+
+Runtime evidence from the separate Weaver/OpenClaw repository may be required when Weave work depends on runtime behavior, but that runtime repository does not redefine Weave product/domain meaning.
+
 ## Required first step for agents
 
 Before coding, opening PRs, merging, or declaring work complete:
 
 1. Read `specs/weave-specs.lock.json`.
 2. Read the relevant files in the pinned spec corpus.
-3. Identify the bounded context, provider boundary, examples, contracts, and Veto dimensions.
-4. Only then inspect implementation repo files and GitHub state.
-5. Run `./gradlew specCorpusConformance` for spec-driven work.
+3. Read `specs/spec-inventory.yaml` for any repo-local transitional packet, fixture, or evidence artifact in scope.
+4. Identify the bounded context, provider boundary, examples, contracts, and Veto dimensions.
+5. Only then inspect implementation repo files and GitHub state.
+6. If the work depends on Weaver/OpenClaw runtime behavior, inspect that separate runtime repository as dependency evidence.
+7. Run `./gradlew specCorpusConformance` for spec-driven work.
 
 ## Product-core safety rule
 

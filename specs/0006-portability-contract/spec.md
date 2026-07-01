@@ -9,12 +9,13 @@ owner: delivery-owner
 github_issue: 429
 supersedes: []
 depends_on:
-  - WEAVE-SPEC-0001
-  - WEAVE-SPEC-0004
-acceptance_features: []
+- WEAVE-SPEC-0001
+- WEAVE-SPEC-0004
+acceptance_features:
+- e2e/features/weave_spec_0006_acceptance.feature
 evidence_gates:
-  - ./gradlew specContract
-  - ./gradlew portabilityContractCheck
+- ./gradlew specContract
+- ./gradlew portabilityContractCheck
 ---
 
 # Feature specification: No-unaccounted-data-loss portability contract
@@ -23,11 +24,14 @@ evidence_gates:
 
 Define reusable provider replacement schemas so every migration classifies loss, records counts and hashes, links provider mappings and audit references, and blocks apply until a successful dry run exists.
 
+2026-06-12 Northstar amendment: provider portability uses a strict **no unaccounted data loss** policy, not a broad lossless-migration promise. The first provider-switch proof domain is Identity/RBAC, including principal continuity, role/group mapping, token/claim parity, SCIM vs SSO lifecycle behavior, orphan/trust-artifact handling, rollback/archive refs, and post-cutover validation.
+
+
 ## Product boundaries
 
 ### In scope
 
-- ProviderAdapterManifest, AdapterMapper metadata, ProviderMapping, ExportManifest, ImportManifest, LossyMappingReport, ConflictReport, PermissionImpactReport, MigrationRun, MigrationAuditRef, and LossClass schemas.
+- ProviderAdapterManifest, ProviderMapping, ExportManifest, ImportManifest, LossyMappingReport, ConflictReport, MigrationRun, MigrationAuditRef, and LossClass schemas.
 - Dry-run-before-apply validation.
 - Support-safe redaction requirements.
 
@@ -43,15 +47,20 @@ Define reusable provider replacement schemas so every migration classifies loss,
 - **FR-002**: Migration runs MUST require counts, hashes, provider mapping refs, and audit refs.
 - **FR-003**: Apply MUST be impossible without a successful dry-run report.
 - **FR-004**: Portability evidence MUST use support-safe redaction.
-- **FR-005**: ProviderAdapterManifest MUST declare `adapterMapperKey`, `activeBindingStatus`, provenance, loss, permission-impact, conflict, portability-manifest, and audit references.
-- **FR-006**: Migration/coexistence providers MUST NOT become product truth until the domain binding promotion leaves exactly one active provider binding.
+- **FR-005**: Provider switch preflight MUST identify source provider, target adapter, object/field map, unsupported/lossy/manual-review classes, export/archive refs, rollback path, and timebox.
+- **FR-006**: Dry-run evidence MUST include object counts, stable ids/refs, mapping report, consequence preview, no-unaccounted-loss classification, and support-safe evidence refs.
+- **FR-007**: Apply/cutover MUST require fresh dry-run evidence, audit sink, rollback/archive refs, receipt counts/hashes/refs/policy/audit refs, and post-cutover validation.
+- **FR-008**: Identity/RBAC portability MUST prove principal continuity, group/role mapping, token/claim parity, SCIM lifecycle where available, SSO-staleness limits where applicable, audit trail, rollback function, and orphan/trust-artifact decommission plan.
+
 
 ## Acceptance and evidence mapping
 
 - Tooling test path(s): `tools/portability_contract_check.py`.
 - Schemas: `server/src/main/resources/contracts/portability/*.schema.json`.
 - Fixtures: `specs/0006-portability-contract/migration-run-*.json`.
-- Evidence gates: `./gradlew specContract`, `./gradlew portabilityContractCheck`, `./gradlew docsCheck`.
+- Gherkin feature path(s): `e2e/features/northstar_spec_decisions.feature` for no-unaccounted-data-loss and Identity/RBAC provider-switch claim control.
+- `e2e/scenario_mappings.json` marker(s): `NORTHSTAR_IDENTITY_RBAC_SWITCH`, `NORTHSTAR_PORTABILITY_NO_UNACCOUNTED_LOSS`.
+- Evidence gates: `./gradlew specContract`, `./gradlew acceptanceContract`, `./gradlew portabilityContractCheck`, `./gradlew docsCheck`.
 
 ## Release and migration impact
 

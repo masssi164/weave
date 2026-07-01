@@ -45,34 +45,26 @@ class WeaveBackendClient:
         )
 
     def runtime_profile_projection(self, ctx: RuntimeContext) -> ToolResult:
-        server_binding = {
-            "serverKey": "weave-domain-tools",
-            "transport": "streamable-http",
-            "endpointRef": "internal://weave-mcp/streamable-http",
-            "enabled": False,
-            "discoverableTools": [
-                "admin.get_readiness",
-                "weaver.get_runtime_profile_projection",
-                "calendar.search_events",
-                "calendar.create_event",
-                "files.search",
-                "files.read",
-                "chat.list_threads",
-                "chat.send_message",
-                "boards.comment",
-            ],
-            "rawEndpointExposed": False,
-            "credentialRef": "credentialref://weave/mcp/weave-domain-tools/runtime-token",
-        }
         return ToolResult(
             {
                 "runtimeProfileHash": ctx.runtime_profile_hash,
-                "mcp": {
-                    "servers": {
-                        "weave-domain-tools": server_binding,
+                "mcpServerBindings": [
+                    {
+                        "serverKey": "weave-domain-tools",
+                        "transport": "streamable-http",
+                        "endpointRef": "internal://weave-mcp/streamable-http",
+                        "enabled": False,
+                        "discoverableTools": [
+                            "admin.get_readiness",
+                            "weaver.get_runtime_profile_projection",
+                            "calendar.search_events",
+                            "calendar.create_event",
+                            "boards.comment",
+                        ],
+                        "rawEndpointExposed": False,
+                        "credentialRef": "credentialref://weave/mcp/weave-domain-tools/runtime-token",
                     }
-                },
-                "mcpServerBindings": [server_binding],
+                ],
                 "supportSafe": True,
             },
             "audit://mcp/runtime-profile-projection/support-safe",
@@ -91,7 +83,7 @@ class WeaveBackendClient:
             }.items()
             if isinstance(value, str) and value.strip()
         }
-        path = "/api/calendar/events"
+        path = "/calendar/events"
         url = self.backend_base_url.rstrip("/") + path + (("?" + urlencode(params)) if params else "")
         request = Request(
             url,
@@ -116,18 +108,16 @@ class WeaveBackendClient:
         for item in raw_items if isinstance(raw_items, list) else []:
             if not isinstance(item, dict):
                 continue
-            support_safe_title = item.get("title") if item.get("supportSafe") is True else None
-            mapped_item = {
-                "eventRef": "calendar-event://redacted/" + _stable_ref_fragment(str(item.get("id", "unknown"))),
-                "titlePresent": bool(item.get("title")),
-                "startsAt": item.get("startsAt"),
-                "endsAt": item.get("endsAt"),
-                "allDay": bool(item.get("allDay")),
-                "scope": item.get("scope"),
-            }
-            if isinstance(support_safe_title, str) and support_safe_title.strip():
-                mapped_item["supportSafeTitle"] = support_safe_title.strip()
-            items.append(mapped_item)
+            items.append(
+                {
+                    "eventRef": "calendar-event://redacted/" + _stable_ref_fragment(str(item.get("id", "unknown"))),
+                    "titlePresent": bool(item.get("title")),
+                    "startsAt": item.get("startsAt"),
+                    "endsAt": item.get("endsAt"),
+                    "allDay": bool(item.get("allDay")),
+                    "scope": item.get("scope"),
+                }
+            )
 
         with _CREATED_EVENTS_LOCK:
             fixture_items = [
@@ -176,66 +166,6 @@ class WeaveBackendClient:
                 "providerMutationPerformedByMcp": False,
             },
             "audit://mcp/calendar-create/support-safe",
-        )
-
-    def files_search(self, ctx: RuntimeContext, query: dict[str, Any]) -> ToolResult:
-        return ToolResult(
-            {
-                "queryRef": "query://files/support-safe/" + _stable_ref_fragment(query),
-                "items": [
-                    {
-                        "fileRef": "file://weave/support-safe/onboarding-note",
-                        "namePresent": True,
-                        "spaceRef": str(query.get("spaceRef", "space:dogfood")),
-                    }
-                ],
-                "providerSourceMappedByBackend": True,
-                "rawProviderPayloadExposed": False,
-            },
-            "audit://mcp/files-search/support-safe",
-        )
-
-    def files_read(self, ctx: RuntimeContext, query: dict[str, Any]) -> ToolResult:
-        return ToolResult(
-            {
-                "fileRef": str(query.get("fileRef", "file://weave/support-safe/unknown")),
-                "metadataOnly": True,
-                "contentRedacted": True,
-                "providerSourceMappedByBackend": True,
-                "rawProviderPayloadExposed": False,
-            },
-            "audit://mcp/files-read/support-safe",
-        )
-
-    def chat_list_threads(self, ctx: RuntimeContext, query: dict[str, Any]) -> ToolResult:
-        channel_id = str(query.get("channelId", "channels.weave-chat"))
-        return ToolResult(
-            {
-                "channelId": channel_id,
-                "threads": [
-                    {
-                        "threadRef": "chat-thread://weave/support-safe/pa-weaver",
-                        "channelId": channel_id,
-                        "titlePresent": True,
-                    }
-                ],
-                "providerSourceMappedByBackend": True,
-                "rawProviderThreadIdsExposed": False,
-            },
-            "audit://mcp/chat-list-threads/support-safe",
-        )
-
-    def chat_send_message(self, ctx: RuntimeContext, query: dict[str, Any]) -> ToolResult:
-        return ToolResult(
-            {
-                "decision": "accepted-for-weave-chat-domain-send",
-                "threadRef": str(query.get("threadRef", "chat-thread://weave/support-safe/unknown")),
-                "messageRef": "chat-message://pending/support-safe/" + _stable_ref_fragment([ctx.user_ref, query.get("threadRef"), query.get("body")]),
-                "channelId": "channels.weave-chat",
-                "providerMutationPerformedByMcp": False,
-                "rawProviderChannelExposed": False,
-            },
-            "audit://mcp/chat-send-message/support-safe",
         )
 
     def boards_comment(self, ctx: RuntimeContext, query: dict[str, Any]) -> ToolResult:

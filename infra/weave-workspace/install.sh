@@ -88,6 +88,7 @@ readonly PERSISTED_TF_VARS=(
   TF_VAR_context_authorization_bootstrap_enabled
   TF_VAR_context_authorization_bootstrap_context_id
   TF_VAR_context_authorization_bootstrap_principal_ref
+  TF_VAR_context_authorization_dogfood_principal_ref
   TF_VAR_context_authorization_bootstrap_role
   TF_VAR_openproject_image
   TF_VAR_openproject_host_port
@@ -203,6 +204,67 @@ normalize_repo_local_paths() {
   normalize_repo_local_cert_path_var TF_VAR_caddy_tls_ca_file
 }
 
+local_tls_state_dir() {
+  if [[ "${WEAVE_LOCAL_TLS_STATE_DIR:-}" == "none" ]]; then
+    return 1
+  fi
+
+  printf '%s\n' "${WEAVE_LOCAL_TLS_STATE_DIR:-${XDG_STATE_HOME:-${HOME}/.local/state}/weave/dogfood/caddy/certs}"
+}
+
+using_default_local_tls_paths() {
+  local generated_dir="${INFRA_DIR}/.generated/caddy/certs"
+
+  [[ "${TF_VAR_caddy_tls_cert_file}" == "${generated_dir}/weave.test.pem" ]] &&
+    [[ "${TF_VAR_caddy_tls_key_file}" == "${generated_dir}/weave.test-key.pem" ]] &&
+    [[ "${TF_VAR_caddy_tls_ca_file}" == "${generated_dir}/weave-local-ca.pem" ]]
+}
+
+restore_default_local_tls_from_state() {
+  using_default_local_tls_paths || return 0
+
+  local state_dir
+  state_dir="$(local_tls_state_dir)" || return 0
+  [[ -d "${state_dir}" ]] || return 0
+
+  local file
+  for file in \
+    weave.test.pem \
+    weave.test-key.pem \
+    weave-local-ca.pem \
+    weave-local-ca-key.pem \
+    weave-local-ca.srl; do
+    if [[ -f "${state_dir}/${file}" && ! -f "${INFRA_DIR}/.generated/caddy/certs/${file}" ]]; then
+      mkdir -p "${INFRA_DIR}/.generated/caddy/certs"
+      cp "${state_dir}/${file}" "${INFRA_DIR}/.generated/caddy/certs/${file}"
+    fi
+  done
+}
+
+persist_default_local_tls_to_state() {
+  using_default_local_tls_paths || return 0
+
+  local state_dir
+  state_dir="$(local_tls_state_dir)" || return 0
+  mkdir -p "${state_dir}"
+  chmod 700 "${state_dir}"
+
+  local file
+  for file in \
+    weave.test.pem \
+    weave.test-key.pem \
+    weave-local-ca.pem \
+    weave-local-ca-key.pem \
+    weave-local-ca.srl; do
+    if [[ -f "${INFRA_DIR}/.generated/caddy/certs/${file}" ]]; then
+      cp "${INFRA_DIR}/.generated/caddy/certs/${file}" "${state_dir}/${file}"
+    fi
+  done
+
+  chmod 600 "${state_dir}"/*-key.pem 2>/dev/null || true
+  chmod 644 "${state_dir}"/*.pem 2>/dev/null || true
+}
+
 load_persisted_env() {
   if [[ ! -f "${BOOTSTRAP_ENV_FILE}" ]]; then
     return
@@ -313,6 +375,13 @@ persist_bootstrap_env() {
       printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_PRINCIPAL_REF=%q\n' "${TF_VAR_context_authorization_bootstrap_principal_ref}"
       printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_ROLE=%q\n' "${TF_VAR_context_authorization_bootstrap_role}"
       printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_SOURCE=%q\n' "local-dev-bootstrap"
+      if [[ -n "${TF_VAR_context_authorization_dogfood_principal_ref}" ]]; then
+        printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_1_TENANT_ID=%q\n' "${TF_VAR_context_authorization_default_tenant_id}"
+        printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_1_CONTEXT_ID=%q\n' "${TF_VAR_context_authorization_bootstrap_context_id}"
+        printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_1_PRINCIPAL_REF=%q\n' "${TF_VAR_context_authorization_dogfood_principal_ref}"
+        printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_1_ROLE=%q\n' "${TF_VAR_context_authorization_bootstrap_role}"
+        printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_1_SOURCE=%q\n' "local-dogfood-bootstrap"
+      fi
     fi
     printf 'export WEAVE_MATRIX_HOMESERVER_URL=%q\n' "$(client_matrix_public_url)"
     printf 'export WEAVE_OIDC_ISSUER_URL=%q\n' "$(integration_test_oidc_issuer_url)"
@@ -390,6 +459,249 @@ wait_for_keycloak_admin_login() {
   fail "Keycloak admin login never became ready at ${token_url} for user ${TF_VAR_keycloak_admin_username}"
 }
 
+
+keycloak_admin_token() {
+  local token_url="http://${LOOPBACK_HOST}:${TF_VAR_keycloak_host_port}/realms/master/protocol/openid-connect/token"
+  local response=""
+  local token=""
+
+  response="$(curl -fsS -X POST "${token_url}" \
+    -H 'Content-Type: application/x-www-form-urlencoded' \
+    --data-urlencode 'client_id=admin-cli' \
+    --data-urlencode "username=${TF_VAR_keycloak_admin_username}" \
+    --data-urlencode "password=${TF_VAR_keycloak_admin_password}" \
+    --data-urlencode 'grant_type=password')"
+  token="$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("access_token", ""))' <<<"${response}")"
+  [[ -n "${token}" ]] || fail "Keycloak admin token response did not contain an access_token."
+  printf '%s' "${token}"
+}
+
+keycloak_state_has() {
+  local address="$1"
+
+  "${WEAVE_IAC_BIN}" -chdir="${KEYCLOAK_DIR}" state show "${address}" >/dev/null 2>&1
+}
+
+keycloak_import_if_missing() {
+  local address="$1"
+  local import_id="$2"
+
+  if keycloak_state_has "${address}"; then
+    return
+  fi
+
+  if [[ -z "${import_id}" || "${import_id}" == */ || "${import_id}" == *'//'* ]]; then
+    return
+  fi
+
+  log "Importing existing Keycloak resource ${address} into OpenTofu state..."
+  "${WEAVE_IAC_BIN}" -chdir="${KEYCLOAK_DIR}" import -input=false "${address}" "${import_id}"
+}
+
+keycloak_admin_get() {
+  local path="$1"
+  local token=""
+
+  token="$(keycloak_admin_token)"
+  curl -fsS \
+    -H "Authorization: Bearer ${token}" \
+    "http://${LOOPBACK_HOST}:${TF_VAR_keycloak_host_port}${path}"
+}
+
+keycloak_admin_get_query() {
+  local path="$1"
+  local query_key="$2"
+  local query_value="$3"
+  local token=""
+
+  token="$(keycloak_admin_token)"
+  curl -fsS -G \
+    -H "Authorization: Bearer ${token}" \
+    --data-urlencode "${query_key}=${query_value}" \
+    "http://${LOOPBACK_HOST}:${TF_VAR_keycloak_host_port}${path}"
+}
+
+keycloak_json_id_by_field() {
+  local field="$1"
+  local value="$2"
+
+  python3 -c 'import json,sys
+field, value = sys.argv[1], sys.argv[2]
+data = json.load(sys.stdin)
+if isinstance(data, dict):
+    data = [data]
+for item in data:
+    if item.get(field) == value:
+        print(item.get("id", ""))
+        break
+' "${field}" "${value}"
+}
+
+keycloak_json_group_id_by_name() {
+  local name="$1"
+
+  python3 -c 'import json,sys
+name = sys.argv[1]
+def walk(groups):
+    for group in groups:
+        if group.get("name") == name:
+            print(group.get("id", ""))
+            return True
+        if walk(group.get("subGroups") or []):
+            return True
+    return False
+walk(json.load(sys.stdin))
+' "${name}"
+}
+
+keycloak_realm_exists() {
+  keycloak_admin_get "/admin/realms/${TF_VAR_tenant_slug}" >/dev/null 2>&1
+}
+
+keycloak_lookup_client_uuid() {
+  local client_id="$1"
+
+  keycloak_admin_get_query "/admin/realms/${TF_VAR_tenant_slug}/clients" clientId "${client_id}" |
+    keycloak_json_id_by_field clientId "${client_id}"
+}
+
+keycloak_lookup_client_scope_id() {
+  local name="$1"
+
+  keycloak_admin_get "/admin/realms/${TF_VAR_tenant_slug}/client-scopes" |
+    keycloak_json_id_by_field name "${name}"
+}
+
+keycloak_lookup_group_id() {
+  local name="$1"
+
+  keycloak_admin_get_query "/admin/realms/${TF_VAR_tenant_slug}/groups" search "${name}" |
+    keycloak_json_group_id_by_name "${name}"
+}
+
+keycloak_lookup_role_id() {
+  local name="$1"
+
+  keycloak_admin_get "/admin/realms/${TF_VAR_tenant_slug}/roles/${name}" 2>/dev/null |
+    keycloak_json_id_by_field name "${name}" || true
+}
+
+keycloak_lookup_user_id() {
+  local username="$1"
+
+  keycloak_admin_get_query "/admin/realms/${TF_VAR_tenant_slug}/users" username "${username}" |
+    keycloak_json_id_by_field username "${username}"
+}
+
+keycloak_lookup_client_scope_mapper_id() {
+  local client_scope_id="$1"
+  local name="$2"
+
+  keycloak_admin_get "/admin/realms/${TF_VAR_tenant_slug}/client-scopes/${client_scope_id}/protocol-mappers/models" |
+    keycloak_json_id_by_field name "${name}"
+}
+
+keycloak_lookup_client_mapper_id() {
+  local client_uuid="$1"
+  local name="$2"
+
+  keycloak_admin_get "/admin/realms/${TF_VAR_tenant_slug}/clients/${client_uuid}/protocol-mappers/models" |
+    keycloak_json_id_by_field name "${name}"
+}
+
+ensure_existing_keycloak_terraform_state() {
+  local client_scope_id=""
+  local mapper_id=""
+  local uuid=""
+
+  "${WEAVE_IAC_BIN}" -chdir="${KEYCLOAK_DIR}" init -input=false
+
+  if ! keycloak_realm_exists; then
+    return
+  fi
+
+  keycloak_import_if_missing module.tenant_identity.keycloak_realm.tenant "${TF_VAR_tenant_slug}"
+
+  for role in owner admin operator member guest; do
+    uuid="$(keycloak_lookup_role_id "${role}")"
+    keycloak_import_if_missing "module.tenant_identity.keycloak_role.weave_product[\"${role}\"]" "${TF_VAR_tenant_slug}/${uuid}"
+  done
+
+  for group_key_and_name in \
+    owner:workspace-owners \
+    admin:workspace-admins \
+    operator:workspace-operators \
+    member:workspace-members \
+    guest:workspace-guests; do
+    local group_key="${group_key_and_name%%:*}"
+    local group_name="${group_key_and_name#*:}"
+    uuid="$(keycloak_lookup_group_id "${group_name}")"
+    keycloak_import_if_missing "module.tenant_identity.keycloak_group.weave_product_role[\"${group_key}\"]" "${TF_VAR_tenant_slug}/${uuid}"
+  done
+
+  for group_key_and_name in \
+    board_editors:weave-board-editors \
+    calendar_editors:weave-calendar-editors \
+    document_editors:weave-document-editors \
+    meeting_hosts:weave-meeting-hosts \
+    decision_records:weave-decision-recorders \
+    weaver_pilot:weave-weaver-pilot \
+    weaver_runtime:weave-weaver-runtime \
+    weaver_group:weaver-group; do
+    local group_key="${group_key_and_name%%:*}"
+    local group_name="${group_key_and_name#*:}"
+    uuid="$(keycloak_lookup_group_id "${group_name}")"
+    keycloak_import_if_missing "module.tenant_identity.keycloak_group.weave_capability[\"${group_key}\"]" "${TF_VAR_tenant_slug}/${uuid}"
+  done
+
+  for client_key_and_id in \
+    weave_app:weave-app \
+    weave_backend:weave-backend \
+    weave_admin_console:weave-admin-console \
+    matrix_mas:matrix-mas \
+    nextcloud:nextcloud; do
+    local client_key="${client_key_and_id%%:*}"
+    local client_id="${client_key_and_id#*:}"
+    uuid="$(keycloak_lookup_client_uuid "${client_id}")"
+    keycloak_import_if_missing "module.tenant_identity.keycloak_openid_client.client[\"${client_key}\"]" "${TF_VAR_tenant_slug}/${uuid}"
+  done
+
+  client_scope_id="$(keycloak_lookup_client_scope_id 'weave:workspace')"
+  keycloak_import_if_missing module.tenant_identity.keycloak_openid_client_scope.weave_workspace "${TF_VAR_tenant_slug}/${client_scope_id}"
+
+  for mapper_address_and_name in \
+    module.tenant_identity.keycloak_openid_hardcoded_claim_protocol_mapper.weave_tenant_id:weave-tenant-id \
+    module.tenant_identity.keycloak_openid_hardcoded_claim_protocol_mapper.weave_organization_name:weave-organization-name \
+    module.tenant_identity.keycloak_openid_audience_protocol_mapper.weave_backend_audience:weave-app-audience \
+    module.tenant_identity.keycloak_openid_audience_protocol_mapper.nextcloud_bearer_audience:nextcloud-bearer-audience; do
+    local mapper_address="${mapper_address_and_name%%:*}"
+    local mapper_name="${mapper_address_and_name#*:}"
+    mapper_id="$(keycloak_lookup_client_scope_mapper_id "${client_scope_id}" "${mapper_name}")"
+    keycloak_import_if_missing "${mapper_address}" "${TF_VAR_tenant_slug}/client-scope/${client_scope_id}/${mapper_id}"
+  done
+
+  for client_key_and_mapper in \
+    weave_app:module.tenant_identity.keycloak_openid_group_membership_protocol_mapper.weave_app_groups \
+    weave_admin_console:module.tenant_identity.keycloak_openid_group_membership_protocol_mapper.weave_admin_console_groups \
+    nextcloud:module.tenant_identity.keycloak_openid_group_membership_protocol_mapper.nextcloud_groups; do
+    local client_key="${client_key_and_mapper%%:*}"
+    local mapper_address="${client_key_and_mapper#*:}"
+    case "${client_key}" in
+      weave_app) uuid="$(keycloak_lookup_client_uuid 'weave-app')" ;;
+      weave_admin_console) uuid="$(keycloak_lookup_client_uuid 'weave-admin-console')" ;;
+      nextcloud) uuid="$(keycloak_lookup_client_uuid 'nextcloud')" ;;
+      *) fail "Unsupported Keycloak group mapper client key ${client_key}" ;;
+    esac
+    mapper_id="$(keycloak_lookup_client_mapper_id "${uuid}" groups)"
+    keycloak_import_if_missing "${mapper_address}" "${TF_VAR_tenant_slug}/client/${uuid}/${mapper_id}"
+  done
+
+  if create_test_user_enabled; then
+    uuid="$(keycloak_lookup_user_id test)"
+    keycloak_import_if_missing 'module.tenant_identity.keycloak_user.test[0]' "${TF_VAR_tenant_slug}/${uuid}"
+  fi
+}
+
 wait_for_nextcloud() {
   local attempts="${1:-120}"
   local sleep_seconds="${2:-5}"
@@ -465,6 +777,61 @@ ensure_terraform_network_state() {
     log "Importing existing Docker network ${TF_VAR_docker_network_name} into Terraform state..."
     "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" import -input=false docker_network.weave_network "${existing_network_id}"
   fi
+}
+
+terraform_state_has() {
+  local address="$1"
+
+  "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" state show "${address}" >/dev/null 2>&1
+}
+
+import_existing_docker_volume_state() {
+  local address="$1"
+  local name="$2"
+
+  if terraform_state_has "${address}"; then
+    return
+  fi
+
+  if docker volume inspect "${name}" >/dev/null 2>&1; then
+    log "Importing existing Docker volume ${name} into OpenTofu state..."
+    "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" import -input=false "${address}" "${name}"
+  fi
+}
+
+import_existing_docker_container_state() {
+  local address="$1"
+  local name="$2"
+  local container_id=""
+
+  if terraform_state_has "${address}"; then
+    return
+  fi
+
+  if docker container inspect "${name}" >/dev/null 2>&1; then
+    container_id="$(docker container inspect --format '{{.ID}}' "${name}")"
+    log "Importing existing Docker container ${name} into OpenTofu state..."
+    "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" import -input=false "${address}" "${container_id}"
+  fi
+}
+
+ensure_existing_stack_terraform_state() {
+  "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" init -input=false
+
+  import_existing_docker_volume_state module.postgres.docker_volume.data weave_db_data
+  import_existing_docker_volume_state module.reverse_proxy.docker_volume.data weave_caddy_data
+  import_existing_docker_volume_state module.reverse_proxy.docker_volume.config weave_caddy_config
+  import_existing_docker_volume_state module.keycloak.docker_volume.data weave_keycloak_data
+  import_existing_docker_volume_state module.nextcloud.docker_volume.data weave_nextcloud_data
+
+  import_existing_docker_container_state module.postgres.docker_container.this weave-db
+  import_existing_docker_container_state module.reverse_proxy.docker_container.this weave-proxy
+  import_existing_docker_container_state module.keycloak.docker_container.this weave-keycloak
+  import_existing_docker_container_state module.mailpit.docker_container.this weave-mailpit
+  import_existing_docker_container_state module.backend.docker_container.this weave-backend
+  import_existing_docker_container_state module.matrix.docker_container.mas weave-mas
+  import_existing_docker_container_state module.matrix.docker_container.synapse weave-synapse
+  import_existing_docker_container_state module.nextcloud.docker_container.this weave-nextcloud
 }
 
 terraform_output_raw() {
@@ -924,6 +1291,7 @@ ensure_default_inputs() {
     "TF_VAR_context_authorization_principal_ref_prefix=user:"
     "TF_VAR_context_authorization_bootstrap_context_id=workspace-default"
     "TF_VAR_context_authorization_bootstrap_principal_ref=user:test"
+    "TF_VAR_context_authorization_dogfood_principal_ref=user:massimo"
     "TF_VAR_context_authorization_bootstrap_role=MEMBER"
     "TF_VAR_openproject_image=openproject/openproject:15"
     "TF_VAR_openproject_host_port=48086"
@@ -1037,6 +1405,8 @@ ensure_local_tls_certificates() {
 
   ca_key_file="${ca_file%.*}-key.pem"
 
+  restore_default_local_tls_from_state
+
   if [[ -f "${cert_file}" && -f "${key_file}" && -f "${ca_file}" ]]; then
     local host
     local missing_hosts=()
@@ -1064,6 +1434,7 @@ ensure_local_tls_certificates() {
     done
 
     if (( ${#missing_hosts[@]} == 0 )); then
+      persist_default_local_tls_to_state
       return
     fi
 
@@ -1139,6 +1510,7 @@ ensure_local_tls_certificates() {
   chmod 644 "${cert_file}"
 
   rm -f -- "${csr_file}" "${ext_file}"
+  persist_default_local_tls_to_state
 }
 
 ensure_nextcloud_installed() {
@@ -1340,6 +1712,7 @@ print_summary() {
   log "- Matrix versions: $(client_matrix_public_url)/_matrix/client/versions"
   log "- Matrix default rooms: #announcements:$(public_host "${TF_VAR_matrix_subdomain}"), #general:$(public_host "${TF_VAR_matrix_subdomain}"), #help:$(public_host "${TF_VAR_matrix_subdomain}")"
   log "- Raw Nextcloud: $(nextcloud_public_url)/"
+  log "- Dogfood mail inbox: http://127.0.0.1:${TF_VAR_mailpit_web_host_port:-8025}"
   log
   log "Admin credentials (local/dev only):"
   log "- Keycloak admin user: ${TF_VAR_keycloak_admin_username} (password stored in ${BOOTSTRAP_ENV_FILE})"
@@ -1379,6 +1752,7 @@ main() {
   source "${SYNAPSE_VOLUME_HELPER}"
   ensure_terraform_network_state
   synapse_reconcile_terraform_state
+  ensure_existing_stack_terraform_state
 
   log "Applying infrastructure module..."
   terraform_apply "${INFRA_DIR}"
@@ -1393,6 +1767,7 @@ main() {
 
   log "Waiting for Keycloak admin login readiness..."
   wait_for_keycloak_admin_login 90 2
+  ensure_existing_keycloak_terraform_state
 
   log "Applying Keycloak configuration module..."
   terraform_apply "${KEYCLOAK_DIR}"

@@ -1,10 +1,13 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
+
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/theme/app_theme.dart';
+import 'package:weave/features/agents/domain/entities/agent_capability_policy.dart';
+import 'package:weave/features/agents/presentation/providers/agent_capability_policy_provider.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
 import 'package:weave/features/app/presentation/providers/workspace_invalidation_provider.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
@@ -60,7 +63,9 @@ void main() {
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
             ),
-            firstRunStatusProvider.overrideWith((ref) async => null),
+            firstRunStatusProvider.overrideWith(
+              (ref) async => const FirstRunLoadResult.signedOut(),
+            ),
           ],
         ),
       );
@@ -104,7 +109,9 @@ void main() {
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
             ),
-            firstRunStatusProvider.overrideWith((ref) async => null),
+            firstRunStatusProvider.overrideWith(
+              (ref) async => const FirstRunLoadResult.signedOut(),
+            ),
           ],
         ),
       );
@@ -209,7 +216,9 @@ void main() {
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
             ),
-            firstRunStatusProvider.overrideWith((ref) async => null),
+            firstRunStatusProvider.overrideWith(
+              (ref) async => const FirstRunLoadResult.signedOut(),
+            ),
           ],
         ),
       );
@@ -257,7 +266,9 @@ void main() {
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
             ),
-            firstRunStatusProvider.overrideWith((ref) async => null),
+            firstRunStatusProvider.overrideWith(
+              (ref) async => const FirstRunLoadResult.signedOut(),
+            ),
           ],
         );
         addTearDown(container.dispose);
@@ -282,8 +293,8 @@ void main() {
         container
             .read(workspaceInvalidationProvider.notifier)
             .invalidate(
-              integration: WorkspaceIntegration.matrix,
-              reason: IntegrationInvalidationReason.matrixHomeserverChanged,
+              integration: WorkspaceIntegration.chat,
+              reason: IntegrationInvalidationReason.chatConfigurationChanged,
             );
 
         await tester.pump();
@@ -311,11 +322,13 @@ void main() {
                 securityRepository,
               ),
               firstRunStatusProvider.overrideWith(
-                (ref) async => _chatFirstRunStatus(
-                  const FirstRunModuleStatus(
-                    state: FirstRunProvisioningState.failed,
-                    message: 'Internal provider detail should not render.',
-                    action: 'Internal provider action should not render.',
+                (ref) async => FirstRunLoadResult.authenticated(
+                  _chatFirstRunStatus(
+                    const FirstRunModuleStatus(
+                      state: FirstRunProvisioningState.failed,
+                      message: 'Internal provider detail should not render.',
+                      action: 'Internal provider action should not render.',
+                    ),
                   ),
                 ),
               ),
@@ -378,7 +391,9 @@ void main() {
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
             ),
-            firstRunStatusProvider.overrideWith((ref) async => null),
+            firstRunStatusProvider.overrideWith(
+              (ref) async => const FirstRunLoadResult.signedOut(),
+            ),
           ],
         ),
       );
@@ -450,7 +465,9 @@ void main() {
               chatSecurityRepositoryProvider.overrideWithValue(
                 securityRepository,
               ),
-              firstRunStatusProvider.overrideWith((ref) async => null),
+              firstRunStatusProvider.overrideWith(
+                (ref) async => const FirstRunLoadResult.signedOut(),
+              ),
             ],
           ),
         );
@@ -524,7 +541,9 @@ void main() {
               chatSecurityRepositoryProvider.overrideWithValue(
                 securityRepository,
               ),
-              firstRunStatusProvider.overrideWith((ref) async => null),
+              firstRunStatusProvider.overrideWith(
+                (ref) async => const FirstRunLoadResult.signedOut(),
+              ),
             ],
           ),
         );
@@ -554,58 +573,6 @@ void main() {
         );
       },
     );
-
-    testWidgets('shows the Matrix security banner when attention is needed', (
-      tester,
-    ) async {
-      final repository = FakeChatRepository(
-        loadConversationsHandler: () async => const <ChatConversation>[
-          ChatConversation(
-            id: '!room:home.internal',
-            title: 'Project',
-            previewType: ChatConversationPreviewType.encrypted,
-            unreadCount: 0,
-            isInvite: false,
-            isDirectMessage: false,
-          ),
-        ],
-      );
-      final securityRepository = FakeChatSecurityRepository(
-        loadSecurityStateHandler: ({bool refresh = false}) async {
-          return const ChatSecurityState(
-            isMatrixSignedIn: true,
-            bootstrapState: ChatSecurityBootstrapState.recoveryRequired,
-            accountVerificationState:
-                ChatAccountVerificationState.verificationRequired,
-            deviceVerificationState: ChatDeviceVerificationState.unverified,
-            keyBackupState: ChatKeyBackupState.recoveryRequired,
-            roomEncryptionReadiness:
-                ChatRoomEncryptionReadiness.encryptedRoomsNeedAttention,
-            secretStorageReady: true,
-            crossSigningReady: true,
-            hasEncryptedConversations: true,
-            verificationSession: ChatVerificationSession.none(),
-          );
-        },
-      );
-
-      await tester.pumpWidget(
-        createTestApp(
-          const ChatScreen(),
-          overrides: [
-            chatRepositoryProvider.overrideWithValue(repository),
-            chatSecurityRepositoryProvider.overrideWithValue(
-              securityRepository,
-            ),
-            firstRunStatusProvider.overrideWith((ref) async => null),
-          ],
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('Matrix security needs attention'), findsOneWidget);
-      expect(find.text('Open security settings'), findsOneWidget);
-    });
 
     testWidgets('keeps unread recent room metadata within the tile', (
       tester,
@@ -661,7 +628,9 @@ void main() {
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
             ),
-            firstRunStatusProvider.overrideWith((ref) async => null),
+            firstRunStatusProvider.overrideWith(
+              (ref) async => const FirstRunLoadResult.signedOut(),
+            ),
           ],
         ),
       );
@@ -726,7 +695,9 @@ void main() {
         overrides: [
           chatRepositoryProvider.overrideWithValue(repository),
           chatSecurityRepositoryProvider.overrideWithValue(securityRepository),
-          firstRunStatusProvider.overrideWith((ref) async => null),
+          firstRunStatusProvider.overrideWith(
+            (ref) async => const FirstRunLoadResult.signedOut(),
+          ),
         ],
       );
       addTearDown(container.dispose);
@@ -798,7 +769,9 @@ void main() {
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
             ),
-            firstRunStatusProvider.overrideWith((ref) async => null),
+            firstRunStatusProvider.overrideWith(
+              (ref) async => const FirstRunLoadResult.signedOut(),
+            ),
           ],
         ),
       );
@@ -831,13 +804,87 @@ void main() {
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
             ),
-            firstRunStatusProvider.overrideWith((ref) async => null),
+            firstRunStatusProvider.overrideWith(
+              (ref) async => const FirstRunLoadResult.signedOut(),
+            ),
           ],
         ),
       );
       await tester.pumpAndSettle();
 
       await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+    });
+
+    testWidgets('renders bounded Weaver Beta helper states accessibly', (
+      tester,
+    ) async {
+      final repository = FakeChatRepository(
+        loadConversationsHandler: () async => const <ChatConversation>[
+          ChatConversation(
+            id: '!ai:home.internal',
+            title: 'Weaver notes',
+            previewType: ChatConversationPreviewType.text,
+            previewText: 'Structured result ready',
+            unreadCount: 0,
+            isInvite: false,
+            isDirectMessage: false,
+          ),
+        ],
+      );
+      final securityRepository = buildSecurityRepository();
+      await tester.pumpWidget(
+        createTestApp(
+          const ChatScreen(),
+          overrides: [
+            chatRepositoryProvider.overrideWithValue(repository),
+            chatSecurityRepositoryProvider.overrideWithValue(
+              securityRepository,
+            ),
+            firstRunStatusProvider.overrideWith(
+              (ref) async => const FirstRunLoadResult.signedOut(),
+            ),
+            agentCapabilityPolicyProvider.overrideWithValue(
+              const AsyncData(
+                AgentCapabilityPolicy(
+                  canManageCapabilities: false,
+                  capabilities: <AgentCapabilityState>[
+                    AgentCapabilityState(
+                      capability: AgentCapability.personalAssistant,
+                      enablement: AgentCapabilityEnablement.enabled,
+                      availability:
+                          AgentCapabilityAvailability.adminSetupRequired,
+                    ),
+                    AgentCapabilityState(
+                      capability: AgentCapability.channelAgent,
+                      enablement: AgentCapabilityEnablement.disabled,
+                      availability:
+                          AgentCapabilityAvailability.disabledByPolicy,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Weaver Beta helper'), findsOneWidget);
+      expect(find.text('Connected'), findsOneWidget);
+      expect(find.text('Weaver enabled'), findsOneWidget);
+      expect(find.text('Weaver disabled'), findsOneWidget);
+      expect(
+        find.text('Approval required for sensitive actions'),
+        findsOneWidget,
+      );
+      expect(find.text('Denied or failed safely'), findsOneWidget);
+      expect(find.textContaining('raw provider payloads'), findsOneWidget);
+      expect(find.textContaining('MCP'), findsNothing);
+      expect(find.textContaining('tool catalog'), findsNothing);
+      expect(
+        find.bySemanticsLabel(RegExp('Results are support-safe')),
+        findsOneWidget,
+      );
     });
   });
 }

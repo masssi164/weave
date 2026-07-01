@@ -91,7 +91,9 @@ class MemberHandoffParser {
   }
 
   void _validateJoinEntrypoint(Uri uri) {
-    if (uri.scheme != 'https' && uri.scheme != 'weave') {
+    if (uri.scheme.isNotEmpty &&
+        uri.scheme != 'https' &&
+        uri.scheme != 'weave') {
       throw const AppFailure.validation(
         'WEAVE-HANDOFF-INVALID: The invite must use HTTPS or the Weave app link.',
       );
@@ -101,7 +103,9 @@ class MemberHandoffParser {
     final isCustomSchemeJoin =
         uri.scheme == 'weave' && (uri.path == '/join' || uri.host == 'join');
     final isWebJoin = uri.scheme == 'https' && uri.path == '/join';
-    if (!isCustomSchemeJoin && !isWebJoin) {
+    final isInAppJoin =
+        uri.scheme.isEmpty && uri.host.isEmpty && uri.path == '/join';
+    if (!isCustomSchemeJoin && !isWebJoin && !isInAppJoin) {
       throw const AppFailure.validation(
         'WEAVE-HANDOFF-INVALID: The invite must point to the Weave join route.',
       );
@@ -119,7 +123,7 @@ class MemberHandoffParser {
         path: '/',
       );
     }
-    if (uri.scheme == 'weave') {
+    if (uri.scheme == 'weave' || uri.scheme.isEmpty) {
       throw const AppFailure.validation(
         'WEAVE-HANDOFF-MISSING-BASE: Ask an admin/operator to refresh the invite.',
       );
@@ -142,7 +146,7 @@ class MemberHandoffParser {
       return _parseAbsoluteHttpUri(explicit, 'platform_config_url');
     }
 
-    final base = uri.scheme == 'weave'
+    final base = uri.scheme == 'weave' || uri.scheme.isEmpty
         ? productBaseUrl
         : Uri(
             scheme: uri.scheme,

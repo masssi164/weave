@@ -2,13 +2,13 @@
   "@@locale": "de",
   "appTitle": "Weave",
   "welcomeTitle": "Willkommen bei Weave",
-  "welcomeSubtitle": "Dein einheitlicher Kollaborations-Hub — Nachrichten, Dateien und Kalender an einem Ort.",
-  "continueButton": "Los geht's",
-  "setupTitle": "Einrichtung",
+  "welcomeSubtitle": "Tritt deiner Organisation über eine Einladung oder Anmelde-Übergabe bei. Anbieter-Setup bleibt bei den Admins.",
+  "continueButton": "Organisation beitreten",
+  "setupTitle": "Weave beitreten",
   "setupProviderStepTitle": "Provider-Kategorien konfigurieren",
   "setupProviderStepDescription": "Die Admin-Einrichtung beginnt mit der Kategorie Identität/IDM und hält Chat, Dateien, Kalender, Boards/Aufgaben, Besprechungen/Anrufe, Dokumente/Zusammenarbeit und Weaver als Provider-Kategorien sichtbar, bevor Mitglieder beitreten.",
-  "setupServicesStepTitle": "Dienstendpunkte prüfen",
-  "setupServicesStepDescription": "Prüfe die aktuellen Dogfood-Service-Endpunkte, die aus dem Identitäts-Issuer abgeleitet wurden. Diese Provider-URLs bleiben Admin-/Operator-Konfiguration, nicht normale Mitglieder-Einrichtung.",
+  "setupServicesStepTitle": "Backend-API prüfen",
+  "setupServicesStepDescription": "Prüfe den Weave-Backend-API-Endpunkt, der aus dem Organisations-Login abgeleitet wurde. Provider-Service-URLs bleiben in Admin-/Support-Diagnosen, nicht in der Mitglieder-Einrichtung.",
   "providerCategorySummaryTitle": "Provider-Kategorien",
   "@providerCategorySummaryTitle": {
     "description": "Titel der Provider-Kategorien-Zusammenfassung für Admins in Einrichtung und Workspace Health"
@@ -45,7 +45,7 @@
   "@providerCategoryChatTitle": {
     "description": "Provider-Kategorietitel für Chat"
   },
-  "providerCategoryChatDetail": "Matrix/Chat ist die aktuelle Dogfood-Auswahl hinter der Weave-Chat-Oberfläche.",
+  "providerCategoryChatDetail": "Chat ist der aktuelle Dogfood-Dienst hinter der Weave-Chat-Oberfläche.",
   "@providerCategoryChatDetail": {
     "description": "Provider-Kategoriedetail für Chat"
   },
@@ -53,7 +53,7 @@
   "@providerCategoryFilesTitle": {
     "description": "Provider-Kategorietitel für Dateien"
   },
-  "providerCategoryFilesDetail": "Nextcloud/Files ist die aktuelle Dogfood-Speicherauswahl hinter der Weave-Datei-Fassade.",
+  "providerCategoryFilesDetail": "Dateispeicher ist der aktuelle Dogfood-Dienst hinter der Weave-Datei-Fassade.",
   "@providerCategoryFilesDetail": {
     "description": "Provider-Kategoriedetail für Dateien"
   },
@@ -61,7 +61,7 @@
   "@providerCategoryCalendarTitle": {
     "description": "Provider-Kategorietitel für Kalender"
   },
-  "providerCategoryCalendarDetail": "Nextcloud/Calendar-Anbindung ist die aktuelle Dogfood-Auswahl hinter der Weave-Kalender-Fassade.",
+  "providerCategoryCalendarDetail": "Kalender-Synchronisierung ist der aktuelle Dogfood-Dienst hinter der Weave-Kalender-Fassade.",
   "@providerCategoryCalendarDetail": {
     "description": "Provider-Kategoriedetail für Kalender"
   },
@@ -105,6 +105,7 @@
   "setupFinishButton": "Fertig",
   "setupBackButton": "Zurück",
   "setupStepIndicator": "Schritt {current} von {total}",
+  "navHome": "Start",
   "navChat": "Chat",
   "navFiles": "Dateien",
   "navCalendar": "Kalender",
@@ -141,6 +142,7 @@
   "retryButton": "Erneut versuchen",
   "semanticBackButton": "Zurück",
   "semanticCloseButton": "Schließen",
+  "semanticHomeIcon": "Startseite",
   "semanticChatIcon": "Chat-Nachrichten",
   "semanticFilesIcon": "Dateibrowser",
   "semanticCalendarIcon": "Kalendertermine",
@@ -158,7 +160,7 @@
   "firstRunSignedOutSemanticLabel": "Melde dich an, um deinen Weave-Erststart-Status zu sehen. Wir brauchen eine aktive Weave-SSO-Sitzung, bevor Profil, Rolle und Modulbereitschaft geprüft werden können. Aktion: Zur Anmeldung",
   "firstRunReadyTitle": "Dein Weave-Arbeitsbereich ist bereit",
   "firstRunNeedsAttentionTitle": "Dein Weave-Arbeitsbereich wird vorbereitet",
-  "firstRunDescription": "Du hast dich einmal per Weave-SSO angemeldet. Weave prüft Profil und Zusammenarbeitsmodule; separate Matrix- oder Nextcloud-Zugangsdaten sind nicht nötig.",
+  "firstRunDescription": "Du hast dich einmal per Weave-SSO angemeldet. Weave prüft Profil und Zusammenarbeitsmodule; separate Zugangsdaten für Chat, Dateien oder Kalender sind nicht nötig.",
   "firstRunIdentitySectionTitle": "Deine Weave-Identität",
   "firstRunIdentitySectionDescription": "Dieses Profil und diese Rolle kommen nach SSO aus dem Weave-Backend-Vertrag.",
   "firstRunDisplayNameLabel": "Name",
@@ -166,6 +168,16 @@
   "firstRunEmailLabel": "E-Mail",
   "firstRunRoleLabel": "Rolle",
   "firstRunInviteStatusLabel": "Einladung",
+  "firstRunRoleOwner": "Owner",
+  "firstRunRoleAdmin": "Admin",
+  "firstRunRoleOperator": "Operator",
+  "firstRunRoleMember": "Mitglied",
+  "firstRunRoleGuest": "Gast",
+  "firstRunRoleUnknown": "Workspace-Rolle",
+  "firstRunInviteAccepted": "Angenommen",
+  "firstRunInvitePending": "Ausstehend",
+  "firstRunInviteExpired": "Abgelaufen",
+  "firstRunInviteUnavailable": "Nicht verfügbar",
   "firstRunModuleSectionTitle": "Modulbereitschaft",
   "firstRunProfileModuleTitle": "Profil",
   "firstRunChatModuleTitle": "Chat",
@@ -177,6 +189,18 @@
   "firstRunStateDegraded": "Eingeschränkt",
   "firstRunStateActionNeeded": "Aktion erforderlich",
   "firstRunNextStepsTitle": "Nächste Schritte",
+  "firstRunProfileReadyGuidance": "Dein Profil ist für Weave bereit.",
+  "firstRunProfilePendingGuidance": "Dein Profil wird noch vorbereitet.",
+  "firstRunChatReadyGuidance": "Chat ist für diesen Arbeitsbereich bereit.",
+  "firstRunChatPendingGuidance": "Chat wird noch vorbereitet.",
+  "firstRunFilesReadyGuidance": "Dateien sind für diesen Arbeitsbereich bereit.",
+  "firstRunFilesPendingGuidance": "Dateien werden noch vorbereitet.",
+  "firstRunCalendarReadyGuidance": "Kalender ist für diesen Arbeitsbereich bereit.",
+  "firstRunCalendarPendingGuidance": "Kalender wird noch vorbereitet.",
+  "firstRunModuleUnavailableGuidance": "Diese Weave-Funktion ist für diesen Arbeitsbereich noch nicht verfügbar.",
+  "firstRunModuleDegradedGuidance": "Diese Weave-Funktion ist mit eingeschränkter Funktionalität verfügbar.",
+  "firstRunModuleActionNeededGuidance": "Die Einrichtung des Arbeitsbereichs benötigt Admin-Aufmerksamkeit.",
+  "firstRunNextStepAdminAttention": "Die Einrichtung des Arbeitsbereichs benötigt Admin-Aufmerksamkeit, bevor alle Funktionen bereit sind.",
   "firstRunRefreshButton": "Status aktualisieren",
   "firstRunContinueButton": "Weiter zum Chat",
   "chatProvisioningReadyTitle": "Chat ist bereit",
@@ -268,7 +292,7 @@
   "filesNextcloudTitle": "Weave-Dateien",
   "filesProductTitle": "Weave-Dateien",
   "filesProductBoundaryTitle": "Weave-Produktgrenze",
-  "filesProductBoundaryBody": "Dateiaktionen nutzen die Weave-Backend-Fassade. Nextcloud bleibt Speicheranbieter sowie Admin-/Fallback-Oberfläche; rohe Anbieterpfade und Zugangsdaten gehören nicht zur normalen Dateien-UX.",
+  "filesProductBoundaryBody": "Dateiaktionen laufen über die Weave-Workspace-Dienst-Fassade. Dateispeicher bleibt Teil der Admin- und Fallback-Ebene; rohe Dienstpfade und Zugangsdaten gehören nicht zur normalen Dateien-Oberfläche.",
   "filesConnectButton": "Dateien verbinden",
   "filesReconnectButton": "Dateien neu verbinden",
   "filesDisconnectButton": "Trennen",
@@ -329,7 +353,7 @@
   "calendarScreenTitle": "Kalender",
   "deckScreenTitle": "Boards-Workspace",
   "settingsScreenTitle": "Einstellungen",
-  "settingsBrandSectionDescription": "Weave bringt Nachrichten, Dateien und Kalender in einem Workspace zusammen, während auf diesem Bildschirm die Serververbindung dahinter verwaltet wird.",
+  "settingsBrandSectionDescription": "Passe Weave für dieses Gerät an: Darstellung, Sprache, Profil, Modulansicht und sichere Abmeldung.",
   "settingsThemeTitle": "Darstellung",
   "settingsThemeDescription": "Wähle den visuellen Stil für dieses Profil. Workspace-Branding bleibt getrennt, damit deine persönliche Auswahl nicht von der Admin-Einrichtung überschrieben wird.",
   "settingsThemeSystemTitle": "Geräteeinstellung nutzen",
@@ -342,6 +366,16 @@
   "settingsThemeHighContrastDescription": "Nutzt stärkere Kontraste und folgt weiter der hellen oder dunklen Geräteeinstellung.",
   "settingsThemeLoading": "Darstellungseinstellungen werden geladen…",
   "settingsThemeError": "Darstellungseinstellungen konnten nicht gespeichert werden. Versuche, die Einstellung erneut zu ändern.",
+  "settingsLanguageTitle": "Sprache",
+  "settingsLanguageDescription": "Wähle die App-Sprache für dieses Gerät. Die Geräteeinstellung folgt iOS, Android oder Desktop.",
+  "settingsLanguageSystemTitle": "Gerätesprache verwenden",
+  "settingsLanguageSystemDescription": "Folgt der Spracheinstellung deines Geräts.",
+  "settingsLanguageEnglishTitle": "Englisch",
+  "settingsLanguageEnglishDescription": "Zeigt Weave auf Englisch an.",
+  "settingsLanguageGermanTitle": "Deutsch",
+  "settingsLanguageGermanDescription": "Zeigt Weave auf Deutsch an.",
+  "settingsLanguageLoading": "Spracheinstellungen werden geladen…",
+  "settingsLanguageError": "Spracheinstellungen konnten nicht gespeichert werden. Versuche, die Einstellung erneut zu ändern.",
   "settingsHelpTitle": "Hilfe und Benutzerhandbuch",
   "settingsHelpDescription": "Öffne praktische Hilfe zur Nutzung von Weave, zur Wiederherstellung bei Problemen und zu Datenschutz-Grundlagen.",
   "helpScreenTitle": "Hilfe",
@@ -353,9 +387,9 @@
   "helpEmbeddedManualPermissionLabel": "Eingeschränkte Einbettung: kein breiter Skript-, Kamera-, Mikrofon- oder Provider-Zugriff",
   "helpEmbeddedManualUnavailableLabel": "Wenn gebaute Dokumentation nicht verfügbar ist, zeigt Weave diesen support-sicheren Fallback statt Dateisystem- oder Provider-Fehlern.",
   "helpWhatIsWeaveTitle": "Was Weave ist",
-  "helpWhatIsWeaveBody": "Weave ist eine Zusammenarbeits-App für Teams, die einen barrierearmen Workspace nutzen möchten, ohne Datensouveränität aufzugeben. Chat, Dateien, Kontoeinstellungen und weitere Zusammenarbeitsmodule erscheinen in Weave, während offene Dienste wie Matrix, Nextcloud, Keycloak und das Weave-Backend im Hintergrund arbeiten.",
+  "helpWhatIsWeaveBody": "Weave ist eine Zusammenarbeits-App für Teams, die einen barrierearmen Workspace nutzen möchten, ohne Datensouveränität aufzugeben. Chat, Dateien, Kontoeinstellungen und weitere Zusammenarbeitsmodule erscheinen in Weave, während offene Dienste im Hintergrund hinter Weave-Fassaden arbeiten.",
   "helpSignInTitle": "Anmelden: Grundlagen",
-  "helpSignInBody": "Nutze die Workspace-Adresse deines Admins und melde dich dann einmal mit Weave-SSO an. Für die normale Nutzung solltest du keine separaten Matrix- oder Nextcloud-Passwörter brauchen. Wenn die Anmeldung scheitert oder in einer Schleife hängt, prüfe deine Verbindung, bestätige die Serveradresse in den Einstellungen und frage einen Admin, ob deine Einladung oder dein Konto aktiv ist.",
+  "helpSignInBody": "Nutze die Workspace-Adresse deines Admins und melde dich dann einmal mit Weave-SSO an. Für die normale Nutzung solltest du keine separaten Passwörter für Chat, Dateien oder Kalender brauchen. Wenn die Anmeldung scheitert oder in einer Schleife hängt, prüfe deine Verbindung, bestätige die Serveradresse in den Einstellungen und frage einen Admin, ob deine Einladung oder dein Konto aktiv ist.",
   "helpChatTitle": "Chat",
   "helpChatBody": "Chat ist der tägliche Ort für Unterhaltungen und Nachrichten. Öffne Chat über die Hauptnavigation und wähle dann eine Unterhaltung. Weave zeigt Unterhaltungs- und Wiederherstellungszustände sichtbar an, damit du erkennst, ob Chat verbunden ist, wartet, beeinträchtigt ist oder Admin-Aufmerksamkeit braucht.",
   "helpFilesTitle": "Dateien",
@@ -367,7 +401,7 @@
   "helpTroubleshootingTitle": "Fehlersuche und Wiederherstellung",
   "helpTroubleshootingBody": "Wenn etwas nicht lädt, nutze zuerst Erneut versuchen. Wenn eine alte Chat-Raumliste oder ein alter Ordner sichtbar bleibt, bewahrt Weave deinen Kontext, während die Aktualisierung fehlschlägt. Dauerhafte Einrichtungs-, Anmelde-, Matrix-, Datei- oder Backend-Fehler solltest du deinem Admin zusammen mit der sichtbaren Meldung und der Serveradresse aus den Einstellungen melden.",
   "helpPrivacySecurityTitle": "Datenschutz und Sicherheit: Grundlagen",
-  "helpPrivacySecurityBody": "Dein Workspace kontrolliert seine eigenen Dienste und Daten. Weave nutzt SSO für den Zugriff und zeigt den Matrix-Sicherheitsstatus ehrlich an. Gehe nicht davon aus, dass Chat vollständig Ende-zu-Ende-verschlüsselt ist, solange Weave nicht meldet, dass Matrix-Verschlüsselung, Wiederherstellung und Gerätevertrauen gesund sind. Bewahre Wiederherstellungsschlüssel sicher auf und melde verlorene Geräte deinem Admin.",
+  "helpPrivacySecurityBody": "Dein Workspace kontrolliert seine eigenen Dienste und Daten. Weave nutzt SSO für den Zugriff und zeigt den Chat-Sicherheitsstatus ehrlich an. Gehe nicht davon aus, dass jeder Chat vollständig Ende-zu-Ende-verschlüsselt ist, solange Weave nicht meldet, dass verschlüsselte Räume, Wiederherstellung und Gerätevertrauen gesund sind. Bewahre Wiederherstellungsschlüssel sicher auf und melde verlorene Geräte deinem Admin.",
   "settingsShellModulesTitle": "Shell-Module",
   "settingsShellModulesDescription": "Wähle, welche Workspace-Shell-Module sichtbar bleiben. Die Navigation bleibt verfügbar, auch wenn ein Modul ausgeblendet ist.",
   "settingsShellWorkspaceStatusToggleTitle": "Workspace-Statusübersicht",
@@ -421,13 +455,13 @@
   "settingsWorkspaceConnectionRequiresReauthentication": "Anmeldung nötig",
   "settingsWorkspaceConnectionUnavailableOnPlatform": "Auf dieser Plattform nicht verfügbar",
   "settingsWorkspaceInvalidationAuthConfigurationChanged": "Anmeldekonfiguration geändert",
-  "settingsWorkspaceInvalidationMatrixHomeserverChanged": "Matrix-Homeserver geändert",
-  "settingsWorkspaceInvalidationNextcloudBaseUrlChanged": "Nextcloud-Basis-URL geändert",
+  "settingsWorkspaceInvalidationChatConfigurationChanged": "Chat-Konfiguration geändert",
+  "settingsWorkspaceInvalidationFilesConfigurationChanged": "Dateien-Konfiguration geändert",
   "settingsWorkspaceInvalidationExplicitSignOut": "Manuell abgemeldet",
   "settingsWorkspaceInvalidationRestartSetup": "Einrichtung neu gestartet",
   "settingsWorkspaceInvalidationBackendApiBaseUrlChanged": "Backend-API-URL geändert",
   "chatSecuritySectionTitle": "Matrix-Sicherheit",
-  "chatSecuritySectionDescription": "Weave behandelt Matrix-Verschlüsselung nur dann als gesund, wenn Secret Storage, Cross-Signing, Wiederherstellung und Gerätevertrauen vollständig eingerichtet sind.",
+  "chatSecuritySectionDescription": "Weave bewertet verschlüsselte Chaträume nur dann als gesund, wenn Secret Storage, Cross-Signing, Wiederherstellung und Gerätevertrauen vollständig eingerichtet sind.",
   "chatSecurityRecoveryKeyTitle": "Diesen Matrix-Wiederherstellungsschlüssel jetzt sichern",
   "chatSecurityRecoveryKeyDescription": "Weave verlässt sich für diesen Schlüssel nicht auf app-internen Speicher, weil sicherer Speicher nach Neuinstallation, Gerätewechsel oder manchen Wiederherstellungen verschwinden kann. Bewahren Sie ihn in Ihrem Passwortmanager oder an einem anderen sicheren Ort auf.",
   "chatSecurityBannerTitle": "Matrix-Sicherheit braucht Aufmerksamkeit",
@@ -469,12 +503,12 @@
   "chatSecurityStatusReady": "Bereit",
   "chatSecurityEncryptedRoomsStatusNone": "Noch keine verschlüsselten Räume",
   "chatSecurityEncryptedRoomsStatusAttention": "Verschlüsselte Räume brauchen Aufmerksamkeit",
-  "chatSecuritySetupDescriptionSignedOut": "Öffne Chat und verbinde Matrix, bevor du die Verschlüsselung verwaltest.",
+  "chatSecuritySetupDescriptionSignedOut": "Öffne Chat und verbinde deine Chat-Sitzung, bevor du die Sicherheit verschlüsselter Räume verwaltest.",
   "chatSecuritySetupDescriptionNotInitialized": "Richte Secret Storage, Cross-Signing und Online-Schlüssel-Backup ein, bevor du verschlüsselten Räumen vertraust.",
   "chatSecuritySetupDescriptionPartiallyInitialized": "Einige Verschlüsselungsteile sind vorhanden, aber Wiederherstellung oder Cross-Signing sind noch unvollständig.",
   "chatSecuritySetupDescriptionRecoveryRequired": "Dieses Konto wurde schon eingerichtet, aber dieses Gerät benötigt den Wiederherstellungsschlüssel oder die Passphrase, um sich sicher wieder zu verbinden.",
   "chatSecuritySetupDescriptionReady": "Dieses Gerät kann die aktuelle Matrix-Kryptoidentität und Wiederherstellung verwenden.",
-  "chatSecuritySetupDescriptionUnavailable": "Matrix-Verschlüsselung ist auf dieser Plattform nicht verfügbar.",
+  "chatSecuritySetupDescriptionUnavailable": "Sicherheit für verschlüsselte Chaträume ist auf dieser Plattform nicht verfügbar.",
   "chatSecurityCurrentDeviceDescriptionVerified": "Ein anderes vertrauenswürdiges Matrix-Gerät hat diese Sitzung verifiziert.",
   "chatSecurityCurrentDeviceDescriptionUnverified": "Vergleiche Sicherheits-Emojis oder Zahlen mit einem anderen angemeldeten Matrix-Gerät.",
   "chatSecurityCurrentDeviceDescriptionBlocked": "Dieses Gerät ist blockiert oder seine Vertrauenskette ist beschädigt.",
@@ -555,6 +589,21 @@
   "settingsWorkspacePolicyDisabled": "Per Policy deaktiviert",
   "settingsWorkspacePolicyUnavailable": "Nicht verfügbar",
   "settingsWorkspaceImpactLabel": "Member-Auswirkung",
+  "settingsWorkspaceRecoveryLabel": "Wiederherstellung",
+  "settingsWorkspaceRecoveryAvailable": "Verfügbar",
+  "settingsWorkspaceRecoveryDisabledByPolicy": "Per Policy deaktiviert",
+  "settingsWorkspaceRecoveryNotConfigured": "Admin-Einrichtung nötig",
+  "settingsWorkspaceRecoveryDegraded": "Eingeschränkt",
+  "settingsWorkspaceRecoveryUnavailable": "Nicht verfügbar",
+  "settingsWorkspaceRecoveryComingLater": "Kommt später",
+  "settingsWorkspaceRecoveryAvailableAction": "Es ist keine Wiederherstellungsaktion nötig.",
+  "settingsWorkspaceRecoveryDisabledByPolicyAction": "Frage eine Workspace-Adminperson, falls deine Rolle oder Gruppe Zugriff erhalten soll.",
+  "settingsWorkspaceRecoveryNotConfiguredAction": "Eine Workspace-Adminperson muss die Einrichtung abschließen, bevor Mitglieder diese Capability nutzen können.",
+  "settingsWorkspaceRecoveryDegradedAction": "Du kannst weiterarbeiten, aber einige Aktionen können eingeschränkt sein, bis der Workspace-Status wiederhergestellt ist.",
+  "settingsWorkspaceRecoveryUnavailableAction": "Diese Capability ist im aktuellen Workspace-Status nicht verfügbar.",
+  "settingsWorkspaceRecoveryComingLaterAction": "Diese Capability bleibt verborgen, bis die Organisation sie für Mitglieder aktiviert.",
+  "settingsWorkspaceRecoverySupportRefUnavailable": "Nicht bereitgestellt",
+  "settingsWorkspaceRecoverySemanticLabel": "{capability}. Status: {state}. Wiederherstellung: {recovery}. Support-Referenz: {supportRef}.",
   "settingsProviderStackSemanticLabel": "Bereitschaft des Provider-Stacks. Backend-Fassaden: {backendOwnedFacades}. Flutter-Provider-Aufrufe: {flutterCalls}.",
   "settingsProviderStackFailClosedDescription": "Provider-Integrationen bleiben fail-closed hinter Backend-eigenen Fassaden. Flutter ruft Nextcloud, Matrix-Auth, OpenProject, Office oder andere Provider-APIs nicht direkt auf.",
   "settingsProviderStackNeedsReviewDescription": "Die Provider-Bereitschaft muss geprüft werden, bevor direkte Starts oder Workspace-Aktionen aktiviert werden.",
@@ -792,6 +841,9 @@
   "serverConfigurationClientIdHelper": "Gib die public/native Client-ID ein, die für Weave bei diesem Issuer registriert ist.",
   "serverConfigurationServicesLabel": "Dienstendpunkte",
   "serverConfigurationServicesHelper": "Standardwerte für Matrix, Nextcloud und die Backend-API werden aus dem Issuer-Host abgeleitet. Ändere sie, wenn deine Dienste anderswo liegen.",
+  "serverConfigurationBackendApiHelper": "Der Mitglieder-Client speichert den Weave-Backend-API-Endpunkt für Organisationsfunktionen und Workspace-Status. Provider-Service-URLs bleiben in Admin-/Support-Diagnosen.",
+  "serverConfigurationIdentityEndpointTitle": "Identitätsendpunkt",
+  "serverConfigurationIdentityEndpointHelper": "Provider-Auswahl gehört in die Weave Admin Console und Backend-Control-Plane. Dieser Mitglieder-Client speichert nur kanonische Weave-Endpunkte für die Anmeldung.",
   "serverConfigurationMatrixLabel": "Matrix-Homeserver-URL",
   "serverConfigurationNextcloudLabel": "Nextcloud-Basis-URL",
   "serverConfigurationBackendApiLabel": "Backend-API-Basis-URL",
@@ -806,9 +858,11 @@
   "oidcRegistrationHelpPostLogoutRedirectValue": "Post-Logout-Redirect: {value}",
   "signInScreenTitle": "Anmelden",
   "signInTitle": "Zum Fortfahren anmelden",
-  "signInDescription": "Weave ist konfiguriert. Verwende dein Provider-Konto im Systembrowser, um die authentifizierte App zu öffnen.",
+  "signInDescription": "Melde dich mit deinem Weave-Arbeitsbereich an, um fortzufahren. Deine Einladung oder dein Organisationskonto öffnet die App sicher im Systembrowser.",
   "signInConfigurationTitle": "Aktuelle Anmeldekonfiguration",
-  "signInConfigurationProvider": "Provider: {value}",
+  "signInHandoffConfigurationDescription": "Deine Weave-Einladung hat den Arbeitsbereich-Anmeldeendpunkt ausgewählt. Fahre mit SSO fort; falls das nicht klappt, bitte eine Admin-/Operator-Person um eine neue Einladung und nenne WEAVE-SSO-NOT-COMPLETE.",
+  "signInHandoffReadyTitle": "Arbeitsbereich-Einladung bereit",
+  "signInHandoffReadyDescription": "Weave hat den Dogfood-Handoff für {organization}/{workspace} verarbeitet. Fahre mit SSO für Lauf {runId} fort.",
   "signInConfigurationIssuer": "Issuer: {value}",
   "signInConfigurationClientId": "Client-ID: {value}",
   "signInButton": "Anmelden",
@@ -816,6 +870,13 @@
   "signInBackToSetupButton": "Zurück zur Einrichtung",
   "signInMissingConfigurationTitle": "Einrichtung abschließen, um dich anzumelden",
   "signInMissingConfigurationDescription": "Weave benötigt noch eine gültige Issuer-URL und Client-ID, bevor der Browser-Anmeldefluss gestartet werden kann.",
+  "signInCancelled": "Die Anmeldung wurde abgebrochen.",
+  "signInConfigurationFailure": "Die Anmeldekonfiguration ist unvollständig. Bitte eine Admin-/Operator-Person um eine neue Einladung.",
+  "signInProtocolFailure": "Die Anmeldung konnte nicht abgeschlossen werden. Bitte eine Admin-/Operator-Person, die Identitätseinrichtung zu prüfen, und nenne WEAVE-SSO-NOT-COMPLETE.",
+  "signInStorageFailure": "Weave konnte die Sitzung auf diesem Gerät nicht speichern. Prüfe Speicher- und Sicherheitseinstellungen des Geräts und versuche es erneut.",
+  "signInUnsupportedPlatform": "Dieses Gerät kann den sicheren Weave-Anmeldefluss nicht öffnen.",
+  "signInUnknownFailure": "Weave konnte dich gerade nicht anmelden. Versuche es erneut oder bitte eine Admin-/Operator-Person um eine neue Einladung.",
+  "signInOfflineSessionNotAllowed": "Diese Organisation erlaubt für dieses Konto noch keine langlebigen mobilen Sitzungen. Bitte eine Admin-/Operator-Person, mobilen Sitzungszugriff zu aktivieren, und melde dich dann erneut an.",
   "profileSectionTitle": "Weave-Profil",
   "profileSectionDescription": "Dieses Profil kommt aus der Weave-Backend-Identitätsfassade und wird von Produktmodulen gemeinsam genutzt.",
   "profileLoadFailure": "Das Weave-Profil konnte gerade nicht geladen werden.",
@@ -1013,7 +1074,7 @@
   "chatContextAgentHintTitle": "Agent-Kontextpakete",
   "chatContextAgentHintDescription": "Assistenten erhalten nur das begrenzte Paket für Anfrage, Erwähnung oder Zeitplan.",
   "firstRunAdminSetupTitle": "Owner-/Admin-Verantwortung bei der Einrichtung",
-  "firstRunAdminSetupDescription": "Deine Rolle darf die Workspace-Einrichtung verwalten. OIDC-, Realm-, Organisations-, Einladungs- und Dienstendpunkt-Änderungen gehören hier oder in die Einstellungen; normale Nutzer sollen nur eine Weave-Anmeldung brauchen.",
+  "firstRunAdminSetupDescription": "Deine Rolle darf die Einrichtung des Arbeitsbereichs verwalten. Nutze die Admin-Einstellungen für Organisationszugang, Einladungen, Funktionsbereitschaft und Wiederherstellung; normale Mitglieder sollen nur eine Weave-Anmeldung brauchen.",
   "agentCapabilityPolicyTitle": "Governance für KI-Agenten-Funktionen",
   "@agentCapabilityPolicyTitle": {
     "description": "Settings card title for AI agent capability governance"
@@ -1078,7 +1139,6 @@
   "@agentCapabilityPolicyLoading": {
     "description": "Loading message for AI agent capability policy settings section"
   },
-
   "weaverMemberTitle": "Mein Weaver",
   "@weaverMemberTitle": {
     "description": "Title for the governed member Weaver settings entry point"
@@ -1272,5 +1332,137 @@
   "connectorPreviewTileSemanticLabel": "{name}. Status {statusLabel}. {summary} {auditSummary} {actionsState}; die App verarbeitet kein Provider-Geheimnis.",
   "channelWorkspaceStatusDisabledByPolicy": "disabled_by_policy",
   "channelWorkspaceStatusDegraded": "degraded",
-  "agentCapabilityAvailabilityDisabledByPolicy": "Durch Policy deaktiviert"
+  "agentCapabilityAvailabilityDisabledByPolicy": "Durch Policy deaktiviert",
+  "chatWeaverBetaTitle": "Weaver Beta helper",
+  "@chatWeaverBetaTitle": {
+    "description": "Title for the bounded Weaver helper card in chat home"
+  },
+  "chatWeaverBetaDescription": "Weaver stays inside this Weave workspace and can only use approved capabilities. Members see approved Weave actions, not internal runtime catalogs.",
+  "@chatWeaverBetaDescription": {
+    "description": "Description for bounded Weaver helper card"
+  },
+  "chatWeaverBetaConnectedState": "Connected",
+  "@chatWeaverBetaConnectedState": {
+    "description": "Weaver connection state label"
+  },
+  "chatWeaverBetaUnconnectedState": "Unconnected",
+  "@chatWeaverBetaUnconnectedState": {
+    "description": "Weaver connection state label"
+  },
+  "chatWeaverBetaEnabledState": "Weaver enabled",
+  "@chatWeaverBetaEnabledState": {
+    "description": "Weaver enabled state label"
+  },
+  "chatWeaverBetaDisabledState": "Weaver disabled",
+  "@chatWeaverBetaDisabledState": {
+    "description": "Weaver disabled state label"
+  },
+  "chatWeaverBetaCapabilityUnavailableState": "Capability unavailable",
+  "@chatWeaverBetaCapabilityUnavailableState": {
+    "description": "Weaver capability unavailable state label"
+  },
+  "chatWeaverBetaApprovalRequiredState": "Approval required for sensitive actions",
+  "@chatWeaverBetaApprovalRequiredState": {
+    "description": "Weaver approval state label"
+  },
+  "chatWeaverBetaDeniedFailedState": "Denied or failed safely",
+  "@chatWeaverBetaDeniedFailedState": {
+    "description": "Weaver denied/failed state label"
+  },
+  "chatWeaverBetaSupportSafeResult": "Results show a summary, status, and audit reference only; secrets and raw provider payloads stay out of the member view.",
+  "@chatWeaverBetaSupportSafeResult": {
+    "description": "Support-safe result note for Weaver helper"
+  },
+  "chatWeaverBetaSemanticLabel": "Weaver Beta helper. Personal helper: {personalState}. Channel helper: {channelState}. Workspace connection: {connectionState}. Results are support-safe and do not expose secrets or raw provider payloads.",
+  "@chatWeaverBetaSemanticLabel": {
+    "description": "Accessibility label for Weaver helper card",
+    "placeholders": {
+      "personalState": {
+        "type": "String"
+      },
+      "channelState": {
+        "type": "String"
+      },
+      "connectionState": {
+        "type": "String"
+      }
+    }
+  },
+  "setupMemberHandoffTitle": "Über Einladung oder Organisationsanmeldung beitreten",
+  "@setupMemberHandoffTitle": {
+    "description": "Title for the normal member handoff-first setup screen"
+  },
+  "setupMemberHandoffDescription": "Öffne den Einladungslink, /join-Link oder die Organisations-Anmelde-URL, die dein Admin gesendet hat. Weave bereitet deinen Workspace aus dem Organisationsmanifest vor, ohne dass du Anbieter-Endpunkte bearbeiten musst.",
+  "@setupMemberHandoffDescription": {
+    "description": "Description for the normal member handoff-first setup screen"
+  },
+  "setupMemberHandoffPrimaryAction": "Ich habe eine Einladung oder einen Anmeldelink",
+  "@setupMemberHandoffPrimaryAction": {
+    "description": "Primary action label for handoff-first setup"
+  },
+  "setupMemberHandoffPrimaryGuidance": "Nutze den Link aus Browser, E-Mail oder Chat. Wenn er fehlt oder abgelaufen ist, bitte deinen Workspace-Admin um eine neue Einladung.",
+  "@setupMemberHandoffPrimaryGuidance": {
+    "description": "Guidance for using a member handoff link"
+  },
+  "setupMemberHandoffAdminNoteTitle": "Admins und Operatoren",
+  "@setupMemberHandoffAdminNoteTitle": {
+    "description": "Heading for operator-only setup note"
+  },
+  "setupMemberHandoffAdminNote": "Rohdaten zu Anbieter-Endpunkten werden im Admin- oder Operator-Recovery verwaltet, nicht im normalen Mitglieder-Onboarding.",
+  "@setupMemberHandoffAdminNote": {
+    "description": "Note explaining raw provider setup boundary"
+  },
+  "setupOpenOperatorRecoveryButton": "Operator-Recovery-Setup öffnen",
+  "@setupOpenOperatorRecoveryButton": {
+    "description": "Button that opens admin/operator raw endpoint recovery setup"
+  },
+  "setupOperatorRecoveryTitle": "Operator-Recovery-Setup",
+  "@setupOperatorRecoveryTitle": {
+    "description": "Title for the explicit operator recovery setup mode"
+  },
+  "memberHandoffLoadingTitle": "Weave-Einladung wird geöffnet",
+  "@memberHandoffLoadingTitle": {
+    "description": "Loading title while consuming a member handoff"
+  },
+  "memberHandoffLoadingHint": "Wir bereiten die Anmeldung für diesen Workspace vor.",
+  "@memberHandoffLoadingHint": {
+    "description": "Loading hint while consuming a member handoff"
+  },
+  "memberHandoffReadyTitle": "Workspace bereit zur Anmeldung",
+  "@memberHandoffReadyTitle": {
+    "description": "Success title shown after a member handoff is consumed and before sign-in"
+  },
+  "memberHandoffReadyGuidance": "Weave hat {organization}/{workspace} aus der Einladung vorbereitet. Fahre als Nächstes mit der Workspace-Anmeldung fort.",
+  "@memberHandoffReadyGuidance": {
+    "description": "Success guidance shown after a member handoff is consumed and before sign-in",
+    "placeholders": {
+      "organization": {
+        "type": "String"
+      },
+      "workspace": {
+        "type": "String"
+      }
+    }
+  },
+  "memberHandoffErrorTitle": "Diese Weave-Einladung konnte nicht geöffnet werden",
+  "@memberHandoffErrorTitle": {
+    "description": "Error title when member handoff consumption fails"
+  },
+  "memberHandoffErrorGuidance": "Die Einladung ist möglicherweise abgelaufen, unvollständig oder noch nicht bereit. Bitte deinen Workspace-Admin um eine neue Einladung oder Organisations-Anmelde-URL.",
+  "@memberHandoffErrorGuidance": {
+    "description": "Support-safe guidance when member handoff consumption fails"
+  },
+  "memberHandoffTlsErrorGuidance": "Weave konnte die Startkonfiguration des Workspaces nicht über vertrauenswürdiges TLS erreichen. Für lokales Dogfood installiere die Weave Local Development CA auf diesem iPhone und aktiviere volles Vertrauen, oder bitte deinen Admin um eine öffentlich vertrauenswürdige Organisations-Anmelde-URL.",
+  "@memberHandoffTlsErrorGuidance": {
+    "description": "Support-safe guidance when member handoff consumption fails because platform config TLS trust is missing"
+  },
+  "memberHandoffErrorCode": "Fehlercode: {code}",
+  "@memberHandoffErrorCode": {
+    "description": "Support-safe handoff failure code shown with the member handoff error",
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  }
 }

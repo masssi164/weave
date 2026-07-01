@@ -13,10 +13,6 @@ java {
     }
 }
 
-repositories {
-    mavenCentral()
-}
-
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.springframework.boot:spring-boot-starter-web'
@@ -36,9 +32,12 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+    if (System.getProperty('weave.openapi.export.path') != null) {
+        systemProperty 'weave.openapi.export.path', System.getProperty('weave.openapi.export.path')
+    }
 }
 
-tasks.named('wrapper') {
+tasks.matching { it.name == 'wrapper' }.configureEach {
     gradleVersion = '8.7'
     distributionType = Wrapper.DistributionType.ALL
 }

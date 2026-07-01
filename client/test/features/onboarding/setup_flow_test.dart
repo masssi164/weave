@@ -41,7 +41,6 @@ class _FakeOidcClient implements OidcClient {
 }
 
 void main() {
-  // Acceptance evidence: the legacy admin-provider category label `Configure provider categories` is intentionally not rendered in the member-facing setup flow; the visible copy is `Configure workspace capabilities`.
   group('SetupFlow', () {
     late InMemoryPreferencesStore preferencesStore;
 
@@ -88,35 +87,41 @@ void main() {
       preferencesStore = InMemoryPreferencesStore();
     });
 
-    testWidgets('renders first step with workspace capability fields', (
+    testWidgets('renders member handoff first without raw provider fields', (
       tester,
     ) async {
       await tester.pumpWidget(buildApp());
       await tester.pumpAndSettle();
 
       expect(find.byType(WeaveLogo), findsOneWidget);
-      expect(find.text('Configure workspace capabilities'), findsOneWidget);
-      expect(find.text('Provider categories'), findsOneWidget);
-      expect(find.text('Identity/IDM'), findsOneWidget);
-      expect(find.text('Documents/collaboration'), findsOneWidget);
-      expect(find.text('Weaver'), findsOneWidget);
-      expect(find.text('Identity endpoint'), findsOneWidget);
       expect(
-        find.textContaining(
-          'Provider selection is owned by the Weave Admin Console',
-        ),
+        find.text('Join from an invite or organization sign-in'),
         findsOneWidget,
       );
+      expect(find.text('I have an invite or sign-in link'), findsOneWidget);
+      expect(find.text('Open operator recovery setup'), findsOneWidget);
+      expect(find.text('Configure provider categories'), findsNothing);
+      expect(find.text('Provider categories'), findsNothing);
+      expect(find.text('Identity endpoint'), findsNothing);
       expect(find.text('Provider type'), findsNothing);
-      expect(find.text('OIDC Client ID'), findsOneWidget);
-      expect(find.text('Next'), findsOneWidget);
+      expect(find.text('OIDC Client ID'), findsNothing);
+      expect(find.text('OIDC Issuer URL'), findsNothing);
+      expect(find.text('Nextcloud Base URL'), findsNothing);
     });
 
-    testWidgets('derives service endpoints from the issuer host', (
+    testWidgets('derives backend API handoff from the issuer host', (
       tester,
     ) async {
       await tester.pumpWidget(buildApp());
       await tester.pumpAndSettle();
+
+      await tester.ensureVisible(find.text('Open operator recovery setup'));
+      await tester.tap(find.text('Open operator recovery setup'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Provider categories'), findsOneWidget);
+      expect(find.text('Documents/collaboration'), findsOneWidget);
+      expect(find.text('Weaver'), findsOneWidget);
 
       await tester.enterText(
         _textFieldWithLabel('OIDC Issuer URL'),
@@ -125,10 +130,17 @@ void main() {
       await tester.tap(find.text('Next'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Review Workspace Readiness'), findsOneWidget);
-      expect(find.text('https://matrix.home.internal'), findsWidgets);
-      expect(find.text('https://files.home.internal'), findsWidgets);
+      expect(find.text('Review Backend API'), findsOneWidget);
+      expect(
+        find.textContaining('The member client stores the Weave backend API'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Defaults for Matrix'), findsNothing);
+      expect(find.text('https://matrix.home.internal'), findsNothing);
+      expect(find.text('https://files.home.internal'), findsNothing);
       expect(find.text('https://api.home.internal/api'), findsWidgets);
+      expect(_textFieldWithLabel('Matrix Homeserver URL'), findsNothing);
+      expect(_textFieldWithLabel('Nextcloud Base URL'), findsNothing);
       expect(find.text('Finish'), findsOneWidget);
     });
 
@@ -138,6 +150,10 @@ void main() {
       await tester.pumpWidget(buildApp());
       await tester.pumpAndSettle();
 
+      await tester.ensureVisible(find.text('Open operator recovery setup'));
+      await tester.tap(find.text('Open operator recovery setup'));
+      await tester.pumpAndSettle();
+
       await tester.enterText(
         _textFieldWithLabel('OIDC Issuer URL'),
         'https://auth.home.internal',
@@ -145,10 +161,6 @@ void main() {
       await tester.tap(find.text('Next'));
       await tester.pumpAndSettle();
 
-      await tester.enterText(
-        _textFieldWithLabel('Nextcloud Base URL'),
-        'https://files.home.internal',
-      );
       await tester.tap(find.text('Finish'));
       await tester.pumpAndSettle();
 
@@ -157,13 +169,19 @@ void main() {
       final raw = preferencesStore.rawString(serverConfigurationStorageKey);
       final json = jsonDecode(raw!) as Map<String, dynamic>;
       expect(json['oidcClientId'], 'weave-app');
+      expect(json['matrixHomeserverUrl'], 'https://matrix.home.internal');
+      expect(json['nextcloudBaseUrl'], 'https://files.home.internal');
       expect(json['backendApiBaseUrl'], 'https://api.home.internal/api');
     });
 
-    testWidgets('goes back to capability step from readiness step', (
+    testWidgets('goes back to provider step from services step', (
       tester,
     ) async {
       await tester.pumpWidget(buildApp());
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(find.text('Open operator recovery setup'));
+      await tester.tap(find.text('Open operator recovery setup'));
       await tester.pumpAndSettle();
 
       await tester.enterText(
@@ -176,7 +194,7 @@ void main() {
       await tester.tap(find.text('Back'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Configure workspace capabilities'), findsOneWidget);
+      expect(find.text('Configure provider categories'), findsOneWidget);
     });
 
     testWidgets('meets androidTapTargetGuideline', (tester) async {

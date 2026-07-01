@@ -36,5 +36,8 @@
 - [ ] T041 Run `./gradlew clientCi` before merge after branch changes are committed; local uncommitted-diff check fails while this patch is still unstaged.
 - [x] T042 Run architecture-contract review and resolve API/domain drift.
 - [ ] T043 Fill PR body with spec ID, acceptance/evidence, risks, and fallback review evidence.
+- [ ] T046 [Northstar] Add executable workflow instance, approval-receipt, outcome, rollback/compensation, and audit contract before any executable-workflow availability claim.
+- [x] T047 [Northstar] Add mapped Gherkin for governed executable workflow approval, denial, drift, and support-safe evidence.
+
 - [x] T044 Keep spec status `proposed` until backend execution and policy names are accepted.
 - [x] T045 Agent handoff: preserve durable decisions, evidence, blockers, and next safe action only.

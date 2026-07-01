@@ -68,6 +68,14 @@ void main() {
         'https://api.weave.test/api/profile',
       );
       expect(capturedRequest.headers['Authorization'], 'Bearer token-123');
+      final requestBody = jsonDecode((capturedRequest as http.Request).body);
+      expect(requestBody, {
+        'displayName': 'Alice Updated',
+        'locale': 'de',
+        'timezone': 'Europe/Berlin',
+      });
+      expect(requestBody, isNot(contains('avatar')));
+      expect(requestBody, isNot(contains('profileVisibility')));
       expect(profile.displayName, 'Alice Updated');
       expect(profile.locale, 'de');
     });

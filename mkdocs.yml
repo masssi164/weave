@@ -38,18 +38,13 @@ nav:
   - Developer Handbook:
       - Overview: developer-handbook.md
       - Weave operating model: weave-operating-model.md
-      - Product architecture SSOT: product-architecture.md
-      - Product glossary: glossary.md
-      - Contract docs index: contract-docs-index.md
-      - Repository boundary: repository-boundary.md
-      - Jurisdiction legal-risk note: jurisdiction-legal-risk-note.md
-      - Adapter/provider registry: architecture/canonical-domain-adapter-registry.md
-      - MCP/domain-tool action registry: architecture/mcp-domain-tool-action-registry.md
       - Spec-driven development: spec-driven-development.md
+      - Specification source of truth: specification-source-of-truth.md
       - AI-assisted delivery orchestration: agent-team-orchestration.md
       - Lane-based PR and release workflow: gitflow-pr-workflow.md
       - DevOps branching model: devops/branching-model.md
       - DevOps release flow: devops/release-flow.md
+      - Dev/Dogfood/Main promotion flow: dev-test-main-promotion-flow.md
       - DevOps release notes policy: devops/release-notes.md
       - DevOps spec governance: devops/spec-governance.md
       - Architecture: architecture.md
@@ -62,6 +57,7 @@ nav:
       - Space anchor contract: space-anchor-contract.md
       - No-unaccounted-data-loss portability contract: architecture/no-unaccounted-data-loss.md
       - Weaver OpenClaw-derived runtime profile: architecture/weaver-openclaw-profile.md
+      - ADR-004 server OpenAPI contract authority: architecture/adr-004-server-openapi-contract-authority.md
       - Acceptance contracts: acceptance-contracts.md
       - Quality and evidence: quality-and-evidence.md
       - Build, evidence, and delivery system: build-evidence-delivery-system.md
@@ -93,6 +89,9 @@ nav:
       - Identity provisioning strategy: identity-provisioning-strategy.md
       - Admin-Suite readiness and setup contract: admin-suite-readiness-setup-contract.md
       - Governed Weaver runtime security contract: governed-weaver-runtime-security-contract.md
+      - Beta readiness slice and claim gates: beta-readiness-claim-gates.md
+      - Sprint 32 Beta readiness release evidence: evidence/sprint-32-beta-readiness-release-evidence.md
+      - Sprint 32 closure report: sprint-32-closure-report.md
       - Weaver security/privacy/accessibility evidence: evidence/weaver-security-privacy-accessibility-report.md
       - Provider replacement and anti-silo contract: provider-replacement-and-anti-silo-contract.md
       - Product trust and provider-choice claim matrix: product-trust-provider-choice-claim-matrix.md

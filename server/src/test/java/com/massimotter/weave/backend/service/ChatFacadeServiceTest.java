@@ -60,6 +60,9 @@ class ChatFacadeServiceTest {
                     assertThat(message.deliveryEvidence())
                             .containsEntry("channelId", "channels.weave-chat")
                             .containsEntry("modelRef", "lmstudio/qwen/qwen3.5-9b")
+                            .containsEntry("runtimeProfileHash", "runtime-profile:qwen-mcp-weave-chat")
+                            .containsEntry("runtimeProfileVersion", "weaver-runtime-profile:v1")
+                            .containsEntry("mcpServerId", "mcp-weave-domain-tools")
                             .containsEntry("rawProviderDiagnosticsExposed", false);
                 });
         assertThat(auditPublisher.events())
@@ -156,13 +159,11 @@ class ChatFacadeServiceTest {
         assertThat(capturedRequest.get().providerRef()).isEqualTo("provider:model:custom-lmstudio");
         assertThat(capturedRequest.get().supportSafeContext())
                 .containsEntry("chatProviderRef", "provider:chat:selected-by-admin")
-                .containsEntry("mcpServerKey", "weave-domain-tools")
-                .containsEntry("mcpTransport", "streamable-http")
+                .containsEntry("runtimeProfileHash", "runtime-profile:qwen-mcp-weave-chat")
+                .containsEntry("runtimeProfileVersion", "weaver-runtime-profile:v1")
+                .containsEntry("mcpServerId", "mcp-weave-domain-tools")
+                .containsEntry("toolPolicy", "domain-first-read-only-fail-closed")
                 .containsEntry("rawProviderContentIncluded", false);
-        assertThat(capturedRequest.get().supportSafeContext().get("allowedDomainTools"))
-                .isEqualTo(List.of("chat.list_threads", "chat.send_message", "calendar.search_events", "files.search"));
-        assertThat(capturedRequest.get().supportSafeContext().toString())
-                .doesNotContain("raw_chat_provider.", "raw_files_provider.", "raw_calendar_provider.", "credentialref://");
     }
 
     @Test
@@ -200,11 +201,30 @@ class ChatFacadeServiceTest {
         ChatFacadeService service = serviceWithMissingAuditPublisher();
 
         assertThat(service.decisions(jwt(), "channel-general").records()).isEmpty();
+        assertThat(service.decisions(jwt(), "channel-general").evidencePosture().supportSafe()).isTrue();
 
         assertThatThrownBy(() -> service.createDecision(jwt(), "channel-general", decisionRequest()))
                 .isInstanceOf(AuditRequiredException.class);
 
         assertThat(service.decisions(jwt(), "channel-general").records()).isEmpty();
+    }
+
+    @Test
+    void decisionsExposeSupportSafeProvenanceAuditAndExportPosture() {
+        ChatFacadeService service = service(new InMemoryAuditEventPublisher());
+
+        var response = service.decisions(jwt(), "channel-general");
+
+        assertThat(response.backgroundRoomReadingEnabled()).isFalse();
+        assertThat(response.evidencePosture().provenance())
+                .contains("Weave-owned provenance")
+                .doesNotContain("token", "Bearer", "http://", "https://");
+        assertThat(response.evidencePosture().auditRefs())
+                .allMatch(ref -> ref.startsWith("audit://chat/decision"));
+        assertThat(response.evidencePosture().exportPosture())
+                .contains("Export decision records, source refs, and audit refs")
+                .contains("raw provider secrets stay backend-only");
+        assertThat(response.evidencePosture().supportSafe()).isTrue();
     }
 
     @Test

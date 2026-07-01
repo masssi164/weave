@@ -16,10 +16,6 @@ GOVERNED_MCP_TOOL_ALLOWLIST = frozenset(
         "weaver.get_runtime_profile_projection",
         "calendar.search_events",
         "calendar.create_event",
-        "files.search",
-        "files.read",
-        "chat.list_threads",
-        "chat.send_message",
         "boards.comment",
     }
 )

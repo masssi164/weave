@@ -51,7 +51,7 @@ Passing on 2026-06-01 before PR creation:
 - Final `main` CI after #593 is green: run `26772955027`.
 - `main` CI after #594 is green: run `26774061338`.
 - Current credentialed Live Stack E2E after #594 is green: run `26774077031`.
-- GitHub issues #589, #590, and #592 are closed; #591 was later closed; open successor blocker #762 now carries the unresolved manual AT gap.
+- GitHub issues #589, #590, and #592 are closed; #591 is open.
 - GitHub milestone 18 is open with 1 open issue and 3 closed issues.
 
 ## Boundaries and non-claims

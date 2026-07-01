@@ -73,4 +73,76 @@ void main() {
       }
     },
   );
+
+  test(
+    'member feature providers do not import provider SDKs outside approved seams',
+    () {
+      final allowedMatrixImportFiles = <String>{
+        'lib/features/chat/data/services/matrix_client_factory.dart',
+        'lib/features/chat/data/services/matrix_client_factory_io.dart',
+        'lib/features/chat/data/services/matrix_client_factory_web.dart',
+        'lib/features/chat/data/services/matrix_conversation_service.dart',
+        'lib/features/chat/data/services/matrix_error_mapper.dart',
+        'lib/features/chat/data/services/matrix_room_service.dart',
+        'lib/features/chat/data/services/matrix_security_service.dart',
+        'lib/features/chat/data/services/matrix_session_service.dart',
+        'lib/features/chat/data/services/matrix_verification_service.dart',
+      };
+      final libFiles = Directory('lib')
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((file) => file.path.endsWith('.dart'));
+
+      for (final file in libFiles) {
+        final source = file.readAsStringSync();
+        final normalizedPath = file.path.replaceAll(r'\', '/');
+        if (source.contains("package:matrix/")) {
+          expect(
+            allowedMatrixImportFiles,
+            contains(normalizedPath),
+            reason:
+                '$normalizedPath must not import Matrix SDK outside the approved diagnostic/service seam.',
+          );
+        }
+      }
+
+      final filesFeatureSources = Directory('lib/features/files')
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((file) => file.path.endsWith('.dart'));
+      final forbiddenFilesFragments = <String>[
+        'integrations/nextcloud',
+        'nextcloudDavClientProvider',
+        'NextcloudDavClient',
+        'WebDAV',
+        'webdav',
+      ];
+      for (final file in filesFeatureSources) {
+        final imports = file
+            .readAsLinesSync()
+            .where((line) => line.trimLeft().startsWith('import '))
+            .join('\n');
+        for (final fragment in forbiddenFilesFragments) {
+          expect(
+            imports,
+            isNot(contains(fragment)),
+            reason:
+                '${file.path} must use the backend Files facade instead of direct provider seams.',
+          );
+        }
+      }
+    },
+  );
+
+  test('normal member settings cannot reach Matrix security diagnostics', () {
+    final settings = File(
+      'lib/features/settings/presentation/settings_screen.dart',
+    ).readAsStringSync();
+
+    expect(settings, isNot(contains('ChatSecuritySettingsSection')));
+    expect(settings, isNot(contains('chat_security_settings_section.dart')));
+    expect(settings, isNot(contains('chatSecurityProvider')));
+    expect(settings, isNot(contains('chatSecurityRepositoryProvider')));
+    expect(settings, isNot(contains('MatrixChatSecurityRepository')));
+  });
 }

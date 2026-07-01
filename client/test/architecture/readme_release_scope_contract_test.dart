@@ -11,7 +11,7 @@ void main() {
 
       expect(productScreenshots, contains('active product-maturity'));
       expect(productScreenshots, contains('01-setup-start.svg'));
-      expect(productScreenshots, contains('02-review-workspace-readiness.svg'));
+      expect(productScreenshots, contains('02-review-service-endpoints.svg'));
       expect(productScreenshots, contains('03-chat-room.svg'));
       expect(productScreenshots, contains('04-files-documents.svg'));
       expect(productScreenshots, contains('05-settings.svg'));

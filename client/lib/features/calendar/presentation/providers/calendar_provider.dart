@@ -65,44 +65,62 @@ class CalendarNotifier extends _$CalendarNotifier {
 
   Future<void> createEvent(CalendarEventDraft draft) async {
     final repository = ref.read(calendarRepositoryProvider);
+    final previousState = state;
     state = const AsyncLoading<CalendarEventList>();
-    state = await AsyncValue.guard(() async {
+    try {
       await repository.createEvent(draft);
-      return repository.loadEvents(
-        scope: ref.read(selectedCalendarScopeProvider),
+      state = AsyncData(
+        await repository.loadEvents(
+          scope: ref.read(selectedCalendarScopeProvider),
+        ),
       );
-    });
+    } catch (error, stackTrace) {
+      state = previousState;
+      Error.throwWithStackTrace(error, stackTrace);
+    }
   }
 
   Future<void> updateEvent(String id, CalendarEventDraft draft) async {
     final repository = ref.read(calendarRepositoryProvider);
+    final previousState = state;
     state = const AsyncLoading<CalendarEventList>();
-    state = await AsyncValue.guard(() async {
+    try {
       await repository.updateEvent(id, draft);
-      return repository.loadEvents(
-        scope: ref.read(selectedCalendarScopeProvider),
+      state = AsyncData(
+        await repository.loadEvents(
+          scope: ref.read(selectedCalendarScopeProvider),
+        ),
       );
-    });
+    } catch (error, stackTrace) {
+      state = previousState;
+      Error.throwWithStackTrace(error, stackTrace);
+    }
   }
 
   Future<void> deleteEvent(String id) async {
     final repository = ref.read(calendarRepositoryProvider);
-    final previousState = state.asData?.value;
-    if (previousState != null) {
+    final previousState = state;
+    final previousEvents = previousState.asData?.value;
+    if (previousEvents != null) {
       state = AsyncData(
         CalendarEventList(
-          scope: previousState.scope,
-          events: previousState.events
+          scope: previousEvents.scope,
+          events: previousEvents.events
               .where((event) => event.id != id)
               .toList(growable: false),
         ),
       );
     }
-    state = await AsyncValue.guard(() async {
+    try {
       await repository.deleteEvent(id);
-      return repository.loadEvents(
-        scope: ref.read(selectedCalendarScopeProvider),
+      state = AsyncData(
+        await repository.loadEvents(
+          scope: ref.read(selectedCalendarScopeProvider),
+        ),
       );
-    });
+    } catch (error, stackTrace) {
+      state = previousState;
+      Error.throwWithStackTrace(error, stackTrace);
+    }
   }
 }

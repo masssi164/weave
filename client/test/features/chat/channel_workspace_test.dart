@@ -28,11 +28,13 @@ void main() {
     expect(preview.isChannelWorkspaceGoverned, isTrue);
     expect(preview.surfaces.map((surface) => surface.kind), [
       ChannelWorkspaceSurfaceKind.chat,
-      ChannelWorkspaceSurfaceKind.decisions,
       ChannelWorkspaceSurfaceKind.files,
-      ChannelWorkspaceSurfaceKind.boards,
+      ChannelWorkspaceSurfaceKind.documents,
       ChannelWorkspaceSurfaceKind.calendar,
       ChannelWorkspaceSurfaceKind.meetings,
+      ChannelWorkspaceSurfaceKind.boards,
+      ChannelWorkspaceSurfaceKind.decisions,
+      ChannelWorkspaceSurfaceKind.evidence,
       ChannelWorkspaceSurfaceKind.weaver,
     ]);
     expect(
@@ -44,16 +46,16 @@ void main() {
       'weave-chat-conversation',
     );
     expect(
-      preview.surface(ChannelWorkspaceSurfaceKind.decisions).availability,
-      ChannelWorkspaceSurfaceAvailability.available,
-    );
-    expect(
       preview.surface(ChannelWorkspaceSurfaceKind.files).availability,
       ChannelWorkspaceSurfaceAvailability.notConfigured,
     );
     expect(
-      preview.surface(ChannelWorkspaceSurfaceKind.boards).availability,
-      ChannelWorkspaceSurfaceAvailability.degraded,
+      preview.surface(ChannelWorkspaceSurfaceKind.documents).availability,
+      ChannelWorkspaceSurfaceAvailability.available,
+    );
+    expect(
+      preview.surface(ChannelWorkspaceSurfaceKind.documents).providerContractId,
+      'weave-documents-space-collaboration',
     );
     expect(
       preview.surface(ChannelWorkspaceSurfaceKind.calendar).availability,
@@ -62,6 +64,18 @@ void main() {
     expect(
       preview.surface(ChannelWorkspaceSurfaceKind.meetings).providerContractId,
       'weave-meetings-channel-capability',
+    );
+    expect(
+      preview.surface(ChannelWorkspaceSurfaceKind.boards).availability,
+      ChannelWorkspaceSurfaceAvailability.degraded,
+    );
+    expect(
+      preview.surface(ChannelWorkspaceSurfaceKind.decisions).availability,
+      ChannelWorkspaceSurfaceAvailability.available,
+    );
+    expect(
+      preview.surface(ChannelWorkspaceSurfaceKind.evidence).providerContractId,
+      'weave-evidence-linked-record',
     );
     expect(
       preview.surface(ChannelWorkspaceSurfaceKind.weaver).providerContractId,

@@ -5,13 +5,13 @@ issue: null
 pull_request: null
 release_notes_label: release-notes-skip
 pinned_corpus_sources:
-  - specs/weave-specs.lock.json
-  - ../weave-specs (locked corpus; product/domain SSOT)
+- specs/weave-specs.lock.json
+- ../weave-specs (locked corpus; product/domain SSOT)
 repo_projection:
-  - specs/0000-weave-spec-framework/spec.md
-  - specs/0000-weave-spec-framework/plan.md
-  - specs/0000-weave-spec-framework/tasks.md
-  - specs/0000-weave-spec-framework/traceability.yaml
+- specs/0000-weave-spec-framework/spec.md
+- specs/0000-weave-spec-framework/plan.md
+- specs/0000-weave-spec-framework/tasks.md
+- specs/0000-weave-spec-framework/traceability.yaml
 spec_kit_lifecycle:
   order: Spec -> Plan -> Tasks -> Implement -> Evidence
   local_url_truth: weave.test
@@ -21,21 +21,44 @@ acceptance:
   scenario_mapping_markers: []
 evidence:
   gates:
-    - ./gradlew specContract
-    - ./gradlew specContractTest
-    - ./gradlew docsStructureCheck
-    - ./gradlew acceptanceContract
+  - ./gradlew specContract
+  - ./gradlew specContractTest
+  - ./gradlew docsStructureCheck
+  - ./gradlew acceptanceContract
   artifacts:
-    - build/evidence/ci-summary.json
+  - build/evidence/ci-summary.json
 assistant_delivery_roles:
   delivery_lead: repo-safe orchestration role
   reviewers:
-    - product-spec-steward
-    - client-accessibility
-    - server-domain-facade
-    - admin-policy
-    - provider-infra
-    - qa-evidence
-    - docs-release
-    - security-privacy
-    - integration-review
+  - product-spec-steward
+  - client-accessibility
+  - server-domain-facade
+  - admin-policy
+  - provider-infra
+  - qa-evidence
+  - docs-release
+  - security-privacy
+  - integration-review
+acceptance_features:
+- e2e/features/weave_spec_0000_acceptance.feature
+acceptance_scenarios:
+- tag: '@weave-spec-0000-frontmatter-gates'
+  evidence:
+  - client/test/live_stack_feature_mapping_test.dart
+  - e2e/scenario_mappings.json
+  - e2e/suites/scenario_catalog.json
+  assertions:
+  - frontmatter acceptance_features
+  - evidence gates present
+  - '@weave-spec-0000-frontmatter-gates'
+  - WEAVE_SPEC_0000_FRONTMATTER_GATES
+- tag: '@weave-spec-0000-product-claim-requires-scenario'
+  evidence:
+  - client/test/live_stack_feature_mapping_test.dart
+  - e2e/scenario_mappings.json
+  - e2e/suites/scenario_catalog.json
+  assertions:
+  - product claim scenario mapping
+  - merge blocked without evidence
+  - '@weave-spec-0000-product-claim-requires-scenario'
+  - WEAVE_SPEC_0000_PRODUCT_CLAIM_REQUIRES_SCENARIO

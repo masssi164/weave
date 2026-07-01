@@ -1,20 +1,43 @@
 spec_id: WEAVE-SPEC-0006
 github_issues:
-  - 429
+- 429
 artifacts:
   schemas:
-    - server/src/main/resources/contracts/portability
+  - server/src/main/resources/contracts/portability
   fixtures:
-    - specs/0006-portability-contract/migration-run-dry-run-success.json
-    - specs/0006-portability-contract/migration-run-apply-blocked.json
-    - specs/0006-portability-contract/matrix-synapse-chat-migration-proof.json
-    - specs/0006-portability-contract/matrix-synapse-chat-lifecycle-fixture.json
+  - specs/0006-portability-contract/migration-run-dry-run-success.json
+  - specs/0006-portability-contract/migration-run-apply-blocked.json
+  - specs/0006-portability-contract/matrix-synapse-chat-migration-proof.json
+  - specs/0006-portability-contract/matrix-synapse-chat-lifecycle-fixture.json
   validation:
-    - tools/portability_contract_check.py
+  - tools/portability_contract_check.py
   docs:
-    - docs/architecture/no-unaccounted-data-loss.md
+  - docs/architecture/no-unaccounted-data-loss.md
 gates:
-  - ./gradlew specContract
-  - ./gradlew portabilityContractCheck
-  - ./gradlew docsCheck
-acceptance_features: []
+- ./gradlew specContract
+- ./gradlew acceptanceContract
+- ./gradlew portabilityContractCheck
+- ./gradlew docsCheck
+acceptance_features:
+- e2e/features/weave_spec_0006_acceptance.feature
+acceptance_scenarios:
+- tag: '@weave-spec-0006-portability-manifest-accounts-loss'
+  evidence:
+  - client/test/live_stack_feature_mapping_test.dart
+  - e2e/scenario_mappings.json
+  - e2e/suites/scenario_catalog.json
+  assertions:
+  - preserved/lossy/blocked records
+  - manual review evidence
+  - WEAVE_SPEC_0006_PORTABILITY_MANIFEST_ACCOUNTS_LOSS
+  - '@weave-spec-0006-portability-manifest-accounts-loss'
+- tag: '@weave-spec-0006-lossless-claim-blocked'
+  evidence:
+  - client/test/live_stack_feature_mapping_test.dart
+  - e2e/scenario_mappings.json
+  - e2e/suites/scenario_catalog.json
+  assertions:
+  - lossless claim blocked
+  - reconciliation evidence
+  - WEAVE_SPEC_0006_LOSSLESS_CLAIM_BLOCKED
+  - '@weave-spec-0006-lossless-claim-blocked'

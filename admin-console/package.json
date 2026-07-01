@@ -6,7 +6,9 @@
   "scripts": {
     "build": "tsc --noEmit && vite build",
     "test": "vitest run --environment jsdom",
-    "ci": "npm run build && npm run test"
+    "ci": "npm run build && npm run test",
+    "generate:openapi": "cd .. && ./gradlew generateOpenApiContract generateAdminOpenApiTypes",
+    "check:openapi": "cd .. && ./gradlew checkOpenApiContractFresh checkAdminOpenApiTypesFresh"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",

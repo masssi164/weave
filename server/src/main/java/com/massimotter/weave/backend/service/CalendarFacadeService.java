@@ -1,10 +1,5 @@
 package com.massimotter.weave.backend.service;
 
-import com.massimotter.weave.backend.audit.AuditAction;
-import com.massimotter.weave.backend.audit.AuditEvent;
-import com.massimotter.weave.backend.audit.AuditEventPublisher;
-import com.massimotter.weave.backend.audit.AuditRedactionLevel;
-import com.massimotter.weave.backend.audit.AuditWriteGate;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
@@ -32,7 +27,6 @@ import com.massimotter.weave.backend.service.calendar.AppleMobileConfigProfileRe
 import com.massimotter.weave.backend.service.calendar.CalendarPrincipal;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
-import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Base64;
@@ -61,15 +55,13 @@ public class CalendarFacadeService {
     private final ContextAuthorizationPort contextAuthorizationPort;
     private final ContextAuthorizationProperties contextAuthorizationProperties;
     private final AppleMobileConfigProfileRenderer appleProfileRenderer;
-    private final AuditEventPublisher auditEventPublisher;
-    private final Clock clock;
     private final Map<String, CalendarSetupCredentialResponse> setupCredentials = new ConcurrentHashMap<>();
 
     public CalendarFacadeService(
             ObjectProvider<CalendarAdapter> calendarAdapterProvider,
             ContextAuthorizationPort contextAuthorizationPort) {
         this(calendarAdapterProvider, "https://files.weave.test", contextAuthorizationPort,
-                new ContextAuthorizationProperties(null, null, null, null, null, null, null, null), null, Clock.systemUTC());
+                new ContextAuthorizationProperties(null, null, null, null, null, null, null, null));
     }
 
     @Autowired
@@ -77,19 +69,7 @@ public class CalendarFacadeService {
             ObjectProvider<CalendarAdapter> calendarAdapterProvider,
             @Value("${weave.platform.nextcloud-base-url:https://files.weave.test}") String nextcloudBaseUrl,
             ContextAuthorizationPort contextAuthorizationPort,
-            ContextAuthorizationProperties contextAuthorizationProperties,
-            ObjectProvider<AuditEventPublisher> auditEventPublisherProvider) {
-        this(calendarAdapterProvider, nextcloudBaseUrl, contextAuthorizationPort, contextAuthorizationProperties,
-                auditEventPublisherProvider.getIfAvailable(), Clock.systemUTC());
-    }
-
-    CalendarFacadeService(
-            ObjectProvider<CalendarAdapter> calendarAdapterProvider,
-            String nextcloudBaseUrl,
-            ContextAuthorizationPort contextAuthorizationPort,
-            ContextAuthorizationProperties contextAuthorizationProperties,
-            AuditEventPublisher auditEventPublisher,
-            Clock clock) {
+            ContextAuthorizationProperties contextAuthorizationProperties) {
         this.calendarAdapterProvider = calendarAdapterProvider;
         this.contextAuthorizationPort = contextAuthorizationPort;
         this.contextAuthorizationProperties = contextAuthorizationProperties == null
@@ -99,8 +79,6 @@ public class CalendarFacadeService {
                 ? "https://files.weave.test"
                 : nextcloudBaseUrl.trim();
         this.appleProfileRenderer = new AppleMobileConfigProfileRenderer(this.nextcloudBaseUrl);
-        this.auditEventPublisher = auditEventPublisher;
-        this.clock = clock == null ? Clock.systemUTC() : clock;
     }
 
     public CalendarScopesResponse scopes() {
@@ -133,12 +111,9 @@ public class CalendarFacadeService {
 
     public CalendarEventResponse create(CreateCalendarEventRequest request) {
         CalendarScopeResponse scope = normalizeScope(request.scope(), "create-event");
-        PrincipalContext context = requireContextPermission(scope, ContextPermission.EDIT, "create-event");
-        requireAuditPublisher();
+        requireContextPermission(scope, ContextPermission.EDIT, "create-event");
         try {
-            CalendarEventResponse created = withScope(adapter("create-event").create(principal(), withScope(request, scope)), scope, true);
-            publishMutationAudit(context, AuditAction.CALENDAR_EVENT_CREATED, "create-event", scope, created.id());
-            return created;
+            return withScope(adapter("create-event").create(principal(), withScope(request, scope)), scope, true);
         } catch (CalendarAdapterException exception) {
             throw apiError(exception, "create-event");
         }
@@ -157,12 +132,9 @@ public class CalendarFacadeService {
     public CalendarEventResponse update(String id, UpdateCalendarEventRequest request) {
         ScopedEventId eventId = scopedEventId(id);
         CalendarScopeResponse scope = request.scope() == null ? eventId.scope() : normalizeScope(request.scope(), "update-event");
-        PrincipalContext context = requireContextPermission(scope, ContextPermission.EDIT, "update-event");
-        requireAuditPublisher();
+        requireContextPermission(scope, ContextPermission.EDIT, "update-event");
         try {
-            CalendarEventResponse updated = withScope(adapter("update-event").update(principal(), scope, eventId.rawId(), request), scope, true);
-            publishMutationAudit(context, AuditAction.CALENDAR_EVENT_UPDATED, "update-event", scope, updated.id());
-            return updated;
+            return withScope(adapter("update-event").update(principal(), scope, eventId.rawId(), request), scope, true);
         } catch (CalendarAdapterException exception) {
             throw apiError(exception, "update-event");
         }
@@ -170,11 +142,9 @@ public class CalendarFacadeService {
 
     public void delete(String id) {
         ScopedEventId eventId = scopedEventId(id);
-        PrincipalContext context = requireContextPermission(eventId.scope(), ContextPermission.EDIT, "delete-event");
-        requireAuditPublisher();
+        requireContextPermission(eventId.scope(), ContextPermission.EDIT, "delete-event");
         try {
             adapter("delete-event").delete(principal(), eventId.scope(), eventId.rawId());
-            publishMutationAudit(context, AuditAction.CALENDAR_EVENT_DELETED, "delete-event", eventId.scope(), eventId.rawId());
         } catch (CalendarAdapterException exception) {
             throw apiError(exception, "delete-event");
         }
@@ -542,7 +512,7 @@ public class CalendarFacadeService {
         return new CalendarPrincipal(authentication.getName(), authentication.getName());
     }
 
-    private PrincipalContext requireContextPermission(
+    private void requireContextPermission(
             CalendarScopeResponse scope,
             ContextPermission permission,
             String operation) {
@@ -573,7 +543,6 @@ public class CalendarFacadeService {
                             "contextId", contextId,
                             "permission", permission.name().toLowerCase()));
         }
-        return principalContext;
     }
 
     private PrincipalContext principalContext(Authentication authentication) {
@@ -646,39 +615,6 @@ public class CalendarFacadeService {
                     "Request validation failed.",
                     Map.of("fields", Map.of("to", "to must be after from")));
         }
-    }
-
-    private void requireAuditPublisher() {
-        if (auditEventPublisher == null) {
-            throw new com.massimotter.weave.backend.audit.AuditRequiredException("audit publisher is required before calendar mutations are allowed");
-        }
-    }
-
-    private void publishMutationAudit(PrincipalContext context, AuditAction action, String operation, CalendarScopeResponse scope, String canonicalEventId) {
-        String stableRef = stableAuditRef(scope.contextId() + ":" + canonicalEventId);
-        AuditWriteGate.publishRequired(auditEventPublisher, new AuditEvent(
-                context.tenantId(),
-                scope.contextId(),
-                context.principalRef(),
-                "calendar-facade",
-                action,
-                clock.instant(),
-                "calendar:" + operation + ":" + stableRef,
-                AuditRedactionLevel.SUPPORT_SAFE,
-                Map.of(
-                        "module", "calendar",
-                        "operation", operation,
-                        "canonicalEventId", stableRef,
-                        "mappingRef", "provider-mapping://calendar/" + stableRef,
-                        "contextId", scope.contextId(),
-                        "scopeType", scope.type())));
-    }
-
-    private String stableAuditRef(String source) {
-        if (source == null || source.isBlank()) {
-            return "unknown";
-        }
-        return Integer.toHexString(source.hashCode());
     }
 
     private ApiErrorException apiError(CalendarAdapterException exception, String fallbackOperation) {
