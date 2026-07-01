@@ -84,5 +84,16 @@ jobs:
           run_url="$(python3 -c 'import json,sys; runs=[run for run in json.load(sys.stdin).get("workflow_runs", []) if run.get("conclusion") == "success"]; print(runs[0].get("html_url", "") if runs else "")' <<<"$runs_json")"
           echo "Successful test-stack evidence: ${run_url}"
 
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
       - name: Verify root contract authority checks still pass
         run: ./gradlew --no-daemon --max-workers=1 contractAuthorityArchitectureCheck --console=plain
