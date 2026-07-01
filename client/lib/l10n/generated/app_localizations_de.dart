@@ -1217,6 +1217,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get settingsScreenTitle => 'Einstellungen';
 
   @override
+  String get workspaceHealthTitle => 'Workspace Health';
+
+  @override
   String get settingsBrandSectionDescription =>
       'Passe Weave für dieses Gerät an: Darstellung, Sprache, Profil, Modulansicht und sichere Abmeldung.';
 
@@ -1303,6 +1306,13 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get settingsHelpDescription =>
       'Öffne praktische Hilfe zur Nutzung von Weave, zur Wiederherstellung bei Problemen und zu Datenschutz-Grundlagen.';
+
+  @override
+  String get settingsWorkspaceHealthLinkTitle => 'Workspace Health';
+
+  @override
+  String get settingsWorkspaceHealthLinkDescription =>
+      'Öffne Admin-Einrichtung, Provider-Readiness, support-sichere Diagnosen und gesteuerte Agenten-Policy.';
 
   @override
   String get helpScreenTitle => 'Hilfe';

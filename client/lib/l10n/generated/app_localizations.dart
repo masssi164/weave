@@ -2033,6 +2033,12 @@ abstract class AppLocalizations {
   /// **'Settings'**
   String get settingsScreenTitle;
 
+  /// Title for the admin/support workspace health screen
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace Health'**
+  String get workspaceHealthTitle;
+
   /// Subtle branded copy shown in the settings header card
   ///
   /// In en, this message translates to:
@@ -2182,6 +2188,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Open practical guidance for using Weave, recovering from issues, and understanding privacy basics.'**
   String get settingsHelpDescription;
+
+  /// Title for the admin-only Settings link to workspace health
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace Health'**
+  String get settingsWorkspaceHealthLinkTitle;
+
+  /// Description for the admin-only Settings link to workspace health
+  ///
+  /// In en, this message translates to:
+  /// **'Open admin setup, provider readiness, support-safe diagnostics, and governed agent policy.'**
+  String get settingsWorkspaceHealthLinkDescription;
 
   /// Title for the in-app help screen app bar
   ///

@@ -80,7 +80,7 @@ class SettingsScreen extends ConsumerWidget {
                 const _ShellModuleVisibilitySettingsSection(),
                 if (canAdministerWorkspace) ...[
                   const SizedBox(height: 32),
-                  const _AdminOnlySettingsSections(),
+                  const _WorkspaceHealthLinkCard(),
                 ],
                 const SizedBox(height: 32),
                 Text(
@@ -123,6 +123,70 @@ class SettingsScreen extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class WorkspaceHealthScreen extends ConsumerWidget {
+  const WorkspaceHealthScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final profile = ref.watch(userProfileProvider);
+
+    return CustomScrollView(
+      slivers: [
+        SliverAppBar.large(title: Text(l10n.workspaceHealthTitle)),
+        SliverPadding(
+          padding: const EdgeInsets.all(24),
+          sliver: SliverToBoxAdapter(
+            child: switch (profile) {
+              AsyncData(value: final user) =>
+                user != null && user.canAdministerWorkspace
+                    ? const _AdminOnlySettingsSections()
+                    : const _AdminSetupBoundaryCard(),
+              AsyncError() => const _AdminSetupBoundaryCard(showRetry: true),
+              _ => LoadingState(
+                message: l10n.settingsAdminPermissionLoading,
+                icon: Icons.admin_panel_settings_outlined,
+              ),
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _WorkspaceHealthLinkCard extends StatelessWidget {
+  const _WorkspaceHealthLinkCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+
+    return Semantics(
+      button: true,
+      child: Card(
+        elevation: 0,
+        color: theme.colorScheme.surfaceContainerLow,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: BorderSide(color: theme.colorScheme.outlineVariant),
+        ),
+        child: ListTile(
+          leading: Icon(
+            Icons.admin_panel_settings_outlined,
+            color: theme.colorScheme.primary,
+          ),
+          title: Text(l10n.settingsWorkspaceHealthLinkTitle),
+          subtitle: Text(l10n.settingsWorkspaceHealthLinkDescription),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => context.push(AppRoutes.workspaceHealth),
+        ),
+      ),
     );
   }
 }

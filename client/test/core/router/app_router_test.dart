@@ -34,6 +34,7 @@ import 'package:weave/features/profile/presentation/providers/user_profile_provi
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
+import 'package:weave/features/settings/presentation/settings_screen.dart';
 import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
 import 'package:weave/main.dart';
 
@@ -519,6 +520,47 @@ void main() {
 
       expect(find.byType(HelpScreen), findsOneWidget);
       expect(find.text('User handbook'), findsOneWidget);
+    });
+
+    testWidgets('opens workspace health boundary for ready members', (
+      tester,
+    ) async {
+      final secureStore = InMemorySecureStore();
+      await secureStore.write(
+        authSessionStorageKey,
+        AuthSessionDto.fromSession(buildTestAuthSession()).encode(),
+      );
+      final container = createContainer(
+        configuration: buildTestConfiguration(),
+        secureStore: secureStore,
+        userProfile: const UserProfile(
+          userId: 'member-1',
+          username: 'member',
+          displayName: 'Workspace Member',
+          locale: 'en',
+          timezone: 'Europe/Berlin',
+          emailVerified: true,
+          roles: ['member'],
+          groups: ['workspace-default'],
+        ),
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const WeaveApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      container.read(appRouterProvider).go(AppRoutes.workspaceHealth);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(WorkspaceHealthScreen), findsOneWidget);
+      expect(find.text('Workspace Health'), findsWidgets);
+      expect(find.text('Workspace setup is admin-only'), findsOneWidget);
+      expect(find.text('Workspace Readiness'), findsNothing);
     });
 
     testWidgets('redirects shell routes back to welcome when setup is needed', (
