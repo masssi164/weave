@@ -456,7 +456,14 @@ void main() {
 
       expect(find.text('Appearance'), findsOneWidget);
       expect(find.text('Language'), findsOneWidget);
-      expect(find.text('Weave profile'), findsOneWidget);
+      expect(find.text('Profile'), findsOneWidget);
+      expect(
+        find.textContaining('Open profile details and editing'),
+        findsOneWidget,
+      );
+      expect(find.text('Weave profile'), findsNothing);
+      expect(find.text('Edit profile'), findsNothing);
+      expect(find.text('Save profile'), findsNothing);
       expect(find.text('Help and user handbook'), findsOneWidget);
       expect(find.text('Shell modules'), findsOneWidget);
       expect(find.text('AI agent capability governance'), findsNothing);
@@ -517,6 +524,9 @@ void main() {
         );
         await tester.pumpAndSettle();
 
+        expect(find.text('Profile'), findsOneWidget);
+        expect(find.text('Edit profile'), findsNothing);
+        expect(find.text('Save profile'), findsNothing);
         expect(find.text('Workspace Health'), findsOneWidget);
         expect(
           find.textContaining('Open admin setup, provider readiness'),

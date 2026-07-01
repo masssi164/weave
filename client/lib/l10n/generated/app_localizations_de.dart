@@ -1217,6 +1217,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get settingsScreenTitle => 'Einstellungen';
 
   @override
+  String get profileScreenTitle => 'Profil';
+
+  @override
   String get workspaceHealthTitle => 'Workspace Health';
 
   @override
@@ -1308,6 +1311,22 @@ class AppLocalizationsDe extends AppLocalizations {
       'Öffne praktische Hilfe zur Nutzung von Weave, zur Wiederherstellung bei Problemen und zu Datenschutz-Grundlagen.';
 
   @override
+  String get settingsProfileLinkTitle => 'Profil';
+
+  @override
+  String settingsProfileLinkDescription(String displayName) {
+    return 'Öffne Profildetails und Bearbeitung für $displayName.';
+  }
+
+  @override
+  String get settingsProfileLinkSignedOutDescription =>
+      'Melde dich an, um dein Weave-Profil zu sehen und zu bearbeiten.';
+
+  @override
+  String get settingsProfileLinkLoadingDescription =>
+      'Profil-Einstieg wird geladen…';
+
+  @override
   String get settingsWorkspaceHealthLinkTitle => 'Workspace Health';
 
   @override
@@ -1375,7 +1394,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get helpSettingsBody =>
-      'Einstellungen zeigt deine Profilübersicht, den Workspace-Status, die Serverkonfiguration, Matrix-Sicherheitsinformationen und die Abmeldeaktion. Nutze diesen Bereich, um zu prüfen, ob Chat, Dateien, Kalender oder andere Module bereit sind, und melde dich ab, bevor du ein Gerät an jemand anderen weitergibst.';
+      'Einstellungen zeigt Darstellung, Sprache, den Profil-Einstieg, Modulansicht, Hilfe und Abmeldung. Workspace Health bleibt hinter Admin-Oberflächen.';
 
   @override
   String get helpCalendarBoardsTitle => 'Verfügbarkeit von Kalender und Boards';
