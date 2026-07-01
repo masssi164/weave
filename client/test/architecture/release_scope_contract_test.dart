@@ -112,6 +112,7 @@ void main() {
       expect(routerSource, isNot(contains('DeckScreen')));
       expect(routesSource, contains('/home'));
       expect(routesSource, contains('/calendar'));
+      expect(routesSource, contains('/profile'));
       expect(routesSource, isNot(contains('/deck')));
       expect(
         File(

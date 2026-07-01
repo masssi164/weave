@@ -18,6 +18,7 @@ import 'package:weave/features/onboarding/presentation/member_handoff_screen.dar
 import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
 import 'package:weave/features/onboarding/presentation/setup_flow.dart';
 import 'package:weave/features/onboarding/presentation/welcome_screen.dart';
+import 'package:weave/features/profile/presentation/profile_screen.dart';
 import 'package:weave/features/settings/presentation/settings_screen.dart';
 import 'package:weave/features/shell/presentation/app_shell.dart';
 
@@ -177,6 +178,10 @@ GoRouter appRouter(Ref ref) {
               GoRoute(
                 path: AppRoutes.settings,
                 builder: (context, state) => const SettingsScreen(),
+              ),
+              GoRoute(
+                path: AppRoutes.profile,
+                builder: (context, state) => const ProfileScreen(),
               ),
               GoRoute(
                 path: AppRoutes.workspaceHealth,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/features/profile/domain/entities/user_profile.dart';
 import 'package:weave/features/profile/domain/repositories/user_profile_repository.dart';
+import 'package:weave/features/profile/presentation/profile_screen.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
 import 'package:weave/features/profile/presentation/widgets/profile_summary_card.dart';
 
@@ -43,6 +44,27 @@ const _profile = UserProfile(
 );
 
 void main() {
+  group('ProfileScreen', () {
+    testWidgets('hosts profile editing on a dedicated route surface', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        createTestApp(
+          const ProfileScreen(),
+          overrides: [
+            userProfileProvider.overrideWith((ref) async => _profile),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Profile'), findsWidgets);
+      expect(find.text('Weave profile'), findsOneWidget);
+      expect(find.text('Edit profile'), findsOneWidget);
+      expect(find.text('Save profile'), findsOneWidget);
+    });
+  });
+
   group('ProfileSummaryCard', () {
     testWidgets(
       'shows the authenticated profile from the Weave backend facade',
