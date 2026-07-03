@@ -16,6 +16,8 @@ Every public/product claim must map to at least one evidence class:
 
 Claim states and member-facing impact copy must use stable vocabulary: `available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, `coming_later`, or `unsupported`. Marketing or release copy must not replace these with stronger availability claims. The portability promise is no-unaccounted data loss; it does not claim lossless provider migration.
 
+Provider reality evidence uses stable levels: `contract_only`, `configured`, `live_read`, `live_write`, `migration_dry_run`, `migration_apply_ready`, `rollback_ready`, and `release_ready`. Public copy must not present a lower level as release-ready.
+
 ## Approved positioning
 
 Use this framing:

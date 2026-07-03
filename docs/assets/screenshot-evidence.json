@@ -7,22 +7,22 @@
       "path": "docs/assets/marketing/01-setup-start.svg",
       "source": "deterministic-svg-generator",
       "maturityStatus": "ready_foundation",
-      "claimBoundary": "Dogfood setup path visual only; does not claim public production readiness or provider interchangeability.",
-      "altText": "Weave setup start screen showing guided workspace setup for a dogfood organization."
+      "claimBoundary": "Setup path visual only; does not claim public production readiness or provider interchangeability.",
+      "altText": "Weave setup start screen showing guided workspace setup."
     },
     {
       "path": "docs/assets/marketing/02-review-service-endpoints.svg",
       "source": "deterministic-svg-generator",
       "maturityStatus": "ready_foundation",
-      "claimBoundary": "Support-safe endpoint review visual only; does not expose raw provider diagnostics, secrets, or credential-bearing URLs.",
-      "altText": "Weave setup endpoint review showing support-safe service URLs before setup completion."
+      "claimBoundary": "Workspace service review visual only; does not expose raw provider diagnostics, secrets, or credential-bearing URLs.",
+      "altText": "Weave setup endpoint review showing workspace services before setup completion."
     },
     {
       "path": "docs/assets/marketing/03-chat-room.svg",
       "source": "deterministic-svg-generator",
       "maturityStatus": "ready_foundation",
       "claimBoundary": "Current dogfood chat UX visual only; does not claim complete E2EE history migration or broad chat-provider portability.",
-      "altText": "Weave chat room showing message history and a send action in a current dogfood path."
+      "altText": "Weave chat room showing message history, linked workspace context, and a send action."
     },
     {
       "path": "docs/assets/marketing/04-files-documents.svg",
@@ -36,7 +36,7 @@
       "source": "deterministic-svg-generator",
       "maturityStatus": "ready_foundation",
       "claimBoundary": "Current settings UX visual only; does not claim unrestricted provider mutation or public production readiness.",
-      "altText": "Weave settings view showing account session controls and configured organization endpoints."
+      "altText": "Weave settings view showing account session controls and configured workspace services."
     },
     {
       "path": "docs/assets/roadmap/06-calendar-roadmap-readiness.svg",
