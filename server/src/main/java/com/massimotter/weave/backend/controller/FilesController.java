@@ -5,7 +5,9 @@ import com.massimotter.weave.backend.model.files.CreateFolderRequest;
 import com.massimotter.weave.backend.model.files.FileItemResponse;
 import com.massimotter.weave.backend.model.files.FileListResponse;
 import com.massimotter.weave.backend.model.files.FileUploadResponse;
+import com.massimotter.weave.backend.model.WorkspaceCapabilityStatusResponse;
 import com.massimotter.weave.backend.service.FilesFacadeService;
+import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.service.files.DownloadedFile;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -21,6 +23,8 @@ import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -47,16 +51,21 @@ import org.springframework.web.multipart.MultipartFile;
 public class FilesController {
 
     private final FilesFacadeService filesFacadeService;
+    private final WorkspaceCapabilityService workspaceCapabilityService;
 
-    public FilesController(FilesFacadeService filesFacadeService) {
+    public FilesController(FilesFacadeService filesFacadeService, WorkspaceCapabilityService workspaceCapabilityService) {
         this.filesFacadeService = filesFacadeService;
+        this.workspaceCapabilityService = workspaceCapabilityService;
     }
 
     @GetMapping("/api/files")
-    @Operation(summary = "List files and folders")
+    @Operation(
+            operationId = "listFiles",
+            summary = "List files and folders",
+            description = "Lists files through the Weave-owned product files facade without exposing backing provider URLs or credentials.")
     @ApiResponse(responseCode = "200", description = "Folder listing.",
             content = @Content(schema = @Schema(implementation = FileListResponse.class)))
-    public FileListResponse list(
+    public FileListResponse listFiles(
             @RequestParam(defaultValue = "/")
             @Size(max = 1024)
             @Pattern(regexp = "/.*", message = "must start with /")
@@ -64,19 +73,36 @@ public class FilesController {
         return filesFacadeService.list(path);
     }
 
+    @GetMapping("/api/files/readiness")
+    @Operation(
+            operationId = "getFilesReadiness",
+            summary = "Get Files readiness",
+            description = "Returns the member-safe, provider-neutral Files capability readiness derived from the canonical workspace capability snapshot.")
+    @ApiResponse(responseCode = "200", description = "Files capability readiness.",
+            content = @Content(schema = @Schema(implementation = WorkspaceCapabilityStatusResponse.class)))
+    public WorkspaceCapabilityStatusResponse getFilesReadiness(@AuthenticationPrincipal Jwt jwt) {
+        return workspaceCapabilityService.snapshot(jwt).files();
+    }
+
     @PostMapping("/api/files/folders")
-    @Operation(summary = "Create a folder")
+    @Operation(
+            operationId = "createFilesFolder",
+            summary = "Create a folder",
+            description = "Creates a folder through the Weave-owned product files facade.")
     @ApiResponse(responseCode = "200", description = "Created folder metadata.",
             content = @Content(schema = @Schema(implementation = FileItemResponse.class)))
-    public FileItemResponse createFolder(@Valid @RequestBody CreateFolderRequest request) {
+    public FileItemResponse createFilesFolder(@Valid @RequestBody CreateFolderRequest request) {
         return filesFacadeService.createFolder(request);
     }
 
     @PostMapping(value = "/api/files/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "Upload a file")
+    @Operation(
+            operationId = "uploadFile",
+            summary = "Upload a file",
+            description = "Uploads a file through the Weave-owned product files facade.")
     @ApiResponse(responseCode = "200", description = "Uploaded file metadata.",
             content = @Content(schema = @Schema(implementation = FileUploadResponse.class)))
-    public FileUploadResponse upload(
+    public FileUploadResponse uploadFile(
             @RequestParam(defaultValue = "/")
             @Size(max = 1024)
             @Pattern(regexp = "/.*", message = "must start with /")
@@ -86,8 +112,14 @@ public class FilesController {
     }
 
     @GetMapping("/api/files/{id}/download")
-    @Operation(summary = "Download a file")
-    public ResponseEntity<byte[]> download(@PathVariable @Size(max = 2048) String id) {
+    @Operation(
+            operationId = "downloadFile",
+            summary = "Download a file",
+            description = "Downloads file bytes through the Weave-owned product files facade without exposing backing provider URLs or credentials.")
+    @ApiResponse(responseCode = "200", description = "Downloaded file bytes.",
+            content = @Content(mediaType = MediaType.ALL_VALUE,
+                    schema = @Schema(type = "string", format = "binary")))
+    public ResponseEntity<byte[]> downloadFile(@PathVariable @Size(max = 2048) String id) {
         DownloadedFile file = filesFacadeService.download(id);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(file.mimeType()))
@@ -97,8 +129,12 @@ public class FilesController {
     }
 
     @DeleteMapping("/api/files/{id}")
-    @Operation(summary = "Delete a file or folder")
-    public ResponseEntity<Void> delete(@PathVariable @Size(max = 2048) String id) {
+    @Operation(
+            operationId = "deleteFile",
+            summary = "Delete a file or folder",
+            description = "Deletes a file or folder through the Weave-owned product files facade.")
+    @ApiResponse(responseCode = "204", description = "File or folder deleted.")
+    public ResponseEntity<Void> deleteFile(@PathVariable @Size(max = 2048) String id) {
         filesFacadeService.delete(id);
         return ResponseEntity.noContent().build();
     }
