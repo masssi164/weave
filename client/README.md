@@ -11,7 +11,7 @@
 
 **Accessible collaboration, under your control.**
 
-Weave is a self-hosted collaboration workspace for teams that need modern daily work tools without handing their data, identity, or accessibility standards to a closed suite. The Flutter app turns Matrix, Nextcloud, Keycloak, and the Weave backend into one coherent product experience for setup, sign-in, chat, files, readiness, and workspace settings.
+Weave is a provider-neutral collaboration workspace for organizations that need modern daily work tools without handing their data, identity, or accessibility standards to a closed suite. The Flutter app presents setup, sign-in, chat, files, readiness, and workspace settings through Weave-owned product contracts rather than raw provider screens.
 
 Weave is not a raw bundle of provider UIs and it is not claiming to be a finished Slack or Microsoft Teams clone. It is an active product-maturity build with honest feature gates: release surfaces are only shown as shipped when they have executable evidence, and unsafe provider paths fail closed.
 
@@ -24,7 +24,7 @@ Weave is not a raw bundle of provider UIs and it is not claiming to be a finishe
 ## Product pillars
 
 - **Accessible workspace shell:** setup, sign-in, navigation, settings, recovery states, semantic labels, keyboard/screen-reader-friendly flows, and non-color-only status.
-- **Sovereign collaboration:** Matrix-backed chat and Nextcloud-backed files/calendar foundations, presented through Weave-owned UX instead of raw provider screens.
+- **Sovereign collaboration:** chat, files, and calendar foundations presented through Weave-owned UX instead of raw provider screens.
 - **Backend-owned provider boundary:** Flutter talks to `weave-backend` product APIs. It does not call GitLab, Forgejo, OpenProject, ONLYOFFICE, Collabora, Nextcloud admin APIs, or other provider runtimes directly.
 - **Honest readiness:** provider status, capability snapshots, degraded states, and fail-closed errors are visible without leaking backend actor tokens, provider URLs, raw errors, or secrets.
 - **Operator-grade validation:** offline checks stay cheap for normal PRs; live-stack E2E runs only when the full stack and runner budget are explicitly available.
@@ -53,13 +53,13 @@ These areas are active product scope, but the app must keep them fail-closed unt
 
 ## Product screenshots
 
-A first look at the active product-maturity experience: guided setup, service review, custom chat, basic files, and workspace settings in one self-hosted product shell. These screenshots are deterministic SVGs generated from checked-in source, so the README stays reviewable and reproducible without turning documentation into image-only content.
+A first look at the active product-maturity experience: guided setup, service review, custom chat, basic files, and workspace settings in one Weave product shell. These screenshots are deterministic SVGs generated from checked-in source, so the README stays reviewable and reproducible without turning documentation into image-only content.
 
 ### Setup and service review
 
-[<img src="../docs/assets/marketing/01-setup-start.svg" alt="Weave setup start screen showing a guided workspace setup path and canonical local service URLs." width="560">](../docs/assets/marketing/01-setup-start.svg)
+[<img src="../docs/assets/marketing/01-setup-start.svg" alt="Weave setup start screen showing guided workspace setup for a dogfood organization." width="560">](../docs/assets/marketing/01-setup-start.svg)
 
-[<img src="../docs/assets/marketing/02-review-service-endpoints.svg" alt="Weave setup endpoint review screenshot listing Matrix, files, and backend service URLs before finishing setup." width="560">](../docs/assets/marketing/02-review-service-endpoints.svg)
+[<img src="../docs/assets/marketing/02-review-service-endpoints.svg" alt="Weave setup endpoint review showing support-safe service URLs before setup completion." width="560">](../docs/assets/marketing/02-review-service-endpoints.svg)
 
 ### Daily collaboration
 
@@ -69,9 +69,9 @@ A first look at the active product-maturity experience: guided setup, service re
 
 ### Workspace settings
 
-[<img src="../docs/assets/marketing/05-settings.svg" alt="Weave settings screenshot showing OIDC issuer, client ID, Nextcloud URL, and account session controls." width="560">](../docs/assets/marketing/05-settings.svg)
+[<img src="../docs/assets/marketing/05-settings.svg" alt="Weave settings view showing account session controls and configured organization endpoints." width="560">](../docs/assets/marketing/05-settings.svg)
 
-Regenerate screenshots with `make marketing-screenshots` and review the SVG diff before committing. Additional gated surfaces are documented in [Roadmap and guarded surfaces](../docs/roadmap-and-guarded-surfaces.md) so the main showcase does not overclaim unfinished product areas.
+Regenerate screenshots with `make marketing-screenshots`, validate [the screenshot evidence manifest](../docs/assets/screenshot-evidence.json), and review the SVG diff before committing. Additional gated surfaces are documented in [Roadmap and guarded surfaces](../docs/roadmap-and-guarded-surfaces.md) so the main showcase does not overclaim unfinished product areas.
 
 ## Monorepo architecture
 

@@ -26,7 +26,7 @@ It does not claim public production release readiness, perfect lossless migratio
 
 ## Product Screenshots
 
-These checked-in SVG assets show current dogfood-ready paths. Treat them as UI evidence for those paths, not as broad availability claims for guarded capabilities.
+These checked-in SVG assets show current dogfood-ready paths. Treat them as UI evidence for those paths, not as broad availability claims for guarded capabilities. Their evidence manifest is [docs/assets/screenshot-evidence.json](docs/assets/screenshot-evidence.json).
 
 <p align="center">
   <a href="docs/assets/marketing/01-setup-start.svg"><img src="docs/assets/marketing/01-setup-start.svg" alt="Weave setup start screen showing guided workspace setup for a dogfood organization." width="560"></a>
