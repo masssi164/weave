@@ -180,7 +180,7 @@ void main() {
       securityProvider,
       contains('Diagnostic-only Matrix E2EE/security seam'),
     );
-    expect(securityProvider, contains('until #895'));
+    expect(securityProvider, contains('normal member routes must not import'));
   });
 
   test('member Chat screen stays on Weave-domain readiness language', () async {
