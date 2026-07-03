@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 README = ROOT / "README.md"
 REGISTRY = ROOT / "specs" / "0004-domain-registry" / "canonical-domain-registry-v1.json"
 REQUIRED_CLAIMS = {
-    "Weave is a monorepo product stack",
+    "Weave ships as one product stack",
     "v0.1 is dogfood-production",
     "Members work in provider-neutral Weave domains",
     "Provider adapters are replaceable behind Weave-owned contracts",
@@ -47,8 +47,8 @@ def main() -> None:
     if not README.exists():
         fail("missing README.md")
     text = README.read_text(encoding="utf-8")
-    if "## Ready / Guarded / Future claim matrix" not in text:
-        fail("README missing Ready / Guarded / Future claim matrix")
+    if "## Ready / Guarded / Future Claim Matrix" not in text:
+        fail("README missing Ready / Guarded / Future Claim Matrix")
     if "v0.1 is dogfood-production, not preview" not in text:
         fail("README must keep the dogfood-production boundary")
     for claim in sorted(REQUIRED_CLAIMS):

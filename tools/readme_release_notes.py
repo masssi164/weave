@@ -20,17 +20,14 @@ EVIDENCE_BLOCK = f"""{EVIDENCE_START}
 - Release evidence gate: `./gradlew releaseEvidenceCheck`
 {EVIDENCE_END}"""
 REQUIRED_TOP_LEVEL_SECTIONS = [
-    "Product architecture",
-    "Release notes",
-    "Product screenshots",
-    "Repository layout",
-    "v0.1 product truth",
-    "Boards and provider boundary",
-    "Infrastructure and OpenTofu",
-    "Evidence contract",
-    "Release evidence",
-    "Common local gates",
-    "Working agreements",
+    "What Weave Is",
+    "Current Maturity",
+    "Product Screenshots",
+    "Ready / Guarded / Future Claim Matrix",
+    "Read Next",
+    "Developer Quickstart",
+    "Release Notes",
+    "Release Evidence",
 ]
 
 
@@ -74,8 +71,8 @@ def replace_blocks(content: str, source: Path) -> str:
 
 
 def check_readme_structure(content: str) -> None:
-    if content.count("# Weave Monorepo\n") != 1:
-        fail("README.md must contain exactly one top-level '# Weave Monorepo' heading")
+    if content.count("# Weave\n") != 1:
+        fail("README.md must contain exactly one top-level '# Weave' heading")
 
     for marker in (START, END, EVIDENCE_START, EVIDENCE_END):
         if content.count(marker) != 1:
@@ -97,13 +94,11 @@ def check_readme_structure(content: str) -> None:
     if repeated:
         fail("README.md required top-level sections must appear exactly once: " + ", ".join(repeated))
 
-    release_section = content.index("## Release notes")
-    screenshots_section = content.index("## Product screenshots")
-    evidence_section = content.index("## Release evidence")
-    gates_section = content.index("## Common local gates")
-    if not (release_section < generated_start < generated_end < screenshots_section):
+    release_section = content.index("## Release Notes")
+    evidence_section = content.index("## Release Evidence")
+    if not (release_section < generated_start < generated_end < evidence_section):
         fail("README.md release-note draft markers must stay inside the Release notes section")
-    if not (evidence_section < evidence_start < evidence_end < gates_section):
+    if not (evidence_section < evidence_start < evidence_end):
         fail("README.md release-evidence markers must stay inside the Release evidence section")
 
 

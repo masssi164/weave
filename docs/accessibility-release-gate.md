@@ -129,7 +129,7 @@ The gate maps Flutter semantics, keyboard traversal, text-scale/reflow, Admin Co
 
 Historical issue #591 expanded the manual AT scope to the Sprint 18 member Workspace loop, admin migration apply/recovery, admin go-live claim-control, and governed Weaver approval/revocation surfaces. That issue is closed; the machine-readable gate remains `release/accessibility-gate.json`, and current release promotion must use current candidate evidence or an explicit release-owner scope decision. The historical accounting artifact is `docs/evidence/accessibility/sprint-18-manual-at-blocker.md`.
 
-The blocker artifact and candidate checklist are not pass evidence. They exist because the repository automation environment cannot collect a real screen-reader, keyboard-only, and text-scale session by itself. Before any Sprint 18 RC or production accessibility signoff, each row must be replaced by real reviewer evidence or by an exceptional release-owner waiver that names the owner, candidate commit/tag, tested route, assistive technology/browser or device combination, result, linked blocker, expiry, and compensating evidence.
+The blocker artifact and candidate checklist are not pass evidence. They exist because the repository automation environment cannot collect a real screen-reader, keyboard-only, and text-scale session by itself. Before any current candidate claims accessibility signoff for these flows, each row must be replaced by real reviewer evidence or by an exceptional release-owner waiver that names the owner, candidate commit/tag, tested route, assistive technology/browser or device combination, result, linked blocker, expiry, and compensating evidence.
 
 | Sprint 18 flow | Required manual evidence | Current release state |
 | --- | --- | --- |
