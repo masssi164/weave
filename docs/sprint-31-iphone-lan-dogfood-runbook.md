@@ -132,13 +132,14 @@ Expected tester path before Massimo is asked to try the build:
 After the full path, copy the app preferences and run:
 
 ```sh
-python3 tools/dogfood_onboarding_evidence_check.py \
+WEAVE_DOGFOOD_ACTIVATION_EVIDENCE_JSON=build/dogfood/activation-massimo-home.json \
+tools/dogfood_member_onboarding_gate.sh \
   --prefs-plist build/dogfood/appdata/com.massimotter.weave.plist \
   --expected-handoff-ref handoff-s32-massimo-dogfood-home \
   --expected-run-id s32-massimo-dogfood
 ```
 
-The command emits `DOGFOOD_MEMBER_ONBOARDING_RESULT` only when the copied app state is support-safe, reaches `workspace_ready`, and includes `dogfood_auth_state_history_v1` with `sso_in_progress`, `authenticated`, `workspace_bootstrap_loading`, and `workspace_ready` in order. That ordered history is the support-safe proof that Sign In opened the browser flow, the app returned after successful credentials, and workspace bootstrap completed. Use `--skip-mailpit` only for a local dry run; it is not sufficient dogfood completion evidence.
+The command emits `DOGFOOD_MEMBER_ONBOARDING_RESULT` only when the copied app state is support-safe, reaches `workspace_ready`, and includes `dogfood_auth_state_history_v1` with `sso_in_progress`, `authenticated`, `workspace_bootstrap_loading`, and `workspace_ready` in order. With `WEAVE_DOGFOOD_ACTIVATION_EVIDENCE_JSON` set, it also emits `DOGFOOD_ACTIVATION_MAIL_RESULT` only when the activation invite evidence matches the handoff, proves `UPDATE_PASSWORD` required-action mail was sent, and Mailpit contains the local identity mail without printing the action link. That ordered history is the support-safe proof that Sign In opened the browser flow, the app returned after successful credentials, and workspace bootstrap completed. Use `--skip-mailpit` only for a local dry run; it is not sufficient dogfood completion evidence.
 
 The release acceptance contract records this scenario as live runtime evidence scoped to source `dogfood-member-onboarding`. The generic `live-stack-e2e` lane proves stack login/chat/files/provider/workspace markers, but it must not claim or block on the member invite activation markers unless `tools/dogfood_member_onboarding_gate.sh` produced the dogfood onboarding log.
 
@@ -151,7 +152,8 @@ WEAVE_IOS_RESET_MODE=app_state \
 WEAVE_DOGFOOD_DEEPLINK='<current weave://join... URL>' \
 tools/dogfood_ios_deeplink_smoke.sh
 
-python3 tools/dogfood_onboarding_evidence_check.py \
+WEAVE_DOGFOOD_ACTIVATION_EVIDENCE_JSON=build/dogfood/activation-massimo-home.json \
+tools/dogfood_member_onboarding_gate.sh \
   --prefs-plist build/dogfood/appdata/com.massimotter.weave.plist \
   --expected-handoff-ref handoff-s32-massimo-dogfood-home \
   --expected-run-id s32-massimo-dogfood

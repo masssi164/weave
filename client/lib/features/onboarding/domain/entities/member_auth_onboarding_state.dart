@@ -91,6 +91,30 @@ class MemberAuthOnboardingStateRecorder {
     );
   }
 
+  Future<void> recordSupportSafeHandoffEvidence(
+    MemberAuthOnboardingStage stage, {
+    required Map<String, Object?> handoffEvidence,
+    String? errorCode,
+  }) async {
+    final snapshot = <String, Object>{
+      'schemaVersion': 'weave.client.dogfood_auth_state.v1',
+      'recordedAt': DateTime.now().toUtc().toIso8601String(),
+      'state': stage.serialized,
+      for (final key in const [
+        'handoffRef',
+        'runId',
+        'organizationSlug',
+        'workspaceSlug',
+        'profile',
+      ])
+        if (handoffEvidence[key] is String) key: handoffEvidence[key] as String,
+      if (errorCode != null) 'errorCode': errorCode,
+      'supportSafe': true,
+    };
+    await _store.setString(dogfoodAuthStateStorageKey, jsonEncode(snapshot));
+    await _appendHistory(snapshot);
+  }
+
   Future<void> recordAuthFailure(
     AuthFailure failure, {
     MemberHandoff? handoff,
@@ -98,6 +122,17 @@ class MemberAuthOnboardingStateRecorder {
     return record(
       _failureStage(failure),
       handoff: handoff,
+      errorCode: supportSafeAuthOnboardingErrorCode(failure),
+    );
+  }
+
+  Future<void> recordAuthFailureFromHandoffEvidence(
+    AuthFailure failure, {
+    required Map<String, Object?> handoffEvidence,
+  }) {
+    return recordSupportSafeHandoffEvidence(
+      _failureStage(failure),
+      handoffEvidence: handoffEvidence,
       errorCode: supportSafeAuthOnboardingErrorCode(failure),
     );
   }
