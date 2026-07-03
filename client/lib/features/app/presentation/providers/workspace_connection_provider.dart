@@ -277,6 +277,8 @@ WorkspaceCapabilityState _mergeWorkspaceCapabilityState({
     recoveryRequirement: local.recoveryRequirement,
     policyState: backend.policyState,
     profileKey: backend.profileKey,
+    memberImpact: backend.memberImpact,
+    supportRef: backend.supportRef,
     grantedCapabilities: backend.grantedCapabilities,
   );
 }

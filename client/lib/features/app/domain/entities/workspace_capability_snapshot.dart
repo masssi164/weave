@@ -33,6 +33,7 @@ class WorkspaceCapabilityState {
     this.policyState = WorkspaceCapabilityPolicyState.unavailable,
     this.profileKey,
     this.memberImpact,
+    this.supportRef,
     this.grantedCapabilities = const <String>[],
   });
 
@@ -43,6 +44,7 @@ class WorkspaceCapabilityState {
   final WorkspaceCapabilityPolicyState policyState;
   final String? profileKey;
   final String? memberImpact;
+  final String? supportRef;
   final List<String> grantedCapabilities;
 
   bool get isReady => readiness == WorkspaceCapabilityReadiness.ready;

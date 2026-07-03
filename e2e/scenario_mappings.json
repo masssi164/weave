@@ -218,6 +218,7 @@
       "executableTest": "tools/dogfood_member_onboarding_gate.sh",
       "evidenceMarkers": [
         "DOGFOOD_MEMBER_ONBOARDING_RESULT",
+        "DOGFOOD_POST_LOGIN_CHAT_FILES_RESULT",
         "DOGFOOD_TRUST_STABILITY_RESULT"
       ],
       "evidenceMode": "live-runtime",
@@ -257,6 +258,14 @@
             "workspace_bootstrap_loading",
             "auth history does not prove browser return",
             "DOGFOOD_MEMBER_ONBOARDING_RESULT"
+          ]
+        },
+        {
+          "path": "tools/dogfood_post_login_chat_files_check.py",
+          "fragments": [
+            "DOGFOOD_POST_LOGIN_CHAT_FILES_RESULT",
+            "chatState=usable",
+            "filesState=usable"
           ]
         },
         {

@@ -9593,6 +9593,7 @@ class WorkspaceCapabilityStatusResponse {
     this.policyState,
     this.profileKey,
     this.readiness,
+    this.supportRef,
   });
 
   factory WorkspaceCapabilityStatusResponse.fromJson(
@@ -9606,6 +9607,7 @@ class WorkspaceCapabilityStatusResponse {
     policyState: json["policyState"] as String?,
     profileKey: json["profileKey"] as String?,
     readiness: json["readiness"] as String?,
+    supportRef: json["supportRef"] as String?,
   );
 
   final bool? enabled;
@@ -9614,6 +9616,7 @@ class WorkspaceCapabilityStatusResponse {
   final String? policyState;
   final String? profileKey;
   final String? readiness;
+  final String? supportRef;
 
   Map<String, dynamic> toJson() => {
     "enabled": _openApiJsonValue(enabled),
@@ -9622,6 +9625,7 @@ class WorkspaceCapabilityStatusResponse {
     "policyState": _openApiJsonValue(policyState),
     "profileKey": _openApiJsonValue(profileKey),
     "readiness": _openApiJsonValue(readiness),
+    "supportRef": _openApiJsonValue(supportRef),
   };
 }
 

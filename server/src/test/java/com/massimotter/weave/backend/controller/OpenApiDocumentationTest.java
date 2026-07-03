@@ -115,6 +115,7 @@ class OpenApiDocumentationTest {
                 .andExpect(jsonPath("$.components.schemas.ApiErrorResponse.properties.requestId.type").value("string"))
                 .andExpect(jsonPath("$.components.schemas.ApiErrorResponse.properties.supportRef.type").value("string"))
                 .andExpect(jsonPath("$.components.schemas.ApiErrorResponse.properties.memberImpact.type").value("string"))
+                .andExpect(jsonPath("$.components.schemas.WorkspaceCapabilityStatusResponse.properties.supportRef.type").value("string"))
                 .andExpect(jsonPath("$.components.schemas.ApiErrorResponse.required", hasItems(
                         "code",
                         "message",

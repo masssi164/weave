@@ -432,6 +432,42 @@ void main() {
         );
       },
     );
+
+    test('uses support-safe memberImpact instead of raw backend message', () async {
+      final client = MockClient(
+        (_) async => http.Response(
+          jsonEncode({
+            'message':
+                'Nextcloud WebDAV failed at https://files.home.internal/remote.php/dav',
+            'memberImpact':
+                'Files need admin attention before members can use them reliably.',
+          }),
+          503,
+        ),
+      );
+
+      await expectLater(
+        repository(client).listDirectory('/'),
+        throwsA(
+          isA<FilesFailure>()
+              .having(
+                (failure) => failure.type,
+                'type',
+                FilesFailureType.configuration,
+              )
+              .having(
+                (failure) => failure.message,
+                'message',
+                allOf(
+                  contains('Files need admin attention'),
+                  isNot(contains('Nextcloud')),
+                  isNot(contains('WebDAV')),
+                  isNot(contains('home.internal')),
+                ),
+              ),
+        ),
+      );
+    });
   });
 }
 

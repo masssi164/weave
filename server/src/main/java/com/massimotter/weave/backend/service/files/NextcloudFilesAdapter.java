@@ -72,6 +72,19 @@ public class NextcloudFilesAdapter implements FilesStorageAdapter {
     }
 
     @Override
+    public FilesStorageReadiness readinessProbe() {
+        if (!isConfigured()) {
+            return FilesStorageReadiness.degraded("files-storage-not-configured");
+        }
+        try {
+            probeRoot();
+            return FilesStorageReadiness.ready();
+        } catch (ApiErrorException exception) {
+            return FilesStorageReadiness.degraded(readinessCode(exception.code()));
+        }
+    }
+
+    @Override
     public FileListResponse list(String path) {
         ensureConfigured();
         String normalizedPath = FilePathCodec.normalizeProductPath(path);
@@ -450,6 +463,42 @@ public class NextcloudFilesAdapter implements FilesStorageAdapter {
                 "nextcloud-request-failed",
                 "Files storage request failed before it could be completed.",
                 Map.of("module", "files", "operation", operation, "reason", exception.getClass().getSimpleName()));
+    }
+
+    private String readinessCode(String adapterCode) {
+        return switch (adapterCode) {
+            case "files-permission-denied" -> "files-storage-permission-denied";
+            case "file-not-found" -> "files-storage-root-missing";
+            case "file-conflict" -> "files-storage-conflict";
+            case "files-quota-exceeded" -> "files-storage-quota-exceeded";
+            case "nextcloud-adapter-not-configured" -> "files-storage-not-configured";
+            case "nextcloud-auth-failed" -> "files-storage-auth-failed";
+            case "nextcloud-response-invalid" -> "files-storage-response-invalid";
+            case "nextcloud-unavailable" -> "files-storage-unavailable";
+            case "nextcloud-request-failed" -> "files-storage-request-failed";
+            default -> "files-storage-degraded";
+        };
+    }
+
+    private void probeRoot() {
+        try {
+            restClient.method(PROPFIND)
+                    .uri(webdavUri("/", true))
+                    .headers(this::applyActorHeaders)
+                    .header("Depth", "0")
+                    .contentType(MediaType.APPLICATION_XML)
+                    .body(PROPFIND_BODY)
+                    .exchange((request, response) -> {
+                        if (response.getStatusCode().value() == 207 || response.getStatusCode().is2xxSuccessful()) {
+                            return null;
+                        }
+                        throw mapStatus(response.getStatusCode(), "probe-files-root", "/");
+                    });
+        } catch (ResourceAccessException exception) {
+            throw downstreamUnavailable("probe-files-root", exception);
+        } catch (RestClientException exception) {
+            throw downstreamFailure("probe-files-root", exception);
+        }
     }
 
     private Map<String, Object> details(String operation, String path, int downstreamStatus) {
