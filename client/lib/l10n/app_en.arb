@@ -1334,6 +1334,42 @@
   "@settingsBrandSectionDescription": {
     "description": "Subtle branded copy shown in the settings header card"
   },
+  "settingsSectionsTitle": "Settings sections",
+  "@settingsSectionsTitle": {
+    "description": "Heading for in-page settings section navigation"
+  },
+  "settingsSectionAppearance": "Appearance",
+  "@settingsSectionAppearance": {
+    "description": "Settings section shortcut for visual appearance"
+  },
+  "settingsSectionLanguage": "Language",
+  "@settingsSectionLanguage": {
+    "description": "Settings section shortcut for app language"
+  },
+  "settingsSectionProfile": "Profile",
+  "@settingsSectionProfile": {
+    "description": "Settings section shortcut for profile/account entry"
+  },
+  "settingsSectionWeaver": "Mein Weaver",
+  "@settingsSectionWeaver": {
+    "description": "Settings section shortcut for governed personal Weaver choices"
+  },
+  "settingsSectionHelp": "Help",
+  "@settingsSectionHelp": {
+    "description": "Settings section shortcut for help and handbook"
+  },
+  "settingsSectionModules": "Shell modules",
+  "@settingsSectionModules": {
+    "description": "Settings section shortcut for shell module preferences"
+  },
+  "settingsSectionWorkspaceHealth": "Workspace Health",
+  "@settingsSectionWorkspaceHealth": {
+    "description": "Settings section shortcut for admin workspace health"
+  },
+  "settingsSectionSession": "Session",
+  "@settingsSectionSession": {
+    "description": "Settings section shortcut for session and sign out"
+  },
   "settingsThemeTitle": "Appearance",
   "@settingsThemeTitle": {
     "description": "Settings section title for personal theme selection"

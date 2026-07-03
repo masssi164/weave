@@ -1218,6 +1218,33 @@ class AppLocalizationsEn extends AppLocalizations {
       'Tune Weave for this device: appearance, language, profile context, module visibility, and safe sign-out.';
 
   @override
+  String get settingsSectionsTitle => 'Settings sections';
+
+  @override
+  String get settingsSectionAppearance => 'Appearance';
+
+  @override
+  String get settingsSectionLanguage => 'Language';
+
+  @override
+  String get settingsSectionProfile => 'Profile';
+
+  @override
+  String get settingsSectionWeaver => 'Mein Weaver';
+
+  @override
+  String get settingsSectionHelp => 'Help';
+
+  @override
+  String get settingsSectionModules => 'Shell modules';
+
+  @override
+  String get settingsSectionWorkspaceHealth => 'Workspace Health';
+
+  @override
+  String get settingsSectionSession => 'Session';
+
+  @override
   String get settingsThemeTitle => 'Appearance';
 
   @override

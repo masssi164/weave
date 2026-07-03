@@ -2051,6 +2051,60 @@ abstract class AppLocalizations {
   /// **'Tune Weave for this device: appearance, language, profile context, module visibility, and safe sign-out.'**
   String get settingsBrandSectionDescription;
 
+  /// Heading for in-page settings section navigation
+  ///
+  /// In en, this message translates to:
+  /// **'Settings sections'**
+  String get settingsSectionsTitle;
+
+  /// Settings section shortcut for visual appearance
+  ///
+  /// In en, this message translates to:
+  /// **'Appearance'**
+  String get settingsSectionAppearance;
+
+  /// Settings section shortcut for app language
+  ///
+  /// In en, this message translates to:
+  /// **'Language'**
+  String get settingsSectionLanguage;
+
+  /// Settings section shortcut for profile/account entry
+  ///
+  /// In en, this message translates to:
+  /// **'Profile'**
+  String get settingsSectionProfile;
+
+  /// Settings section shortcut for governed personal Weaver choices
+  ///
+  /// In en, this message translates to:
+  /// **'Mein Weaver'**
+  String get settingsSectionWeaver;
+
+  /// Settings section shortcut for help and handbook
+  ///
+  /// In en, this message translates to:
+  /// **'Help'**
+  String get settingsSectionHelp;
+
+  /// Settings section shortcut for shell module preferences
+  ///
+  /// In en, this message translates to:
+  /// **'Shell modules'**
+  String get settingsSectionModules;
+
+  /// Settings section shortcut for admin workspace health
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace Health'**
+  String get settingsSectionWorkspaceHealth;
+
+  /// Settings section shortcut for session and sign out
+  ///
+  /// In en, this message translates to:
+  /// **'Session'**
+  String get settingsSectionSession;
+
   /// Settings section title for personal theme selection
   ///
   /// In en, this message translates to:

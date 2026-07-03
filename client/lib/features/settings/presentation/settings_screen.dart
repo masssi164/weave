@@ -42,11 +42,32 @@ import 'package:weave/features/shell/presentation/providers/shell_module_prefere
 import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
-class SettingsScreen extends ConsumerWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  final _scrollController = ScrollController();
+  final _appearanceKey = GlobalKey(debugLabel: 'settings-appearance');
+  final _languageKey = GlobalKey(debugLabel: 'settings-language');
+  final _profileKey = GlobalKey(debugLabel: 'settings-profile');
+  final _weaverKey = GlobalKey(debugLabel: 'settings-weaver');
+  final _helpKey = GlobalKey(debugLabel: 'settings-help');
+  final _modulesKey = GlobalKey(debugLabel: 'settings-modules');
+  final _workspaceHealthKey = GlobalKey(debugLabel: 'settings-health');
+  final _sessionKey = GlobalKey(debugLabel: 'settings-session');
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final authState = ref.watch(authFlowControllerProvider);
     final profile = ref.watch(userProfileProvider);
@@ -56,6 +77,7 @@ class SettingsScreen extends ConsumerWidget {
     );
 
     return CustomScrollView(
+      controller: _scrollController,
       slivers: [
         SliverAppBar.large(title: Text(l10n.settingsScreenTitle)),
         SliverPadding(
@@ -66,31 +88,110 @@ class SettingsScreen extends ConsumerWidget {
               children: [
                 const _SettingsBrandCard(),
                 const SizedBox(height: 32),
-                const _ThemePreferenceSection(),
+                _SettingsSectionIndex(
+                  sections: [
+                    _SettingsSectionTarget(
+                      label: l10n.settingsSectionAppearance,
+                      icon: Icons.palette_outlined,
+                      key: _appearanceKey,
+                    ),
+                    _SettingsSectionTarget(
+                      label: l10n.settingsSectionLanguage,
+                      icon: Icons.language_outlined,
+                      key: _languageKey,
+                    ),
+                    _SettingsSectionTarget(
+                      label: l10n.settingsSectionProfile,
+                      icon: Icons.account_circle_outlined,
+                      key: _profileKey,
+                    ),
+                    _SettingsSectionTarget(
+                      label: l10n.settingsSectionWeaver,
+                      icon: Icons.auto_awesome_outlined,
+                      key: _weaverKey,
+                    ),
+                    _SettingsSectionTarget(
+                      label: l10n.settingsSectionHelp,
+                      icon: Icons.help_outline,
+                      key: _helpKey,
+                    ),
+                    _SettingsSectionTarget(
+                      label: l10n.settingsSectionModules,
+                      icon: Icons.view_module_outlined,
+                      key: _modulesKey,
+                    ),
+                    if (canAdministerWorkspace)
+                      _SettingsSectionTarget(
+                        label: l10n.settingsSectionWorkspaceHealth,
+                        icon: Icons.admin_panel_settings_outlined,
+                        key: _workspaceHealthKey,
+                      ),
+                    _SettingsSectionTarget(
+                      label: l10n.settingsSectionSession,
+                      icon: Icons.logout,
+                      key: _sessionKey,
+                    ),
+                  ],
+                  onSelected: _scrollToSection,
+                ),
                 const SizedBox(height: 32),
-                const _LanguagePreferenceSection(),
+                _SettingsAnchor(
+                  anchorKey: _appearanceKey,
+                  child: const _ThemePreferenceSection(),
+                ),
                 const SizedBox(height: 32),
-                const _ProfileSettingsLinkCard(),
+                _SettingsAnchor(
+                  anchorKey: _languageKey,
+                  child: const _LanguagePreferenceSection(),
+                ),
                 const SizedBox(height: 32),
-                const _WeaverMemberSettingsSection(),
+                _SettingsAnchor(
+                  anchorKey: _profileKey,
+                  child: const _ProfileSettingsLinkCard(),
+                ),
                 const SizedBox(height: 32),
-                const _SettingsHelpCard(),
+                _SettingsAnchor(
+                  anchorKey: _weaverKey,
+                  child: const _WeaverMemberSettingsSection(),
+                ),
                 const SizedBox(height: 32),
-                const _ShellModuleVisibilitySettingsSection(),
+                _SettingsAnchor(
+                  anchorKey: _helpKey,
+                  child: const _SettingsHelpCard(),
+                ),
+                const SizedBox(height: 32),
+                _SettingsAnchor(
+                  anchorKey: _modulesKey,
+                  child: const _ShellModuleVisibilitySettingsSection(),
+                ),
                 if (canAdministerWorkspace) ...[
                   const SizedBox(height: 32),
-                  const _WorkspaceHealthLinkCard(),
+                  _SettingsAnchor(
+                    anchorKey: _workspaceHealthKey,
+                    child: const _WorkspaceHealthLinkCard(),
+                  ),
                 ],
                 const SizedBox(height: 32),
-                Text(
-                  l10n.settingsSignOutTitle,
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  l10n.settingsSignOutDescription,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                _SettingsAnchor(
+                  anchorKey: _sessionKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Semantics(
+                        header: true,
+                        child: Text(
+                          l10n.settingsSignOutTitle,
+                          style: Theme.of(context).textTheme.headlineSmall,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        l10n.settingsSignOutDescription,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -122,6 +223,101 @@ class SettingsScreen extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+
+  Future<void> _scrollToSection(GlobalKey key) async {
+    final targetContext = key.currentContext;
+    if (targetContext == null) {
+      return;
+    }
+
+    await Scrollable.ensureVisible(
+      targetContext,
+      duration: const Duration(milliseconds: 240),
+      curve: Curves.easeOutCubic,
+      alignment: 0.08,
+    );
+  }
+}
+
+class _SettingsAnchor extends StatelessWidget {
+  const _SettingsAnchor({required this.anchorKey, required this.child});
+
+  final GlobalKey anchorKey;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return KeyedSubtree(key: anchorKey, child: child);
+  }
+}
+
+class _SettingsSectionTarget {
+  const _SettingsSectionTarget({
+    required this.label,
+    required this.icon,
+    required this.key,
+  });
+
+  final String label;
+  final IconData icon;
+  final GlobalKey key;
+}
+
+class _SettingsSectionIndex extends StatelessWidget {
+  const _SettingsSectionIndex({
+    required this.sections,
+    required this.onSelected,
+  });
+
+  final List<_SettingsSectionTarget> sections;
+  final ValueChanged<GlobalKey> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+
+    return Card(
+      elevation: 0,
+      color: theme.colorScheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Semantics(
+          container: true,
+          explicitChildNodes: true,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Semantics(
+                header: true,
+                child: Text(
+                  l10n.settingsSectionsTitle,
+                  style: theme.textTheme.titleLarge,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final section in sections)
+                    ActionChip(
+                      avatar: Icon(section.icon, size: 18),
+                      label: Text(section.label),
+                      onPressed: () => onSelected(section.key),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

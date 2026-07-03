@@ -7,6 +7,7 @@ import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/core/config/feature_flags.dart';
 import 'package:weave/core/failures/app_failure.dart';
+import 'package:weave/core/l10n/shared_preferences_app_locale_preference_repository.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
 import 'package:weave/features/app/domain/entities/matrix_e2ee_diagnostic.dart';
@@ -454,9 +455,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Appearance'), findsOneWidget);
-      expect(find.text('Language'), findsOneWidget);
-      expect(find.text('Profile'), findsOneWidget);
+      expect(find.text('Settings sections'), findsOneWidget);
+      expect(find.text('Appearance'), findsWidgets);
+      expect(find.text('Language'), findsWidgets);
+      expect(find.text('Profile'), findsWidgets);
       expect(
         find.textContaining('Open profile details and editing'),
         findsOneWidget,
@@ -465,7 +467,8 @@ void main() {
       expect(find.text('Edit profile'), findsNothing);
       expect(find.text('Save profile'), findsNothing);
       expect(find.text('Help and user handbook'), findsOneWidget);
-      expect(find.text('Shell modules'), findsOneWidget);
+      expect(find.text('Shell modules'), findsWidgets);
+      expect(find.text('Workspace Health'), findsNothing);
       expect(find.text('AI agent capability governance'), findsNothing);
       expect(
         find.textContaining('AI agent chats are not enabled'),
@@ -524,10 +527,11 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        expect(find.text('Profile'), findsOneWidget);
+        expect(find.text('Settings sections'), findsOneWidget);
+        expect(find.text('Profile'), findsWidgets);
         expect(find.text('Edit profile'), findsNothing);
         expect(find.text('Save profile'), findsNothing);
-        expect(find.text('Workspace Health'), findsOneWidget);
+        expect(find.text('Workspace Health'), findsWidgets);
         expect(
           find.textContaining('Open admin setup, provider readiness'),
           findsOneWidget,
@@ -535,6 +539,53 @@ void main() {
         expect(find.text('Workspace Readiness'), findsNothing);
         expect(find.text('Provider stack readiness'), findsNothing);
         expect(find.text('Server Configuration'), findsNothing);
+        expect(_textFieldWithLabel('OIDC Issuer URL'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'settings section shortcuts stay member-bounded and language persists',
+      (tester) async {
+        final store = InMemoryPreferencesStore(buildStoredConfiguration());
+        final container = ProviderContainer.test(
+          overrides: [
+            preferencesStoreProvider.overrideWith((ref) => store),
+            userProfileProvider.overrideWith((ref) async => _memberProfile),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: const MaterialApp(
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: Scaffold(body: SettingsScreen()),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Settings sections'), findsOneWidget);
+        expect(
+          find.widgetWithText(ActionChip, 'Workspace Health'),
+          findsNothing,
+        );
+        expect(
+          find.widgetWithText(ActionChip, 'Shell modules'),
+          findsOneWidget,
+        );
+
+        await tester.tap(find.widgetWithText(ActionChip, 'Language'));
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.text('German'));
+        await tester.tap(find.text('German'));
+        await tester.pumpAndSettle();
+
+        expect(store.rawString(appLocalePreferenceStorageKey), 'de');
+
+        expect(find.text('Provider stack readiness'), findsNothing);
         expect(_textFieldWithLabel('OIDC Issuer URL'), findsNothing);
       },
     );
@@ -629,11 +680,11 @@ void main() {
         await tester.pumpAndSettle();
 
         await tester.scrollUntilVisible(
-          find.text('Mein Weaver'),
+          find.text('Enabled by policy'),
           300,
           scrollable: find.byType(Scrollable).first,
         );
-        expect(find.text('Mein Weaver'), findsOneWidget);
+        expect(find.text('Mein Weaver'), findsWidgets);
         expect(find.text('Enabled by policy'), findsOneWidget);
         expect(find.text('Careful Cloud'), findsOneWidget);
         expect(find.text('Fast Local'), findsOneWidget);
@@ -909,7 +960,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Shell modules'), findsOneWidget);
+      expect(find.text('Shell modules'), findsWidgets);
       final recentActivityToggle = find.text('Recent activity quick links');
       expect(recentActivityToggle, findsOneWidget);
 

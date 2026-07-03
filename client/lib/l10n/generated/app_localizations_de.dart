@@ -1227,6 +1227,33 @@ class AppLocalizationsDe extends AppLocalizations {
       'Passe Weave für dieses Gerät an: Darstellung, Sprache, Profil, Modulansicht und sichere Abmeldung.';
 
   @override
+  String get settingsSectionsTitle => 'Einstellungsbereiche';
+
+  @override
+  String get settingsSectionAppearance => 'Darstellung';
+
+  @override
+  String get settingsSectionLanguage => 'Sprache';
+
+  @override
+  String get settingsSectionProfile => 'Profil';
+
+  @override
+  String get settingsSectionWeaver => 'Mein Weaver';
+
+  @override
+  String get settingsSectionHelp => 'Hilfe';
+
+  @override
+  String get settingsSectionModules => 'Shell-Module';
+
+  @override
+  String get settingsSectionWorkspaceHealth => 'Workspace Health';
+
+  @override
+  String get settingsSectionSession => 'Sitzung';
+
+  @override
   String get settingsThemeTitle => 'Darstellung';
 
   @override
