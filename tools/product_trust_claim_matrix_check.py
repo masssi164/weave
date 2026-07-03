@@ -98,9 +98,10 @@ def main() -> None:
     if not README.exists():
         fail("missing README.md")
     readme = README.read_text(encoding="utf-8")
-    require_contains(readme, "## Ready / Guarded / Future claim matrix", "README")
-    require_contains(readme, "No unaccounted data loss is the portability promise", "README")
+    require_contains(readme, "## What Is Guarded", "README")
+    require_contains(readme, "The portability promise is no unaccounted data loss", "README")
     require_contains(readme, "perfect lossless migration is not claimed", "README")
+    require_contains(readme, "product trust claim matrix", "README")
 
     for fixture in [
         "provider-portability-v2-chat-matrix-dry-run.json",

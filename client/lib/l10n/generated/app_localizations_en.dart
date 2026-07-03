@@ -1208,6 +1208,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsScreenTitle => 'Settings';
 
   @override
+  String get profileScreenTitle => 'Profile';
+
+  @override
+  String get workspaceHealthTitle => 'Workspace Health';
+
+  @override
   String get settingsBrandSectionDescription =>
       'Tune Weave for this device: appearance, language, profile context, module visibility, and safe sign-out.';
 
@@ -1294,6 +1300,29 @@ class AppLocalizationsEn extends AppLocalizations {
       'Open practical guidance for using Weave, recovering from issues, and understanding privacy basics.';
 
   @override
+  String get settingsProfileLinkTitle => 'Profile';
+
+  @override
+  String settingsProfileLinkDescription(String displayName) {
+    return 'Open profile details and editing for $displayName.';
+  }
+
+  @override
+  String get settingsProfileLinkSignedOutDescription =>
+      'Sign in to view and edit your Weave profile.';
+
+  @override
+  String get settingsProfileLinkLoadingDescription =>
+      'Loading your Weave profile entry point…';
+
+  @override
+  String get settingsWorkspaceHealthLinkTitle => 'Workspace Health';
+
+  @override
+  String get settingsWorkspaceHealthLinkDescription =>
+      'Open admin setup, provider readiness, support-safe diagnostics, and governed agent policy.';
+
+  @override
   String get helpScreenTitle => 'Help';
 
   @override
@@ -1354,7 +1383,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get helpSettingsBody =>
-      'Settings shows your profile summary, workspace readiness, server configuration, Matrix security information, and sign-out control. Use it to check whether Chat, Files, Calendar, or other modules are ready, and sign out before handing a device to someone else.';
+      'Settings shows appearance, language, your profile entry point, module visibility, help, and sign-out control. Workspace Health stays behind admin-only surfaces.';
 
   @override
   String get helpCalendarBoardsTitle => 'Calendar and Boards availability';

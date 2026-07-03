@@ -7,6 +7,8 @@ import 'package:weave/core/a11y/semantic_button.dart';
 import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
+import 'package:weave/core/router/app_routes.dart';
+import 'package:weave/core/router/app_router.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
@@ -222,14 +224,13 @@ void main() {
         await tester.pumpAndSettle();
         await _continueFirstRunIfPresent(tester);
 
-        await tester.tap(_navigationDestination('Settings'));
+        container.read(appRouterProvider).go(AppRoutes.workspaceHealth);
         await tester.pumpAndSettle();
-        final settingsScrollViewAfterReauth = find.byType(Scrollable).last;
-        await tester.scrollUntilVisible(
-          _textFieldWithLabel('Nextcloud Base URL'),
-          -300,
-          scrollable: settingsScrollViewAfterReauth,
+        await tester.drag(
+          find.byType(CustomScrollView),
+          const Offset(0, -1400),
         );
+        await tester.pumpAndSettle();
         await tester.enterText(
           _textFieldWithLabel('Nextcloud Base URL'),
           'https://files-alt.weave.test',
