@@ -47,8 +47,8 @@
 
   <rect x="104" y="212" width="1096" height="150" rx="34" fill="#ffffff" stroke="#dbeafe" stroke-width="2"/>
   <text x="144" y="270" font-size="42" font-weight="900" fill="#0f172a">Release Room</text>
-  <text x="144" y="316" font-size="26" font-weight="400" fill="#475569">Custom Matrix chat surface with room list, readable message</text>
-<text x="144" y="350" font-size="26" font-weight="400" fill="#475569">history, and a clear composer.</text>
+  <text x="144" y="316" font-size="26" font-weight="400" fill="#475569">Custom Weave chat surface with room list, readable message history,</text>
+<text x="144" y="350" font-size="26" font-weight="400" fill="#475569">and a clear composer.</text>
 
     <rect x="104" y="402" width="346" height="116" rx="28" fill="#ffffff" stroke="#dbeafe" stroke-width="2"/>
     <text x="132" y="444" font-size="21" font-weight="700" fill="#0369a1">Room</text>
@@ -57,7 +57,7 @@
 
     <rect x="480" y="402" width="346" height="116" rx="28" fill="#ffffff" stroke="#dbeafe" stroke-width="2"/>
     <text x="508" y="444" font-size="21" font-weight="700" fill="#0369a1">Encryption</text>
-    <text x="508" y="480" font-size="20" font-weight="400" fill="#0f172a">E2EE active scope, gated</text>
+    <text x="508" y="480" font-size="20" font-weight="400" fill="#0f172a">Guarded evidence scope</text>
 
 
     <rect x="856" y="402" width="346" height="116" rx="28" fill="#ffffff" stroke="#dbeafe" stroke-width="2"/>
@@ -84,8 +84,8 @@
     <text x="898" y="634" font-size="26" font-weight="800" fill="#0e7490">?</text>
     <text x="952" y="631" font-size="24" font-weight="800" fill="#0f172a">Help</text>
     <text x="888" y="678" font-size="22" font-weight="400" fill="#475569">Workspace rooms are</text>
-<text x="888" y="708" font-size="22" font-weight="400" fill="#475569">provisioned behind the</text>
-<text x="888" y="738" font-size="22" font-weight="400" fill="#475569">scenes.</text>
+<text x="888" y="708" font-size="22" font-weight="400" fill="#475569">provisioned behind</text>
+<text x="888" y="738" font-size="22" font-weight="400" fill="#475569">Weave-owned contracts.</text>
 
   <rect x="1012" y="96" width="300" height="54" rx="20" fill="#0f172a"/>
   <text x="1042" y="132" font-size="22" font-weight="800" fill="#ffffff">Send message</text>
