@@ -311,9 +311,18 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(find.textContaining('E2EE gate'), findsNothing);
-      expect(find.textContaining('Server-readable bodies'), findsNothing);
-      expect(find.textContaining('Agent writes'), findsNothing);
+      expect(
+        find.textContaining('E2EE gate', findRichText: true),
+        findsNothing,
+      );
+      expect(
+        find.textContaining('Server-readable bodies', findRichText: true),
+        findsNothing,
+      );
+      expect(
+        find.textContaining('Agent writes', findRichText: true),
+        findsNothing,
+      );
       await tester.drag(find.byType(CustomScrollView), const Offset(0, -900));
       await tester.pumpAndSettle();
       expect(find.text('AI agent capability governance'), findsOneWidget);
