@@ -373,6 +373,10 @@ void main() {
       expect(weaveApiClient.lastAccessToken, 'backend-boundary-token');
 
       expect(find.text('Settings sections'), findsOneWidget);
+      expect(find.widgetWithText(ActionChip, 'Appearance'), findsOneWidget);
+      expect(find.widgetWithText(ActionChip, 'Language'), findsOneWidget);
+      expect(find.widgetWithText(ActionChip, 'Profile'), findsOneWidget);
+      expect(find.widgetWithText(ActionChip, 'Shell modules'), findsOneWidget);
       expect(find.text('Appearance'), findsWidgets);
       expect(find.text('Language'), findsWidgets);
       expect(find.text('Profile'), findsWidgets);
