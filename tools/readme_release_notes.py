@@ -20,8 +20,8 @@ RELEASE_POINTER_BLOCK = f"""{START}
 {END}"""
 EVIDENCE_BLOCK = f"""{EVIDENCE_START}
 - Current checked-in draft: [Unreleased](docs/release-notes/unreleased.md)
-- Offline fixture review artifact: `build/release-notes/unreleased.md` from `./gradlew generateReleaseNotes`
-- Release evidence gate: `./gradlew releaseEvidenceCheck`
+- Offline release-note fixture review artifact: `build/release-notes/unreleased.md`
+- Release evidence check: deterministic CI/local gate for README markers, release-note structure, label policy, and release evidence fixtures.
 {EVIDENCE_END}"""
 REQUIRED_TOP_LEVEL_SECTIONS = [
     "Product Screenshots",
