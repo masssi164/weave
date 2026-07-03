@@ -117,7 +117,7 @@ public class FilesController {
             summary = "Download a file",
             description = "Downloads file bytes through the Weave-owned product files facade without exposing backing provider URLs or credentials.")
     @ApiResponse(responseCode = "200", description = "Downloaded file bytes.",
-            content = @Content(mediaType = MediaType.APPLICATION_OCTET_STREAM_VALUE,
+            content = @Content(mediaType = MediaType.ALL_VALUE,
                     schema = @Schema(type = "string", format = "binary")))
     public ResponseEntity<byte[]> downloadFile(@PathVariable @Size(max = 2048) String id) {
         DownloadedFile file = filesFacadeService.download(id);
