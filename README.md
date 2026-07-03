@@ -4,7 +4,7 @@
   <img src="client/assets/images/weave_logo.png" alt="Weave logo, an interlaced blue and teal knot" width="180">
 </p>
 
-Weave – Collaboration Seamlessly Woven with Agentic AI, Activated on Your Terms.
+Provider-neutral collaboration for organizations that need control, portability, and governed assistance.
 
 Weave is a provider-neutral collaboration suite and governed workspace for organizations that want collaboration to stay portable, reviewable, and under their own rules.
 
@@ -23,13 +23,15 @@ Weaver, the AI assistance layer, follows that product order: optional, policy-bo
 
 These checked-in visuals are support-safe proof assets for the current dogfood path. They show what Weave can demonstrate today for setup, member work, and workspace governance. The evidence manifest is [docs/assets/screenshot-evidence.json](docs/assets/screenshot-evidence.json).
 
-| Admin setup and control | Member work surface |
-| --- | --- |
-| [<img src="docs/assets/marketing/01-setup-start.svg" alt="Guided Weave workspace setup screen for admins preparing a workspace." width="420">](docs/assets/marketing/01-setup-start.svg) | [<img src="docs/assets/marketing/03-chat-room.svg" alt="Weave chat room with message history, workspace context, and a send action." width="420">](docs/assets/marketing/03-chat-room.svg) |
-| [<img src="docs/assets/marketing/02-review-service-endpoints.svg" alt="Weave service review screen showing workspace services before setup completion." width="420">](docs/assets/marketing/02-review-service-endpoints.svg) | [<img src="docs/assets/marketing/04-files-documents.svg" alt="Weave files view with documents, folders, and accessible file actions." width="420">](docs/assets/marketing/04-files-documents.svg) |
+- [Admin setup start](docs/assets/marketing/01-setup-start.svg): guided workspace setup for admins preparing a Weave organization.
+- [Service review](docs/assets/marketing/02-review-service-endpoints.svg): support-safe provider endpoint review before setup completion.
+- [Chat room](docs/assets/marketing/03-chat-room.svg): member chat with message history, workspace context, and a send action.
+- [Files and documents](docs/assets/marketing/04-files-documents.svg): document and folder surface with accessible file actions.
+- [Settings](docs/assets/marketing/05-settings.svg): account session controls and configured workspace services.
 
 <p align="center">
-  <a href="docs/assets/marketing/05-settings.svg"><img src="docs/assets/marketing/05-settings.svg" alt="Weave settings view with account session controls and configured workspace services." width="420"></a>
+  <a href="docs/assets/marketing/01-setup-start.svg"><img src="docs/assets/marketing/01-setup-start.svg" alt="Guided Weave workspace setup screen for admins preparing a workspace." width="420"></a>
+  <a href="docs/assets/marketing/03-chat-room.svg"><img src="docs/assets/marketing/03-chat-room.svg" alt="Weave chat room with message history, workspace context, and a send action." width="420"></a>
 </p>
 
 ## What Works Today
@@ -64,11 +66,9 @@ Developers should treat this repository as implementation and evidence truth, wi
 
 The frontdoor keeps the current release track visible here; the full chronology stays in the versioned release notes and evidence docs.
 
-| Status | Release node | What it adds |
-| --- | --- | --- |
-| Published prerelease on 2026-06-01 | [`v0.1.0-rc.3`](docs/release-v0.1-rc3-evidence.md) | Provider-neutral suite foundation, Admin/Workspace Health readiness boundary, first governed Weaver slice, and green CI plus Live Stack evidence for that candidate. |
-| Guarded Beta slice refreshed on 2026-06-18 | [Sprint 32 closure report](docs/sprint-32-closure-report.md) | Admin readiness preview, adapter-continuity dry-run, approval-required Weaver actions, member Client + Weaver flow, and Admin + User + Weaver E2E/accessibility smoke. This is ready for #836 review, not overall Sprint 32 completion. |
-| Active dogfood change stream | [Unreleased](docs/release-notes/unreleased.md) | Current merged highlights include free-provider lab coverage, provider-switch contract gates, human validation gates, commercial-adapter readiness guards, operator recovery guardrails, and refreshed Beta evidence. |
+- **Published prerelease, 2026-06-01:** [`v0.1.0-rc.3`](docs/release-v0.1-rc3-evidence.md) added the provider-neutral suite foundation, Admin/Workspace Health readiness boundary, first governed Weaver slice, and green CI plus Live Stack evidence for that candidate.
+- **Guarded Beta slice, refreshed 2026-06-18:** the [Sprint 32 closure report](docs/sprint-32-closure-report.md) captures Admin readiness preview, adapter-continuity dry-run, approval-required Weaver actions, member Client + Weaver flow, and Admin + User + Weaver E2E/accessibility smoke. It is ready for #836 review, not an overall Sprint 32 completion claim.
+- **Active dogfood stream:** [Unreleased](docs/release-notes/unreleased.md) tracks current merged highlights, including free-provider lab coverage, provider-switch contract gates, human validation gates, commercial-adapter readiness guards, operator recovery guardrails, and refreshed Beta evidence.
 
 <!-- WEAVE_RELEASE_NOTES_START -->
 - Current checked-in draft: [Unreleased](docs/release-notes/unreleased.md)
@@ -81,6 +81,6 @@ Every public claim in this README is supposed to terminate in a support-safe art
 
 <!-- WEAVE_RELEASE_NOTES:START -->
 - Current checked-in draft: [Unreleased](docs/release-notes/unreleased.md)
-- Offline fixture review artifact: `build/release-notes/unreleased.md` from `./gradlew generateReleaseNotes`
-- Release evidence gate: `./gradlew releaseEvidenceCheck`
+- Offline release-note fixture review artifact: `build/release-notes/unreleased.md`
+- Release evidence check: deterministic CI/local gate for README markers, release-note structure, label policy, and release evidence fixtures.
 <!-- WEAVE_RELEASE_NOTES:END -->

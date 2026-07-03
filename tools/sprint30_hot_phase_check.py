@@ -9,8 +9,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SLOGAN = "Weave – Collaboration Seamlessly Woven with Agentic AI, Activated on Your Terms."
+README_PRODUCT_LINE = "Provider-neutral collaboration for organizations that need control, portability, and governed assistance."
 REQUIRED_SLOGAN_SURFACES = [
-    "README.md",
     "docs/index.md",
     "docs/product-line-and-weaver-plan.md",
     "docs/product-trust-provider-choice-claim-matrix.md",
@@ -49,6 +49,9 @@ def read(rel: str) -> str:
 
 
 def main() -> None:
+    if README_PRODUCT_LINE not in read("README.md"):
+        fail("missing current README product line")
+
     for rel in REQUIRED_SLOGAN_SURFACES:
         if SLOGAN not in read(rel):
             fail(f"missing exact slogan in {rel}")
