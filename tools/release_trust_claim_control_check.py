@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate Sprint 18 release-trust claim control and manual AT blocker accounting."""
+"""Validate release-trust claim control and accessibility evidence accounting."""
 
 from __future__ import annotations
 
@@ -25,10 +25,10 @@ REQUIRED_SPRINT18_FLOWS = {
 }
 
 REQUIRED_BLOCKER_PHRASES = [
-    "not pass evidence",
+    "historical accounting artifact",
     "#591",
-    "expires before any Sprint 18 RC promotion",
-    "Do not claim Sprint 18 member workspace accessibility signoff",
+    "closed_not_planned",
+    "Current release promotion still requires current accessibility evidence",
     "Do not claim production provider migration apply",
     "Do not claim RC/prod readiness",
     "Do not claim broad Weaver availability",
@@ -37,7 +37,7 @@ REQUIRED_BLOCKER_PHRASES = [
 
 REQUIRED_CLAIM_BOUNDARIES = [
     "Release claim-control evidence",
-    "manual assistive-technology signoff remains blocked by #591",
+    "historical #591 blocker is closed",
     "production cutover remains unavailable",
     "support-bundle, audit, export/import, release notes, CI, and Live Stack references are support-safe evidence pointers",
 ]
@@ -110,9 +110,9 @@ def main() -> None:
         evidence = flow.get("requiredEvidence")
         if not isinstance(evidence, list) or "manual-at" not in evidence:
             fail(f"Sprint 18 flow {flow.get('id')} must require manual-at evidence")
-        blocker = flow.get("currentBlocker")
-        if not isinstance(blocker, dict) or blocker.get("issue") != "#591" or blocker.get("status") != "blocked":
-            fail(f"Sprint 18 flow {flow.get('id')} must carry currentBlocker issue #591 status blocked")
+        blocker = flow.get("historicalBlocker")
+        if not isinstance(blocker, dict) or blocker.get("issue") != "#591" or blocker.get("status") != "closed_not_planned":
+            fail(f"Sprint 18 flow {flow.get('id')} must carry historicalBlocker issue #591 status closed_not_planned")
 
     blocker_text = read(BLOCKER)
     for flow_id in REQUIRED_SPRINT18_FLOWS:
@@ -128,8 +128,8 @@ def main() -> None:
             fail(f"claim matrix missing Sprint 18 boundary: {phrase}")
 
     release_notes = read(RELEASE_NOTES)
-    if "Sprint 18 release-trust claim control" not in release_notes or "#591" not in release_notes:
-        fail("unreleased notes must mention Sprint 18 release-trust claim control and #591 blocker")
+    if "Accessibility and assistive-technology readiness remain evidence-gated" not in release_notes:
+        fail("unreleased notes must mention current accessibility evidence-gated release posture")
 
     for path in SCAN_DOCS:
         text = read(path)
