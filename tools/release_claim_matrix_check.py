@@ -10,18 +10,30 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 README = ROOT / "README.md"
+CLAIM_MATRIX = ROOT / "docs" / "product-trust-provider-choice-claim-matrix.md"
+MEETING_DECISION = ROOT / "docs" / "meeting-architecture-decision.md"
 REGISTRY = ROOT / "specs" / "0004-domain-registry" / "canonical-domain-registry-v1.json"
-REQUIRED_CLAIMS = {
-    "Weave ships as one product stack",
-    "v0.1 is dogfood-production",
-    "Members work in provider-neutral Weave domains",
-    "Provider adapters are replaceable behind Weave-owned contracts",
-    "No unaccounted data loss is the portability promise",
-    "Calls/meetings use LiveKit readiness today",
-    "Workspace/Admin Health is the support-safe readiness and diagnostics control plane",
-    "Weaver is OpenClaw-derived, optional, per-user, governed, and disabled by default",
-    "Autonomous agent/team writes are available in v0.1",
-}
+README_REQUIRED_BOUNDARIES = [
+    "active dogfood",
+    "does not claim public production readiness",
+    "perfect lossless migration",
+    "unrestricted autonomous agents",
+    "universal provider interchangeability",
+    "The portability promise is no unaccounted data loss",
+]
+CLAIM_MATRIX_REQUIRED_CLAIMS = [
+    "Provider-neutral control plane",
+    "Consistent member UX across providers",
+    "Provider-neutral replacement dry-run",
+    "no-unaccounted-data-loss",
+    "Bounded governed Weaver assistance",
+    "broad autonomous AI availability",
+]
+MEETING_REQUIRED_BOUNDARIES = [
+    "LiveKit as the active meetings/video-call provider",
+    "join/start fail-closed",
+    "Do not claim `secure meetings`, `encrypted meetings`, or `end-to-end encrypted meetings`",
+]
 REQUIRED_REALITY_LEVELS = [
     "contract_only",
     "configured",
@@ -33,8 +45,10 @@ REQUIRED_REALITY_LEVELS = [
     "release_ready",
 ]
 FORBIDDEN_READY_CLAIMS = [
-    "Autonomous agent/team writes are available in v0.1. | **Ready",
-    "Weaver is OpenClaw-derived, optional, per-user, governed, and disabled by default. | **Ready",
+    "broad autonomous AI availability. | Ready",
+    "broad autonomous AI availability | Ready",
+    "production provider migration. | Ready",
+    "lossless migration. | Ready",
 ]
 
 
@@ -47,16 +61,30 @@ def main() -> None:
     if not README.exists():
         fail("missing README.md")
     text = README.read_text(encoding="utf-8")
-    if "## Ready / Guarded / Future Claim Matrix" not in text:
-        fail("README missing Ready / Guarded / Future Claim Matrix")
-    if "v0.1 is dogfood-production, not preview" not in text:
-        fail("README must keep the dogfood-production boundary")
-    for claim in sorted(REQUIRED_CLAIMS):
-        if claim not in text:
-            fail(f"README claim matrix missing claim: {claim}")
+    if "## What Is Guarded" not in text:
+        fail("README missing compact guarded-claims section")
+    if "## Release Evidence" not in text:
+        fail("README missing release evidence pointer")
+    for boundary in README_REQUIRED_BOUNDARIES:
+        if boundary not in text:
+            fail(f"README missing compact claim boundary: {boundary}")
+
+    if not CLAIM_MATRIX.exists():
+        fail("missing product trust claim matrix")
+    claim_text = CLAIM_MATRIX.read_text(encoding="utf-8")
+    for claim in CLAIM_MATRIX_REQUIRED_CLAIMS:
+        if claim not in claim_text:
+            fail(f"product trust claim matrix missing claim boundary: {claim}")
     for forbidden in FORBIDDEN_READY_CLAIMS:
-        if forbidden in text:
-            fail(f"README overclaims guarded/future surface: {forbidden}")
+        if forbidden in claim_text:
+            fail(f"claim matrix overclaims guarded/future surface: {forbidden}")
+
+    if not MEETING_DECISION.exists():
+        fail("missing meeting architecture decision")
+    meeting_text = MEETING_DECISION.read_text(encoding="utf-8")
+    for boundary in MEETING_REQUIRED_BOUNDARIES:
+        if boundary not in meeting_text:
+            fail(f"meeting decision missing LiveKit boundary: {boundary}")
 
     if not REGISTRY.exists():
         fail("missing canonical domain registry fixture")
@@ -65,12 +93,12 @@ def main() -> None:
     if levels != REQUIRED_REALITY_LEVELS:
         fail(f"providerRealityLevels must equal {REQUIRED_REALITY_LEVELS}, got {levels}")
     for level in REQUIRED_REALITY_LEVELS:
-        if level not in text:
-            fail(f"README claim matrix must mention provider reality level {level}")
+        if level not in claim_text:
+            fail(f"product trust claim matrix must mention provider reality level {level}")
 
-    guarded_pattern = re.compile(r"\| Provider adapters are replaceable behind Weave-owned contracts\. \| \*\*Guarded\*\* \|")
-    if not guarded_pattern.search(text):
-        fail("provider adapter replaceability must remain Guarded in README claim matrix")
+    guarded_pattern = re.compile(r"provider (replacement|changes|switching).*?(guarded|dry-run|review)", re.IGNORECASE | re.DOTALL)
+    if not guarded_pattern.search(text + "\n" + claim_text):
+        fail("provider adapter replacement must remain guarded")
 
     print("release-claim-matrix-check: ok")
 

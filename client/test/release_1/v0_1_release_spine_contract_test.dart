@@ -107,9 +107,10 @@ void main() {
 
       for (final required in <String>[
         'provider-neutral collaboration suite',
-        '## Current Maturity',
-        '## Ready / Guarded / Future Claim Matrix',
-        'v0.1 is dogfood-production, not preview',
+        '## What Works Today',
+        '## What Is Guarded',
+        'Weave is in active dogfood',
+        'The portability promise is no unaccounted data loss',
         'docs/v0.1-golden-path.md',
       ]) {
         expect(readme, contains(required));

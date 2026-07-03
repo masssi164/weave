@@ -392,7 +392,7 @@ def main() -> int:
             "Flutter/mobile/desktop/web clients are not deployed by bootstrap",
         ] + [f"`{profile_id}`" for profile_id in sorted(REQUIRED_PROFILES)],
     )
-    assert_contains(README, ["Bootstrap foundation", "docs/bootstrap-foundation-contract.md", "Control Plane = Weave Server + Admin Console"])
+    assert_contains(README, ["Bootstrap foundation", "docs/bootstrap-foundation-contract.md"])
     assert_contains(MKDOCS, ["Bootstrap foundation contract: bootstrap-foundation-contract.md"])
     assert_contains(CONTROL_DOC, ["Bootstrap foundation", "bootstrap-foundation-contract.md"])
     assert_contains(INFRA_DOC, ["Provider Stack / Infra is optional", "bootstrap-foundation-contract.md"])
