@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "generator": "client/tool/generate_marketing_screenshots.py",
+  "gateCommand": "make marketing-screenshots && python3 tools/screenshot_evidence_check.py && git diff --exit-code -- docs/assets/marketing docs/assets/roadmap docs/assets/screenshot-evidence.json",
+  "assets": [
+    {
+      "path": "docs/assets/marketing/01-setup-start.svg",
+      "source": "deterministic-svg-generator",
+      "maturityStatus": "ready_foundation",
+      "claimBoundary": "Setup path visual only; does not claim public production readiness or provider interchangeability.",
+      "altText": "Weave setup start screen showing guided workspace setup."
+    },
+    {
+      "path": "docs/assets/marketing/02-review-service-endpoints.svg",
+      "source": "deterministic-svg-generator",
+      "maturityStatus": "ready_foundation",
+      "claimBoundary": "Workspace service review visual only; does not expose raw provider diagnostics, secrets, or credential-bearing URLs.",
+      "altText": "Weave setup endpoint review showing workspace services before setup completion."
+    },
+    {
+      "path": "docs/assets/marketing/03-chat-room.svg",
+      "source": "deterministic-svg-generator",
+      "maturityStatus": "ready_foundation",
+      "claimBoundary": "Current dogfood chat UX visual only; does not claim complete E2EE history migration or broad chat-provider portability.",
+      "altText": "Weave chat room showing message history, linked workspace context, and a send action."
+    },
+    {
+      "path": "docs/assets/marketing/04-files-documents.svg",
+      "source": "deterministic-svg-generator",
+      "maturityStatus": "ready_foundation",
+      "claimBoundary": "Current dogfood files facade visual only; does not claim all file-provider operations or production restore readiness.",
+      "altText": "Weave files view showing documents, folders, and accessible file actions."
+    },
+    {
+      "path": "docs/assets/marketing/05-settings.svg",
+      "source": "deterministic-svg-generator",
+      "maturityStatus": "ready_foundation",
+      "claimBoundary": "Current settings UX visual only; does not claim unrestricted provider mutation or public production readiness.",
+      "altText": "Weave settings view showing account session controls and configured workspace services."
+    },
+    {
+      "path": "docs/assets/roadmap/06-calendar-roadmap-readiness.svg",
+      "source": "deterministic-svg-generator",
+      "maturityStatus": "guarded_roadmap",
+      "claimBoundary": "Guarded Calendar roadmap visual only; live-write readiness remains scoped to documented channel-event evidence.",
+      "altText": "Weave calendar roadmap screen showing workspace, team, and channel schedule readiness boundaries."
+    },
+    {
+      "path": "docs/assets/roadmap/07-boards-feature-gate.svg",
+      "source": "deterministic-svg-generator",
+      "maturityStatus": "guarded_roadmap",
+      "claimBoundary": "Guarded feature-gated boards/tasks roadmap visual only; does not claim normal navigation availability or provider adapter completeness.",
+      "altText": "Weave boards roadmap screen showing feature-gated tasks with keyboard-accessible non-drag actions."
+    },
+    {
+      "path": "docs/assets/roadmap/08-livekit-meetings-readiness.svg",
+      "source": "deterministic-svg-generator",
+      "maturityStatus": "guarded_roadmap",
+      "claimBoundary": "Guarded LiveKit meetings roadmap visual only; join/start remain behind backend token and encryption evidence gates.",
+      "altText": "Weave meetings roadmap screen showing LiveKit readiness behind a fail-closed backend token facade."
+    }
+  ]
+}

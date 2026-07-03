@@ -2,7 +2,7 @@
 
 Status: implementation baseline for the monorepo refoundation.
 
-Latest prerelease audit: `v0.1.0-rc.3` was published on 2026-06-01 from `2f0794c46cf8ecc91697b930d27b443c12fdeec2` with green PR-safe CI, credentialed Live Stack E2E, release-draft evidence, and release-owner blocker refresh in #557. See [v0.1.0-rc.3 release evidence](release-v0.1-rc3-evidence.md). Post-publication Sprint 18 accounting keeps #591 open as the current manual assistive-technology release blocker before public/production release signoff.
+Latest prerelease audit: `v0.1.0-rc.3` was published on 2026-06-01 from `2f0794c46cf8ecc91697b930d27b443c12fdeec2` with green PR-safe CI, credentialed Live Stack E2E, release-draft evidence, and release-owner blocker refresh in #557. See [v0.1.0-rc.3 release evidence](release-v0.1-rc3-evidence.md). Current public/production release signoff requires current CI, Live Stack, release notes, accessibility, support-bundle, audit/export, migration, Weaver, and release-owner evidence; historical Sprint 18 blocker accounting is not current release truth.
 
 ## Goal
 

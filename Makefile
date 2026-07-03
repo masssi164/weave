@@ -1,4 +1,4 @@
-.PHONY: ci client-ci server-ci infra-static admin-ci acceptance-contract spec-contract spec-contract-test bootstrap-foundation-check docs-build docs-check docs-serve docs-structure-check release-notes-check release-notes-label-check release-evidence-check generate-release-notes update-readme-release-notes live-stack-help doctor
+.PHONY: ci client-ci server-ci infra-static admin-ci acceptance-contract spec-contract spec-contract-test bootstrap-foundation-check docs-build docs-check docs-serve docs-structure-check release-notes-check release-notes-label-check release-evidence-check generate-release-notes update-readme-release-notes marketing-screenshots live-stack-help doctor
 
 GRADLE ?= ./gradlew
 
@@ -59,6 +59,9 @@ generate-release-notes:
 
 update-readme-release-notes:
 	$(GRADLE) updateReadmeReleaseNotes
+
+marketing-screenshots:
+	$(MAKE) -C client marketing-screenshots
 
 live-stack-help:
 	$(GRADLE) liveStackHelp

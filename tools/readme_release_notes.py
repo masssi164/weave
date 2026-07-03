@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check or update the managed README release-notes block."""
+"""Check or update the managed README release-note pointer blocks."""
 
 from __future__ import annotations
 
@@ -14,23 +14,24 @@ END = "<!-- WEAVE_RELEASE_NOTES_END -->"
 EVIDENCE_START = "<!-- WEAVE_RELEASE_NOTES:START -->"
 EVIDENCE_END = "<!-- WEAVE_RELEASE_NOTES:END -->"
 DEFAULT_SOURCE = ROOT / "docs" / "release-notes" / "unreleased.md"
+RELEASE_POINTER_BLOCK = f"""{START}
+- Current checked-in draft: [Unreleased](docs/release-notes/unreleased.md)
+- Latest release index: [Release notes](docs/release-notes/index.md)
+{END}"""
 EVIDENCE_BLOCK = f"""{EVIDENCE_START}
 - Current checked-in draft: [Unreleased](docs/release-notes/unreleased.md)
 - Offline fixture review artifact: `build/release-notes/unreleased.md` from `./gradlew generateReleaseNotes`
 - Release evidence gate: `./gradlew releaseEvidenceCheck`
 {EVIDENCE_END}"""
 REQUIRED_TOP_LEVEL_SECTIONS = [
-    "Product architecture",
-    "Release notes",
-    "Product screenshots",
-    "Repository layout",
-    "v0.1 product truth",
-    "Boards and provider boundary",
-    "Infrastructure and OpenTofu",
-    "Evidence contract",
-    "Release evidence",
-    "Common local gates",
-    "Working agreements",
+    "Product Screenshots",
+    "What Works Today",
+    "What Is Guarded",
+    "For Members",
+    "For Admins And Operators",
+    "For Developers",
+    "Release Notes",
+    "Release Evidence",
 ]
 
 
@@ -50,7 +51,7 @@ def replace_marked_block(content: str, start_marker: str, end_marker: str, block
     return content[:start] + block + content[end:]
 
 
-def release_source_to_readme_block(source: Path) -> str:
+def validate_release_source(source: Path) -> None:
     if not source.exists():
         fail(f"release notes source not found: {source}")
     text = source.read_text(encoding="utf-8").strip()
@@ -61,21 +62,16 @@ def release_source_to_readme_block(source: Path) -> str:
     if not body:
         fail(f"release notes source has no body: {source}")
 
-    return f"""{START}
-_Generated release notes are review artifacts. A release maintainer may update this block with `python3 tools/readme_release_notes.py --update --source <generated-notes>` before opening the release-draft review._
-
-{body}
-{END}"""
-
 
 def replace_blocks(content: str, source: Path) -> str:
-    updated = replace_marked_block(content, START, END, release_source_to_readme_block(source))
+    validate_release_source(source)
+    updated = replace_marked_block(content, START, END, RELEASE_POINTER_BLOCK)
     return replace_marked_block(updated, EVIDENCE_START, EVIDENCE_END, EVIDENCE_BLOCK)
 
 
 def check_readme_structure(content: str) -> None:
-    if content.count("# Weave Monorepo\n") != 1:
-        fail("README.md must contain exactly one top-level '# Weave Monorepo' heading")
+    if content.count("# Weave\n") != 1:
+        fail("README.md must contain exactly one top-level '# Weave' heading")
 
     for marker in (START, END, EVIDENCE_START, EVIDENCE_END):
         if content.count(marker) != 1:
@@ -97,13 +93,11 @@ def check_readme_structure(content: str) -> None:
     if repeated:
         fail("README.md required top-level sections must appear exactly once: " + ", ".join(repeated))
 
-    release_section = content.index("## Release notes")
-    screenshots_section = content.index("## Product screenshots")
-    evidence_section = content.index("## Release evidence")
-    gates_section = content.index("## Common local gates")
-    if not (release_section < generated_start < generated_end < screenshots_section):
+    release_section = content.index("## Release Notes")
+    evidence_section = content.index("## Release Evidence")
+    if not (release_section < generated_start < generated_end < evidence_section):
         fail("README.md release-note draft markers must stay inside the Release notes section")
-    if not (evidence_section < evidence_start < evidence_end < gates_section):
+    if not (evidence_section < evidence_start < evidence_end):
         fail("README.md release-evidence markers must stay inside the Release evidence section")
 
 
