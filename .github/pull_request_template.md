@@ -92,6 +92,7 @@ Choose exactly one before review/merge; CI fails otherwise.
 - [ ] `flutter test`
 - [ ] `make offline-contract-test`
 - [ ] `make marketing-screenshots` (if README/docs screenshot assets changed)
+- [ ] `python3 tools/screenshot_evidence_check.py` (if README/docs screenshot assets changed)
 - [ ] Live-stack validation (only when relevant; record run, artifact, or skip reason):
 
 ## Notes for reviewers

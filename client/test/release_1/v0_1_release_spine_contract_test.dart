@@ -106,10 +106,11 @@ void main() {
       }
 
       for (final required in <String>[
-        'Weave lets organizations own their collaboration layer',
-        '## v0.1 product truth',
-        '## Ready / Guarded / Future claim matrix',
-        'v0.1 is dogfood-production, not preview',
+        'provider-neutral collaboration suite',
+        '## What Works Today',
+        '## What Is Guarded',
+        'Weave is in active dogfood',
+        'The portability promise is no unaccounted data loss',
         'docs/v0.1-golden-path.md',
       ]) {
         expect(readme, contains(required));

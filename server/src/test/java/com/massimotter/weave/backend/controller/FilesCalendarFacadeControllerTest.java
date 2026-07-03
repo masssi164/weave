@@ -125,6 +125,22 @@ class FilesCalendarFacadeControllerTest {
     }
 
     @Test
+    void filesReadinessExposesMemberSafeWorkspaceCapabilityState() throws Exception {
+        mockMvc.perform(get("/api/files/readiness")
+                        .with(workspaceJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.enabled").value(true))
+                .andExpect(jsonPath("$.readiness").value("ready"))
+                .andExpect(jsonPath("$.policyState").value("allowed"))
+                .andExpect(jsonPath("$.memberImpact").value("Files are available through Weave."))
+                .andExpect(jsonPath("$.grantedCapabilities", org.hamcrest.Matchers.hasItems("files.read", "files.upload")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("files.weave.test"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("Nextcloud"))));
+    }
+
+    @Test
     void calendarFacadeRequiresAuthenticatedWorkspaceScope() throws Exception {
         mockMvc.perform(get("/api/calendar/events"))
                 .andExpect(status().isUnauthorized())

@@ -2033,6 +2033,18 @@ abstract class AppLocalizations {
   /// **'Settings'**
   String get settingsScreenTitle;
 
+  /// Title for the profile screen app bar
+  ///
+  /// In en, this message translates to:
+  /// **'Profile'**
+  String get profileScreenTitle;
+
+  /// Title for the admin/support workspace health screen
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace Health'**
+  String get workspaceHealthTitle;
+
   /// Subtle branded copy shown in the settings header card
   ///
   /// In en, this message translates to:
@@ -2183,6 +2195,42 @@ abstract class AppLocalizations {
   /// **'Open practical guidance for using Weave, recovering from issues, and understanding privacy basics.'**
   String get settingsHelpDescription;
 
+  /// Title for the Settings link to the dedicated profile screen
+  ///
+  /// In en, this message translates to:
+  /// **'Profile'**
+  String get settingsProfileLinkTitle;
+
+  /// Description for the Settings link to the dedicated profile screen
+  ///
+  /// In en, this message translates to:
+  /// **'Open profile details and editing for {displayName}.'**
+  String settingsProfileLinkDescription(String displayName);
+
+  /// Description for the Settings profile link when no profile is loaded
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in to view and edit your Weave profile.'**
+  String get settingsProfileLinkSignedOutDescription;
+
+  /// Loading description for the Settings profile link
+  ///
+  /// In en, this message translates to:
+  /// **'Loading your Weave profile entry point…'**
+  String get settingsProfileLinkLoadingDescription;
+
+  /// Title for the admin-only Settings link to workspace health
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace Health'**
+  String get settingsWorkspaceHealthLinkTitle;
+
+  /// Description for the admin-only Settings link to workspace health
+  ///
+  /// In en, this message translates to:
+  /// **'Open admin setup, provider readiness, support-safe diagnostics, and governed agent policy.'**
+  String get settingsWorkspaceHealthLinkDescription;
+
   /// Title for the in-app help screen app bar
   ///
   /// In en, this message translates to:
@@ -2288,7 +2336,7 @@ abstract class AppLocalizations {
   /// Help copy for settings, account, and session basics
   ///
   /// In en, this message translates to:
-  /// **'Settings shows your profile summary, workspace readiness, server configuration, Matrix security information, and sign-out control. Use it to check whether Chat, Files, Calendar, or other modules are ready, and sign out before handing a device to someone else.'**
+  /// **'Settings shows appearance, language, your profile entry point, module visibility, help, and sign-out control. Workspace Health stays behind admin-only surfaces.'**
   String get helpSettingsBody;
 
   /// Help section title for gated Calendar and Boards availability

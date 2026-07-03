@@ -10749,7 +10749,8 @@
     },
     "/api/files": {
       "get": {
-        "operationId": "list",
+        "description": "Lists files through the Weave-owned product files facade without exposing backing provider URLs or credentials.",
+        "operationId": "listFiles",
         "parameters": [
           {
             "in": "query",
@@ -10819,7 +10820,8 @@
     },
     "/api/files/folders": {
       "post": {
-        "operationId": "createFolder",
+        "description": "Creates a folder through the Weave-owned product files facade.",
+        "operationId": "createFilesFolder",
         "requestBody": {
           "content": {
             "application/json": {
@@ -10883,9 +10885,67 @@
         ]
       }
     },
+    "/api/files/readiness": {
+      "get": {
+        "description": "Returns the member-safe, provider-neutral Files capability readiness derived from the canonical workspace capability snapshot.",
+        "operationId": "getFilesReadiness",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceCapabilityStatusResponse"
+                }
+              }
+            },
+            "description": "HTTP 200"
+          },
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 401"
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 403"
+          },
+          "503": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 503"
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Get Files readiness",
+        "tags": [
+          "Files"
+        ]
+      }
+    },
     "/api/files/upload": {
       "post": {
-        "operationId": "upload",
+        "description": "Uploads a file through the Weave-owned product files facade.",
+        "operationId": "uploadFile",
         "parameters": [
           {
             "in": "query",
@@ -10973,7 +11033,8 @@
     },
     "/api/files/{id}": {
       "delete": {
-        "operationId": "delete",
+        "description": "Deletes a file or folder through the Weave-owned product files facade.",
+        "operationId": "deleteFile",
         "parameters": [
           {
             "in": "path",
@@ -10987,6 +11048,9 @@
           }
         ],
         "responses": {
+          "204": {
+            "description": "HTTP 204"
+          },
           "401": {
             "content": {
               "*/*": {
@@ -11031,7 +11095,8 @@
     },
     "/api/files/{id}/download": {
       "get": {
-        "operationId": "download",
+        "description": "Downloads file bytes through the Weave-owned product files facade without exposing backing provider URLs or credentials.",
+        "operationId": "downloadFile",
         "parameters": [
           {
             "in": "path",
@@ -11045,6 +11110,17 @@
           }
         ],
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "HTTP 200"
+          },
           "401": {
             "content": {
               "*/*": {

@@ -6,6 +6,7 @@ import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
 import com.massimotter.weave.backend.service.FilesFacadeService;
+import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.service.files.DownloadedFile;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,6 +47,9 @@ class FilesControllerDownloadTest {
 
     @MockBean
     private FilesFacadeService filesFacadeService;
+
+    @MockBean
+    private WorkspaceCapabilityService workspaceCapabilityService;
 
     @MockBean
     private JwtDecoder jwtDecoder;

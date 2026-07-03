@@ -30,10 +30,12 @@ import 'package:weave/features/onboarding/presentation/member_handoff_screen.dar
 import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
 import 'package:weave/features/onboarding/presentation/welcome_screen.dart';
 import 'package:weave/features/profile/domain/entities/user_profile.dart';
+import 'package:weave/features/profile/presentation/profile_screen.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
+import 'package:weave/features/settings/presentation/settings_screen.dart';
 import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
 import 'package:weave/main.dart';
 
@@ -519,6 +521,88 @@ void main() {
 
       expect(find.byType(HelpScreen), findsOneWidget);
       expect(find.text('User handbook'), findsOneWidget);
+    });
+
+    testWidgets('opens the routed profile surface for ready users', (
+      tester,
+    ) async {
+      final secureStore = InMemorySecureStore();
+      await secureStore.write(
+        authSessionStorageKey,
+        AuthSessionDto.fromSession(buildTestAuthSession()).encode(),
+      );
+      final container = createContainer(
+        configuration: buildTestConfiguration(),
+        secureStore: secureStore,
+        userProfile: const UserProfile(
+          userId: 'member-1',
+          username: 'member',
+          displayName: 'Workspace Member',
+          locale: 'en',
+          timezone: 'Europe/Berlin',
+          emailVerified: true,
+          roles: ['member'],
+          groups: ['workspace-default'],
+        ),
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const WeaveApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      container.read(appRouterProvider).go(AppRoutes.profile);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ProfileScreen), findsOneWidget);
+      expect(find.text('Profile'), findsWidgets);
+      expect(find.text('Weave profile'), findsOneWidget);
+      expect(find.text('Save profile'), findsOneWidget);
+    });
+
+    testWidgets('opens workspace health boundary for ready members', (
+      tester,
+    ) async {
+      final secureStore = InMemorySecureStore();
+      await secureStore.write(
+        authSessionStorageKey,
+        AuthSessionDto.fromSession(buildTestAuthSession()).encode(),
+      );
+      final container = createContainer(
+        configuration: buildTestConfiguration(),
+        secureStore: secureStore,
+        userProfile: const UserProfile(
+          userId: 'member-1',
+          username: 'member',
+          displayName: 'Workspace Member',
+          locale: 'en',
+          timezone: 'Europe/Berlin',
+          emailVerified: true,
+          roles: ['member'],
+          groups: ['workspace-default'],
+        ),
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const WeaveApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      container.read(appRouterProvider).go(AppRoutes.workspaceHealth);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(WorkspaceHealthScreen), findsOneWidget);
+      expect(find.text('Workspace Health'), findsWidgets);
+      expect(find.text('Workspace setup is admin-only'), findsOneWidget);
+      expect(find.text('Workspace Readiness'), findsNothing);
     });
 
     testWidgets('redirects shell routes back to welcome when setup is needed', (

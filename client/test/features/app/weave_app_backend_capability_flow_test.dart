@@ -372,30 +372,32 @@ void main() {
       );
       expect(weaveApiClient.lastAccessToken, 'backend-boundary-token');
 
-      expect(find.text('Workspace Readiness'), findsOneWidget);
+      expect(find.text('Appearance'), findsOneWidget);
+      expect(find.text('Language'), findsOneWidget);
+      expect(find.text('Profile'), findsOneWidget);
+      expect(find.text('Weave profile'), findsNothing);
+      expect(find.text('Save profile'), findsNothing);
+      expect(find.text('Shell modules'), findsOneWidget);
+      expect(find.text('Workspace Readiness'), findsNothing);
       expect(
         find.text(
           'Shell access is ready, but one or more services still need attention.',
         ),
-        findsOneWidget,
+        findsNothing,
       );
-      expect(find.text('Workspace setup is admin-only'), findsOneWidget);
+      expect(find.text('Workspace setup is admin-only'), findsNothing);
       expect(find.text('Server Configuration'), findsNothing);
-      expect(
-        find.text('Readiness: Ready', findRichText: true),
-        findsNWidgets(2),
-      );
-      expect(
-        find.text('Readiness: Blocked', findRichText: true),
-        findsOneWidget,
-      );
+      expect(find.text('Provider stack readiness'), findsNothing);
+      expect(find.text('AI agent capability governance'), findsNothing);
+      expect(find.text('Readiness: Ready', findRichText: true), findsNothing);
+      expect(find.text('Readiness: Blocked', findRichText: true), findsNothing);
       expect(
         find.text('Connection: Degraded', findRichText: true),
         findsNothing,
       );
       expect(
         find.text('Connection: Connected', findRichText: true),
-        findsNWidgets(4),
+        findsNothing,
       );
     },
   );

@@ -1322,6 +1322,14 @@
   "@settingsScreenTitle": {
     "description": "Title for the settings screen app bar"
   },
+  "profileScreenTitle": "Profile",
+  "@profileScreenTitle": {
+    "description": "Title for the profile screen app bar"
+  },
+  "workspaceHealthTitle": "Workspace Health",
+  "@workspaceHealthTitle": {
+    "description": "Title for the admin/support workspace health screen"
+  },
   "settingsBrandSectionDescription": "Tune Weave for this device: appearance, language, profile context, module visibility, and safe sign-out.",
   "@settingsBrandSectionDescription": {
     "description": "Subtle branded copy shown in the settings header card"
@@ -1422,6 +1430,36 @@
   "@settingsHelpDescription": {
     "description": "Description for the settings entry point to in-app help"
   },
+  "settingsProfileLinkTitle": "Profile",
+  "@settingsProfileLinkTitle": {
+    "description": "Title for the Settings link to the dedicated profile screen"
+  },
+  "settingsProfileLinkDescription": "Open profile details and editing for {displayName}.",
+  "@settingsProfileLinkDescription": {
+    "description": "Description for the Settings link to the dedicated profile screen",
+    "placeholders": {
+      "displayName": {
+        "type": "String",
+        "example": "Alice Example"
+      }
+    }
+  },
+  "settingsProfileLinkSignedOutDescription": "Sign in to view and edit your Weave profile.",
+  "@settingsProfileLinkSignedOutDescription": {
+    "description": "Description for the Settings profile link when no profile is loaded"
+  },
+  "settingsProfileLinkLoadingDescription": "Loading your Weave profile entry point…",
+  "@settingsProfileLinkLoadingDescription": {
+    "description": "Loading description for the Settings profile link"
+  },
+  "settingsWorkspaceHealthLinkTitle": "Workspace Health",
+  "@settingsWorkspaceHealthLinkTitle": {
+    "description": "Title for the admin-only Settings link to workspace health"
+  },
+  "settingsWorkspaceHealthLinkDescription": "Open admin setup, provider readiness, support-safe diagnostics, and governed agent policy.",
+  "@settingsWorkspaceHealthLinkDescription": {
+    "description": "Description for the admin-only Settings link to workspace health"
+  },
   "helpScreenTitle": "Help",
   "@helpScreenTitle": {
     "description": "Title for the in-app help screen app bar"
@@ -1490,7 +1528,7 @@
   "@helpSettingsTitle": {
     "description": "Help section title for settings and account basics"
   },
-  "helpSettingsBody": "Settings shows your profile summary, workspace readiness, server configuration, Matrix security information, and sign-out control. Use it to check whether Chat, Files, Calendar, or other modules are ready, and sign out before handing a device to someone else.",
+  "helpSettingsBody": "Settings shows appearance, language, your profile entry point, module visibility, help, and sign-out control. Workspace Health stays behind admin-only surfaces.",
   "@helpSettingsBody": {
     "description": "Help copy for settings, account, and session basics"
   },
