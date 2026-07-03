@@ -48,12 +48,12 @@
         "text-scale"
       ],
       "releaseBlocking": true,
-      "currentBlocker": {
+      "historicalBlocker": {
         "issue": "#591",
-        "status": "blocked",
+        "status": "closed_not_planned",
         "artifact": "docs/evidence/accessibility/sprint-18-manual-at-blocker.md",
-        "expires": "before Sprint 18 RC promotion",
-        "summary": "Member Workspace loop manual AT is blocked until real reviewer evidence replaces docs/evidence/accessibility/sprint-18-manual-at-blocker.md."
+        "closed": "2026-06-13",
+        "summary": "Historical Sprint 18 manual AT blocker accounting is closed; current release promotion still requires current accessibility evidence or explicit release-owner scope."
       }
     },
     {
@@ -66,12 +66,12 @@
         "support-safe-recovery-copy"
       ],
       "releaseBlocking": true,
-      "currentBlocker": {
+      "historicalBlocker": {
         "issue": "#591",
-        "status": "blocked",
+        "status": "closed_not_planned",
         "artifact": "docs/evidence/accessibility/sprint-18-manual-at-blocker.md",
-        "expires": "before Sprint 18 RC promotion",
-        "summary": "Admin migration apply/recovery manual AT is blocked; production provider apply/cutover claims remain unavailable."
+        "closed": "2026-06-13",
+        "summary": "Historical Sprint 18 manual AT blocker accounting is closed; production provider apply/cutover claims still require current release evidence."
       }
     },
     {
@@ -85,12 +85,12 @@
         "audit-export-evidence"
       ],
       "releaseBlocking": true,
-      "currentBlocker": {
+      "historicalBlocker": {
         "issue": "#591",
-        "status": "blocked",
+        "status": "closed_not_planned",
         "artifact": "docs/evidence/accessibility/sprint-18-manual-at-blocker.md",
-        "expires": "before Sprint 18 RC promotion",
-        "summary": "Admin go-live claim-control manual AT is blocked; missing/stale CI, Live Stack, release notes, accessibility, support bundle, audit/export, migration, Weaver, or blocker evidence blocks RC/prod claims."
+        "closed": "2026-06-13",
+        "summary": "Historical Sprint 18 manual AT blocker accounting is closed; missing or stale CI, Live Stack, release notes, accessibility, support bundle, audit/export, migration, or Weaver evidence still blocks RC/prod claims."
       }
     },
     {
@@ -103,12 +103,12 @@
         "audit-receipt"
       ],
       "releaseBlocking": true,
-      "currentBlocker": {
+      "historicalBlocker": {
         "issue": "#591",
-        "status": "blocked",
+        "status": "closed_not_planned",
         "artifact": "docs/evidence/accessibility/sprint-18-manual-at-blocker.md",
-        "expires": "before Sprint 18 RC promotion",
-        "summary": "Governed Weaver approval/revocation manual AT is blocked; broad Weaver availability and autonomous team writes remain unsupported."
+        "closed": "2026-06-13",
+        "summary": "Historical Sprint 18 manual AT blocker accounting is closed; broad Weaver availability and autonomous team writes remain unsupported without current governed evidence."
       }
     }
   ],

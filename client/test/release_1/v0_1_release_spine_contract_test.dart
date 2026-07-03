@@ -106,9 +106,9 @@ void main() {
       }
 
       for (final required in <String>[
-        'Weave lets organizations own their collaboration layer',
-        '## v0.1 product truth',
-        '## Ready / Guarded / Future claim matrix',
+        'provider-neutral collaboration suite',
+        '## Current Maturity',
+        '## Ready / Guarded / Future Claim Matrix',
         'v0.1 is dogfood-production, not preview',
         'docs/v0.1-golden-path.md',
       ]) {

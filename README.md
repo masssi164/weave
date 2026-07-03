@@ -1,10 +1,6 @@
-# Weave Monorepo
+# Weave
 
-Weave lets organizations own their collaboration layer.
-
-Weave gives organizations a collaboration layer that stays understandable and controllable when legal, jurisdictional, contractual, operational, cost, security, governance, or provider requirements change.
-
-It combines stable member-facing collaboration with admin/operator control over provider posture, adapter exchange, evidence, readiness, audit, and governed AI assistance.
+Weave is a provider-neutral collaboration suite for organizations that want one stable work layer across chat, files, calendars, tasks, meetings, decisions, help, identity, operations, and governed AI assistance.
 
 Weave – Collaboration Seamlessly Woven with Agentic AI, Activated on Your Terms.
 
@@ -12,51 +8,97 @@ Weave – Collaboration Seamlessly Woven with Agentic AI, Activated on Your Term
   <img src="client/assets/images/weave_logo.png" alt="Weave logo, an interlaced blue and teal knot" width="220">
 </p>
 
-## What Weave is
+## What Weave Is
 
-Weave is a provider-neutral organization collaboration suite. It gives members stable Weave surfaces for chat, files, calendar, tasks/boards, meetings, decisions, help, search, identity-aware access, and support status while keeping provider choice, readiness, migration risk, and audit evidence under admin/operator control.
+Weave gives members a consistent workspace while admins and operators keep control of provider choices, readiness, policy, migration risk, audit evidence, and support-safe operations.
 
-Weave is for organizations that want collaboration to remain understandable and portable when legal, jurisdictional, contractual, operational, cost, security, governance, or provider requirements change. It is not a homelab manager and does not depend on one private deployment shape; self-hosted provider labs and reference provider packs are evidence substrates for the product, not the product boundary.
+The product is built around Weave-owned domains, not around one fixed provider stack. Current dogfood evidence uses concrete providers where useful, but those providers are evidence substrates behind Weave contracts. They are not the public product boundary.
 
-## Who it is for
+Governed Weaver assistance is part of the product direction: optional, disabled by default, auditable, constrained by user rights and organization-whitelisted capabilities, and never a claim of broad autonomous agent operation.
 
-- **Members** who need one stable workspace even when the organization changes providers underneath.
-- **Organization admins** who need identity, role, policy, provider readiness, capability, and whitelist control before member go-live.
-- **Operators** who need support-safe diagnostics, backup/restore evidence, portability manifests, and no raw secrets or provider payloads in normal product evidence.
-- **Governed Weaver users** who may later receive an opt-in, disabled-by-default personal-assistant runtime constrained by their user rights and organization-whitelisted capabilities.
+The [Bootstrap foundation](docs/bootstrap-foundation-contract.md) keeps setup ownership explicit: Control Plane = Weave Server + Admin Console, while provider-stack infrastructure is profile-driven and evidence-gated.
 
-## Main use scenarios
+## Current Maturity
 
-- **`deploy_new`** — a greenfield organization starts with Weave-recommended sovereign/self-hostable providers where practical. Reference provider packs may include Matrix/Synapse for chat, Nextcloud for files, Authentik or Keycloak for identity, Forgejo for source collaboration, and adjacent services when evidence supports them.
-- **`attach_existing`** — an existing organization attaches its current provider landscape to Weave to regain operational visibility, portability leverage, policy control, and evidence without requiring a disruptive day-one migration.
-- **`hybrid`** — domains move at different times. One category can be self-hosted while another remains on an existing external provider during discovery, coexistence preflight, migration, or cutover planning.
+Weave is an active dogfood foundation with guarded portability and governance evidence. Current work proves provider-neutral contracts, member capability boundaries, admin readiness, support-safe evidence, dogfood deployment paths, and governed Weaver policy boundaries.
 
-## Why it matters
+It does not claim public production release readiness, perfect lossless migration, broad provider interchangeability, production restore guarantees, or broadly available autonomous agent operation. Release and readiness claims are accepted only when current evidence gates pass.
 
-Weave keeps collaboration semantics owned by the organization instead of by whichever provider currently hosts chat, files, calendars, tasks, identity, or AI. The promise is provider independence with evidence: data-sovereignty leverage, admin-visible readiness, support-safe audit trails, explicit lossy-field and rollback limits, no unaccounted data loss in promoted portability paths, and stable member UX while implementation details change behind Weave contracts.
+## Product Screenshots
 
-## Product architecture
+These checked-in SVG assets show current dogfood-ready paths. Treat them as UI evidence for those paths, not as broad availability claims for guarded capabilities.
 
-Weave separates the product from the implementation:
+<p align="center">
+  <a href="docs/assets/marketing/01-setup-start.svg"><img src="docs/assets/marketing/01-setup-start.svg" alt="Weave setup start screen showing guided workspace setup for a dogfood organization." width="560"></a>
+</p>
 
-- **Canonical domains** define stable Weave capabilities such as chat, files, calendar, tasks, identity, search, audit, and admin/control-room.
-- **Adapters and providers** implement those domains and carry posture, readiness, caveats, evidence, and migration boundaries.
-- **MCP/domain tools** are the action surface. Reads, writes, sends, deletes, provider switches, migrations, approvals, audit, and evidence belong to tool actions, not to domains or adapters by themselves.
-- **The Admin Control Room** shows provider posture, readiness, support-safe diagnostics, policy preview, and next safe actions.
-- **Weaver** is the governed AI assistant line: a per-user OpenClaw-derived AI harness/runtime that is reached through the Weave channel and can act only through Weave-provided MCP/domain tools. It is opt-in, governed, auditable, disabled by default, and focused on effectiveness/time savings through **user-rights, organization-whitelisted capabilities** rather than broad autonomy.
+<p align="center">
+  <a href="docs/assets/marketing/02-review-service-endpoints.svg"><img src="docs/assets/marketing/02-review-service-endpoints.svg" alt="Weave setup endpoint review showing support-safe service URLs before setup completion." width="560"></a>
+</p>
 
-## How Weave is used by role
+<p align="center">
+  <a href="docs/assets/marketing/03-chat-room.svg"><img src="docs/assets/marketing/03-chat-room.svg" alt="Weave chat room showing message history and a send action in a current dogfood path." width="560"></a>
+</p>
 
-- **Members** use Weave capabilities and capability states; they do not configure raw provider URLs, secrets, endpoint rotation, backups, or diagnostics.
-- **Organization admins** select provider categories, connect identity/IDM, map roles/groups, preview policy impact, enable capabilities, and decide whether Weaver can ever be offered.
-- **Operators** run bootstrap, readiness, backup/restore, support-bundle, migration, and recovery workflows with redacted evidence.
-- **Governed Weaver users** use the optional PA runtime only when the organization enables it and only through Weave policy, audit, approvals, revocation, and MCP/domain-tool channels.
+<p align="center">
+  <a href="docs/assets/marketing/04-files-documents.svg"><img src="docs/assets/marketing/04-files-documents.svg" alt="Weave files view showing documents, folders, and accessible file actions." width="560"></a>
+</p>
 
-## Current status
+<p align="center">
+  <a href="docs/assets/marketing/05-settings.svg"><img src="docs/assets/marketing/05-settings.svg" alt="Weave settings view showing account session controls and configured organization endpoints." width="560"></a>
+</p>
 
-Weave is a dogfood foundation with guarded portability evidence. Current work proves provider-neutral contracts, admin readiness, support-safe evidence, and runtime-policy boundaries; it does **not** claim public production release readiness, lossless migration, broad provider interchangeability, production restore, or broadly available autonomous-agent operation. Open release and CI blockers remain visible until their evidence gates close.
+## Ready / Guarded / Future Claim Matrix
 
-## Release notes
+This matrix is intentionally short. Deeper evidence belongs in the [product-trust claim matrix](docs/product-trust-provider-choice-claim-matrix.md), [release notes](docs/release-notes/index.md), and issue-linked evidence.
+
+| Claim | Status | Boundary |
+| --- | --- | --- |
+| Weave ships as one product stack. | Ready foundation | Client, server, admin console, infra, e2e, docs, and release gates are coordinated together. |
+| v0.1 is dogfood-production, not preview. | Ready foundation | Dogfood foundation only; no broad public production release claim. |
+| Members work in provider-neutral Weave domains. | Ready foundation | Member UX uses Weave capabilities and states, not raw provider setup. |
+| Provider adapters are replaceable behind Weave-owned contracts. | **Guarded** | Replacement needs adapter-specific portability, migration, rollback, exposure, and apply evidence. |
+| No unaccounted data loss is the portability promise. | Guarded | Lossy fields and unsupported records must be reported; perfect lossless migration is not claimed. |
+| Calls/meetings use LiveKit readiness today. | Ready foundation | Readiness is scoped to current dogfood evidence, not all meeting-provider claims. |
+| Workspace/Admin Health is the support-safe readiness and diagnostics control plane. | Ready foundation | Raw provider diagnostics and secrets stay operator-only and redacted. |
+| Weaver is OpenClaw-derived, optional, per-user, governed, and disabled by default. | Guarded/future | Runtime execution requires policy, approvals, revocation, audit, and explicit enablement. |
+| Autonomous agent/team writes are available in v0.1. | Future/blocked | Write-like tools fail closed without governed approval evidence. |
+
+Provider reality vocabulary: `contract_only`, `configured`, `live_read`, `live_write`, `migration_dry_run`, `migration_apply_ready`, `rollback_ready`, `release_ready`.
+
+## Read Next
+
+- [Documentation home](docs/index.md)
+- [v0.1 golden path](docs/v0.1-golden-path.md)
+- [Canonical domains](docs/architecture/canonical-domains.md)
+- [Provider portability](docs/architecture/provider-portability.md)
+- [No-unaccounted-data-loss boundary](docs/architecture/no-unaccounted-data-loss.md)
+- [Admin/operator handbook](docs/admin-operator-handbook.md)
+- [Bootstrap foundation](docs/bootstrap-foundation-contract.md)
+- [User handbook](docs/user-handbook.md)
+- [Release notes](docs/release-notes/index.md)
+- [Developer handbook](docs/developer-handbook.md)
+
+## Developer Quickstart
+
+For local contribution, start with the [developer handbook](docs/developer-handbook.md). The root Gradle wrapper is the orchestration entry point; use the smallest meaningful gate for the change.
+
+```bash
+./gradlew docsCheck releaseEvidenceCheck
+python3 tools/readme_release_notes.py --check
+python3 tools/release_trust_claim_control_check.py
+python3 tools/product_trust_claim_matrix_check.py
+git diff --check
+```
+
+Use `./gradlew ci` for cross-stack changes. Keep specs unchanged unless the task is explicitly a spec-corpus or conformance update.
+
+## Release Notes
+
+Generated unreleased notes are kept here for release-review traceability. The durable release notes index is [docs/release-notes/index.md](docs/release-notes/index.md).
+
+<details>
+<summary>Show generated unreleased draft</summary>
 
 <!-- WEAVE_RELEASE_NOTES_START -->
 _Generated release notes are review artifacts. A release maintainer may update this block with `python3 tools/readme_release_notes.py --update --source <generated-notes>` before opening the release-draft review._
@@ -72,7 +114,7 @@ Use this page for release-affecting changes that have merged but are not include
 - Sprint 28 adds commercial adapter readiness specs, a go/no-go matrix, and a CI guard that keeps Slack and Microsoft Teams implementation starts blocked until provider-specific proof, admin consent, cost, export, retention, and rollback evidence exist. It does not claim Slack or Teams integration availability.
 - Sprint 26 adds operator recovery guardrails plus support-safe disposable Backup -> Destroy -> Restore -> Validate evidence for fixture domain data; production restore remains operator-approved and private-evidence scoped.
 - Sprint 30 adds the hot-phase dogfood readiness evidence pack, exact agentic AI slogan guard, profile-driven setup fixture for dev/LAN dogfood/public dogfood/production, and governed Weaver contracts for policy, mobile approvals, audit, revocation, and privacy boundaries without claiming public production readiness.
-- Sprint 32 adds guarded Beta readiness claim gates, adapter-continuity dry-run evidence, Admin readiness preview, governed Weaver approval-boundary evidence, member Client + Weaver flow, Admin + User + Weaver E2E/accessibility smoke evidence, and refreshed release/demo evidence. Final Beta-ready wording remains blocked until #836 release evidence merges and the final milestone/CI closure gate is green.
+- Sprint 32 adds guarded Beta readiness claim gates, adapter-continuity dry-run evidence, Admin readiness preview, governed Weaver approval-boundary evidence, member Client + Weaver flow, Admin + User + Weaver E2E/accessibility smoke evidence, and refreshed release/demo evidence.
 
 ## Changed
 
@@ -89,7 +131,7 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Accessibility
 
-- Sprint 18 release-trust claim control keeps manual assistive-technology signoff explicitly blocked by #591; automated tests, support-safe artifacts, release notes, and green Live Stack E2E cannot substitute for real AT reviewer evidence.
+- Accessibility and assistive-technology readiness remain evidence-gated per current milestone and release criteria; stale historical blocker wording has been removed from the release draft.
 
 ## Migration/Operator Notes
 
@@ -100,107 +142,15 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Known Issues
 
-- #591 remains a release blocker: actual manual assistive-technology signoff is required before Sprint 18 milestone closure or public/production release signoff, unless release ownership explicitly splits the remaining manual signoff into a separate accepted blocker.
-- #591 remains the active human/manual release blocker; #642 operator recovery is satisfied only for disposable fixture-domain restore evidence and does not authorize production restore claims.
+- No active post-`v0.1.0-rc.3` release blocker is listed in this draft. Current blocker truth belongs to GitHub issues, milestones, and the release evidence gate.
 <!-- WEAVE_RELEASE_NOTES_END -->
 
-## Product screenshots
+</details>
 
-Screenshots are checked-in product assets for current dogfood-ready paths and should be read as UI evidence for those paths, not as broad availability claims for guarded capabilities.
-
-- [Setup start](docs/assets/marketing/01-setup-start.svg)
-- [Custom Weave chat](docs/assets/marketing/03-chat-room.svg)
-- [Files and documents](docs/assets/marketing/04-files-documents.svg)
-- [Settings and readiness](docs/assets/marketing/05-settings.svg)
-
-## Repository layout
-
-- `client/` — Flutter member UX and client contracts.
-- `server/` — Weave-owned domain facades, authorization, audit, and provider boundaries.
-- `admin-console/` — admin readiness, policy, setup, and control-room surfaces.
-- `infra/` — Docker/OpenTofu operator stack, profiles, backup/restore, runtime lifecycle, and support bundles.
-- `e2e/` — product-language scenarios and sanitized evidence mappings.
-- `specs/` — product specifications, plans, tasks, and fixtures.
-- `docs/` — product, architecture, operator, developer, release, and evidence docs.
-- `release/` — release manifests, provider-lab evidence, and compatibility metadata.
-
-## v0.1 product truth
-
-The current product truth is dogfood-oriented and evidence-gated. Stable collaboration semantics, provider posture, governed actions, accessibility evidence, and support-safe operations are part of the product contract; public/production readiness remains gated by release evidence and human signoff where required.
-
-Read next:
-
-- [Glossary](docs/glossary.md)
-- [Product architecture SSOT](docs/product-architecture.md)
-- [Contract and docs index](docs/contract-docs-index.md)
-- [v0.1 golden path](docs/v0.1-golden-path.md)
-- [Release notes](docs/release-notes/index.md)
-
-
-## Ready / Guarded / Future claim matrix
-
-This README keeps the matrix short; deeper evidence lives in the [product-trust claim matrix](docs/product-trust-provider-choice-claim-matrix.md). No unaccounted data loss is the portability promise: unsupported fields, conflicts, archive-only records, provider-unexportable data, and rollback limits must be reported before guarded apply paths are promoted. perfect lossless migration is not claimed.
-
-| Claim | Status | Boundary |
-| --- | --- | --- |
-| Weave is a monorepo product stack. | **Ready foundation** | Client, server, admin console, infra, e2e, docs, and release gates ship together. |
-| v0.1 is dogfood-production, not preview. | **Ready foundation** | Dogfood foundation only; no broad public production release claim. |
-| Members work in provider-neutral Weave domains. | **Ready foundation** | Member UX uses Weave capabilities and states, not raw provider setup. |
-| Provider adapters are replaceable behind Weave-owned contracts. | **Guarded** | Replacement needs adapter-specific portability, migration, rollback, exposure, and apply evidence. |
-| No unaccounted data loss is the portability promise. | **Guarded** | Lossy fields and unsupported records must be reported; lossless migration is not promised. |
-| Calls/meetings use LiveKit readiness today. | **Ready foundation** | Readiness is scoped to current dogfood evidence, not all meeting-provider claims. |
-| Workspace/Admin Health is the support-safe readiness and diagnostics control plane. | **Ready foundation** | Raw provider diagnostics and secrets stay operator-only and redacted. |
-| Weaver is OpenClaw-derived, optional, per-user, governed, and disabled by default. | **Guarded/future** | Runtime execution is not broadly available and requires policy, approvals, revocation, and audit. |
-| Autonomous agent/team writes are available in v0.1. | **Future/blocked** | Write-like tools fail closed without governed approval evidence. |
-
-Provider reality vocabulary remains: `contract_only`, `configured`, `live_read`, `live_write`, `migration_dry_run`, `migration_apply_ready`, `rollback_ready`, and `release_ready`.
-
-## Boards and provider boundary
-
-Weave and Weaver are separate repositories with separate responsibilities:
-
-- **Weave (`masssi164/weave`) owns product truth:** domains, adapters/providers, policy, approval rules, audit/evidence, bootstrap/control-plane setup, the Weave MCP/domain-tool server, and the signed `WeaverRuntimeProfile` projection.
-- **Weaver (`masssi164/weaver`) owns runtime truth:** the OpenClaw-derived per-user runtime, member-mode lockdown, signed profile consumption, generated OpenClaw config, the `weave-chat` channel plugin, and enforcement that all actions go back through Weave MCP/domain tools.
-- The stable member entry point is the **Weave channel**. In Weave docs this means the product/channel contract and runtime-profile projection. In Weaver code this is implemented as the `weave-chat` channel plugin.
-- Provider-native transports stay Weave backend `providerRef` values; Matrix, Slack, Teams, Telegram, iMessage, and similar provider-native channels must not become normal member-editable Weaver channel config.
-
-See [repository boundary](docs/repository-boundary.md), [canonical-domain adapter/provider registry](docs/architecture/canonical-domain-adapter-registry.md), and [MCP/domain-tool action registry](docs/architecture/mcp-domain-tool-action-registry.md).
-
-## Infrastructure and OpenTofu
-
-Bootstrap is a Weave Control concern. It plans, validates, and applies the Control Plane = Weave Server + Admin Console (`server/` plus `admin-console/`) and optional provider stack according to profile and approval policy. It does not deploy the Flutter/member client and it does not configure Weaver directly. Weaver enablement is expressed through Weave policy, MCP/domain-tool grants, and signed runtime-profile projection.
-
-See [Bootstrap foundation contract](docs/bootstrap-foundation-contract.md).
-
-## Evidence contract
-
-Weave evidence must be support-safe: no raw secrets, private prompts, member payloads, raw provider internals, or unredacted provider errors. Claims about readiness, provider exchange, accessibility, release status, Weaver availability, and production operation are accepted only when the relevant gate and evidence artifact say so.
-
-## Release evidence
+## Release Evidence
 
 <!-- WEAVE_RELEASE_NOTES:START -->
 - Current checked-in draft: [Unreleased](docs/release-notes/unreleased.md)
 - Offline fixture review artifact: `build/release-notes/unreleased.md` from `./gradlew generateReleaseNotes`
 - Release evidence gate: `./gradlew releaseEvidenceCheck`
 <!-- WEAVE_RELEASE_NOTES:END -->
-
-## Common local gates
-
-Use the smallest meaningful subset for a change, and `./gradlew ci` for cross-stack work.
-
-```bash
-python3 tools/product_architecture_claim_guard.py
-python3 tools/product_architecture_claim_guard_test.py
-python3 tools/domain_registry_check.py
-python3 tools/docs_check.py
-./gradlew acceptanceContract docsCheck releaseEvidenceCheck --console=plain
-git diff --check
-```
-
-## Working agreements
-
-Follow the [developer handbook](docs/developer-handbook.md), [PR workflow](docs/gitflow-pr-workflow.md), and [operating model](docs/weave-operating-model.md). Keep Weave product truth in this repository, Weaver runtime enforcement in `masssi164/weaver`, and provider-specific implementation details behind explicit adapter/provider evidence.
-
-## Contract-first MCP development
-
-Weave member/Weaver-facing MCP contracts live in `weave-contract`; the Java `weave-mcp-server` exposes MCP tools from that shared metadata and delegates execution to `weave-server`. See `docs/weave-contract-java-mcp.md` for module boundaries, Weaver projection guidance, Docker host networking, and smoke tests.
