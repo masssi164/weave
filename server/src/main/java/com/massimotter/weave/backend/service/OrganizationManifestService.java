@@ -3,6 +3,9 @@ package com.massimotter.weave.backend.service;
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.model.CapabilityManifestState;
+import com.massimotter.weave.backend.model.ClientAccessCredentialLifecycleResponse;
+import com.massimotter.weave.backend.model.ClientAccessDiscoveryResponse;
+import com.massimotter.weave.backend.model.ClientAccessProtocolSurfaceResponse;
 import com.massimotter.weave.backend.model.OrganizationManifestResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyState;
@@ -73,6 +76,7 @@ public class OrganizationManifestService {
                         "own provider, tool, and agent whitelisting plus privacy/compliance risk notes",
                         "audit organization-wide defaults and administrative changes"),
                 memberStates(capabilities),
+                clientAccessDiscovery(),
                 capabilities);
     }
 
@@ -201,5 +205,116 @@ public class OrganizationManifestService {
             return CapabilityManifestState.NOT_CONFIGURED;
         }
         return CapabilityManifestState.UNAVAILABLE;
+    }
+
+    private Map<String, ClientAccessDiscoveryResponse> clientAccessDiscovery() {
+        Map<String, ClientAccessDiscoveryResponse> access = new LinkedHashMap<>();
+        access.put("files", filesAccess());
+        access.put("calendar", calendarAccess());
+        access.put("chat", chatAccess());
+        access.put("meetings-calls", meetingsCallsAccess());
+        return access;
+    }
+
+    private ClientAccessDiscoveryResponse filesAccess() {
+        return new ClientAccessDiscoveryResponse(
+                "files",
+                "/api/files",
+                "Files",
+                List.of(
+                        surface("openapi", "Weave Files API", "/api/files", "available",
+                                "Primary generated contract for Weave clients, Admin Console setup/status, and MCP route allowlists."),
+                        surface("standard-protocol", "Weave WebDAV projection", null, "planned_contract",
+                                "Targets generic desktop and OS file clients through Weave policy, audit, and file IDs; it is not a raw storage-provider proxy."),
+                        surface("native-os", "iOS File Provider and Android DocumentsProvider setup", "/api/files/native-provider-setup", "contract_ready_implementation_blocked",
+                                "Native providers call Weave file facade paths only and must prove device revocation before availability."),
+                        surface("mcp", "Governed Files MCP tools", null, "planned_allowlist",
+                                "MCP consumes semantic Weave file capabilities, not raw WebDAV methods or provider credentials.")),
+                credentialLifecycle(
+                        "blocked_until_revocable_device_grants",
+                        List.of("/api/files/native-provider-setup"),
+                        List.of("per-device Weave file grants", "revocation evidence", "native device proof")),
+                true,
+                false);
+    }
+
+    private ClientAccessDiscoveryResponse calendarAccess() {
+        return new ClientAccessDiscoveryResponse(
+                "calendar",
+                "/api/calendar",
+                "Calendar",
+                List.of(
+                        surface("openapi", "Weave Calendar API", "/api/calendar", "available",
+                                "Primary generated contract for Weave clients, Admin Console setup/status, and MCP route allowlists."),
+                        surface("standard-protocol", "Weave CalDAV/iCalendar projection", null, "planned_contract",
+                                "Targets native and generic calendar clients through Weave event, policy, audit, and scope boundaries."),
+                        surface("native-os", "iOS CalDAV profile and Android SyncAdapter setup", "/api/calendar/native-sync-setup", "contract_ready_implementation_blocked",
+                                "Native sync stays scoped to workspace, team, and channel calendars until revocable credentials and device proof exist."),
+                        surface("mcp", "Governed Calendar MCP tools", null, "planned_allowlist",
+                                "MCP consumes semantic Weave event capabilities and audit receipts, not raw CalDAV credentials.")),
+                credentialLifecycle(
+                        "blocked_until_revocable_credentials",
+                        List.of(
+                                "/api/calendar/client-setup/credentials",
+                                "/api/calendar/client-setup/apple.mobileconfig"),
+                        List.of("scoped revocable CalDAV credentials", "signed profile delivery", "native sync and revoke evidence")),
+                true,
+                false);
+    }
+
+    private ClientAccessDiscoveryResponse chatAccess() {
+        return new ClientAccessDiscoveryResponse(
+                "chat",
+                "/api/chat",
+                "Chat domain",
+                List.of(
+                        surface("openapi", "Weave Chat API", "/api/chat", "available",
+                                "Primary product API for Weave conversations, messages, membership, readiness, decisions, and governed writes."),
+                        surface("standard-protocol", "Matrix-compatible transport and federation projection", null, "governed_later",
+                                "Matrix may back encrypted rooms and federation, but Weave Chat remains product truth and federation stays policy-gated."),
+                        surface("mcp", "Governed Chat MCP tools", null, "planned_allowlist",
+                                "MCP receives semantic Weave chat operations, consented summaries, and decision references rather than raw Matrix access.")),
+                credentialLifecycle(
+                        "session_bound_no_raw_matrix_credentials",
+                        List.of("/api/chat/readiness"),
+                        List.of("decrypted-content consent gates", "retention and moderation policy proof", "federation isolation evidence")),
+                true,
+                false);
+    }
+
+    private ClientAccessDiscoveryResponse meetingsCallsAccess() {
+        return new ClientAccessDiscoveryResponse(
+                "meetings-calls",
+                "/api/calls",
+                "Calls",
+                List.of(
+                        surface("openapi", "Weave Calls and Meetings API", "/api/calls", "planned_contract",
+                                "Product API owns meeting metadata, policy, and join-grant lifecycle."),
+                        surface("native-os", "CallKit and Android Telecom boundary", "/api/calls/native-boundary-setup", "contract_ready_implementation_blocked",
+                                "Native call UI is driven by Weave invitations and short-lived join grants; media transport remains separate."),
+                        surface("standard-protocol", "Meeting links and calendar/chat thread references", null, "boundary_only",
+                                "WebDAV and CalDAV do not solve calls; calendar invites and chat threads link to Weave meeting grants.")),
+                credentialLifecycle(
+                        "blocked_until_short_lived_join_grants",
+                        List.of("/api/calls/native-boundary-setup"),
+                        List.of("short-lived join grants", "native call UI proof", "revoke and media-policy evidence")),
+                true,
+                false);
+    }
+
+    private ClientAccessProtocolSurfaceResponse surface(
+            String kind,
+            String name,
+            String setupPath,
+            String readiness,
+            String note) {
+        return new ClientAccessProtocolSurfaceResponse(kind, name, setupPath, readiness, List.of(note));
+    }
+
+    private ClientAccessCredentialLifecycleResponse credentialLifecycle(
+            String status,
+            List<String> lifecyclePaths,
+            List<String> blockedUntil) {
+        return new ClientAccessCredentialLifecycleResponse(status, false, lifecyclePaths, blockedUntil);
     }
 }

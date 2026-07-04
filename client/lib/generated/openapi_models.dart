@@ -2695,6 +2695,128 @@ class ClaimMapper {
   };
 }
 
+class ClientAccessCredentialLifecycleResponse {
+  const ClientAccessCredentialLifecycleResponse({
+    this.blockedUntil,
+    this.lifecyclePaths,
+    this.secretMaterialReturned,
+    this.status,
+  });
+
+  factory ClientAccessCredentialLifecycleResponse.fromJson(
+    Map<String, dynamic> json,
+  ) => ClientAccessCredentialLifecycleResponse(
+    blockedUntil: (json["blockedUntil"] as List<dynamic>?)
+        ?.map((e) => e as String)
+        .toList(),
+    lifecyclePaths: (json["lifecyclePaths"] as List<dynamic>?)
+        ?.map((e) => e as String)
+        .toList(),
+    secretMaterialReturned: json["secretMaterialReturned"] as bool?,
+    status: json["status"] as String?,
+  );
+
+  final List<String>? blockedUntil;
+  final List<String>? lifecyclePaths;
+  final bool? secretMaterialReturned;
+  final String? status;
+
+  Map<String, dynamic> toJson() => {
+    "blockedUntil": _openApiJsonValue(blockedUntil),
+    "lifecyclePaths": _openApiJsonValue(lifecyclePaths),
+    "secretMaterialReturned": _openApiJsonValue(secretMaterialReturned),
+    "status": _openApiJsonValue(status),
+  };
+}
+
+class ClientAccessDiscoveryResponse {
+  const ClientAccessDiscoveryResponse({
+    this.credentialLifecycle,
+    this.domain,
+    this.openApiTag,
+    this.productApiBasePath,
+    this.providerConfigurationExposed,
+    this.supportSafe,
+    this.surfaces,
+  });
+
+  factory ClientAccessDiscoveryResponse.fromJson(Map<String, dynamic> json) =>
+      ClientAccessDiscoveryResponse(
+        credentialLifecycle: json["credentialLifecycle"] == null
+            ? null
+            : ClientAccessCredentialLifecycleResponse.fromJson(
+                json["credentialLifecycle"] as Map<String, dynamic>,
+              ),
+        domain: json["domain"] as String?,
+        openApiTag: json["openApiTag"] as String?,
+        productApiBasePath: json["productApiBasePath"] as String?,
+        providerConfigurationExposed:
+            json["providerConfigurationExposed"] as bool?,
+        supportSafe: json["supportSafe"] as bool?,
+        surfaces: (json["surfaces"] as List<dynamic>?)
+            ?.map(
+              (e) => ClientAccessProtocolSurfaceResponse.fromJson(
+                e as Map<String, dynamic>,
+              ),
+            )
+            .toList(),
+      );
+
+  final ClientAccessCredentialLifecycleResponse? credentialLifecycle;
+  final String? domain;
+  final String? openApiTag;
+  final String? productApiBasePath;
+  final bool? providerConfigurationExposed;
+  final bool? supportSafe;
+  final List<ClientAccessProtocolSurfaceResponse>? surfaces;
+
+  Map<String, dynamic> toJson() => {
+    "credentialLifecycle": _openApiJsonValue(credentialLifecycle),
+    "domain": _openApiJsonValue(domain),
+    "openApiTag": _openApiJsonValue(openApiTag),
+    "productApiBasePath": _openApiJsonValue(productApiBasePath),
+    "providerConfigurationExposed": _openApiJsonValue(
+      providerConfigurationExposed,
+    ),
+    "supportSafe": _openApiJsonValue(supportSafe),
+    "surfaces": _openApiJsonValue(surfaces),
+  };
+}
+
+class ClientAccessProtocolSurfaceResponse {
+  const ClientAccessProtocolSurfaceResponse({
+    this.kind,
+    this.name,
+    this.notes,
+    this.readiness,
+    this.setupPath,
+  });
+
+  factory ClientAccessProtocolSurfaceResponse.fromJson(
+    Map<String, dynamic> json,
+  ) => ClientAccessProtocolSurfaceResponse(
+    kind: json["kind"] as String?,
+    name: json["name"] as String?,
+    notes: (json["notes"] as List<dynamic>?)?.map((e) => e as String).toList(),
+    readiness: json["readiness"] as String?,
+    setupPath: json["setupPath"] as String?,
+  );
+
+  final String? kind;
+  final String? name;
+  final List<String>? notes;
+  final String? readiness;
+  final String? setupPath;
+
+  Map<String, dynamic> toJson() => {
+    "kind": _openApiJsonValue(kind),
+    "name": _openApiJsonValue(name),
+    "notes": _openApiJsonValue(notes),
+    "readiness": _openApiJsonValue(readiness),
+    "setupPath": _openApiJsonValue(setupPath),
+  };
+}
+
 class ConnectorBoundaryResponse {
   const ConnectorBoundaryResponse({
     this.deferredUntil,
@@ -6651,6 +6773,7 @@ class OrganizationManifestResponse {
   const OrganizationManifestResponse({
     this.adminConsoleResponsibilities,
     this.capabilities,
+    this.clientAccessDiscovery,
     this.clientResponsibilities,
     this.diagnosticsExposed,
     this.displayName,
@@ -6676,6 +6799,9 @@ class OrganizationManifestResponse {
         : WorkspaceCapabilitiesResponse.fromJson(
             json["capabilities"] as Map<String, dynamic>,
           ),
+    clientAccessDiscovery:
+        (json["clientAccessDiscovery"] as Map<String, dynamic>?)
+            ?.cast<String, Object?>(),
     clientResponsibilities: (json["clientResponsibilities"] as List<dynamic>?)
         ?.map((e) => e as String)
         .toList(),
@@ -6695,6 +6821,7 @@ class OrganizationManifestResponse {
 
   final List<String>? adminConsoleResponsibilities;
   final WorkspaceCapabilitiesResponse? capabilities;
+  final Map<String, Object?>? clientAccessDiscovery;
   final List<String>? clientResponsibilities;
   final bool? diagnosticsExposed;
   final String? displayName;
@@ -6712,6 +6839,7 @@ class OrganizationManifestResponse {
       adminConsoleResponsibilities,
     ),
     "capabilities": _openApiJsonValue(capabilities),
+    "clientAccessDiscovery": _openApiJsonValue(clientAccessDiscovery),
     "clientResponsibilities": _openApiJsonValue(clientResponsibilities),
     "diagnosticsExposed": _openApiJsonValue(diagnosticsExposed),
     "displayName": _openApiJsonValue(displayName),

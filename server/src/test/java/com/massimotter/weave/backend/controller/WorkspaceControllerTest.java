@@ -39,6 +39,7 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
@@ -140,10 +141,41 @@ class WorkspaceControllerTest {
                 .andExpect(jsonPath("$.memberCapabilityStates['boards-tasks']").value("disabled_by_policy"))
                 .andExpect(jsonPath("$.memberCapabilityStates.meetings").value("not_configured"))
                 .andExpect(jsonPath("$.memberCapabilityStates['forms-contacts']").value("coming_later"))
+                .andExpect(jsonPath("$.clientAccessDiscovery.files.productApiBasePath").value("/api/files"))
+                .andExpect(jsonPath("$.clientAccessDiscovery.files.openApiTag").value("Files"))
+                .andExpect(jsonPath("$.clientAccessDiscovery.files.supportSafe").value(true))
+                .andExpect(jsonPath("$.clientAccessDiscovery.files.providerConfigurationExposed").value(false))
+                .andExpect(jsonPath("$.clientAccessDiscovery.files.surfaces[?(@.kind == 'standard-protocol')].name")
+                        .value(hasItem("Weave WebDAV projection")))
+                .andExpect(jsonPath("$.clientAccessDiscovery.files.surfaces[?(@.kind == 'native-os')].setupPath")
+                        .value(hasItem("/api/files/native-provider-setup")))
+                .andExpect(jsonPath("$.clientAccessDiscovery.files.credentialLifecycle.secretMaterialReturned").value(false))
+                .andExpect(jsonPath("$.clientAccessDiscovery.calendar.surfaces[?(@.kind == 'standard-protocol')].name")
+                        .value(hasItem("Weave CalDAV/iCalendar projection")))
+                .andExpect(jsonPath("$.clientAccessDiscovery.calendar.surfaces[?(@.kind == 'native-os')].setupPath")
+                        .value(hasItem("/api/calendar/native-sync-setup")))
+                .andExpect(jsonPath("$.clientAccessDiscovery.calendar.credentialLifecycle.lifecyclePaths", hasItems(
+                        "/api/calendar/client-setup/credentials",
+                        "/api/calendar/client-setup/apple.mobileconfig")))
+                .andExpect(jsonPath("$.clientAccessDiscovery.chat.openApiTag").value("Chat domain"))
+                .andExpect(jsonPath("$.clientAccessDiscovery.chat.surfaces[?(@.kind == 'openapi')].name")
+                        .value(hasItem("Weave Chat API")))
+                .andExpect(jsonPath("$.clientAccessDiscovery.chat.surfaces[?(@.kind == 'standard-protocol')].name")
+                        .value(hasItem("Matrix-compatible transport and federation projection")))
+                .andExpect(jsonPath("$.clientAccessDiscovery.chat.credentialLifecycle.status")
+                        .value("session_bound_no_raw_matrix_credentials"))
+                .andExpect(jsonPath("$.clientAccessDiscovery['meetings-calls'].surfaces[?(@.kind == 'native-os')].setupPath")
+                        .value(hasItem("/api/calls/native-boundary-setup")))
+                .andExpect(jsonPath("$.clientAccessDiscovery['meetings-calls'].surfaces[?(@.kind == 'standard-protocol')].readiness")
+                        .value(hasItem("boundary_only")))
                 .andExpect(jsonPath("$.capabilities.calendar.grantedCapabilities", hasItems("calendar.manage_events")))
                 .andExpect(jsonPath("$.capabilities.weaver.policyState").value("disabled"))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("matrix.weave.test"))))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("files.weave.test"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("nextcloud"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("provider.example"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("token="))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("secretref://"))))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("providerDiagnostics"))))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("Authorization: Bearer"))));
     }
