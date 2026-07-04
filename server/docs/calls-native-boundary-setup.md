@@ -1,6 +1,11 @@
 # Calls native boundary setup
 
 Weave Calls and Meetings native integration separates OS call UI from media transport and provider administration. Native call surfaces must be driven by Weave meeting invitations, policy, and join grants.
+Files, Calendar, and Chat use the domain-facade/protocol-projection decision in
+`docs/architecture/domain-facade-protocol-projections.md`. Calls/Meetings share
+the same principle but remain a separate media/signaling boundary: OS call UI is
+a native projection, while media transport and signaling grants are not replaced
+by OpenAPI alone.
 
 ## Current executable slice
 
