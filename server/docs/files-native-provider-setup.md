@@ -1,6 +1,11 @@
 # Files native provider setup
 
 Weave Files must integrate with native OS file surfaces through Weave-owned facades, not through raw storage-provider setup.
+The architecture is defined in
+`docs/architecture/domain-facade-protocol-projections.md`: the Files domain
+facade is product truth, while OpenAPI, a future Weave WebDAV-compatible
+projection, iOS File Provider, Android DocumentsProvider, and MCP tools are
+thin projections over that facade.
 
 ## Current executable slice
 
@@ -9,14 +14,18 @@ Weave Files must integrate with native OS file surfaces through Weave-owned faca
 - iOS boundary: File Provider extension.
 - Android boundary: DocumentsProvider / Storage Access Framework.
 - Flutter/native bridge role: setup, status, and revoke only.
-- File IO proof hooks: `GET /api/files`, `GET /api/files/{id}/download`, and `POST /api/files/upload`.
+- File IO proof hooks: `GET /api/files`, `GET /api/files/{id}/download`, and `POST /api/files/upload`; a future Weave WebDAV-compatible projection may reuse the same facade for standards-compatible clients.
 - Support-safe blocked states for the remaining work: native extension/provider implementation, per-device token revocation, and physical-device provider proof.
 
 The response deliberately contains only Weave-owned API paths. It must not include provider hostnames, WebDAV URLs, provider credentials, bearer tokens, or provider diagnostics.
 
 ## Product boundary
 
-The member app may show native setup status and let the user start or revoke native setup. It must not become a WebDAV client and must not store storage-provider credentials. Native OS file IO belongs in the iOS File Provider extension or Android DocumentsProvider, backed by Weave file facade endpoints.
+The member app may show native setup status and let the user start or revoke
+native setup. It must not become a raw provider WebDAV client and must not store
+storage-provider credentials. Native OS file IO belongs in the iOS File Provider
+extension or Android DocumentsProvider, backed by Weave file facade endpoints or
+a Weave WebDAV-compatible projection.
 
 ## First dogfood proof
 
