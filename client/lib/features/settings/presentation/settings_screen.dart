@@ -16,7 +16,6 @@ import 'package:weave/core/widgets/error_state.dart';
 import 'package:weave/core/widgets/loading_state.dart';
 import 'package:weave/core/widgets/weave_logo.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
-import 'package:weave/features/app/domain/entities/matrix_e2ee_diagnostic.dart';
 import 'package:weave/features/app/domain/entities/provider_stack_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
@@ -1515,9 +1514,6 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
           data: (profile) => profile?.canAdministerWorkspace ?? false,
           orElse: () => false,
         );
-    final matrixDiagnostic = canViewWorkspaceHealth
-        ? ref.watch(weaveApiMatrixE2eeDiagnosticProvider).asData?.value
-        : null;
     final providerStackSnapshot = canViewWorkspaceHealth
         ? ref.watch(weaveApiProviderStackSnapshotProvider).asData?.value
         : null;
@@ -1563,7 +1559,6 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
                       ref.invalidate(
                         weaveApiWorkspaceCapabilitySnapshotProvider,
                       );
-                      ref.invalidate(weaveApiMatrixE2eeDiagnosticProvider);
                       ref.invalidate(weaveApiProviderStackSnapshotProvider);
                       ref.invalidate(
                         weaveApiOfficeCapabilitiesSnapshotProvider,
@@ -1594,7 +1589,6 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
                   label: l10n.settingsWorkspaceChatLabel,
                   capability: capabilitySnapshot.chat,
                   connection: workspaceState.chat,
-                  matrixDiagnostic: matrixDiagnostic,
                 ),
                 const Divider(height: 32),
                 _WorkspaceReadinessRow(
@@ -1618,7 +1612,6 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
               }
               ref.invalidate(appAuthIntegrationConnectionProvider);
               ref.invalidate(weaveApiWorkspaceCapabilitySnapshotProvider);
-              ref.invalidate(weaveApiMatrixE2eeDiagnosticProvider);
               ref.invalidate(weaveApiProviderStackSnapshotProvider);
               ref.invalidate(weaveApiOfficeCapabilitiesSnapshotProvider);
             },
@@ -2275,13 +2268,11 @@ class _WorkspaceReadinessRow extends StatelessWidget {
     required this.label,
     required this.capability,
     this.connection,
-    this.matrixDiagnostic,
   });
 
   final String label;
   final WorkspaceCapabilityState capability;
   final IntegrationConnectionState? connection;
-  final MatrixE2eeDiagnostic? matrixDiagnostic;
 
   @override
   Widget build(BuildContext context) {
@@ -2324,26 +2315,6 @@ class _WorkspaceReadinessRow extends StatelessWidget {
                   label: l10n.settingsWorkspaceLastChangeLabel,
                   value: _invalidationLabel(l10n, invalidation.reason),
                 ),
-              if (matrixDiagnostic case final diagnostic?) ...[
-                _StatusPill(
-                  label: l10n.settingsWorkspaceMatrixE2eeGateLabel,
-                  value: diagnostic.isValidated
-                      ? l10n.settingsWorkspaceMatrixE2eeValidated
-                      : l10n.settingsWorkspaceMatrixE2eeNotValidated,
-                ),
-                _StatusPill(
-                  label: l10n.settingsWorkspaceMatrixServerBodiesLabel,
-                  value: diagnostic.keepsMessageBodiesOpaque
-                      ? l10n.settingsWorkspaceMatrixServerBodiesOpaque
-                      : l10n.settingsWorkspaceMatrixServerBodiesReadable,
-                ),
-                _StatusPill(
-                  label: l10n.settingsWorkspaceMatrixAgentWritesLabel,
-                  value: diagnostic.keepsAgentsAndConnectorsFailClosed
-                      ? l10n.settingsWorkspaceMatrixAgentWritesBlocked
-                      : l10n.settingsWorkspaceMatrixAgentWritesReview,
-                ),
-              ],
             ],
           ),
         ],

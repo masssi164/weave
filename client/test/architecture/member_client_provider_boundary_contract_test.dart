@@ -145,4 +145,43 @@ void main() {
     expect(settings, isNot(contains('chatSecurityRepositoryProvider')));
     expect(settings, isNot(contains('MatrixChatSecurityRepository')));
   });
+
+  test('normal member routes cannot mount diagnostic Matrix providers', () {
+    final normalMemberRouteFiles = <String>[
+      'lib/core/router/app_router.dart',
+      'lib/features/home/presentation/home_screen.dart',
+      'lib/features/chat/presentation/chat_screen.dart',
+      'lib/features/chat/presentation/chat_room_screen.dart',
+      'lib/features/files/presentation/files_screen.dart',
+      'lib/features/calendar/presentation/calendar_screen.dart',
+      'lib/features/profile/presentation/profile_screen.dart',
+      'lib/features/help/presentation/help_screen.dart',
+      'lib/features/settings/presentation/settings_screen.dart',
+      'lib/features/shell/presentation/app_shell.dart',
+      'lib/features/shell/presentation/shell_workspace_status.dart',
+    ];
+    final forbiddenFragments = <String>[
+      'ChatSecuritySettingsSection',
+      'chat_security_settings_section.dart',
+      'chatSecurityProvider',
+      'chatSecurityRepositoryProvider',
+      'MatrixChatSecurityRepository',
+      'MatrixE2eeDiagnostic',
+      'weaveApiMatrixE2eeDiagnosticProvider',
+      'fetchMatrixE2eeDiagnostic',
+      'PlatformStatusResponseDto',
+    ];
+
+    for (final path in normalMemberRouteFiles) {
+      final source = File(path).readAsStringSync();
+      for (final fragment in forbiddenFragments) {
+        expect(
+          source,
+          isNot(contains(fragment)),
+          reason:
+              '$path must stay on Weave domain/capability facades and must not mount diagnostic Matrix provider fragment `$fragment`.',
+        );
+      }
+    }
+  });
 }
