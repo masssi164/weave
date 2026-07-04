@@ -141,6 +141,37 @@ class FilesCalendarFacadeControllerTest {
     }
 
     @Test
+    void filesNativeProviderSetupExposesWeaveOwnedOsBoundariesWithoutProviderLeaks() throws Exception {
+        mockMvc.perform(get("/api/files/native-provider-setup")
+                        .with(workspaceJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.supportSafe").value(true))
+                .andExpect(jsonPath("$.providerConfigurationExposed").value(false))
+                .andExpect(jsonPath("$.credentialsExposed").value(false))
+                .andExpect(jsonPath("$.facadeBasePath").value("/api/files"))
+                .andExpect(jsonPath("$.listPathTemplate").value("/api/files?path={path}"))
+                .andExpect(jsonPath("$.downloadPathTemplate").value("/api/files/{id}/download"))
+                .andExpect(jsonPath("$.uploadPath").value("/api/files/upload"))
+                .andExpect(jsonPath("$.readiness.readiness").value("ready"))
+                .andExpect(jsonPath("$.options[0].platform").value("ios"))
+                .andExpect(jsonPath("$.options[0].osBoundary").value("FileProviderExtension"))
+                .andExpect(jsonPath("$.options[0].available").value(false))
+                .andExpect(jsonPath("$.options[0].requiredContracts[0]").value("ios-file-provider-extension"))
+                .andExpect(jsonPath("$.options[1].platform").value("android"))
+                .andExpect(jsonPath("$.options[1].osBoundary").value("DocumentsProvider"))
+                .andExpect(jsonPath("$.options[1].available").value(false))
+                .andExpect(jsonPath("$.proofHooks[0]").value("GET /api/files"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("Nextcloud"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("http://"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("https://"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("token="))));
+    }
+
+    @Test
     void calendarFacadeRequiresAuthenticatedWorkspaceScope() throws Exception {
         mockMvc.perform(get("/api/calendar/events"))
                 .andExpect(status().isUnauthorized())

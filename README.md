@@ -6,6 +6,8 @@
 
 Provider-neutral collaboration for organizations that need control, portability, and governed assistance.
 
+**Weave – Collaboration Seamlessly Woven with Agentic AI, Activated on Your Terms.**
+
 Weave is a provider-neutral collaboration suite and governed workspace for organizations that want collaboration to stay portable, reviewable, and under their own rules.
 
 It gives members one place for chat, files, calendars, tasks, decisions, meetings, help, and workspace context, while giving admins and operators a controlled way to connect providers, review readiness, keep evidence support-safe, and change direction without pretending provider changes are risk-free.

@@ -4,6 +4,7 @@ import com.massimotter.weave.backend.model.ApiErrorResponse;
 import com.massimotter.weave.backend.model.files.CreateFolderRequest;
 import com.massimotter.weave.backend.model.files.FileItemResponse;
 import com.massimotter.weave.backend.model.files.FileListResponse;
+import com.massimotter.weave.backend.model.files.FileNativeProviderSetupResponse;
 import com.massimotter.weave.backend.model.files.FileUploadResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityStatusResponse;
 import com.massimotter.weave.backend.service.FilesFacadeService;
@@ -82,6 +83,17 @@ public class FilesController {
             content = @Content(schema = @Schema(implementation = WorkspaceCapabilityStatusResponse.class)))
     public WorkspaceCapabilityStatusResponse getFilesReadiness(@AuthenticationPrincipal Jwt jwt) {
         return workspaceCapabilityService.snapshot(jwt).files();
+    }
+
+    @GetMapping("/api/files/native-provider-setup")
+    @Operation(
+            operationId = "getFilesNativeProviderSetup",
+            summary = "Describe native Files provider setup",
+            description = "Returns support-safe iOS File Provider and Android DocumentsProvider setup metadata backed only by Weave-owned file facade endpoints.")
+    @ApiResponse(responseCode = "200", description = "Native Files provider setup metadata.",
+            content = @Content(schema = @Schema(implementation = FileNativeProviderSetupResponse.class)))
+    public FileNativeProviderSetupResponse getFilesNativeProviderSetup(@AuthenticationPrincipal Jwt jwt) {
+        return filesFacadeService.nativeProviderSetup(jwt);
     }
 
     @PostMapping("/api/files/folders")

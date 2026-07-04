@@ -8,9 +8,12 @@ import com.massimotter.weave.backend.context.authz.ContextPermission;
 import com.massimotter.weave.backend.model.files.CreateFolderRequest;
 import com.massimotter.weave.backend.model.files.FileItemResponse;
 import com.massimotter.weave.backend.model.files.FileListResponse;
+import com.massimotter.weave.backend.model.files.FileNativeProviderOptionResponse;
+import com.massimotter.weave.backend.model.files.FileNativeProviderSetupResponse;
 import com.massimotter.weave.backend.model.files.FileUploadResponse;
 import com.massimotter.weave.backend.service.files.DownloadedFile;
 import com.massimotter.weave.backend.service.files.FilesStorageAdapter;
+import java.util.List;
 import java.util.Map;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
@@ -64,6 +67,55 @@ public class FilesFacadeService {
     public void delete(String id) {
         requireContextPermission(ContextPermission.EDIT, "delete-file");
         configuredAdapter("delete-file").delete(id);
+    }
+
+    public FileNativeProviderSetupResponse nativeProviderSetup(Jwt jwt) {
+        return new FileNativeProviderSetupResponse(
+                workspaceCapabilityService.snapshot(jwt).files(),
+                true,
+                false,
+                false,
+                "/api/files",
+                "/api/files?path={path}",
+                "/api/files/{id}/download",
+                "/api/files/upload",
+                List.of(
+                        new FileNativeProviderOptionResponse(
+                                "ios",
+                                "FileProviderExtension",
+                                "pigeon-or-platform-channel",
+                                false,
+                                "extension_contract_ready",
+                                "open-weave-files-native-setup",
+                                List.of(
+                                        "ios-file-provider-extension",
+                                        "per-device-weave-token",
+                                        "list-open-proof"),
+                                List.of(
+                                        "The iOS extension must call Weave file facade endpoints only.",
+                                        "Flutter may control setup, status, and revoke but not file IO.")),
+                        new FileNativeProviderOptionResponse(
+                                "android",
+                                "DocumentsProvider",
+                                "pigeon-or-platform-channel",
+                                false,
+                                "provider_contract_ready",
+                                "open-weave-files-native-setup",
+                                List.of(
+                                        "android-documents-provider",
+                                        "per-device-weave-token",
+                                        "root-document-open-proof"),
+                                List.of(
+                                        "The Android provider must expose roots only when the Weave session is valid.",
+                                        "Persistable URI permissions must reference Weave document IDs, not provider URLs."))),
+                List.of(
+                        "GET /api/files",
+                        "GET /api/files/{id}/download",
+                        "POST /api/files/upload"),
+                List.of(
+                        "native-extension-implementation",
+                        "per-device-token-revocation",
+                        "physical-device-provider-proof"));
     }
 
     private void requireContextPermission(ContextPermission permission, String operation) {
