@@ -57,7 +57,14 @@ The first release-quality Nextcloud path uses backend actor adapters. Member-fac
 
 ## Native OS integration boundary
 
-Native OS integrations sit above the provider adapter layer. They use OS contracts but receive only Weave-owned setup/status/provisioning metadata:
+Native OS integrations sit above the provider adapter layer. The governing
+decision is [Domain facade protocol projections](domain-facade-protocol-projections.md):
+Weave domain facades are product truth, while WebDAV, CalDAV/iCalendar, Matrix,
+OpenAPI, native OS extensions/providers, and MCP tools are projections or
+adapters over that truth.
+
+Native integrations use OS contracts but receive only Weave-owned
+setup/status/provisioning metadata:
 
 | Domain | Native OS boundary | Weave facade contract | Availability gate |
 | --- | --- | --- | --- |
@@ -65,7 +72,13 @@ Native OS integrations sit above the provider adapter layer. They use OS contrac
 | Calendar | iOS CalDAV configuration profile semantics; Android Account/SyncAdapter plus Calendar Provider / CalendarContract. | `GET /api/calendar/native-sync-setup` plus setup credential lifecycle and event facade hooks. The response contains Weave API paths only and no raw calendar-provider host. | Full native availability is blocked until signed profile/account setup, event sync, and revoke/fail-closed behavior are proven on physical or instrumentation devices. |
 | Calls/Meetings | iOS CallKit + PushKit/VoIP concerns; Android Telecom / ConnectionService where supported. | `GET /api/calls/native-boundary-setup` describes Weave meeting invitation, policy, and join-grant boundaries. Actual media transport remains separate. | Full native availability is blocked until provider-neutral meetings facade endpoints, native call UI, permissions, audio routing, and revoke/join evidence are proven on devices. |
 
-OpenAPI remains the setup/status/provisioning surface for these native integrations. It does not replace the native OS provider, account, sync, or call UI contracts.
+OpenAPI remains the primary setup/status/provisioning surface for Weave clients,
+Admin Console, and MCP route allowlists. It does not replace native OS provider,
+account, sync, call UI, or protocol projections where standards are the better
+fit. Files may expose a Weave WebDAV-compatible projection; Calendar may expose
+a Weave CalDAV/iCalendar projection; Chat may use Matrix for transport and
+federation. These projections must use Weave facades and never become provider
+pass-throughs.
 
 ## Keycloak desired-state dry-run direction
 
