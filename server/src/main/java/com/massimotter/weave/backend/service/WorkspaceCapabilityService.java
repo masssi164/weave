@@ -11,6 +11,8 @@ import com.massimotter.weave.backend.model.WorkspaceCapabilityStatusResponse;
 import com.massimotter.weave.backend.model.admin.EffectivePolicyDenyResponse;
 import com.massimotter.weave.backend.model.admin.EffectivePolicyResponse;
 import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.service.files.FilesStorageAdapter;
+import com.massimotter.weave.backend.service.files.FilesStorageReadiness;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -18,6 +20,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 import org.springframework.http.HttpStatus;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
@@ -81,6 +84,7 @@ public class WorkspaceCapabilityService {
     private final WeaveSecurityProperties weaveSecurityProperties;
     private final WorkspaceCapabilityProperties workspaceCapabilityProperties;
     private final WeaverRuntimeProperties weaverRuntimeProperties;
+    private final FilesStorageAdapter filesStorageAdapter;
 
     public WorkspaceCapabilityService(
             OAuth2ResourceServerProperties resourceServerProperties,
@@ -90,7 +94,8 @@ public class WorkspaceCapabilityService {
                 resourceServerProperties,
                 weaveSecurityProperties,
                 workspaceCapabilityProperties,
-                new WeaverRuntimeProperties(false, null, null, null, null, null, null, null, null, null, false, false, true, false));
+                new WeaverRuntimeProperties(false, null, null, null, null, null, null, null, null, null, false, false, true, false),
+                (FilesStorageAdapter) null);
     }
 
     @Autowired
@@ -98,11 +103,53 @@ public class WorkspaceCapabilityService {
             OAuth2ResourceServerProperties resourceServerProperties,
             WeaveSecurityProperties weaveSecurityProperties,
             WorkspaceCapabilityProperties workspaceCapabilityProperties,
+            WeaverRuntimeProperties weaverRuntimeProperties,
+            ObjectProvider<FilesStorageAdapter> filesStorageAdapterProvider) {
+        this(
+                resourceServerProperties,
+                weaveSecurityProperties,
+                workspaceCapabilityProperties,
+                weaverRuntimeProperties,
+                filesStorageAdapterProvider == null ? null : filesStorageAdapterProvider.getIfAvailable());
+    }
+
+    public WorkspaceCapabilityService(
+            OAuth2ResourceServerProperties resourceServerProperties,
+            WeaveSecurityProperties weaveSecurityProperties,
+            WorkspaceCapabilityProperties workspaceCapabilityProperties,
             WeaverRuntimeProperties weaverRuntimeProperties) {
+        this(
+                resourceServerProperties,
+                weaveSecurityProperties,
+                workspaceCapabilityProperties,
+                weaverRuntimeProperties,
+                (FilesStorageAdapter) null);
+    }
+
+    public WorkspaceCapabilityService(
+            OAuth2ResourceServerProperties resourceServerProperties,
+            WeaveSecurityProperties weaveSecurityProperties,
+            WorkspaceCapabilityProperties workspaceCapabilityProperties,
+            WeaverRuntimeProperties weaverRuntimeProperties,
+            FilesStorageAdapter filesStorageAdapter) {
         this.resourceServerProperties = resourceServerProperties;
         this.weaveSecurityProperties = weaveSecurityProperties;
         this.workspaceCapabilityProperties = workspaceCapabilityProperties;
         this.weaverRuntimeProperties = weaverRuntimeProperties;
+        this.filesStorageAdapter = filesStorageAdapter;
+    }
+
+    WorkspaceCapabilityService(
+            OAuth2ResourceServerProperties resourceServerProperties,
+            WeaveSecurityProperties weaveSecurityProperties,
+            WorkspaceCapabilityProperties workspaceCapabilityProperties,
+            FilesStorageAdapter filesStorageAdapter) {
+        this(
+                resourceServerProperties,
+                weaveSecurityProperties,
+                workspaceCapabilityProperties,
+                new WeaverRuntimeProperties(false, null, null, null, null, null, null, null, null, null, false, false, true, false),
+                filesStorageAdapter);
     }
 
     public WorkspaceCapabilitiesResponse snapshot() {
@@ -300,10 +347,34 @@ public class WorkspaceCapabilityService {
             return status(capability, capability.readiness(), category, requiredCapabilities, policy, readyImpact);
         }
         if (hasText(capability.dependencyUrl())) {
+            if ("files".equals(category)) {
+                FilesStorageReadiness filesReadiness = filesStorageReadiness();
+                if (!filesReadiness.available()) {
+                    return status(
+                            capability,
+                            WorkspaceCapabilityReadiness.DEGRADED,
+                            category,
+                            requiredCapabilities,
+                            policy,
+                            "Files need admin attention before members can use them reliably. Ask an admin to inspect Workspace Health.",
+                            filesReadiness.supportSafeCode());
+                }
+            }
             return status(capability, WorkspaceCapabilityReadiness.READY, category, requiredCapabilities, policy, readyImpact);
         }
         return status(capability, WorkspaceCapabilityReadiness.DEGRADED, category, requiredCapabilities, policy,
                 "This capability is degraded. Ask an admin to inspect Workspace Health.");
+    }
+
+    private FilesStorageReadiness filesStorageReadiness() {
+        if (filesStorageAdapter == null) {
+            return FilesStorageReadiness.ready();
+        }
+        try {
+            return filesStorageAdapter.readinessProbe();
+        } catch (RuntimeException exception) {
+            return FilesStorageReadiness.degraded("files-storage-readiness-probe-failed");
+        }
     }
 
     private WorkspaceCapabilityStatusResponse standaloneStatus(
@@ -345,6 +416,17 @@ public class WorkspaceCapabilityService {
             List<String> requiredCapabilities,
             EffectivePolicy policy,
             String defaultImpact) {
+        return status(capability, readiness, category, requiredCapabilities, policy, defaultImpact, null);
+    }
+
+    private WorkspaceCapabilityStatusResponse status(
+            WorkspaceCapabilityProperties.Capability capability,
+            WorkspaceCapabilityReadiness readiness,
+            String category,
+            List<String> requiredCapabilities,
+            EffectivePolicy policy,
+            String defaultImpact,
+            String supportSafeCode) {
         List<String> granted = requiredCapabilities.stream()
                 .filter(policy.capabilities()::contains)
                 .toList();
@@ -372,7 +454,22 @@ public class WorkspaceCapabilityService {
                 policyState,
                 policy.profileKeyFor(category),
                 memberImpact,
+                supportRef(category, effectiveReadiness, policyState, supportSafeCode),
                 granted);
+    }
+
+    private String supportRef(
+            String category,
+            WorkspaceCapabilityReadiness readiness,
+            WorkspaceCapabilityPolicyState policyState,
+            String supportSafeCode) {
+        String safeCategory = category == null ? "workspace" : category.replaceAll("[^a-zA-Z0-9-]+", "-").toLowerCase();
+        String base = "support:workspace-capability:" + safeCategory + ":" + readiness.value() + ":" + policyState.value();
+        if (supportSafeCode == null || supportSafeCode.isBlank()) {
+            return base;
+        }
+        String safeCode = supportSafeCode.trim().replaceAll("[^a-zA-Z0-9-]+", "-").toLowerCase();
+        return base + ":" + safeCode;
     }
 
     private EffectivePolicy effectivePolicy(Jwt jwt) {

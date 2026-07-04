@@ -111,6 +111,8 @@ extension WorkspaceCapabilityStatusResponseMapper
         policyState ?? ((enabled ?? false) ? 'allowed' : 'disabled'),
       ),
       profileKey: profileKey,
+      memberImpact: memberImpact,
+      supportRef: supportRef,
       grantedCapabilities: grantedCapabilities ?? const <String>[],
     );
   }

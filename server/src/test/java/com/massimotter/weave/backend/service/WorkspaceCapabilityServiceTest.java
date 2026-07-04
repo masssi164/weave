@@ -5,11 +5,19 @@ import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyState;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
+import com.massimotter.weave.backend.model.files.CreateFolderRequest;
+import com.massimotter.weave.backend.model.files.FileItemResponse;
+import com.massimotter.weave.backend.model.files.FileListResponse;
+import com.massimotter.weave.backend.model.files.FileUploadResponse;
+import com.massimotter.weave.backend.service.files.DownloadedFile;
+import com.massimotter.weave.backend.service.files.FilesStorageAdapter;
+import com.massimotter.weave.backend.service.files.FilesStorageReadiness;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.multipart.MultipartFile;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -31,8 +39,10 @@ class WorkspaceCapabilityServiceTest {
         assertThat(snapshot.chat().enabled()).isTrue();
         assertThat(snapshot.chat().readiness()).isEqualTo(WorkspaceCapabilityReadiness.DEGRADED);
         assertThat(snapshot.chat().policyState()).isEqualTo(WorkspaceCapabilityPolicyState.ALLOWED);
+        assertThat(snapshot.chat().supportRef()).isEqualTo("support:workspace-capability:chat:degraded:allowed");
         assertThat(snapshot.chat().grantedCapabilities()).containsExactly("chat.read", "chat.send");
         assertThat(snapshot.files().readiness()).isEqualTo(WorkspaceCapabilityReadiness.DEGRADED);
+        assertThat(snapshot.files().supportRef()).isEqualTo("support:workspace-capability:files:degraded:allowed");
         assertThat(snapshot.calendar().readiness()).isEqualTo(WorkspaceCapabilityReadiness.UNAVAILABLE);
     }
 
@@ -76,6 +86,59 @@ class WorkspaceCapabilityServiceTest {
         assertThat(snapshot.calendar().readiness()).isEqualTo(WorkspaceCapabilityReadiness.READY);
         assertThat(snapshot.boards().readiness()).isEqualTo(WorkspaceCapabilityReadiness.UNAVAILABLE);
     }
+
+    @Test
+    void degradesFilesWhenBackendActorReadinessProbeFails() {
+        WorkspaceCapabilityService service = new WorkspaceCapabilityService(
+                resourceServerProperties("https://auth.weave.test/realms/weave"),
+                new WeaveSecurityProperties("weave-app", "weave-app"),
+                new WorkspaceCapabilityProperties(
+                        new WorkspaceCapabilityProperties.Capability(true, null, null),
+                        new WorkspaceCapabilityProperties.Capability(true, "https://matrix.weave.test", null),
+                        new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.test", null),
+                        null,
+                        null,
+                        null),
+                failingFilesAdapter());
+
+        var snapshot = service.snapshot(jwt(List.of("member"), List.of("workspace-default")));
+
+        assertThat(snapshot.files().enabled()).isTrue();
+        assertThat(snapshot.files().readiness()).isEqualTo(WorkspaceCapabilityReadiness.DEGRADED);
+        assertThat(snapshot.files().policyState()).isEqualTo(WorkspaceCapabilityPolicyState.ALLOWED);
+        assertThat(snapshot.files().memberImpact())
+                .contains("Files need admin attention")
+                .doesNotContain("Nextcloud")
+                .doesNotContain("WebDAV");
+        assertThat(snapshot.files().supportRef())
+                .isEqualTo("support:workspace-capability:files:degraded:allowed:files-storage-backend-unavailable");
+        assertThat(snapshot.files().grantedCapabilities()).containsExactly("files.read", "files.upload");
+    }
+
+    @Test
+    void degradesFilesWhenBackendActorReadinessProbeThrows() {
+        WorkspaceCapabilityService service = new WorkspaceCapabilityService(
+                resourceServerProperties("https://auth.weave.test/realms/weave"),
+                new WeaveSecurityProperties("weave-app", "weave-app"),
+                new WorkspaceCapabilityProperties(
+                        new WorkspaceCapabilityProperties.Capability(true, null, null),
+                        new WorkspaceCapabilityProperties.Capability(true, "https://matrix.weave.test", null),
+                        new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.test", null),
+                        null,
+                        null,
+                        null),
+                throwingFilesAdapter());
+
+        var snapshot = service.snapshot(jwt(List.of("member"), List.of("workspace-default")));
+
+        assertThat(snapshot.files().readiness()).isEqualTo(WorkspaceCapabilityReadiness.DEGRADED);
+        assertThat(snapshot.files().memberImpact())
+                .contains("Files need admin attention")
+                .doesNotContain("RuntimeException");
+        assertThat(snapshot.files().supportRef())
+                .isEqualTo("support:workspace-capability:files:degraded:allowed:files-storage-readiness-probe-failed");
+    }
+
 
     @Test
     void marksShellAccessUnavailableWhenTheCapabilityIsDisabled() {
@@ -256,5 +319,83 @@ class WorkspaceCapabilityServiceTest {
                 .claim("realm_access", Map.of("roles", roles))
                 .claim("groups", groups)
                 .build();
+    }
+
+    private FilesStorageAdapter failingFilesAdapter() {
+        return new FilesStorageAdapter() {
+            @Override
+            public boolean isConfigured() {
+                return true;
+            }
+
+            @Override
+            public FilesStorageReadiness readinessProbe() {
+                return FilesStorageReadiness.degraded("files-storage-backend-unavailable");
+            }
+
+            @Override
+            public FileListResponse list(String path) {
+                throw new UnsupportedOperationException("not used by this test");
+            }
+
+            @Override
+            public FileItemResponse createFolder(CreateFolderRequest request) {
+                throw new UnsupportedOperationException("not used by this test");
+            }
+
+            @Override
+            public FileUploadResponse upload(String parentPath, MultipartFile file) {
+                throw new UnsupportedOperationException("not used by this test");
+            }
+
+            @Override
+            public DownloadedFile download(String id) {
+                throw new UnsupportedOperationException("not used by this test");
+            }
+
+            @Override
+            public void delete(String id) {
+                throw new UnsupportedOperationException("not used by this test");
+            }
+        };
+    }
+
+    private FilesStorageAdapter throwingFilesAdapter() {
+        return new FilesStorageAdapter() {
+            @Override
+            public boolean isConfigured() {
+                return true;
+            }
+
+            @Override
+            public FilesStorageReadiness readinessProbe() {
+                throw new RuntimeException("provider-specific failure must not escape");
+            }
+
+            @Override
+            public FileListResponse list(String path) {
+                throw new UnsupportedOperationException("not used by this test");
+            }
+
+            @Override
+            public FileItemResponse createFolder(CreateFolderRequest request) {
+                throw new UnsupportedOperationException("not used by this test");
+            }
+
+            @Override
+            public FileUploadResponse upload(String parentPath, MultipartFile file) {
+                throw new UnsupportedOperationException("not used by this test");
+            }
+
+            @Override
+            public DownloadedFile download(String id) {
+                throw new UnsupportedOperationException("not used by this test");
+            }
+
+            @Override
+            public void delete(String id) {
+                throw new UnsupportedOperationException("not used by this test");
+            }
+        };
     }
 }

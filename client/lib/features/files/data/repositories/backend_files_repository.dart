@@ -356,20 +356,20 @@ class BackendFilesRepository
     final message = _errorMessage(response.body);
     if (response.statusCode == 401 || response.statusCode == 403) {
       throw FilesFailure.invalidCredentials(
-        message ?? 'The Weave backend rejected the current session.',
+        message ?? 'Files access is not allowed for this workspace session.',
         cause: response.statusCode,
       );
     }
     if (response.statusCode == 400 || response.statusCode == 404) {
       throw FilesFailure.protocol(
-        message ?? 'The Weave backend rejected the files request.',
+        message ?? 'The files request could not be completed.',
         cause: response.statusCode,
       );
     }
     if (response.statusCode == 409) {
       throw FilesFailure.protocol(
         message ??
-            'The file operation conflicts with the current backend state.',
+            'The file operation conflicts with the current workspace state.',
         cause: response.statusCode,
       );
     }
@@ -382,13 +382,14 @@ class BackendFilesRepository
     }
     if (response.statusCode == 503) {
       throw FilesFailure.configuration(
-        message ?? 'The Weave backend files facade is unavailable.',
+        message ??
+            'Files need admin attention before members can use them reliably.',
         cause: response.statusCode,
       );
     }
 
     throw FilesFailure.unknown(
-      message ?? 'The Weave backend failed the files request.',
+      message ?? 'The files request could not be completed right now.',
       cause: response.statusCode,
     );
   }
@@ -429,6 +430,10 @@ class BackendFilesRepository
     try {
       final payload = jsonDecode(body);
       if (payload is Map<String, dynamic>) {
+        final memberImpact = payload['memberImpact'];
+        if (memberImpact is String && memberImpact.trim().isNotEmpty) {
+          return memberImpact;
+        }
         final message = payload['message'];
         if (message is String && message.trim().isNotEmpty) {
           return message;
