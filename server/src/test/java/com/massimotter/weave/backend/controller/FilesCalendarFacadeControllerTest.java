@@ -380,7 +380,7 @@ class FilesCalendarFacadeControllerTest {
                 .andExpect(jsonPath("$.options[1].platform").value("android"))
                 .andExpect(jsonPath("$.options[1].osBoundary").value("TelecomConnectionService"))
                 .andExpect(jsonPath("$.options[1].requiredContracts[0]").value("android-telecom-connection-service"))
-                .andExpect(jsonPath("$.proofHooks[0]").value("GET /api/workspace/capabilities"))
+                .andExpect(jsonPath("$.proofHooks[0]").value("GET /api/calls/native-boundary-setup"))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                         .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("LiveKit"))))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()

@@ -54,8 +54,8 @@ public class CallsFacadeService {
                                         "Flutter may hand off setup/status and active call state only.",
                                         "Provider-switch readiness remains admin/support-only and does not change member call copy."))),
                 List.of(
+                        "GET /api/calls/native-boundary-setup",
                         "GET /api/workspace/capabilities",
-                        "POST /api/calls/meetings/{meetingId}/join-grants",
                         "server calls grant TTL/revocation tests",
                         "native bridge contract tests"),
                 List.of(

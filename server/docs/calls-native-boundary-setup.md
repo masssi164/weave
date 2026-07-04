@@ -9,7 +9,7 @@ Weave Calls and Meetings native integration separates OS call UI from media tran
 - iOS boundary: CallKit plus PushKit/VoIP routing concerns.
 - Android boundary: Telecom / ConnectionService where supported.
 - Flutter/native bridge role: setup, status, and incoming-call handoff only.
-- Control-plane proof hooks: workspace capability state, future Weave join-grant route, existing grant TTL/revocation tests, and native bridge contract tests.
+- Control-plane proof hooks: this native boundary setup route, workspace capability state, existing grant TTL/revocation tests, and native bridge contract tests.
 - Support-safe blocked states for the remaining work: provider-neutral meetings facade endpoints, native OS implementations, physical-device camera/microphone/audio-route evidence, and separate consent/audit gates for recording, captions, and transcripts.
 
 The response deliberately contains only Weave-owned paths and product boundaries. It must not include media-provider admin URLs, API keys, bearer tokens, raw diagnostics, or provider setup endpoints.
