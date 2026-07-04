@@ -2319,6 +2319,110 @@
         },
         "type": "object"
       },
+      "ClientAccessCredentialLifecycleResponse": {
+        "description": "Support-safe credential lifecycle summary for member, native, generic, and MCP clients.",
+        "properties": {
+          "blockedUntil": {
+            "description": "Support-safe blockers before this access surface can be called ready.",
+            "items": {
+              "description": "Support-safe blockers before this access surface can be called ready.",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "lifecyclePaths": {
+            "description": "Weave-owned lifecycle paths or references only; never provider URLs or raw secret refs.",
+            "items": {
+              "description": "Weave-owned lifecycle paths or references only; never provider URLs or raw secret refs.",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "secretMaterialReturned": {
+            "description": "Whether credentials or bearer tokens are returned in this manifest. Must remain false.",
+            "example": false,
+            "type": "boolean"
+          },
+          "status": {
+            "description": "Stable lifecycle posture.",
+            "example": "blocked_until_revocable_device_grants",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ClientAccessDiscoveryResponse": {
+        "description": "Support-safe discovery metadata for a Weave domain access surface.",
+        "properties": {
+          "credentialLifecycle": {
+            "$ref": "#/components/schemas/ClientAccessCredentialLifecycleResponse"
+          },
+          "domain": {
+            "description": "Provider-neutral Weave domain key.",
+            "example": "files",
+            "type": "string"
+          },
+          "openApiTag": {
+            "description": "OpenAPI tag or contract group for generated clients and MCP allowlists.",
+            "example": "Files",
+            "type": "string"
+          },
+          "productApiBasePath": {
+            "description": "Weave-owned product API base path.",
+            "example": "/api/files",
+            "type": "string"
+          },
+          "providerConfigurationExposed": {
+            "description": "False: discovery must not expose raw provider setup or endpoint configuration.",
+            "example": false,
+            "type": "boolean"
+          },
+          "supportSafe": {
+            "description": "True when discovery excludes raw provider URLs, credentials, endpoint rotation data, and diagnostics.",
+            "type": "boolean"
+          },
+          "surfaces": {
+            "description": "Open-standard or native projection surfaces exposed over Weave domain truth.",
+            "items": {
+              "$ref": "#/components/schemas/ClientAccessProtocolSurfaceResponse"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ClientAccessProtocolSurfaceResponse": {
+        "description": "One Weave-owned client access projection for a domain facade.",
+        "properties": {
+          "kind": {
+            "description": "Surface kind, such as openapi, standard-protocol, native-os, mcp, or provider-adapter.",
+            "type": "string"
+          },
+          "name": {
+            "description": "Surface name in product-neutral terms.",
+            "example": "Weave WebDAV projection",
+            "type": "string"
+          },
+          "notes": {
+            "description": "Support-safe notes for generated clients and admins.",
+            "items": {
+              "description": "Support-safe notes for generated clients and admins.",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "readiness": {
+            "description": "Stable readiness posture for this surface.",
+            "example": "contract_ready",
+            "type": "string"
+          },
+          "setupPath": {
+            "description": "Weave-owned API, setup, status, or lifecycle path when one exists. Null means the surface is documented but not exposed yet.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ConnectorBoundaryResponse": {
         "properties": {
           "deferredUntil": {
@@ -5485,6 +5589,13 @@
           },
           "capabilities": {
             "$ref": "#/components/schemas/WorkspaceCapabilitiesResponse"
+          },
+          "clientAccessDiscovery": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ClientAccessDiscoveryResponse"
+            },
+            "description": "Support-safe domain access discovery for product APIs, standard-protocol projections, native setup, and governed MCP consumers.",
+            "type": "object"
           },
           "clientResponsibilities": {
             "description": "Responsibilities owned by the member Weave Client.",
