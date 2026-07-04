@@ -8,6 +8,26 @@ contracts.
 This decision applies to Files, Calendar, and Chat. Calls/Meetings remain a
 separate native-call and media-signaling boundary.
 
+## Why standards and federation matter
+
+Open standards are not a retreat from Weave product ownership. They reduce
+lock-in and let organizations use generic, native, and federated clients without
+handing those clients raw provider URLs or tokens. A member should be able to
+open files through an operating-system file surface, see workspace events in a
+native calendar, or join a call from a platform call UI while Weave still owns
+domain truth, policy, audit, revocation, readiness, support-safe errors, and
+provider mappings.
+
+The northbound/southbound split is therefore mandatory:
+
+- **Northbound:** Weave exposes product APIs and selected standard protocol
+  projections to Flutter, Web, Admin Console, MCP, native OS integrations, and
+  generic clients.
+- **Southbound:** Weave calls configured domain providers through adapters such
+  as WebDAV, CalDAV, Matrix, Graph, Google, Slack, Teams, LiveKit, or storage
+  APIs. These adapters are interchangeable implementation choices, not member
+  product contracts.
+
 ## Decision
 
 Each domain has one Weave-owned core:
@@ -25,6 +45,55 @@ MCP adapter, but it is not the only valid projection. WebDAV, CalDAV/iCalendar,
 and Matrix are allowed where they are the right open standard for OS integration
 or federation. They must remain Weave projections or provider adapters, never
 the product truth.
+
+## OpenAPI role
+
+OpenAPI remains critical. It is the generated contract for Flutter, Web, Admin
+Console, setup/revoke screens, support-safe readiness cards, MCP route
+allowlists, and generated models. Adding WebDAV, CalDAV/iCalendar, Matrix, or a
+native OS boundary must not displace OpenAPI. Standard protocol surfaces need a
+Weave-owned OpenAPI discovery, setup, status, revoke, and audit path so clients
+can learn whether a projection is enabled and how credentials or grants expire.
+
+## Target server module shape
+
+The server should move toward domain packages with the same internal outline:
+
+| Layer | Responsibility |
+| --- | --- |
+| `server/.../<domain>/facade` | Northbound Weave product API, OpenAPI DTOs, and support-safe errors. |
+| `server/.../<domain>/projection` | Optional WebDAV, CalDAV/iCalendar, Matrix-compatible, native OS, or MCP projection adapters over the facade. |
+| `server/.../<domain>/adapter` | Southbound provider clients and anti-corruption mappers. |
+| `server/.../<domain>/mapping` | Provider object mapping, lossy-field, permission-impact, conflict, portability, and audit evidence. |
+| `server/.../<domain>/policy` | Capability gates, revocation, credential lifecycle, and audit decisions. |
+
+Existing packages can migrate incrementally. Do not rename broad packages or
+move all code in one PR; add the boundary where new contracts or tests need it.
+
+## Client access discovery and credential lifecycle
+
+Member clients discover access from the authenticated organization manifest and
+domain setup endpoints. The manifest may expose Weave-owned paths such as
+`/api/files`, `/api/calendar/native-sync-setup`, or
+`/api/calls/native-boundary-setup`. It must not expose raw provider endpoints,
+provider tenant URLs, app passwords, bearer tokens, static profile secrets,
+endpoint rotation data, or admin diagnostics.
+
+Credential and grant lifecycle is part of the Weave contract:
+
+- Files native access requires revocable per-device Weave grants before member
+  availability can be true.
+- Calendar native/generic access requires scoped revocable CalDAV/iCalendar
+  credentials, signed profile delivery where profiles are used, and revoke
+  evidence.
+- Chat access is session-bound and must not hand raw Matrix, Slack, or Teams
+  credentials to member clients or MCP.
+- Meetings/Calls use short-lived join grants and native call handoff state;
+  media-provider credentials stay behind server/provider adapters.
+
+The first implementation slice records this discovery in the organization
+manifest as support-safe metadata only. It does not claim that native iOS or
+Android integrations are ready.
 
 ## Files
 
@@ -103,10 +172,37 @@ federation should be gated. Tenant isolation, identity mapping, moderation,
 invite policy, retention, and external-room UX must be proven before broad
 inter-organization federation is enabled.
 
+Near-term Chat decision: **Weave Chat API first, Matrix-compatible transport and
+federation later behind governance gates.** Matrix can be the first backing
+adapter and future federation projection, but Matrix is not mandatory domain
+truth and not the member product vocabulary. Slack and Teams remain southbound
+adapter or bridge candidates.
+
 MCP must not receive raw Matrix access by default. E2EE and room history make
 chat the hardest domain for server-side tools; MCP should operate on governed
 Weave projections, consented summaries, decision records, attachment references,
 and user-authorized decrypted indexes.
+
+## Meetings/Calls
+
+Final shape:
+
+- Product truth: Weave Meetings/Calls facade for meeting metadata, invites,
+  participants, policy, join grants, recordings/captions/artifact references,
+  and audit.
+- JSON/API projection: `/api/calls/**` and generated OpenAPI models.
+- Standard/native boundary: calendar invites, meeting links, iOS CallKit /
+  PushKit boundaries, Android Telecom / ConnectionService boundaries, and
+  provider-neutral join grants.
+- Provider adapters: LiveKit first where configured; Teams/Meet/other meeting
+  providers later through adapters.
+- MCP: semantic tools such as `meetings.find`, `meetings.prepare_agenda`,
+  `meetings.create_join_grant`, and `meetings.link_chat_thread`, backed by
+  policy and audit.
+
+Non-goal: WebDAV and CalDAV do not solve calls. Calendar may schedule a meeting
+and Chat may host a meeting thread, but calls need explicit native call UI,
+media, signaling, permissions, join-grant, and revoke boundaries.
 
 ## MCP projection rule
 
