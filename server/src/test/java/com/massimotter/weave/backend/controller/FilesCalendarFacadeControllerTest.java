@@ -12,6 +12,7 @@ import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
 import com.massimotter.weave.backend.service.CalendarFacadeService;
+import com.massimotter.weave.backend.service.CallsFacadeService;
 import com.massimotter.weave.backend.service.FilesFacadeService;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,7 +40,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(
-        controllers = {FilesController.class, CalendarController.class},
+        controllers = {FilesController.class, CalendarController.class, CallsController.class},
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
 @Import({
         SecurityConfig.class,
@@ -49,6 +50,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         ApiExceptionHandler.class,
         FilesFacadeService.class,
         CalendarFacadeService.class,
+        CallsFacadeService.class,
         WorkspaceCapabilityService.class
 })
 @EnableConfigurationProperties({
@@ -138,6 +140,37 @@ class FilesCalendarFacadeControllerTest {
                         .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("files.weave.test"))))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                         .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("Nextcloud"))));
+    }
+
+    @Test
+    void filesNativeProviderSetupExposesWeaveOwnedOsBoundariesWithoutProviderLeaks() throws Exception {
+        mockMvc.perform(get("/api/files/native-provider-setup")
+                        .with(workspaceJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.supportSafe").value(true))
+                .andExpect(jsonPath("$.providerConfigurationExposed").value(false))
+                .andExpect(jsonPath("$.credentialsExposed").value(false))
+                .andExpect(jsonPath("$.facadeBasePath").value("/api/files"))
+                .andExpect(jsonPath("$.listPathTemplate").value("/api/files?path={path}"))
+                .andExpect(jsonPath("$.downloadPathTemplate").value("/api/files/{id}/download"))
+                .andExpect(jsonPath("$.uploadPath").value("/api/files/upload"))
+                .andExpect(jsonPath("$.readiness.readiness").value("ready"))
+                .andExpect(jsonPath("$.options[0].platform").value("ios"))
+                .andExpect(jsonPath("$.options[0].osBoundary").value("FileProviderExtension"))
+                .andExpect(jsonPath("$.options[0].available").value(false))
+                .andExpect(jsonPath("$.options[0].requiredContracts[0]").value("ios-file-provider-extension"))
+                .andExpect(jsonPath("$.options[1].platform").value("android"))
+                .andExpect(jsonPath("$.options[1].osBoundary").value("DocumentsProvider"))
+                .andExpect(jsonPath("$.options[1].available").value(false))
+                .andExpect(jsonPath("$.proofHooks[0]").value("GET /api/files"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("Nextcloud"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("http://"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("https://"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("token="))));
     }
 
     @Test
@@ -294,6 +327,68 @@ class FilesCalendarFacadeControllerTest {
                         .value("davx5://files.weave.test/remote.php/dav"))
                 .andExpect(jsonPath("$.options[3].platform").value("subscription"))
                 .andExpect(jsonPath("$.options[3].available").value(false));
+    }
+
+    @Test
+    void calendarNativeSyncSetupExposesWeaveOwnedOsBoundariesWithoutProviderLeaks() throws Exception {
+        mockMvc.perform(get("/api/calendar/native-sync-setup")
+                        .with(workspaceJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.supportSafe").value(true))
+                .andExpect(jsonPath("$.providerConfigurationExposed").value(false))
+                .andExpect(jsonPath("$.credentialsExposed").value(false))
+                .andExpect(jsonPath("$.facadeBasePath").value("/api/calendar"))
+                .andExpect(jsonPath("$.credentialLifecyclePath").value("/api/calendar/client-setup/credentials"))
+                .andExpect(jsonPath("$.appleProfilePath").value("/api/calendar/client-setup/apple.mobileconfig"))
+                .andExpect(jsonPath("$.eventSyncPathTemplate").value("/api/calendar/events?scopeType={scopeType}"))
+                .andExpect(jsonPath("$.options[0].platform").value("ios"))
+                .andExpect(jsonPath("$.options[0].osBoundary").value("CalDAVConfigurationProfile"))
+                .andExpect(jsonPath("$.options[0].available").value(false))
+                .andExpect(jsonPath("$.options[0].requiredContracts[0]").value("ios-signed-mobileconfig"))
+                .andExpect(jsonPath("$.options[1].platform").value("android"))
+                .andExpect(jsonPath("$.options[1].osBoundary").value("CalendarContractAccountSyncAdapter"))
+                .andExpect(jsonPath("$.options[1].available").value(false))
+                .andExpect(jsonPath("$.proofHooks[0]").value("GET /api/calendar/scopes"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("Nextcloud"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("files.weave.test"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("http://"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("https://"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("token="))));
+    }
+
+    @Test
+    void callsNativeBoundarySetupExposesProviderNeutralCallkitAndTelecomContract() throws Exception {
+        mockMvc.perform(get("/api/calls/native-boundary-setup")
+                        .with(workspaceJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.supportSafe").value(true))
+                .andExpect(jsonPath("$.providerConfigurationExposed").value(false))
+                .andExpect(jsonPath("$.credentialsExposed").value(false))
+                .andExpect(jsonPath("$.facadeBasePath").value("/api/calls"))
+                .andExpect(jsonPath("$.joinGrantPathTemplate").value("/api/calls/meetings/{meetingId}/join-grants"))
+                .andExpect(jsonPath("$.signalingBoundary")
+                        .value("Weave meeting invitations and short-lived join grants drive native incoming-call state."))
+                .andExpect(jsonPath("$.options[0].platform").value("ios"))
+                .andExpect(jsonPath("$.options[0].osBoundary").value("CallKitPushKit"))
+                .andExpect(jsonPath("$.options[0].available").value(false))
+                .andExpect(jsonPath("$.options[0].requiredContracts[0]").value("ios-callkit-reporting"))
+                .andExpect(jsonPath("$.options[1].platform").value("android"))
+                .andExpect(jsonPath("$.options[1].osBoundary").value("TelecomConnectionService"))
+                .andExpect(jsonPath("$.options[1].requiredContracts[0]").value("android-telecom-connection-service"))
+                .andExpect(jsonPath("$.proofHooks[0]").value("GET /api/calls/native-boundary-setup"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("LiveKit"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("wss://"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("https://"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("apiSecret"))));
     }
 
 
