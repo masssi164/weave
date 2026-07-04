@@ -42,8 +42,9 @@ WorkspaceCapabilityRecoveryPresentation workspaceCapabilityRecoveryPresentation(
     state: state,
     stateLabel: _stateLabel(l10n, state),
     recovery: _recovery(l10n, state),
-    // #915: replace this fallback when the capability contract carries supportRef.
-    supportReference: l10n.settingsWorkspaceRecoverySupportRefUnavailable,
+    supportReference: capability.supportRef?.trim().isNotEmpty == true
+        ? capability.supportRef!.trim()
+        : l10n.settingsWorkspaceRecoverySupportRefUnavailable,
   );
 }
 

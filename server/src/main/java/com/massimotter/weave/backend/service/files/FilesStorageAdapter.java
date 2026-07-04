@@ -10,6 +10,12 @@ public interface FilesStorageAdapter {
 
     boolean isConfigured();
 
+    default FilesStorageReadiness readinessProbe() {
+        return isConfigured()
+                ? FilesStorageReadiness.ready()
+                : FilesStorageReadiness.degraded("files-storage-not-configured");
+    }
+
     FileListResponse list(String path);
 
     FileItemResponse createFolder(CreateFolderRequest request);

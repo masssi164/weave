@@ -218,6 +218,8 @@
       "executableTest": "tools/dogfood_member_onboarding_gate.sh",
       "evidenceMarkers": [
         "DOGFOOD_MEMBER_ONBOARDING_RESULT",
+        "DOGFOOD_ACTIVATION_MAIL_RESULT",
+        "DOGFOOD_POST_LOGIN_CHAT_FILES_RESULT",
         "DOGFOOD_TRUST_STABILITY_RESULT"
       ],
       "evidenceMode": "live-runtime",
@@ -225,6 +227,14 @@
         "dogfood-member-onboarding"
       ],
       "additionalEvidence": [
+        {
+          "path": "tools/dogfood_activation_mail_check.py",
+          "fragments": [
+            "keycloak-required-actions-email",
+            "UPDATE_PASSWORD",
+            "DOGFOOD_ACTIVATION_MAIL_RESULT"
+          ]
+        },
         {
           "path": "client/test/features/onboarding/consume_member_handoff_test.dart",
           "fragments": [
@@ -257,6 +267,14 @@
             "workspace_bootstrap_loading",
             "auth history does not prove browser return",
             "DOGFOOD_MEMBER_ONBOARDING_RESULT"
+          ]
+        },
+        {
+          "path": "tools/dogfood_post_login_chat_files_check.py",
+          "fragments": [
+            "DOGFOOD_POST_LOGIN_CHAT_FILES_RESULT",
+            "chatState=usable",
+            "filesState=usable"
           ]
         },
         {

@@ -13,6 +13,7 @@ void main() {
         readiness: WorkspaceCapabilityReadiness.ready,
         policyState: WorkspaceCapabilityPolicyState.allowed,
         memberImpact: 'RAW BACKEND READY MESSAGE',
+        supportRef: 'support:workspace-capability:chat:ready:allowed',
       ): WorkspaceMemberRecoveryState.available,
       const WorkspaceCapabilityState(
         capability: WorkspaceCapability.chat,
@@ -55,10 +56,17 @@ void main() {
       expect(presentation.state, entry.value);
       expect(presentation.stateLabel, isNot(contains('RAW BACKEND')));
       expect(presentation.recovery, isNot(contains('RAW BACKEND')));
-      expect(
-        presentation.semanticLabel(l10n, 'Capability'),
-        contains('Support reference: Not provided.'),
-      );
+      if (entry.key.supportRef == null) {
+        expect(
+          presentation.semanticLabel(l10n, 'Capability'),
+          contains('Support reference: Not provided.'),
+        );
+      } else {
+        expect(
+          presentation.semanticLabel(l10n, 'Capability'),
+          contains(entry.key.supportRef),
+        );
+      }
     }
   });
 }

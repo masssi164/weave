@@ -7836,6 +7836,10 @@
               "unavailable"
             ],
             "type": "string"
+          },
+          "supportRef": {
+            "description": "Support-safe reference for this capability state. Does not expose provider internals.",
+            "type": "string"
           }
         },
         "type": "object"

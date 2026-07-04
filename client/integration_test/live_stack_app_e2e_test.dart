@@ -1137,6 +1137,7 @@ bool _capabilityStateSupportSafe(Map<String, dynamic> capability) {
     'policyState',
     'profileKey',
     'memberImpact',
+    'supportRef',
     'grantedCapabilities',
   };
   if (capability.isEmpty ||
@@ -1144,10 +1145,11 @@ bool _capabilityStateSupportSafe(Map<String, dynamic> capability) {
     return false;
   }
   final impact = _jsonString(capability['memberImpact']);
+  final supportRef = _jsonString(capability['supportRef']);
   return !RegExp(
     r'(Authorization|Bearer|token|secret|password|https?://|/api/v3/|SecretRef|secretref://)',
     caseSensitive: false,
-  ).hasMatch(impact);
+  ).hasMatch('$impact $supportRef');
 }
 
 bool _availableOrHonestFallback(Map<String, dynamic> capability) {

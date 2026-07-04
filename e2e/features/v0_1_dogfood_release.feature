@@ -23,9 +23,11 @@ Feature: Weave v0.1 dogfood production release
   @weave-v01-dogfood-member-invite-activation
   Scenario: Dogfood member invite activation reaches the workspace
     Given an admin has provisioned a dogfood member invite without passwords, bearer tokens, provider payloads, or raw secrets
+    And the identity provider sends the initial credential setup mail into the local dogfood Mailpit inbox
     When the member opens the current invite deeplink on an update-in-place or trust-preserving app-state-reset iOS install
     And the member taps Sign In, completes first-login activation, sets their password, and returns to Weave
     Then Weave records support-safe handoff_ready, ready_for_sso, sso_in_progress, authenticated, workspace_bootstrap_loading, and workspace_ready evidence
+    And the same dogfood member evidence proves Chat and Files are usable after login
     And the authenticated session is restored after force-quit and reopen
     And trust-preserving app-state reset plus manual sign-in from the saved organization configuration reaches the workspace
     And Mailpit captures dogfood identity mail locally without external delivery
