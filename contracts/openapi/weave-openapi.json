@@ -1033,6 +1033,125 @@
         },
         "type": "object"
       },
+      "CalendarNativeSyncOptionResponse": {
+        "description": "One native OS calendar setup/sync option backed by the Weave calendar facade.",
+        "properties": {
+          "available": {
+            "description": "Whether this native sync option is ready for end-user setup.",
+            "example": false,
+            "type": "boolean"
+          },
+          "bridge": {
+            "description": "Flutter/native bridge role for setup, status, and revoke only.",
+            "example": "pigeon-or-platform-channel",
+            "type": "string"
+          },
+          "notes": {
+            "description": "Support-safe notes for member/admin setup surfaces.",
+            "items": {
+              "description": "Support-safe notes for member/admin setup surfaces.",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "osBoundary": {
+            "description": "Native OS boundary to implement.",
+            "example": "CalDAVConfigurationProfile",
+            "type": "string"
+          },
+          "platform": {
+            "description": "Target platform family.",
+            "example": "ios",
+            "type": "string"
+          },
+          "requiredContracts": {
+            "description": "Native implementation contracts required before availability can be true.",
+            "items": {
+              "description": "Native implementation contracts required before availability can be true.",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "setupAction": {
+            "description": "Support-safe setup action or route. Does not expose raw provider URLs.",
+            "example": "open-weave-calendar-native-setup",
+            "type": "string"
+          },
+          "setupState": {
+            "description": "Support-safe setup state.",
+            "example": "setup_contract_ready",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CalendarNativeSyncSetupResponse": {
+        "description": "Support-safe native Calendar setup/sync contract for OS calendar accounts.",
+        "properties": {
+          "appleProfilePath": {
+            "description": "Weave-owned Apple profile download path. The profile itself remains unavailable until signing and scoped credentials exist.",
+            "example": "/api/calendar/client-setup/apple.mobileconfig",
+            "type": "string"
+          },
+          "blockedUntil": {
+            "description": "Support-safe blockers before native calendar availability can be true.",
+            "items": {
+              "description": "Support-safe blockers before native calendar availability can be true.",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "credentialLifecyclePath": {
+            "description": "Weave-owned setup credential lifecycle path.",
+            "example": "/api/calendar/client-setup/credentials",
+            "type": "string"
+          },
+          "credentialsExposed": {
+            "description": "False: this contract never returns provider credentials or bearer tokens.",
+            "example": false,
+            "type": "boolean"
+          },
+          "eventSyncPathTemplate": {
+            "description": "Weave-owned event sync facade path template.",
+            "example": "/api/calendar/events?scopeType={scopeType}",
+            "type": "string"
+          },
+          "facadeBasePath": {
+            "description": "Weave-owned calendar facade base path for native setup/status.",
+            "example": "/api/calendar",
+            "type": "string"
+          },
+          "options": {
+            "description": "OS-specific sync setup options.",
+            "items": {
+              "$ref": "#/components/schemas/CalendarNativeSyncOptionResponse"
+            },
+            "type": "array"
+          },
+          "proofHooks": {
+            "description": "Executable proof hooks that can be exercised before full native sync availability.",
+            "items": {
+              "description": "Executable proof hooks that can be exercised before full native sync availability.",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "providerConfigurationExposed": {
+            "description": "False: member/native setup must not receive raw calendar-provider configuration.",
+            "example": false,
+            "type": "boolean"
+          },
+          "readiness": {
+            "$ref": "#/components/schemas/WorkspaceCapabilityStatusResponse"
+          },
+          "supportSafe": {
+            "description": "True when this setup contract excludes raw provider endpoints, credentials, and diagnostics.",
+            "example": true,
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "CalendarProviderRefResponse": {
         "description": "Safe provider reference for a calendar event. Raw provider paths, URLs, and credentials are deliberately not exposed.",
         "properties": {
@@ -1192,6 +1311,123 @@
             "description": "Stable Weave meeting-thread identifier for this calendar event.",
             "example": "meeting:channel-engineering-general:7f3c6f3e1b9a",
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CallNativeBoundaryOptionResponse": {
+        "description": "One native OS calls/meetings boundary option backed by Weave meeting grants.",
+        "properties": {
+          "available": {
+            "description": "Whether this native call boundary is ready for end-user setup.",
+            "example": false,
+            "type": "boolean"
+          },
+          "bridge": {
+            "description": "Flutter/native bridge role for setup, status, and incoming-call handoff only.",
+            "example": "pigeon-or-platform-channel",
+            "type": "string"
+          },
+          "notes": {
+            "description": "Support-safe notes for member/admin setup surfaces.",
+            "items": {
+              "description": "Support-safe notes for member/admin setup surfaces.",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "osBoundary": {
+            "description": "Native OS boundary to qualify.",
+            "example": "CallKitPushKit",
+            "type": "string"
+          },
+          "platform": {
+            "description": "Target platform family.",
+            "example": "ios",
+            "type": "string"
+          },
+          "requiredContracts": {
+            "description": "Native implementation contracts required before availability can be true.",
+            "items": {
+              "description": "Native implementation contracts required before availability can be true.",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "setupAction": {
+            "description": "Support-safe setup action or route. Does not expose raw media-provider URLs.",
+            "example": "open-weave-calls-native-setup",
+            "type": "string"
+          },
+          "setupState": {
+            "description": "Support-safe setup state.",
+            "example": "boundary_contract_ready",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CallNativeBoundarySetupResponse": {
+        "description": "Executable native Calls/Meetings boundary contract for OS call surfaces.",
+        "properties": {
+          "blockedUntil": {
+            "description": "Support-safe blockers before native call availability can be true.",
+            "items": {
+              "description": "Support-safe blockers before native call availability can be true.",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "credentialsExposed": {
+            "description": "False: this contract never returns provider credentials, API keys, or bearer tokens.",
+            "example": false,
+            "type": "boolean"
+          },
+          "facadeBasePath": {
+            "description": "Weave-owned meetings facade base path for native setup/status.",
+            "example": "/api/calls",
+            "type": "string"
+          },
+          "joinGrantPathTemplate": {
+            "description": "Weave-owned join-grant path template for the current meeting transport.",
+            "example": "/api/calls/meetings/{meetingId}/join-grants",
+            "type": "string"
+          },
+          "mediaBoundary": {
+            "description": "Provider-neutral media/control-plane split for native call UI.",
+            "type": "string"
+          },
+          "options": {
+            "description": "OS-specific native call setup options.",
+            "items": {
+              "$ref": "#/components/schemas/CallNativeBoundaryOptionResponse"
+            },
+            "type": "array"
+          },
+          "proofHooks": {
+            "description": "Executable proof hooks that can be exercised before full native call availability.",
+            "items": {
+              "description": "Executable proof hooks that can be exercised before full native call availability.",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "providerConfigurationExposed": {
+            "description": "False: member/native setup must not receive raw media-provider configuration.",
+            "example": false,
+            "type": "boolean"
+          },
+          "readiness": {
+            "$ref": "#/components/schemas/WorkspaceCapabilityStatusResponse"
+          },
+          "signalingBoundary": {
+            "description": "Provider-neutral signaling requirement for native call invitations.",
+            "type": "string"
+          },
+          "supportSafe": {
+            "description": "True when this setup contract excludes raw media-provider endpoints, credentials, tokens, and diagnostics.",
+            "example": true,
+            "type": "boolean"
           }
         },
         "type": "object"
@@ -3482,6 +3718,125 @@
           "items",
           "path"
         ],
+        "type": "object"
+      },
+      "FileNativeProviderOptionResponse": {
+        "description": "One native OS file-provider setup option backed by the Weave files facade.",
+        "properties": {
+          "available": {
+            "description": "Whether this native provider option is ready for end-user setup.",
+            "example": false,
+            "type": "boolean"
+          },
+          "bridge": {
+            "description": "Flutter/native bridge role for setup, status, and revoke only.",
+            "example": "pigeon-or-platform-channel",
+            "type": "string"
+          },
+          "notes": {
+            "description": "Support-safe notes for member/admin setup surfaces.",
+            "items": {
+              "description": "Support-safe notes for member/admin setup surfaces.",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "osBoundary": {
+            "description": "Native OS boundary to implement.",
+            "example": "FileProviderExtension",
+            "type": "string"
+          },
+          "platform": {
+            "description": "Target platform family.",
+            "example": "ios",
+            "type": "string"
+          },
+          "requiredContracts": {
+            "description": "Native implementation contracts required before availability can be true.",
+            "items": {
+              "description": "Native implementation contracts required before availability can be true.",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "setupAction": {
+            "description": "Support-safe setup action or route. Does not expose raw provider URLs.",
+            "example": "open-weave-files-native-setup",
+            "type": "string"
+          },
+          "setupState": {
+            "description": "Support-safe setup state.",
+            "example": "extension_contract_ready",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "FileNativeProviderSetupResponse": {
+        "description": "Support-safe native Files provider setup contract for OS extensions/providers.",
+        "properties": {
+          "blockedUntil": {
+            "description": "Support-safe blockers before native provider availability can be true.",
+            "items": {
+              "description": "Support-safe blockers before native provider availability can be true.",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "credentialsExposed": {
+            "description": "False: this contract never returns provider credentials or bearer tokens.",
+            "example": false,
+            "type": "boolean"
+          },
+          "downloadPathTemplate": {
+            "description": "Weave-owned download path template for native providers.",
+            "example": "/api/files/{id}/download",
+            "type": "string"
+          },
+          "facadeBasePath": {
+            "description": "Weave-owned facade base path for native providers.",
+            "example": "/api/files",
+            "type": "string"
+          },
+          "listPathTemplate": {
+            "description": "Weave-owned list path template for native providers.",
+            "example": "/api/files?path={path}",
+            "type": "string"
+          },
+          "options": {
+            "description": "OS-specific provider setup options.",
+            "items": {
+              "$ref": "#/components/schemas/FileNativeProviderOptionResponse"
+            },
+            "type": "array"
+          },
+          "proofHooks": {
+            "description": "Executable proof hooks that can be exercised before full OS extension availability.",
+            "items": {
+              "description": "Executable proof hooks that can be exercised before full OS extension availability.",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "providerConfigurationExposed": {
+            "description": "False: member/native setup must not receive raw storage-provider configuration.",
+            "example": false,
+            "type": "boolean"
+          },
+          "readiness": {
+            "$ref": "#/components/schemas/WorkspaceCapabilityStatusResponse"
+          },
+          "supportSafe": {
+            "description": "True when this setup contract excludes raw provider endpoints, credentials, and diagnostics.",
+            "example": true,
+            "type": "boolean"
+          },
+          "uploadPath": {
+            "description": "Weave-owned upload path for native providers.",
+            "example": "/api/files/upload",
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "FileQuotaResponse": {
@@ -10011,6 +10366,63 @@
         ]
       }
     },
+    "/api/calendar/native-sync-setup": {
+      "get": {
+        "description": "Returns support-safe iOS Calendar profile and Android Account/SyncAdapter setup metadata backed only by Weave-owned calendar facade endpoints.",
+        "operationId": "getCalendarNativeSyncSetup",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarNativeSyncSetupResponse"
+                }
+              }
+            },
+            "description": "HTTP 200"
+          },
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 401"
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 403"
+          },
+          "503": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 503"
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Describe native Calendar setup and sync boundary",
+        "tags": [
+          "Calendar"
+        ]
+      }
+    },
     "/api/calendar/scopes": {
       "get": {
         "operationId": "scopes",
@@ -10064,6 +10476,53 @@
         "summary": "List visible workspace, team, and channel calendar scopes",
         "tags": [
           "Calendar"
+        ]
+      }
+    },
+    "/api/calls/native-boundary-setup": {
+      "get": {
+        "description": "Returns support-safe CallKit/PushKit and Android Telecom/ConnectionService setup metadata backed only by Weave-owned meeting grants and control-plane endpoints.",
+        "operationId": "getCallsNativeBoundarySetup",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CallNativeBoundarySetupResponse"
+                }
+              }
+            },
+            "description": "HTTP 200"
+          },
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 401"
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 403"
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Describe native Calls and Meetings boundary setup",
+        "tags": [
+          "Calls"
         ]
       }
     },
@@ -10884,6 +11343,63 @@
           }
         ],
         "summary": "Create a folder",
+        "tags": [
+          "Files"
+        ]
+      }
+    },
+    "/api/files/native-provider-setup": {
+      "get": {
+        "description": "Returns support-safe iOS File Provider and Android DocumentsProvider setup metadata backed only by Weave-owned file facade endpoints.",
+        "operationId": "getFilesNativeProviderSetup",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileNativeProviderSetupResponse"
+                }
+              }
+            },
+            "description": "HTTP 200"
+          },
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 401"
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 403"
+          },
+          "503": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 503"
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Describe native Files provider setup",
         "tags": [
           "Files"
         ]
@@ -14380,6 +14896,10 @@
     {
       "description": "Authenticated product calendar facade backed by Nextcloud CalDAV.",
       "name": "Calendar"
+    },
+    {
+      "description": "Authenticated product calls/meetings facade and native call boundary contracts.",
+      "name": "Calls"
     },
     {
       "description": "Canonical Weave Chat facade with provider-neutral conversations/messages, Context/Space authorization, capability checks, audit, and support-safe provider replacement seams.",

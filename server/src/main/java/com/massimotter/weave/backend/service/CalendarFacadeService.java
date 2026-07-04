@@ -13,6 +13,8 @@ import com.massimotter.weave.backend.model.calendar.CalendarCredentialReadinessR
 import com.massimotter.weave.backend.model.calendar.CalendarExternalEndpointsResponse;
 import com.massimotter.weave.backend.model.calendar.CalendarEventResponse;
 import com.massimotter.weave.backend.model.calendar.CalendarEventsResponse;
+import com.massimotter.weave.backend.model.calendar.CalendarNativeSyncOptionResponse;
+import com.massimotter.weave.backend.model.calendar.CalendarNativeSyncSetupResponse;
 import com.massimotter.weave.backend.model.calendar.CalendarScopeResponse;
 import com.massimotter.weave.backend.model.calendar.CalendarScopesResponse;
 import com.massimotter.weave.backend.model.calendar.CalendarSetupCredentialListResponse;
@@ -20,6 +22,7 @@ import com.massimotter.weave.backend.model.calendar.CalendarSetupCredentialReque
 import com.massimotter.weave.backend.model.calendar.CalendarSetupCredentialResponse;
 import com.massimotter.weave.backend.model.calendar.CreateCalendarEventRequest;
 import com.massimotter.weave.backend.model.calendar.UpdateCalendarEventRequest;
+import com.massimotter.weave.backend.model.WorkspaceCapabilityStatusResponse;
 import com.massimotter.weave.backend.service.calendar.CalendarAdapter;
 import com.massimotter.weave.backend.service.calendar.CalendarAdapterException;
 import com.massimotter.weave.backend.service.calendar.AppleMobileConfigProfile;
@@ -206,7 +209,65 @@ public class CalendarFacadeService {
                                 "A revocable read-only ICS/webcal feed token is not implemented yet.",
                                 List.of(
                                         "ICS/webcal is one-way subscription/download, not full two-way CalDAV sync.",
-                                        "It is useful for clients without CalDAV support once scoped feed tokens and revocation are available."))));
+                        "It is useful for clients without CalDAV support once scoped feed tokens and revocation are available."))));
+    }
+
+    public CalendarNativeSyncSetupResponse nativeSyncSetup(WorkspaceCapabilityStatusResponse readiness) {
+        requireContextPermission(CalendarScopeResponse.workspace(), ContextPermission.VIEW, "native-sync-setup");
+        return new CalendarNativeSyncSetupResponse(
+                readiness,
+                true,
+                false,
+                false,
+                "/api/calendar",
+                "/api/calendar/client-setup/credentials",
+                "/api/calendar/client-setup/apple.mobileconfig",
+                "/api/calendar/events?scopeType={scopeType}",
+                List.of(
+                        new CalendarNativeSyncOptionResponse(
+                                "ios",
+                                "CalDAVConfigurationProfile",
+                                "pigeon-or-platform-channel",
+                                false,
+                                "profile_contract_ready_signing_blocked",
+                                "open-weave-calendar-native-setup",
+                                List.of(
+                                        "ios-signed-mobileconfig",
+                                        "weave-caldav-compatible-facade",
+                                        "scoped-revocable-device-credential",
+                                        "physical-ios-calendar-sync-evidence"),
+                                List.of(
+                                        "iOS setup uses a Weave-hosted profile flow and system Calendar account semantics.",
+                                        "The profile route remains fail-closed until signing and scoped credential issuance are configured.",
+                                        "Event sync must target the Weave calendar facade, not a storage provider account.")),
+                        new CalendarNativeSyncOptionResponse(
+                                "android",
+                                "CalendarContractAccountSyncAdapter",
+                                "pigeon-or-platform-channel",
+                                false,
+                                "sync_adapter_contract_ready_implementation_blocked",
+                                "open-weave-calendar-native-setup",
+                                List.of(
+                                        "android-account-authenticator",
+                                        "android-sync-adapter",
+                                        "calendar-provider-sync-identity",
+                                        "scoped-revocable-device-credential",
+                                        "android-instrumentation-sync-evidence"),
+                                List.of(
+                                        "Android setup uses a Weave account plus SyncAdapter boundary for Calendar Provider writes.",
+                                        "Flutter may start setup, show status, and revoke only.",
+                                        "Calendar rows and sync state stay in the native provider layer and Weave facade."))),
+                List.of(
+                        "GET /api/calendar/scopes",
+                        "GET /api/calendar/events",
+                        "POST /api/calendar/client-setup/credentials",
+                        "DELETE /api/calendar/client-setup/credentials/{credentialId}",
+                        "GET /api/calendar/client-setup/apple.mobileconfig"),
+                List.of(
+                        "Signed Apple profile delivery is not configured yet.",
+                        "Android Account/SyncAdapter implementation is not wired yet.",
+                        "Scoped native device credential issuance currently returns no secret material.",
+                        "Physical-device sync and revoke evidence is still required."));
     }
 
 

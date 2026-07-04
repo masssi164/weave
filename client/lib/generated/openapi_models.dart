@@ -1289,6 +1289,128 @@ class CalendarExternalEndpointsResponse {
   };
 }
 
+class CalendarNativeSyncOptionResponse {
+  const CalendarNativeSyncOptionResponse({
+    this.available,
+    this.bridge,
+    this.notes,
+    this.osBoundary,
+    this.platform,
+    this.requiredContracts,
+    this.setupAction,
+    this.setupState,
+  });
+
+  factory CalendarNativeSyncOptionResponse.fromJson(
+    Map<String, dynamic> json,
+  ) => CalendarNativeSyncOptionResponse(
+    available: json["available"] as bool?,
+    bridge: json["bridge"] as String?,
+    notes: (json["notes"] as List<dynamic>?)?.map((e) => e as String).toList(),
+    osBoundary: json["osBoundary"] as String?,
+    platform: json["platform"] as String?,
+    requiredContracts: (json["requiredContracts"] as List<dynamic>?)
+        ?.map((e) => e as String)
+        .toList(),
+    setupAction: json["setupAction"] as String?,
+    setupState: json["setupState"] as String?,
+  );
+
+  final bool? available;
+  final String? bridge;
+  final List<String>? notes;
+  final String? osBoundary;
+  final String? platform;
+  final List<String>? requiredContracts;
+  final String? setupAction;
+  final String? setupState;
+
+  Map<String, dynamic> toJson() => {
+    "available": _openApiJsonValue(available),
+    "bridge": _openApiJsonValue(bridge),
+    "notes": _openApiJsonValue(notes),
+    "osBoundary": _openApiJsonValue(osBoundary),
+    "platform": _openApiJsonValue(platform),
+    "requiredContracts": _openApiJsonValue(requiredContracts),
+    "setupAction": _openApiJsonValue(setupAction),
+    "setupState": _openApiJsonValue(setupState),
+  };
+}
+
+class CalendarNativeSyncSetupResponse {
+  const CalendarNativeSyncSetupResponse({
+    this.appleProfilePath,
+    this.blockedUntil,
+    this.credentialLifecyclePath,
+    this.credentialsExposed,
+    this.eventSyncPathTemplate,
+    this.facadeBasePath,
+    this.options,
+    this.proofHooks,
+    this.providerConfigurationExposed,
+    this.readiness,
+    this.supportSafe,
+  });
+
+  factory CalendarNativeSyncSetupResponse.fromJson(
+    Map<String, dynamic> json,
+  ) => CalendarNativeSyncSetupResponse(
+    appleProfilePath: json["appleProfilePath"] as String?,
+    blockedUntil: (json["blockedUntil"] as List<dynamic>?)
+        ?.map((e) => e as String)
+        .toList(),
+    credentialLifecyclePath: json["credentialLifecyclePath"] as String?,
+    credentialsExposed: json["credentialsExposed"] as bool?,
+    eventSyncPathTemplate: json["eventSyncPathTemplate"] as String?,
+    facadeBasePath: json["facadeBasePath"] as String?,
+    options: (json["options"] as List<dynamic>?)
+        ?.map(
+          (e) => CalendarNativeSyncOptionResponse.fromJson(
+            e as Map<String, dynamic>,
+          ),
+        )
+        .toList(),
+    proofHooks: (json["proofHooks"] as List<dynamic>?)
+        ?.map((e) => e as String)
+        .toList(),
+    providerConfigurationExposed: json["providerConfigurationExposed"] as bool?,
+    readiness: json["readiness"] == null
+        ? null
+        : WorkspaceCapabilityStatusResponse.fromJson(
+            json["readiness"] as Map<String, dynamic>,
+          ),
+    supportSafe: json["supportSafe"] as bool?,
+  );
+
+  final String? appleProfilePath;
+  final List<String>? blockedUntil;
+  final String? credentialLifecyclePath;
+  final bool? credentialsExposed;
+  final String? eventSyncPathTemplate;
+  final String? facadeBasePath;
+  final List<CalendarNativeSyncOptionResponse>? options;
+  final List<String>? proofHooks;
+  final bool? providerConfigurationExposed;
+  final WorkspaceCapabilityStatusResponse? readiness;
+  final bool? supportSafe;
+
+  Map<String, dynamic> toJson() => {
+    "appleProfilePath": _openApiJsonValue(appleProfilePath),
+    "blockedUntil": _openApiJsonValue(blockedUntil),
+    "credentialLifecyclePath": _openApiJsonValue(credentialLifecyclePath),
+    "credentialsExposed": _openApiJsonValue(credentialsExposed),
+    "eventSyncPathTemplate": _openApiJsonValue(eventSyncPathTemplate),
+    "facadeBasePath": _openApiJsonValue(facadeBasePath),
+    "options": _openApiJsonValue(options),
+    "proofHooks": _openApiJsonValue(proofHooks),
+    "providerConfigurationExposed": _openApiJsonValue(
+      providerConfigurationExposed,
+    ),
+    "readiness": _openApiJsonValue(readiness),
+    "supportSafe": _openApiJsonValue(supportSafe),
+  };
+}
+
 class CalendarProviderRefResponse {
   const CalendarProviderRefResponse({
     this.etag,
@@ -1452,6 +1574,128 @@ class CalendarThreadRefResponse {
     "matrixRoomId": _openApiJsonValue(matrixRoomId),
     "matrixThreadId": _openApiJsonValue(matrixThreadId),
     "meetingThreadId": _openApiJsonValue(meetingThreadId),
+  };
+}
+
+class CallNativeBoundaryOptionResponse {
+  const CallNativeBoundaryOptionResponse({
+    this.available,
+    this.bridge,
+    this.notes,
+    this.osBoundary,
+    this.platform,
+    this.requiredContracts,
+    this.setupAction,
+    this.setupState,
+  });
+
+  factory CallNativeBoundaryOptionResponse.fromJson(
+    Map<String, dynamic> json,
+  ) => CallNativeBoundaryOptionResponse(
+    available: json["available"] as bool?,
+    bridge: json["bridge"] as String?,
+    notes: (json["notes"] as List<dynamic>?)?.map((e) => e as String).toList(),
+    osBoundary: json["osBoundary"] as String?,
+    platform: json["platform"] as String?,
+    requiredContracts: (json["requiredContracts"] as List<dynamic>?)
+        ?.map((e) => e as String)
+        .toList(),
+    setupAction: json["setupAction"] as String?,
+    setupState: json["setupState"] as String?,
+  );
+
+  final bool? available;
+  final String? bridge;
+  final List<String>? notes;
+  final String? osBoundary;
+  final String? platform;
+  final List<String>? requiredContracts;
+  final String? setupAction;
+  final String? setupState;
+
+  Map<String, dynamic> toJson() => {
+    "available": _openApiJsonValue(available),
+    "bridge": _openApiJsonValue(bridge),
+    "notes": _openApiJsonValue(notes),
+    "osBoundary": _openApiJsonValue(osBoundary),
+    "platform": _openApiJsonValue(platform),
+    "requiredContracts": _openApiJsonValue(requiredContracts),
+    "setupAction": _openApiJsonValue(setupAction),
+    "setupState": _openApiJsonValue(setupState),
+  };
+}
+
+class CallNativeBoundarySetupResponse {
+  const CallNativeBoundarySetupResponse({
+    this.blockedUntil,
+    this.credentialsExposed,
+    this.facadeBasePath,
+    this.joinGrantPathTemplate,
+    this.mediaBoundary,
+    this.options,
+    this.proofHooks,
+    this.providerConfigurationExposed,
+    this.readiness,
+    this.signalingBoundary,
+    this.supportSafe,
+  });
+
+  factory CallNativeBoundarySetupResponse.fromJson(
+    Map<String, dynamic> json,
+  ) => CallNativeBoundarySetupResponse(
+    blockedUntil: (json["blockedUntil"] as List<dynamic>?)
+        ?.map((e) => e as String)
+        .toList(),
+    credentialsExposed: json["credentialsExposed"] as bool?,
+    facadeBasePath: json["facadeBasePath"] as String?,
+    joinGrantPathTemplate: json["joinGrantPathTemplate"] as String?,
+    mediaBoundary: json["mediaBoundary"] as String?,
+    options: (json["options"] as List<dynamic>?)
+        ?.map(
+          (e) => CallNativeBoundaryOptionResponse.fromJson(
+            e as Map<String, dynamic>,
+          ),
+        )
+        .toList(),
+    proofHooks: (json["proofHooks"] as List<dynamic>?)
+        ?.map((e) => e as String)
+        .toList(),
+    providerConfigurationExposed: json["providerConfigurationExposed"] as bool?,
+    readiness: json["readiness"] == null
+        ? null
+        : WorkspaceCapabilityStatusResponse.fromJson(
+            json["readiness"] as Map<String, dynamic>,
+          ),
+    signalingBoundary: json["signalingBoundary"] as String?,
+    supportSafe: json["supportSafe"] as bool?,
+  );
+
+  final List<String>? blockedUntil;
+  final bool? credentialsExposed;
+  final String? facadeBasePath;
+  final String? joinGrantPathTemplate;
+  final String? mediaBoundary;
+  final List<CallNativeBoundaryOptionResponse>? options;
+  final List<String>? proofHooks;
+  final bool? providerConfigurationExposed;
+  final WorkspaceCapabilityStatusResponse? readiness;
+  final String? signalingBoundary;
+  final bool? supportSafe;
+
+  Map<String, dynamic> toJson() => {
+    "blockedUntil": _openApiJsonValue(blockedUntil),
+    "credentialsExposed": _openApiJsonValue(credentialsExposed),
+    "facadeBasePath": _openApiJsonValue(facadeBasePath),
+    "joinGrantPathTemplate": _openApiJsonValue(joinGrantPathTemplate),
+    "mediaBoundary": _openApiJsonValue(mediaBoundary),
+    "options": _openApiJsonValue(options),
+    "proofHooks": _openApiJsonValue(proofHooks),
+    "providerConfigurationExposed": _openApiJsonValue(
+      providerConfigurationExposed,
+    ),
+    "readiness": _openApiJsonValue(readiness),
+    "signalingBoundary": _openApiJsonValue(signalingBoundary),
+    "supportSafe": _openApiJsonValue(supportSafe),
   };
 }
 
@@ -4120,6 +4364,128 @@ class FileListResponse {
     "items": _openApiJsonValue(items),
     "path": _openApiJsonValue(path),
     "quota": _openApiJsonValue(quota),
+  };
+}
+
+class FileNativeProviderOptionResponse {
+  const FileNativeProviderOptionResponse({
+    this.available,
+    this.bridge,
+    this.notes,
+    this.osBoundary,
+    this.platform,
+    this.requiredContracts,
+    this.setupAction,
+    this.setupState,
+  });
+
+  factory FileNativeProviderOptionResponse.fromJson(
+    Map<String, dynamic> json,
+  ) => FileNativeProviderOptionResponse(
+    available: json["available"] as bool?,
+    bridge: json["bridge"] as String?,
+    notes: (json["notes"] as List<dynamic>?)?.map((e) => e as String).toList(),
+    osBoundary: json["osBoundary"] as String?,
+    platform: json["platform"] as String?,
+    requiredContracts: (json["requiredContracts"] as List<dynamic>?)
+        ?.map((e) => e as String)
+        .toList(),
+    setupAction: json["setupAction"] as String?,
+    setupState: json["setupState"] as String?,
+  );
+
+  final bool? available;
+  final String? bridge;
+  final List<String>? notes;
+  final String? osBoundary;
+  final String? platform;
+  final List<String>? requiredContracts;
+  final String? setupAction;
+  final String? setupState;
+
+  Map<String, dynamic> toJson() => {
+    "available": _openApiJsonValue(available),
+    "bridge": _openApiJsonValue(bridge),
+    "notes": _openApiJsonValue(notes),
+    "osBoundary": _openApiJsonValue(osBoundary),
+    "platform": _openApiJsonValue(platform),
+    "requiredContracts": _openApiJsonValue(requiredContracts),
+    "setupAction": _openApiJsonValue(setupAction),
+    "setupState": _openApiJsonValue(setupState),
+  };
+}
+
+class FileNativeProviderSetupResponse {
+  const FileNativeProviderSetupResponse({
+    this.blockedUntil,
+    this.credentialsExposed,
+    this.downloadPathTemplate,
+    this.facadeBasePath,
+    this.listPathTemplate,
+    this.options,
+    this.proofHooks,
+    this.providerConfigurationExposed,
+    this.readiness,
+    this.supportSafe,
+    this.uploadPath,
+  });
+
+  factory FileNativeProviderSetupResponse.fromJson(
+    Map<String, dynamic> json,
+  ) => FileNativeProviderSetupResponse(
+    blockedUntil: (json["blockedUntil"] as List<dynamic>?)
+        ?.map((e) => e as String)
+        .toList(),
+    credentialsExposed: json["credentialsExposed"] as bool?,
+    downloadPathTemplate: json["downloadPathTemplate"] as String?,
+    facadeBasePath: json["facadeBasePath"] as String?,
+    listPathTemplate: json["listPathTemplate"] as String?,
+    options: (json["options"] as List<dynamic>?)
+        ?.map(
+          (e) => FileNativeProviderOptionResponse.fromJson(
+            e as Map<String, dynamic>,
+          ),
+        )
+        .toList(),
+    proofHooks: (json["proofHooks"] as List<dynamic>?)
+        ?.map((e) => e as String)
+        .toList(),
+    providerConfigurationExposed: json["providerConfigurationExposed"] as bool?,
+    readiness: json["readiness"] == null
+        ? null
+        : WorkspaceCapabilityStatusResponse.fromJson(
+            json["readiness"] as Map<String, dynamic>,
+          ),
+    supportSafe: json["supportSafe"] as bool?,
+    uploadPath: json["uploadPath"] as String?,
+  );
+
+  final List<String>? blockedUntil;
+  final bool? credentialsExposed;
+  final String? downloadPathTemplate;
+  final String? facadeBasePath;
+  final String? listPathTemplate;
+  final List<FileNativeProviderOptionResponse>? options;
+  final List<String>? proofHooks;
+  final bool? providerConfigurationExposed;
+  final WorkspaceCapabilityStatusResponse? readiness;
+  final bool? supportSafe;
+  final String? uploadPath;
+
+  Map<String, dynamic> toJson() => {
+    "blockedUntil": _openApiJsonValue(blockedUntil),
+    "credentialsExposed": _openApiJsonValue(credentialsExposed),
+    "downloadPathTemplate": _openApiJsonValue(downloadPathTemplate),
+    "facadeBasePath": _openApiJsonValue(facadeBasePath),
+    "listPathTemplate": _openApiJsonValue(listPathTemplate),
+    "options": _openApiJsonValue(options),
+    "proofHooks": _openApiJsonValue(proofHooks),
+    "providerConfigurationExposed": _openApiJsonValue(
+      providerConfigurationExposed,
+    ),
+    "readiness": _openApiJsonValue(readiness),
+    "supportSafe": _openApiJsonValue(supportSafe),
+    "uploadPath": _openApiJsonValue(uploadPath),
   };
 }
 

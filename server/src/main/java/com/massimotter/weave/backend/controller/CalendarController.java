@@ -3,6 +3,7 @@ package com.massimotter.weave.backend.controller;
 import com.massimotter.weave.backend.model.ApiErrorResponse;
 import com.massimotter.weave.backend.model.calendar.CalendarAccessPolicyResponse;
 import com.massimotter.weave.backend.model.calendar.CalendarClientSetupResponse;
+import com.massimotter.weave.backend.model.calendar.CalendarNativeSyncSetupResponse;
 import com.massimotter.weave.backend.model.calendar.CalendarScopesResponse;
 import com.massimotter.weave.backend.model.calendar.CalendarSetupCredentialListResponse;
 import com.massimotter.weave.backend.model.calendar.CalendarSetupCredentialRequest;
@@ -102,6 +103,16 @@ public class CalendarController {
         return calendarFacadeService.clientSetup();
     }
 
+    @GetMapping("/api/calendar/native-sync-setup")
+    @Operation(
+            operationId = "getCalendarNativeSyncSetup",
+            summary = "Describe native Calendar setup and sync boundary",
+            description = "Returns support-safe iOS Calendar profile and Android Account/SyncAdapter setup metadata backed only by Weave-owned calendar facade endpoints.")
+    @ApiResponse(responseCode = "200", description = "Native Calendar setup/sync metadata.",
+            content = @Content(schema = @Schema(implementation = CalendarNativeSyncSetupResponse.class)))
+    public CalendarNativeSyncSetupResponse nativeSyncSetup(@AuthenticationPrincipal Jwt jwt) {
+        return calendarFacadeService.nativeSyncSetup(workspaceCapabilityService.snapshot(jwt).calendar());
+    }
 
     @GetMapping("/api/calendar/access-policy")
     @Operation(summary = "Describe fail-closed private calendar access policy")
