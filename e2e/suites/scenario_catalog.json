@@ -332,6 +332,63 @@
       ]
     },
     {
+      "tag": "@files-webdav-read-list-download",
+      "suiteId": "product-e2e-scenario-layer",
+      "personas": [
+        "member",
+        "operator"
+      ],
+      "domains": [
+        "files",
+        "provider-portability",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "WebDAV northbound data plane",
+        "OpenAPI control-plane boundary",
+        "support-safe file read/list/download"
+      ]
+    },
+    {
+      "tag": "@files-webdav-writes-fail-closed",
+      "suiteId": "product-e2e-scenario-layer",
+      "personas": [
+        "member",
+        "operator"
+      ],
+      "domains": [
+        "files",
+        "provider-portability",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "write-method fail-closed behavior",
+        "#1007 write-policy blocker",
+        "no OpenAPI data-plane fallback"
+      ]
+    },
+    {
+      "tag": "@files-mcp-facade-no-provider-bypass",
+      "suiteId": "product-e2e-scenario-layer",
+      "personas": [
+        "weaver_user",
+        "operator"
+      ],
+      "domains": [
+        "files",
+        "weaver-governed-pa",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "MCP Files facade projection",
+        "canonical file references",
+        "raw provider bypass rejection"
+      ]
+    },
+    {
       "tag": "@weave-live-provider-stack-readiness",
       "suiteId": "member-live-critical-path",
       "personas": [
