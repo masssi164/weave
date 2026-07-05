@@ -40,20 +40,23 @@ Each domain has one Weave-owned core:
 - generated OpenAPI member/admin contracts;
 - governed MCP tools generated or validated from the same facade metadata.
 
-OpenAPI is the primary JSON contract for Weave clients, Admin Console, and the
-MCP adapter, but it is not the only valid projection. WebDAV, CalDAV/iCalendar,
-and Matrix are allowed where they are the right open standard for OS integration
-or federation. They must remain Weave projections or provider adapters, never
-the product truth.
+OpenAPI is the primary JSON control contract for Weave clients, Admin Console,
+and generated models, but it is not the only valid projection. For Files, the
+durable northbound data plane is the Weave WebDAV facade. WebDAV,
+CalDAV/iCalendar, and Matrix are allowed where they are the right open standard
+for OS integration or federation. They must remain Weave projections or provider
+adapters, never raw provider pass-throughs.
 
 ## OpenAPI role
 
 OpenAPI remains critical. It is the generated contract for Flutter, Web, Admin
 Console, setup/revoke screens, support-safe readiness cards, MCP route
 allowlists, and generated models. Adding WebDAV, CalDAV/iCalendar, Matrix, or a
-native OS boundary must not displace OpenAPI. Standard protocol surfaces need a
-Weave-owned OpenAPI discovery, setup, status, revoke, and audit path so clients
-can learn whether a projection is enabled and how credentials or grants expire.
+native OS boundary must not displace OpenAPI as control plane. For Files,
+however, OpenAPI must not remain the long-term list/read/write data plane.
+Standard protocol surfaces need a Weave-owned OpenAPI discovery, setup, status,
+revoke, and audit path so clients can learn whether a projection is enabled and
+how credentials or grants expire.
 
 ## Target server module shape
 
@@ -100,22 +103,30 @@ Android integrations are ready.
 Final shape:
 
 - Product truth: Weave Files facade.
-- JSON/API projection: `/api/files/**` and generated OpenAPI models.
-- Standard projection: optional Weave WebDAV-compatible surface for desktop or
-  admin-approved clients.
+- JSON/API projection: `/api/files/**` for discovery, readiness, setup, revoke,
+  credential lifecycle, and generated control-plane models only.
+- Standard projection: Weave WebDAV-compatible surface at `/dav/files` as the
+  durable northbound Files data plane for member/client/MCP file semantics.
 - Native OS adapters: iOS File Provider extension and Android DocumentsProvider
   / Storage Access Framework, backed by the Weave Files facade or Weave WebDAV
   projection.
 - Provider adapters: Nextcloud WebDAV first; S3/object storage or other storage
   adapters later.
 - MCP: semantic tools such as `files.search`, `files.read_metadata`,
-  `files.read_content`, `files.write`, and `files.share_item`, backed by Weave
-  policy and audit.
+  `files.read_content`, `files.write`, and `files.share_item`, backed by the
+  WebDAV-backed Weave Files facade/projection plus Weave policy and audit.
 
 WebDAV is an open standard and is a strong fit for file/folder interoperability,
 but raw WebDAV is not the member product contract. File Provider and
 DocumentsProvider implementations expose native OS file surfaces while preserving
 Weave IDs, policy, audit, and support-safe errors.
+
+The first northbound WebDAV slice and its dependency, client adapter,
+authentication, and write-gate decisions are recorded in [ADR-005: Files WebDAV
+facade slice](adr-005-files-webdav-facade-slice.md). Write promotion is tracked
+by #1007 and must cover ETag, conflict, lock, quota, revocation, and audit
+policy before WebDAV write methods, Flutter mutations, or MCP write tools are
+enabled.
 
 Near-term federation for files should use Weave guest/external sharing policy.
 Provider-native federated shares may become adapter capabilities later.
@@ -207,7 +218,9 @@ media, signaling, permissions, join-grant, and revoke boundaries.
 ## MCP projection rule
 
 MCP tools are semantic Weave tools, not raw protocol scripts. Under the hood,
-they may call OpenAPI, WebDAV, CalDAV, Matrix, or provider adapters, but:
+Files MCP data-plane tools route through the WebDAV-backed Weave Files
+facade/projection. Other tools may call OpenAPI, WebDAV, CalDAV, Matrix, or
+provider adapters under the server boundary, but:
 
 - tool names and capability keys stay domain-semantic;
 - server policy, authorization, validation, redaction, and audit remain the hard

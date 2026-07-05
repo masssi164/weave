@@ -3148,24 +3148,6 @@ class CreateCalendarEventRequest {
   };
 }
 
-class CreateFolderRequest {
-  const CreateFolderRequest({required this.name, required this.parentPath});
-
-  factory CreateFolderRequest.fromJson(Map<String, dynamic> json) =>
-      CreateFolderRequest(
-        name: json["name"] as String,
-        parentPath: json["parentPath"] as String,
-      );
-
-  final String name;
-  final String parentPath;
-
-  Map<String, dynamic> toJson() => {
-    "name": _openApiJsonValue(name),
-    "parentPath": _openApiJsonValue(parentPath),
-  };
-}
-
 class CrossDomainImpactItem {
   const CrossDomainImpactItem({
     this.applyBlockers,
@@ -4419,76 +4401,6 @@ class Features {
   };
 }
 
-class FileItemResponse {
-  const FileItemResponse({
-    required this.downloadable,
-    required this.id,
-    this.mimeType,
-    this.modifiedAt,
-    required this.name,
-    required this.path,
-    this.size,
-    required this.type,
-  });
-
-  factory FileItemResponse.fromJson(Map<String, dynamic> json) =>
-      FileItemResponse(
-        downloadable: json["downloadable"] as bool,
-        id: json["id"] as String,
-        mimeType: json["mimeType"] as String?,
-        modifiedAt: json["modifiedAt"] as String?,
-        name: json["name"] as String,
-        path: json["path"] as String,
-        size: (json["size"] as num?)?.toInt(),
-        type: json["type"] as String,
-      );
-
-  final bool downloadable;
-  final String id;
-  final String? mimeType;
-  final String? modifiedAt;
-  final String name;
-  final String path;
-  final int? size;
-  final String type;
-
-  Map<String, dynamic> toJson() => {
-    "downloadable": _openApiJsonValue(downloadable),
-    "id": _openApiJsonValue(id),
-    "mimeType": _openApiJsonValue(mimeType),
-    "modifiedAt": _openApiJsonValue(modifiedAt),
-    "name": _openApiJsonValue(name),
-    "path": _openApiJsonValue(path),
-    "size": _openApiJsonValue(size),
-    "type": _openApiJsonValue(type),
-  };
-}
-
-class FileListResponse {
-  const FileListResponse({required this.items, required this.path, this.quota});
-
-  factory FileListResponse.fromJson(Map<String, dynamic> json) =>
-      FileListResponse(
-        items: (json["items"] as List<dynamic>)
-            .map((e) => FileItemResponse.fromJson(e as Map<String, dynamic>))
-            .toList(),
-        path: json["path"] as String,
-        quota: json["quota"] == null
-            ? null
-            : FileQuotaResponse.fromJson(json["quota"] as Map<String, dynamic>),
-      );
-
-  final List<FileItemResponse> items;
-  final String path;
-  final FileQuotaResponse? quota;
-
-  Map<String, dynamic> toJson() => {
-    "items": _openApiJsonValue(items),
-    "path": _openApiJsonValue(path),
-    "quota": _openApiJsonValue(quota),
-  };
-}
-
 class FileNativeProviderOptionResponse {
   const FileNativeProviderOptionResponse({
     this.available,
@@ -4609,37 +4521,6 @@ class FileNativeProviderSetupResponse {
     "supportSafe": _openApiJsonValue(supportSafe),
     "uploadPath": _openApiJsonValue(uploadPath),
   };
-}
-
-class FileQuotaResponse {
-  const FileQuotaResponse({this.totalBytes, this.usedBytes});
-
-  factory FileQuotaResponse.fromJson(Map<String, dynamic> json) =>
-      FileQuotaResponse(
-        totalBytes: (json["totalBytes"] as num?)?.toInt(),
-        usedBytes: (json["usedBytes"] as num?)?.toInt(),
-      );
-
-  final int? totalBytes;
-  final int? usedBytes;
-
-  Map<String, dynamic> toJson() => {
-    "totalBytes": _openApiJsonValue(totalBytes),
-    "usedBytes": _openApiJsonValue(usedBytes),
-  };
-}
-
-class FileUploadResponse {
-  const FileUploadResponse({required this.item});
-
-  factory FileUploadResponse.fromJson(Map<String, dynamic> json) =>
-      FileUploadResponse(
-        item: FileItemResponse.fromJson(json["item"] as Map<String, dynamic>),
-      );
-
-  final FileItemResponse item;
-
-  Map<String, dynamic> toJson() => {"item": _openApiJsonValue(item)};
 }
 
 class GoLiveReadinessResponse {

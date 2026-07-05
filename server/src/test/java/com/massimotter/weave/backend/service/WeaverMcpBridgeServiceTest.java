@@ -38,7 +38,7 @@ class WeaverMcpBridgeServiceTest {
 
         assertThat(discovery.catalog().serverNamespace()).isEqualTo(MemberMcpToolCatalog.SERVER_NAMESPACE);
         assertThat(discovery.catalog().tools()).extracting(tool -> tool.name())
-                .containsExactly("calendar.search_events", "calendar.create_event");
+                .containsExactly("files.search", "files.read", "calendar.search_events", "calendar.create_event");
         assertThat(discovery.catalog().tools()).allSatisfy(tool -> assertThat(tool.annotations().openWorldHint()).isFalse());
     }
 
@@ -62,8 +62,8 @@ class WeaverMcpBridgeServiceTest {
         Fixture fixture = fixture();
         var profile = fixture.runtimeService.profileFor(jwt());
 
-        var response = fixture.bridge.invokeMcpTool(jwt(), MemberMcpToolCatalog.SERVER_NAMESPACE, "files.read",
-                request("files.read", profile.runtimeProfileHash(), profile.userRef(), null, Map.of("fileRef", "file:1")));
+        var response = fixture.bridge.invokeMcpTool(jwt(), MemberMcpToolCatalog.SERVER_NAMESPACE, "boards.search_tasks",
+                request("boards.search_tasks", profile.runtimeProfileHash(), profile.userRef(), null, Map.of("taskRef", "task:1")));
 
         assertThat(response.status()).isEqualTo(ToolInvocationStatus.DENIED);
         assertThat(response.structuredContent()).containsEntry("supportSafe", true);
@@ -94,6 +94,31 @@ class WeaverMcpBridgeServiceTest {
         assertThat(response.structuredContent().get("redactedContent").toString()).contains("redacted");
         assertThat(response.content()).singleElement().satisfies(block -> assertThat(block.text()).contains("Weave domain capability boundary"));
         verify(fixture.dispatcher).dispatch("calendar.search_events", Map.of("from", "2026-06-17T00:00:00Z"));
+    }
+
+    @Test
+    void filesReadToolUsesMemberDomainDispatcherThroughWebdavBackedFacadeProjection() {
+        Fixture fixture = fixture();
+        var profile = fixture.runtimeService.profileFor(jwt());
+        when(fixture.dispatcher.dispatch("files.read", Map.of("fileRef", "file:/Team/readme.md")))
+                .thenReturn(Map.of(
+                        "status", "ok",
+                        "supportSafe", true,
+                        "dataPlane", "weave-webdav-facade",
+                        "webDavFacadePath", "/dav/files",
+                        "openApiDataPlaneUsed", false,
+                        "item", Map.of("fileRef", "file:/Team/readme.md"),
+                        "auditRef", "audit://files/read/support-safe",
+                        "rawProviderPayload", "redacted"));
+
+        var response = fixture.bridge.invokeMcpTool(jwt(), MemberMcpToolCatalog.SERVER_NAMESPACE, "files.read",
+                request("files.read", profile.runtimeProfileHash(), profile.userRef(), null, Map.of("fileRef", "file:/Team/readme.md")));
+
+        assertThat(response.status()).isEqualTo(ToolInvocationStatus.SUCCESS);
+        assertThat(response.structuredContent().get("structuredContent").toString())
+                .contains("weave-webdav-facade", "/dav/files", "openApiDataPlaneUsed=false")
+                .doesNotContain("Nextcloud", "remote.php", "Bearer ");
+        verify(fixture.dispatcher).dispatch("files.read", Map.of("fileRef", "file:/Team/readme.md"));
     }
 
     @Test
@@ -199,9 +224,9 @@ class WeaverMcpBridgeServiceTest {
                 null,
                 null,
                 List.of("weave-weaver-runtime"),
-                List.of("calendar.read", "calendar.manage_events", "weaver.exec_disabled"),
+                List.of("files.read", "calendar.read", "calendar.manage_events", "weaver.exec_disabled"),
                 List.of(),
-                List.of("calendar.search_events", "calendar.create_event"),
+                List.of("files.search", "files.read", "calendar.search_events", "calendar.create_event"),
                 false,
                 false,
                 true,

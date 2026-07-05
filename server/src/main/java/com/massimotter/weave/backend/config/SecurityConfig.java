@@ -20,6 +20,8 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.expression.WebExpressionAuthorizationManager;
+import org.springframework.security.web.firewall.HttpFirewall;
+import org.springframework.security.web.firewall.StrictHttpFirewall;
 
 @Configuration
 @EnableMethodSecurity
@@ -51,6 +53,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/health/**", "/api/platform/config", "/api/platform/status").permitAll()
                         .requestMatchers("/v3/api-docs", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/api/migration/**").access(MIGRATION_CONTROL_PLANE_ACCESS)
+                        .requestMatchers("/dav/**").hasAuthority(WORKSPACE_SCOPE_AUTHORITY)
                         .requestMatchers("/api/**").hasAuthority(WORKSPACE_SCOPE_AUTHORITY)
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2
@@ -59,6 +62,15 @@ public class SecurityConfig {
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())));
 
         return http.build();
+    }
+
+    @Bean
+    HttpFirewall httpFirewall() {
+        StrictHttpFirewall firewall = new StrictHttpFirewall();
+        firewall.setAllowedHttpMethods(List.of(
+                "DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT",
+                "PROPFIND", "COPY", "MOVE", "MKCOL", "LOCK", "UNLOCK"));
+        return firewall;
     }
 
     @Bean

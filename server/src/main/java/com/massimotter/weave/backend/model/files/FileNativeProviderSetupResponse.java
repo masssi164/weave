@@ -17,13 +17,13 @@ public record FileNativeProviderSetupResponse(
         @Schema(description = "False: this contract never returns provider credentials or bearer tokens.",
                 example = "false")
         boolean credentialsExposed,
-        @Schema(description = "Weave-owned facade base path for native providers.", example = "/api/files")
+        @Schema(description = "Weave-owned WebDAV facade base path for native providers.", example = "/dav/files")
         String facadeBasePath,
-        @Schema(description = "Weave-owned list path template for native providers.", example = "/api/files?path={path}")
+        @Schema(description = "Weave-owned WebDAV list path template for native providers.", example = "/dav/files/{path}")
         String listPathTemplate,
-        @Schema(description = "Weave-owned download path template for native providers.", example = "/api/files/{id}/download")
+        @Schema(description = "Weave-owned WebDAV download path template for native providers.", example = "/dav/files/{path}")
         String downloadPathTemplate,
-        @Schema(description = "Weave-owned upload path for native providers.", example = "/api/files/upload")
+        @Schema(description = "Weave-owned WebDAV upload path placeholder for native providers; writes remain blocked by #1007.", example = "/dav/files/{path}")
         String uploadPath,
         @Schema(description = "OS-specific provider setup options.")
         List<FileNativeProviderOptionResponse> options,
