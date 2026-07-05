@@ -41,6 +41,29 @@ class MemberDomainToolDispatcherTest {
     }
 
     @Test
+    void filesSearchEncodesWebdavHrefAndKeepsProjectionSizeNumericOrNull() {
+        when(filesFacadeService.list("/Team")).thenReturn(teamListing());
+
+        Map<String, Object> result = dispatcher.dispatch("files.search", Map.of("path", "/Team", "limit", 10));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> items = (List<Map<String, Object>>) result.get("items");
+
+        Map<String, Object> folder = items.stream()
+                .filter(item -> "Design".equals(item.get("name")))
+                .findFirst()
+                .orElseThrow();
+        Map<String, Object> spacedName = items.stream()
+                .filter(item -> "Design Notes.md".equals(item.get("name")))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(folder).containsEntry("size", null);
+        assertThat(spacedName)
+                .containsEntry("size", 24L)
+                .containsEntry("webDavHref", "/dav/files/Team/Design%20Notes.md");
+    }
+
+    @Test
     void filesReadRequiresCanonicalWeaveFileRefAndReturnsMetadataOnly() {
         when(filesFacadeService.list("/Team")).thenReturn(teamListing());
 
@@ -87,6 +110,15 @@ class MemberDomainToolDispatcherTest {
                                 "text/markdown",
                                 12L,
                                 OffsetDateTime.parse("2026-07-04T12:01:00Z"),
+                                true),
+                        new FileItemResponse(
+                                "files:design-notes",
+                                "Design Notes.md",
+                                "/Team/Design Notes.md",
+                                "file",
+                                "text/markdown",
+                                24L,
+                                OffsetDateTime.parse("2026-07-04T12:02:00Z"),
                                 true)),
                 null);
     }

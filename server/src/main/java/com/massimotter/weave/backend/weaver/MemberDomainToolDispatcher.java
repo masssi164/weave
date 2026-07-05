@@ -9,13 +9,17 @@ import com.massimotter.weave.backend.service.CalendarFacadeService;
 import com.massimotter.weave.backend.service.FilesFacadeService;
 import com.massimotter.weave.backend.service.files.FilePathCodec;
 import com.massimotter.weave.contract.mcp.MemberMcpToolResultProjections;
+import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
+import org.springframework.web.util.UriUtils;
 
 @Service
 public class MemberDomainToolDispatcher {
@@ -46,8 +50,9 @@ public class MemberDomainToolDispatcher {
         String path = productPath(arguments.get("path"), "/");
         int limit = limit(arguments.get("limit"), DEFAULT_FILES_LIMIT);
         FileListResponse listing = filesFacadeService.list(path);
+        String normalizedQuery = query.toLowerCase(Locale.ROOT);
         List<Map<String, Object>> items = listing.items().stream()
-                .filter(item -> query.isBlank() || item.name().toLowerCase().contains(query.toLowerCase()))
+                .filter(item -> query.isBlank() || item.name().toLowerCase(Locale.ROOT).contains(normalizedQuery))
                 .sorted(Comparator.comparing(FileItemResponse::path))
                 .limit(limit)
                 .map(this::fileItemProjection)
@@ -134,13 +139,25 @@ public class MemberDomainToolDispatcher {
 
     private Map<String, Object> fileItemProjection(FileItemResponse item) {
         String path = FilePathCodec.normalizeProductPath(item.path());
-        return Map.of(
-                "fileRef", "file:" + path,
-                "name", item.name(),
-                "path", path,
-                "kind", "folder".equals(item.type()) ? "folder" : "file",
-                "size", item.size() == null ? "unknown" : item.size(),
-                "downloadable", item.downloadable(),
-                "webDavHref", "/dav/files" + ("/".equals(path) ? "" : path));
+        Map<String, Object> projection = new LinkedHashMap<>();
+        projection.put("fileRef", "file:" + path);
+        projection.put("name", item.name());
+        projection.put("path", path);
+        projection.put("kind", "folder".equals(item.type()) ? "folder" : "file");
+        projection.put("size", item.size());
+        projection.put("downloadable", item.downloadable());
+        projection.put("webDavHref", webDavHref(path));
+        return projection;
+    }
+
+    private String webDavHref(String path) {
+        if ("/".equals(path)) {
+            return "/dav/files";
+        }
+        String encodedPath = List.of(path.substring(1).split("/")).stream()
+                .map(segment -> UriUtils.encodePathSegment(segment, StandardCharsets.UTF_8))
+                .reduce((left, right) -> left + "/" + right)
+                .orElse("");
+        return "/dav/files/" + encodedPath;
     }
 }

@@ -149,7 +149,7 @@ void main() {
               </d:response>
               <d:response>
                 <d:href>/dav/files/Team/readme.md</d:href>
-                <d:propstat><d:prop><d:displayname>readme.md</d:displayname><d:resourcetype/><d:getcontentlength>42</d:getcontentlength><d:getcontenttype>text/markdown</d:getcontenttype></d:prop></d:propstat>
+                <d:propstat><d:prop><d:displayname>readme.md</d:displayname><d:resourcetype/><d:getcontentlength>42</d:getcontentlength><d:getlastmodified>Sun, 26 Apr 2026 08:01:00 GMT</d:getlastmodified><d:getcontenttype>text/markdown</d:getcontenttype></d:prop></d:propstat>
               </d:response>
             </d:multistatus>
             ''',
@@ -171,6 +171,10 @@ void main() {
         expect(listing.entries, hasLength(2));
         expect(listing.entries.first.isDirectory, isTrue);
         expect(listing.entries.last.sizeInBytes, 42);
+        expect(
+          listing.entries.last.modifiedAt,
+          DateTime.utc(2026, 4, 26, 8, 1),
+        );
       },
     );
 

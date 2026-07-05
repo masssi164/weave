@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/domain/repositories/auth_session_repository.dart';
 import 'package:weave/features/files/domain/entities/directory_listing.dart';
@@ -40,6 +41,10 @@ class BackendFilesRepository
   final http.Client _httpClient;
   final ServerConfigurationRepository _serverConfigurationRepository;
   final AuthSessionRepository _authSessionRepository;
+  static final DateFormat _rfc1123DateFormat = DateFormat(
+    'EEE, dd MMM yyyy HH:mm:ss \'GMT\'',
+    'en_US',
+  );
 
   @override
   Future<FilesConnectionState> restoreConnection() async {
@@ -329,12 +334,16 @@ class BackendFilesRepository
         final size = int.tryParse(
           _firstElementText(response, 'getcontentlength') ?? '',
         );
+        final modifiedAt = _parseWebDavDate(
+          _firstElementText(response, 'getlastmodified'),
+        );
         entries.add(
           FileEntry(
             id: path,
             name: displayName,
             path: path,
             isDirectory: isDirectory,
+            modifiedAt: modifiedAt,
             sizeInBytes: isDirectory ? null : size,
           ),
         );
@@ -444,6 +453,22 @@ class BackendFilesRepository
         .replaceAll('&quot;', '"')
         .replaceAll('&apos;', "'")
         .replaceAll('&amp;', '&');
+  }
+
+  DateTime? _parseWebDavDate(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return null;
+    }
+    final raw = value.trim();
+    final parsedIso = DateTime.tryParse(raw);
+    if (parsedIso != null) {
+      return parsedIso.toUtc();
+    }
+    try {
+      return _rfc1123DateFormat.parseUtc(raw);
+    } catch (_) {
+      return null;
+    }
   }
 
   FilesFailure _webDavWritesBlocked() {
