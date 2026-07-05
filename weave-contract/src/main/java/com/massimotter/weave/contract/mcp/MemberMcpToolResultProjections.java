@@ -13,6 +13,31 @@ public final class MemberMcpToolResultProjections {
                 "rawProviderPayload", "redacted");
     }
 
+    public static Map<String, Object> filesSearch(Object items, String path, String query) {
+        return Map.of(
+                "status", "ok",
+                "supportSafe", true,
+                "dataPlane", "weave-webdav-facade",
+                "webDavFacadePath", "/dav/files",
+                "openApiDataPlaneUsed", false,
+                "items", items,
+                "queryRef", WeaveMcpTypes.text(query == null || query.isBlank() ? "*" : query, "filesQuery"),
+                "canonicalRefs", Map.of("folder", "file:" + WeaveMcpTypes.text(path, "/")),
+                "rawProviderPayload", "redacted");
+    }
+
+    public static Map<String, Object> filesReadMetadata(Object item, String fileRef) {
+        return Map.of(
+                "status", "ok",
+                "supportSafe", true,
+                "dataPlane", "weave-webdav-facade",
+                "webDavFacadePath", "/dav/files",
+                "openApiDataPlaneUsed", false,
+                "item", item,
+                "canonicalRefs", Map.of("file", WeaveMcpTypes.text(fileRef, "fileRef")),
+                "rawProviderPayload", "redacted");
+    }
+
     public static Map<String, Object> calendarSearchEvents(Object events, Object scope, String calendarScopeRef) {
         return Map.of(
                 "status", "ok",

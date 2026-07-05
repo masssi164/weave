@@ -130,97 +130,57 @@ void main() {
     );
 
     test(
-      'lists files through the backend facade with the Weave token',
+      'lists files through the Weave WebDAV data plane with the Weave token',
       () async {
         late http.Request capturedRequest;
         final client = MockClient((request) async {
           capturedRequest = request;
           return http.Response(
-            jsonEncode({
-              'path': '/Team',
-              'items': [
-                {
-                  'id': 'files:/Team/Design',
-                  'name': 'Design',
-                  'path': '/Team/Design',
-                  'type': 'folder',
-                  'mimeType': null,
-                  'size': null,
-                  'modifiedAt': '2026-04-26T09:00:00Z',
-                  'downloadable': false,
-                },
-                {
-                  'id': 'files:/Team/readme.md',
-                  'name': 'readme.md',
-                  'path': '/Team/readme.md',
-                  'type': 'file',
-                  'mimeType': 'text/markdown',
-                  'size': 42,
-                  'modifiedAt': '2026-04-26T09:05:00Z',
-                  'downloadable': true,
-                },
-              ],
-            }),
-            200,
+            '''
+            <?xml version="1.0" encoding="UTF-8"?>
+            <d:multistatus xmlns:d="DAV:">
+              <d:response>
+                <d:href>/dav/files/Team/</d:href>
+                <d:propstat><d:prop><d:displayname>Team</d:displayname><d:resourcetype><d:collection/></d:resourcetype></d:prop></d:propstat>
+              </d:response>
+              <d:response>
+                <d:href>/dav/files/Team/Design/</d:href>
+                <d:propstat><d:prop><d:displayname>Design</d:displayname><d:resourcetype><d:collection/></d:resourcetype></d:prop></d:propstat>
+              </d:response>
+              <d:response>
+                <d:href>/dav/files/Team/readme.md</d:href>
+                <d:propstat><d:prop><d:displayname>readme.md</d:displayname><d:resourcetype/><d:getcontentlength>42</d:getcontentlength><d:getcontenttype>text/markdown</d:getcontenttype><d:getlastmodified>Sat, 04 Jul 2026 12:01:00 GMT</d:getlastmodified></d:prop></d:propstat>
+              </d:response>
+            </d:multistatus>
+            ''',
+            207,
+            headers: {'content-type': 'application/xml'},
           );
         });
 
         final listing = await repository(client).listDirectory('/Team');
 
-        expect(capturedRequest.method, 'GET');
+        expect(capturedRequest.method, 'PROPFIND');
         expect(
           capturedRequest.url.toString(),
-          'https://api.home.internal/api/files?path=%2FTeam',
+          'https://api.home.internal/dav/files/Team',
         );
         expect(capturedRequest.headers['authorization'], 'Bearer files-token');
+        expect(capturedRequest.headers['depth'], '1');
         expect(listing.path, '/Team');
         expect(listing.entries, hasLength(2));
         expect(listing.entries.first.isDirectory, isTrue);
         expect(listing.entries.last.sizeInBytes, 42);
-      },
-    );
-
-    test(
-      'fails closed when OpenAPI files response misses item identity',
-      () async {
-        final client = MockClient(
-          (_) async => http.Response(
-            jsonEncode({
-              'path': '/Team',
-              'items': [
-                {
-                  'name': 'readme.md',
-                  'path': '/Team/readme.md',
-                  'type': 'file',
-                },
-              ],
-            }),
-            200,
-          ),
-        );
-
-        await expectLater(
-          repository(client).listDirectory('/Team'),
-          throwsA(
-            isA<FilesFailure>()
-                .having(
-                  (failure) => failure.type,
-                  'type',
-                  FilesFailureType.protocol,
-                )
-                .having(
-                  (failure) => failure.message,
-                  'message',
-                  contains('invalid files listing'),
-                ),
-          ),
+        expect(
+          listing.entries.last.modifiedAt,
+          DateTime.utc(2026, 7, 4, 12, 1),
         );
       },
     );
 
-    test('fails closed when OpenAPI files response misses items', () async {
+    test('fails closed when WebDAV files response is malformed', () async {
       final client = MockClient(
-        (_) async => http.Response(jsonEncode({'path': '/Team'}), 200),
+        (_) async => http.Response('<d:multistatus>', 207),
       );
 
       await expectLater(
@@ -235,131 +195,59 @@ void main() {
               .having(
                 (failure) => failure.message,
                 'message',
-                contains('invalid files listing'),
+                contains('invalid WebDAV files listing'),
               ),
         ),
       );
     });
 
+    test('downloads files through the Weave WebDAV data plane', () async {
+      final requests = <http.Request>[];
+      final client = MockClient((request) async {
+        requests.add(request);
+        return http.Response.bytes(
+          const [1, 2, 3],
+          200,
+          headers: {
+            'content-disposition':
+                "attachment; filename*=UTF-8''readme%20export.md",
+          },
+        );
+      });
+      final backendRepository = repository(client);
+
+      final download = await backendRepository.downloadFile(
+        const FileEntry(
+          id: 'files:/Team/readme.md',
+          name: 'readme.md',
+          path: '/Team/readme.md',
+          isDirectory: false,
+        ),
+      );
+
+      expect(download.fileName, 'readme export.md');
+      expect(download.bytes, <int>[1, 2, 3]);
+      expect(requests.single.headers['authorization'], 'Bearer files-token');
+      expect(requests.map((request) => '${request.method} ${request.url}'), [
+        'GET https://api.home.internal/dav/files/Team/readme.md',
+      ]);
+    });
+
     test(
-      'creates folders, prepares downloads, and deletes via backend endpoints',
+      'fails closed for writes until WebDAV write policy is available',
       () async {
-        final requests = <http.Request>[];
         final client = MockClient((request) async {
-          requests.add(request);
-          if (request.method == 'POST') {
-            expect(jsonDecode(request.body), {
-              'parentPath': '/Team',
-              'name': 'Design',
-            });
-            return http.Response(
-              jsonEncode({
-                'id': 'files:/Team/Design',
-                'name': 'Design',
-                'path': '/Team/Design',
-                'type': 'folder',
-                'downloadable': false,
-              }),
-              200,
-            );
-          }
-          if (request.method == 'GET') {
-            return http.Response.bytes(
-              const [1, 2, 3],
-              200,
-              headers: {
-                'content-disposition':
-                    "attachment; filename*=UTF-8''readme%20export.md",
-              },
-            );
-          }
-          return http.Response('', 204);
+          fail('Files writes must not call ${request.method} ${request.url}');
         });
         final backendRepository = repository(client);
 
-        final folder = await backendRepository.createFolder(
-          parentPath: '/Team',
-          name: 'Design',
-        );
-        await backendRepository.prepareDownload('files:/Team/readme.md');
-        final download = await backendRepository.downloadFile(
-          const FileEntry(
-            id: 'files:/Team/readme.md',
-            name: 'readme.md',
-            path: '/Team/readme.md',
-            isDirectory: false,
-          ),
-        );
-        await backendRepository.delete('files:/Team/old.md');
-
-        expect(folder.path, '/Team/Design');
-        expect(download.fileName, 'readme export.md');
-        expect(download.bytes, <int>[1, 2, 3]);
-        expect(requests.map((request) => '${request.method} ${request.url}'), [
-          'POST https://api.home.internal/api/files/folders',
-          'GET https://api.home.internal/api/files/files:%2FTeam%2Freadme.md/download',
-          'GET https://api.home.internal/api/files/files:%2FTeam%2Freadme.md/download',
-          'DELETE https://api.home.internal/api/files/files:%2FTeam%2Fold.md',
-        ]);
-      },
-    );
-
-    test('uploads multipart data through the backend facade', () async {
-      late http.BaseRequest capturedRequest;
-      final client = _RecordingStreamClient((request) async {
-        capturedRequest = request;
-        final body = await request.finalize().toBytes();
-        expect(utf8.decode(body), contains('hello'));
-        return http.StreamedResponse(const Stream<List<int>>.empty(), 200);
-      });
-      final progress = <int>[];
-
-      await repository(client).uploadFile(
-        '/Team',
-        FileUploadRequest(
-          fileName: 'notes.txt',
-          sizeInBytes: 5,
-          byteStream: Stream<List<int>>.fromIterable([utf8.encode('hello')]),
-        ),
-        onProgress: (uploadedBytes, _) => progress.add(uploadedBytes),
-      );
-
-      expect(capturedRequest.method, 'POST');
-      expect(
-        capturedRequest.url.toString(),
-        'https://api.home.internal/api/files/upload?parentPath=%2FTeam',
-      );
-      expect(capturedRequest.headers['authorization'], 'Bearer files-token');
-      expect(progress, contains(5));
-    });
-
-    test(
-      'maps backend quota/storage upload failures to friendly files errors',
-      () async {
-        final client = _RecordingStreamClient((request) async {
-          await request.finalize().drain<void>();
-          return http.StreamedResponse(
-            Stream<List<int>>.value(
-              utf8.encode(
-                jsonEncode({
-                  'message':
-                      'There is not enough storage available to upload this file.',
-                }),
-              ),
-            ),
-            507,
-          );
-        });
-
         await expectLater(
-          repository(client).uploadFile(
-            '/',
+          backendRepository.uploadFile(
+            '/Team',
             FileUploadRequest(
-              fileName: 'brief.txt',
-              sizeInBytes: 4,
-              byteStream: Stream<List<int>>.fromIterable(const [
-                [1, 2, 3, 4],
-              ]),
+              fileName: 'notes.txt',
+              sizeInBytes: 5,
+              byteStream: Stream<List<int>>.fromIterable(const []),
             ),
           ),
           throwsA(
@@ -367,14 +255,29 @@ void main() {
                 .having(
                   (failure) => failure.type,
                   'type',
-                  FilesFailureType.storage,
+                  FilesFailureType.protocol,
                 )
                 .having(
                   (failure) => failure.message,
                   'message',
-                  'There is not enough storage available to upload this file.',
+                  contains('WebDAV write policy'),
                 ),
           ),
+        );
+        await expectLater(
+          backendRepository.createFolder(parentPath: '/Team', name: 'Design'),
+          throwsA(isA<FilesFailure>()),
+        );
+        await expectLater(
+          backendRepository.deleteEntry(
+            const FileEntry(
+              id: 'files:/Team/old.md',
+              name: 'old.md',
+              path: '/Team/old.md',
+              isDirectory: false,
+            ),
+          ),
+          throwsA(isA<FilesFailure>()),
         );
       },
     );
@@ -394,7 +297,19 @@ void main() {
               401,
             );
           }
-          return http.Response(jsonEncode({'path': '/', 'items': []}), 200);
+          return http.Response(
+            '''
+            <?xml version="1.0" encoding="UTF-8"?>
+            <d:multistatus xmlns:d="DAV:">
+              <d:response>
+                <d:href>/dav/files/</d:href>
+                <d:propstat><d:prop><d:displayname>Files</d:displayname><d:resourcetype><d:collection/></d:resourcetype></d:prop></d:propstat>
+              </d:response>
+            </d:multistatus>
+            ''',
+            207,
+            headers: {'content-type': 'application/xml'},
+          );
         });
 
         final listing = await repository(client).listDirectory('/');
@@ -469,16 +384,4 @@ void main() {
       );
     });
   });
-}
-
-class _RecordingStreamClient extends http.BaseClient {
-  _RecordingStreamClient(this.handler);
-
-  final Future<http.StreamedResponse> Function(http.BaseRequest request)
-  handler;
-
-  @override
-  Future<http.StreamedResponse> send(http.BaseRequest request) {
-    return handler(request);
-  }
 }

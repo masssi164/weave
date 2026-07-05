@@ -45,7 +45,11 @@
       "toolFamilies": ["files.crud", "files.search", "files.metadata", "files.version_content", "files.permissions", "documents.actions"],
       "allowedProofTools": ["files.search", "files.read_metadata"],
       "writeToolsRequireApproval": ["files.upload", "files.delete", "files.share_link", "documents.request_edit_session"],
-      "forbiddenOutputs": ["providerNativeShareSecret", "rawStorageCredentials", "credentialBearingDownloadUrl"]
+      "dataPlaneAuthority": "weave-webdav-facade",
+      "facadePath": "/dav/files",
+      "openApiRole": "control-discovery-readiness-revoke-generated-models",
+      "writePolicyBlocker": "https://github.com/masssi164/weave/issues/1007",
+      "forbiddenOutputs": ["providerNativeShareSecret", "rawStorageCredentials", "credentialBearingDownloadUrl", "rawProviderUrl", "rawWebDavProviderPayload"]
     },
     {
       "key": "boards_tasks",

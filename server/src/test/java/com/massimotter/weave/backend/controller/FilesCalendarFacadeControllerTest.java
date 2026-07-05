@@ -92,38 +92,16 @@ class FilesCalendarFacadeControllerTest {
 
     @Test
     void filesFacadeRequiresAuthenticatedWorkspaceScope() throws Exception {
-        mockMvc.perform(get("/api/files"))
+        mockMvc.perform(get("/api/files/readiness"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("unauthorized"));
     }
 
     @Test
-    void filesFacadeExposesStableUnavailableErrorUntilNextcloudAdapterExists() throws Exception {
+    void filesOpenApiRootNoLongerExposesMemberDataPlane() throws Exception {
         mockMvc.perform(get("/api/files")
                         .with(workspaceJwt()))
-                .andExpect(status().isServiceUnavailable())
-                .andExpect(header().exists("X-Request-Id"))
-                .andExpect(jsonPath("$.code").value("nextcloud-adapter-not-configured"))
-                .andExpect(jsonPath("$.message").value(
-                        "Files facade is available, but the downstream Nextcloud adapter is not configured yet."))
-                .andExpect(jsonPath("$.details.module").value("files"))
-                .andExpect(jsonPath("$.details.operation").value("list-files"));
-    }
-
-    @Test
-    void filesFacadeFailsClosedWhenContextAuthorizationDeniesAccess() throws Exception {
-        when(contextAuthorizationPort.check(any()))
-                .thenReturn(ContextAuthorizationDecision.deny("no matching context membership"));
-
-        mockMvc.perform(get("/api/files")
-                        .with(workspaceJwt()))
-                .andExpect(status().isForbidden())
-                .andExpect(header().exists("X-Request-Id"))
-                .andExpect(jsonPath("$.code").value("files-forbidden"))
-                .andExpect(jsonPath("$.details.module").value("files"))
-                .andExpect(jsonPath("$.details.operation").value("list-files"))
-                .andExpect(jsonPath("$.details.contextId").value("workspace-default"))
-                .andExpect(jsonPath("$.details.permission").value("view"));
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -150,10 +128,10 @@ class FilesCalendarFacadeControllerTest {
                 .andExpect(jsonPath("$.supportSafe").value(true))
                 .andExpect(jsonPath("$.providerConfigurationExposed").value(false))
                 .andExpect(jsonPath("$.credentialsExposed").value(false))
-                .andExpect(jsonPath("$.facadeBasePath").value("/api/files"))
-                .andExpect(jsonPath("$.listPathTemplate").value("/api/files?path={path}"))
-                .andExpect(jsonPath("$.downloadPathTemplate").value("/api/files/{id}/download"))
-                .andExpect(jsonPath("$.uploadPath").value("/api/files/upload"))
+                .andExpect(jsonPath("$.facadeBasePath").value("/dav/files"))
+                .andExpect(jsonPath("$.listPathTemplate").value("/dav/files/{path}"))
+                .andExpect(jsonPath("$.downloadPathTemplate").value("/dav/files/{path}"))
+                .andExpect(jsonPath("$.uploadPath").value("/dav/files/{path}"))
                 .andExpect(jsonPath("$.readiness.readiness").value("ready"))
                 .andExpect(jsonPath("$.options[0].platform").value("ios"))
                 .andExpect(jsonPath("$.options[0].osBoundary").value("FileProviderExtension"))
@@ -162,7 +140,8 @@ class FilesCalendarFacadeControllerTest {
                 .andExpect(jsonPath("$.options[1].platform").value("android"))
                 .andExpect(jsonPath("$.options[1].osBoundary").value("DocumentsProvider"))
                 .andExpect(jsonPath("$.options[1].available").value(false))
-                .andExpect(jsonPath("$.proofHooks[0]").value("GET /api/files"))
+                .andExpect(jsonPath("$.proofHooks[0]").value("OPTIONS /dav/files"))
+                .andExpect(jsonPath("$.proofHooks", org.hamcrest.Matchers.hasItem("WebDAV writes blocked by #1007 until ETag, conflict, lock, quota, revocation, and audit policy exists")))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                         .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("Nextcloud"))))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()

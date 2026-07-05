@@ -3,7 +3,7 @@
 ## Overview
 Weave uses a feature-first clean architecture with deterministic bootstrap before routing. App-level OIDC bootstrap is resolved before navigation, while protocol-specific or platform-specific code lives either inside the owning feature or in `lib/integrations/<integration>/` when the boundary is shared across multiple features.
 
-Weave is product-first and provider-neutral. It models organization capabilities such as identity, chat, files, calendar, boards/tasks, meetings, decisions, documents/collaboration, embedded manuals, release evidence, and later Weaver. Concrete systems such as Keycloak, Entra ID, Matrix, Teams, Slack, Nextcloud, SharePoint, OpenProject, Jira, or LiveKit attach as provider adapters behind Weave domain contracts. The server is the canonical domain, policy, validation, and OpenAPI contract authority for generated client/admin/MCP consumers; see [ADR-004: Server OpenAPI is the contract authority](architecture/adr-004-server-openapi-contract-authority.md). See also [Weave product line and Weaver integration plan](product-line-and-weaver-plan.md), [Organization embedding contract](organization-embedding-contract.md), [Identity provisioning strategy](identity-provisioning-strategy.md), [Provider replacement and anti-silo contract](provider-replacement-and-anti-silo-contract.md), [Canonical domains](architecture/canonical-domains.md), [Provider portability contract](architecture/provider-portability.md), and [Weaver OpenClaw-derived runtime profile](architecture/weaver-openclaw-profile.md).
+Weave is product-first and provider-neutral. It models organization capabilities such as identity, chat, files, calendar, boards/tasks, meetings, decisions, documents/collaboration, embedded manuals, release evidence, and later Weaver. Concrete systems such as Keycloak, Entra ID, Matrix, Teams, Slack, Nextcloud, SharePoint, OpenProject, Jira, or LiveKit attach as provider adapters behind Weave domain contracts. The server is the canonical domain, policy, validation, and OpenAPI contract authority for generated client/admin/MCP consumers; see [ADR-004: Server OpenAPI is the contract authority](architecture/adr-004-server-openapi-contract-authority.md). The first Files WebDAV projection decisions are captured in [ADR-005: Files WebDAV facade slice](architecture/adr-005-files-webdav-facade-slice.md). See also [Weave product line and Weaver integration plan](product-line-and-weaver-plan.md), [Organization embedding contract](organization-embedding-contract.md), [Identity provisioning strategy](identity-provisioning-strategy.md), [Provider replacement and anti-silo contract](provider-replacement-and-anti-silo-contract.md), [Canonical domains](architecture/canonical-domains.md), [Provider portability contract](architecture/provider-portability.md), and [Weaver OpenClaw-derived runtime profile](architecture/weaver-openclaw-profile.md).
 
 ## Provider-neutral capability contracts
 
@@ -156,7 +156,7 @@ Current feature repository boundaries:
 
 - `auth` -> `AuthSessionRepository` + `OidcClient`
 - `chat` -> `ChatRepository` + backend Chat facade OpenAPI DTO mapping in `data/`; Matrix SDK access is fenced to legacy/diagnostic chat-owned services until #895 removes or replaces that seam
-- `files` -> `FilesRepository` + backend Files facade OpenAPI DTO mapping in `data/`; direct Nextcloud/WebDAV transport stays outside normal member UI paths
+- `files` -> `FilesRepository` + Weave WebDAV data-plane mapping in `data/`, with OpenAPI retained for discovery/readiness/setup/revoke/control-plane state; direct provider WebDAV/Nextcloud transport stays outside normal member UI paths
 - `integrations/nextcloud` -> transitional Nextcloud auth/session helpers only for fenced legacy or provider-owned integration work; normal member Files presentation must use the backend Files facade
 - `calendar` -> `CalendarRepository` + backend `CalendarFacadeClient` (no direct Flutter-to-CalDAV product path)
 - `deck` / future `tasks_boards` -> exploratory board repository/client boundaries; future work should use a provider-neutral Weave model with adapters
@@ -201,10 +201,10 @@ The remaining Matrix integration is a fenced legacy/diagnostic seam pending #895
 - Matrix SDK crypto setup helpers for first-device bootstrap, recovery reconnect, and self-verification continuation
 
 ## Nextcloud integration split
-Normal member Files uses the backend Files facade through `BackendFilesRepository`; Flutter maps `/api/files/*` OpenAPI DTOs inside `features/files/data/` and presents Weave-domain `DirectoryListing` and `FileEntry` objects. The transitional Nextcloud integration is now split into fenced provider-owned helpers:
+Normal member Files uses the Weave WebDAV facade through `BackendFilesRepository` for list/read data-plane behavior; Flutter keeps OpenAPI only for discovery/readiness/setup/revoke/control-plane state. It presents Weave-domain `DirectoryListing` and `FileEntry` objects and fails closed for mutations until the WebDAV write policy in #1007 is implemented. The transitional Nextcloud integration is now split into fenced provider-owned helpers:
 
 - `integrations/nextcloud/` for legacy/shared auth, session, account validation, login-flow handling, revoke policy, provider wiring, and connection lifecycle orchestration where a fenced provider adapter still needs it
-- `features/files/` for backend Files facade calls, OpenAPI DTO-to-domain mapping, and file-facing presentation/state
+- `features/files/` for Weave WebDAV facade calls and file-facing presentation/state
 
 This keeps the current Files UX intact while moving provider transport behind backend domain services. Future Calendar or provider-adapter board work must not import `features/files/` or add direct member UI provider setup paths.
 

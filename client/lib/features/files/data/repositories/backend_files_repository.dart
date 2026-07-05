@@ -1,11 +1,9 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/domain/repositories/auth_session_repository.dart';
-import 'package:weave/features/files/data/dtos/files_openapi_mappers.dart';
 import 'package:weave/features/files/domain/entities/directory_listing.dart';
 import 'package:weave/features/files/domain/entities/file_download.dart';
 import 'package:weave/features/files/domain/entities/file_entry.dart';
@@ -15,12 +13,15 @@ import 'package:weave/features/files/domain/entities/files_failure.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
-import 'package:weave/generated/openapi_models.dart' as openapi;
+import 'package:xml/xml.dart';
 
 /// Files repository backed by the Weave backend product facade.
 ///
 /// Flutter owns the product UI and calls `weave-backend` only. The backend owns
-/// all direct Nextcloud WebDAV/OCS access for the MVP files path.
+/// all direct provider access. File list/read data-plane operations use the
+/// Weave WebDAV projection; OpenAPI remains the control plane for discovery,
+/// setup, readiness, revoke, grants, and generated models. File writes fail
+/// closed until the WebDAV write policy is recorded in #1007.
 class BackendFilesRepository
     implements
         FilesRepository,
@@ -77,22 +78,19 @@ class BackendFilesRepository
 
   @override
   Future<void> disconnect() async {
-    // The backend-facade path does not own a separate local Nextcloud session.
+    // The backend-facade path does not own a separate local provider session.
   }
 
   @override
   Future<DirectoryListing> listDirectory(String path) async {
     final context = await _requireContext();
-    final response = await _sendAuthenticated(
-      context,
-      (accessToken) => _httpClient.get(
-        _apiUri(context.baseUrl, const ['api', 'files'], query: {'path': path}),
-        headers: _jsonHeaders(accessToken),
-      ),
-      fallbackMessage: 'Unable to load files from the Weave backend.',
-    );
-    _ensureSuccess(response, successCodes: const {200});
-    return _decodeListing(response.body);
+    final response = await _sendAuthenticated(context, (accessToken) async {
+      final request = http.Request('PROPFIND', _davUri(context.baseUrl, path))
+        ..headers.addAll(_webdavHeaders(accessToken, depth: '1'));
+      return http.Response.fromStream(await _httpClient.send(request));
+    }, fallbackMessage: 'Unable to load files from the Weave backend.');
+    _ensureSuccess(response, successCodes: const {207});
+    return _decodeWebDavListing(path, response.body);
   }
 
   @override
@@ -101,47 +99,8 @@ class BackendFilesRepository
     FileUploadRequest request, {
     FileUploadProgressCallback? onProgress,
   }) async {
-    final context = await _requireContext();
-    final multipart =
-        http.MultipartRequest(
-            'POST',
-            _apiUri(
-              context.baseUrl,
-              const ['api', 'files', 'upload'],
-              query: {'parentPath': directoryPath},
-            ),
-          )
-          ..headers.addAll({
-            'Accept': 'application/json',
-            'Authorization': 'Bearer ${context.accessToken}',
-          });
-
-    var uploadedBytes = 0;
-    final stream = request.byteStream.transform(
-      StreamTransformer<List<int>, List<int>>.fromHandlers(
-        handleData: (chunk, sink) {
-          uploadedBytes += chunk.length;
-          onProgress?.call(uploadedBytes, request.sizeInBytes);
-          sink.add(chunk);
-        },
-      ),
-    );
-    multipart.files.add(
-      http.MultipartFile(
-        'file',
-        stream,
-        request.sizeInBytes,
-        filename: request.fileName,
-      ),
-    );
-
-    final streamedResponse = await _sendStream(
-      () => _httpClient.send(multipart),
-      fallbackMessage: 'Unable to upload the file through the Weave backend.',
-    );
-    final response = await http.Response.fromStream(streamedResponse);
-    _ensureSuccess(response, successCodes: const {200});
-    onProgress?.call(request.sizeInBytes, request.sizeInBytes);
+    await _requireContext();
+    throw _webDavWritesBlocked();
   }
 
   @override
@@ -149,35 +108,8 @@ class BackendFilesRepository
     required String parentPath,
     required String name,
   }) async {
-    final context = await _requireContext();
-    final request = openapi.CreateFolderRequest(
-      parentPath: parentPath,
-      name: name,
-    );
-    final response = await _sendAuthenticated(
-      context,
-      (accessToken) => _httpClient.post(
-        _apiUri(context.baseUrl, const ['api', 'files', 'folders']),
-        headers: _jsonHeaders(accessToken),
-        body: jsonEncode(request.toJson()),
-      ),
-      fallbackMessage: 'Unable to create the folder through the Weave backend.',
-    );
-    _ensureSuccess(response, successCodes: const {200});
-    return _decodeEntry(_decodeObject(response.body));
-  }
-
-  Future<void> prepareDownload(String id) async {
-    final context = await _requireContext();
-    final response = await _sendAuthenticated(
-      context,
-      (accessToken) => _httpClient.get(
-        _apiUri(context.baseUrl, ['api', 'files', id, 'download']),
-        headers: _jsonHeaders(accessToken),
-      ),
-      fallbackMessage: 'Unable to prepare the file download.',
-    );
-    _ensureSuccess(response, successCodes: const {200, 204});
+    await _requireContext();
+    throw _webDavWritesBlocked();
   }
 
   @override
@@ -192,8 +124,8 @@ class BackendFilesRepository
     final response = await _sendAuthenticated(
       context,
       (accessToken) => _httpClient.get(
-        _apiUri(context.baseUrl, ['api', 'files', entry.id, 'download']),
-        headers: {'Authorization': 'Bearer $accessToken'},
+        _davUri(context.baseUrl, entry.path),
+        headers: {'Accept': '*/*', 'Authorization': 'Bearer $accessToken'},
       ),
       fallbackMessage: 'Unable to download the file through the Weave backend.',
     );
@@ -223,21 +155,11 @@ class BackendFilesRepository
     return filename?.group(1);
   }
 
-  Future<void> delete(String id) async {
-    final context = await _requireContext();
-    final response = await _sendAuthenticated(
-      context,
-      (accessToken) => _httpClient.delete(
-        _apiUri(context.baseUrl, ['api', 'files', id]),
-        headers: _jsonHeaders(accessToken),
-      ),
-      fallbackMessage: 'Unable to delete the file through the Weave backend.',
-    );
-    _ensureSuccess(response, successCodes: const {200, 204});
-  }
-
   @override
-  Future<void> deleteEntry(FileEntry entry) => delete(entry.id);
+  Future<void> deleteEntry(FileEntry entry) async {
+    await _requireContext();
+    throw _webDavWritesBlocked();
+  }
 
   Future<_BackendFilesContext> _requireContext() async {
     final configuration = await _serverConfigurationRepository
@@ -279,19 +201,6 @@ class BackendFilesRepository
   }) async {
     try {
       return await request().timeout(const Duration(seconds: 20));
-    } on FilesFailure {
-      rethrow;
-    } catch (error) {
-      throw FilesFailure.unknown(fallbackMessage, cause: error);
-    }
-  }
-
-  Future<http.StreamedResponse> _sendStream(
-    Future<http.StreamedResponse> Function() request, {
-    required String fallbackMessage,
-  }) async {
-    try {
-      return await request().timeout(const Duration(seconds: 60));
     } on FilesFailure {
       rethrow;
     } catch (error) {
@@ -394,36 +303,52 @@ class BackendFilesRepository
     );
   }
 
-  DirectoryListing _decodeListing(String body) {
+  DirectoryListing _decodeWebDavListing(String requestedPath, String body) {
     try {
-      return openapi.FileListResponse.fromJson(
-        _decodeObject(body),
-      ).toDomainListing();
-    } on FilesFailure {
-      rethrow;
+      final normalizedRequestedPath = _normalizeFilesPath(requestedPath);
+      final document = XmlDocument.parse(body);
+      final entries = <FileEntry>[];
+      for (final response in document.descendants.whereType<XmlElement>()) {
+        if (response.name.local != 'response') {
+          continue;
+        }
+        final href = _firstElementText(response, 'href');
+        if (href == null || href.isEmpty) {
+          continue;
+        }
+        final path = _pathFromDavHref(href);
+        if (path == normalizedRequestedPath) {
+          continue;
+        }
+        final displayName =
+            _firstElementText(response, 'displayname') ??
+            _fallbackNameFromPath(path);
+        final isDirectory = response.descendants.whereType<XmlElement>().any(
+          (element) => element.name.local == 'collection',
+        );
+        final size = int.tryParse(
+          _firstElementText(response, 'getcontentlength') ?? '',
+        );
+        final modifiedAt = _parseHttpDate(
+          _firstElementText(response, 'getlastmodified'),
+        );
+        entries.add(
+          FileEntry(
+            id: path,
+            name: displayName,
+            path: path,
+            isDirectory: isDirectory,
+            modifiedAt: modifiedAt,
+            sizeInBytes: isDirectory ? null : size,
+          ),
+        );
+      }
+      return DirectoryListing(path: normalizedRequestedPath, entries: entries);
     } catch (error) {
       throw const FilesFailure.protocol(
-        'The Weave backend returned an invalid files listing.',
+        'The Weave backend returned an invalid WebDAV files listing.',
       );
     }
-  }
-
-  FileEntry _decodeEntry(Map<String, dynamic> json) {
-    return openapi.FileItemResponse.fromJson(json).toDomainEntry();
-  }
-
-  Map<String, dynamic> _decodeObject(String body) {
-    try {
-      final payload = jsonDecode(body);
-      if (payload is Map<String, dynamic>) {
-        return payload;
-      }
-    } catch (_) {
-      // Fall through to protocol failure below.
-    }
-    throw const FilesFailure.protocol(
-      'The Weave backend returned an invalid files payload.',
-    );
   }
 
   String? _errorMessage(String body) {
@@ -440,42 +365,132 @@ class BackendFilesRepository
         }
       }
     } catch (_) {
-      return null;
+      final description = RegExp(
+        r'<[^:>]*:?responsedescription>([^<]+)</[^:>]*:?responsedescription>',
+        caseSensitive: false,
+      ).firstMatch(body);
+      return description == null
+          ? null
+          : _decodeXmlText(description.group(1) ?? '');
     }
     return null;
   }
 
-  Map<String, String> _jsonHeaders(String accessToken) {
+  Map<String, String> _webdavHeaders(String accessToken, {String? depth}) {
     return {
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
+      'Accept': 'application/xml',
+      if (depth != null) 'Depth': depth,
       'Authorization': 'Bearer $accessToken',
     };
   }
 
-  Uri _apiUri(
-    Uri baseUrl,
-    List<String> pathSegments, {
-    Map<String, String>? query,
-  }) {
+  Uri _davUri(Uri baseUrl, String path) {
+    final baseSegments = baseUrl.pathSegments
+        .where((segment) => segment.isNotEmpty)
+        .toList(growable: true);
+    if (baseSegments.isNotEmpty && baseSegments.last == 'api') {
+      baseSegments.removeLast();
+    }
+    final pathSegments = _normalizeFilesPath(
+      path,
+    ).split('/').where((segment) => segment.isNotEmpty).toList(growable: false);
     return baseUrl.replace(
-      pathSegments: _apiPath(baseUrl, pathSegments),
-      queryParameters: query,
+      pathSegments: [...baseSegments, 'dav', 'files', ...pathSegments],
+      queryParameters: null,
     );
   }
 
-  List<String> _apiPath(Uri baseUrl, List<String> pathSegments) {
-    final baseSegments = baseUrl.pathSegments
-        .where((segment) => segment.isNotEmpty)
-        .toList(growable: false);
-    if (baseSegments.isNotEmpty &&
-        pathSegments.isNotEmpty &&
-        baseSegments.last == 'api' &&
-        pathSegments.first == 'api') {
-      return [...baseSegments, ...pathSegments.skip(1)];
+  String _normalizeFilesPath(String path) {
+    final collapsed = path.trim().replaceAll(RegExp('/+'), '/');
+    if (collapsed.isEmpty || collapsed == '/') {
+      return '/';
     }
+    final withLeadingSlash = collapsed.startsWith('/')
+        ? collapsed
+        : '/$collapsed';
+    return withLeadingSlash.endsWith('/') && withLeadingSlash.length > 1
+        ? withLeadingSlash.substring(0, withLeadingSlash.length - 1)
+        : withLeadingSlash;
+  }
 
-    return [...baseSegments, ...pathSegments];
+  String _pathFromDavHref(String href) {
+    final rawPath = Uri.parse(href).path;
+    final decoded = Uri.decodeComponent(rawPath);
+    const marker = '/dav/files';
+    final markerIndex = decoded.indexOf(marker);
+    final suffix = markerIndex < 0
+        ? decoded
+        : decoded.substring(markerIndex + marker.length);
+    return _normalizeFilesPath(suffix);
+  }
+
+  String? _firstElementText(XmlElement parent, String localName) {
+    for (final element in parent.descendants.whereType<XmlElement>()) {
+      if (element.name.local == localName) {
+        final text = element.innerText.trim();
+        return text.isEmpty ? null : text;
+      }
+    }
+    return null;
+  }
+
+  String _fallbackNameFromPath(String path) {
+    if (path == '/') {
+      return 'Files';
+    }
+    return path.substring(path.lastIndexOf('/') + 1);
+  }
+
+  DateTime? _parseHttpDate(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return null;
+    }
+    final match = RegExp(
+      r'^[A-Za-z]{3},\s+(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})\s+(\d{2}):(\d{2}):(\d{2})\s+GMT$',
+    ).firstMatch(value);
+    if (match == null) {
+      return null;
+    }
+    final month = const {
+      'Jan': 1,
+      'Feb': 2,
+      'Mar': 3,
+      'Apr': 4,
+      'May': 5,
+      'Jun': 6,
+      'Jul': 7,
+      'Aug': 8,
+      'Sep': 9,
+      'Oct': 10,
+      'Nov': 11,
+      'Dec': 12,
+    }[match.group(2)];
+    if (month == null) {
+      return null;
+    }
+    return DateTime.utc(
+      int.parse(match.group(3)!),
+      month,
+      int.parse(match.group(1)!),
+      int.parse(match.group(4)!),
+      int.parse(match.group(5)!),
+      int.parse(match.group(6)!),
+    );
+  }
+
+  String _decodeXmlText(String value) {
+    return value
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&apos;', "'")
+        .replaceAll('&amp;', '&');
+  }
+
+  FilesFailure _webDavWritesBlocked() {
+    return const FilesFailure.protocol(
+      'Files writes are blocked until the Weave WebDAV write policy is available.',
+    );
   }
 }
 
