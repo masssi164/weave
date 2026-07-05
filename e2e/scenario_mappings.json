@@ -69,6 +69,86 @@
       "evidenceMode": "live-runtime"
     },
     {
+      "tag": "@files-webdav-read-list-download",
+      "scenario": "Member lists and reads files through the Weave WebDAV facade",
+      "feature": "e2e/features/files_webdav_facade.feature",
+      "executableTest": "tools/files_webdav_facade_acceptance_check.py",
+      "evidenceMarkers": [
+        "FILES_WEBDAV_FACADE_READ_LIST_DOWNLOAD"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
+          "fragments": [
+            "propfindDepthOneReturnsChildrenAsDavResponses",
+            "getDownloadsFileThroughFacadePath",
+            "not(containsString(\"remote.php\"))"
+          ]
+        },
+        {
+          "path": "client/test/features/files/presentation/providers/files_backend_facade_provider_test.dart",
+          "fragments": [
+            "lists files through the Weave WebDAV data plane with the Weave token",
+            "downloads files through the Weave WebDAV data plane",
+            "isNot(contains('WebDAV'))"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@files-webdav-writes-fail-closed",
+      "scenario": "Files writes remain blocked until WebDAV write policy is evidenced",
+      "feature": "e2e/features/files_webdav_facade.feature",
+      "executableTest": "tools/files_webdav_facade_acceptance_check.py",
+      "evidenceMarkers": [
+        "FILES_WEBDAV_WRITES_FAIL_CLOSED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
+          "fragments": [
+            "writeAndLockMethodsAreExplicitlyNotImplementedUntilConflictPolicyExists",
+            "#1007"
+          ]
+        },
+        {
+          "path": "client/lib/features/files/data/repositories/backend_files_repository.dart",
+          "fragments": [
+            "File writes fail",
+            "Files writes are blocked until the Weave WebDAV write policy is available."
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@files-mcp-facade-no-provider-bypass",
+      "scenario": "Files MCP tools cannot bypass the Files facade",
+      "feature": "e2e/features/files_webdav_facade.feature",
+      "executableTest": "tools/files_webdav_facade_acceptance_check.py",
+      "evidenceMarkers": [
+        "FILES_MCP_FACADE_NO_PROVIDER_BYPASS"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/weaver/MemberDomainToolDispatcherTest.java",
+          "fragments": [
+            "filesSearchUsesFilesFacadeAndProjectsWebdavBackedMcpMetadata",
+            "filesReadRejectsProviderShapedRefsBeforeProviderAccess"
+          ]
+        },
+        {
+          "path": "infra/weave-workspace/weave-mcp-tool-contract.json",
+          "fragments": [
+            "\"dataPlaneAuthority\": \"weave-webdav-facade\"",
+            "rawProviderUrl"
+          ]
+        }
+      ]
+    },
+    {
       "tag": "@weave-live-provider-stack-readiness",
       "scenario": "Provider stack readiness stays backend-owned and support-safe",
       "feature": "e2e/features/live_stack_app.feature",

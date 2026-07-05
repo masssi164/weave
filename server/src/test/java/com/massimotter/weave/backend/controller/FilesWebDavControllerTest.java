@@ -174,6 +174,7 @@ class FilesWebDavControllerTest {
                 .andExpect(status().isNotImplemented())
                 .andExpect(header().string("X-Weave-Error-Code", "webdav-method-not-implemented"))
                 .andExpect(content().string(containsString("read-only")))
+                .andExpect(content().string(containsString("#1007")))
                 .andExpect(content().string(containsString("ETag")))
                 .andExpect(content().string(not(containsString("Nextcloud"))));
 

@@ -102,7 +102,7 @@ public class FilesWebDavController {
                 .header("X-Weave-Error-Code", "webdav-method-not-implemented")
                 .body(errorXml("webdav-method-not-implemented",
                         "Weave Files WebDAV is read-only in this slice. " + method
-                                + " is blocked until write, ETag, conflict, and revocation policy is recorded."));
+                                + " is blocked by #1007 until write, ETag, conflict, and revocation policy is recorded."));
     }
 
     private ResponseEntity<String> davError(ApiErrorException exception) {
