@@ -59,54 +59,48 @@ void main() {
     expect(client, isNot(contains('UserProfileDto.fromJson')));
   });
 
-  test(
-    'Chat and Files facades map generated OpenAPI DTOs in data only',
-    () async {
-      final chatRepository = await File(
-        'lib/features/chat/data/repositories/backend_chat_repository.dart',
-      ).readAsString();
-      final chatMapper = await File(
-        'lib/features/chat/data/dtos/chat_openapi_mappers.dart',
-      ).readAsString();
-      final filesRepository = await File(
-        'lib/features/files/data/repositories/backend_files_repository.dart',
-      ).readAsString();
-      final filesMapper = await File(
-        'lib/features/files/data/dtos/files_openapi_mappers.dart',
-      ).readAsString();
+  test('Chat maps OpenAPI DTOs and Files uses WebDAV in data only', () async {
+    final chatRepository = await File(
+      'lib/features/chat/data/repositories/backend_chat_repository.dart',
+    ).readAsString();
+    final chatMapper = await File(
+      'lib/features/chat/data/dtos/chat_openapi_mappers.dart',
+    ).readAsString();
+    final filesRepository = await File(
+      'lib/features/files/data/repositories/backend_files_repository.dart',
+    ).readAsString();
+    expect(chatRepository, contains('openapi.ChatConversationsResponse'));
+    expect(chatRepository, contains('openapi.ChatMessagesResponse'));
+    expect(chatRepository, contains('openapi.ChatSendMessageRequest'));
+    expect(chatMapper, contains('openapi.ChatConversationResponse'));
+    expect(chatMapper, contains('OpenApiResourcePage<ChatConversation>'));
+    expect(chatMapper, isNot(contains('Matrix')));
 
-      expect(chatRepository, contains('openapi.ChatConversationsResponse'));
-      expect(chatRepository, contains('openapi.ChatMessagesResponse'));
-      expect(chatRepository, contains('openapi.ChatSendMessageRequest'));
-      expect(chatMapper, contains('openapi.ChatConversationResponse'));
-      expect(chatMapper, contains('OpenApiResourcePage<ChatConversation>'));
-      expect(chatMapper, isNot(contains('Matrix')));
+    expect(filesRepository, contains('PROPFIND'));
+    expect(filesRepository, contains('/dav/files'));
+    expect(filesRepository, contains('Files writes are blocked'));
+    expect(filesRepository, isNot(contains('generated/openapi_models.dart')));
+    expect(filesRepository, isNot(contains('/api/files/upload')));
+    expect(filesRepository, isNot(contains('/api/files/folders')));
+    expect(filesRepository, isNot(contains('Nextcloud')));
 
-      expect(filesRepository, contains('openapi.FileListResponse'));
-      expect(filesRepository, contains('openapi.FileItemResponse'));
-      expect(filesRepository, contains('openapi.CreateFolderRequest'));
-      expect(filesMapper, contains('openapi.FileListResponse'));
-      expect(filesMapper, contains('OpenApiResourcePage<FileEntry>'));
-      expect(filesMapper, isNot(contains('Nextcloud')));
+    final featureBoundaryFiles = <String>[
+      'lib/features/chat/domain',
+      'lib/features/chat/presentation',
+      'lib/features/files/domain',
+      'lib/features/files/presentation',
+    ].expand(_dartFilesUnder);
 
-      final featureBoundaryFiles = <String>[
-        'lib/features/chat/domain',
-        'lib/features/chat/presentation',
-        'lib/features/files/domain',
-        'lib/features/files/presentation',
-      ].expand(_dartFilesUnder);
-
-      for (final file in featureBoundaryFiles) {
-        final source = await File(file).readAsString();
-        expect(
-          source,
-          isNot(contains('generated/openapi_models.dart')),
-          reason:
-              '$file must consume feature domain models, not raw OpenAPI DTOs.',
-        );
-      }
-    },
-  );
+    for (final file in featureBoundaryFiles) {
+      final source = await File(file).readAsString();
+      expect(
+        source,
+        isNot(contains('generated/openapi_models.dart')),
+        reason:
+            '$file must consume feature domain models, not raw OpenAPI DTOs.',
+      );
+    }
+  });
 
   test('workspace API DTOs use generated OpenAPI response models', () async {
     final client = await File(

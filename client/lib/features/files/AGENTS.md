@@ -1,13 +1,13 @@
 # Files Feature Instructions
 
-`files` owns Weave file browsing behavior, upload/download actions, and internal file entities/view state. Normal member file flows go through the Weave backend facade; direct Nextcloud/WebDAV clients are obsolete in release client code.
+`files` owns Weave file browsing behavior, upload/download actions, and internal file entities/view state. Normal member file data-plane flows go through the Weave WebDAV facade; discovery/readiness/revoke/setup uses the Weave OpenAPI control plane. Direct provider WebDAV/Nextcloud clients are obsolete in release client code.
 
 Rules:
 - keep backend facade DTO mapping and file-specific failure mapping in `data/`
 - distinguish files from directories in feature models, not by ad hoc widget logic
 - maintain stable path and identifier semantics for navigation, selection, and refresh
 - keep expansion, loading, and error state for directory trees out of raw transport objects
-- do not add direct Nextcloud/WebDAV repository/provider seams for normal member paths
+- do not add direct provider WebDAV/Nextcloud repository/provider seams for normal member paths
 
 Directory tree behavior:
 - recursive tree behavior must be driven by feature state, not by widgets walking raw transport payloads
@@ -15,9 +15,9 @@ Directory tree behavior:
 - preserve predictable parent/child relationships when refreshing nested folders
 
 Boundary reminders:
-- backend-owned product facades are the release boundary for Files
+- the backend-owned Weave WebDAV facade is the release data-plane boundary for Files
 - provider-specific diagnostics or migration helpers must live outside normal member presentation/providers and need explicit admin/debug scope
-- future provider-backed file features should extend backend/OpenAPI contracts instead of importing provider clients in `features/files/`
+- future provider-backed file data-plane features should extend the Weave WebDAV facade; OpenAPI remains for control/discovery/readiness/revoke contracts instead of importing provider clients in `features/files/`
 
 Accessibility:
 - each file row should be understandable as one unit when appropriate

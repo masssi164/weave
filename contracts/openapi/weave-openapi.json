@@ -2709,31 +2709,6 @@
         ],
         "type": "object"
       },
-      "CreateFolderRequest": {
-        "description": "Create a folder through the product files facade.",
-        "properties": {
-          "name": {
-            "description": "Folder name to create.",
-            "example": "Design",
-            "maxLength": 255,
-            "minLength": 0,
-            "type": "string"
-          },
-          "parentPath": {
-            "description": "Parent product-relative path.",
-            "example": "/Team",
-            "maxLength": 1024,
-            "minLength": 0,
-            "pattern": "/.*",
-            "type": "string"
-          }
-        },
-        "required": [
-          "name",
-          "parentPath"
-        ],
-        "type": "object"
-      },
       "CrossDomainImpactItem": {
         "description": "Support-safe cross-domain provider impact item with canonical portability class.",
         "properties": {
@@ -3742,88 +3717,6 @@
         },
         "type": "object"
       },
-      "FileItemResponse": {
-        "description": "Product file or folder metadata returned by the Weave files facade.",
-        "properties": {
-          "downloadable": {
-            "description": "Whether the item can be downloaded through the product facade.",
-            "type": "boolean"
-          },
-          "id": {
-            "description": "Stable backend facade identifier for this item.",
-            "example": "files:/Team/readme.md",
-            "type": "string"
-          },
-          "mimeType": {
-            "description": "MIME type for files when known.",
-            "example": "text/markdown",
-            "type": "string"
-          },
-          "modifiedAt": {
-            "description": "Last modified timestamp when provided by the backing store.",
-            "format": "date-time",
-            "type": "string"
-          },
-          "name": {
-            "description": "Display name of the file or folder.",
-            "example": "readme.md",
-            "type": "string"
-          },
-          "path": {
-            "description": "Product-relative path of the item.",
-            "example": "/Team/readme.md",
-            "type": "string"
-          },
-          "size": {
-            "description": "Size in bytes for files when known.",
-            "example": 4096,
-            "format": "int64",
-            "type": "integer"
-          },
-          "type": {
-            "description": "Item type.",
-            "enum": [
-              "file",
-              "folder"
-            ],
-            "example": "file",
-            "type": "string"
-          }
-        },
-        "required": [
-          "downloadable",
-          "id",
-          "name",
-          "path",
-          "type"
-        ],
-        "type": "object"
-      },
-      "FileListResponse": {
-        "description": "Files facade folder listing response.",
-        "properties": {
-          "items": {
-            "description": "Files and folders directly under the listed path.",
-            "items": {
-              "$ref": "#/components/schemas/FileItemResponse"
-            },
-            "type": "array"
-          },
-          "path": {
-            "description": "Listed product-relative folder path.",
-            "example": "/",
-            "type": "string"
-          },
-          "quota": {
-            "$ref": "#/components/schemas/FileQuotaResponse"
-          }
-        },
-        "required": [
-          "items",
-          "path"
-        ],
-        "type": "object"
-      },
       "FileNativeProviderOptionResponse": {
         "description": "One native OS file-provider setup option backed by the Weave files facade.",
         "properties": {
@@ -3893,18 +3786,18 @@
             "type": "boolean"
           },
           "downloadPathTemplate": {
-            "description": "Weave-owned download path template for native providers.",
-            "example": "/api/files/{id}/download",
+            "description": "Weave-owned WebDAV download path template for native providers.",
+            "example": "/dav/files/{path}",
             "type": "string"
           },
           "facadeBasePath": {
-            "description": "Weave-owned facade base path for native providers.",
-            "example": "/api/files",
+            "description": "Weave-owned WebDAV facade base path for native providers.",
+            "example": "/dav/files",
             "type": "string"
           },
           "listPathTemplate": {
-            "description": "Weave-owned list path template for native providers.",
-            "example": "/api/files?path={path}",
+            "description": "Weave-owned WebDAV list path template for native providers.",
+            "example": "/dav/files/{path}",
             "type": "string"
           },
           "options": {
@@ -3936,41 +3829,11 @@
             "type": "boolean"
           },
           "uploadPath": {
-            "description": "Weave-owned upload path for native providers.",
-            "example": "/api/files/upload",
+            "description": "Weave-owned WebDAV upload path placeholder for native providers; writes remain blocked by #1007.",
+            "example": "/dav/files/{path}",
             "type": "string"
           }
         },
-        "type": "object"
-      },
-      "FileQuotaResponse": {
-        "description": "Files quota snapshot when available from the backing store.",
-        "properties": {
-          "totalBytes": {
-            "description": "Total available bytes when known.",
-            "example": 10737418240,
-            "format": "int64",
-            "type": "integer"
-          },
-          "usedBytes": {
-            "description": "Used bytes when known.",
-            "example": 1048576,
-            "format": "int64",
-            "type": "integer"
-          }
-        },
-        "type": "object"
-      },
-      "FileUploadResponse": {
-        "description": "Uploaded file metadata returned after a successful files facade upload.",
-        "properties": {
-          "item": {
-            "$ref": "#/components/schemas/FileItemResponse"
-          }
-        },
-        "required": [
-          "item"
-        ],
         "type": "object"
       },
       "GoLiveReadinessResponse": {
@@ -11321,144 +11184,6 @@
         ]
       }
     },
-    "/api/files": {
-      "get": {
-        "description": "Lists files through the Weave-owned product files facade without exposing backing provider URLs or credentials.",
-        "operationId": "listFiles",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "path",
-            "required": false,
-            "schema": {
-              "default": "/",
-              "maxLength": 1024,
-              "minLength": 0,
-              "pattern": "/.*",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/FileListResponse"
-                }
-              }
-            },
-            "description": "HTTP 200"
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 401"
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 403"
-          },
-          "503": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 503"
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "List files and folders",
-        "tags": [
-          "Files"
-        ]
-      }
-    },
-    "/api/files/folders": {
-      "post": {
-        "description": "Creates a folder through the Weave-owned product files facade.",
-        "operationId": "createFilesFolder",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateFolderRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/FileItemResponse"
-                }
-              }
-            },
-            "description": "HTTP 200"
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 401"
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 403"
-          },
-          "503": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 503"
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Create a folder",
-        "tags": [
-          "Files"
-        ]
-      }
-    },
     "/api/files/native-provider-setup": {
       "get": {
         "description": "Returns support-safe iOS File Provider and Android DocumentsProvider setup metadata backed only by Weave-owned file facade endpoints.",
@@ -11493,16 +11218,6 @@
               }
             },
             "description": "HTTP 403"
-          },
-          "503": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 503"
           }
         },
         "security": [
@@ -11550,16 +11265,6 @@
               }
             },
             "description": "HTTP 403"
-          },
-          "503": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 503"
           }
         },
         "security": [
@@ -11568,227 +11273,6 @@
           }
         ],
         "summary": "Get Files readiness",
-        "tags": [
-          "Files"
-        ]
-      }
-    },
-    "/api/files/upload": {
-      "post": {
-        "description": "Uploads a file through the Weave-owned product files facade.",
-        "operationId": "uploadFile",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "parentPath",
-            "required": false,
-            "schema": {
-              "default": "/",
-              "maxLength": 1024,
-              "minLength": 0,
-              "pattern": "/.*",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "properties": {
-                  "file": {
-                    "format": "binary",
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "file"
-                ],
-                "type": "object"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/FileUploadResponse"
-                }
-              }
-            },
-            "description": "HTTP 200"
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 401"
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 403"
-          },
-          "503": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 503"
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Upload a file",
-        "tags": [
-          "Files"
-        ]
-      }
-    },
-    "/api/files/{id}": {
-      "delete": {
-        "description": "Deletes a file or folder through the Weave-owned product files facade.",
-        "operationId": "deleteFile",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "maxLength": 2048,
-              "minLength": 0,
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "HTTP 204"
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 401"
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 403"
-          },
-          "503": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 503"
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Delete a file or folder",
-        "tags": [
-          "Files"
-        ]
-      }
-    },
-    "/api/files/{id}/download": {
-      "get": {
-        "description": "Downloads file bytes through the Weave-owned product files facade without exposing backing provider URLs or credentials.",
-        "operationId": "downloadFile",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "maxLength": 2048,
-              "minLength": 0,
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "format": "binary",
-                  "type": "string"
-                }
-              }
-            },
-            "description": "HTTP 200"
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 401"
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 403"
-          },
-          "503": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 503"
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Download a file",
         "tags": [
           "Files"
         ]
@@ -15025,7 +14509,7 @@
       "name": "DevOps facade"
     },
     {
-      "description": "Authenticated product files facade backed by Nextcloud APIs.",
+      "description": "Authenticated Files control plane. File data-plane operations use the Weave WebDAV facade at /dav/files.",
       "name": "Files"
     },
     {

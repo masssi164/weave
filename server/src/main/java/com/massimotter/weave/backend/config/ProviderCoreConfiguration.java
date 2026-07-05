@@ -60,7 +60,7 @@ public class ProviderCoreConfiguration {
                 Set.of("list", "upload", "download", "create-folder", "delete", "quota-status"),
                 Set.of("direct-flutter-webdav", "html-scraping", "credential-exposure", "public-links-by-default"),
                 List.of("nextcloud-files", "nextcloud", "webdav", "sharepoint", "onedrive", "microsoft-graph-files", "s3", "s3-compatible", "smb"),
-                Map.of("facade", "/api/files", "rawProviderUiIsProductSurface", false));
+                Map.of("dataPlaneFacade", "/dav/files", "controlPlaneFacade", "/api/files", "rawProviderUiIsProductSurface", false));
     }
 
     @Bean

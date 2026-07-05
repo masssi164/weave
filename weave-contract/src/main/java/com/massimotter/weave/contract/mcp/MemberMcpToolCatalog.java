@@ -8,8 +8,8 @@ public final class MemberMcpToolCatalog {
     public static final String SERVER_NAMESPACE = "weave-domain-tools";
     private static final List<MemberMcpToolDefinition> TOOLS = List.of(
             tool("registry.tools.read", "weave-runtime", MemberMcpToolMode.READ, "registry.tools.read", false, false),
-            tool("files.search", MemberMcpDomainDefinition.FILES_DOCS.domain(), MemberMcpToolMode.READ, "files.read", false, false),
-            tool("files.read", MemberMcpDomainDefinition.FILES_DOCS.domain(), MemberMcpToolMode.READ, "files.read", false, false),
+            tool("files.search", MemberMcpDomainDefinition.FILES_DOCS.domain(), MemberMcpToolMode.READ, "files.read", false, true),
+            tool("files.read", MemberMcpDomainDefinition.FILES_DOCS.domain(), MemberMcpToolMode.READ, "files.read", false, true),
             tool("calendar.search_events", MemberMcpDomainDefinition.CALENDAR_MEETINGS.domain(), MemberMcpToolMode.READ, "calendar.read", false, true),
             tool("calendar.create_event", MemberMcpDomainDefinition.CALENDAR_MEETINGS.domain(), MemberMcpToolMode.WRITE, "calendar.manage_events", true, true),
             tool("boards.search_tasks", MemberMcpDomainDefinition.BOARDS_TASKS.domain(), MemberMcpToolMode.READ, "boards.read", false, false),
@@ -35,12 +35,13 @@ public final class MemberMcpToolCatalog {
                     "capability", stringProperty("Canonical capability filter such as files.read."),
                     "approvalRequiredOnly", booleanProperty("Only include approval-required tools."),
                     "limit", integerProperty("Maximum number of tools to return.", 1)));
-            case "files.search" -> objectSchema(toolName, List.of("query"), Map.of(
+            case "files.search" -> objectSchema(toolName, Map.of(
                     "query", stringProperty("Search query."),
+                    "path", stringProperty("Optional Weave Files product path to search from."),
                     "spaceRef", stringProperty("Optional canonical space reference."),
                     "limit", integerProperty("Maximum number of results.", 1)));
             case "files.read" -> objectSchema(toolName, List.of("fileRef"), Map.of(
-                    "fileRef", stringProperty("Canonical file reference.")));
+                    "fileRef", stringProperty("Canonical Weave file reference, for example file:/Team/readme.md.")));
             case "calendar.search_events" -> objectSchema(toolName, Map.of(
                     "from", stringProperty("Inclusive ISO-8601 start boundary."),
                     "to", stringProperty("Exclusive ISO-8601 end boundary."),

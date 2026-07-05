@@ -75,10 +75,10 @@ public class FilesFacadeService {
                 true,
                 false,
                 false,
-                "/api/files",
-                "/api/files?path={path}",
-                "/api/files/{id}/download",
-                "/api/files/upload",
+                "/dav/files",
+                "/dav/files/{path}",
+                "/dav/files/{path}",
+                "/dav/files/{path}",
                 List.of(
                         new FileNativeProviderOptionResponse(
                                 "ios",
@@ -109,9 +109,12 @@ public class FilesFacadeService {
                                         "The Android provider must expose roots only when the Weave session is valid.",
                                         "Persistable URI permissions must reference Weave document IDs, not provider URLs."))),
                 List.of(
-                        "GET /api/files",
-                        "GET /api/files/{id}/download",
-                        "POST /api/files/upload"),
+                        "OPTIONS /dav/files",
+                        "PROPFIND /dav/files",
+                        "GET /dav/files/{path}",
+                        "MCP files.search/files.read via WebDAV-backed Weave Files facade/projection",
+                        "OpenAPI /api/files/readiness and native-provider-setup for discovery/status/revoke control plane",
+                        "WebDAV writes blocked by #1007 until ETag, conflict, lock, quota, revocation, and audit policy exists"),
                 List.of(
                         "native-extension-implementation",
                         "per-device-token-revocation",
