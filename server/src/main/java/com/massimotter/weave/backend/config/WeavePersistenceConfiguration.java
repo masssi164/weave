@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.massimotter.weave.backend.audit.JdbcAuditEventPublisher;
 import com.massimotter.weave.backend.provider.JdbcProviderSelectionRepository;
 import com.massimotter.weave.backend.service.JdbcProductProfileOverrideRepository;
 import javax.sql.DataSource;
@@ -18,7 +20,8 @@ public class WeavePersistenceConfiguration {
 
     @Bean
     @ConditionalOnExpression("'${weave.provider.selections.storage.mode:file}' == 'jdbc' "
-            + "|| '${weave.profile.storage.mode:file}' == 'jdbc'")
+            + "|| '${weave.profile.storage.mode:file}' == 'jdbc' "
+            + "|| '${weave.audit.events.storage.mode:file}' == 'jdbc'")
     DataSource weaveDataSource(WeavePersistenceProperties properties) {
         DriverManagerDataSource dataSource = new DriverManagerDataSource();
         dataSource.setUrl(properties.requiredUrl());
@@ -32,7 +35,8 @@ public class WeavePersistenceConfiguration {
 
     @Bean(initMethod = "migrate")
     @ConditionalOnExpression("'${weave.provider.selections.storage.mode:file}' == 'jdbc' "
-            + "|| '${weave.profile.storage.mode:file}' == 'jdbc'")
+            + "|| '${weave.profile.storage.mode:file}' == 'jdbc' "
+            + "|| '${weave.audit.events.storage.mode:file}' == 'jdbc'")
     Flyway weaveFlyway(DataSource weaveDataSource) {
         return Flyway.configure()
                 .dataSource(weaveDataSource)
@@ -42,7 +46,8 @@ public class WeavePersistenceConfiguration {
 
     @Bean
     @ConditionalOnExpression("'${weave.provider.selections.storage.mode:file}' == 'jdbc' "
-            + "|| '${weave.profile.storage.mode:file}' == 'jdbc'")
+            + "|| '${weave.profile.storage.mode:file}' == 'jdbc' "
+            + "|| '${weave.audit.events.storage.mode:file}' == 'jdbc'")
     JdbcTemplate weaveJdbcTemplate(DataSource weaveDataSource, Flyway weaveFlyway) {
         return new JdbcTemplate(weaveDataSource);
     }
@@ -57,5 +62,11 @@ public class WeavePersistenceConfiguration {
     @ConditionalOnProperty(name = "weave.profile.storage.mode", havingValue = "jdbc")
     JdbcProductProfileOverrideRepository jdbcProductProfileOverrideRepository(JdbcTemplate weaveJdbcTemplate) {
         return new JdbcProductProfileOverrideRepository(weaveJdbcTemplate);
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "weave.audit.events.storage.mode", havingValue = "jdbc")
+    JdbcAuditEventPublisher jdbcAuditEventPublisher(JdbcTemplate weaveJdbcTemplate, ObjectMapper objectMapper) {
+        return new JdbcAuditEventPublisher(weaveJdbcTemplate, objectMapper);
     }
 }

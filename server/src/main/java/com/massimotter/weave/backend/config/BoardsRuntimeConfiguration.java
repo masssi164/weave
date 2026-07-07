@@ -10,6 +10,7 @@ import com.massimotter.weave.backend.boards.port.BoardsRuntimeGuard;
 import com.massimotter.weave.backend.boards.port.BoardsRepository;
 import java.net.URI;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.RestClient;
@@ -58,6 +59,7 @@ public class BoardsRuntimeConfiguration {
     }
 
     @Bean
+    @ConditionalOnProperty(name = "weave.audit.events.storage.mode", havingValue = "file", matchIfMissing = true)
     AuditEventPublisher auditEventPublisher(
             ObjectMapper objectMapper,
             @Value("${weave.audit.events.storage.path:./data/audit-events.jsonl}") String storagePath) {

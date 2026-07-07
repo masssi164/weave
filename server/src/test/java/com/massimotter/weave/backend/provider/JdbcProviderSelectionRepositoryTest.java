@@ -85,7 +85,8 @@ class JdbcProviderSelectionRepositoryTest {
                 .containsExactlyInAnyOrder(
                         "WEAVE_PROVIDER_SELECTIONS",
                         "WEAVE_PROVIDER_SELECTION_NOTES",
-                        "WEAVE_PRODUCT_PROFILE_OVERRIDES");
+                        "WEAVE_PRODUCT_PROFILE_OVERRIDES",
+                        "WEAVE_AUDIT_EVENTS");
     }
 
     @Test

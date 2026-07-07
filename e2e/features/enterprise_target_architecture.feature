@@ -28,3 +28,11 @@ Feature: Enterprise target architecture evidence spine
     Then Flyway creates handwritten canonical tables for provider selections and product profile overrides
     And read/write parity and restart recovery are proven without deleting the current file-backed stores
     And H2-only evidence is not claimed as PostgreSQL production readiness
+
+  @enterprise-target-audit-persistence-foundation
+  Scenario: Support-safe audit events gain a gated relational persistence foundation
+    Given support-safe audit events are append-only control-plane evidence for provider and policy decisions
+    When JDBC audit storage is explicitly enabled for the audit persistence slice
+    Then Flyway creates a handwritten canonical audit-event table with tenant idempotency uniqueness
+    And the file-backed audit sink remains the default until #1019 completes parity, rollback, and operator migration evidence
+    And retrying the same audit event is safe while conflicting idempotency reuse fails closed without leaking database details

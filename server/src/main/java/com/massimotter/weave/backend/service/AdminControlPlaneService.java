@@ -4,8 +4,6 @@ import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.AuditEvent;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.audit.AuditRedactionLevel;
-import com.massimotter.weave.backend.audit.FileAuditEventPublisher;
-import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import com.massimotter.weave.backend.config.WeaverRuntimeProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.identity.realm.IdentityRealmApplyProperties;
@@ -1047,13 +1045,7 @@ public class AdminControlPlaneService {
 
     public List<AdminAuditEventResponse> auditEvents(Jwt jwt) {
         workspaceCapabilityService.requireCapability(jwt, "admin_control_plane.readiness_read", "admin-control-plane", "read-audit-events");
-        if (auditEventPublisher instanceof InMemoryAuditEventPublisher memoryAudit) {
-            return auditEventResponses(memoryAudit.events());
-        }
-        if (auditEventPublisher instanceof FileAuditEventPublisher fileAudit) {
-            return auditEventResponses(fileAudit.events());
-        }
-        return List.of();
+        return auditEventResponses(auditEventPublisher.events());
     }
 
     private List<AdminAuditEventResponse> auditEventResponses(List<AuditEvent> events) {
