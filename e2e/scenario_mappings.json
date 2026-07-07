@@ -4343,7 +4343,7 @@
     },
     {
       "tag": "@enterprise-target-persistence-foundation",
-      "scenario": "Provider selections gain a gated relational persistence foundation",
+      "scenario": "Strategic control-plane state gains a gated relational persistence foundation",
       "feature": "e2e/features/enterprise_target_architecture.feature",
       "executableTest": "server/src/test/java/com/massimotter/weave/backend/provider/JdbcProviderSelectionRepositoryTest.java",
       "evidenceMarkers": [
@@ -4367,10 +4367,25 @@
           ]
         },
         {
+          "path": "server/src/main/resources/db/migration/V002__product_profile_override_foundation.sql",
+          "fragments": [
+            "weave_product_profile_overrides",
+            "accessibility_preferences_json"
+          ]
+        },
+        {
           "path": "server/src/test/java/com/massimotter/weave/backend/provider/JdbcProviderSelectionRepositoryTest.java",
           "fragments": [
             "relationalProviderSelectionSurvivesRepositoryRestart",
             "relationalPathMatchesExistingFileRepositoryContractForProviderSelections",
+            "postgresql-production-ready"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/JdbcProductProfileOverrideRepositoryTest.java",
+          "fragments": [
+            "relationalProductProfileOverrideSurvivesRepositoryRestart",
+            "relationalPathMatchesExistingFileRepositoryContractForProfileOverrides",
             "postgresql-production-ready"
           ]
         }

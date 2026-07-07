@@ -13,9 +13,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Repository;
 
 @Repository
+@ConditionalOnProperty(name = "weave.profile.storage.mode", havingValue = "file", matchIfMissing = true)
 public class FileProductProfileOverrideRepository implements ProductProfileOverrideRepository {
 
     private static final TypeReference<Map<String, ProductProfileOverride>> PROFILE_MAP = new TypeReference<>() {

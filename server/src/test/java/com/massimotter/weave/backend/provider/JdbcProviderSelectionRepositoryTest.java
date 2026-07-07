@@ -68,7 +68,7 @@ class JdbcProviderSelectionRepositoryTest {
     }
 
     @Test
-    void flywaySchemaBaselineCreatesProviderSelectionTablesOnly() {
+    void flywaySchemaBaselineCreatesProviderSelectionTables() {
         DriverManagerDataSource dataSource = dataSource();
 
         migrate(dataSource);
@@ -82,7 +82,10 @@ class JdbcProviderSelectionRepositoryTest {
         assertThat(jdbcTemplate.queryForList(
                 "select table_name from information_schema.tables where table_name like 'WEAVE_%'",
                 String.class))
-                .containsExactlyInAnyOrder("WEAVE_PROVIDER_SELECTIONS", "WEAVE_PROVIDER_SELECTION_NOTES");
+                .containsExactlyInAnyOrder(
+                        "WEAVE_PROVIDER_SELECTIONS",
+                        "WEAVE_PROVIDER_SELECTION_NOTES",
+                        "WEAVE_PRODUCT_PROFILE_OVERRIDES");
     }
 
     @Test

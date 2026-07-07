@@ -10,7 +10,7 @@ Markers: ENTERPRISE_TARGET_PERSISTENCE_FOUNDATION
 
 #1012 requires Weave-owned strategic mutable state to move toward durable relational persistence without silently deleting the current JSON/file-backed stores. The pinned specification corpus keeps product/domain truth in canonical Weave domains; provider schemas remain adapter I/O and must not become source material for canonical entities.
 
-The first safe implementation target is Admin Console provider selections. They are mutable control-plane state, already fenced behind a repository interface, and low-risk enough to prove read/write parity and restart recovery before wider cutover.
+The first safe implementation targets are Admin Console provider selections and product profile overrides. They are mutable Weave-owned state, already fenced behind repository interfaces, and low-risk enough to prove read/write parity and restart recovery before wider cutover.
 
 ## Decision
 
@@ -18,6 +18,8 @@ Weave will introduce relational persistence behind explicit repository/storage g
 
 - `weave.provider.selections.storage.mode=file` remains the default until parity, rollback, and dogfood migration notes exist.
 - `weave.provider.selections.storage.mode=jdbc` enables the first Flyway-backed repository for provider selections.
+- `weave.profile.storage.mode=file` remains the default until parity, rollback, and dogfood migration notes exist.
+- `weave.profile.storage.mode=jdbc` enables the Flyway-backed repository for product profile overrides.
 - Flyway migrations are the schema baseline for Weave-owned tables.
 - The first repository implementation uses Spring JDBC. JPA entity adoption is deferred until a bounded aggregate needs identity/lifecycle behavior that is clearer with entities than with direct repository mapping.
 - Testcontainers PostgreSQL is added as the release-grade proof dependency, but H2-only local tests may prove local parity and restart behavior only. H2 proof must not be described as PostgreSQL production readiness.
@@ -36,6 +38,6 @@ Weave will introduce relational persistence behind explicit repository/storage g
 
 ## Consequences
 
-The first PR can prove a relational baseline without changing production defaults. Wider cutover still requires #1019: parity for each strategic store, import/backup/rollback operator notes, restart/recovery tests for provider selections, audit, and migration evidence, plus architecture checks that block new production JSON/file strategic stores without an explicit exception.
+The first PRs can prove a relational baseline without changing production defaults. Wider cutover still requires #1019: parity for each strategic store, import/backup/rollback operator notes, restart/recovery tests for provider selections, profile overrides, audit, and migration evidence, plus architecture checks that block new production JSON/file strategic stores without an explicit exception.
 
 This decision advances #1012 and #1025 but does not close the persistence target by itself.

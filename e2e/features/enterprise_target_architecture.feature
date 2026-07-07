@@ -22,9 +22,9 @@ Feature: Enterprise target architecture evidence spine
     And support-safe evidence excludes secrets, raw provider payloads, credential-bearing locations, private operator paths, and member content
 
   @enterprise-target-persistence-foundation
-  Scenario: Provider selections gain a gated relational persistence foundation
-    Given Admin Console provider selections are strategic Weave-owned mutable state
-    When the relational store is explicitly enabled for the first persistence slice
-    Then Flyway creates handwritten canonical tables for provider selections
-    And provider selection read/write parity and restart recovery are proven without deleting the current file-backed store
+  Scenario: Strategic control-plane state gains a gated relational persistence foundation
+    Given Admin Console provider selections and product profile overrides are strategic Weave-owned mutable state
+    When the relational store is explicitly enabled for the first persistence slices
+    Then Flyway creates handwritten canonical tables for provider selections and product profile overrides
+    And read/write parity and restart recovery are proven without deleting the current file-backed stores
     And H2-only evidence is not claimed as PostgreSQL production readiness
