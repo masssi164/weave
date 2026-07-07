@@ -111,6 +111,32 @@ class JdbcMigrationRunEvidenceRepositoryTest {
     }
 
     @Test
+    void recordedAtIsRequiredBeforeJdbcPersistence() {
+        DriverManagerDataSource dataSource = dataSource();
+        migrate(dataSource);
+        var repository = new JdbcMigrationRunEvidenceRepository(
+                new JdbcTemplate(dataSource),
+                new ObjectMapper().findAndRegisterModules());
+
+        assertThatThrownBy(() -> repository.save(new MigrationRunEvidence(
+                "migration-chat-missing-recorded-at",
+                "chat",
+                "approved",
+                Map.of("Conversation", 2),
+                List.of("sha256:4444444444444444444444444444444444444444444444444444444444444444"),
+                List.of("audit:migration.dry_run:missing-recorded-at"),
+                Map.of("dryRunReportRef", "dry-run:chat:missing-recorded-at"),
+                List.of("support-safe migration evidence"),
+                true,
+                true,
+                true,
+                null,
+                null)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Migration run evidence recordedAt must not be null.");
+    }
+
+    @Test
     void jdbcStoreFailuresAreWrappedForSupportSafeCallers() {
         DriverManagerDataSource dataSource = dataSource();
         migrate(dataSource);

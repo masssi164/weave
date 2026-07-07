@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.audit;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -13,6 +15,10 @@ import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class JdbcAuditEventPublisherTest {
 
@@ -117,8 +123,44 @@ class JdbcAuditEventPublisherTest {
 
         assertThatThrownBy(() -> publisher.publish(conflicting))
                 .isInstanceOf(AuditRequiredException.class)
-                .hasMessageContaining("Conflicting durable audit event");
+                .hasMessage("Conflicting durable audit event for idempotency key.")
+                .hasMessageNotContaining(event.tenantId())
+                .hasMessageNotContaining(event.idempotencyKey());
         assertThat(publisher.events()).containsExactly(event);
+    }
+
+    @Test
+    void auditPayloadWriteFailuresUseGenericSupportSafePublicationMessage() throws Exception {
+        DriverManagerDataSource dataSource = dataSource();
+        migrate(dataSource);
+        ObjectMapper objectMapper = mock(ObjectMapper.class);
+        when(objectMapper.writeValueAsString(any())).thenThrow(new JsonProcessingException("secret-provider-payload") {
+        });
+        var publisher = new JdbcAuditEventPublisher(new JdbcTemplate(dataSource), objectMapper);
+
+        assertThatThrownBy(() -> publisher.publish(event("audit-provider-selection-payload-write-failure")))
+                .isInstanceOf(AuditRequiredException.class)
+                .hasMessage("durable audit publication failed")
+                .hasMessageNotContaining("serialize")
+                .hasMessageNotContaining("secret-provider-payload");
+    }
+
+    @Test
+    void auditPayloadReadFailuresUseGenericSupportSafeReadMessage() throws Exception {
+        DriverManagerDataSource dataSource = dataSource();
+        migrate(dataSource);
+        new JdbcAuditEventPublisher(new JdbcTemplate(dataSource)).publish(event("audit-provider-selection-payload-read-failure"));
+        ObjectMapper objectMapper = mock(ObjectMapper.class);
+        when(objectMapper.readValue(anyString(), any(TypeReference.class)))
+                .thenThrow(new JsonProcessingException("secret-provider-payload") {
+                });
+        var publisher = new JdbcAuditEventPublisher(new JdbcTemplate(dataSource), objectMapper);
+
+        assertThatThrownBy(publisher::events)
+                .isInstanceOf(AuditRequiredException.class)
+                .hasMessage("durable audit read failed")
+                .hasMessageNotContaining("load")
+                .hasMessageNotContaining("secret-provider-payload");
     }
 
     @Test

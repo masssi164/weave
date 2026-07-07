@@ -104,7 +104,7 @@ def main() -> int:
 
     print(
         "enterprise-target-architecture-spine-check: ok "
-        "markers=6 issues=15 scenarios=6"
+        f"markers={len(MARKERS)} issues={len(REQUIRED_ISSUES)} scenarios={len(expected_tags)}"
     )
     return 0
 
