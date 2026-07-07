@@ -109,6 +109,9 @@ void main() {
     expect(
       result.scenarios.map((scenario) => scenario.name),
       unorderedEquals(<String>[
+        'Enterprise hard-plan decisions are locked before implementation lanes expand',
+        'Server boundary drift fails before broad package migration',
+        'Target architecture scenarios stay mapped to support-safe evidence',
         'Sign-in restores the Weave workspace and profile',
         'Weave chat sends and reads a workspace message through the backend facade',
         'Chat encryption diagnostic status is proved honestly',
