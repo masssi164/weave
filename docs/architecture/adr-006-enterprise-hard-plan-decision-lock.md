@@ -1,6 +1,6 @@
 # ADR-006: Enterprise hard-plan restructuring decision lock
 
-Status: proposed
+Status: accepted
 
 Evidence markers:
 

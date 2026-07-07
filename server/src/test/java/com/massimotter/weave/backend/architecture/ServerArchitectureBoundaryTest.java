@@ -114,8 +114,9 @@ class ServerArchitectureBoundaryTest {
     }
 
     private static boolean isPublicDeliveryContract(JavaSource source) {
-        return source.packageName().equals(BACKEND_PACKAGE + "controller".replaceFirst("\\.$", ""))
+        return source.packageName().equals(BACKEND_PACKAGE + "controller")
                 || source.packageName().startsWith(BACKEND_PACKAGE + "controller.")
+                || source.packageName().equals(BACKEND_PACKAGE + "model")
                 || source.packageName().startsWith(BACKEND_PACKAGE + "model.");
     }
 
