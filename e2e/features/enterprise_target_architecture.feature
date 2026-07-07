@@ -4,8 +4,15 @@ Feature: Enterprise target architecture evidence spine
   Scenario: Enterprise hard-plan decisions are locked before implementation lanes expand
     Given the Enterprise Hard Plan is an active restructuring input
     When Weave records the target direction in repository architecture evidence
-    Then the decision names the canonical domain kernel, standard projections, persistence, provider adapters, OpenAPI demotion, Matrix, MCP, and Weaver boundaries
+    Then the decision names the canonical domain kernel, standard projections, persistence, provider adapters, OpenAPI demotion, Matrix, MCP, People/Contacts, and Weaver boundaries
     And implementation slices remain linked to bounded issues and gates instead of broad undocumented refactors
+
+  @enterprise-target-no-transitional-compatibility
+  Scenario: Transitional behavior is not preserved as architecture
+    Given a vertical domain slice has a target standard projection or domain use case
+    When the slice replaces historical JSON, OpenAPI data-plane, provider-shaped, or route-mirrored behavior
+    Then the old path is deleted, blocked, or fenced as fixture/import-only evidence
+    And file-backed persistence defaults remain explicit #1019 retirement debt rather than target compatibility
 
   @enterprise-target-boundary-gate
   Scenario: Server boundary drift fails before broad package migration

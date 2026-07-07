@@ -5,8 +5,8 @@ projections only when they improve native OS integration, interoperability, or
 federation without leaking provider semantics into member, admin, or MCP
 contracts.
 
-This decision applies to Files, Calendar, and Chat. Calls/Meetings remain a
-separate native-call and media-signaling boundary.
+This decision applies to Files, Calendar, People/Contacts, and Chat.
+Calls/Meetings remain a separate native-call and media-signaling boundary.
 
 ## Why standards and federation matter
 
@@ -40,23 +40,23 @@ Each domain has one Weave-owned core:
 - generated OpenAPI member/admin contracts;
 - governed MCP tools generated or validated from the same facade metadata.
 
-OpenAPI is the primary JSON control contract for Weave clients, Admin Console,
-and generated models, but it is not the only valid projection. For Files, the
-durable northbound data plane is the Weave WebDAV facade. WebDAV,
-CalDAV/iCalendar, and Matrix are allowed where they are the right open standard
-for OS integration or federation. They must remain Weave projections or provider
-adapters, never raw provider pass-throughs.
+OpenAPI is the JSON control/admin/setup/revoke/manifest convenience contract for
+Weave clients, Admin Console, and generated models. It is not product or
+data-plane authority. For Files, the durable northbound data plane is the Weave
+WebDAV facade. Calendar uses Weave CalDAV/iCalendar, People-domain contacts use
+Weave CardDAV/vCard, Chat targets Weave Matrix Client-Server core first, and MCP
+uses semantic Weave tools over domain use cases. These surfaces must remain
+Weave projections or provider adapters, never raw provider pass-throughs.
 
 ## OpenAPI role
 
-OpenAPI remains critical. It is the generated contract for Flutter, Web, Admin
-Console, setup/revoke screens, support-safe readiness cards, MCP route
-allowlists, and generated models. Adding WebDAV, CalDAV/iCalendar, Matrix, or a
-native OS boundary must not displace OpenAPI as control plane. For Files,
-however, OpenAPI must not remain the long-term list/read/write data plane.
-Standard protocol surfaces need a Weave-owned OpenAPI discovery, setup, status,
-revoke, and audit path so clients can learn whether a projection is enabled and
-how credentials or grants expire.
+OpenAPI remains useful. It is the generated contract for Flutter, Web, Admin
+Console, setup/revoke screens, support-safe readiness cards, manifests, and
+generated models. It is not the authority for Files, Calendar, People/Contacts,
+Chat, Matrix, MCP, provider-switch, or domain-kernel data-plane semantics once
+the target projection exists. Standard protocol surfaces need Weave-owned
+OpenAPI discovery, setup, status, revoke, and audit paths so clients can learn
+whether a projection is enabled and how credentials or grants expire.
 
 ## Target server module shape
 
@@ -64,8 +64,8 @@ The server should move toward domain packages with the same internal outline:
 
 | Layer | Responsibility |
 | --- | --- |
-| `server/.../<domain>/facade` | Northbound Weave product API, OpenAPI DTOs, and support-safe errors. |
-| `server/.../<domain>/projection` | Optional WebDAV, CalDAV/iCalendar, Matrix-compatible, native OS, or MCP projection adapters over the facade. |
+| `server/.../<domain>/facade` | Northbound Weave product/control API, control-plane DTOs, and support-safe errors. |
+| `server/.../<domain>/projection` | WebDAV, CalDAV/iCalendar, CardDAV/vCard, Matrix Client-Server, native OS, or MCP projection adapters over the facade. |
 | `server/.../<domain>/adapter` | Southbound provider clients and anti-corruption mappers. |
 | `server/.../<domain>/mapping` | Provider object mapping, lossy-field, permission-impact, conflict, portability, and audit evidence. |
 | `server/.../<domain>/policy` | Capability gates, revocation, credential lifecycle, and audit decisions. |
@@ -136,7 +136,8 @@ Provider-native federated shares may become adapter capabilities later.
 Final shape:
 
 - Product truth: Weave Calendar facade for workspace, team, and channel events.
-- JSON/API projection: `/api/calendar/**` and generated OpenAPI models.
+- JSON/API projection: `/api/calendar/**` setup, status, revoke, manifest, and
+  generated control models.
 - Standard projection: Weave CalDAV/iCalendar for native iOS/macOS Calendar and
   external calendar clients.
 - Native OS adapters: iOS/macOS CalDAV configuration profile against Weave
@@ -158,6 +159,29 @@ scope on Weave-owned workspace/team/channel calendars and meeting threads.
 External attendee/inter-organization federation can later use iTIP/iMIP or
 provider-specific bridge adapters behind the Calendar facade.
 
+## People/Contacts
+
+Final shape:
+
+- Product truth: the canonical `people` domain owns address books, contacts,
+  contact methods, directory links, visibility, policy, readiness, revoke state,
+  audit, and support-safe errors.
+- JSON/API projection: setup, status, revoke, manifest, support-safe recovery,
+  and generated control models only.
+- Standard projection: Weave CardDAV/vCard at `/dav/addressbooks` for native
+  address-book sync and external CardDAV clients.
+- Native OS adapters: iOS Contacts/CardDAV account setup and Android Contacts
+  Provider sync through Weave-owned setup/status/revoke boundaries.
+- Provider adapters: IDM/directory imports, external contact providers, or
+  generic CardDAV sources behind ports/adapters.
+- MCP: semantic People-domain tools for contact search, contact read, and
+  proposed updates, backed by policy, redaction, and audit.
+
+Contacts and address books are not a subfeature of Calendar. The first slice
+should extend the canonical People-domain Contact/AddressBook model, vCard
+mapping, CardDAV discovery/read skeleton, and fail-closed writes until conflict,
+revoke, audit, recovery, and support-safe error behavior exists.
+
 ## Chat
 
 Final shape:
@@ -166,8 +190,8 @@ Final shape:
   attachments, decisions, meeting threads, policy, readiness, and audit.
 - JSON/API projection: Weave Chat OpenAPI where server-visible metadata,
   readiness, attachment, decision-ledger, and governed write operations are safe.
-- Backing protocol and federation projection: Matrix Client-Server and
-  Server-Server APIs.
+- Standard projection: Weave-owned Matrix Client-Server core. Federation
+  identity is later and gated.
 - Native clients: Weave mobile clients use a Matrix-capable transport layer where
   encrypted room participation requires it, but product UI exposes Weave
   conversations/channels rather than raw Matrix IDs.
@@ -178,16 +202,18 @@ Final shape:
   `chat.create_decision_ref`, with explicit consent/audit gates for shared-state
   writes and decrypted-content access.
 
-Matrix is the strongest open and federated fit for Teams-like chat, but open
-federation should be gated. Tenant isolation, identity mapping, moderation,
-invite policy, retention, and external-room UX must be proven before broad
-inter-organization federation is enabled.
+Matrix is the target northbound chat protocol, but the staged implementation
+starts with Matrix Client-Server core before federation. Weave must own
+`server_name`, signing keys, Matrix user IDs, room IDs, event IDs, membership,
+timeline persistence, and the canonical chat ledger before any federation claim.
+Tenant isolation, identity mapping, moderation, invite policy, retention, E2EE,
+and external-room UX must be proven before broad inter-organization federation
+is enabled.
 
-Near-term Chat decision: **Weave Chat API first, Matrix-compatible transport and
-federation later behind governance gates.** Matrix can be the first backing
-adapter and future federation projection, but Matrix is not mandatory domain
-truth and not the member product vocabulary. Slack and Teams remain southbound
-adapter or bridge candidates.
+Existing Chat API-first surfaces are transitional. They receive a retirement
+path after Matrix core parity and may remain only as control/admin/setup
+convenience or fixture-fenced evidence where a focused issue permits it. Slack
+and Teams remain southbound adapter or bridge candidates.
 
 MCP must not receive raw Matrix access by default. E2EE and room history make
 chat the hardest domain for server-side tools; MCP should operate on governed
@@ -218,9 +244,11 @@ media, signaling, permissions, join-grant, and revoke boundaries.
 ## MCP projection rule
 
 MCP tools are semantic Weave tools, not raw protocol scripts. Under the hood,
-Files MCP data-plane tools route through the WebDAV-backed Weave Files
-facade/projection. Other tools may call OpenAPI, WebDAV, CalDAV, Matrix, or
-provider adapters under the server boundary, but:
+MCP is implemented as Spring AI semantic Weave tools over domain use cases, not
+as OpenAPI route scraping. Files MCP data-plane tools route through the
+WebDAV-backed Weave Files facade/projection. Calendar, People/Contacts, Chat,
+and other tools route through their Weave domain use cases and standard
+projections under the server boundary, but:
 
 - tool names and capability keys stay domain-semantic;
 - server policy, authorization, validation, redaction, and audit remain the hard
@@ -241,6 +269,7 @@ The following drift must be removed as this architecture lands:
 - private personal calendar setup language in release-facing paths while the
   current product scope is shared workspace/team/channel calendars;
 - duplicate MCP contract logic that is not generated from or validated against
-  the server facade metadata and OpenAPI route allowlist;
+  the server facade metadata, domain MCP projection, and control-plane
+  allowlist;
 - native setup surfaces that expose provider endpoints instead of Weave
   projections.

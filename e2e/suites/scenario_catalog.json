@@ -3208,6 +3208,31 @@
       ]
     },
     {
+      "tag": "@enterprise-target-no-transitional-compatibility",
+      "suiteId": "enterprise-target-architecture-spine",
+      "personas": [
+        "admin",
+        "operator",
+        "member"
+      ],
+        "domains": [
+          "files",
+          "calendar",
+          "identity-idm",
+          "chat",
+          "weaver-governed-pa",
+        "provider-portability",
+        "operator-release"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "no strategic legacy compatibility contract",
+        "fixture-fenced historical paths",
+        "target projection ownership",
+        "People-domain CardDAV boundary"
+      ]
+    },
+    {
       "tag": "@enterprise-target-boundary-gate",
       "suiteId": "enterprise-target-architecture-spine",
       "personas": [
