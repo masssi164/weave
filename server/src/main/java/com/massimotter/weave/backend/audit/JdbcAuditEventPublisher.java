@@ -105,4 +105,3 @@ public final class JdbcAuditEventPublisher implements AuditEventPublisher {
         }
     }
 }
-

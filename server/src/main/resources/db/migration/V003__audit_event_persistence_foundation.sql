@@ -12,4 +12,3 @@ create table weave_audit_events (
     constraint uq_weave_audit_events_idempotency
         unique (tenant_id, idempotency_key)
 );
-
