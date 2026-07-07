@@ -4390,6 +4390,48 @@
           ]
         }
       ]
+    },
+    {
+      "tag": "@enterprise-target-audit-persistence-foundation",
+      "scenario": "Support-safe audit events gain a gated relational persistence foundation",
+      "feature": "e2e/features/enterprise_target_architecture.feature",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/audit/JdbcAuditEventPublisherTest.java",
+      "evidenceMarkers": [
+        "ENTERPRISE_TARGET_AUDIT_PERSISTENCE_FOUNDATION"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/architecture/adr-007-persistence-entity-strategy.md",
+          "fragments": [
+            "weave.audit.events.storage.mode=file",
+            "weave.audit.events.storage.mode=jdbc",
+            "#1019"
+          ]
+        },
+        {
+          "path": "server/src/main/resources/db/migration/V003__audit_event_persistence_foundation.sql",
+          "fragments": [
+            "weave_audit_events",
+            "uq_weave_audit_events_idempotency"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/audit/JdbcAuditEventPublisherTest.java",
+          "fragments": [
+            "relationalAuditEventsSurvivePublisherRestart",
+            "relationalAuditEventsAreRetrySafeByIdempotencyKey",
+            "conflictingAuditEventsWithSameIdempotencyKeyFailClosed"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/config/BoardsRuntimeConfigurationTest.java",
+          "fragments": [
+            "auditEventsDefaultToFileBackedPublisher",
+            "jdbcAuditStorageModeDisablesFilePublisherAndEnablesJdbcPublisher"
+          ]
+        }
+      ]
     }
   ]
 }

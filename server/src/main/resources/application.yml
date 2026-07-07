@@ -196,6 +196,7 @@ weave:
     events:
       # Append-only support-safe audit sink for provider/control-plane apply decisions.
       storage:
+        mode: ${WEAVE_AUDIT_EVENTS_STORAGE_MODE:file}
         path: ${WEAVE_AUDIT_EVENTS_STORAGE_PATH:./data/audit-events.jsonl}
   interop:
     enabled: ${WEAVE_INTEROP_ENABLED:false}
