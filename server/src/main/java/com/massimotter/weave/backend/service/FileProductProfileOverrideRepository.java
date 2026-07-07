@@ -13,9 +13,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Repository;
 
 @Repository
+@ConditionalOnProperty(name = "weave.profile.storage.mode", havingValue = "file", matchIfMissing = true)
 public class FileProductProfileOverrideRepository implements ProductProfileOverrideRepository {
 
     private static final TypeReference<Map<String, ProductProfileOverride>> PROFILE_MAP = new TypeReference<>() {
@@ -56,6 +58,9 @@ public class FileProductProfileOverrideRepository implements ProductProfileOverr
     public ProductProfileOverride saveForPrimaryIdentityKey(String primaryIdentityKey, ProductProfileOverride profile) {
         if (primaryIdentityKey == null || primaryIdentityKey.isBlank()) {
             throw new IllegalArgumentException("Product profile override key must be a non-blank primary identity key.");
+        }
+        if (profile == null) {
+            throw new IllegalArgumentException("Product profile override must not be null.");
         }
         synchronized (persistenceLock) {
             profiles.put(primaryIdentityKey, profile);

@@ -1,8 +1,10 @@
 package com.massimotter.weave.backend.config;
 
 import com.massimotter.weave.backend.provider.JdbcProviderSelectionRepository;
+import com.massimotter.weave.backend.service.JdbcProductProfileOverrideRepository;
 import javax.sql.DataSource;
 import org.flywaydb.core.Flyway;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -12,10 +14,11 @@ import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(WeavePersistenceProperties.class)
-@ConditionalOnProperty(name = "weave.provider.selections.storage.mode", havingValue = "jdbc")
 public class WeavePersistenceConfiguration {
 
     @Bean
+    @ConditionalOnExpression("'${weave.provider.selections.storage.mode:file}' == 'jdbc' "
+            + "|| '${weave.profile.storage.mode:file}' == 'jdbc'")
     DataSource weaveDataSource(WeavePersistenceProperties properties) {
         DriverManagerDataSource dataSource = new DriverManagerDataSource();
         dataSource.setUrl(properties.requiredUrl());
@@ -28,6 +31,8 @@ public class WeavePersistenceConfiguration {
     }
 
     @Bean(initMethod = "migrate")
+    @ConditionalOnExpression("'${weave.provider.selections.storage.mode:file}' == 'jdbc' "
+            + "|| '${weave.profile.storage.mode:file}' == 'jdbc'")
     Flyway weaveFlyway(DataSource weaveDataSource) {
         return Flyway.configure()
                 .dataSource(weaveDataSource)
@@ -36,12 +41,21 @@ public class WeavePersistenceConfiguration {
     }
 
     @Bean
+    @ConditionalOnExpression("'${weave.provider.selections.storage.mode:file}' == 'jdbc' "
+            + "|| '${weave.profile.storage.mode:file}' == 'jdbc'")
     JdbcTemplate weaveJdbcTemplate(DataSource weaveDataSource, Flyway weaveFlyway) {
         return new JdbcTemplate(weaveDataSource);
     }
 
     @Bean
+    @ConditionalOnProperty(name = "weave.provider.selections.storage.mode", havingValue = "jdbc")
     JdbcProviderSelectionRepository jdbcProviderSelectionRepository(JdbcTemplate weaveJdbcTemplate) {
         return new JdbcProviderSelectionRepository(weaveJdbcTemplate);
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "weave.profile.storage.mode", havingValue = "jdbc")
+    JdbcProductProfileOverrideRepository jdbcProductProfileOverrideRepository(JdbcTemplate weaveJdbcTemplate) {
+        return new JdbcProductProfileOverrideRepository(weaveJdbcTemplate);
     }
 }

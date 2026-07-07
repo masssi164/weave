@@ -112,7 +112,7 @@ void main() {
         'Enterprise hard-plan decisions are locked before implementation lanes expand',
         'Server boundary drift fails before broad package migration',
         'Target architecture scenarios stay mapped to support-safe evidence',
-        'Provider selections gain a gated relational persistence foundation',
+        'Strategic control-plane state gains a gated relational persistence foundation',
         'Sign-in restores the Weave workspace and profile',
         'Weave chat sends and reads a workspace message through the backend facade',
         'Chat encryption diagnostic status is proved honestly',

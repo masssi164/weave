@@ -172,8 +172,10 @@ weave:
       provisioning-state: ${WEAVE_ONBOARDING_NEXTCLOUD_PROVISIONING_STATE:}
   profile:
     # Persistent product-profile override store for mutable fields accepted by PATCH /api/profile.
-    # Mount this path on durable storage for containerized runs.
+    # The default remains file-backed until relational parity, rollback, and dogfood migration
+    # notes are complete.
     storage:
+      mode: ${WEAVE_PROFILE_STORAGE_MODE:file}
       path: ${WEAVE_PROFILE_STORAGE_PATH:./data/profile-overrides.json}
   provider:
     selections:
