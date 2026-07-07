@@ -377,7 +377,7 @@ public class CalDavCalendarAdapter implements CalendarAdapter {
 
     private String calendarHref(CalendarPrincipal principal, CalendarScopeResponse scope, String eventFileName) {
         CalendarScopeResponse resolvedScope = normalizeScope(scope);
-        String user = URLEncoder.encode(principal.nextcloudUserId(), StandardCharsets.UTF_8).replace("+", "%20");
+        String user = URLEncoder.encode(principal.userId(), StandardCharsets.UTF_8).replace("+", "%20");
         String path = properties.calendarPathTemplate().replace("{user}", user);
         path = applyScopePath(path, resolvedScope);
         if (!path.startsWith("/")) {

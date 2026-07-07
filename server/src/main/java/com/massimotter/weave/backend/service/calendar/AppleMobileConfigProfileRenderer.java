@@ -20,7 +20,7 @@ public class AppleMobileConfigProfileRenderer {
         String host = firstNonBlank(baseUri.getHost(), "calendar.weave.test");
         boolean ssl = !"http".equalsIgnoreCase(firstNonBlank(baseUri.getScheme(), "https"));
         int port = baseUri.getPort() > 0 ? baseUri.getPort() : (ssl ? 443 : 80);
-        String username = firstNonBlank(principal.nextcloudUserId(), principal.subject());
+        String username = firstNonBlank(principal.userId(), principal.subject());
         String principalPath = "/dav/principals/users/" + pathSegment(username) + "/";
         String safeUsername = sanitizeFilename(username);
 

@@ -69,7 +69,6 @@ class ServerArchitectureBoundaryTest {
             "normalized.equals(\"secretref\")",
             "normalized.equals(\"secretref.value\")",
             "normalized.contains(\"payload\")",
-            "principal.nextclouduserid()",
             "credentialref://weave/runtime/short-lived",
             "raw provider payloads are forbidden",
             "raw provider payloads, credential-bearing locations");
@@ -257,13 +256,6 @@ class ServerArchitectureBoundaryTest {
     }
 
     private static boolean usesFileRuntimeStore(JavaSource source) {
-        String path = source.path().toString().replace('\\', '/');
-        if (path.endsWith("/config/ApiErrorResponseWriter.java")
-                || path.endsWith("/config/WeavePersistenceConfiguration.java")
-                || path.endsWith("/controller/InteropController.java")
-                || path.endsWith("/identity/realm/HttpKeycloakRealmAdminClient.java")) {
-            return false;
-        }
         String text = source.text();
         return FILE_RUNTIME_WRITE_MARKERS.stream().anyMatch(text::contains)
                 && (text.contains(".json") || text.contains(".jsonl") || text.contains("storagePath"));

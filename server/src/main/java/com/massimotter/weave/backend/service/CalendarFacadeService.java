@@ -154,7 +154,7 @@ public class CalendarFacadeService {
     public CalendarClientSetupResponse clientSetup() {
         requireContextPermission(CalendarScopeResponse.workspace(), ContextPermission.VIEW, "client-setup");
         CalendarPrincipal principal = principal();
-        String username = principal.nextcloudUserId();
+        String username = principal.userId();
         String discoveryUrl = "/dav/calendars";
         String principalUrl = "/dav/principals/users/" + strictPathSegment(username) + "/";
 
@@ -588,8 +588,8 @@ public class CalendarFacadeService {
                     Map.of("module", "calendar"));
         }
         if (authentication.getPrincipal() instanceof Jwt jwt) {
-            String nextcloudUserId = firstNonBlank(jwt.getClaimAsString("preferred_username"), jwt.getSubject());
-            return new CalendarPrincipal(jwt.getSubject(), nextcloudUserId);
+            String userId = firstNonBlank(jwt.getClaimAsString("preferred_username"), jwt.getSubject());
+            return new CalendarPrincipal(jwt.getSubject(), userId);
         }
         return new CalendarPrincipal(authentication.getName(), authentication.getName());
     }
