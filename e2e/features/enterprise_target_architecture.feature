@@ -20,3 +20,11 @@ Feature: Enterprise target architecture evidence spine
     When a PR changes persistence, projections, provider switching, Matrix, MCP, Weaver, client/native boundaries, or cleanup paths
     Then the PR updates the mapped product-language E2E spine or records why no product-visible evidence changed
     And support-safe evidence excludes secrets, raw provider payloads, credential-bearing locations, private operator paths, and member content
+
+  @enterprise-target-persistence-foundation
+  Scenario: Provider selections gain a gated relational persistence foundation
+    Given Admin Console provider selections are strategic Weave-owned mutable state
+    When the relational store is explicitly enabled for the first persistence slice
+    Then Flyway creates handwritten canonical tables for provider selections
+    And provider selection read/write parity and restart recovery are proven without deleting the current file-backed store
+    And H2-only evidence is not claimed as PostgreSQL production readiness

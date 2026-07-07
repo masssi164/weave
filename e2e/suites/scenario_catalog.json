@@ -3254,6 +3254,25 @@
         "coherent target architecture evidence",
         "support-safe evidence exclusions"
       ]
+    },
+    {
+      "tag": "@enterprise-target-persistence-foundation",
+      "suiteId": "enterprise-target-architecture-spine",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "provider-portability",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "gated relational persistence",
+        "provider selection parity",
+        "restart recovery without production-readiness overclaim"
+      ]
     }
   ]
 }

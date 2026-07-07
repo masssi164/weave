@@ -15,9 +15,11 @@ import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Repository;
 
 @Repository
+@ConditionalOnProperty(name = "weave.provider.selections.storage.mode", havingValue = "file", matchIfMissing = true)
 public class FileProviderSelectionRepository implements ProviderSelectionRepository {
 
     private static final TypeReference<Map<String, ProviderSelection>> SELECTION_MAP = new TypeReference<>() {

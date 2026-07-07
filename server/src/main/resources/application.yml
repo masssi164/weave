@@ -4,6 +4,10 @@ server:
 spring:
   application:
     name: weave-backend
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
   security:
     oauth2:
       resourceserver:
@@ -173,9 +177,19 @@ weave:
       path: ${WEAVE_PROFILE_STORAGE_PATH:./data/profile-overrides.json}
   provider:
     selections:
-      # Persistent Admin Console provider selections. Mount this path on durable storage for server restarts.
+      # Persistent Admin Console provider selections. The default remains file-backed until
+      # relational parity, rollback, and dogfood migration notes are complete.
       storage:
+        mode: ${WEAVE_PROVIDER_SELECTIONS_STORAGE_MODE:file}
         path: ${WEAVE_PROVIDER_SELECTIONS_STORAGE_PATH:./data/provider-selections.json}
+  persistence:
+    jdbc:
+      # Disabled unless a repository storage mode explicitly selects JDBC. H2 is local/test
+      # only; release-grade proof must use PostgreSQL-compatible migrations.
+      url: ${WEAVE_PERSISTENCE_JDBC_URL:}
+      username: ${WEAVE_PERSISTENCE_JDBC_USERNAME:}
+      password: ${WEAVE_PERSISTENCE_JDBC_PASSWORD:}
+      driver-class-name: ${WEAVE_PERSISTENCE_JDBC_DRIVER:}
   audit:
     events:
       # Append-only support-safe audit sink for provider/control-plane apply decisions.
