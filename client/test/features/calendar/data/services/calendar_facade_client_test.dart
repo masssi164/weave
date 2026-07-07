@@ -200,7 +200,7 @@ void main() {
                     },
                   ],
                   'providerRef': {
-                    'provider': 'nextcloud-caldav',
+                    'provider': 'weave-calendar-facade',
                     'objectKind': 'calendar-event',
                     'opaqueId': 'calendar:workspace:1',
                     'etag': 'abc',
@@ -258,7 +258,10 @@ void main() {
       expect(events.events.single.threadRef.matrixThreadId, isNull);
       expect(events.events.single.attendees.single.name, 'Ada Lovelace');
       expect(events.events.single.attendees.single.responseStatus, 'accepted');
-      expect(events.events.single.providerRef?.provider, 'nextcloud-caldav');
+      expect(
+        events.events.single.providerRef?.provider,
+        'weave-calendar-facade',
+      );
       expect(
         events.events.single.providerRef?.opaqueId,
         'calendar:workspace:1',
@@ -318,7 +321,7 @@ void main() {
                 'privateUserCalendarsReason':
                     'Private personal calendars require a reviewed access model.',
                 'externalClientCredentialModel':
-                    'nextcloud-login-flow-or-revocable-app-password',
+                    'weave-issued-scoped-setup-credential',
                 'notes': ['Workspace calendar setup only.'],
               },
               'credentialReadiness': {
@@ -332,13 +335,12 @@ void main() {
               },
               'username': 'user-123',
               'endpoints': {
-                'serverUrl': 'https://files.weave.test',
-                'caldavDiscoveryUrl': 'https://files.weave.test/remote.php/dav',
-                'principalUrl':
-                    'https://files.weave.test/remote.php/dav/principals/users/user-123/',
+                'serverUrl': '/dav/calendars',
+                'caldavDiscoveryUrl': '/dav/calendars',
+                'principalUrl': '/dav/principals/users/user-123/',
               },
               'credentialPolicy':
-                  'The backend never returns Nextcloud passwords, app passwords, bearer tokens, or static profile secrets.',
+                  'The backend never returns passwords, bearer tokens, static profile secrets, or provider endpoints.',
               'options': [
                 {
                   'platform': 'apple',
@@ -350,10 +352,11 @@ void main() {
                 },
                 {
                   'platform': 'android',
-                  'method': 'davx5',
-                  'available': true,
-                  'actionUrl': 'davx5://files.weave.test/remote.php/dav',
-                  'guidance': ['Use DAVx5 for two-way sync.'],
+                  'method': 'sync-adapter',
+                  'available': false,
+                  'unavailableReason':
+                      'Android Calendar setup waits for the Weave Account/SyncAdapter boundary.',
+                  'guidance': ['Use the Weave SyncAdapter boundary.'],
                 },
               ],
             }),
@@ -375,7 +378,7 @@ void main() {
       expect(setup.accessModel.privateUserCalendarsAvailable, isFalse);
       expect(
         setup.accessModel.externalClientCredentialModel,
-        'nextcloud-login-flow-or-revocable-app-password',
+        'weave-issued-scoped-setup-credential',
       );
       expect(setup.credentialReadiness.appleProfileSigned, isFalse);
       expect(setup.credentialReadiness.backendActorCredentialsExposed, isFalse);
@@ -383,18 +386,14 @@ void main() {
         setup.credentialReadiness.blockers,
         contains('Apple profiles are unsigned.'),
       );
-      expect(setup.endpoints.serverUrl, 'https://files.weave.test');
-      expect(
-        setup.endpoints.principalUrl,
-        'https://files.weave.test/remote.php/dav/principals/users/user-123/',
-      );
+      expect(setup.endpoints.serverUrl, '/dav/calendars');
+      expect(setup.endpoints.principalUrl, '/dav/principals/users/user-123/');
       expect(setup.credentialPolicy, contains('never returns'));
       expect(setup.options.first.platform, 'apple');
       expect(setup.options.first.available, isFalse);
-      expect(
-        setup.options.last.actionUrl,
-        'davx5://files.weave.test/remote.php/dav',
-      );
+      expect(setup.options.last.method, 'sync-adapter');
+      expect(setup.options.last.available, isFalse);
+      expect(setup.options.last.actionUrl, isNull);
     });
 
     test('reads event details through the backend calendar facade', () async {

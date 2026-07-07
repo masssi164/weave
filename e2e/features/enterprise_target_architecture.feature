@@ -20,6 +20,8 @@ Feature: Enterprise target architecture evidence spine
     When the architecture gate scans canonical domain and public delivery contracts
     Then domain packages cannot import delivery, provider, runtime, DTO, or mutable storage implementation layers
     And public delivery contracts cannot import concrete provider adapters directly
+    And protocol and MCP projections cannot import concrete provider adapters directly
+    And member native setup and MCP contracts cannot expose provider URLs, tenant IDs, SecretRefs, app passwords, bearer tokens, raw diagnostics, or downstream payloads
 
   @enterprise-target-e2e-spine
   Scenario: Target architecture scenarios stay mapped to support-safe evidence
