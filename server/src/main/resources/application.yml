@@ -59,6 +59,9 @@ weave:
       actor-token: ${WEAVE_NEXTCLOUD_FILES_ACTOR_TOKEN:${WEAVE_NEXTCLOUD_FILES_APP_PASSWORD:}}
   calendar:
     caldav:
+      # Northbound Weave-owned CalDAV profile/discovery host. Do not point member-native
+      # setup profiles at a downstream provider URL.
+      public-base-url: ${WEAVE_CALDAV_PUBLIC_BASE_URL:${WEAVE_PUBLIC_BASE_URL:https://weave.test}}
       # Calendar product operations stay on /api; this backend actor is the only component
       # that talks to Nextcloud CalDAV. The first safe slice targets a backend-owned
       # workspace calendar; private per-user templates containing {user} fail closed until

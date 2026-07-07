@@ -80,9 +80,14 @@ class ServerArchitectureBoundaryTest {
             "/service/FileProductProfileOverrideRepository.java",
             "/service/migration/FileMigrationRunEvidenceRepository.java");
     private static final List<String> FILE_RUNTIME_WRITE_MARKERS = List.of(
+            "Files.write(",
             "Files.writeString(",
             "Files.createTempFile(",
-            "Files.move(");
+            "Files.move(",
+            "Files.newBufferedWriter(",
+            "Files.newOutputStream(",
+            "new FileOutputStream(",
+            "new FileWriter(");
 
     @Test
     void domainPackagesDoNotDependOnDeliveryProviderOrRuntimeLayers() throws IOException {
