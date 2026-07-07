@@ -262,6 +262,14 @@
       "executionLane": "pr-safe-offline-contract",
       "description": "Weaver group gating, policy, per-user memory, domain-first tools, approvals, heartbeat, fallback, and audit acceptance.",
       "scenarios": []
+    },
+    {
+      "id": "enterprise-target-architecture-spine",
+      "name": "Enterprise target architecture evidence spine",
+      "evidenceMode": "offline-spec",
+      "executionLane": "pr-safe-architecture-contract",
+      "description": "Decision-lock, boundary-gate, and support-safe evidence exclusions for the Enterprise Hard Plan delivery DAG.",
+      "scenarios": []
     }
   ],
   "scenarios": [
@@ -3179,6 +3187,73 @@
         "operator"
       ],
       "testLevel": "offline-contract"
+    },
+    {
+      "tag": "@enterprise-target-decision-lock",
+      "suiteId": "enterprise-target-architecture-spine",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "provider-portability",
+        "operator-release",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "hard-plan decision lock",
+        "bounded issue DAG"
+      ]
+    },
+    {
+      "tag": "@enterprise-target-boundary-gate",
+      "suiteId": "enterprise-target-architecture-spine",
+      "personas": [
+        "operator"
+      ],
+      "domains": [
+        "files",
+        "calendar",
+        "chat",
+        "weaver-governed-pa",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "server dependency boundaries",
+        "provider adapter isolation"
+      ]
+    },
+    {
+      "tag": "@enterprise-target-e2e-spine",
+      "suiteId": "enterprise-target-architecture-spine",
+      "personas": [
+        "admin",
+        "operator",
+        "member",
+        "weaver_user"
+      ],
+      "domains": [
+        "identity-idm",
+        "spaces",
+        "chat",
+        "files",
+        "calendar",
+        "boards-tasks",
+        "meetings-calls",
+        "documents-office",
+        "admin-health-ops",
+        "weaver-governed-pa",
+        "provider-portability",
+        "operator-release"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "coherent target architecture evidence",
+        "support-safe evidence exclusions"
+      ]
     }
   ]
 }

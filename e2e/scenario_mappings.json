@@ -4275,6 +4275,71 @@
           ]
         }
       ]
+    },
+    {
+      "tag": "@enterprise-target-decision-lock",
+      "scenario": "Enterprise hard-plan decisions are locked before implementation lanes expand",
+      "feature": "e2e/features/enterprise_target_architecture.feature",
+      "executableTest": "tools/enterprise_target_architecture_spine_check.py",
+      "evidenceMarkers": [
+        "ENTERPRISE_TARGET_DECISION_LOCK"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/architecture/adr-006-enterprise-hard-plan-decision-lock.md",
+          "fragments": [
+            "Domain kernel",
+            "OpenAPI remains the generated control/model contract",
+            "#1011"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@enterprise-target-boundary-gate",
+      "scenario": "Server boundary drift fails before broad package migration",
+      "feature": "e2e/features/enterprise_target_architecture.feature",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/architecture/ServerArchitectureBoundaryTest.java",
+      "evidenceMarkers": [
+        "ENTERPRISE_TARGET_BOUNDARY_GATE"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "tools/enterprise_target_architecture_spine_check.py",
+          "fragments": [
+            "ENTERPRISE_TARGET_BOUNDARY_GATE",
+            "server/src/test/java/com/massimotter/weave/backend/architecture/ServerArchitectureBoundaryTest.java"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@enterprise-target-e2e-spine",
+      "scenario": "Target architecture scenarios stay mapped to support-safe evidence",
+      "feature": "e2e/features/enterprise_target_architecture.feature",
+      "executableTest": "tools/enterprise_target_architecture_spine_check.py",
+      "evidenceMarkers": [
+        "ENTERPRISE_TARGET_E2E_SPINE"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "e2e/features/enterprise_target_architecture.feature",
+          "fragments": [
+            "persistence, projections, provider switching, Matrix, MCP, Weaver, client/native boundaries, or cleanup paths",
+            "private operator paths"
+          ]
+        },
+        {
+          "path": "e2e/suites/scenario_catalog.json",
+          "fragments": [
+            "enterprise-target-architecture-spine",
+            "support-safe evidence exclusions"
+          ]
+        }
+      ]
     }
   ]
 }
