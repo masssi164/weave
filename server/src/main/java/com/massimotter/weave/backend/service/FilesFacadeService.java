@@ -46,27 +46,35 @@ public class FilesFacadeService {
 
     public FileListResponse list(String path) {
         requireContextPermission(ContextPermission.VIEW, "list-files");
-        return configuredAdapter("list-files").list(path);
+        try {
+            return configuredAdapter("list-files").list(path);
+        } catch (ApiErrorException exception) {
+            throw supportSafeStorageError(exception, "list-files");
+        }
     }
 
     public FileItemResponse createFolder(CreateFolderRequest request) {
         requireContextPermission(ContextPermission.EDIT, "create-folder");
-        return configuredAdapter("create-folder").createFolder(request);
+        throw webDavWritePolicyRequired("create-folder");
     }
 
     public FileUploadResponse upload(String parentPath, MultipartFile file) {
         requireContextPermission(ContextPermission.EDIT, "upload-file");
-        return configuredAdapter("upload-file").upload(parentPath, file);
+        throw webDavWritePolicyRequired("upload-file");
     }
 
     public DownloadedFile download(String id) {
         requireContextPermission(ContextPermission.VIEW, "download-file");
-        return configuredAdapter("download-file").download(id);
+        try {
+            return configuredAdapter("download-file").download(id);
+        } catch (ApiErrorException exception) {
+            throw supportSafeStorageError(exception, "download-file");
+        }
     }
 
     public void delete(String id) {
         requireContextPermission(ContextPermission.EDIT, "delete-file");
-        configuredAdapter("delete-file").delete(id);
+        throw webDavWritePolicyRequired("delete-file");
     }
 
     public FileNativeProviderSetupResponse nativeProviderSetup(Jwt jwt) {
@@ -221,8 +229,53 @@ public class FilesFacadeService {
     private ApiErrorException adapterNotConfigured(String operation) {
         return new ApiErrorException(
                 HttpStatus.SERVICE_UNAVAILABLE,
-                "nextcloud-adapter-not-configured",
-                "Files facade is available, but the downstream Nextcloud adapter is not configured yet.",
+                "files-storage-not-configured",
+                "Files facade is available, but file storage is not configured yet.",
                 Map.of("module", "files", "operation", operation));
+    }
+
+    private ApiErrorException webDavWritePolicyRequired(String operation) {
+        return new ApiErrorException(
+                HttpStatus.NOT_IMPLEMENTED,
+                "files-webdav-write-policy-required",
+                "Files writes are blocked until the Weave WebDAV write policy is evidenced in #1007.",
+                Map.of(
+                        "module", "files",
+                        "operation", operation,
+                        "webDavFacadePath", "/dav/files",
+                        "writePolicyIssue", "#1007",
+                        "openApiDataPlaneUsed", false,
+                        "diagnosticsRedacted", true));
+    }
+
+    private ApiErrorException supportSafeStorageError(ApiErrorException exception, String operation) {
+        String code = switch (exception.code()) {
+            case "nextcloud-adapter-not-configured" -> "files-storage-not-configured";
+            case "nextcloud-auth-failed" -> "files-storage-auth-failed";
+            case "nextcloud-response-invalid" -> "files-storage-response-invalid";
+            case "nextcloud-unavailable" -> "files-storage-unavailable";
+            case "nextcloud-request-failed" -> "files-storage-request-failed";
+            default -> exception.code();
+        };
+        return new ApiErrorException(
+                exception.status(),
+                code,
+                supportSafeStorageMessage(code),
+                Map.of("module", "files", "operation", operation, "diagnosticsRedacted", true));
+    }
+
+    private String supportSafeStorageMessage(String code) {
+        return switch (code) {
+            case "files-storage-not-configured" -> "Files facade is available, but file storage is not configured yet.";
+            case "files-storage-auth-failed" -> "Files storage is unavailable because the backend actor is not authorized.";
+            case "files-storage-response-invalid" -> "Files storage returned an invalid response.";
+            case "files-storage-unavailable" -> "Files storage is temporarily unavailable.";
+            case "files-storage-request-failed" -> "Files storage request failed before it could be completed.";
+            case "files-permission-denied" -> "You do not have permission to access this file or folder.";
+            case "file-not-found" -> "The requested file or folder was not found.";
+            case "file-conflict" -> "The file operation conflicts with the current storage state.";
+            case "files-quota-exceeded" -> "There is not enough storage available for this file operation.";
+            default -> "The files request could not be completed.";
+        };
     }
 }

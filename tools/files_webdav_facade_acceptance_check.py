@@ -84,6 +84,12 @@ def require_read_list_download() -> None:
         "not(containsString(\"Bearer\"))",
     )
     require(
+        "server/src/test/java/com/massimotter/weave/backend/service/FilesFacadeServiceTest.java",
+        "mapsProviderNamedAdapterErrorsToSupportSafeStorageErrors",
+        "files-storage-unavailable",
+        "diagnosticsRedacted",
+    )
+    require(
         "client/lib/features/files/data/repositories/backend_files_repository.dart",
         "File list/read data-plane operations use the",
         "http.Request('PROPFIND'",
@@ -117,6 +123,18 @@ def require_writes_fail_closed() -> None:
         "client/lib/features/files/data/repositories/backend_files_repository.dart",
         "_webDavWritesBlocked()",
         "Files writes are blocked until the Weave WebDAV write policy is available.",
+    )
+    require(
+        "server/src/main/java/com/massimotter/weave/backend/service/FilesFacadeService.java",
+        "files-webdav-write-policy-required",
+        "Files writes are blocked until the Weave WebDAV write policy is evidenced in #1007.",
+        '"openApiDataPlaneUsed", false',
+    )
+    require(
+        "server/src/test/java/com/massimotter/weave/backend/service/FilesFacadeServiceTest.java",
+        "mutatingOperationsFailClosedBeforeStorageAdapterAccessUntilWebdavWritePolicyExists",
+        "files-webdav-write-policy-required",
+        "openApiDataPlaneUsed",
     )
     require(
         "client/test/features/files/presentation/providers/files_backend_facade_provider_test.dart",
