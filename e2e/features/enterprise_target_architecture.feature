@@ -36,3 +36,11 @@ Feature: Enterprise target architecture evidence spine
     Then Flyway creates a handwritten canonical audit-event table with tenant idempotency uniqueness
     And the file-backed audit sink remains the default until #1019 completes parity, rollback, and operator migration evidence
     And retrying the same audit event is safe while conflicting idempotency reuse fails closed without leaking database details
+
+  @enterprise-target-migration-evidence-persistence-foundation
+  Scenario: Provider-switch migration run evidence gains a gated relational persistence foundation
+    Given provider-switch dry-run and apply-gate evidence determines whether no-drift claims may proceed
+    When JDBC migration evidence storage is explicitly enabled for the migration evidence persistence slice
+    Then Flyway creates a handwritten canonical migration-run evidence table keyed by run and domain
+    And the file-backed migration evidence store remains the default until #1019 completes import, rollback, and operator migration evidence
+    And restart recovery preserves support-safe object counts, artifact refs, audit refs, and expiration behavior without enabling provider-switch apply
