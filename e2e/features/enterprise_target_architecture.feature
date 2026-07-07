@@ -44,3 +44,10 @@ Feature: Enterprise target architecture evidence spine
     Then Flyway creates a handwritten canonical migration-run evidence table keyed by run and domain
     And the file-backed migration evidence store remains the default until #1019 completes import, rollback, and operator migration evidence
     And restart recovery preserves support-safe object counts, artifact refs, audit refs, and expiration behavior without enabling provider-switch apply
+
+  @enterprise-target-provider-switch-no-drift-foundation
+  Scenario: Provider replacement dry-run records no-drift evidence without provider semantics leaking northbound
+    Given provider selections, product profile overrides, audit events, and migration run evidence have persistence foundations
+    When an admin computes an offline provider replacement dry-run
+    Then Weave records a support-safe baseline snapshot, switch plan, no-unaccounted-data-loss counts, and read-model comparison
+    And member-facing capability states remain provider-neutral while apply and production default changes stay blocked

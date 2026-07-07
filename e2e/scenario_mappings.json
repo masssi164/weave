@@ -4475,6 +4475,42 @@
           ]
         }
       ]
+    },
+    {
+      "tag": "@enterprise-target-provider-switch-no-drift-foundation",
+      "scenario": "Provider replacement dry-run records no-drift evidence without provider semantics leaking northbound",
+      "feature": "e2e/features/enterprise_target_architecture.feature",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/service/AdminControlPlaneServiceTest.java",
+      "evidenceMarkers": [
+        "ENTERPRISE_TARGET_PROVIDER_SWITCH_NO_DRIFT_FOUNDATION"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/architecture/adr-007-persistence-entity-strategy.md",
+          "fragments": [
+            "ENTERPRISE_TARGET_PROVIDER_SWITCH_NO_DRIFT_FOUNDATION",
+            "provider-switch no-drift foundation",
+            "#1025"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/AdminControlPlaneServiceTest.java",
+          "fragments": [
+            "ENTERPRISE_TARGET_PROVIDER_SWITCH_NO_DRIFT_FOUNDATION",
+            "providerReplacementDryRunRecordsNoDriftEvidenceAgainstPersistedReadModels",
+            "adminApproved()).isFalse"
+          ]
+        },
+        {
+          "path": "server/src/main/java/com/massimotter/weave/backend/service/AdminControlPlaneService.java",
+          "fragments": [
+            "baselineSnapshot",
+            "readModelComparison",
+            "persistProviderReplacementEvidence"
+          ]
+        }
+      ]
     }
   ]
 }

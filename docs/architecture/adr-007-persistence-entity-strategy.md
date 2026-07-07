@@ -4,7 +4,7 @@ Status: accepted
 
 Date: 2026-07-07
 
-Markers: ENTERPRISE_TARGET_PERSISTENCE_FOUNDATION, ENTERPRISE_TARGET_AUDIT_PERSISTENCE_FOUNDATION, ENTERPRISE_TARGET_MIGRATION_EVIDENCE_PERSISTENCE_FOUNDATION
+Markers: ENTERPRISE_TARGET_PERSISTENCE_FOUNDATION, ENTERPRISE_TARGET_AUDIT_PERSISTENCE_FOUNDATION, ENTERPRISE_TARGET_MIGRATION_EVIDENCE_PERSISTENCE_FOUNDATION, ENTERPRISE_TARGET_PROVIDER_SWITCH_NO_DRIFT_FOUNDATION
 
 ## Context
 
@@ -45,3 +45,9 @@ Weave will introduce relational persistence behind explicit repository/storage g
 The first PRs can prove a relational baseline without changing production defaults. The audit-event slice adds a retry-safe idempotency contract: repeating the same tenant/idempotency event is a no-op, while conflicting reuse fails closed through `AuditRequiredException` instead of leaking raw database exceptions to callers. The migration-evidence slice adds durable restart/recovery proof for dry-run/apply-gate evidence while preserving the file-backed default and avoiding provider-switch cutover claims. Wider cutover still requires #1019: parity for each strategic store, import/backup/rollback operator notes, restart/recovery tests for provider selections, profile overrides, audit, and migration evidence, plus architecture checks that block new production JSON/file strategic stores without an explicit exception.
 
 This decision advances #1012 and #1025 but does not close the persistence target by itself.
+
+## Provider-switch no-drift foundation
+
+The provider-switch no-drift foundation builds on #1019/#1025 without flipping defaults or mutating live providers. `POST /api/admin/providers/replacements/dry-run` now records a support-safe baseline snapshot from persisted provider selection and product profile override read models, publishes a redacted audit event, persists migration-run evidence for the dry-run comparison, and returns the switch plan plus read-model comparison in the Admin Control Plane response.
+
+The evidence remains dry-run-only: persisted migration evidence omits `adminApprovalRef`, keeps `adminApproved=false`, and leaves production provider mutation/default changes blocked until a later issue supplies approval, rollback/archive, restore-smoke, operator cutover, and release-claim evidence. This is the `ENTERPRISE_TARGET_PROVIDER_SWITCH_NO_DRIFT_FOUNDATION` marker for #1025, not final provider-switch completion.
