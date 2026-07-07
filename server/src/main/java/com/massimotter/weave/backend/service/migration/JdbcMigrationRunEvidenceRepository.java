@@ -17,6 +17,7 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.TransactionException;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @Repository
@@ -50,6 +51,9 @@ class JdbcMigrationRunEvidenceRepository implements MigrationRunEvidenceReposito
         if (evidence == null) {
             throw new IllegalArgumentException("Migration run evidence must not be null.");
         }
+        if (evidence.recordedAt() == null) {
+            throw new IllegalArgumentException("Migration run evidence recordedAt must not be null.");
+        }
         try {
             transactionTemplate.executeWithoutResult(status -> {
                 jdbcTemplate.update(
@@ -77,7 +81,7 @@ class JdbcMigrationRunEvidenceRepository implements MigrationRunEvidenceReposito
                         offset(evidence.recordedAt()),
                         offset(evidence.expiresAt()));
             });
-        } catch (DataAccessException exception) {
+        } catch (DataAccessException | TransactionException exception) {
             throw new MigrationRunEvidenceStoreException("Failed to persist durable migration run evidence.", exception);
         }
     }
@@ -132,7 +136,7 @@ class JdbcMigrationRunEvidenceRepository implements MigrationRunEvidenceReposito
         try {
             return objectMapper.writeValueAsString(value);
         } catch (JsonProcessingException exception) {
-            throw new MigrationRunEvidenceStoreException("Failed to serialize durable migration run evidence.", exception);
+            throw new MigrationRunEvidenceStoreException("Failed to persist durable migration run evidence.", exception);
         }
     }
 

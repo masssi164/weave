@@ -11,9 +11,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import org.springframework.transaction.CannotCreateTransactionException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class JdbcMigrationRunEvidenceRepositoryTest {
 
@@ -126,6 +129,48 @@ class JdbcMigrationRunEvidenceRepositoryTest {
                 .isInstanceOf(MigrationRunEvidenceStoreException.class)
                 .hasMessage("Failed to load durable migration run evidence.")
                 .hasMessageNotContaining("WEAVE_MIGRATION_RUN_EVIDENCE");
+    }
+
+    @Test
+    void missingRecordedAtFailsFastBeforeJdbcWrite() {
+        DriverManagerDataSource dataSource = dataSource();
+        migrate(dataSource);
+        var repository = new JdbcMigrationRunEvidenceRepository(
+                new JdbcTemplate(dataSource),
+                new ObjectMapper().findAndRegisterModules());
+
+        assertThatThrownBy(() -> repository.save(new MigrationRunEvidence(
+                "migration-chat-missing-recorded-at",
+                "chat",
+                "approved",
+                Map.of("Conversation", 2),
+                List.of("sha256:4444444444444444444444444444444444444444444444444444444444444444"),
+                List.of("audit:migration.dry_run:missing-recorded-at"),
+                Map.of("dryRunReportRef", "dry-run:chat:missing-recorded-at"),
+                List.of("support-safe migration evidence"),
+                true,
+                true,
+                true,
+                null,
+                Instant.parse("2026-05-31T09:00:00Z"))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Migration run evidence recordedAt must not be null.");
+    }
+
+    @Test
+    void jdbcTransactionFailuresAreWrappedForSupportSafeCallers() throws Exception {
+        DriverManagerDataSource dataSource = mock(DriverManagerDataSource.class);
+        when(dataSource.getConnection()).thenThrow(new CannotCreateTransactionException("connection unavailable"));
+        var jdbcTemplate = new JdbcTemplate(dataSource);
+        Instant now = Instant.parse("2026-05-31T08:00:00Z");
+        var repository = new JdbcMigrationRunEvidenceRepository(
+                jdbcTemplate,
+                new ObjectMapper().findAndRegisterModules());
+
+        assertThatThrownBy(() -> repository.save(evidence("migration-chat-transaction-failure", "chat", now)))
+                .isInstanceOf(MigrationRunEvidenceStoreException.class)
+                .hasMessage("Failed to persist durable migration run evidence.")
+                .hasMessageNotContaining("connection unavailable");
     }
 
     private MigrationRunEvidence evidence(String runId, String domainKey, Instant now) {
