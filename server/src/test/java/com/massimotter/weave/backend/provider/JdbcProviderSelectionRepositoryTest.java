@@ -12,6 +12,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class JdbcProviderSelectionRepositoryTest {
 
@@ -90,6 +91,13 @@ class JdbcProviderSelectionRepositoryTest {
         assertThat(new JdbcProviderSelectionRepository(new JdbcTemplate(dataSource())).persistencePosture())
                 .isEqualTo("durable-relational-flyway")
                 .doesNotContain("postgresql-production-ready");
+    }
+
+    @Test
+    void repositoryRequiresJdbcTemplateWithDataSource() {
+        assertThatThrownBy(() -> new JdbcProviderSelectionRepository(new JdbcTemplate()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("requires a JdbcTemplate with a DataSource");
     }
 
     private ProviderSelection selection(String category) {

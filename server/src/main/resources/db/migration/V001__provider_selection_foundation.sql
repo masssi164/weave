@@ -4,7 +4,7 @@ create table weave_provider_selections (
     choice_model varchar(80) not null,
     secret_ref varchar(255),
     selected_by varchar(160) not null,
-    selected_at_utc varchar(40) not null,
+    selected_at_utc timestamp with time zone not null,
     applied boolean not null,
     support_safe boolean not null,
     migration_dry_run_required boolean not null

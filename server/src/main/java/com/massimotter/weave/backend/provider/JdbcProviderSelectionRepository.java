@@ -2,10 +2,13 @@ package com.massimotter.weave.backend.provider;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.OffsetDateTime;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import javax.sql.DataSource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -17,7 +20,11 @@ public class JdbcProviderSelectionRepository implements ProviderSelectionReposit
 
     public JdbcProviderSelectionRepository(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
-        this.transactionTemplate = new TransactionTemplate(new DataSourceTransactionManager(jdbcTemplate.getDataSource()));
+        DataSource dataSource = jdbcTemplate.getDataSource();
+        if (dataSource == null) {
+            throw new IllegalArgumentException("JdbcProviderSelectionRepository requires a JdbcTemplate with a DataSource.");
+        }
+        this.transactionTemplate = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
     }
 
     @Override
@@ -62,7 +69,7 @@ public class JdbcProviderSelectionRepository implements ProviderSelectionReposit
                     normalizedSelection.choiceModel(),
                     normalizedSelection.secretRef(),
                     normalizedSelection.selectedBy(),
-                    normalizedSelection.selectedAt().toString(),
+                    OffsetDateTime.ofInstant(normalizedSelection.selectedAt(), ZoneOffset.UTC),
                     normalizedSelection.applied(),
                     normalizedSelection.supportSafe(),
                     normalizedSelection.migrationDryRunRequired());
@@ -91,7 +98,7 @@ public class JdbcProviderSelectionRepository implements ProviderSelectionReposit
                 rs.getString("choice_model"),
                 rs.getString("secret_ref"),
                 rs.getString("selected_by"),
-                Instant.parse(rs.getString("selected_at_utc")),
+                rs.getObject("selected_at_utc", OffsetDateTime.class).toInstant(),
                 rs.getBoolean("applied"),
                 rs.getBoolean("support_safe"),
                 rs.getBoolean("migration_dry_run_required"),
