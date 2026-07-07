@@ -3,7 +3,9 @@ package com.massimotter.weave.backend.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.audit.AuditAction;
+import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
+import com.massimotter.weave.backend.audit.JdbcAuditEventPublisher;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WeaverRuntimeProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
@@ -26,8 +28,12 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.security.oauth2.jwt.Jwt;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -73,6 +79,28 @@ class AdminControlPlaneServiceTest {
         assertThat(auditPublisher.events().get(0).payload())
                 .containsEntry("profileKey", "workspace-admin")
                 .containsEntry("denyByDefault", true);
+    }
+
+    @Test
+    void jdbcAuditPublisherFeedsAdminAuditReadback() {
+        JdbcAuditEventPublisher auditPublisher = new JdbcAuditEventPublisher(new JdbcTemplate(migratedDataSource()));
+        AdminControlPlaneService service = adminControlPlaneService(auditPublisher);
+        CapabilityWhitelistUpdateRequest request = new CapabilityWhitelistUpdateRequest(
+                "workspace-admin",
+                List.of("admin.policy.edit", "admin.provider.configure"),
+                "prove jdbc audit readback");
+
+        service.updateWhitelist(request, jwt("admin"));
+
+        assertThat(service.auditEvents(jwt("admin")))
+                .singleElement()
+                .satisfies(event -> {
+                    assertThat(event.action()).isEqualTo("admin.policy.updated");
+                    assertThat(event.idempotencyKey()).startsWith("admin-policy-");
+                    assertThat(event.payload())
+                            .containsEntry("profileKey", "workspace-admin")
+                            .containsEntry("denyByDefault", true);
+                });
     }
 
 
@@ -524,12 +552,12 @@ class AdminControlPlaneServiceTest {
         }
     }
 
-    private AdminControlPlaneService adminControlPlaneService(InMemoryAuditEventPublisher auditPublisher) {
+    private AdminControlPlaneService adminControlPlaneService(AuditEventPublisher auditPublisher) {
         return adminControlPlaneService(auditPublisher, new IdentityRealmApplyProperties());
     }
 
     private AdminControlPlaneService adminControlPlaneService(
-            InMemoryAuditEventPublisher auditPublisher,
+            AuditEventPublisher auditPublisher,
             IdentityRealmApplyProperties properties) {
         return new AdminControlPlaneService(
                 mock(ProviderRegistry.class),
@@ -543,6 +571,21 @@ class AdminControlPlaneServiceTest {
                 properties,
                 Clock.fixed(Instant.parse("2026-05-27T01:03:39Z"), ZoneOffset.UTC),
                 new WeaverRuntimeProperties(false, null, null, null, null, null, null, null, null, null, false, false, true, false));
+    }
+
+    private DriverManagerDataSource migratedDataSource() {
+        DriverManagerDataSource dataSource = new DriverManagerDataSource();
+        dataSource.setDriverClassName("org.h2.Driver");
+        dataSource.setUrl("jdbc:h2:mem:" + UUID.randomUUID()
+                + ";MODE=PostgreSQL;DATABASE_TO_UPPER=true;DB_CLOSE_DELAY=-1");
+        dataSource.setUsername("sa");
+        dataSource.setPassword("");
+        Flyway.configure()
+                .dataSource(dataSource)
+                .locations("classpath:db/migration")
+                .load()
+                .migrate();
+        return dataSource;
     }
 
     private WorkspaceCapabilityService workspaceCapabilityService() {

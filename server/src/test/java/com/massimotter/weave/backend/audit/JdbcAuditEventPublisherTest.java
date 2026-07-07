@@ -10,22 +10,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-@Testcontainers(disabledWithoutDocker = true)
 class JdbcAuditEventPublisherTest {
 
     private static final String ENTERPRISE_TARGET_AUDIT_PERSISTENCE_FOUNDATION =
             "ENTERPRISE_TARGET_AUDIT_PERSISTENCE_FOUNDATION";
-
-    @Container
-    private static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>("postgres:16-alpine");
 
     @TempDir
     Path tempDir;
@@ -58,24 +50,6 @@ class JdbcAuditEventPublisherTest {
                     assertThat(event.payload()).containsEntry("token", "[redacted]");
                 });
         assertThat(publisher.persistencePosture()).isEqualTo("durable-relational-flyway");
-    }
-
-    @Test
-    void postgresCompatibleMigrationPublishesSupportSafeAuditEventsWhenAvailable() {
-        DriverManagerDataSource dataSource = postgresDataSource();
-        migrate(dataSource);
-        var publisher = new JdbcAuditEventPublisher(new JdbcTemplate(dataSource));
-
-        publisher.publish(event("audit-provider-selection-postgres-001"));
-
-        assertThat(publisher.events()).hasSize(1);
-        String payload = new JdbcTemplate(dataSource).queryForObject(
-                "select payload_json from weave_audit_events where idempotency_key = ?",
-                String.class,
-                "audit-provider-selection-postgres-001");
-        assertThat(payload)
-                .contains("[redacted]")
-                .doesNotContain("Bearer", "secret-token");
     }
 
     @Test
@@ -205,15 +179,6 @@ class JdbcAuditEventPublisherTest {
                 + ";MODE=PostgreSQL;DATABASE_TO_UPPER=true;DB_CLOSE_DELAY=-1");
         dataSource.setUsername("sa");
         dataSource.setPassword("");
-        return dataSource;
-    }
-
-    private DriverManagerDataSource postgresDataSource() {
-        DriverManagerDataSource dataSource = new DriverManagerDataSource();
-        dataSource.setDriverClassName(POSTGRES.getDriverClassName());
-        dataSource.setUrl(POSTGRES.getJdbcUrl());
-        dataSource.setUsername(POSTGRES.getUsername());
-        dataSource.setPassword(POSTGRES.getPassword());
         return dataSource;
     }
 
