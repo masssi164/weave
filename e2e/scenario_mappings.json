@@ -4385,7 +4385,7 @@
           "path": "server/src/test/java/com/massimotter/weave/backend/service/JdbcProductProfileOverrideRepositoryTest.java",
           "fragments": [
             "relationalProductProfileOverrideSurvivesRepositoryRestart",
-            "relationalPathMatchesExistingFileRepositoryContractForProfileOverrides",
+            "relationalPathMatchesCurrentPrimaryKeyFileRepositoryContractForProfileOverrides",
             "postgresql-production-ready"
           ]
         }

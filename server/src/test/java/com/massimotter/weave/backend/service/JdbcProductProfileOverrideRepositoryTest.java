@@ -46,7 +46,7 @@ class JdbcProductProfileOverrideRepositoryTest {
     }
 
     @Test
-    void relationalPathMatchesExistingFileRepositoryContractForProfileOverrides() {
+    void relationalPathMatchesCurrentPrimaryKeyFileRepositoryContractForProfileOverrides() {
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
         var fileRepository = new FileProductProfileOverrideRepository(
                 objectMapper,
@@ -61,6 +61,28 @@ class JdbcProductProfileOverrideRepositoryTest {
 
         assertThat(jdbcRepository.findByPrimaryIdentityKey(primaryIdentityKey))
                 .isEqualTo(fileRepository.findByPrimaryIdentityKey(primaryIdentityKey));
+    }
+
+    @Test
+    void repositoriesRejectNullProfileOverridesConsistently() {
+        ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+        var fileRepository = new FileProductProfileOverrideRepository(
+                objectMapper,
+                tempDir.resolve("profile-overrides.json"));
+        DriverManagerDataSource dataSource = dataSource();
+        migrate(dataSource);
+        var jdbcRepository = new JdbcProductProfileOverrideRepository(new JdbcTemplate(dataSource));
+
+        assertThatThrownBy(() -> fileRepository.saveForPrimaryIdentityKey(
+                "issuer+subject:https://auth.weave.test/realms/weave#user-123",
+                null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("must not be null");
+        assertThatThrownBy(() -> jdbcRepository.saveForPrimaryIdentityKey(
+                "issuer+subject:https://auth.weave.test/realms/weave#user-123",
+                null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("must not be null");
     }
 
     @Test

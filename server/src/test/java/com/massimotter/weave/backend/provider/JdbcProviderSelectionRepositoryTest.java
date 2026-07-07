@@ -68,7 +68,7 @@ class JdbcProviderSelectionRepositoryTest {
     }
 
     @Test
-    void flywaySchemaBaselineCreatesProviderSelectionTables() {
+    void flywaySchemaBaselineCreatesStrategicPersistenceTables() {
         DriverManagerDataSource dataSource = dataSource();
 
         migrate(dataSource);

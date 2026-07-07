@@ -59,6 +59,9 @@ public class FileProductProfileOverrideRepository implements ProductProfileOverr
         if (primaryIdentityKey == null || primaryIdentityKey.isBlank()) {
             throw new IllegalArgumentException("Product profile override key must be a non-blank primary identity key.");
         }
+        if (profile == null) {
+            throw new IllegalArgumentException("Product profile override must not be null.");
+        }
         synchronized (persistenceLock) {
             profiles.put(primaryIdentityKey, profile);
             persist();
