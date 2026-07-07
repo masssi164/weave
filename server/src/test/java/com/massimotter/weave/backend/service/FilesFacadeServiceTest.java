@@ -55,12 +55,18 @@ class FilesFacadeServiceTest {
         assertThatThrownBy(() -> missing.list("/"))
                 .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
                     assertThat(exception.status()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
-                    assertThat(exception.code()).isEqualTo("nextcloud-adapter-not-configured");
+                    assertThat(exception.code()).isEqualTo("files-storage-not-configured");
+                    assertThat(exception.getMessage()).doesNotContain("Nextcloud", "provider", "remote.php");
                     assertThat(exception.details()).containsEntry("operation", "list-files");
                 });
         assertThatThrownBy(() -> unconfigured.upload("/", null))
-                .isInstanceOfSatisfying(ApiErrorException.class, exception ->
-                        assertThat(exception.details()).containsEntry("operation", "upload-file"));
+                .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
+                    assertThat(exception.status()).isEqualTo(HttpStatus.NOT_IMPLEMENTED);
+                    assertThat(exception.code()).isEqualTo("files-webdav-write-policy-required");
+                    assertThat(exception.details()).containsEntry("operation", "upload-file");
+                    assertThat(exception.details()).containsEntry("writePolicyIssue", "#1007");
+                    assertThat(exception.details()).containsEntry("openApiDataPlaneUsed", false);
+                });
     }
 
     @Test
@@ -72,6 +78,25 @@ class FilesFacadeServiceTest {
 
         assertThat(response.path()).isEqualTo("/Team");
         assertThat(response.items()).extracting(FileItemResponse::name).containsExactly("readme.md");
+    }
+
+    @Test
+    void mapsProviderNamedAdapterErrorsToSupportSafeStorageErrors() {
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
+        FilesFacadeService service = service(new ProviderErrorAdapter());
+
+        assertThatThrownBy(() -> service.list("/Team"))
+                .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
+                    assertThat(exception.status()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+                    assertThat(exception.code()).isEqualTo("files-storage-unavailable");
+                    assertThat(exception.getMessage()).isEqualTo("Files storage is temporarily unavailable.");
+                    assertThat(exception.getMessage()).doesNotContain("Nextcloud", "remote.php", "Bearer");
+                    assertThat(exception.details())
+                            .containsEntry("module", "files")
+                            .containsEntry("operation", "list-files")
+                            .containsEntry("diagnosticsRedacted", true)
+                            .doesNotContainKeys("downstreamStatus", "providerUrl");
+                });
     }
 
     @Test
@@ -113,6 +138,31 @@ class FilesFacadeServiceTest {
         assertThat(captured.get().contextId()).isEqualTo("workspace-default");
         assertThat(captured.get().principalRef()).isEqualTo("user:user-123");
         assertThat(captured.get().permission()).isEqualTo(ContextPermission.EDIT);
+    }
+
+    @Test
+    void mutatingOperationsFailClosedBeforeStorageAdapterAccessUntilWebdavWritePolicyExists() {
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
+        FilesFacadeService service = service(new StubAdapter(true));
+
+        assertThatThrownBy(() -> service.createFolder(new CreateFolderRequest("/Team", "Design")))
+                .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
+                    assertThat(exception.status()).isEqualTo(HttpStatus.NOT_IMPLEMENTED);
+                    assertThat(exception.code()).isEqualTo("files-webdav-write-policy-required");
+                    assertThat(exception.details())
+                            .containsEntry("operation", "create-folder")
+                            .containsEntry("webDavFacadePath", "/dav/files")
+                            .containsEntry("writePolicyIssue", "#1007")
+                            .containsEntry("openApiDataPlaneUsed", false)
+                            .containsEntry("diagnosticsRedacted", true);
+                    assertThat(exception.getMessage()).doesNotContain("Nextcloud", "remote.php", "Bearer");
+                });
+        assertThatThrownBy(() -> service.upload("/Team", null))
+                .isInstanceOfSatisfying(ApiErrorException.class, exception ->
+                        assertThat(exception.details()).containsEntry("operation", "upload-file"));
+        assertThatThrownBy(() -> service.delete("files:/Team/old.md"))
+                .isInstanceOfSatisfying(ApiErrorException.class, exception ->
+                        assertThat(exception.details()).containsEntry("operation", "delete-file"));
     }
 
     @Test
@@ -317,6 +367,47 @@ class FilesFacadeServiceTest {
                     12L,
                     OffsetDateTime.parse("2026-04-26T08:00:00Z"),
                     true)), null);
+        }
+
+        @Override
+        public FileItemResponse createFolder(CreateFolderRequest request) {
+            throw new UnsupportedOperationException("not needed");
+        }
+
+        @Override
+        public FileUploadResponse upload(String parentPath, MultipartFile file) {
+            throw new UnsupportedOperationException("not needed");
+        }
+
+        @Override
+        public DownloadedFile download(String id) {
+            throw new UnsupportedOperationException("not needed");
+        }
+
+        @Override
+        public void delete(String id) {
+            throw new UnsupportedOperationException("not needed");
+        }
+    }
+
+    private static final class ProviderErrorAdapter implements FilesStorageAdapter {
+
+        @Override
+        public boolean isConfigured() {
+            return true;
+        }
+
+        @Override
+        public FileListResponse list(String path) {
+            throw new ApiErrorException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "nextcloud-unavailable",
+                    "Nextcloud WebDAV failed at https://files.example.invalid/remote.php/dav",
+                    java.util.Map.of(
+                            "module", "files",
+                            "operation", "list-files",
+                            "downstreamStatus", 503,
+                            "providerUrl", "https://files.example.invalid/remote.php/dav"));
         }
 
         @Override
