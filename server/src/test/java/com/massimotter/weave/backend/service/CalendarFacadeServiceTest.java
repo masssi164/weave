@@ -53,7 +53,7 @@ class CalendarFacadeServiceTest {
         assertThat(response.scope().type()).isEqualTo("workspace");
         assertThat(response.events()).containsExactly(event);
         assertThat(capturedPrincipal.get().subject()).isEqualTo("user-123");
-        assertThat(capturedPrincipal.get().nextcloudUserId()).isEqualTo("massimo");
+        assertThat(capturedPrincipal.get().userId()).isEqualTo("massimo");
     }
 
     @Test
@@ -238,7 +238,7 @@ class CalendarFacadeServiceTest {
         assertThat(response.scope().type()).isEqualTo("workspace");
         assertThat(response.title()).isEqualTo("Planning");
         assertThat(capturedPrincipal.get().subject()).isEqualTo("user-123");
-        assertThat(capturedPrincipal.get().nextcloudUserId()).isEqualTo("massimo");
+        assertThat(capturedPrincipal.get().userId()).isEqualTo("massimo");
     }
 
     @Test

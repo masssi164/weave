@@ -72,6 +72,27 @@ class ServerArchitectureBoundaryTest {
             "credentialref://weave/runtime/short-lived",
             "raw provider payloads are forbidden",
             "raw provider payloads, credential-bearing locations");
+    private static final List<String> LEGACY_FILE_RUNTIME_STORE_ALLOWLIST = List.of(
+            "/audit/FileAuditEventPublisher.java",
+            "/provider/FileProviderSelectionRepository.java",
+            "/service/FileOrganizationBootstrapRepository.java",
+            "/service/FileProductProfileOverrideRepository.java",
+            "/service/migration/FileMigrationRunEvidenceRepository.java");
+    private static final List<String> FILE_RUNTIME_AUTHORITY_MARKERS = List.of(
+            "Path storagePath",
+            "readValue(storagePath.toFile()",
+            "writeValue(storagePath.toFile()",
+            "Files.readAllLines(",
+            "Files.readString(",
+            "Files.newBufferedReader(",
+            "Files.write(",
+            "Files.writeString(",
+            "Files.createTempFile(",
+            "Files.move(",
+            "Files.newBufferedWriter(",
+            "Files.newOutputStream(",
+            "new FileOutputStream(",
+            "new FileWriter(");
 
     @Test
     void domainPackagesDoNotDependOnDeliveryProviderOrRuntimeLayers() throws IOException {
@@ -130,6 +151,21 @@ class ServerArchitectureBoundaryTest {
 
         assertThat(violations)
                 .as("Member native setup and MCP contracts must stay Weave-owned and support-safe.")
+                .isEmpty();
+    }
+
+    @Test
+    void strategicJsonAndFileRuntimeAuthorityDoesNotExpandBeyondFencedDebt() throws IOException {
+        List<String> violations = productionSources().stream()
+                .filter(ServerArchitectureBoundaryTest::usesFileRuntimeStore)
+                .filter(source -> !isLegacyFileRuntimeStoreAllowlisted(source))
+                .map(source -> source.path()
+                        + " uses file-backed runtime persistence outside the explicit #1019/#1011 debt fence")
+                .sorted()
+                .toList();
+
+        assertThat(violations)
+                .as("New #1011 slices must not add strategic JSON/file runtime truth; use relational/domain stores, deterministic fixtures, or an explicit one-shot import issue.")
                 .isEmpty();
     }
 
@@ -220,8 +256,20 @@ class ServerArchitectureBoundaryTest {
                 || path.contains("/model/calendar/CalendarClientSetup")
                 || path.contains("/model/calendar/CalendarExternalEndpoints")
                 || path.contains("/model/calls/CallNative")
+                || path.contains("/service/calendar/AppleMobileConfigProfileRenderer")
                 || path.contains("/weaver/")
                 || className.contains("Mcp");
+    }
+
+    private static boolean usesFileRuntimeStore(JavaSource source) {
+        String text = source.text();
+        return FILE_RUNTIME_AUTHORITY_MARKERS.stream().anyMatch(text::contains)
+                && (text.contains(".json") || text.contains(".jsonl") || text.contains("storagePath"));
+    }
+
+    private static boolean isLegacyFileRuntimeStoreAllowlisted(JavaSource source) {
+        String path = source.path().toString().replace('\\', '/');
+        return LEGACY_FILE_RUNTIME_STORE_ALLOWLIST.stream().anyMatch(path::endsWith);
     }
 
     private static List<String> forbiddenNativeOrMcpLiterals(JavaSource source) {

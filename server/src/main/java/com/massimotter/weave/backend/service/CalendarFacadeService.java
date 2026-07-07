@@ -52,7 +52,7 @@ public class CalendarFacadeService {
     private static final String DEFAULT_CONTEXT_ID = "workspace-default";
 
     private final ObjectProvider<CalendarAdapter> calendarAdapterProvider;
-    private final String nextcloudBaseUrl;
+    private final String calDavPublicBaseUrl;
     private final ContextAuthorizationPort contextAuthorizationPort;
     private final ContextAuthorizationProperties contextAuthorizationProperties;
     private final AppleMobileConfigProfileRenderer appleProfileRenderer;
@@ -61,14 +61,14 @@ public class CalendarFacadeService {
     public CalendarFacadeService(
             ObjectProvider<CalendarAdapter> calendarAdapterProvider,
             ContextAuthorizationPort contextAuthorizationPort) {
-        this(calendarAdapterProvider, "https://files.weave.test", contextAuthorizationPort,
+        this(calendarAdapterProvider, "https://calendar.weave.test", contextAuthorizationPort,
                 new ContextAuthorizationProperties(null, null, null, null, null, null, null, null));
     }
 
     @Autowired
     public CalendarFacadeService(
             ObjectProvider<CalendarAdapter> calendarAdapterProvider,
-            @Value("${weave.platform.nextcloud-base-url:https://files.weave.test}") String nextcloudBaseUrl,
+            @Value("${weave.calendar.caldav.public-base-url:https://calendar.weave.test}") String calDavPublicBaseUrl,
             ContextAuthorizationPort contextAuthorizationPort,
             ContextAuthorizationProperties contextAuthorizationProperties) {
         this.calendarAdapterProvider = calendarAdapterProvider;
@@ -76,10 +76,10 @@ public class CalendarFacadeService {
         this.contextAuthorizationProperties = contextAuthorizationProperties == null
                 ? new ContextAuthorizationProperties(null, null, null, null, null, null, null, null)
                 : contextAuthorizationProperties;
-        this.nextcloudBaseUrl = nextcloudBaseUrl == null || nextcloudBaseUrl.isBlank()
-                ? "https://files.weave.test"
-                : nextcloudBaseUrl.trim();
-        this.appleProfileRenderer = new AppleMobileConfigProfileRenderer(this.nextcloudBaseUrl);
+        this.calDavPublicBaseUrl = calDavPublicBaseUrl == null || calDavPublicBaseUrl.isBlank()
+                ? "https://calendar.weave.test"
+                : calDavPublicBaseUrl.trim();
+        this.appleProfileRenderer = new AppleMobileConfigProfileRenderer(this.calDavPublicBaseUrl);
     }
 
     public CalendarScopesResponse scopes() {
@@ -154,7 +154,7 @@ public class CalendarFacadeService {
     public CalendarClientSetupResponse clientSetup() {
         requireContextPermission(CalendarScopeResponse.workspace(), ContextPermission.VIEW, "client-setup");
         CalendarPrincipal principal = principal();
-        String username = principal.nextcloudUserId();
+        String username = principal.userId();
         String discoveryUrl = "/dav/calendars";
         String principalUrl = "/dav/principals/users/" + strictPathSegment(username) + "/";
 
@@ -588,8 +588,8 @@ public class CalendarFacadeService {
                     Map.of("module", "calendar"));
         }
         if (authentication.getPrincipal() instanceof Jwt jwt) {
-            String nextcloudUserId = firstNonBlank(jwt.getClaimAsString("preferred_username"), jwt.getSubject());
-            return new CalendarPrincipal(jwt.getSubject(), nextcloudUserId);
+            String userId = firstNonBlank(jwt.getClaimAsString("preferred_username"), jwt.getSubject());
+            return new CalendarPrincipal(jwt.getSubject(), userId);
         }
         return new CalendarPrincipal(authentication.getName(), authentication.getName());
     }
