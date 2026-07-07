@@ -4300,18 +4300,17 @@
       "tag": "@enterprise-target-boundary-gate",
       "scenario": "Server boundary drift fails before broad package migration",
       "feature": "e2e/features/enterprise_target_architecture.feature",
-      "executableTest": "tools/enterprise_target_architecture_spine_check.py",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/architecture/ServerArchitectureBoundaryTest.java",
       "evidenceMarkers": [
         "ENTERPRISE_TARGET_BOUNDARY_GATE"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/architecture/ServerArchitectureBoundaryTest.java",
+          "path": "tools/enterprise_target_architecture_spine_check.py",
           "fragments": [
-            "domainPackagesDoNotDependOnDeliveryProviderOrRuntimeLayers",
-            "publicDeliveryContractsDoNotImportProviderAdapters",
-            "persistence."
+            "ENTERPRISE_TARGET_BOUNDARY_GATE",
+            "server/src/test/java/com/massimotter/weave/backend/architecture/ServerArchitectureBoundaryTest.java"
           ]
         }
       ]

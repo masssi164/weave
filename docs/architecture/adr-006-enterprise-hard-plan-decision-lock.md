@@ -129,9 +129,12 @@ Existing work remains part of the graph rather than being duplicated:
 
 ## Evidence gates
 
-Minimum gates for this decision-lock slice:
+Minimum gates for this decision-lock and evidence-spine slice:
 
 - `./gradlew --no-daemon docsCheck --console=plain`
+- `./gradlew --no-daemon acceptanceContract --console=plain`
+- `./gradlew --no-daemon :server:test --tests com.massimotter.weave.backend.architecture.ServerArchitectureBoundaryTest --console=plain`
+- `./gradlew --no-daemon serverCi --console=plain` when the architecture test or server test wiring changes.
 
 Minimum gates for implementation slices:
 

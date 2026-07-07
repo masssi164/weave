@@ -20,7 +20,13 @@ class ServerArchitectureBoundaryTest {
             BACKEND_PACKAGE + "config.",
             BACKEND_PACKAGE + "weaver.",
             BACKEND_PACKAGE + "audit.",
-            BACKEND_PACKAGE + "persistence.");
+            BACKEND_PACKAGE + "persistence.",
+            BACKEND_PACKAGE + "boards.openproject.",
+            BACKEND_PACKAGE + "boards.vikunja.",
+            BACKEND_PACKAGE + "boards.deck.",
+            BACKEND_PACKAGE + "boards.local.",
+            BACKEND_PACKAGE + "calls.livekit.",
+            BACKEND_PACKAGE + "identity.realm.");
     private static final List<String> PROVIDER_ADAPTER_IMPORT_PREFIXES = List.of(
             BACKEND_PACKAGE + "boards.openproject.",
             BACKEND_PACKAGE + "boards.vikunja.",
