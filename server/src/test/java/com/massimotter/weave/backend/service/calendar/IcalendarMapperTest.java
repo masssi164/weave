@@ -92,7 +92,7 @@ class IcalendarMapperTest {
             assertThat(attendee.role()).isEqualTo("req-participant");
             assertThat(attendee.responseStatus()).isEqualTo("accepted");
         });
-        assertThat(response.providerRef().provider()).isEqualTo("nextcloud-caldav");
+        assertThat(response.providerRef().provider()).isEqualTo("weave-calendar-facade");
         assertThat(response.providerRef().objectKind()).isEqualTo("calendar-event");
         assertThat(response.providerRef().opaqueId()).isEqualTo("opaque-event-id");
         assertThat(response.providerRef().etag()).isEqualTo("\"etag-1\"");

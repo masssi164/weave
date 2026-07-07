@@ -43,14 +43,14 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @Validated
-@Tag(name = "Calendar", description = "Authenticated product calendar facade backed by Nextcloud CalDAV.")
+@Tag(name = "Calendar", description = "Authenticated product calendar facade backed by Weave-owned calendar projections.")
 @SecurityRequirement(name = "bearer-jwt")
 @ApiResponses({
         @ApiResponse(responseCode = "401", description = "Missing or invalid bearer token.",
                 content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
         @ApiResponse(responseCode = "403", description = "Bearer token is missing the weave:workspace scope.",
                 content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
-        @ApiResponse(responseCode = "503", description = "Downstream calendar adapter is not configured or unavailable.",
+        @ApiResponse(responseCode = "503", description = "Calendar storage adapter is not configured or unavailable.",
                 content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
 })
 public class CalendarController {

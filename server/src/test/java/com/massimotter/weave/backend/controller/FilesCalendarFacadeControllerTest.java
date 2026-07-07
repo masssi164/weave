@@ -160,14 +160,14 @@ class FilesCalendarFacadeControllerTest {
     }
 
     @Test
-    void calendarFacadeExposesStableUnavailableErrorUntilNextcloudAdapterExists() throws Exception {
+    void calendarFacadeExposesStableUnavailableErrorUntilCalendarStorageExists() throws Exception {
         mockMvc.perform(get("/api/calendar/events")
                         .with(workspaceJwt()))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(header().exists("X-Request-Id"))
-                .andExpect(jsonPath("$.code").value("nextcloud-adapter-not-configured"))
+                .andExpect(jsonPath("$.code").value("calendar-adapter-not-configured"))
                 .andExpect(jsonPath("$.message").value(
-                        "Calendar facade is available, but the downstream Nextcloud adapter is not configured yet."))
+                        "Calendar facade is available, but calendar storage is not configured yet."))
                 .andExpect(jsonPath("$.details.module").value("calendar"))
                 .andExpect(jsonPath("$.details.operation").value("list-events"));
     }
@@ -264,12 +264,12 @@ class FilesCalendarFacadeControllerTest {
     }
 
     @Test
-    void calendarReadFacadeExposesStableUnavailableErrorUntilNextcloudAdapterExists() throws Exception {
+    void calendarReadFacadeExposesStableUnavailableErrorUntilCalendarStorageExists() throws Exception {
         mockMvc.perform(get("/api/calendar/events/event-id")
                         .with(workspaceJwt()))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(header().exists("X-Request-Id"))
-                .andExpect(jsonPath("$.code").value("nextcloud-adapter-not-configured"))
+                .andExpect(jsonPath("$.code").value("calendar-adapter-not-configured"))
                 .andExpect(jsonPath("$.details.module").value("calendar"))
                 .andExpect(jsonPath("$.details.operation").value("read-event"));
     }
@@ -290,22 +290,36 @@ class FilesCalendarFacadeControllerTest {
                 .andExpect(jsonPath("$.credentialReadiness.revocableCredentialsAvailable").value(false))
                 .andExpect(jsonPath("$.credentialReadiness.readOnlySubscriptionTokensAvailable").value(false))
                 .andExpect(jsonPath("$.credentialReadiness.backendActorCredentialsExposed").value(false))
-                .andExpect(jsonPath("$.username").value("user-123"))
-                .andExpect(jsonPath("$.endpoints.serverUrl").value("https://files.weave.test"))
+                .andExpect(jsonPath("$.username").value("user@example.com"))
+                .andExpect(jsonPath("$.endpoints.serverUrl").value("/dav/calendars"))
                 .andExpect(jsonPath("$.endpoints.caldavDiscoveryUrl")
-                        .value("https://files.weave.test/remote.php/dav"))
+                        .value("/dav/calendars"))
                 .andExpect(jsonPath("$.endpoints.principalUrl")
-                        .value("https://files.weave.test/remote.php/dav/principals/users/user-123/"))
+                        .value("/dav/principals/users/user%40example.com/"))
                 .andExpect(jsonPath("$.options[0].platform").value("apple"))
                 .andExpect(jsonPath("$.options[0].method").value("mobileconfig"))
                 .andExpect(jsonPath("$.options[0].available").value(false))
                 .andExpect(jsonPath("$.options[1].platform").value("android"))
-                .andExpect(jsonPath("$.options[1].method").value("davx5"))
-                .andExpect(jsonPath("$.options[1].available").value(true))
-                .andExpect(jsonPath("$.options[1].actionUrl")
-                        .value("davx5://files.weave.test/remote.php/dav"))
+                .andExpect(jsonPath("$.options[1].method").value("sync-adapter"))
+                .andExpect(jsonPath("$.options[1].available").value(false))
+                .andExpect(jsonPath("$.options[1].actionUrl").doesNotExist())
+                .andExpect(jsonPath("$.options[2].platform").value("desktop"))
+                .andExpect(jsonPath("$.options[2].method").value("caldav-manual"))
+                .andExpect(jsonPath("$.options[2].available").value(false))
                 .andExpect(jsonPath("$.options[3].platform").value("subscription"))
-                .andExpect(jsonPath("$.options[3].available").value(false));
+                .andExpect(jsonPath("$.options[3].available").value(false))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("Nextcloud"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("files.weave.test"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("remote.php"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("davx5://"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("http://"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("https://"))));
     }
 
     @Test
@@ -415,7 +429,7 @@ class FilesCalendarFacadeControllerTest {
 
     private org.springframework.test.web.servlet.request.RequestPostProcessor workspaceJwt() {
         return jwt().jwt(jwt -> jwt
-                        .subject("user-123")
+                        .subject("user@example.com")
                         .claim("iss", "https://auth.example.invalid/realms/acme")
                         .claim("aud", java.util.List.of("weave-app"))
                         .claim("weave_tenant_id", "tenant-default")

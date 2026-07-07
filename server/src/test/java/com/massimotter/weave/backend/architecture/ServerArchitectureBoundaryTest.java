@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Locale;
 import org.junit.jupiter.api.Test;
 
 class ServerArchitectureBoundaryTest {
@@ -37,6 +38,40 @@ class ServerArchitectureBoundaryTest {
             BACKEND_PACKAGE + "service.calendar.CalDavCalendarAdapter",
             BACKEND_PACKAGE + "identity.realm.HttpKeycloakRealmAdminClient",
             BACKEND_PACKAGE + "identity.realm.KeycloakRealmAdminClient");
+    private static final List<String> NATIVE_OR_MCP_CONTRACT_FORBIDDEN_LITERALS = List.of(
+            "nextcloud",
+            "/remote.php/dav",
+            "davx5://",
+            "providerurl",
+            "providerendpoint",
+            "tenantid",
+            "secretref",
+            "apppassword",
+            "app password",
+            "bearertoken",
+            "bearer token value",
+            "rawdiagnostics",
+            "raw diagnostics",
+            "downstreampayload",
+            "downstream payload",
+            "rawproviderpayload",
+            "raw provider payload");
+    private static final List<String> NATIVE_OR_MCP_CONTRACT_EXEMPT_LITERALS = List.of(
+            "rawproviderpayloadincluded",
+            "rawproviderpayload\", \"redacted\"",
+            "rawproviderpayload\",",
+            "secretref.value",
+            "providerurl\"",
+            "providerurl\",",
+            "normalized.equals(\"rawproviderpayload\")",
+            "normalized.equals(\"providerpayload\")",
+            "normalized.equals(\"rawpayload\")",
+            "normalized.equals(\"secretref\")",
+            "normalized.equals(\"secretref.value\")",
+            "normalized.contains(\"payload\")",
+            "credentialref://weave/runtime/short-lived",
+            "raw provider payloads are forbidden",
+            "raw provider payloads, credential-bearing locations");
 
     @Test
     void domainPackagesDoNotDependOnDeliveryProviderOrRuntimeLayers() throws IOException {
@@ -69,6 +104,49 @@ class ServerArchitectureBoundaryTest {
                 .isEmpty();
     }
 
+    @Test
+    void protocolProjectionAndMcpCodeDoNotImportProviderAdapters() throws IOException {
+        List<String> violations = productionSources().stream()
+                .filter(ServerArchitectureBoundaryTest::isProtocolProjectionOrMcpSurface)
+                .flatMap(source -> source.imports().stream()
+                        .filter(ServerArchitectureBoundaryTest::isProviderAdapterImport)
+                        .map(importName -> violation(source, importName)))
+                .sorted()
+                .toList();
+
+        assertThat(violations)
+                .as("WebDAV/CalDAV/CardDAV/Matrix/MCP surfaces must route through Weave facades/use cases, not providers directly.")
+                .isEmpty();
+    }
+
+    @Test
+    void memberNativeAndMcpContractsDoNotExposeProviderNativeSecretsOrUrls() throws IOException {
+        List<String> violations = productionSources().stream()
+                .filter(ServerArchitectureBoundaryTest::isMemberNativeOrMcpContract)
+                .flatMap(source -> forbiddenNativeOrMcpLiterals(source).stream()
+                        .map(term -> source.path() + " exposes forbidden native/MCP contract literal: " + term))
+                .sorted()
+                .toList();
+
+        assertThat(violations)
+                .as("Member native setup and MCP contracts must stay Weave-owned and support-safe.")
+                .isEmpty();
+    }
+
+    @Test
+    void filesOpenApiControllerRemainsControlPlaneOnly() throws IOException {
+        JavaSource filesController = productionSources().stream()
+                .filter(source -> source.path().endsWith(Path.of("controller", "FilesController.java")))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(filesController.text())
+                .doesNotContain("@GetMapping(\"/api/files\")")
+                .doesNotContain("@PostMapping(\"/api/files/upload\")")
+                .doesNotContain("@PostMapping(\"/api/files/folders\")")
+                .doesNotContain("@DeleteMapping(\"/api/files/{id}\")");
+    }
+
     private static List<JavaSource> productionSources() throws IOException {
         Path sourceRoot = sourceRoot();
         try (var paths = Files.walk(sourceRoot)) {
@@ -87,11 +165,12 @@ class ServerArchitectureBoundaryTest {
                     .findFirst()
                     .map(line -> line.replace("package ", "").replace(";", "").trim())
                     .orElse("");
+            String text = String.join("\n", lines);
             List<String> imports = lines.stream()
                     .filter(line -> line.startsWith("import "))
                     .map(line -> line.replace("import ", "").replace("static ", "").replace(";", "").trim())
                     .toList();
-            return new JavaSource(path, packageName, imports);
+            return new JavaSource(path, packageName, imports, text);
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to read Java source " + path, exception);
         }
@@ -120,6 +199,41 @@ class ServerArchitectureBoundaryTest {
                 || source.packageName().startsWith(BACKEND_PACKAGE + "model.");
     }
 
+    private static boolean isProtocolProjectionOrMcpSurface(JavaSource source) {
+        String className = source.path().getFileName().toString();
+        return !source.packageName().equals(BACKEND_PACKAGE + "config")
+                && !source.packageName().startsWith(BACKEND_PACKAGE + "config.")
+                && (source.packageName().equals(BACKEND_PACKAGE + "weaver")
+                || source.packageName().startsWith(BACKEND_PACKAGE + "weaver.")
+                || className.contains("Mcp")
+                || className.contains("WebDav")
+                || className.contains("CalDav")
+                || className.contains("CardDav")
+                || className.contains("Matrix"));
+    }
+
+    private static boolean isMemberNativeOrMcpContract(JavaSource source) {
+        String path = source.path().toString().replace('\\', '/');
+        String className = source.path().getFileName().toString();
+        return path.contains("/model/files/FileNative")
+                || path.contains("/model/calendar/CalendarNative")
+                || path.contains("/model/calendar/CalendarClientSetup")
+                || path.contains("/model/calendar/CalendarExternalEndpoints")
+                || path.contains("/model/calls/CallNative")
+                || path.contains("/weaver/")
+                || className.contains("Mcp");
+    }
+
+    private static List<String> forbiddenNativeOrMcpLiterals(JavaSource source) {
+        String normalized = source.text().toLowerCase(Locale.ROOT);
+        for (String exemption : NATIVE_OR_MCP_CONTRACT_EXEMPT_LITERALS) {
+            normalized = normalized.replace(exemption, "");
+        }
+        return NATIVE_OR_MCP_CONTRACT_FORBIDDEN_LITERALS.stream()
+                .filter(normalized::contains)
+                .toList();
+    }
+
     private static boolean isCanonicalDomainPackage(JavaSource source) {
         String packageName = source.packageName();
         return packageName.endsWith(".domain") || packageName.contains(".domain.");
@@ -129,6 +243,6 @@ class ServerArchitectureBoundaryTest {
         return source.path() + " imports " + importName;
     }
 
-    private record JavaSource(Path path, String packageName, List<String> imports) {
+    private record JavaSource(Path path, String packageName, List<String> imports, String text) {
     }
 }
