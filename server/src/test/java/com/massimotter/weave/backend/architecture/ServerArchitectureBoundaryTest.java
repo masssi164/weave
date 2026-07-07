@@ -78,7 +78,13 @@ class ServerArchitectureBoundaryTest {
             "/service/FileOrganizationBootstrapRepository.java",
             "/service/FileProductProfileOverrideRepository.java",
             "/service/migration/FileMigrationRunEvidenceRepository.java");
-    private static final List<String> FILE_RUNTIME_WRITE_MARKERS = List.of(
+    private static final List<String> FILE_RUNTIME_AUTHORITY_MARKERS = List.of(
+            "Path storagePath",
+            "readValue(storagePath.toFile()",
+            "writeValue(storagePath.toFile()",
+            "Files.readAllLines(",
+            "Files.readString(",
+            "Files.newBufferedReader(",
             "Files.write(",
             "Files.writeString(",
             "Files.createTempFile(",
@@ -257,7 +263,7 @@ class ServerArchitectureBoundaryTest {
 
     private static boolean usesFileRuntimeStore(JavaSource source) {
         String text = source.text();
-        return FILE_RUNTIME_WRITE_MARKERS.stream().anyMatch(text::contains)
+        return FILE_RUNTIME_AUTHORITY_MARKERS.stream().anyMatch(text::contains)
                 && (text.contains(".json") || text.contains(".jsonl") || text.contains("storagePath"));
     }
 
