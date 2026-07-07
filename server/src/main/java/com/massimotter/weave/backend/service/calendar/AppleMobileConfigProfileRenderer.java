@@ -7,21 +7,21 @@ import java.util.UUID;
 
 public class AppleMobileConfigProfileRenderer {
 
-    private final String nextcloudBaseUrl;
+    private final String calDavPublicBaseUrl;
 
-    public AppleMobileConfigProfileRenderer(String nextcloudBaseUrl) {
-        this.nextcloudBaseUrl = nextcloudBaseUrl == null || nextcloudBaseUrl.isBlank()
-                ? "https://files.weave.test"
-                : nextcloudBaseUrl.trim();
+    public AppleMobileConfigProfileRenderer(String calDavPublicBaseUrl) {
+        this.calDavPublicBaseUrl = calDavPublicBaseUrl == null || calDavPublicBaseUrl.isBlank()
+                ? "https://calendar.weave.test"
+                : calDavPublicBaseUrl.trim();
     }
 
     public AppleMobileConfigProfile renderUnsignedNoSecretProfile(CalendarPrincipal principal) {
-        URI baseUri = URI.create(nextcloudBaseUrl);
-        String host = firstNonBlank(baseUri.getHost(), "files.weave.test");
+        URI baseUri = URI.create(calDavPublicBaseUrl);
+        String host = firstNonBlank(baseUri.getHost(), "calendar.weave.test");
         boolean ssl = !"http".equalsIgnoreCase(firstNonBlank(baseUri.getScheme(), "https"));
         int port = baseUri.getPort() > 0 ? baseUri.getPort() : (ssl ? 443 : 80);
         String username = firstNonBlank(principal.nextcloudUserId(), principal.subject());
-        String principalPath = "/remote.php/dav/principals/users/" + pathSegment(username) + "/";
+        String principalPath = "/dav/principals/users/" + pathSegment(username) + "/";
         String safeUsername = sanitizeFilename(username);
 
         String profileUuid = stableUuid("weave-calendar-profile:" + principal.subject());
@@ -46,7 +46,7 @@ public class AppleMobileConfigProfileRenderer {
                             <key>PayloadDisplayName</key>
                             <string>Weave Calendar</string>
                             <key>PayloadDescription</key>
-                            <string>Secret-free CalDAV account metadata. The password is intentionally omitted; use a revocable per-client Nextcloud app password or login-flow credential.</string>
+                            <string>Secret-free CalDAV account metadata. The password is intentionally omitted; use a revocable Weave-issued setup credential.</string>
                             <key>CalDAVAccountDescription</key>
                             <string>Weave workspace calendar</string>
                             <key>CalDAVHostName</key>
