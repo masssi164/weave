@@ -14,6 +14,12 @@ MARKERS = {
         ROOT / "docs/architecture/adr-006-enterprise-hard-plan-decision-lock.md",
         ROOT / "e2e/features/enterprise_target_architecture.feature",
     ],
+    "ENTERPRISE_TARGET_NO_TRANSITIONAL_COMPATIBILITY": [
+        ROOT / "docs/architecture/adr-006-enterprise-hard-plan-decision-lock.md",
+        ROOT
+        / "docs/architecture/adr-008-no-transitional-compatibility-as-architecture.md",
+        ROOT / "e2e/features/enterprise_target_architecture.feature",
+    ],
     "ENTERPRISE_TARGET_BOUNDARY_GATE": [
         ROOT
         / "server/src/test/java/com/massimotter/weave/backend/architecture/ServerArchitectureBoundaryTest.java",
@@ -64,6 +70,7 @@ REQUIRED_ISSUES = {
     "#1023",
     "#1024",
     "#1025",
+    "#1031",
 }
 
 
@@ -94,6 +101,7 @@ def main() -> int:
     tags = {scenario.get("tag") for scenario in mapping.get("scenarios", [])}
     expected_tags = {
         "@enterprise-target-decision-lock",
+        "@enterprise-target-no-transitional-compatibility",
         "@enterprise-target-boundary-gate",
         "@enterprise-target-e2e-spine",
         "@enterprise-target-persistence-foundation",
@@ -105,8 +113,17 @@ def main() -> int:
     if missing_tags:
         fail("scenario_mappings.json misses target tags: " + ", ".join(missing_tags))
 
+    catalog = json.loads(text(ROOT / "e2e/suites/scenario_catalog.json"))
+    catalog_tags = {scenario.get("tag") for scenario in catalog.get("scenarios", [])}
+    missing_catalog_tags = sorted(expected_tags - catalog_tags)
+    if missing_catalog_tags:
+        fail("scenario_catalog.json misses target tags: " + ", ".join(missing_catalog_tags))
+
     if "credential-bearing locations" not in combined or "private operator paths" not in combined:
         fail("support-safe evidence exclusions are not recorded")
+
+    if "Transitional behavior is not architecture" not in combined:
+        fail("no-transitional-compatibility decision is not recorded")
 
     print(
         "enterprise-target-architecture-spine-check: ok "

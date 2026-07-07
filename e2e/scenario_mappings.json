@@ -4290,8 +4290,35 @@
           "path": "docs/architecture/adr-006-enterprise-hard-plan-decision-lock.md",
           "fragments": [
             "Domain kernel",
-            "OpenAPI remains the generated control/model contract",
+            "OpenAPI is demoted to control",
             "#1011"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@enterprise-target-no-transitional-compatibility",
+      "scenario": "Transitional behavior is not preserved as architecture",
+      "feature": "e2e/features/enterprise_target_architecture.feature",
+      "executableTest": "tools/enterprise_target_architecture_spine_check.py",
+      "evidenceMarkers": [
+        "ENTERPRISE_TARGET_NO_TRANSITIONAL_COMPATIBILITY"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/architecture/adr-008-no-transitional-compatibility-as-architecture.md",
+          "fragments": [
+            "Transitional behavior is not architecture",
+            "fixture-fenced",
+            "Strategic JSON/file runtime truth is not preserved as the target"
+          ]
+        },
+        {
+          "path": "docs/architecture/adr-006-enterprise-hard-plan-decision-lock.md",
+          "fragments": [
+            "direct target-implementation issue DAG",
+            "#1031"
           ]
         }
       ]

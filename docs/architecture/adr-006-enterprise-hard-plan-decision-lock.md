@@ -5,6 +5,7 @@ Status: accepted
 Evidence markers:
 
 - ENTERPRISE_TARGET_DECISION_LOCK
+- ENTERPRISE_TARGET_NO_TRANSITIONAL_COMPATIBILITY
 - ENTERPRISE_TARGET_BOUNDARY_GATE
 - ENTERPRISE_TARGET_E2E_SPINE
 
@@ -31,44 +32,62 @@ the package enters the Weave delivery system: as a restructuring input that must
 be reconciled against the pinned corpus, existing ADRs, GitHub issues, and
 executable gates.
 
+Massimo's 2026-07-07 correction locks the implementation posture: this is not a
+legacy-preservation or compatibility-layer program. The hard-plan target is the
+implementation target. Historical JSON/file stores, OpenAPI data planes, and
+provider-shaped member/native/MCP/mobile surfaces are not compatibility
+contracts. They are deleted, blocked, or fenced as fixtures/import-only evidence
+as soon as the matching target projection exists.
+
 ## Decision
 
 We will treat the hard-plan package as an active restructuring lane with a
-decision-first issue DAG.
+direct target-implementation issue DAG.
 
 The accepted direction is:
 
-- Weave keeps provider-neutral domain facades as product truth.
+- Weave becomes an OIDC-governed Open Standards Gateway with a canonical domain
+  kernel.
+- Files uses the Weave-owned `/dav/files` WebDAV facade as the durable file data
+  plane.
+- Calendar uses Weave-owned CalDAV/iCalendar plus setup, status, and revoke
+  boundaries.
+- The canonical People domain exposes Weave-owned Contacts/CardDAV/vCard plus
+  setup, status, and revoke boundaries.
+- Chat targets Weave-owned Matrix Client-Server core first, with federation
+  identity only after identity, signing, moderation, retention, E2EE, and
+  supportability gates exist.
+- MCP uses Spring AI semantic Weave tools over domain use cases, not OpenAPI
+  route mirrors. Weaver is a governed client/host/agent runtime integration
+  boundary, not a canonical Weave product domain.
+- Flutter is the Weave product client. It consumes Weave projections and control
+  contracts, never provider SDKs or provider-native APIs.
 - Open standards are northbound projections or southbound adapter seams, not raw
   provider pass-throughs.
 - Provider schemas remain adapter I/O. Canonical Weave entities are handwritten
   from Weave domain contracts.
-- Durable persistence must move toward a relational baseline with migration and
-  recovery evidence, while current JSON/file stores remain until parity and
-  rollback are proven.
+- Durable persistence and append-only ledgers own identifiers, policy, grants,
+  audit, capability state, migration/switch evidence, and federation identity.
+- Strategic JSON/file runtime truth is not preserved as the target. Existing
+  file-backed defaults remain current implementation debt owned by #1019, not a
+  compatibility contract for new slices.
 - Server package/module boundaries must become enforceable before a physical
   Gradle module split.
 - Provider switching must fail closed unless canonical invariants and
   support-safe no-drift evidence exist.
-- Files WebDAV remains the first accepted standard data-plane projection.
-- OpenAPI remains the generated control/model contract until each domain has an
-  explicit standard-protocol replacement gate.
-- MCP tools remain semantic Weave tools governed by server policy, approval,
-  redaction, and audit.
-- Weaver remains an optional governed runtime integration, not a Weave product
-  domain.
-- Matrix client-server or federation claims require a separate Chat decision and
-  conformance proof; current Chat API first guidance is not silently replaced.
+- OpenAPI is demoted to control, admin, setup, revoke, manifest, and generated
+  convenience surfaces. It is not product/data-plane authority.
+- Southbound providers exist only behind ports/adapters.
 
 The target package and module map is:
 
 | Target area | Responsibility | Transitional repo location |
 | --- | --- | --- |
 | Domain kernel | Canonical domain entities, value objects, invariants, and use-case interfaces. | `server/src/main/java/com/massimotter/weave/backend/**/domain` |
-| Application/use cases | Product workflows over domain ports; no direct provider or projection calls. | Current `service`/`domainfacade` code until moved slice by slice. |
-| Projections | JSON control plane, WebDAV, CalDAV/CardDAV or iCalendar, Matrix, and MCP northbound adapters. | Current controllers and MCP modules until projection packages exist. |
-| Persistence | Flyway/JPA-backed repositories and append-only ledgers behind domain ports. | Current JSON/file repositories until #1012/#1019 parity proof. |
-| Provider adapters | Southbound Keycloak, Matrix, Nextcloud, OpenProject, LiveKit, and future adapters. | Current provider-specific packages until #1013/#1024 gates pass. |
+| Application/use cases | Product workflows over domain ports; no direct provider or projection calls. | Current `service`/`domainfacade` code only until replaced slice by slice. |
+| Projections | OpenAPI control/admin/setup/revoke/manifest convenience, WebDAV, CalDAV/iCalendar, People-domain CardDAV/vCard, Matrix Client-Server, and Spring AI MCP northbound adapters. | Current controllers and MCP modules only until projection packages exist. |
+| Persistence | Flyway/JPA-backed repositories and append-only ledgers behind domain ports. | Current JSON/file repositories only as #1019 retirement debt, temporary import, dev, or fixture-fenced evidence until strategic runtime truth is removed. |
+| Provider adapters | Southbound Keycloak, Matrix, Nextcloud, OpenProject, LiveKit, directory/contact, and future adapters. | Current provider-specific packages until #1013/#1024 gates pass. |
 | Policy, audit, credentials | Authorization, approvals, redaction, audit, credential references, and support-safe evidence. | Current `audit`, `context/authz`, identity, and readiness services. |
 | Boot wiring | Spring composition root, configuration, and profile-specific adapters. | Current server boot module. |
 
@@ -84,7 +103,8 @@ The restructuring lane is split into reviewable slices:
 6. MCP Spring AI projection and Weaver boundary (#1016).
 7. Matrix gateway canonical ledger and federation strategy (#1017).
 8. Flutter and native client protocol boundary (#1018).
-9. Target architecture E2E feature and evidence spine (#1025).
+9. People/Contacts CardDAV facade and native address-book boundary (#1031).
+10. Target architecture E2E feature and evidence spine (#1025).
 
 Retirement children close the loop after parity evidence:
 
@@ -104,6 +124,7 @@ Existing work remains part of the graph rather than being duplicated:
 - #1007 Files WebDAV write policy.
 - #969 Files native/WebDAV facade path.
 - #967 Calendar native setup/sync facades.
+- #1031 People/Contacts CardDAV facade and native address-book boundary.
 - #968 Calls/Meetings provider-neutral app shell.
 - #865 and #870 transitional Python/OpenAPI MCP work.
 - #971 governed Weaver member surface.
@@ -114,18 +135,24 @@ Existing work remains part of the graph rather than being duplicated:
   issue, acceptance scenario, and smallest meaningful gate.
 - Direct imports from the package examples are not allowed unless they are first
   reconciled with repo conventions, dependency policy, and the pinned corpus.
-- The first persistence work must be additive and profile-gated. It must not
-  delete JSON/file stores until parity, restart/recovery, and rollback behavior
-  are proven.
+- The first persistence work may be profile-gated for evidence and ADR-007 keeps
+  some file-backed defaults until #1019. Those defaults are current retirement
+  debt, not strategic compatibility. Production/dogfood target profiles must
+  move away from JSON/file runtime stores, with one-shot import evidence only
+  when real dogfood data requires it.
 - The first module work must add enforceable dependency checks before broad
   package moves or physical Gradle module splits.
 - Provider switch claims must be scoped to named providers and fixtures until
   broader conformance evidence exists.
-- OpenAPI cannot be removed as a generated consumer contract. Domain data-plane
-  demotion requires executable standard-protocol projection evidence plus
-  OpenAPI control/discovery/revoke/status coverage.
-- Matrix federation and E2EE remain high-risk areas. They require explicit
-  identity, moderation, tenant-isolation, history, and supportability gates.
+- OpenAPI remains useful as generated control/admin/setup/revoke/manifest
+  convenience, but every retained OpenAPI endpoint must be classified. Product
+  data-plane authority moves to the relevant standard projection or domain
+  kernel use case as soon as that projection exists.
+- Matrix Client-Server core is the chat target. Federation and E2EE remain
+  high-risk areas and require explicit identity, moderation, tenant-isolation,
+  history, signing, retention, and supportability gates before readiness claims.
+- Provider-switch/no-drift work is supporting evidence for provider isolation,
+  not the lead architecture slice.
 
 ## Evidence gates
 
@@ -149,5 +176,6 @@ Minimum gates for implementation slices:
 - No mass refactor in this ADR.
 - No live infrastructure mutation.
 - No release readiness claim.
-- No deletion of transitional stores, contracts, or MCP bridges.
+- No broad compatibility layer to preserve historical JSON/file, OpenAPI
+  data-plane, route-scraped MCP, or provider-shaped member/native behavior.
 - No public disclosure of private operator artifacts or local evidence paths.

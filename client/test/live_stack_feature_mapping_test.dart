@@ -110,6 +110,7 @@ void main() {
       result.scenarios.map((scenario) => scenario.name),
       unorderedEquals(<String>[
         'Enterprise hard-plan decisions are locked before implementation lanes expand',
+        'Transitional behavior is not preserved as architecture',
         'Server boundary drift fails before broad package migration',
         'Target architecture scenarios stay mapped to support-safe evidence',
         'Strategic control-plane state gains a gated relational persistence foundation',
