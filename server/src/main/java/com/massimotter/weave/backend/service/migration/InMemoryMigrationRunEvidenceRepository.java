@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-class InMemoryMigrationRunEvidenceRepository implements MigrationRunEvidenceRepository {
+public class InMemoryMigrationRunEvidenceRepository implements MigrationRunEvidenceRepository {
 
     private final Map<String, MigrationRunEvidence> evidenceByRunAndDomain = new ConcurrentHashMap<>();
 

@@ -3314,6 +3314,27 @@
         "provider-switch evidence restart recovery",
         "expiration and support-safe database failure handling"
       ]
+    },
+    {
+      "tag": "@enterprise-target-provider-switch-no-drift-foundation",
+      "suiteId": "enterprise-target-architecture-spine",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "provider-portability",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "provider-switch no-drift dry-run",
+        "persisted baseline snapshot",
+        "support-safe audit and migration evidence",
+        "provider-neutral northbound read-model comparison",
+        "apply and production default changes remain blocked"
+      ]
     }
   ]
 }

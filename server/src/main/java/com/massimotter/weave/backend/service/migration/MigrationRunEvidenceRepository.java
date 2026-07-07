@@ -3,7 +3,7 @@ package com.massimotter.weave.backend.service.migration;
 import java.time.Instant;
 import java.util.Optional;
 
-interface MigrationRunEvidenceRepository {
+public interface MigrationRunEvidenceRepository {
 
     void save(MigrationRunEvidence evidence);
 

@@ -115,6 +115,7 @@ void main() {
         'Strategic control-plane state gains a gated relational persistence foundation',
         'Support-safe audit events gain a gated relational persistence foundation',
         'Provider-switch migration run evidence gains a gated relational persistence foundation',
+        'Provider replacement dry-run records no-drift evidence without provider semantics leaking northbound',
         'Sign-in restores the Weave workspace and profile',
         'Weave chat sends and reads a workspace message through the backend facade',
         'Chat encryption diagnostic status is proved honestly',

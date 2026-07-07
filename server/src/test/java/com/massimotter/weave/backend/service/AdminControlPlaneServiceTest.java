@@ -22,6 +22,7 @@ import com.massimotter.weave.backend.model.admin.EffectivePolicySimulationReques
 import com.massimotter.weave.backend.provider.InMemoryProviderSelectionRepository;
 import com.massimotter.weave.backend.provider.ProviderRegistry;
 import com.massimotter.weave.backend.provider.ProviderSelection;
+import com.massimotter.weave.backend.service.migration.InMemoryMigrationRunEvidenceRepository;
 import java.io.InputStream;
 import java.time.Clock;
 import java.time.Instant;
@@ -459,6 +460,107 @@ class AdminControlPlaneServiceTest {
     }
 
     @Test
+    void providerReplacementDryRunRecordsNoDriftEvidenceAgainstPersistedReadModels() {
+        // ENTERPRISE_TARGET_PROVIDER_SWITCH_NO_DRIFT_FOUNDATION
+        InMemoryAuditEventPublisher auditPublisher = new InMemoryAuditEventPublisher();
+        InMemoryProviderSelectionRepository selectionRepository = new InMemoryProviderSelectionRepository();
+        selectionRepository.save(new ProviderSelection(
+                "chat",
+                "synapse-homeserver",
+                "recommended_self_hosted_default",
+                "secretref://weave/provider/synapse-homeserver",
+                "actor:admin-123",
+                Instant.parse("2026-05-31T08:00:00Z"),
+                true,
+                true,
+                true,
+                List.of("encrypted history requires manual review")));
+        InMemoryMigrationRunEvidenceRepository migrationEvidenceRepository = new InMemoryMigrationRunEvidenceRepository();
+        ProductProfileOverrideRepository profileRepository = profileOverrideRepository();
+        profileRepository.saveForPrimaryIdentityKey(
+                "issuer+subject:https://auth.example.invalid/realms/acme#admin-123",
+                new ProductProfileOverride(
+                        "Admin 123",
+                        null,
+                        "en",
+                        "UTC",
+                        Map.of("reducedMotion", "true"),
+                        "workspace"));
+        WorkspaceCapabilityService workspaceCapabilityService = workspaceCapabilityService();
+        ProviderRegistry providerRegistry = new ProviderRegistry(List.of(), workspaceCapabilityService, selectionRepository);
+        AdminControlPlaneService service = new AdminControlPlaneService(
+                providerRegistry,
+                workspaceCapabilityService,
+                selectionRepository,
+                new InMemoryOrganizationBootstrapRepository(),
+                auditPublisher,
+                List.of(new KeycloakRealmDryRunProvider()),
+                new InMemoryIdentityRealmEvidenceRepository(),
+                List.of(new KeycloakRealmLiveApplyAdapter(new IdentityRealmApplyProperties())),
+                new IdentityRealmApplyProperties(),
+                Clock.fixed(Instant.parse("2026-05-31T08:00:00Z"), ZoneOffset.UTC),
+                new WeaverRuntimeProperties(false, null, null, null, null, null, null, null, null, null, false, false, true, false),
+                profileRepository,
+                migrationEvidenceRepository);
+
+        var response = service.dryRunProviderReplacement(
+                new com.massimotter.weave.backend.model.admin.ProviderReplacementDryRunRequest(
+                        "chat",
+                        "synapse-homeserver",
+                        "matrix-chat",
+                        "recommended_self_hosted_default",
+                        "secretref://weave/provider/matrix-chat",
+                        "weave-chat-domain",
+                        List.of("power-level parity requires manual review"),
+                        true,
+                        Map.of("window", "operator-reviewed"),
+                        "support-safe dry-run"),
+                jwt("admin"));
+
+        assertThat(response.baselineSnapshot().persistedProviderKey()).isEqualTo("synapse-homeserver");
+        assertThat(response.baselineSnapshot().persistedSelectionMatchesRequest()).isTrue();
+        assertThat(response.baselineSnapshot().profileOverridePresent()).isTrue();
+        assertThat(response.baselineSnapshot().profileOverridePersistencePosture()).isEqualTo("in-memory-test");
+        assertThat(response.readModelComparison().northboundContractUnchanged()).isTrue();
+        assertThat(response.readModelComparison().providerSemanticsLeakedToMembers()).isFalse();
+        assertThat(response.readModelComparison().memberImpactStatesProviderNeutral()).isTrue();
+        assertThat(response.readModelComparison().migrationEvidenceRecorded()).isTrue();
+        assertThat(response.evidenceRefs()).anySatisfy(ref -> assertThat(ref).contains(":read-model-comparison"));
+        assertThat(response.memberImpactStates()).containsOnly("available", "degraded", "unavailable", "coming_later");
+        assertThat(response.memberImpactStates()).allSatisfy(state ->
+                assertThat(response.baselineSnapshot().stableMemberImpactStates()).contains(state));
+        assertThat(response.boundedProof().limitedApplyAllowed()).isFalse();
+        assertThat(response.boundedProof().productionCutoverAllowed()).isFalse();
+        assertThat(response.toString())
+                .doesNotContain("secretref://", "Bearer ", "access_token", "rawProviderError");
+
+        assertThat(migrationEvidenceRepository.findCurrent(response.dryRunId(), "chat", Instant.parse("2026-05-31T09:00:00Z")))
+                .get()
+                .satisfies(evidence -> {
+                    assertThat(evidence.lifecycle()).isEqualTo("dry_run_completed");
+                    assertThat(evidence.adminApproved()).isFalse();
+                    assertThat(evidence.identityMappingComplete()).isTrue();
+                    assertThat(evidence.auditSinkAvailable()).isTrue();
+                    assertThat(evidence.artifactRefs()).containsKeys(
+                            "baselineSnapshotRef",
+                            "readModelComparisonRef",
+                            "dryRunReportRef",
+                            "providerMappingRef",
+                            "crossDomainImpactReportRef");
+                    assertThat(evidence.artifactRefs()).doesNotContainKey("adminApprovalRef");
+                    assertThat(evidence.providerDiagnostics()).contains(
+                            "support-safe provider replacement dry-run evidence",
+                            "provider-selection-posture:in-memory-volatile",
+                            "profile-override-posture:in-memory-test");
+                });
+        assertThat(auditPublisher.events()).singleElement().satisfies(event -> {
+            assertThat(event.action()).isEqualTo(AuditAction.PROVIDER_REPLACEMENT_DRY_RUN);
+            assertThat(event.payload()).containsKeys("migrationEvidenceRef", "baselineComparisonRef");
+            assertThat(event.payload()).containsEntry("secretRef", "[redacted]");
+        });
+    }
+
+    @Test
     void overviewIncludesSprint16SuiteGoLiveAndWeaverProjectionContracts() throws Exception {
         WorkspaceCapabilityService workspaceCapabilityService = workspaceCapabilityService();
         InMemoryProviderSelectionRepository selectionRepository = new InMemoryProviderSelectionRepository();
@@ -595,6 +697,27 @@ class AdminControlPlaneServiceTest {
                 properties,
                 new WeaveSecurityProperties("weave-app", "weave-app"),
                 new WorkspaceCapabilityProperties(null, null, null, null, null, null));
+    }
+
+    private ProductProfileOverrideRepository profileOverrideRepository() {
+        Map<String, ProductProfileOverride> profiles = new java.util.LinkedHashMap<>();
+        return new ProductProfileOverrideRepository() {
+            @Override
+            public ProductProfileOverride findByPrimaryIdentityKey(String primaryIdentityKey) {
+                return profiles.get(primaryIdentityKey);
+            }
+
+            @Override
+            public ProductProfileOverride saveForPrimaryIdentityKey(String primaryIdentityKey, ProductProfileOverride profile) {
+                profiles.put(primaryIdentityKey, profile);
+                return profile;
+            }
+
+            @Override
+            public String persistencePosture() {
+                return "in-memory-test";
+            }
+        };
     }
 
     private IdentityRealmApplyRequest applyRequest(

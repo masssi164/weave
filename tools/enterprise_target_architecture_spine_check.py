@@ -41,6 +41,11 @@ MARKERS = {
         / "server/src/test/java/com/massimotter/weave/backend/service/migration/JdbcMigrationRunEvidenceRepositoryTest.java",
         ROOT / "e2e/features/enterprise_target_architecture.feature",
     ],
+    "ENTERPRISE_TARGET_PROVIDER_SWITCH_NO_DRIFT_FOUNDATION": [
+        ROOT / "docs/architecture/adr-007-persistence-entity-strategy.md",
+        ROOT / "server/src/test/java/com/massimotter/weave/backend/service/AdminControlPlaneServiceTest.java",
+        ROOT / "e2e/features/enterprise_target_architecture.feature",
+    ],
 }
 
 REQUIRED_ISSUES = {
@@ -94,6 +99,7 @@ def main() -> int:
         "@enterprise-target-persistence-foundation",
         "@enterprise-target-audit-persistence-foundation",
         "@enterprise-target-migration-evidence-persistence-foundation",
+        "@enterprise-target-provider-switch-no-drift-foundation",
     }
     missing_tags = sorted(expected_tags - tags)
     if missing_tags:
