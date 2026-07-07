@@ -21,7 +21,8 @@ public class WeavePersistenceConfiguration {
     @Bean
     @ConditionalOnExpression("'${weave.provider.selections.storage.mode:file}' == 'jdbc' "
             + "|| '${weave.profile.storage.mode:file}' == 'jdbc' "
-            + "|| '${weave.audit.events.storage.mode:file}' == 'jdbc'")
+            + "|| '${weave.audit.events.storage.mode:file}' == 'jdbc' "
+            + "|| '${weave.migration.evidence.storage.mode:file}' == 'jdbc'")
     DataSource weaveDataSource(WeavePersistenceProperties properties) {
         DriverManagerDataSource dataSource = new DriverManagerDataSource();
         dataSource.setUrl(properties.requiredUrl());
@@ -36,7 +37,8 @@ public class WeavePersistenceConfiguration {
     @Bean(initMethod = "migrate")
     @ConditionalOnExpression("'${weave.provider.selections.storage.mode:file}' == 'jdbc' "
             + "|| '${weave.profile.storage.mode:file}' == 'jdbc' "
-            + "|| '${weave.audit.events.storage.mode:file}' == 'jdbc'")
+            + "|| '${weave.audit.events.storage.mode:file}' == 'jdbc' "
+            + "|| '${weave.migration.evidence.storage.mode:file}' == 'jdbc'")
     Flyway weaveFlyway(DataSource weaveDataSource) {
         return Flyway.configure()
                 .dataSource(weaveDataSource)
@@ -47,7 +49,8 @@ public class WeavePersistenceConfiguration {
     @Bean
     @ConditionalOnExpression("'${weave.provider.selections.storage.mode:file}' == 'jdbc' "
             + "|| '${weave.profile.storage.mode:file}' == 'jdbc' "
-            + "|| '${weave.audit.events.storage.mode:file}' == 'jdbc'")
+            + "|| '${weave.audit.events.storage.mode:file}' == 'jdbc' "
+            + "|| '${weave.migration.evidence.storage.mode:file}' == 'jdbc'")
     JdbcTemplate weaveJdbcTemplate(DataSource weaveDataSource, Flyway weaveFlyway) {
         return new JdbcTemplate(weaveDataSource);
     }

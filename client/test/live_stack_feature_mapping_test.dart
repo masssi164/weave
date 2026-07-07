@@ -114,6 +114,7 @@ void main() {
         'Target architecture scenarios stay mapped to support-safe evidence',
         'Strategic control-plane state gains a gated relational persistence foundation',
         'Support-safe audit events gain a gated relational persistence foundation',
+        'Provider-switch migration run evidence gains a gated relational persistence foundation',
         'Sign-in restores the Weave workspace and profile',
         'Weave chat sends and reads a workspace message through the backend facade',
         'Chat encryption diagnostic status is proved honestly',

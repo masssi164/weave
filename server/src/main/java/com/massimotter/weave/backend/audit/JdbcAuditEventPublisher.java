@@ -127,9 +127,7 @@ public final class JdbcAuditEventPublisher implements AuditEventPublisher {
 
     private void requireRetryEquivalent(AuditEvent existing, AuditEvent incoming) {
         if (!existing.equals(incoming)) {
-            throw new AuditRequiredException(
-                    "Conflicting durable audit event for tenant/idempotency key: "
-                            + incoming.tenantId() + "/" + incoming.idempotencyKey());
+            throw new AuditRequiredException("Conflicting durable audit event for idempotency key.");
         }
     }
 
@@ -137,7 +135,7 @@ public final class JdbcAuditEventPublisher implements AuditEventPublisher {
         try {
             return objectMapper.writeValueAsString(payload);
         } catch (JsonProcessingException exception) {
-            throw new AuditRequiredException("Failed to serialize durable audit payload.", exception);
+            throw new AuditRequiredException("durable audit publication failed", exception);
         }
     }
 
@@ -148,7 +146,7 @@ public final class JdbcAuditEventPublisher implements AuditEventPublisher {
         try {
             return objectMapper.readValue(payloadJson, AUDIT_PAYLOAD);
         } catch (JsonProcessingException exception) {
-            throw new AuditRequiredException("Failed to load durable audit payload.", exception);
+            throw new AuditRequiredException("durable audit read failed", exception);
         }
     }
 }

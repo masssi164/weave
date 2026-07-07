@@ -219,6 +219,7 @@ weave:
     evidence:
       # Persistent support-safe dry-run/apply evidence. Mount this path on durable storage for server restarts.
       storage:
+        mode: ${WEAVE_MIGRATION_EVIDENCE_STORAGE_MODE:file}
         path: ${WEAVE_MIGRATION_EVIDENCE_STORAGE_PATH:./data/migration-run-evidence.json}
   connectors:
     public-sdk-enabled: ${WEAVE_CONNECTORS_PUBLIC_SDK_ENABLED:false}

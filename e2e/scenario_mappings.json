@@ -4432,6 +4432,49 @@
           ]
         }
       ]
+    },
+    {
+      "tag": "@enterprise-target-migration-evidence-persistence-foundation",
+      "scenario": "Provider-switch migration run evidence gains a gated relational persistence foundation",
+      "feature": "e2e/features/enterprise_target_architecture.feature",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/service/migration/JdbcMigrationRunEvidenceRepositoryTest.java",
+      "evidenceMarkers": [
+        "ENTERPRISE_TARGET_MIGRATION_EVIDENCE_PERSISTENCE_FOUNDATION"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/architecture/adr-007-persistence-entity-strategy.md",
+          "fragments": [
+            "weave.migration.evidence.storage.mode=file",
+            "weave.migration.evidence.storage.mode=jdbc",
+            "#1019"
+          ]
+        },
+        {
+          "path": "server/src/main/resources/db/migration/V004__migration_run_evidence_persistence_foundation.sql",
+          "fragments": [
+            "weave_migration_run_evidence",
+            "primary key (run_id, domain_key)"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/migration/JdbcMigrationRunEvidenceRepositoryTest.java",
+          "fragments": [
+            "relationalMigrationRunEvidenceSurvivesRepositoryRestartAndExpiresFailClosed",
+            "relationalPathMatchesExistingFileRepositoryContractForMigrationEvidence",
+            "relationalMigrationRunEvidenceCanBeReplacedByRunAndDomain"
+          ]
+        },
+        {
+          "path": "server/src/main/java/com/massimotter/weave/backend/service/migration/JdbcMigrationRunEvidenceRepository.java",
+          "fragments": [
+            "durable-relational-flyway",
+            "Failed to persist durable migration run evidence.",
+            "Failed to load durable migration run evidence."
+          ]
+        }
+      ]
     }
   ]
 }

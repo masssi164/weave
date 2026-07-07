@@ -35,6 +35,12 @@ MARKERS = {
         ROOT / "server/src/test/java/com/massimotter/weave/backend/audit/JdbcAuditEventPublisherTest.java",
         ROOT / "e2e/features/enterprise_target_architecture.feature",
     ],
+    "ENTERPRISE_TARGET_MIGRATION_EVIDENCE_PERSISTENCE_FOUNDATION": [
+        ROOT / "docs/architecture/adr-007-persistence-entity-strategy.md",
+        ROOT
+        / "server/src/test/java/com/massimotter/weave/backend/service/migration/JdbcMigrationRunEvidenceRepositoryTest.java",
+        ROOT / "e2e/features/enterprise_target_architecture.feature",
+    ],
 }
 
 REQUIRED_ISSUES = {
@@ -87,6 +93,7 @@ def main() -> int:
         "@enterprise-target-e2e-spine",
         "@enterprise-target-persistence-foundation",
         "@enterprise-target-audit-persistence-foundation",
+        "@enterprise-target-migration-evidence-persistence-foundation",
     }
     missing_tags = sorted(expected_tags - tags)
     if missing_tags:
@@ -97,7 +104,7 @@ def main() -> int:
 
     print(
         "enterprise-target-architecture-spine-check: ok "
-        "markers=5 issues=15 scenarios=5"
+        f"markers={len(MARKERS)} issues={len(REQUIRED_ISSUES)} scenarios={len(expected_tags)}"
     )
     return 0
 
