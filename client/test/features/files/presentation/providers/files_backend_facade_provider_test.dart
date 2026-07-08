@@ -292,56 +292,59 @@ void main() {
       expect(requests[2].headers['authorization'], 'Bearer files-token');
     });
 
-    test('rejects unsupported WebDAV child names before network calls', () async {
-      var networkCalls = 0;
-      final backendRepository = repository(
-        MockClient((_) async {
-          networkCalls++;
-          return http.Response('', 500);
-        }),
-      );
+    test(
+      'rejects unsupported WebDAV child names before network calls',
+      () async {
+        var networkCalls = 0;
+        final backendRepository = repository(
+          MockClient((_) async {
+            networkCalls++;
+            return http.Response('', 500);
+          }),
+        );
 
-      await expectLater(
-        backendRepository.uploadFile(
-          '/Team',
-          FileUploadRequest(
-            fileName: '..',
-            sizeInBytes: 1,
-            byteStream: Stream<List<int>>.fromIterable(const [
-              [1],
-            ]),
+        await expectLater(
+          backendRepository.uploadFile(
+            '/Team',
+            FileUploadRequest(
+              fileName: '..',
+              sizeInBytes: 1,
+              byteStream: Stream<List<int>>.fromIterable(const [
+                [1],
+              ]),
+            ),
           ),
-        ),
-        throwsA(
-          isA<FilesFailure>()
-              .having(
-                (failure) => failure.type,
-                'type',
-                FilesFailureType.protocol,
-              )
-              .having(
-                (failure) => failure.message,
-                'message',
-                contains('file name is not valid'),
-              ),
-        ),
-      );
+          throwsA(
+            isA<FilesFailure>()
+                .having(
+                  (failure) => failure.type,
+                  'type',
+                  FilesFailureType.protocol,
+                )
+                .having(
+                  (failure) => failure.message,
+                  'message',
+                  contains('file name is not valid'),
+                ),
+          ),
+        );
 
-      await expectLater(
-        backendRepository.createFolder(
-          parentPath: '/Team',
-          name: r'bad\name',
-        ),
-        throwsA(
-          isA<FilesFailure>().having(
-            (failure) => failure.type,
-            'type',
-            FilesFailureType.protocol,
+        await expectLater(
+          backendRepository.createFolder(
+            parentPath: '/Team',
+            name: r'bad\name',
           ),
-        ),
-      );
-      expect(networkCalls, 0);
-    });
+          throwsA(
+            isA<FilesFailure>().having(
+              (failure) => failure.type,
+              'type',
+              FilesFailureType.protocol,
+            ),
+          ),
+        );
+        expect(networkCalls, 0);
+      },
+    );
 
     test('maps WebDAV write precondition failures support-safely', () async {
       final client = MockClient(
