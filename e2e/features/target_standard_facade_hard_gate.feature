@@ -27,6 +27,6 @@ Feature: Target standard facade hard gate
     # Evidence marker: TARGET_STANDARDS_MATRIX_CHAT_FAIL_CLOSED
     Given Chat uses the Matrix Client-Server API as the target data plane
     When the hard-gate audit checks executable evidence
-    Then the Flutter Chat repository is wired to the Matrix projection rather than a normal REST message data plane
+    Then the member Chat path uses the Matrix projection rather than a normal REST message data plane
     And the server Matrix projection requires a workspace token and fails closed without provider payloads
     And Matrix Client-Server parity and Chat API-first retirement stay linked to #1017 and #1022 before a complete Chat claim

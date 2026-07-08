@@ -24,7 +24,7 @@ def read(path: str) -> str:
     file_path = ROOT / path
     if not file_path.exists():
         fail(f"missing required file {path}")
-    return file_path.read_text()
+    return file_path.read_text(encoding="utf-8")
 
 
 def require(path: str, *fragments: str) -> str:
