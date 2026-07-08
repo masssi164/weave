@@ -17,6 +17,7 @@ import com.massimotter.weave.backend.model.files.FileListResponse;
 import com.massimotter.weave.backend.model.files.FileUploadResponse;
 import com.massimotter.weave.backend.service.files.DownloadedFile;
 import com.massimotter.weave.backend.service.files.FilesStorageAdapter;
+import com.massimotter.weave.backend.service.files.WebDavMutationResult;
 import java.time.OffsetDateTime;
 import java.util.Iterator;
 import java.util.List;
@@ -205,6 +206,77 @@ class FilesFacadeServiceTest {
                     .containsEntry("productPath", "/Team/readme.md")
                     .containsEntry("webDavFacadePath", "/dav/files")
                     .doesNotContainKeys("providerUrl", "downstreamPayload", "bearerToken");
+        });
+    }
+
+    @Test
+    void webDavPutCreateFolderAndDeleteUseFacadePolicyAndPublishMutationAudit() {
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
+        InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
+        StubAdapter adapter = new StubAdapter(true);
+        FilesFacadeService service = service(adapter, audit);
+
+        WebDavMutationResult put = service.putWebDavFile(
+                "/Team/new.md",
+                "new".getBytes(),
+                "text/markdown",
+                null,
+                "*");
+        WebDavMutationResult folder = service.createWebDavFolder("/Team/Design", null, "*");
+        String readmeEtag = service.etagFor("/Team/readme.md");
+        service.deleteWebDavPath("/Team/readme.md", readmeEtag);
+
+        assertThat(put.created()).isTrue();
+        assertThat(put.item().path()).isEqualTo("/Team/new.md");
+        assertThat(put.etag()).startsWith("\"").endsWith("\"");
+        assertThat(folder.created()).isTrue();
+        assertThat(folder.item().path()).isEqualTo("/Team/Design");
+        assertThat(adapter.deletedPath).isEqualTo("/Team/readme.md");
+        assertThat(audit.events())
+                .extracting(event -> event.action())
+                .containsExactly(
+                        AuditAction.FILES_WEBDAV_WRITE_ATTEMPTED,
+                        AuditAction.FILES_WEBDAV_WRITE_COMPLETED,
+                        AuditAction.FILES_WEBDAV_WRITE_ATTEMPTED,
+                        AuditAction.FILES_WEBDAV_WRITE_COMPLETED,
+                        AuditAction.FILES_WEBDAV_WRITE_ATTEMPTED,
+                        AuditAction.FILES_WEBDAV_WRITE_COMPLETED);
+        assertThat(audit.events()).allSatisfy(event -> assertThat(event.payload())
+                .containsEntry("webDavFacadePath", "/dav/files")
+                .containsEntry("openApiDataPlaneUsed", false)
+                .containsEntry("supportSafe", true)
+                .doesNotContainKeys("providerUrl", "rawProviderPayload", "bearerToken"));
+    }
+
+    @Test
+    void webDavWritePreconditionsFailBeforeStorageMutationButAfterAttemptAudit() {
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
+        InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
+        StubAdapter adapter = new StubAdapter(true);
+        FilesFacadeService service = service(adapter, audit);
+
+        assertThatThrownBy(() -> service.putWebDavFile(
+                        "/Team/readme.md",
+                        "new".getBytes(),
+                        "text/markdown",
+                        null,
+                        "*"))
+                .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
+                    assertThat(exception.status()).isEqualTo(HttpStatus.PRECONDITION_FAILED);
+                    assertThat(exception.code()).isEqualTo("files-precondition-failed");
+                    assertThat(exception.details())
+                            .containsEntry("operation", "webdav-put")
+                            .containsEntry("openApiDataPlaneUsed", false)
+                            .containsEntry("diagnosticsRedacted", true);
+                });
+
+        assertThat(adapter.putPath).isNull();
+        assertThat(audit.events()).singleElement().satisfies(event -> {
+            assertThat(event.action()).isEqualTo(AuditAction.FILES_WEBDAV_WRITE_ATTEMPTED);
+            assertThat(event.payload())
+                    .containsEntry("operation", "webdav-put")
+                    .containsEntry("webDavMethod", "PUT")
+                    .containsEntry("productPath", "/Team/readme.md");
         });
     }
 
@@ -413,6 +485,9 @@ class FilesFacadeServiceTest {
     private static final class StubAdapter implements FilesStorageAdapter {
 
         private final boolean configured;
+        private String putPath;
+        private String createdFolderPath;
+        private String deletedPath;
 
         private StubAdapter(boolean configured) {
             this.configured = configured;
@@ -425,6 +500,18 @@ class FilesFacadeServiceTest {
 
         @Override
         public FileListResponse list(String path) {
+            String normalized = path.endsWith("/") && path.length() > 1 ? path.substring(0, path.length() - 1) : path;
+            if ("/Team".equals(normalized)) {
+                return new FileListResponse(normalized, List.of(new FileItemResponse(
+                        "files:test",
+                        "readme.md",
+                        "/Team/readme.md",
+                        "file",
+                        "text/markdown",
+                        12L,
+                        OffsetDateTime.parse("2026-04-26T08:00:00Z"),
+                        true)), null);
+            }
             return new FileListResponse(path, List.of(new FileItemResponse(
                     "files:test",
                     "readme.md",
@@ -438,12 +525,35 @@ class FilesFacadeServiceTest {
 
         @Override
         public FileItemResponse createFolder(CreateFolderRequest request) {
-            throw new UnsupportedOperationException("not needed");
+            createdFolderPath = request.parentPath() + "/" + request.name();
+            return new FileItemResponse(
+                    "files:folder",
+                    request.name(),
+                    createdFolderPath,
+                    "folder",
+                    null,
+                    null,
+                    OffsetDateTime.parse("2026-04-26T08:05:00Z"),
+                    false);
         }
 
         @Override
         public FileUploadResponse upload(String parentPath, MultipartFile file) {
             throw new UnsupportedOperationException("not needed");
+        }
+
+        @Override
+        public FileItemResponse put(String path, byte[] content, String mimeType) {
+            putPath = path;
+            return new FileItemResponse(
+                    "files:put",
+                    path.substring(path.lastIndexOf('/') + 1),
+                    path,
+                    "file",
+                    mimeType,
+                    (long) content.length,
+                    OffsetDateTime.parse("2026-04-26T08:05:00Z"),
+                    true);
         }
 
         @Override
@@ -453,7 +563,7 @@ class FilesFacadeServiceTest {
 
         @Override
         public void delete(String id) {
-            throw new UnsupportedOperationException("not needed");
+            deletedPath = id;
         }
     }
 

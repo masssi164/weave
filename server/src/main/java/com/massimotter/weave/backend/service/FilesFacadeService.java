@@ -19,10 +19,19 @@ import com.massimotter.weave.backend.model.files.FileUploadResponse;
 import com.massimotter.weave.backend.service.files.DownloadedFile;
 import com.massimotter.weave.backend.service.files.FilePathCodec;
 import com.massimotter.weave.backend.service.files.FilesStorageAdapter;
+import com.massimotter.weave.backend.service.files.WebDavMutationResult;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
@@ -125,6 +134,97 @@ public class FilesFacadeService {
         return webDavWritePolicyRequired(operation, principal, FilePathCodec.normalizeProductPath(path), normalizedMethod);
     }
 
+    public WebDavMutationResult putWebDavFile(
+            String path,
+            byte[] content,
+            String contentType,
+            String ifMatch,
+            String ifNoneMatch) {
+        String operation = "webdav-put";
+        String normalizedPath = requireMutableWebDavPath(path, operation);
+        PrincipalContext principal = requireContextPermission(ContextPermission.EDIT, operation);
+        publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_ATTEMPTED, operation, principal, normalizedPath, "PUT", "attempted");
+        try {
+            FilesStorageAdapter adapter = configuredAdapter(operation);
+            FileItemResponse existing = existingItem(adapter, normalizedPath, operation, true);
+            enforcePreconditions(existing, ifMatch, ifNoneMatch, operation);
+            if (existing != null && !"file".equals(existing.type())) {
+                throw fileConflict(operation, normalizedPath, "PUT cannot replace a collection.");
+            }
+            FileItemResponse stored = adapter.put(normalizedPath, content == null ? new byte[0] : content, contentType);
+            FileItemResponse updated = firstNonNull(existingItem(adapter, normalizedPath, operation, false), stored);
+            String etag = etag(updated);
+            publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_COMPLETED, operation, principal, normalizedPath, "PUT", "completed");
+            return new WebDavMutationResult(updated, etag, existing == null);
+        } catch (ApiErrorException exception) {
+            throw supportSafeStorageError(exception, operation);
+        }
+    }
+
+    public WebDavMutationResult createWebDavFolder(String path, String ifMatch, String ifNoneMatch) {
+        String operation = "webdav-mkcol";
+        String normalizedPath = requireMutableWebDavPath(path, operation);
+        PrincipalContext principal = requireContextPermission(ContextPermission.EDIT, operation);
+        publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_ATTEMPTED, operation, principal, normalizedPath, "MKCOL", "attempted");
+        try {
+            FilesStorageAdapter adapter = configuredAdapter(operation);
+            FileItemResponse existing = existingItem(adapter, normalizedPath, operation, true);
+            enforcePreconditions(existing, ifMatch, ifNoneMatch, operation);
+            if (existing != null) {
+                throw fileConflict(operation, normalizedPath, "A collection or file already exists at this path.");
+            }
+            FileItemResponse stored = adapter.createFolder(new CreateFolderRequest(parentPath(normalizedPath), fileName(normalizedPath)));
+            FileItemResponse updated = firstNonNull(existingItem(adapter, normalizedPath, operation, false), stored);
+            String etag = etag(updated);
+            publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_COMPLETED, operation, principal, normalizedPath, "MKCOL", "completed");
+            return new WebDavMutationResult(updated, etag, true);
+        } catch (ApiErrorException exception) {
+            throw supportSafeStorageError(exception, operation);
+        }
+    }
+
+    public void deleteWebDavPath(String path, String ifMatch) {
+        String operation = "webdav-delete";
+        String normalizedPath = requireMutableWebDavPath(path, operation);
+        PrincipalContext principal = requireContextPermission(ContextPermission.EDIT, operation);
+        publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_ATTEMPTED, operation, principal, normalizedPath, "DELETE", "attempted");
+        try {
+            FilesStorageAdapter adapter = configuredAdapter(operation);
+            FileItemResponse existing = existingItem(adapter, normalizedPath, operation, false);
+            if (existing == null) {
+                throw new ApiErrorException(
+                        HttpStatus.NOT_FOUND,
+                        "file-not-found",
+                        "The requested file or folder was not found.",
+                        Map.of("module", "files", "operation", operation));
+            }
+            enforcePreconditions(existing, ifMatch, null, operation);
+            adapter.delete(normalizedPath);
+            publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_COMPLETED, operation, principal, normalizedPath, "DELETE", "completed");
+        } catch (ApiErrorException exception) {
+            throw supportSafeStorageError(exception, operation);
+        }
+    }
+
+    public String etagFor(String path) {
+        String operation = "webdav-etag";
+        requireContextPermission(ContextPermission.VIEW, operation);
+        String normalizedPath = FilePathCodec.normalizeProductPath(path);
+        try {
+            FileItemResponse item = existingItem(configuredAdapter(operation), normalizedPath, operation, false);
+            if (item == null) {
+                throw new ApiErrorException(
+                        HttpStatus.NOT_FOUND,
+                        "file-not-found",
+                        "The requested file or folder was not found.",
+                        Map.of("module", "files", "operation", operation));
+            }
+            return etag(item);
+        } catch (ApiErrorException exception) {
+            throw supportSafeStorageError(exception, operation);
+        }
+    }
+
     public FileNativeProviderSetupResponse nativeProviderSetup(Jwt jwt) {
         return new FileNativeProviderSetupResponse(
                 workspaceCapabilityService.snapshot(jwt).files(),
@@ -168,9 +268,12 @@ public class FilesFacadeService {
                         "OPTIONS /dav/files",
                         "PROPFIND /dav/files",
                         "GET /dav/files/{path}",
+                        "PUT /dav/files/{path}",
+                        "DELETE /dav/files/{path}",
+                        "MKCOL /dav/files/{path}",
                         "MCP files.search/files.read via WebDAV-backed Weave Files facade/projection",
                         "OpenAPI /api/files/readiness and native-provider-setup for discovery/status/revoke control plane",
-                        "WebDAV writes blocked by #1007 until ETag, conflict, lock, quota, revocation, and audit policy exists"),
+                        "WebDAV writes use Weave ETag preconditions, support-safe conflict/storage errors, and mutation audit"),
                 List.of(
                         "native-extension-implementation",
                         "per-device-token-revocation",
@@ -328,6 +431,175 @@ public class FilesFacadeService {
                         "supportSafe", true)));
     }
 
+    private void publishWriteAudit(
+            AuditAction action,
+            String operation,
+            PrincipalContext principal,
+            String productPath,
+            String webDavMethod,
+            String result) {
+        auditEventPublisher.publish(new AuditEvent(
+                principal.tenantId(),
+                DEFAULT_CONTEXT_ID,
+                principal.principalRef(),
+                "files:webdav",
+                action,
+                Instant.now(),
+                "files-webdav-write:" + UUID.randomUUID(),
+                AuditRedactionLevel.SUPPORT_SAFE,
+                Map.of(
+                        "domain", "files",
+                        "operation", operation,
+                        "webDavMethod", webDavMethod,
+                        "productPath", FilePathCodec.normalizeProductPath(productPath),
+                        "result", result,
+                        "webDavFacadePath", "/dav/files",
+                        "openApiDataPlaneUsed", false,
+                        "supportSafe", true)));
+    }
+
+    private String requireMutableWebDavPath(String path, String operation) {
+        String normalized = FilePathCodec.normalizeProductPath(path);
+        if ("/".equals(normalized)) {
+            throw new ApiErrorException(
+                    HttpStatus.FORBIDDEN,
+                    "files-forbidden",
+                    "The Files root collection cannot be mutated through this operation.",
+                    Map.of("module", "files", "operation", operation));
+        }
+        return normalized;
+    }
+
+    private FileItemResponse existingItem(
+            FilesStorageAdapter adapter,
+            String path,
+            String operation,
+            boolean missingParentAsConflict) {
+        String normalized = FilePathCodec.normalizeProductPath(path);
+        if ("/".equals(normalized)) {
+            return new FileItemResponse("files:root", "Files", "/", "folder", null, null, null, false);
+        }
+        try {
+            return adapter.list(parentPath(normalized)).items().stream()
+                    .filter(item -> FilePathCodec.normalizeProductPath(item.path()).equals(normalized))
+                    .findFirst()
+                    .orElse(null);
+        } catch (ApiErrorException exception) {
+            if (missingParentAsConflict && "file-not-found".equals(exception.code())) {
+                throw fileConflict(operation, normalized, "The parent collection does not exist.");
+            }
+            throw exception;
+        }
+    }
+
+    private void enforcePreconditions(
+            FileItemResponse existing,
+            String ifMatch,
+            String ifNoneMatch,
+            String operation) {
+        if (ifMatch != null && !ifMatch.isBlank()) {
+            if (existing == null || !etagMatches(etag(existing), ifMatch)) {
+                throw preconditionFailed(operation, "If-Match did not match the current file state.");
+            }
+        }
+        if (ifNoneMatch != null && !ifNoneMatch.isBlank()) {
+            if ("*".equals(ifNoneMatch.trim()) && existing != null) {
+                throw preconditionFailed(operation, "If-None-Match requires the target path to be absent.");
+            }
+            if (existing != null && etagMatches(etag(existing), ifNoneMatch)) {
+                throw preconditionFailed(operation, "If-None-Match matched the current file state.");
+            }
+        }
+    }
+
+    private boolean etagMatches(String currentEtag, String candidateHeader) {
+        if (candidateHeader == null || candidateHeader.isBlank()) {
+            return false;
+        }
+        return Arrays.stream(candidateHeader.split(","))
+                .map(String::trim)
+                .filter(value -> !value.isBlank())
+                .anyMatch(value -> "*".equals(value)
+                        || Objects.equals(normalizeEtagToken(currentEtag), normalizeEtagToken(value)));
+    }
+
+    private String normalizeEtagToken(String value) {
+        String normalized = value == null ? "" : value.trim();
+        if (normalized.startsWith("W/")) {
+            normalized = normalized.substring(2).trim();
+        }
+        if (normalized.length() >= 2 && normalized.startsWith("\"") && normalized.endsWith("\"")) {
+            normalized = normalized.substring(1, normalized.length() - 1);
+        }
+        return normalized;
+    }
+
+    private ApiErrorException preconditionFailed(String operation, String message) {
+        return new ApiErrorException(
+                HttpStatus.PRECONDITION_FAILED,
+                "files-precondition-failed",
+                message,
+                Map.of(
+                        "module", "files",
+                        "operation", operation,
+                        "webDavFacadePath", "/dav/files",
+                        "openApiDataPlaneUsed", false,
+                        "diagnosticsRedacted", true));
+    }
+
+    private ApiErrorException fileConflict(String operation, String path, String message) {
+        return new ApiErrorException(
+                HttpStatus.CONFLICT,
+                "file-conflict",
+                message,
+                Map.of(
+                        "module", "files",
+                        "operation", operation,
+                        "path", path,
+                        "webDavFacadePath", "/dav/files",
+                        "openApiDataPlaneUsed", false,
+                        "diagnosticsRedacted", true));
+    }
+
+    private String etag(FileItemResponse item) {
+        String material = String.join("|",
+                FilePathCodec.normalizeProductPath(item.path()),
+                item.type(),
+                String.valueOf(item.size()),
+                timestamp(item.modifiedAt()),
+                item.mimeType() == null ? "" : item.mimeType());
+        return "\"" + sha256(material) + "\"";
+    }
+
+    private String sha256(String material) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(material.getBytes(StandardCharsets.UTF_8));
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(hash);
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 digest is required for WebDAV ETags", exception);
+        }
+    }
+
+    private String timestamp(OffsetDateTime value) {
+        return value == null ? "" : value.toInstant().toString();
+    }
+
+    private String parentPath(String path) {
+        String normalized = FilePathCodec.normalizeProductPath(path);
+        int separator = normalized.lastIndexOf('/');
+        return separator <= 0 ? "/" : normalized.substring(0, separator);
+    }
+
+    private String fileName(String path) {
+        String normalized = FilePathCodec.normalizeProductPath(path);
+        return normalized.substring(normalized.lastIndexOf('/') + 1);
+    }
+
+    private FileItemResponse firstNonNull(FileItemResponse primary, FileItemResponse fallback) {
+        return primary == null ? fallback : primary;
+    }
+
     private ApiErrorException supportSafeStorageError(ApiErrorException exception, String operation) {
         String code = switch (exception.code()) {
             case "nextcloud-adapter-not-configured" -> "files-storage-not-configured";
@@ -337,11 +609,19 @@ public class FilesFacadeService {
             case "nextcloud-request-failed" -> "files-storage-request-failed";
             default -> exception.code();
         };
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("module", "files");
+        details.put("operation", operation);
+        details.put("diagnosticsRedacted", true);
+        if (operation.startsWith("webdav-")) {
+            details.put("webDavFacadePath", "/dav/files");
+            details.put("openApiDataPlaneUsed", false);
+        }
         return new ApiErrorException(
                 exception.status(),
                 code,
                 supportSafeStorageMessage(code),
-                Map.of("module", "files", "operation", operation, "diagnosticsRedacted", true));
+                Map.copyOf(details));
     }
 
     private String supportSafeStorageMessage(String code) {

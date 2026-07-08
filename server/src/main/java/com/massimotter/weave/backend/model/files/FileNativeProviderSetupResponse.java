@@ -23,7 +23,7 @@ public record FileNativeProviderSetupResponse(
         String listPathTemplate,
         @Schema(description = "Weave-owned WebDAV download path template for native providers.", example = "/dav/files/{path}")
         String downloadPathTemplate,
-        @Schema(description = "Weave-owned WebDAV upload path placeholder for native providers; writes remain blocked by #1007.", example = "/dav/files/{path}")
+        @Schema(description = "Weave-owned WebDAV upload path for native providers.", example = "/dav/files/{path}")
         String uploadPath,
         @Schema(description = "OS-specific provider setup options.")
         List<FileNativeProviderOptionResponse> options,

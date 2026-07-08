@@ -12,6 +12,8 @@ public enum AuditAction {
     BOARD_TASK_CREATED("board.task.created"),
     BOARD_TASK_MOVED("board.task.moved"),
     BOARD_TASK_COMPLETED("board.task.completed"),
+    FILES_WEBDAV_WRITE_ATTEMPTED("files.webdav_write.attempted"),
+    FILES_WEBDAV_WRITE_COMPLETED("files.webdav_write.completed"),
     FILES_WEBDAV_WRITE_BLOCKED("files.webdav_write.blocked"),
     CONSENT_GRANTED("consent.granted"),
     CONSENT_REVOKED("consent.revoked"),

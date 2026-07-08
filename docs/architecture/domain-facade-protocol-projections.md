@@ -121,12 +121,12 @@ but raw WebDAV is not the member product contract. File Provider and
 DocumentsProvider implementations expose native OS file surfaces while preserving
 Weave IDs, policy, audit, and support-safe errors.
 
-The first northbound WebDAV slice and its dependency, client adapter,
-authentication, and write-gate decisions are recorded in [ADR-005: Files WebDAV
-facade slice](adr-005-files-webdav-facade-slice.md). Write promotion is tracked
-by #1007 and must cover ETag, conflict, lock, quota, revocation, and audit
-policy before WebDAV write methods, Flutter mutations, or MCP write tools are
-enabled.
+The first northbound WebDAV slices and their dependency, client adapter,
+authentication, and write decisions are recorded in [ADR-005: Files WebDAV
+facade slice](adr-005-files-webdav-facade-slice.md). `PUT`, `MKCOL`, and
+`DELETE` use Weave ETags, conditional preconditions, support-safe errors, and
+mutation audit. `MOVE`, `COPY`, `LOCK`, `UNLOCK`, Flutter mutations, and MCP
+write tools remain separate cutover slices.
 
 Near-term federation for files should use Weave guest/external sharing policy.
 Provider-native federated shares may become adapter capabilities later.

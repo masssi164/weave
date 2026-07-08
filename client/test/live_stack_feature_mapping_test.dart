@@ -122,7 +122,7 @@ void main() {
         'Chat encryption diagnostic status is proved honestly',
         'Files are uploaded, shown, downloaded, and cleaned up in Weave',
         'Member lists and reads files through the Weave WebDAV facade',
-        'Files writes remain blocked until WebDAV write policy is evidenced',
+        'Member writes files through the Weave WebDAV facade with guarded preconditions',
         'Files MCP tools cannot bypass the Files facade',
         'Provider stack readiness stays backend-owned and support-safe',
         'Workspace loop links Space, Channel, Chat, Files, and Decision',

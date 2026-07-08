@@ -224,12 +224,12 @@ public class OrganizationManifestService {
                 List.of(
                         surface("openapi", "Weave Files control API", "/api/files", "control_plane_available",
                                 "Generated contract for discovery, readiness, setup, revoke, and credential lifecycle; Files list/read/write data-plane operations belong to the WebDAV facade."),
-                        surface("standard-protocol", "Weave WebDAV projection", "/dav/files", "data_plane_read_available_write_policy_blocked",
-                                "OPTIONS, PROPFIND, GET, and HEAD are exposed through Weave policy, audit, and file IDs; writes are tracked by #1007 for ETag, conflict, lock, quota, revocation, and audit policy."),
+                        surface("standard-protocol", "Weave WebDAV projection", "/dav/files", "data_plane_read_write_available",
+                                "OPTIONS, PROPFIND, GET, HEAD, PUT, DELETE, and MKCOL are exposed through Weave policy, audit, file IDs, ETags, and support-safe conflict/precondition/storage errors."),
                         surface("native-os", "iOS File Provider and Android DocumentsProvider setup", "/api/files/native-provider-setup", "contract_ready_implementation_blocked",
                                 "Native providers call Weave file facade paths only and must prove device revocation before availability."),
-                        surface("mcp", "Governed Files MCP tools", "/api/workspace/weaver/mcp/servers/weave-domain-tools/tools", "read_allowlist_available_write_policy_blocked",
-                                "Files MCP read/search tools route through the WebDAV-backed Weave Files facade/projection; writes stay blocked by #1007.")),
+                        surface("mcp", "Governed Files MCP tools", "/api/workspace/weaver/mcp/servers/weave-domain-tools/tools", "read_allowlist_available_write_cutover_blocked",
+                                "Files MCP read/search tools route through the WebDAV-backed Weave Files facade/projection; semantic write tools remain blocked until their policy/approval/audit slice.")),
                 credentialLifecycle(
                         "blocked_until_revocable_device_grants",
                         List.of("/api/files/native-provider-setup"),

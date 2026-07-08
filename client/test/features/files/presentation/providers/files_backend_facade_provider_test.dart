@@ -234,7 +234,7 @@ void main() {
     });
 
     test(
-      'fails closed for writes until WebDAV write policy is available',
+      'fails closed for writes until Flutter WebDAV write cutover is available',
       () async {
         final client = MockClient((request) async {
           fail('Files writes must not call ${request.method} ${request.url}');
@@ -260,7 +260,7 @@ void main() {
                 .having(
                   (failure) => failure.message,
                   'message',
-                  contains('WebDAV write policy'),
+                  contains('WebDAV write cutover'),
                 ),
           ),
         );

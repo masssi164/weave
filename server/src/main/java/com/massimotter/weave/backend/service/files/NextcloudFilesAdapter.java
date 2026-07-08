@@ -169,6 +169,34 @@ public class NextcloudFilesAdapter implements FilesStorageAdapter {
     }
 
     @Override
+    public FileItemResponse put(String path, byte[] content, String mimeType) {
+        ensureConfigured();
+        String targetPath = FilePathCodec.normalizeProductPath(path);
+        byte[] body = content == null ? new byte[0] : content;
+        try {
+            return restClient.method(HttpMethod.PUT)
+                    .uri(webdavUri(targetPath, false))
+                    .headers(headers -> {
+                        applyActorHeaders(headers);
+                        headers.setContentType(mediaType(mimeType));
+                    })
+                    .body(body)
+                    .exchange((request, response) -> {
+                        if (response.getStatusCode().is2xxSuccessful()) {
+                            return fileItem(targetPath, mimeType, (long) body.length, null);
+                        }
+                        throw mapStatus(response.getStatusCode(), "webdav-put", targetPath);
+                    });
+        } catch (ApiErrorException exception) {
+            throw exception;
+        } catch (ResourceAccessException exception) {
+            throw downstreamUnavailable("webdav-put", exception);
+        } catch (RestClientException exception) {
+            throw downstreamFailure("webdav-put", exception);
+        }
+    }
+
+    @Override
     public DownloadedFile download(String id) {
         ensureConfigured();
         String path = FilePathCodec.pathFromId(id);
@@ -396,6 +424,17 @@ public class NextcloudFilesAdapter implements FilesStorageAdapter {
 
     private String firstText(String primary, String fallback) {
         return StringUtils.hasText(primary) ? primary.trim() : fallback;
+    }
+
+    private MediaType mediaType(String value) {
+        if (!StringUtils.hasText(value)) {
+            return MediaType.APPLICATION_OCTET_STREAM;
+        }
+        try {
+            return MediaType.parseMediaType(value);
+        } catch (IllegalArgumentException exception) {
+            return MediaType.APPLICATION_OCTET_STREAM;
+        }
     }
 
     private ApiErrorException mapStatus(HttpStatusCode status, String operation, String path) {

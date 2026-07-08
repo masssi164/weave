@@ -14,7 +14,7 @@ thin projections over that facade.
 - iOS boundary: File Provider extension.
 - Android boundary: DocumentsProvider / Storage Access Framework.
 - Flutter/native bridge role: setup, status, and revoke only.
-- File IO proof hooks: `OPTIONS /dav/files`, `PROPFIND /dav/files`, and `GET /dav/files/{path}`; write-shaped WebDAV operations remain blocked by #1007 until ETag, conflict, lock, quota, revocation, and audit policy is evidenced.
+- File IO proof hooks: `OPTIONS /dav/files`, `PROPFIND /dav/files`, `GET /dav/files/{path}`, `PUT /dav/files/{path}`, `DELETE /dav/files/{path}`, and `MKCOL /dav/files/{path}`. Native availability still needs device-provider and revocation proof before exposing writes in OS integrations.
 - Support-safe blocked states for the remaining work: native extension/provider implementation, per-device token revocation, and physical-device provider proof.
 
 The response deliberately contains only Weave-owned paths. It must not include provider hostnames, raw provider WebDAV URLs, provider credentials, bearer tokens, or provider diagnostics.

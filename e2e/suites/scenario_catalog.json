@@ -359,7 +359,7 @@
       ]
     },
     {
-      "tag": "@files-webdav-writes-fail-closed",
+      "tag": "@files-webdav-write-mvp",
       "suiteId": "product-e2e-scenario-layer",
       "personas": [
         "member",
@@ -372,8 +372,9 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "write-method fail-closed behavior",
-        "#1007 write-policy blocker",
+        "PUT/MKCOL/DELETE WebDAV write behavior",
+        "ETag and conditional preconditions",
+        "support-safe mutation audit",
         "no OpenAPI data-plane fallback"
       ]
     },

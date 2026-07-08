@@ -47,9 +47,9 @@ Files facade:
 Jackrabbit is the right candidate once Weave needs deeper RFC coverage such as
 full property models, locks, write/copy/move semantics, access control
 extensions, or broader compatibility testing against generic DAV clients. It is
-not necessary for this small read-only projection. Adding it now would increase
-surface area before Weave has settled write policy, credential lifecycle,
-provider mapping, and lock/conflict behavior.
+not necessary for the current focused projection. Adding it now would increase
+surface area before Weave has settled credential lifecycle, provider mapping,
+and lock/copy/move behavior.
 
 Tradeoffs:
 
@@ -117,37 +117,17 @@ This slice implements bearer-only WebDAV access for first-party clients. The
 generic/device credential path is contract-only until credential issuance,
 revocation, audit, expiry, and policy UI are implemented.
 
-## Decision 4: write semantics gate
+## Decision 4: write semantics
 
-Recommendation: keep this slice read-only only as a temporary gate, tracked by
-#1007.
+Issue #1007 promotes the first WebDAV write MVP for `PUT`, `DELETE`, and
+`MKCOL` on `/dav/files`. The Files facade owns ETag generation,
+`If-Match`/`If-None-Match` preconditions, support-safe conflict/precondition/
+forbidden/quota/storage errors, and attempted/completed mutation audit before
+provider adapters are invoked.
 
-`PUT`, `DELETE`, `MOVE`, `COPY`, `MKCOL`, `LOCK`, and `UNLOCK` must stay disabled
-until Weave records and tests all of the following:
-
-- ETag and conditional request behavior for create, update, delete, move, and
-  copy.
-- Conflict semantics across duplicate names, stale reads, parent deletion,
-  provider races, and retry/idempotency.
-- Locking policy, including whether Weave implements WebDAV locks, maps provider
-  locks, or rejects locks consistently.
-- Quota behavior and support-safe quota errors.
-- Audit events for attempted and completed writes/deletes, including actor,
-  context, object, operation, result, and redacted diagnostics.
-- Capability policy for reads, uploads, deletes, folder creation, move/copy, and
-  share-affecting mutations.
-- Provider mapping and no-unaccounted-data-loss evidence for canonical IDs,
-  provider refs, provenance, checksums, lossy cases, and rollback/restore
-  implications.
-- Support-safe error vocabulary for unsupported, locked, conflict, forbidden,
-  not found, quota exceeded, provider unavailable, and revoked credential states.
-- Revocation behavior for in-flight requests, saved device credentials, and
-  provider adapter credentials.
-
-Until those gates exist, read-only WebDAV is only the first proof slice. The
-server should return explicit unsupported responses for write-shaped WebDAV
-methods instead of silently proxying or partially applying provider behavior.
-Issue #1007 owns the required write promotion.
+`MOVE`, `COPY`, `LOCK`, and `UNLOCK` remain disabled until a focused protocol
+slice records and tests their conflict, lock, retry/idempotency, revocation,
+and no-unaccounted-data-loss behavior.
 
 ## Consequences
 
@@ -157,10 +137,11 @@ Issue #1007 owns the required write promotion.
   flows, generated models, and MCP allowlists remain OpenAPI control-plane
   surfaces; they are not the Files list/read/write data plane.
 - Flutter Files lists/reads through Weave WebDAV and fails closed for mutations
-  until #1007 is satisfied.
+  until the planned Flutter Files write cutover uses the `/dav/files` write
+  path.
 - MCP Files tools remain semantic Weave Files tools routed through the
   WebDAV-backed facade/projection where they touch file data-plane semantics.
   Raw provider APIs and unrestricted WebDAV operations are not a public MCP
   surface.
-- The PR should use `release-notes-feature` because it adds a new read-only
-  interoperability projection and client data path behavior.
+- The write MVP PR should use `release-notes-feature` because it adds guarded
+  WebDAV mutation behavior to the Files protocol data path.
