@@ -21,7 +21,7 @@ public final class FilePathCodec {
         return ID_PREFIX + encoded;
     }
 
-    static String pathFromId(String id) {
+    public static String pathFromId(String id) {
         if (id == null || id.isBlank()) {
             throw invalidPath("File identifier is required.");
         }
@@ -69,7 +69,7 @@ public final class FilePathCodec {
         return trimmed;
     }
 
-    static String childPath(String parentPath, String name) {
+    public static String childPath(String parentPath, String name) {
         String parent = normalizeProductPath(parentPath);
         String childName = validateFileName(name);
         return "/".equals(parent) ? "/" + childName : parent + "/" + childName;

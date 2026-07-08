@@ -183,6 +183,20 @@ class ServerArchitectureBoundaryTest {
                 .doesNotContain("@DeleteMapping(\"/api/files/{id}\")");
     }
 
+    @Test
+    void filesWebDavWriteMethodsRouteThroughFacadeWriteGate() throws IOException {
+        JavaSource filesWebDavController = productionSources().stream()
+                .filter(source -> source.path().endsWith(Path.of("controller", "FilesWebDavController.java")))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(filesWebDavController.text())
+                .contains("case \"PUT\", \"MKCOL\", \"DELETE\", \"MOVE\", \"COPY\", \"LOCK\", \"UNLOCK\" -> webDavWriteBlocked(request, method)")
+                .contains("filesFacadeService.rejectWebDavWrite(method, productPath(request))")
+                .doesNotContain("NextcloudFilesAdapter")
+                .doesNotContain("RestClient");
+    }
+
     private static List<JavaSource> productionSources() throws IOException {
         Path sourceRoot = sourceRoot();
         try (var paths = Files.walk(sourceRoot)) {

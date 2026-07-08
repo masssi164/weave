@@ -50,6 +50,7 @@ public class FilesWebDavController {
                 case "PROPFIND" -> propfind(request);
                 case "GET" -> get(request, false);
                 case "HEAD" -> get(request, true);
+                case "PUT", "MKCOL", "DELETE", "MOVE", "COPY", "LOCK", "UNLOCK" -> webDavWriteBlocked(request, method);
                 default -> unsupportedMethod(method);
             };
         } catch (ApiErrorException exception) {
@@ -93,6 +94,10 @@ public class FilesWebDavController {
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         ContentDisposition.inline().filename(file.filename()).build().toString());
         return builder.body(headOnly ? null : file.content());
+    }
+
+    private ResponseEntity<String> webDavWriteBlocked(HttpServletRequest request, String method) {
+        return davError(filesFacadeService.rejectWebDavWrite(method, productPath(request)));
     }
 
     private ResponseEntity<String> unsupportedMethod(String method) {

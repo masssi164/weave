@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.audit.AuditAction;
+import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import com.massimotter.weave.backend.config.ContextAuthorizationConfiguration;
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
@@ -143,7 +145,8 @@ class FilesFacadeServiceTest {
     @Test
     void mutatingOperationsFailClosedBeforeStorageAdapterAccessUntilWebdavWritePolicyExists() {
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
-        FilesFacadeService service = service(new StubAdapter(true));
+        InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
+        FilesFacadeService service = service(new StubAdapter(true), audit);
 
         assertThatThrownBy(() -> service.createFolder(new CreateFolderRequest("/Team", "Design")))
                 .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
@@ -160,9 +163,49 @@ class FilesFacadeServiceTest {
         assertThatThrownBy(() -> service.upload("/Team", null))
                 .isInstanceOfSatisfying(ApiErrorException.class, exception ->
                         assertThat(exception.details()).containsEntry("operation", "upload-file"));
-        assertThatThrownBy(() -> service.delete("files:/Team/old.md"))
+        assertThatThrownBy(() -> service.delete("/Team/old.md"))
                 .isInstanceOfSatisfying(ApiErrorException.class, exception ->
                         assertThat(exception.details()).containsEntry("operation", "delete-file"));
+        assertThat(audit.events())
+                .hasSize(3)
+                .allSatisfy(event -> {
+                    assertThat(event.action()).isEqualTo(AuditAction.FILES_WEBDAV_WRITE_BLOCKED);
+                    assertThat(event.tenantId()).isEqualTo("tenant-default");
+                    assertThat(event.contextId()).isEqualTo("workspace-default");
+                    assertThat(event.actorRef()).isEqualTo("user:user-123");
+                    assertThat(event.payload())
+                            .containsEntry("domain", "files")
+                            .containsEntry("result", "blocked_write_policy_required")
+                            .containsEntry("writePolicyIssue", "#1007")
+                            .containsEntry("openApiDataPlaneUsed", false)
+                            .containsEntry("supportSafe", true);
+                });
+    }
+
+    @Test
+    void webDavWriteRejectionsRequireEditPolicyAndPublishSupportSafeAudit() {
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
+        InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
+        FilesFacadeService service = service(new StubAdapter(true), audit);
+
+        ApiErrorException exception = service.rejectWebDavWrite("PUT", "/Team/readme.md");
+        assertThat(exception.status()).isEqualTo(HttpStatus.NOT_IMPLEMENTED);
+        assertThat(exception.code()).isEqualTo("files-webdav-write-policy-required");
+        assertThat(exception.details())
+                .containsEntry("operation", "webdav-put")
+                .containsEntry("webDavFacadePath", "/dav/files")
+                .containsEntry("writePolicyIssue", "#1007")
+                .containsEntry("openApiDataPlaneUsed", false);
+
+        assertThat(audit.events()).singleElement().satisfies(event -> {
+            assertThat(event.action()).isEqualTo(AuditAction.FILES_WEBDAV_WRITE_BLOCKED);
+            assertThat(event.payload())
+                    .containsEntry("operation", "webdav-put")
+                    .containsEntry("webDavMethod", "PUT")
+                    .containsEntry("productPath", "/Team/readme.md")
+                    .containsEntry("webDavFacadePath", "/dav/files")
+                    .doesNotContainKeys("providerUrl", "downstreamPayload", "bearerToken");
+        });
     }
 
     @Test
@@ -269,15 +312,39 @@ class FilesFacadeServiceTest {
         return service(adapter, request -> ContextAuthorizationDecision.allow("test allow"));
     }
 
+    private FilesFacadeService service(FilesStorageAdapter adapter, InMemoryAuditEventPublisher auditEventPublisher) {
+        return service(adapter, request -> ContextAuthorizationDecision.allow("test allow"), auditEventPublisher);
+    }
+
     private FilesFacadeService service(FilesStorageAdapter adapter, ContextAuthorizationPort contextAuthorizationPort) {
-        return service(adapter, contextAuthorizationPort, defaultContextAuthorizationProperties());
+        return service(adapter, contextAuthorizationPort, new InMemoryAuditEventPublisher());
+    }
+
+    private FilesFacadeService service(
+            FilesStorageAdapter adapter,
+            ContextAuthorizationPort contextAuthorizationPort,
+            InMemoryAuditEventPublisher auditEventPublisher) {
+        return service(adapter, contextAuthorizationPort, defaultContextAuthorizationProperties(), auditEventPublisher);
     }
 
     private FilesFacadeService service(
             FilesStorageAdapter adapter,
             ContextAuthorizationPort contextAuthorizationPort,
             ContextAuthorizationProperties contextAuthorizationProperties) {
-        return new FilesFacadeService(provider(adapter), contextAuthorizationPort, contextAuthorizationProperties, workspaceCapabilityService());
+        return service(adapter, contextAuthorizationPort, contextAuthorizationProperties, new InMemoryAuditEventPublisher());
+    }
+
+    private FilesFacadeService service(
+            FilesStorageAdapter adapter,
+            ContextAuthorizationPort contextAuthorizationPort,
+            ContextAuthorizationProperties contextAuthorizationProperties,
+            InMemoryAuditEventPublisher auditEventPublisher) {
+        return new FilesFacadeService(
+                provider(adapter),
+                contextAuthorizationPort,
+                contextAuthorizationProperties,
+                workspaceCapabilityService(),
+                auditEventPublisher);
     }
 
     private ContextAuthorizationProperties defaultContextAuthorizationProperties() {

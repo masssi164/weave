@@ -23,6 +23,8 @@ Feature: Files WebDAV facade data-plane boundary
     When a client attempts a write-shaped Files operation through WebDAV, Flutter, or MCP
     Then Weave fails closed with a stable support-safe error
     And the delivery evidence names the write-policy follow-up issue
+    And WebDAV write-shaped attempts pass through the Files facade write gate before provider access
+    And support-safe audit evidence records the blocked write decision
     And no legacy OpenAPI Files member data endpoint becomes the fallback data plane
 
   @files-mcp-facade-no-provider-bypass
