@@ -76,7 +76,8 @@ void main() {
         isEmpty,
         reason:
             'Normal member providers/screens must depend on Weave facades, not '
-            'Nextcloud, Matrix, provider status, or platform diagnostic seams. '
+            'Nextcloud, provider status, or platform diagnostic seams. Matrix '
+            'Client-Server projection wiring is allowed for the Chat data plane. '
             'Diagnostic/admin exceptions require an allowlist expiry issue.',
       );
     });
@@ -469,8 +470,6 @@ const _hardcodedCopyAllowlist = <LegacyFence>[
 final _rawProviderReachabilityPatterns = <RegExp>[
   RegExp(r'integrations/nextcloud'),
   RegExp(r'nextcloud[A-Z_a-z]'),
-  RegExp(r'Matrix[A-Z_a-z]'),
-  RegExp(r'matrix[A-Z_a-z]'),
   RegExp(r'\bCalDAV\b|\bcaldav[A-Z_a-z]|\bcalDav\b|\bcalDav[A-Z_a-z]'),
   RegExp(
     r'\bOpenProject\b|\bopenproject\b|\bopenProject\b|\bopenProject[A-Z_a-z]',

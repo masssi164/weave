@@ -3209,6 +3209,56 @@
       ]
     },
     {
+      "tag": "@enterprise-target-open-standard-northbound",
+      "suiteId": "enterprise-target-architecture-spine",
+      "personas": [
+        "member",
+        "admin",
+        "operator",
+        "weaver_user"
+      ],
+      "domains": [
+        "identity-idm",
+        "files",
+        "calendar",
+        "chat",
+        "meetings-calls",
+        "weaver-governed-pa",
+        "admin-health-ops",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "open-standard northbound projections",
+        "provider adapters stay southbound",
+        "canonical domains remain provider-neutral",
+        "CalDAV and Matrix projection skeletons fail closed without provider leakage"
+      ]
+    },
+    {
+      "tag": "@enterprise-target-openapi-control-plane-only",
+      "suiteId": "enterprise-target-architecture-spine",
+      "personas": [
+        "member",
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "files",
+        "calendar",
+        "chat",
+        "admin-health-ops",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "OpenAPI demotion",
+        "control-plane-only REST",
+        "standard data-plane ownership",
+        "Flutter Chat uses Matrix Client-Server projection instead of REST as message data plane"
+      ]
+    },
+    {
       "tag": "@enterprise-target-no-transitional-compatibility",
       "suiteId": "enterprise-target-architecture-spine",
       "personas": [
@@ -3249,7 +3299,8 @@
       "testLevel": "offline-contract",
       "assertionFocus": [
         "server dependency boundaries",
-        "provider adapter isolation"
+        "provider adapter isolation",
+        "CalDAV and Matrix projection controllers route through facades or fail closed"
       ]
     },
     {

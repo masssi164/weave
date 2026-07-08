@@ -110,6 +110,8 @@ void main() {
       result.scenarios.map((scenario) => scenario.name),
       unorderedEquals(<String>[
         'Enterprise hard-plan decisions are locked before implementation lanes expand',
+        'Northbound standards stay separate from southbound providers',
+        'OpenAPI does not become the normal collaboration data plane',
         'Transitional behavior is not preserved as architecture',
         'Server boundary drift fails before broad package migration',
         'Target architecture scenarios stay mapped to support-safe evidence',

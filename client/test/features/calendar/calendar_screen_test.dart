@@ -51,9 +51,9 @@ class _FakeCalendarRepository implements CalendarRepository {
       username: 'weave-backend',
       credentialPolicy: 'secret-free-setup-metadata',
       endpoints: CalendarExternalEndpoints(
-        serverUrl: '/dav/calendars',
-        caldavDiscoveryUrl: '/dav/calendars',
-        principalUrl: '/dav/principals/users/weave-backend/',
+        serverUrl: '/caldav',
+        caldavDiscoveryUrl: '/caldav',
+        principalUrl: '/caldav/principals/users/weave-backend/',
       ),
       options: [],
     );

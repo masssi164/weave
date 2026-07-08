@@ -14,6 +14,16 @@ MARKERS = {
         ROOT / "docs/architecture/adr-006-enterprise-hard-plan-decision-lock.md",
         ROOT / "e2e/features/enterprise_target_architecture.feature",
     ],
+    "ENTERPRISE_TARGET_OPEN_STANDARD_NORTHBOUND": [
+        ROOT / "docs/architecture/adr-006-enterprise-hard-plan-decision-lock.md",
+        ROOT / "docs/architecture.md",
+        ROOT / "e2e/features/enterprise_target_architecture.feature",
+    ],
+    "ENTERPRISE_TARGET_OPENAPI_CONTROL_PLANE_ONLY": [
+        ROOT / "docs/architecture/adr-004-server-openapi-contract-authority.md",
+        ROOT / "docs/architecture/adr-006-enterprise-hard-plan-decision-lock.md",
+        ROOT / "e2e/features/enterprise_target_architecture.feature",
+    ],
     "ENTERPRISE_TARGET_NO_TRANSITIONAL_COMPATIBILITY": [
         ROOT / "docs/architecture/adr-006-enterprise-hard-plan-decision-lock.md",
         ROOT
@@ -101,6 +111,8 @@ def main() -> int:
     tags = {scenario.get("tag") for scenario in mapping.get("scenarios", [])}
     expected_tags = {
         "@enterprise-target-decision-lock",
+        "@enterprise-target-open-standard-northbound",
+        "@enterprise-target-openapi-control-plane-only",
         "@enterprise-target-no-transitional-compatibility",
         "@enterprise-target-boundary-gate",
         "@enterprise-target-e2e-spine",

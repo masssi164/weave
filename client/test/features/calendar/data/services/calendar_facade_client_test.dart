@@ -335,9 +335,9 @@ void main() {
               },
               'username': 'user-123',
               'endpoints': {
-                'serverUrl': '/dav/calendars',
-                'caldavDiscoveryUrl': '/dav/calendars',
-                'principalUrl': '/dav/principals/users/user-123/',
+                'serverUrl': '/caldav',
+                'caldavDiscoveryUrl': '/caldav',
+                'principalUrl': '/caldav/principals/users/user-123/',
               },
               'credentialPolicy':
                   'The backend never returns passwords, bearer tokens, static profile secrets, or provider endpoints.',
@@ -386,8 +386,11 @@ void main() {
         setup.credentialReadiness.blockers,
         contains('Apple profiles are unsigned.'),
       );
-      expect(setup.endpoints.serverUrl, '/dav/calendars');
-      expect(setup.endpoints.principalUrl, '/dav/principals/users/user-123/');
+      expect(setup.endpoints.serverUrl, '/caldav');
+      expect(
+        setup.endpoints.principalUrl,
+        '/caldav/principals/users/user-123/',
+      );
       expect(setup.credentialPolicy, contains('never returns'));
       expect(setup.options.first.platform, 'apple');
       expect(setup.options.first.available, isFalse);

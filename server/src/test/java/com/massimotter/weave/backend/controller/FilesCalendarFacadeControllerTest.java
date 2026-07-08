@@ -4,6 +4,7 @@ import com.massimotter.weave.backend.config.ApiAccessDeniedHandler;
 import com.massimotter.weave.backend.config.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
+import com.massimotter.weave.backend.config.LiveKitMeetingsProviderProperties;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WeaverRuntimeProperties;
@@ -15,6 +16,7 @@ import com.massimotter.weave.backend.service.CalendarFacadeService;
 import com.massimotter.weave.backend.service.CallsFacadeService;
 import com.massimotter.weave.backend.service.FilesFacadeService;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
+import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,6 +26,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -35,12 +38,13 @@ import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(
-        controllers = {FilesController.class, CalendarController.class, CallsController.class},
+        controllers = {FilesController.class, CalendarController.class, CalDavCalendarController.class, CallsController.class},
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
 @Import({
         SecurityConfig.class,
@@ -57,12 +61,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         WeaveSecurityProperties.class,
         WeaverRuntimeProperties.class,
         WorkspaceCapabilityProperties.class,
+        LiveKitMeetingsProviderProperties.class,
         OAuth2ResourceServerProperties.class
 })
 @TestPropertySource(properties = {
         "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.example.invalid/realms/weave",
         "weave.security.client-id=weave-app",
-        "weave.security.required-audience=weave-app"
+        "weave.security.required-audience=weave-app",
+        "weave.meetings.livekit.enabled=true",
+        "weave.meetings.livekit.url=https://calls.example.invalid",
+        "weave.meetings.livekit.api-key=test-api-key",
+        "weave.meetings.livekit.api-secret=test-api-secret"
 })
 class FilesCalendarFacadeControllerTest {
 
@@ -292,11 +301,11 @@ class FilesCalendarFacadeControllerTest {
                 .andExpect(jsonPath("$.credentialReadiness.readOnlySubscriptionTokensAvailable").value(false))
                 .andExpect(jsonPath("$.credentialReadiness.backendActorCredentialsExposed").value(false))
                 .andExpect(jsonPath("$.username").value("user@example.com"))
-                .andExpect(jsonPath("$.endpoints.serverUrl").value("/dav/calendars"))
+                .andExpect(jsonPath("$.endpoints.serverUrl").value("/caldav"))
                 .andExpect(jsonPath("$.endpoints.caldavDiscoveryUrl")
-                        .value("/dav/calendars"))
+                        .value("/caldav"))
                 .andExpect(jsonPath("$.endpoints.principalUrl")
-                        .value("/dav/principals/users/user%40example.com/"))
+                        .value("/caldav/principals/users/user%40example.com/"))
                 .andExpect(jsonPath("$.options[0].platform").value("apple"))
                 .andExpect(jsonPath("$.options[0].method").value("mobileconfig"))
                 .andExpect(jsonPath("$.options[0].available").value(false))
@@ -331,10 +340,10 @@ class FilesCalendarFacadeControllerTest {
                 .andExpect(jsonPath("$.supportSafe").value(true))
                 .andExpect(jsonPath("$.providerConfigurationExposed").value(false))
                 .andExpect(jsonPath("$.credentialsExposed").value(false))
-                .andExpect(jsonPath("$.facadeBasePath").value("/api/calendar"))
+                .andExpect(jsonPath("$.facadeBasePath").value("/caldav"))
                 .andExpect(jsonPath("$.credentialLifecyclePath").value("/api/calendar/client-setup/credentials"))
                 .andExpect(jsonPath("$.appleProfilePath").value("/api/calendar/client-setup/apple.mobileconfig"))
-                .andExpect(jsonPath("$.eventSyncPathTemplate").value("/api/calendar/events?scopeType={scopeType}"))
+                .andExpect(jsonPath("$.eventSyncPathTemplate").value("/caldav/{scopePath}/{eventUid}.ics"))
                 .andExpect(jsonPath("$.options[0].platform").value("ios"))
                 .andExpect(jsonPath("$.options[0].osBoundary").value("CalDAVConfigurationProfile"))
                 .andExpect(jsonPath("$.options[0].available").value(false))
@@ -342,7 +351,7 @@ class FilesCalendarFacadeControllerTest {
                 .andExpect(jsonPath("$.options[1].platform").value("android"))
                 .andExpect(jsonPath("$.options[1].osBoundary").value("CalendarContractAccountSyncAdapter"))
                 .andExpect(jsonPath("$.options[1].available").value(false))
-                .andExpect(jsonPath("$.proofHooks[0]").value("GET /api/calendar/scopes"))
+                .andExpect(jsonPath("$.proofHooks[0]").value("OPTIONS /caldav"))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                         .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("Nextcloud"))))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
@@ -353,6 +362,88 @@ class FilesCalendarFacadeControllerTest {
                         .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("https://"))))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                         .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("token="))));
+    }
+
+    @Test
+    void calDavOptionsAndPropfindExposeWeaveCalendarProjectionWithoutProviderLeaks() throws Exception {
+        mockMvc.perform(request(HttpMethod.valueOf("OPTIONS"), "/caldav")
+                        .with(workspaceJwt()))
+                .andExpect(status().isNoContent())
+                .andExpect(header().string("DAV", "1, calendar-access"))
+                .andExpect(header().string("Allow", "OPTIONS, PROPFIND, REPORT, GET, HEAD, PUT, DELETE"));
+
+        mockMvc.perform(request(HttpMethod.valueOf("PROPFIND"), "/caldav")
+                        .header("Depth", "1")
+                        .with(workspaceJwt()))
+                .andExpect(status().is(207))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .contentTypeCompatibleWith("application/xml"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.containsString("<d:href>/caldav/workspace/</d:href>")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.containsString("Weave workspace calendar")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("Nextcloud"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("remote.php"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("Bearer"))));
+    }
+
+    @Test
+    void calDavReportSkeletonRecognizesCalendarQueryAndFreeBusyButFailsClosed() throws Exception {
+        mockMvc.perform(request(HttpMethod.valueOf("REPORT"), "/caldav/workspace/")
+                        .with(workspaceJwt())
+                        .contentType("application/xml")
+                        .content("<c:calendar-query xmlns:c=\"urn:ietf:params:xml:ns:caldav\"/>"))
+                .andExpect(status().isNotImplemented())
+                .andExpect(header().string("X-Weave-Error-Code", "caldav-report-not-implemented"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.containsString("calendar-query")));
+
+        mockMvc.perform(request(HttpMethod.valueOf("REPORT"), "/caldav/workspace/")
+                        .with(workspaceJwt())
+                        .contentType("application/xml")
+                        .content("<c:free-busy-query xmlns:c=\"urn:ietf:params:xml:ns:caldav\"/>"))
+                .andExpect(status().isNotImplemented())
+                .andExpect(header().string("X-Weave-Error-Code", "caldav-report-not-implemented"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.containsString("free-busy-query")));
+    }
+
+    @Test
+    void calDavEventReadPutAndDeleteUseCalendarFacadeBoundaryAndStableErrors() throws Exception {
+        mockMvc.perform(get("/caldav/workspace/planning.ics")
+                        .with(workspaceJwt()))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(header().string("X-Weave-Error-Code", "calendar-adapter-not-configured"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("Nextcloud"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("remote.php"))));
+
+        mockMvc.perform(request(HttpMethod.valueOf("PUT"), "/caldav/workspace/planning.ics")
+                        .with(workspaceJwt())
+                        .header("If-Match", "\"old\"")
+                        .contentType("text/calendar")
+                        .content("""
+                                BEGIN:VCALENDAR
+                                VERSION:2.0
+                                BEGIN:VEVENT
+                                UID:planning
+                                DTSTART:20260708T100000Z
+                                DTEND:20260708T110000Z
+                                SUMMARY:Planning
+                                END:VEVENT
+                                END:VCALENDAR
+                                """))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(header().string("X-Weave-Error-Code", "calendar-adapter-not-configured"));
+
+        mockMvc.perform(request(HttpMethod.valueOf("DELETE"), "/caldav/workspace/planning.ics")
+                        .with(workspaceJwt()))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(header().string("X-Weave-Error-Code", "calendar-adapter-not-configured"));
     }
 
     @Test
@@ -383,6 +474,56 @@ class FilesCalendarFacadeControllerTest {
                         .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("https://"))))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                         .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("apiSecret"))));
+    }
+
+    @Test
+    void callsControlPlaneCreatesJoinGrantsAndLeavesWithoutProviderSecrets() throws Exception {
+        String callId = JsonPath.read(mockMvc.perform(post("/api/calls")
+                        .with(workspaceJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "spaceId": "workspace-default",
+                                  "title": "Planning call",
+                                  "linkedCalendarRefs": ["calendar:event:planning"]
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.mediaProvider").value("livekit"))
+                .andExpect(jsonPath("$.joinAvailable").value(true))
+                .andExpect(jsonPath("$.roomRef").exists())
+                .andReturn()
+                .getResponse()
+                .getContentAsString(), "$.callId");
+
+        mockMvc.perform(get("/api/calls/{id}", callId)
+                        .with(workspaceJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.callId").value(callId))
+                .andExpect(jsonPath("$.mediaProvider").value("livekit"));
+
+        mockMvc.perform(post("/api/calls/{id}/join", callId)
+                        .with(workspaceJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"role\":\"participant\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.callId").value(callId))
+                .andExpect(jsonPath("$.roomRef").exists())
+                .andExpect(jsonPath("$.mediaProvider").value("livekit"))
+                .andExpect(jsonPath("$.joinUrl").value("https://calls.example.invalid"))
+                .andExpect(jsonPath("$.accessToken").exists())
+                .andExpect(jsonPath("$.expiresAt").exists())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("test-api-secret"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("apiSecret"))));
+
+        mockMvc.perform(post("/api/calls/{id}/leave", callId)
+                        .with(workspaceJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.callId").value(callId))
+                .andExpect(jsonPath("$.left").value(true))
+                .andExpect(jsonPath("$.auditRef").exists());
     }
 
 
@@ -432,10 +573,10 @@ class FilesCalendarFacadeControllerTest {
         return jwt().jwt(jwt -> jwt
                         .subject("user@example.com")
                         .claim("iss", "https://auth.example.invalid/realms/acme")
-                        .claim("aud", java.util.List.of("weave-app"))
-                        .claim("weave_tenant_id", "tenant-default")
+                .claim("aud", java.util.List.of("weave-app"))
+                .claim("weave_tenant_id", "tenant-default")
                 .claim("realm_access", java.util.Map.of("roles", java.util.List.of("member")))
-                .claim("groups", java.util.List.of("weave-calendar-editors")))
+                .claim("groups", java.util.List.of("weave-calendar-editors", "weave-meeting-hosts")))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 

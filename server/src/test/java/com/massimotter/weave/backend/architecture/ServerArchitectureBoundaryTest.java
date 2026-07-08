@@ -201,6 +201,44 @@ class ServerArchitectureBoundaryTest {
                 .doesNotContain("RestClient");
     }
 
+    @Test
+    void calendarCalDavMethodsRouteThroughCalendarFacadeUseCases() throws IOException {
+        JavaSource calDavController = productionSources().stream()
+                .filter(source -> source.path().endsWith(Path.of("controller", "CalDavCalendarController.java")))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(calDavController.text())
+                .contains("case \"PROPFIND\" -> propfind(request)")
+                .contains("case \"REPORT\" -> report(request)")
+                .contains("case \"GET\" -> get(request, false)")
+                .contains("case \"PUT\" -> put(request)")
+                .contains("case \"DELETE\" -> delete(request)")
+                .contains("calendarFacadeService.readCalDavEventIcs(")
+                .contains("calendarFacadeService.putCalDavEventIcs(")
+                .contains("calendarFacadeService.deleteCalDavEventIcs(")
+                .doesNotContain("CalDavCalendarAdapter")
+                .doesNotContain("Nextcloud")
+                .doesNotContain("RestClient");
+    }
+
+    @Test
+    void matrixClientServerProjectionIsBoundarySkeletonNotBridgeOrRestChatDataPlane() throws IOException {
+        JavaSource matrixProjection = productionSources().stream()
+                .filter(source -> source.path().endsWith(Path.of("controller", "MatrixClientServerProjectionController.java")))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(matrixProjection.text())
+                .contains("\"/_matrix/client/**\"")
+                .contains("northbound-matrix-client-server")
+                .contains("M_WEAVE_MATRIX_PROJECTION_UNAVAILABLE")
+                .doesNotContain("/api/chat/conversations")
+                .doesNotContain("BridgeAdapter")
+                .doesNotContain("providerAccessToken")
+                .doesNotContain("RestClient");
+    }
+
     private static List<JavaSource> productionSources() throws IOException {
         Path sourceRoot = sourceRoot();
         try (var paths = Files.walk(sourceRoot)) {

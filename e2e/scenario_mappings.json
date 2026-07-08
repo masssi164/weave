@@ -26,7 +26,7 @@
         {
           "path": "client/test/architecture/backend_facade_contract_test.dart",
           "fragments": [
-            "primary chat provider is wired through the backend Chat facade",
+            "primary chat provider is wired through the Matrix Client-Server projection",
             "member Chat screen stays on Weave-domain readiness language"
           ]
         },
@@ -168,7 +168,7 @@
           "path": "client/test/architecture/backend_facade_contract_test.dart",
           "fragments": [
             "primary files provider is wired through the backend-facade seam",
-            "primary chat provider is wired through the backend Chat facade",
+            "primary chat provider is wired through the Matrix Client-Server projection",
             "onboarding status uses generated OpenAPI DTO source of truth",
             "profile facade uses generated OpenAPI DTO source of truth"
           ]
@@ -4297,6 +4297,91 @@
       ]
     },
     {
+      "tag": "@enterprise-target-open-standard-northbound",
+      "scenario": "Northbound standards stay separate from southbound providers",
+      "feature": "e2e/features/enterprise_target_architecture.feature",
+      "executableTest": "tools/enterprise_target_architecture_spine_check.py",
+      "evidenceMarkers": [
+        "ENTERPRISE_TARGET_OPEN_STANDARD_NORTHBOUND"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/architecture/adr-006-enterprise-hard-plan-decision-lock.md",
+          "fragments": [
+            "OIDC/OAuth2-governed Open Standards Gateway",
+            "LiveKit is the first SFU candidate",
+            "Open standards are northbound projections or southbound adapter seams"
+          ]
+        },
+        {
+          "path": "docs/architecture.md",
+          "fragments": [
+            "OIDC/OAuth2 for Identity",
+            "WebDAV for Files",
+            "CalDAV/iCalendar for Calendar",
+            "Matrix Client-Server API for Chat",
+            "WebRTC plus Weave join grants for Calls",
+            "MCP for Agents"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
+          "fragments": [
+            "calDavOptionsAndPropfindExposeWeaveCalendarProjectionWithoutProviderLeaks",
+            "calDavReportSkeletonRecognizesCalendarQueryAndFreeBusyButFailsClosed",
+            "calDavEventReadPutAndDeleteUseCalendarFacadeBoundaryAndStableErrors"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
+          "fragments": [
+            "matrixClientServerProjectionFailsClosedWithoutProviderPayloads",
+            "northbound-matrix-client-server",
+            "M_WEAVE_MATRIX_PROJECTION_UNAVAILABLE"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@enterprise-target-openapi-control-plane-only",
+      "scenario": "OpenAPI does not become the normal collaboration data plane",
+      "feature": "e2e/features/enterprise_target_architecture.feature",
+      "executableTest": "tools/enterprise_target_architecture_spine_check.py",
+      "evidenceMarkers": [
+        "ENTERPRISE_TARGET_OPENAPI_CONTROL_PLANE_ONLY"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/architecture/adr-004-server-openapi-contract-authority.md",
+          "fragments": [
+            "superseded for normal Files, Calendar, and Chat data planes",
+            "OpenAPI/REST is not the normal Files, Calendar, or Chat data plane",
+            "Files: WebDAV",
+            "Calendar: CalDAV plus iCalendar",
+            "Chat: Matrix Client-Server API projection"
+          ]
+        },
+        {
+          "path": "client/lib/features/chat/presentation/providers/chat_repository_provider.dart",
+          "fragments": [
+            "Matrix Client-Server projection as the chat data plane",
+            "`/api/chat/**` remains a transitional/control facade",
+            "OpenAPI/REST"
+          ]
+        },
+        {
+          "path": "client/test/architecture/backend_facade_contract_test.dart",
+          "fragments": [
+            "primary chat provider is wired through the Matrix Client-Server projection",
+            "BackendChatRepository(",
+            "matrixSessionServiceProvider"
+          ]
+        }
+      ]
+    },
+    {
       "tag": "@enterprise-target-no-transitional-compatibility",
       "scenario": "Transitional behavior is not preserved as architecture",
       "feature": "e2e/features/enterprise_target_architecture.feature",
@@ -4338,6 +4423,14 @@
           "fragments": [
             "ENTERPRISE_TARGET_BOUNDARY_GATE",
             "server/src/test/java/com/massimotter/weave/backend/architecture/ServerArchitectureBoundaryTest.java"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/architecture/ServerArchitectureBoundaryTest.java",
+          "fragments": [
+            "calendarCalDavMethodsRouteThroughCalendarFacadeUseCases",
+            "matrixClientServerProjectionIsBoundarySkeletonNotBridgeOrRestChatDataPlane",
+            "protocolProjectionAndMcpCodeDoNotImportProviderAdapters"
           ]
         }
       ]

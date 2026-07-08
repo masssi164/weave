@@ -28,6 +28,7 @@ import com.massimotter.weave.backend.service.calendar.CalendarAdapterException;
 import com.massimotter.weave.backend.service.calendar.AppleMobileConfigProfile;
 import com.massimotter.weave.backend.service.calendar.AppleMobileConfigProfileRenderer;
 import com.massimotter.weave.backend.service.calendar.CalendarPrincipal;
+import com.massimotter.weave.backend.service.calendar.IcalendarMapper;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -56,6 +57,7 @@ public class CalendarFacadeService {
     private final ContextAuthorizationPort contextAuthorizationPort;
     private final ContextAuthorizationProperties contextAuthorizationProperties;
     private final AppleMobileConfigProfileRenderer appleProfileRenderer;
+    private final IcalendarMapper icalendarMapper = new IcalendarMapper();
     private final Map<String, CalendarSetupCredentialResponse> setupCredentials = new ConcurrentHashMap<>();
 
     public CalendarFacadeService(
@@ -151,19 +153,78 @@ public class CalendarFacadeService {
         }
     }
 
+    public String readCalDavEventIcs(String eventUid) {
+        CalendarEventResponse event = read(eventUid);
+        return icalendarMapper.toIcalendar(new IcalendarMapper.EventDraft(
+                event.id(),
+                event.title(),
+                event.description(),
+                event.startsAt(),
+                event.endsAt(),
+                event.timezone(),
+                event.location(),
+                event.allDay()));
+    }
+
+    public CalendarEventResponse putCalDavEventIcs(
+            String eventUid,
+            String calendarData,
+            String ifMatch,
+            String ifNoneMatch) {
+        IcalendarMapper.EventDraft draft = parseCalDavEvent(calendarData, "put-caldav-event");
+        if ("*".equals(ifNoneMatch)) {
+            return create(new CreateCalendarEventRequest(
+                    draft.title(),
+                    draft.description(),
+                    draft.startsAt(),
+                    draft.endsAt(),
+                    draft.timezone(),
+                    draft.location(),
+                    draft.allDay(),
+                    CalendarScopeResponse.workspace()));
+        }
+        return update(eventUid, new UpdateCalendarEventRequest(
+                draft.title(),
+                draft.description(),
+                draft.startsAt(),
+                draft.endsAt(),
+                draft.timezone(),
+                draft.location(),
+                draft.allDay(),
+                ifMatch,
+                CalendarScopeResponse.workspace()));
+    }
+
+    public void deleteCalDavEventIcs(String eventUid) {
+        delete(eventUid);
+    }
+
+    public ApiErrorException reportCalendarQueryNotReady(String reportKind) {
+        requireContextPermission(CalendarScopeResponse.workspace(), ContextPermission.VIEW, "caldav-report-" + reportKind);
+        return new ApiErrorException(
+                HttpStatus.NOT_IMPLEMENTED,
+                "caldav-report-not-implemented",
+                "CalDAV " + reportKind + " REPORT is reserved but not enabled until query semantics, recurrence, and timezone evidence are complete.",
+                Map.of(
+                        "module", "calendar",
+                        "operation", "caldav-report-" + reportKind,
+                        "supportSafe", true,
+                        "providerDataPlaneExposed", false));
+    }
+
     public CalendarClientSetupResponse clientSetup() {
         requireContextPermission(CalendarScopeResponse.workspace(), ContextPermission.VIEW, "client-setup");
         CalendarPrincipal principal = principal();
         String username = principal.userId();
-        String discoveryUrl = "/dav/calendars";
-        String principalUrl = "/dav/principals/users/" + strictPathSegment(username) + "/";
+        String discoveryUrl = "/caldav";
+        String principalUrl = "/caldav/principals/users/" + strictPathSegment(username) + "/";
 
         return new CalendarClientSetupResponse(
                 CalendarScopeResponse.workspace(),
                 accessModel(),
                 credentialReadiness(),
                 username,
-                new CalendarExternalEndpointsResponse("/dav/calendars", discoveryUrl, principalUrl),
+                new CalendarExternalEndpointsResponse("/caldav", discoveryUrl, principalUrl),
                 "The backend never returns passwords, bearer tokens, static profile secrets, or provider endpoints. "
                         + "External clients must use future Weave-issued scoped setup credentials once implemented.",
                 List.of(
@@ -215,10 +276,10 @@ public class CalendarFacadeService {
                 true,
                 false,
                 false,
-                "/api/calendar",
+                "/caldav",
                 "/api/calendar/client-setup/credentials",
                 "/api/calendar/client-setup/apple.mobileconfig",
-                "/api/calendar/events?scopeType={scopeType}",
+                "/caldav/{scopePath}/{eventUid}.ics",
                 List.of(
                         new CalendarNativeSyncOptionResponse(
                                 "ios",
@@ -254,8 +315,13 @@ public class CalendarFacadeService {
                                         "Flutter may start setup, show status, and revoke only.",
                                         "Calendar rows and sync state stay in the native provider layer and Weave facade."))),
                 List.of(
-                        "GET /api/calendar/scopes",
-                        "GET /api/calendar/events",
+                        "OPTIONS /caldav",
+                        "PROPFIND /caldav",
+                        "REPORT /caldav calendar-query",
+                        "REPORT /caldav free-busy-query",
+                        "GET /caldav/{scopePath}/{eventUid}.ics",
+                        "PUT /caldav/{scopePath}/{eventUid}.ics",
+                        "DELETE /caldav/{scopePath}/{eventUid}.ics",
                         "POST /api/calendar/client-setup/credentials",
                         "DELETE /api/calendar/client-setup/credentials/{credentialId}",
                         "GET /api/calendar/client-setup/apple.mobileconfig"),
@@ -489,6 +555,25 @@ public class CalendarFacadeService {
                 "invalid-calendar-event-id",
                 "Calendar event id is not a valid Weave calendar facade id.",
                 Map.of("module", "calendar"));
+    }
+
+    private IcalendarMapper.EventDraft parseCalDavEvent(String calendarData, String operation) {
+        if (calendarData == null || calendarData.isBlank()) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "calendar-ics-invalid",
+                    "Calendar data is not a supported iCalendar VEVENT.",
+                    withDefaultDetails(Map.of("reason", "empty-calendar-data"), operation));
+        }
+        try {
+            return icalendarMapper.parse(calendarData);
+        } catch (CalendarAdapterException exception) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "calendar-ics-invalid",
+                    "Calendar data is not a supported iCalendar VEVENT.",
+                    withDefaultDetails(exception.details(), operation));
+        }
     }
 
     private String labelForTeam(String teamId) {
