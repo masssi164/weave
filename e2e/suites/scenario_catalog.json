@@ -398,6 +398,60 @@
       ]
     },
     {
+      "tag": "@target-standards-webdav-files-current-proof",
+      "suiteId": "product-e2e-scenario-layer",
+      "personas": [
+        "member",
+        "operator"
+      ],
+      "domains": [
+        "files",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "WebDAV read/write evidence",
+        "Flutter WebDAV read/download path",
+        "remaining client/native cutover debt"
+      ]
+    },
+    {
+      "tag": "@target-standards-caldav-calendar-fail-closed",
+      "suiteId": "product-e2e-scenario-layer",
+      "personas": [
+        "member",
+        "operator"
+      ],
+      "domains": [
+        "calendar",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "CalDAV projection is fail-closed",
+        "native Calendar setup stays Weave-owned",
+        "no complete Calendar parity claim"
+      ]
+    },
+    {
+      "tag": "@target-standards-matrix-chat-fail-closed",
+      "suiteId": "product-e2e-scenario-layer",
+      "personas": [
+        "member",
+        "operator"
+      ],
+      "domains": [
+        "chat",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Matrix projection is fail-closed",
+        "Flutter Chat avoids REST as normal data plane",
+        "no complete Matrix Client-Server parity claim"
+      ]
+    },
+    {
       "tag": "@weave-live-provider-stack-readiness",
       "suiteId": "member-live-critical-path",
       "personas": [

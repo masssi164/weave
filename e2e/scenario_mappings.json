@@ -149,6 +149,89 @@
       ]
     },
     {
+      "tag": "@target-standards-webdav-files-current-proof",
+      "scenario": "Files WebDAV proof is separated from remaining client and native cutover",
+      "feature": "e2e/features/target_standard_facade_hard_gate.feature",
+      "executableTest": "tools/target_standard_facade_hard_gate_check.py",
+      "evidenceMarkers": [
+        "TARGET_STANDARDS_WEBDAV_FILES_CURRENT_PROOF"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
+          "fragments": [
+            "propfindDepthOneReturnsChildrenAsDavResponses",
+            "getDownloadsFileThroughFacadePath",
+            "putMkcolAndDeleteUseWebDavFacadeWriteUseCases"
+          ]
+        },
+        {
+          "path": "client/lib/features/files/data/repositories/backend_files_repository.dart",
+          "fragments": [
+            "http.Request('PROPFIND'",
+            "'dav', 'files'",
+            "Files writes are blocked in this client until the Weave WebDAV write cutover is available."
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@target-standards-caldav-calendar-fail-closed",
+      "scenario": "Calendar CalDAV evidence is fail-closed until storage and native sync parity exist",
+      "feature": "e2e/features/target_standard_facade_hard_gate.feature",
+      "executableTest": "tools/target_standard_facade_hard_gate_check.py",
+      "evidenceMarkers": [
+        "TARGET_STANDARDS_CALDAV_CALENDAR_FAIL_CLOSED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
+          "fragments": [
+            "calendarNativeSyncSetupExposesWeaveOwnedOsBoundariesWithoutProviderLeaks",
+            "calDavOptionsAndPropfindExposeWeaveCalendarProjectionWithoutProviderLeaks",
+            "calDavReportSkeletonRecognizesCalendarQueryAndFreeBusyButFailsClosed",
+            "calendar-adapter-not-configured"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/architecture/ServerArchitectureBoundaryTest.java",
+          "fragments": [
+            "calendarCalDavMethodsRouteThroughCalendarFacadeUseCases"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@target-standards-matrix-chat-fail-closed",
+      "scenario": "Matrix Chat evidence is fail-closed until Client-Server parity exists",
+      "feature": "e2e/features/target_standard_facade_hard_gate.feature",
+      "executableTest": "tools/target_standard_facade_hard_gate_check.py",
+      "evidenceMarkers": [
+        "TARGET_STANDARDS_MATRIX_CHAT_FAIL_CLOSED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "client/lib/features/chat/presentation/providers/chat_repository_provider.dart",
+          "fragments": [
+            "MatrixChatRepository",
+            "Matrix Client-Server projection",
+            "`/api/chat/**` remains a transitional/control facade"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
+          "fragments": [
+            "matrixClientServerProjectionRequiresWorkspaceToken",
+            "matrixClientServerProjectionFailsClosedWithoutProviderPayloads",
+            "M_WEAVE_MATRIX_PROJECTION_UNAVAILABLE"
+          ]
+        }
+      ]
+    },
+    {
       "tag": "@weave-live-provider-stack-readiness",
       "scenario": "Provider stack readiness stays backend-owned and support-safe",
       "feature": "e2e/features/live_stack_app.feature",
