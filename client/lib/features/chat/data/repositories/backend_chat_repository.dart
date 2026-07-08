@@ -13,6 +13,11 @@ import 'package:weave/features/server_config/domain/repositories/server_configur
 import 'package:weave/generated/openapi_models.dart' as openapi;
 import 'package:weave/integrations/weave_api/domain/entities/openapi_feature_adapter.dart';
 
+/// Transitional REST control-plane compatibility seam for generated Chat DTOs.
+///
+/// This repository must not be wired as the release Chat data plane. Normal
+/// member chat sync/send uses the Matrix Client-Server projection; REST stays
+/// limited to readiness, migration evidence, and admin/control compatibility.
 class BackendChatRepository implements ChatRepository {
   const BackendChatRepository({
     required ServerConfigurationRepository serverConfigurationRepository,

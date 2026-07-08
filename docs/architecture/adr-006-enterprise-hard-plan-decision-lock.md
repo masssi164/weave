@@ -5,6 +5,8 @@ Status: accepted
 Evidence markers:
 
 - ENTERPRISE_TARGET_DECISION_LOCK
+- ENTERPRISE_TARGET_OPEN_STANDARD_NORTHBOUND
+- ENTERPRISE_TARGET_OPENAPI_CONTROL_PLANE_ONLY
 - ENTERPRISE_TARGET_NO_TRANSITIONAL_COMPATIBILITY
 - ENTERPRISE_TARGET_BOUNDARY_GATE
 - ENTERPRISE_TARGET_E2E_SPINE
@@ -46,7 +48,7 @@ direct target-implementation issue DAG.
 
 The accepted direction is:
 
-- Weave becomes an OIDC-governed Open Standards Gateway with a canonical domain
+- Weave becomes an OIDC/OAuth2-governed Open Standards Gateway with a canonical domain
   kernel.
 - Files uses the Weave-owned `/dav/files` WebDAV facade as the durable file data
   plane.
@@ -57,6 +59,9 @@ The accepted direction is:
 - Chat targets Weave-owned Matrix Client-Server core first, with federation
   identity only after identity, signing, moderation, retention, E2EE, and
   supportability gates exist.
+- Calls use WebRTC media with a small Weave Calls API for create/join/leave/read
+  and short-lived join grants. LiveKit is the first SFU candidate; Teams/Slack
+  meetings remain southbound link/meeting adapters.
 - MCP uses Spring AI semantic Weave tools over domain use cases, not OpenAPI
   route mirrors. Weaver is a governed client/host/agent runtime integration
   boundary, not a canonical Weave product domain.

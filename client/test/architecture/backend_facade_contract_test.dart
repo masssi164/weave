@@ -148,34 +148,46 @@ void main() {
     expect(router, contains('AppRoutes.calendar'));
   });
 
-  test('primary chat provider is wired through the backend Chat facade', () async {
-    final source = await File(
-      'lib/features/chat/presentation/providers/chat_repository_provider.dart',
-    ).readAsString();
+  test(
+    'primary chat provider is wired through the Matrix Client-Server projection',
+    () async {
+      final source = await File(
+        'lib/features/chat/presentation/providers/chat_repository_provider.dart',
+      ).readAsString();
 
-    expect(source, contains('BackendChatRepository'));
-    expect(source, isNot(contains('FeatureFlags.legacyDirectMatrixChat')));
-    expect(source, isNot(contains('MatrixChatRepository(')));
-    expect(source, isNot(contains('matrixSessionServiceProvider')));
+      expect(source, contains('MatrixChatRepository'));
+      expect(source, contains('Matrix Client-Server projection'));
+      expect(source, contains('/api/chat/**'));
+      expect(source, contains('OpenAPI/REST'));
+      expect(source, isNot(contains('FeatureFlags.legacyDirectMatrixChat')));
+      expect(source, isNot(contains('BackendChatRepository(')));
+      expect(source, contains('matrixSessionServiceProvider'));
 
-    final workspaceReadiness = await File(
-      'lib/features/app/presentation/providers/workspace_connection_provider.dart',
-    ).readAsString();
-    expect(
-      workspaceReadiness,
-      isNot(contains('chatSecurityRepositoryProvider')),
-    );
-    expect(workspaceReadiness, isNot(contains('MatrixChatSecurityRepository')));
+      final workspaceReadiness = await File(
+        'lib/features/app/presentation/providers/workspace_connection_provider.dart',
+      ).readAsString();
+      expect(
+        workspaceReadiness,
+        isNot(contains('chatSecurityRepositoryProvider')),
+      );
+      expect(
+        workspaceReadiness,
+        isNot(contains('MatrixChatSecurityRepository')),
+      );
 
-    final securityProvider = await File(
-      'lib/features/chat/presentation/providers/chat_security_repository_provider.dart',
-    ).readAsString();
-    expect(
-      securityProvider,
-      contains('Diagnostic-only Matrix E2EE/security seam'),
-    );
-    expect(securityProvider, contains('normal member routes must not import'));
-  });
+      final securityProvider = await File(
+        'lib/features/chat/presentation/providers/chat_security_repository_provider.dart',
+      ).readAsString();
+      expect(
+        securityProvider,
+        contains('Diagnostic-only Matrix E2EE/security seam'),
+      );
+      expect(
+        securityProvider,
+        contains('normal member routes must not import'),
+      );
+    },
+  );
 
   test('member Chat screen stays on Weave-domain readiness language', () async {
     final screen = await File(

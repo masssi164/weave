@@ -4,8 +4,28 @@ Feature: Enterprise target architecture evidence spine
   Scenario: Enterprise hard-plan decisions are locked before implementation lanes expand
     Given the Enterprise Hard Plan is an active restructuring input
     When Weave records the target direction in repository architecture evidence
-    Then the decision names the canonical domain kernel, standard projections, persistence, provider adapters, OpenAPI demotion, Matrix, MCP, People/Contacts, and Weaver boundaries
+    Then the decision names the canonical domain kernel, standard projections, persistence, provider adapters, OpenAPI demotion, Matrix, CalDAV, WebDAV, WebRTC, MCP, People/Contacts, and Weaver boundaries
     And implementation slices remain linked to bounded issues and gates instead of broad undocumented refactors
+
+  @enterprise-target-open-standard-northbound
+  Scenario: Northbound standards stay separate from southbound providers
+    Given Weave exposes a collaboration domain to clients, native OS integrations, or Weaver
+    When the domain has a durable data-plane protocol
+    Then Identity uses OIDC or OAuth2 for auth, claims, and tokens
+    And Files uses the Weave WebDAV projection under "/dav/files"
+    And Calendar uses the Weave CalDAV and iCalendar projection under "/caldav"
+    And Chat uses a Matrix Client-Server API projection instead of Slack or Teams as northbound product protocols
+    And Calls uses WebRTC media plus the Weave Calls join-grant API
+    And Agents use MCP over Weave domain capabilities
+    And Admin uses OpenAPI or REST as the control plane
+
+  @enterprise-target-openapi-control-plane-only
+  Scenario: OpenAPI does not become the normal collaboration data plane
+    Given Files, Calendar, or Chat has a standard northbound projection
+    When a member client performs normal domain data access
+    Then OpenAPI may provide manifest, setup, readiness, revoke, provider selection, device credentials, generated models, and support-safe admin evidence
+    And OpenAPI must not be the fallback list, read, write, event, or message data plane
+    And provider APIs remain southbound behind Weave adapters
 
   @enterprise-target-no-transitional-compatibility
   Scenario: Transitional behavior is not preserved as architecture
