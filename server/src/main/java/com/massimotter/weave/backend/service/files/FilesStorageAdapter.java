@@ -18,6 +18,10 @@ public interface FilesStorageAdapter {
 
     FileListResponse list(String path);
 
+    default String versionToken(String path) {
+        return null;
+    }
+
     FileItemResponse createFolder(CreateFolderRequest request);
 
     FileUploadResponse upload(String parentPath, MultipartFile file);

@@ -18,9 +18,12 @@ import com.massimotter.weave.backend.model.files.FileUploadResponse;
 import com.massimotter.weave.backend.service.files.DownloadedFile;
 import com.massimotter.weave.backend.service.files.FilesStorageAdapter;
 import com.massimotter.weave.backend.service.files.WebDavMutationResult;
+import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -281,6 +284,36 @@ class FilesFacadeServiceTest {
     }
 
     @Test
+    void webDavPutResponseEtagChangesForSameSizeOverwriteWhenMetadataDoesNotChange() {
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
+        StubAdapter adapter = new StubAdapter(true);
+        FilesFacadeService service = service(adapter, new InMemoryAuditEventPublisher());
+
+        String initialEtag = service.etagFor("/Team/readme.md");
+        WebDavMutationResult first = service.putWebDavFile(
+                "/Team/readme.md",
+                "bbbbbbbbbbbb".getBytes(StandardCharsets.UTF_8),
+                "text/markdown",
+                initialEtag,
+                null);
+        WebDavMutationResult second = service.putWebDavFile(
+                "/Team/readme.md",
+                "cccccccccccc".getBytes(StandardCharsets.UTF_8),
+                "text/markdown",
+                first.etag(),
+                null);
+
+        assertThat(first.created()).isFalse();
+        assertThat(second.created()).isFalse();
+        assertThat(first.item().size()).isEqualTo(12L);
+        assertThat(second.item().size()).isEqualTo(12L);
+        assertThat(first.item().modifiedAt()).isEqualTo(OffsetDateTime.parse("2026-04-26T08:00:00Z"));
+        assertThat(second.item().modifiedAt()).isEqualTo(OffsetDateTime.parse("2026-04-26T08:00:00Z"));
+        assertThat(first.etag()).isNotEqualTo(initialEtag);
+        assertThat(second.etag()).isNotEqualTo(first.etag());
+    }
+
+    @Test
     void guestFileAccessRequiresEffectivePolicyGrantBeforeContextAuthorization() {
         java.util.concurrent.atomic.AtomicBoolean contextChecked = new java.util.concurrent.atomic.AtomicBoolean(false);
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwtWithRolesAndGroups(List.of("guest"), List.of()), null));
@@ -485,6 +518,8 @@ class FilesFacadeServiceTest {
     private static final class StubAdapter implements FilesStorageAdapter {
 
         private final boolean configured;
+        private final Map<String, byte[]> contentByPath = new HashMap<>(Map.of(
+                "/Team/readme.md", "aaaaaaaaaaaa".getBytes(StandardCharsets.UTF_8)));
         private String putPath;
         private String createdFolderPath;
         private String deletedPath;
@@ -502,15 +537,18 @@ class FilesFacadeServiceTest {
         public FileListResponse list(String path) {
             String normalized = path.endsWith("/") && path.length() > 1 ? path.substring(0, path.length() - 1) : path;
             if ("/Team".equals(normalized)) {
-                return new FileListResponse(normalized, List.of(new FileItemResponse(
-                        "files:test",
-                        "readme.md",
-                        "/Team/readme.md",
-                        "file",
-                        "text/markdown",
-                        12L,
-                        OffsetDateTime.parse("2026-04-26T08:00:00Z"),
-                        true)), null);
+                return new FileListResponse(normalized, contentByPath.keySet().stream()
+                        .filter(pathValue -> pathValue.startsWith("/Team/"))
+                        .map(pathValue -> new FileItemResponse(
+                                "files:test",
+                                pathValue.substring(pathValue.lastIndexOf('/') + 1),
+                                pathValue,
+                                "file",
+                                "text/markdown",
+                                (long) contentByPath.get(pathValue).length,
+                                OffsetDateTime.parse("2026-04-26T08:00:00Z"),
+                                true))
+                        .toList(), null);
             }
             return new FileListResponse(path, List.of(new FileItemResponse(
                     "files:test",
@@ -543,8 +581,15 @@ class FilesFacadeServiceTest {
         }
 
         @Override
+        public String versionToken(String path) {
+            byte[] content = contentByPath.get(path);
+            return content == null ? null : new String(content, StandardCharsets.UTF_8);
+        }
+
+        @Override
         public FileItemResponse put(String path, byte[] content, String mimeType) {
             putPath = path;
+            contentByPath.put(path, content);
             return new FileItemResponse(
                     "files:put",
                     path.substring(path.lastIndexOf('/') + 1),

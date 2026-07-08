@@ -130,6 +130,7 @@ def require_webdav_write_mvp() -> None:
         "putWebDavFile(",
         "createWebDavFolder(",
         "deleteWebDavPath(",
+        "versionToken(",
         "FILES_WEBDAV_WRITE_ATTEMPTED",
         "FILES_WEBDAV_WRITE_COMPLETED",
         "files-precondition-failed",
@@ -139,16 +140,20 @@ def require_webdav_write_mvp() -> None:
         "server/src/test/java/com/massimotter/weave/backend/service/FilesFacadeServiceTest.java",
         "webDavPutCreateFolderAndDeleteUseFacadePolicyAndPublishMutationAudit",
         "webDavWritePreconditionsFailBeforeStorageMutationButAfterAttemptAudit",
+        "webDavPutResponseEtagChangesForSameSizeOverwriteWhenMetadataDoesNotChange",
         "FILES_WEBDAV_WRITE_COMPLETED",
         "files-precondition-failed",
     )
     require(
         "server/src/main/java/com/massimotter/weave/backend/service/files/FilesStorageAdapter.java",
         "FileItemResponse put(String path, byte[] content, String mimeType)",
+        "String versionToken(String path)",
     )
     require(
         "server/src/main/java/com/massimotter/weave/backend/service/files/NextcloudFilesAdapter.java",
         "public FileItemResponse put(String path, byte[] content, String mimeType)",
+        "public String versionToken(String path)",
+        "getetag",
         "HttpMethod.PUT",
         "webdav-put",
     )
