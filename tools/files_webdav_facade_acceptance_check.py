@@ -72,7 +72,7 @@ def require_read_list_download() -> None:
         'case "PROPFIND"',
         'case "GET"',
         'case "HEAD"',
-        "filesFacadeService.list(path)",
+        "filesFacadeService.webDavPropfind(path)",
         "filesFacadeService.download(path)",
     )
     require(
