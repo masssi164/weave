@@ -1,5 +1,10 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.audit.AuditAction;
+import com.massimotter.weave.backend.audit.AuditEvent;
+import com.massimotter.weave.backend.audit.AuditEventPublisher;
+import com.massimotter.weave.backend.audit.AuditRedactionLevel;
+import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
@@ -12,9 +17,14 @@ import com.massimotter.weave.backend.model.files.FileNativeProviderOptionRespons
 import com.massimotter.weave.backend.model.files.FileNativeProviderSetupResponse;
 import com.massimotter.weave.backend.model.files.FileUploadResponse;
 import com.massimotter.weave.backend.service.files.DownloadedFile;
+import com.massimotter.weave.backend.service.files.FilePathCodec;
 import com.massimotter.weave.backend.service.files.FilesStorageAdapter;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
+import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
@@ -32,16 +42,47 @@ public class FilesFacadeService {
     private final ContextAuthorizationPort contextAuthorizationPort;
     private final ContextAuthorizationProperties contextAuthorizationProperties;
     private final WorkspaceCapabilityService workspaceCapabilityService;
+    private final AuditEventPublisher auditEventPublisher;
+
+    @Autowired
+    public FilesFacadeService(
+            ObjectProvider<FilesStorageAdapter> filesStorageAdapterProvider,
+            ContextAuthorizationPort contextAuthorizationPort,
+            ContextAuthorizationProperties contextAuthorizationProperties,
+            WorkspaceCapabilityService workspaceCapabilityService,
+            ObjectProvider<AuditEventPublisher> auditEventPublisherProvider) {
+        this(
+                filesStorageAdapterProvider,
+                contextAuthorizationPort,
+                contextAuthorizationProperties,
+                workspaceCapabilityService,
+                auditEventPublisherProvider.getIfAvailable(InMemoryAuditEventPublisher::new));
+    }
+
+    public FilesFacadeService(
+            ObjectProvider<FilesStorageAdapter> filesStorageAdapterProvider,
+            ContextAuthorizationPort contextAuthorizationPort,
+            ContextAuthorizationProperties contextAuthorizationProperties,
+            WorkspaceCapabilityService workspaceCapabilityService,
+            AuditEventPublisher auditEventPublisher) {
+        this.filesStorageAdapter = filesStorageAdapterProvider.getIfAvailable();
+        this.contextAuthorizationPort = contextAuthorizationPort;
+        this.contextAuthorizationProperties = contextAuthorizationProperties;
+        this.workspaceCapabilityService = workspaceCapabilityService;
+        this.auditEventPublisher = auditEventPublisher;
+    }
 
     public FilesFacadeService(
             ObjectProvider<FilesStorageAdapter> filesStorageAdapterProvider,
             ContextAuthorizationPort contextAuthorizationPort,
             ContextAuthorizationProperties contextAuthorizationProperties,
             WorkspaceCapabilityService workspaceCapabilityService) {
-        this.filesStorageAdapter = filesStorageAdapterProvider.getIfAvailable();
-        this.contextAuthorizationPort = contextAuthorizationPort;
-        this.contextAuthorizationProperties = contextAuthorizationProperties;
-        this.workspaceCapabilityService = workspaceCapabilityService;
+        this(
+                filesStorageAdapterProvider,
+                contextAuthorizationPort,
+                contextAuthorizationProperties,
+                workspaceCapabilityService,
+                new InMemoryAuditEventPublisher());
     }
 
     public FileListResponse list(String path) {
@@ -54,13 +95,13 @@ public class FilesFacadeService {
     }
 
     public FileItemResponse createFolder(CreateFolderRequest request) {
-        requireContextPermission(ContextPermission.EDIT, "create-folder");
-        throw webDavWritePolicyRequired("create-folder");
+        PrincipalContext principal = requireContextPermission(ContextPermission.EDIT, "create-folder");
+        throw webDavWritePolicyRequired("create-folder", principal, FilePathCodec.childPath(request.parentPath(), request.name()), null);
     }
 
     public FileUploadResponse upload(String parentPath, MultipartFile file) {
-        requireContextPermission(ContextPermission.EDIT, "upload-file");
-        throw webDavWritePolicyRequired("upload-file");
+        PrincipalContext principal = requireContextPermission(ContextPermission.EDIT, "upload-file");
+        throw webDavWritePolicyRequired("upload-file", principal, parentPath, null);
     }
 
     public DownloadedFile download(String id) {
@@ -73,8 +114,15 @@ public class FilesFacadeService {
     }
 
     public void delete(String id) {
-        requireContextPermission(ContextPermission.EDIT, "delete-file");
-        throw webDavWritePolicyRequired("delete-file");
+        PrincipalContext principal = requireContextPermission(ContextPermission.EDIT, "delete-file");
+        throw webDavWritePolicyRequired("delete-file", principal, FilePathCodec.pathFromId(id), null);
+    }
+
+    public ApiErrorException rejectWebDavWrite(String method, String path) {
+        String normalizedMethod = method == null ? "WRITE" : method.toUpperCase(Locale.ROOT);
+        String operation = "webdav-" + normalizedMethod.toLowerCase(Locale.ROOT);
+        PrincipalContext principal = requireContextPermission(ContextPermission.EDIT, operation);
+        return webDavWritePolicyRequired(operation, principal, FilePathCodec.normalizeProductPath(path), normalizedMethod);
     }
 
     public FileNativeProviderSetupResponse nativeProviderSetup(Jwt jwt) {
@@ -129,7 +177,7 @@ public class FilesFacadeService {
                         "physical-device-provider-proof"));
     }
 
-    private void requireContextPermission(ContextPermission permission, String operation) {
+    private PrincipalContext requireContextPermission(ContextPermission permission, String operation) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null) {
             throw new ApiErrorException(
@@ -158,6 +206,7 @@ public class FilesFacadeService {
                             "contextId", DEFAULT_CONTEXT_ID,
                             "permission", permission.name().toLowerCase()));
         }
+        return principalContext;
     }
 
     private Jwt jwtPrincipal(Authentication authentication, String operation) {
@@ -234,7 +283,12 @@ public class FilesFacadeService {
                 Map.of("module", "files", "operation", operation));
     }
 
-    private ApiErrorException webDavWritePolicyRequired(String operation) {
+    private ApiErrorException webDavWritePolicyRequired(
+            String operation,
+            PrincipalContext principal,
+            String productPath,
+            String webDavMethod) {
+        publishBlockedWriteAudit(operation, principal, productPath, webDavMethod);
         return new ApiErrorException(
                 HttpStatus.NOT_IMPLEMENTED,
                 "files-webdav-write-policy-required",
@@ -246,6 +300,32 @@ public class FilesFacadeService {
                         "writePolicyIssue", "#1007",
                         "openApiDataPlaneUsed", false,
                         "diagnosticsRedacted", true));
+    }
+
+    private void publishBlockedWriteAudit(
+            String operation,
+            PrincipalContext principal,
+            String productPath,
+            String webDavMethod) {
+        auditEventPublisher.publish(new AuditEvent(
+                principal.tenantId(),
+                DEFAULT_CONTEXT_ID,
+                principal.principalRef(),
+                "files:webdav-gate",
+                AuditAction.FILES_WEBDAV_WRITE_BLOCKED,
+                Instant.now(),
+                "files-webdav-write-blocked:" + UUID.randomUUID(),
+                AuditRedactionLevel.SUPPORT_SAFE,
+                Map.of(
+                        "domain", "files",
+                        "operation", operation,
+                        "webDavMethod", webDavMethod == null ? "legacy-service-mutation" : webDavMethod,
+                        "productPath", productPath == null ? "/" : FilePathCodec.normalizeProductPath(productPath),
+                        "result", "blocked_write_policy_required",
+                        "writePolicyIssue", "#1007",
+                        "webDavFacadePath", "/dav/files",
+                        "openApiDataPlaneUsed", false,
+                        "supportSafe", true)));
     }
 
     private ApiErrorException supportSafeStorageError(ApiErrorException exception, String operation) {

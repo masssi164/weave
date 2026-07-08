@@ -30,6 +30,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
@@ -168,20 +169,26 @@ class FilesWebDavControllerTest {
 
     @Test
     void writeAndLockMethodsAreExplicitlyNotImplementedUntilConflictPolicyExists() throws Exception {
+        given(filesFacadeService.rejectWebDavWrite("PUT", "/Team/readme.md"))
+                .willReturn(writePolicyRequired("webdav-put"));
+        given(filesFacadeService.rejectWebDavWrite("LOCK", "/Team/readme.md"))
+                .willReturn(writePolicyRequired("webdav-lock"));
+
         mockMvc.perform(request(HttpMethod.valueOf("PUT"), "/dav/files/Team/readme.md")
                         .content("new")
                         .with(workspaceJwt()))
                 .andExpect(status().isNotImplemented())
-                .andExpect(header().string("X-Weave-Error-Code", "webdav-method-not-implemented"))
-                .andExpect(content().string(containsString("read-only")))
+                .andExpect(header().string("X-Weave-Error-Code", "files-webdav-write-policy-required"))
                 .andExpect(content().string(containsString("#1007")))
-                .andExpect(content().string(containsString("ETag")))
                 .andExpect(content().string(not(containsString("Nextcloud"))));
 
         mockMvc.perform(request(HttpMethod.valueOf("LOCK"), "/dav/files/Team/readme.md")
                         .with(workspaceJwt()))
                 .andExpect(status().isNotImplemented())
-                .andExpect(header().string(HttpHeaders.ALLOW, "OPTIONS, PROPFIND, GET, HEAD"));
+                .andExpect(header().string("X-Weave-Error-Code", "files-webdav-write-policy-required"));
+
+        then(filesFacadeService).should().rejectWebDavWrite("PUT", "/Team/readme.md");
+        then(filesFacadeService).should().rejectWebDavWrite("LOCK", "/Team/readme.md");
     }
 
     private FileListResponse teamListing() {
@@ -211,5 +218,19 @@ class FilesWebDavControllerTest {
 
     private org.springframework.test.web.servlet.request.RequestPostProcessor workspaceJwt() {
         return jwt().authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
+    }
+
+    private ApiErrorException writePolicyRequired(String operation) {
+        return new ApiErrorException(
+                HttpStatus.NOT_IMPLEMENTED,
+                "files-webdav-write-policy-required",
+                "Files writes are blocked until the Weave WebDAV write policy is evidenced in #1007.",
+                Map.of(
+                        "module", "files",
+                        "operation", operation,
+                        "webDavFacadePath", "/dav/files",
+                        "writePolicyIssue", "#1007",
+                        "openApiDataPlaneUsed", false,
+                        "diagnosticsRedacted", true));
     }
 }

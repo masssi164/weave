@@ -108,7 +108,8 @@ def require_read_list_download() -> None:
 def require_writes_fail_closed() -> None:
     require(
         "server/src/main/java/com/massimotter/weave/backend/controller/FilesWebDavController.java",
-        "webdav-method-not-implemented",
+        "webDavWriteBlocked",
+        "filesFacadeService.rejectWebDavWrite(method, productPath(request))",
         "#1007",
         "OPTIONS, PROPFIND, GET, HEAD",
     )
@@ -117,6 +118,7 @@ def require_writes_fail_closed() -> None:
         "writeAndLockMethodsAreExplicitlyNotImplementedUntilConflictPolicyExists",
         "HttpMethod.valueOf(\"PUT\")",
         "HttpMethod.valueOf(\"LOCK\")",
+        "files-webdav-write-policy-required",
         "#1007",
     )
     require(
@@ -128,11 +130,13 @@ def require_writes_fail_closed() -> None:
         "server/src/main/java/com/massimotter/weave/backend/service/FilesFacadeService.java",
         "files-webdav-write-policy-required",
         "Files writes are blocked until the Weave WebDAV write policy is evidenced in #1007.",
+        "FILES_WEBDAV_WRITE_BLOCKED",
         '"openApiDataPlaneUsed", false',
     )
     require(
         "server/src/test/java/com/massimotter/weave/backend/service/FilesFacadeServiceTest.java",
         "mutatingOperationsFailClosedBeforeStorageAdapterAccessUntilWebdavWritePolicyExists",
+        "webDavWriteRejectionsRequireEditPolicyAndPublishSupportSafeAudit",
         "files-webdav-write-policy-required",
         "openApiDataPlaneUsed",
     )
