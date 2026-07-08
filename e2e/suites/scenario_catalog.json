@@ -270,6 +270,14 @@
       "executionLane": "pr-safe-architecture-contract",
       "description": "Decision-lock, boundary-gate, and support-safe evidence exclusions for the Enterprise Hard Plan delivery DAG.",
       "scenarios": []
+    },
+    {
+      "id": "open-standards-gateway-archive-target",
+      "name": "Open standards gateway archive target",
+      "evidenceMode": "offline-spec",
+      "executionLane": "archive-gap-contract",
+      "description": "Full northbound Files, Calendar, Chat, Calls, native OS, MCP, and protocol credential target imported from the July 2026 archive with explicit incomplete-gap evidence.",
+      "scenarios": []
     }
   ],
   "scenarios": [
@@ -3320,12 +3328,12 @@
         "operator",
         "member"
       ],
-        "domains": [
-          "files",
-          "calendar",
-          "identity-idm",
-          "chat",
-          "weaver-governed-pa",
+      "domains": [
+        "files",
+        "calendar",
+        "identity-idm",
+        "chat",
+        "weaver-governed-pa",
         "provider-portability",
         "operator-release"
       ],
@@ -3465,6 +3473,1120 @@
         "support-safe audit and migration evidence",
         "provider-neutral northbound read-model comparison",
         "apply and production default changes remain blocked"
+      ]
+    },
+    {
+      "tag": "@open-standards-manifest",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member",
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "files",
+        "calendar",
+        "chat",
+        "meetings-calls",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@openapi-control-only",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member",
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "files",
+        "calendar",
+        "chat",
+        "meetings-calls",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@support-safe-capability-states",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member",
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "files",
+        "calendar",
+        "chat",
+        "meetings-calls",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@oidc-protocol-access",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "identity-idm",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@oidc-revoked-token",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "identity-idm",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@webdav-device-credential",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "identity-idm",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@caldav-device-credential",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "identity-idm",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@no-provider-credentials",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "identity-idm",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@files-webdav-propfind",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "files"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@files-webdav-get-head",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "files"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@files-webdav-put-create",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "files"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@files-webdav-put-stale",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "files"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@files-webdav-mkcol",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "files"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@files-webdav-delete",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "files"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@files-webdav-move",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "files"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@files-webdav-copy",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "files"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@files-webdav-lock-unlock",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "files"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@files-webdav-quota",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "files"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@files-flutter-webdav",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "files"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@caldav-discovery",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "calendar"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@caldav-home",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "calendar"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@caldav-calendar-query",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "calendar"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@caldav-calendar-multiget",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "calendar"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@caldav-get-put-delete",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "calendar"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@caldav-sync",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "calendar"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@caldav-freebusy",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "calendar"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@caldav-recurrence-dst",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "calendar"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@calendar-flutter-caldav",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "calendar"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@matrix-connect",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "chat"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@matrix-spaces-rooms",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "chat"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@matrix-message",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "chat"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@matrix-e2ee-state",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "chat"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@matrix-slack-bridge-no-leak",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "chat"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@matrix-teams-bridge-no-leak",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "chat"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@matrix-revoke",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "chat"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@flutter-matrix-boundary",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "chat"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@calls-create",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "meetings-calls"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@calls-join-grant",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "meetings-calls"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@calls-flutter-livekit",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "meetings-calls"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@calls-media",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "meetings-calls"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@calls-expired-grant",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "meetings-calls"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@calls-revoke-participant",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "meetings-calls"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@calls-audit",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "meetings-calls"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@calls-provider-error-redaction",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "meetings-calls"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@calls-matrix-projection",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "meetings-calls"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@mcp-files-facade",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "weaver_user"
+      ],
+      "domains": [
+        "weaver-governed-pa",
+        "files",
+        "calendar",
+        "chat",
+        "meetings-calls"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@mcp-calendar-facade",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "weaver_user"
+      ],
+      "domains": [
+        "weaver-governed-pa",
+        "files",
+        "calendar",
+        "chat",
+        "meetings-calls"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@mcp-chat-facade",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "weaver_user"
+      ],
+      "domains": [
+        "weaver-governed-pa",
+        "files",
+        "calendar",
+        "chat",
+        "meetings-calls"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@mcp-calls-facade",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "weaver_user"
+      ],
+      "domains": [
+        "weaver-governed-pa",
+        "files",
+        "calendar",
+        "chat",
+        "meetings-calls"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@mcp-no-provider-leakage",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "weaver_user"
+      ],
+      "domains": [
+        "weaver-governed-pa",
+        "files",
+        "calendar",
+        "chat",
+        "meetings-calls"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@member-protocol-no-leakage",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member",
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "provider-portability",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@flutter-error-no-leakage",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member",
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "provider-portability",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@native-setup-no-leakage",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member",
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "provider-portability",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@mcp-output-no-leakage",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member",
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "provider-portability",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@support-diagnostics-redacted",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member",
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "provider-portability",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@flutter-files-webdav",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "files",
+        "calendar",
+        "chat",
+        "meetings-calls"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@flutter-calendar-caldav",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "files",
+        "calendar",
+        "chat",
+        "meetings-calls"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@flutter-chat-matrix",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "files",
+        "calendar",
+        "chat",
+        "meetings-calls"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@flutter-calls-livekit",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "files",
+        "calendar",
+        "chat",
+        "meetings-calls"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@flutter-openapi-control-only",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "files",
+        "calendar",
+        "chat",
+        "meetings-calls"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@native-files-webdav",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "files",
+        "calendar",
+        "identity-idm"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@native-calendar-caldav",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "files",
+        "calendar",
+        "identity-idm"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@native-revoke",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "files",
+        "calendar",
+        "identity-idm"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@native-accessibility",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "files",
+        "calendar",
+        "identity-idm"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "archive target scenario is checked in",
+        "current implementation gap remains explicit",
+        "completion claim is blocked until executable evidence replaces the gap marker"
       ]
     }
   ]
