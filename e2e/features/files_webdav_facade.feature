@@ -17,14 +17,14 @@ Feature: Files WebDAV facade data-plane boundary
     And the response contains canonical Weave file references and support-safe errors
     And the response does not expose provider URLs, provider credentials, raw downstream payloads, or provider-shaped member language
 
-  @files-webdav-writes-fail-closed
-  Scenario: Files writes remain blocked until WebDAV write policy is evidenced
-    Given WebDAV write policy has not been specified and tested for ETag, conflict, lock, quota, revocation, and audit behavior
-    When a client attempts a write-shaped Files operation through WebDAV, Flutter, or MCP
-    Then Weave fails closed with a stable support-safe error
-    And the delivery evidence names the write-policy follow-up issue
-    And WebDAV write-shaped attempts pass through the Files facade write gate before provider access
-    And support-safe audit evidence records the blocked write decision
+  @files-webdav-write-mvp
+  Scenario: Member writes files through the Weave WebDAV facade with guarded preconditions
+    Given an authenticated member has Files edit capability in a workspace
+    And the workspace has a configured Files provider behind Weave
+    When the member client writes through PUT, MKCOL, or DELETE on "/dav/files"
+    Then Weave enforces ETag generation and If-Match or If-None-Match preconditions at the Files facade
+    And conflict, precondition, forbidden, revoked, quota, and storage failures use stable support-safe error codes
+    And support-safe audit evidence records attempted and completed WebDAV mutations
     And no legacy OpenAPI Files member data endpoint becomes the fallback data plane
 
   @files-mcp-facade-no-provider-bypass

@@ -22,6 +22,10 @@ public interface FilesStorageAdapter {
 
     FileUploadResponse upload(String parentPath, MultipartFile file);
 
+    default FileItemResponse put(String path, byte[] content, String mimeType) {
+        throw new UnsupportedOperationException("WebDAV PUT is not implemented by this storage adapter");
+    }
+
     DownloadedFile download(String id);
 
     void delete(String id);

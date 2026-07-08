@@ -97,27 +97,27 @@
       ]
     },
     {
-      "tag": "@files-webdav-writes-fail-closed",
-      "scenario": "Files writes remain blocked until WebDAV write policy is evidenced",
+      "tag": "@files-webdav-write-mvp",
+      "scenario": "Member writes files through the Weave WebDAV facade with guarded preconditions",
       "feature": "e2e/features/files_webdav_facade.feature",
       "executableTest": "tools/files_webdav_facade_acceptance_check.py",
       "evidenceMarkers": [
-        "FILES_WEBDAV_WRITES_FAIL_CLOSED"
+        "FILES_WEBDAV_WRITE_MVP"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
           "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
           "fragments": [
-            "writeAndLockMethodsAreExplicitlyNotImplementedUntilConflictPolicyExists",
-            "#1007"
+            "putMkcolAndDeleteUseWebDavFacadeWriteUseCases",
+            "preconditionFailuresReturnStableWebDavErrorWithoutProviderLeakage"
           ]
         },
         {
-          "path": "client/lib/features/files/data/repositories/backend_files_repository.dart",
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/FilesFacadeServiceTest.java",
           "fragments": [
-            "File writes fail",
-            "Files writes are blocked until the Weave WebDAV write policy is available."
+            "webDavPutCreateFolderAndDeleteUseFacadePolicyAndPublishMutationAudit",
+            "FILES_WEBDAV_WRITE_COMPLETED"
           ]
         }
       ]

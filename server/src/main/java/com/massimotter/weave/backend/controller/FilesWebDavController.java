@@ -6,8 +6,10 @@ import com.massimotter.weave.backend.model.files.FileListResponse;
 import com.massimotter.weave.backend.service.FilesFacadeService;
 import com.massimotter.weave.backend.service.files.DownloadedFile;
 import com.massimotter.weave.backend.service.files.FilePathCodec;
+import com.massimotter.weave.backend.service.files.WebDavMutationResult;
 import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.servlet.http.HttpServletRequest;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
@@ -50,7 +52,10 @@ public class FilesWebDavController {
                 case "PROPFIND" -> propfind(request);
                 case "GET" -> get(request, false);
                 case "HEAD" -> get(request, true);
-                case "PUT", "MKCOL", "DELETE", "MOVE", "COPY", "LOCK", "UNLOCK" -> webDavWriteBlocked(request, method);
+                case "PUT" -> put(request);
+                case "MKCOL" -> mkcol(request);
+                case "DELETE" -> delete(request);
+                case "MOVE", "COPY", "LOCK", "UNLOCK" -> webDavWriteBlocked(request, method);
                 default -> unsupportedMethod(method);
             };
         } catch (ApiErrorException exception) {
@@ -61,7 +66,7 @@ public class FilesWebDavController {
     private ResponseEntity<Void> options() {
         return ResponseEntity.noContent()
                 .header("DAV", "1")
-                .header(HttpHeaders.ALLOW, "OPTIONS, PROPFIND, GET, HEAD")
+                .header(HttpHeaders.ALLOW, "OPTIONS, PROPFIND, GET, HEAD, PUT, DELETE, MKCOL")
                 .header("MS-Author-Via", "DAV")
                 .build();
     }
@@ -88,12 +93,45 @@ public class FilesWebDavController {
     private ResponseEntity<byte[]> get(HttpServletRequest request, boolean headOnly) {
         String path = productPath(request);
         DownloadedFile file = filesFacadeService.download(path);
+        String etag = filesFacadeService.etagFor(path);
         ResponseEntity.BodyBuilder builder = ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(file.mimeType()))
                 .contentLength(file.content().length)
+                .eTag(etag)
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         ContentDisposition.inline().filename(file.filename()).build().toString());
         return builder.body(headOnly ? null : file.content());
+    }
+
+    private ResponseEntity<Void> put(HttpServletRequest request) {
+        String path = productPath(request);
+        WebDavMutationResult result = filesFacadeService.putWebDavFile(
+                path,
+                requestBody(request),
+                request.getContentType(),
+                request.getHeader(HttpHeaders.IF_MATCH),
+                request.getHeader(HttpHeaders.IF_NONE_MATCH));
+        HttpStatus status = result.created() ? HttpStatus.CREATED : HttpStatus.NO_CONTENT;
+        return ResponseEntity.status(status)
+                .eTag(result.etag())
+                .header(HttpHeaders.LOCATION, davHref(result.item().path(), false))
+                .build();
+    }
+
+    private ResponseEntity<Void> mkcol(HttpServletRequest request) {
+        WebDavMutationResult result = filesFacadeService.createWebDavFolder(
+                productPath(request),
+                request.getHeader(HttpHeaders.IF_MATCH),
+                request.getHeader(HttpHeaders.IF_NONE_MATCH));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .eTag(result.etag())
+                .header(HttpHeaders.LOCATION, davHref(result.item().path(), true))
+                .build();
+    }
+
+    private ResponseEntity<Void> delete(HttpServletRequest request) {
+        filesFacadeService.deleteWebDavPath(productPath(request), request.getHeader(HttpHeaders.IF_MATCH));
+        return ResponseEntity.noContent().build();
     }
 
     private ResponseEntity<String> webDavWriteBlocked(HttpServletRequest request, String method) {
@@ -103,11 +141,11 @@ public class FilesWebDavController {
     private ResponseEntity<String> unsupportedMethod(String method) {
         return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED)
                 .contentType(XML)
-                .header(HttpHeaders.ALLOW, "OPTIONS, PROPFIND, GET, HEAD")
+                .header(HttpHeaders.ALLOW, "OPTIONS, PROPFIND, GET, HEAD, PUT, DELETE, MKCOL")
                 .header("X-Weave-Error-Code", "webdav-method-not-implemented")
                 .body(errorXml("webdav-method-not-implemented",
-                        "Weave Files WebDAV is read-only in this slice. " + method
-                                + " is blocked by #1007 until write, ETag, conflict, and revocation policy is recorded."));
+                        "Weave Files WebDAV does not implement " + method
+                                + " in the current Files protocol slice."));
     }
 
     private ResponseEntity<String> davError(ApiErrorException exception) {
@@ -139,6 +177,18 @@ public class FilesWebDavController {
             productPath = "/" + productPath;
         }
         return FilePathCodec.normalizeProductPath(productPath);
+    }
+
+    private byte[] requestBody(HttpServletRequest request) {
+        try {
+            return request.getInputStream().readAllBytes();
+        } catch (IOException exception) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "file-upload-unreadable",
+                    "Uploaded file could not be read by the backend.",
+                    Map.of("module", "files", "operation", "webdav-put"));
+        }
     }
 
     private String multistatus(String requestedPath, FileListResponse listing, boolean includeChildren) {

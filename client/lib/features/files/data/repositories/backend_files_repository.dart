@@ -21,7 +21,7 @@ import 'package:xml/xml.dart';
 /// all direct provider access. File list/read data-plane operations use the
 /// Weave WebDAV projection; OpenAPI remains the control plane for discovery,
 /// setup, readiness, revoke, grants, and generated models. File writes fail
-/// closed until the WebDAV write policy is recorded in #1007.
+/// closed until the Flutter Files write cutover uses the WebDAV write path.
 class BackendFilesRepository
     implements
         FilesRepository,
@@ -489,7 +489,7 @@ class BackendFilesRepository
 
   FilesFailure _webDavWritesBlocked() {
     return const FilesFailure.protocol(
-      'Files writes are blocked until the Weave WebDAV write policy is available.',
+      'Files writes are blocked in this client until the Weave WebDAV write cutover is available.',
     );
   }
 }

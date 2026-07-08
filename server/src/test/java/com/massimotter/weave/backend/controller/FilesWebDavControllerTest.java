@@ -10,6 +10,7 @@ import com.massimotter.weave.backend.model.files.FileItemResponse;
 import com.massimotter.weave.backend.model.files.FileListResponse;
 import com.massimotter.weave.backend.service.FilesFacadeService;
 import com.massimotter.weave.backend.service.files.DownloadedFile;
+import com.massimotter.weave.backend.service.files.WebDavMutationResult;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
@@ -68,7 +69,7 @@ class FilesWebDavControllerTest {
                         .with(workspaceJwt()))
                 .andExpect(status().isNoContent())
                 .andExpect(header().string("DAV", "1"))
-                .andExpect(header().string(HttpHeaders.ALLOW, "OPTIONS, PROPFIND, GET, HEAD"));
+                .andExpect(header().string(HttpHeaders.ALLOW, "OPTIONS, PROPFIND, GET, HEAD, PUT, DELETE, MKCOL"));
     }
 
     @Test
@@ -108,11 +109,13 @@ class FilesWebDavControllerTest {
     void getDownloadsFileThroughFacadePath() throws Exception {
         given(filesFacadeService.download("/Team/readme one.md"))
                 .willReturn(new DownloadedFile("readme one.md", "text/markdown", "hello".getBytes()));
+        given(filesFacadeService.etagFor("/Team/readme one.md")).willReturn("\"etag-readme\"");
 
         mockMvc.perform(get("/dav/files/Team/readme one.md")
                         .with(workspaceJwt()))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType("text/markdown"))
+                .andExpect(header().string(HttpHeaders.ETAG, "\"etag-readme\""))
                 .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"readme one.md\""))
                 .andExpect(content().bytes("hello".getBytes()));
     }
@@ -168,27 +171,115 @@ class FilesWebDavControllerTest {
     }
 
     @Test
-    void writeAndLockMethodsAreExplicitlyNotImplementedUntilConflictPolicyExists() throws Exception {
-        given(filesFacadeService.rejectWebDavWrite("PUT", "/Team/readme.md"))
-                .willReturn(writePolicyRequired("webdav-put"));
-        given(filesFacadeService.rejectWebDavWrite("LOCK", "/Team/readme.md"))
-                .willReturn(writePolicyRequired("webdav-lock"));
+    void putMkcolAndDeleteUseWebDavFacadeWriteUseCases() throws Exception {
+        given(filesFacadeService.putWebDavFile(
+                "/Team/readme.md",
+                "new".getBytes(),
+                "text/markdown",
+                "\"etag-old\"",
+                null))
+                .willReturn(new WebDavMutationResult(
+                        file("/Team/readme.md", "text/markdown", 3L),
+                        "\"etag-new\"",
+                        false));
+        given(filesFacadeService.createWebDavFolder("/Team/Design", null, "*"))
+                .willReturn(new WebDavMutationResult(
+                        folder("/Team/Design"),
+                        "\"etag-folder\"",
+                        true));
 
         mockMvc.perform(request(HttpMethod.valueOf("PUT"), "/dav/files/Team/readme.md")
                         .content("new")
+                        .contentType("text/markdown")
+                        .header(HttpHeaders.IF_MATCH, "\"etag-old\"")
                         .with(workspaceJwt()))
-                .andExpect(status().isNotImplemented())
-                .andExpect(header().string("X-Weave-Error-Code", "files-webdav-write-policy-required"))
-                .andExpect(content().string(containsString("#1007")))
-                .andExpect(content().string(not(containsString("Nextcloud"))));
+                .andExpect(status().isNoContent())
+                .andExpect(header().string(HttpHeaders.ETAG, "\"etag-new\""))
+                .andExpect(header().string(HttpHeaders.LOCATION, "/dav/files/Team/readme.md"));
+
+        mockMvc.perform(request(HttpMethod.valueOf("MKCOL"), "/dav/files/Team/Design")
+                        .header(HttpHeaders.IF_NONE_MATCH, "*")
+                        .with(workspaceJwt()))
+                .andExpect(status().isCreated())
+                .andExpect(header().string(HttpHeaders.ETAG, "\"etag-folder\""))
+                .andExpect(header().string(HttpHeaders.LOCATION, "/dav/files/Team/Design/"));
+
+        mockMvc.perform(request(HttpMethod.valueOf("DELETE"), "/dav/files/Team/old.md")
+                        .header(HttpHeaders.IF_MATCH, "\"etag-old\"")
+                        .with(workspaceJwt()))
+                .andExpect(status().isNoContent());
+
+        then(filesFacadeService).should().putWebDavFile(
+                "/Team/readme.md",
+                "new".getBytes(),
+                "text/markdown",
+                "\"etag-old\"",
+                null);
+        then(filesFacadeService).should().createWebDavFolder("/Team/Design", null, "*");
+        then(filesFacadeService).should().deleteWebDavPath("/Team/old.md", "\"etag-old\"");
+    }
+
+    @Test
+    void preconditionFailuresReturnStableWebDavErrorWithoutProviderLeakage() throws Exception {
+        given(filesFacadeService.putWebDavFile(
+                "/Team/readme.md",
+                "new".getBytes(),
+                "text/markdown",
+                null,
+                "*"))
+                .willThrow(new ApiErrorException(
+                        HttpStatus.PRECONDITION_FAILED,
+                        "files-precondition-failed",
+                        "If-None-Match requires the target path to be absent.",
+                        Map.of("module", "files", "operation", "webdav-put")));
+
+        mockMvc.perform(request(HttpMethod.valueOf("PUT"), "/dav/files/Team/readme.md")
+                        .content("new")
+                        .contentType("text/markdown")
+                        .header(HttpHeaders.IF_NONE_MATCH, "*")
+                        .with(workspaceJwt()))
+                .andExpect(status().isPreconditionFailed())
+                .andExpect(header().string("X-Weave-Error-Code", "files-precondition-failed"))
+                .andExpect(content().string(not(containsString("Nextcloud"))))
+                .andExpect(content().string(not(containsString("remote.php"))))
+                .andExpect(content().string(not(containsString("Bearer"))));
+    }
+
+    @Test
+    void unsupportedWriteExtensionsRemainBlockedUntilAProtocolSliceImplementsThem() throws Exception {
+        given(filesFacadeService.rejectWebDavWrite("LOCK", "/Team/readme.md"))
+                .willReturn(writePolicyRequired("webdav-lock"));
 
         mockMvc.perform(request(HttpMethod.valueOf("LOCK"), "/dav/files/Team/readme.md")
                         .with(workspaceJwt()))
                 .andExpect(status().isNotImplemented())
                 .andExpect(header().string("X-Weave-Error-Code", "files-webdav-write-policy-required"));
 
-        then(filesFacadeService).should().rejectWebDavWrite("PUT", "/Team/readme.md");
         then(filesFacadeService).should().rejectWebDavWrite("LOCK", "/Team/readme.md");
+    }
+
+    private FileItemResponse file(String path, String mimeType, long size) {
+        return new FileItemResponse(
+                "files:" + path,
+                path.substring(path.lastIndexOf('/') + 1),
+                path,
+                "file",
+                mimeType,
+                size,
+                OffsetDateTime.parse("2026-07-04T12:01:00Z"),
+                true);
+    }
+
+    private FileItemResponse folder(String path) {
+        return new FileItemResponse(
+                "files:" + path,
+                path.substring(path.lastIndexOf('/') + 1),
+                path,
+                "folder",
+                null,
+                null,
+                OffsetDateTime.parse("2026-07-04T12:01:00Z"),
+                false);
     }
 
     private FileListResponse teamListing() {

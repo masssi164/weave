@@ -184,15 +184,19 @@ class ServerArchitectureBoundaryTest {
     }
 
     @Test
-    void filesWebDavWriteMethodsRouteThroughFacadeWriteGate() throws IOException {
+    void filesWebDavWriteMethodsRouteThroughFacadeUseCases() throws IOException {
         JavaSource filesWebDavController = productionSources().stream()
                 .filter(source -> source.path().endsWith(Path.of("controller", "FilesWebDavController.java")))
                 .findFirst()
                 .orElseThrow();
 
         assertThat(filesWebDavController.text())
-                .contains("case \"PUT\", \"MKCOL\", \"DELETE\", \"MOVE\", \"COPY\", \"LOCK\", \"UNLOCK\" -> webDavWriteBlocked(request, method)")
-                .contains("filesFacadeService.rejectWebDavWrite(method, productPath(request))")
+                .contains("case \"PUT\" -> put(request)")
+                .contains("case \"MKCOL\" -> mkcol(request)")
+                .contains("case \"DELETE\" -> delete(request)")
+                .contains("filesFacadeService.putWebDavFile(")
+                .contains("filesFacadeService.createWebDavFolder(")
+                .contains("filesFacadeService.deleteWebDavPath(")
                 .doesNotContain("NextcloudFilesAdapter")
                 .doesNotContain("RestClient");
     }

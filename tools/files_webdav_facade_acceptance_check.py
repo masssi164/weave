@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 MARKERS = [
     "FILES_WEBDAV_FACADE_READ_LIST_DOWNLOAD",
-    "FILES_WEBDAV_WRITES_FAIL_CLOSED",
+    "FILES_WEBDAV_WRITE_MVP",
     "FILES_MCP_FACADE_NO_PROVIDER_BYPASS",
 ]
 
@@ -105,33 +105,62 @@ def require_read_list_download() -> None:
     require_openapi_boundary()
 
 
-def require_writes_fail_closed() -> None:
+def require_webdav_write_mvp() -> None:
     require(
         "server/src/main/java/com/massimotter/weave/backend/controller/FilesWebDavController.java",
-        "webDavWriteBlocked",
-        "filesFacadeService.rejectWebDavWrite(method, productPath(request))",
-        "#1007",
-        "OPTIONS, PROPFIND, GET, HEAD",
+        'case "PUT" -> put(request)',
+        'case "MKCOL" -> mkcol(request)',
+        'case "DELETE" -> delete(request)',
+        "filesFacadeService.putWebDavFile(",
+        "filesFacadeService.createWebDavFolder(",
+        "filesFacadeService.deleteWebDavPath(",
+        "OPTIONS, PROPFIND, GET, HEAD, PUT, DELETE, MKCOL",
     )
     require(
         "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
-        "writeAndLockMethodsAreExplicitlyNotImplementedUntilConflictPolicyExists",
+        "putMkcolAndDeleteUseWebDavFacadeWriteUseCases",
+        "preconditionFailuresReturnStableWebDavErrorWithoutProviderLeakage",
         "HttpMethod.valueOf(\"PUT\")",
-        "HttpMethod.valueOf(\"LOCK\")",
-        "files-webdav-write-policy-required",
-        "#1007",
+        "HttpMethod.valueOf(\"MKCOL\")",
+        "HttpMethod.valueOf(\"DELETE\")",
+        "files-precondition-failed",
+    )
+    require(
+        "server/src/main/java/com/massimotter/weave/backend/service/FilesFacadeService.java",
+        "putWebDavFile(",
+        "createWebDavFolder(",
+        "deleteWebDavPath(",
+        "FILES_WEBDAV_WRITE_ATTEMPTED",
+        "FILES_WEBDAV_WRITE_COMPLETED",
+        "files-precondition-failed",
+        '"openApiDataPlaneUsed", false',
+    )
+    require(
+        "server/src/test/java/com/massimotter/weave/backend/service/FilesFacadeServiceTest.java",
+        "webDavPutCreateFolderAndDeleteUseFacadePolicyAndPublishMutationAudit",
+        "webDavWritePreconditionsFailBeforeStorageMutationButAfterAttemptAudit",
+        "FILES_WEBDAV_WRITE_COMPLETED",
+        "files-precondition-failed",
+    )
+    require(
+        "server/src/main/java/com/massimotter/weave/backend/service/files/FilesStorageAdapter.java",
+        "FileItemResponse put(String path, byte[] content, String mimeType)",
+    )
+    require(
+        "server/src/main/java/com/massimotter/weave/backend/service/files/NextcloudFilesAdapter.java",
+        "public FileItemResponse put(String path, byte[] content, String mimeType)",
+        "HttpMethod.PUT",
+        "webdav-put",
     )
     require(
         "client/lib/features/files/data/repositories/backend_files_repository.dart",
         "_webDavWritesBlocked()",
-        "Files writes are blocked until the Weave WebDAV write policy is available.",
+        "Files writes are blocked in this client until the Weave WebDAV write cutover is available.",
     )
     require(
         "server/src/main/java/com/massimotter/weave/backend/service/FilesFacadeService.java",
         "files-webdav-write-policy-required",
-        "Files writes are blocked until the Weave WebDAV write policy is evidenced in #1007.",
         "FILES_WEBDAV_WRITE_BLOCKED",
-        '"openApiDataPlaneUsed", false',
     )
     require(
         "server/src/test/java/com/massimotter/weave/backend/service/FilesFacadeServiceTest.java",
@@ -142,8 +171,8 @@ def require_writes_fail_closed() -> None:
     )
     require(
         "client/test/features/files/presentation/providers/files_backend_facade_provider_test.dart",
-        "fails closed for writes until WebDAV write policy is available",
-        "WebDAV write policy",
+        "fails closed for writes until Flutter WebDAV write cutover is available",
+        "WebDAV write cutover",
     )
     require_absent(
         "client/lib/features/files/data/repositories/backend_files_repository.dart",
@@ -181,7 +210,7 @@ def require_mcp_facade_boundary() -> None:
 
 def main() -> int:
     require_read_list_download()
-    require_writes_fail_closed()
+    require_webdav_write_mvp()
     require_mcp_facade_boundary()
     for marker in MARKERS:
         print(marker)

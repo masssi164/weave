@@ -201,7 +201,7 @@ The remaining Matrix integration is a fenced legacy/diagnostic seam pending #895
 - Matrix SDK crypto setup helpers for first-device bootstrap, recovery reconnect, and self-verification continuation
 
 ## Nextcloud integration split
-Normal member Files uses the Weave WebDAV facade through `BackendFilesRepository` for list/read data-plane behavior; Flutter keeps OpenAPI only for discovery/readiness/setup/revoke/control-plane state. It presents Weave-domain `DirectoryListing` and `FileEntry` objects and fails closed for mutations until the WebDAV write policy in #1007 is implemented. The transitional Nextcloud integration is now split into fenced provider-owned helpers:
+Normal member Files uses the Weave WebDAV facade through `BackendFilesRepository` for list/read data-plane behavior; Flutter keeps OpenAPI only for discovery/readiness/setup/revoke/control-plane state. Server-side `/dav/files` supports guarded `PUT`, `MKCOL`, and `DELETE` with ETags, conditional preconditions, support-safe errors, and mutation audit; Flutter mutations still fail closed until their WebDAV write cutover. The transitional Nextcloud integration is now split into fenced provider-owned helpers:
 
 - `integrations/nextcloud/` for legacy/shared auth, session, account validation, login-flow handling, revoke policy, provider wiring, and connection lifecycle orchestration where a fenced provider adapter still needs it
 - `features/files/` for Weave WebDAV facade calls and file-facing presentation/state
