@@ -64,9 +64,12 @@ def require_files_webdav_current_proof() -> None:
     require(
         "client/lib/features/files/data/repositories/backend_files_repository.dart",
         "http.Request('PROPFIND'",
+        "'PUT'",
+        "'MKCOL'",
+        "'DELETE'",
         "'dav', 'files'",
         "_httpClient.get(",
-        "Files writes are blocked in this client until the Weave WebDAV write cutover is available.",
+        "'If-None-Match': '*'",
     )
     require_absent(
         "client/lib/features/files/data/repositories/backend_files_repository.dart",

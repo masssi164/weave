@@ -95,6 +95,10 @@ def require_read_list_download() -> None:
         "http.Request('PROPFIND'",
         "'dav', 'files'",
         "_httpClient.get(",
+        "'PUT'",
+        "'MKCOL'",
+        "'DELETE'",
+        "'If-None-Match': '*'",
     )
     require(
         "client/test/features/files/presentation/providers/files_backend_facade_provider_test.dart",
@@ -159,8 +163,11 @@ def require_webdav_write_mvp() -> None:
     )
     require(
         "client/lib/features/files/data/repositories/backend_files_repository.dart",
-        "_webDavWritesBlocked()",
-        "Files writes are blocked in this client until the Weave WebDAV write cutover is available.",
+        "'PUT'",
+        "'MKCOL'",
+        "'DELETE'",
+        "_collectUploadBytes(",
+        "_pathFromLocation(",
     )
     require(
         "server/src/main/java/com/massimotter/weave/backend/service/FilesFacadeService.java",
@@ -176,8 +183,8 @@ def require_webdav_write_mvp() -> None:
     )
     require(
         "client/test/features/files/presentation/providers/files_backend_facade_provider_test.dart",
-        "fails closed for writes until Flutter WebDAV write cutover is available",
-        "WebDAV write cutover",
+        "writes files through the Weave WebDAV data plane",
+        "maps WebDAV write precondition failures support-safely",
     )
     require_absent(
         "client/lib/features/files/data/repositories/backend_files_repository.dart",

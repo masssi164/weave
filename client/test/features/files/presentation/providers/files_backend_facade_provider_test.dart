@@ -233,54 +233,109 @@ void main() {
       ]);
     });
 
-    test(
-      'fails closed for writes until Flutter WebDAV write cutover is available',
-      () async {
-        final client = MockClient((request) async {
-          fail('Files writes must not call ${request.method} ${request.url}');
-        });
-        final backendRepository = repository(client);
+    test('writes files through the Weave WebDAV data plane', () async {
+      final requests = <http.Request>[];
+      final client = MockClient((request) async {
+        requests.add(request);
+        return switch (request.method) {
+          'PUT' => http.Response('', 201, headers: {'etag': '"created"'}),
+          'MKCOL' => http.Response(
+            '',
+            201,
+            headers: {'location': '/dav/files/Team/Design/'},
+          ),
+          'DELETE' => http.Response('', 204),
+          _ => http.Response('', 500),
+        };
+      });
+      final backendRepository = repository(client);
+      final progress = <String>[];
 
-        await expectLater(
-          backendRepository.uploadFile(
-            '/Team',
-            FileUploadRequest(
-              fileName: 'notes.txt',
-              sizeInBytes: 5,
-              byteStream: Stream<List<int>>.fromIterable(const []),
-            ),
+      await backendRepository.uploadFile(
+        '/Team',
+        FileUploadRequest(
+          fileName: 'notes.txt',
+          sizeInBytes: 5,
+          byteStream: Stream<List<int>>.fromIterable(const [
+            [1, 2],
+            [3, 4, 5],
+          ]),
+        ),
+        onProgress: (uploaded, total) => progress.add('$uploaded/$total'),
+      );
+      final created = await backendRepository.createFolder(
+        parentPath: '/Team',
+        name: 'Design',
+      );
+      await backendRepository.deleteEntry(
+        const FileEntry(
+          id: 'files:/Team/old.md',
+          name: 'old.md',
+          path: '/Team/old.md',
+          isDirectory: false,
+        ),
+      );
+
+      expect(progress, ['2/5', '5/5']);
+      expect(created.path, '/Team/Design');
+      expect(created.isDirectory, isTrue);
+      expect(requests.map((request) => '${request.method} ${request.url}'), [
+        'PUT https://api.home.internal/dav/files/Team/notes.txt',
+        'MKCOL https://api.home.internal/dav/files/Team/Design',
+        'DELETE https://api.home.internal/dav/files/Team/old.md',
+      ]);
+      expect(requests[0].headers['authorization'], 'Bearer files-token');
+      expect(requests[0].headers['if-none-match'], '*');
+      expect(requests[0].headers['content-type'], 'application/octet-stream');
+      expect(requests[0].bodyBytes, <int>[1, 2, 3, 4, 5]);
+      expect(requests[1].headers['if-none-match'], '*');
+      expect(requests[2].headers['authorization'], 'Bearer files-token');
+    });
+
+    test('maps WebDAV write precondition failures support-safely', () async {
+      final client = MockClient(
+        (_) async => http.Response(
+          '''
+          <?xml version="1.0" encoding="UTF-8"?>
+          <d:error xmlns:d="DAV:">
+            <d:responsedescription>The file operation conflicts with the current workspace state.</d:responsedescription>
+          </d:error>
+          ''',
+          412,
+          headers: {'content-type': 'application/xml'},
+        ),
+      );
+
+      await expectLater(
+        repository(client).uploadFile(
+          '/Team',
+          FileUploadRequest(
+            fileName: 'notes.txt',
+            sizeInBytes: 5,
+            byteStream: Stream<List<int>>.fromIterable(const [
+              [1, 2, 3, 4, 5],
+            ]),
           ),
-          throwsA(
-            isA<FilesFailure>()
-                .having(
-                  (failure) => failure.type,
-                  'type',
-                  FilesFailureType.protocol,
-                )
-                .having(
-                  (failure) => failure.message,
-                  'message',
-                  contains('WebDAV write cutover'),
+        ),
+        throwsA(
+          isA<FilesFailure>()
+              .having(
+                (failure) => failure.type,
+                'type',
+                FilesFailureType.protocol,
+              )
+              .having(
+                (failure) => failure.message,
+                'message',
+                allOf(
+                  contains('conflicts with the current workspace state'),
+                  isNot(contains('Nextcloud')),
+                  isNot(contains('remote.php')),
                 ),
-          ),
-        );
-        await expectLater(
-          backendRepository.createFolder(parentPath: '/Team', name: 'Design'),
-          throwsA(isA<FilesFailure>()),
-        );
-        await expectLater(
-          backendRepository.deleteEntry(
-            const FileEntry(
-              id: 'files:/Team/old.md',
-              name: 'old.md',
-              path: '/Team/old.md',
-              isDirectory: false,
-            ),
-          ),
-          throwsA(isA<FilesFailure>()),
-        );
-      },
-    );
+              ),
+        ),
+      );
+    });
 
     test(
       'refreshes the Weave session once after a backend 401 and retries',

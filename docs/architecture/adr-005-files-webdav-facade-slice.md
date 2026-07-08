@@ -136,9 +136,9 @@ and no-unaccounted-data-loss behavior.
 - `/api/files/**`, organization manifest discovery, readiness, revoke/setup
   flows, generated models, and MCP allowlists remain OpenAPI control-plane
   surfaces; they are not the Files list/read/write data plane.
-- Flutter Files lists/reads through Weave WebDAV and fails closed for mutations
-  until the planned Flutter Files write cutover uses the `/dav/files` write
-  path.
+- Flutter Files lists, reads, uploads, creates folders, and deletes through
+  Weave WebDAV. Native OS File Provider/DocumentsProvider integrations remain
+  separate setup/proof work.
 - MCP Files tools remain semantic Weave Files tools routed through the
   WebDAV-backed facade/projection where they touch file data-plane semantics.
   Raw provider APIs and unrestricted WebDAV operations are not a public MCP

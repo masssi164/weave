@@ -171,7 +171,10 @@
           "fragments": [
             "http.Request('PROPFIND'",
             "'dav', 'files'",
-            "Files writes are blocked in this client until the Weave WebDAV write cutover is available."
+            "'PUT'",
+            "'MKCOL'",
+            "'DELETE'",
+            "'If-None-Match': '*'"
           ]
         }
       ]

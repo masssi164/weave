@@ -10,8 +10,8 @@ Feature: Target standard facade hard gate
     Given Files uses WebDAV under "/dav/files" as the target data plane
     When the hard-gate audit checks executable evidence
     Then server evidence covers WebDAV read, download, and write semantics under "/dav/files"
-    And Flutter read and download paths use "/dav/files" instead of OpenAPI member data-plane routes
-    And remaining native-provider and client write cutover work stays linked to #969 and #1018 before a complete native Files claim
+    And Flutter read, download, upload, create-folder, and delete paths use "/dav/files" instead of OpenAPI member data-plane routes
+    And remaining native-provider work stays linked to #969 and #1018 before a complete native Files claim
 
   @target-standards-caldav-calendar-server-mvp
   Scenario: Calendar CalDAV server MVP is separated from native sync parity
