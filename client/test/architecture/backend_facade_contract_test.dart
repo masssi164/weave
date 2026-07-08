@@ -154,6 +154,7 @@ void main() {
   test(
     'primary chat provider is wired through the Matrix Client-Server projection',
     () async {
+      // FLUTTER_MATRIX_BOUNDARY_CONTRACT
       final source = await File(
         'lib/features/chat/presentation/providers/chat_repository_provider.dart',
       ).readAsString();

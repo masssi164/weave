@@ -5302,18 +5302,25 @@
       "tag": "@matrix-connect",
       "scenario": "OIDC-provisioned member can connect to Matrix",
       "feature": "e2e/features/chat_matrix_facade.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "executableTest": "tools/chat_matrix_facade_acceptance_check.py",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "MATRIX_CONNECT_CONTRACT"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "client/test/features/chat/data/repositories/matrix_chat_repository_test.dart",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring.ai.mcp remains blocked"
+            "MATRIX_CONNECT_CONTRACT",
+            "connect uses the configured Matrix homeserver",
+            "sessionService.lastHomeserverForConnect.toString()"
+          ]
+        },
+        {
+          "path": "client/integration_test/live_stack_app_e2e_test.dart",
+          "fragments": [
+            "MATRIX_LIVE_HOMESERVER_RESULT",
+            "chatRepository.connect()"
           ]
         }
       ]
@@ -5322,18 +5329,18 @@
       "tag": "@matrix-spaces-rooms",
       "scenario": "Weave organization spaces and channels map to Matrix spaces and rooms",
       "feature": "e2e/features/chat_matrix_facade.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "executableTest": "tools/chat_matrix_facade_acceptance_check.py",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "MATRIX_SPACES_ROOMS_CONTRACT"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "client/test/features/chat/data/repositories/matrix_chat_repository_test.dart",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring.ai.mcp remains blocked"
+            "loads conversations from the configured Matrix homeserver",
+            "MATRIX_SPACES_ROOMS_CONTRACT",
+            "maps Matrix timeline message safety states into chat entities"
           ]
         }
       ]
@@ -5342,18 +5349,26 @@
       "tag": "@matrix-message",
       "scenario": "Member sends and receives a Matrix message",
       "feature": "e2e/features/chat_matrix_facade.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "executableTest": "tools/chat_matrix_facade_acceptance_check.py",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "MATRIX_MESSAGE_CONTRACT"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "client/test/features/chat/data/repositories/matrix_chat_repository_test.dart",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring.ai.mcp remains blocked"
+            "MATRIX_MESSAGE_CONTRACT",
+            "sends through Matrix and reads the delivered room timeline",
+            "ChatMessageDeliveryState.sent"
+          ]
+        },
+        {
+          "path": "client/integration_test/live_stack_app_e2e_test.dart",
+          "fragments": [
+            "MATRIX_LIVE_HOMESERVER_RESULT",
+            "chatRepository.sendMessage(",
+            "matchedMessages=${deliveredMessage.length}"
           ]
         }
       ]
@@ -5362,18 +5377,19 @@
       "tag": "@matrix-e2ee-state",
       "scenario": "E2EE and device state are surfaced support-safely",
       "feature": "e2e/features/chat_matrix_facade.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "executableTest": "tools/chat_matrix_facade_acceptance_check.py",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "MATRIX_E2EE_STATE_CONTRACT"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "client/test/features/chat/data/repositories/matrix_chat_security_repository_test.dart",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring.ai.mcp remains blocked"
+            "MATRIX_E2EE_STATE_CONTRACT",
+            "MatrixDeviceVerificationState.unverified",
+            "ChatRoomEncryptionReadiness.encryptedRoomsNeedAttention",
+            "ChatVerificationPhase.compareSas"
           ]
         }
       ]
@@ -5442,18 +5458,19 @@
       "tag": "@flutter-matrix-boundary",
       "scenario": "Flutter Chat repository uses Matrix, not Slack or Teams direct clients",
       "feature": "e2e/features/chat_matrix_facade.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "executableTest": "tools/chat_matrix_facade_acceptance_check.py",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "FLUTTER_MATRIX_BOUNDARY_CONTRACT"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "client/test/architecture/backend_facade_contract_test.dart",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring.ai.mcp remains blocked"
+            "FLUTTER_MATRIX_BOUNDARY_CONTRACT",
+            "MatrixChatRepository",
+            "isNot(contains('BackendChatRepository('))",
+            "matrixSessionServiceProvider"
           ]
         }
       ]

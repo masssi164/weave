@@ -106,6 +106,7 @@ class _FakeServerConfigurationRepository
 void main() {
   group('MatrixChatSecurityRepository', () {
     test('maps the Matrix security snapshot into chat-owned models', () async {
+      // MATRIX_E2EE_STATE_CONTRACT
       final securityService = _FakeMatrixSecurityService()
         ..snapshot = const MatrixSecuritySnapshot(
           isMatrixSignedIn: true,
