@@ -1,6 +1,6 @@
 # ADR-005: Files WebDAV facade slice
 
-Status: accepted for the first Files data-plane transition slice; write policy is blocked by #1007
+Status: accepted for the first Files data-plane transition slice; WebDAV write MVP promoted by #1007
 
 ## Context
 

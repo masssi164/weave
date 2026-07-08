@@ -3829,7 +3829,7 @@
             "type": "boolean"
           },
           "uploadPath": {
-            "description": "Weave-owned WebDAV upload path placeholder for native providers; writes remain blocked by #1007.",
+            "description": "Weave-owned WebDAV upload path for native providers.",
             "example": "/dav/files/{path}",
             "type": "string"
           }
