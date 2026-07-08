@@ -10,8 +10,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 MARKERS = [
     "TARGET_STANDARDS_WEBDAV_FILES_CURRENT_PROOF",
-    "TARGET_STANDARDS_CALDAV_CALENDAR_FAIL_CLOSED",
-    "TARGET_STANDARDS_MATRIX_CHAT_FAIL_CLOSED",
+    "TARGET_STANDARDS_CALDAV_CALENDAR_SERVER_MVP",
+    "TARGET_STANDARDS_MATRIX_CHAT_SERVER_MVP",
 ]
 
 
@@ -77,10 +77,10 @@ def require_files_webdav_current_proof() -> None:
     )
 
 
-def require_caldav_calendar_fail_closed() -> None:
+def require_caldav_calendar_server_mvp() -> None:
     require(
         "e2e/features/target_standard_facade_hard_gate.feature",
-        "TARGET_STANDARDS_CALDAV_CALENDAR_FAIL_CLOSED",
+        "TARGET_STANDARDS_CALDAV_CALENDAR_SERVER_MVP",
         "#967",
         "#1018",
     )
@@ -90,7 +90,9 @@ def require_caldav_calendar_fail_closed() -> None:
         'jsonPath("$.endpoints.serverUrl").value("/caldav")',
         "calendarNativeSyncSetupExposesWeaveOwnedOsBoundariesWithoutProviderLeaks",
         "calDavOptionsAndPropfindExposeWeaveCalendarProjectionWithoutProviderLeaks",
-        "calDavReportSkeletonRecognizesCalendarQueryAndFreeBusyButFailsClosed",
+        "calDavReportCalendarQueryAndFreeBusyReturnFacadeBackedCalendarData",
+        "BEGIN:VFREEBUSY",
+        "FREEBUSY:20260708T100000Z/20260708T110000Z",
         "calDavEventReadPutAndDeleteUseCalendarFacadeBoundaryAndStableErrors",
         "calendar-adapter-not-configured",
     )
@@ -100,10 +102,10 @@ def require_caldav_calendar_fail_closed() -> None:
     )
 
 
-def require_matrix_chat_fail_closed() -> None:
+def require_matrix_chat_server_mvp() -> None:
     require(
         "e2e/features/target_standard_facade_hard_gate.feature",
-        "TARGET_STANDARDS_MATRIX_CHAT_FAIL_CLOSED",
+        "TARGET_STANDARDS_MATRIX_CHAT_SERVER_MVP",
         "#1017",
         "#1022",
     )
@@ -123,20 +125,22 @@ def require_matrix_chat_fail_closed() -> None:
     require(
         "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
         "matrixClientServerProjectionRequiresWorkspaceToken",
-        "matrixClientServerProjectionFailsClosedWithoutProviderPayloads",
-        "M_WEAVE_MATRIX_PROJECTION_UNAVAILABLE",
+        "matrixClientServerProjectionSyncsCanonicalChatAsMatrixRoomsWithoutProviderPayloads",
+        "matrixClientServerProjectionSendsViaCanonicalChatFacade",
+        "matrixClientServerProjectionListsJoinedRoomsAndRoomMessages",
+        "!channel-general:weave.local",
         "northbound-matrix-client-server",
     )
     require(
         "server/src/test/java/com/massimotter/weave/backend/architecture/ServerArchitectureBoundaryTest.java",
-        "matrixClientServerProjectionIsBoundarySkeletonNotBridgeOrRestChatDataPlane",
+        "matrixClientServerProjectionUsesChatFacadeNotBridgeOrRestChatDataPlane",
     )
 
 
 def main() -> int:
     require_files_webdav_current_proof()
-    require_caldav_calendar_fail_closed()
-    require_matrix_chat_fail_closed()
+    require_caldav_calendar_server_mvp()
+    require_matrix_chat_server_mvp()
     for marker in MARKERS:
         print(marker)
     return 0

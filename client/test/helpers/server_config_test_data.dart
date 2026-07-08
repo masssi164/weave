@@ -10,7 +10,7 @@ ServerConfiguration buildTestConfiguration({
   OidcProviderType providerType = OidcProviderType.authentik,
   String issuerUrl = 'https://auth.home.internal',
   String clientId = 'weave-app',
-  String matrixHomeserverUrl = 'https://matrix.home.internal',
+  String matrixHomeserverUrl = 'https://api.home.internal',
   String nextcloudBaseUrl = 'https://files.home.internal',
   String backendApiBaseUrl = 'https://api.home.internal/api',
 }) {
@@ -30,7 +30,7 @@ String encodeTestConfiguration({
   OidcProviderType providerType = OidcProviderType.authentik,
   String issuerUrl = 'https://auth.home.internal',
   String clientId = 'weave-app',
-  String matrixHomeserverUrl = 'https://matrix.home.internal',
+  String matrixHomeserverUrl = 'https://api.home.internal',
   String nextcloudBaseUrl = 'https://files.home.internal',
   String? backendApiBaseUrl = 'https://api.home.internal/api',
 }) {
@@ -52,7 +52,7 @@ Map<String, Object> buildStoredConfiguration({
   OidcProviderType providerType = OidcProviderType.authentik,
   String issuerUrl = 'https://auth.home.internal',
   String clientId = 'weave-app',
-  String matrixHomeserverUrl = 'https://matrix.home.internal',
+  String matrixHomeserverUrl = 'https://api.home.internal',
   String nextcloudBaseUrl = 'https://files.home.internal',
   String? backendApiBaseUrl = 'https://api.home.internal/api',
 }) {

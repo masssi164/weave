@@ -214,6 +214,7 @@ class ServerArchitectureBoundaryTest {
                 .contains("case \"GET\" -> get(request, false)")
                 .contains("case \"PUT\" -> put(request)")
                 .contains("case \"DELETE\" -> delete(request)")
+                .contains("calendarFacadeService.list(")
                 .contains("calendarFacadeService.readCalDavEventIcs(")
                 .contains("calendarFacadeService.putCalDavEventIcs(")
                 .contains("calendarFacadeService.deleteCalDavEventIcs(")
@@ -223,7 +224,7 @@ class ServerArchitectureBoundaryTest {
     }
 
     @Test
-    void matrixClientServerProjectionIsBoundarySkeletonNotBridgeOrRestChatDataPlane() throws IOException {
+    void matrixClientServerProjectionUsesChatFacadeNotBridgeOrRestChatDataPlane() throws IOException {
         JavaSource matrixProjection = productionSources().stream()
                 .filter(source -> source.path().endsWith(Path.of("controller", "MatrixClientServerProjectionController.java")))
                 .findFirst()
@@ -232,7 +233,9 @@ class ServerArchitectureBoundaryTest {
         assertThat(matrixProjection.text())
                 .contains("\"/_matrix/client/**\"")
                 .contains("northbound-matrix-client-server")
-                .contains("M_WEAVE_MATRIX_PROJECTION_UNAVAILABLE")
+                .contains("chatFacadeService.conversations(jwt)")
+                .contains("chatFacadeService.messages(jwt")
+                .contains("chatFacadeService.sendMessage(")
                 .doesNotContain("/api/chat/conversations")
                 .doesNotContain("BridgeAdapter")
                 .doesNotContain("providerAccessToken")

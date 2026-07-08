@@ -169,7 +169,7 @@ void main() {
       final raw = preferencesStore.rawString(serverConfigurationStorageKey);
       final json = jsonDecode(raw!) as Map<String, dynamic>;
       expect(json['oidcClientId'], 'weave-app');
-      expect(json['matrixHomeserverUrl'], 'https://matrix.home.internal');
+      expect(json['matrixHomeserverUrl'], 'https://api.home.internal');
       expect(json['nextcloudBaseUrl'], 'https://files.home.internal');
       expect(json['backendApiBaseUrl'], 'https://api.home.internal/api');
     });

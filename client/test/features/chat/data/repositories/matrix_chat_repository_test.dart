@@ -133,7 +133,7 @@ void main() {
 
       expect(
         conversationService.lastHomeserverForLoad.toString(),
-        'https://matrix.home.internal',
+        'https://api.home.internal',
       );
       expect(conversations, hasLength(1));
       expect(conversations.first.previewType, ChatConversationPreviewType.text);
@@ -231,7 +231,7 @@ void main() {
 
       expect(
         sessionService.lastHomeserverForConnect.toString(),
-        'https://matrix.home.internal',
+        'https://api.home.internal',
       );
     });
 

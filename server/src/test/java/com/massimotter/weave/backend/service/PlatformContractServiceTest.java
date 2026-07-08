@@ -23,6 +23,7 @@ class PlatformContractServiceTest {
         var config = service.config();
         var status = service.status("e2ee-ready-test");
 
+        assertThat(config.matrixHomeserverUrl()).isEqualTo("https://api.weave.test");
         assertThat(config.features().chatE2ee()).isTrue();
         assertThat(status.matrix().e2eeEnabled()).isTrue();
         assertThat(status.matrix().e2ee().status()).isEqualTo("validated");

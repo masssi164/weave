@@ -1,15 +1,23 @@
 package com.massimotter.weave.backend.controller;
 
 import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.model.calendar.CalendarEventResponse;
 import com.massimotter.weave.backend.model.calendar.CalendarScopeResponse;
 import com.massimotter.weave.backend.model.calendar.CalendarScopesResponse;
 import com.massimotter.weave.backend.service.CalendarFacadeService;
+import com.massimotter.weave.backend.service.calendar.IcalendarMapper;
 import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -26,8 +34,14 @@ public class CalDavCalendarController {
     private static final String CALDAV_ROOT = "/caldav";
     private static final MediaType XML = MediaType.APPLICATION_XML;
     private static final MediaType CALENDAR = MediaType.parseMediaType("text/calendar; charset=UTF-8");
+    private static final Pattern TIME_RANGE = Pattern.compile(
+            "time-range[^>]*\\sstart=[\"']([^\"']+)[\"'][^>]*\\send=[\"']([^\"']+)[\"']",
+            Pattern.CASE_INSENSITIVE);
+    private static final DateTimeFormatter CALDAV_TIME = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'")
+            .withZone(ZoneOffset.UTC);
 
     private final CalendarFacadeService calendarFacadeService;
+    private final IcalendarMapper icalendarMapper = new IcalendarMapper();
 
     public CalDavCalendarController(CalendarFacadeService calendarFacadeService) {
         this.calendarFacadeService = calendarFacadeService;
@@ -91,10 +105,22 @@ public class CalDavCalendarController {
             throw new ApiErrorException(
                     HttpStatus.BAD_REQUEST,
                     "caldav-report-unsupported",
-                    "Only calendar-query and free-busy-query REPORT bodies are recognized by the Weave CalDAV skeleton.",
+                    "Only calendar-query and free-busy-query REPORT bodies are recognized by the Weave CalDAV facade.",
                     Map.of("module", "calendar", "operation", "caldav-report"));
         }
-        return calDavError(calendarFacadeService.reportCalendarQueryNotReady(reportKind));
+        TimeRange range = timeRange(body);
+        var events = calendarFacadeService.list(range.from(), range.to()).events();
+        if ("free-busy-query".equals(reportKind)) {
+            return ResponseEntity.ok()
+                    .contentType(CALENDAR)
+                    .header("X-Weave-Projection", "caldav-calendar-data-plane")
+                    .body(freeBusyCalendar(events, range));
+        }
+        return ResponseEntity.status(207)
+                .contentType(XML)
+                .header("DAV", "1, calendar-access")
+                .header("X-Weave-Projection", "caldav-calendar-data-plane")
+                .body(calendarQueryMultistatus(events));
     }
 
     private ResponseEntity<byte[]> get(HttpServletRequest request, boolean headOnly) {
@@ -203,6 +229,75 @@ public class CalDavCalendarController {
         return xml.toString();
     }
 
+    private String calendarQueryMultistatus(Iterable<CalendarEventResponse> events) {
+        StringBuilder xml = new StringBuilder("""
+                <?xml version="1.0" encoding="UTF-8"?>
+                <d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+                """);
+        for (CalendarEventResponse event : events) {
+            String calendarData = icalendarMapper.toIcalendar(new IcalendarMapper.EventDraft(
+                    event.id(),
+                    event.title(),
+                    event.description(),
+                    event.startsAt(),
+                    event.endsAt(),
+                    event.timezone(),
+                    event.location(),
+                    event.allDay()));
+            xml.append("  <d:response>\n")
+                    .append("    <d:href>").append(escapeXml(calDavHref(event.id()))).append("</d:href>\n")
+                    .append("    <d:propstat>\n")
+                    .append("      <d:prop>\n")
+                    .append("        <d:getetag>").append(escapeXml(event.etag())).append("</d:getetag>\n")
+                    .append("        <c:calendar-data>").append(escapeXml(calendarData)).append("</c:calendar-data>\n")
+                    .append("      </d:prop>\n")
+                    .append("      <d:status>HTTP/1.1 200 OK</d:status>\n")
+                    .append("    </d:propstat>\n")
+                    .append("  </d:response>\n");
+        }
+        xml.append("</d:multistatus>");
+        return xml.toString();
+    }
+
+    private String freeBusyCalendar(Iterable<CalendarEventResponse> events, TimeRange range) {
+        StringBuilder calendar = new StringBuilder();
+        calendar.append("BEGIN:VCALENDAR\r\n");
+        calendar.append("VERSION:2.0\r\n");
+        calendar.append("PRODID:-//Weave//CalDAV Facade//EN\r\n");
+        calendar.append("BEGIN:VFREEBUSY\r\n");
+        calendar.append("UID:weave-freebusy\r\n");
+        calendar.append("DTSTAMP:").append(CALDAV_TIME.format(OffsetDateTime.now(ZoneOffset.UTC))).append("\r\n");
+        if (range.from() != null) {
+            calendar.append("DTSTART:").append(CALDAV_TIME.format(range.from())).append("\r\n");
+        }
+        if (range.to() != null) {
+            calendar.append("DTEND:").append(CALDAV_TIME.format(range.to())).append("\r\n");
+        }
+        for (CalendarEventResponse event : events) {
+            calendar.append("FREEBUSY:")
+                    .append(CALDAV_TIME.format(event.startsAt()))
+                    .append("/")
+                    .append(CALDAV_TIME.format(event.endsAt()))
+                    .append("\r\n");
+        }
+        calendar.append("END:VFREEBUSY\r\n");
+        calendar.append("END:VCALENDAR\r\n");
+        return calendar.toString();
+    }
+
+    private TimeRange timeRange(String body) {
+        Matcher matcher = TIME_RANGE.matcher(body);
+        if (!matcher.find()) {
+            return new TimeRange(null, null);
+        }
+        return new TimeRange(parseCalDavTime(matcher.group(1)), parseCalDavTime(matcher.group(2)));
+    }
+
+    private OffsetDateTime parseCalDavTime(String value) {
+        return LocalDateTime.parse(value.toUpperCase(Locale.ROOT), DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'"))
+                .atOffset(ZoneOffset.UTC);
+    }
+
     private void appendCollection(StringBuilder xml, String href, String displayName) {
         xml.append("  <d:response>\n")
                 .append("    <d:href>").append(escapeXml(href)).append("</d:href>\n")
@@ -249,5 +344,8 @@ public class CalDavCalendarController {
                 .replace(">", "&gt;")
                 .replace("\"", "&quot;")
                 .replace("'", "&apos;");
+    }
+
+    private record TimeRange(OffsetDateTime from, OffsetDateTime to) {
     }
 }

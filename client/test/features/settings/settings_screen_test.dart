@@ -837,7 +837,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('https://matrix.example.com'), findsWidgets);
+      expect(find.text('https://api.example.com'), findsWidgets);
       expect(find.text('https://cloud.custom.internal'), findsWidgets);
       expect(find.text('https://backend.custom.internal'), findsWidgets);
     });

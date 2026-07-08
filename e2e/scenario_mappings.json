@@ -177,12 +177,12 @@
       ]
     },
     {
-      "tag": "@target-standards-caldav-calendar-fail-closed",
-      "scenario": "Calendar CalDAV evidence is fail-closed until storage and native sync parity exist",
+      "tag": "@target-standards-caldav-calendar-server-mvp",
+      "scenario": "Calendar CalDAV server MVP is separated from native sync parity",
       "feature": "e2e/features/target_standard_facade_hard_gate.feature",
       "executableTest": "tools/target_standard_facade_hard_gate_check.py",
       "evidenceMarkers": [
-        "TARGET_STANDARDS_CALDAV_CALENDAR_FAIL_CLOSED"
+        "TARGET_STANDARDS_CALDAV_CALENDAR_SERVER_MVP"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
@@ -191,7 +191,8 @@
           "fragments": [
             "calendarNativeSyncSetupExposesWeaveOwnedOsBoundariesWithoutProviderLeaks",
             "calDavOptionsAndPropfindExposeWeaveCalendarProjectionWithoutProviderLeaks",
-            "calDavReportSkeletonRecognizesCalendarQueryAndFreeBusyButFailsClosed",
+            "calDavReportCalendarQueryAndFreeBusyReturnFacadeBackedCalendarData",
+            "BEGIN:VFREEBUSY",
             "calendar-adapter-not-configured"
           ]
         },
@@ -204,12 +205,12 @@
       ]
     },
     {
-      "tag": "@target-standards-matrix-chat-fail-closed",
-      "scenario": "Matrix Chat evidence is fail-closed until Client-Server parity exists",
+      "tag": "@target-standards-matrix-chat-server-mvp",
+      "scenario": "Matrix Chat server MVP is separated from client and API retirement parity",
       "feature": "e2e/features/target_standard_facade_hard_gate.feature",
       "executableTest": "tools/target_standard_facade_hard_gate_check.py",
       "evidenceMarkers": [
-        "TARGET_STANDARDS_MATRIX_CHAT_FAIL_CLOSED"
+        "TARGET_STANDARDS_MATRIX_CHAT_SERVER_MVP"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
@@ -225,8 +226,9 @@
           "path": "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
           "fragments": [
             "matrixClientServerProjectionRequiresWorkspaceToken",
-            "matrixClientServerProjectionFailsClosedWithoutProviderPayloads",
-            "M_WEAVE_MATRIX_PROJECTION_UNAVAILABLE"
+            "matrixClientServerProjectionSyncsCanonicalChatAsMatrixRoomsWithoutProviderPayloads",
+            "matrixClientServerProjectionSendsViaCanonicalChatFacade",
+            "matrixClientServerProjectionListsJoinedRoomsAndRoomMessages"
           ]
         }
       ]
@@ -4412,16 +4414,17 @@
           "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
           "fragments": [
             "calDavOptionsAndPropfindExposeWeaveCalendarProjectionWithoutProviderLeaks",
-            "calDavReportSkeletonRecognizesCalendarQueryAndFreeBusyButFailsClosed",
+            "calDavReportCalendarQueryAndFreeBusyReturnFacadeBackedCalendarData",
             "calDavEventReadPutAndDeleteUseCalendarFacadeBoundaryAndStableErrors"
           ]
         },
         {
           "path": "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
           "fragments": [
-            "matrixClientServerProjectionFailsClosedWithoutProviderPayloads",
+            "matrixClientServerProjectionSyncsCanonicalChatAsMatrixRoomsWithoutProviderPayloads",
+            "matrixClientServerProjectionSendsViaCanonicalChatFacade",
             "northbound-matrix-client-server",
-            "M_WEAVE_MATRIX_PROJECTION_UNAVAILABLE"
+            "!channel-general:weave.local"
           ]
         }
       ]
@@ -4512,7 +4515,7 @@
           "path": "server/src/test/java/com/massimotter/weave/backend/architecture/ServerArchitectureBoundaryTest.java",
           "fragments": [
             "calendarCalDavMethodsRouteThroughCalendarFacadeUseCases",
-            "matrixClientServerProjectionIsBoundarySkeletonNotBridgeOrRestChatDataPlane",
+            "matrixClientServerProjectionUsesChatFacadeNotBridgeOrRestChatDataPlane",
             "protocolProjectionAndMcpCodeDoNotImportProviderAdapters"
           ]
         }

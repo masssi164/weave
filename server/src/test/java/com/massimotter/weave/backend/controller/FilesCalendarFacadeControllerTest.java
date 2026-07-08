@@ -12,11 +12,18 @@ import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
+import com.massimotter.weave.backend.model.calendar.CalendarEventResponse;
+import com.massimotter.weave.backend.model.calendar.CalendarScopeResponse;
 import com.massimotter.weave.backend.service.CalendarFacadeService;
 import com.massimotter.weave.backend.service.CallsFacadeService;
 import com.massimotter.weave.backend.service.FilesFacadeService;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
+import com.massimotter.weave.backend.service.calendar.CalendarAdapter;
+import com.massimotter.weave.backend.service.calendar.CalendarAdapterException;
 import com.jayway.jsonpath.JsonPath;
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,6 +41,8 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -87,6 +96,9 @@ class FilesCalendarFacadeControllerTest {
     @MockBean
     private ContextAuthorizationProperties contextAuthorizationProperties;
 
+    @MockBean
+    private CalendarAdapter calendarAdapter;
+
     @BeforeEach
     void allowContextAccess() {
         when(contextAuthorizationPort.check(any()))
@@ -97,6 +109,20 @@ class FilesCalendarFacadeControllerTest {
         when(contextAuthorizationProperties.principalClaim()).thenReturn("sub");
         when(contextAuthorizationProperties.principalRefPrefix()).thenReturn("user:");
         when(contextAuthorizationProperties.principalRef(any())).thenAnswer(invocation -> "user:" + invocation.getArgument(0));
+        CalendarAdapterException notConfigured = new CalendarAdapterException(
+                CalendarAdapterException.Type.NOT_CONFIGURED,
+                "Calendar facade is available, but calendar storage is not configured yet.",
+                Map.of("module", "calendar"));
+        when(calendarAdapter.list(
+                        any(),
+                        any(CalendarScopeResponse.class),
+                        nullable(OffsetDateTime.class),
+                        nullable(OffsetDateTime.class)))
+                .thenThrow(notConfigured);
+        when(calendarAdapter.read(any(), any(CalendarScopeResponse.class), any())).thenThrow(notConfigured);
+        when(calendarAdapter.create(any(), any())).thenThrow(notConfigured);
+        when(calendarAdapter.update(any(), any(CalendarScopeResponse.class), any(), any())).thenThrow(notConfigured);
+        doThrow(notConfigured).when(calendarAdapter).delete(any(), any(CalendarScopeResponse.class), any());
     }
 
     @Test
@@ -391,24 +417,58 @@ class FilesCalendarFacadeControllerTest {
     }
 
     @Test
-    void calDavReportSkeletonRecognizesCalendarQueryAndFreeBusyButFailsClosed() throws Exception {
-        mockMvc.perform(request(HttpMethod.valueOf("REPORT"), "/caldav/workspace/")
-                        .with(workspaceJwt())
-                        .contentType("application/xml")
-                        .content("<c:calendar-query xmlns:c=\"urn:ietf:params:xml:ns:caldav\"/>"))
-                .andExpect(status().isNotImplemented())
-                .andExpect(header().string("X-Weave-Error-Code", "caldav-report-not-implemented"))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
-                        .string(org.hamcrest.Matchers.containsString("calendar-query")));
+    void calDavReportCalendarQueryAndFreeBusyReturnFacadeBackedCalendarData() throws Exception {
+        when(calendarAdapter.list(
+                        any(),
+                        any(CalendarScopeResponse.class),
+                        nullable(OffsetDateTime.class),
+                        nullable(OffsetDateTime.class)))
+                .thenReturn(List.of(new CalendarEventResponse(
+                        "planning",
+                        "Planning",
+                        "Roadmap sync",
+                        OffsetDateTime.parse("2026-07-08T10:00:00Z"),
+                        OffsetDateTime.parse("2026-07-08T11:00:00Z"),
+                        "UTC",
+                        "Room 1",
+                        false,
+                        "\"etag-planning\"")));
 
         mockMvc.perform(request(HttpMethod.valueOf("REPORT"), "/caldav/workspace/")
                         .with(workspaceJwt())
                         .contentType("application/xml")
-                        .content("<c:free-busy-query xmlns:c=\"urn:ietf:params:xml:ns:caldav\"/>"))
-                .andExpect(status().isNotImplemented())
-                .andExpect(header().string("X-Weave-Error-Code", "caldav-report-not-implemented"))
+                        .content("""
+                                <c:calendar-query xmlns:c="urn:ietf:params:xml:ns:caldav">
+                                  <c:filter><c:comp-filter name="VCALENDAR"><c:comp-filter name="VEVENT">
+                                    <c:time-range start="20260708T000000Z" end="20260709T000000Z"/>
+                                  </c:comp-filter></c:comp-filter></c:filter>
+                                </c:calendar-query>
+                                """))
+                .andExpect(status().is(207))
+                .andExpect(header().string("X-Weave-Projection", "caldav-calendar-data-plane"))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
-                        .string(org.hamcrest.Matchers.containsString("free-busy-query")));
+                        .string(org.hamcrest.Matchers.containsString("<d:href>/caldav/workspace/planning.ics</d:href>")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.containsString("BEGIN:VCALENDAR")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.containsString("SUMMARY:Planning")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("remote.php"))));
+
+        mockMvc.perform(request(HttpMethod.valueOf("REPORT"), "/caldav/workspace/")
+                        .with(workspaceJwt())
+                        .contentType("application/xml")
+                        .content("""
+                                <c:free-busy-query xmlns:c="urn:ietf:params:xml:ns:caldav">
+                                  <c:time-range start="20260708T000000Z" end="20260709T000000Z"/>
+                                </c:free-busy-query>
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Weave-Projection", "caldav-calendar-data-plane"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.containsString("BEGIN:VFREEBUSY")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.containsString("FREEBUSY:20260708T100000Z/20260708T110000Z")));
     }
 
     @Test
