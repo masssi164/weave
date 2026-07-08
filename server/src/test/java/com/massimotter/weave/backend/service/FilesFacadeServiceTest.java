@@ -17,6 +17,7 @@ import com.massimotter.weave.backend.model.files.FileListResponse;
 import com.massimotter.weave.backend.model.files.FileUploadResponse;
 import com.massimotter.weave.backend.service.files.DownloadedFile;
 import com.massimotter.weave.backend.service.files.FilesStorageAdapter;
+import com.massimotter.weave.backend.service.files.VersionedFileListResponse;
 import com.massimotter.weave.backend.service.files.WebDavPropfindResource;
 import com.massimotter.weave.backend.service.files.WebDavMutationResult;
 import java.nio.charset.StandardCharsets;
@@ -105,6 +106,9 @@ class FilesFacadeServiceTest {
                 .extracting(WebDavPropfindResource::etag)
                 .allSatisfy(etag -> assertThat(etag).startsWith("\"").endsWith("\""));
         assertThat(adapter.versionTokenCalls).isZero();
+        assertThat(adapter.listWithVersionTokenCalls).isEqualTo(1);
+        assertThat(response.children().get(0).etag()).isEqualTo(service.etagFor("/Team/readme.md"));
+        assertThat(adapter.versionTokenCalls).isEqualTo(1);
     }
 
     @Test
@@ -544,6 +548,7 @@ class FilesFacadeServiceTest {
         private String putPath;
         private String createdFolderPath;
         private String deletedPath;
+        private int listWithVersionTokenCalls;
         private int versionTokenCalls;
 
         private StubAdapter(boolean configured) {
@@ -581,6 +586,20 @@ class FilesFacadeServiceTest {
                     12L,
                     OffsetDateTime.parse("2026-04-26T08:00:00Z"),
                     true)), null);
+        }
+
+        @Override
+        public VersionedFileListResponse listWithVersionTokens(String path) {
+            listWithVersionTokenCalls++;
+            FileListResponse listing = list(path);
+            Map<String, String> childVersionTokens = new HashMap<>();
+            for (FileItemResponse item : listing.items()) {
+                byte[] content = contentByPath.get(item.path());
+                if (content != null) {
+                    childVersionTokens.put(item.path(), new String(content, StandardCharsets.UTF_8));
+                }
+            }
+            return new VersionedFileListResponse(listing, null, childVersionTokens);
         }
 
         @Override

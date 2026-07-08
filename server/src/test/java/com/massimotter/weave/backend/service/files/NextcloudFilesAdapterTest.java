@@ -78,6 +78,7 @@ class NextcloudFilesAdapterTest {
                                     <d:propstat><d:prop>
                                       <d:resourcetype><d:collection /></d:resourcetype>
                                       <d:getlastmodified>Sun, 26 Apr 2026 08:00:00 GMT</d:getlastmodified>
+                                      <d:getetag>\"etag-design\"</d:getetag>
                                     </d:prop></d:propstat>
                                   </d:response>
                                   <d:response>
@@ -87,6 +88,7 @@ class NextcloudFilesAdapterTest {
                                       <d:getcontentlength>12</d:getcontentlength>
                                       <d:getcontenttype>text/markdown</d:getcontenttype>
                                       <d:getlastmodified>Sun, 26 Apr 2026 08:01:00 GMT</d:getlastmodified>
+                                      <d:getetag>\"etag-readme\"</d:getetag>
                                     </d:prop></d:propstat>
                                   </d:response>
                                 </d:multistatus>
@@ -106,6 +108,40 @@ class NextcloudFilesAdapterTest {
         assertThat(response.items().get(1).mimeType()).isEqualTo("text/markdown");
         assertThat(response.items().get(1).size()).isEqualTo(12);
         assertThat(response.items().get(1).id()).startsWith("files:");
+        server.verify();
+    }
+
+    @Test
+    void exposesVersionTokensFromTheSameWebdavPropfindResponse() {
+        server.expect(requestTo("https://files.example.test/remote.php/dav/files/weave-service/Team"))
+                .andExpect(method(HttpMethod.valueOf("PROPFIND")))
+                .andExpect(header("Depth", "1"))
+                .andRespond(withStatus(HttpStatus.MULTI_STATUS)
+                        .contentType(MediaType.APPLICATION_XML)
+                        .body("""
+                                <?xml version=\"1.0\" encoding=\"utf-8\" ?>
+                                <d:multistatus xmlns:d=\"DAV:\">
+                                  <d:response>
+                                    <d:href>/remote.php/dav/files/weave-service/Team/</d:href>
+                                    <d:propstat><d:prop>
+                                      <d:resourcetype><d:collection /></d:resourcetype>
+                                      <d:getetag>\"etag-team\"</d:getetag>
+                                    </d:prop></d:propstat>
+                                  </d:response>
+                                  <d:response>
+                                    <d:href>/remote.php/dav/files/weave-service/Team/readme.md</d:href>
+                                    <d:propstat><d:prop>
+                                      <d:resourcetype />
+                                      <d:getetag>\"etag-readme\"</d:getetag>
+                                    </d:prop></d:propstat>
+                                  </d:response>
+                                </d:multistatus>
+                                """));
+
+        VersionedFileListResponse response = adapter.listWithVersionTokens("/Team/");
+
+        assertThat(response.requestedVersionToken()).isEqualTo("\"etag-team\"");
+        assertThat(response.childVersionTokens()).containsEntry("/Team/readme.md", "\"etag-readme\"");
         server.verify();
     }
 

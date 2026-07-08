@@ -16,6 +16,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -87,6 +88,11 @@ public class NextcloudFilesAdapter implements FilesStorageAdapter {
 
     @Override
     public FileListResponse list(String path) {
+        return listWithVersionTokens(path).listing();
+    }
+
+    @Override
+    public VersionedFileListResponse listWithVersionTokens(String path) {
         ensureConfigured();
         String normalizedPath = FilePathCodec.normalizeProductPath(path);
         try {
@@ -98,7 +104,7 @@ public class NextcloudFilesAdapter implements FilesStorageAdapter {
                     .body(PROPFIND_BODY)
                     .exchange((request, response) -> {
                         if (response.getStatusCode().value() == 207 || response.getStatusCode().is2xxSuccessful()) {
-                            return parseList(normalizedPath, response.getBody());
+                            return parseVersionedList(normalizedPath, response.getBody());
                         }
                         throw mapStatus(response.getStatusCode(), "list-files", normalizedPath);
                     });
@@ -300,7 +306,7 @@ public class NextcloudFilesAdapter implements FilesStorageAdapter {
         headers.set("OCS-APIRequest", "true");
     }
 
-    private FileListResponse parseList(String listedPath, InputStream body) {
+    private VersionedFileListResponse parseVersionedList(String listedPath, InputStream body) {
         try {
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             factory.setNamespaceAware(true);
@@ -310,7 +316,9 @@ public class NextcloudFilesAdapter implements FilesStorageAdapter {
             Document document = factory.newDocumentBuilder().parse(body);
             NodeList responses = document.getElementsByTagNameNS("*", "response");
             List<FileItemResponse> items = new ArrayList<>();
+            Map<String, String> versionTokens = new LinkedHashMap<>();
             FileQuotaResponse quota = null;
+            String listedVersionToken = null;
             for (int index = 0; index < responses.getLength(); index++) {
                 Element response = (Element) responses.item(index);
                 String itemPath = productPathFromHref(firstText(childText(response, "href"), "/"));
@@ -318,8 +326,10 @@ public class NextcloudFilesAdapter implements FilesStorageAdapter {
                 if (prop == null) {
                     continue;
                 }
+                String versionToken = childText(prop, "getetag");
                 if (FilePathCodec.normalizeProductPath(itemPath).equals(listedPath)) {
                     quota = quotaFrom(prop);
+                    listedVersionToken = versionToken;
                     continue;
                 }
                 boolean folder = firstElement(prop, "collection") != null;
@@ -329,11 +339,17 @@ public class NextcloudFilesAdapter implements FilesStorageAdapter {
                 items.add(folder
                         ? folderItem(itemPath, modifiedAt)
                         : fileItem(itemPath, mimeType, size, modifiedAt));
+                if (StringUtils.hasText(versionToken)) {
+                    versionTokens.put(FilePathCodec.normalizeProductPath(itemPath), versionToken.trim());
+                }
             }
             items.sort(Comparator
                     .comparing((FileItemResponse item) -> "folder".equals(item.type()) ? 0 : 1)
                     .thenComparing(FileItemResponse::name, String.CASE_INSENSITIVE_ORDER));
-            return new FileListResponse(listedPath, List.copyOf(items), quota);
+            return new VersionedFileListResponse(
+                    new FileListResponse(listedPath, List.copyOf(items), quota),
+                    listedVersionToken,
+                    Map.copyOf(versionTokens));
         } catch (ApiErrorException exception) {
             throw exception;
         } catch (Exception exception) {
