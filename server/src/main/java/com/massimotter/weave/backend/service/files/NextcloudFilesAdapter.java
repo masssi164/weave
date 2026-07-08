@@ -52,6 +52,7 @@ public class NextcloudFilesAdapter implements FilesStorageAdapter {
                 <d:getcontentlength />
                 <d:getcontenttype />
                 <d:getlastmodified />
+                <d:getetag />
                 <d:quota-used-bytes />
                 <d:quota-available-bytes />
               </d:prop>
@@ -105,6 +106,30 @@ public class NextcloudFilesAdapter implements FilesStorageAdapter {
             throw downstreamUnavailable("list-files", exception);
         } catch (RestClientException exception) {
             throw downstreamFailure("list-files", exception);
+        }
+    }
+
+    @Override
+    public String versionToken(String path) {
+        ensureConfigured();
+        String normalizedPath = FilePathCodec.normalizeProductPath(path);
+        try {
+            return restClient.method(PROPFIND)
+                    .uri(webdavUri(normalizedPath, false))
+                    .headers(this::applyActorHeaders)
+                    .header("Depth", "0")
+                    .contentType(MediaType.APPLICATION_XML)
+                    .body(PROPFIND_BODY)
+                    .exchange((request, response) -> {
+                        if (response.getStatusCode().value() == 207 || response.getStatusCode().is2xxSuccessful()) {
+                            return parseVersionToken(response.getBody());
+                        }
+                        throw mapStatus(response.getStatusCode(), "version-token", normalizedPath);
+                    });
+        } catch (ResourceAccessException exception) {
+            throw downstreamUnavailable("version-token", exception);
+        } catch (RestClientException exception) {
+            throw downstreamFailure("version-token", exception);
         }
     }
 
@@ -328,6 +353,30 @@ public class NextcloudFilesAdapter implements FilesStorageAdapter {
             return null;
         }
         return new FileQuotaResponse(used, total);
+    }
+
+    private String parseVersionToken(InputStream body) {
+        try {
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            factory.setNamespaceAware(true);
+            factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+            factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
+            factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+            Document document = factory.newDocumentBuilder().parse(body);
+            NodeList responses = document.getElementsByTagNameNS("*", "response");
+            if (responses.getLength() == 0) {
+                return null;
+            }
+            Element prop = firstElement((Element) responses.item(0), "prop");
+            String etag = prop == null ? null : childText(prop, "getetag");
+            return StringUtils.hasText(etag) ? etag.trim() : null;
+        } catch (Exception exception) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_GATEWAY,
+                    "nextcloud-response-invalid",
+                    "Nextcloud returned a files response the backend could not parse.",
+                    Map.of("module", "files", "operation", "version-token"));
+        }
     }
 
     private String productPathFromHref(String href) {

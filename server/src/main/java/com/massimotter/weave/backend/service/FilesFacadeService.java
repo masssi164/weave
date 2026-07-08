@@ -33,6 +33,7 @@ import java.util.Map;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
+import org.springframework.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
@@ -146,16 +147,19 @@ public class FilesFacadeService {
         publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_ATTEMPTED, operation, principal, normalizedPath, "PUT", "attempted");
         try {
             FilesStorageAdapter adapter = configuredAdapter(operation);
-            FileItemResponse existing = existingItem(adapter, normalizedPath, operation, true);
+            VersionedFileItem existing = existingVersionedItem(adapter, normalizedPath, operation, true);
             enforcePreconditions(existing, ifMatch, ifNoneMatch, operation);
-            if (existing != null && !"file".equals(existing.type())) {
+            if (existing != null && !"file".equals(existing.item().type())) {
                 throw fileConflict(operation, normalizedPath, "PUT cannot replace a collection.");
             }
-            FileItemResponse stored = adapter.put(normalizedPath, content == null ? new byte[0] : content, contentType);
-            FileItemResponse updated = firstNonNull(existingItem(adapter, normalizedPath, operation, false), stored);
+            byte[] writeContent = content == null ? new byte[0] : content;
+            FileItemResponse stored = adapter.put(normalizedPath, writeContent, contentType);
+            VersionedFileItem updated = firstNonNull(
+                    existingVersionedItem(adapter, normalizedPath, operation, false),
+                    versioned(stored, contentVersionToken(writeContent)));
             String etag = etag(updated);
             publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_COMPLETED, operation, principal, normalizedPath, "PUT", "completed");
-            return new WebDavMutationResult(updated, etag, existing == null);
+            return new WebDavMutationResult(updated.item(), etag, existing == null);
         } catch (ApiErrorException exception) {
             throw supportSafeStorageError(exception, operation);
         }
@@ -168,16 +172,18 @@ public class FilesFacadeService {
         publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_ATTEMPTED, operation, principal, normalizedPath, "MKCOL", "attempted");
         try {
             FilesStorageAdapter adapter = configuredAdapter(operation);
-            FileItemResponse existing = existingItem(adapter, normalizedPath, operation, true);
+            VersionedFileItem existing = existingVersionedItem(adapter, normalizedPath, operation, true);
             enforcePreconditions(existing, ifMatch, ifNoneMatch, operation);
             if (existing != null) {
                 throw fileConflict(operation, normalizedPath, "A collection or file already exists at this path.");
             }
             FileItemResponse stored = adapter.createFolder(new CreateFolderRequest(parentPath(normalizedPath), fileName(normalizedPath)));
-            FileItemResponse updated = firstNonNull(existingItem(adapter, normalizedPath, operation, false), stored);
+            VersionedFileItem updated = firstNonNull(
+                    existingVersionedItem(adapter, normalizedPath, operation, false),
+                    versioned(stored, null));
             String etag = etag(updated);
             publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_COMPLETED, operation, principal, normalizedPath, "MKCOL", "completed");
-            return new WebDavMutationResult(updated, etag, true);
+            return new WebDavMutationResult(updated.item(), etag, true);
         } catch (ApiErrorException exception) {
             throw supportSafeStorageError(exception, operation);
         }
@@ -190,7 +196,7 @@ public class FilesFacadeService {
         publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_ATTEMPTED, operation, principal, normalizedPath, "DELETE", "attempted");
         try {
             FilesStorageAdapter adapter = configuredAdapter(operation);
-            FileItemResponse existing = existingItem(adapter, normalizedPath, operation, false);
+            VersionedFileItem existing = existingVersionedItem(adapter, normalizedPath, operation, false);
             if (existing == null) {
                 throw new ApiErrorException(
                         HttpStatus.NOT_FOUND,
@@ -211,7 +217,7 @@ public class FilesFacadeService {
         requireContextPermission(ContextPermission.VIEW, operation);
         String normalizedPath = FilePathCodec.normalizeProductPath(path);
         try {
-            FileItemResponse item = existingItem(configuredAdapter(operation), normalizedPath, operation, false);
+            VersionedFileItem item = existingVersionedItem(configuredAdapter(operation), normalizedPath, operation, false);
             if (item == null) {
                 throw new ApiErrorException(
                         HttpStatus.NOT_FOUND,
@@ -492,8 +498,21 @@ public class FilesFacadeService {
         }
     }
 
+    private VersionedFileItem existingVersionedItem(
+            FilesStorageAdapter adapter,
+            String path,
+            String operation,
+            boolean missingParentAsConflict) {
+        FileItemResponse item = existingItem(adapter, path, operation, missingParentAsConflict);
+        return item == null ? null : versioned(item, adapter.versionToken(path));
+    }
+
+    private VersionedFileItem versioned(FileItemResponse item, String versionToken) {
+        return new VersionedFileItem(item, StringUtils.hasText(versionToken) ? versionToken.trim() : null);
+    }
+
     private void enforcePreconditions(
-            FileItemResponse existing,
+            VersionedFileItem existing,
             String ifMatch,
             String ifNoneMatch,
             String operation) {
@@ -561,20 +580,33 @@ public class FilesFacadeService {
                         "diagnosticsRedacted", true));
     }
 
-    private String etag(FileItemResponse item) {
+    private String etag(VersionedFileItem versionedItem) {
+        return etag(versionedItem.item(), versionedItem.versionToken());
+    }
+
+    private String etag(FileItemResponse item, String versionToken) {
         String material = String.join("|",
                 FilePathCodec.normalizeProductPath(item.path()),
                 item.type(),
                 String.valueOf(item.size()),
                 timestamp(item.modifiedAt()),
-                item.mimeType() == null ? "" : item.mimeType());
+                item.mimeType() == null ? "" : item.mimeType(),
+                versionToken == null ? "" : versionToken);
         return "\"" + sha256(material) + "\"";
     }
 
+    private String contentVersionToken(byte[] content) {
+        return "content-sha256:" + sha256Token(content);
+    }
+
     private String sha256(String material) {
+        return sha256Token(material.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private String sha256Token(byte[] material) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(material.getBytes(StandardCharsets.UTF_8));
+            byte[] hash = digest.digest(material);
             return Base64.getUrlEncoder().withoutPadding().encodeToString(hash);
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("SHA-256 digest is required for WebDAV ETags", exception);
@@ -596,8 +628,11 @@ public class FilesFacadeService {
         return normalized.substring(normalized.lastIndexOf('/') + 1);
     }
 
-    private FileItemResponse firstNonNull(FileItemResponse primary, FileItemResponse fallback) {
+    private VersionedFileItem firstNonNull(VersionedFileItem primary, VersionedFileItem fallback) {
         return primary == null ? fallback : primary;
+    }
+
+    private record VersionedFileItem(FileItemResponse item, String versionToken) {
     }
 
     private ApiErrorException supportSafeStorageError(ApiErrorException exception, String operation) {
