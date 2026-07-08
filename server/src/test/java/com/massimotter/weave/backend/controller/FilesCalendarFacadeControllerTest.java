@@ -42,6 +42,8 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -507,6 +509,76 @@ class FilesCalendarFacadeControllerTest {
     }
 
     @Test
+    void calDavEventReadPutCreateUpdateAndDeleteUseFacadeBackedIcalendar() throws Exception {
+        // CALDAV_GET_PUT_DELETE_FACADE_MVP
+        doReturn(calendarEvent("planning", "Planning", "\"etag-existing\""))
+                .when(calendarAdapter).read(any(), any(CalendarScopeResponse.class), any());
+        doReturn(calendarEvent("planning-new", "Planning", "\"etag-created\""))
+                .when(calendarAdapter).create(any(), any());
+        doReturn(calendarEvent("planning", "Updated planning", "\"etag-updated\""))
+                .when(calendarAdapter).update(any(), any(CalendarScopeResponse.class), any(), any());
+        doNothing().when(calendarAdapter).delete(any(), any(CalendarScopeResponse.class), any());
+
+        mockMvc.perform(get("/caldav/workspace/planning.ics")
+                        .with(workspaceJwt()))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", "text/calendar;charset=UTF-8"))
+                .andExpect(header().string("Content-Disposition", "inline; filename=\"planning.ics\""))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.containsString("BEGIN:VCALENDAR")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.containsString("UID:planning")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.containsString("SUMMARY:Planning")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("Nextcloud"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("remote.php"))));
+
+        mockMvc.perform(request(HttpMethod.valueOf("PUT"), "/caldav/workspace/planning-new.ics")
+                        .with(workspaceJwt())
+                        .header("If-None-Match", "*")
+                        .contentType("text/calendar")
+                        .content("""
+                                BEGIN:VCALENDAR
+                                VERSION:2.0
+                                BEGIN:VEVENT
+                                UID:planning-new
+                                DTSTART:20260708T100000Z
+                                DTEND:20260708T110000Z
+                                SUMMARY:Planning
+                                END:VEVENT
+                                END:VCALENDAR
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(header().string("Location", "/caldav/workspace/planning-new.ics"))
+                .andExpect(header().string("ETag", "\"etag-created\""));
+
+        mockMvc.perform(request(HttpMethod.valueOf("PUT"), "/caldav/workspace/planning.ics")
+                        .with(workspaceJwt())
+                        .header("If-Match", "\"etag-existing\"")
+                        .contentType("text/calendar")
+                        .content("""
+                                BEGIN:VCALENDAR
+                                VERSION:2.0
+                                BEGIN:VEVENT
+                                UID:planning
+                                DTSTART:20260708T120000Z
+                                DTEND:20260708T130000Z
+                                SUMMARY:Updated planning
+                                END:VEVENT
+                                END:VCALENDAR
+                                """))
+                .andExpect(status().isNoContent())
+                .andExpect(header().string("Location", "/caldav/workspace/planning.ics"))
+                .andExpect(header().string("ETag", "\"etag-updated\""));
+
+        mockMvc.perform(request(HttpMethod.valueOf("DELETE"), "/caldav/workspace/planning.ics")
+                        .with(workspaceJwt()))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
     void callsNativeBoundarySetupExposesProviderNeutralCallkitAndTelecomContract() throws Exception {
         mockMvc.perform(get("/api/calls/native-boundary-setup")
                         .with(workspaceJwt()))
@@ -649,5 +721,18 @@ class FilesCalendarFacadeControllerTest {
                         .claim("realm_access", java.util.Map.of("roles", java.util.List.of("member")))
                         .claim("groups", java.util.List.of()))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
+    }
+
+    private CalendarEventResponse calendarEvent(String id, String title, String etag) {
+        return new CalendarEventResponse(
+                id,
+                title,
+                "Roadmap sync",
+                OffsetDateTime.parse("2026-07-08T10:00:00Z"),
+                OffsetDateTime.parse("2026-07-08T11:00:00Z"),
+                "UTC",
+                "Room 1",
+                false,
+                etag);
     }
 }
