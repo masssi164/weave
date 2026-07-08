@@ -75,6 +75,7 @@ class FilesWebDavControllerTest {
     @Test
     void propfindDepthZeroReturnsMultistatusForRequestedCollectionOnly() throws Exception {
         given(filesFacadeService.list("/Team")).willReturn(teamListing());
+        given(filesFacadeService.etagFor("/Team")).willReturn("\"etag-team\"");
 
         mockMvc.perform(request(HttpMethod.valueOf("PROPFIND"), "/dav/files/Team/")
                         .header("Depth", "0")
@@ -83,6 +84,9 @@ class FilesWebDavControllerTest {
                 .andExpect(content().contentTypeCompatibleWith("application/xml"))
                 .andExpect(content().string(containsString("<d:multistatus xmlns:d=\"DAV:\">")))
                 .andExpect(content().string(containsString("<d:href>/dav/files/Team/</d:href>")))
+                .andExpect(content().string(containsString("<d:getetag>&quot;etag-team&quot;</d:getetag>")))
+                .andExpect(content().string(containsString("<d:supportedlock/>")))
+                .andExpect(content().string(containsString("<d:lockdiscovery/>")))
                 .andExpect(content().string(not(containsString("readme.md"))))
                 .andExpect(content().string(not(containsString("Nextcloud"))))
                 .andExpect(content().string(not(containsString("remote.php"))))
@@ -92,6 +96,9 @@ class FilesWebDavControllerTest {
     @Test
     void propfindDepthOneReturnsChildrenAsDavResponses() throws Exception {
         given(filesFacadeService.list("/Team")).willReturn(teamListing());
+        given(filesFacadeService.etagFor("/Team")).willReturn("\"etag-team\"");
+        given(filesFacadeService.etagFor("/Team/Design")).willReturn("\"etag-design\"");
+        given(filesFacadeService.etagFor("/Team/readme one.md")).willReturn("\"etag-readme\"");
 
         mockMvc.perform(request(HttpMethod.valueOf("PROPFIND"), "/dav/files/Team")
                         .header("Depth", "1")
@@ -99,6 +106,8 @@ class FilesWebDavControllerTest {
                 .andExpect(status().is(207))
                 .andExpect(content().string(containsString("<d:href>/dav/files/Team/Design/</d:href>")))
                 .andExpect(content().string(containsString("<d:href>/dav/files/Team/readme%20one.md</d:href>")))
+                .andExpect(content().string(containsString("<d:getetag>&quot;etag-design&quot;</d:getetag>")))
+                .andExpect(content().string(containsString("<d:getetag>&quot;etag-readme&quot;</d:getetag>")))
                 .andExpect(content().string(containsString("<d:getcontenttype>text/markdown</d:getcontenttype>")))
                 .andExpect(content().string(containsString("<d:getcontentlength>12</d:getcontentlength>")))
                 .andExpect(content().string(not(containsString("files.example.test"))))

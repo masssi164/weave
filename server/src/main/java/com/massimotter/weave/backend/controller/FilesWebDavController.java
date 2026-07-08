@@ -216,8 +216,10 @@ public class FilesWebDavController {
                 .append("    <d:propstat>\n")
                 .append("      <d:prop>\n")
                 .append("        <d:displayname>").append(escapeXml(displayName(path))).append("</d:displayname>\n")
-                .append("        <d:resourcetype><d:collection/></d:resourcetype>\n")
-                .append("      </d:prop>\n")
+                .append("        <d:resourcetype><d:collection/></d:resourcetype>\n");
+        appendEtag(xml, path);
+        appendLockProperties(xml);
+        xml.append("      </d:prop>\n")
                 .append("      <d:status>HTTP/1.1 200 OK</d:status>\n")
                 .append("    </d:propstat>\n")
                 .append("  </d:response>\n");
@@ -230,6 +232,8 @@ public class FilesWebDavController {
                 .append("      <d:prop>\n")
                 .append("        <d:displayname>").append(escapeXml(item.name())).append("</d:displayname>\n")
                 .append("        <d:resourcetype/>\n");
+        appendEtag(xml, item.path());
+        appendLockProperties(xml);
         if (item.mimeType() != null && !item.mimeType().isBlank()) {
             xml.append("        <d:getcontenttype>").append(escapeXml(item.mimeType())).append("</d:getcontenttype>\n");
         }
@@ -245,6 +249,18 @@ public class FilesWebDavController {
                 .append("      <d:status>HTTP/1.1 200 OK</d:status>\n")
                 .append("    </d:propstat>\n")
                 .append("  </d:response>\n");
+    }
+
+    private void appendEtag(StringBuilder xml, String path) {
+        String etag = filesFacadeService.etagFor(path);
+        if (etag != null && !etag.isBlank()) {
+            xml.append("        <d:getetag>").append(escapeXml(etag)).append("</d:getetag>\n");
+        }
+    }
+
+    private void appendLockProperties(StringBuilder xml) {
+        xml.append("        <d:supportedlock/>\n")
+                .append("        <d:lockdiscovery/>\n");
     }
 
     private String davHref(String path, boolean collection) {
