@@ -307,55 +307,60 @@ void main() {
       },
     );
 
-    test('sends through Matrix and reads the delivered room timeline', () async {
-      // MATRIX_MESSAGE_CONTRACT
-      final roomService = _FakeMatrixRoomService()
-        ..timeline = MatrixRoomTimelineSnapshot(
-          roomId: '!room:home.internal',
-          roomTitle: 'Project',
-          isInvite: false,
-          canSendMessages: true,
-          messages: [
-            MatrixTimelineMessageSnapshot(
-              id: r'$sent',
-              senderId: '@me:home.internal',
-              senderDisplayName: 'Me',
-              sentAt: DateTime(2026, 5, 31, 10, 2),
-              isMine: true,
-              deliveryState: MatrixMessageDeliveryState.sent,
-              contentType: MatrixMessageContentType.text,
-              text: 'hello through Matrix',
-            ),
-          ],
+    test(
+      'sends through Matrix and reads the delivered room timeline',
+      () async {
+        // MATRIX_MESSAGE_CONTRACT
+        final roomService = _FakeMatrixRoomService()
+          ..timeline = MatrixRoomTimelineSnapshot(
+            roomId: '!room:home.internal',
+            roomTitle: 'Project',
+            isInvite: false,
+            canSendMessages: true,
+            messages: [
+              MatrixTimelineMessageSnapshot(
+                id: r'$sent',
+                senderId: '@me:home.internal',
+                senderDisplayName: 'Me',
+                sentAt: DateTime(2026, 5, 31, 10, 2),
+                isMine: true,
+                deliveryState: MatrixMessageDeliveryState.sent,
+                contentType: MatrixMessageContentType.text,
+                text: 'hello through Matrix',
+              ),
+            ],
+          );
+        final repository = MatrixChatRepository(
+          sessionService: _FakeMatrixSessionService(),
+          conversationService: _FakeMatrixConversationService(),
+          roomService: roomService,
+          serverConfigurationRepository: _FakeServerConfigurationRepository(
+            buildTestConfiguration(),
+          ),
         );
-      final repository = MatrixChatRepository(
-        sessionService: _FakeMatrixSessionService(),
-        conversationService: _FakeMatrixConversationService(),
-        roomService: roomService,
-        serverConfigurationRepository: _FakeServerConfigurationRepository(
-          buildTestConfiguration(),
-        ),
-      );
 
-      await repository.sendMessage(
-        roomId: '!room:home.internal',
-        message: 'hello through Matrix',
-      );
-      final timeline = await repository.loadRoomTimeline('!room:home.internal');
+        await repository.sendMessage(
+          roomId: '!room:home.internal',
+          message: 'hello through Matrix',
+        );
+        final timeline = await repository.loadRoomTimeline(
+          '!room:home.internal',
+        );
 
-      expect(
-        roomService.lastHomeserverForSend.toString(),
-        'https://api.home.internal',
-      );
-      expect(roomService.lastRoomIdForSend, '!room:home.internal');
-      expect(roomService.lastMessageForSend, 'hello through Matrix');
-      expect(timeline.roomId, '!room:home.internal');
-      expect(timeline.messages.single.text, 'hello through Matrix');
-      expect(
-        timeline.messages.single.deliveryState,
-        ChatMessageDeliveryState.sent,
-      );
-    });
+        expect(
+          roomService.lastHomeserverForSend.toString(),
+          'https://api.home.internal',
+        );
+        expect(roomService.lastRoomIdForSend, '!room:home.internal');
+        expect(roomService.lastMessageForSend, 'hello through Matrix');
+        expect(timeline.roomId, '!room:home.internal');
+        expect(timeline.messages.single.text, 'hello through Matrix');
+        expect(
+          timeline.messages.single.deliveryState,
+          ChatMessageDeliveryState.sent,
+        );
+      },
+    );
 
     test(
       'send and read-marker failures remain support-safe chat failures',
