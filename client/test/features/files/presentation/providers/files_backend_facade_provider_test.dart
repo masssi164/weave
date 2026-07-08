@@ -328,7 +328,10 @@ void main() {
       );
 
       await expectLater(
-        backendRepository.createFolder(parentPath: '/Team', name: r'bad\name'),
+        backendRepository.createFolder(
+          parentPath: '/Team',
+          name: r'bad\name',
+        ),
         throwsA(
           isA<FilesFailure>().having(
             (failure) => failure.type,
