@@ -4885,18 +4885,31 @@
       "tag": "@files-webdav-propfind",
       "scenario": "PROPFIND Depth 0 and 1 list Weave-owned resources with WebDAV properties",
       "feature": "e2e/features/files_webdav_full_facade.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "FILES_WEBDAV_PROPFIND_FACADE"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "server/src/main/java/com/massimotter/weave/backend/controller/FilesWebDavController.java",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring.ai.mcp remains blocked"
+            "case \"PROPFIND\" -> propfind(request)",
+            "WebDavPropfindListing listing = filesFacadeService.webDavPropfind(path)",
+            "<d:supportedlock/>",
+            "<d:lockdiscovery/>"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
+          "fragments": [
+            "FILES_WEBDAV_PROPFIND_FACADE",
+            "propfindDepthZeroReturnsMultistatusForRequestedCollectionOnly",
+            "propfindDepthOneReturnsChildrenAsDavResponses",
+            "<d:getetag>&quot;etag-team&quot;</d:getetag>",
+            "<d:getetag>&quot;etag-readme&quot;</d:getetag>",
+            "remote.php",
+            "Authorization"
           ]
         }
       ]

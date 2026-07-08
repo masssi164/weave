@@ -2,10 +2,11 @@ package com.massimotter.weave.backend.controller;
 
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.model.files.FileItemResponse;
-import com.massimotter.weave.backend.model.files.FileListResponse;
 import com.massimotter.weave.backend.service.FilesFacadeService;
 import com.massimotter.weave.backend.service.files.DownloadedFile;
 import com.massimotter.weave.backend.service.files.FilePathCodec;
+import com.massimotter.weave.backend.service.files.WebDavPropfindListing;
+import com.massimotter.weave.backend.service.files.WebDavPropfindResource;
 import com.massimotter.weave.backend.service.files.WebDavMutationResult;
 import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.servlet.http.HttpServletRequest;
@@ -82,12 +83,12 @@ public class FilesWebDavController {
         }
 
         String path = productPath(request);
-        FileListResponse listing = filesFacadeService.list(path);
+        WebDavPropfindListing listing = filesFacadeService.webDavPropfind(path);
         boolean includeChildren = "1".equals(depth);
         return ResponseEntity.status(207)
                 .contentType(XML)
                 .header("DAV", "1")
-                .body(multistatus(path, listing, includeChildren));
+                .body(multistatus(listing, includeChildren));
     }
 
     private ResponseEntity<byte[]> get(HttpServletRequest request, boolean headOnly) {
@@ -191,18 +192,18 @@ public class FilesWebDavController {
         }
     }
 
-    private String multistatus(String requestedPath, FileListResponse listing, boolean includeChildren) {
+    private String multistatus(WebDavPropfindListing listing, boolean includeChildren) {
         StringBuilder xml = new StringBuilder("""
                 <?xml version="1.0" encoding="UTF-8"?>
                 <d:multistatus xmlns:d="DAV:">
                 """);
-        appendFolderResponse(xml, requestedPath);
+        appendFolderResponse(xml, listing.requested());
         if (includeChildren) {
-            for (FileItemResponse item : listing.items()) {
-                if ("folder".equals(item.type())) {
-                    appendFolderResponse(xml, item.path());
+            for (WebDavPropfindResource resource : listing.children()) {
+                if ("folder".equals(resource.item().type())) {
+                    appendFolderResponse(xml, resource);
                 } else {
-                    appendFileResponse(xml, item);
+                    appendFileResponse(xml, resource);
                 }
             }
         }
@@ -210,14 +211,15 @@ public class FilesWebDavController {
         return xml.toString();
     }
 
-    private void appendFolderResponse(StringBuilder xml, String path) {
+    private void appendFolderResponse(StringBuilder xml, WebDavPropfindResource resource) {
+        FileItemResponse item = resource.item();
         xml.append("  <d:response>\n")
-                .append("    <d:href>").append(escapeXml(davHref(path, true))).append("</d:href>\n")
+                .append("    <d:href>").append(escapeXml(davHref(item.path(), true))).append("</d:href>\n")
                 .append("    <d:propstat>\n")
                 .append("      <d:prop>\n")
-                .append("        <d:displayname>").append(escapeXml(displayName(path))).append("</d:displayname>\n")
+                .append("        <d:displayname>").append(escapeXml(displayName(item.path()))).append("</d:displayname>\n")
                 .append("        <d:resourcetype><d:collection/></d:resourcetype>\n");
-        appendEtag(xml, path);
+        appendEtag(xml, resource.etag());
         appendLockProperties(xml);
         xml.append("      </d:prop>\n")
                 .append("      <d:status>HTTP/1.1 200 OK</d:status>\n")
@@ -225,14 +227,15 @@ public class FilesWebDavController {
                 .append("  </d:response>\n");
     }
 
-    private void appendFileResponse(StringBuilder xml, FileItemResponse item) {
+    private void appendFileResponse(StringBuilder xml, WebDavPropfindResource resource) {
+        FileItemResponse item = resource.item();
         xml.append("  <d:response>\n")
                 .append("    <d:href>").append(escapeXml(davHref(item.path(), false))).append("</d:href>\n")
                 .append("    <d:propstat>\n")
                 .append("      <d:prop>\n")
                 .append("        <d:displayname>").append(escapeXml(item.name())).append("</d:displayname>\n")
                 .append("        <d:resourcetype/>\n");
-        appendEtag(xml, item.path());
+        appendEtag(xml, resource.etag());
         appendLockProperties(xml);
         if (item.mimeType() != null && !item.mimeType().isBlank()) {
             xml.append("        <d:getcontenttype>").append(escapeXml(item.mimeType())).append("</d:getcontenttype>\n");
@@ -251,8 +254,7 @@ public class FilesWebDavController {
                 .append("  </d:response>\n");
     }
 
-    private void appendEtag(StringBuilder xml, String path) {
-        String etag = filesFacadeService.etagFor(path);
+    private void appendEtag(StringBuilder xml, String etag) {
         if (etag != null && !etag.isBlank()) {
             xml.append("        <d:getetag>").append(escapeXml(etag)).append("</d:getetag>\n");
         }

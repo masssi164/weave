@@ -17,6 +17,7 @@ import com.massimotter.weave.backend.model.files.FileListResponse;
 import com.massimotter.weave.backend.model.files.FileUploadResponse;
 import com.massimotter.weave.backend.service.files.DownloadedFile;
 import com.massimotter.weave.backend.service.files.FilesStorageAdapter;
+import com.massimotter.weave.backend.service.files.WebDavPropfindResource;
 import com.massimotter.weave.backend.service.files.WebDavMutationResult;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
@@ -84,6 +85,26 @@ class FilesFacadeServiceTest {
 
         assertThat(response.path()).isEqualTo("/Team");
         assertThat(response.items()).extracting(FileItemResponse::name).containsExactly("readme.md");
+    }
+
+    @Test
+    void webDavPropfindReturnsWeaveMetadataWithoutPerChildVersionLookups() {
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
+        StubAdapter adapter = new StubAdapter(true);
+        FilesFacadeService service = service(adapter);
+
+        var response = service.webDavPropfind("/Team");
+
+        assertThat(response.requested().item().path()).isEqualTo("/Team");
+        assertThat(response.requested().etag()).startsWith("\"").endsWith("\"");
+        assertThat(response.children())
+                .extracting(WebDavPropfindResource::item)
+                .extracting(FileItemResponse::path)
+                .containsExactly("/Team/readme.md");
+        assertThat(response.children())
+                .extracting(WebDavPropfindResource::etag)
+                .allSatisfy(etag -> assertThat(etag).startsWith("\"").endsWith("\""));
+        assertThat(adapter.versionTokenCalls).isZero();
     }
 
     @Test
@@ -523,6 +544,7 @@ class FilesFacadeServiceTest {
         private String putPath;
         private String createdFolderPath;
         private String deletedPath;
+        private int versionTokenCalls;
 
         private StubAdapter(boolean configured) {
             this.configured = configured;
@@ -582,6 +604,7 @@ class FilesFacadeServiceTest {
 
         @Override
         public String versionToken(String path) {
+            versionTokenCalls++;
             byte[] content = contentByPath.get(path);
             return content == null ? null : new String(content, StandardCharsets.UTF_8);
         }

@@ -19,6 +19,8 @@ import com.massimotter.weave.backend.model.files.FileUploadResponse;
 import com.massimotter.weave.backend.service.files.DownloadedFile;
 import com.massimotter.weave.backend.service.files.FilePathCodec;
 import com.massimotter.weave.backend.service.files.FilesStorageAdapter;
+import com.massimotter.weave.backend.service.files.WebDavPropfindListing;
+import com.massimotter.weave.backend.service.files.WebDavPropfindResource;
 import com.massimotter.weave.backend.service.files.WebDavMutationResult;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -101,6 +103,30 @@ public class FilesFacadeService {
             return configuredAdapter("list-files").list(path);
         } catch (ApiErrorException exception) {
             throw supportSafeStorageError(exception, "list-files");
+        }
+    }
+
+    public WebDavPropfindListing webDavPropfind(String path) {
+        String operation = "webdav-propfind";
+        requireContextPermission(ContextPermission.VIEW, operation);
+        String normalizedPath = FilePathCodec.normalizeProductPath(path);
+        try {
+            FileListResponse listing = configuredAdapter(operation).list(normalizedPath);
+            FileItemResponse requested = new FileItemResponse(
+                    "files:" + normalizedPath,
+                    "/".equals(normalizedPath) ? "Files" : fileName(normalizedPath),
+                    normalizedPath,
+                    "folder",
+                    null,
+                    null,
+                    null,
+                    false);
+            return new WebDavPropfindListing(
+                    webDavResource(requested),
+                    listing.items().stream().map(this::webDavResource).toList(),
+                    listing.quota());
+        } catch (ApiErrorException exception) {
+            throw supportSafeStorageError(exception, operation);
         }
     }
 
@@ -582,6 +608,10 @@ public class FilesFacadeService {
 
     private String etag(VersionedFileItem versionedItem) {
         return etag(versionedItem.item(), versionedItem.versionToken());
+    }
+
+    private WebDavPropfindResource webDavResource(FileItemResponse item) {
+        return new WebDavPropfindResource(item, etag(item, null));
     }
 
     private String etag(FileItemResponse item, String versionToken) {

@@ -7,9 +7,10 @@ import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
 import com.massimotter.weave.backend.model.files.FileItemResponse;
-import com.massimotter.weave.backend.model.files.FileListResponse;
 import com.massimotter.weave.backend.service.FilesFacadeService;
 import com.massimotter.weave.backend.service.files.DownloadedFile;
+import com.massimotter.weave.backend.service.files.WebDavPropfindListing;
+import com.massimotter.weave.backend.service.files.WebDavPropfindResource;
 import com.massimotter.weave.backend.service.files.WebDavMutationResult;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -74,8 +75,8 @@ class FilesWebDavControllerTest {
 
     @Test
     void propfindDepthZeroReturnsMultistatusForRequestedCollectionOnly() throws Exception {
-        given(filesFacadeService.list("/Team")).willReturn(teamListing());
-        given(filesFacadeService.etagFor("/Team")).willReturn("\"etag-team\"");
+        // FILES_WEBDAV_PROPFIND_FACADE
+        given(filesFacadeService.webDavPropfind("/Team")).willReturn(teamPropfindListing());
 
         mockMvc.perform(request(HttpMethod.valueOf("PROPFIND"), "/dav/files/Team/")
                         .header("Depth", "0")
@@ -95,10 +96,7 @@ class FilesWebDavControllerTest {
 
     @Test
     void propfindDepthOneReturnsChildrenAsDavResponses() throws Exception {
-        given(filesFacadeService.list("/Team")).willReturn(teamListing());
-        given(filesFacadeService.etagFor("/Team")).willReturn("\"etag-team\"");
-        given(filesFacadeService.etagFor("/Team/Design")).willReturn("\"etag-design\"");
-        given(filesFacadeService.etagFor("/Team/readme one.md")).willReturn("\"etag-readme\"");
+        given(filesFacadeService.webDavPropfind("/Team")).willReturn(teamPropfindListing());
 
         mockMvc.perform(request(HttpMethod.valueOf("PROPFIND"), "/dav/files/Team")
                         .header("Depth", "1")
@@ -143,7 +141,7 @@ class FilesWebDavControllerTest {
 
     @Test
     void mapsForbiddenNotFoundAndLockedWithoutProviderLeakage() throws Exception {
-        given(filesFacadeService.list("/Denied"))
+        given(filesFacadeService.webDavPropfind("/Denied"))
                 .willThrow(new ApiErrorException(
                         HttpStatus.FORBIDDEN,
                         "files-forbidden",
@@ -291,28 +289,22 @@ class FilesWebDavControllerTest {
                 false);
     }
 
-    private FileListResponse teamListing() {
-        return new FileListResponse(
-                "/Team",
+    private WebDavPropfindListing teamPropfindListing() {
+        return new WebDavPropfindListing(
+                new WebDavPropfindResource(folder("/Team"), "\"etag-team\""),
                 List.of(
-                        new FileItemResponse(
-                                "files:folder",
-                                "Design",
-                                "/Team/Design",
-                                "folder",
-                                null,
-                                null,
-                                OffsetDateTime.parse("2026-07-04T12:00:00Z"),
-                                false),
-                        new FileItemResponse(
-                                "files:readme",
-                                "readme one.md",
-                                "/Team/readme one.md",
-                                "file",
-                                "text/markdown",
-                                12L,
-                                OffsetDateTime.parse("2026-07-04T12:01:00Z"),
-                                true)),
+                        new WebDavPropfindResource(folder("/Team/Design"), "\"etag-design\""),
+                        new WebDavPropfindResource(
+                                new FileItemResponse(
+                                        "files:readme",
+                                        "readme one.md",
+                                        "/Team/readme one.md",
+                                        "file",
+                                        "text/markdown",
+                                        12L,
+                                        OffsetDateTime.parse("2026-07-04T12:01:00Z"),
+                                        true),
+                                "\"etag-readme\"")),
                 null);
     }
 
