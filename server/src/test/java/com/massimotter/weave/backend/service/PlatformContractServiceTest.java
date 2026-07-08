@@ -95,6 +95,37 @@ class PlatformContractServiceTest {
         assertThat(status.nextcloud().message()).contains("Nextcloud");
     }
 
+    @Test
+    void respectsConfiguredMatrixHomeserverUrlAndNormalizesDefaultProjectionUrl() {
+        PlatformContractService configured = service(
+                new MatrixChatProperties(false, null, null),
+                true,
+                new PlatformContractProperties(
+                        null,
+                        "https://api.weave.test/api/",
+                        null,
+                        "https://chat.weave.test",
+                        null,
+                        null,
+                        null,
+                        null));
+        PlatformContractService derived = service(
+                new MatrixChatProperties(false, null, null),
+                true,
+                new PlatformContractProperties(
+                        null,
+                        "https://api.weave.test/api/",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null));
+
+        assertThat(configured.config().matrixHomeserverUrl()).isEqualTo("https://chat.weave.test");
+        assertThat(derived.config().matrixHomeserverUrl()).isEqualTo("https://api.weave.test");
+    }
+
     private PlatformContractService service(MatrixChatProperties matrixProperties, boolean chatEnabled) {
         return service(
                 matrixProperties,

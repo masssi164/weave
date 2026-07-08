@@ -41,7 +41,7 @@ public class PlatformContractService {
                 platformProperties.authBaseUrl(),
                 oidcIssuerUrl(),
                 securityProperties.clientId(),
-                matrixProjectionBaseUrl(),
+                platformProperties.matrixHomeserverUrl(),
                 platformProperties.filesProductUrl(),
                 platformProperties.calendarProductUrl(),
                 platformProperties.nextcloudBaseUrl(),
@@ -63,14 +63,6 @@ public class PlatformContractService {
             return configuredIssuer;
         }
         return joinUrlPath(platformProperties.authBaseUrl(), "/realms/weave");
-    }
-
-    private String matrixProjectionBaseUrl() {
-        String apiBaseUrl = platformProperties.apiBaseUrl();
-        if (apiBaseUrl.endsWith("/api")) {
-            return apiBaseUrl.substring(0, apiBaseUrl.length() - "/api".length());
-        }
-        return apiBaseUrl;
     }
 
     private String joinUrlPath(String baseUrl, String path) {

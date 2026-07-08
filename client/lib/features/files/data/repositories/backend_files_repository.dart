@@ -468,7 +468,7 @@ class BackendFilesRepository
   String _childPath(String parentPath, String childName) {
     final normalizedParent = _normalizeFilesPath(parentPath);
     final safeName = childName.trim();
-    if (safeName.isEmpty || safeName.contains('/')) {
+    if (_isUnsafeChildName(safeName)) {
       throw const FilesFailure.protocol(
         'The file name is not valid for the Weave Files facade.',
       );
@@ -477,6 +477,15 @@ class BackendFilesRepository
       return '/$safeName';
     }
     return '$normalizedParent/$safeName';
+  }
+
+  bool _isUnsafeChildName(String childName) {
+    return childName.isEmpty ||
+        childName == '.' ||
+        childName == '..' ||
+        childName.contains('/') ||
+        childName.contains('\\') ||
+        childName.codeUnits.any((codeUnit) => codeUnit < 0x20);
   }
 
   String _normalizeFilesPath(String path) {

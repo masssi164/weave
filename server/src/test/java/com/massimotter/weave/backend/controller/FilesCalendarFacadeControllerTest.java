@@ -474,6 +474,36 @@ class FilesCalendarFacadeControllerTest {
     }
 
     @Test
+    void calDavReportRejectsMissingOrInvalidTimeRangeSupportSafely() throws Exception {
+        mockMvc.perform(request(HttpMethod.valueOf("REPORT"), "/caldav/workspace/")
+                        .with(workspaceJwt())
+                        .contentType("application/xml")
+                        .content("""
+                                <c:calendar-query xmlns:c="urn:ietf:params:xml:ns:caldav">
+                                  <c:filter><c:comp-filter name="VCALENDAR"><c:comp-filter name="VEVENT"/>
+                                  </c:comp-filter></c:filter>
+                                </c:calendar-query>
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Weave-Error-Code", "caldav-time-range-required"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("remote.php"))));
+
+        mockMvc.perform(request(HttpMethod.valueOf("REPORT"), "/caldav/workspace/")
+                        .with(workspaceJwt())
+                        .contentType("application/xml")
+                        .content("""
+                                <c:free-busy-query xmlns:c="urn:ietf:params:xml:ns:caldav">
+                                  <c:time-range start="2026-07-08T00:00:00Z" end="20260709T000000Z"/>
+                                </c:free-busy-query>
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Weave-Error-Code", "caldav-time-range-invalid"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("Nextcloud"))));
+    }
+
+    @Test
     void calDavEventReadPutAndDeleteUseCalendarFacadeBoundaryAndStableErrors() throws Exception {
         mockMvc.perform(get("/caldav/workspace/planning.ics")
                         .with(workspaceJwt()))

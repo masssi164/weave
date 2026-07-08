@@ -33,6 +33,9 @@ public record PlatformContractProperties(
 
     private static String matrixProjectionBaseUrl(String apiBaseUrl) {
         String normalized = defaultIfBlank(apiBaseUrl, "https://api.weave.test/api");
+        while (normalized.endsWith("/") && normalized.length() > 1) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
         return normalized.endsWith("/api")
                 ? normalized.substring(0, normalized.length() - "/api".length())
                 : normalized;

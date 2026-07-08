@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -108,7 +109,7 @@ public class CalDavCalendarController {
                     "Only calendar-query and free-busy-query REPORT bodies are recognized by the Weave CalDAV facade.",
                     Map.of("module", "calendar", "operation", "caldav-report"));
         }
-        TimeRange range = timeRange(body);
+        TimeRange range = timeRange(body, reportKind);
         var events = calendarFacadeService.list(range.from(), range.to()).events();
         if ("free-busy-query".equals(reportKind)) {
             return ResponseEntity.ok()
@@ -285,17 +286,29 @@ public class CalDavCalendarController {
         return calendar.toString();
     }
 
-    private TimeRange timeRange(String body) {
+    private TimeRange timeRange(String body, String reportKind) {
         Matcher matcher = TIME_RANGE.matcher(body);
         if (!matcher.find()) {
-            return new TimeRange(null, null);
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "caldav-time-range-required",
+                    "CalDAV " + reportKind + " REPORT requires a valid time-range.",
+                    Map.of("module", "calendar", "operation", "caldav-report-" + reportKind));
         }
         return new TimeRange(parseCalDavTime(matcher.group(1)), parseCalDavTime(matcher.group(2)));
     }
 
     private OffsetDateTime parseCalDavTime(String value) {
-        return LocalDateTime.parse(value.toUpperCase(Locale.ROOT), DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'"))
-                .atOffset(ZoneOffset.UTC);
+        try {
+            return LocalDateTime.parse(value.toUpperCase(Locale.ROOT), DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'"))
+                    .atOffset(ZoneOffset.UTC);
+        } catch (DateTimeParseException exception) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "caldav-time-range-invalid",
+                    "CalDAV REPORT time-range must use UTC basic date-time values.",
+                    Map.of("module", "calendar", "operation", "caldav-report"));
+        }
     }
 
     private void appendCollection(StringBuilder xml, String href, String displayName) {
