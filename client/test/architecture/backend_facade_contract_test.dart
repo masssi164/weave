@@ -78,10 +78,12 @@ void main() {
 
     expect(filesRepository, contains('PROPFIND'));
     expect(filesRepository, contains('/dav/files'));
+    expect(filesRepository, contains("http.StreamedRequest('PUT'"));
     expect(filesRepository, contains("'PUT'"));
     expect(filesRepository, contains("'MKCOL'"));
     expect(filesRepository, contains("'DELETE'"));
     expect(filesRepository, contains("'If-None-Match': '*'"));
+    expect(filesRepository, contains("'If-Match': '*'"));
     expect(filesRepository, isNot(contains('generated/openapi_models.dart')));
     expect(filesRepository, isNot(contains('/api/files/upload')));
     expect(filesRepository, isNot(contains('/api/files/folders')));

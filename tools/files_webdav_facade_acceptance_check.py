@@ -96,9 +96,11 @@ def require_read_list_download() -> None:
         "'dav', 'files'",
         "_httpClient.get(",
         "'PUT'",
+        "http.StreamedRequest('PUT'",
         "'MKCOL'",
         "'DELETE'",
         "'If-None-Match': '*'",
+        "'If-Match': '*'",
     )
     require(
         "client/test/features/files/presentation/providers/files_backend_facade_provider_test.dart",
@@ -164,9 +166,12 @@ def require_webdav_write_mvp() -> None:
     require(
         "client/lib/features/files/data/repositories/backend_files_repository.dart",
         "'PUT'",
+        "http.StreamedRequest('PUT'",
+        "request.byteStream",
+        "unawaited(httpRequest.sink.close())",
         "'MKCOL'",
         "'DELETE'",
-        "_collectUploadBytes(",
+        "'If-Match': '*'",
         "_pathFromLocation(",
     )
     require(

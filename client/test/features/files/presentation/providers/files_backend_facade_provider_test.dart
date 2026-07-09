@@ -234,18 +234,26 @@ void main() {
     });
 
     test('writes files through the Weave WebDAV data plane', () async {
-      final requests = <http.Request>[];
-      final client = MockClient((request) async {
+      final requests = <http.BaseRequest>[];
+      final uploadedBodies = <List<int>>[];
+      final client = MockClient.streaming((request, bodyStream) async {
         requests.add(request);
+        if (request.method == 'PUT') {
+          uploadedBodies.add(await bodyStream.toBytes());
+        }
         return switch (request.method) {
-          'PUT' => http.Response('', 201, headers: {'etag': '"created"'}),
-          'MKCOL' => http.Response(
-            '',
+          'PUT' => http.StreamedResponse(
+            const Stream.empty(),
+            201,
+            headers: {'etag': '"created"'},
+          ),
+          'MKCOL' => http.StreamedResponse(
+            const Stream.empty(),
             201,
             headers: {'location': '/dav/files/Team/Design/'},
           ),
-          'DELETE' => http.Response('', 204),
-          _ => http.Response('', 500),
+          'DELETE' => http.StreamedResponse(const Stream.empty(), 204),
+          _ => http.StreamedResponse(const Stream.empty(), 500),
         };
       });
       final backendRepository = repository(client);
@@ -287,9 +295,11 @@ void main() {
       expect(requests[0].headers['authorization'], 'Bearer files-token');
       expect(requests[0].headers['if-none-match'], '*');
       expect(requests[0].headers['content-type'], 'application/octet-stream');
-      expect(requests[0].bodyBytes, <int>[1, 2, 3, 4, 5]);
+      expect(requests[0].contentLength, 5);
+      expect(uploadedBodies.single, <int>[1, 2, 3, 4, 5]);
       expect(requests[1].headers['if-none-match'], '*');
       expect(requests[2].headers['authorization'], 'Bearer files-token');
+      expect(requests[2].headers['if-match'], '*');
     });
 
     test(

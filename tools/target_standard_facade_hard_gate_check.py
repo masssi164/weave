@@ -64,12 +64,14 @@ def require_files_webdav_current_proof() -> None:
     require(
         "client/lib/features/files/data/repositories/backend_files_repository.dart",
         "http.Request('PROPFIND'",
+        "http.StreamedRequest('PUT'",
         "'PUT'",
         "'MKCOL'",
         "'DELETE'",
         "'dav', 'files'",
         "_httpClient.get(",
         "'If-None-Match': '*'",
+        "'If-Match': '*'",
     )
     require_absent(
         "client/lib/features/files/data/repositories/backend_files_repository.dart",

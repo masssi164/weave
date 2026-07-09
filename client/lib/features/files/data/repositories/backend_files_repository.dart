@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -101,19 +102,29 @@ class BackendFilesRepository
   }) async {
     final context = await _requireContext();
     final uploadPath = _childPath(directoryPath, request.fileName);
-    final bytes = await _collectUploadBytes(request, onProgress);
     final response = await _sendAuthenticated(
       context,
       (accessToken) async {
         final httpRequest =
-            http.Request('PUT', _davUri(context.baseUrl, uploadPath))
+            http.StreamedRequest('PUT', _davUri(context.baseUrl, uploadPath))
               ..headers.addAll({
                 ..._webdavHeaders(accessToken),
                 'Content-Type': 'application/octet-stream',
                 'If-None-Match': '*',
               })
-              ..bodyBytes = bytes;
-        return http.Response.fromStream(await _httpClient.send(httpRequest));
+              ..contentLength = request.sizeInBytes;
+        final responseFuture = _httpClient.send(httpRequest);
+        var uploaded = 0;
+        try {
+          await for (final chunk in request.byteStream) {
+            uploaded += chunk.length;
+            httpRequest.sink.add(chunk);
+            onProgress?.call(uploaded, request.sizeInBytes);
+          }
+        } finally {
+          unawaited(httpRequest.sink.close());
+        }
+        return http.Response.fromStream(await responseFuture);
       },
       fallbackMessage: 'Unable to upload the file through the Weave backend.',
     );
@@ -202,7 +213,7 @@ class BackendFilesRepository
         final request = http.Request(
           'DELETE',
           _davUri(context.baseUrl, entry.path),
-        )..headers.addAll(_webdavHeaders(accessToken));
+        )..headers.addAll({..._webdavHeaders(accessToken), 'If-Match': '*'});
         return http.Response.fromStream(await _httpClient.send(request));
       },
       fallbackMessage: 'Unable to delete the file through the Weave backend.',
@@ -449,20 +460,6 @@ class BackendFilesRepository
       pathSegments: [...baseSegments, 'dav', 'files', ...pathSegments],
       queryParameters: null,
     );
-  }
-
-  Future<Uint8List> _collectUploadBytes(
-    FileUploadRequest request,
-    FileUploadProgressCallback? onProgress,
-  ) async {
-    final builder = BytesBuilder(copy: false);
-    var uploaded = 0;
-    await for (final chunk in request.byteStream) {
-      builder.add(chunk);
-      uploaded += chunk.length;
-      onProgress?.call(uploaded, request.sizeInBytes);
-    }
-    return builder.takeBytes();
   }
 
   String _childPath(String parentPath, String childName) {
