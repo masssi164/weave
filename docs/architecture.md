@@ -123,7 +123,7 @@ Persistence is split by responsibility:
 - `PreferencesStore` for harmless configuration and future non-sensitive flags
 - `SecureStore` for tokens, sensitive protocol credentials, and persisted sessions that should not live in preferences
 
-Current secure-storage usage includes app-auth session persistence and the shared Nextcloud session store.
+Current secure-storage usage is app-auth session persistence. Dogfood reset still deletes the old `nextcloud_session_v1` key so upgraded developer devices clear stale provider-client state without keeping the removed integration package.
 
 ## Failure model
 `AppFailure` is the shared app-level failure model used across bootstrap, storage, and repositories. Presentation should respond to `AppFailure` rather than raw package exceptions.
@@ -156,8 +156,7 @@ Current feature repository boundaries:
 
 - `auth` -> `AuthSessionRepository` + `OidcClient`
 - `chat` -> `ChatRepository` + Matrix Client-Server projection mapping in `data/`; backend Chat facade OpenAPI DTO mapping remains a fenced control-plane/conformance seam and Slack/Teams never become northbound member data-plane transports
-- `files` -> `FilesRepository` + Weave WebDAV data-plane mapping in `data/`, with OpenAPI retained for discovery/readiness/setup/revoke/control-plane state; direct provider WebDAV/Nextcloud transport stays outside normal member UI paths
-- `integrations/nextcloud` -> transitional Nextcloud auth/session helpers only for fenced legacy or provider-owned integration work; normal member Files presentation must use the backend Files facade
+- `files` -> `FilesRepository` + Weave WebDAV data-plane mapping in `data/`, with OpenAPI retained for discovery/readiness/setup/revoke/control-plane state; direct provider WebDAV/Nextcloud transport is removed from Flutter member code
 - `calendar` -> `CalendarRepository` + Weave CalDAV/iCalendar projection for the event data plane, with backend OpenAPI retained for discovery/readiness/setup/revoke/control-plane state; direct provider CalDAV/Graph/Google transport stays behind server adapters
 - `deck` / future `tasks_boards` -> exploratory board repository/client boundaries; future work should use a provider-neutral Weave model with adapters
 
@@ -172,15 +171,14 @@ Boundary rule:
 - features may depend on integrations, but integrations must not depend on feature presentation state or feature-owned transport mappings they are meant to support
 
 ## Session separation
-App auth, the Weave Matrix facade session boundary, and transitional Nextcloud integration state are intentionally separate concerns:
+App auth, the Weave Matrix facade session boundary, and Files facade state are intentionally separate concerns:
 
 - `auth/` owns the app-level OIDC session that decides whether the shell is reachable
 - `chat/data/repositories/WeaveMatrixFacadeChatRepository` consumes the OIDC-gated Weave Matrix Client-Server projection for member chat sync/send; the obsolete REST `BackendChatRepository` has been removed
-- `files/data/repositories/BackendFilesRepository` consumes the Weave app session and calls the canonical backend Files facade; `integrations/nextcloud/` remains transitional provider-integration code rather than the normal member Files path
+- `files/data/repositories/BackendFilesRepository` consumes the Weave app session and calls the canonical backend Files facade; the old Flutter `integrations/nextcloud/` provider client is removed
 - the app does not call a raw Matrix homeserver or persist a Matrix SDK access token; the Weave Matrix facade validates the app-level OIDC token
-- the app does not assume an app-level OIDC token can be persisted as a raw Nextcloud bearer session; persisted Nextcloud bearer sessions are stored as tokenless markers and rehydrated from app auth state
 - changing the Matrix facade URL invalidates chat data-plane requests without redesigning bootstrap
-- changing the configured Nextcloud base URL invalidates the persisted Nextcloud session without requiring feature-owned cleanup logic
+- changing configured Files/backend endpoints invalidates Files view state without feature-owned provider-session cleanup
 
 Matrix E2EE state also stays inside `features/chat/`:
 
@@ -198,13 +196,10 @@ The Matrix integration is the standard Chat data-plane seam. It uses:
 - `/_matrix/client/versions`, `/sync`, `/joined_rooms`, `/rooms/{roomId}/messages`, and `/rooms/{roomId}/send/m.room.message/{txnId}` for the current member data-plane slice
 - the shared Rust/Ruma Matrix core boundary through server JNI and Flutter `flutter_rust_bridge`
 
-## Nextcloud integration split
-Normal member Files uses the Weave WebDAV facade through `BackendFilesRepository` for list, read, upload, create-folder, and delete data-plane behavior; Flutter keeps OpenAPI only for discovery/readiness/setup/revoke/control-plane state. Server-side `/dav/files` supports guarded `PUT`, `MKCOL`, and `DELETE` with ETags, conditional preconditions, support-safe errors, and mutation audit, and the Flutter repository calls those WebDAV methods instead of legacy OpenAPI member data-plane endpoints. The transitional Nextcloud integration is now split into fenced provider-owned helpers:
+## Legacy Nextcloud Flutter Integration
+Normal member Files uses the Weave WebDAV facade through `BackendFilesRepository` for list, read, upload, create-folder, and delete data-plane behavior; Flutter keeps OpenAPI only for discovery/readiness/setup/revoke/control-plane state. Server-side `/dav/files` supports guarded `PUT`, `MKCOL`, and `DELETE` with ETags, conditional preconditions, support-safe errors, and mutation audit, and the Flutter repository calls those WebDAV methods instead of legacy OpenAPI member data-plane endpoints.
 
-- `integrations/nextcloud/` for legacy/shared auth, session, account validation, login-flow handling, revoke policy, provider wiring, and connection lifecycle orchestration where a fenced provider adapter still needs it
-- `features/files/` for Weave WebDAV facade calls and file-facing presentation/state
-
-This keeps the current Files UX intact while moving provider transport behind backend domain services. Future Calendar or provider-adapter board work must not import `features/files/` or add direct member UI provider setup paths.
+The old Flutter `integrations/nextcloud/` auth/session/Login Flow package has been removed. Nextcloud remains a valid southbound server adapter, but member-client code must not own raw Nextcloud sessions, app passwords, provider DAV validation, or provider Login Flow. Future Calendar or provider-adapter board work must not import `features/files/` or add direct member UI provider setup paths.
 
 ## Calendar backend facade scope
 

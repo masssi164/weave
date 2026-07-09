@@ -22,13 +22,13 @@ import 'package:weave/features/onboarding/domain/use_cases/consume_member_handof
 import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
 import 'package:weave/features/server_config/data/repositories/shared_preferences_server_configuration_repository.dart';
-import 'package:weave/integrations/nextcloud/data/repositories/secure_nextcloud_session_repository.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
 const _pendingDeepLinkKey = 'pending_deep_link_url';
 const _dogfoodResetQueryKey = 'dogfood_reset';
 const _dogfoodResetAppStateValue = 'app_state';
 const _dogfoodLocalProfile = 'local-lan-dogfood';
+const _legacyNextcloudSessionStorageKey = 'nextcloud_session_v1';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -166,7 +166,7 @@ class _WeaveAppState extends ConsumerState<WeaveApp>
     );
     for (final key in const [
       authSessionStorageKey,
-      nextcloudSessionStorageKey,
+      _legacyNextcloudSessionStorageKey,
     ]) {
       try {
         await secureStorage.delete(key: key);

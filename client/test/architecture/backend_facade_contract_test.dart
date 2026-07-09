@@ -4,6 +4,15 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('legacy direct Nextcloud Flutter integration is removed', () {
+    expect(
+      Directory('lib/integrations/nextcloud').existsSync(),
+      isFalse,
+      reason:
+          'Normal member Files uses the Weave WebDAV facade; direct Flutter Nextcloud auth/session code must not be reintroduced.',
+    );
+  });
+
   test(
     'primary files provider is wired through the backend-facade seam',
     () async {

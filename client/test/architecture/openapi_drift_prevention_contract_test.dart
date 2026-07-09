@@ -453,13 +453,6 @@ const _hardcodedCopyAllowlist = <LegacyFence>[
         'OpenAPI feature-adapter fallback text remains fenced until typed '
         'member readiness codes feed localized UI copy.',
   ),
-  LegacyFence(
-    path: 'lib/integrations/nextcloud/',
-    issue: '#906',
-    reason:
-        'Nextcloud remains a legacy provider seam until normal member provider '
-        'reachability is removed or restricted to diagnostic/admin paths.',
-  ),
 ];
 
 final _rawProviderReachabilityPatterns = <RegExp>[
