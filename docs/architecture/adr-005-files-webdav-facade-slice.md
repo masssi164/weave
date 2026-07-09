@@ -120,14 +120,11 @@ revocation, audit, expiry, and policy UI are implemented.
 ## Decision 4: write semantics
 
 Issue #1007 promotes the first WebDAV write MVP for `PUT`, `DELETE`, and
-`MKCOL` on `/dav/files`. The Files facade owns ETag generation,
+`MKCOL` on `/dav/files`. PR #1043 extends that normal member data plane with
+`MOVE`, `COPY`, `LOCK`, and `UNLOCK`. The Files facade owns ETag generation,
 `If-Match`/`If-None-Match` preconditions, support-safe conflict/precondition/
-forbidden/quota/storage errors, and attempted/completed mutation audit before
-provider adapters are invoked.
-
-`MOVE`, `COPY`, `LOCK`, and `UNLOCK` remain disabled until a focused protocol
-slice records and tests their conflict, lock, retry/idempotency, revocation,
-and no-unaccounted-data-loss behavior.
+forbidden/quota/storage errors, lock conflict handling, and attempted/completed
+mutation audit before provider adapters are invoked.
 
 ## Consequences
 

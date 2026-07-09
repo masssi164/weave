@@ -125,8 +125,9 @@ The first northbound WebDAV slices and their dependency, client adapter,
 authentication, and write decisions are recorded in [ADR-005: Files WebDAV
 facade slice](adr-005-files-webdav-facade-slice.md). `PUT`, `MKCOL`, and
 `DELETE` use Weave ETags, conditional preconditions, support-safe errors, and
-mutation audit. `MOVE`, `COPY`, `LOCK`, `UNLOCK`, Flutter mutations, and MCP
-write tools remain separate cutover slices.
+mutation audit. `MOVE`, `COPY`, `LOCK`, and `UNLOCK` are now part of the same
+Weave-owned WebDAV member data-plane proof. Native OS provider integrations and
+public MCP write tools remain separate cutover slices.
 
 Near-term federation for files should use Weave guest/external sharing policy.
 Provider-native federated shares may become adapter capabilities later.
