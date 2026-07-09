@@ -240,9 +240,18 @@ public class FilesWebDavController {
         } catch (IllegalArgumentException exception) {
             rawPath = destination;
         }
+        if (rawPath == null) {
+            rawPath = "";
+        }
         String decoded = UriUtils.decode(rawPath, StandardCharsets.UTF_8);
         if (decoded.startsWith(DAV_ROOT)) {
             decoded = decoded.substring(DAV_ROOT.length());
+        } else if (decoded.startsWith("/")) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "webdav-destination-outside-facade",
+                    "WebDAV COPY and MOVE destinations must stay under the Weave Files WebDAV facade.",
+                    Map.of("module", "files", "operation", "webdav-destination"));
         }
         if (decoded.isBlank()) {
             decoded = "/";

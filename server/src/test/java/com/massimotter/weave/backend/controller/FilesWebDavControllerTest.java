@@ -325,6 +325,24 @@ class FilesWebDavControllerTest {
         then(filesFacadeService).should().unlockWebDavPath("/Team/readme.md", "<opaquelocktoken:test-lock>");
     }
 
+    @Test
+    void copyAndMoveRejectDestinationsOutsideWeaveWebDavFacade() throws Exception {
+        mockMvc.perform(request(HttpMethod.valueOf("COPY"), "/dav/files/Team/readme.md")
+                        .header("Destination", "https://files.example.test/remote.php/dav/files/user/leak.md")
+                        .with(workspaceJwt()))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Weave-Error-Code", "webdav-destination-outside-facade"))
+                .andExpect(content().string(containsString("Weave Files WebDAV facade")))
+                .andExpect(content().string(not(containsString("remote.php"))))
+                .andExpect(content().string(not(containsString("Bearer"))));
+
+        mockMvc.perform(request(HttpMethod.valueOf("MOVE"), "/dav/files/Team/readme.md")
+                        .header("Destination", "/provider/files/leak.md")
+                        .with(workspaceJwt()))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Weave-Error-Code", "webdav-destination-outside-facade"));
+    }
+
     private FileItemResponse file(String path, String mimeType, long size) {
         return new FileItemResponse(
                 "files:" + path,

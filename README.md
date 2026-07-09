@@ -53,7 +53,7 @@ These checked-in visuals are support-safe proof assets for the current dogfood p
 ## What Works Today
 
 - The current frontdoor proves a provider-neutral member path with guided setup, service review, chat, files, and settings visuals backed by checked-in evidence.
-- The active PR #1043 track moves normal member data planes to northbound standards: Chat through the OIDC-gated Matrix facade, Files through WebDAV, and Calendar through CalDAV/iCalendar. Legacy REST chat messages and calendar event data-plane routes are obsolete rather than compatibility targets.
+- The current implementation moves normal member data planes to northbound standards: Chat through the OIDC-gated Matrix facade, Files through WebDAV, and Calendar through CalDAV/iCalendar. Legacy REST chat messages and calendar event data-plane routes are obsolete rather than compatibility targets.
 - Weave treats admin/operator readiness as part of the product: provider categories, policy boundaries, evidence, and support-safe diagnostics belong in the control plane, not in member setup.
 - The release track already carries product-level proof for dogfood collaboration, governed assistance boundaries, portability dry-runs, operator recovery guardrails, and release-claim control.
 
