@@ -111,6 +111,42 @@ class ServerArchitectureBoundaryTest {
     }
 
     @Test
+    void canonicalCollaborationPortsDoNotDependOnDtoProtocolOrProviderLayers() throws IOException {
+        List<String> violations = productionSources().stream()
+                .filter(ServerArchitectureBoundaryTest::isCanonicalCollaborationPort)
+                .flatMap(source -> source.imports().stream()
+                        .filter(ServerArchitectureBoundaryTest::isDomainForbiddenImport)
+                        .map(importName -> violation(source, importName)))
+                .sorted()
+                .toList();
+
+        assertThat(violations)
+                .as("Canonical collaboration ports must use domain values, not DTO, protocol, runtime, or provider types.")
+                .isEmpty();
+
+        assertThat(productionSources().stream()
+                .filter(ServerArchitectureBoundaryTest::isCanonicalCollaborationPort)
+                .map(JavaSource::path)
+                .toList())
+                .anyMatch(path -> path.endsWith(Path.of("files", "port", "FilesProviderPort.java")))
+                .anyMatch(path -> path.endsWith(Path.of("calendar", "port", "CalendarProviderPort.java")))
+                .anyMatch(path -> path.endsWith(Path.of("chat", "port", "ChatProviderPort.java")));
+    }
+
+    @Test
+    void dtoShapedCollaborationAdaptersAreExplicitRemovalDebt() throws IOException {
+        for (String fileName : List.of("FilesStorageAdapter.java", "CalendarAdapter.java")) {
+            JavaSource legacyPort = productionSources().stream()
+                    .filter(source -> source.path().endsWith(fileName))
+                    .findFirst()
+                    .orElseThrow();
+            assertThat(legacyPort.text())
+                    .contains("@Deprecated(forRemoval = true")
+                    .contains("removal is tracked by #1004");
+        }
+    }
+
+    @Test
     void publicDeliveryContractsDoNotImportProviderAdapters() throws IOException {
         List<String> violations = productionSources().stream()
                 .filter(ServerArchitectureBoundaryTest::isPublicDeliveryContract)
@@ -371,6 +407,13 @@ class ServerArchitectureBoundaryTest {
     private static boolean isCanonicalDomainPackage(JavaSource source) {
         String packageName = source.packageName();
         return packageName.endsWith(".domain") || packageName.contains(".domain.");
+    }
+
+    private static boolean isCanonicalCollaborationPort(JavaSource source) {
+        String packageName = source.packageName();
+        return packageName.equals(BACKEND_PACKAGE + "files.port")
+                || packageName.equals(BACKEND_PACKAGE + "calendar.port")
+                || packageName.equals(BACKEND_PACKAGE + "chat.port");
     }
 
     private static String violation(JavaSource source, String importName) {
