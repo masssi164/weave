@@ -134,21 +134,14 @@ class ServerArchitectureBoundaryTest {
     }
 
     @Test
-    void filesDtoShapedCompatibilityPortHasBeenRemoved() throws IOException {
+    void dtoShapedCollaborationCompatibilityPortsHaveBeenRemoved() throws IOException {
         assertThat(productionSources())
                 .extracting(source -> source.path().getFileName().toString())
-                .doesNotContain("FilesStorageAdapter.java", "FilesStorageReadiness.java", "VersionedFileListResponse.java");
-    }
-
-    @Test
-    void calendarDtoShapedCompatibilityPortIsExplicitRemovalDebt() throws IOException {
-        JavaSource legacyPort = productionSources().stream()
-                .filter(source -> source.path().endsWith("CalendarAdapter.java"))
-                .findFirst()
-                .orElseThrow();
-        assertThat(legacyPort.text())
-                .contains("@Deprecated(forRemoval = true")
-                .contains("removal is tracked by #1004");
+                .doesNotContain(
+                        "FilesStorageAdapter.java",
+                        "FilesStorageReadiness.java",
+                        "VersionedFileListResponse.java",
+                        "CalendarAdapter.java");
     }
 
     @Test
@@ -255,8 +248,8 @@ class ServerArchitectureBoundaryTest {
                 .contains("case \"GET\" -> get(request, false)")
                 .contains("case \"PUT\" -> put(request)")
                 .contains("case \"DELETE\" -> delete(request)")
-                .contains("calendarFacadeService.listCalDavEvents(")
-                .contains("calendarFacadeService.readCalDavEvent(")
+                .contains("calendarFacadeService.listCalDavResources(")
+                .contains("calendarFacadeService.readCalDavResource(")
                 .contains("calendarFacadeService.putCalDavEventIcs(")
                 .contains("calendarFacadeService.deleteCalDavEventIcs(")
                 .doesNotContain("CalDavCalendarAdapter")

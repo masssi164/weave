@@ -74,11 +74,11 @@ The server uses the same internal outline for collaboration domains:
 | `server/.../<domain>/mapping` | Provider object mapping, lossy-field, permission-impact, conflict, portability, and audit evidence. |
 | `server/.../<domain>/policy` | Capability gates, revocation, credential lifecycle, and audit decisions. |
 
-The Files facade and its Nextcloud/WebDAV adapter use the canonical
-`FilesProviderPort`; the DTO-shaped `FilesStorageAdapter` compatibility port has
-been removed. Calendar and Chat follow the same port shape. The remaining
-DTO-shaped `CalendarAdapter` is deprecated for removal under issue #1004 and
-must be deleted when the CalDAV adapter migration lands.
+The Files and Calendar facades and their Nextcloud WebDAV/CalDAV adapters use
+the canonical `FilesProviderPort` and `CalendarProviderPort`. Their former
+DTO-shaped compatibility ports have been removed. Chat follows the same port
+shape and keeps Matrix, Slack, Teams, and future providers behind canonical
+conversation and message values.
 
 ## Client access discovery and credential lifecycle
 

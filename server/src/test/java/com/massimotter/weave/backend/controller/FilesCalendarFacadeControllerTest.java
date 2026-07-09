@@ -1,5 +1,14 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarEvent;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarId;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarScope;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarWrite;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.EventId;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.EventVersion;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.ScopeType;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.WriteIntent;
+import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
 import com.massimotter.weave.backend.config.ApiAccessDeniedHandler;
 import com.massimotter.weave.backend.config.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
@@ -18,10 +27,12 @@ import com.massimotter.weave.backend.service.CalendarFacadeService;
 import com.massimotter.weave.backend.service.CallsFacadeService;
 import com.massimotter.weave.backend.service.FilesFacadeService;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
-import com.massimotter.weave.backend.service.calendar.CalendarAdapter;
 import com.massimotter.weave.backend.service.calendar.CalendarAdapterException;
 import com.jayway.jsonpath.JsonPath;
+import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -102,7 +113,7 @@ class FilesCalendarFacadeControllerTest {
     private ContextAuthorizationProperties contextAuthorizationProperties;
 
     @MockBean
-    private CalendarAdapter calendarAdapter;
+    private CalendarProviderPort calendarProviderPort;
 
     @BeforeEach
     void allowContextAccess() {
@@ -118,16 +129,17 @@ class FilesCalendarFacadeControllerTest {
                 CalendarAdapterException.Type.NOT_CONFIGURED,
                 "Calendar facade is available, but calendar storage is not configured yet.",
                 Map.of("module", "calendar"));
-        when(calendarAdapter.list(
-                        any(),
-                        any(CalendarScopeResponse.class),
-                        nullable(OffsetDateTime.class),
-                        nullable(OffsetDateTime.class)))
+        when(calendarProviderPort.query(
+                        any(CalendarId.class),
+                        any(CalendarScope.class),
+                        nullable(Instant.class),
+                        nullable(Instant.class)))
                 .thenThrow(notConfigured);
-        when(calendarAdapter.read(any(), any(CalendarScopeResponse.class), any())).thenThrow(notConfigured);
-        when(calendarAdapter.create(any(), any())).thenThrow(notConfigured);
-        when(calendarAdapter.update(any(), any(CalendarScopeResponse.class), any(), any())).thenThrow(notConfigured);
-        doThrow(notConfigured).when(calendarAdapter).delete(any(), any(CalendarScopeResponse.class), any());
+        when(calendarProviderPort.read(any(CalendarId.class), any(CalendarScope.class), any(EventId.class)))
+                .thenThrow(notConfigured);
+        when(calendarProviderPort.write(any(CalendarWrite.class))).thenThrow(notConfigured);
+        doThrow(notConfigured).when(calendarProviderPort).delete(
+                any(CalendarId.class), any(CalendarScope.class), any(EventId.class), any(EventVersion.class));
     }
 
     @Test
@@ -447,21 +459,12 @@ class FilesCalendarFacadeControllerTest {
 
     @Test
     void calDavReportCalendarQueryAndFreeBusyReturnFacadeBackedCalendarData() throws Exception {
-        when(calendarAdapter.list(
-                        any(),
-                        any(CalendarScopeResponse.class),
-                        nullable(OffsetDateTime.class),
-                        nullable(OffsetDateTime.class)))
-                .thenReturn(List.of(new CalendarEventResponse(
-                        "planning",
-                        "Planning",
-                        "Roadmap sync",
-                        OffsetDateTime.parse("2026-07-08T10:00:00Z"),
-                        OffsetDateTime.parse("2026-07-08T11:00:00Z"),
-                        "UTC",
-                        "Room 1",
-                        false,
-                        "\"etag-planning\"")));
+        when(calendarProviderPort.query(
+                        any(CalendarId.class),
+                        any(CalendarScope.class),
+                        nullable(Instant.class),
+                        nullable(Instant.class)))
+                .thenReturn(List.of(calendarEvent("planning", "Planning", "\"etag-planning\"", CalendarScope.workspace())));
 
         mockMvc.perform(request(HttpMethod.valueOf("REPORT"), "/caldav/workspace/")
                         .with(workspaceJwt())
@@ -502,17 +505,27 @@ class FilesCalendarFacadeControllerTest {
 
     @Test
     void calDavReportMultigetAndSyncCollectionUseScopedFacadeCalendars() throws Exception {
-        when(calendarAdapter.list(
-                        any(),
-                        argThat(scope -> scope != null && "team:engineering".equals(scope.id())),
-                        nullable(OffsetDateTime.class),
-                        nullable(OffsetDateTime.class)))
-                .thenReturn(List.of(calendarEvent("team-planning", "Team planning", "\"etag-team\"")));
-        doReturn(calendarEvent("channel-planning", "Channel planning", "\"etag-channel\""))
-                .when(calendarAdapter).read(
-                        any(),
-                        argThat(scope -> scope != null && "channel:engineering-general".equals(scope.id())),
-                        eq("channel-planning"));
+        when(calendarProviderPort.query(
+                        any(CalendarId.class),
+                        argThat(scope -> scope != null && scope.type() == ScopeType.TEAM
+                                && "engineering".equals(scope.teamId())),
+                        nullable(Instant.class),
+                        nullable(Instant.class)))
+                .thenReturn(List.of(calendarEvent(
+                        "team-planning",
+                        "Team planning",
+                        "\"etag-team\"",
+                        new CalendarScope(ScopeType.TEAM, "engineering", null))));
+        doReturn(calendarEvent(
+                "channel-planning",
+                "Channel planning",
+                "\"etag-channel\"",
+                new CalendarScope(ScopeType.CHANNEL, "engineering", "engineering-general")))
+                .when(calendarProviderPort).read(
+                        any(CalendarId.class),
+                        argThat(scope -> scope != null && scope.type() == ScopeType.CHANNEL
+                                && "engineering-general".equals(scope.channelId())),
+                        eq(new EventId("channel-planning")));
 
         mockMvc.perform(request(HttpMethod.valueOf("REPORT"), "/caldav/team:engineering/")
                         .with(workspaceJwt())
@@ -546,15 +559,17 @@ class FilesCalendarFacadeControllerTest {
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                         .string(org.hamcrest.Matchers.containsString("SUMMARY:Channel planning")));
 
-        verify(calendarAdapter).list(
-                any(),
-                argThat(scope -> scope != null && "team:engineering".equals(scope.id())),
-                nullable(OffsetDateTime.class),
-                nullable(OffsetDateTime.class));
-        verify(calendarAdapter).read(
-                any(),
-                argThat(scope -> scope != null && "channel:engineering-general".equals(scope.id())),
-                eq("channel-planning"));
+        verify(calendarProviderPort).query(
+                any(CalendarId.class),
+                argThat(scope -> scope != null && scope.type() == ScopeType.TEAM
+                        && "engineering".equals(scope.teamId())),
+                nullable(Instant.class),
+                nullable(Instant.class));
+        verify(calendarProviderPort).read(
+                any(CalendarId.class),
+                argThat(scope -> scope != null && scope.type() == ScopeType.CHANNEL
+                        && "engineering-general".equals(scope.channelId())),
+                eq(new EventId("channel-planning")));
     }
 
     @Test
@@ -625,13 +640,15 @@ class FilesCalendarFacadeControllerTest {
     @Test
     void calDavEventReadPutCreateUpdateAndDeleteUseFacadeBackedIcalendar() throws Exception {
         // CALDAV_GET_PUT_DELETE_FACADE_MVP
-        doReturn(calendarEvent("planning", "Planning", "\"etag-existing\""))
-                .when(calendarAdapter).read(any(), any(CalendarScopeResponse.class), any());
-        doReturn(calendarEvent("planning-new", "Planning", "\"etag-created\""))
-                .when(calendarAdapter).create(any(), any());
-        doReturn(calendarEvent("planning", "Updated planning", "\"etag-updated\""))
-                .when(calendarAdapter).update(any(), any(CalendarScopeResponse.class), any(), any());
-        doNothing().when(calendarAdapter).delete(any(), any(CalendarScopeResponse.class), any());
+        doReturn(calendarEvent("planning", "Planning", "\"etag-existing\"", CalendarScope.workspace()))
+                .when(calendarProviderPort).read(
+                        any(CalendarId.class), any(CalendarScope.class), any(EventId.class));
+        doReturn(calendarEvent("planning-new", "Planning", "\"etag-created\"", CalendarScope.workspace()))
+                .when(calendarProviderPort).write(argThat(write -> write.intent() == WriteIntent.CREATE));
+        doReturn(calendarEvent("planning", "Updated planning", "\"etag-updated\"", CalendarScope.workspace()))
+                .when(calendarProviderPort).write(argThat(write -> write.intent() == WriteIntent.UPDATE));
+        doNothing().when(calendarProviderPort).delete(
+                any(CalendarId.class), any(CalendarScope.class), any(EventId.class), any(EventVersion.class));
 
         mockMvc.perform(get("/caldav/workspace/planning.ics")
                         .with(workspaceJwt()))
@@ -816,16 +833,25 @@ class FilesCalendarFacadeControllerTest {
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 
-    private CalendarEventResponse calendarEvent(String id, String title, String etag) {
-        return new CalendarEventResponse(
-                id,
+    private CalendarEvent calendarEvent(
+            String id,
+            String title,
+            String etag,
+            CalendarScope scope) {
+        return new CalendarEvent(
+                new CalendarId("user@example.com"),
+                new EventId(id),
+                scope,
                 title,
                 "Roadmap sync",
-                OffsetDateTime.parse("2026-07-08T10:00:00Z"),
-                OffsetDateTime.parse("2026-07-08T11:00:00Z"),
-                "UTC",
-                "Room 1",
+                LocalDateTime.parse("2026-07-08T10:00:00"),
+                LocalDateTime.parse("2026-07-08T11:00:00"),
+                ZoneId.of("UTC"),
                 false,
-                etag);
+                "Room 1",
+                List.of(),
+                null,
+                new EventVersion(etag),
+                null);
     }
 }
