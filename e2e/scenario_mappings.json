@@ -186,7 +186,7 @@
       "executableTest": "tools/target_standard_facade_hard_gate_check.py",
       "evidenceMarkers": [
         "TARGET_STANDARDS_CALDAV_CALENDAR_SERVER_MVP",
-        "OPENAPI_TRANSITIONAL_DATA_PLANE_DEPRECATED"
+        "OPENAPI_LEGACY_DATA_PLANE_REMOVED"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
@@ -194,11 +194,11 @@
           "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
           "fragments": [
             "calendarNativeSyncSetupExposesWeaveOwnedOsBoundariesWithoutProviderLeaks",
-            "calendarRestEventDataPlaneIsDeprecatedInFavorOfCaldavFacade",
-            "calendar-rest-compatibility",
-            "https://github.com/masssi164/weave/issues/1044",
+            "calendarLegacyRestEventDataPlaneIsRemovedInFavorOfCaldavFacade",
+            "status().isNotFound()",
             "calDavOptionsAndPropfindExposeWeaveCalendarProjectionWithoutProviderLeaks",
             "calDavReportCalendarQueryAndFreeBusyReturnFacadeBackedCalendarData",
+            "calDavReportMultigetAndSyncCollectionUseScopedFacadeCalendars",
             "BEGIN:VFREEBUSY",
             "calendar-adapter-not-configured"
           ]
@@ -218,7 +218,7 @@
       "executableTest": "tools/target_standard_facade_hard_gate_check.py",
       "evidenceMarkers": [
         "TARGET_STANDARDS_MATRIX_CHAT_SERVER_MVP",
-        "OPENAPI_TRANSITIONAL_DATA_PLANE_DEPRECATED"
+        "OPENAPI_LEGACY_DATA_PLANE_REMOVED"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
@@ -227,21 +227,22 @@
           "fragments": [
             "WeaveMatrixFacadeChatRepository",
             "Matrix Client-Server projection",
-            "`/api/chat/**` remains a transitional/control facade"
+            "`/api/chat/**` remains a control/product facade"
           ]
         },
         {
           "path": "server/src/test/java/com/massimotter/weave/backend/controller/ChatControllerTest.java",
           "fragments": [
-            "chatRestMessageDataPlaneIsDeprecatedInFavorOfMatrixFacade",
-            "chat-rest-compatibility",
-            "https://github.com/masssi164/weave/issues/1044"
+            "chatLegacyRestDataPlaneRoutesAreRemovedInFavorOfMatrixFacade",
+            "/api/chat/conversations/channel-general/messages",
+            "status().isNotFound()"
           ]
         },
         {
           "path": "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
           "fragments": [
             "matrixClientServerProjectionRequiresWorkspaceToken",
+            "matrixClientServerProjectionWhoamiDerivesMatrixIdentityFromOidcPrincipal",
             "matrixClientServerProjectionSyncsCanonicalChatAsMatrixRoomsWithoutProviderPayloads",
             "matrixClientServerProjectionSendsViaCanonicalChatFacade",
             "matrixClientServerProjectionListsJoinedRoomsAndRoomMessages"
@@ -617,9 +618,9 @@
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/WorkspaceCapabilityServiceTest.java",
           "fragments": [
-            "calendarCreateIsDeniedByCapabilityPolicyBeforeProviderAccess",
+            "requireCapabilityFailsClosedForUnmappedMemberActions",
             "capability-policy-blocked",
             "calendar.manage_events"
           ]
@@ -1001,12 +1002,12 @@
       ],
       "additionalEvidence": [
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/ChatControllerTest.java",
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/ChatFacadeServiceTest.java",
           "fragments": [
-            "chatConversationsUseCanonicalWeaveVocabularyWithoutProviderDiagnostics",
-            "chatReadIsDeniedByCapabilityPolicyBeforeContextOrProviderAccess",
-            "chatSendRequiresCapabilityAndContextPermissionThenPublishesSupportSafeAudit",
-            "chatProviderReplacementDryRunIsAdminOnlySupportSafeAndAudited"
+            "paWeaverConversationCompletesWeaveChatToLmStudioTurnWhenRuntimePolicyAllowsMember",
+            "paWeaverChatFailsClosedForMemberWithoutWeaverRuntimePolicy",
+            "CHAT_MESSAGE_SENT",
+            "rawProviderDiagnosticsExposed"
           ]
         },
         {
@@ -4469,7 +4470,7 @@
           "path": "client/lib/features/chat/presentation/providers/chat_repository_provider.dart",
           "fragments": [
             "Matrix Client-Server projection as the chat data plane",
-            "`/api/chat/**` remains a transitional/control facade",
+            "`/api/chat/**` remains a control/product facade",
             "OpenAPI/REST"
           ]
         },
@@ -4762,7 +4763,7 @@
       "executableTest": "server/src/test/java/com/massimotter/weave/backend/bdd/OpenStandardsGatewayStepDefinitions.java",
       "evidenceMarkers": [
         "OPENAPI_CONTROL_PLANE_CONTRACT",
-        "OPENAPI_TRANSITIONAL_DATA_PLANE_DEPRECATED"
+        "OPENAPI_LEGACY_DATA_PLANE_REMOVED"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
@@ -4772,10 +4773,9 @@
             "/api/files/client-setup/credentials",
             "/api/files/client-setup/credentials/{credentialId}",
             "/api/files/{id}/download",
-            "deprecated",
-            "/_matrix/client/**",
-            "/caldav/**",
-            "https://github.com/masssi164/weave/issues/1044"
+            "/api/calendar/events",
+            "/api/chat/conversations",
+            "doesNotExist()"
           ]
         }
       ]

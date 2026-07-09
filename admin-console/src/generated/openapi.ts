@@ -139,13 +139,6 @@ export type GeneratedChatReadiness = {
   "supportSafeDiagnostics"?: Record<string, Record<string, unknown>>;
 };
 
-export type GeneratedChatReadinessResponse = {
-  "diagnosticsRedacted": boolean;
-  "grantedCapabilities": string[];
-  "impactState": "available" | "coming_later" | "degraded" | "disabled_by_policy" | "not_configured" | "unavailable";
-  "memberImpact": string;
-};
-
 export type GeneratedConsequencePreview = {
   "applyBlockers"?: string[];
   "archiveOnlyCount"?: number;

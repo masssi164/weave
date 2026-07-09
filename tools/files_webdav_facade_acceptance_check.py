@@ -77,7 +77,7 @@ def require_read_list_download() -> None:
     )
     require(
         "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
-        "optionsAdvertisesReadOnlyWebdavMethods",
+        "optionsAdvertisesWebdavMethods",
         "propfindDepthOneReturnsChildrenAsDavResponses",
         "getDownloadsFileThroughFacadePath",
         "not(containsString(\"remote.php\"))",

@@ -330,13 +330,6 @@ const _hardcodedCopyAllowlist = <LegacyFence>[
         'copy or typed readiness states before the hardcoded-copy fence closes.',
   ),
   LegacyFence(
-    path: 'lib/features/chat/data/repositories/backend_chat_repository.dart',
-    issue: '#908',
-    reason:
-        'Chat repository failure text is fenced until member-visible recovery '
-        'copy is localized from typed failure codes.',
-  ),
-  LegacyFence(
     path:
         'lib/features/chat/data/repositories/weave_matrix_facade_chat_repository.dart',
     issue: '#908',

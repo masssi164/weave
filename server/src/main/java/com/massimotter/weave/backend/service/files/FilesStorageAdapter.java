@@ -36,6 +36,14 @@ public interface FilesStorageAdapter {
         throw new UnsupportedOperationException("WebDAV PUT is not implemented by this storage adapter");
     }
 
+    default FileItemResponse copy(String sourcePath, String destinationPath, boolean overwrite) {
+        throw new UnsupportedOperationException("WebDAV COPY is not implemented by this storage adapter");
+    }
+
+    default FileItemResponse move(String sourcePath, String destinationPath, boolean overwrite) {
+        throw new UnsupportedOperationException("WebDAV MOVE is not implemented by this storage adapter");
+    }
+
     DownloadedFile download(String id);
 
     void delete(String id);

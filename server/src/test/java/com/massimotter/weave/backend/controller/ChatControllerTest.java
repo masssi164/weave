@@ -1,21 +1,17 @@
 package com.massimotter.weave.backend.controller;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.everyItem;
-import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -60,12 +56,12 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.ResultMatcher;
 
 @WebMvcTest(
         controllers = ChatController.class,
@@ -219,181 +215,26 @@ class ChatControllerTest {
     }
 
     @Test
-    void chatConversationsUseCanonicalWeaveVocabularyWithoutProviderDiagnostics() throws Exception {
-        allowChatPermission(ContextPermission.VIEW);
-
+    void chatLegacyRestDataPlaneRoutesAreRemovedInFavorOfMatrixFacade() throws Exception {
         mockMvc.perform(get("/api/chat/conversations")
                         .with(workspaceJwt("member")))
-                .andExpect(status().isOk())
-                .andExpect(deprecatedChatRestDataPlaneHeader())
-                .andExpect(jsonPath("$.domain").value("chat"))
-                .andExpect(jsonPath("$.releaseStatus").value("canonical-domain-facade"))
-                .andExpect(jsonPath("$.source").value("weave-chat-domain-facade"))
-                .andExpect(jsonPath("$.readiness.impactState").value("available"))
-                .andExpect(jsonPath("$.readiness.diagnosticsRedacted").value(true))
-                .andExpect(jsonPath("$.readiness.grantedCapabilities[0]").value("chat.read"))
-                .andExpect(jsonPath("$.conversations[0].id").value("channel-general"))
-                .andExpect(jsonPath("$.conversations[0].kind").value("channel"))
-                .andExpect(jsonPath("$.conversations[0].membership.principalRef").value("user:test"))
-                .andExpect(jsonPath("$.conversations[0].historyPolicy.policyKey").value("workspace-default-history"))
-                .andExpect(jsonPath("$.conversations[0].attachmentPolicy.rawProviderMediaUrlsExposed").value(false))
-                .andExpect(jsonPath("$..matrix").doesNotExist())
-                .andExpect(jsonPath("$..roomId").doesNotExist())
-                .andExpect(jsonPath("$..providerUrl").doesNotExist());
-    }
-
-    @Test
-    void chatRestMessageDataPlaneIsDeprecatedInFavorOfMatrixFacade() throws Exception {
-        allowChatPermission(ContextPermission.EDIT);
-        allowChatPermission(ContextPermission.VIEW);
+                .andExpect(status().isNotFound());
 
         mockMvc.perform(get("/api/chat/conversations/channel-general/messages")
                         .with(workspaceJwt("member")))
-                .andExpect(status().isOk())
-                .andExpect(deprecatedChatRestDataPlaneHeader())
-                .andExpect(jsonPath("$.messages[0].conversationId").value("channel-general"));
+                .andExpect(status().isNotFound());
 
         mockMvc.perform(post("/api/chat/conversations/channel-general/messages")
                         .with(workspaceJwt("member"))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"text\":\"Transitional REST compatibility must point to Matrix.\"}"))
-                .andExpect(status().isOk())
-                .andExpect(deprecatedChatRestDataPlaneHeader())
-                .andExpect(jsonPath("$.conversationId").value("channel-general"));
-    }
+                        .content("{\"text\":\"REST chat data-plane is obsolete.\"}"))
+                .andExpect(status().isNotFound());
 
-    @Test
-    void chatConversationsExposePaWeaverChatOptionWithoutProviderDetails() throws Exception {
-        allowChatPermission(ContextPermission.VIEW);
-
-        mockMvc.perform(get("/api/chat/conversations")
-                        .with(workspaceJwt("member", List.of("weave-weaver-runtime", "weave-weaver-pilot"))))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.conversations[?(@.id == 'pa-weaver')].kind").value("ai"))
-                .andExpect(jsonPath("$.conversations[?(@.id == 'pa-weaver')].title").value("PA Weaver"))
-                .andExpect(jsonPath("$.conversations[?(@.id == 'pa-weaver')].availableActions[*]", hasItems("message-pa-weaver")))
-                .andExpect(content().string(not(containsString("secretref://"))))
-                .andExpect(content().string(not(containsString("https://"))))
-                .andExpect(content().string(not(containsString("access_token"))));
-    }
-
-    @Test
-    void paWeaverChatRoutesMemberMessageToWeaverAndStoresLmStudioResponse() throws Exception {
-        allowChatPermission(ContextPermission.EDIT);
-        allowChatPermission(ContextPermission.VIEW);
-        LAST_PA_WEAVER_REQUEST.set(null);
-
-        mockMvc.perform(post("/api/chat/conversations/pa-weaver/messages")
+        mockMvc.perform(request(HttpMethod.POST, "/api/chat/conversations/pa-weaver/messages")
                         .with(workspaceJwt("member", List.of("weave-weaver-runtime", "weave-weaver-pilot")))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"text\":\"Bitte antworte kurz support-safe.\"}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.conversationId").value("pa-weaver"))
-                .andExpect(jsonPath("$.senderRef").value("user:test"))
-                .andExpect(jsonPath("$.deliveryEvidence.route").value("weave-chat-to-pa-weaver"))
-                .andExpect(jsonPath("$.deliveryEvidence.channelId").value("channels.weave-chat"))
-                .andExpect(jsonPath("$.deliveryEvidence.weaverReceived").value(true))
-                .andExpect(jsonPath("$.deliveryEvidence.lmStudioResponseReceived").value(true))
-                .andExpect(jsonPath("$.deliveryEvidence.modelRef").value("lmstudio/qwen/qwen3.5-9b"))
-                .andExpect(content().string(not(containsString("secretref://"))))
-                .andExpect(content().string(not(containsString("access_token"))));
-
-        assertThat(LAST_PA_WEAVER_REQUEST.get()).isNotNull();
-        assertThat(LAST_PA_WEAVER_REQUEST.get().providerRef()).isEqualTo("provider:model:custom-lmstudio");
-        assertThat(LAST_PA_WEAVER_REQUEST.get().channelId()).isEqualTo("channels.weave-chat");
-
-        mockMvc.perform(get("/api/chat/conversations/pa-weaver/messages")
-                        .with(workspaceJwt("member", List.of("weave-weaver-runtime", "weave-weaver-pilot"))))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.messages[?(@.senderRef == 'weaver:pa' && @.deliveryEvidence.route == 'pa-weaver-to-lmstudio')].deliveryEvidence.weaverReceived").value(true))
-                .andExpect(jsonPath("$.messages[?(@.senderRef == 'weaver:pa' && @.deliveryEvidence.route == 'pa-weaver-to-lmstudio')].deliveryEvidence.lmStudioResponseReceived").value(true))
-                .andExpect(jsonPath("$.messages[?(@.senderRef == 'weaver:pa' && @.deliveryEvidence.route == 'pa-weaver-to-lmstudio')].deliveryEvidence.rawProviderDiagnosticsExposed").value(false))
-                .andExpect(content().string(not(containsString("https://lmstudio"))))
-                .andExpect(content().string(not(containsString("Bearer "))));
-
-        verify(auditEventPublisher).publish(argThat(event ->
-                event != null
-                        && event.action() == AuditAction.WEAVER_PA_CHAT_TURN_COMPLETED
-                        && Boolean.TRUE.equals(event.payload().get("weaverReceived"))
-                        && Boolean.TRUE.equals(event.payload().get("lmStudioResponseReceived"))
-                        && "lmstudio/qwen/qwen3.5-9b".equals(event.payload().get("modelRef"))
-                        && Boolean.TRUE.equals(event.payload().get("supportSafe"))));
-    }
-
-    @Test
-    void paWeaverChatBlocksMembersWithoutWeaverRuntimePolicyBeforeRouting() throws Exception {
-        allowChatPermission(ContextPermission.EDIT);
-
-        mockMvc.perform(post("/api/chat/conversations/pa-weaver/messages")
-                        .with(workspaceJwt("member"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"text\":\"Should not route.\"}"))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("capability-policy-blocked"))
-                .andExpect(jsonPath("$.details.requiredCapability").value("weaver.enabled"))
-                .andExpect(jsonPath("$.details.diagnosticsRedacted").value(true));
-
-        verify(auditEventPublisher, never()).publish(argThat(event ->
-                event != null && event.action() == AuditAction.WEAVER_PA_CHAT_TURN_COMPLETED));
-    }
-
-    @Test
-    void chatMessagesComputeIsMineServerSideFromAuthenticatedPrincipal() throws Exception {
-        allowChatPermission(ContextPermission.EDIT);
-        mockMvc.perform(post("/api/chat/conversations/channel-general/messages")
-                        .with(workspaceJwt("member"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"text\":\"Release notes draft is ready.\",\"attachmentRefs\":[\"weave-file:release-notes\"]}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.senderRef").value("user:test"))
-                .andExpect(jsonPath("$.isMine").value(true));
-
-        allowChatPermission(ContextPermission.VIEW);
-        mockMvc.perform(get("/api/chat/conversations/channel-general/messages")
-                        .with(workspaceJwt("member")))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.messages[?(@.id == 'msg-seed-welcome')].isMine").value(false))
-                .andExpect(jsonPath("$.messages[?(@.text == 'Release notes draft is ready.')].isMine").value(true));
-    }
-
-    @Test
-    void chatReadIsDeniedByCapabilityPolicyBeforeContextOrProviderAccess() throws Exception {
-        mockMvc.perform(get("/api/chat/conversations")
-                        .with(workspaceJwt("guest")))
-                .andExpect(status().isForbidden())
-                .andExpect(header().exists("X-Request-Id"))
-                .andExpect(jsonPath("$.code").value("capability-policy-blocked"))
-                .andExpect(jsonPath("$.details.module").value("chat"))
-                .andExpect(jsonPath("$.details.requiredCapability").value("chat.read"))
-                .andExpect(jsonPath("$.details.diagnosticsRedacted").value(true));
-
-        verifyNoInteractions(contextAuthorizationPort);
-    }
-
-    @Test
-    void chatSendRequiresCapabilityAndContextPermissionThenPublishesSupportSafeAudit() throws Exception {
-        allowChatPermission(ContextPermission.EDIT);
-
-        mockMvc.perform(post("/api/chat/conversations/channel-general/messages")
-                        .with(workspaceJwt("member"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"text\":\"Release notes draft is ready.\",\"attachmentRefs\":[\"weave-file:release-notes\"]}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.conversationId").value("channel-general"))
-                .andExpect(jsonPath("$.senderRef").value("user:test"))
-                .andExpect(jsonPath("$.isMine").value(true))
-                .andExpect(jsonPath("$.text").value("Release notes draft is ready."))
-                .andExpect(jsonPath("$.attachmentRefs[0]").value("weave-file:release-notes"))
-                .andExpect(jsonPath("$.encryptedProviderContentRedacted").value(false))
-                .andExpect(jsonPath("$..eventId").doesNotExist())
-                .andExpect(jsonPath("$..roomId").doesNotExist());
-
-        verify(auditEventPublisher).publish(argThat(event ->
-                event != null
-                        && event.action() == AuditAction.CHAT_MESSAGE_SENT
-                        && "weave:chat".equals(event.sourceRef())
-                        && Boolean.TRUE.equals(event.payload().get("supportSafe"))
-                        && Boolean.TRUE.equals(event.payload().get("diagnosticsRedacted"))));
+                        .content("{\"text\":\"PA Weaver chat must enter through Matrix.\"}"))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -539,20 +380,6 @@ class ChatControllerTest {
     }
 
     @Test
-    void chatSendRejectsRawProviderAttachmentUrlsSupportSafely() throws Exception {
-        allowChatPermission(ContextPermission.EDIT);
-
-        mockMvc.perform(post("/api/chat/conversations/channel-general/messages")
-                        .with(workspaceJwt("member"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"text\":\"bad attachment\",\"attachmentRefs\":[\"https://matrix.example.invalid/media/token\"]}"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("chat-validation"))
-                .andExpect(jsonPath("$.details.field").value("attachmentRefs"))
-                .andExpect(jsonPath("$.details.diagnosticsRedacted").value(true));
-    }
-
-    @Test
     void chatProviderReplacementDryRunIsAdminOnlySupportSafeAndAudited() throws Exception {
         allowChatPermission(ContextPermission.ADMIN);
         String payload = """
@@ -610,18 +437,6 @@ class ChatControllerTest {
                         List.of()),
                 Map.of("domain", "chat", "state", "not_configured", "diagnosticsExposed", false),
                 Instant.parse("2026-05-25T08:00:00Z"));
-    }
-
-    private static ResultMatcher deprecatedChatRestDataPlaneHeader() {
-        return result -> {
-            header().string("Deprecation", "true").match(result);
-            header().string("X-Weave-Deprecated-Data-Plane", "chat-rest-compatibility").match(result);
-            header().string("X-Weave-Replacement-Data-Plane", "/_matrix/client/**").match(result);
-            header().string("X-Weave-Removal-Issue", "https://github.com/masssi164/weave/issues/1044")
-                    .match(result);
-            header().string("Link", containsString("https://github.com/masssi164/weave/issues/1044"))
-                    .match(result);
-        };
     }
 
     private void allowChatPermission(ContextPermission permission) {

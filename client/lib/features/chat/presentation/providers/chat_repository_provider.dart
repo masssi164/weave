@@ -7,9 +7,9 @@ import 'package:weave/integrations/weave_api/presentation/providers/weave_api_pr
 
 /// Release chat flows use the Matrix Client-Server projection as the chat data plane.
 ///
-/// `/api/chat/**` remains a transitional/control facade for readiness, migration
-/// evidence, and generated DTO compatibility; normal message sync/send does not
-/// treat OpenAPI/REST or a direct Matrix SDK as the Chat data plane.
+/// `/api/chat/**` remains a control/product facade for readiness, migration,
+/// decisions, meetings, and Weaver scout evidence; normal message sync/send
+/// does not treat OpenAPI/REST or a direct Matrix SDK as the Chat data plane.
 final chatRepositoryProvider = Provider<ChatRepository>((ref) {
   return WeaveMatrixFacadeChatRepository(
     serverConfigurationRepository: ref.watch(

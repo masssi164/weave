@@ -73,7 +73,7 @@ class CalendarFacadeServiceTest {
     }
 
     @Test
-    void listCanReturnChannelScopedEventsWithScopedFacadeIds() {
+    void listCanReturnChannelScopedEventsWithCalDavEventIds() {
         AtomicReference<CalendarScopeResponse> capturedScope = new AtomicReference<>();
         OffsetDateTime startsAt = OffsetDateTime.parse("2026-04-26T10:00:00+02:00");
         OffsetDateTime endsAt = OffsetDateTime.parse("2026-04-26T11:00:00+02:00");
@@ -110,7 +110,7 @@ class CalendarFacadeServiceTest {
         assertThat(scopedEvent.threadRef().matrixRoomId()).isNull();
         assertThat(scopedEvent.threadRef().matrixThreadId()).isNull();
         assertThat(scopedEvent.threadRef().boardTaskIds()).isEmpty();
-        assertThat(scopedEvent.id()).startsWith("scoped:");
+        assertThat(scopedEvent.id()).isEqualTo("raw-event-id");
         assertThat(scopedEvent.providerRef().opaqueId()).isEqualTo(scopedEvent.id());
         assertThat(scopedEvent.providerRef().rawProviderPathExposed()).isFalse();
     }

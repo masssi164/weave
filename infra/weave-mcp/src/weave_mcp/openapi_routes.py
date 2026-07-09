@@ -34,18 +34,6 @@ OPENAPI_ROUTE_MAP: dict[str, OpenApiRoute] = {
         method="GET",
         path="/api/workspace/weaver/runtime-profile",
     ),
-    "calendar.search_events": OpenApiRoute(
-        tool_name="calendar.search_events",
-        operation_id="list",
-        method="GET",
-        path="/api/calendar/events",
-    ),
-    "calendar.create_event": OpenApiRoute(
-        tool_name="calendar.create_event",
-        operation_id="create",
-        method="POST",
-        path="/api/calendar/events",
-    ),
     "boards.comment": OpenApiRoute(
         tool_name="boards.comment",
         operation_id="weaverMcpToolInvoke",

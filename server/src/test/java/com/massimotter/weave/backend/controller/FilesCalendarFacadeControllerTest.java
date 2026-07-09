@@ -39,13 +39,15 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.ResultMatcher;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -242,22 +244,36 @@ class FilesCalendarFacadeControllerTest {
 
     @Test
     void calendarFacadeRequiresAuthenticatedWorkspaceScope() throws Exception {
-        mockMvc.perform(get("/api/calendar/events"))
+        mockMvc.perform(get("/caldav/workspace/planning.ics"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("unauthorized"));
     }
 
     @Test
-    void calendarFacadeExposesStableUnavailableErrorUntilCalendarStorageExists() throws Exception {
+    void calendarLegacyRestEventDataPlaneIsRemovedInFavorOfCaldavFacade() throws Exception {
         mockMvc.perform(get("/api/calendar/events")
                         .with(workspaceJwt()))
-                .andExpect(status().isServiceUnavailable())
-                .andExpect(header().exists("X-Request-Id"))
-                .andExpect(jsonPath("$.code").value("calendar-adapter-not-configured"))
-                .andExpect(jsonPath("$.message").value(
-                        "Calendar facade is available, but calendar storage is not configured yet."))
-                .andExpect(jsonPath("$.details.module").value("calendar"))
-                .andExpect(jsonPath("$.details.operation").value("list-events"));
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(post("/api/calendar/events")
+                        .with(workspaceJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(get("/api/calendar/events/planning")
+                        .with(workspaceJwt()))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(request(HttpMethod.PATCH, "/api/calendar/events/planning")
+                        .with(workspaceJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(request(HttpMethod.DELETE, "/api/calendar/events/planning")
+                        .with(workspaceJwt()))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -285,54 +301,13 @@ class FilesCalendarFacadeControllerTest {
 
     @Test
     void calendarFacadeRejectsPrivatePersonalCalendarScopesBeforeAdapterAccess() throws Exception {
-        String privateEvent = """
-                {
-                  "title": "Private sync",
-                  "startsAt": "2026-04-26T10:00:00+02:00",
-                  "endsAt": "2026-04-26T11:00:00+02:00",
-                  "timezone": "Europe/Berlin",
-                  "scope": {
-                    "type": "private",
-                    "label": "Personal calendar"
-                  }
-                }
-                """;
-
-        mockMvc.perform(post("/api/calendar/events")
+        mockMvc.perform(request(HttpMethod.valueOf("PROPFIND"), "/caldav/private")
                         .with(workspaceJwt())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(privateEvent))
+                        .header("Depth", "0"))
                 .andExpect(status().isBadRequest())
-                .andExpect(header().exists("X-Request-Id"))
-                .andExpect(jsonPath("$.code").value("validation-error"))
-                .andExpect(jsonPath("$.details.module").value("calendar"))
-                .andExpect(jsonPath("$.details.operation").value("create-event"))
-                .andExpect(jsonPath("$.details.fields['scope.type']")
-                        .value("scope type must be workspace, team, or channel"));
-    }
-
-    @Test
-    void calendarCreateIsDeniedByCapabilityPolicyBeforeProviderAccess() throws Exception {
-        String event = """
-                {
-                  "title": "Planning",
-                  "startsAt": "2026-04-26T10:00:00+02:00",
-                  "endsAt": "2026-04-26T11:00:00+02:00",
-                  "timezone": "Europe/Berlin"
-                }
-                """;
-
-        mockMvc.perform(post("/api/calendar/events")
-                        .with(memberJwt())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(event))
-                .andExpect(status().isForbidden())
-                .andExpect(header().exists("X-Request-Id"))
-                .andExpect(jsonPath("$.code").value("capability-policy-blocked"))
-                .andExpect(jsonPath("$.details.module").value("calendar"))
-                .andExpect(jsonPath("$.details.operation").value("create-event"))
-                .andExpect(jsonPath("$.details.requiredCapability").value("calendar.manage_events"))
-                .andExpect(jsonPath("$.details.policyState").value("policy_blocked"));
+                .andExpect(header().string("X-Weave-Error-Code", "caldav-scope-invalid"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("Nextcloud"))));
     }
 
     @Test
@@ -340,85 +315,28 @@ class FilesCalendarFacadeControllerTest {
         when(contextAuthorizationPort.check(any()))
                 .thenReturn(ContextAuthorizationDecision.deny("no matching context membership"));
 
-        mockMvc.perform(get("/api/calendar/events")
-                        .with(workspaceJwt()))
+        mockMvc.perform(request(HttpMethod.valueOf("REPORT"), "/caldav/workspace/")
+                        .with(workspaceJwt())
+                        .contentType("application/xml")
+                        .content("""
+                                <c:calendar-query xmlns:c="urn:ietf:params:xml:ns:caldav">
+                                  <c:filter><c:comp-filter name="VCALENDAR"><c:comp-filter name="VEVENT">
+                                    <c:time-range start="20260708T000000Z" end="20260709T000000Z"/>
+                                  </c:comp-filter></c:comp-filter></c:filter>
+                                </c:calendar-query>
+                                """))
                 .andExpect(status().isForbidden())
-                .andExpect(header().exists("X-Request-Id"))
-                .andExpect(jsonPath("$.code").value("calendar-forbidden"))
-                .andExpect(jsonPath("$.details.module").value("calendar"))
-                .andExpect(jsonPath("$.details.operation").value("list-events"))
-                .andExpect(jsonPath("$.details.contextId").value("workspace-default"))
-                .andExpect(jsonPath("$.details.permission").value("view"));
+                .andExpect(header().string("X-Weave-Error-Code", "calendar-forbidden"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.containsString("Calendar access is not allowed")));
     }
 
     @Test
     void calendarReadFacadeExposesStableUnavailableErrorUntilCalendarStorageExists() throws Exception {
-        mockMvc.perform(get("/api/calendar/events/event-id")
+        mockMvc.perform(get("/caldav/workspace/event-id.ics")
                         .with(workspaceJwt()))
                 .andExpect(status().isServiceUnavailable())
-                .andExpect(header().exists("X-Request-Id"))
-                .andExpect(jsonPath("$.code").value("calendar-adapter-not-configured"))
-                .andExpect(jsonPath("$.details.module").value("calendar"))
-                .andExpect(jsonPath("$.details.operation").value("read-event"));
-    }
-
-    @Test
-    void calendarRestEventDataPlaneIsDeprecatedInFavorOfCaldavFacade() throws Exception {
-        when(calendarAdapter.list(
-                        any(),
-                        any(CalendarScopeResponse.class),
-                        nullable(OffsetDateTime.class),
-                        nullable(OffsetDateTime.class)))
-                .thenReturn(List.of(calendarEvent("planning", "Planning", "\"etag-existing\"")));
-        doReturn(calendarEvent("planning", "Planning", "\"etag-existing\""))
-                .when(calendarAdapter).read(any(), any(CalendarScopeResponse.class), any());
-        doReturn(calendarEvent("planning-new", "Planning", "\"etag-created\""))
-                .when(calendarAdapter).create(any(), any());
-        doReturn(calendarEvent("planning", "Updated planning", "\"etag-updated\""))
-                .when(calendarAdapter).update(any(), any(CalendarScopeResponse.class), any(), any());
-        doNothing().when(calendarAdapter).delete(any(), any(CalendarScopeResponse.class), any());
-
-        String event = """
-                {
-                  "title": "Planning",
-                  "startsAt": "2026-07-08T10:00:00Z",
-                  "endsAt": "2026-07-08T11:00:00Z",
-                  "timezone": "UTC"
-                }
-                """;
-
-        mockMvc.perform(get("/api/calendar/events")
-                        .with(workspaceJwt()))
-                .andExpect(status().isOk())
-                .andExpect(deprecatedCalendarRestDataPlaneHeader())
-                .andExpect(jsonPath("$.events[0].id").value("planning"));
-
-        mockMvc.perform(get("/api/calendar/events/planning")
-                        .with(workspaceJwt()))
-                .andExpect(status().isOk())
-                .andExpect(deprecatedCalendarRestDataPlaneHeader())
-                .andExpect(jsonPath("$.id").value("planning"));
-
-        mockMvc.perform(post("/api/calendar/events")
-                        .with(workspaceJwt())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(event))
-                .andExpect(status().isOk())
-                .andExpect(deprecatedCalendarRestDataPlaneHeader())
-                .andExpect(jsonPath("$.id").value("planning-new"));
-
-        mockMvc.perform(request(HttpMethod.PATCH, "/api/calendar/events/planning")
-                        .with(workspaceJwt())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(event))
-                .andExpect(status().isOk())
-                .andExpect(deprecatedCalendarRestDataPlaneHeader())
-                .andExpect(jsonPath("$.title").value("Updated planning"));
-
-        mockMvc.perform(request(HttpMethod.DELETE, "/api/calendar/events/planning")
-                        .with(workspaceJwt()))
-                .andExpect(status().isNoContent())
-                .andExpect(deprecatedCalendarRestDataPlaneHeader());
+                .andExpect(header().string("X-Weave-Error-Code", "calendar-adapter-not-configured"));
     }
 
     @Test
@@ -580,6 +498,63 @@ class FilesCalendarFacadeControllerTest {
                         .string(org.hamcrest.Matchers.containsString("BEGIN:VFREEBUSY")))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                         .string(org.hamcrest.Matchers.containsString("FREEBUSY:20260708T100000Z/20260708T110000Z")));
+    }
+
+    @Test
+    void calDavReportMultigetAndSyncCollectionUseScopedFacadeCalendars() throws Exception {
+        when(calendarAdapter.list(
+                        any(),
+                        argThat(scope -> scope != null && "team:engineering".equals(scope.id())),
+                        nullable(OffsetDateTime.class),
+                        nullable(OffsetDateTime.class)))
+                .thenReturn(List.of(calendarEvent("team-planning", "Team planning", "\"etag-team\"")));
+        doReturn(calendarEvent("channel-planning", "Channel planning", "\"etag-channel\""))
+                .when(calendarAdapter).read(
+                        any(),
+                        argThat(scope -> scope != null && "channel:engineering-general".equals(scope.id())),
+                        eq("channel-planning"));
+
+        mockMvc.perform(request(HttpMethod.valueOf("REPORT"), "/caldav/team:engineering/")
+                        .with(workspaceJwt())
+                        .contentType("application/xml")
+                        .content("""
+                                <d:sync-collection xmlns:d="DAV:">
+                                  <d:sync-token/>
+                                  <d:sync-level>1</d:sync-level>
+                                </d:sync-collection>
+                                """))
+                .andExpect(status().is(207))
+                .andExpect(header().exists("Sync-Token"))
+                .andExpect(header().string("X-Weave-Projection", "caldav-calendar-data-plane"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.containsString("/caldav/team%3Aengineering/team-planning.ics")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.containsString("SUMMARY:Team planning")));
+
+        mockMvc.perform(request(HttpMethod.valueOf("REPORT"), "/caldav/channel:engineering-general/")
+                        .with(workspaceJwt())
+                        .contentType("application/xml")
+                        .content("""
+                                <c:calendar-multiget xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:d="DAV:">
+                                  <d:href>/caldav/channel:engineering-general/channel-planning.ics</d:href>
+                                </c:calendar-multiget>
+                                """))
+                .andExpect(status().is(207))
+                .andExpect(header().string("X-Weave-Projection", "caldav-calendar-data-plane"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.containsString("/caldav/channel%3Aengineering-general/channel-planning.ics")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.containsString("SUMMARY:Channel planning")));
+
+        verify(calendarAdapter).list(
+                any(),
+                argThat(scope -> scope != null && "team:engineering".equals(scope.id())),
+                nullable(OffsetDateTime.class),
+                nullable(OffsetDateTime.class));
+        verify(calendarAdapter).read(
+                any(),
+                argThat(scope -> scope != null && "channel:engineering-general".equals(scope.id())),
+                eq("channel-planning"));
     }
 
     @Test
@@ -820,24 +795,14 @@ class FilesCalendarFacadeControllerTest {
 
     @Test
     void facadeRequestsUseStableValidationEnvelope() throws Exception {
-        String invalidEvent = """
-                {
-                  "title": "",
-                  "startsAt": "2026-04-26T10:00:00+02:00",
-                  "endsAt": "2026-04-26T09:00:00+02:00",
-                  "timezone": "Europe/Berlin"
-                }
-                """;
-
-        mockMvc.perform(post("/api/calendar/events")
+        mockMvc.perform(request(HttpMethod.valueOf("PUT"), "/caldav/workspace/invalid.ics")
                         .with(workspaceJwt())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(invalidEvent))
+                        .contentType("text/calendar")
+                        .content("BEGIN:VCALENDAR\nEND:VCALENDAR\n"))
                 .andExpect(status().isBadRequest())
-                .andExpect(header().exists("X-Request-Id"))
-                .andExpect(jsonPath("$.code").value("validation-error"))
-                .andExpect(jsonPath("$.details.fields.title").exists())
-                .andExpect(jsonPath("$.details.fields.timeRangeValid").exists());
+                .andExpect(header().string("X-Weave-Error-Code", "calendar-ics-invalid"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("Nextcloud"))));
     }
 
     private org.springframework.test.web.servlet.request.RequestPostProcessor workspaceJwt() {
@@ -848,17 +813,6 @@ class FilesCalendarFacadeControllerTest {
                 .claim("weave_tenant_id", "tenant-default")
                 .claim("realm_access", java.util.Map.of("roles", java.util.List.of("member")))
                 .claim("groups", java.util.List.of("weave-calendar-editors", "weave-meeting-hosts")))
-                .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
-    }
-
-    private org.springframework.test.web.servlet.request.RequestPostProcessor memberJwt() {
-        return jwt().jwt(jwt -> jwt
-                        .subject("user-123")
-                        .claim("iss", "https://auth.example.invalid/realms/acme")
-                        .claim("aud", java.util.List.of("weave-app"))
-                        .claim("weave_tenant_id", "tenant-default")
-                        .claim("realm_access", java.util.Map.of("roles", java.util.List.of("member")))
-                        .claim("groups", java.util.List.of()))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 
@@ -873,17 +827,5 @@ class FilesCalendarFacadeControllerTest {
                 "Room 1",
                 false,
                 etag);
-    }
-
-    private static ResultMatcher deprecatedCalendarRestDataPlaneHeader() {
-        return result -> {
-            header().string("Deprecation", "true").match(result);
-            header().string("X-Weave-Deprecated-Data-Plane", "calendar-rest-compatibility").match(result);
-            header().string("X-Weave-Replacement-Data-Plane", "/caldav/**").match(result);
-            header().string("X-Weave-Removal-Issue", "https://github.com/masssi164/weave/issues/1044")
-                    .match(result);
-            header().string("Link", org.hamcrest.Matchers.containsString("https://github.com/masssi164/weave/issues/1044"))
-                    .match(result);
-        };
     }
 }

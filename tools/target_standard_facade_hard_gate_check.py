@@ -86,22 +86,24 @@ def require_caldav_calendar_server_mvp() -> None:
     require(
         "e2e/features/target_standard_facade_hard_gate.feature",
         "TARGET_STANDARDS_CALDAV_CALENDAR_SERVER_MVP",
-        "OPENAPI_TRANSITIONAL_DATA_PLANE_DEPRECATED",
+        "OPENAPI_LEGACY_DATA_PLANE_REMOVED",
         "#967",
         "#1018",
         "#1044",
-        "transitional Calendar REST event routes are deprecated",
+        "obsolete Calendar REST event routes are removed",
     )
     require(
         "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
         "calendarClientSetupExposesSecretFreePlatformOptionsWithoutAdapterCredentials",
         'jsonPath("$.endpoints.serverUrl").value("/caldav")',
         "calendarNativeSyncSetupExposesWeaveOwnedOsBoundariesWithoutProviderLeaks",
-        "calendarRestEventDataPlaneIsDeprecatedInFavorOfCaldavFacade",
-        "X-Weave-Deprecated-Data-Plane",
-        "calendar-rest-compatibility",
+        "calendarLegacyRestEventDataPlaneIsRemovedInFavorOfCaldavFacade",
+        "status().isNotFound()",
         "calDavOptionsAndPropfindExposeWeaveCalendarProjectionWithoutProviderLeaks",
         "calDavReportCalendarQueryAndFreeBusyReturnFacadeBackedCalendarData",
+        "calDavReportMultigetAndSyncCollectionUseScopedFacadeCalendars",
+        "calendar-multiget",
+        "sync-collection",
         "BEGIN:VFREEBUSY",
         "FREEBUSY:20260708T100000Z/20260708T110000Z",
         "calDavEventReadPutAndDeleteUseCalendarFacadeBoundaryAndStableErrors",
@@ -117,17 +119,17 @@ def require_matrix_chat_server_mvp() -> None:
     require(
         "e2e/features/target_standard_facade_hard_gate.feature",
         "TARGET_STANDARDS_MATRIX_CHAT_SERVER_MVP",
-        "OPENAPI_TRANSITIONAL_DATA_PLANE_DEPRECATED",
+        "OPENAPI_LEGACY_DATA_PLANE_REMOVED",
         "#1017",
         "#1022",
         "#1044",
-        "transitional Chat REST conversation and message routes are deprecated",
+        "obsolete Chat REST conversation and message routes are removed",
     )
     require(
         "client/lib/features/chat/presentation/providers/chat_repository_provider.dart",
         "WeaveMatrixFacadeChatRepository",
         "Matrix Client-Server projection",
-        "`/api/chat/**` remains a transitional/control facade",
+        "`/api/chat/**` remains a control/product facade",
         "direct Matrix SDK",
     )
     require(
@@ -141,6 +143,7 @@ def require_matrix_chat_server_mvp() -> None:
         "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
         "matrixClientServerProjectionRequiresWorkspaceToken",
         "matrixClientServerProjectionVersionsAdvertisesOidcGatedRustCoreFacade",
+        "matrixClientServerProjectionWhoamiDerivesMatrixIdentityFromOidcPrincipal",
         "matrixClientServerProjectionSyncsCanonicalChatAsMatrixRoomsWithoutProviderPayloads",
         "matrixClientServerProjectionSendsViaCanonicalChatFacade",
         "matrixClientServerProjectionListsJoinedRoomsAndRoomMessages",
@@ -151,17 +154,15 @@ def require_matrix_chat_server_mvp() -> None:
     )
     require(
         "server/src/test/java/com/massimotter/weave/backend/controller/ChatControllerTest.java",
-        "chatRestMessageDataPlaneIsDeprecatedInFavorOfMatrixFacade",
-        "X-Weave-Deprecated-Data-Plane",
-        "chat-rest-compatibility",
-        "/_matrix/client/**",
-        "https://github.com/masssi164/weave/issues/1044",
+        "chatLegacyRestDataPlaneRoutesAreRemovedInFavorOfMatrixFacade",
+        "/api/chat/conversations/channel-general/messages",
+        "status().isNotFound()",
     )
     require(
         "server/src/test/java/com/massimotter/weave/backend/controller/OpenApiDocumentationTest.java",
-        "deprecated",
-        "/_matrix/client/**",
-        "/caldav/**",
+        "doesNotExist()",
+        "/api/chat/conversations/{conversationId}/messages",
+        "/api/calendar/events/{id}",
     )
     require(
         "server/src/test/java/com/massimotter/weave/backend/architecture/ServerArchitectureBoundaryTest.java",

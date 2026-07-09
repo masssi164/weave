@@ -116,6 +116,19 @@ class MatrixClientServerProjectionControllerTest {
     }
 
     @Test
+    void matrixClientServerProjectionWhoamiDerivesMatrixIdentityFromOidcPrincipal() throws Exception {
+        mockMvc.perform(get("/_matrix/client/v3/account/whoami")
+                        .with(workspaceJwt()))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Weave-Projection", "matrix-client-server"))
+                .andExpect(jsonPath("$.user_id").value("@user_example.com:weave.local"))
+                .andExpect(jsonPath("$.device_id").value("weave-oidc"))
+                .andExpect(jsonPath("$.is_guest").value(false))
+                .andExpect(jsonPath("$.providerDataPlaneExposed").value(false))
+                .andExpect(jsonPath("$.matrixCore.oidcGatekeeper").value("spring-boot-resource-server"));
+    }
+
+    @Test
     void matrixClientServerProjectionSyncsCanonicalChatAsMatrixRoomsWithoutProviderPayloads() throws Exception {
         when(chatFacadeService.conversations(any())).thenReturn(conversations());
         when(chatFacadeService.messages(any(), eq("channel-general"))).thenReturn(messages());

@@ -44,6 +44,8 @@ public class NextcloudFilesAdapter implements FilesStorageAdapter {
 
     private static final HttpMethod PROPFIND = HttpMethod.valueOf("PROPFIND");
     private static final HttpMethod MKCOL = HttpMethod.valueOf("MKCOL");
+    private static final HttpMethod COPY = HttpMethod.valueOf("COPY");
+    private static final HttpMethod MOVE = HttpMethod.valueOf("MOVE");
 
     private static final String PROPFIND_BODY = """
             <?xml version=\"1.0\" encoding=\"UTF-8\"?>
@@ -228,6 +230,16 @@ public class NextcloudFilesAdapter implements FilesStorageAdapter {
     }
 
     @Override
+    public FileItemResponse copy(String sourcePath, String destinationPath, boolean overwrite) {
+        return copyOrMove(COPY, "webdav-copy", sourcePath, destinationPath, overwrite);
+    }
+
+    @Override
+    public FileItemResponse move(String sourcePath, String destinationPath, boolean overwrite) {
+        return copyOrMove(MOVE, "webdav-move", sourcePath, destinationPath, overwrite);
+    }
+
+    @Override
     public DownloadedFile download(String id) {
         ensureConfigured();
         String path = FilePathCodec.pathFromId(id);
@@ -250,6 +262,43 @@ public class NextcloudFilesAdapter implements FilesStorageAdapter {
             throw downstreamUnavailable("download-file", exception);
         } catch (RestClientException exception) {
             throw downstreamFailure("download-file", exception);
+        }
+    }
+
+    private FileItemResponse copyOrMove(
+            HttpMethod method,
+            String operation,
+            String sourcePath,
+            String destinationPath,
+            boolean overwrite) {
+        ensureConfigured();
+        String normalizedSource = FilePathCodec.normalizeProductPath(sourcePath);
+        String normalizedDestination = FilePathCodec.normalizeProductPath(destinationPath);
+        try {
+            restClient.method(method)
+                    .uri(webdavUri(normalizedSource, false))
+                    .headers(headers -> {
+                        applyActorHeaders(headers);
+                        headers.set("Destination", webdavUri(normalizedDestination, false).toString());
+                        headers.set("Overwrite", overwrite ? "T" : "F");
+                    })
+                    .exchange((request, response) -> {
+                        if (response.getStatusCode().is2xxSuccessful()) {
+                            return null;
+                        }
+                        throw mapStatus(response.getStatusCode(), operation, normalizedSource);
+                    });
+            FileItemResponse existing = list(parentPath(normalizedDestination)).items().stream()
+                    .filter(item -> FilePathCodec.normalizeProductPath(item.path()).equals(normalizedDestination))
+                    .findFirst()
+                    .orElse(null);
+            return existing == null ? fileItem(normalizedDestination, null, null, null) : existing;
+        } catch (ApiErrorException exception) {
+            throw exception;
+        } catch (ResourceAccessException exception) {
+            throw downstreamUnavailable(operation, exception);
+        } catch (RestClientException exception) {
+            throw downstreamFailure(operation, exception);
         }
     }
 
@@ -447,6 +496,12 @@ public class NextcloudFilesAdapter implements FilesStorageAdapter {
             return "/";
         }
         return normalizedPath.substring(normalizedPath.lastIndexOf('/') + 1);
+    }
+
+    private String parentPath(String path) {
+        String normalized = FilePathCodec.normalizeProductPath(path);
+        int separator = normalized.lastIndexOf('/');
+        return separator <= 0 ? "/" : normalized.substring(0, separator);
     }
 
     private Element firstElement(Element parent, String localName) {

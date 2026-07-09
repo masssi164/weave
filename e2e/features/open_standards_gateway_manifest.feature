@@ -16,7 +16,7 @@ Feature: Open Standards Gateway manifest and control-plane boundary
     Given the OpenAPI contract is generated
     When the contract is inspected for Files, Calendar, and Chat
     Then it contains only setup, readiness, revoke, manifest, admin, and generated convenience surfaces
-    And transitional Calendar and Chat REST data-plane routes are marked deprecated with the cleanup issue
+    And obsolete Calendar and Chat REST data-plane routes are absent from OpenAPI
     And it does not expose durable Files, Calendar, or Chat member data-plane routes
 
   @support-safe-capability-states

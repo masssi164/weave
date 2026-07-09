@@ -150,68 +150,40 @@ void main() {
       expect(scopes.scopes[2].accessModel, 'shared-channel-calendar');
     });
 
-    test('lists events through the backend calendar facade', () async {
+    test('lists events through the CalDAV calendar facade', () async {
       late http.Request capturedRequest;
       final facade = client(
         MockClient((request) async {
           capturedRequest = request;
           return http.Response(
-            jsonEncode({
-              'scope': {
-                'type': 'workspace',
-                'label': 'Weave workspace calendar',
-              },
-              'events': [
-                {
-                  'id': 'calendar:workspace:1',
-                  'title': 'Planning',
-                  'description': 'Roadmap',
-                  'startsAt': '2026-04-26T09:00:00Z',
-                  'endsAt': '2026-04-26T10:00:00Z',
-                  'timezone': 'Europe/Berlin',
-                  'location': 'Office',
-                  'allDay': false,
-                  'etag': 'abc',
-                  'scope': {
-                    'id': 'channel:engineering-general',
-                    'type': 'channel',
-                    'label': 'Engineering / general channel calendar',
-                    'workspaceId': 'workspace',
-                    'contextId': 'channel-engineering-general',
-                    'teamId': 'engineering',
-                    'channelId': 'engineering-general',
-                  },
-                  'threadRef': {
-                    'kind': 'context',
-                    'contextId': 'channel-engineering-general',
-                    'meetingThreadId':
-                        'meeting:channel-engineering-general:abc123def456',
-                    'channelId': 'engineering-general',
-                    'matrixRoomId': null,
-                    'matrixThreadId': null,
-                    'boardTaskIds': [],
-                  },
-                  'attendees': [
-                    {
-                      'name': 'Ada Lovelace',
-                      'email': 'ada@example.com',
-                      'role': 'req-participant',
-                      'responseStatus': 'accepted',
-                    },
-                  ],
-                  'providerRef': {
-                    'provider': 'weave-calendar-facade',
-                    'objectKind': 'calendar-event',
-                    'opaqueId': 'calendar:workspace:1',
-                    'etag': 'abc',
-                    'lastSyncedAt': '2026-04-26T08:45:00Z',
-                    'rawProviderPathExposed': false,
-                  },
-                  'updatedAt': '2026-04-26T08:45:00Z',
-                },
-              ],
-            }),
-            200,
+            '''
+<?xml version="1.0" encoding="UTF-8"?>
+<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+  <d:response>
+    <d:href>/caldav/channel%3Aengineering-general/planning.ics</d:href>
+    <d:propstat>
+      <d:prop>
+        <d:getetag>"abc"</d:getetag>
+        <c:calendar-data>BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+UID:planning
+DTSTAMP:20260426T084500Z
+DTSTART:20260426T090000Z
+DTEND:20260426T100000Z
+SUMMARY:Planning
+DESCRIPTION:Roadmap
+LOCATION:Office
+END:VEVENT
+END:VCALENDAR</c:calendar-data>
+      </d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+  </d:response>
+</d:multistatus>
+''',
+            207,
+            headers: {'content-type': 'application/xml'},
           );
         }),
       );
@@ -223,23 +195,32 @@ void main() {
           id: 'channel:engineering-general',
           type: 'channel',
           label: 'Engineering / general channel calendar',
+          contextId: 'channel-engineering-general',
           teamId: 'engineering',
           channelId: 'engineering-general',
+          accessModel: 'shared-channel-calendar',
         ),
       );
 
-      expect(capturedRequest.method, 'GET');
+      expect(capturedRequest.method, 'REPORT');
       expect(
         capturedRequest.url.toString(),
-        'https://api.home.internal/api/calendar/events?from=2026-04-26T00%3A00%3A00.000Z&to=2026-04-27T00%3A00%3A00.000Z&scopeType=channel&teamId=engineering&channelId=engineering-general',
+        'https://api.home.internal/caldav/channel:engineering-general',
       );
       expect(capturedRequest.headers['authorization'], 'Bearer calendar-token');
-      expect(events.scope.type, 'workspace');
-      expect(events.scope.label, 'Weave workspace calendar');
+      expect(capturedRequest.body, contains('calendar-query'));
+      expect(capturedRequest.body, contains('20260426T000000Z'));
+      expect(capturedRequest.body, contains('20260427T000000Z'));
+      expect(events.scope.type, 'channel');
+      expect(events.scope.label, 'Engineering / general channel calendar');
       expect(events.events, hasLength(1));
+      expect(
+        events.events.single.id,
+        'caldav:channel%3Aengineering-general:planning',
+      );
       expect(events.events.single.title, 'Planning');
-      expect(events.events.single.timezone, 'Europe/Berlin');
-      expect(events.events.single.etag, 'abc');
+      expect(events.events.single.timezone, 'UTC');
+      expect(events.events.single.etag, '"abc"');
       expect(events.events.single.scope.type, 'channel');
       expect(
         events.events.single.scope.contextId,
@@ -250,44 +231,22 @@ void main() {
         events.events.single.threadRef.contextId,
         'channel-engineering-general',
       );
-      expect(
-        events.events.single.threadRef.meetingThreadId,
-        'meeting:channel-engineering-general:abc123def456',
-      );
       expect(events.events.single.threadRef.channelId, 'engineering-general');
       expect(events.events.single.threadRef.matrixThreadId, isNull);
-      expect(events.events.single.attendees.single.name, 'Ada Lovelace');
-      expect(events.events.single.attendees.single.responseStatus, 'accepted');
-      expect(
-        events.events.single.providerRef?.provider,
-        'weave-calendar-facade',
-      );
-      expect(
-        events.events.single.providerRef?.opaqueId,
-        'calendar:workspace:1',
-      );
-      expect(events.events.single.providerRef?.rawProviderPathExposed, isFalse);
-      expect(events.events.single.providerRef?.lastSyncedAt, isNotNull);
+      expect(events.events.single.attendees, isEmpty);
+      expect(events.events.single.providerRef, isNull);
       expect(events.events.single.updatedAt, DateTime.utc(2026, 4, 26, 8, 45));
     });
 
     test(
-      'defaults older calendar facade payloads to workspace scope',
+      'defaults empty CalDAV multistatus payloads to workspace scope',
       () async {
         final facade = client(
           MockClient(
             (_) async => http.Response(
-              jsonEncode({
-                'events': [
-                  {
-                    'id': 'calendar:workspace:1',
-                    'title': 'Planning',
-                    'startsAt': '2026-04-26T09:00:00Z',
-                    'endsAt': '2026-04-26T10:00:00Z',
-                  },
-                ],
-              }),
-              200,
+              '<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"/>',
+              207,
+              headers: {'content-type': 'application/xml'},
             ),
           ),
         );
@@ -295,11 +254,7 @@ void main() {
         final events = await facade.listEvents();
 
         expect(events.scope, CalendarScope.workspace);
-        expect(events.events.single.scope, CalendarScope.workspace);
-        expect(events.events.single.threadRef.contextId, 'workspace-default');
-        expect(events.events.single.attendees, isEmpty);
-        expect(events.events.single.providerRef, isNull);
-        expect(events.events.single.updatedAt, isNull);
+        expect(events.events, isEmpty);
       },
     );
 
@@ -399,45 +354,46 @@ void main() {
       expect(setup.options.last.actionUrl, isNull);
     });
 
-    test('reads event details through the backend calendar facade', () async {
+    test('reads event details through the CalDAV calendar facade', () async {
       late http.Request capturedRequest;
       final facade = client(
         MockClient((request) async {
           capturedRequest = request;
           return http.Response(
-            jsonEncode({
-              'id': 'calendar:workspace:1',
-              'title': 'Planning details',
-              'description': 'Fetched from backend read endpoint',
-              'startsAt': '2026-04-26T09:00:00Z',
-              'endsAt': '2026-04-26T10:00:00Z',
-              'timezone': 'Europe/Berlin',
-              'allDay': false,
-              'scope': {
-                'type': 'workspace',
-                'label': 'Weave workspace calendar',
-              },
-            }),
+            '''
+BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+UID:calendar-workspace-1
+DTSTART:20260426T090000Z
+DTEND:20260426T100000Z
+SUMMARY:Planning details
+DESCRIPTION:Fetched from CalDAV
+END:VEVENT
+END:VCALENDAR
+''',
             200,
+            headers: {'etag': '"read-etag"', 'content-type': 'text/calendar'},
           );
         }),
       );
 
-      final event = await facade.readEvent('calendar:workspace:1');
+      final event = await facade.readEvent('calendar-workspace-1');
 
       expect(capturedRequest.method, 'GET');
       expect(
         capturedRequest.url.toString(),
-        'https://api.home.internal/api/calendar/events/calendar:workspace:1',
+        'https://api.home.internal/caldav/workspace/calendar-workspace-1.ics',
       );
       expect(capturedRequest.headers['authorization'], 'Bearer calendar-token');
       expect(event.title, 'Planning details');
-      expect(event.description, 'Fetched from backend read endpoint');
+      expect(event.description, 'Fetched from CalDAV');
+      expect(event.etag, '"read-etag"');
       expect(event.scope.type, 'workspace');
     });
 
     test(
-      'creates, updates, and deletes events through backend endpoints',
+      'creates, updates, and deletes events through CalDAV endpoints',
       () async {
         final requests = <http.Request>[];
         final facade = client(
@@ -446,21 +402,34 @@ void main() {
             if (request.method == 'DELETE') {
               return http.Response('', 204);
             }
-            return http.Response(
-              jsonEncode({
-                'id': 'calendar:workspace:1',
-                'title': 'Planning',
-                'startsAt': '2026-04-26T09:00:00Z',
-                'endsAt': '2026-04-26T10:00:00Z',
-                'timezone': 'Europe/Berlin',
-                'allDay': false,
-                'scope': {
-                  'type': 'workspace',
-                  'label': 'Weave workspace calendar',
-                },
-              }),
-              200,
-            );
+            if (request.method == 'GET') {
+              final uid = request.url.pathSegments.last.replaceAll('.ics', '');
+              return http.Response(
+                '''
+BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+UID:$uid
+DTSTART:20260426T090000Z
+DTEND:20260426T100000Z
+SUMMARY:Planning
+END:VEVENT
+END:VCALENDAR
+''',
+                200,
+                headers: {'etag': '"etag-$uid"'},
+              );
+            }
+            if (request.method == 'PUT' &&
+                request.headers['If-None-Match'] == '*') {
+              final uid = request.url.pathSegments.last.replaceAll('.ics', '');
+              return http.Response(
+                '',
+                201,
+                headers: {'location': '/caldav/workspace/$uid.ics'},
+              );
+            }
+            return http.Response('', 204, headers: {'etag': '"etag-updated"'});
           }),
         );
 
@@ -473,27 +442,38 @@ void main() {
           ),
         );
         await facade.updateEvent(
-          id: 'calendar:workspace:1',
+          id: 'planning',
           patch: const CalendarEventPatch(
             title: 'Updated Planning',
             etag: 'abc',
           ),
         );
-        await facade.deleteEvent('calendar:workspace:1');
+        await facade.deleteEvent('planning');
 
-        expect(requests.map((request) => '${request.method} ${request.url}'), [
-          'POST https://api.home.internal/api/calendar/events',
-          'PATCH https://api.home.internal/api/calendar/events/calendar:workspace:1',
-          'DELETE https://api.home.internal/api/calendar/events/calendar:workspace:1',
+        expect(requests.map((request) => request.method), [
+          'PUT',
+          'GET',
+          'PUT',
+          'GET',
+          'DELETE',
         ]);
-        final createBody =
-            jsonDecode(requests.first.body) as Map<String, dynamic>;
-        expect(createBody['timezone'], 'Europe/Berlin');
-        expect(createBody['scope']['type'], 'workspace');
-        expect(jsonDecode(requests[1].body), {
-          'title': 'Updated Planning',
-          'etag': 'abc',
-        });
+        expect(
+          requests[0].url.toString(),
+          startsWith('https://api.home.internal/caldav/workspace/weave-'),
+        );
+        expect(requests[0].headers['If-None-Match'], '*');
+        expect(requests[0].body, contains('BEGIN:VCALENDAR'));
+        expect(requests[0].body, contains('SUMMARY:Planning'));
+        expect(
+          requests[2].url.toString(),
+          'https://api.home.internal/caldav/workspace/planning.ics',
+        );
+        expect(requests[2].headers['If-Match'], 'abc');
+        expect(requests[2].body, contains('SUMMARY:Updated Planning'));
+        expect(
+          requests[4].url.toString(),
+          'https://api.home.internal/caldav/workspace/planning.ics',
+        );
       },
     );
 
@@ -512,11 +492,9 @@ void main() {
             );
           }
           return http.Response(
-            jsonEncode({
-              'scope': {'type': 'workspace', 'label': 'Workspace'},
-              'events': [],
-            }),
-            200,
+            '<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"/>',
+            207,
+            headers: {'content-type': 'application/xml'},
           );
         }),
       );

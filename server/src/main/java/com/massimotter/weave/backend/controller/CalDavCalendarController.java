@@ -15,6 +15,8 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -38,6 +40,8 @@ public class CalDavCalendarController {
     private static final Pattern TIME_RANGE = Pattern.compile(
             "time-range[^>]*\\sstart=[\"']([^\"']+)[\"'][^>]*\\send=[\"']([^\"']+)[\"']",
             Pattern.CASE_INSENSITIVE);
+    private static final Pattern HREF = Pattern.compile("<[^:>/]*:?href[^>]*>([^<]+)</[^:>/]*:?href>",
+            Pattern.CASE_INSENSITIVE);
     private static final DateTimeFormatter CALDAV_TIME = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'")
             .withZone(ZoneOffset.UTC);
 
@@ -46,6 +50,13 @@ public class CalDavCalendarController {
 
     public CalDavCalendarController(CalendarFacadeService calendarFacadeService) {
         this.calendarFacadeService = calendarFacadeService;
+    }
+
+    @RequestMapping(value = "/.well-known/caldav")
+    public ResponseEntity<Void> wellKnownCalDav() {
+        return ResponseEntity.status(HttpStatus.PERMANENT_REDIRECT)
+                .header(HttpHeaders.LOCATION, CALDAV_ROOT)
+                .build();
     }
 
     @RequestMapping(value = {"/caldav", "/caldav/", "/caldav/**"}, method = RequestMethod.OPTIONS)
@@ -90,6 +101,10 @@ public class CalDavCalendarController {
                     "Only Depth 0 and Depth 1 are supported for Weave Calendar CalDAV.",
                     Map.of("module", "calendar", "operation", "caldav-propfind"));
         }
+        String productPath = productPath(request);
+        if (!"/".equals(productPath)) {
+            scopeFromPath(productPath);
+        }
 
         CalendarScopesResponse scopes = calendarFacadeService.scopes();
         boolean includeChildren = "1".equals(depth);
@@ -100,17 +115,45 @@ public class CalDavCalendarController {
     }
 
     private ResponseEntity<String> report(HttpServletRequest request) {
-        String body = requestBody(request).toLowerCase(Locale.ROOT);
-        String reportKind = body.contains("free-busy-query") ? "free-busy-query" : "calendar-query";
-        if (!body.contains("calendar-query") && !body.contains("free-busy-query")) {
+        String rawBody = requestBody(request);
+        String body = rawBody.toLowerCase(Locale.ROOT);
+        String reportKind = body.contains("free-busy-query")
+                ? "free-busy-query"
+                : body.contains("calendar-multiget")
+                        ? "calendar-multiget"
+                        : body.contains("sync-collection")
+                                ? "sync-collection"
+                                : "calendar-query";
+        if (!body.contains("calendar-query")
+                && !body.contains("calendar-multiget")
+                && !body.contains("sync-collection")
+                && !body.contains("free-busy-query")) {
             throw new ApiErrorException(
                     HttpStatus.BAD_REQUEST,
                     "caldav-report-unsupported",
-                    "Only calendar-query and free-busy-query REPORT bodies are recognized by the Weave CalDAV facade.",
+                    "Only calendar-query, calendar-multiget, sync-collection, and free-busy-query REPORT bodies are recognized by the Weave CalDAV facade.",
                     Map.of("module", "calendar", "operation", "caldav-report"));
         }
+        if ("calendar-multiget".equals(reportKind)) {
+            return ResponseEntity.status(207)
+                    .contentType(XML)
+                    .header("DAV", "1, calendar-access")
+                    .header("X-Weave-Projection", "caldav-calendar-data-plane")
+                    .body(calendarMultigetMultistatus(rawBody));
+        }
+        if ("sync-collection".equals(reportKind)) {
+            CalendarScopeResponse scope = scope(request);
+            var events = calendarFacadeService.listCalDavEvents(scope, null, null).events();
+            return ResponseEntity.status(207)
+                    .contentType(XML)
+                    .header("DAV", "1, calendar-access")
+                    .header("Sync-Token", "weave-sync-" + System.currentTimeMillis())
+                    .header("X-Weave-Projection", "caldav-calendar-data-plane")
+                    .body(calendarQueryMultistatus(events, true));
+        }
+        CalendarScopeResponse scope = scope(request);
         TimeRange range = timeRange(body, reportKind);
-        var events = calendarFacadeService.list(range.from(), range.to()).events();
+        var events = calendarFacadeService.listCalDavEvents(scope, range.from(), range.to()).events();
         if ("free-busy-query".equals(reportKind)) {
             return ResponseEntity.ok()
                     .contentType(CALENDAR)
@@ -121,32 +164,45 @@ public class CalDavCalendarController {
                 .contentType(XML)
                 .header("DAV", "1, calendar-access")
                 .header("X-Weave-Projection", "caldav-calendar-data-plane")
-                .body(calendarQueryMultistatus(events));
+                .body(calendarQueryMultistatus(events, false));
     }
 
     private ResponseEntity<byte[]> get(HttpServletRequest request, boolean headOnly) {
         String eventUid = eventUid(request);
-        String calendarData = calendarFacadeService.readCalDavEventIcs(eventUid);
+        CalendarScopeResponse scope = scope(request);
+        CalendarEventResponse event = calendarFacadeService.readCalDavEvent(eventUid, scope);
+        String calendarData = icalendarMapper.toIcalendar(new IcalendarMapper.EventDraft(
+                eventUid,
+                event.title(),
+                event.description(),
+                event.startsAt(),
+                event.endsAt(),
+                event.timezone(),
+                event.location(),
+                event.allDay()));
         byte[] body = calendarData.getBytes(StandardCharsets.UTF_8);
         ResponseEntity.BodyBuilder builder = ResponseEntity.ok()
                 .contentType(CALENDAR)
                 .contentLength(body.length)
+                .eTag(event.etag())
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + safeFilename(eventUid) + ".ics\"");
         return builder.body(headOnly ? null : body);
     }
 
     private ResponseEntity<Void> put(HttpServletRequest request) {
         String eventUid = eventUid(request);
+        CalendarScopeResponse scope = scope(request);
         var event = calendarFacadeService.putCalDavEventIcs(
                 eventUid,
                 requestBody(request),
                 request.getHeader(HttpHeaders.IF_MATCH),
-                request.getHeader(HttpHeaders.IF_NONE_MATCH));
+                request.getHeader(HttpHeaders.IF_NONE_MATCH),
+                scope);
         HttpStatus status = "*".equals(request.getHeader(HttpHeaders.IF_NONE_MATCH))
                 ? HttpStatus.CREATED
                 : HttpStatus.NO_CONTENT;
         ResponseEntity.BodyBuilder builder = ResponseEntity.status(status)
-                .header(HttpHeaders.LOCATION, calDavHref(event.id()))
+                .header(HttpHeaders.LOCATION, calDavHref(event))
                 .contentType(CALENDAR);
         if (event.etag() != null && !event.etag().isBlank()) {
             builder.eTag(event.etag());
@@ -155,7 +211,19 @@ public class CalDavCalendarController {
     }
 
     private ResponseEntity<Void> delete(HttpServletRequest request) {
-        calendarFacadeService.deleteCalDavEventIcs(eventUid(request));
+        String ifMatch = request.getHeader(HttpHeaders.IF_MATCH);
+        CalendarScopeResponse scope = scope(request);
+        if (ifMatch != null && !ifMatch.isBlank()) {
+            CalendarEventResponse event = calendarFacadeService.readCalDavEvent(eventUid(request), scope);
+            if (!etagMatches(event.etag(), ifMatch)) {
+                throw new ApiErrorException(
+                        HttpStatus.PRECONDITION_FAILED,
+                        "caldav-precondition-failed",
+                        "If-Match did not match the current calendar event state.",
+                        Map.of("module", "calendar", "operation", "caldav-delete"));
+            }
+        }
+        calendarFacadeService.deleteCalDavEventIcs(eventUid(request), scope);
         return ResponseEntity.noContent().build();
     }
 
@@ -190,6 +258,43 @@ public class CalDavCalendarController {
                     Map.of("module", "calendar", "operation", "caldav-event-path"));
         }
         return last;
+    }
+
+    private CalendarScopeResponse scope(HttpServletRequest request) {
+        return scopeFromPath(productPath(request));
+    }
+
+    private CalendarScopeResponse scopeFromPath(String productPath) {
+        String firstSegment = firstSegment(productPath);
+        if (firstSegment == null || firstSegment.isBlank() || firstSegment.endsWith(".ics") || "workspace".equals(firstSegment)) {
+            return CalendarScopeResponse.workspace();
+        }
+        if (firstSegment.startsWith("team:")) {
+            String teamId = firstSegment.substring("team:".length()).trim();
+            if (!teamId.isBlank()) {
+                return CalendarScopeResponse.team(teamId, teamId + " team calendar");
+            }
+        }
+        if (firstSegment.startsWith("channel:")) {
+            String channelId = firstSegment.substring("channel:".length()).trim();
+            if (!channelId.isBlank()) {
+                return CalendarScopeResponse.channel("engineering", channelId, "Engineering / " + channelId + " channel calendar");
+            }
+        }
+        throw new ApiErrorException(
+                HttpStatus.BAD_REQUEST,
+                "caldav-scope-invalid",
+                "CalDAV paths must use workspace, team:<teamId>, or channel:<channelId> scope segments.",
+                Map.of("module", "calendar", "operation", "caldav-scope"));
+    }
+
+    private String firstSegment(String productPath) {
+        if (productPath == null || productPath.isBlank() || "/".equals(productPath)) {
+            return null;
+        }
+        String normalized = productPath.startsWith("/") ? productPath.substring(1) : productPath;
+        int slash = normalized.indexOf('/');
+        return slash < 0 ? normalized : normalized.substring(0, slash);
     }
 
     private String productPath(HttpServletRequest request) {
@@ -230,11 +335,27 @@ public class CalDavCalendarController {
         return xml.toString();
     }
 
-    private String calendarQueryMultistatus(Iterable<CalendarEventResponse> events) {
+    private String calendarMultigetMultistatus(String reportBody) {
+        List<CalendarEventResponse> events = new ArrayList<>();
+        Matcher matcher = HREF.matcher(reportBody);
+        while (matcher.find()) {
+            String href = matcher.group(1);
+            CalendarEventReference reference = eventReferenceFromHref(href);
+            if (reference != null && reference.eventUid() != null && !reference.eventUid().isBlank()) {
+                events.add(calendarFacadeService.readCalDavEvent(reference.eventUid(), reference.scope()));
+            }
+        }
+        return calendarQueryMultistatus(events, false);
+    }
+
+    private String calendarQueryMultistatus(Iterable<CalendarEventResponse> events, boolean includeSyncToken) {
         StringBuilder xml = new StringBuilder("""
                 <?xml version="1.0" encoding="UTF-8"?>
                 <d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
                 """);
+        if (includeSyncToken) {
+            xml.append("  <d:sync-token>weave-sync-").append(System.currentTimeMillis()).append("</d:sync-token>\n");
+        }
         for (CalendarEventResponse event : events) {
             String calendarData = icalendarMapper.toIcalendar(new IcalendarMapper.EventDraft(
                     event.id(),
@@ -246,7 +367,7 @@ public class CalDavCalendarController {
                     event.location(),
                     event.allDay()));
             xml.append("  <d:response>\n")
-                    .append("    <d:href>").append(escapeXml(calDavHref(event.id()))).append("</d:href>\n")
+                    .append("    <d:href>").append(escapeXml(calDavHref(event))).append("</d:href>\n")
                     .append("    <d:propstat>\n")
                     .append("      <d:prop>\n")
                     .append("        <d:getetag>").append(escapeXml(event.etag())).append("</d:getetag>\n")
@@ -258,6 +379,22 @@ public class CalDavCalendarController {
         }
         xml.append("</d:multistatus>");
         return xml.toString();
+    }
+
+    private CalendarEventReference eventReferenceFromHref(String href) {
+        String rawPath;
+        try {
+            rawPath = java.net.URI.create(href).getRawPath();
+        } catch (IllegalArgumentException exception) {
+            rawPath = href;
+        }
+        String decoded = UriUtils.decode(rawPath, StandardCharsets.UTF_8);
+        String last = decoded.substring(decoded.lastIndexOf('/') + 1);
+        if (last.endsWith(".ics")) {
+            last = last.substring(0, last.length() - ".ics".length());
+        }
+        String suffix = decoded.startsWith(CALDAV_ROOT) ? decoded.substring(CALDAV_ROOT.length()) : decoded;
+        return new CalendarEventReference(scopeFromPath(suffix), last);
     }
 
     private String freeBusyCalendar(Iterable<CalendarEventResponse> events, TimeRange range) {
@@ -318,6 +455,8 @@ public class CalDavCalendarController {
                 .append("      <d:prop>\n")
                 .append("        <d:displayname>").append(escapeXml(displayName)).append("</d:displayname>\n")
                 .append("        <d:resourcetype><d:collection/><c:calendar/></d:resourcetype>\n")
+                .append("        <d:current-user-principal><d:href>/caldav/principals/users/weave/</d:href></d:current-user-principal>\n")
+                .append("        <c:calendar-home-set><d:href>/caldav/</d:href></c:calendar-home-set>\n")
                 .append("        <c:supported-calendar-component-set><c:comp name=\"VEVENT\"/></c:supported-calendar-component-set>\n")
                 .append("      </d:prop>\n")
                 .append("      <d:status>HTTP/1.1 200 OK</d:status>\n")
@@ -326,11 +465,46 @@ public class CalDavCalendarController {
     }
 
     private String calDavScopeHref(CalendarScopeResponse scope) {
-        return CALDAV_ROOT + "/" + UriUtils.encodePathSegment(scope.id(), StandardCharsets.UTF_8) + "/";
+        return CALDAV_ROOT + "/" + strictPathSegment(scope.id()) + "/";
     }
 
-    private String calDavHref(String eventId) {
-        return CALDAV_ROOT + "/workspace/" + UriUtils.encodePathSegment(eventId, StandardCharsets.UTF_8) + ".ics";
+    private String calDavHref(CalendarEventResponse event) {
+        CalendarScopeResponse scope = event.scope() == null ? CalendarScopeResponse.workspace() : event.scope();
+        return CALDAV_ROOT
+                + "/"
+                + strictPathSegment(scope.id())
+                + "/"
+                + strictPathSegment(event.id())
+                + ".ics";
+    }
+
+    private String strictPathSegment(String value) {
+        return UriUtils.encodePathSegment(value, StandardCharsets.UTF_8)
+                .replace(":", "%3A");
+    }
+
+    private boolean etagMatches(String currentEtag, String candidateHeader) {
+        if (currentEtag == null || candidateHeader == null || candidateHeader.isBlank()) {
+            return false;
+        }
+        String current = normalizeEtag(currentEtag);
+        for (String candidate : candidateHeader.split(",")) {
+            if (current.equals(normalizeEtag(candidate))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String normalizeEtag(String value) {
+        String normalized = value == null ? "" : value.trim();
+        if (normalized.startsWith("W/")) {
+            normalized = normalized.substring(2).trim();
+        }
+        if (normalized.length() >= 2 && normalized.startsWith("\"") && normalized.endsWith("\"")) {
+            normalized = normalized.substring(1, normalized.length() - 1);
+        }
+        return normalized;
     }
 
     private String safeFilename(String eventUid) {
@@ -360,5 +534,8 @@ public class CalDavCalendarController {
     }
 
     private record TimeRange(OffsetDateTime from, OffsetDateTime to) {
+    }
+
+    private record CalendarEventReference(CalendarScopeResponse scope, String eventUid) {
     }
 }

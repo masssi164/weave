@@ -9,6 +9,7 @@ import com.massimotter.weave.backend.exception.ApiExceptionHandler;
 import com.massimotter.weave.backend.model.files.FileItemResponse;
 import com.massimotter.weave.backend.service.FilesFacadeService;
 import com.massimotter.weave.backend.service.files.DownloadedFile;
+import com.massimotter.weave.backend.service.files.WebDavLockResult;
 import com.massimotter.weave.backend.service.files.WebDavPropfindListing;
 import com.massimotter.weave.backend.service.files.WebDavPropfindResource;
 import com.massimotter.weave.backend.service.files.WebDavMutationResult;
@@ -65,12 +66,12 @@ class FilesWebDavControllerTest {
     private JwtDecoder jwtDecoder;
 
     @Test
-    void optionsAdvertisesReadOnlyWebdavMethods() throws Exception {
+    void optionsAdvertisesWebdavMethods() throws Exception {
         mockMvc.perform(request(HttpMethod.valueOf("OPTIONS"), "/dav/files")
                         .with(workspaceJwt()))
                 .andExpect(status().isNoContent())
                 .andExpect(header().string("DAV", "1"))
-                .andExpect(header().string(HttpHeaders.ALLOW, "OPTIONS, PROPFIND, GET, HEAD, PUT, DELETE, MKCOL"));
+                .andExpect(header().string(HttpHeaders.ALLOW, "OPTIONS, PROPFIND, GET, HEAD, PUT, DELETE, MKCOL, MOVE, COPY, LOCK, UNLOCK"));
     }
 
     @Test
@@ -184,12 +185,13 @@ class FilesWebDavControllerTest {
                 "new".getBytes(),
                 "text/markdown",
                 "\"etag-old\"",
+                null,
                 null))
                 .willReturn(new WebDavMutationResult(
                         file("/Team/readme.md", "text/markdown", 3L),
                         "\"etag-new\"",
                         false));
-        given(filesFacadeService.createWebDavFolder("/Team/Design", null, "*"))
+        given(filesFacadeService.createWebDavFolder("/Team/Design", null, "*", null))
                 .willReturn(new WebDavMutationResult(
                         folder("/Team/Design"),
                         "\"etag-folder\"",
@@ -221,9 +223,10 @@ class FilesWebDavControllerTest {
                 "new".getBytes(),
                 "text/markdown",
                 "\"etag-old\"",
+                null,
                 null);
-        then(filesFacadeService).should().createWebDavFolder("/Team/Design", null, "*");
-        then(filesFacadeService).should().deleteWebDavPath("/Team/old.md", "\"etag-old\"");
+        then(filesFacadeService).should().createWebDavFolder("/Team/Design", null, "*", null);
+        then(filesFacadeService).should().deleteWebDavPath("/Team/old.md", "\"etag-old\"", null);
     }
 
     @Test
@@ -233,7 +236,8 @@ class FilesWebDavControllerTest {
                 "new".getBytes(),
                 "text/markdown",
                 null,
-                "*"))
+                "*",
+                null))
                 .willThrow(new ApiErrorException(
                         HttpStatus.PRECONDITION_FAILED,
                         "files-precondition-failed",
@@ -253,16 +257,72 @@ class FilesWebDavControllerTest {
     }
 
     @Test
-    void unsupportedWriteExtensionsRemainBlockedUntilAProtocolSliceImplementsThem() throws Exception {
-        given(filesFacadeService.rejectWebDavWrite("LOCK", "/Team/readme.md"))
-                .willReturn(writePolicyRequired("webdav-lock"));
+    void copyMoveLockAndUnlockUseWebDavFacadeUseCases() throws Exception {
+        given(filesFacadeService.copyWebDavPath(
+                "/Team/readme.md",
+                "/Team/readme-copy.md",
+                false,
+                "\"etag-readme\"",
+                null))
+                .willReturn(new WebDavMutationResult(
+                        file("/Team/readme-copy.md", "text/markdown", 12L),
+                        "\"etag-copy\"",
+                        true));
+        given(filesFacadeService.moveWebDavPath(
+                "/Team/readme.md",
+                "/Archive/readme.md",
+                true,
+                null,
+                null))
+                .willReturn(new WebDavMutationResult(
+                        file("/Archive/readme.md", "text/markdown", 12L),
+                        "\"etag-move\"",
+                        false));
+        given(filesFacadeService.lockWebDavPath("/Team/readme.md", null))
+                .willReturn(new WebDavLockResult("/Team/readme.md", "opaquelocktoken:test-lock", 3600));
+
+        mockMvc.perform(request(HttpMethod.valueOf("COPY"), "/dav/files/Team/readme.md")
+                        .header("Destination", "https://api.weave.test/dav/files/Team/readme-copy.md")
+                        .header("Overwrite", "F")
+                        .header(HttpHeaders.IF_MATCH, "\"etag-readme\"")
+                        .with(workspaceJwt()))
+                .andExpect(status().isCreated())
+                .andExpect(header().string(HttpHeaders.ETAG, "\"etag-copy\""))
+                .andExpect(header().string(HttpHeaders.LOCATION, "/dav/files/Team/readme-copy.md"));
+
+        mockMvc.perform(request(HttpMethod.valueOf("MOVE"), "/dav/files/Team/readme.md")
+                        .header("Destination", "/dav/files/Archive/readme.md")
+                        .with(workspaceJwt()))
+                .andExpect(status().isNoContent())
+                .andExpect(header().string(HttpHeaders.ETAG, "\"etag-move\""))
+                .andExpect(header().string(HttpHeaders.LOCATION, "/dav/files/Archive/readme.md"));
 
         mockMvc.perform(request(HttpMethod.valueOf("LOCK"), "/dav/files/Team/readme.md")
                         .with(workspaceJwt()))
-                .andExpect(status().isNotImplemented())
-                .andExpect(header().string("X-Weave-Error-Code", "files-webdav-write-policy-required"));
+                .andExpect(status().isOk())
+                .andExpect(header().string("Lock-Token", "<opaquelocktoken:test-lock>"))
+                .andExpect(content().string(containsString("<d:lockdiscovery>")))
+                .andExpect(content().string(containsString("opaquelocktoken:test-lock")));
 
-        then(filesFacadeService).should().rejectWebDavWrite("LOCK", "/Team/readme.md");
+        mockMvc.perform(request(HttpMethod.valueOf("UNLOCK"), "/dav/files/Team/readme.md")
+                        .header("Lock-Token", "<opaquelocktoken:test-lock>")
+                        .with(workspaceJwt()))
+                .andExpect(status().isNoContent());
+
+        then(filesFacadeService).should().copyWebDavPath(
+                "/Team/readme.md",
+                "/Team/readme-copy.md",
+                false,
+                "\"etag-readme\"",
+                null);
+        then(filesFacadeService).should().moveWebDavPath(
+                "/Team/readme.md",
+                "/Archive/readme.md",
+                true,
+                null,
+                null);
+        then(filesFacadeService).should().lockWebDavPath("/Team/readme.md", null);
+        then(filesFacadeService).should().unlockWebDavPath("/Team/readme.md", "<opaquelocktoken:test-lock>");
     }
 
     private FileItemResponse file(String path, String mimeType, long size) {

@@ -8,6 +8,7 @@ import com.massimotter.weave.backend.service.files.FilePathCodec;
 import com.massimotter.weave.backend.service.files.WebDavPropfindListing;
 import com.massimotter.weave.backend.service.files.WebDavPropfindResource;
 import com.massimotter.weave.backend.service.files.WebDavMutationResult;
+import com.massimotter.weave.backend.service.files.WebDavLockResult;
 import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
@@ -56,7 +57,10 @@ public class FilesWebDavController {
                 case "PUT" -> put(request);
                 case "MKCOL" -> mkcol(request);
                 case "DELETE" -> delete(request);
-                case "MOVE", "COPY", "LOCK", "UNLOCK" -> webDavWriteBlocked(request, method);
+                case "MOVE" -> move(request);
+                case "COPY" -> copy(request);
+                case "LOCK" -> lock(request);
+                case "UNLOCK" -> unlock(request);
                 default -> unsupportedMethod(method);
             };
         } catch (ApiErrorException exception) {
@@ -67,7 +71,7 @@ public class FilesWebDavController {
     private ResponseEntity<Void> options() {
         return ResponseEntity.noContent()
                 .header("DAV", "1")
-                .header(HttpHeaders.ALLOW, "OPTIONS, PROPFIND, GET, HEAD, PUT, DELETE, MKCOL")
+                .header(HttpHeaders.ALLOW, "OPTIONS, PROPFIND, GET, HEAD, PUT, DELETE, MKCOL, MOVE, COPY, LOCK, UNLOCK")
                 .header("MS-Author-Via", "DAV")
                 .build();
     }
@@ -111,7 +115,8 @@ public class FilesWebDavController {
                 requestBody(request),
                 request.getContentType(),
                 request.getHeader(HttpHeaders.IF_MATCH),
-                request.getHeader(HttpHeaders.IF_NONE_MATCH));
+                request.getHeader(HttpHeaders.IF_NONE_MATCH),
+                request.getHeader("If"));
         HttpStatus status = result.created() ? HttpStatus.CREATED : HttpStatus.NO_CONTENT;
         return ResponseEntity.status(status)
                 .eTag(result.etag())
@@ -123,7 +128,8 @@ public class FilesWebDavController {
         WebDavMutationResult result = filesFacadeService.createWebDavFolder(
                 productPath(request),
                 request.getHeader(HttpHeaders.IF_MATCH),
-                request.getHeader(HttpHeaders.IF_NONE_MATCH));
+                request.getHeader(HttpHeaders.IF_NONE_MATCH),
+                request.getHeader("If"));
         return ResponseEntity.status(HttpStatus.CREATED)
                 .eTag(result.etag())
                 .header(HttpHeaders.LOCATION, davHref(result.item().path(), true))
@@ -131,18 +137,57 @@ public class FilesWebDavController {
     }
 
     private ResponseEntity<Void> delete(HttpServletRequest request) {
-        filesFacadeService.deleteWebDavPath(productPath(request), request.getHeader(HttpHeaders.IF_MATCH));
+        filesFacadeService.deleteWebDavPath(
+                productPath(request),
+                request.getHeader(HttpHeaders.IF_MATCH),
+                request.getHeader("If"));
         return ResponseEntity.noContent().build();
     }
 
-    private ResponseEntity<String> webDavWriteBlocked(HttpServletRequest request, String method) {
-        return davError(filesFacadeService.rejectWebDavWrite(method, productPath(request)));
+    private ResponseEntity<Void> copy(HttpServletRequest request) {
+        WebDavMutationResult result = filesFacadeService.copyWebDavPath(
+                productPath(request),
+                destinationPath(request),
+                overwrite(request),
+                request.getHeader(HttpHeaders.IF_MATCH),
+                request.getHeader("If"));
+        return ResponseEntity.status(result.created() ? HttpStatus.CREATED : HttpStatus.NO_CONTENT)
+                .eTag(result.etag())
+                .header(HttpHeaders.LOCATION, davHref(result.item().path(), "folder".equals(result.item().type())))
+                .build();
+    }
+
+    private ResponseEntity<Void> move(HttpServletRequest request) {
+        WebDavMutationResult result = filesFacadeService.moveWebDavPath(
+                productPath(request),
+                destinationPath(request),
+                overwrite(request),
+                request.getHeader(HttpHeaders.IF_MATCH),
+                request.getHeader("If"));
+        return ResponseEntity.status(result.created() ? HttpStatus.CREATED : HttpStatus.NO_CONTENT)
+                .eTag(result.etag())
+                .header(HttpHeaders.LOCATION, davHref(result.item().path(), "folder".equals(result.item().type())))
+                .build();
+    }
+
+    private ResponseEntity<String> lock(HttpServletRequest request) {
+        WebDavLockResult result = filesFacadeService.lockWebDavPath(productPath(request), request.getHeader("If"));
+        return ResponseEntity.status(HttpStatus.OK)
+                .contentType(XML)
+                .header("Lock-Token", "<" + result.token() + ">")
+                .header("Timeout", "Second-" + result.timeoutSeconds())
+                .body(lockDiscoveryXml(result));
+    }
+
+    private ResponseEntity<Void> unlock(HttpServletRequest request) {
+        filesFacadeService.unlockWebDavPath(productPath(request), request.getHeader("Lock-Token"));
+        return ResponseEntity.noContent().build();
     }
 
     private ResponseEntity<String> unsupportedMethod(String method) {
         return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED)
                 .contentType(XML)
-                .header(HttpHeaders.ALLOW, "OPTIONS, PROPFIND, GET, HEAD, PUT, DELETE, MKCOL")
+                .header(HttpHeaders.ALLOW, "OPTIONS, PROPFIND, GET, HEAD, PUT, DELETE, MKCOL, MOVE, COPY, LOCK, UNLOCK")
                 .header("X-Weave-Error-Code", "webdav-method-not-implemented")
                 .body(errorXml("webdav-method-not-implemented",
                         "Weave Files WebDAV does not implement " + method
@@ -178,6 +223,39 @@ public class FilesWebDavController {
             productPath = "/" + productPath;
         }
         return FilePathCodec.normalizeProductPath(productPath);
+    }
+
+    private String destinationPath(HttpServletRequest request) {
+        String destination = request.getHeader("Destination");
+        if (destination == null || destination.isBlank()) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "webdav-destination-required",
+                    "WebDAV COPY and MOVE require a Destination header.",
+                    Map.of("module", "files", "operation", "webdav-destination"));
+        }
+        String rawPath;
+        try {
+            rawPath = java.net.URI.create(destination).getRawPath();
+        } catch (IllegalArgumentException exception) {
+            rawPath = destination;
+        }
+        String decoded = UriUtils.decode(rawPath, StandardCharsets.UTF_8);
+        if (decoded.startsWith(DAV_ROOT)) {
+            decoded = decoded.substring(DAV_ROOT.length());
+        }
+        if (decoded.isBlank()) {
+            decoded = "/";
+        }
+        if (!decoded.startsWith("/")) {
+            decoded = "/" + decoded;
+        }
+        return FilePathCodec.normalizeProductPath(decoded);
+    }
+
+    private boolean overwrite(HttpServletRequest request) {
+        String overwrite = request.getHeader("Overwrite");
+        return overwrite == null || overwrite.isBlank() || !"F".equalsIgnoreCase(overwrite.trim());
     }
 
     private byte[] requestBody(HttpServletRequest request) {
@@ -316,6 +394,27 @@ public class FilesWebDavController {
                   <weave-code>%s</weave-code>
                 </d:error>
                 """.formatted(escapeXml(message), escapeXml(code));
+    }
+
+    private String lockDiscoveryXml(WebDavLockResult result) {
+        return """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <d:prop xmlns:d="DAV:">
+                  <d:lockdiscovery>
+                    <d:activelock>
+                      <d:locktype><d:write/></d:locktype>
+                      <d:lockscope><d:exclusive/></d:lockscope>
+                      <d:depth>0</d:depth>
+                      <d:timeout>Second-%d</d:timeout>
+                      <d:locktoken><d:href>%s</d:href></d:locktoken>
+                      <d:lockroot><d:href>%s</d:href></d:lockroot>
+                    </d:activelock>
+                  </d:lockdiscovery>
+                </d:prop>
+                """.formatted(
+                result.timeoutSeconds(),
+                escapeXml(result.token()),
+                escapeXml(davHref(result.path(), false)));
     }
 
     private String escapeXml(String value) {

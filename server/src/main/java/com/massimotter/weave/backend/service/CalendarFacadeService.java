@@ -101,12 +101,21 @@ public class CalendarFacadeService {
             String channelId) {
         validateRange(from, to);
         CalendarScopeResponse scope = resolveScope(scopeType, teamId, channelId);
-        requireContextPermission(scope, ContextPermission.VIEW, "list-events");
+        return listCalDavEvents(scope, from, to);
+    }
+
+    public CalendarEventsResponse listCalDavEvents(
+            CalendarScopeResponse scope,
+            OffsetDateTime from,
+            OffsetDateTime to) {
+        validateRange(from, to);
+        CalendarScopeResponse normalizedScope = normalizeScope(scope, "caldav-list-events");
+        requireContextPermission(normalizedScope, ContextPermission.VIEW, "list-events");
         try {
-            List<CalendarEventResponse> events = adapter("list-events").list(principal(), scope, from, to).stream()
-                    .map(event -> withScope(event, scope, true))
+            List<CalendarEventResponse> events = adapter("list-events").list(principal(), normalizedScope, from, to).stream()
+                    .map(event -> withScope(event, normalizedScope, false))
                     .toList();
-            return new CalendarEventsResponse(scope, events);
+            return new CalendarEventsResponse(normalizedScope, events);
         } catch (CalendarAdapterException exception) {
             throw apiError(exception, "list-events");
         }
@@ -154,7 +163,11 @@ public class CalendarFacadeService {
     }
 
     public String readCalDavEventIcs(String eventUid) {
-        CalendarEventResponse event = read(eventUid);
+        return readCalDavEventIcs(eventUid, CalendarScopeResponse.workspace());
+    }
+
+    public String readCalDavEventIcs(String eventUid, CalendarScopeResponse scope) {
+        CalendarEventResponse event = readCalDavEvent(eventUid, scope);
         return icalendarMapper.toIcalendar(new IcalendarMapper.EventDraft(
                 event.id(),
                 event.title(),
@@ -166,14 +179,52 @@ public class CalendarFacadeService {
                 event.allDay()));
     }
 
+    public CalendarEventResponse readCalDavEvent(String eventUid, CalendarScopeResponse scope) {
+        CalendarScopeResponse normalizedScope = normalizeScope(scope, "read-caldav-event");
+        requireContextPermission(normalizedScope, ContextPermission.VIEW, "read-event");
+        try {
+            return withScope(adapter("read-event").read(principal(), normalizedScope, eventUid), normalizedScope, false);
+        } catch (CalendarAdapterException exception) {
+            throw apiError(exception, "read-event");
+        }
+    }
+
     public CalendarEventResponse putCalDavEventIcs(
             String eventUid,
             String calendarData,
             String ifMatch,
             String ifNoneMatch) {
+        return putCalDavEventIcs(eventUid, calendarData, ifMatch, ifNoneMatch, CalendarScopeResponse.workspace());
+    }
+
+    public CalendarEventResponse putCalDavEventIcs(
+            String eventUid,
+            String calendarData,
+            String ifMatch,
+            String ifNoneMatch,
+            CalendarScopeResponse scope) {
+        CalendarScopeResponse normalizedScope = normalizeScope(scope, "put-caldav-event");
         IcalendarMapper.EventDraft draft = parseCalDavEvent(calendarData, "put-caldav-event");
         if ("*".equals(ifNoneMatch)) {
-            return create(new CreateCalendarEventRequest(
+            requireContextPermission(normalizedScope, ContextPermission.EDIT, "create-event");
+            try {
+                CalendarEventResponse event = adapter("create-event").create(principal(), withScope(new CreateCalendarEventRequest(
+                        draft.title(),
+                        draft.description(),
+                        draft.startsAt(),
+                        draft.endsAt(),
+                        draft.timezone(),
+                        draft.location(),
+                        draft.allDay(),
+                        normalizedScope), normalizedScope));
+                return withScope(event, normalizedScope, false);
+            } catch (CalendarAdapterException exception) {
+                throw apiError(exception, "create-event");
+            }
+        }
+        requireContextPermission(normalizedScope, ContextPermission.EDIT, "update-event");
+        try {
+            CalendarEventResponse event = adapter("update-event").update(principal(), normalizedScope, eventUid, new UpdateCalendarEventRequest(
                     draft.title(),
                     draft.description(),
                     draft.startsAt(),
@@ -181,22 +232,26 @@ public class CalendarFacadeService {
                     draft.timezone(),
                     draft.location(),
                     draft.allDay(),
-                    CalendarScopeResponse.workspace()));
+                    ifMatch,
+                    normalizedScope));
+            return withScope(event, normalizedScope, false);
+        } catch (CalendarAdapterException exception) {
+            throw apiError(exception, "update-event");
         }
-        return update(eventUid, new UpdateCalendarEventRequest(
-                draft.title(),
-                draft.description(),
-                draft.startsAt(),
-                draft.endsAt(),
-                draft.timezone(),
-                draft.location(),
-                draft.allDay(),
-                ifMatch,
-                CalendarScopeResponse.workspace()));
     }
 
     public void deleteCalDavEventIcs(String eventUid) {
-        delete(eventUid);
+        deleteCalDavEventIcs(eventUid, CalendarScopeResponse.workspace());
+    }
+
+    public void deleteCalDavEventIcs(String eventUid, CalendarScopeResponse scope) {
+        CalendarScopeResponse normalizedScope = normalizeScope(scope, "delete-caldav-event");
+        requireContextPermission(normalizedScope, ContextPermission.EDIT, "delete-event");
+        try {
+            adapter("delete-event").delete(principal(), normalizedScope, eventUid);
+        } catch (CalendarAdapterException exception) {
+            throw apiError(exception, "delete-event");
+        }
     }
 
     public ApiErrorException reportCalendarQueryNotReady(String reportKind) {

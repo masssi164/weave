@@ -59,22 +59,18 @@ void main() {
     expect(client, isNot(contains('UserProfileDto.fromJson')));
   });
 
-  test('Chat maps OpenAPI DTOs and Files uses WebDAV in data only', () async {
+  test('Chat uses Matrix facade and Files uses WebDAV in data only', () async {
     final chatRepository = await File(
-      'lib/features/chat/data/repositories/backend_chat_repository.dart',
-    ).readAsString();
-    final chatMapper = await File(
-      'lib/features/chat/data/dtos/chat_openapi_mappers.dart',
+      'lib/features/chat/data/repositories/weave_matrix_facade_chat_repository.dart',
     ).readAsString();
     final filesRepository = await File(
       'lib/features/files/data/repositories/backend_files_repository.dart',
     ).readAsString();
-    expect(chatRepository, contains('openapi.ChatConversationsResponse'));
-    expect(chatRepository, contains('openapi.ChatMessagesResponse'));
-    expect(chatRepository, contains('openapi.ChatSendMessageRequest'));
-    expect(chatMapper, contains('openapi.ChatConversationResponse'));
-    expect(chatMapper, contains('OpenApiResourcePage<ChatConversation>'));
-    expect(chatMapper, isNot(contains('Matrix')));
+    expect(chatRepository, contains('/_matrix/client/v3/sync'));
+    expect(chatRepository, contains('/_matrix/client/v3/rooms/'));
+    expect(chatRepository, contains('RustMatrixCoreBridge'));
+    expect(chatRepository, isNot(contains('/api/chat/conversations')));
+    expect(chatRepository, isNot(contains('BackendChatRepository')));
 
     expect(filesRepository, contains('PROPFIND'));
     expect(filesRepository, contains('/dav/files'));
@@ -103,6 +99,11 @@ void main() {
         isNot(contains('generated/openapi_models.dart')),
         reason:
             '$file must consume feature domain models, not raw OpenAPI DTOs.',
+      );
+      expect(
+        source,
+        isNot(contains('BackendChatRepository')),
+        reason: '$file must not reference the obsolete REST chat repository.',
       );
     }
   });
@@ -164,6 +165,7 @@ void main() {
       expect(source, contains('WeaveMatrixFacadeChatRepository'));
       expect(source, contains('Matrix Client-Server projection'));
       expect(source, contains('/api/chat/**'));
+      expect(source, contains('control/product facade'));
       expect(source, contains('OpenAPI/REST'));
       expect(source, contains('direct Matrix SDK'));
       expect(source, isNot(contains('FeatureFlags.legacyDirectMatrixChat')));

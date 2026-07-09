@@ -109,15 +109,20 @@ def require_flutter_matrix_boundary() -> None:
         "client/lib/features/chat/presentation/providers/chat_repository_provider.dart",
         "WeaveMatrixFacadeChatRepository",
         "Matrix Client-Server projection",
-        "`/api/chat/**` remains a transitional/control facade",
+        "`/api/chat/**` remains a control/product facade",
         "direct Matrix SDK",
     )
     require(
         "server/src/test/java/com/massimotter/weave/backend/controller/ChatControllerTest.java",
-        "chatRestMessageDataPlaneIsDeprecatedInFavorOfMatrixFacade",
-        "chat-rest-compatibility",
-        "/_matrix/client/**",
-        "https://github.com/masssi164/weave/issues/1044",
+        "chatLegacyRestDataPlaneRoutesAreRemovedInFavorOfMatrixFacade",
+        "/api/chat/conversations/channel-general/messages",
+        "status().isNotFound()",
+    )
+    require(
+        "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
+        "matrixClientServerProjectionWhoamiDerivesMatrixIdentityFromOidcPrincipal",
+        "/_matrix/client/v3/account/whoami",
+        "spring-boot-resource-server",
     )
     require(
         "client/test/architecture/member_client_provider_boundary_contract_test.dart",

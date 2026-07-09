@@ -77,6 +77,9 @@ public class MatrixClientServerProjectionController {
             if ("GET".equals(method) && isVersions(path)) {
                 return matrixOk(matrixProtocolCoreService.versions());
             }
+            if ("GET".equals(method) && isWhoami(path)) {
+                return matrixOk(whoami(jwt));
+            }
             if ("GET".equals(method) && isSync(path)) {
                 return matrixOk(sync(jwt));
             }
@@ -131,6 +134,17 @@ public class MatrixClientServerProjectionController {
         return Map.of("joined_rooms", chatFacadeService.conversations(jwt).conversations().stream()
                 .map(conversation -> matrixProtocolCoreService.matrixRoomId(conversation.id()))
                 .toList());
+    }
+
+    private Map<String, Object> whoami(Jwt jwt) {
+        return Map.of(
+                "user_id", matrixProtocolCoreService.matrixSender(jwt == null ? null : jwt.getSubject()),
+                "device_id", "weave-oidc",
+                "is_guest", false,
+                "weaveBoundary", "northbound-matrix-client-server",
+                "canonicalDomain", "chat",
+                "providerDataPlaneExposed", false,
+                "matrixCore", matrixProtocolCoreService.descriptor());
     }
 
     private Map<String, Object> roomMessages(Jwt jwt, String conversationId) {
@@ -189,6 +203,10 @@ public class MatrixClientServerProjectionController {
 
     private boolean isJoinedRooms(String path) {
         return path.equals("/_matrix/client/v3/joined_rooms") || path.equals("/_matrix/client/r0/joined_rooms");
+    }
+
+    private boolean isWhoami(String path) {
+        return path.equals("/_matrix/client/v3/account/whoami") || path.equals("/_matrix/client/r0/account/whoami");
     }
 
     private String decodeRoomId(String matrixRoomId) {

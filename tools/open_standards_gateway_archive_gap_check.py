@@ -130,7 +130,18 @@ def require_current_evidence_boundaries() -> None:
     )
     require(
         "server/src/main/java/com/massimotter/weave/backend/controller/FilesWebDavController.java",
-        'case "MOVE", "COPY", "LOCK", "UNLOCK" -> webDavWriteBlocked(request, method)',
+        'case "MOVE" -> move(request)',
+        'case "COPY" -> copy(request)',
+        'case "LOCK" -> lock(request)',
+        'case "UNLOCK" -> unlock(request)',
+    )
+    require(
+        "server/src/main/java/com/massimotter/weave/backend/service/FilesFacadeService.java",
+        "copyWebDavPath(",
+        "moveWebDavPath(",
+        "lockWebDavPath(",
+        "unlockWebDavPath(",
+        "files-locked",
     )
     require(
         "server/src/main/java/com/massimotter/weave/backend/controller/CalDavCalendarController.java",
