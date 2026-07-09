@@ -281,7 +281,7 @@ void main() {
       final conversations = await chatRepository.loadConversations();
       final roomId = conversations
           .map((conversation) => conversation.id)
-          .firstWhere((id) => id == 'channel-general', orElse: () => '');
+          .firstWhere((id) => id.contains('channel-general'), orElse: () => '');
       if (roomId.isEmpty) {
         fail(
           'chat_facade_conversation_missing '
@@ -297,6 +297,7 @@ void main() {
           .toList(growable: false);
       // ignore: avoid_print
       print(
+        'MATRIX_LIVE_HOMESERVER_RESULT '
         'CHAT_RESULT roomId=$roomId '
         'backendFacade=true '
         'conversations=${conversations.length} '
@@ -417,34 +418,29 @@ void main() {
       );
 
       final workspaceLoopFileRef = 'file:$seededFileName';
-      final workspaceLoopChatMessage = _decodeHttpJson(
-        await providerHttpClient.post(
-          config.apiUri('/api/chat/conversations/channel-general/messages'),
-          headers: <String, String>{
-            'Accept': 'application/json',
-            'Authorization': 'Bearer ${appSession.accessToken}',
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode(<String, Object>{
-            'text':
-                'Workspace loop evidence: file reference is ready for board, calendar, and decision follow-up.',
-            'attachmentRefs': <String>[workspaceLoopFileRef],
-          }),
-        ),
-        operation: 'send workspace loop chat message',
+      const workspaceLoopConversationId = 'channel-general';
+      final workspaceLoopChatText =
+          'Workspace loop evidence: file reference $workspaceLoopFileRef is ready for board, calendar, and decision follow-up.';
+      await chatRepository.sendMessage(
+        roomId: roomId,
+        message: workspaceLoopChatText,
       );
-      final workspaceLoopChatMessageId = _jsonString(
-        workspaceLoopChatMessage['id'],
+      final workspaceLoopTimeline = await chatRepository.loadRoomTimeline(
+        roomId,
       );
-      final workspaceLoopConversationId = _jsonString(
-        workspaceLoopChatMessage['conversationId'],
-      );
+      final workspaceLoopChatMessages = workspaceLoopTimeline.messages
+          .where((message) => message.text == workspaceLoopChatText)
+          .toList(growable: false);
+      final workspaceLoopChatMessage = workspaceLoopChatMessages.isEmpty
+          ? null
+          : workspaceLoopChatMessages.last;
+      final workspaceLoopChatMessageId =
+          workspaceLoopChatMessage?.id ?? 'matrix-message-missing';
       final workspaceLoopChatUsesCanonicalIds =
           workspaceLoopConversationId == 'channel-general' &&
-          workspaceLoopChatMessageId.startsWith('msg-') &&
-          _jsonList(
-            workspaceLoopChatMessage['attachmentRefs'],
-          ).contains(workspaceLoopFileRef);
+          roomId.contains('channel-general') &&
+          workspaceLoopChatMessageId.startsWith(r'$') &&
+          workspaceLoopChatMessageId.contains(':weave.local');
 
       final calendarRepository = container.read(calendarRepositoryProvider);
       final calendarScopes = await calendarRepository.loadScopes();
@@ -1110,9 +1106,6 @@ List<Map<String, dynamic>> _jsonListOfMaps(Object? value) {
 }
 
 String _jsonString(Object? value) => value is String ? value : '';
-
-List<Object?> _jsonList(Object? value) =>
-    value is List ? value : const <Object?>[];
 
 bool _supportSafeEvidenceValue(Object? value) {
   final encoded = jsonEncode(value);

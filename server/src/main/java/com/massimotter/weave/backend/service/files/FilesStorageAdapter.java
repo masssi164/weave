@@ -4,6 +4,7 @@ import com.massimotter.weave.backend.model.files.CreateFolderRequest;
 import com.massimotter.weave.backend.model.files.FileItemResponse;
 import com.massimotter.weave.backend.model.files.FileListResponse;
 import com.massimotter.weave.backend.model.files.FileUploadResponse;
+import java.util.Map;
 import org.springframework.web.multipart.MultipartFile;
 
 public interface FilesStorageAdapter {
@@ -18,6 +19,11 @@ public interface FilesStorageAdapter {
 
     FileListResponse list(String path);
 
+    default VersionedFileListResponse listWithVersionTokens(String path) {
+        FileListResponse listing = list(path);
+        return new VersionedFileListResponse(listing, null, Map.of());
+    }
+
     default String versionToken(String path) {
         return null;
     }
@@ -28,6 +34,14 @@ public interface FilesStorageAdapter {
 
     default FileItemResponse put(String path, byte[] content, String mimeType) {
         throw new UnsupportedOperationException("WebDAV PUT is not implemented by this storage adapter");
+    }
+
+    default FileItemResponse copy(String sourcePath, String destinationPath, boolean overwrite) {
+        throw new UnsupportedOperationException("WebDAV COPY is not implemented by this storage adapter");
+    }
+
+    default FileItemResponse move(String sourcePath, String destinationPath, boolean overwrite) {
+        throw new UnsupportedOperationException("WebDAV MOVE is not implemented by this storage adapter");
     }
 
     DownloadedFile download(String id);

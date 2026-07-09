@@ -171,18 +171,22 @@
           "fragments": [
             "http.Request('PROPFIND'",
             "'dav', 'files'",
-            "Files writes are blocked in this client until the Weave WebDAV write cutover is available."
+            "'PUT'",
+            "'MKCOL'",
+            "'DELETE'",
+            "'If-None-Match': '*'"
           ]
         }
       ]
     },
     {
-      "tag": "@target-standards-caldav-calendar-fail-closed",
-      "scenario": "Calendar CalDAV evidence is fail-closed until storage and native sync parity exist",
+      "tag": "@target-standards-caldav-calendar-server-mvp",
+      "scenario": "Calendar CalDAV server MVP is separated from native sync parity",
       "feature": "e2e/features/target_standard_facade_hard_gate.feature",
       "executableTest": "tools/target_standard_facade_hard_gate_check.py",
       "evidenceMarkers": [
-        "TARGET_STANDARDS_CALDAV_CALENDAR_FAIL_CLOSED"
+        "TARGET_STANDARDS_CALDAV_CALENDAR_SERVER_MVP",
+        "OPENAPI_LEGACY_DATA_PLANE_REMOVED"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
@@ -190,8 +194,12 @@
           "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
           "fragments": [
             "calendarNativeSyncSetupExposesWeaveOwnedOsBoundariesWithoutProviderLeaks",
+            "calendarLegacyRestEventDataPlaneIsRemovedInFavorOfCaldavFacade",
+            "status().isNotFound()",
             "calDavOptionsAndPropfindExposeWeaveCalendarProjectionWithoutProviderLeaks",
-            "calDavReportSkeletonRecognizesCalendarQueryAndFreeBusyButFailsClosed",
+            "calDavReportCalendarQueryAndFreeBusyReturnFacadeBackedCalendarData",
+            "calDavReportMultigetAndSyncCollectionUseScopedFacadeCalendars",
+            "BEGIN:VFREEBUSY",
             "calendar-adapter-not-configured"
           ]
         },
@@ -204,29 +212,40 @@
       ]
     },
     {
-      "tag": "@target-standards-matrix-chat-fail-closed",
-      "scenario": "Matrix Chat evidence is fail-closed until Client-Server parity exists",
+      "tag": "@target-standards-matrix-chat-server-mvp",
+      "scenario": "Matrix Chat MVP is separated from full protocol and E2EE parity",
       "feature": "e2e/features/target_standard_facade_hard_gate.feature",
       "executableTest": "tools/target_standard_facade_hard_gate_check.py",
       "evidenceMarkers": [
-        "TARGET_STANDARDS_MATRIX_CHAT_FAIL_CLOSED"
+        "TARGET_STANDARDS_MATRIX_CHAT_SERVER_MVP",
+        "OPENAPI_LEGACY_DATA_PLANE_REMOVED"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
           "path": "client/lib/features/chat/presentation/providers/chat_repository_provider.dart",
           "fragments": [
-            "MatrixChatRepository",
+            "WeaveMatrixFacadeChatRepository",
             "Matrix Client-Server projection",
-            "`/api/chat/**` remains a transitional/control facade"
+            "`/api/chat/**` remains a control/product facade"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/ChatControllerTest.java",
+          "fragments": [
+            "chatLegacyRestDataPlaneRoutesAreRemovedInFavorOfMatrixFacade",
+            "/api/chat/conversations/channel-general/messages",
+            "status().isNotFound()"
           ]
         },
         {
           "path": "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
           "fragments": [
             "matrixClientServerProjectionRequiresWorkspaceToken",
-            "matrixClientServerProjectionFailsClosedWithoutProviderPayloads",
-            "M_WEAVE_MATRIX_PROJECTION_UNAVAILABLE"
+            "matrixClientServerProjectionWhoamiDerivesMatrixIdentityFromOidcPrincipal",
+            "matrixClientServerProjectionSyncsCanonicalChatAsMatrixRoomsWithoutProviderPayloads",
+            "matrixClientServerProjectionSendsViaCanonicalChatFacade",
+            "matrixClientServerProjectionListsJoinedRoomsAndRoomMessages"
           ]
         }
       ]
@@ -599,9 +618,9 @@
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/WorkspaceCapabilityServiceTest.java",
           "fragments": [
-            "calendarCreateIsDeniedByCapabilityPolicyBeforeProviderAccess",
+            "requireCapabilityFailsClosedForUnmappedMemberActions",
             "capability-policy-blocked",
             "calendar.manage_events"
           ]
@@ -983,12 +1002,12 @@
       ],
       "additionalEvidence": [
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/ChatControllerTest.java",
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/ChatFacadeServiceTest.java",
           "fragments": [
-            "chatConversationsUseCanonicalWeaveVocabularyWithoutProviderDiagnostics",
-            "chatReadIsDeniedByCapabilityPolicyBeforeContextOrProviderAccess",
-            "chatSendRequiresCapabilityAndContextPermissionThenPublishesSupportSafeAudit",
-            "chatProviderReplacementDryRunIsAdminOnlySupportSafeAndAudited"
+            "paWeaverConversationCompletesWeaveChatToLmStudioTurnWhenRuntimePolicyAllowsMember",
+            "paWeaverChatFailsClosedForMemberWithoutWeaverRuntimePolicy",
+            "CHAT_MESSAGE_SENT",
+            "rawProviderDiagnosticsExposed"
           ]
         },
         {
@@ -4412,16 +4431,17 @@
           "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
           "fragments": [
             "calDavOptionsAndPropfindExposeWeaveCalendarProjectionWithoutProviderLeaks",
-            "calDavReportSkeletonRecognizesCalendarQueryAndFreeBusyButFailsClosed",
+            "calDavReportCalendarQueryAndFreeBusyReturnFacadeBackedCalendarData",
             "calDavEventReadPutAndDeleteUseCalendarFacadeBoundaryAndStableErrors"
           ]
         },
         {
           "path": "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
           "fragments": [
-            "matrixClientServerProjectionFailsClosedWithoutProviderPayloads",
+            "matrixClientServerProjectionSyncsCanonicalChatAsMatrixRoomsWithoutProviderPayloads",
+            "matrixClientServerProjectionSendsViaCanonicalChatFacade",
             "northbound-matrix-client-server",
-            "M_WEAVE_MATRIX_PROJECTION_UNAVAILABLE"
+            "!channel-general:weave.local"
           ]
         }
       ]
@@ -4450,7 +4470,7 @@
           "path": "client/lib/features/chat/presentation/providers/chat_repository_provider.dart",
           "fragments": [
             "Matrix Client-Server projection as the chat data plane",
-            "`/api/chat/**` remains a transitional/control facade",
+            "`/api/chat/**` remains a control/product facade",
             "OpenAPI/REST"
           ]
         },
@@ -4459,7 +4479,7 @@
           "fragments": [
             "primary chat provider is wired through the Matrix Client-Server projection",
             "BackendChatRepository(",
-            "matrixSessionServiceProvider"
+            "isNot(contains('matrixSessionServiceProvider'))"
           ]
         }
       ]
@@ -4512,7 +4532,7 @@
           "path": "server/src/test/java/com/massimotter/weave/backend/architecture/ServerArchitectureBoundaryTest.java",
           "fragments": [
             "calendarCalDavMethodsRouteThroughCalendarFacadeUseCases",
-            "matrixClientServerProjectionIsBoundarySkeletonNotBridgeOrRestChatDataPlane",
+            "matrixClientServerProjectionUsesChatFacadeNotBridgeOrRestChatDataPlane",
             "protocolProjectionAndMcpCodeDoNotImportProviderAdapters"
           ]
         }
@@ -4711,6 +4731,1328 @@
             "baselineSnapshot",
             "readModelComparison",
             "persistProviderReplacementEvidence"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@open-standards-manifest",
+      "scenario": "Authenticated member discovers standard protocol entrypoints",
+      "feature": "e2e/features/open_standards_gateway_manifest.feature",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/bdd/OpenStandardsGatewayStepDefinitions.java",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_MANIFEST_CONTRACT"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "server/src/test/resources/features/open-standards-gateway-control-plane.feature",
+          "fragments": [
+            "Authenticated member discovers standard protocol entrypoints",
+            "Files advertises the Weave WebDAV facade",
+            "Calendar advertises the Weave CalDAV facade",
+            "Chat advertises a Matrix Client-Server endpoint"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@openapi-control-only",
+      "scenario": "OpenAPI is only control and generated convenience",
+      "feature": "e2e/features/open_standards_gateway_manifest.feature",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/bdd/OpenStandardsGatewayStepDefinitions.java",
+      "evidenceMarkers": [
+        "OPENAPI_CONTROL_PLANE_CONTRACT",
+        "OPENAPI_LEGACY_DATA_PLANE_REMOVED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/OpenApiDocumentationTest.java",
+          "fragments": [
+            "/api/files/client-setup/credentials",
+            "/api/files/client-setup/credentials/{credentialId}",
+            "/api/files/{id}/download",
+            "/api/calendar/events",
+            "/api/chat/conversations",
+            "doesNotExist()"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@support-safe-capability-states",
+      "scenario": "Disabled or degraded domains return support-safe capability states",
+      "feature": "e2e/features/open_standards_gateway_manifest.feature",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/WorkspaceControllerTest.java",
+      "evidenceMarkers": [
+        "SUPPORT_SAFE_CAPABILITY_STATES_CONTRACT"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "server/src/main/java/com/massimotter/weave/backend/service/OrganizationManifestService.java",
+          "fragments": [
+            "disabled_by_policy",
+            "not_configured",
+            "degraded",
+            "coming_later"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@oidc-protocol-access",
+      "scenario": "First-party OIDC bearer token accesses all protocol surfaces",
+      "feature": "e2e/features/oidc_protocol_access.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@oidc-revoked-token",
+      "scenario": "Revoked or expired bearer token fails support-safely",
+      "feature": "e2e/features/oidc_protocol_access.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@webdav-device-credential",
+      "scenario": "Files WebDAV device credential can be issued, used, revoked, and denied after revoke",
+      "feature": "e2e/features/oidc_protocol_access.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@caldav-device-credential",
+      "scenario": "Calendar CalDAV device credential can be issued, used, revoked, and denied after revoke",
+      "feature": "e2e/features/oidc_protocol_access.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@no-provider-credentials",
+      "scenario": "Device credentials never expose provider credentials",
+      "feature": "e2e/features/oidc_protocol_access.feature",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/bdd/OpenStandardsGatewayStepDefinitions.java",
+      "evidenceMarkers": [
+        "NO_PROVIDER_CREDENTIALS_CONTRACT"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
+          "fragments": [
+            "FILES_WEBDAV_DEVICE_CREDENTIAL_CONTROL_PLANE",
+            "secretMaterialReturned",
+            "not(org.hamcrest.Matchers.containsString(\"Bearer\"))",
+            "not(org.hamcrest.Matchers.containsString(\"app_password\"))"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@files-webdav-propfind",
+      "scenario": "PROPFIND Depth 0 and 1 list Weave-owned resources with WebDAV properties",
+      "feature": "e2e/features/files_webdav_full_facade.feature",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
+      "evidenceMarkers": [
+        "FILES_WEBDAV_PROPFIND_FACADE"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "server/src/main/java/com/massimotter/weave/backend/controller/FilesWebDavController.java",
+          "fragments": [
+            "case \"PROPFIND\" -> propfind(request)",
+            "WebDavPropfindListing listing = filesFacadeService.webDavPropfind(path)",
+            "<d:supportedlock/>",
+            "<d:lockdiscovery/>"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
+          "fragments": [
+            "FILES_WEBDAV_PROPFIND_FACADE",
+            "propfindDepthZeroReturnsMultistatusForRequestedCollectionOnly",
+            "propfindDepthOneReturnsChildrenAsDavResponses",
+            "<d:getetag>&quot;etag-team&quot;</d:getetag>",
+            "<d:getetag>&quot;etag-readme&quot;</d:getetag>",
+            "remote.php",
+            "Authorization"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@files-webdav-get-head",
+      "scenario": "GET and HEAD stream file content with Weave ETags",
+      "feature": "e2e/features/files_webdav_full_facade.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@files-webdav-put-create",
+      "scenario": "PUT creates a file with If-None-Match and records audit",
+      "feature": "e2e/features/files_webdav_full_facade.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@files-webdav-put-stale",
+      "scenario": "PUT update rejects stale ETags",
+      "feature": "e2e/features/files_webdav_full_facade.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@files-webdav-mkcol",
+      "scenario": "MKCOL creates a folder and rejects duplicates or missing parents",
+      "feature": "e2e/features/files_webdav_full_facade.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@files-webdav-delete",
+      "scenario": "DELETE removes a resource with If-Match and records audit",
+      "feature": "e2e/features/files_webdav_full_facade.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@files-webdav-move",
+      "scenario": "MOVE handles Destination and Overwrite without provider leakage",
+      "feature": "e2e/features/files_webdav_full_facade.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@files-webdav-copy",
+      "scenario": "COPY handles Destination and Overwrite without provider leakage",
+      "feature": "e2e/features/files_webdav_full_facade.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@files-webdav-lock-unlock",
+      "scenario": "LOCK exposes lockdiscovery and blocks conflicting writes with 423",
+      "feature": "e2e/features/files_webdav_full_facade.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@files-webdav-quota",
+      "scenario": "Quota exceeded maps to 507",
+      "feature": "e2e/features/files_webdav_full_facade.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@files-flutter-webdav",
+      "scenario": "Flutter Files repository uses /dav/files for all file data-plane operations",
+      "feature": "e2e/features/files_webdav_full_facade.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@caldav-discovery",
+      "scenario": "CalDAV well-known discovery and principal discovery work",
+      "feature": "e2e/features/calendar_caldav_facade.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@caldav-home",
+      "scenario": "Calendar home lists calendar collections",
+      "feature": "e2e/features/calendar_caldav_facade.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@caldav-calendar-query",
+      "scenario": "calendar-query returns VEVENT objects for a date range",
+      "feature": "e2e/features/calendar_caldav_facade.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@caldav-calendar-multiget",
+      "scenario": "calendar-multiget returns selected calendar objects",
+      "feature": "e2e/features/calendar_caldav_facade.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@caldav-get-put-delete",
+      "scenario": "GET, PUT, and DELETE use ETags and stable precondition handling",
+      "feature": "e2e/features/calendar_caldav_facade.feature",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
+      "evidenceMarkers": [
+        "CALDAV_GET_PUT_DELETE_FACADE_MVP"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
+          "fragments": [
+            "calDavEventReadPutCreateUpdateAndDeleteUseFacadeBackedIcalendar",
+            "BEGIN:VCALENDAR",
+            "If-None-Match",
+            "If-Match",
+            "ETag",
+            "Location",
+            "not(org.hamcrest.Matchers.containsString(\"remote.php\"))"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@caldav-sync",
+      "scenario": "sync-collection returns changed objects after mutation",
+      "feature": "e2e/features/calendar_caldav_facade.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@caldav-freebusy",
+      "scenario": "free-busy-query returns VFREEBUSY",
+      "feature": "e2e/features/calendar_caldav_facade.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@caldav-recurrence-dst",
+      "scenario": "Recurring event across DST boundary is expanded consistently",
+      "feature": "e2e/features/calendar_caldav_facade.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@calendar-flutter-caldav",
+      "scenario": "Flutter Calendar repository uses CalDAV and iCalendar for calendar data",
+      "feature": "e2e/features/calendar_caldav_facade.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@matrix-connect",
+      "scenario": "OIDC-provisioned member can connect to Matrix",
+      "feature": "e2e/features/chat_matrix_facade.feature",
+      "executableTest": "tools/chat_matrix_facade_acceptance_check.py",
+      "evidenceMarkers": [
+        "MATRIX_CONNECT_CONTRACT"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "client/test/features/chat/data/repositories/weave_matrix_facade_chat_repository_test.dart",
+          "fragments": [
+            "MATRIX_CONNECT_CONTRACT",
+            "connect validates the OIDC-gated Rust Matrix facade",
+            "https://api.weave.test/_matrix/client/versions"
+          ]
+        },
+        {
+          "path": "client/integration_test/live_stack_app_e2e_test.dart",
+          "fragments": [
+            "MATRIX_LIVE_HOMESERVER_RESULT",
+            "chatRepository.connect()"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@matrix-spaces-rooms",
+      "scenario": "Weave organization spaces and channels map to Matrix spaces and rooms",
+      "feature": "e2e/features/chat_matrix_facade.feature",
+      "executableTest": "tools/chat_matrix_facade_acceptance_check.py",
+      "evidenceMarkers": [
+        "MATRIX_SPACES_ROOMS_CONTRACT"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "client/test/features/chat/data/repositories/weave_matrix_facade_chat_repository_test.dart",
+          "fragments": [
+            "maps Matrix sync rooms from the Weave facade into chat entities",
+            "MATRIX_SPACES_ROOMS_CONTRACT",
+            "Hello from the Matrix facade"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@matrix-message",
+      "scenario": "Member sends and receives a Matrix message",
+      "feature": "e2e/features/chat_matrix_facade.feature",
+      "executableTest": "tools/chat_matrix_facade_acceptance_check.py",
+      "evidenceMarkers": [
+        "MATRIX_MESSAGE_CONTRACT"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "client/test/features/chat/data/repositories/weave_matrix_facade_chat_repository_test.dart",
+          "fragments": [
+            "MATRIX_MESSAGE_CONTRACT",
+            "sends through Matrix facade and reads room messages",
+            "ChatMessageDeliveryState.sent"
+          ]
+        },
+        {
+          "path": "client/integration_test/live_stack_app_e2e_test.dart",
+          "fragments": [
+            "MATRIX_LIVE_HOMESERVER_RESULT",
+            "chatRepository.sendMessage(",
+            "matchedMessages=${deliveredMessage.length}"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@matrix-e2ee-state",
+      "scenario": "E2EE and device state are surfaced support-safely",
+      "feature": "e2e/features/chat_matrix_facade.feature",
+      "executableTest": "tools/chat_matrix_facade_acceptance_check.py",
+      "evidenceMarkers": [
+        "MATRIX_E2EE_STATE_CONTRACT"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "client/test/features/chat/data/repositories/rust_matrix_core_chat_security_repository_test.dart",
+          "fragments": [
+            "MATRIX_E2EE_STATE_CONTRACT",
+            "fails E2EE state closed until the Rust bridge owns it",
+            "ChatDeviceVerificationState.unavailable",
+            "Rust Matrix core Flutter bridge"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@matrix-slack-bridge-no-leak",
+      "scenario": "Slack bridged room message does not leak Slack internals",
+      "feature": "e2e/features/chat_matrix_facade.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@matrix-teams-bridge-no-leak",
+      "scenario": "Teams bridged room message does not leak Graph internals",
+      "feature": "e2e/features/chat_matrix_facade.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@matrix-revoke",
+      "scenario": "Revoked member or device loses Matrix access",
+      "feature": "e2e/features/chat_matrix_facade.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@flutter-matrix-boundary",
+      "scenario": "Flutter Chat repository uses the Weave Matrix facade, not Slack or Teams direct clients",
+      "feature": "e2e/features/chat_matrix_facade.feature",
+      "executableTest": "tools/chat_matrix_facade_acceptance_check.py",
+      "evidenceMarkers": [
+        "FLUTTER_MATRIX_BOUNDARY_CONTRACT"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "client/test/architecture/backend_facade_contract_test.dart",
+          "fragments": [
+            "FLUTTER_MATRIX_BOUNDARY_CONTRACT",
+            "WeaveMatrixFacadeChatRepository",
+            "isNot(contains('BackendChatRepository('))",
+            "isNot(contains('matrixSessionServiceProvider'))"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@calls-create",
+      "scenario": "Member creates a Weave call",
+      "feature": "e2e/features/calls_webrtc_join_grants.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@calls-join-grant",
+      "scenario": "Member receives short-lived scoped LiveKit join grant",
+      "feature": "e2e/features/calls_webrtc_join_grants.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@calls-flutter-livekit",
+      "scenario": "Flutter joins LiveKit room using Weave join grant",
+      "feature": "e2e/features/calls_webrtc_join_grants.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@calls-media",
+      "scenario": "Participant can publish and subscribe to media",
+      "feature": "e2e/features/calls_webrtc_join_grants.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@calls-expired-grant",
+      "scenario": "Expired join grant cannot be reused",
+      "feature": "e2e/features/calls_webrtc_join_grants.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@calls-revoke-participant",
+      "scenario": "Revoked participant is removed and cannot rejoin with old grant",
+      "feature": "e2e/features/calls_webrtc_join_grants.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@calls-audit",
+      "scenario": "Call leave and end record support-safe audit",
+      "feature": "e2e/features/calls_webrtc_join_grants.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@calls-provider-error-redaction",
+      "scenario": "LiveKit provider errors are support-safe",
+      "feature": "e2e/features/calls_webrtc_join_grants.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@calls-matrix-projection",
+      "scenario": "Optional Matrix call event projection is support-safe when enabled",
+      "feature": "e2e/features/calls_webrtc_join_grants.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@mcp-files-facade",
+      "scenario": "MCP Files tools use Weave Files facade semantics",
+      "feature": "e2e/features/mcp_domain_facade_boundary.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@mcp-calendar-facade",
+      "scenario": "MCP Calendar tools use Weave Calendar facade semantics",
+      "feature": "e2e/features/mcp_domain_facade_boundary.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@mcp-chat-facade",
+      "scenario": "MCP Chat tools use Weave or Matrix-governed semantics",
+      "feature": "e2e/features/mcp_domain_facade_boundary.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@mcp-calls-facade",
+      "scenario": "MCP Calls tools use Weave call grants",
+      "feature": "e2e/features/mcp_domain_facade_boundary.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@mcp-no-provider-leakage",
+      "scenario": "MCP outputs contain no provider internals",
+      "feature": "e2e/features/mcp_domain_facade_boundary.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@member-protocol-no-leakage",
+      "scenario": "Member protocol responses do not leak provider internals",
+      "feature": "e2e/features/provider_neutral_no_leakage.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@flutter-error-no-leakage",
+      "scenario": "Flutter-visible errors do not leak provider internals",
+      "feature": "e2e/features/provider_neutral_no_leakage.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@native-setup-no-leakage",
+      "scenario": "Native setup responses do not leak provider credentials",
+      "feature": "e2e/features/provider_neutral_no_leakage.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@mcp-output-no-leakage",
+      "scenario": "MCP outputs do not leak provider internals",
+      "feature": "e2e/features/provider_neutral_no_leakage.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@support-diagnostics-redacted",
+      "scenario": "Support-safe admin diagnostics redact raw downstream payloads and secrets",
+      "feature": "e2e/features/provider_neutral_no_leakage.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@flutter-files-webdav",
+      "scenario": "Flutter Files uses WebDAV for data plane",
+      "feature": "e2e/features/flutter_protocol_boundary.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@flutter-calendar-caldav",
+      "scenario": "Flutter Calendar uses CalDAV and iCalendar for data plane",
+      "feature": "e2e/features/flutter_protocol_boundary.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@flutter-chat-matrix",
+      "scenario": "Flutter Chat uses Matrix for data plane",
+      "feature": "e2e/features/flutter_protocol_boundary.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@flutter-calls-livekit",
+      "scenario": "Flutter Calls uses Weave Calls API and LiveKit media",
+      "feature": "e2e/features/flutter_protocol_boundary.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@flutter-openapi-control-only",
+      "scenario": "Flutter uses OpenAPI only for control surfaces",
+      "feature": "e2e/features/flutter_protocol_boundary.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@native-files-webdav",
+      "scenario": "Files native setup returns Weave WebDAV endpoint and Weave device credentials only",
+      "feature": "e2e/features/native_os_integration_readiness.feature",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
+      "evidenceMarkers": [
+        "NATIVE_FILES_WEBDAV_CONTROL_PLANE"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
+          "fragments": [
+            "/dav/files",
+            "/api/files/client-setup/credentials",
+            "credentialsExposed",
+            "NATIVE_FILES_WEBDAV_CONTROL_PLANE"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@native-calendar-caldav",
+      "scenario": "Calendar native setup returns Weave CalDAV endpoint and Weave credential/profile only",
+      "feature": "e2e/features/native_os_integration_readiness.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@native-revoke",
+      "scenario": "Revoking a native credential disables OS integration access",
+      "feature": "e2e/features/native_os_integration_readiness.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@native-accessibility",
+      "scenario": "Native setup responses are screenreader-friendly and support-safe",
+      "feature": "e2e/features/native_os_integration_readiness.feature",
+      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "evidenceMarkers": [
+        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/open-standards-gateway-archive-integration.md",
+          "fragments": [
+            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
+            "not complete",
+            "Spring.ai.mcp remains blocked"
           ]
         }
       ]

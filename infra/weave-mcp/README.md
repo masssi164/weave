@@ -35,9 +35,9 @@ The Sprint 16/Sprint 32 proof tools are exposed through an explicit Python route
 
 - `admin.get_readiness` (read-only)
 - `weaver.get_runtime_profile_projection` (read-only)
-- `calendar.search_events` (read-only domain proof)
-- `calendar.create_event` (narrow write/action fixture; fails closed without `approvalReceiptRef` unless the signed runtime scope carries a revokable `alwaysAllowGrantRef` for `calendar.create_event`)
 - `boards.comment` (write/action stub; fails closed without `approvalReceiptRef`)
+
+The earlier `calendar.search_events` and `calendar.create_event` proof tools are obsolete with PR #1043 because the normal Calendar data plane moved from `/api/calendar/events/**` to the CalDAV facade under `/caldav/**`. Calendar MCP tools must return through a future CalDAV-aware contract before being re-enabled.
 
 Run tests through the infra gate:
 

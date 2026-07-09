@@ -16,6 +16,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -43,6 +44,8 @@ public class NextcloudFilesAdapter implements FilesStorageAdapter {
 
     private static final HttpMethod PROPFIND = HttpMethod.valueOf("PROPFIND");
     private static final HttpMethod MKCOL = HttpMethod.valueOf("MKCOL");
+    private static final HttpMethod COPY = HttpMethod.valueOf("COPY");
+    private static final HttpMethod MOVE = HttpMethod.valueOf("MOVE");
 
     private static final String PROPFIND_BODY = """
             <?xml version=\"1.0\" encoding=\"UTF-8\"?>
@@ -87,6 +90,11 @@ public class NextcloudFilesAdapter implements FilesStorageAdapter {
 
     @Override
     public FileListResponse list(String path) {
+        return listWithVersionTokens(path).listing();
+    }
+
+    @Override
+    public VersionedFileListResponse listWithVersionTokens(String path) {
         ensureConfigured();
         String normalizedPath = FilePathCodec.normalizeProductPath(path);
         try {
@@ -98,7 +106,7 @@ public class NextcloudFilesAdapter implements FilesStorageAdapter {
                     .body(PROPFIND_BODY)
                     .exchange((request, response) -> {
                         if (response.getStatusCode().value() == 207 || response.getStatusCode().is2xxSuccessful()) {
-                            return parseList(normalizedPath, response.getBody());
+                            return parseVersionedList(normalizedPath, response.getBody());
                         }
                         throw mapStatus(response.getStatusCode(), "list-files", normalizedPath);
                     });
@@ -222,6 +230,16 @@ public class NextcloudFilesAdapter implements FilesStorageAdapter {
     }
 
     @Override
+    public FileItemResponse copy(String sourcePath, String destinationPath, boolean overwrite) {
+        return copyOrMove(COPY, "webdav-copy", sourcePath, destinationPath, overwrite);
+    }
+
+    @Override
+    public FileItemResponse move(String sourcePath, String destinationPath, boolean overwrite) {
+        return copyOrMove(MOVE, "webdav-move", sourcePath, destinationPath, overwrite);
+    }
+
+    @Override
     public DownloadedFile download(String id) {
         ensureConfigured();
         String path = FilePathCodec.pathFromId(id);
@@ -244,6 +262,43 @@ public class NextcloudFilesAdapter implements FilesStorageAdapter {
             throw downstreamUnavailable("download-file", exception);
         } catch (RestClientException exception) {
             throw downstreamFailure("download-file", exception);
+        }
+    }
+
+    private FileItemResponse copyOrMove(
+            HttpMethod method,
+            String operation,
+            String sourcePath,
+            String destinationPath,
+            boolean overwrite) {
+        ensureConfigured();
+        String normalizedSource = FilePathCodec.normalizeProductPath(sourcePath);
+        String normalizedDestination = FilePathCodec.normalizeProductPath(destinationPath);
+        try {
+            restClient.method(method)
+                    .uri(webdavUri(normalizedSource, false))
+                    .headers(headers -> {
+                        applyActorHeaders(headers);
+                        headers.set("Destination", webdavUri(normalizedDestination, false).toString());
+                        headers.set("Overwrite", overwrite ? "T" : "F");
+                    })
+                    .exchange((request, response) -> {
+                        if (response.getStatusCode().is2xxSuccessful()) {
+                            return null;
+                        }
+                        throw mapStatus(response.getStatusCode(), operation, normalizedSource);
+                    });
+            FileItemResponse existing = list(parentPath(normalizedDestination)).items().stream()
+                    .filter(item -> FilePathCodec.normalizeProductPath(item.path()).equals(normalizedDestination))
+                    .findFirst()
+                    .orElse(null);
+            return existing == null ? fileItem(normalizedDestination, null, null, null) : existing;
+        } catch (ApiErrorException exception) {
+            throw exception;
+        } catch (ResourceAccessException exception) {
+            throw downstreamUnavailable(operation, exception);
+        } catch (RestClientException exception) {
+            throw downstreamFailure(operation, exception);
         }
     }
 
@@ -300,7 +355,7 @@ public class NextcloudFilesAdapter implements FilesStorageAdapter {
         headers.set("OCS-APIRequest", "true");
     }
 
-    private FileListResponse parseList(String listedPath, InputStream body) {
+    private VersionedFileListResponse parseVersionedList(String listedPath, InputStream body) {
         try {
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             factory.setNamespaceAware(true);
@@ -310,7 +365,9 @@ public class NextcloudFilesAdapter implements FilesStorageAdapter {
             Document document = factory.newDocumentBuilder().parse(body);
             NodeList responses = document.getElementsByTagNameNS("*", "response");
             List<FileItemResponse> items = new ArrayList<>();
+            Map<String, String> versionTokens = new LinkedHashMap<>();
             FileQuotaResponse quota = null;
+            String listedVersionToken = null;
             for (int index = 0; index < responses.getLength(); index++) {
                 Element response = (Element) responses.item(index);
                 String itemPath = productPathFromHref(firstText(childText(response, "href"), "/"));
@@ -318,8 +375,10 @@ public class NextcloudFilesAdapter implements FilesStorageAdapter {
                 if (prop == null) {
                     continue;
                 }
+                String versionToken = childText(prop, "getetag");
                 if (FilePathCodec.normalizeProductPath(itemPath).equals(listedPath)) {
                     quota = quotaFrom(prop);
+                    listedVersionToken = versionToken;
                     continue;
                 }
                 boolean folder = firstElement(prop, "collection") != null;
@@ -329,11 +388,17 @@ public class NextcloudFilesAdapter implements FilesStorageAdapter {
                 items.add(folder
                         ? folderItem(itemPath, modifiedAt)
                         : fileItem(itemPath, mimeType, size, modifiedAt));
+                if (StringUtils.hasText(versionToken)) {
+                    versionTokens.put(FilePathCodec.normalizeProductPath(itemPath), versionToken.trim());
+                }
             }
             items.sort(Comparator
                     .comparing((FileItemResponse item) -> "folder".equals(item.type()) ? 0 : 1)
                     .thenComparing(FileItemResponse::name, String.CASE_INSENSITIVE_ORDER));
-            return new FileListResponse(listedPath, List.copyOf(items), quota);
+            return new VersionedFileListResponse(
+                    new FileListResponse(listedPath, List.copyOf(items), quota),
+                    listedVersionToken,
+                    Map.copyOf(versionTokens));
         } catch (ApiErrorException exception) {
             throw exception;
         } catch (Exception exception) {
@@ -431,6 +496,12 @@ public class NextcloudFilesAdapter implements FilesStorageAdapter {
             return "/";
         }
         return normalizedPath.substring(normalizedPath.lastIndexOf('/') + 1);
+    }
+
+    private String parentPath(String path) {
+        String normalized = FilePathCodec.normalizeProductPath(path);
+        int separator = normalized.lastIndexOf('/');
+        return separator <= 0 ? "/" : normalized.substring(0, separator);
     }
 
     private Element firstElement(Element parent, String localName) {

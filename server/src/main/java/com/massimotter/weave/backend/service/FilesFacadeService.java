@@ -15,24 +15,34 @@ import com.massimotter.weave.backend.model.files.FileItemResponse;
 import com.massimotter.weave.backend.model.files.FileListResponse;
 import com.massimotter.weave.backend.model.files.FileNativeProviderOptionResponse;
 import com.massimotter.weave.backend.model.files.FileNativeProviderSetupResponse;
+import com.massimotter.weave.backend.model.files.FileSetupCredentialListResponse;
+import com.massimotter.weave.backend.model.files.FileSetupCredentialRequest;
+import com.massimotter.weave.backend.model.files.FileSetupCredentialResponse;
 import com.massimotter.weave.backend.model.files.FileUploadResponse;
 import com.massimotter.weave.backend.service.files.DownloadedFile;
 import com.massimotter.weave.backend.service.files.FilePathCodec;
 import com.massimotter.weave.backend.service.files.FilesStorageAdapter;
+import com.massimotter.weave.backend.service.files.VersionedFileListResponse;
+import com.massimotter.weave.backend.service.files.WebDavPropfindListing;
+import com.massimotter.weave.backend.service.files.WebDavPropfindResource;
+import com.massimotter.weave.backend.service.files.WebDavLockResult;
 import com.massimotter.weave.backend.service.files.WebDavMutationResult;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
@@ -53,6 +63,8 @@ public class FilesFacadeService {
     private final ContextAuthorizationProperties contextAuthorizationProperties;
     private final WorkspaceCapabilityService workspaceCapabilityService;
     private final AuditEventPublisher auditEventPublisher;
+    private final Map<String, FileSetupCredentialResponse> setupCredentials = new ConcurrentHashMap<>();
+    private final Map<String, WebDavLockState> webDavLocks = new ConcurrentHashMap<>();
 
     @Autowired
     public FilesFacadeService(
@@ -104,6 +116,33 @@ public class FilesFacadeService {
         }
     }
 
+    public WebDavPropfindListing webDavPropfind(String path) {
+        String operation = "webdav-propfind";
+        requireContextPermission(ContextPermission.VIEW, operation);
+        String normalizedPath = FilePathCodec.normalizeProductPath(path);
+        try {
+            VersionedFileListResponse versionedListing = configuredAdapter(operation).listWithVersionTokens(normalizedPath);
+            FileListResponse listing = versionedListing.listing();
+            FileItemResponse requested = new FileItemResponse(
+                    "files:" + normalizedPath,
+                    "/".equals(normalizedPath) ? "Files" : fileName(normalizedPath),
+                    normalizedPath,
+                    "folder",
+                    null,
+                    null,
+                    null,
+                    false);
+            return new WebDavPropfindListing(
+                    webDavResource(requested, versionedListing.requestedVersionToken()),
+                    listing.items().stream()
+                            .map(item -> webDavResource(item, versionedListing.childVersionTokens().get(item.path())))
+                            .toList(),
+                    listing.quota());
+        } catch (ApiErrorException exception) {
+            throw supportSafeStorageError(exception, operation);
+        }
+    }
+
     public FileItemResponse createFolder(CreateFolderRequest request) {
         PrincipalContext principal = requireContextPermission(ContextPermission.EDIT, "create-folder");
         throw webDavWritePolicyRequired("create-folder", principal, FilePathCodec.childPath(request.parentPath(), request.name()), null);
@@ -141,9 +180,20 @@ public class FilesFacadeService {
             String contentType,
             String ifMatch,
             String ifNoneMatch) {
+        return putWebDavFile(path, content, contentType, ifMatch, ifNoneMatch, null);
+    }
+
+    public WebDavMutationResult putWebDavFile(
+            String path,
+            byte[] content,
+            String contentType,
+            String ifMatch,
+            String ifNoneMatch,
+            String ifHeader) {
         String operation = "webdav-put";
         String normalizedPath = requireMutableWebDavPath(path, operation);
         PrincipalContext principal = requireContextPermission(ContextPermission.EDIT, operation);
+        enforceUnlocked(normalizedPath, ifHeader, operation);
         publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_ATTEMPTED, operation, principal, normalizedPath, "PUT", "attempted");
         try {
             FilesStorageAdapter adapter = configuredAdapter(operation);
@@ -166,9 +216,14 @@ public class FilesFacadeService {
     }
 
     public WebDavMutationResult createWebDavFolder(String path, String ifMatch, String ifNoneMatch) {
+        return createWebDavFolder(path, ifMatch, ifNoneMatch, null);
+    }
+
+    public WebDavMutationResult createWebDavFolder(String path, String ifMatch, String ifNoneMatch, String ifHeader) {
         String operation = "webdav-mkcol";
         String normalizedPath = requireMutableWebDavPath(path, operation);
         PrincipalContext principal = requireContextPermission(ContextPermission.EDIT, operation);
+        enforceUnlocked(normalizedPath, ifHeader, operation);
         publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_ATTEMPTED, operation, principal, normalizedPath, "MKCOL", "attempted");
         try {
             FilesStorageAdapter adapter = configuredAdapter(operation);
@@ -190,9 +245,14 @@ public class FilesFacadeService {
     }
 
     public void deleteWebDavPath(String path, String ifMatch) {
+        deleteWebDavPath(path, ifMatch, null);
+    }
+
+    public void deleteWebDavPath(String path, String ifMatch, String ifHeader) {
         String operation = "webdav-delete";
         String normalizedPath = requireMutableWebDavPath(path, operation);
         PrincipalContext principal = requireContextPermission(ContextPermission.EDIT, operation);
+        enforceUnlocked(normalizedPath, ifHeader, operation);
         publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_ATTEMPTED, operation, principal, normalizedPath, "DELETE", "attempted");
         try {
             FilesStorageAdapter adapter = configuredAdapter(operation);
@@ -210,6 +270,111 @@ public class FilesFacadeService {
         } catch (ApiErrorException exception) {
             throw supportSafeStorageError(exception, operation);
         }
+    }
+
+    public WebDavMutationResult copyWebDavPath(
+            String sourcePath,
+            String destinationPath,
+            boolean overwrite,
+            String ifMatch,
+            String ifHeader) {
+        String operation = "webdav-copy";
+        String normalizedSource = requireMutableWebDavPath(sourcePath, operation);
+        String normalizedDestination = requireMutableWebDavPath(destinationPath, operation);
+        PrincipalContext principal = requireContextPermission(ContextPermission.EDIT, operation);
+        enforceUnlocked(normalizedDestination, ifHeader, operation);
+        publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_ATTEMPTED, operation, principal, normalizedSource, "COPY", "attempted");
+        try {
+            FilesStorageAdapter adapter = configuredAdapter(operation);
+            VersionedFileItem source = existingVersionedItem(adapter, normalizedSource, operation, false);
+            if (source == null) {
+                throw new ApiErrorException(
+                        HttpStatus.NOT_FOUND,
+                        "file-not-found",
+                        "The requested file or folder was not found.",
+                        Map.of("module", "files", "operation", operation));
+            }
+            enforcePreconditions(source, ifMatch, null, operation);
+            VersionedFileItem destination = existingVersionedItem(adapter, normalizedDestination, operation, true);
+            if (destination != null && !overwrite) {
+                throw preconditionFailed(operation, "Overwrite is false and the destination already exists.");
+            }
+            FileItemResponse copied = adapter.copy(normalizedSource, normalizedDestination, overwrite);
+            VersionedFileItem updated = firstNonNull(
+                    existingVersionedItem(adapter, normalizedDestination, operation, false),
+                    versioned(copied, null));
+            publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_COMPLETED, operation, principal, normalizedDestination, "COPY", "completed");
+            return new WebDavMutationResult(updated.item(), etag(updated), destination == null);
+        } catch (ApiErrorException exception) {
+            throw supportSafeStorageError(exception, operation);
+        } catch (UnsupportedOperationException exception) {
+            throw unsupportedWebDavMutation(operation, "COPY");
+        }
+    }
+
+    public WebDavMutationResult moveWebDavPath(
+            String sourcePath,
+            String destinationPath,
+            boolean overwrite,
+            String ifMatch,
+            String ifHeader) {
+        String operation = "webdav-move";
+        String normalizedSource = requireMutableWebDavPath(sourcePath, operation);
+        String normalizedDestination = requireMutableWebDavPath(destinationPath, operation);
+        PrincipalContext principal = requireContextPermission(ContextPermission.EDIT, operation);
+        enforceUnlocked(normalizedSource, ifHeader, operation);
+        enforceUnlocked(normalizedDestination, ifHeader, operation);
+        publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_ATTEMPTED, operation, principal, normalizedSource, "MOVE", "attempted");
+        try {
+            FilesStorageAdapter adapter = configuredAdapter(operation);
+            VersionedFileItem source = existingVersionedItem(adapter, normalizedSource, operation, false);
+            if (source == null) {
+                throw new ApiErrorException(
+                        HttpStatus.NOT_FOUND,
+                        "file-not-found",
+                        "The requested file or folder was not found.",
+                        Map.of("module", "files", "operation", operation));
+            }
+            enforcePreconditions(source, ifMatch, null, operation);
+            VersionedFileItem destination = existingVersionedItem(adapter, normalizedDestination, operation, true);
+            if (destination != null && !overwrite) {
+                throw preconditionFailed(operation, "Overwrite is false and the destination already exists.");
+            }
+            FileItemResponse moved = adapter.move(normalizedSource, normalizedDestination, overwrite);
+            VersionedFileItem updated = firstNonNull(
+                    existingVersionedItem(adapter, normalizedDestination, operation, false),
+                    versioned(moved, null));
+            webDavLocks.remove(normalizedSource);
+            publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_COMPLETED, operation, principal, normalizedDestination, "MOVE", "completed");
+            return new WebDavMutationResult(updated.item(), etag(updated), destination == null);
+        } catch (ApiErrorException exception) {
+            throw supportSafeStorageError(exception, operation);
+        } catch (UnsupportedOperationException exception) {
+            throw unsupportedWebDavMutation(operation, "MOVE");
+        }
+    }
+
+    public WebDavLockResult lockWebDavPath(String path, String ifHeader) {
+        String operation = "webdav-lock";
+        String normalizedPath = requireMutableWebDavPath(path, operation);
+        PrincipalContext principal = requireContextPermission(ContextPermission.EDIT, operation);
+        enforceUnlocked(normalizedPath, ifHeader, operation);
+        String token = "opaquelocktoken:" + UUID.randomUUID();
+        webDavLocks.put(normalizedPath, new WebDavLockState(normalizedPath, token, principal.principalRef(), Instant.now().plusSeconds(3600)));
+        publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_COMPLETED, operation, principal, normalizedPath, "LOCK", "completed");
+        return new WebDavLockResult(normalizedPath, token, 3600);
+    }
+
+    public void unlockWebDavPath(String path, String lockTokenHeader) {
+        String operation = "webdav-unlock";
+        String normalizedPath = requireMutableWebDavPath(path, operation);
+        PrincipalContext principal = requireContextPermission(ContextPermission.EDIT, operation);
+        WebDavLockState state = webDavLocks.get(normalizedPath);
+        if (state == null || !lockTokenMatches(state, lockTokenHeader)) {
+            throw locked(operation, normalizedPath);
+        }
+        webDavLocks.remove(normalizedPath);
+        publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_COMPLETED, operation, principal, normalizedPath, "UNLOCK", "completed");
     }
 
     public String etagFor(String path) {
@@ -238,6 +403,7 @@ public class FilesFacadeService {
                 false,
                 false,
                 "/dav/files",
+                "/api/files/client-setup/credentials",
                 "/dav/files/{path}",
                 "/dav/files/{path}",
                 "/dav/files/{path}",
@@ -278,12 +444,84 @@ public class FilesFacadeService {
                         "DELETE /dav/files/{path}",
                         "MKCOL /dav/files/{path}",
                         "MCP files.search/files.read via WebDAV-backed Weave Files facade/projection",
-                        "OpenAPI /api/files/readiness and native-provider-setup for discovery/status/revoke control plane",
+                        "OpenAPI /api/files/readiness, native-provider-setup, and client-setup/credentials for discovery/status/revoke control plane",
                         "WebDAV writes use Weave ETag preconditions, support-safe conflict/storage errors, and mutation audit"),
                 List.of(
                         "native-extension-implementation",
-                        "per-device-token-revocation",
+                        "device-credential-authenticator",
                         "physical-device-provider-proof"));
+    }
+
+    public FileSetupCredentialListResponse setupCredentials() {
+        PrincipalContext principal = requireContextPermission(ContextPermission.VIEW, "list-file-setup-credentials");
+        return new FileSetupCredentialListResponse(setupCredentials.values().stream()
+                .filter(credential -> principal.principalRef().equals(credential.principalRef()))
+                .sorted(Comparator.comparing(FileSetupCredentialResponse::issuedAt))
+                .toList());
+    }
+
+    public FileSetupCredentialResponse createSetupCredential(FileSetupCredentialRequest request) {
+        PrincipalContext principal = requireContextPermission(ContextPermission.EDIT, "create-file-setup-credential");
+        OffsetDateTime issuedAt = OffsetDateTime.now(ZoneOffset.UTC);
+        String id = "files_device_" + UUID.randomUUID();
+        FileSetupCredentialResponse credential = new FileSetupCredentialResponse(
+                id,
+                "active-no-secret-issued",
+                principal.principalRef(),
+                defaultIfBlank(request.clientType(), "webdav"),
+                defaultIfBlank(request.label(), "Files WebDAV client setup"),
+                issuedAt,
+                issuedAt.plusHours(24),
+                null,
+                false,
+                "/dav/files",
+                List.of("DELETE /api/files/client-setup/credentials/" + id));
+        setupCredentials.put(id, credential);
+        publishCredentialAudit(AuditAction.FILES_DEVICE_CREDENTIAL_ISSUED, principal, id, "issued");
+        return credential;
+    }
+
+    public FileSetupCredentialResponse requireActiveSetupCredential(String credentialId) {
+        PrincipalContext principal = requireContextPermission(ContextPermission.VIEW, "verify-file-setup-credential");
+        FileSetupCredentialResponse credential = setupCredentials.get(credentialId);
+        if (credential == null || !principal.principalRef().equals(credential.principalRef())) {
+            throw setupCredentialNotFound("verify-file-setup-credential");
+        }
+        if (!"active-no-secret-issued".equals(credential.state()) || credential.revokedAt() != null) {
+            throw new ApiErrorException(
+                    HttpStatus.UNAUTHORIZED,
+                    "files-setup-credential-revoked",
+                    "Files setup credential is revoked or inactive.",
+                    Map.of(
+                            "module", "files",
+                            "operation", "verify-file-setup-credential",
+                            "webDavFacadePath", "/dav/files",
+                            "diagnosticsRedacted", true));
+        }
+        return credential;
+    }
+
+    public FileSetupCredentialResponse revokeSetupCredential(String credentialId) {
+        PrincipalContext principal = requireContextPermission(ContextPermission.EDIT, "revoke-file-setup-credential");
+        FileSetupCredentialResponse current = setupCredentials.get(credentialId);
+        if (current == null || !principal.principalRef().equals(current.principalRef())) {
+            throw setupCredentialNotFound("revoke-file-setup-credential");
+        }
+        FileSetupCredentialResponse revoked = new FileSetupCredentialResponse(
+                current.credentialId(),
+                "revoked",
+                current.principalRef(),
+                current.clientType(),
+                current.label(),
+                current.issuedAt(),
+                current.expiresAt(),
+                OffsetDateTime.now(ZoneOffset.UTC),
+                false,
+                current.webDavBasePath(),
+                List.of());
+        setupCredentials.put(credentialId, revoked);
+        publishCredentialAudit(AuditAction.FILES_DEVICE_CREDENTIAL_REVOKED, principal, credentialId, "revoked");
+        return revoked;
     }
 
     private PrincipalContext requireContextPermission(ContextPermission permission, String operation) {
@@ -377,6 +615,9 @@ public class FilesFacadeService {
     private record PrincipalContext(String tenantId, String principalRef) {
     }
 
+    private record WebDavLockState(String path, String token, String principalRef, Instant expiresAt) {
+    }
+
     private FilesStorageAdapter configuredAdapter(String operation) {
         if (filesStorageAdapter == null || !filesStorageAdapter.isConfigured()) {
             throw adapterNotConfigured(operation);
@@ -390,6 +631,50 @@ public class FilesFacadeService {
                 "files-storage-not-configured",
                 "Files facade is available, but file storage is not configured yet.",
                 Map.of("module", "files", "operation", operation));
+    }
+
+    private void enforceUnlocked(String path, String ifHeader, String operation) {
+        String normalizedPath = FilePathCodec.normalizeProductPath(path);
+        Instant now = Instant.now();
+        webDavLocks.entrySet().removeIf(entry -> entry.getValue().expiresAt().isBefore(now));
+        WebDavLockState matchingLock = webDavLocks.values().stream()
+                .filter(lock -> lockApplies(lock.path(), normalizedPath))
+                .findFirst()
+                .orElse(null);
+        if (matchingLock == null || lockTokenMatches(matchingLock, ifHeader)) {
+            return;
+        }
+        throw locked(operation, normalizedPath);
+    }
+
+    private boolean lockApplies(String lockedPath, String requestPath) {
+        String locked = FilePathCodec.normalizeProductPath(lockedPath);
+        String request = FilePathCodec.normalizeProductPath(requestPath);
+        return request.equals(locked)
+                || request.startsWith(locked.endsWith("/") ? locked : locked + "/")
+                || locked.startsWith(request.endsWith("/") ? request : request + "/");
+    }
+
+    private boolean lockTokenMatches(WebDavLockState state, String headerValue) {
+        if (state == null || headerValue == null || headerValue.isBlank()) {
+            return false;
+        }
+        String normalizedHeader = headerValue.replace("<", "").replace(">", "");
+        return normalizedHeader.contains(state.token());
+    }
+
+    private ApiErrorException locked(String operation, String path) {
+        return new ApiErrorException(
+                HttpStatus.LOCKED,
+                "files-locked",
+                "The file operation conflicts with an active WebDAV lock.",
+                Map.of(
+                        "module", "files",
+                        "operation", operation,
+                        "path", FilePathCodec.normalizeProductPath(path),
+                        "webDavFacadePath", "/dav/files",
+                        "openApiDataPlaneUsed", false,
+                        "diagnosticsRedacted", true));
     }
 
     private ApiErrorException webDavWritePolicyRequired(
@@ -409,6 +694,41 @@ public class FilesFacadeService {
                         "writePolicyIssue", "#1007",
                         "openApiDataPlaneUsed", false,
                         "diagnosticsRedacted", true));
+    }
+
+    private ApiErrorException setupCredentialNotFound(String operation) {
+        return new ApiErrorException(
+                HttpStatus.NOT_FOUND,
+                "files-setup-credential-not-found",
+                "Files setup credential was not found.",
+                Map.of("module", "files", "operation", operation, "diagnosticsRedacted", true));
+    }
+
+    private String defaultIfBlank(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value.trim();
+    }
+
+    private void publishCredentialAudit(
+            AuditAction action,
+            PrincipalContext principal,
+            String credentialId,
+            String result) {
+        auditEventPublisher.publish(new AuditEvent(
+                principal.tenantId(),
+                DEFAULT_CONTEXT_ID,
+                principal.principalRef(),
+                "files:device-credential",
+                action,
+                Instant.now(),
+                "files-device-credential:" + UUID.randomUUID(),
+                AuditRedactionLevel.SUPPORT_SAFE,
+                Map.of(
+                        "domain", "files",
+                        "credentialId", credentialId,
+                        "result", result,
+                        "webDavFacadePath", "/dav/files",
+                        "secretMaterialReturned", false,
+                        "supportSafe", true)));
     }
 
     private void publishBlockedWriteAudit(
@@ -435,6 +755,19 @@ public class FilesFacadeService {
                         "webDavFacadePath", "/dav/files",
                         "openApiDataPlaneUsed", false,
                         "supportSafe", true)));
+    }
+
+    private ApiErrorException unsupportedWebDavMutation(String operation, String method) {
+        return new ApiErrorException(
+                HttpStatus.NOT_IMPLEMENTED,
+                "webdav-method-not-implemented",
+                "Weave Files WebDAV does not implement " + method + " for the configured storage adapter.",
+                Map.of(
+                        "module", "files",
+                        "operation", operation,
+                        "webDavFacadePath", "/dav/files",
+                        "openApiDataPlaneUsed", false,
+                        "diagnosticsRedacted", true));
     }
 
     private void publishWriteAudit(
@@ -584,6 +917,10 @@ public class FilesFacadeService {
         return etag(versionedItem.item(), versionedItem.versionToken());
     }
 
+    private WebDavPropfindResource webDavResource(FileItemResponse item, String versionToken) {
+        return new WebDavPropfindResource(item, etag(item, versionToken));
+    }
+
     private String etag(FileItemResponse item, String versionToken) {
         String material = String.join("|",
                 FilePathCodec.normalizeProductPath(item.path()),
@@ -669,6 +1006,7 @@ public class FilesFacadeService {
             case "files-permission-denied" -> "You do not have permission to access this file or folder.";
             case "file-not-found" -> "The requested file or folder was not found.";
             case "file-conflict" -> "The file operation conflicts with the current storage state.";
+            case "files-locked" -> "The file operation conflicts with an active WebDAV lock.";
             case "files-quota-exceeded" -> "There is not enough storage available for this file operation.";
             default -> "The files request could not be completed.";
         };

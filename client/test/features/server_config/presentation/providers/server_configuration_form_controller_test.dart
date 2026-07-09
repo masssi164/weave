@@ -25,9 +25,9 @@ void main() {
 
         final state = container.read(serverConfigurationFormControllerProvider);
 
-        expect(state.derivedMatrixHomeserverUrl, 'https://matrix.example.com');
+        expect(state.derivedMatrixHomeserverUrl, 'https://api.example.com');
         expect(state.derivedNextcloudBaseUrl, 'https://files.example.com');
-        expect(state.matrixHomeserverUrl, 'https://matrix.example.com');
+        expect(state.matrixHomeserverUrl, 'https://api.example.com');
         expect(state.nextcloudBaseUrl, 'https://files.example.com');
         expect(state.matrixError, isNull);
         expect(state.nextcloudError, isNull);

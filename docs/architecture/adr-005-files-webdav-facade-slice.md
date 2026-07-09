@@ -1,6 +1,6 @@
 # ADR-005: Files WebDAV facade slice
 
-Status: accepted for the first Files data-plane transition slice; write policy is blocked by #1007
+Status: accepted for the first Files data-plane transition slice; WebDAV write MVP promoted by #1007
 
 ## Context
 
@@ -120,14 +120,11 @@ revocation, audit, expiry, and policy UI are implemented.
 ## Decision 4: write semantics
 
 Issue #1007 promotes the first WebDAV write MVP for `PUT`, `DELETE`, and
-`MKCOL` on `/dav/files`. The Files facade owns ETag generation,
+`MKCOL` on `/dav/files`. PR #1043 extends that normal member data plane with
+`MOVE`, `COPY`, `LOCK`, and `UNLOCK`. The Files facade owns ETag generation,
 `If-Match`/`If-None-Match` preconditions, support-safe conflict/precondition/
-forbidden/quota/storage errors, and attempted/completed mutation audit before
-provider adapters are invoked.
-
-`MOVE`, `COPY`, `LOCK`, and `UNLOCK` remain disabled until a focused protocol
-slice records and tests their conflict, lock, retry/idempotency, revocation,
-and no-unaccounted-data-loss behavior.
+forbidden/quota/storage errors, lock conflict handling, and attempted/completed
+mutation audit before provider adapters are invoked.
 
 ## Consequences
 
@@ -136,9 +133,9 @@ and no-unaccounted-data-loss behavior.
 - `/api/files/**`, organization manifest discovery, readiness, revoke/setup
   flows, generated models, and MCP allowlists remain OpenAPI control-plane
   surfaces; they are not the Files list/read/write data plane.
-- Flutter Files lists/reads through Weave WebDAV and fails closed for mutations
-  until the planned Flutter Files write cutover uses the `/dav/files` write
-  path.
+- Flutter Files lists, reads, uploads, creates folders, and deletes through
+  Weave WebDAV. Native OS File Provider/DocumentsProvider integrations remain
+  separate setup/proof work.
 - MCP Files tools remain semantic Weave Files tools routed through the
   WebDAV-backed facade/projection where they touch file data-plane semantics.
   Raw provider APIs and unrestricted WebDAV operations are not a public MCP

@@ -1,22 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import hashlib
-import json
-from threading import Lock
 from typing import Any
-from urllib.parse import urlencode
-from urllib.request import Request, urlopen
 
 from .schemas.common import RuntimeContext, ToolResult
-
-_CREATED_EVENTS: dict[str, dict[str, Any]] = {}
-_CREATED_EVENTS_LOCK = Lock()
-
-
-def _stable_ref_fragment(value: Any) -> str:
-    payload = json.dumps(value, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
-    return hashlib.sha256(payload).hexdigest()[:16]
 
 
 @dataclass(frozen=True)
@@ -57,8 +44,6 @@ class WeaveBackendClient:
                         "discoverableTools": [
                             "admin.get_readiness",
                             "weaver.get_runtime_profile_projection",
-                            "calendar.search_events",
-                            "calendar.create_event",
                             "boards.comment",
                         ],
                         "rawEndpointExposed": False,
@@ -68,104 +53,6 @@ class WeaveBackendClient:
                 "supportSafe": True,
             },
             "audit://mcp/runtime-profile-projection/support-safe",
-        )
-
-    def calendar_search_events(self, ctx: RuntimeContext, query: dict[str, Any]) -> ToolResult:
-        requested_ref = str(query.get("eventRef", "")).strip()
-        params = {
-            key: value
-            for key, value in {
-                "from": query.get("from"),
-                "to": query.get("to"),
-                "scopeType": query.get("scopeType"),
-                "teamId": query.get("teamId"),
-                "channelId": query.get("channelId"),
-            }.items()
-            if isinstance(value, str) and value.strip()
-        }
-        path = "/calendar/events"
-        url = self.backend_base_url.rstrip("/") + path + (("?" + urlencode(params)) if params else "")
-        request = Request(
-            url,
-            headers={
-                "Accept": "application/json",
-                "Authorization": "Bearer " + ctx.runtime_token,
-                "X-Weave-Org-Id": ctx.org_id,
-                "X-Weave-User-Ref": ctx.user_ref,
-                "X-Weave-Runtime-Profile": ctx.runtime_profile_hash,
-            },
-        )
-        backend_available = True
-        items: list[dict[str, Any]] = []
-        try:
-            with urlopen(request, timeout=5) as response:
-                body = json.loads(response.read().decode("utf-8") or "{}")
-        except Exception:
-            backend_available = False
-            body = {}
-
-        raw_items = body.get("items") if isinstance(body, dict) else []
-        for item in raw_items if isinstance(raw_items, list) else []:
-            if not isinstance(item, dict):
-                continue
-            items.append(
-                {
-                    "eventRef": "calendar-event://redacted/" + _stable_ref_fragment(str(item.get("id", "unknown"))),
-                    "titlePresent": bool(item.get("title")),
-                    "startsAt": item.get("startsAt"),
-                    "endsAt": item.get("endsAt"),
-                    "allDay": bool(item.get("allDay")),
-                    "scope": item.get("scope"),
-                }
-            )
-
-        with _CREATED_EVENTS_LOCK:
-            fixture_items = [
-                event
-                for ref, event in sorted(_CREATED_EVENTS.items())
-                if (not requested_ref or ref == requested_ref)
-                and event.get("orgId") == ctx.org_id
-                and event.get("createdBy") == ctx.user_ref
-            ]
-        items.extend(fixture_items)
-        result = {
-            "queryRef": "query://calendar/support-safe/" + _stable_ref_fragment(query),
-            "items": items,
-            "redactedItems": True,
-            "providerSourceMappedByBackend": backend_available,
-            "readbackVerified": bool(requested_ref and fixture_items),
-        }
-        if not backend_available:
-            result["status"] = "backend-calendar-facade-unavailable"
-        return ToolResult(result, "audit://mcp/calendar-search/support-safe" if backend_available else "audit://mcp/calendar-search/backend-unavailable/support-safe")
-
-    def calendar_create_event(self, ctx: RuntimeContext, query: dict[str, Any]) -> ToolResult:
-        title = str(query.get("title", "Test event")).strip() or "Test event"
-        starts_at = str(query.get("startsAt", "")).strip()
-        event_ref = "calendar-event://fixture/" + _stable_ref_fragment([ctx.org_id, ctx.user_ref, title, starts_at])
-        event = {
-            "eventRef": event_ref,
-            "title": title,
-            "startsAt": starts_at,
-            "orgId": ctx.org_id,
-            "createdBy": ctx.user_ref,
-            "calendarRef": "calendar://fixture/weave-governed-tool-proof",
-            "providerMutationPerformedByMcp": False,
-            "stateChangeFixtureOnly": True,
-        }
-        with _CREATED_EVENTS_LOCK:
-            _CREATED_EVENTS[event_ref] = event
-        readback = self.calendar_search_events(ctx, {"eventRef": event_ref}).support_safe()
-        return ToolResult(
-            {
-                "decision": "created-test-fixture-event",
-                "eventRef": event_ref,
-                "approvalRef": str(query.get("approvalRef", "")),
-                "readbackVerified": readback.get("readbackVerified") is True,
-                "finalChatAnswer": f"Ich habe das Testereignis um {starts_at} angelegt. Audit: audit://mcp/calendar-create/support-safe",
-                "providerMutationPerformedByMcp": False,
-            },
-            "audit://mcp/calendar-create/support-safe",
         )
 
     def boards_comment(self, ctx: RuntimeContext, query: dict[str, Any]) -> ToolResult:

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -20,8 +21,8 @@ import 'package:xml/xml.dart';
 /// Flutter owns the product UI and calls `weave-backend` only. The backend owns
 /// all direct provider access. File list/read data-plane operations use the
 /// Weave WebDAV projection; OpenAPI remains the control plane for discovery,
-/// setup, readiness, revoke, grants, and generated models. File writes fail
-/// closed until the Flutter Files write cutover uses the WebDAV write path.
+/// setup, readiness, revoke, grants, and generated models. File writes use the
+/// same Weave WebDAV projection with fail-closed precondition handling.
 class BackendFilesRepository
     implements
         FilesRepository,
@@ -99,8 +100,35 @@ class BackendFilesRepository
     FileUploadRequest request, {
     FileUploadProgressCallback? onProgress,
   }) async {
-    await _requireContext();
-    throw _webDavWritesBlocked();
+    final context = await _requireContext();
+    final uploadPath = _childPath(directoryPath, request.fileName);
+    final response = await _sendAuthenticated(
+      context,
+      (accessToken) async {
+        final httpRequest =
+            http.StreamedRequest('PUT', _davUri(context.baseUrl, uploadPath))
+              ..headers.addAll({
+                ..._webdavHeaders(accessToken),
+                'Content-Type': 'application/octet-stream',
+                'If-None-Match': '*',
+              })
+              ..contentLength = request.sizeInBytes;
+        final responseFuture = _httpClient.send(httpRequest);
+        var uploaded = 0;
+        try {
+          await for (final chunk in request.byteStream) {
+            uploaded += chunk.length;
+            httpRequest.sink.add(chunk);
+            onProgress?.call(uploaded, request.sizeInBytes);
+          }
+        } finally {
+          unawaited(httpRequest.sink.close());
+        }
+        return http.Response.fromStream(await responseFuture);
+      },
+      fallbackMessage: 'Unable to upload the file through the Weave backend.',
+    );
+    _ensureSuccess(response, successCodes: const {201, 204});
   }
 
   @override
@@ -108,8 +136,29 @@ class BackendFilesRepository
     required String parentPath,
     required String name,
   }) async {
-    await _requireContext();
-    throw _webDavWritesBlocked();
+    final context = await _requireContext();
+    final folderPath = _childPath(parentPath, name);
+    final response = await _sendAuthenticated(
+      context,
+      (accessToken) async {
+        final request =
+            http.Request('MKCOL', _davUri(context.baseUrl, folderPath))
+              ..headers.addAll({
+                ..._webdavHeaders(accessToken),
+                'If-None-Match': '*',
+              });
+        return http.Response.fromStream(await _httpClient.send(request));
+      },
+      fallbackMessage: 'Unable to create the folder through the Weave backend.',
+    );
+    _ensureSuccess(response, successCodes: const {201});
+    final createdPath = _pathFromLocation(response.headers) ?? folderPath;
+    return FileEntry(
+      id: createdPath,
+      name: _fallbackNameFromPath(createdPath),
+      path: createdPath,
+      isDirectory: true,
+    );
   }
 
   @override
@@ -157,8 +206,19 @@ class BackendFilesRepository
 
   @override
   Future<void> deleteEntry(FileEntry entry) async {
-    await _requireContext();
-    throw _webDavWritesBlocked();
+    final context = await _requireContext();
+    final response = await _sendAuthenticated(
+      context,
+      (accessToken) async {
+        final request = http.Request(
+          'DELETE',
+          _davUri(context.baseUrl, entry.path),
+        )..headers.addAll({..._webdavHeaders(accessToken), 'If-Match': '*'});
+        return http.Response.fromStream(await _httpClient.send(request));
+      },
+      fallbackMessage: 'Unable to delete the file through the Weave backend.',
+    );
+    _ensureSuccess(response, successCodes: const {204});
   }
 
   Future<_BackendFilesContext> _requireContext() async {
@@ -275,7 +335,9 @@ class BackendFilesRepository
         cause: response.statusCode,
       );
     }
-    if (response.statusCode == 409) {
+    if (response.statusCode == 409 ||
+        response.statusCode == 412 ||
+        response.statusCode == 423) {
       throw FilesFailure.protocol(
         message ??
             'The file operation conflicts with the current workspace state.',
@@ -400,6 +462,29 @@ class BackendFilesRepository
     );
   }
 
+  String _childPath(String parentPath, String childName) {
+    final normalizedParent = _normalizeFilesPath(parentPath);
+    final safeName = childName.trim();
+    if (_isUnsafeChildName(safeName)) {
+      throw const FilesFailure.protocol(
+        'The file name is not valid for the Weave Files facade.',
+      );
+    }
+    if (normalizedParent == '/') {
+      return '/$safeName';
+    }
+    return '$normalizedParent/$safeName';
+  }
+
+  bool _isUnsafeChildName(String childName) {
+    return childName.isEmpty ||
+        childName == '.' ||
+        childName == '..' ||
+        childName.contains('/') ||
+        childName.contains('\\') ||
+        childName.codeUnits.any((codeUnit) => codeUnit < 0x20);
+  }
+
   String _normalizeFilesPath(String path) {
     final collapsed = path.trim().replaceAll(RegExp('/+'), '/');
     if (collapsed.isEmpty || collapsed == '/') {
@@ -422,6 +507,14 @@ class BackendFilesRepository
         ? decoded
         : decoded.substring(markerIndex + marker.length);
     return _normalizeFilesPath(suffix);
+  }
+
+  String? _pathFromLocation(Map<String, String> headers) {
+    final location = headers['location'];
+    if (location == null || location.trim().isEmpty) {
+      return null;
+    }
+    return _pathFromDavHref(location);
   }
 
   String? _firstElementText(XmlElement parent, String localName) {
@@ -485,12 +578,6 @@ class BackendFilesRepository
         .replaceAll('&quot;', '"')
         .replaceAll('&apos;', "'")
         .replaceAll('&amp;', '&');
-  }
-
-  FilesFailure _webDavWritesBlocked() {
-    return const FilesFailure.protocol(
-      'Files writes are blocked in this client until the Weave WebDAV write cutover is available.',
-    );
   }
 }
 

@@ -17,6 +17,8 @@ import com.massimotter.weave.backend.model.files.FileListResponse;
 import com.massimotter.weave.backend.model.files.FileUploadResponse;
 import com.massimotter.weave.backend.service.files.DownloadedFile;
 import com.massimotter.weave.backend.service.files.FilesStorageAdapter;
+import com.massimotter.weave.backend.service.files.VersionedFileListResponse;
+import com.massimotter.weave.backend.service.files.WebDavPropfindResource;
 import com.massimotter.weave.backend.service.files.WebDavMutationResult;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
@@ -84,6 +86,29 @@ class FilesFacadeServiceTest {
 
         assertThat(response.path()).isEqualTo("/Team");
         assertThat(response.items()).extracting(FileItemResponse::name).containsExactly("readme.md");
+    }
+
+    @Test
+    void webDavPropfindReturnsWeaveMetadataWithoutPerChildVersionLookups() {
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
+        StubAdapter adapter = new StubAdapter(true);
+        FilesFacadeService service = service(adapter);
+
+        var response = service.webDavPropfind("/Team");
+
+        assertThat(response.requested().item().path()).isEqualTo("/Team");
+        assertThat(response.requested().etag()).startsWith("\"").endsWith("\"");
+        assertThat(response.children())
+                .extracting(WebDavPropfindResource::item)
+                .extracting(FileItemResponse::path)
+                .containsExactly("/Team/readme.md");
+        assertThat(response.children())
+                .extracting(WebDavPropfindResource::etag)
+                .allSatisfy(etag -> assertThat(etag).startsWith("\"").endsWith("\""));
+        assertThat(adapter.versionTokenCalls).isZero();
+        assertThat(adapter.listWithVersionTokenCalls).isEqualTo(1);
+        assertThat(response.children().get(0).etag()).isEqualTo(service.etagFor("/Team/readme.md"));
+        assertThat(adapter.versionTokenCalls).isEqualTo(1);
     }
 
     @Test
@@ -335,6 +360,58 @@ class FilesFacadeServiceTest {
     }
 
     @Test
+    void filesWebdavDeviceCredentialLifecycleIssuesListsRevokesAndDeniesAfterRevoke() {
+        // FILES_WEBDAV_DEVICE_CREDENTIAL_LIFECYCLE
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
+        InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
+        FilesFacadeService service = service(new StubAdapter(true), audit);
+
+        var credential = service.createSetupCredential(
+                new com.massimotter.weave.backend.model.files.FileSetupCredentialRequest(
+                        "Mac Finder",
+                        "webdav"));
+
+        assertThat(credential.credentialId()).startsWith("files_device_");
+        assertThat(credential.state()).isEqualTo("active-no-secret-issued");
+        assertThat(credential.principalRef()).isEqualTo("user:user-123");
+        assertThat(credential.webDavBasePath()).isEqualTo("/dav/files");
+        assertThat(credential.secretMaterialReturned()).isFalse();
+        assertThat(credential.revocationActions())
+                .containsExactly("DELETE /api/files/client-setup/credentials/" + credential.credentialId());
+        assertThat(service.setupCredentials().credentials())
+                .extracting(com.massimotter.weave.backend.model.files.FileSetupCredentialResponse::credentialId)
+                .containsExactly(credential.credentialId());
+        assertThat(service.requireActiveSetupCredential(credential.credentialId()).state())
+                .isEqualTo("active-no-secret-issued");
+
+        var revoked = service.revokeSetupCredential(credential.credentialId());
+
+        assertThat(revoked.state()).isEqualTo("revoked");
+        assertThat(revoked.revokedAt()).isNotNull();
+        assertThat(revoked.secretMaterialReturned()).isFalse();
+        assertThatThrownBy(() -> service.requireActiveSetupCredential(credential.credentialId()))
+                .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
+                    assertThat(exception.status()).isEqualTo(HttpStatus.UNAUTHORIZED);
+                    assertThat(exception.code()).isEqualTo("files-setup-credential-revoked");
+                    assertThat(exception.details())
+                            .containsEntry("webDavFacadePath", "/dav/files")
+                            .containsEntry("diagnosticsRedacted", true);
+                    assertThat(exception.getMessage()).doesNotContain("Nextcloud", "Bearer", "app_password");
+                });
+        assertThat(audit.events())
+                .extracting(event -> event.action())
+                .containsExactly(
+                        AuditAction.FILES_DEVICE_CREDENTIAL_ISSUED,
+                        AuditAction.FILES_DEVICE_CREDENTIAL_REVOKED);
+        assertThat(audit.events()).allSatisfy(event -> assertThat(event.payload())
+                .containsEntry("domain", "files")
+                .containsEntry("webDavFacadePath", "/dav/files")
+                .containsEntry("secretMaterialReturned", "[redacted]")
+                .containsEntry("supportSafe", true)
+                .doesNotContainKeys("providerUrl", "rawProviderPayload", "bearerToken", "secretValue"));
+    }
+
+    @Test
     void configurationPropertiesBindSeededMembershipsIntoAuthorizationPort() {
         contextRunner
                 .withPropertyValues(
@@ -523,6 +600,8 @@ class FilesFacadeServiceTest {
         private String putPath;
         private String createdFolderPath;
         private String deletedPath;
+        private int listWithVersionTokenCalls;
+        private int versionTokenCalls;
 
         private StubAdapter(boolean configured) {
             this.configured = configured;
@@ -562,6 +641,20 @@ class FilesFacadeServiceTest {
         }
 
         @Override
+        public VersionedFileListResponse listWithVersionTokens(String path) {
+            listWithVersionTokenCalls++;
+            FileListResponse listing = list(path);
+            Map<String, String> childVersionTokens = new HashMap<>();
+            for (FileItemResponse item : listing.items()) {
+                byte[] content = contentByPath.get(item.path());
+                if (content != null) {
+                    childVersionTokens.put(item.path(), new String(content, StandardCharsets.UTF_8));
+                }
+            }
+            return new VersionedFileListResponse(listing, null, childVersionTokens);
+        }
+
+        @Override
         public FileItemResponse createFolder(CreateFolderRequest request) {
             createdFolderPath = request.parentPath() + "/" + request.name();
             return new FileItemResponse(
@@ -582,6 +675,7 @@ class FilesFacadeServiceTest {
 
         @Override
         public String versionToken(String path) {
+            versionTokenCalls++;
             byte[] content = contentByPath.get(path);
             return content == null ? null : new String(content, StandardCharsets.UTF_8);
         }

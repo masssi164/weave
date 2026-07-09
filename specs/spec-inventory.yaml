@@ -21,6 +21,17 @@ policies:
   - If repo reality conflicts with the pinned corpus, open either a spec-corpus change or an implementation conformance fix.
   - Deletion or migration of transitional packets must preserve any fixture/evidence value that gates still consume.
   - Weaver/OpenClaw runtime specifications live in their own repository and are dependency/runtime evidence only for Weave product work.
+  - For PR #1043 and later, repo-local text that preserves member OpenAPI/REST data-plane access for Files, Calendar events, or Chat messages is obsolete unless explicitly scoped as admin/control/evidence only.
+obsoleteLocalMeanings:
+  - scope: files
+    obsolete: OpenAPI or provider-shaped member file list/read/write data plane
+    canonicalReplacement: /dav/files/**
+  - scope: calendar
+    obsolete: /api/calendar/events/** as normal member event data plane
+    canonicalReplacement: /caldav/**
+  - scope: chat
+    obsolete: /api/chat/conversations/** as normal member message data plane
+    canonicalReplacement: /_matrix/client/**
 artifacts:
   - path: specs/0000-weave-spec-framework
     status: transitional-conformance

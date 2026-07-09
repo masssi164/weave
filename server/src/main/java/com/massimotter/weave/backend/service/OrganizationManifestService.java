@@ -231,9 +231,11 @@ public class OrganizationManifestService {
                         surface("mcp", "Governed Files MCP tools", "/api/workspace/weaver/mcp/servers/weave-domain-tools/tools", "read_allowlist_available_write_cutover_blocked",
                                 "Files MCP read/search tools route through the WebDAV-backed Weave Files facade/projection; semantic write tools remain blocked until their policy/approval/audit slice.")),
                 credentialLifecycle(
-                        "blocked_until_revocable_device_grants",
-                        List.of("/api/files/native-provider-setup"),
-                        List.of("per-device Weave file grants", "revocation evidence", "native device proof")),
+                        "revocable_device_grants_available",
+                        List.of(
+                                "/api/files/client-setup/credentials",
+                                "/api/files/native-provider-setup"),
+                        List.of("device-credential authenticator", "physical native device proof")),
                 true,
                 false);
     }
@@ -246,7 +248,7 @@ public class OrganizationManifestService {
                 List.of(
                         surface("openapi", "Weave Calendar API", "/api/calendar", "available",
                                 "Primary generated contract for Weave clients, Admin Console setup/status, and MCP route allowlists."),
-                        surface("standard-protocol", "Weave CalDAV/iCalendar projection", null, "planned_contract",
+                        surface("standard-protocol", "Weave CalDAV/iCalendar projection", "/caldav", "planned_contract",
                                 "Targets native and generic calendar clients through Weave event, policy, audit, and scope boundaries."),
                         surface("native-os", "iOS CalDAV profile and Android SyncAdapter setup", "/api/calendar/native-sync-setup", "contract_ready_implementation_blocked",
                                 "Native sync stays scoped to workspace, team, and channel calendars until revocable credentials and device proof exist."),
@@ -270,7 +272,7 @@ public class OrganizationManifestService {
                 List.of(
                         surface("openapi", "Weave Chat API", "/api/chat", "available",
                                 "Primary product API for Weave conversations, messages, membership, readiness, decisions, and governed writes."),
-                        surface("standard-protocol", "Matrix-compatible transport and federation projection", null, "governed_later",
+                        surface("standard-protocol", "Matrix-compatible transport and federation projection", "/_matrix/client", "governed_later",
                                 "Matrix may back encrypted rooms and federation, but Weave Chat remains product truth and federation stays policy-gated."),
                         surface("mcp", "Governed Chat MCP tools", null, "planned_allowlist",
                                 "MCP receives semantic Weave chat operations, consented summaries, and decision references rather than raw Matrix access.")),

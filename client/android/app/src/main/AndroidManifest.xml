@@ -41,9 +41,9 @@
             </intent-filter>
         </activity>
         <activity
-            android:name="com.linusu.flutter_web_auth_2.CallbackActivity"
+            android:name="net.openid.appauth.RedirectUriReceiverActivity"
             android:exported="true">
-            <intent-filter android:label="flutter_web_auth_2">
+            <intent-filter android:label="weave_oidc_redirect">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />

@@ -14,7 +14,7 @@ facade.
 - iOS boundary: CalDAV configuration profile semantics delivered through a Weave route.
 - Android boundary: Account/SyncAdapter plus Calendar Provider / CalendarContract semantics.
 - Flutter/native bridge role: setup, status, and revoke only.
-- Calendar proof hooks: `GET /api/calendar/scopes`, `GET /api/calendar/events`, `POST /api/calendar/client-setup/credentials`, and the fail-closed Apple profile route. A Weave CalDAV/iCalendar projection is the standards-compatible route for native Apple Calendar and external calendar clients.
+- Calendar proof hooks: `GET /api/calendar/scopes`, `OPTIONS /caldav`, `PROPFIND /caldav`, `REPORT /caldav/{scopePath}` with `calendar-query`, `calendar-multiget`, `sync-collection`, and `free-busy-query`, `GET/PUT/DELETE /caldav/{scopePath}/{eventUid}.ics`, `POST /api/calendar/client-setup/credentials`, and the fail-closed Apple profile route. The Weave CalDAV/iCalendar projection is the standards-compatible route for native Apple Calendar and external calendar clients.
 - Support-safe blocked states for the remaining work: signed profile delivery, Android SyncAdapter wiring, scoped credential secret issuance, and physical-device sync/revoke evidence.
 
 The response deliberately contains only Weave-owned API paths. It must not include provider hostnames, provider account URLs, provider credentials, bearer tokens, or raw provider diagnostics.

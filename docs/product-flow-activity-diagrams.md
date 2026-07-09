@@ -58,8 +58,8 @@ Scenario anchor: `@weave-live-matrix-e2ee`
 
 ```mermaid
 flowchart TD
-  A[User opens Weave Chat] --> B[Read Matrix homeserver from platform config]
-  B --> C[Use Matrix/MAS client auth boundary]
+  A[User opens Weave Chat] --> B[Read Weave Matrix facade from platform config]
+  B --> C[Use Weave OIDC token at the Matrix facade]
   C --> D[Load room list and selected room timeline]
   D --> E[Send and read message through Weave chat UI]
   E --> F{Room encrypted and validated?}

@@ -14,6 +14,20 @@ It gives members one place for chat, files, calendars, tasks, decisions, meeting
 
 Weaver, the AI assistance layer, follows that product order: optional, policy-bound, auditable, and disabled until an organization chooses to enable it.
 
+## Architecture At A Glance
+
+Weave is an open-standards gateway and product surface, not a branded skin over one provider. The northbound side exposes stable Weave-owned protocols and product APIs to clients. The southbound side adapts replaceable providers behind canonical Weave domains.
+
+| Domain | Northbound member data plane | Canonical Weave boundary | Current dogfood/default southbound |
+| --- | --- | --- | --- |
+| Chat | Matrix Client-Server-compatible facade under `/_matrix/client/**` | Chat conversations, rooms, messages, decisions, meeting capsules, and Weaver scout context | Matrix/Synapse-class provider adapters or bridges, with federation disabled by default for MVP |
+| Files | WebDAV facade under `/dav/files/**` | Files, folders, download/upload, copy/move, lock state, quota/conflict errors, audit | Nextcloud/WebDAV-class storage adapter |
+| Calendar | CalDAV/iCalendar facade under `/caldav/**` | Workspace, team, and channel calendars plus setup/readiness control plane | Nextcloud/CalDAV-class calendar adapter |
+| Identity | OIDC/SAML-compatible organization identity | One login, user profile, roles, policy, audit, support-safe diagnostics | Keycloak by default, adapter-friendly for Entra ID/Auth0/Authentik-style sources |
+| Boards, Calls, Weaver | Weave product/control APIs while protocol parity matures | Provider-neutral domain contracts, readiness, approvals, and audit | OpenProject/LiveKit/model-provider adapters as configured |
+
+Spring Boot is the server gatekeeper for OIDC, authorization, audit, readiness, and support-safe errors. Matrix protocol shaping targets a shared Rust/Ruma core: server integration through JNI, Flutter integration through `flutter_rust_bridge`. Flutter should consume Weave-owned facades, not raw provider SDKs or provider secrets.
+
 ## Enterprise Workflow
 
 1. **Buyer and transformation lead** align the collaboration domains that matter: identity, chat, files, calendar, boards/tasks, meetings, decisions, and governed assistance.
@@ -39,6 +53,7 @@ These checked-in visuals are support-safe proof assets for the current dogfood p
 ## What Works Today
 
 - The current frontdoor proves a provider-neutral member path with guided setup, service review, chat, files, and settings visuals backed by checked-in evidence.
+- The current implementation moves normal member data planes to northbound standards: Chat through the OIDC-gated Matrix facade, Files through WebDAV, and Calendar through CalDAV/iCalendar. Legacy REST chat messages and calendar event data-plane routes are obsolete rather than compatibility targets.
 - Weave treats admin/operator readiness as part of the product: provider categories, policy boundaries, evidence, and support-safe diagnostics belong in the control plane, not in member setup.
 - The release track already carries product-level proof for dogfood collaboration, governed assistance boundaries, portability dry-runs, operator recovery guardrails, and release-claim control.
 
@@ -63,6 +78,8 @@ Start with the [admin/operator handbook](docs/admin-operator-handbook.md), [Boot
 ## For Developers
 
 Developers should treat this repository as implementation and evidence truth, with product/domain truth pinned through the spec corpus. The shortest path in is the [developer handbook](docs/developer-handbook.md), followed by the [PR workflow](docs/gitflow-pr-workflow.md), the [operating model](docs/weave-operating-model.md), and [spec-driven development](docs/spec-driven-development.md).
+
+Before changing cross-domain contracts, read `AGENTS.md`, `specs/README.md`, and the pinned spec corpus in `../weave-specs`. Public routes, auth, topology, generated OpenAPI, protocol facades, E2E evidence, and docs must move together.
 
 ## Release Notes
 

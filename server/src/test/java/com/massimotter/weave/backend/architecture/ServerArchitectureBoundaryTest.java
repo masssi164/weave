@@ -214,7 +214,8 @@ class ServerArchitectureBoundaryTest {
                 .contains("case \"GET\" -> get(request, false)")
                 .contains("case \"PUT\" -> put(request)")
                 .contains("case \"DELETE\" -> delete(request)")
-                .contains("calendarFacadeService.readCalDavEventIcs(")
+                .contains("calendarFacadeService.listCalDavEvents(")
+                .contains("calendarFacadeService.readCalDavEvent(")
                 .contains("calendarFacadeService.putCalDavEventIcs(")
                 .contains("calendarFacadeService.deleteCalDavEventIcs(")
                 .doesNotContain("CalDavCalendarAdapter")
@@ -223,7 +224,7 @@ class ServerArchitectureBoundaryTest {
     }
 
     @Test
-    void matrixClientServerProjectionIsBoundarySkeletonNotBridgeOrRestChatDataPlane() throws IOException {
+    void matrixClientServerProjectionUsesChatFacadeNotBridgeOrRestChatDataPlane() throws IOException {
         JavaSource matrixProjection = productionSources().stream()
                 .filter(source -> source.path().endsWith(Path.of("controller", "MatrixClientServerProjectionController.java")))
                 .findFirst()
@@ -232,11 +233,40 @@ class ServerArchitectureBoundaryTest {
         assertThat(matrixProjection.text())
                 .contains("\"/_matrix/client/**\"")
                 .contains("northbound-matrix-client-server")
-                .contains("M_WEAVE_MATRIX_PROJECTION_UNAVAILABLE")
+                .contains("matrixProtocolCoreService.versions()")
+                .contains("matrixProtocolCoreService.descriptor()")
+                .contains("chatFacadeService.conversations(jwt)")
+                .contains("chatFacadeService.messages(jwt")
+                .contains("chatFacadeService.sendMessage(")
                 .doesNotContain("/api/chat/conversations")
                 .doesNotContain("BridgeAdapter")
                 .doesNotContain("providerAccessToken")
                 .doesNotContain("RestClient");
+    }
+
+    @Test
+    void matrixProtocolCoreBoundaryDefinesRustJniAndFlutterBridgeTarget() throws IOException {
+        JavaSource matrixCore = productionSources().stream()
+                .filter(source -> source.path().endsWith(Path.of("matrix", "MatrixProtocolCoreService.java")))
+                .findFirst()
+                .orElseThrow();
+        JavaSource nativeCore = productionSources().stream()
+                .filter(source -> source.path().endsWith(Path.of("matrix", "NativeMatrixCore.java")))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(matrixCore.text())
+                .contains("spring-boot-resource-server")
+                .contains("ruma-serde-serde_json-thiserror-tracing")
+                .contains("server-jni-wrapper")
+                .contains("flutter-rust-bridge")
+                .contains("northboundHomeserverDependency")
+                .contains("NativeMatrixCore.LIBRARY_NAME")
+                .doesNotContain("Synapse")
+                .doesNotContain("RestClient");
+        assertThat(nativeCore.text())
+                .contains("public static native String matrixFacadeDescriptorJson")
+                .contains("weave_matrix_core");
     }
 
     private static List<JavaSource> productionSources() throws IOException {

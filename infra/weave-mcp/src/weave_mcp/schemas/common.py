@@ -14,8 +14,6 @@ GOVERNED_MCP_TOOL_ALLOWLIST = frozenset(
     {
         "admin.get_readiness",
         "weaver.get_runtime_profile_projection",
-        "calendar.search_events",
-        "calendar.create_event",
         "boards.comment",
     }
 )

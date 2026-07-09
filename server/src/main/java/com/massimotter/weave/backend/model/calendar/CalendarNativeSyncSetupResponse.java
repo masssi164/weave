@@ -17,14 +17,14 @@ public record CalendarNativeSyncSetupResponse(
         @Schema(description = "False: this contract never returns provider credentials or bearer tokens.",
                 example = "false")
         boolean credentialsExposed,
-        @Schema(description = "Weave-owned calendar facade base path for native setup/status.", example = "/api/calendar")
+        @Schema(description = "Weave-owned calendar facade base path for CalDAV sync.", example = "/caldav")
         String facadeBasePath,
         @Schema(description = "Weave-owned setup credential lifecycle path.", example = "/api/calendar/client-setup/credentials")
         String credentialLifecyclePath,
         @Schema(description = "Weave-owned Apple profile download path. The profile itself remains unavailable until signing and scoped credentials exist.",
                 example = "/api/calendar/client-setup/apple.mobileconfig")
         String appleProfilePath,
-        @Schema(description = "Weave-owned event sync facade path template.", example = "/api/calendar/events?scopeType={scopeType}")
+        @Schema(description = "Weave-owned event sync facade path template.", example = "/caldav/{scopePath}/{eventUid}.ics")
         String eventSyncPathTemplate,
         @Schema(description = "OS-specific sync setup options.")
         List<CalendarNativeSyncOptionResponse> options,
