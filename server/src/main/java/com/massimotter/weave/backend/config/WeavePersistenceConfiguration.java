@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.audit.JdbcAuditEventPublisher;
 import com.massimotter.weave.backend.provider.JdbcProviderSelectionRepository;
 import com.massimotter.weave.backend.service.JdbcProductProfileOverrideRepository;
+import com.massimotter.weave.backend.security.device.JdbcDeviceCredentialRepository;
 import javax.sql.DataSource;
 import org.flywaydb.core.Flyway;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
@@ -22,6 +23,7 @@ public class WeavePersistenceConfiguration {
     @ConditionalOnExpression("'${weave.provider.selections.storage.mode:file}' == 'jdbc' "
             + "|| '${weave.profile.storage.mode:file}' == 'jdbc' "
             + "|| '${weave.audit.events.storage.mode:file}' == 'jdbc' "
+            + "|| '${weave.security.device-credentials.storage.mode:memory}' == 'jdbc' "
             + "|| '${weave.migration.evidence.storage.mode:file}' == 'jdbc'")
     DataSource weaveDataSource(WeavePersistenceProperties properties) {
         DriverManagerDataSource dataSource = new DriverManagerDataSource();
@@ -38,6 +40,7 @@ public class WeavePersistenceConfiguration {
     @ConditionalOnExpression("'${weave.provider.selections.storage.mode:file}' == 'jdbc' "
             + "|| '${weave.profile.storage.mode:file}' == 'jdbc' "
             + "|| '${weave.audit.events.storage.mode:file}' == 'jdbc' "
+            + "|| '${weave.security.device-credentials.storage.mode:memory}' == 'jdbc' "
             + "|| '${weave.migration.evidence.storage.mode:file}' == 'jdbc'")
     Flyway weaveFlyway(DataSource weaveDataSource) {
         return Flyway.configure()
@@ -50,6 +53,7 @@ public class WeavePersistenceConfiguration {
     @ConditionalOnExpression("'${weave.provider.selections.storage.mode:file}' == 'jdbc' "
             + "|| '${weave.profile.storage.mode:file}' == 'jdbc' "
             + "|| '${weave.audit.events.storage.mode:file}' == 'jdbc' "
+            + "|| '${weave.security.device-credentials.storage.mode:memory}' == 'jdbc' "
             + "|| '${weave.migration.evidence.storage.mode:file}' == 'jdbc'")
     JdbcTemplate weaveJdbcTemplate(DataSource weaveDataSource, Flyway weaveFlyway) {
         return new JdbcTemplate(weaveDataSource);
@@ -71,5 +75,13 @@ public class WeavePersistenceConfiguration {
     @ConditionalOnProperty(name = "weave.audit.events.storage.mode", havingValue = "jdbc")
     JdbcAuditEventPublisher jdbcAuditEventPublisher(JdbcTemplate weaveJdbcTemplate, ObjectMapper objectMapper) {
         return new JdbcAuditEventPublisher(weaveJdbcTemplate, objectMapper);
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "weave.security.device-credentials.storage.mode", havingValue = "jdbc")
+    JdbcDeviceCredentialRepository jdbcDeviceCredentialRepository(
+            JdbcTemplate weaveJdbcTemplate,
+            ObjectMapper objectMapper) {
+        return new JdbcDeviceCredentialRepository(weaveJdbcTemplate, objectMapper);
     }
 }

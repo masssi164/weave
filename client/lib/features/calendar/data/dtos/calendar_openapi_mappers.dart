@@ -31,7 +31,7 @@ extension CalendarClientSetupOpenApiMapper
           CalendarAccessModel.workspaceBlockedPrivateCalendars,
       credentialReadiness:
           credentialReadiness?.toDomain() ??
-          CalendarCredentialReadiness.blockedUntilRevocableCredentials,
+          CalendarCredentialReadiness.revocableCredentialsReady,
       options:
           options?.map((option) => option.toDomain()).toList(growable: false) ??
           const [],

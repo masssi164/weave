@@ -929,12 +929,12 @@
           },
           "revocableCredentialsAvailable": {
             "description": "Whether Weave can issue/revoke per-client CalDAV credentials.",
-            "example": false,
+            "example": true,
             "type": "boolean"
           },
           "status": {
             "description": "Stable machine-readable readiness status.",
-            "example": "blocked_until_revocable_credentials",
+            "example": "revocable_credentials_ready",
             "type": "string"
           }
         },
@@ -1152,6 +1152,17 @@
         },
         "type": "object"
       },
+      "CalendarSetupCredentialListResponse": {
+        "properties": {
+          "credentials": {
+            "items": {
+              "$ref": "#/components/schemas/CalendarSetupCredentialResponse"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "CalendarSetupCredentialRequest": {
         "properties": {
           "clientType": {
@@ -1162,6 +1173,59 @@
           "label": {
             "maxLength": 128,
             "minLength": 0,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CalendarSetupCredentialResponse": {
+        "description": "Weave-issued, revocable CalDAV client credential. Secret material is returned only at creation.",
+        "properties": {
+          "clientType": {
+            "type": "string"
+          },
+          "credentialId": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "issuedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "principalRef": {
+            "type": "string"
+          },
+          "profilePasswordEligible": {
+            "type": "boolean"
+          },
+          "revocationActions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "revokedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "secret": {
+            "description": "One-time CalDAV secret. Present only in the create response.",
+            "nullable": true,
+            "type": "string"
+          },
+          "secretMaterialReturned": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "string"
+          },
+          "username": {
             "type": "string"
           }
         },
@@ -3494,6 +3558,17 @@
         },
         "type": "object"
       },
+      "FileSetupCredentialListResponse": {
+        "properties": {
+          "credentials": {
+            "items": {
+              "$ref": "#/components/schemas/FileSetupCredentialResponse"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "FileSetupCredentialRequest": {
         "properties": {
           "clientType": {
@@ -3504,6 +3579,59 @@
           "label": {
             "maxLength": 128,
             "minLength": 0,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "FileSetupCredentialResponse": {
+        "description": "Weave-issued, revocable WebDAV client credential. Secret material is returned only at creation.",
+        "properties": {
+          "clientType": {
+            "type": "string"
+          },
+          "credentialId": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "issuedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "principalRef": {
+            "type": "string"
+          },
+          "revocationActions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "revokedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "secret": {
+            "description": "One-time WebDAV secret. Present only in the create response.",
+            "nullable": true,
+            "type": "string"
+          },
+          "secretMaterialReturned": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          },
+          "webDavBasePath": {
             "type": "string"
           }
         },
@@ -9468,6 +9596,16 @@
       "get": {
         "operationId": "setupCredentials",
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarSetupCredentialListResponse"
+                }
+              }
+            },
+            "description": "HTTP 200"
+          },
           "401": {
             "content": {
               "*/*": {
@@ -9522,6 +9660,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarSetupCredentialResponse"
+                }
+              }
+            },
+            "description": "HTTP 200"
+          },
           "401": {
             "content": {
               "*/*": {
@@ -9558,7 +9706,7 @@
             "bearer-jwt": []
           }
         ],
-        "summary": "Create a revocable calendar setup credential reference without returning secret material",
+        "summary": "Create a revocable calendar setup credential and return its secret once",
         "tags": [
           "Calendar"
         ]
@@ -9580,6 +9728,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarSetupCredentialResponse"
+                }
+              }
+            },
+            "description": "HTTP 200"
+          },
           "401": {
             "content": {
               "*/*": {
@@ -10568,6 +10726,16 @@
       "get": {
         "operationId": "getFilesSetupCredentials",
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileSetupCredentialListResponse"
+                }
+              }
+            },
+            "description": "HTTP 200"
+          },
           "401": {
             "content": {
               "*/*": {
@@ -10612,6 +10780,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileSetupCredentialResponse"
+                }
+              }
+            },
+            "description": "HTTP 200"
+          },
           "401": {
             "content": {
               "*/*": {
@@ -10638,7 +10816,7 @@
             "bearer-jwt": []
           }
         ],
-        "summary": "Create a revocable Files WebDAV setup credential reference without returning secret material",
+        "summary": "Create a revocable Files WebDAV setup credential and return its secret once",
         "tags": [
           "Files"
         ]
@@ -10660,6 +10838,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileSetupCredentialResponse"
+                }
+              }
+            },
+            "description": "HTTP 200"
+          },
           "401": {
             "content": {
               "*/*": {

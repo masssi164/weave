@@ -626,6 +626,18 @@ variable "db_admin_password" {
   sensitive   = true
 }
 
+variable "backend_db_username" {
+  description = "Weave backend PostgreSQL username."
+  type        = string
+  default     = "weave_backend"
+}
+
+variable "backend_db_password" {
+  description = "Weave backend PostgreSQL password."
+  type        = string
+  sensitive   = true
+}
+
 variable "keycloak_admin_username" {
   description = "Initial Keycloak admin username."
   type        = string

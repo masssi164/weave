@@ -314,7 +314,12 @@ public class WorkspaceCapabilityService {
                     "Authentication is required.",
                     Map.of("module", module, "operation", operation));
         }
-        if (!effectivePolicy(jwt).capabilities().contains(capability)) {
+        Set<String> grantedCapabilities = "device_credential".equals(jwt.getClaimAsString("weave_auth_method"))
+                ? Set.copyOf(jwt.getClaimAsStringList("weave_capabilities") == null
+                        ? List.of()
+                        : jwt.getClaimAsStringList("weave_capabilities"))
+                : effectivePolicy(jwt).capabilities();
+        if (!grantedCapabilities.contains(capability)) {
             throw new ApiErrorException(
                     HttpStatus.FORBIDDEN,
                     "capability-policy-blocked",

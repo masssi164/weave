@@ -90,8 +90,9 @@ public class OpenStandardsGatewayStepDefinitions {
                 .content(objectMapper.writeValueAsString(Map.of(
                         "label", "BDD WebDAV client",
                         "clientType", "webdav"))));
-        assertThat(lastJson.path("state").asText()).isEqualTo("active-no-secret-issued");
-        assertThat(lastJson.path("secretMaterialReturned").asBoolean()).isFalse();
+        assertThat(lastJson.path("state").asText()).isEqualTo("active");
+        assertThat(lastJson.path("secretMaterialReturned").asBoolean()).isTrue();
+        assertThat(lastJson.path("secret").asText()).hasSizeGreaterThanOrEqualTo(40);
         assertThat(lastJson.path("webDavBasePath").asText()).isEqualTo("/dav/files");
         filesCredentialId = lastJson.path("credentialId").asText();
         assertThat(filesCredentialId).startsWith("files_device_");

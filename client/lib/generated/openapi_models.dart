@@ -1404,6 +1404,28 @@ class CalendarScopesResponse {
   Map<String, dynamic> toJson() => {"scopes": _openApiJsonValue(scopes)};
 }
 
+class CalendarSetupCredentialListResponse {
+  const CalendarSetupCredentialListResponse({this.credentials});
+
+  factory CalendarSetupCredentialListResponse.fromJson(
+    Map<String, dynamic> json,
+  ) => CalendarSetupCredentialListResponse(
+    credentials: (json["credentials"] as List<dynamic>?)
+        ?.map(
+          (e) => CalendarSetupCredentialResponse.fromJson(
+            e as Map<String, dynamic>,
+          ),
+        )
+        .toList(),
+  );
+
+  final List<CalendarSetupCredentialResponse>? credentials;
+
+  Map<String, dynamic> toJson() => {
+    "credentials": _openApiJsonValue(credentials),
+  };
+}
+
 class CalendarSetupCredentialRequest {
   const CalendarSetupCredentialRequest({this.clientType, this.label});
 
@@ -1419,6 +1441,73 @@ class CalendarSetupCredentialRequest {
   Map<String, dynamic> toJson() => {
     "clientType": _openApiJsonValue(clientType),
     "label": _openApiJsonValue(label),
+  };
+}
+
+class CalendarSetupCredentialResponse {
+  const CalendarSetupCredentialResponse({
+    this.clientType,
+    this.credentialId,
+    this.expiresAt,
+    this.issuedAt,
+    this.label,
+    this.principalRef,
+    this.profilePasswordEligible,
+    this.revocationActions,
+    this.revokedAt,
+    this.secret,
+    this.secretMaterialReturned,
+    this.state,
+    this.username,
+  });
+
+  factory CalendarSetupCredentialResponse.fromJson(Map<String, dynamic> json) =>
+      CalendarSetupCredentialResponse(
+        clientType: json["clientType"] as String?,
+        credentialId: json["credentialId"] as String?,
+        expiresAt: json["expiresAt"] as String?,
+        issuedAt: json["issuedAt"] as String?,
+        label: json["label"] as String?,
+        principalRef: json["principalRef"] as String?,
+        profilePasswordEligible: json["profilePasswordEligible"] as bool?,
+        revocationActions: (json["revocationActions"] as List<dynamic>?)
+            ?.map((e) => e as String)
+            .toList(),
+        revokedAt: json["revokedAt"] as String?,
+        secret: json["secret"] as String?,
+        secretMaterialReturned: json["secretMaterialReturned"] as bool?,
+        state: json["state"] as String?,
+        username: json["username"] as String?,
+      );
+
+  final String? clientType;
+  final String? credentialId;
+  final String? expiresAt;
+  final String? issuedAt;
+  final String? label;
+  final String? principalRef;
+  final bool? profilePasswordEligible;
+  final List<String>? revocationActions;
+  final String? revokedAt;
+  final String? secret;
+  final bool? secretMaterialReturned;
+  final String? state;
+  final String? username;
+
+  Map<String, dynamic> toJson() => {
+    "clientType": _openApiJsonValue(clientType),
+    "credentialId": _openApiJsonValue(credentialId),
+    "expiresAt": _openApiJsonValue(expiresAt),
+    "issuedAt": _openApiJsonValue(issuedAt),
+    "label": _openApiJsonValue(label),
+    "principalRef": _openApiJsonValue(principalRef),
+    "profilePasswordEligible": _openApiJsonValue(profilePasswordEligible),
+    "revocationActions": _openApiJsonValue(revocationActions),
+    "revokedAt": _openApiJsonValue(revokedAt),
+    "secret": _openApiJsonValue(secret),
+    "secretMaterialReturned": _openApiJsonValue(secretMaterialReturned),
+    "state": _openApiJsonValue(state),
+    "username": _openApiJsonValue(username),
   };
 }
 
@@ -4187,6 +4276,27 @@ class FileNativeProviderSetupResponse {
   };
 }
 
+class FileSetupCredentialListResponse {
+  const FileSetupCredentialListResponse({this.credentials});
+
+  factory FileSetupCredentialListResponse.fromJson(Map<String, dynamic> json) =>
+      FileSetupCredentialListResponse(
+        credentials: (json["credentials"] as List<dynamic>?)
+            ?.map(
+              (e) => FileSetupCredentialResponse.fromJson(
+                e as Map<String, dynamic>,
+              ),
+            )
+            .toList(),
+      );
+
+  final List<FileSetupCredentialResponse>? credentials;
+
+  Map<String, dynamic> toJson() => {
+    "credentials": _openApiJsonValue(credentials),
+  };
+}
+
 class FileSetupCredentialRequest {
   const FileSetupCredentialRequest({this.clientType, this.label});
 
@@ -4202,6 +4312,73 @@ class FileSetupCredentialRequest {
   Map<String, dynamic> toJson() => {
     "clientType": _openApiJsonValue(clientType),
     "label": _openApiJsonValue(label),
+  };
+}
+
+class FileSetupCredentialResponse {
+  const FileSetupCredentialResponse({
+    this.clientType,
+    this.credentialId,
+    this.expiresAt,
+    this.issuedAt,
+    this.label,
+    this.principalRef,
+    this.revocationActions,
+    this.revokedAt,
+    this.secret,
+    this.secretMaterialReturned,
+    this.state,
+    this.username,
+    this.webDavBasePath,
+  });
+
+  factory FileSetupCredentialResponse.fromJson(Map<String, dynamic> json) =>
+      FileSetupCredentialResponse(
+        clientType: json["clientType"] as String?,
+        credentialId: json["credentialId"] as String?,
+        expiresAt: json["expiresAt"] as String?,
+        issuedAt: json["issuedAt"] as String?,
+        label: json["label"] as String?,
+        principalRef: json["principalRef"] as String?,
+        revocationActions: (json["revocationActions"] as List<dynamic>?)
+            ?.map((e) => e as String)
+            .toList(),
+        revokedAt: json["revokedAt"] as String?,
+        secret: json["secret"] as String?,
+        secretMaterialReturned: json["secretMaterialReturned"] as bool?,
+        state: json["state"] as String?,
+        username: json["username"] as String?,
+        webDavBasePath: json["webDavBasePath"] as String?,
+      );
+
+  final String? clientType;
+  final String? credentialId;
+  final String? expiresAt;
+  final String? issuedAt;
+  final String? label;
+  final String? principalRef;
+  final List<String>? revocationActions;
+  final String? revokedAt;
+  final String? secret;
+  final bool? secretMaterialReturned;
+  final String? state;
+  final String? username;
+  final String? webDavBasePath;
+
+  Map<String, dynamic> toJson() => {
+    "clientType": _openApiJsonValue(clientType),
+    "credentialId": _openApiJsonValue(credentialId),
+    "expiresAt": _openApiJsonValue(expiresAt),
+    "issuedAt": _openApiJsonValue(issuedAt),
+    "label": _openApiJsonValue(label),
+    "principalRef": _openApiJsonValue(principalRef),
+    "revocationActions": _openApiJsonValue(revocationActions),
+    "revokedAt": _openApiJsonValue(revokedAt),
+    "secret": _openApiJsonValue(secret),
+    "secretMaterialReturned": _openApiJsonValue(secretMaterialReturned),
+    "state": _openApiJsonValue(state),
+    "username": _openApiJsonValue(username),
+    "webDavBasePath": _openApiJsonValue(webDavBasePath),
   };
 }
 

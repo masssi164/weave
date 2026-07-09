@@ -235,7 +235,7 @@ public class OrganizationManifestService {
                         List.of(
                                 "/api/files/client-setup/credentials",
                                 "/api/files/native-provider-setup"),
-                        List.of("device-credential authenticator", "physical native device proof")),
+                        List.of("physical native device proof")),
                 true,
                 false);
     }
@@ -248,18 +248,18 @@ public class OrganizationManifestService {
                 List.of(
                         surface("openapi", "Weave Calendar API", "/api/calendar", "available",
                                 "Primary generated contract for Weave clients, Admin Console setup/status, and MCP route allowlists."),
-                        surface("standard-protocol", "Weave CalDAV/iCalendar projection", "/caldav", "planned_contract",
-                                "Targets native and generic calendar clients through Weave event, policy, audit, and scope boundaries."),
+                        surface("standard-protocol", "Weave CalDAV/iCalendar projection", "/caldav", "data_plane_read_write_available",
+                                "Discovery, query, multiget, sync, free-busy, event reads/writes, recurrence, and scoped device credentials run through Weave policy and canonical events."),
                         surface("native-os", "iOS CalDAV profile and Android SyncAdapter setup", "/api/calendar/native-sync-setup", "contract_ready_implementation_blocked",
-                                "Native sync stays scoped to workspace, team, and channel calendars until revocable credentials and device proof exist."),
+                                "Native sync stays scoped to workspace, team, and channel calendars until platform integration and physical-device proof exist."),
                         surface("mcp", "Governed Calendar MCP tools", null, "planned_allowlist",
                                 "MCP consumes semantic Weave event capabilities and audit receipts, not raw CalDAV credentials.")),
                 credentialLifecycle(
-                        "blocked_until_revocable_credentials",
+                        "revocable_device_grants_available",
                         List.of(
                                 "/api/calendar/client-setup/credentials",
                                 "/api/calendar/client-setup/apple.mobileconfig"),
-                        List.of("scoped revocable CalDAV credentials", "signed profile delivery", "native sync and revoke evidence")),
+                        List.of("signed profile delivery", "native sync physical-device evidence")),
                 true,
                 false);
     }

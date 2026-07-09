@@ -48,6 +48,11 @@ weave:
     required-audience: ${WEAVE_OIDC_REQUIRED_AUDIENCE:weave-app}
     # JWT azp and/or client_id must identify the first-party Weave app client.
     client-id: ${WEAVE_CLIENT_ID:weave-app}
+    device-credentials:
+      # Memory is reserved for local development and isolated tests. The shipped
+      # infrastructure selects JDBC so DAV credentials remain revocable after restart.
+      storage:
+        mode: ${WEAVE_DEVICE_CREDENTIAL_STORAGE_MODE:memory}
   nextcloud:
     files:
       base-url: ${WEAVE_NEXTCLOUD_BASE_URL:https://files.weave.test}

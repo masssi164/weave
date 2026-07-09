@@ -127,6 +127,13 @@ locals {
   nextcloud_internal_base_url = "http://${local.service_names.nextcloud}"
 
   service_databases = {
+    backend = {
+      database_name        = "${var.db_name}_backend"
+      username             = var.backend_db_username
+      escaped_password     = replace(var.backend_db_password, "'", "''")
+      create_statement_sql = "format('CREATE DATABASE %I OWNER %I', '${var.db_name}_backend', '${var.backend_db_username}')"
+      bootstrap_sql        = ""
+    }
     keycloak = {
       database_name        = "${var.db_name}_keycloak"
       username             = var.keycloak_db_username
@@ -550,12 +557,16 @@ module "backend" {
   provider_selections_source                       = local_sensitive_file.generated["provider_selections"].filename
   provider_selections_source_hash                  = sha256(local.generated_files["provider_selections"].content)
   provider_selections_storage_path                 = "/app/provider-selections.json"
+  persistence_jdbc_url                             = "jdbc:postgresql://${module.postgres.container_name}:5432/${local.service_databases.backend.database_name}"
+  persistence_jdbc_username                        = var.backend_db_username
+  persistence_jdbc_password                        = var.backend_db_password
+  device_credential_storage_mode                   = "jdbc"
   oidc_issuer_uri                                  = local.keycloak_issuer_url
   oidc_jwk_set_uri                                 = local.keycloak_jwk_set_uri
   oidc_required_audience                           = local.weave_backend_audience
   client_id                                        = local.weave_app_client_id
   healthcheck_path                                 = "/api/health/ready"
-  depends_on                                       = [terraform_data.network_ready, module.keycloak, local_sensitive_file.generated]
+  depends_on                                       = [terraform_data.network_ready, terraform_data.postgres_bootstrap, module.keycloak, local_sensitive_file.generated]
 }
 
 module "matrix" {

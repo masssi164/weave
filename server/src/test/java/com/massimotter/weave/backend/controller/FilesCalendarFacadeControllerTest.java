@@ -31,6 +31,10 @@ import com.massimotter.weave.backend.service.CallsFacadeService;
 import com.massimotter.weave.backend.service.FilesFacadeService;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.service.calendar.CalendarAdapterException;
+import com.massimotter.weave.backend.security.device.DeviceCredentialAuthenticationFilter;
+import com.massimotter.weave.backend.security.device.DeviceCredentialRepository;
+import com.massimotter.weave.backend.security.device.DeviceCredentialService;
+import com.massimotter.weave.backend.security.device.InMemoryDeviceCredentialRepository;
 import com.jayway.jsonpath.JsonPath;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -47,6 +51,8 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Bean;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -64,6 +70,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
@@ -72,7 +79,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(
-        controllers = {FilesController.class, CalendarController.class, CalDavCalendarController.class, CallsController.class},
+        controllers = {
+                FilesController.class,
+                FilesWebDavController.class,
+                CalendarController.class,
+                CalDavCalendarController.class,
+                CallsController.class},
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
 @Import({
         SecurityConfig.class,
@@ -80,6 +92,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         ApiAccessDeniedHandler.class,
         ApiErrorResponseWriter.class,
         ApiExceptionHandler.class,
+        DeviceCredentialAuthenticationFilter.class,
+        FilesCalendarFacadeControllerTest.DeviceCredentialTestConfiguration.class,
         FilesFacadeService.class,
         CalendarFacadeService.class,
         CallsFacadeService.class,
@@ -102,6 +116,19 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "weave.meetings.livekit.api-secret=test-api-secret"
 })
 class FilesCalendarFacadeControllerTest {
+
+    @TestConfiguration
+    static class DeviceCredentialTestConfiguration {
+        @Bean
+        DeviceCredentialRepository deviceCredentialRepository() {
+            return new InMemoryDeviceCredentialRepository();
+        }
+
+        @Bean
+        DeviceCredentialService deviceCredentialService(DeviceCredentialRepository repository) {
+            return new DeviceCredentialService(repository);
+        }
+    }
 
     @Autowired
     private MockMvc mockMvc;
@@ -222,7 +249,7 @@ class FilesCalendarFacadeControllerTest {
     }
 
     @Test
-    void filesCredentialLifecycleCreatesListsAndRevokesWithoutSecretMaterial() throws Exception {
+    void filesCredentialLifecycleReturnsSecretOnceAuthenticatesWebdavAndRevokes() throws Exception {
         // FILES_WEBDAV_DEVICE_CREDENTIAL_CONTROL_PLANE
         String body = """
                 {"label":"Mac Finder","clientType":"webdav"}
@@ -233,11 +260,13 @@ class FilesCalendarFacadeControllerTest {
                         .content(body))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.credentialId").value(org.hamcrest.Matchers.startsWith("files_device_")))
-                .andExpect(jsonPath("$.state").value("active-no-secret-issued"))
+                .andExpect(jsonPath("$.state").value("active"))
                 .andExpect(jsonPath("$.principalRef").value("user:user@example.com"))
                 .andExpect(jsonPath("$.clientType").value("webdav"))
                 .andExpect(jsonPath("$.label").value("Mac Finder"))
-                .andExpect(jsonPath("$.secretMaterialReturned").value(false))
+                .andExpect(jsonPath("$.secretMaterialReturned").value(true))
+                .andExpect(jsonPath("$.username").value(org.hamcrest.Matchers.startsWith("files_device_")))
+                .andExpect(jsonPath("$.secret").isNotEmpty())
                 .andExpect(jsonPath("$.webDavBasePath").value("/dav/files"))
                 .andExpect(jsonPath("$.revocationActions[0]").value(org.hamcrest.Matchers.startsWith(
                         "DELETE /api/files/client-setup/credentials/files_device_")))
@@ -251,12 +280,26 @@ class FilesCalendarFacadeControllerTest {
                 .getResponse()
                 .getContentAsString();
         String credentialId = JsonPath.read(createdBody, "$.credentialId");
+        String secret = JsonPath.read(createdBody, "$.secret");
+
+        mockMvc.perform(request(HttpMethod.valueOf("OPTIONS"), "/dav/files")
+                        .with(httpBasic(credentialId, secret)))
+                .andExpect(status().isNoContent())
+                .andExpect(header().string("DAV", org.hamcrest.Matchers.containsString("1")));
+
+        mockMvc.perform(get("/api/files/readiness").with(httpBasic(credentialId, secret)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("unauthorized"));
+        mockMvc.perform(get("/_matrix/client/versions").with(httpBasic(credentialId, secret)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("unauthorized"));
 
         mockMvc.perform(get("/api/files/client-setup/credentials")
                         .with(workspaceJwt()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.credentials[0].credentialId").value(credentialId))
-                .andExpect(jsonPath("$.credentials[0].secretMaterialReturned").value(false));
+                .andExpect(jsonPath("$.credentials[0].secretMaterialReturned").value(false))
+                .andExpect(jsonPath("$.credentials[0].secret").doesNotExist());
 
         mockMvc.perform(request(HttpMethod.DELETE, "/api/files/client-setup/credentials/{credentialId}", credentialId)
                         .with(workspaceJwt()))
@@ -266,6 +309,12 @@ class FilesCalendarFacadeControllerTest {
                 .andExpect(jsonPath("$.revokedAt").exists())
                 .andExpect(jsonPath("$.secretMaterialReturned").value(false))
                 .andExpect(jsonPath("$.revocationActions").isEmpty());
+
+        mockMvc.perform(request(HttpMethod.valueOf("OPTIONS"), "/dav/files")
+                        .with(httpBasic(credentialId, secret)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("WWW-Authenticate", org.hamcrest.Matchers.containsString("Weave DAV")))
+                .andExpect(jsonPath("$.code").value("device-credential-invalid"));
     }
 
     @Test
@@ -375,10 +424,10 @@ class FilesCalendarFacadeControllerTest {
                 .andExpect(jsonPath("$.accessModel.type").value("workspace-team-channel-calendar"))
                 .andExpect(jsonPath("$.accessModel.productScope").value("workspace-team-channel"))
                 .andExpect(jsonPath("$.accessModel.privateUserCalendarsAvailable").value(false))
-                .andExpect(jsonPath("$.credentialReadiness.status").value("blocked_until_revocable_credentials"))
+                .andExpect(jsonPath("$.credentialReadiness.status").value("revocable_credentials_ready"))
                 .andExpect(jsonPath("$.credentialReadiness.appleProfileSigned").value(false))
                 .andExpect(jsonPath("$.credentialReadiness.appleProfilePasswordIncluded").value(false))
-                .andExpect(jsonPath("$.credentialReadiness.revocableCredentialsAvailable").value(false))
+                .andExpect(jsonPath("$.credentialReadiness.revocableCredentialsAvailable").value(true))
                 .andExpect(jsonPath("$.credentialReadiness.readOnlySubscriptionTokensAvailable").value(false))
                 .andExpect(jsonPath("$.credentialReadiness.backendActorCredentialsExposed").value(false))
                 .andExpect(jsonPath("$.username").value("user@example.com"))
@@ -396,7 +445,8 @@ class FilesCalendarFacadeControllerTest {
                 .andExpect(jsonPath("$.options[1].actionUrl").doesNotExist())
                 .andExpect(jsonPath("$.options[2].platform").value("desktop"))
                 .andExpect(jsonPath("$.options[2].method").value("caldav-manual"))
-                .andExpect(jsonPath("$.options[2].available").value(false))
+                .andExpect(jsonPath("$.options[2].available").value(true))
+                .andExpect(jsonPath("$.options[2].actionUrl").value("/api/calendar/client-setup/credentials"))
                 .andExpect(jsonPath("$.options[3].platform").value("subscription"))
                 .andExpect(jsonPath("$.options[3].available").value(false))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
@@ -411,6 +461,49 @@ class FilesCalendarFacadeControllerTest {
                         .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("http://"))))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                         .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("https://"))));
+    }
+
+    @Test
+    void calendarCredentialLifecycleReturnsSecretOnceAuthenticatesCaldavAndRevokes() throws Exception {
+        String createdBody = mockMvc.perform(post("/api/calendar/client-setup/credentials")
+                        .with(workspaceJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"label\":\"Apple Calendar\",\"clientType\":\"caldav\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.credentialId").value(org.hamcrest.Matchers.startsWith("calendar_device_")))
+                .andExpect(jsonPath("$.state").value("active"))
+                .andExpect(jsonPath("$.username").value(org.hamcrest.Matchers.startsWith("calendar_device_")))
+                .andExpect(jsonPath("$.principalRef").value("user:user@example.com"))
+                .andExpect(jsonPath("$.secretMaterialReturned").value(true))
+                .andExpect(jsonPath("$.secret").isNotEmpty())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        String credentialId = JsonPath.read(createdBody, "$.credentialId");
+        String secret = JsonPath.read(createdBody, "$.secret");
+
+        mockMvc.perform(request(HttpMethod.valueOf("OPTIONS"), "/caldav")
+                        .with(httpBasic(credentialId, secret)))
+                .andExpect(status().isNoContent())
+                .andExpect(header().string("DAV", "1, calendar-access"));
+
+        mockMvc.perform(get("/api/calendar/client-setup/credentials").with(workspaceJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.credentials[0].credentialId").value(credentialId))
+                .andExpect(jsonPath("$.credentials[0].secretMaterialReturned").value(false))
+                .andExpect(jsonPath("$.credentials[0].secret").doesNotExist());
+
+        mockMvc.perform(request(HttpMethod.DELETE,
+                        "/api/calendar/client-setup/credentials/{credentialId}", credentialId)
+                        .with(workspaceJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.state").value("revoked"))
+                .andExpect(jsonPath("$.secretMaterialReturned").value(false));
+
+        mockMvc.perform(request(HttpMethod.valueOf("OPTIONS"), "/caldav")
+                        .with(httpBasic(credentialId, secret)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("device-credential-invalid"));
     }
 
     @Test

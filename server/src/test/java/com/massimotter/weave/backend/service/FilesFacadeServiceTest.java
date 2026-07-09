@@ -384,17 +384,20 @@ class FilesFacadeServiceTest {
                         "webdav"));
 
         assertThat(credential.credentialId()).startsWith("files_device_");
-        assertThat(credential.state()).isEqualTo("active-no-secret-issued");
+        assertThat(credential.state()).isEqualTo("active");
         assertThat(credential.principalRef()).isEqualTo("user:user-123");
         assertThat(credential.webDavBasePath()).isEqualTo("/dav/files");
-        assertThat(credential.secretMaterialReturned()).isFalse();
+        assertThat(credential.secretMaterialReturned()).isTrue();
+        assertThat(credential.username()).isEqualTo(credential.credentialId());
+        assertThat(credential.secret()).hasSizeGreaterThanOrEqualTo(40);
         assertThat(credential.revocationActions())
                 .containsExactly("DELETE /api/files/client-setup/credentials/" + credential.credentialId());
         assertThat(service.setupCredentials().credentials())
                 .extracting(com.massimotter.weave.backend.model.files.FileSetupCredentialResponse::credentialId)
                 .containsExactly(credential.credentialId());
+        assertThat(service.setupCredentials().credentials().get(0).secret()).isNull();
         assertThat(service.requireActiveSetupCredential(credential.credentialId()).state())
-                .isEqualTo("active-no-secret-issued");
+                .isEqualTo("active");
 
         var revoked = service.revokeSetupCredential(credential.credentialId());
 

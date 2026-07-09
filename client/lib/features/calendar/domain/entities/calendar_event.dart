@@ -192,11 +192,11 @@ class CalendarCredentialReadiness {
     this.blockers = const [],
   });
 
-  static const blockedUntilRevocableCredentials = CalendarCredentialReadiness(
-    status: 'blocked_until_revocable_credentials',
+  static const revocableCredentialsReady = CalendarCredentialReadiness(
+    status: 'revocable_credentials_ready',
     appleProfileSigned: false,
     appleProfilePasswordIncluded: false,
-    revocableCredentialsAvailable: false,
+    revocableCredentialsAvailable: true,
     readOnlySubscriptionTokensAvailable: false,
     backendActorCredentialsExposed: false,
   );
@@ -237,7 +237,7 @@ class CalendarClientSetup {
     required this.options,
     this.accessModel = CalendarAccessModel.workspaceBlockedPrivateCalendars,
     this.credentialReadiness =
-        CalendarCredentialReadiness.blockedUntilRevocableCredentials,
+        CalendarCredentialReadiness.revocableCredentialsReady,
   });
 
   final CalendarScope scope;

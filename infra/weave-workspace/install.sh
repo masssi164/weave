@@ -98,6 +98,8 @@ readonly PERSISTED_TF_VARS=(
   TF_VAR_db_name
   TF_VAR_db_admin_username
   TF_VAR_db_admin_password
+  TF_VAR_backend_db_username
+  TF_VAR_backend_db_password
   TF_VAR_keycloak_admin_username
   TF_VAR_keycloak_admin_password
   TF_VAR_keycloak_db_username
@@ -1338,6 +1340,7 @@ ensure_docker_provider_inputs() {
 
 ensure_generated_secrets() {
   set_default_secret TF_VAR_db_admin_password "$(random_base64 24)"
+  set_default_secret TF_VAR_backend_db_password "$(random_base64 24)"
   set_default_secret TF_VAR_keycloak_admin_password "$(random_base64 24)"
   set_default_secret TF_VAR_keycloak_db_password "$(random_base64 24)"
   set_default_secret TF_VAR_mas_db_password "$(random_base64 24)"

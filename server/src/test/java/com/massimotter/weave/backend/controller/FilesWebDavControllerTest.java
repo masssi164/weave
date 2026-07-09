@@ -7,6 +7,7 @@ import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
 import com.massimotter.weave.backend.model.files.FileItemResponse;
+import com.massimotter.weave.backend.security.device.DeviceCredentialService;
 import com.massimotter.weave.backend.service.FilesFacadeService;
 import com.massimotter.weave.backend.service.files.DownloadedFile;
 import com.massimotter.weave.backend.service.files.WebDavLockResult;
@@ -61,6 +62,9 @@ class FilesWebDavControllerTest {
 
     @MockBean
     private FilesFacadeService filesFacadeService;
+
+    @MockBean
+    private DeviceCredentialService deviceCredentialService;
 
     @MockBean
     private JwtDecoder jwtDecoder;

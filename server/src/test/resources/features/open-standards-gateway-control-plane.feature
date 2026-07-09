@@ -16,7 +16,7 @@ Feature: Open standards gateway control plane
     Then it contains only setup, readiness, revoke, manifest, admin, and generated convenience surfaces
     And it does not expose durable Files, Calendar, or Chat member data-plane routes
 
-  Scenario: Files setup credentials never expose provider credentials
+  Scenario: Files setup credentials return a Weave secret once without exposing provider credentials
     Given a member creates a scoped Files WebDAV device credential
     Then no provider credential, provider URL, SecretRef value, bearer token value, app password, or raw downstream payload is exposed
     When the credential is revoked

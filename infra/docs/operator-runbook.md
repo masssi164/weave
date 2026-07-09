@@ -28,6 +28,7 @@ Single-host operator secrets are file-managed, not generated on the fly.
 At minimum track ownership and rotation dates for:
 
 - `TF_VAR_db_admin_password`
+- `TF_VAR_backend_db_password`
 - `TF_VAR_keycloak_admin_password`
 - `TF_VAR_keycloak_db_password`
 - `TF_VAR_mas_db_password`

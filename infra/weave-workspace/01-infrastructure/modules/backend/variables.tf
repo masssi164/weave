@@ -282,6 +282,32 @@ variable "provider_selections_storage_path" {
   type        = string
 }
 
+variable "persistence_jdbc_url" {
+  description = "JDBC URL for backend-owned durable stores."
+  type        = string
+}
+
+variable "persistence_jdbc_username" {
+  description = "Database role used by backend-owned durable stores."
+  type        = string
+}
+
+variable "persistence_jdbc_password" {
+  description = "Database password used by backend-owned durable stores."
+  type        = string
+  sensitive   = true
+}
+
+variable "device_credential_storage_mode" {
+  description = "Storage mode for revocable WebDAV and CalDAV device credentials."
+  type        = string
+
+  validation {
+    condition     = contains(["memory", "jdbc"], var.device_credential_storage_mode)
+    error_message = "device_credential_storage_mode must be memory or jdbc."
+  }
+}
+
 variable "provider_stack_profile" {
   description = "Provider-stack runtime posture profile. The default fail-closed profile advertises provider seams without enabling provider runtimes or secrets."
   type        = string

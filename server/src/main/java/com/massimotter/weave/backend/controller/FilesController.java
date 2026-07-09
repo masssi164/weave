@@ -73,6 +73,8 @@ public class FilesController {
     @Operation(
             operationId = "getFilesSetupCredentials",
             summary = "List revocable Files WebDAV setup credential references")
+    @ApiResponse(responseCode = "200", description = "Files setup credentials without secret material.",
+            content = @Content(schema = @Schema(implementation = FileSetupCredentialListResponse.class)))
     public FileSetupCredentialListResponse setupCredentials() {
         return filesFacadeService.setupCredentials();
     }
@@ -80,7 +82,9 @@ public class FilesController {
     @PostMapping("/api/files/client-setup/credentials")
     @Operation(
             operationId = "createFilesSetupCredential",
-            summary = "Create a revocable Files WebDAV setup credential reference without returning secret material")
+            summary = "Create a revocable Files WebDAV setup credential and return its secret once")
+    @ApiResponse(responseCode = "200", description = "New Files credential with one-time secret material.",
+            content = @Content(schema = @Schema(implementation = FileSetupCredentialResponse.class)))
     public FileSetupCredentialResponse createSetupCredential(
             @Valid @RequestBody FileSetupCredentialRequest request) {
         return filesFacadeService.createSetupCredential(request);
@@ -90,6 +94,8 @@ public class FilesController {
     @Operation(
             operationId = "revokeFilesSetupCredential",
             summary = "Revoke a Files WebDAV setup credential reference")
+    @ApiResponse(responseCode = "200", description = "Revoked Files credential without secret material.",
+            content = @Content(schema = @Schema(implementation = FileSetupCredentialResponse.class)))
     public FileSetupCredentialResponse revokeSetupCredential(@PathVariable @Size(max = 128) String credentialId) {
         return filesFacadeService.revokeSetupCredential(credentialId);
     }
