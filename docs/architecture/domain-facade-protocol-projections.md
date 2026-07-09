@@ -37,8 +37,10 @@ Each domain has one Weave-owned core:
 - Space/workspace/team/channel bindings;
 - policy, capability, audit, and support-safe error semantics;
 - provider mappings hidden behind adapters;
-- generated OpenAPI member/admin contracts;
-- governed MCP tools generated or validated from the same facade metadata.
+- application use cases shared by every northbound projection;
+- provider-neutral southbound ports and adapter conformance profiles;
+- generated OpenAPI admin/control contracts;
+- governed MCP tools, resources, and prompts over the same use cases.
 
 OpenAPI is the JSON control/admin/setup/revoke/manifest convenience contract for
 Weave clients, Admin Console, and generated models. It is not product or
@@ -60,25 +62,29 @@ whether a projection is enabled and how credentials or grants expire.
 
 ## Target server module shape
 
-The server should move toward domain packages with the same internal outline:
+The server uses the same internal outline for collaboration domains:
 
 | Layer | Responsibility |
 | --- | --- |
-| `server/.../<domain>/facade` | Northbound Weave product/control API, control-plane DTOs, and support-safe errors. |
-| `server/.../<domain>/projection` | WebDAV, CalDAV/iCalendar, CardDAV/vCard, Matrix Client-Server, native OS, or MCP projection adapters over the facade. |
-| `server/.../<domain>/adapter` | Southbound provider clients and anti-corruption mappers. |
+| `server/.../<domain>/domain` | Immutable canonical values, stable identifiers, and domain invariants. No protocol, provider, DTO, SDK, Spring, or persistence types. |
+| `server/.../<domain>/application` | Authorized use cases, policy, preconditions, audit intent, and support-safe domain failures. |
+| `server/.../<domain>/port` | Provider-neutral southbound contracts expressed only in canonical values. |
+| `server/.../<domain>/projection` | WebDAV, CalDAV/iCalendar, CardDAV/vCard, Matrix Client-Server, native OS, MCP, and control-plane projections over use cases. |
+| `server/.../<domain>/adapter` | Southbound provider clients and anti-corruption mappers implementing ports. |
 | `server/.../<domain>/mapping` | Provider object mapping, lossy-field, permission-impact, conflict, portability, and audit evidence. |
 | `server/.../<domain>/policy` | Capability gates, revocation, credential lifecycle, and audit decisions. |
 
-Existing packages can migrate incrementally. Do not rename broad packages or
-move all code in one PR; add the boundary where new contracts or tests need it.
+The canonical Files, Calendar, and Chat port contracts are the migration target.
+The DTO-shaped `FilesStorageAdapter` and `CalendarAdapter` compatibility ports
+are deprecated for removal under issue #1004; provider adapters and facades move
+to canonical ports before those compatibility types are deleted.
 
 ## Client access discovery and credential lifecycle
 
 Member clients discover access from the authenticated organization manifest and
-domain setup endpoints. The manifest may expose Weave-owned paths such as
-`/api/files`, `/api/calendar/native-sync-setup`, or
-`/api/calls/native-boundary-setup`. It must not expose raw provider endpoints,
+domain setup endpoints. The manifest may expose Weave-owned protocol paths such
+as `/dav/files`, `/caldav`, `/_matrix/client`, or control paths such as
+`/api/calendar/native-sync-setup`. It must not expose raw provider endpoints,
 provider tenant URLs, app passwords, bearer tokens, static profile secrets,
 endpoint rotation data, or admin diagnostics.
 
@@ -249,9 +255,10 @@ media, signaling, permissions, join-grant, and revoke boundaries.
 
 ## MCP projection rule
 
-MCP tools are semantic Weave tools, not raw protocol scripts. Under the hood,
-MCP is implemented as Spring AI semantic Weave tools over domain use cases, not
-as OpenAPI route scraping. Files MCP data-plane tools route through the
+MCP tools are semantic Weave tools, not raw protocol scripts. The target runtime
+is the Spring AI 2.x stateless Streamable HTTP server. Its annotated tools,
+resources, and prompts call domain use cases and never scrape or mirror OpenAPI.
+Files MCP data-plane tools route through the
 WebDAV-backed Weave Files facade/projection. Calendar, People/Contacts, Chat,
 and other tools route through their Weave domain use cases and standard
 projections under the server boundary, but:
@@ -263,6 +270,12 @@ projections under the server boundary, but:
   are not exposed to MCP clients;
 - destructive or shared-state writes require the same approval/audit receipts as
   product clients.
+
+The Python/FastMCP OpenAPI route-map gateway and the handwritten Java JSON-RPC
+controller are transitional evidence. They are removed after the Spring AI
+projection proves discovery, invocation, schema/hint correctness, OIDC and
+RuntimeProfile policy, approval, audit, redaction, and Streamable HTTP parity.
+There is no compatibility endpoint or second MCP catalog after that cutover.
 
 ## Cleanup required
 

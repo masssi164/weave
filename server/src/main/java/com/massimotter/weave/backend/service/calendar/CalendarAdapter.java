@@ -7,6 +7,11 @@ import com.massimotter.weave.backend.model.calendar.UpdateCalendarEventRequest;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+/**
+ * @deprecated DTO-shaped compatibility port. Migrate providers to
+ * {@link com.massimotter.weave.backend.calendar.port.CalendarProviderPort}; removal is tracked by #1004.
+ */
+@Deprecated(forRemoval = true, since = "0.1")
 public interface CalendarAdapter {
 
     List<CalendarEventResponse> list(CalendarPrincipal principal, OffsetDateTime from, OffsetDateTime to)

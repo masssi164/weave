@@ -7,6 +7,11 @@ import com.massimotter.weave.backend.model.files.FileUploadResponse;
 import java.util.Map;
 import org.springframework.web.multipart.MultipartFile;
 
+/**
+ * @deprecated DTO-shaped compatibility port. Migrate providers to
+ * {@link com.massimotter.weave.backend.files.port.FilesProviderPort}; removal is tracked by #1004.
+ */
+@Deprecated(forRemoval = true, since = "0.1")
 public interface FilesStorageAdapter {
 
     boolean isConfigured();
