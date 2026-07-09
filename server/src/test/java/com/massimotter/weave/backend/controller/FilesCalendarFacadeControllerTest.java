@@ -1,11 +1,14 @@
 package com.massimotter.weave.backend.controller;
 
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarEvent;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarChange;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarChangeSet;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarId;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarScope;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarWrite;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.EventId;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.EventVersion;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.FreeBusyWindow;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.ScopeType;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.WriteIntent;
 import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
@@ -138,6 +141,17 @@ class FilesCalendarFacadeControllerTest {
         when(calendarProviderPort.read(any(CalendarId.class), any(CalendarScope.class), any(EventId.class)))
                 .thenThrow(notConfigured);
         when(calendarProviderPort.write(any(CalendarWrite.class))).thenThrow(notConfigured);
+        when(calendarProviderPort.freeBusy(
+                        any(CalendarId.class),
+                        any(CalendarScope.class),
+                        any(Instant.class),
+                        any(Instant.class)))
+                .thenThrow(notConfigured);
+        when(calendarProviderPort.changes(
+                        any(CalendarId.class),
+                        any(CalendarScope.class),
+                        nullable(String.class)))
+                .thenThrow(notConfigured);
         doThrow(notConfigured).when(calendarProviderPort).delete(
                 any(CalendarId.class), any(CalendarScope.class), any(EventId.class), any(EventVersion.class));
     }
@@ -465,6 +479,14 @@ class FilesCalendarFacadeControllerTest {
                         nullable(Instant.class),
                         nullable(Instant.class)))
                 .thenReturn(List.of(calendarEvent("planning", "Planning", "\"etag-planning\"", CalendarScope.workspace())));
+        when(calendarProviderPort.freeBusy(
+                        any(CalendarId.class),
+                        any(CalendarScope.class),
+                        any(Instant.class),
+                        any(Instant.class)))
+                .thenReturn(List.of(new FreeBusyWindow(
+                        Instant.parse("2026-07-08T10:00:00Z"),
+                        Instant.parse("2026-07-08T11:00:00Z"))));
 
         mockMvc.perform(request(HttpMethod.valueOf("REPORT"), "/caldav/workspace/")
                         .with(workspaceJwt())
@@ -505,17 +527,27 @@ class FilesCalendarFacadeControllerTest {
 
     @Test
     void calDavReportMultigetAndSyncCollectionUseScopedFacadeCalendars() throws Exception {
-        when(calendarProviderPort.query(
+        when(calendarProviderPort.changes(
                         any(CalendarId.class),
                         argThat(scope -> scope != null && scope.type() == ScopeType.TEAM
                                 && "engineering".equals(scope.teamId())),
-                        nullable(Instant.class),
-                        nullable(Instant.class)))
-                .thenReturn(List.of(calendarEvent(
-                        "team-planning",
-                        "Team planning",
-                        "\"etag-team\"",
-                        new CalendarScope(ScopeType.TEAM, "engineering", null))));
+                        nullable(String.class)))
+                .thenReturn(new CalendarChangeSet(
+                        "provider-sync-2",
+                        List.of(new CalendarChange(
+                                "provider-sync-2",
+                                new EventId("team-planning"),
+                                false,
+                                new EventVersion("\"etag-team\"")))));
+        doReturn(calendarEvent(
+                "team-planning",
+                "Team planning",
+                "\"etag-team\"",
+                new CalendarScope(ScopeType.TEAM, "engineering", null)))
+                .when(calendarProviderPort).read(
+                        any(CalendarId.class),
+                        argThat(scope -> scope != null && scope.type() == ScopeType.TEAM),
+                        eq(new EventId("team-planning")));
         doReturn(calendarEvent(
                 "channel-planning",
                 "Channel planning",
@@ -559,12 +591,11 @@ class FilesCalendarFacadeControllerTest {
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                         .string(org.hamcrest.Matchers.containsString("SUMMARY:Channel planning")));
 
-        verify(calendarProviderPort).query(
+        verify(calendarProviderPort).changes(
                 any(CalendarId.class),
                 argThat(scope -> scope != null && scope.type() == ScopeType.TEAM
                         && "engineering".equals(scope.teamId())),
-                nullable(Instant.class),
-                nullable(Instant.class));
+                nullable(String.class));
         verify(calendarProviderPort).read(
                 any(CalendarId.class),
                 argThat(scope -> scope != null && scope.type() == ScopeType.CHANNEL

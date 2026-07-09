@@ -6,6 +6,8 @@ import com.massimotter.weave.backend.model.calendar.CalendarScopeResponse;
 import com.massimotter.weave.backend.model.calendar.CalendarScopesResponse;
 import com.massimotter.weave.backend.service.CalendarFacadeService;
 import com.massimotter.weave.backend.service.calendar.CalDavEventResource;
+import com.massimotter.weave.backend.service.calendar.CalDavSyncResult;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.FreeBusyWindow;
 import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
@@ -41,6 +43,9 @@ public class CalDavCalendarController {
             "time-range[^>]*\\sstart=[\"']([^\"']+)[\"'][^>]*\\send=[\"']([^\"']+)[\"']",
             Pattern.CASE_INSENSITIVE);
     private static final Pattern HREF = Pattern.compile("<[^:>/]*:?href[^>]*>([^<]+)</[^:>/]*:?href>",
+            Pattern.CASE_INSENSITIVE);
+    private static final Pattern SYNC_TOKEN = Pattern.compile(
+            "<[^:>/]*:?sync-token[^>]*>([^<]*)</[^:>/]*:?sync-token>",
             Pattern.CASE_INSENSITIVE);
     private static final DateTimeFormatter CALDAV_TIME = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'")
             .withZone(ZoneOffset.UTC);
@@ -142,28 +147,30 @@ public class CalDavCalendarController {
         }
         if ("sync-collection".equals(reportKind)) {
             CalendarScopeResponse scope = scope(request);
-            var events = calendarFacadeService.listCalDavResources(scope, null, null);
+            CalDavSyncResult result = calendarFacadeService.syncCalDavResources(scope, syncToken(rawBody));
             return ResponseEntity.status(207)
                     .contentType(XML)
                     .header("DAV", "1, calendar-access")
-                    .header("Sync-Token", "weave-sync-" + System.currentTimeMillis())
+                    .header("Sync-Token", result.syncToken())
                     .header("X-Weave-Projection", "caldav-calendar-data-plane")
-                    .body(calendarQueryMultistatus(events, true));
+                    .body(calendarSyncMultistatus(result));
         }
         CalendarScopeResponse scope = scope(request);
         TimeRange range = timeRange(body, reportKind);
-        var events = calendarFacadeService.listCalDavResources(scope, range.from(), range.to());
         if ("free-busy-query".equals(reportKind)) {
             return ResponseEntity.ok()
                     .contentType(CALENDAR)
                     .header("X-Weave-Projection", "caldav-calendar-data-plane")
-                    .body(freeBusyCalendar(events, range));
+                    .body(freeBusyCalendar(
+                            calendarFacadeService.calDavFreeBusy(scope, range.from(), range.to()),
+                            range));
         }
+        var events = calendarFacadeService.listCalDavResources(scope, range.from(), range.to());
         return ResponseEntity.status(207)
                 .contentType(XML)
                 .header("DAV", "1, calendar-access")
                 .header("X-Weave-Projection", "caldav-calendar-data-plane")
-                .body(calendarQueryMultistatus(events, false));
+                .body(calendarQueryMultistatus(events));
     }
 
     private ResponseEntity<byte[]> get(HttpServletRequest request, boolean headOnly) {
@@ -335,17 +342,14 @@ public class CalDavCalendarController {
                 events.add(calendarFacadeService.readCalDavResource(reference.eventUid(), reference.scope()));
             }
         }
-        return calendarQueryMultistatus(events, false);
+        return calendarQueryMultistatus(events);
     }
 
-    private String calendarQueryMultistatus(Iterable<CalDavEventResource> events, boolean includeSyncToken) {
+    private String calendarQueryMultistatus(Iterable<CalDavEventResource> events) {
         StringBuilder xml = new StringBuilder("""
                 <?xml version="1.0" encoding="UTF-8"?>
                 <d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
                 """);
-        if (includeSyncToken) {
-            xml.append("  <d:sync-token>weave-sync-").append(System.currentTimeMillis()).append("</d:sync-token>\n");
-        }
         for (CalDavEventResource event : events) {
             xml.append("  <d:response>\n")
                     .append("    <d:href>").append(escapeXml(calDavHref(event))).append("</d:href>\n")
@@ -359,6 +363,24 @@ public class CalDavCalendarController {
                     .append("  </d:response>\n");
         }
         xml.append("</d:multistatus>");
+        return xml.toString();
+    }
+
+    private String calendarSyncMultistatus(CalDavSyncResult result) {
+        StringBuilder xml = new StringBuilder(calendarQueryMultistatus(result.changedResources()));
+        int closingTag = xml.lastIndexOf("</d:multistatus>");
+        StringBuilder changes = new StringBuilder();
+        changes.append("  <d:sync-token>").append(escapeXml(result.syncToken())).append("</d:sync-token>\n");
+        for (String deletedEventId : result.deletedEventIds()) {
+            changes.append("  <d:response>\n")
+                    .append("    <d:href>")
+                    .append(escapeXml(CALDAV_ROOT + "/" + strictPathSegment(result.scope().id())
+                            + "/" + strictPathSegment(deletedEventId) + ".ics"))
+                    .append("</d:href>\n")
+                    .append("    <d:status>HTTP/1.1 404 Not Found</d:status>\n")
+                    .append("  </d:response>\n");
+        }
+        xml.insert(closingTag, changes);
         return xml.toString();
     }
 
@@ -378,7 +400,7 @@ public class CalDavCalendarController {
         return new CalendarEventReference(scopeFromPath(suffix), last);
     }
 
-    private String freeBusyCalendar(Iterable<CalDavEventResource> events, TimeRange range) {
+    private String freeBusyCalendar(Iterable<FreeBusyWindow> windows, TimeRange range) {
         StringBuilder calendar = new StringBuilder();
         calendar.append("BEGIN:VCALENDAR\r\n");
         calendar.append("VERSION:2.0\r\n");
@@ -392,16 +414,25 @@ public class CalDavCalendarController {
         if (range.to() != null) {
             calendar.append("DTEND:").append(CALDAV_TIME.format(range.to())).append("\r\n");
         }
-        for (CalDavEventResource event : events) {
+        for (FreeBusyWindow window : windows) {
             calendar.append("FREEBUSY:")
-                    .append(CALDAV_TIME.format(event.startsAt()))
+                    .append(CALDAV_TIME.format(window.start()))
                     .append("/")
-                    .append(CALDAV_TIME.format(event.endsAt()))
+                    .append(CALDAV_TIME.format(window.end()))
                     .append("\r\n");
         }
         calendar.append("END:VFREEBUSY\r\n");
         calendar.append("END:VCALENDAR\r\n");
         return calendar.toString();
+    }
+
+    private String syncToken(String body) {
+        Matcher matcher = SYNC_TOKEN.matcher(body == null ? "" : body);
+        if (!matcher.find()) {
+            return null;
+        }
+        String token = matcher.group(1);
+        return token == null || token.isBlank() ? null : token.trim();
     }
 
     private TimeRange timeRange(String body, String reportKind) {

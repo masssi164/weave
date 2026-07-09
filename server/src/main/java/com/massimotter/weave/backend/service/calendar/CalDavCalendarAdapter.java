@@ -1,6 +1,7 @@
 package com.massimotter.weave.backend.service.calendar;
 
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarChange;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarChangeSet;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarEvent;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarId;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarScope;
@@ -17,6 +18,7 @@ import com.massimotter.weave.backend.portability.ProviderReadiness;
 import java.io.IOException;
 import java.io.StringReader;
 import java.net.URI;
+import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -193,8 +195,21 @@ public class CalDavCalendarAdapter implements CalendarProviderPort {
     }
 
     @Override
-    public List<CalendarChange> changes(CalendarId calendarId, CalendarScope scope, String sinceToken) {
-        throw new UnsupportedOperationException("CalDAV sync-collection provider mapping is not implemented");
+    public CalendarChangeSet changes(CalendarId calendarId, CalendarScope scope, String sinceToken) {
+        ensureConfigured("sync-events");
+        CalendarScope resolvedScope = normalizeScope(scope);
+        String body = syncCollectionReport(sinceToken);
+        HttpRequest request = requestBuilder(calendarCollectionUri(calendarId, resolvedScope))
+                .method("REPORT", HttpRequest.BodyPublishers.ofString(body))
+                .header("Depth", "1")
+                .header("Content-Type", "application/xml; charset=utf-8")
+                .header("Accept", "application/xml, text/xml")
+                .build();
+        HttpResponse<String> response = send(request, "sync-events");
+        if (response.statusCode() != HTTP_MULTI_STATUS && !isSuccess(response.statusCode())) {
+            throw mapStatus(response.statusCode(), "sync-events", null);
+        }
+        return parseChanges(response.body());
     }
 
     private List<CalendarEvent> parseMultistatus(CalendarId calendarId, CalendarScope scope, String body) {
@@ -233,6 +248,41 @@ public class CalDavCalendarAdapter implements CalendarProviderPort {
         return factory.newDocumentBuilder().parse(new InputSource(new StringReader(body.stripLeading())));
     }
 
+    private CalendarChangeSet parseChanges(String body) {
+        try {
+            Document document = parseXml(body);
+            String syncToken = firstText(document.getDocumentElement(), "DAV:", "sync-token");
+            if (syncToken == null || syncToken.isBlank()) {
+                throw new IllegalArgumentException("sync token is missing");
+            }
+            NodeList responseNodes = document.getElementsByTagNameNS("DAV:", "response");
+            List<CalendarChange> changes = new ArrayList<>();
+            for (int index = 0; index < responseNodes.getLength(); index++) {
+                Element response = (Element) responseNodes.item(index);
+                String href = firstText(response, "DAV:", "href");
+                if (href == null || href.isBlank() || href.endsWith("/")) {
+                    continue;
+                }
+                String status = firstText(response, "DAV:", "status");
+                String etag = firstText(response, "DAV:", "getetag");
+                changes.add(new CalendarChange(
+                        syncToken.trim(),
+                        eventIdFromHref(href),
+                        status != null && status.contains(" 404 "),
+                        new EventVersion(etag)));
+            }
+            return new CalendarChangeSet(syncToken.trim(), changes);
+        } catch (CalendarAdapterException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            throw new CalendarAdapterException(
+                    CalendarAdapterException.Type.INVALID_RESPONSE,
+                    "CalDAV sync-collection response could not be parsed.",
+                    Map.of("module", "calendar", "operation", "sync-events"),
+                    exception);
+        }
+    }
+
     private String firstText(Element parent, String namespace, String localName) {
         NodeList nodes = parent.getElementsByTagNameNS(namespace, localName);
         if (nodes.getLength() == 0) {
@@ -262,6 +312,20 @@ public class CalDavCalendarAdapter implements CalendarProviderPort {
                   </c:filter>
                 </c:calendar-query>
                 """.formatted(timeRange);
+    }
+
+    private String syncCollectionReport(String sinceToken) {
+        String token = sinceToken == null || sinceToken.isBlank()
+                ? "<d:sync-token/>"
+                : "<d:sync-token>" + xmlEscape(sinceToken.trim()) + "</d:sync-token>";
+        return """
+                <?xml version="1.0" encoding="utf-8" ?>
+                <d:sync-collection xmlns:d="DAV:">
+                  %s
+                  <d:sync-level>1</d:sync-level>
+                  <d:prop><d:getetag /></d:prop>
+                </d:sync-collection>
+                """.formatted(token);
     }
 
     private String mkCalendarBody() {
@@ -448,6 +512,24 @@ public class CalDavCalendarAdapter implements CalendarProviderPort {
 
     private String eventFileName(EventId id) {
         return URLEncoder.encode(id.value(), StandardCharsets.UTF_8).replace("+", "%20") + ".ics";
+    }
+
+    private EventId eventIdFromHref(String href) {
+        String path = URI.create(href).getRawPath();
+        String filename = path.substring(path.lastIndexOf('/') + 1);
+        String decoded = URLDecoder.decode(filename, StandardCharsets.UTF_8);
+        if (decoded.endsWith(".ics")) {
+            decoded = decoded.substring(0, decoded.length() - 4);
+        }
+        return new EventId(decoded);
+    }
+
+    private String xmlEscape(String value) {
+        return value.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&apos;");
     }
 
     private CalendarEvent withVersion(CalendarEvent event, EventVersion version, Instant updatedAt) {

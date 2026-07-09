@@ -7,6 +7,7 @@ import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarScop
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarWrite;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.EventId;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.EventVersion;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.FreeBusyWindow;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.ScopeType;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.WriteIntent;
 import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
@@ -38,6 +39,7 @@ import com.massimotter.weave.backend.service.calendar.CalendarAdapterException;
 import com.massimotter.weave.backend.service.calendar.AppleMobileConfigProfile;
 import com.massimotter.weave.backend.service.calendar.AppleMobileConfigProfileRenderer;
 import com.massimotter.weave.backend.service.calendar.CalDavEventResource;
+import com.massimotter.weave.backend.service.calendar.CalDavSyncResult;
 import com.massimotter.weave.backend.service.calendar.CalendarPrincipal;
 import com.massimotter.weave.backend.service.calendar.IcalendarMapper;
 import java.nio.charset.StandardCharsets;
@@ -72,6 +74,7 @@ public class CalendarFacadeService {
     private final AppleMobileConfigProfileRenderer appleProfileRenderer;
     private final IcalendarMapper icalendarMapper = new IcalendarMapper();
     private final Map<String, CalendarSetupCredentialResponse> setupCredentials = new ConcurrentHashMap<>();
+    private final Map<String, CalendarSyncCursor> syncCursors = new ConcurrentHashMap<>();
 
     public CalendarFacadeService(
             ObjectProvider<CalendarProviderPort> calendarProviderPortProvider,
@@ -141,6 +144,64 @@ public class CalendarFacadeService {
                     .toList();
         } catch (CalendarAdapterException exception) {
             throw apiError(exception, "list-events");
+        }
+    }
+
+    public List<FreeBusyWindow> calDavFreeBusy(
+            CalendarScopeResponse scope,
+            OffsetDateTime from,
+            OffsetDateTime to) {
+        validateRange(from, to);
+        if (from == null || to == null) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "caldav-time-range-required",
+                    "CalDAV free-busy requires a bounded time range.",
+                    Map.of("module", "calendar", "operation", "caldav-free-busy"));
+        }
+        CalendarScopeResponse normalizedScope = normalizeScope(scope, "caldav-free-busy");
+        requireContextPermission(normalizedScope, ContextPermission.VIEW, "free-busy");
+        try {
+            return adapter("free-busy").freeBusy(
+                    calendarId(),
+                    toDomainScope(normalizedScope),
+                    from.toInstant(),
+                    to.toInstant());
+        } catch (CalendarAdapterException exception) {
+            throw apiError(exception, "free-busy");
+        }
+    }
+
+    public CalDavSyncResult syncCalDavResources(CalendarScopeResponse scope, String weaveSyncToken) {
+        CalendarScopeResponse normalizedScope = normalizeScope(scope, "caldav-sync-collection");
+        requireContextPermission(normalizedScope, ContextPermission.VIEW, "sync-events");
+        CalendarId calendarId = calendarId();
+        String providerToken = providerSyncToken(weaveSyncToken, calendarId, normalizedScope);
+        try {
+            var changeSet = adapter("sync-events").changes(
+                    calendarId,
+                    toDomainScope(normalizedScope),
+                    providerToken);
+            List<CalDavEventResource> changed = changeSet.changes().stream()
+                    .filter(change -> !change.deleted())
+                    .map(change -> adapter("read-event").read(
+                            calendarId,
+                            toDomainScope(normalizedScope),
+                            change.eventId()))
+                    .map(event -> calDavResource(event, normalizedScope))
+                    .toList();
+            List<String> deleted = changeSet.changes().stream()
+                    .filter(com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarChange::deleted)
+                    .map(change -> change.eventId().value())
+                    .toList();
+            String issuedToken = "weave-caldav-sync-" + UUID.randomUUID();
+            syncCursors.put(issuedToken, new CalendarSyncCursor(
+                    calendarId,
+                    normalizedScope.id(),
+                    changeSet.syncToken()));
+            return new CalDavSyncResult(issuedToken, normalizedScope, changed, deleted);
+        } catch (CalendarAdapterException exception) {
+            throw apiError(exception, "sync-events");
         }
     }
 
@@ -736,6 +797,29 @@ public class CalendarFacadeService {
                 Map.of("module", "calendar"));
     }
 
+    private String providerSyncToken(
+            String weaveSyncToken,
+            CalendarId calendarId,
+            CalendarScopeResponse scope) {
+        if (weaveSyncToken == null || weaveSyncToken.isBlank()) {
+            return null;
+        }
+        CalendarSyncCursor cursor = syncCursors.get(weaveSyncToken.trim());
+        if (cursor == null
+                || !cursor.calendarId().equals(calendarId)
+                || !cursor.scopeId().equals(scope.id())) {
+            throw new ApiErrorException(
+                    HttpStatus.CONFLICT,
+                    "caldav-sync-token-invalid",
+                    "The CalDAV sync token is invalid or no longer belongs to this calendar scope.",
+                    Map.of(
+                            "module", "calendar",
+                            "operation", "caldav-sync-collection",
+                            "supportSafe", true));
+        }
+        return cursor.providerToken();
+    }
+
     private CalendarEvent parseCalDavEvent(
             String eventUid,
             CalendarScopeResponse scope,
@@ -820,6 +904,9 @@ public class CalendarFacadeService {
     }
 
     private record ScopedEventId(CalendarScopeResponse scope, String rawId) {
+    }
+
+    private record CalendarSyncCursor(CalendarId calendarId, String scopeId, String providerToken) {
     }
 
     private CalendarAccessModelResponse accessModel() {

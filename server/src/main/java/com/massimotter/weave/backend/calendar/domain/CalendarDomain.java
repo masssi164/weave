@@ -248,6 +248,17 @@ public final class CalendarDomain {
         }
     }
 
+    public record CalendarChangeSet(String syncToken, List<CalendarChange> changes) {
+        public CalendarChangeSet {
+            syncToken = requireText(syncToken, "calendar sync token");
+            changes = changes == null ? List.of() : List.copyOf(changes);
+            String expectedSyncToken = syncToken;
+            if (changes.stream().anyMatch(change -> !expectedSyncToken.equals(change.syncToken()))) {
+                throw new IllegalArgumentException("calendar changes must carry the change-set sync token");
+            }
+        }
+    }
+
     private static String requireText(String value, String field) {
         String normalized = optionalText(value);
         if (normalized == null) {

@@ -1,6 +1,7 @@
 package com.massimotter.weave.backend.service;
 
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarChange;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarChangeSet;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarEvent;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarId;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarScope;
@@ -288,6 +289,46 @@ class CalendarFacadeServiceTest {
         assertThat(captured.get().permission()).isEqualTo(ContextPermission.EDIT);
     }
 
+    @Test
+    void syncCollectionWrapsProviderTokensAndScopesCursorsToOneCalendar() {
+        AtomicReference<String> capturedProviderToken = new AtomicReference<>();
+        CalendarProviderPort adapter = new StubCalendarProvider() {
+            @Override
+            public CalendarChangeSet changes(CalendarId calendarId, CalendarScope scope, String sinceToken) {
+                capturedProviderToken.set(sinceToken);
+                String next = sinceToken == null ? "raw-provider-token-1" : "raw-provider-token-2";
+                return new CalendarChangeSet(next, List.of(new CalendarChange(
+                        next,
+                        new EventId("event-id"),
+                        false,
+                        new EventVersion("\"etag\""))));
+            }
+
+            @Override
+            public CalendarEvent read(CalendarId calendarId, CalendarScope scope, EventId id) {
+                return event(id.value(), scope);
+            }
+        };
+        authenticate();
+        CalendarFacadeService service = service(adapter);
+
+        var first = service.syncCalDavResources(CalendarScopeResponse.workspace(), null);
+        var second = service.syncCalDavResources(CalendarScopeResponse.workspace(), first.syncToken());
+
+        assertThat(first.syncToken()).startsWith("weave-caldav-sync-").doesNotContain("raw-provider");
+        assertThat(second.syncToken()).startsWith("weave-caldav-sync-").isNotEqualTo(first.syncToken());
+        assertThat(capturedProviderToken.get()).isEqualTo("raw-provider-token-1");
+        assertThat(first.changedResources()).singleElement()
+                .satisfies(resource -> assertThat(resource.eventId()).isEqualTo("event-id"));
+        assertThatThrownBy(() -> service.syncCalDavResources(
+                        CalendarScopeResponse.team("engineering", "Engineering"),
+                        first.syncToken()))
+                .isInstanceOfSatisfying(ApiErrorException.class, error -> {
+                    assertThat(error.status().value()).isEqualTo(409);
+                    assertThat(error.code()).isEqualTo("caldav-sync-token-invalid");
+                });
+    }
+
     private CalendarFacadeService service(CalendarProviderPort adapter) {
         return service(adapter, request -> ContextAuthorizationDecision.allow("test allow"));
     }
@@ -402,7 +443,7 @@ class CalendarFacadeServiceTest {
         }
 
         @Override
-        public List<CalendarChange> changes(CalendarId calendarId, CalendarScope scope, String sinceToken) {
+        public CalendarChangeSet changes(CalendarId calendarId, CalendarScope scope, String sinceToken) {
             throw new AssertionError("unexpected changes call");
         }
     }

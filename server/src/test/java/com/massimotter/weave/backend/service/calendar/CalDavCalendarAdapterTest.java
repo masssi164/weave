@@ -231,6 +231,40 @@ class CalDavCalendarAdapterTest {
                 .containsExactly("2026-03-22", "2026-04-05");
     }
 
+    @Test
+    void mapsCalDavSyncCollectionChangesAndDeletionsToCanonicalIds() throws Exception {
+        List<String> requestBodies = new ArrayList<>();
+        server = server(exchange -> {
+            requestBodies.add(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            respond(exchange, 207, """
+                    <?xml version="1.0" encoding="utf-8"?>
+                    <d:multistatus xmlns:d="DAV:">
+                      <d:response>
+                        <d:href>/remote.php/dav/calendars/weave-backend/personal/planning%40weave.test.ics</d:href>
+                        <d:propstat><d:prop><d:getetag>"etag-2"</d:getetag></d:prop></d:propstat>
+                        <d:status>HTTP/1.1 200 OK</d:status>
+                      </d:response>
+                      <d:response>
+                        <d:href>/remote.php/dav/calendars/weave-backend/personal/cancelled.ics</d:href>
+                        <d:status>HTTP/1.1 404 Not Found</d:status>
+                      </d:response>
+                      <d:sync-token>https://provider.invalid/sync/2</d:sync-token>
+                    </d:multistatus>
+                    """, null);
+        });
+
+        var result = adapter().changes(calendarId(), CalendarScope.workspace(), "provider-sync-1");
+
+        assertThat(requestBodies).singleElement().satisfies(body -> assertThat(body)
+                .contains("<d:sync-token>provider-sync-1</d:sync-token>")
+                .contains("<d:sync-level>1</d:sync-level>"));
+        assertThat(result.syncToken()).isEqualTo("https://provider.invalid/sync/2");
+        assertThat(result.changes()).extracting(change -> change.eventId().value())
+                .containsExactly("planning@weave.test", "cancelled");
+        assertThat(result.changes().get(0).version().value()).isEqualTo("\"etag-2\"");
+        assertThat(result.changes().get(1).deleted()).isTrue();
+    }
+
     private CalendarEvent event(
             String id,
             String title,

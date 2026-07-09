@@ -1,6 +1,7 @@
 package com.massimotter.weave.backend.calendar.port;
 
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarChange;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarChangeSet;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarEvent;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarId;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarScope;
@@ -31,5 +32,5 @@ public interface CalendarProviderPort {
 
     List<FreeBusyWindow> freeBusy(CalendarId calendarId, CalendarScope scope, Instant from, Instant to);
 
-    List<CalendarChange> changes(CalendarId calendarId, CalendarScope scope, String sinceToken);
+    CalendarChangeSet changes(CalendarId calendarId, CalendarScope scope, String sinceToken);
 }
