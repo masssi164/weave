@@ -4002,6 +4002,56 @@
       ]
     },
     {
+      "tag": "@matrix-native-core",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "chat"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Matrix wire parsing and projection are implemented once in the shared Rust and Ruma core",
+        "Spring Boot reaches the core through required JNI linkage",
+        "Flutter reaches the same core through generated flutter_rust_bridge bindings"
+      ]
+    },
+    {
+      "tag": "@matrix-idempotent-send",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "chat"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Matrix transaction identifiers enter the canonical chat command",
+        "a retried send returns the same canonical message",
+        "the provider change stream records one mutation"
+      ]
+    },
+    {
+      "tag": "@matrix-provider-port",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "admin",
+        "member"
+      ],
+      "domains": [
+        "chat",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Matrix identifiers are projected from canonical Weave identifiers",
+        "chat conformance declares portable, archive-only, and unsupported semantics",
+        "provider replacement cannot leak provider identifiers northbound"
+      ]
+    },
+    {
       "tag": "@matrix-e2ee-state",
       "suiteId": "open-standards-gateway-archive-target",
       "personas": [

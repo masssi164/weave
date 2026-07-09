@@ -49,3 +49,25 @@ Feature: Chat Matrix facade
     Given Flutter Chat is exercised
     Then it uses the Rust Matrix core bridge boundary
     And it does not call Slack or Teams client APIs directly
+
+  @matrix-native-core
+  Scenario: Matrix wire behavior is owned by the shared native core
+    Given the Spring Matrix facade and Flutter Chat client are running
+    When Matrix versions, sync, timeline, and message payloads are processed
+    Then JNI and flutter_rust_bridge call the same Rust and Ruma protocol core
+    And no handwritten Java or Dart Matrix protocol fallback is used
+
+  @matrix-idempotent-send
+  Scenario: Retried Matrix transactions create one canonical message
+    Given a member can send to a canonical Chat conversation
+    When the same Matrix transaction identifier is submitted more than once
+    Then the canonical Chat provider port returns the same message identifier
+    And the canonical change stream records one message creation
+
+  @matrix-provider-port
+  Scenario: Chat provider replacement preserves canonical and Matrix identifiers
+    Given Chat conversations use canonical identifiers and provider mappings
+    When the selected southbound Chat provider changes
+    Then the canonical conversation identifiers remain stable
+    And the northbound Matrix room identifiers remain stable
+    And unsupported provider semantics are reported by the conformance profile

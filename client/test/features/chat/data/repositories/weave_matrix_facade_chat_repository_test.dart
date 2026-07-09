@@ -101,7 +101,13 @@ void main() {
             'protocolSurface': 'matrix-client-server-facade',
             'oidcGatekeeper': 'spring-boot-resource-server',
             'northboundHomeserverDependency': false,
+            'rustProtocolCore': 'ruma-serde-serde_json-thiserror-tracing',
+            'serverJniBoundary': 'server-jni-wrapper',
             'flutterBridgeBoundary': 'flutter-rust-bridge',
+            'nativeLinked': true,
+            'serverName': 'api.weave.test',
+            'supportedMatrixVersions': ['v1.18'],
+            'supportedEndpoints': ['GET /_matrix/client/v3/sync'],
           },
         }),
         200,
@@ -125,16 +131,16 @@ void main() {
         expect(request.url.path, '/_matrix/client/v3/sync');
         return http.Response(
           jsonEncode({
-            'next_batch': 'weave-next',
+            'next_batch': 'weave.s1.6e657874',
             'rooms': {
               'join': {
-                '!quiet:weave.local': _room(
+                '!quiet:api.weave.test': _room(
                   title: 'Quiet',
                   body: 'Earlier update',
                   timestamp: 1778244000000,
                   unreadCount: 0,
                 ),
-                '!general:weave.local': _room(
+                '!general:api.weave.test': _room(
                   title: 'General',
                   body: 'Hello from the Matrix facade',
                   timestamp: 1778244300000,
@@ -151,7 +157,7 @@ void main() {
       final conversations = await repository(client).loadConversations();
 
       expect(conversations.map((room) => room.title), ['General', 'Quiet']);
-      expect(conversations.first.id, '!general:weave.local');
+      expect(conversations.first.id, '!general:api.weave.test');
       expect(conversations.first.previewType, ChatConversationPreviewType.text);
       expect(conversations.first.previewText, 'Hello from the Matrix facade');
       expect(conversations.first.unreadCount, 2);
@@ -167,28 +173,28 @@ void main() {
       if (request.method == 'PUT') {
         expect(
           request.url.path,
-          '/_matrix/client/v3/rooms/!general%3Aweave.local/send/m.room.message/${request.url.pathSegments.last}',
+          '/_matrix/client/v3/rooms/!general%3Aapi.weave.test/send/m.room.message/${request.url.pathSegments.last}',
         );
         expect(jsonDecode(request.body), {
           'msgtype': 'm.text',
           'body': 'hello through Matrix facade',
         });
         return http.Response(
-          jsonEncode({'event_id': r'$sent:weave.local'}),
+          jsonEncode({'event_id': r'$sent:api.weave.test'}),
           200,
         );
       }
       expect(
         request.url.path,
-        '/_matrix/client/v3/rooms/!general%3Aweave.local/messages',
+        '/_matrix/client/v3/rooms/!general%3Aapi.weave.test/messages',
       );
       return http.Response(
         jsonEncode({
           'chunk': [
             {
               'type': 'm.room.message',
-              'event_id': r'$sent:weave.local',
-              'sender': '@user_alice:weave.local',
+              'event_id': r'$sent:api.weave.test',
+              'sender': '@user_alice:api.weave.test',
               'origin_server_ts': 1778244300000,
               'content': {
                 'msgtype': 'm.text',
@@ -203,13 +209,13 @@ void main() {
     final chat = repository(client);
 
     await chat.sendMessage(
-      roomId: '!general:weave.local',
+      roomId: '!general:api.weave.test',
       message: 'hello through Matrix facade',
     );
-    final timeline = await chat.loadRoomTimeline('!general:weave.local');
+    final timeline = await chat.loadRoomTimeline('!general:api.weave.test');
 
     expect(requests.map((request) => request.method), ['PUT', 'GET']);
-    expect(timeline.roomId, '!general:weave.local');
+    expect(timeline.roomId, '!general:api.weave.test');
     expect(timeline.messages.single.contentType, ChatMessageContentType.text);
     expect(
       timeline.messages.single.deliveryState,
@@ -301,8 +307,8 @@ Map<String, Object?> _room({
         {
           'type': 'm.room.name',
           'state_key': '',
-          'event_id': r'$state:weave.local',
-          'sender': '@weave:weave.local',
+          'event_id': r'$state:api.weave.test',
+          'sender': '@weave:api.weave.test',
           'origin_server_ts': timestamp,
           'content': {'name': title},
         },
@@ -312,8 +318,8 @@ Map<String, Object?> _room({
       'events': [
         {
           'type': 'm.room.message',
-          'event_id': r'$message:weave.local',
-          'sender': '@user_alice:weave.local',
+          'event_id': r'$message:api.weave.test',
+          'sender': '@user_alice:api.weave.test',
           'origin_server_ts': timestamp,
           'content': {'msgtype': 'm.text', 'body': body},
         },

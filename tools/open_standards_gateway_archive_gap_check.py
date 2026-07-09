@@ -23,7 +23,7 @@ REQUIRED_FEATURES = {
     "oidc_protocol_access.feature": 5,
     "files_webdav_full_facade.feature": 11,
     "calendar_caldav_facade.feature": 9,
-    "chat_matrix_facade.feature": 8,
+    "chat_matrix_facade.feature": 11,
     "calls_webrtc_join_grants.feature": 9,
     "mcp_domain_facade_boundary.feature": 5,
     "provider_neutral_no_leakage.feature": 5,
@@ -149,7 +149,14 @@ def require_current_evidence_boundaries() -> None:
     )
     require(
         "server/src/main/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionController.java",
-        "northbound-matrix-client-server",
+        '"X-Weave-Matrix-Core", "rust-ruma-jni"',
+        "chatDomainFacadeService.conversations(jwt)",
+        "chatDomainFacadeService.sendMessage(",
+    )
+    require(
+        "server/src/main/java/com/massimotter/weave/backend/matrix/MatrixProtocolCoreService.java",
+        'NativeMatrixCore.projectJson(operation, inputJson, serverName)',
+        'public static final String FLUTTER_BRIDGE_BOUNDARY = "flutter-rust-bridge"',
     )
     require(
         "server/src/main/java/com/massimotter/weave/backend/controller/CallsController.java",

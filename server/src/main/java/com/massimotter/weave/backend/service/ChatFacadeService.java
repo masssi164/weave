@@ -219,6 +219,7 @@ public class ChatFacadeService {
                 true);
     }
 
+    @Deprecated(forRemoval = true, since = "0.2")
     public ChatConversationsResponse conversations(Jwt jwt) {
         requireChatReady(jwt, "chat.read", "list_conversations");
         PrincipalContext principal = requireContextPermission(jwt, ContextPermission.VIEW);
@@ -230,6 +231,7 @@ public class ChatFacadeService {
         return new ChatConversationsResponse(DOMAIN, "canonical-domain-facade", SOURCE, readiness(jwt), response);
     }
 
+    @Deprecated(forRemoval = true, since = "0.2")
     public ChatMessagesResponse messages(Jwt jwt, String conversationId) {
         requireChatReady(jwt, "chat.read", "list_messages");
         PrincipalContext principal = requireContextPermission(jwt, ContextPermission.VIEW);
@@ -237,6 +239,7 @@ public class ChatFacadeService {
         return new ChatMessagesResponse(conversation.id(), readiness(jwt), conversation.messagesFor(principal.principalRef()));
     }
 
+    @Deprecated(forRemoval = true, since = "0.2")
     public ChatMessageResponse sendMessage(Jwt jwt, String conversationId, ChatSendMessageRequest request) {
         requireChatReady(jwt, "chat.send", "send_message");
         PrincipalContext principal = requireContextPermission(jwt, ContextPermission.EDIT);

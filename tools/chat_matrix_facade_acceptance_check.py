@@ -65,7 +65,9 @@ def require_matrix_repository_contracts() -> None:
         "class WeaveMatrixFacadeChatRepository implements ChatRepository",
         "/_matrix/client/v3/sync",
         "/_matrix/client/v3/rooms/",
-        "flutterBridgeBoundary",
+        "parseSync",
+        "parseMessages",
+        "serializeTextMessage",
         "configuration.serviceEndpoints.matrixHomeserverUrl",
         "RustMatrixCoreBridge",
     )
@@ -74,6 +76,7 @@ def require_matrix_repository_contracts() -> None:
         "package:matrix",
         "flutter_vodozemac",
         "BackendChatRepository",
+        "jsonDecode(response.body)",
     )
 
 
@@ -120,7 +123,7 @@ def require_flutter_matrix_boundary() -> None:
     )
     require(
         "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
-        "matrixClientServerProjectionWhoamiDerivesMatrixIdentityFromOidcPrincipal",
+        "whoamiUsesRumaValidatedIdentityDerivedFromOidcSubject",
         "/_matrix/client/v3/account/whoami",
         "spring-boot-resource-server",
     )
@@ -152,6 +155,13 @@ def require_flutter_matrix_boundary() -> None:
         "northboundHomeserverDependency",
         "flutterBridgeBoundary",
         "supportedMatrixVersions",
+        "projectMatrixJson",
+    )
+    require(
+        "server/src/test/java/com/massimotter/weave/backend/chat/adapter/WeaveCanonicalChatAdapterTest.java",
+        "repeatedTransactionReturnsSameCanonicalMessageAndSingleChange",
+        "conformanceAccountsForPortableLossyAndUnsupportedChatSemantics",
+        "northboundIdentifiersRemainCanonicalAndProviderNeutral",
     )
 
 

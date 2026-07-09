@@ -242,10 +242,10 @@
           "path": "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
           "fragments": [
             "matrixClientServerProjectionRequiresWorkspaceToken",
-            "matrixClientServerProjectionWhoamiDerivesMatrixIdentityFromOidcPrincipal",
-            "matrixClientServerProjectionSyncsCanonicalChatAsMatrixRoomsWithoutProviderPayloads",
-            "matrixClientServerProjectionSendsViaCanonicalChatFacade",
-            "matrixClientServerProjectionListsJoinedRoomsAndRoomMessages"
+            "whoamiUsesRumaValidatedIdentityDerivedFromOidcSubject",
+            "syncProjectsCanonicalChatThroughRustWithStableWeaveCursor",
+            "sendParsesInRustAndForwardsTransactionForCanonicalIdempotency",
+            "joinedRoomsAndMessagesUseCanonicalIdentifiers"
           ]
         }
       ]
@@ -4438,10 +4438,10 @@
         {
           "path": "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
           "fragments": [
-            "matrixClientServerProjectionSyncsCanonicalChatAsMatrixRoomsWithoutProviderPayloads",
-            "matrixClientServerProjectionSendsViaCanonicalChatFacade",
-            "northbound-matrix-client-server",
-            "!channel-general:weave.local"
+            "syncProjectsCanonicalChatThroughRustWithStableWeaveCursor",
+            "sendParsesInRustAndForwardsTransactionForCanonicalIdempotency",
+            "rust-ruma-jni",
+            "!channel-general:api.weave.test"
           ]
         }
       ]
@@ -4532,7 +4532,7 @@
           "path": "server/src/test/java/com/massimotter/weave/backend/architecture/ServerArchitectureBoundaryTest.java",
           "fragments": [
             "calendarCalDavMethodsRouteThroughCalendarFacadeUseCases",
-            "matrixClientServerProjectionUsesChatFacadeNotBridgeOrRestChatDataPlane",
+            "matrixClientServerProjectionUsesCanonicalChatAndNativeCoreNotRestDtos",
             "protocolProjectionAndMcpCodeDoNotImportProviderAdapters"
           ]
         }
@@ -5512,6 +5512,74 @@
             "WeaveMatrixFacadeChatRepository",
             "isNot(contains('BackendChatRepository('))",
             "isNot(contains('matrixSessionServiceProvider'))"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@matrix-native-core",
+      "scenario": "Matrix wire behavior is owned by the shared native core",
+      "feature": "e2e/features/chat_matrix_facade.feature",
+      "executableTest": "tools/chat_matrix_facade_acceptance_check.py",
+      "evidenceMarkers": [
+        "RUST_MATRIX_CORE_BRIDGE_CONTRACT"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
+          "fragments": [
+            "versionsIsSerializedByTheLinkedRustRumaCore",
+            "syncProjectsCanonicalChatThroughRustWithStableWeaveCursor",
+            "rust-ruma-jni"
+          ]
+        },
+        {
+          "path": "client/test/integrations/rust_matrix_core/data/services/rust_matrix_core_bridge_test.dart",
+          "fragments": [
+            "RUST_MATRIX_CORE_BRIDGE_CONTRACT",
+            "versions response is validated inside the Rust core",
+            "nativeLinked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@matrix-idempotent-send",
+      "scenario": "Retried Matrix transactions create one canonical message",
+      "feature": "e2e/features/chat_matrix_facade.feature",
+      "executableTest": "tools/chat_matrix_facade_acceptance_check.py",
+      "evidenceMarkers": [
+        "MATRIX_MESSAGE_CONTRACT"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/chat/adapter/WeaveCanonicalChatAdapterTest.java",
+          "fragments": [
+            "repeatedTransactionReturnsSameCanonicalMessageAndSingleChange",
+            "ChatTransactionId",
+            "changes(actor, before, 100)"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@matrix-provider-port",
+      "scenario": "Chat provider replacement preserves canonical and Matrix identifiers",
+      "feature": "e2e/features/chat_matrix_facade.feature",
+      "executableTest": "tools/chat_matrix_facade_acceptance_check.py",
+      "evidenceMarkers": [
+        "MATRIX_SPACES_ROOMS_CONTRACT"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/chat/adapter/WeaveCanonicalChatAdapterTest.java",
+          "fragments": [
+            "northboundIdentifiersRemainCanonicalAndProviderNeutral",
+            "conformanceAccountsForPortableLossyAndUnsupportedChatSemantics",
+            "ProviderConformanceProfile.MappingClass.UNSUPPORTED"
           ]
         }
       ]

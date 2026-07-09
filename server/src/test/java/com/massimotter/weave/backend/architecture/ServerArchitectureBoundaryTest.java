@@ -258,7 +258,7 @@ class ServerArchitectureBoundaryTest {
     }
 
     @Test
-    void matrixClientServerProjectionUsesChatFacadeNotBridgeOrRestChatDataPlane() throws IOException {
+    void matrixClientServerProjectionUsesCanonicalChatAndNativeCoreNotRestDtos() throws IOException {
         JavaSource matrixProjection = productionSources().stream()
                 .filter(source -> source.path().endsWith(Path.of("controller", "MatrixClientServerProjectionController.java")))
                 .findFirst()
@@ -266,13 +266,17 @@ class ServerArchitectureBoundaryTest {
 
         assertThat(matrixProjection.text())
                 .contains("\"/_matrix/client/**\"")
-                .contains("northbound-matrix-client-server")
                 .contains("matrixProtocolCoreService.versions()")
-                .contains("matrixProtocolCoreService.descriptor()")
-                .contains("chatFacadeService.conversations(jwt)")
-                .contains("chatFacadeService.messages(jwt")
-                .contains("chatFacadeService.sendMessage(")
+                .contains("matrixProtocolCoreService.sync(")
+                .contains("matrixProtocolCoreService.parseSendBody(")
+                .contains("chatDomainFacadeService.conversations(jwt)")
+                .contains("chatDomainFacadeService.messages(")
+                .contains("chatDomainFacadeService.sendMessage(")
                 .doesNotContain("/api/chat/conversations")
+                .doesNotContain("ChatFacadeService")
+                .doesNotContain("ChatConversationResponse")
+                .doesNotContain("ChatMessageResponse")
+                .doesNotContain("ObjectMapper")
                 .doesNotContain("BridgeAdapter")
                 .doesNotContain("providerAccessToken")
                 .doesNotContain("RestClient");
@@ -294,12 +298,12 @@ class ServerArchitectureBoundaryTest {
                 .contains("ruma-serde-serde_json-thiserror-tracing")
                 .contains("server-jni-wrapper")
                 .contains("flutter-rust-bridge")
-                .contains("northboundHomeserverDependency")
-                .contains("NativeMatrixCore.LIBRARY_NAME")
+                .contains("NativeMatrixCore.ensureLoaded()")
+                .contains("NativeMatrixCore.projectJson(")
                 .doesNotContain("Synapse")
                 .doesNotContain("RestClient");
         assertThat(nativeCore.text())
-                .contains("public static native String matrixFacadeDescriptorJson")
+                .contains("public static native String projectJson")
                 .contains("weave_matrix_core");
     }
 
