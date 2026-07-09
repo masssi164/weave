@@ -116,17 +116,18 @@ def require_matrix_chat_server_mvp() -> None:
     )
     require(
         "client/lib/features/chat/presentation/providers/chat_repository_provider.dart",
-        "MatrixChatRepository",
+        "WeaveMatrixFacadeChatRepository",
         "Matrix Client-Server projection",
         "`/api/chat/**` remains a transitional/control facade",
-        "normal message sync/send does not",
+        "direct Matrix SDK",
     )
     require(
         "client/test/architecture/backend_facade_contract_test.dart",
         "primary chat provider is wired through the Matrix Client-Server projection",
         "isNot(contains('BackendChatRepository('))",
-        "matrixSessionServiceProvider",
+        "isNot(contains('matrixSessionServiceProvider'))",
     )
+    require_absent("client/pubspec.yaml", "matrix:", "flutter_vodozemac")
     require(
         "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
         "matrixClientServerProjectionRequiresWorkspaceToken",

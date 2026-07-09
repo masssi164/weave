@@ -161,13 +161,15 @@ void main() {
         'lib/features/chat/presentation/providers/chat_repository_provider.dart',
       ).readAsString();
 
-      expect(source, contains('MatrixChatRepository'));
+      expect(source, contains('WeaveMatrixFacadeChatRepository'));
       expect(source, contains('Matrix Client-Server projection'));
       expect(source, contains('/api/chat/**'));
       expect(source, contains('OpenAPI/REST'));
+      expect(source, contains('direct Matrix SDK'));
       expect(source, isNot(contains('FeatureFlags.legacyDirectMatrixChat')));
       expect(source, isNot(contains('BackendChatRepository(')));
-      expect(source, contains('matrixSessionServiceProvider'));
+      expect(source, isNot(contains('matrixSessionServiceProvider')));
+      expect(source, isNot(contains('package:matrix')));
 
       final workspaceReadiness = await File(
         'lib/features/app/presentation/providers/workspace_connection_provider.dart',
@@ -180,17 +182,23 @@ void main() {
         workspaceReadiness,
         isNot(contains('MatrixChatSecurityRepository')),
       );
+      expect(
+        workspaceReadiness,
+        isNot(contains('RustMatrixCoreChatSecurityRepository')),
+      );
 
       final securityProvider = await File(
         'lib/features/chat/presentation/providers/chat_security_repository_provider.dart',
       ).readAsString();
       expect(
         securityProvider,
-        contains('Diagnostic-only Matrix E2EE/security seam'),
+        contains(
+          'Diagnostic-only Matrix E2EE/security seam through the Rust core boundary',
+        ),
       );
       expect(
         securityProvider,
-        contains('normal member routes must not import'),
+        contains('Direct Matrix SDK crypto is intentionally absent'),
       );
     },
   );

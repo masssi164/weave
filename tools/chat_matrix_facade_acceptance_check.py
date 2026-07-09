@@ -47,59 +47,52 @@ def require_absent(path: str, *fragments: str) -> None:
 
 def require_matrix_repository_contracts() -> None:
     require(
-        "client/test/features/chat/data/repositories/matrix_chat_repository_test.dart",
+        "client/test/features/chat/data/repositories/weave_matrix_facade_chat_repository_test.dart",
         "MATRIX_CONNECT_CONTRACT",
-        "connect uses the configured Matrix homeserver",
-        "loads conversations from the configured Matrix homeserver",
+        "connect validates the OIDC-gated Rust Matrix facade",
+        "https://api.weave.test/_matrix/client/versions",
         "MATRIX_SPACES_ROOMS_CONTRACT",
-        "maps Matrix timeline message safety states into chat entities",
+        "maps Matrix sync rooms from the Weave facade into chat entities",
         "MATRIX_MESSAGE_CONTRACT",
-        "sends through Matrix and reads the delivered room timeline",
-        "hello through Matrix",
+        "sends through Matrix facade and reads room messages",
+        "hello through Matrix facade",
         "ChatMessageDeliveryState.sent",
         "isNot(contains('access_token'))",
         "isNot(contains('homeserver'))",
     )
     require(
-        "client/lib/features/chat/data/repositories/matrix_chat_repository.dart",
-        "class MatrixChatRepository implements ChatRepository",
-        "_conversationService.loadConversations(",
-        "_roomService.loadRoomTimeline(",
-        "_roomService.sendMessage(",
-        "_sessionService.connect(",
+        "client/lib/features/chat/data/repositories/weave_matrix_facade_chat_repository.dart",
+        "class WeaveMatrixFacadeChatRepository implements ChatRepository",
+        "/_matrix/client/v3/sync",
+        "/_matrix/client/v3/rooms/",
+        "flutterBridgeBoundary",
         "configuration.serviceEndpoints.matrixHomeserverUrl",
+        "RustMatrixCoreBridge",
     )
-    require(
-        "client/lib/features/chat/data/services/matrix_conversation_service.dart",
-        "await client.oneShotSync()",
-        "client.rooms.map(_mapRoom)",
-        "MatrixRoomPreviewType.encrypted",
-    )
-    require(
-        "client/lib/features/chat/data/services/matrix_room_service.dart",
-        "await room.sendTextEvent(message.trim())",
-        "await client.oneShotSync()",
-        "room.getTimeline(limit: 50)",
-        "MatrixMessageContentType.encrypted",
+    require_absent(
+        "client/lib/features/chat/data/repositories/weave_matrix_facade_chat_repository.dart",
+        "package:matrix",
+        "flutter_vodozemac",
+        "BackendChatRepository",
     )
 
 
 def require_matrix_security_contract() -> None:
     require(
-        "client/test/features/chat/data/repositories/matrix_chat_security_repository_test.dart",
+        "client/test/features/chat/data/repositories/rust_matrix_core_chat_security_repository_test.dart",
         "MATRIX_E2EE_STATE_CONTRACT",
-        "maps the Matrix security snapshot into chat-owned models",
-        "MatrixDeviceVerificationState.unverified",
-        "MatrixRoomEncryptionReadiness.encryptedRoomsNeedAttention",
-        "ChatRoomEncryptionReadiness.encryptedRoomsNeedAttention",
-        "ChatVerificationPhase.compareSas",
+        "fails E2EE state closed until the Rust bridge owns it",
+        "ChatDeviceVerificationState.unavailable",
+        "ChatRoomEncryptionReadiness.unavailable",
+        "Rust Matrix core Flutter bridge",
     )
     require(
-        "client/lib/features/chat/data/repositories/matrix_chat_security_repository.dart",
-        "MatrixChatSecurityRepository",
+        "client/lib/features/chat/data/repositories/rust_matrix_core_chat_security_repository.dart",
+        "RustMatrixCoreChatSecurityRepository",
         "loadSecurityState",
-        "ChatDeviceVerificationState",
-        "ChatRoomEncryptionReadiness",
+        "ChatSecurityBootstrapState.unavailable",
+        "ChatFailure.unsupportedConfiguration",
+        "RustMatrixCoreBridge",
     )
 
 
@@ -108,29 +101,31 @@ def require_flutter_matrix_boundary() -> None:
         "client/test/architecture/backend_facade_contract_test.dart",
         "FLUTTER_MATRIX_BOUNDARY_CONTRACT",
         "primary chat provider is wired through the Matrix Client-Server projection",
-        "MatrixChatRepository",
+        "WeaveMatrixFacadeChatRepository",
         "isNot(contains('BackendChatRepository('))",
-        "matrixSessionServiceProvider",
+        "isNot(contains('matrixSessionServiceProvider'))",
     )
     require(
         "client/lib/features/chat/presentation/providers/chat_repository_provider.dart",
-        "MatrixChatRepository",
+        "WeaveMatrixFacadeChatRepository",
         "Matrix Client-Server projection",
         "`/api/chat/**` remains a transitional/control facade",
-        "normal message sync/send does not",
+        "direct Matrix SDK",
     )
     require(
         "client/test/architecture/member_client_provider_boundary_contract_test.dart",
         "package:slack_",
         "package:microsoft_graph",
-        "allowedMatrixImportFiles",
+        "package:matrix",
+        "Weave Matrix facade and Rust bridge",
     )
     require_absent(
-        "client/lib/features/chat/data/repositories/matrix_chat_repository.dart",
+        "client/lib/features/chat/data/repositories/weave_matrix_facade_chat_repository.dart",
         "Slack",
         "Teams",
         "BackendChatRepository",
     )
+    require_absent("client/pubspec.yaml", "matrix:", "flutter_vodozemac")
     require(
         "client/test/integrations/rust_matrix_core/data/services/rust_matrix_core_bridge_test.dart",
         "RUST_MATRIX_CORE_BRIDGE_CONTRACT",

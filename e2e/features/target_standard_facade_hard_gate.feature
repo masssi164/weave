@@ -23,10 +23,10 @@ Feature: Target standard facade hard gate
     And native Calendar setup advertises Weave-owned "/caldav" paths while iOS and Android setup remain unavailable until #967 and #1018 close
 
   @target-standards-matrix-chat-server-mvp
-  Scenario: Matrix Chat server MVP is separated from client and API retirement parity
+  Scenario: Matrix Chat MVP is separated from full protocol and E2EE parity
     # Evidence marker: TARGET_STANDARDS_MATRIX_CHAT_SERVER_MVP
     Given Chat uses the OIDC-gated Weave Matrix Client-Server facade as the target data plane
     When the hard-gate audit checks executable evidence
-    Then the member Chat path uses the Matrix projection rather than a normal REST message data plane
+    Then the member Chat path uses the Matrix projection and Rust bridge boundary rather than a normal REST message data plane or Dart Matrix SDK
     And the server Matrix projection supports sync, joined rooms, room messages, and send through the canonical Chat facade without provider payloads
-    And full Matrix Client-Server parity, Rust/Ruma core wiring, Flutter bridge cutover, and Chat API-first retirement stay linked to #1017 and #1022 before a complete Chat claim
+    And full Matrix Client-Server parity, generated Flutter Rust bindings, E2EE recovery and verification, and Chat API-first retirement stay linked to #1017 and #1022 before a complete Chat claim

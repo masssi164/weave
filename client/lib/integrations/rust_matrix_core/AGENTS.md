@@ -16,7 +16,7 @@ Do not own here:
 Boundary rules:
 - Flutter continues to authenticate through the Weave OIDC session before calling the Weave Matrix facade.
 - The shared Rust core is a protocol helper, not a provider SDK escape hatch.
-- The legacy Dart Matrix SDK seam remains fenced until it can be retired without breaking E2EE and device-state behavior.
+- The legacy Dart Matrix SDK seam has been retired; future E2EE and device-state behavior must come through the Rust Matrix core Flutter bridge.
 
 ## Global Weave agent baseline
 

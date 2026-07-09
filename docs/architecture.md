@@ -172,33 +172,31 @@ Boundary rule:
 - features may depend on integrations, but integrations must not depend on feature presentation state or feature-owned transport mappings they are meant to support
 
 ## Session separation
-App auth, legacy Matrix diagnostic auth, and transitional Nextcloud integration state are intentionally separate concerns:
+App auth, the Weave Matrix facade session boundary, and transitional Nextcloud integration state are intentionally separate concerns:
 
 - `auth/` owns the app-level OIDC session that decides whether the shell is reachable
-- `chat/data/repositories/MatrixChatRepository` consumes the configured Matrix Client-Server projection for member chat sync/send; `BackendChatRepository` is a transitional REST control-plane/conformance seam, not the release chat data plane
+- `chat/data/repositories/WeaveMatrixFacadeChatRepository` consumes the OIDC-gated Weave Matrix Client-Server projection for member chat sync/send; `BackendChatRepository` is a transitional REST control-plane/conformance seam, not the release chat data plane
 - `files/data/repositories/BackendFilesRepository` consumes the Weave app session and calls the canonical backend Files facade; `integrations/nextcloud/` remains transitional provider-integration code rather than the normal member Files path
-- the app does not assume an app-level OIDC access token is also a Matrix access token
+- the app does not call a raw Matrix homeserver or persist a Matrix SDK access token; the Weave Matrix facade validates the app-level OIDC token
 - the app does not assume an app-level OIDC token can be persisted as a raw Nextcloud bearer session; persisted Nextcloud bearer sessions are stored as tokenless markers and rehydrated from app auth state
-- changing the Matrix homeserver invalidates the Matrix session without redesigning bootstrap
+- changing the Matrix facade URL invalidates chat data-plane requests without redesigning bootstrap
 - changing the configured Nextcloud base URL invalidates the persisted Nextcloud session without requiring feature-owned cleanup logic
 
 Matrix E2EE state also stays inside `features/chat/`:
 
-- the Matrix crypto runtime is wired in the chat-owned Matrix client
-- bootstrap, trust, verification, and recovery state are mapped to Weave-owned chat models before UI consumes them
+- the previous Dart Matrix SDK crypto path is retired and must not be reintroduced
+- bootstrap, trust, verification, and recovery state remain chat-owned models before UI consumes them
 - settings may host chat-owned security UI, but other features must not depend on raw Matrix crypto objects
 - recovery keys must be treated as external user-held material; local secure storage can help cache secrets, but reinstall/device-restore behavior differs across Android, iOS, and macOS and must not be overclaimed
-- the Matrix SDK `getCryptoIdentityState()` is the primary initialized/connected signal for chat-owned bootstrap mapping
-- verification state must stay chat-owned as well; SDK states such as `askSSSS` are surfaced as recovery/unlock prompts rather than exposed directly in widgets
-- current verification support is limited to SAS emoji/numbers plus SSSS unlock; QR verification remains out of scope until the client explicitly supports QR methods end-to-end
+- the current Flutter security repository fails closed until generated `flutter_rust_bridge` bindings expose Rust Matrix core device verification and recovery behavior
+- future verification states must stay chat-owned and surface recovery/unlock prompts rather than raw protocol or SDK state names
 
 The Matrix integration is the standard Chat data-plane seam. It uses:
 
-- the configured Matrix homeserver URL from `ServerConfiguration`
-- `Client.checkHomeserver(..., fetchAuthMetadata: true)` for capability discovery
-- Matrix Native OAuth 2.0 when `/_matrix/client/v1/auth_metadata` is available
-- a typed unsupported-configuration failure when the homeserver only exposes legacy login
-- Matrix SDK crypto setup helpers for first-device bootstrap, recovery reconnect, and self-verification continuation
+- the configured Weave Matrix facade URL from `ServerConfiguration`
+- OIDC bearer tokens from the app session, validated by Spring Boot before Matrix responses are emitted
+- `/_matrix/client/versions`, `/sync`, `/joined_rooms`, `/rooms/{roomId}/messages`, and `/rooms/{roomId}/send/m.room.message/{txnId}` for the current member data-plane slice
+- the shared Rust/Ruma Matrix core boundary through server JNI and Flutter `flutter_rust_bridge`
 
 ## Nextcloud integration split
 Normal member Files uses the Weave WebDAV facade through `BackendFilesRepository` for list, read, upload, create-folder, and delete data-plane behavior; Flutter keeps OpenAPI only for discovery/readiness/setup/revoke/control-plane state. Server-side `/dav/files` supports guarded `PUT`, `MKCOL`, and `DELETE` with ETags, conditional preconditions, support-safe errors, and mutation audit, and the Flutter repository calls those WebDAV methods instead of legacy OpenAPI member data-plane endpoints. The transitional Nextcloud integration is now split into fenced provider-owned helpers:

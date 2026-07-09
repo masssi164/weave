@@ -209,7 +209,7 @@
     },
     {
       "tag": "@target-standards-matrix-chat-server-mvp",
-      "scenario": "Matrix Chat server MVP is separated from client and API retirement parity",
+      "scenario": "Matrix Chat MVP is separated from full protocol and E2EE parity",
       "feature": "e2e/features/target_standard_facade_hard_gate.feature",
       "executableTest": "tools/target_standard_facade_hard_gate_check.py",
       "evidenceMarkers": [
@@ -220,7 +220,7 @@
         {
           "path": "client/lib/features/chat/presentation/providers/chat_repository_provider.dart",
           "fragments": [
-            "MatrixChatRepository",
+            "WeaveMatrixFacadeChatRepository",
             "Matrix Client-Server projection",
             "`/api/chat/**` remains a transitional/control facade"
           ]
@@ -4465,7 +4465,7 @@
           "fragments": [
             "primary chat provider is wired through the Matrix Client-Server projection",
             "BackendChatRepository(",
-            "matrixSessionServiceProvider"
+            "isNot(contains('matrixSessionServiceProvider'))"
           ]
         }
       ]
@@ -5312,11 +5312,11 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "client/test/features/chat/data/repositories/matrix_chat_repository_test.dart",
+          "path": "client/test/features/chat/data/repositories/weave_matrix_facade_chat_repository_test.dart",
           "fragments": [
             "MATRIX_CONNECT_CONTRACT",
-            "connect uses the configured Matrix homeserver",
-            "sessionService.lastHomeserverForConnect.toString()"
+            "connect validates the OIDC-gated Rust Matrix facade",
+            "https://api.weave.test/_matrix/client/versions"
           ]
         },
         {
@@ -5339,11 +5339,11 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "client/test/features/chat/data/repositories/matrix_chat_repository_test.dart",
+          "path": "client/test/features/chat/data/repositories/weave_matrix_facade_chat_repository_test.dart",
           "fragments": [
-            "loads conversations from the configured Matrix homeserver",
+            "maps Matrix sync rooms from the Weave facade into chat entities",
             "MATRIX_SPACES_ROOMS_CONTRACT",
-            "maps Matrix timeline message safety states into chat entities"
+            "Hello from the Matrix facade"
           ]
         }
       ]
@@ -5359,10 +5359,10 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "client/test/features/chat/data/repositories/matrix_chat_repository_test.dart",
+          "path": "client/test/features/chat/data/repositories/weave_matrix_facade_chat_repository_test.dart",
           "fragments": [
             "MATRIX_MESSAGE_CONTRACT",
-            "sends through Matrix and reads the delivered room timeline",
+            "sends through Matrix facade and reads room messages",
             "ChatMessageDeliveryState.sent"
           ]
         },
@@ -5387,12 +5387,12 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "client/test/features/chat/data/repositories/matrix_chat_security_repository_test.dart",
+          "path": "client/test/features/chat/data/repositories/rust_matrix_core_chat_security_repository_test.dart",
           "fragments": [
             "MATRIX_E2EE_STATE_CONTRACT",
-            "MatrixDeviceVerificationState.unverified",
-            "ChatRoomEncryptionReadiness.encryptedRoomsNeedAttention",
-            "ChatVerificationPhase.compareSas"
+            "fails E2EE state closed until the Rust bridge owns it",
+            "ChatDeviceVerificationState.unavailable",
+            "Rust Matrix core Flutter bridge"
           ]
         }
       ]
@@ -5471,9 +5471,9 @@
           "path": "client/test/architecture/backend_facade_contract_test.dart",
           "fragments": [
             "FLUTTER_MATRIX_BOUNDARY_CONTRACT",
-            "MatrixChatRepository",
+            "WeaveMatrixFacadeChatRepository",
             "isNot(contains('BackendChatRepository('))",
-            "matrixSessionServiceProvider"
+            "isNot(contains('matrixSessionServiceProvider'))"
           ]
         }
       ]

@@ -337,18 +337,20 @@ const _hardcodedCopyAllowlist = <LegacyFence>[
         'copy is localized from typed failure codes.',
   ),
   LegacyFence(
-    path: 'lib/features/chat/data/repositories/matrix_',
-    issue: '#906',
+    path:
+        'lib/features/chat/data/repositories/weave_matrix_facade_chat_repository.dart',
+    issue: '#908',
     reason:
-        'Legacy Matrix repositories are diagnostic/provider seams and remain '
-        'fenced until normal member reachability is removed.',
+        'Matrix facade repository failure text is fenced until member-visible '
+        'recovery copy is localized from typed failure codes.',
   ),
   LegacyFence(
-    path: 'lib/features/chat/data/services/matrix_',
-    issue: '#906',
+    path:
+        'lib/features/chat/data/repositories/rust_matrix_core_chat_security_repository.dart',
+    issue: '#908',
     reason:
-        'Legacy Matrix services are diagnostic/provider seams and remain fenced '
-        'until normal member reachability is removed.',
+        'Rust Matrix security bridge failure text is fenced until member-visible '
+        'E2EE recovery copy is localized from typed failure codes.',
   ),
   LegacyFence(
     path: 'lib/features/chat/data/services/archived_message_store.dart',
