@@ -61,6 +61,8 @@ class OpenApiDocumentationTest {
                         .value("getFilesNativeProviderSetup"))
                 .andExpect(jsonPath("$.paths['/api/files/native-provider-setup'].get.responses['200'].content['*/*'].schema['$ref']")
                         .value("#/components/schemas/FileNativeProviderSetupResponse"))
+                .andExpect(jsonPath("$.paths['/api/files/client-setup/credentials']").exists())
+                .andExpect(jsonPath("$.paths['/api/files/client-setup/credentials/{credentialId}']").exists())
                 .andExpect(jsonPath("$.paths['/api/files/{id}/download']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/files/{id}']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/calendar/events']").exists())

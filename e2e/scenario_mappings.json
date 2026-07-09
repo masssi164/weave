@@ -4725,18 +4725,19 @@
       "tag": "@open-standards-manifest",
       "scenario": "Authenticated member discovers standard protocol entrypoints",
       "feature": "e2e/features/open_standards_gateway_manifest.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/bdd/OpenStandardsGatewayStepDefinitions.java",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "OPEN_STANDARDS_MANIFEST_CONTRACT"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "server/src/test/resources/features/open-standards-gateway-control-plane.feature",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Authenticated member discovers standard protocol entrypoints",
+            "Files advertises the Weave WebDAV facade",
+            "Calendar advertises the Weave CalDAV facade",
+            "Chat advertises a Matrix Client-Server endpoint"
           ]
         }
       ]
@@ -4745,18 +4746,18 @@
       "tag": "@openapi-control-only",
       "scenario": "OpenAPI is only control and generated convenience",
       "feature": "e2e/features/open_standards_gateway_manifest.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/bdd/OpenStandardsGatewayStepDefinitions.java",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "OPENAPI_CONTROL_PLANE_CONTRACT"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/OpenApiDocumentationTest.java",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring.ai.mcp remains blocked"
+            "/api/files/client-setup/credentials",
+            "/api/files/client-setup/credentials/{credentialId}",
+            "/api/files/{id}/download"
           ]
         }
       ]
@@ -4765,18 +4766,19 @@
       "tag": "@support-safe-capability-states",
       "scenario": "Disabled or degraded domains return support-safe capability states",
       "feature": "e2e/features/open_standards_gateway_manifest.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/WorkspaceControllerTest.java",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "SUPPORT_SAFE_CAPABILITY_STATES_CONTRACT"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "server/src/main/java/com/massimotter/weave/backend/service/OrganizationManifestService.java",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring.ai.mcp remains blocked"
+            "disabled_by_policy",
+            "not_configured",
+            "degraded",
+            "coming_later"
           ]
         }
       ]
@@ -4865,18 +4867,19 @@
       "tag": "@no-provider-credentials",
       "scenario": "Device credentials never expose provider credentials",
       "feature": "e2e/features/oidc_protocol_access.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/bdd/OpenStandardsGatewayStepDefinitions.java",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "NO_PROVIDER_CREDENTIALS_CONTRACT"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring.ai.mcp remains blocked"
+            "FILES_WEBDAV_DEVICE_CREDENTIAL_CONTROL_PLANE",
+            "secretMaterialReturned",
+            "not(org.hamcrest.Matchers.containsString(\"Bearer\"))",
+            "not(org.hamcrest.Matchers.containsString(\"app_password\"))"
           ]
         }
       ]
@@ -5456,7 +5459,7 @@
     },
     {
       "tag": "@flutter-matrix-boundary",
-      "scenario": "Flutter Chat repository uses Matrix, not Slack or Teams direct clients",
+      "scenario": "Flutter Chat repository uses the Weave Matrix facade, not Slack or Teams direct clients",
       "feature": "e2e/features/chat_matrix_facade.feature",
       "executableTest": "tools/chat_matrix_facade_acceptance_check.py",
       "evidenceMarkers": [
@@ -5959,18 +5962,19 @@
       "tag": "@native-files-webdav",
       "scenario": "Files native setup returns Weave WebDAV endpoint and Weave device credentials only",
       "feature": "e2e/features/native_os_integration_readiness.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "NATIVE_FILES_WEBDAV_CONTROL_PLANE"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring.ai.mcp remains blocked"
+            "/dav/files",
+            "/api/files/client-setup/credentials",
+            "credentialsExposed",
+            "NATIVE_FILES_WEBDAV_CONTROL_PLANE"
           ]
         }
       ]

@@ -130,15 +130,58 @@ def require_matrix_chat_server_mvp() -> None:
     require(
         "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
         "matrixClientServerProjectionRequiresWorkspaceToken",
+        "matrixClientServerProjectionVersionsAdvertisesOidcGatedRustCoreFacade",
         "matrixClientServerProjectionSyncsCanonicalChatAsMatrixRoomsWithoutProviderPayloads",
         "matrixClientServerProjectionSendsViaCanonicalChatFacade",
         "matrixClientServerProjectionListsJoinedRoomsAndRoomMessages",
         "!channel-general:weave.local",
         "northbound-matrix-client-server",
+        "spring-boot-resource-server",
+        "weave_matrix_core",
     )
     require(
         "server/src/test/java/com/massimotter/weave/backend/architecture/ServerArchitectureBoundaryTest.java",
         "matrixClientServerProjectionUsesChatFacadeNotBridgeOrRestChatDataPlane",
+        "matrixProtocolCoreBoundaryDefinesRustJniAndFlutterBridgeTarget",
+    )
+    require(
+        "server/src/main/java/com/massimotter/weave/backend/matrix/NativeMatrixCore.java",
+        "public static native String matrixFacadeDescriptorJson",
+        "weave_matrix_core",
+    )
+    require(
+        "server/src/main/java/com/massimotter/weave/backend/matrix/MatrixProtocolCoreService.java",
+        "spring-boot-resource-server",
+        "ruma-serde-serde_json-thiserror-tracing",
+        "server-jni-wrapper",
+        "flutter-rust-bridge",
+        "northboundHomeserverDependency",
+    )
+    require(
+        "rust/matrix-core/src/lib.rs",
+        "OwnedRoomId",
+        "OwnedUserId",
+        "matrix_facade_descriptor_json",
+        "Java_com_massimotter_weave_backend_matrix_NativeMatrixCore_matrixFacadeDescriptorJson",
+        "northbound_homeserver_dependency: false",
+    )
+    require(
+        "build.gradle",
+        "matrixRustCoreTest",
+        "cargo",
+        "weave-matrix-core",
+    )
+    require(
+        "client/test/integrations/rust_matrix_core/data/services/rust_matrix_core_bridge_test.dart",
+        "RUST_MATRIX_CORE_BRIDGE_CONTRACT",
+        "flutter-rust-bridge",
+        "spring-boot-resource-server",
+    )
+    require(
+        "client/lib/integrations/rust_matrix_core/data/services/rust_matrix_core_bridge.dart",
+        "RustMatrixCoreBridge",
+        "matrix-client-server-facade",
+        "northboundHomeserverDependency",
     )
 
 

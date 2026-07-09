@@ -190,8 +190,11 @@ Final shape:
   attachments, decisions, meeting threads, policy, readiness, and audit.
 - JSON/API projection: Weave Chat OpenAPI where server-visible metadata,
   readiness, attachment, decision-ledger, and governed write operations are safe.
-- Standard projection: Weave-owned Matrix Client-Server core. Federation
-  identity is later and gated.
+- Standard projection: OIDC-gated Weave Matrix Client-Server facade backed by
+  the shared Rust/Ruma Matrix core. Federation identity is later and gated.
+- Shared protocol core: server consumes the Rust core through JNI; Flutter
+  consumes the same core through `flutter_rust_bridge`. Ruma, serde,
+  serde_json, thiserror, and tracing own reusable Matrix protocol modeling.
 - Native clients: Weave mobile clients use a Matrix-capable transport layer where
   encrypted room participation requires it, but product UI exposes Weave
   conversations/channels rather than raw Matrix IDs.
@@ -202,10 +205,12 @@ Final shape:
   `chat.create_decision_ref`, with explicit consent/audit gates for shared-state
   writes and decrypted-content access.
 
-Matrix is the target northbound chat protocol, but the staged implementation
-starts with Matrix Client-Server core before federation. Weave must own
-`server_name`, signing keys, Matrix user IDs, room IDs, event IDs, membership,
-timeline persistence, and the canonical chat ledger before any federation claim.
+Matrix is the target northbound chat protocol, but it must be exposed through
+Weave's own facade, not by promoting Synapse or another homeserver to the
+product boundary. The staged implementation starts with Matrix Client-Server
+core before federation. Weave must own `server_name`, signing keys, Matrix user
+IDs, room IDs, event IDs, membership, timeline persistence, and the canonical
+chat ledger before any federation claim.
 Tenant isolation, identity mapping, moderation, invite policy, retention, E2EE,
 and external-room UX must be proven before broad inter-organization federation
 is enabled.

@@ -6,6 +6,7 @@ import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.model.chat.ChatConversationResponse;
 import com.massimotter.weave.backend.model.chat.ChatMessageResponse;
 import com.massimotter.weave.backend.model.chat.ChatSendMessageRequest;
+import com.massimotter.weave.backend.matrix.MatrixProtocolCoreService;
 import com.massimotter.weave.backend.service.ChatFacadeService;
 import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.servlet.http.HttpServletRequest;
@@ -39,10 +40,15 @@ public class MatrixClientServerProjectionController {
             "^/_matrix/client/(?:v3|r0)/rooms/([^/]+)/messages$");
 
     private final ChatFacadeService chatFacadeService;
+    private final MatrixProtocolCoreService matrixProtocolCoreService;
     private final ObjectMapper objectMapper;
 
-    public MatrixClientServerProjectionController(ChatFacadeService chatFacadeService, ObjectMapper objectMapper) {
+    public MatrixClientServerProjectionController(
+            ChatFacadeService chatFacadeService,
+            MatrixProtocolCoreService matrixProtocolCoreService,
+            ObjectMapper objectMapper) {
         this.chatFacadeService = chatFacadeService;
+        this.matrixProtocolCoreService = matrixProtocolCoreService;
         this.objectMapper = objectMapper;
     }
 
@@ -51,6 +57,7 @@ public class MatrixClientServerProjectionController {
         return ResponseEntity.noContent()
                 .header(HttpHeaders.ALLOW, MATRIX_ALLOW)
                 .header("X-Weave-Projection", "matrix-client-server")
+                .header("X-Weave-Matrix-Core", "rust-ruma-jni-target")
                 .build();
     }
 
@@ -67,6 +74,9 @@ public class MatrixClientServerProjectionController {
         }
         try {
             String path = requestPath(request);
+            if ("GET".equals(method) && isVersions(path)) {
+                return matrixOk(matrixProtocolCoreService.versions());
+            }
             if ("GET".equals(method) && isSync(path)) {
                 return matrixOk(sync(jwt));
             }
@@ -97,7 +107,7 @@ public class MatrixClientServerProjectionController {
         Map<String, Object> joined = new LinkedHashMap<>();
         for (ChatConversationResponse conversation : chatFacadeService.conversations(jwt).conversations()) {
             var messages = chatFacadeService.messages(jwt, conversation.id()).messages();
-            joined.put(matrixRoomId(conversation.id()), Map.of(
+            joined.put(matrixProtocolCoreService.matrixRoomId(conversation.id()), Map.of(
                     "summary", Map.of(
                             "m.joined_member_count", 1,
                             "m.invited_member_count", 0),
@@ -113,12 +123,13 @@ public class MatrixClientServerProjectionController {
                 "rooms", Map.of("join", joined),
                 "weaveBoundary", "northbound-matrix-client-server",
                 "canonicalDomain", "chat",
-                "providerDataPlaneExposed", false);
+                "providerDataPlaneExposed", false,
+                "matrixCore", matrixProtocolCoreService.descriptor());
     }
 
     private Map<String, Object> joinedRooms(Jwt jwt) {
         return Map.of("joined_rooms", chatFacadeService.conversations(jwt).conversations().stream()
-                .map(conversation -> matrixRoomId(conversation.id()))
+                .map(conversation -> matrixProtocolCoreService.matrixRoomId(conversation.id()))
                 .toList());
     }
 
@@ -139,15 +150,15 @@ public class MatrixClientServerProjectionController {
                 jwt,
                 conversationId,
                 new ChatSendMessageRequest(text, List.of()));
-        return Map.of("event_id", matrixEventId(message.id()));
+        return Map.of("event_id", matrixProtocolCoreService.matrixEventId(message.id()));
     }
 
     private Map<String, Object> roomNameEvent(ChatConversationResponse conversation) {
         return Map.of(
                 "type", "m.room.name",
                 "state_key", "",
-                "sender", "@weave:weave.local",
-                "event_id", matrixEventId("state-" + conversation.id()),
+                "sender", matrixProtocolCoreService.matrixSender("weave"),
+                "event_id", matrixProtocolCoreService.matrixEventId("state-" + conversation.id()),
                 "origin_server_ts", conversation.lastMessageAt() == null
                         ? Instant.EPOCH.toEpochMilli()
                         : conversation.lastMessageAt().toEpochMilli(),
@@ -157,8 +168,8 @@ public class MatrixClientServerProjectionController {
     private Map<String, Object> matrixMessageEvent(ChatMessageResponse message) {
         return Map.of(
                 "type", "m.room.message",
-                "sender", matrixSender(message.senderRef()),
-                "event_id", matrixEventId(message.id()),
+                "sender", matrixProtocolCoreService.matrixSender(message.senderRef()),
+                "event_id", matrixProtocolCoreService.matrixEventId(message.id()),
                 "origin_server_ts", message.sentAt().toEpochMilli(),
                 "content", Map.of(
                         "msgtype", "m.text",
@@ -172,31 +183,17 @@ public class MatrixClientServerProjectionController {
         return path.startsWith("/_matrix/client/v3/sync") || path.startsWith("/_matrix/client/r0/sync");
     }
 
+    private boolean isVersions(String path) {
+        return path.equals("/_matrix/client/versions") || path.equals("/_matrix/client/v3/versions");
+    }
+
     private boolean isJoinedRooms(String path) {
         return path.equals("/_matrix/client/v3/joined_rooms") || path.equals("/_matrix/client/r0/joined_rooms");
     }
 
-    private String matrixRoomId(String conversationId) {
-        return "!" + conversationId.replaceAll("[^A-Za-z0-9._=-]", "_") + ":weave.local";
-    }
-
     private String decodeRoomId(String matrixRoomId) {
         String decoded = UriUtils.decode(matrixRoomId, StandardCharsets.UTF_8);
-        if (decoded != null && decoded.startsWith("!") && decoded.contains(":")) {
-            return decoded.substring(1, decoded.indexOf(':'));
-        }
-        return decoded == null ? matrixRoomId : decoded;
-    }
-
-    private String matrixSender(String senderRef) {
-        String safe = senderRef == null || senderRef.isBlank()
-                ? "unknown"
-                : senderRef.replaceFirst("^[^:]+:", "").replaceAll("[^A-Za-z0-9._=-]", "_");
-        return "@" + safe + ":weave.local";
-    }
-
-    private String matrixEventId(String id) {
-        return "$" + (id == null ? "weave-event" : id.replaceAll("[^A-Za-z0-9._=-]", "_")) + ":weave.local";
+        return matrixProtocolCoreService.decodeRoomId(decoded);
     }
 
     private String requestPath(HttpServletRequest request) {
@@ -235,6 +232,7 @@ public class MatrixClientServerProjectionController {
     private ResponseEntity<Map<String, Object>> matrixOk(Map<String, Object> body) {
         return ResponseEntity.ok()
                 .header("X-Weave-Projection", "matrix-client-server")
+                .header("X-Weave-Matrix-Core", "rust-ruma-jni-target")
                 .body(body);
     }
 
@@ -251,12 +249,14 @@ public class MatrixClientServerProjectionController {
     private ResponseEntity<Map<String, Object>> matrixError(HttpStatus status, String errcode, String error) {
         return ResponseEntity.status(status)
                 .header("X-Weave-Projection", "matrix-client-server")
+                .header("X-Weave-Matrix-Core", "rust-ruma-jni-target")
                 .body(Map.of(
                         "errcode", errcode,
                         "error", error,
                         "weaveBoundary", "northbound-matrix-client-server",
                         "canonicalDomain", "chat",
                         "supportSafe", true,
-                        "providerDataPlaneExposed", false));
+                        "providerDataPlaneExposed", false,
+                        "matrixCore", matrixProtocolCoreService.descriptor()));
     }
 }

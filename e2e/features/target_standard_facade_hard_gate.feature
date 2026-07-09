@@ -25,8 +25,8 @@ Feature: Target standard facade hard gate
   @target-standards-matrix-chat-server-mvp
   Scenario: Matrix Chat server MVP is separated from client and API retirement parity
     # Evidence marker: TARGET_STANDARDS_MATRIX_CHAT_SERVER_MVP
-    Given Chat uses the Matrix Client-Server API as the target data plane
+    Given Chat uses the OIDC-gated Weave Matrix Client-Server facade as the target data plane
     When the hard-gate audit checks executable evidence
     Then the member Chat path uses the Matrix projection rather than a normal REST message data plane
     And the server Matrix projection supports sync, joined rooms, room messages, and send through the canonical Chat facade without provider payloads
-    And full Matrix Client-Server parity, raw homeserver cutover, and Chat API-first retirement stay linked to #1017 and #1022 before a complete Chat claim
+    And full Matrix Client-Server parity, Rust/Ruma core wiring, Flutter bridge cutover, and Chat API-first retirement stay linked to #1017 and #1022 before a complete Chat claim

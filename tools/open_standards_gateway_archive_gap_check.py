@@ -48,10 +48,13 @@ REQUIRED_GAPS = {
         "Flutter CalDAV",
     ],
     "chat-matrix-parity": [
-        "real Matrix homeserver",
-        "provisioning flow",
+        "OIDC-gated Weave Matrix Client-Server facade",
+        "Rust/Ruma Matrix core",
+        "server JNI",
+        "flutter_rust_bridge",
+        "southbound provider/fixture",
         "device revocation",
-        "Spring projection is not final parity",
+        "raw Chat API-first member data-plane",
     ],
     "calls-join-grants": [
         "remove participant",

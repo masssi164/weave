@@ -360,6 +360,58 @@ class FilesFacadeServiceTest {
     }
 
     @Test
+    void filesWebdavDeviceCredentialLifecycleIssuesListsRevokesAndDeniesAfterRevoke() {
+        // FILES_WEBDAV_DEVICE_CREDENTIAL_LIFECYCLE
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
+        InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
+        FilesFacadeService service = service(new StubAdapter(true), audit);
+
+        var credential = service.createSetupCredential(
+                new com.massimotter.weave.backend.model.files.FileSetupCredentialRequest(
+                        "Mac Finder",
+                        "webdav"));
+
+        assertThat(credential.credentialId()).startsWith("files_device_");
+        assertThat(credential.state()).isEqualTo("active-no-secret-issued");
+        assertThat(credential.principalRef()).isEqualTo("user:user-123");
+        assertThat(credential.webDavBasePath()).isEqualTo("/dav/files");
+        assertThat(credential.secretMaterialReturned()).isFalse();
+        assertThat(credential.revocationActions())
+                .containsExactly("DELETE /api/files/client-setup/credentials/" + credential.credentialId());
+        assertThat(service.setupCredentials().credentials())
+                .extracting(com.massimotter.weave.backend.model.files.FileSetupCredentialResponse::credentialId)
+                .containsExactly(credential.credentialId());
+        assertThat(service.requireActiveSetupCredential(credential.credentialId()).state())
+                .isEqualTo("active-no-secret-issued");
+
+        var revoked = service.revokeSetupCredential(credential.credentialId());
+
+        assertThat(revoked.state()).isEqualTo("revoked");
+        assertThat(revoked.revokedAt()).isNotNull();
+        assertThat(revoked.secretMaterialReturned()).isFalse();
+        assertThatThrownBy(() -> service.requireActiveSetupCredential(credential.credentialId()))
+                .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
+                    assertThat(exception.status()).isEqualTo(HttpStatus.UNAUTHORIZED);
+                    assertThat(exception.code()).isEqualTo("files-setup-credential-revoked");
+                    assertThat(exception.details())
+                            .containsEntry("webDavFacadePath", "/dav/files")
+                            .containsEntry("diagnosticsRedacted", true);
+                    assertThat(exception.getMessage()).doesNotContain("Nextcloud", "Bearer", "app_password");
+                });
+        assertThat(audit.events())
+                .extracting(event -> event.action())
+                .containsExactly(
+                        AuditAction.FILES_DEVICE_CREDENTIAL_ISSUED,
+                        AuditAction.FILES_DEVICE_CREDENTIAL_REVOKED);
+        assertThat(audit.events()).allSatisfy(event -> assertThat(event.payload())
+                .containsEntry("domain", "files")
+                .containsEntry("webDavFacadePath", "/dav/files")
+                .containsEntry("secretMaterialReturned", "[redacted]")
+                .containsEntry("supportSafe", true)
+                .doesNotContainKeys("providerUrl", "rawProviderPayload", "bearerToken", "secretValue"));
+    }
+
+    @Test
     void configurationPropertiesBindSeededMembershipsIntoAuthorizationPort() {
         contextRunner
                 .withPropertyValues(

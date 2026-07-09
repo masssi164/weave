@@ -19,6 +19,9 @@ public record FileNativeProviderSetupResponse(
         boolean credentialsExposed,
         @Schema(description = "Weave-owned WebDAV facade base path for native providers.", example = "/dav/files")
         String facadeBasePath,
+        @Schema(description = "Weave-owned credential lifecycle path for native and generic WebDAV clients.",
+                example = "/api/files/client-setup/credentials")
+        String credentialLifecyclePath,
         @Schema(description = "Weave-owned WebDAV list path template for native providers.", example = "/dav/files/{path}")
         String listPathTemplate,
         @Schema(description = "Weave-owned WebDAV download path template for native providers.", example = "/dav/files/{path}")

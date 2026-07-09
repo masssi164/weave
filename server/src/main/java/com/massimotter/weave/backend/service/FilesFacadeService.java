@@ -15,6 +15,9 @@ import com.massimotter.weave.backend.model.files.FileItemResponse;
 import com.massimotter.weave.backend.model.files.FileListResponse;
 import com.massimotter.weave.backend.model.files.FileNativeProviderOptionResponse;
 import com.massimotter.weave.backend.model.files.FileNativeProviderSetupResponse;
+import com.massimotter.weave.backend.model.files.FileSetupCredentialListResponse;
+import com.massimotter.weave.backend.model.files.FileSetupCredentialRequest;
+import com.massimotter.weave.backend.model.files.FileSetupCredentialResponse;
 import com.massimotter.weave.backend.model.files.FileUploadResponse;
 import com.massimotter.weave.backend.service.files.DownloadedFile;
 import com.massimotter.weave.backend.service.files.FilePathCodec;
@@ -28,14 +31,17 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
@@ -56,6 +62,7 @@ public class FilesFacadeService {
     private final ContextAuthorizationProperties contextAuthorizationProperties;
     private final WorkspaceCapabilityService workspaceCapabilityService;
     private final AuditEventPublisher auditEventPublisher;
+    private final Map<String, FileSetupCredentialResponse> setupCredentials = new ConcurrentHashMap<>();
 
     @Autowired
     public FilesFacadeService(
@@ -268,6 +275,7 @@ public class FilesFacadeService {
                 false,
                 false,
                 "/dav/files",
+                "/api/files/client-setup/credentials",
                 "/dav/files/{path}",
                 "/dav/files/{path}",
                 "/dav/files/{path}",
@@ -308,12 +316,84 @@ public class FilesFacadeService {
                         "DELETE /dav/files/{path}",
                         "MKCOL /dav/files/{path}",
                         "MCP files.search/files.read via WebDAV-backed Weave Files facade/projection",
-                        "OpenAPI /api/files/readiness and native-provider-setup for discovery/status/revoke control plane",
+                        "OpenAPI /api/files/readiness, native-provider-setup, and client-setup/credentials for discovery/status/revoke control plane",
                         "WebDAV writes use Weave ETag preconditions, support-safe conflict/storage errors, and mutation audit"),
                 List.of(
                         "native-extension-implementation",
-                        "per-device-token-revocation",
+                        "device-credential-authenticator",
                         "physical-device-provider-proof"));
+    }
+
+    public FileSetupCredentialListResponse setupCredentials() {
+        PrincipalContext principal = requireContextPermission(ContextPermission.VIEW, "list-file-setup-credentials");
+        return new FileSetupCredentialListResponse(setupCredentials.values().stream()
+                .filter(credential -> principal.principalRef().equals(credential.principalRef()))
+                .sorted(Comparator.comparing(FileSetupCredentialResponse::issuedAt))
+                .toList());
+    }
+
+    public FileSetupCredentialResponse createSetupCredential(FileSetupCredentialRequest request) {
+        PrincipalContext principal = requireContextPermission(ContextPermission.EDIT, "create-file-setup-credential");
+        OffsetDateTime issuedAt = OffsetDateTime.now(ZoneOffset.UTC);
+        String id = "files_device_" + UUID.randomUUID();
+        FileSetupCredentialResponse credential = new FileSetupCredentialResponse(
+                id,
+                "active-no-secret-issued",
+                principal.principalRef(),
+                defaultIfBlank(request.clientType(), "webdav"),
+                defaultIfBlank(request.label(), "Files WebDAV client setup"),
+                issuedAt,
+                issuedAt.plusHours(24),
+                null,
+                false,
+                "/dav/files",
+                List.of("DELETE /api/files/client-setup/credentials/" + id));
+        setupCredentials.put(id, credential);
+        publishCredentialAudit(AuditAction.FILES_DEVICE_CREDENTIAL_ISSUED, principal, id, "issued");
+        return credential;
+    }
+
+    public FileSetupCredentialResponse requireActiveSetupCredential(String credentialId) {
+        PrincipalContext principal = requireContextPermission(ContextPermission.VIEW, "verify-file-setup-credential");
+        FileSetupCredentialResponse credential = setupCredentials.get(credentialId);
+        if (credential == null || !principal.principalRef().equals(credential.principalRef())) {
+            throw setupCredentialNotFound("verify-file-setup-credential");
+        }
+        if (!"active-no-secret-issued".equals(credential.state()) || credential.revokedAt() != null) {
+            throw new ApiErrorException(
+                    HttpStatus.UNAUTHORIZED,
+                    "files-setup-credential-revoked",
+                    "Files setup credential is revoked or inactive.",
+                    Map.of(
+                            "module", "files",
+                            "operation", "verify-file-setup-credential",
+                            "webDavFacadePath", "/dav/files",
+                            "diagnosticsRedacted", true));
+        }
+        return credential;
+    }
+
+    public FileSetupCredentialResponse revokeSetupCredential(String credentialId) {
+        PrincipalContext principal = requireContextPermission(ContextPermission.EDIT, "revoke-file-setup-credential");
+        FileSetupCredentialResponse current = setupCredentials.get(credentialId);
+        if (current == null || !principal.principalRef().equals(current.principalRef())) {
+            throw setupCredentialNotFound("revoke-file-setup-credential");
+        }
+        FileSetupCredentialResponse revoked = new FileSetupCredentialResponse(
+                current.credentialId(),
+                "revoked",
+                current.principalRef(),
+                current.clientType(),
+                current.label(),
+                current.issuedAt(),
+                current.expiresAt(),
+                OffsetDateTime.now(ZoneOffset.UTC),
+                false,
+                current.webDavBasePath(),
+                List.of());
+        setupCredentials.put(credentialId, revoked);
+        publishCredentialAudit(AuditAction.FILES_DEVICE_CREDENTIAL_REVOKED, principal, credentialId, "revoked");
+        return revoked;
     }
 
     private PrincipalContext requireContextPermission(ContextPermission permission, String operation) {
@@ -439,6 +519,41 @@ public class FilesFacadeService {
                         "writePolicyIssue", "#1007",
                         "openApiDataPlaneUsed", false,
                         "diagnosticsRedacted", true));
+    }
+
+    private ApiErrorException setupCredentialNotFound(String operation) {
+        return new ApiErrorException(
+                HttpStatus.NOT_FOUND,
+                "files-setup-credential-not-found",
+                "Files setup credential was not found.",
+                Map.of("module", "files", "operation", operation, "diagnosticsRedacted", true));
+    }
+
+    private String defaultIfBlank(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value.trim();
+    }
+
+    private void publishCredentialAudit(
+            AuditAction action,
+            PrincipalContext principal,
+            String credentialId,
+            String result) {
+        auditEventPublisher.publish(new AuditEvent(
+                principal.tenantId(),
+                DEFAULT_CONTEXT_ID,
+                principal.principalRef(),
+                "files:device-credential",
+                action,
+                Instant.now(),
+                "files-device-credential:" + UUID.randomUUID(),
+                AuditRedactionLevel.SUPPORT_SAFE,
+                Map.of(
+                        "domain", "files",
+                        "credentialId", credentialId,
+                        "result", result,
+                        "webDavFacadePath", "/dav/files",
+                        "secretMaterialReturned", false,
+                        "supportSafe", true)));
     }
 
     private void publishBlockedWriteAudit(

@@ -159,6 +159,7 @@ class FilesCalendarFacadeControllerTest {
 
     @Test
     void filesNativeProviderSetupExposesWeaveOwnedOsBoundariesWithoutProviderLeaks() throws Exception {
+        // NATIVE_FILES_WEBDAV_CONTROL_PLANE
         mockMvc.perform(get("/api/files/native-provider-setup")
                         .with(workspaceJwt()))
                 .andExpect(status().isOk())
@@ -166,6 +167,7 @@ class FilesCalendarFacadeControllerTest {
                 .andExpect(jsonPath("$.providerConfigurationExposed").value(false))
                 .andExpect(jsonPath("$.credentialsExposed").value(false))
                 .andExpect(jsonPath("$.facadeBasePath").value("/dav/files"))
+                .andExpect(jsonPath("$.credentialLifecyclePath").value("/api/files/client-setup/credentials"))
                 .andExpect(jsonPath("$.listPathTemplate").value("/dav/files/{path}"))
                 .andExpect(jsonPath("$.downloadPathTemplate").value("/dav/files/{path}"))
                 .andExpect(jsonPath("$.uploadPath").value("/dav/files/{path}"))
@@ -188,6 +190,53 @@ class FilesCalendarFacadeControllerTest {
                         .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("https://"))))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                         .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("token="))));
+    }
+
+    @Test
+    void filesCredentialLifecycleCreatesListsAndRevokesWithoutSecretMaterial() throws Exception {
+        // FILES_WEBDAV_DEVICE_CREDENTIAL_CONTROL_PLANE
+        String body = """
+                {"label":"Mac Finder","clientType":"webdav"}
+                """;
+        String createdBody = mockMvc.perform(post("/api/files/client-setup/credentials")
+                        .with(workspaceJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.credentialId").value(org.hamcrest.Matchers.startsWith("files_device_")))
+                .andExpect(jsonPath("$.state").value("active-no-secret-issued"))
+                .andExpect(jsonPath("$.principalRef").value("user:user@example.com"))
+                .andExpect(jsonPath("$.clientType").value("webdav"))
+                .andExpect(jsonPath("$.label").value("Mac Finder"))
+                .andExpect(jsonPath("$.secretMaterialReturned").value(false))
+                .andExpect(jsonPath("$.webDavBasePath").value("/dav/files"))
+                .andExpect(jsonPath("$.revocationActions[0]").value(org.hamcrest.Matchers.startsWith(
+                        "DELETE /api/files/client-setup/credentials/files_device_")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("Nextcloud"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("Bearer"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("app_password"))))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        String credentialId = JsonPath.read(createdBody, "$.credentialId");
+
+        mockMvc.perform(get("/api/files/client-setup/credentials")
+                        .with(workspaceJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.credentials[0].credentialId").value(credentialId))
+                .andExpect(jsonPath("$.credentials[0].secretMaterialReturned").value(false));
+
+        mockMvc.perform(request(HttpMethod.DELETE, "/api/files/client-setup/credentials/{credentialId}", credentialId)
+                        .with(workspaceJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.credentialId").value(credentialId))
+                .andExpect(jsonPath("$.state").value("revoked"))
+                .andExpect(jsonPath("$.revokedAt").exists())
+                .andExpect(jsonPath("$.secretMaterialReturned").value(false))
+                .andExpect(jsonPath("$.revocationActions").isEmpty());
     }
 
     @Test

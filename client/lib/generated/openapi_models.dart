@@ -459,6 +459,69 @@ class AuthenticatedUserResponse {
   };
 }
 
+class BaselineSnapshot {
+  const BaselineSnapshot({
+    this.category,
+    this.evidenceRefs,
+    this.persistedChoiceModel,
+    this.persistedProviderKey,
+    this.persistedSelectionMatchesRequest,
+    this.profileOverridePersistencePosture,
+    this.profileOverridePresent,
+    this.providerSelectionPersistencePosture,
+    this.stableMemberImpactStates,
+  });
+
+  factory BaselineSnapshot.fromJson(Map<String, dynamic> json) =>
+      BaselineSnapshot(
+        category: json["category"] as String?,
+        evidenceRefs: (json["evidenceRefs"] as List<dynamic>?)
+            ?.map((e) => e as String)
+            .toList(),
+        persistedChoiceModel: json["persistedChoiceModel"] as String?,
+        persistedProviderKey: json["persistedProviderKey"] as String?,
+        persistedSelectionMatchesRequest:
+            json["persistedSelectionMatchesRequest"] as bool?,
+        profileOverridePersistencePosture:
+            json["profileOverridePersistencePosture"] as String?,
+        profileOverridePresent: json["profileOverridePresent"] as bool?,
+        providerSelectionPersistencePosture:
+            json["providerSelectionPersistencePosture"] as String?,
+        stableMemberImpactStates:
+            (json["stableMemberImpactStates"] as List<dynamic>?)
+                ?.map((e) => e as String)
+                .toList(),
+      );
+
+  final String? category;
+  final List<String>? evidenceRefs;
+  final String? persistedChoiceModel;
+  final String? persistedProviderKey;
+  final bool? persistedSelectionMatchesRequest;
+  final String? profileOverridePersistencePosture;
+  final bool? profileOverridePresent;
+  final String? providerSelectionPersistencePosture;
+  final List<String>? stableMemberImpactStates;
+
+  Map<String, dynamic> toJson() => {
+    "category": _openApiJsonValue(category),
+    "evidenceRefs": _openApiJsonValue(evidenceRefs),
+    "persistedChoiceModel": _openApiJsonValue(persistedChoiceModel),
+    "persistedProviderKey": _openApiJsonValue(persistedProviderKey),
+    "persistedSelectionMatchesRequest": _openApiJsonValue(
+      persistedSelectionMatchesRequest,
+    ),
+    "profileOverridePersistencePosture": _openApiJsonValue(
+      profileOverridePersistencePosture,
+    ),
+    "profileOverridePresent": _openApiJsonValue(profileOverridePresent),
+    "providerSelectionPersistencePosture": _openApiJsonValue(
+      providerSelectionPersistencePosture,
+    ),
+    "stableMemberImpactStates": _openApiJsonValue(stableMemberImpactStates),
+  };
+}
+
 class Board {
   const Board({
     this.archived,
@@ -1577,6 +1640,123 @@ class CalendarThreadRefResponse {
   };
 }
 
+class CallCreateRequest {
+  const CallCreateRequest({
+    this.linkedCalendarRefs,
+    this.linkedChatRefs,
+    this.linkedDecisionRefs,
+    this.linkedFileRefs,
+    this.spaceId,
+    this.title,
+  });
+
+  factory CallCreateRequest.fromJson(Map<String, dynamic> json) =>
+      CallCreateRequest(
+        linkedCalendarRefs: (json["linkedCalendarRefs"] as List<dynamic>?)
+            ?.map((e) => e as String)
+            .toList(),
+        linkedChatRefs: (json["linkedChatRefs"] as List<dynamic>?)
+            ?.map((e) => e as String)
+            .toList(),
+        linkedDecisionRefs: (json["linkedDecisionRefs"] as List<dynamic>?)
+            ?.map((e) => e as String)
+            .toList(),
+        linkedFileRefs: (json["linkedFileRefs"] as List<dynamic>?)
+            ?.map((e) => e as String)
+            .toList(),
+        spaceId: json["spaceId"] as String?,
+        title: json["title"] as String?,
+      );
+
+  final List<String>? linkedCalendarRefs;
+  final List<String>? linkedChatRefs;
+  final List<String>? linkedDecisionRefs;
+  final List<String>? linkedFileRefs;
+  final String? spaceId;
+  final String? title;
+
+  Map<String, dynamic> toJson() => {
+    "linkedCalendarRefs": _openApiJsonValue(linkedCalendarRefs),
+    "linkedChatRefs": _openApiJsonValue(linkedChatRefs),
+    "linkedDecisionRefs": _openApiJsonValue(linkedDecisionRefs),
+    "linkedFileRefs": _openApiJsonValue(linkedFileRefs),
+    "spaceId": _openApiJsonValue(spaceId),
+    "title": _openApiJsonValue(title),
+  };
+}
+
+class CallJoinRequest {
+  const CallJoinRequest({this.role});
+
+  factory CallJoinRequest.fromJson(Map<String, dynamic> json) =>
+      CallJoinRequest(role: json["role"] as String?);
+
+  final String? role;
+
+  Map<String, dynamic> toJson() => {"role": _openApiJsonValue(role)};
+}
+
+class CallJoinResponse {
+  const CallJoinResponse({
+    this.accessToken,
+    this.callId,
+    this.expiresAt,
+    this.joinUrl,
+    this.mediaProvider,
+    this.roomRef,
+  });
+
+  factory CallJoinResponse.fromJson(Map<String, dynamic> json) =>
+      CallJoinResponse(
+        accessToken: json["accessToken"] as String?,
+        callId: json["callId"] as String?,
+        expiresAt: json["expiresAt"] as String?,
+        joinUrl: json["joinUrl"] as String?,
+        mediaProvider: json["mediaProvider"] as String?,
+        roomRef: json["roomRef"] as String?,
+      );
+
+  final String? accessToken;
+  final String? callId;
+  final String? expiresAt;
+  final String? joinUrl;
+  final String? mediaProvider;
+  final String? roomRef;
+
+  Map<String, dynamic> toJson() => {
+    "accessToken": _openApiJsonValue(accessToken),
+    "callId": _openApiJsonValue(callId),
+    "expiresAt": _openApiJsonValue(expiresAt),
+    "joinUrl": _openApiJsonValue(joinUrl),
+    "mediaProvider": _openApiJsonValue(mediaProvider),
+    "roomRef": _openApiJsonValue(roomRef),
+  };
+}
+
+class CallLeaveResponse {
+  const CallLeaveResponse({this.auditRef, this.callId, this.left, this.leftAt});
+
+  factory CallLeaveResponse.fromJson(Map<String, dynamic> json) =>
+      CallLeaveResponse(
+        auditRef: json["auditRef"] as String?,
+        callId: json["callId"] as String?,
+        left: json["left"] as bool?,
+        leftAt: json["leftAt"] as String?,
+      );
+
+  final String? auditRef;
+  final String? callId;
+  final bool? left;
+  final String? leftAt;
+
+  Map<String, dynamic> toJson() => {
+    "auditRef": _openApiJsonValue(auditRef),
+    "callId": _openApiJsonValue(callId),
+    "left": _openApiJsonValue(left),
+    "leftAt": _openApiJsonValue(leftAt),
+  };
+}
+
 class CallNativeBoundaryOptionResponse {
   const CallNativeBoundaryOptionResponse({
     this.available,
@@ -1696,6 +1876,74 @@ class CallNativeBoundarySetupResponse {
     "readiness": _openApiJsonValue(readiness),
     "signalingBoundary": _openApiJsonValue(signalingBoundary),
     "supportSafe": _openApiJsonValue(supportSafe),
+  };
+}
+
+class CallResponse {
+  const CallResponse({
+    this.callId,
+    this.ended,
+    this.joinAvailable,
+    this.linkedCalendarRefs,
+    this.linkedChatRefs,
+    this.linkedDecisionRefs,
+    this.linkedFileRefs,
+    this.mediaProvider,
+    this.roomRef,
+    this.spaceId,
+    this.title,
+    this.updatedAt,
+  });
+
+  factory CallResponse.fromJson(Map<String, dynamic> json) => CallResponse(
+    callId: json["callId"] as String?,
+    ended: json["ended"] as bool?,
+    joinAvailable: json["joinAvailable"] as bool?,
+    linkedCalendarRefs: (json["linkedCalendarRefs"] as List<dynamic>?)
+        ?.map((e) => e as String)
+        .toList(),
+    linkedChatRefs: (json["linkedChatRefs"] as List<dynamic>?)
+        ?.map((e) => e as String)
+        .toList(),
+    linkedDecisionRefs: (json["linkedDecisionRefs"] as List<dynamic>?)
+        ?.map((e) => e as String)
+        .toList(),
+    linkedFileRefs: (json["linkedFileRefs"] as List<dynamic>?)
+        ?.map((e) => e as String)
+        .toList(),
+    mediaProvider: json["mediaProvider"] as String?,
+    roomRef: json["roomRef"] as String?,
+    spaceId: json["spaceId"] as String?,
+    title: json["title"] as String?,
+    updatedAt: json["updatedAt"] as String?,
+  );
+
+  final String? callId;
+  final bool? ended;
+  final bool? joinAvailable;
+  final List<String>? linkedCalendarRefs;
+  final List<String>? linkedChatRefs;
+  final List<String>? linkedDecisionRefs;
+  final List<String>? linkedFileRefs;
+  final String? mediaProvider;
+  final String? roomRef;
+  final String? spaceId;
+  final String? title;
+  final String? updatedAt;
+
+  Map<String, dynamic> toJson() => {
+    "callId": _openApiJsonValue(callId),
+    "ended": _openApiJsonValue(ended),
+    "joinAvailable": _openApiJsonValue(joinAvailable),
+    "linkedCalendarRefs": _openApiJsonValue(linkedCalendarRefs),
+    "linkedChatRefs": _openApiJsonValue(linkedChatRefs),
+    "linkedDecisionRefs": _openApiJsonValue(linkedDecisionRefs),
+    "linkedFileRefs": _openApiJsonValue(linkedFileRefs),
+    "mediaProvider": _openApiJsonValue(mediaProvider),
+    "roomRef": _openApiJsonValue(roomRef),
+    "spaceId": _openApiJsonValue(spaceId),
+    "title": _openApiJsonValue(title),
+    "updatedAt": _openApiJsonValue(updatedAt),
   };
 }
 
@@ -4452,6 +4700,7 @@ class FileNativeProviderOptionResponse {
 class FileNativeProviderSetupResponse {
   const FileNativeProviderSetupResponse({
     this.blockedUntil,
+    this.credentialLifecyclePath,
     this.credentialsExposed,
     this.downloadPathTemplate,
     this.facadeBasePath,
@@ -4470,6 +4719,7 @@ class FileNativeProviderSetupResponse {
     blockedUntil: (json["blockedUntil"] as List<dynamic>?)
         ?.map((e) => e as String)
         .toList(),
+    credentialLifecyclePath: json["credentialLifecyclePath"] as String?,
     credentialsExposed: json["credentialsExposed"] as bool?,
     downloadPathTemplate: json["downloadPathTemplate"] as String?,
     facadeBasePath: json["facadeBasePath"] as String?,
@@ -4495,6 +4745,7 @@ class FileNativeProviderSetupResponse {
   );
 
   final List<String>? blockedUntil;
+  final String? credentialLifecyclePath;
   final bool? credentialsExposed;
   final String? downloadPathTemplate;
   final String? facadeBasePath;
@@ -4508,6 +4759,7 @@ class FileNativeProviderSetupResponse {
 
   Map<String, dynamic> toJson() => {
     "blockedUntil": _openApiJsonValue(blockedUntil),
+    "credentialLifecyclePath": _openApiJsonValue(credentialLifecyclePath),
     "credentialsExposed": _openApiJsonValue(credentialsExposed),
     "downloadPathTemplate": _openApiJsonValue(downloadPathTemplate),
     "facadeBasePath": _openApiJsonValue(facadeBasePath),
@@ -4520,6 +4772,24 @@ class FileNativeProviderSetupResponse {
     "readiness": _openApiJsonValue(readiness),
     "supportSafe": _openApiJsonValue(supportSafe),
     "uploadPath": _openApiJsonValue(uploadPath),
+  };
+}
+
+class FileSetupCredentialRequest {
+  const FileSetupCredentialRequest({this.clientType, this.label});
+
+  factory FileSetupCredentialRequest.fromJson(Map<String, dynamic> json) =>
+      FileSetupCredentialRequest(
+        clientType: json["clientType"] as String?,
+        label: json["label"] as String?,
+      );
+
+  final String? clientType;
+  final String? label;
+
+  Map<String, dynamic> toJson() => {
+    "clientType": _openApiJsonValue(clientType),
+    "label": _openApiJsonValue(label),
   };
 }
 
@@ -7571,6 +7841,7 @@ class ProviderReplacementDryRunRequest {
 class ProviderReplacementDryRunResponse {
   const ProviderReplacementDryRunResponse({
     this.auditRefs,
+    this.baselineSnapshot,
     this.boundedProof,
     this.category,
     this.choiceModel,
@@ -7580,6 +7851,7 @@ class ProviderReplacementDryRunResponse {
     this.cutoverGates,
     this.declaredSourceOfTruth,
     this.dryRunId,
+    this.evidenceRefs,
     this.lifecycleExpectations,
     this.lossyMappingReport,
     this.memberImpactStates,
@@ -7588,6 +7860,7 @@ class ProviderReplacementDryRunResponse {
     this.noUnaccountedDataLossReport,
     this.portableExportImportContract,
     this.providerDiagnosticsRedacted,
+    this.readModelComparison,
     this.readinessState,
     this.secretRefPresent,
     this.status,
@@ -7602,6 +7875,11 @@ class ProviderReplacementDryRunResponse {
     auditRefs: (json["auditRefs"] as List<dynamic>?)
         ?.map((e) => e as String)
         .toList(),
+    baselineSnapshot: json["baselineSnapshot"] == null
+        ? null
+        : BaselineSnapshot.fromJson(
+            json["baselineSnapshot"] as Map<String, dynamic>,
+          ),
     boundedProof: json["boundedProof"] == null
         ? null
         : BoundedApplyCutoverRollbackProof.fromJson(
@@ -7623,6 +7901,9 @@ class ProviderReplacementDryRunResponse {
         .toList(),
     declaredSourceOfTruth: json["declaredSourceOfTruth"] as String?,
     dryRunId: json["dryRunId"] as String?,
+    evidenceRefs: (json["evidenceRefs"] as List<dynamic>?)
+        ?.map((e) => e as String)
+        .toList(),
     lifecycleExpectations: json["lifecycleExpectations"] == null
         ? null
         : LifecycleExpectations.fromJson(
@@ -7649,6 +7930,11 @@ class ProviderReplacementDryRunResponse {
             json["portableExportImportContract"] as Map<String, dynamic>,
           ),
     providerDiagnosticsRedacted: json["providerDiagnosticsRedacted"] as bool?,
+    readModelComparison: json["readModelComparison"] == null
+        ? null
+        : ReadModelComparison.fromJson(
+            json["readModelComparison"] as Map<String, dynamic>,
+          ),
     readinessState: json["readinessState"] as String?,
     secretRefPresent: json["secretRefPresent"] as bool?,
     status: json["status"] as String?,
@@ -7660,6 +7946,7 @@ class ProviderReplacementDryRunResponse {
   );
 
   final List<String>? auditRefs;
+  final BaselineSnapshot? baselineSnapshot;
   final BoundedApplyCutoverRollbackProof? boundedProof;
   final String? category;
   final String? choiceModel;
@@ -7669,6 +7956,7 @@ class ProviderReplacementDryRunResponse {
   final List<String>? cutoverGates;
   final String? declaredSourceOfTruth;
   final String? dryRunId;
+  final List<String>? evidenceRefs;
   final LifecycleExpectations? lifecycleExpectations;
   final LossyMappingReport? lossyMappingReport;
   final List<String>? memberImpactStates;
@@ -7677,6 +7965,7 @@ class ProviderReplacementDryRunResponse {
   final NoUnaccountedDataLossReport? noUnaccountedDataLossReport;
   final PortableExportImportContract? portableExportImportContract;
   final bool? providerDiagnosticsRedacted;
+  final ReadModelComparison? readModelComparison;
   final String? readinessState;
   final bool? secretRefPresent;
   final String? status;
@@ -7686,6 +7975,7 @@ class ProviderReplacementDryRunResponse {
 
   Map<String, dynamic> toJson() => {
     "auditRefs": _openApiJsonValue(auditRefs),
+    "baselineSnapshot": _openApiJsonValue(baselineSnapshot),
     "boundedProof": _openApiJsonValue(boundedProof),
     "category": _openApiJsonValue(category),
     "choiceModel": _openApiJsonValue(choiceModel),
@@ -7695,6 +7985,7 @@ class ProviderReplacementDryRunResponse {
     "cutoverGates": _openApiJsonValue(cutoverGates),
     "declaredSourceOfTruth": _openApiJsonValue(declaredSourceOfTruth),
     "dryRunId": _openApiJsonValue(dryRunId),
+    "evidenceRefs": _openApiJsonValue(evidenceRefs),
     "lifecycleExpectations": _openApiJsonValue(lifecycleExpectations),
     "lossyMappingReport": _openApiJsonValue(lossyMappingReport),
     "memberImpactStates": _openApiJsonValue(memberImpactStates),
@@ -7709,6 +8000,7 @@ class ProviderReplacementDryRunResponse {
     "providerDiagnosticsRedacted": _openApiJsonValue(
       providerDiagnosticsRedacted,
     ),
+    "readModelComparison": _openApiJsonValue(readModelComparison),
     "readinessState": _openApiJsonValue(readinessState),
     "secretRefPresent": _openApiJsonValue(secretRefPresent),
     "status": _openApiJsonValue(status),
@@ -8052,6 +8344,50 @@ class RcEvidenceGateReadinessResponse {
     "label": _openApiJsonValue(label),
     "nextAction": _openApiJsonValue(nextAction),
     "state": _openApiJsonValue(state),
+  };
+}
+
+class ReadModelComparison {
+  const ReadModelComparison({
+    this.findings,
+    this.memberImpactStatesProviderNeutral,
+    this.migrationEvidenceRecorded,
+    this.northboundContractUnchanged,
+    this.providerSemanticsLeakedToMembers,
+  });
+
+  factory ReadModelComparison.fromJson(Map<String, dynamic> json) =>
+      ReadModelComparison(
+        findings: (json["findings"] as List<dynamic>?)
+            ?.map((e) => e as String)
+            .toList(),
+        memberImpactStatesProviderNeutral:
+            json["memberImpactStatesProviderNeutral"] as bool?,
+        migrationEvidenceRecorded: json["migrationEvidenceRecorded"] as bool?,
+        northboundContractUnchanged:
+            json["northboundContractUnchanged"] as bool?,
+        providerSemanticsLeakedToMembers:
+            json["providerSemanticsLeakedToMembers"] as bool?,
+      );
+
+  final List<String>? findings;
+  final bool? memberImpactStatesProviderNeutral;
+  final bool? migrationEvidenceRecorded;
+  final bool? northboundContractUnchanged;
+  final bool? providerSemanticsLeakedToMembers;
+
+  Map<String, dynamic> toJson() => {
+    "findings": _openApiJsonValue(findings),
+    "memberImpactStatesProviderNeutral": _openApiJsonValue(
+      memberImpactStatesProviderNeutral,
+    ),
+    "migrationEvidenceRecorded": _openApiJsonValue(migrationEvidenceRecorded),
+    "northboundContractUnchanged": _openApiJsonValue(
+      northboundContractUnchanged,
+    ),
+    "providerSemanticsLeakedToMembers": _openApiJsonValue(
+      providerSemanticsLeakedToMembers,
+    ),
   };
 }
 

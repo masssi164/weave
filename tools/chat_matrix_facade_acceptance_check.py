@@ -14,6 +14,7 @@ MARKERS = [
     "MATRIX_MESSAGE_CONTRACT",
     "MATRIX_E2EE_STATE_CONTRACT",
     "FLUTTER_MATRIX_BOUNDARY_CONTRACT",
+    "RUST_MATRIX_CORE_BRIDGE_CONTRACT",
 ]
 
 
@@ -129,6 +130,21 @@ def require_flutter_matrix_boundary() -> None:
         "Slack",
         "Teams",
         "BackendChatRepository",
+    )
+    require(
+        "client/test/integrations/rust_matrix_core/data/services/rust_matrix_core_bridge_test.dart",
+        "RUST_MATRIX_CORE_BRIDGE_CONTRACT",
+        "matrix-client-server-facade",
+        "spring-boot-resource-server",
+        "flutter-rust-bridge",
+        "ruma-serde-serde_json-thiserror-tracing",
+    )
+    require(
+        "client/lib/integrations/rust_matrix_core/data/services/rust_matrix_core_bridge.dart",
+        "RustMatrixCoreBridge",
+        "northboundHomeserverDependency",
+        "flutterBridgeBoundary",
+        "supportedMatrixVersions",
     )
 
 

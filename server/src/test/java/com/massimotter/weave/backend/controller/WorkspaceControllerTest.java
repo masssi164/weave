@@ -104,6 +104,7 @@ class WorkspaceControllerTest {
     @Test
     void returnsOrganizationManifestForMemberClientWithoutAdminConsoleLeakage() throws Exception {
         // V01_ORG_MANIFEST_CLIENT_ADMIN_SPLIT
+        // SUPPORT_SAFE_CAPABILITY_STATES_CONTRACT
         mockMvc.perform(get("/api/v1/organization/manifest").with(jwt()
                         .jwt(jwt -> jwt
                                 .subject("calendar-editor@example.invalid")
@@ -155,9 +156,16 @@ class WorkspaceControllerTest {
                         .value(hasItem("read_allowlist_available_write_cutover_blocked")))
                 .andExpect(jsonPath("$.clientAccessDiscovery.files.surfaces[?(@.kind == 'native-os')].setupPath")
                         .value(hasItem("/api/files/native-provider-setup")))
+                .andExpect(jsonPath("$.clientAccessDiscovery.files.credentialLifecycle.status")
+                        .value("revocable_device_grants_available"))
+                .andExpect(jsonPath("$.clientAccessDiscovery.files.credentialLifecycle.lifecyclePaths", hasItems(
+                        "/api/files/client-setup/credentials",
+                        "/api/files/native-provider-setup")))
                 .andExpect(jsonPath("$.clientAccessDiscovery.files.credentialLifecycle.secretMaterialReturned").value(false))
                 .andExpect(jsonPath("$.clientAccessDiscovery.calendar.surfaces[?(@.kind == 'standard-protocol')].name")
                         .value(hasItem("Weave CalDAV/iCalendar projection")))
+                .andExpect(jsonPath("$.clientAccessDiscovery.calendar.surfaces[?(@.kind == 'standard-protocol')].setupPath")
+                        .value(hasItem("/caldav")))
                 .andExpect(jsonPath("$.clientAccessDiscovery.calendar.surfaces[?(@.kind == 'native-os')].setupPath")
                         .value(hasItem("/api/calendar/native-sync-setup")))
                 .andExpect(jsonPath("$.clientAccessDiscovery.calendar.credentialLifecycle.lifecyclePaths", hasItems(
@@ -168,6 +176,8 @@ class WorkspaceControllerTest {
                         .value(hasItem("Weave Chat API")))
                 .andExpect(jsonPath("$.clientAccessDiscovery.chat.surfaces[?(@.kind == 'standard-protocol')].name")
                         .value(hasItem("Matrix-compatible transport and federation projection")))
+                .andExpect(jsonPath("$.clientAccessDiscovery.chat.surfaces[?(@.kind == 'standard-protocol')].setupPath")
+                        .value(hasItem("/_matrix/client")))
                 .andExpect(jsonPath("$.clientAccessDiscovery.chat.credentialLifecycle.status")
                         .value("session_bound_no_raw_matrix_credentials"))
                 .andExpect(jsonPath("$.clientAccessDiscovery['meetings-calls'].surfaces[?(@.kind == 'native-os')].setupPath")

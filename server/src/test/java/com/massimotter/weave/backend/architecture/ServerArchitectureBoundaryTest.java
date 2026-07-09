@@ -233,6 +233,8 @@ class ServerArchitectureBoundaryTest {
         assertThat(matrixProjection.text())
                 .contains("\"/_matrix/client/**\"")
                 .contains("northbound-matrix-client-server")
+                .contains("matrixProtocolCoreService.versions()")
+                .contains("matrixProtocolCoreService.descriptor()")
                 .contains("chatFacadeService.conversations(jwt)")
                 .contains("chatFacadeService.messages(jwt")
                 .contains("chatFacadeService.sendMessage(")
@@ -240,6 +242,31 @@ class ServerArchitectureBoundaryTest {
                 .doesNotContain("BridgeAdapter")
                 .doesNotContain("providerAccessToken")
                 .doesNotContain("RestClient");
+    }
+
+    @Test
+    void matrixProtocolCoreBoundaryDefinesRustJniAndFlutterBridgeTarget() throws IOException {
+        JavaSource matrixCore = productionSources().stream()
+                .filter(source -> source.path().endsWith(Path.of("matrix", "MatrixProtocolCoreService.java")))
+                .findFirst()
+                .orElseThrow();
+        JavaSource nativeCore = productionSources().stream()
+                .filter(source -> source.path().endsWith(Path.of("matrix", "NativeMatrixCore.java")))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(matrixCore.text())
+                .contains("spring-boot-resource-server")
+                .contains("ruma-serde-serde_json-thiserror-tracing")
+                .contains("server-jni-wrapper")
+                .contains("flutter-rust-bridge")
+                .contains("northboundHomeserverDependency")
+                .contains("NativeMatrixCore.LIBRARY_NAME")
+                .doesNotContain("Synapse")
+                .doesNotContain("RestClient");
+        assertThat(nativeCore.text())
+                .contains("public static native String matrixFacadeDescriptorJson")
+                .contains("weave_matrix_core");
     }
 
     private static List<JavaSource> productionSources() throws IOException {

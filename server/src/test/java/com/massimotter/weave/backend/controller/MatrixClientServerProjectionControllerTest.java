@@ -14,6 +14,7 @@ import com.massimotter.weave.backend.model.chat.ChatMessageResponse;
 import com.massimotter.weave.backend.model.chat.ChatMessagesResponse;
 import com.massimotter.weave.backend.model.chat.ChatReadinessResponse;
 import com.massimotter.weave.backend.model.chat.ChatSendMessageRequest;
+import com.massimotter.weave.backend.matrix.MatrixProtocolCoreService;
 import com.massimotter.weave.backend.service.ChatFacadeService;
 import java.time.Instant;
 import java.util.List;
@@ -54,7 +55,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         ApiAuthenticationEntryPoint.class,
         ApiAccessDeniedHandler.class,
         ApiErrorResponseWriter.class,
-        ApiExceptionHandler.class
+        ApiExceptionHandler.class,
+        MatrixProtocolCoreService.class
 })
 @TestPropertySource(properties = {
         "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.example.invalid/realms/weave"
@@ -86,7 +88,31 @@ class MatrixClientServerProjectionControllerTest {
                         .with(workspaceJwt()))
                 .andExpect(status().isNoContent())
                 .andExpect(header().string(HttpHeaders.ALLOW, "OPTIONS, GET, POST, PUT"))
-                .andExpect(header().string("X-Weave-Projection", "matrix-client-server"));
+                .andExpect(header().string("X-Weave-Projection", "matrix-client-server"))
+                .andExpect(header().string("X-Weave-Matrix-Core", "rust-ruma-jni-target"));
+    }
+
+    @Test
+    void matrixClientServerProjectionVersionsAdvertisesOidcGatedRustCoreFacade() throws Exception {
+        mockMvc.perform(get("/_matrix/client/versions")
+                        .with(workspaceJwt()))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Weave-Projection", "matrix-client-server"))
+                .andExpect(header().string("X-Weave-Matrix-Core", "rust-ruma-jni-target"))
+                .andExpect(jsonPath("$.versions[0]").value("v1.18"))
+                .andExpect(jsonPath("$.weaveBoundary").value("northbound-matrix-client-server"))
+                .andExpect(jsonPath("$.canonicalDomain").value("chat"))
+                .andExpect(jsonPath("$.providerDataPlaneExposed").value(false))
+                .andExpect(jsonPath("$.matrixCore.protocolSurface").value("matrix-client-server-facade"))
+                .andExpect(jsonPath("$.matrixCore.oidcGatekeeper").value("spring-boot-resource-server"))
+                .andExpect(jsonPath("$.matrixCore.northboundHomeserverDependency").value(false))
+                .andExpect(jsonPath("$.matrixCore.rustProtocolCore").value("ruma-serde-serde_json-thiserror-tracing"))
+                .andExpect(jsonPath("$.matrixCore.serverJniBoundary").value("server-jni-wrapper"))
+                .andExpect(jsonPath("$.matrixCore.flutterBridgeBoundary").value("flutter-rust-bridge"))
+                .andExpect(jsonPath("$.matrixCore.nativeLibrary").value("weave_matrix_core"))
+                .andExpect(content().string(not(containsString("Synapse"))))
+                .andExpect(content().string(not(containsString("providerAccessToken"))))
+                .andExpect(content().string(not(containsString("access_token"))));
     }
 
     @Test
@@ -101,6 +127,9 @@ class MatrixClientServerProjectionControllerTest {
                 .andExpect(jsonPath("$.weaveBoundary").value("northbound-matrix-client-server"))
                 .andExpect(jsonPath("$.canonicalDomain").value("chat"))
                 .andExpect(jsonPath("$.providerDataPlaneExposed").value(false))
+                .andExpect(jsonPath("$.matrixCore.oidcGatekeeper").value("spring-boot-resource-server"))
+                .andExpect(jsonPath("$.matrixCore.northboundHomeserverDependency").value(false))
+                .andExpect(jsonPath("$.matrixCore.nativeMethod").value("matrixFacadeDescriptorJson"))
                 .andExpect(jsonPath("$.rooms.join['!channel-general:weave.local'].state.events[0].type")
                         .value("m.room.name"))
                 .andExpect(jsonPath("$.rooms.join['!channel-general:weave.local'].state.events[0].content.name")
@@ -139,6 +168,7 @@ class MatrixClientServerProjectionControllerTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(header().string("X-Weave-Projection", "matrix-client-server"))
+                .andExpect(header().string("X-Weave-Matrix-Core", "rust-ruma-jni-target"))
                 .andExpect(jsonPath("$.event_id").value("$msg-sent:weave.local"));
 
         verify(chatFacadeService).sendMessage(any(), eq("channel-general"), any(ChatSendMessageRequest.class));

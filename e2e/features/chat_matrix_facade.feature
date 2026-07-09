@@ -1,11 +1,12 @@
 Feature: Chat Matrix facade
-  Chat data-plane behavior is exposed through Matrix Client-Server API.
+  Chat data-plane behavior is exposed through the OIDC-gated Weave Matrix
+  Client-Server facade backed by the shared Rust Matrix core.
 
   @matrix-connect
   Scenario: OIDC-provisioned member can connect to Matrix
     Given a Weave member has Chat capability
     When the member opens Chat
-    Then the member is provisioned or mapped to a Matrix user/device support-safely
+    Then the member reaches the Weave Matrix facade with the Weave OIDC token support-safely
 
   @matrix-spaces-rooms
   Scenario: Weave organization spaces and channels map to Matrix spaces and rooms
@@ -44,7 +45,7 @@ Feature: Chat Matrix facade
     Then access is denied support-safely
 
   @flutter-matrix-boundary
-  Scenario: Flutter Chat repository uses Matrix, not Slack or Teams direct clients
+  Scenario: Flutter Chat repository uses the Weave Matrix facade, not Slack or Teams direct clients
     Given Flutter Chat is exercised
-    Then it uses the Matrix integration boundary
+    Then it uses the Rust Matrix core bridge boundary
     And it does not call Slack or Teams client APIs directly

@@ -2,6 +2,9 @@ package com.massimotter.weave.backend.controller;
 
 import com.massimotter.weave.backend.model.ApiErrorResponse;
 import com.massimotter.weave.backend.model.files.FileNativeProviderSetupResponse;
+import com.massimotter.weave.backend.model.files.FileSetupCredentialListResponse;
+import com.massimotter.weave.backend.model.files.FileSetupCredentialRequest;
+import com.massimotter.weave.backend.model.files.FileSetupCredentialResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityStatusResponse;
 import com.massimotter.weave.backend.service.FilesFacadeService;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
@@ -12,10 +15,16 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Size;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -58,5 +67,30 @@ public class FilesController {
             content = @Content(schema = @Schema(implementation = FileNativeProviderSetupResponse.class)))
     public FileNativeProviderSetupResponse getFilesNativeProviderSetup(@AuthenticationPrincipal Jwt jwt) {
         return filesFacadeService.nativeProviderSetup(jwt);
+    }
+
+    @GetMapping("/api/files/client-setup/credentials")
+    @Operation(
+            operationId = "getFilesSetupCredentials",
+            summary = "List revocable Files WebDAV setup credential references")
+    public FileSetupCredentialListResponse setupCredentials() {
+        return filesFacadeService.setupCredentials();
+    }
+
+    @PostMapping("/api/files/client-setup/credentials")
+    @Operation(
+            operationId = "createFilesSetupCredential",
+            summary = "Create a revocable Files WebDAV setup credential reference without returning secret material")
+    public FileSetupCredentialResponse createSetupCredential(
+            @Valid @RequestBody FileSetupCredentialRequest request) {
+        return filesFacadeService.createSetupCredential(request);
+    }
+
+    @DeleteMapping("/api/files/client-setup/credentials/{credentialId}")
+    @Operation(
+            operationId = "revokeFilesSetupCredential",
+            summary = "Revoke a Files WebDAV setup credential reference")
+    public FileSetupCredentialResponse revokeSetupCredential(@PathVariable @Size(max = 128) String credentialId) {
+        return filesFacadeService.revokeSetupCredential(credentialId);
     }
 }

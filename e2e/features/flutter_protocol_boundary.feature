@@ -14,7 +14,7 @@ Feature: Flutter protocol boundary
   @flutter-chat-matrix
   Scenario: Flutter Chat uses Matrix for data plane
     Given Flutter Chat repository operations are exercised
-    Then chat data-plane operations use the Matrix integration boundary
+    Then chat data-plane operations use the Weave Matrix facade and Rust Matrix core bridge boundary
 
   @flutter-calls-livekit
   Scenario: Flutter Calls uses Weave Calls API and LiveKit media
