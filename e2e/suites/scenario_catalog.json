@@ -437,6 +437,7 @@
       "testLevel": "offline-contract",
       "assertionFocus": [
         "CalDAV server projection supports REPORT and event methods",
+        "Calendar REST event CRUD is deprecated while compatibility remains",
         "native Calendar setup stays Weave-owned",
         "no complete native Calendar parity claim"
       ]
@@ -456,6 +457,7 @@
       "assertionFocus": [
         "Matrix projection syncs and sends through Chat facade",
         "Flutter Chat avoids REST as normal data plane",
+        "Chat REST conversations/messages are deprecated while compatibility remains",
         "no complete API retirement or raw homeserver cutover claim"
       ]
     },
@@ -3492,9 +3494,9 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "archive target scenario is checked in",
-        "current implementation gap remains explicit",
-        "completion claim is blocked until executable evidence replaces the gap marker"
+        "OpenAPI stays setup/readiness/revoke/manifest/admin/generated convenience",
+        "transitional Chat and Calendar REST data-plane routes are deprecated with cleanup issue evidence",
+        "Files REST data-plane routes remain absent"
       ]
     },
     {

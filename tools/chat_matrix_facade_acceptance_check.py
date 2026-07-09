@@ -113,6 +113,13 @@ def require_flutter_matrix_boundary() -> None:
         "direct Matrix SDK",
     )
     require(
+        "server/src/test/java/com/massimotter/weave/backend/controller/ChatControllerTest.java",
+        "chatRestMessageDataPlaneIsDeprecatedInFavorOfMatrixFacade",
+        "chat-rest-compatibility",
+        "/_matrix/client/**",
+        "https://github.com/masssi164/weave/issues/1044",
+    )
+    require(
         "client/test/architecture/member_client_provider_boundary_contract_test.dart",
         "package:slack_",
         "package:microsoft_graph",

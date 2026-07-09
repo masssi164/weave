@@ -55,6 +55,12 @@ import org.springframework.web.bind.annotation.RestController;
 })
 public class CalendarController {
 
+    private static final String DATA_PLANE_DEPRECATION_ISSUE =
+            "https://github.com/masssi164/weave/issues/1044";
+    private static final String CALENDAR_PARITY_ISSUE =
+            "https://github.com/masssi164/weave/issues/967";
+    private static final String CALENDAR_REPLACEMENT_DATA_PLANE = "/caldav/**";
+
     private final CalendarFacadeService calendarFacadeService;
     private final WorkspaceCapabilityService workspaceCapabilityService;
 
@@ -73,10 +79,13 @@ public class CalendarController {
     }
 
     @GetMapping("/api/calendar/events")
-    @Operation(summary = "List calendar events")
+    @Operation(
+            summary = "Deprecated: list calendar events through the REST compatibility path",
+            description = "Transitional compatibility only. Normal Calendar data-plane behavior uses the Weave-owned CalDAV/iCalendar facade under /caldav/** once CalendarView/native parity is complete; removal is tracked in https://github.com/masssi164/weave/issues/1044 and #967.",
+            deprecated = true)
     @ApiResponse(responseCode = "200", description = "Calendar event listing.",
             content = @Content(schema = @Schema(implementation = CalendarEventsResponse.class)))
-    public CalendarEventsResponse list(
+    public ResponseEntity<CalendarEventsResponse> list(
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
             OffsetDateTime from,
@@ -92,7 +101,7 @@ public class CalendarController {
             @RequestParam(required = false)
             @Size(max = 128)
             String channelId) {
-        return calendarFacadeService.list(from, to, scopeType, teamId, channelId);
+        return deprecatedCalendarDataPlane(calendarFacadeService.list(from, to, scopeType, teamId, channelId));
     }
 
     @GetMapping("/api/calendar/client-setup")
@@ -156,43 +165,76 @@ public class CalendarController {
     }
 
     @PostMapping("/api/calendar/events")
-    @Operation(summary = "Create a calendar event")
+    @Operation(
+            summary = "Deprecated: create a calendar event through the REST compatibility path",
+            description = "Transitional compatibility only. Normal Calendar data-plane behavior uses the Weave-owned CalDAV/iCalendar facade under /caldav/** once CalendarView/native parity is complete; removal is tracked in https://github.com/masssi164/weave/issues/1044 and #967.",
+            deprecated = true)
     @ApiResponse(responseCode = "200", description = "Created calendar event.",
             content = @Content(schema = @Schema(implementation = CalendarEventResponse.class)))
-    public CalendarEventResponse create(
+    public ResponseEntity<CalendarEventResponse> create(
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody CreateCalendarEventRequest request) {
         workspaceCapabilityService.requireCapability(jwt, "calendar.manage_events", "calendar", "create-event");
-        return calendarFacadeService.create(request);
+        return deprecatedCalendarDataPlane(calendarFacadeService.create(request));
     }
 
     @GetMapping("/api/calendar/events/{id}")
-    @Operation(summary = "Read a calendar event")
+    @Operation(
+            summary = "Deprecated: read a calendar event through the REST compatibility path",
+            description = "Transitional compatibility only. Normal Calendar data-plane behavior uses the Weave-owned CalDAV/iCalendar facade under /caldav/** once CalendarView/native parity is complete; removal is tracked in https://github.com/masssi164/weave/issues/1044 and #967.",
+            deprecated = true)
     @ApiResponse(responseCode = "200", description = "Calendar event.",
             content = @Content(schema = @Schema(implementation = CalendarEventResponse.class)))
-    public CalendarEventResponse read(@PathVariable @Size(max = 2048) String id) {
-        return calendarFacadeService.read(id);
+    public ResponseEntity<CalendarEventResponse> read(@PathVariable @Size(max = 2048) String id) {
+        return deprecatedCalendarDataPlane(calendarFacadeService.read(id));
     }
 
     @PatchMapping("/api/calendar/events/{id}")
-    @Operation(summary = "Update a calendar event")
+    @Operation(
+            summary = "Deprecated: update a calendar event through the REST compatibility path",
+            description = "Transitional compatibility only. Normal Calendar data-plane behavior uses the Weave-owned CalDAV/iCalendar facade under /caldav/** once CalendarView/native parity is complete; removal is tracked in https://github.com/masssi164/weave/issues/1044 and #967.",
+            deprecated = true)
     @ApiResponse(responseCode = "200", description = "Updated calendar event.",
             content = @Content(schema = @Schema(implementation = CalendarEventResponse.class)))
-    public CalendarEventResponse update(
+    public ResponseEntity<CalendarEventResponse> update(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable @Size(max = 2048) String id,
             @Valid @RequestBody UpdateCalendarEventRequest request) {
         workspaceCapabilityService.requireCapability(jwt, "calendar.manage_events", "calendar", "update-event");
-        return calendarFacadeService.update(id, request);
+        return deprecatedCalendarDataPlane(calendarFacadeService.update(id, request));
     }
 
     @DeleteMapping("/api/calendar/events/{id}")
-    @Operation(summary = "Delete a calendar event")
+    @Operation(
+            summary = "Deprecated: delete a calendar event through the REST compatibility path",
+            description = "Transitional compatibility only. Normal Calendar data-plane behavior uses the Weave-owned CalDAV/iCalendar facade under /caldav/** once CalendarView/native parity is complete; removal is tracked in https://github.com/masssi164/weave/issues/1044 and #967.",
+            deprecated = true)
     public ResponseEntity<Void> delete(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable @Size(max = 2048) String id) {
         workspaceCapabilityService.requireCapability(jwt, "calendar.manage_events", "calendar", "delete-event");
         calendarFacadeService.delete(id);
-        return ResponseEntity.noContent().build();
+        return deprecatedCalendarNoContent();
+    }
+
+    private <T> ResponseEntity<T> deprecatedCalendarDataPlane(T body) {
+        return ResponseEntity.ok()
+                .headers(this::addCalendarDeprecationHeaders)
+                .body(body);
+    }
+
+    private ResponseEntity<Void> deprecatedCalendarNoContent() {
+        return ResponseEntity.noContent()
+                .headers(this::addCalendarDeprecationHeaders)
+                .build();
+    }
+
+    private void addCalendarDeprecationHeaders(HttpHeaders headers) {
+        headers.add("Deprecation", "true");
+        headers.add("Link", "<" + DATA_PLANE_DEPRECATION_ISSUE + ">; rel=\"deprecation\"");
+        headers.add("Link", "<" + CALENDAR_PARITY_ISSUE + ">; rel=\"successor-version\"");
+        headers.add("X-Weave-Deprecated-Data-Plane", "calendar-rest-compatibility");
+        headers.add("X-Weave-Replacement-Data-Plane", CALENDAR_REPLACEMENT_DATA_PLANE);
+        headers.add("X-Weave-Removal-Issue", DATA_PLANE_DEPRECATION_ISSUE);
     }
 }

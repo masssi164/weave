@@ -65,6 +65,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultMatcher;
 
 @WebMvcTest(
         controllers = ChatController.class,
@@ -224,6 +225,7 @@ class ChatControllerTest {
         mockMvc.perform(get("/api/chat/conversations")
                         .with(workspaceJwt("member")))
                 .andExpect(status().isOk())
+                .andExpect(deprecatedChatRestDataPlaneHeader())
                 .andExpect(jsonPath("$.domain").value("chat"))
                 .andExpect(jsonPath("$.releaseStatus").value("canonical-domain-facade"))
                 .andExpect(jsonPath("$.source").value("weave-chat-domain-facade"))
@@ -238,6 +240,26 @@ class ChatControllerTest {
                 .andExpect(jsonPath("$..matrix").doesNotExist())
                 .andExpect(jsonPath("$..roomId").doesNotExist())
                 .andExpect(jsonPath("$..providerUrl").doesNotExist());
+    }
+
+    @Test
+    void chatRestMessageDataPlaneIsDeprecatedInFavorOfMatrixFacade() throws Exception {
+        allowChatPermission(ContextPermission.EDIT);
+        allowChatPermission(ContextPermission.VIEW);
+
+        mockMvc.perform(get("/api/chat/conversations/channel-general/messages")
+                        .with(workspaceJwt("member")))
+                .andExpect(status().isOk())
+                .andExpect(deprecatedChatRestDataPlaneHeader())
+                .andExpect(jsonPath("$.messages[0].conversationId").value("channel-general"));
+
+        mockMvc.perform(post("/api/chat/conversations/channel-general/messages")
+                        .with(workspaceJwt("member"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"text\":\"Transitional REST compatibility must point to Matrix.\"}"))
+                .andExpect(status().isOk())
+                .andExpect(deprecatedChatRestDataPlaneHeader())
+                .andExpect(jsonPath("$.conversationId").value("channel-general"));
     }
 
     @Test
@@ -588,6 +610,18 @@ class ChatControllerTest {
                         List.of()),
                 Map.of("domain", "chat", "state", "not_configured", "diagnosticsExposed", false),
                 Instant.parse("2026-05-25T08:00:00Z"));
+    }
+
+    private static ResultMatcher deprecatedChatRestDataPlaneHeader() {
+        return result -> {
+            header().string("Deprecation", "true").match(result);
+            header().string("X-Weave-Deprecated-Data-Plane", "chat-rest-compatibility").match(result);
+            header().string("X-Weave-Replacement-Data-Plane", "/_matrix/client/**").match(result);
+            header().string("X-Weave-Removal-Issue", "https://github.com/masssi164/weave/issues/1044")
+                    .match(result);
+            header().string("Link", containsString("https://github.com/masssi164/weave/issues/1044"))
+                    .match(result);
+        };
     }
 
     private void allowChatPermission(ContextPermission permission) {

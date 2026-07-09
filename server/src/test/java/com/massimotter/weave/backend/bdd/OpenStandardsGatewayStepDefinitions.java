@@ -162,6 +162,36 @@ public class OpenStandardsGatewayStepDefinitions {
         assertThat(paths.has("/api/chat/readiness")).isTrue();
     }
 
+    @Then("transitional Calendar and Chat REST data-plane routes are marked deprecated with the cleanup issue")
+    public void transitionalCalendarAndChatRestDataPlaneRoutesAreMarkedDeprecatedWithTheCleanupIssue() {
+        // OPENAPI_TRANSITIONAL_DATA_PLANE_DEPRECATED
+        JsonNode paths = lastJson.path("paths");
+        assertDeprecatedReplacement(
+                paths.path("/api/calendar/events").path("get"),
+                "/caldav/**");
+        assertDeprecatedReplacement(
+                paths.path("/api/calendar/events").path("post"),
+                "/caldav/**");
+        assertDeprecatedReplacement(
+                paths.path("/api/calendar/events/{id}").path("get"),
+                "/caldav/**");
+        assertDeprecatedReplacement(
+                paths.path("/api/calendar/events/{id}").path("patch"),
+                "/caldav/**");
+        assertDeprecatedReplacement(
+                paths.path("/api/calendar/events/{id}").path("delete"),
+                "/caldav/**");
+        assertDeprecatedReplacement(
+                paths.path("/api/chat/conversations").path("get"),
+                "/_matrix/client/**");
+        assertDeprecatedReplacement(
+                paths.path("/api/chat/conversations/{conversationId}/messages").path("get"),
+                "/_matrix/client/**");
+        assertDeprecatedReplacement(
+                paths.path("/api/chat/conversations/{conversationId}/messages").path("post"),
+                "/_matrix/client/**");
+    }
+
     @Then("it does not expose durable Files, Calendar, or Chat member data-plane routes")
     public void itDoesNotExposeDurableFilesCalendarOrChatMemberDataPlaneRoutes() {
         JsonNode paths = lastJson.path("paths");
@@ -169,6 +199,13 @@ public class OpenStandardsGatewayStepDefinitions {
         assertThat(paths.has("/api/files/{id}")).isFalse();
         assertThat(paths.has("/api/chat/messages")).isFalse();
         assertThat(paths.has("/api/calendar/caldav/{path}")).isFalse();
+    }
+
+    private void assertDeprecatedReplacement(JsonNode operation, String replacement) {
+        assertThat(operation.path("deprecated").asBoolean()).isTrue();
+        assertThat(operation.path("description").asText())
+                .contains(replacement)
+                .contains("https://github.com/masssi164/weave/issues/1044");
     }
 
     @Then("no provider credential, provider URL, SecretRef value, bearer token value, app password, or raw downstream payload is exposed")

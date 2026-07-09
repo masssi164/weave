@@ -86,14 +86,20 @@ def require_caldav_calendar_server_mvp() -> None:
     require(
         "e2e/features/target_standard_facade_hard_gate.feature",
         "TARGET_STANDARDS_CALDAV_CALENDAR_SERVER_MVP",
+        "OPENAPI_TRANSITIONAL_DATA_PLANE_DEPRECATED",
         "#967",
         "#1018",
+        "#1044",
+        "transitional Calendar REST event routes are deprecated",
     )
     require(
         "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
         "calendarClientSetupExposesSecretFreePlatformOptionsWithoutAdapterCredentials",
         'jsonPath("$.endpoints.serverUrl").value("/caldav")',
         "calendarNativeSyncSetupExposesWeaveOwnedOsBoundariesWithoutProviderLeaks",
+        "calendarRestEventDataPlaneIsDeprecatedInFavorOfCaldavFacade",
+        "X-Weave-Deprecated-Data-Plane",
+        "calendar-rest-compatibility",
         "calDavOptionsAndPropfindExposeWeaveCalendarProjectionWithoutProviderLeaks",
         "calDavReportCalendarQueryAndFreeBusyReturnFacadeBackedCalendarData",
         "BEGIN:VFREEBUSY",
@@ -111,8 +117,11 @@ def require_matrix_chat_server_mvp() -> None:
     require(
         "e2e/features/target_standard_facade_hard_gate.feature",
         "TARGET_STANDARDS_MATRIX_CHAT_SERVER_MVP",
+        "OPENAPI_TRANSITIONAL_DATA_PLANE_DEPRECATED",
         "#1017",
         "#1022",
+        "#1044",
+        "transitional Chat REST conversation and message routes are deprecated",
     )
     require(
         "client/lib/features/chat/presentation/providers/chat_repository_provider.dart",
@@ -139,6 +148,20 @@ def require_matrix_chat_server_mvp() -> None:
         "northbound-matrix-client-server",
         "spring-boot-resource-server",
         "weave_matrix_core",
+    )
+    require(
+        "server/src/test/java/com/massimotter/weave/backend/controller/ChatControllerTest.java",
+        "chatRestMessageDataPlaneIsDeprecatedInFavorOfMatrixFacade",
+        "X-Weave-Deprecated-Data-Plane",
+        "chat-rest-compatibility",
+        "/_matrix/client/**",
+        "https://github.com/masssi164/weave/issues/1044",
+    )
+    require(
+        "server/src/test/java/com/massimotter/weave/backend/controller/OpenApiDocumentationTest.java",
+        "deprecated",
+        "/_matrix/client/**",
+        "/caldav/**",
     )
     require(
         "server/src/test/java/com/massimotter/weave/backend/architecture/ServerArchitectureBoundaryTest.java",

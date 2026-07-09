@@ -185,7 +185,8 @@
       "feature": "e2e/features/target_standard_facade_hard_gate.feature",
       "executableTest": "tools/target_standard_facade_hard_gate_check.py",
       "evidenceMarkers": [
-        "TARGET_STANDARDS_CALDAV_CALENDAR_SERVER_MVP"
+        "TARGET_STANDARDS_CALDAV_CALENDAR_SERVER_MVP",
+        "OPENAPI_TRANSITIONAL_DATA_PLANE_DEPRECATED"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
@@ -193,6 +194,9 @@
           "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
           "fragments": [
             "calendarNativeSyncSetupExposesWeaveOwnedOsBoundariesWithoutProviderLeaks",
+            "calendarRestEventDataPlaneIsDeprecatedInFavorOfCaldavFacade",
+            "calendar-rest-compatibility",
+            "https://github.com/masssi164/weave/issues/1044",
             "calDavOptionsAndPropfindExposeWeaveCalendarProjectionWithoutProviderLeaks",
             "calDavReportCalendarQueryAndFreeBusyReturnFacadeBackedCalendarData",
             "BEGIN:VFREEBUSY",
@@ -213,7 +217,8 @@
       "feature": "e2e/features/target_standard_facade_hard_gate.feature",
       "executableTest": "tools/target_standard_facade_hard_gate_check.py",
       "evidenceMarkers": [
-        "TARGET_STANDARDS_MATRIX_CHAT_SERVER_MVP"
+        "TARGET_STANDARDS_MATRIX_CHAT_SERVER_MVP",
+        "OPENAPI_TRANSITIONAL_DATA_PLANE_DEPRECATED"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
@@ -223,6 +228,14 @@
             "WeaveMatrixFacadeChatRepository",
             "Matrix Client-Server projection",
             "`/api/chat/**` remains a transitional/control facade"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/ChatControllerTest.java",
+          "fragments": [
+            "chatRestMessageDataPlaneIsDeprecatedInFavorOfMatrixFacade",
+            "chat-rest-compatibility",
+            "https://github.com/masssi164/weave/issues/1044"
           ]
         },
         {
@@ -4748,7 +4761,8 @@
       "feature": "e2e/features/open_standards_gateway_manifest.feature",
       "executableTest": "server/src/test/java/com/massimotter/weave/backend/bdd/OpenStandardsGatewayStepDefinitions.java",
       "evidenceMarkers": [
-        "OPENAPI_CONTROL_PLANE_CONTRACT"
+        "OPENAPI_CONTROL_PLANE_CONTRACT",
+        "OPENAPI_TRANSITIONAL_DATA_PLANE_DEPRECATED"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
@@ -4757,7 +4771,11 @@
           "fragments": [
             "/api/files/client-setup/credentials",
             "/api/files/client-setup/credentials/{credentialId}",
-            "/api/files/{id}/download"
+            "/api/files/{id}/download",
+            "deprecated",
+            "/_matrix/client/**",
+            "/caldav/**",
+            "https://github.com/masssi164/weave/issues/1044"
           ]
         }
       ]

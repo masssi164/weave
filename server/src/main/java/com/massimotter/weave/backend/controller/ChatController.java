@@ -33,6 +33,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -53,6 +54,12 @@ import org.springframework.web.bind.annotation.RestController;
 })
 public class ChatController {
 
+    private static final String DATA_PLANE_DEPRECATION_ISSUE =
+            "https://github.com/masssi164/weave/issues/1044";
+    private static final String CHAT_REST_RETIREMENT_ISSUE =
+            "https://github.com/masssi164/weave/issues/1022";
+    private static final String CHAT_REPLACEMENT_DATA_PLANE = "/_matrix/client/**";
+
     private final ChatFacadeService chatFacadeService;
     private final ChatDomainFacadeService chatDomainFacadeService;
 
@@ -70,32 +77,44 @@ public class ChatController {
     }
 
     @GetMapping("/api/chat/conversations")
-    @Operation(operationId = "listChatConversations", summary = "List canonical Weave Chat conversations")
+    @Operation(
+            operationId = "listChatConversations",
+            summary = "Deprecated: list canonical Weave Chat conversations through the REST compatibility path",
+            description = "Transitional compatibility only. Normal member Chat data-plane behavior uses the Weave-owned Matrix Client-Server facade under /_matrix/client/**; removal is tracked in https://github.com/masssi164/weave/issues/1044 and #1022.",
+            deprecated = true)
     @ApiResponse(responseCode = "200", description = "Provider-neutral Chat conversations.",
             content = @Content(schema = @Schema(implementation = ChatConversationsResponse.class)))
-    public ChatConversationsResponse conversations(@AuthenticationPrincipal Jwt jwt) {
-        return chatFacadeService.conversations(jwt);
+    public ResponseEntity<ChatConversationsResponse> conversations(@AuthenticationPrincipal Jwt jwt) {
+        return deprecatedChatDataPlane(chatFacadeService.conversations(jwt));
     }
 
     @GetMapping("/api/chat/conversations/{conversationId}/messages")
-    @Operation(operationId = "listChatMessages", summary = "List canonical Weave Chat messages")
+    @Operation(
+            operationId = "listChatMessages",
+            summary = "Deprecated: list canonical Weave Chat messages through the REST compatibility path",
+            description = "Transitional compatibility only. Normal member Chat data-plane behavior uses the Weave-owned Matrix Client-Server facade under /_matrix/client/**; removal is tracked in https://github.com/masssi164/weave/issues/1044 and #1022.",
+            deprecated = true)
     @ApiResponse(responseCode = "200", description = "Provider-neutral Chat messages.",
             content = @Content(schema = @Schema(implementation = ChatMessagesResponse.class)))
-    public ChatMessagesResponse messages(
+    public ResponseEntity<ChatMessagesResponse> messages(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable @Size(max = 128) String conversationId) {
-        return chatFacadeService.messages(jwt, conversationId);
+        return deprecatedChatDataPlane(chatFacadeService.messages(jwt, conversationId));
     }
 
     @PostMapping("/api/chat/conversations/{conversationId}/messages")
-    @Operation(operationId = "sendChatMessage", summary = "Send a canonical Weave Chat message as an explicit audited user action")
+    @Operation(
+            operationId = "sendChatMessage",
+            summary = "Deprecated: send a canonical Weave Chat message through the REST compatibility path",
+            description = "Transitional compatibility only. Normal member Chat data-plane behavior uses the Weave-owned Matrix Client-Server facade under /_matrix/client/**; removal is tracked in https://github.com/masssi164/weave/issues/1044 and #1022.",
+            deprecated = true)
     @ApiResponse(responseCode = "200", description = "Created provider-neutral Chat message.",
             content = @Content(schema = @Schema(implementation = ChatMessageResponse.class)))
-    public ChatMessageResponse sendMessage(
+    public ResponseEntity<ChatMessageResponse> sendMessage(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable @Size(max = 128) String conversationId,
             @Valid @RequestBody ChatSendMessageRequest request) {
-        return chatFacadeService.sendMessage(jwt, conversationId, request);
+        return deprecatedChatDataPlane(chatFacadeService.sendMessage(jwt, conversationId, request));
     }
 
     @GetMapping({"/api/chat/conversations/{conversationId}/decisions", "/api/v1/chat/conversations/{conversationId}/decisions"})
@@ -175,5 +194,17 @@ public class ChatController {
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody ChatProviderReplacementDryRunRequest request) {
         return chatFacadeService.dryRunProviderReplacement(jwt, request);
+    }
+
+    private <T> ResponseEntity<T> deprecatedChatDataPlane(T body) {
+        return ResponseEntity.ok()
+                .header("Deprecation", "true")
+                .header("Link",
+                        "<" + DATA_PLANE_DEPRECATION_ISSUE + ">; rel=\"deprecation\"",
+                        "<" + CHAT_REST_RETIREMENT_ISSUE + ">; rel=\"sunset\"")
+                .header("X-Weave-Deprecated-Data-Plane", "chat-rest-compatibility")
+                .header("X-Weave-Replacement-Data-Plane", CHAT_REPLACEMENT_DATA_PLANE)
+                .header("X-Weave-Removal-Issue", DATA_PLANE_DEPRECATION_ISSUE)
+                .body(body);
     }
 }

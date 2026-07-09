@@ -39,6 +39,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultMatcher;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.nullable;
@@ -359,6 +360,65 @@ class FilesCalendarFacadeControllerTest {
                 .andExpect(jsonPath("$.code").value("calendar-adapter-not-configured"))
                 .andExpect(jsonPath("$.details.module").value("calendar"))
                 .andExpect(jsonPath("$.details.operation").value("read-event"));
+    }
+
+    @Test
+    void calendarRestEventDataPlaneIsDeprecatedInFavorOfCaldavFacade() throws Exception {
+        when(calendarAdapter.list(
+                        any(),
+                        any(CalendarScopeResponse.class),
+                        nullable(OffsetDateTime.class),
+                        nullable(OffsetDateTime.class)))
+                .thenReturn(List.of(calendarEvent("planning", "Planning", "\"etag-existing\"")));
+        doReturn(calendarEvent("planning", "Planning", "\"etag-existing\""))
+                .when(calendarAdapter).read(any(), any(CalendarScopeResponse.class), any());
+        doReturn(calendarEvent("planning-new", "Planning", "\"etag-created\""))
+                .when(calendarAdapter).create(any(), any());
+        doReturn(calendarEvent("planning", "Updated planning", "\"etag-updated\""))
+                .when(calendarAdapter).update(any(), any(CalendarScopeResponse.class), any(), any());
+        doNothing().when(calendarAdapter).delete(any(), any(CalendarScopeResponse.class), any());
+
+        String event = """
+                {
+                  "title": "Planning",
+                  "startsAt": "2026-07-08T10:00:00Z",
+                  "endsAt": "2026-07-08T11:00:00Z",
+                  "timezone": "UTC"
+                }
+                """;
+
+        mockMvc.perform(get("/api/calendar/events")
+                        .with(workspaceJwt()))
+                .andExpect(status().isOk())
+                .andExpect(deprecatedCalendarRestDataPlaneHeader())
+                .andExpect(jsonPath("$.events[0].id").value("planning"));
+
+        mockMvc.perform(get("/api/calendar/events/planning")
+                        .with(workspaceJwt()))
+                .andExpect(status().isOk())
+                .andExpect(deprecatedCalendarRestDataPlaneHeader())
+                .andExpect(jsonPath("$.id").value("planning"));
+
+        mockMvc.perform(post("/api/calendar/events")
+                        .with(workspaceJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(event))
+                .andExpect(status().isOk())
+                .andExpect(deprecatedCalendarRestDataPlaneHeader())
+                .andExpect(jsonPath("$.id").value("planning-new"));
+
+        mockMvc.perform(request(HttpMethod.PATCH, "/api/calendar/events/planning")
+                        .with(workspaceJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(event))
+                .andExpect(status().isOk())
+                .andExpect(deprecatedCalendarRestDataPlaneHeader())
+                .andExpect(jsonPath("$.title").value("Updated planning"));
+
+        mockMvc.perform(request(HttpMethod.DELETE, "/api/calendar/events/planning")
+                        .with(workspaceJwt()))
+                .andExpect(status().isNoContent())
+                .andExpect(deprecatedCalendarRestDataPlaneHeader());
     }
 
     @Test
@@ -813,5 +873,17 @@ class FilesCalendarFacadeControllerTest {
                 "Room 1",
                 false,
                 etag);
+    }
+
+    private static ResultMatcher deprecatedCalendarRestDataPlaneHeader() {
+        return result -> {
+            header().string("Deprecation", "true").match(result);
+            header().string("X-Weave-Deprecated-Data-Plane", "calendar-rest-compatibility").match(result);
+            header().string("X-Weave-Replacement-Data-Plane", "/caldav/**").match(result);
+            header().string("X-Weave-Removal-Issue", "https://github.com/masssi164/weave/issues/1044")
+                    .match(result);
+            header().string("Link", org.hamcrest.Matchers.containsString("https://github.com/masssi164/weave/issues/1044"))
+                    .match(result);
+        };
     }
 }

@@ -38,6 +38,18 @@ export type GeneratedAdminControlPlaneResponse = {
   "whitelist"?: GeneratedCapabilityWhitelistResponse;
 };
 
+export type GeneratedBaselineSnapshot = {
+  "category"?: string;
+  "evidenceRefs"?: string[];
+  "persistedChoiceModel"?: string;
+  "persistedProviderKey"?: string;
+  "persistedSelectionMatchesRequest"?: boolean;
+  "profileOverridePersistencePosture"?: string;
+  "profileOverridePresent"?: boolean;
+  "providerSelectionPersistencePosture"?: string;
+  "stableMemberImpactStates"?: string[];
+};
+
 export type GeneratedBoundedApplyCutoverRollbackProof = {
   "limitedApplyAllowed"?: boolean;
   "productionCutoverAllowed"?: boolean;
@@ -340,6 +352,7 @@ export type GeneratedProviderReplacementDryRunRequest = {
 
 export type GeneratedProviderReplacementDryRunResponse = {
   "auditRefs"?: string[];
+  "baselineSnapshot"?: GeneratedBaselineSnapshot;
   "boundedProof"?: GeneratedBoundedApplyCutoverRollbackProof;
   "category"?: string;
   "choiceModel"?: string;
@@ -349,6 +362,7 @@ export type GeneratedProviderReplacementDryRunResponse = {
   "cutoverGates"?: string[];
   "declaredSourceOfTruth"?: string;
   "dryRunId"?: string;
+  "evidenceRefs"?: string[];
   "lifecycleExpectations"?: GeneratedLifecycleExpectations;
   "lossyMappingReport"?: GeneratedLossyMappingReport;
   "memberImpactStates"?: string[];
@@ -357,6 +371,7 @@ export type GeneratedProviderReplacementDryRunResponse = {
   "noUnaccountedDataLossReport"?: GeneratedNoUnaccountedDataLossReport;
   "portableExportImportContract"?: GeneratedPortableExportImportContract;
   "providerDiagnosticsRedacted"?: boolean;
+  "readModelComparison"?: GeneratedReadModelComparison;
   "readinessState"?: string;
   "secretRefPresent"?: boolean;
   "status"?: string;
@@ -391,6 +406,14 @@ export type GeneratedRcEvidenceGateReadinessResponse = {
   "label"?: string;
   "nextAction"?: string;
   "state"?: string;
+};
+
+export type GeneratedReadModelComparison = {
+  "findings"?: string[];
+  "memberImpactStatesProviderNeutral"?: boolean;
+  "migrationEvidenceRecorded"?: boolean;
+  "northboundContractUnchanged"?: boolean;
+  "providerSemanticsLeakedToMembers"?: boolean;
 };
 
 export type GeneratedReleaseClaimControlResponse = {

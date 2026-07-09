@@ -10262,6 +10262,8 @@
     },
     "/api/calendar/events": {
       "get": {
+        "deprecated": true,
+        "description": "Transitional compatibility only. Normal Calendar data-plane behavior uses the Weave-owned CalDAV/iCalendar facade under /caldav/** once CalendarView/native parity is complete; removal is tracked in https://github.com/masssi164/weave/issues/1044 and #967.",
         "operationId": "list",
         "parameters": [
           {
@@ -10360,12 +10362,14 @@
             "bearer-jwt": []
           }
         ],
-        "summary": "List calendar events",
+        "summary": "Deprecated: list calendar events through the REST compatibility path",
         "tags": [
           "Calendar"
         ]
       },
       "post": {
+        "deprecated": true,
+        "description": "Transitional compatibility only. Normal Calendar data-plane behavior uses the Weave-owned CalDAV/iCalendar facade under /caldav/** once CalendarView/native parity is complete; removal is tracked in https://github.com/masssi164/weave/issues/1044 and #967.",
         "operationId": "create",
         "requestBody": {
           "content": {
@@ -10424,7 +10428,7 @@
             "bearer-jwt": []
           }
         ],
-        "summary": "Create a calendar event",
+        "summary": "Deprecated: create a calendar event through the REST compatibility path",
         "tags": [
           "Calendar"
         ]
@@ -10432,6 +10436,8 @@
     },
     "/api/calendar/events/{id}": {
       "delete": {
+        "deprecated": true,
+        "description": "Transitional compatibility only. Normal Calendar data-plane behavior uses the Weave-owned CalDAV/iCalendar facade under /caldav/** once CalendarView/native parity is complete; removal is tracked in https://github.com/masssi164/weave/issues/1044 and #967.",
         "operationId": "delete",
         "parameters": [
           {
@@ -10482,12 +10488,14 @@
             "bearer-jwt": []
           }
         ],
-        "summary": "Delete a calendar event",
+        "summary": "Deprecated: delete a calendar event through the REST compatibility path",
         "tags": [
           "Calendar"
         ]
       },
       "get": {
+        "deprecated": true,
+        "description": "Transitional compatibility only. Normal Calendar data-plane behavior uses the Weave-owned CalDAV/iCalendar facade under /caldav/** once CalendarView/native parity is complete; removal is tracked in https://github.com/masssi164/weave/issues/1044 and #967.",
         "operationId": "read",
         "parameters": [
           {
@@ -10548,12 +10556,14 @@
             "bearer-jwt": []
           }
         ],
-        "summary": "Read a calendar event",
+        "summary": "Deprecated: read a calendar event through the REST compatibility path",
         "tags": [
           "Calendar"
         ]
       },
       "patch": {
+        "deprecated": true,
+        "description": "Transitional compatibility only. Normal Calendar data-plane behavior uses the Weave-owned CalDAV/iCalendar facade under /caldav/** once CalendarView/native parity is complete; removal is tracked in https://github.com/masssi164/weave/issues/1044 and #967.",
         "operationId": "update",
         "parameters": [
           {
@@ -10624,7 +10634,7 @@
             "bearer-jwt": []
           }
         ],
-        "summary": "Update a calendar event",
+        "summary": "Deprecated: update a calendar event through the REST compatibility path",
         "tags": [
           "Calendar"
         ]
@@ -11090,6 +11100,8 @@
     },
     "/api/chat/conversations": {
       "get": {
+        "deprecated": true,
+        "description": "Transitional compatibility only. Normal member Chat data-plane behavior uses the Weave-owned Matrix Client-Server facade under /_matrix/client/**; removal is tracked in https://github.com/masssi164/weave/issues/1044 and #1022.",
         "operationId": "listChatConversations",
         "responses": {
           "200": {
@@ -11138,7 +11150,7 @@
             "bearer-jwt": []
           }
         ],
-        "summary": "List canonical Weave Chat conversations",
+        "summary": "Deprecated: list canonical Weave Chat conversations through the REST compatibility path",
         "tags": [
           "Chat domain"
         ]
@@ -11434,6 +11446,8 @@
     },
     "/api/chat/conversations/{conversationId}/messages": {
       "get": {
+        "deprecated": true,
+        "description": "Transitional compatibility only. Normal member Chat data-plane behavior uses the Weave-owned Matrix Client-Server facade under /_matrix/client/**; removal is tracked in https://github.com/masssi164/weave/issues/1044 and #1022.",
         "operationId": "listChatMessages",
         "parameters": [
           {
@@ -11494,12 +11508,14 @@
             "bearer-jwt": []
           }
         ],
-        "summary": "List canonical Weave Chat messages",
+        "summary": "Deprecated: list canonical Weave Chat messages through the REST compatibility path",
         "tags": [
           "Chat domain"
         ]
       },
       "post": {
+        "deprecated": true,
+        "description": "Transitional compatibility only. Normal member Chat data-plane behavior uses the Weave-owned Matrix Client-Server facade under /_matrix/client/**; removal is tracked in https://github.com/masssi164/weave/issues/1044 and #1022.",
         "operationId": "sendChatMessage",
         "parameters": [
           {
@@ -11570,7 +11586,7 @@
             "bearer-jwt": []
           }
         ],
-        "summary": "Send a canonical Weave Chat message as an explicit audited user action",
+        "summary": "Deprecated: send a canonical Weave Chat message through the REST compatibility path",
         "tags": [
           "Chat domain"
         ]
