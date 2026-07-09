@@ -90,6 +90,81 @@ void main() {
       );
     });
 
+    test('first-party OIDC bearer access targets Weave protocol facades', () {
+      // OIDC_PROTOCOL_ACCESS_CONTRACT
+      const matrixOverride = String.fromEnvironment(
+        'WEAVE_MATRIX_HOMESERVER_URL',
+      );
+      const legacyMatrixOverride = String.fromEnvironment('WEAVE_MATRIX_URL');
+      final apiOrigin = _apiOrigin(liveConfig.backendApiBaseUrl);
+
+      if (matrixOverride.trim().isEmpty &&
+          legacyMatrixOverride.trim().isEmpty) {
+        expect(liveConfig.matrixHomeserverUrl, apiOrigin);
+      }
+
+      final surfaces = <String, Uri>{
+        'files': _facadeUri(liveConfig.backendApiBaseUrl, ['dav', 'files']),
+        'calendar': _facadeUri(liveConfig.backendApiBaseUrl, ['caldav']),
+        'chat': liveConfig.matrixHomeserverUrl.replace(
+          pathSegments: const ['_matrix', 'client', 'versions'],
+          query: null,
+          fragment: null,
+        ),
+      };
+
+      expect(surfaces['files']!.path, '/dav/files');
+      expect(surfaces['calendar']!.path, '/caldav');
+      expect(surfaces['chat']!.path, '/_matrix/client/versions');
+      for (final entry in surfaces.entries) {
+        expect(
+          entry.value.scheme,
+          anyOf('http', 'https'),
+          reason: '${entry.key} facade must be reachable by HTTP(S).',
+        );
+        expect(entry.value.userInfo, isEmpty);
+        expect(entry.value.query, isEmpty);
+        expect(entry.value.fragment, isEmpty);
+        expect(
+          _containsSensitiveProviderMaterial(entry.value.toString()),
+          isFalse,
+          reason:
+              '${entry.key} facade URL must not expose provider credentials or raw provider routes.',
+        );
+      }
+    });
+
+    test('revoked bearer token protocol failures stay support-safe', () {
+      // OIDC_REVOKED_TOKEN_SUPPORT_SAFE
+      final protocolDenials = <String>[
+        'The Weave backend rejected the current session.',
+        'Files access is not allowed for this workspace session.',
+        'Weave Chat is unavailable. Ask an admin to inspect Workspace Health.',
+      ];
+
+      for (final denial in protocolDenials) {
+        expect(_isSupportSafeProtocolError(denial), isTrue);
+        expect(_containsSensitiveProviderMaterial(denial), isFalse);
+      }
+    });
+
+    test('protocol surface contract does not expose provider credentials', () {
+      // PROTOCOL_SURFACE_NO_PROVIDER_CREDENTIALS
+      final publicSurfaceValues = <String>[
+        _facadeUri(liveConfig.backendApiBaseUrl, ['dav', 'files']).toString(),
+        _facadeUri(liveConfig.backendApiBaseUrl, ['caldav']).toString(),
+        liveConfig.matrixHomeserverUrl
+            .replace(pathSegments: const ['_matrix', 'client'])
+            .toString(),
+        'Authorization: Bearer <workspace-token>',
+        'device credential secret returned once and never as provider material',
+      ];
+
+      for (final value in publicSurfaceValues) {
+        expect(_containsSensitiveProviderMaterial(value), isFalse);
+      }
+    });
+
     test(
       'provider stack readiness stays behind admin/operator backend facades',
       () {
@@ -358,6 +433,49 @@ Map<String, dynamic> _decodeObject(String body) {
   }
 
   return decoded;
+}
+
+Uri _apiOrigin(Uri baseUrl) {
+  final pathSegments = baseUrl.pathSegments
+      .where((segment) => segment.isNotEmpty)
+      .toList(growable: true);
+  if (pathSegments.isNotEmpty && pathSegments.last == 'api') {
+    pathSegments.removeLast();
+  }
+  return baseUrl.replace(
+    pathSegments: pathSegments,
+    query: null,
+    fragment: null,
+  );
+}
+
+Uri _facadeUri(Uri backendApiBaseUrl, List<String> pathSegments) {
+  return _apiOrigin(backendApiBaseUrl).replace(pathSegments: pathSegments);
+}
+
+bool _isSupportSafeProtocolError(String value) {
+  final normalized = value.toLowerCase();
+  return normalized.contains('weave') ||
+      normalized.contains('workspace') ||
+      normalized.contains('files access');
+}
+
+bool _containsSensitiveProviderMaterial(String value) {
+  final normalized = value.toLowerCase();
+  const forbiddenFragments = <String>[
+    'remote.php',
+    'app_password',
+    'access_token=',
+    'refresh_token=',
+    'secretref://',
+    'client_secret',
+    'password=',
+    '@files.',
+    '@matrix.',
+    '/_matrix/private',
+    '/admin',
+  ];
+  return forbiddenFragments.any(normalized.contains);
 }
 
 List<File> _productionDartFiles() {

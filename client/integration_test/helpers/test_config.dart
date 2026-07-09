@@ -176,7 +176,21 @@ class TestConfig {
       return _parseUrl(legacyOverride, variableName: 'WEAVE_MATRIX_URL');
     }
 
-    return _serviceUri(baseUrl, host: 'matrix.$workspaceHost');
+    return _apiOriginUrl(baseUrl);
+  }
+
+  static Uri _apiOriginUrl(Uri baseUrl) {
+    final pathSegments = baseUrl.pathSegments
+        .where((segment) => segment.isNotEmpty)
+        .toList(growable: true);
+    if (pathSegments.isNotEmpty && pathSegments.last == 'api') {
+      pathSegments.removeLast();
+    }
+    return baseUrl.replace(
+      pathSegments: pathSegments,
+      query: null,
+      fragment: null,
+    );
   }
 
   static Uri _nextcloudBaseUrl(Uri baseUrl, String workspaceHost) {

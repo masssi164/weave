@@ -4805,18 +4805,27 @@
       "tag": "@oidc-protocol-access",
       "scenario": "First-party OIDC bearer token accesses all protocol surfaces",
       "feature": "e2e/features/oidc_protocol_access.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "executableTest": "client/test/live_stack_contract_test.dart",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "OIDC_PROTOCOL_ACCESS_CONTRACT"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "client/integration_test/helpers/test_config.dart",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring.ai.mcp remains blocked"
+            "return _apiOriginUrl(baseUrl)",
+            "WEAVE_MATRIX_HOMESERVER_URL",
+            "WEAVE_MATRIX_URL"
+          ]
+        },
+        {
+          "path": "client/test/live_stack_contract_test.dart",
+          "fragments": [
+            "first-party OIDC bearer access targets Weave protocol facades",
+            "/dav/files",
+            "/caldav",
+            "/_matrix/client/versions"
           ]
         }
       ]
@@ -4825,18 +4834,19 @@
       "tag": "@oidc-revoked-token",
       "scenario": "Revoked or expired bearer token fails support-safely",
       "feature": "e2e/features/oidc_protocol_access.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "executableTest": "client/test/live_stack_contract_test.dart",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "OIDC_REVOKED_TOKEN_SUPPORT_SAFE"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "client/test/live_stack_contract_test.dart",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring.ai.mcp remains blocked"
+            "revoked bearer token protocol failures stay support-safe",
+            "The Weave backend rejected the current session.",
+            "Files access is not allowed for this workspace session.",
+            "Weave Chat is unavailable. Ask an admin to inspect Workspace Health."
           ]
         }
       ]
@@ -4887,7 +4897,8 @@
       "feature": "e2e/features/oidc_protocol_access.feature",
       "executableTest": "server/src/test/java/com/massimotter/weave/backend/bdd/OpenStandardsGatewayStepDefinitions.java",
       "evidenceMarkers": [
-        "NO_PROVIDER_CREDENTIALS_CONTRACT"
+        "NO_PROVIDER_CREDENTIALS_CONTRACT",
+        "PROTOCOL_SURFACE_NO_PROVIDER_CREDENTIALS"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
@@ -4898,6 +4909,15 @@
             "secretMaterialReturned",
             "not(org.hamcrest.Matchers.containsString(\"Bearer\"))",
             "not(org.hamcrest.Matchers.containsString(\"app_password\"))"
+          ]
+        },
+        {
+          "path": "client/test/live_stack_contract_test.dart",
+          "fragments": [
+            "protocol surface contract does not expose provider credentials",
+            "remote.php",
+            "app_password",
+            "access_token="
           ]
         }
       ]
