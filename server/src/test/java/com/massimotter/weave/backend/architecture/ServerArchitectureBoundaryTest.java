@@ -134,16 +134,21 @@ class ServerArchitectureBoundaryTest {
     }
 
     @Test
-    void dtoShapedCollaborationAdaptersAreExplicitRemovalDebt() throws IOException {
-        for (String fileName : List.of("FilesStorageAdapter.java", "CalendarAdapter.java")) {
-            JavaSource legacyPort = productionSources().stream()
-                    .filter(source -> source.path().endsWith(fileName))
-                    .findFirst()
-                    .orElseThrow();
-            assertThat(legacyPort.text())
-                    .contains("@Deprecated(forRemoval = true")
-                    .contains("removal is tracked by #1004");
-        }
+    void filesDtoShapedCompatibilityPortHasBeenRemoved() throws IOException {
+        assertThat(productionSources())
+                .extracting(source -> source.path().getFileName().toString())
+                .doesNotContain("FilesStorageAdapter.java", "FilesStorageReadiness.java", "VersionedFileListResponse.java");
+    }
+
+    @Test
+    void calendarDtoShapedCompatibilityPortIsExplicitRemovalDebt() throws IOException {
+        JavaSource legacyPort = productionSources().stream()
+                .filter(source -> source.path().endsWith("CalendarAdapter.java"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(legacyPort.text())
+                .contains("@Deprecated(forRemoval = true")
+                .contains("removal is tracked by #1004");
     }
 
     @Test

@@ -9,11 +9,14 @@ import com.massimotter.weave.backend.files.domain.FilesDomain.FileWrite;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedFile;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedListing;
 import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
+import com.massimotter.weave.backend.portability.ProviderReadiness;
 import java.util.Optional;
 
 public interface FilesProviderPort {
 
     boolean configured();
+
+    ProviderReadiness readiness();
 
     ProviderConformanceProfile conformanceProfile();
 

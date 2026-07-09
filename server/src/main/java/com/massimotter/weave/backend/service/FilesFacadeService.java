@@ -10,6 +10,18 @@ import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest;
 import com.massimotter.weave.backend.context.authz.ContextPermission;
+import com.massimotter.weave.backend.files.domain.FilesDomain.FileContent;
+import com.massimotter.weave.backend.files.domain.FilesDomain.FileId;
+import com.massimotter.weave.backend.files.domain.FilesDomain.FileListing;
+import com.massimotter.weave.backend.files.domain.FilesDomain.FileObject;
+import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
+import com.massimotter.weave.backend.files.domain.FilesDomain.FileQuota;
+import com.massimotter.weave.backend.files.domain.FilesDomain.FileVersion;
+import com.massimotter.weave.backend.files.domain.FilesDomain.FileWrite;
+import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
+import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedFile;
+import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedListing;
+import com.massimotter.weave.backend.files.port.FilesProviderPort;
 import com.massimotter.weave.backend.model.files.CreateFolderRequest;
 import com.massimotter.weave.backend.model.files.FileItemResponse;
 import com.massimotter.weave.backend.model.files.FileListResponse;
@@ -21,8 +33,6 @@ import com.massimotter.weave.backend.model.files.FileSetupCredentialResponse;
 import com.massimotter.weave.backend.model.files.FileUploadResponse;
 import com.massimotter.weave.backend.service.files.DownloadedFile;
 import com.massimotter.weave.backend.service.files.FilePathCodec;
-import com.massimotter.weave.backend.service.files.FilesStorageAdapter;
-import com.massimotter.weave.backend.service.files.VersionedFileListResponse;
 import com.massimotter.weave.backend.service.files.WebDavPropfindListing;
 import com.massimotter.weave.backend.service.files.WebDavPropfindResource;
 import com.massimotter.weave.backend.service.files.WebDavLockResult;
@@ -58,7 +68,7 @@ public class FilesFacadeService {
 
     private static final String DEFAULT_CONTEXT_ID = "workspace-default";
 
-    private final FilesStorageAdapter filesStorageAdapter;
+    private final FilesProviderPort filesProviderPort;
     private final ContextAuthorizationPort contextAuthorizationPort;
     private final ContextAuthorizationProperties contextAuthorizationProperties;
     private final WorkspaceCapabilityService workspaceCapabilityService;
@@ -68,13 +78,13 @@ public class FilesFacadeService {
 
     @Autowired
     public FilesFacadeService(
-            ObjectProvider<FilesStorageAdapter> filesStorageAdapterProvider,
+            ObjectProvider<FilesProviderPort> filesProviderPortProvider,
             ContextAuthorizationPort contextAuthorizationPort,
             ContextAuthorizationProperties contextAuthorizationProperties,
             WorkspaceCapabilityService workspaceCapabilityService,
             ObjectProvider<AuditEventPublisher> auditEventPublisherProvider) {
         this(
-                filesStorageAdapterProvider,
+                filesProviderPortProvider,
                 contextAuthorizationPort,
                 contextAuthorizationProperties,
                 workspaceCapabilityService,
@@ -82,12 +92,12 @@ public class FilesFacadeService {
     }
 
     public FilesFacadeService(
-            ObjectProvider<FilesStorageAdapter> filesStorageAdapterProvider,
+            ObjectProvider<FilesProviderPort> filesProviderPortProvider,
             ContextAuthorizationPort contextAuthorizationPort,
             ContextAuthorizationProperties contextAuthorizationProperties,
             WorkspaceCapabilityService workspaceCapabilityService,
             AuditEventPublisher auditEventPublisher) {
-        this.filesStorageAdapter = filesStorageAdapterProvider.getIfAvailable();
+        this.filesProviderPort = filesProviderPortProvider.getIfAvailable();
         this.contextAuthorizationPort = contextAuthorizationPort;
         this.contextAuthorizationProperties = contextAuthorizationProperties;
         this.workspaceCapabilityService = workspaceCapabilityService;
@@ -95,12 +105,12 @@ public class FilesFacadeService {
     }
 
     public FilesFacadeService(
-            ObjectProvider<FilesStorageAdapter> filesStorageAdapterProvider,
+            ObjectProvider<FilesProviderPort> filesProviderPortProvider,
             ContextAuthorizationPort contextAuthorizationPort,
             ContextAuthorizationProperties contextAuthorizationProperties,
             WorkspaceCapabilityService workspaceCapabilityService) {
         this(
-                filesStorageAdapterProvider,
+                filesProviderPortProvider,
                 contextAuthorizationPort,
                 contextAuthorizationProperties,
                 workspaceCapabilityService,
@@ -110,7 +120,7 @@ public class FilesFacadeService {
     public FileListResponse list(String path) {
         requireContextPermission(ContextPermission.VIEW, "list-files");
         try {
-            return configuredAdapter("list-files").list(path);
+            return toResponse(configuredAdapter("list-files").list(new FilePath(path)).listing());
         } catch (ApiErrorException exception) {
             throw supportSafeStorageError(exception, "list-files");
         }
@@ -121,23 +131,22 @@ public class FilesFacadeService {
         requireContextPermission(ContextPermission.VIEW, operation);
         String normalizedPath = FilePathCodec.normalizeProductPath(path);
         try {
-            VersionedFileListResponse versionedListing = configuredAdapter(operation).listWithVersionTokens(normalizedPath);
-            FileListResponse listing = versionedListing.listing();
-            FileItemResponse requested = new FileItemResponse(
-                    "files:" + normalizedPath,
-                    "/".equals(normalizedPath) ? "Files" : fileName(normalizedPath),
-                    normalizedPath,
-                    "folder",
-                    null,
+            VersionedListing versionedListing = configuredAdapter(operation).list(new FilePath(normalizedPath));
+            FileListing listing = versionedListing.listing();
+            FileObject requested = new FileObject(
+                    new FileId("files:" + normalizedPath),
+                    new FilePath(normalizedPath),
+                    Kind.COLLECTION,
+                    0,
                     null,
                     null,
                     false);
             return new WebDavPropfindListing(
-                    webDavResource(requested, versionedListing.requestedVersionToken()),
-                    listing.items().stream()
-                            .map(item -> webDavResource(item, versionedListing.childVersionTokens().get(item.path())))
+                    webDavResource(requested, versionedListing.requestedVersion()),
+                    listing.children().stream()
+                            .map(item -> webDavResource(item, versionedListing.childVersions().get(item.path())))
                             .toList(),
-                    listing.quota());
+                    toResponse(listing.quota()));
         } catch (ApiErrorException exception) {
             throw supportSafeStorageError(exception, operation);
         }
@@ -156,7 +165,8 @@ public class FilesFacadeService {
     public DownloadedFile download(String id) {
         requireContextPermission(ContextPermission.VIEW, "download-file");
         try {
-            return configuredAdapter("download-file").download(id);
+            FileContent content = configuredAdapter("download-file").read(new FileId(id));
+            return new DownloadedFile(content.item().name(), content.item().mediaType(), content.bytes());
         } catch (ApiErrorException exception) {
             throw supportSafeStorageError(exception, "download-file");
         }
@@ -196,20 +206,20 @@ public class FilesFacadeService {
         enforceUnlocked(normalizedPath, ifHeader, operation);
         publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_ATTEMPTED, operation, principal, normalizedPath, "PUT", "attempted");
         try {
-            FilesStorageAdapter adapter = configuredAdapter(operation);
+            FilesProviderPort adapter = configuredAdapter(operation);
             VersionedFileItem existing = existingVersionedItem(adapter, normalizedPath, operation, true);
             enforcePreconditions(existing, ifMatch, ifNoneMatch, operation);
-            if (existing != null && !"file".equals(existing.item().type())) {
+            if (existing != null && existing.item().kind() != Kind.FILE) {
                 throw fileConflict(operation, normalizedPath, "PUT cannot replace a collection.");
             }
             byte[] writeContent = content == null ? new byte[0] : content;
-            FileItemResponse stored = adapter.put(normalizedPath, writeContent, contentType);
+            FileObject stored = adapter.write(new FileWrite(new FilePath(normalizedPath), writeContent, contentType));
             VersionedFileItem updated = firstNonNull(
                     existingVersionedItem(adapter, normalizedPath, operation, false),
-                    versioned(stored, contentVersionToken(writeContent)));
+                    versioned(stored, new FileVersion(contentVersionToken(writeContent))));
             String etag = etag(updated);
             publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_COMPLETED, operation, principal, normalizedPath, "PUT", "completed");
-            return new WebDavMutationResult(updated.item(), etag, existing == null);
+            return new WebDavMutationResult(toResponse(updated.item()), etag, existing == null);
         } catch (ApiErrorException exception) {
             throw supportSafeStorageError(exception, operation);
         }
@@ -226,19 +236,19 @@ public class FilesFacadeService {
         enforceUnlocked(normalizedPath, ifHeader, operation);
         publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_ATTEMPTED, operation, principal, normalizedPath, "MKCOL", "attempted");
         try {
-            FilesStorageAdapter adapter = configuredAdapter(operation);
+            FilesProviderPort adapter = configuredAdapter(operation);
             VersionedFileItem existing = existingVersionedItem(adapter, normalizedPath, operation, true);
             enforcePreconditions(existing, ifMatch, ifNoneMatch, operation);
             if (existing != null) {
                 throw fileConflict(operation, normalizedPath, "A collection or file already exists at this path.");
             }
-            FileItemResponse stored = adapter.createFolder(new CreateFolderRequest(parentPath(normalizedPath), fileName(normalizedPath)));
+            FileObject stored = adapter.createCollection(new FilePath(normalizedPath));
             VersionedFileItem updated = firstNonNull(
                     existingVersionedItem(adapter, normalizedPath, operation, false),
-                    versioned(stored, null));
+                    versioned(stored, FileVersion.unknown()));
             String etag = etag(updated);
             publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_COMPLETED, operation, principal, normalizedPath, "MKCOL", "completed");
-            return new WebDavMutationResult(updated.item(), etag, true);
+            return new WebDavMutationResult(toResponse(updated.item()), etag, true);
         } catch (ApiErrorException exception) {
             throw supportSafeStorageError(exception, operation);
         }
@@ -255,7 +265,7 @@ public class FilesFacadeService {
         enforceUnlocked(normalizedPath, ifHeader, operation);
         publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_ATTEMPTED, operation, principal, normalizedPath, "DELETE", "attempted");
         try {
-            FilesStorageAdapter adapter = configuredAdapter(operation);
+            FilesProviderPort adapter = configuredAdapter(operation);
             VersionedFileItem existing = existingVersionedItem(adapter, normalizedPath, operation, false);
             if (existing == null) {
                 throw new ApiErrorException(
@@ -265,7 +275,7 @@ public class FilesFacadeService {
                         Map.of("module", "files", "operation", operation));
             }
             enforcePreconditions(existing, ifMatch, null, operation);
-            adapter.delete(normalizedPath);
+            adapter.delete(new FilePath(normalizedPath), existing.version());
             publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_COMPLETED, operation, principal, normalizedPath, "DELETE", "completed");
         } catch (ApiErrorException exception) {
             throw supportSafeStorageError(exception, operation);
@@ -285,7 +295,7 @@ public class FilesFacadeService {
         enforceUnlocked(normalizedDestination, ifHeader, operation);
         publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_ATTEMPTED, operation, principal, normalizedSource, "COPY", "attempted");
         try {
-            FilesStorageAdapter adapter = configuredAdapter(operation);
+            FilesProviderPort adapter = configuredAdapter(operation);
             VersionedFileItem source = existingVersionedItem(adapter, normalizedSource, operation, false);
             if (source == null) {
                 throw new ApiErrorException(
@@ -299,12 +309,12 @@ public class FilesFacadeService {
             if (destination != null && !overwrite) {
                 throw preconditionFailed(operation, "Overwrite is false and the destination already exists.");
             }
-            FileItemResponse copied = adapter.copy(normalizedSource, normalizedDestination, overwrite);
+            FileObject copied = adapter.copy(new FilePath(normalizedSource), new FilePath(normalizedDestination), overwrite);
             VersionedFileItem updated = firstNonNull(
                     existingVersionedItem(adapter, normalizedDestination, operation, false),
-                    versioned(copied, null));
+                    versioned(copied, FileVersion.unknown()));
             publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_COMPLETED, operation, principal, normalizedDestination, "COPY", "completed");
-            return new WebDavMutationResult(updated.item(), etag(updated), destination == null);
+            return new WebDavMutationResult(toResponse(updated.item()), etag(updated), destination == null);
         } catch (ApiErrorException exception) {
             throw supportSafeStorageError(exception, operation);
         } catch (UnsupportedOperationException exception) {
@@ -326,7 +336,7 @@ public class FilesFacadeService {
         enforceUnlocked(normalizedDestination, ifHeader, operation);
         publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_ATTEMPTED, operation, principal, normalizedSource, "MOVE", "attempted");
         try {
-            FilesStorageAdapter adapter = configuredAdapter(operation);
+            FilesProviderPort adapter = configuredAdapter(operation);
             VersionedFileItem source = existingVersionedItem(adapter, normalizedSource, operation, false);
             if (source == null) {
                 throw new ApiErrorException(
@@ -340,13 +350,13 @@ public class FilesFacadeService {
             if (destination != null && !overwrite) {
                 throw preconditionFailed(operation, "Overwrite is false and the destination already exists.");
             }
-            FileItemResponse moved = adapter.move(normalizedSource, normalizedDestination, overwrite);
+            FileObject moved = adapter.move(new FilePath(normalizedSource), new FilePath(normalizedDestination), overwrite);
             VersionedFileItem updated = firstNonNull(
                     existingVersionedItem(adapter, normalizedDestination, operation, false),
-                    versioned(moved, null));
+                    versioned(moved, FileVersion.unknown()));
             webDavLocks.remove(normalizedSource);
             publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_COMPLETED, operation, principal, normalizedDestination, "MOVE", "completed");
-            return new WebDavMutationResult(updated.item(), etag(updated), destination == null);
+            return new WebDavMutationResult(toResponse(updated.item()), etag(updated), destination == null);
         } catch (ApiErrorException exception) {
             throw supportSafeStorageError(exception, operation);
         } catch (UnsupportedOperationException exception) {
@@ -618,11 +628,11 @@ public class FilesFacadeService {
     private record WebDavLockState(String path, String token, String principalRef, Instant expiresAt) {
     }
 
-    private FilesStorageAdapter configuredAdapter(String operation) {
-        if (filesStorageAdapter == null || !filesStorageAdapter.isConfigured()) {
+    private FilesProviderPort configuredAdapter(String operation) {
+        if (filesProviderPort == null || !filesProviderPort.configured()) {
             throw adapterNotConfigured(operation);
         }
-        return filesStorageAdapter;
+        return filesProviderPort;
     }
 
     private ApiErrorException adapterNotConfigured(String operation) {
@@ -809,20 +819,17 @@ public class FilesFacadeService {
         return normalized;
     }
 
-    private FileItemResponse existingItem(
-            FilesStorageAdapter adapter,
+    private FileObject existingItem(
+            FilesProviderPort adapter,
             String path,
             String operation,
             boolean missingParentAsConflict) {
         String normalized = FilePathCodec.normalizeProductPath(path);
         if ("/".equals(normalized)) {
-            return new FileItemResponse("files:root", "Files", "/", "folder", null, null, null, false);
+            return new FileObject(new FileId("files:root"), new FilePath("/"), Kind.COLLECTION, 0, null, null, false);
         }
         try {
-            return adapter.list(parentPath(normalized)).items().stream()
-                    .filter(item -> FilePathCodec.normalizeProductPath(item.path()).equals(normalized))
-                    .findFirst()
-                    .orElse(null);
+            return adapter.find(new FilePath(normalized)).map(VersionedFile::item).orElse(null);
         } catch (ApiErrorException exception) {
             if (missingParentAsConflict && "file-not-found".equals(exception.code())) {
                 throw fileConflict(operation, normalized, "The parent collection does not exist.");
@@ -832,16 +839,24 @@ public class FilesFacadeService {
     }
 
     private VersionedFileItem existingVersionedItem(
-            FilesStorageAdapter adapter,
+            FilesProviderPort adapter,
             String path,
             String operation,
             boolean missingParentAsConflict) {
-        FileItemResponse item = existingItem(adapter, path, operation, missingParentAsConflict);
-        return item == null ? null : versioned(item, adapter.versionToken(path));
+        try {
+            return adapter.find(new FilePath(path))
+                    .map(item -> versioned(item.item(), item.version()))
+                    .orElse(null);
+        } catch (ApiErrorException exception) {
+            if (missingParentAsConflict && "file-not-found".equals(exception.code())) {
+                throw fileConflict(operation, path, "The parent collection does not exist.");
+            }
+            throw exception;
+        }
     }
 
-    private VersionedFileItem versioned(FileItemResponse item, String versionToken) {
-        return new VersionedFileItem(item, StringUtils.hasText(versionToken) ? versionToken.trim() : null);
+    private VersionedFileItem versioned(FileObject item, FileVersion version) {
+        return new VersionedFileItem(item, version == null ? FileVersion.unknown() : version);
     }
 
     private void enforcePreconditions(
@@ -914,21 +929,21 @@ public class FilesFacadeService {
     }
 
     private String etag(VersionedFileItem versionedItem) {
-        return etag(versionedItem.item(), versionedItem.versionToken());
+        return etag(versionedItem.item(), versionedItem.version());
     }
 
-    private WebDavPropfindResource webDavResource(FileItemResponse item, String versionToken) {
-        return new WebDavPropfindResource(item, etag(item, versionToken));
+    private WebDavPropfindResource webDavResource(FileObject item, FileVersion version) {
+        return new WebDavPropfindResource(toResponse(item), etag(item, version));
     }
 
-    private String etag(FileItemResponse item, String versionToken) {
+    private String etag(FileObject item, FileVersion version) {
         String material = String.join("|",
-                FilePathCodec.normalizeProductPath(item.path()),
-                item.type(),
+                item.path().value(),
+                item.kind().name(),
                 String.valueOf(item.size()),
                 timestamp(item.modifiedAt()),
-                item.mimeType() == null ? "" : item.mimeType(),
-                versionToken == null ? "" : versionToken);
+                item.mediaType() == null ? "" : item.mediaType(),
+                version == null || !version.known() ? "" : version.value());
         return "\"" + sha256(material) + "\"";
     }
 
@@ -950,8 +965,8 @@ public class FilesFacadeService {
         }
     }
 
-    private String timestamp(OffsetDateTime value) {
-        return value == null ? "" : value.toInstant().toString();
+    private String timestamp(Instant value) {
+        return value == null ? "" : value.toString();
     }
 
     private String parentPath(String path) {
@@ -965,11 +980,40 @@ public class FilesFacadeService {
         return normalized.substring(normalized.lastIndexOf('/') + 1);
     }
 
+    private FileListResponse toResponse(FileListing listing) {
+        return new FileListResponse(
+                listing.requestedPath().value(),
+                listing.children().stream().map(this::toResponse).toList(),
+                toResponse(listing.quota()));
+    }
+
+    private FileItemResponse toResponse(FileObject item) {
+        return new FileItemResponse(
+                item.id().value(),
+                item.name(),
+                item.path().value(),
+                item.kind() == Kind.COLLECTION ? "folder" : "file",
+                item.mediaType(),
+                item.kind() == Kind.COLLECTION ? null : item.size(),
+                item.modifiedAt() == null ? null : OffsetDateTime.ofInstant(item.modifiedAt(), ZoneOffset.UTC),
+                item.kind() == Kind.FILE);
+    }
+
+    private com.massimotter.weave.backend.model.files.FileQuotaResponse toResponse(FileQuota quota) {
+        if (quota == null || (quota.usedBytes() == null && quota.availableBytes() == null)) {
+            return null;
+        }
+        Long total = quota.usedBytes() != null && quota.availableBytes() != null
+                ? quota.usedBytes() + quota.availableBytes()
+                : null;
+        return new com.massimotter.weave.backend.model.files.FileQuotaResponse(quota.usedBytes(), total);
+    }
+
     private VersionedFileItem firstNonNull(VersionedFileItem primary, VersionedFileItem fallback) {
         return primary == null ? fallback : primary;
     }
 
-    private record VersionedFileItem(FileItemResponse item, String versionToken) {
+    private record VersionedFileItem(FileObject item, FileVersion version) {
     }
 
     private ApiErrorException supportSafeStorageError(ApiErrorException exception, String operation) {

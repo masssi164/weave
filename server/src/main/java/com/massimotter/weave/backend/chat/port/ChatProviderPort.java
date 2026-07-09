@@ -5,10 +5,13 @@ import com.massimotter.weave.backend.chat.domain.ChatConversations;
 import com.massimotter.weave.backend.chat.domain.ChatMessage;
 import com.massimotter.weave.backend.chat.domain.ChatMessages;
 import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
+import com.massimotter.weave.backend.portability.ProviderReadiness;
 
 public interface ChatProviderPort {
 
     boolean configured();
+
+    ProviderReadiness readiness();
 
     ProviderConformanceProfile conformanceProfile();
 
