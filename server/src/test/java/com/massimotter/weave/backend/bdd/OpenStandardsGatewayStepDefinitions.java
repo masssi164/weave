@@ -184,6 +184,7 @@ public class OpenStandardsGatewayStepDefinitions {
     @Then("no provider credential, provider URL, SecretRef value, bearer token value, app password, or raw downstream payload is exposed")
     public void noProviderCredentialProviderUrlSecretrefValueBearerTokenValueAppPasswordOrRawDownstreamPayloadIsExposed() {
         // NO_PROVIDER_CREDENTIALS_CONTRACT
+        // PROTOCOL_SURFACE_NO_PROVIDER_CREDENTIALS
         assertSupportSafeResponses();
     }
 
