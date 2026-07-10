@@ -86,6 +86,7 @@ abstract class RustLibApi extends BaseApi {
     required String accessToken,
     required String storePath,
     required String storePassphrase,
+    required String extraRootCertificatePem,
   });
 
   Future<String> crateFrbApiMatrixAcceptVerification({
@@ -200,6 +201,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required String accessToken,
     required String storePath,
     required String storePassphrase,
+    required String extraRootCertificatePem,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -212,6 +214,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(accessToken, serializer);
           sse_encode_String(storePath, serializer);
           sse_encode_String(storePassphrase, serializer);
+          sse_encode_String(extraRootCertificatePem, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -232,6 +235,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           accessToken,
           storePath,
           storePassphrase,
+          extraRootCertificatePem,
         ],
         apiImpl: this,
       ),
@@ -249,6 +253,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           "accessToken",
           "storePath",
           "storePassphrase",
+          "extraRootCertificatePem",
         ],
       );
 

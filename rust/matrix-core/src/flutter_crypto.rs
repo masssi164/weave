@@ -57,6 +57,7 @@ pub async fn initialize(
     access_token: String,
     store_path: String,
     store_passphrase: String,
+    extra_root_certificate_pem: String,
 ) -> String {
     json_result(
         initialize_inner(
@@ -67,6 +68,7 @@ pub async fn initialize(
             access_token,
             store_path,
             store_passphrase,
+            extra_root_certificate_pem,
         )
         .await,
     )
@@ -80,6 +82,7 @@ async fn initialize_inner(
     access_token: String,
     store_path: String,
     store_passphrase: String,
+    extra_root_certificate_pem: String,
 ) -> Result<Value, String> {
     validate_identifier(&profile_key, "profile")?;
     if homeserver_url.trim().is_empty()
@@ -118,10 +121,7 @@ async fn initialize_inner(
         HeaderName::from_static(DEVICE_ID_HEADER),
         HeaderValue::from_str(&device_id).map_err(|_| "M_WEAVE_E2EE_IDENTITY".to_string())?,
     );
-    let http_client = reqwest::Client::builder()
-        .default_headers(default_headers)
-        .build()
-        .map_err(|_| "M_WEAVE_E2EE_CONFIGURATION".to_string())?;
+    let http_client = build_http_client(default_headers, &extra_root_certificate_pem)?;
 
     let client = Client::builder()
         .homeserver_url(&homeserver_url)
@@ -192,6 +192,25 @@ async fn initialize_inner(
         "restored": false,
         "deviceId": device_id,
     }))
+}
+
+fn build_http_client(
+    default_headers: HeaderMap,
+    extra_root_certificate_pem: &str,
+) -> Result<reqwest::Client, String> {
+    let mut builder = reqwest::Client::builder().default_headers(default_headers);
+    if !extra_root_certificate_pem.trim().is_empty() {
+        let certificates =
+            reqwest::Certificate::from_pem_bundle(extra_root_certificate_pem.as_bytes())
+                .map_err(|_| "M_WEAVE_E2EE_TLS_ROOT".to_string())?;
+        if certificates.is_empty() {
+            return Err("M_WEAVE_E2EE_TLS_ROOT".to_string());
+        }
+        builder = builder.tls_certs_merge(certificates);
+    }
+    builder
+        .build()
+        .map_err(|_| "M_WEAVE_E2EE_CONFIGURATION".to_string())
 }
 
 pub async fn sync(profile_key: String) -> String {
@@ -683,4 +702,21 @@ fn json_result(result: Result<Value, String>) -> String {
         })
     }))
     .unwrap_or_else(|_| "{\"errcode\":\"M_WEAVE_E2EE_SERIALIZATION\"}".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn platform_roots_remain_the_default() {
+        assert!(build_http_client(HeaderMap::new(), "").is_ok());
+    }
+
+    #[test]
+    fn invalid_extra_root_fails_closed() {
+        let result = build_http_client(HeaderMap::new(), "not a PEM certificate");
+
+        assert_eq!(result.err().as_deref(), Some("M_WEAVE_E2EE_TLS_ROOT"));
+    }
 }
