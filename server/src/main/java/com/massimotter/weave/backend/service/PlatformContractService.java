@@ -157,7 +157,7 @@ public class PlatformContractService {
                 "Matrix chat",
                 workspaceProperties.chat(),
                 auth,
-                "Set WEAVE_MATRIX_HOMESERVER_URL to the public Matrix base URL, for example https://matrix.weave.test.",
+                "Set WEAVE_MATRIX_BASE_URL to the southbound Matrix provider URL; clients receive the Weave facade from the API origin.",
                 "Enable WEAVE_WORKSPACE_CHAT_ENABLED when chat should be available.");
         return new PlatformStatusResponse.MatrixStatus(
                 status.status(),

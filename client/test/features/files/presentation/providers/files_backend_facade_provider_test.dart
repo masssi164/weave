@@ -234,6 +234,7 @@ void main() {
     });
 
     test('writes files through the Weave WebDAV data plane', () async {
+      // FLUTTER_FILES_WEBDAV_DATA_PLANE
       final requests = <http.BaseRequest>[];
       final uploadedBodies = <List<int>>[];
       final client = MockClient.streaming((request, bodyStream) async {
@@ -301,6 +302,63 @@ void main() {
       expect(requests[2].headers['authorization'], 'Bearer files-token');
       expect(requests[2].headers['if-match'], '*');
     });
+
+    test(
+      'copies and moves entries through the Weave WebDAV data plane',
+      () async {
+        // FLUTTER_FILES_WEBDAV_COPY_MOVE
+        final requests = <http.Request>[];
+        final client = MockClient((request) async {
+          requests.add(request);
+          return http.Response(
+            '',
+            request.method == 'COPY' ? 201 : 204,
+            headers: {
+              'location': request.method == 'COPY'
+                  ? '/dav/files/Team/readme-copy.md'
+                  : '/dav/files/Archive/readme.md',
+            },
+          );
+        });
+        final backendRepository = repository(client);
+        const source = FileEntry(
+          id: 'files:/Team/readme.md',
+          name: 'readme.md',
+          path: '/Team/readme.md',
+          isDirectory: false,
+          sizeInBytes: 42,
+        );
+
+        final copied = await backendRepository.copyEntry(
+          source,
+          destinationPath: '/Team/readme-copy.md',
+        );
+        final moved = await backendRepository.moveEntry(
+          source,
+          destinationPath: '/Archive/readme.md',
+          overwrite: true,
+        );
+
+        expect(copied.path, '/Team/readme-copy.md');
+        expect(moved.path, '/Archive/readme.md');
+        expect(requests.map((request) => request.method), ['COPY', 'MOVE']);
+        expect(requests[0].url.path, '/dav/files/Team/readme.md');
+        expect(
+          requests[0].headers['destination'],
+          'https://api.home.internal/dav/files/Team/readme-copy.md',
+        );
+        expect(requests[0].headers['overwrite'], 'F');
+        expect(requests[0].headers['if-match'], '*');
+        expect(requests[1].headers['overwrite'], 'T');
+        expect(
+          requests.every(
+            (request) =>
+                request.headers['authorization'] == 'Bearer files-token',
+          ),
+          isTrue,
+        );
+      },
+    );
 
     test(
       'rejects unsupported WebDAV child names before network calls',

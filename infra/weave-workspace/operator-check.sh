@@ -381,7 +381,7 @@ assert_matrix_room_unencrypted_until_e2ee_promoted() {
 
   [[ -n "${WEAVE_MATRIX_PROVISIONER_ACCESS_TOKEN:-}" ]] ||     fail "Operator check failed: Matrix provisioner token is missing from private bootstrap env; cannot verify E2EE room posture"
 
-  status="$(curl_auth_status "${WEAVE_MATRIX_PROVISIONER_ACCESS_TOKEN}" "${WEAVE_MATRIX_HOMESERVER_URL}/_matrix/client/v3/rooms/$(url_encode "${room_id}")/state/m.room.encryption/" || true)"
+  status="$(curl_auth_status "${WEAVE_MATRIX_PROVISIONER_ACCESS_TOKEN}" "${WEAVE_MATRIX_PROVIDER_URL}/_matrix/client/v3/rooms/$(url_encode "${room_id}")/state/m.room.encryption/" || true)"
   case "${status}" in
     404) ;;
     200) fail "Operator check failed: ${room_name} has m.room.encryption while WEAVE_CHAT_E2EE is still active-architecture-gated; promote encrypted-room/device/recovery validation before claiming E2EE" ;;
@@ -394,7 +394,7 @@ check_matrix_provisioner_key_backup_diagnostic() {
 
   [[ -n "${WEAVE_MATRIX_PROVISIONER_ACCESS_TOKEN:-}" ]] ||     fail "Operator check failed: Matrix provisioner token is missing from private bootstrap env; cannot verify provisioner key-backup posture"
 
-  status="$(curl_auth_status "${WEAVE_MATRIX_PROVISIONER_ACCESS_TOKEN}" "${WEAVE_MATRIX_HOMESERVER_URL}/_matrix/client/v3/room_keys/version" || true)"
+  status="$(curl_auth_status "${WEAVE_MATRIX_PROVISIONER_ACCESS_TOKEN}" "${WEAVE_MATRIX_PROVIDER_URL}/_matrix/client/v3/room_keys/version" || true)"
   case "${status}" in
     404) ;;
     200) log "Matrix provisioner account has key-backup state; this is diagnostic only and does not prove global E2EE recovery readiness." ;;
@@ -578,7 +578,8 @@ source "${SYNAPSE_VOLUME_HELPER}"
 : "${WEAVE_PUBLIC_BASE_URL:=$(product_public_url)}"
 : "${WEAVE_OIDC_ISSUER_URL:=$(public_url "${TF_VAR_auth_subdomain:-auth}")/realms/${TF_VAR_tenant_slug:-weave}}"
 : "${WEAVE_NEXTCLOUD_BASE_URL:=$(public_url "${TF_VAR_nextcloud_subdomain:-files}")}"
-: "${WEAVE_MATRIX_HOMESERVER_URL:=$(public_url "${TF_VAR_matrix_subdomain:-matrix}")}"
+: "${WEAVE_MATRIX_HOMESERVER_URL:=$(api_public_url)}"
+: "${WEAVE_MATRIX_PROVIDER_URL:=$(public_url "${TF_VAR_matrix_subdomain:-matrix}")}"
 : "${WEAVE_LOCAL_CA_URL:=http://${TF_VAR_tenant_domain:-weave.test}:${TF_VAR_proxy_http_host_port:-44080}/weave-local-ca.pem}"
 
 [[ "${WEAVE_PUBLIC_BASE_URL}" == "$(product_public_url)" ]] || fail "Operator check failed: product URL must stay DNS-first on ${TF_VAR_tenant_domain:-weave.test}, got ${WEAVE_PUBLIC_BASE_URL}"
@@ -586,7 +587,7 @@ source "${SYNAPSE_VOLUME_HELPER}"
 [[ "${WEAVE_OIDC_ISSUER_URL}" == "$(public_url "${TF_VAR_auth_subdomain:-auth}")/realms/${TF_VAR_tenant_slug:-weave}" ]] || fail "Operator check failed: OIDC issuer must stay DNS-first on $(public_host "${TF_VAR_auth_subdomain:-auth}"), got ${WEAVE_OIDC_ISSUER_URL}"
 [[ "${WEAVE_LOCAL_CA_URL}" == "http://${TF_VAR_tenant_domain:-weave.test}:${TF_VAR_proxy_http_host_port:-44080}/weave-local-ca.pem" ]] || fail "Operator check failed: local CA URL must be advertised on weave.test, got ${WEAVE_LOCAL_CA_URL}"
 if [[ -n "${TF_VAR_local_lan_host:-}" ]]; then
-  for dns_first_url in "${WEAVE_PUBLIC_BASE_URL}" "${WEAVE_BASE_URL}" "${WEAVE_OIDC_ISSUER_URL}" "${WEAVE_NEXTCLOUD_BASE_URL}" "${WEAVE_MATRIX_HOMESERVER_URL}" "${WEAVE_LOCAL_CA_URL}"; do
+  for dns_first_url in "${WEAVE_PUBLIC_BASE_URL}" "${WEAVE_BASE_URL}" "${WEAVE_OIDC_ISSUER_URL}" "${WEAVE_NEXTCLOUD_BASE_URL}" "${WEAVE_MATRIX_HOMESERVER_URL}" "${WEAVE_MATRIX_PROVIDER_URL}" "${WEAVE_LOCAL_CA_URL}"; do
     [[ "${dns_first_url}" != *"${TF_VAR_local_lan_host}"* ]] || fail "Operator check failed: local_lan_host is non-canonical and must not appear in DNS-first app/service URLs: ${dns_first_url}"
   done
 fi
@@ -657,14 +658,14 @@ nextcloud_oidc_provider="$(docker exec --user www-data weave-nextcloud php occ u
 assert_json "${nextcloud_oidc_provider}" '.settings.checkBearer == true or .settings.checkBearer == "1" or .settings.checkBearer == 1' "Nextcloud OIDC provider should validate Bearer tokens"
 assert_json "${nextcloud_oidc_provider}" '.settings.bearerProvisioning == true or .settings.bearerProvisioning == "1" or .settings.bearerProvisioning == 1' "Nextcloud OIDC provider should provision Bearer-token users"
 
-mas_discovery="$(curl_json "${WEAVE_MATRIX_HOMESERVER_URL}/.well-known/openid-configuration")"
-assert_json "${mas_discovery}" ".issuer == \"${WEAVE_MATRIX_HOMESERVER_URL}/\"" "MAS issuer should match the public matrix URL"
+mas_discovery="$(curl_json "${WEAVE_MATRIX_PROVIDER_URL}/.well-known/openid-configuration")"
+assert_json "${mas_discovery}" ".issuer == \"${WEAVE_MATRIX_PROVIDER_URL}/\"" "MAS issuer should match the southbound Matrix provider URL"
 
-matrix_versions="$(curl_json "${WEAVE_MATRIX_HOMESERVER_URL}/_matrix/client/versions")"
-assert_json "${matrix_versions}" '.versions | type == "array"' "public Matrix client versions route should be served by Synapse"
+matrix_versions="$(curl_json "${WEAVE_MATRIX_PROVIDER_URL}/_matrix/client/versions")"
+assert_json "${matrix_versions}" '.versions | type == "array"' "southbound Matrix provider versions route should be served by Synapse"
 
-matrix_auth_metadata="$(curl_json "${WEAVE_MATRIX_HOMESERVER_URL}/_matrix/client/v1/auth_metadata")"
-assert_json "${matrix_auth_metadata}" ".issuer == \"${WEAVE_MATRIX_HOMESERVER_URL}/\"" "Matrix OAuth metadata should be served by MAS"
+matrix_auth_metadata="$(curl_json "${WEAVE_MATRIX_PROVIDER_URL}/_matrix/client/v1/auth_metadata")"
+assert_json "${matrix_auth_metadata}" ".issuer == \"${WEAVE_MATRIX_PROVIDER_URL}/\"" "Matrix provider OAuth metadata should be served by MAS"
 assert_json "${matrix_auth_metadata}" '.authorization_endpoint | contains("/authorize")' "Matrix OAuth metadata should expose the MAS authorization endpoint"
 
 log "Checking default Matrix room aliases..."
@@ -674,10 +675,10 @@ matrix_announcements_alias="#${WEAVE_MATRIX_ANNOUNCEMENTS_ALIAS_LOCALPART:-annou
 matrix_general_alias="#${WEAVE_MATRIX_GENERAL_ALIAS_LOCALPART:-general}:${matrix_homeserver}"
 matrix_help_alias="#${WEAVE_MATRIX_HELP_ALIAS_LOCALPART:-help}:${matrix_homeserver}"
 
-matrix_space_id="$(matrix_room_id_by_alias "${WEAVE_MATRIX_HOMESERVER_URL}" "${matrix_space_alias}")"
-matrix_announcements_id="$(matrix_room_id_by_alias "${WEAVE_MATRIX_HOMESERVER_URL}" "${matrix_announcements_alias}")"
-matrix_general_id="$(matrix_room_id_by_alias "${WEAVE_MATRIX_HOMESERVER_URL}" "${matrix_general_alias}")"
-matrix_help_id="$(matrix_room_id_by_alias "${WEAVE_MATRIX_HOMESERVER_URL}" "${matrix_help_alias}")"
+matrix_space_id="$(matrix_room_id_by_alias "${WEAVE_MATRIX_PROVIDER_URL}" "${matrix_space_alias}")"
+matrix_announcements_id="$(matrix_room_id_by_alias "${WEAVE_MATRIX_PROVIDER_URL}" "${matrix_announcements_alias}")"
+matrix_general_id="$(matrix_room_id_by_alias "${WEAVE_MATRIX_PROVIDER_URL}" "${matrix_general_alias}")"
+matrix_help_id="$(matrix_room_id_by_alias "${WEAVE_MATRIX_PROVIDER_URL}" "${matrix_help_alias}")"
 [[ "${matrix_space_id}" == \!* ]] || fail "Operator check failed: default Matrix space alias did not resolve"
 [[ "${matrix_announcements_id}" == \!* ]] || fail "Operator check failed: announcements room alias did not resolve"
 [[ "${matrix_general_id}" == \!* ]] || fail "Operator check failed: general room alias did not resolve"

@@ -85,6 +85,7 @@ weave:
       # Stable Weave-owned Matrix server name. It identifies the northbound projection,
       # not a southbound homeserver and must not change during provider replacement.
       server-name: ${WEAVE_MATRIX_FACADE_SERVER_NAME:api.weave.test}
+      base-url: ${WEAVE_MATRIX_FACADE_BASE_URL:https://api.weave.test}
     # Backend diagnostics must remain E2EE-compatible: the backend never inspects
     # encrypted Matrix message bodies. These validation flags are false until real
     # encrypted-room, device verification, recovery, lost-device, multi-device, and
@@ -106,7 +107,7 @@ weave:
       enabled: ${WEAVE_WORKSPACE_SHELL_ACCESS_ENABLED:true}
     chat:
       enabled: ${WEAVE_WORKSPACE_CHAT_ENABLED:true}
-      dependency-url: ${WEAVE_MATRIX_HOMESERVER_URL:https://matrix.weave.test}
+      dependency-url: ${WEAVE_MATRIX_BASE_URL:https://matrix.weave.test}
       readiness: ${WEAVE_WORKSPACE_CHAT_READINESS:}
     files:
       enabled: ${WEAVE_WORKSPACE_FILES_ENABLED:true}

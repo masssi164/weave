@@ -56,7 +56,8 @@ locals {
   client_api_origin           = local.public_urls.api
   client_api_base_url         = "${local.client_api_origin}/api"
   client_auth_url             = local.public_urls.auth
-  client_matrix_url           = local.public_urls.matrix
+  client_matrix_facade_url    = local.client_api_origin
+  matrix_provider_public_url  = local.public_urls.matrix
   client_files_product_url    = "${local.client_public_url}/files"
   client_calendar_product_url = "${local.client_public_url}/calendar"
 
@@ -104,6 +105,7 @@ locals {
     client_public_url     = local.client_public_url
     nextcloud_public_url  = local.public_urls.files
     matrix_public_url     = local.public_urls.matrix
+    matrix_facade_url     = local.client_matrix_facade_url
     mas_upstream          = "${local.service_names.mas}:8080"
     synapse_upstream      = "${local.service_names.synapse}:8008"
     # Backend is routed via Caddy (api_upstream); no Traefik labels needed
@@ -220,7 +222,7 @@ generated_files = {
   mas_config = {
     filename = "${path.module}/.generated/mas/config.yaml"
     content = templatefile("${path.module}/templates/mas-config.yaml.tpl", {
-      mas_public_url         = local.client_matrix_url
+      mas_public_url         = local.matrix_provider_public_url
       mas_db_host            = local.service_names.db
       mas_db_port            = 5432
       mas_db_name            = local.service_databases.mas.database_name
@@ -242,7 +244,7 @@ generated_files = {
     filename = "${path.module}/.generated/synapse/homeserver.yaml"
     content = templatefile("${path.module}/templates/homeserver.yaml.tpl", {
       matrix_homeserver           = local.public_hosts.matrix
-      matrix_public_url           = local.client_matrix_url
+      matrix_public_url           = local.matrix_provider_public_url
       synapse_db_host             = local.service_names.db
       synapse_db_port             = 5432
       synapse_db_name             = local.service_databases.synapse.database_name
@@ -486,7 +488,8 @@ module "backend" {
   api_origin                                       = local.client_api_origin
   api_base_url                                     = local.client_api_base_url
   auth_base_url                                    = local.client_auth_url
-  matrix_base_url                                  = local.client_matrix_url
+  matrix_base_url                                  = local.matrix_provider_public_url
+  matrix_facade_url                                = local.client_matrix_facade_url
   files_product_url                                = local.client_files_product_url
   calendar_product_url                             = local.client_calendar_product_url
   nextcloud_public_base_url                        = local.public_urls.files

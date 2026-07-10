@@ -67,7 +67,7 @@ void main() {
           'authBaseUrl': 'https://auth.weave.test:44443',
           'oidcIssuerUrl': 'https://auth.weave.test:44443/realms/weave',
           'oidcClientId': 'weave-app',
-          'matrixHomeserverUrl': 'https://matrix.weave.test:44443',
+          'matrixHomeserverUrl': 'https://api.weave.test:44443',
           'filesProductUrl': 'https://weave.test:44443/files',
         }),
         200,
@@ -97,7 +97,7 @@ void main() {
     );
     expect(
       saved.serviceEndpoints.matrixHomeserverUrl.toString(),
-      'https://matrix.weave.test:44443',
+      'https://api.weave.test:44443',
     );
     expect(
       saved.serviceEndpoints.nextcloudBaseUrl.toString(),
@@ -151,7 +151,7 @@ void main() {
             'authBaseUrl': 'https://auth.weave.test:44443',
             'oidcIssuerUrl': 'https://auth.weave.test:44443/realms/weave',
             'oidcClientId': 'weave-app',
-            'matrixHomeserverUrl': 'https://matrix.weave.test:44443',
+            'matrixHomeserverUrl': 'https://api.weave.test:44443',
             'filesProductUrl': 'https://weave.test:44443/files',
           }),
           200,
@@ -240,7 +240,7 @@ void main() {
           'authBaseUrl': 'https://auth.weave.example',
           'oidcIssuerUrl': 'https://auth.weave.example/realms/weave',
           'oidcClientId': 'weave-app',
-          'matrixHomeserverUrl': 'https://matrix.weave.example',
+          'matrixHomeserverUrl': 'https://api.weave.example',
           'filesProductUrl': 'https://weave.weave.example/files',
           'nextcloudBaseUrl': 'http://weave-nextcloud',
         }),
@@ -271,12 +271,47 @@ void main() {
     );
     expect(
       saved.serviceEndpoints.matrixHomeserverUrl.toString(),
-      'https://matrix.weave.example',
+      'https://api.weave.example',
     );
     expect(
       saved.serviceEndpoints.nextcloudBaseUrl.toString(),
       'https://weave.weave.example/files',
     );
+  });
+
+  test('rejects a raw Matrix provider advertised as the member facade', () async {
+    final repository = _RecordingServerConfigurationRepository();
+    final httpClient = MockClient((request) async {
+      return http.Response(
+        jsonEncode({
+          'apiBaseUrl': 'https://api.weave.example/api',
+          'oidcIssuerUrl': 'https://auth.weave.example/realms/weave',
+          'oidcClientId': 'weave-app',
+          'matrixHomeserverUrl': 'https://matrix.weave.example',
+          'filesProductUrl': 'https://weave.example/files',
+        }),
+        200,
+      );
+    });
+
+    await expectLater(
+      ConsumeMemberHandoff(
+        repository: repository,
+        discoveryClient: AppStartDiscoveryClient(httpClient: httpClient),
+      ).call(
+        Uri.parse(
+          'https://join.weave.example/join?handoff_ref=invite-abc123&org=acme&workspace=main&profile=production&run_id=prod-001',
+        ),
+      ),
+      throwsA(
+        isA<AppFailure>().having(
+          (failure) => failure.message,
+          'message',
+          contains('matrixHomeserverUrl must be the Weave API origin'),
+        ),
+      ),
+    );
+    expect(repository.saved, isNull);
   });
 
   test('rejects app-start discovery URLs with embedded credentials', () async {
@@ -287,7 +322,7 @@ void main() {
           'apiBaseUrl': 'https://api.weave.example/api',
           'authBaseUrl': 'https://auth.weave.example',
           'oidcIssuerUrl': 'https://user:pass@auth.weave.example/realms/weave',
-          'matrixHomeserverUrl': 'https://matrix.weave.example',
+          'matrixHomeserverUrl': 'https://api.weave.example',
           'filesProductUrl': 'https://files.weave.example',
         }),
         200,
@@ -315,7 +350,7 @@ void main() {
         jsonEncode({
           'apiBaseUrl': 'https://api.weave.example/api',
           'authBaseUrl': 'https://user:pass@auth.weave.example',
-          'matrixHomeserverUrl': 'https://matrix.weave.example',
+          'matrixHomeserverUrl': 'https://api.weave.example',
           'nextcloudBaseUrl': 'https://files.weave.example',
         }),
         200,
@@ -345,7 +380,7 @@ void main() {
           jsonEncode({
             'apiBaseUrl': 'https://api.weave.example/api',
             'authBaseUrl': 'https://auth.weave.example',
-            'matrixHomeserverUrl': 'https://matrix.weave.example',
+            'matrixHomeserverUrl': 'https://api.weave.example',
             'nextcloudBaseUrl': 'https://files.weave.example',
           }),
           200,

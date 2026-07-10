@@ -2842,7 +2842,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get serverConfigurationServicesHelper =>
-      'Defaults for Matrix, Nextcloud, and the backend API are derived from the issuer host. Edit them if your services live elsewhere.';
+      'The Matrix facade is fixed to the backend API origin. Files and backend product endpoints are derived from the issuer host.';
 
   @override
   String get serverConfigurationBackendApiHelper =>
@@ -2856,7 +2856,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Provider selection is owned by the Weave Admin Console and backend control plane. This member client stores only canonical Weave endpoints needed to sign in.';
 
   @override
-  String get serverConfigurationMatrixLabel => 'Matrix Homeserver URL';
+  String get serverConfigurationMatrixLabel => 'Weave Matrix Facade URL';
 
   @override
   String get serverConfigurationNextcloudLabel => 'Nextcloud Base URL';

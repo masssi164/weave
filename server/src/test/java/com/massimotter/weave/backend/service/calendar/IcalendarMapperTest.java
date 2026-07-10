@@ -163,6 +163,7 @@ class IcalendarMapperTest {
 
     @Test
     void mapsBoundedRecurrenceAndPreservesLocalWallClockAcrossDst() {
+        // CALDAV_RECURRENCE_DST_FACADE
         var event = mapper.parse(
                 new CalendarId("calendar:user-1"),
                 CalendarScope.workspace(),

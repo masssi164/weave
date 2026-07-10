@@ -51,7 +51,7 @@ output "app_config" {
     WEAVE_API_BASE_URL                           = local.client_api_base_url
     WEAVE_AUTH_BASE_URL                          = local.client_auth_url
     WEAVE_OIDC_ISSUER_URL                        = local.keycloak_issuer_url
-    WEAVE_MATRIX_HOMESERVER_URL                  = local.client_matrix_url
+    WEAVE_MATRIX_HOMESERVER_URL                  = local.client_matrix_facade_url
     WEAVE_FILES_PRODUCT_URL                      = local.client_files_product_url
     WEAVE_CALENDAR_PRODUCT_URL                   = local.client_calendar_product_url
     WEAVE_LOCAL_CA_URL                           = "http://${local.public_hosts.weave}:${var.proxy_http_host_port}/weave-local-ca.pem"

@@ -175,7 +175,7 @@ def require_flutter_matrix_boundary() -> None:
 def require_live_matrix_evidence_pointer() -> None:
     require(
         "client/integration_test/live_stack_app_e2e_test.dart",
-        "MATRIX_LIVE_HOMESERVER_RESULT",
+        "MATRIX_FACADE_RESULT",
         "chatRepository.connect()",
         "chatRepository.loadConversations()",
         "chatRepository.sendMessage(",

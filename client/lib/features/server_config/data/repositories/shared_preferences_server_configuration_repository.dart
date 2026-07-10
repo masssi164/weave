@@ -39,10 +39,6 @@ class SharedPreferencesServerConfigurationRepository
       final normalizedClientId = _normalizedClientId(
         configuration.oidcClientRegistration.clientId,
       );
-      final matrixUrl = _deriver.parseServiceUrl(
-        configuration.serviceEndpoints.matrixHomeserverUrl.toString(),
-        fieldName: 'the Matrix homeserver URL',
-      );
       final nextcloudUrl = _deriver.parseServiceUrl(
         configuration.serviceEndpoints.nextcloudBaseUrl.toString(),
         fieldName: 'the Nextcloud URL',
@@ -51,6 +47,9 @@ class SharedPreferencesServerConfigurationRepository
         configuration.serviceEndpoints.backendApiBaseUrl.toString(),
         fieldName: 'the backend API URL',
       );
+      // Matrix is a Weave API-origin projection. Ignore stale provider-shaped
+      // values from older on-device configuration without clearing the profile.
+      final matrixUrl = _deriver.matrixFacadeFromBackendApi(backendApiUrl);
 
       return configuration.copyWith(
         oidcIssuerUrl: issuerUrl,
@@ -76,7 +75,15 @@ class SharedPreferencesServerConfigurationRepository
   @override
   Future<void> saveConfiguration(ServerConfiguration configuration) async {
     try {
-      final dto = ServerConfigurationDto.fromConfiguration(configuration);
+      final endpoints = configuration.serviceEndpoints;
+      final normalized = configuration.copyWith(
+        serviceEndpoints: endpoints.copyWith(
+          matrixHomeserverUrl: _deriver.matrixFacadeFromBackendApi(
+            endpoints.backendApiBaseUrl,
+          ),
+        ),
+      );
+      final dto = ServerConfigurationDto.fromConfiguration(normalized);
       await _store.setString(serverConfigurationStorageKey, dto.encode());
       await _store.remove(legacySetupCompleteKey);
     } on AppFailure {

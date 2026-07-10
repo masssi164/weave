@@ -4626,25 +4626,31 @@
       "feature": "e2e/features/oidc_protocol_access.feature",
       "executableTest": "client/test/live_stack_contract_test.dart",
       "evidenceMarkers": [
-        "OIDC_PROTOCOL_ACCESS_CONTRACT"
+        "OIDC_PROTOCOL_ACCESS_RESULT"
       ],
-      "evidenceMode": "offline-spec",
+      "evidenceMode": "live-runtime",
       "additionalEvidence": [
-        {
-          "path": "client/integration_test/helpers/test_config.dart",
-          "fragments": [
-            "return _apiOriginUrl(baseUrl)",
-            "WEAVE_MATRIX_HOMESERVER_URL",
-            "WEAVE_MATRIX_URL"
-          ]
-        },
         {
           "path": "client/test/live_stack_contract_test.dart",
           "fragments": [
-            "first-party OIDC bearer access targets Weave protocol facades",
+            "OIDC bearer reaches every Weave-owned collaboration protocol facade",
             "/dav/files",
             "/caldav",
-            "/_matrix/client/versions"
+            "/_matrix/client",
+            "platformAligned=true"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
+          "fragments": [
+            "requiresOidcBearerWorkspaceScopeForFirstPartyClients"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
+          "fragments": [
+            "whoamiUsesRumaValidatedIdentityDerivedFromOidcSubject",
+            "spring-boot-resource-server"
           ]
         }
       ]
@@ -4657,15 +4663,21 @@
       "evidenceMarkers": [
         "OIDC_REVOKED_TOKEN_SUPPORT_SAFE"
       ],
-      "evidenceMode": "offline-spec",
+      "evidenceMode": "live-runtime",
       "additionalEvidence": [
         {
           "path": "client/test/live_stack_contract_test.dart",
           "fragments": [
-            "revoked bearer token protocol failures stay support-safe",
-            "The Weave backend rejected the current session.",
-            "Files access is not allowed for this workspace session.",
-            "Weave Chat is unavailable. Ask an admin to inspect Workspace Health."
+            "invalid-live-e2e-token",
+            "M_UNKNOWN_TOKEN",
+            "providerMaterialExposed=false"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
+          "fragments": [
+            "logoutRevokesThePresentedMatrixToken",
+            "M_UNKNOWN_TOKEN"
           ]
         }
       ]
@@ -4674,18 +4686,24 @@
       "tag": "@webdav-device-credential",
       "scenario": "Files WebDAV device credential can be issued, used, revoked, and denied after revoke",
       "feature": "e2e/features/oidc_protocol_access.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "executableTest": "client/test/live_stack_contract_test.dart",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "WEBDAV_DEVICE_CREDENTIAL_RESULT"
       ],
-      "evidenceMode": "offline-spec",
+      "evidenceMode": "live-runtime",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring AI MCP is implemented"
+            "WEBDAV_DEVICE_CREDENTIAL_CONTRACT",
+            "secretMaterialReturned",
+            "device-credential-invalid"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/security/device/JdbcDeviceCredentialRepositoryTest.java",
+          "fragments": [
+            "revokedAt"
           ]
         }
       ]
@@ -4694,18 +4712,24 @@
       "tag": "@caldav-device-credential",
       "scenario": "Calendar CalDAV device credential can be issued, used, revoked, and denied after revoke",
       "feature": "e2e/features/oidc_protocol_access.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "executableTest": "client/test/live_stack_contract_test.dart",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "CALDAV_DEVICE_CREDENTIAL_RESULT"
       ],
-      "evidenceMode": "offline-spec",
+      "evidenceMode": "live-runtime",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring AI MCP is implemented"
+            "CALDAV_DEVICE_CREDENTIAL_CONTRACT",
+            "secretMaterialReturned",
+            "device-credential-invalid"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/security/device/JdbcDeviceCredentialRepositoryTest.java",
+          "fragments": [
+            "revokedAt"
           ]
         }
       ]
@@ -4714,17 +4738,15 @@
       "tag": "@no-provider-credentials",
       "scenario": "Device credentials never expose provider credentials",
       "feature": "e2e/features/oidc_protocol_access.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/bdd/OpenStandardsGatewayStepDefinitions.java",
+      "executableTest": "client/test/live_stack_contract_test.dart",
       "evidenceMarkers": [
-        "NO_PROVIDER_CREDENTIALS_CONTRACT",
-        "PROTOCOL_SURFACE_NO_PROVIDER_CREDENTIALS"
+        "NO_PROVIDER_CREDENTIALS_RESULT"
       ],
-      "evidenceMode": "offline-spec",
+      "evidenceMode": "live-runtime",
       "additionalEvidence": [
         {
           "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
           "fragments": [
-            "FILES_WEBDAV_DEVICE_CREDENTIAL_CONTROL_PLANE",
             "secretMaterialReturned",
             "not(org.hamcrest.Matchers.containsString(\"Bearer\"))",
             "not(org.hamcrest.Matchers.containsString(\"app_password\"))"
@@ -4736,7 +4758,7 @@
             "protocol surface contract does not expose provider credentials",
             "remote.php",
             "app_password",
-            "access_token="
+            "providerMaterialExposed=false"
           ]
         }
       ]
@@ -4778,18 +4800,18 @@
       "tag": "@files-webdav-get-head",
       "scenario": "GET and HEAD stream file content with Weave ETags",
       "feature": "e2e/features/files_webdav_full_facade.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "FILES_WEBDAV_GET_HEAD_FACADE"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "server/src/main/java/com/massimotter/weave/backend/controller/FilesWebDavController.java",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring AI MCP is implemented"
+            "case \"GET\" -> get(request, false)",
+            "case \"HEAD\" -> get(request, true)",
+            ".eTag(etag)"
           ]
         }
       ]
@@ -4798,18 +4820,18 @@
       "tag": "@files-webdav-put-create",
       "scenario": "PUT creates a file with If-None-Match and records audit",
       "feature": "e2e/features/files_webdav_full_facade.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/service/FilesFacadeServiceTest.java",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "FILES_WEBDAV_PUT_CREATE_AUDIT"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring AI MCP is implemented"
+            "FILES_WEBDAV_PUT_MKCOL_DELETE_FACADE",
+            "HttpHeaders.IF_MATCH",
+            "HttpHeaders.ETAG"
           ]
         }
       ]
@@ -4818,18 +4840,17 @@
       "tag": "@files-webdav-put-stale",
       "scenario": "PUT update rejects stale ETags",
       "feature": "e2e/features/files_webdav_full_facade.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/service/FilesFacadeServiceTest.java",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "FILES_WEBDAV_STALE_ETAG_PRECONDITION"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring AI MCP is implemented"
+            "FILES_WEBDAV_PRECONDITION_FACADE",
+            "files-precondition-failed"
           ]
         }
       ]
@@ -4838,18 +4859,17 @@
       "tag": "@files-webdav-mkcol",
       "scenario": "MKCOL creates a folder and rejects duplicates or missing parents",
       "feature": "e2e/features/files_webdav_full_facade.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/service/FilesFacadeServiceTest.java",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "FILES_WEBDAV_MKCOL_CONFLICTS"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "server/src/main/java/com/massimotter/weave/backend/service/FilesFacadeService.java",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring AI MCP is implemented"
+            "requireParentCollection(adapter, normalizedPath, operation)",
+            "A collection or file already exists at this path."
           ]
         }
       ]
@@ -4858,18 +4878,18 @@
       "tag": "@files-webdav-delete",
       "scenario": "DELETE removes a resource with If-Match and records audit",
       "feature": "e2e/features/files_webdav_full_facade.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/service/FilesFacadeServiceTest.java",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "FILES_WEBDAV_DELETE_AUDIT"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring AI MCP is implemented"
+            "FILES_WEBDAV_PUT_MKCOL_DELETE_FACADE",
+            "DELETE",
+            "IF_MATCH"
           ]
         }
       ]
@@ -4878,18 +4898,19 @@
       "tag": "@files-webdav-move",
       "scenario": "MOVE handles Destination and Overwrite without provider leakage",
       "feature": "e2e/features/files_webdav_full_facade.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/service/FilesFacadeServiceTest.java",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "FILES_WEBDAV_COPY_MOVE_CANONICAL"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring AI MCP is implemented"
+            "FILES_WEBDAV_COPY_MOVE_LOCK_FACADE",
+            "Destination",
+            "Overwrite",
+            "webdav-destination-outside-facade"
           ]
         }
       ]
@@ -4898,18 +4919,19 @@
       "tag": "@files-webdav-copy",
       "scenario": "COPY handles Destination and Overwrite without provider leakage",
       "feature": "e2e/features/files_webdav_full_facade.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/service/FilesFacadeServiceTest.java",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "FILES_WEBDAV_COPY_MOVE_CANONICAL"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring AI MCP is implemented"
+            "FILES_WEBDAV_COPY_MOVE_LOCK_FACADE",
+            "Destination",
+            "Overwrite",
+            "webdav-destination-outside-facade"
           ]
         }
       ]
@@ -4918,18 +4940,18 @@
       "tag": "@files-webdav-lock-unlock",
       "scenario": "LOCK exposes lockdiscovery and blocks conflicting writes with 423",
       "feature": "e2e/features/files_webdav_full_facade.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/service/FilesFacadeServiceTest.java",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "FILES_WEBDAV_LOCK_CONFLICT"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring AI MCP is implemented"
+            "FILES_WEBDAV_COPY_MOVE_LOCK_FACADE",
+            "Lock-Token",
+            "<d:lockdiscovery>"
           ]
         }
       ]
@@ -4938,18 +4960,18 @@
       "tag": "@files-webdav-quota",
       "scenario": "Quota exceeded maps to 507",
       "feature": "e2e/features/files_webdav_full_facade.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "FILES_WEBDAV_QUOTA_FACADE"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/files/NextcloudFilesAdapterTest.java",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring AI MCP is implemented"
+            "mapsAuthAndQuotaFailuresWithoutLeakingProviderSecrets",
+            "files-quota-exceeded",
+            "HttpStatus.INSUFFICIENT_STORAGE"
           ]
         }
       ]
@@ -4958,18 +4980,22 @@
       "tag": "@files-flutter-webdav",
       "scenario": "Flutter Files repository uses /dav/files for all file data-plane operations",
       "feature": "e2e/features/files_webdav_full_facade.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "executableTest": "client/test/features/files/presentation/providers/files_backend_facade_provider_test.dart",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "FLUTTER_FILES_WEBDAV_DATA_PLANE",
+        "FLUTTER_FILES_WEBDAV_COPY_MOVE"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "client/lib/features/files/data/repositories/backend_files_repository.dart",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring AI MCP is implemented"
+            "http.Request('PROPFIND'",
+            "http.StreamedRequest('PUT'",
+            "http.Request('MKCOL'",
+            "method: 'COPY'",
+            "method: 'MOVE'",
+            "'DELETE'"
           ]
         }
       ]
@@ -4978,18 +5004,18 @@
       "tag": "@caldav-discovery",
       "scenario": "CalDAV well-known discovery and principal discovery work",
       "feature": "e2e/features/calendar_caldav_facade.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "CALDAV_DISCOVERY_AND_HOME_FACADE"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "server/src/main/java/com/massimotter/weave/backend/controller/CalDavCalendarController.java",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring AI MCP is implemented"
+            "/.well-known/caldav",
+            "principalMultistatus",
+            "calendar-home-set"
           ]
         }
       ]
@@ -4998,18 +5024,18 @@
       "tag": "@caldav-home",
       "scenario": "Calendar home lists calendar collections",
       "feature": "e2e/features/calendar_caldav_facade.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "CALDAV_DISCOVERY_AND_HOME_FACADE"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "server/src/main/java/com/massimotter/weave/backend/controller/CalDavCalendarController.java",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring AI MCP is implemented"
+            "/.well-known/caldav",
+            "principalMultistatus",
+            "calendar-home-set"
           ]
         }
       ]
@@ -5018,18 +5044,19 @@
       "tag": "@caldav-calendar-query",
       "scenario": "calendar-query returns VEVENT objects for a date range",
       "feature": "e2e/features/calendar_caldav_facade.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "CALDAV_QUERY_FREEBUSY_FACADE"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "server/src/main/java/com/massimotter/weave/backend/controller/CalDavCalendarController.java",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring AI MCP is implemented"
+            "CALENDAR_MULTIGET",
+            "FREE_BUSY_QUERY",
+            "calendarQueryMultistatus",
+            "freeBusyCalendar"
           ]
         }
       ]
@@ -5038,18 +5065,18 @@
       "tag": "@caldav-calendar-multiget",
       "scenario": "calendar-multiget returns selected calendar objects",
       "feature": "e2e/features/calendar_caldav_facade.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "CALDAV_MULTIGET_SYNC_FACADE"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "server/src/main/java/com/massimotter/weave/backend/controller/CalDavCalendarController.java",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring AI MCP is implemented"
+            "calendarMultigetMultistatus",
+            "syncCalDavResources",
+            "Sync-Token"
           ]
         }
       ]
@@ -5082,18 +5109,18 @@
       "tag": "@caldav-sync",
       "scenario": "sync-collection returns changed objects after mutation",
       "feature": "e2e/features/calendar_caldav_facade.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "CALDAV_MULTIGET_SYNC_FACADE"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "server/src/main/java/com/massimotter/weave/backend/controller/CalDavCalendarController.java",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring AI MCP is implemented"
+            "calendarMultigetMultistatus",
+            "syncCalDavResources",
+            "Sync-Token"
           ]
         }
       ]
@@ -5102,18 +5129,19 @@
       "tag": "@caldav-freebusy",
       "scenario": "free-busy-query returns VFREEBUSY",
       "feature": "e2e/features/calendar_caldav_facade.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "CALDAV_QUERY_FREEBUSY_FACADE"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "server/src/main/java/com/massimotter/weave/backend/controller/CalDavCalendarController.java",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring AI MCP is implemented"
+            "CALENDAR_MULTIGET",
+            "FREE_BUSY_QUERY",
+            "calendarQueryMultistatus",
+            "freeBusyCalendar"
           ]
         }
       ]
@@ -5122,18 +5150,19 @@
       "tag": "@caldav-recurrence-dst",
       "scenario": "Recurring event across DST boundary is expanded consistently",
       "feature": "e2e/features/calendar_caldav_facade.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/service/calendar/IcalendarMapperTest.java",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "CALDAV_RECURRENCE_DST_FACADE"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/calendar/IcalendarMapperTest.java",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring AI MCP is implemented"
+            "RRULE:FREQ=WEEKLY;COUNT=3",
+            "RDATE;TZID=Europe/Berlin",
+            "EXDATE;TZID=Europe/Berlin",
+            "containsOnly(9)"
           ]
         }
       ]
@@ -5142,18 +5171,21 @@
       "tag": "@calendar-flutter-caldav",
       "scenario": "Flutter Calendar repository uses CalDAV and iCalendar for calendar data",
       "feature": "e2e/features/calendar_caldav_facade.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "executableTest": "client/test/features/calendar/data/services/calendar_facade_client_test.dart",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "FLUTTER_CALDAV_DATA_PLANE",
+        "FLUTTER_CALDAV_MUTATION_DATA_PLANE"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "client/lib/features/calendar/data/services/calendar_facade_client.dart",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring AI MCP is implemented"
+            "calendar-query",
+            "text/calendar",
+            "If-None-Match",
+            "If-Match",
+            "_httpClient.delete("
           ]
         }
       ]
@@ -5179,7 +5211,7 @@
         {
           "path": "client/integration_test/live_stack_app_e2e_test.dart",
           "fragments": [
-            "MATRIX_LIVE_HOMESERVER_RESULT",
+            "MATRIX_FACADE_RESULT",
             "chatRepository.connect()"
           ]
         }
@@ -5226,7 +5258,7 @@
         {
           "path": "client/integration_test/live_stack_app_e2e_test.dart",
           "fragments": [
-            "MATRIX_LIVE_HOMESERVER_RESULT",
+            "MATRIX_FACADE_RESULT",
             "chatRepository.sendMessage(",
             "matchedMessages=${deliveredMessage.length}"
           ]
@@ -5354,18 +5386,17 @@
       "tag": "@matrix-revoke",
       "scenario": "Revoked member or device loses Matrix access",
       "feature": "e2e/features/chat_matrix_facade.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "MATRIX_TOKEN_REVOCATION_FACADE"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "client/test/live_stack_contract_test.dart",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring AI MCP is implemented"
+            "OIDC_REVOKED_TOKEN_SUPPORT_SAFE",
+            "M_UNKNOWN_TOKEN"
           ]
         }
       ]

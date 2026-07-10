@@ -4771,7 +4771,7 @@ abstract class AppLocalizations {
   /// Helper text for the service endpoints section
   ///
   /// In en, this message translates to:
-  /// **'Defaults for Matrix, Nextcloud, and the backend API are derived from the issuer host. Edit them if your services live elsewhere.'**
+  /// **'The Matrix facade is fixed to the backend API origin. Files and backend product endpoints are derived from the issuer host.'**
   String get serverConfigurationServicesHelper;
 
   /// Helper text for backend API-only member handoff/recovery configuration
@@ -4792,10 +4792,10 @@ abstract class AppLocalizations {
   /// **'Provider selection is owned by the Weave Admin Console and backend control plane. This member client stores only canonical Weave endpoints needed to sign in.'**
   String get serverConfigurationIdentityEndpointHelper;
 
-  /// Label for the Matrix homeserver URL field
+  /// Label for the Weave-owned Matrix facade URL field
   ///
   /// In en, this message translates to:
-  /// **'Matrix Homeserver URL'**
+  /// **'Weave Matrix Facade URL'**
   String get serverConfigurationMatrixLabel;
 
   /// Label for the Nextcloud base URL field

@@ -317,11 +317,24 @@ class AppStartDiscoveryClient {
       fieldName: 'apiBaseUrl',
       fallback: _backendFallbackFromPlatformConfig(handoff),
     );
+    final advertisedMatrixFacade = json['matrixHomeserverUrl'];
+    if (advertisedMatrixFacade is! String ||
+        advertisedMatrixFacade.trim().isEmpty) {
+      throw const AppFailure.validation(
+        'WEAVE-APP-START-DISCOVERY-INVALID: matrixHomeserverUrl is required.',
+      );
+    }
     final matrixHomeserverUrl = _uri(
-      json['matrixHomeserverUrl'],
+      advertisedMatrixFacade,
       fieldName: 'matrixHomeserverUrl',
-      fallback: handoff.fallbackProviderNeutralServiceUrl,
+      fallback: _apiOrigin(backendApiBaseUrl),
     );
+    final expectedMatrixFacadeUrl = _apiOrigin(backendApiBaseUrl);
+    if (matrixHomeserverUrl != expectedMatrixFacadeUrl) {
+      throw const AppFailure.validation(
+        'WEAVE-APP-START-DISCOVERY-INVALID: matrixHomeserverUrl must be the Weave API origin.',
+      );
+    }
     final nextcloudBaseUrl = _uri(
       json['filesProductUrl'] ?? json['nextcloudBaseUrl'],
       fieldName: 'filesProductUrl',
@@ -332,7 +345,7 @@ class AppStartDiscoveryClient {
       oidcIssuerUrl: oidcIssuerUrl,
       oidcClientId: oidcClientId,
       backendApiBaseUrl: backendApiBaseUrl,
-      matrixHomeserverUrl: matrixHomeserverUrl,
+      matrixHomeserverUrl: expectedMatrixFacadeUrl,
       nextcloudBaseUrl: nextcloudBaseUrl,
     );
   }
@@ -374,6 +387,12 @@ class AppStartDiscoveryClient {
     }
     return handoff.fallbackBackendApiBaseUrl;
   }
+
+  Uri _apiOrigin(Uri backendApiBaseUrl) => Uri(
+    scheme: backendApiBaseUrl.scheme,
+    host: backendApiBaseUrl.host,
+    port: backendApiBaseUrl.hasPort ? backendApiBaseUrl.port : null,
+  );
 
   Uri _uri(
     Object? rawValue, {

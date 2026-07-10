@@ -380,7 +380,8 @@ persist_bootstrap_env() {
         printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_1_SOURCE=%q\n' "local-dogfood-bootstrap"
       fi
     fi
-    printf 'export WEAVE_MATRIX_HOMESERVER_URL=%q\n' "$(client_matrix_public_url)"
+    printf 'export WEAVE_MATRIX_HOMESERVER_URL=%q\n' "$(client_matrix_facade_url)"
+    printf 'export WEAVE_MATRIX_PROVIDER_URL=%q\n' "$(matrix_provider_public_url)"
     printf 'export WEAVE_OIDC_ISSUER_URL=%q\n' "$(integration_test_oidc_issuer_url)"
     printf 'export WEAVE_OIDC_CLIENT_ID=%q\n' "weave-app"
     printf 'export WEAVE_TARGET_MOBILE=%q\n' "true"
@@ -946,7 +947,11 @@ client_auth_public_url() {
   auth_public_url
 }
 
-client_matrix_public_url() {
+client_matrix_facade_url() {
+  client_api_origin_url
+}
+
+matrix_provider_public_url() {
   printf '%s://%s%s' "${TF_VAR_public_scheme}" "$(public_host "${TF_VAR_matrix_subdomain}")" "$(public_port_suffix)"
 }
 
@@ -1045,7 +1050,7 @@ write_app_config_summary() {
 
   api_base_url="$(integration_test_base_url)"
   auth_base_url="$(client_auth_public_url)"
-  matrix_url="$(client_matrix_public_url)"
+  matrix_url="$(client_matrix_facade_url)"
   nextcloud_url="$(nextcloud_public_url)"
   product_url="$(client_public_url)"
 
@@ -1697,7 +1702,8 @@ print_summary() {
   log "- Auth:        $(client_auth_public_url)"
   log "- Files UX:    $(client_public_url)/files"
   log "- Calendar:    $(client_public_url)/calendar"
-  log "- Matrix:      $(client_matrix_public_url)"
+  log "- Matrix facade:   $(client_matrix_facade_url)"
+  log "- Matrix provider: $(matrix_provider_public_url)  (southbound/operator path)"
   log "- Admin:      ${TF_VAR_public_scheme}://$(public_host "${TF_VAR_admin_subdomain}")${suffix}"
   log "- Files raw:  $(nextcloud_public_url)  (Nextcloud admin/protocol fallback, not normal end-user UX)"
   log "- Local CA:   http://${TF_VAR_tenant_domain}:${TF_VAR_proxy_http_host_port}/weave-local-ca.pem"
@@ -1717,7 +1723,7 @@ print_summary() {
   log "- Backend ready: $(integration_test_base_url)/health/ready"
   log "- MCP ready: http://${LOOPBACK_HOST}:${TF_VAR_mcp_host_port}/actuator/health"
   log "- Keycloak discovery: $(integration_test_oidc_issuer_url)/.well-known/openid-configuration"
-  log "- Matrix versions: $(client_matrix_public_url)/_matrix/client/versions"
+  log "- Matrix facade versions: $(client_matrix_facade_url)/_matrix/client/versions"
   log "- Matrix default rooms: #announcements:$(public_host "${TF_VAR_matrix_subdomain}"), #general:$(public_host "${TF_VAR_matrix_subdomain}"), #help:$(public_host "${TF_VAR_matrix_subdomain}")"
   log "- Raw Nextcloud: $(nextcloud_public_url)/"
   log "- Dogfood mail inbox: http://127.0.0.1:${TF_VAR_mailpit_web_host_port:-8025}"

@@ -105,7 +105,7 @@ ${weave_site_addresses} {
       <li>Product gateway: <a href="${client_public_url}/">${client_public_url}/</a></li>
       <li>API: <a href="${api_public_url}/api/health/ready">${api_public_url}/api/health/ready</a></li>
       <li>Auth: <a href="${auth_public_url}/realms/weave">${auth_public_url}/realms/weave</a></li>
-      <li>Matrix: <a href="${matrix_public_url}">${matrix_public_url}</a></li>
+      <li>Chat protocol facade: <a href="${matrix_facade_url}/_matrix/client/versions">${matrix_facade_url}/_matrix/client/versions</a></li>
       <li>Files fallback: <a href="${nextcloud_public_url}">${nextcloud_public_url}</a></li>
       <li>Product files route: <a href="/files">/files</a>; product calendar route: <a href="/calendar">/calendar</a>.</li>
     </ul>

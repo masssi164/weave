@@ -99,6 +99,12 @@ public class CalDavCalendarController {
                     Map.of("module", "calendar", "operation", "caldav-propfind"));
         }
         String productPath = productPath(request);
+        if (isPrincipalPath(productPath)) {
+            return ResponseEntity.status(207)
+                    .contentType(XML)
+                    .header("DAV", "1, calendar-access")
+                    .body(principalMultistatus(productPath));
+        }
         if (!"/".equals(productPath)) {
             scopeFromPath(productPath);
         }
@@ -314,6 +320,30 @@ public class CalDavCalendarController {
         }
         xml.append("</d:multistatus>");
         return xml.toString();
+    }
+
+    private String principalMultistatus(String productPath) {
+        String href = CALDAV_ROOT + (productPath.endsWith("/") ? productPath : productPath + "/");
+        return """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+                  <d:response>
+                    <d:href>%s</d:href>
+                    <d:propstat>
+                      <d:prop>
+                        <d:resourcetype><d:principal/></d:resourcetype>
+                        <d:current-user-principal><d:href>%s</d:href></d:current-user-principal>
+                        <c:calendar-home-set><d:href>/caldav/</d:href></c:calendar-home-set>
+                      </d:prop>
+                      <d:status>HTTP/1.1 200 OK</d:status>
+                    </d:propstat>
+                  </d:response>
+                </d:multistatus>
+                """.formatted(escapeXml(href), escapeXml(href));
+    }
+
+    private boolean isPrincipalPath(String productPath) {
+        return productPath != null && productPath.matches("^/principals/users/[^/]+/?$");
     }
 
     private String calendarMultigetMultistatus(List<String> hrefs) {

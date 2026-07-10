@@ -119,6 +119,7 @@ class FilesWebDavControllerTest {
 
     @Test
     void getDownloadsFileThroughFacadePath() throws Exception {
+        // FILES_WEBDAV_GET_HEAD_FACADE
         given(filesFacadeService.download("/Team/readme one.md"))
                 .willReturn(new DownloadedFile("readme one.md", "text/markdown", "hello".getBytes()));
         given(filesFacadeService.etagFor("/Team/readme one.md")).willReturn("\"etag-readme\"");
@@ -130,6 +131,14 @@ class FilesWebDavControllerTest {
                 .andExpect(header().string(HttpHeaders.ETAG, "\"etag-readme\""))
                 .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"readme one.md\""))
                 .andExpect(content().bytes("hello".getBytes()));
+
+        mockMvc.perform(request(HttpMethod.HEAD, "/dav/files/Team/readme one.md")
+                        .with(workspaceJwt()))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CONTENT_TYPE, "text/markdown"))
+                .andExpect(header().string(HttpHeaders.CONTENT_LENGTH, "5"))
+                .andExpect(header().string(HttpHeaders.ETAG, "\"etag-readme\""))
+                .andExpect(content().bytes(new byte[0]));
     }
 
     @Test
@@ -184,6 +193,7 @@ class FilesWebDavControllerTest {
 
     @Test
     void putMkcolAndDeleteUseWebDavFacadeWriteUseCases() throws Exception {
+        // FILES_WEBDAV_PUT_MKCOL_DELETE_FACADE
         given(filesFacadeService.putWebDavFile(
                 "/Team/readme.md",
                 "new".getBytes(),
@@ -235,6 +245,7 @@ class FilesWebDavControllerTest {
 
     @Test
     void preconditionFailuresReturnStableWebDavErrorWithoutProviderLeakage() throws Exception {
+        // FILES_WEBDAV_PRECONDITION_FACADE
         given(filesFacadeService.putWebDavFile(
                 "/Team/readme.md",
                 "new".getBytes(),
@@ -262,6 +273,7 @@ class FilesWebDavControllerTest {
 
     @Test
     void copyMoveLockAndUnlockUseWebDavFacadeUseCases() throws Exception {
+        // FILES_WEBDAV_COPY_MOVE_LOCK_FACADE
         given(filesFacadeService.copyWebDavPath(
                 "/Team/readme.md",
                 "/Team/readme-copy.md",
@@ -345,6 +357,34 @@ class FilesWebDavControllerTest {
                         .with(workspaceJwt()))
                 .andExpect(status().isBadRequest())
                 .andExpect(header().string("X-Weave-Error-Code", "webdav-destination-outside-facade"));
+    }
+
+    @Test
+    void quotaExceededMapsTo507WithoutProviderLeakage() throws Exception {
+        // FILES_WEBDAV_QUOTA_FACADE
+        given(filesFacadeService.putWebDavFile(
+                "/Team/large.bin",
+                new byte[] {1},
+                "application/octet-stream",
+                null,
+                "*",
+                null))
+                .willThrow(new ApiErrorException(
+                        HttpStatus.INSUFFICIENT_STORAGE,
+                        "files-quota-exceeded",
+                        "There is not enough storage available for this file operation.",
+                        Map.of("module", "files", "operation", "webdav-put")));
+
+        mockMvc.perform(request(HttpMethod.valueOf("PUT"), "/dav/files/Team/large.bin")
+                        .content(new byte[] {1})
+                        .contentType("application/octet-stream")
+                        .header(HttpHeaders.IF_NONE_MATCH, "*")
+                        .with(workspaceJwt()))
+                .andExpect(status().isInsufficientStorage())
+                .andExpect(header().string("X-Weave-Error-Code", "files-quota-exceeded"))
+                .andExpect(content().string(not(containsString("Nextcloud"))))
+                .andExpect(content().string(not(containsString("remote.php"))))
+                .andExpect(content().string(not(containsString("Bearer"))));
     }
 
     private FileItemResponse file(String path, String mimeType, long size) {

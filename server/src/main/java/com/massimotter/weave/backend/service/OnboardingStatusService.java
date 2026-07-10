@@ -200,7 +200,7 @@ public class OnboardingStatusService {
                 onboardingProperties.matrix().provisioningState(),
                 workspaceProperties.chat(),
                 workspaceProperties.chat().dependencyUrl(),
-                "Enable WEAVE_WORKSPACE_CHAT_ENABLED and configure WEAVE_MATRIX_HOMESERVER_URL before first-run chat provisioning.");
+                "Enable WEAVE_WORKSPACE_CHAT_ENABLED and configure WEAVE_MATRIX_BASE_URL before first-run chat provisioning; the member facade stays on the API origin.");
         WorkspaceCapabilityProperties.Capability nextcloudCapability = workspaceProperties.files().enabled()
                 ? workspaceProperties.files()
                 : workspaceProperties.calendar();

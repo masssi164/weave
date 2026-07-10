@@ -56,7 +56,7 @@ integration-contract-test:
 	WEAVE_OIDC_ISSUER_URL="$${WEAVE_OIDC_ISSUER_URL:-https://auth.weave.test/realms/weave}"; \
 	WEAVE_OIDC_CLIENT_ID="$${WEAVE_OIDC_CLIENT_ID:-weave-app}"; \
 	WEAVE_NEXTCLOUD_BASE_URL="$${WEAVE_NEXTCLOUD_BASE_URL:-$${WEAVE_NEXTCLOUD_URL:-}}"; \
-	WEAVE_MATRIX_HOMESERVER_URL="$${WEAVE_MATRIX_HOMESERVER_URL:-$${WEAVE_MATRIX_URL:-}}"; \
+	WEAVE_MATRIX_HOMESERVER_URL="$${WEAVE_MATRIX_HOMESERVER_URL:-}"; \
 	if [ "$${WEAVE_OFFLINE_CONTRACT_ONLY:-false}" != "true" ] && { [ -z "$${WEAVE_TEST_USERNAME:-}" ] || [ -z "$${WEAVE_TEST_PASSWORD:-}" ]; }; then \
 	  echo "Real WEAVE_TEST_USERNAME/WEAVE_TEST_PASSWORD are required for integration-contract-test. Use make offline-contract-test for the no-network PR-safe gate." >&2; \
 	  exit 2; \
@@ -91,7 +91,7 @@ integration-app-e2e:
 	WEAVE_OIDC_ISSUER_URL="$${WEAVE_OIDC_ISSUER_URL:-https://auth.weave.test/realms/weave}"; \
 	WEAVE_OIDC_CLIENT_ID="$${WEAVE_OIDC_CLIENT_ID:-weave-app}"; \
 	WEAVE_NEXTCLOUD_BASE_URL="$${WEAVE_NEXTCLOUD_BASE_URL:-$${WEAVE_NEXTCLOUD_URL:-}}"; \
-	WEAVE_MATRIX_HOMESERVER_URL="$${WEAVE_MATRIX_HOMESERVER_URL:-$${WEAVE_MATRIX_URL:-}}"; \
+	WEAVE_MATRIX_HOMESERVER_URL="$${WEAVE_MATRIX_HOMESERVER_URL:-}"; \
 	test_device="$${WEAVE_INTEGRATION_TEST_DEVICE:-$${FLUTTER_TEST_DEVICE:-macos}}"; \
 	if [ -z "$${WEAVE_TEST_USERNAME:-}" ] || [ -z "$${WEAVE_TEST_PASSWORD:-}" ]; then \
 	  echo "Real WEAVE_TEST_USERNAME/WEAVE_TEST_PASSWORD are required for integration-app-e2e." >&2; \

@@ -376,6 +376,7 @@ class MatrixClientServerProjectionControllerTest {
 
     @Test
     void logoutRevokesThePresentedMatrixToken() throws Exception {
+        // MATRIX_TOKEN_REVOCATION_FACADE
         var token = workspaceJwt("runtime-token-to-revoke");
 
         mockMvc.perform(post("/_matrix/client/v3/logout").with(token))

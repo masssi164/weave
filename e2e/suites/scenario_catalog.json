@@ -3443,20 +3443,22 @@
     },
     {
       "tag": "@oidc-protocol-access",
-      "suiteId": "open-standards-gateway-archive-target",
+      "suiteId": "member-live-critical-path",
       "personas": [
         "member",
         "admin"
       ],
       "domains": [
         "identity-idm",
-        "admin-health-ops"
+        "files",
+        "calendar",
+        "chat"
       ],
-      "testLevel": "offline-contract",
+      "testLevel": "live-e2e",
       "assertionFocus": [
-        "Matrix message payloads are parsed by the Rust core",
-        "send and timeline route through canonical Chat",
-        "transaction identifiers preserve idempotency"
+        "one OIDC bearer reaches all Weave protocol facades",
+        "platform config points Chat at the Matrix facade",
+        "provider material stays absent"
       ]
     },
     {
@@ -3495,20 +3497,22 @@
     },
     {
       "tag": "@oidc-revoked-token",
-      "suiteId": "open-standards-gateway-archive-target",
+      "suiteId": "member-live-critical-path",
       "personas": [
         "member",
         "admin"
       ],
       "domains": [
         "identity-idm",
-        "admin-health-ops"
+        "files",
+        "calendar",
+        "chat"
       ],
-      "testLevel": "offline-contract",
+      "testLevel": "live-e2e",
       "assertionFocus": [
-        "archive target scenario is checked in",
-        "current implementation gap remains explicit",
-        "completion claim is blocked until executable evidence replaces the gap marker"
+        "invalid or revoked bearer denial",
+        "support-safe errors",
+        "no provider diagnostics"
       ]
     },
     {
@@ -3587,56 +3591,57 @@
     },
     {
       "tag": "@webdav-device-credential",
-      "suiteId": "open-standards-gateway-archive-target",
+      "suiteId": "member-live-critical-path",
       "personas": [
         "member",
         "admin"
       ],
       "domains": [
         "identity-idm",
-        "admin-health-ops"
+        "files"
       ],
-      "testLevel": "offline-contract",
+      "testLevel": "live-e2e",
       "assertionFocus": [
-        "archive target scenario is checked in",
-        "current implementation gap remains explicit",
-        "completion claim is blocked until executable evidence replaces the gap marker"
+        "one-time Weave device secret",
+        "WebDAV-only scope",
+        "revocation denial"
       ]
     },
     {
       "tag": "@caldav-device-credential",
-      "suiteId": "open-standards-gateway-archive-target",
+      "suiteId": "member-live-critical-path",
       "personas": [
         "member",
         "admin"
       ],
       "domains": [
         "identity-idm",
-        "admin-health-ops"
+        "calendar"
       ],
-      "testLevel": "offline-contract",
+      "testLevel": "live-e2e",
       "assertionFocus": [
-        "archive target scenario is checked in",
-        "current implementation gap remains explicit",
-        "completion claim is blocked until executable evidence replaces the gap marker"
+        "one-time Weave device secret",
+        "CalDAV-only scope",
+        "revocation denial"
       ]
     },
     {
       "tag": "@no-provider-credentials",
-      "suiteId": "open-standards-gateway-archive-target",
+      "suiteId": "member-live-critical-path",
       "personas": [
         "member",
         "admin"
       ],
       "domains": [
         "identity-idm",
-        "admin-health-ops"
+        "files",
+        "calendar"
       ],
-      "testLevel": "offline-contract",
+      "testLevel": "live-e2e",
       "assertionFocus": [
-        "archive target scenario is checked in",
-        "current implementation gap remains explicit",
-        "completion claim is blocked until executable evidence replaces the gap marker"
+        "credential list redaction",
+        "provider credentials absent",
+        "support-safe runtime evidence"
       ]
     },
     {

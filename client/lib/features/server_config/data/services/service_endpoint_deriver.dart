@@ -70,6 +70,12 @@ class ServiceEndpointDeriver {
     );
   }
 
+  Uri matrixFacadeFromBackendApi(Uri backendApiBaseUrl) => Uri(
+    scheme: backendApiBaseUrl.scheme,
+    host: backendApiBaseUrl.host,
+    port: backendApiBaseUrl.hasPort ? backendApiBaseUrl.port : null,
+  );
+
   String _deriveWorkspaceBaseHost(String issuerHost) {
     final labels = issuerHost.split('.');
     if (labels.length <= 2) {

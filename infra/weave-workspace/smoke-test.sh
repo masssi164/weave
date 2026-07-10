@@ -475,7 +475,8 @@ WEAVE_BASE_URL="${WEAVE_API_BASE_URL%/}"
 WEAVE_AUTH_BASE_URL="${WEAVE_AUTH_BASE_URL:-$(public_url "${TF_VAR_auth_subdomain:-auth}")}"
 WEAVE_OIDC_ISSUER_URL="${WEAVE_OIDC_ISSUER_URL:-${WEAVE_AUTH_BASE_URL}/realms/${TF_VAR_tenant_slug:-weave}}"
 WEAVE_NEXTCLOUD_BASE_URL="${WEAVE_NEXTCLOUD_BASE_URL:-$(public_url "${TF_VAR_nextcloud_subdomain:-files}")}"
-WEAVE_MATRIX_HOMESERVER_URL="${WEAVE_MATRIX_HOMESERVER_URL:-$(public_url "${TF_VAR_matrix_subdomain:-matrix}")}"
+WEAVE_MATRIX_HOMESERVER_URL="${WEAVE_MATRIX_HOMESERVER_URL:-$(public_url "${TF_VAR_api_subdomain:-api}")}"
+WEAVE_MATRIX_PROVIDER_URL="${WEAVE_MATRIX_PROVIDER_URL:-$(public_url "${TF_VAR_matrix_subdomain:-matrix}")}"
 WEAVE_LOCAL_CA_HOST="${TF_VAR_tenant_domain:-weave.test}"
 WEAVE_LOCAL_CA_EXPECTED_URL="http://${WEAVE_LOCAL_CA_HOST}:${TF_VAR_proxy_http_host_port:-44080}/weave-local-ca.pem"
 WEAVE_LOCAL_CA_URL="${WEAVE_LOCAL_CA_URL:-${WEAVE_LOCAL_CA_EXPECTED_URL}}"
@@ -488,13 +489,14 @@ assert_url_no_legacy_local_truth "${WEAVE_LOCAL_CA_URL}" "Local CA bootstrap URL
 local_ca_status="$(curl_status "${WEAVE_LOCAL_CA_URL}")"
 [[ "${local_ca_status}" == "200" ]] || fail "Smoke check failed: local CA must be reachable through ${WEAVE_LOCAL_CA_HOST} bootstrap URL, got HTTP ${local_ca_status}"
 if [[ -n "${TF_VAR_local_lan_host:-}" ]]; then
-  for dns_first_url in "${WEAVE_PUBLIC_BASE_URL}" "${WEAVE_BASE_URL}" "${WEAVE_AUTH_BASE_URL}" "${WEAVE_OIDC_ISSUER_URL}" "${WEAVE_MATRIX_HOMESERVER_URL}" "${WEAVE_LOCAL_CA_URL}"; do
+  for dns_first_url in "${WEAVE_PUBLIC_BASE_URL}" "${WEAVE_BASE_URL}" "${WEAVE_AUTH_BASE_URL}" "${WEAVE_OIDC_ISSUER_URL}" "${WEAVE_MATRIX_HOMESERVER_URL}" "${WEAVE_MATRIX_PROVIDER_URL}" "${WEAVE_LOCAL_CA_URL}"; do
     [[ "${dns_first_url}" != *"${TF_VAR_local_lan_host}"* ]] || fail "Smoke check failed: local_lan_host is non-canonical and must not appear in DNS-first app/service URLs: ${dns_first_url}"
   done
 fi
 : "${WEAVE_OIDC_CLIENT_ID:?Expected WEAVE_OIDC_CLIENT_ID in env or bootstrap env}"
 : "${WEAVE_NEXTCLOUD_BASE_URL:?Expected WEAVE_NEXTCLOUD_BASE_URL in env or bootstrap env}"
 : "${WEAVE_MATRIX_HOMESERVER_URL:?Expected WEAVE_MATRIX_HOMESERVER_URL in env or bootstrap env}"
+: "${WEAVE_MATRIX_PROVIDER_URL:?Expected WEAVE_MATRIX_PROVIDER_URL in env or bootstrap env}"
 : "${WEAVE_TEST_USERNAME:?Expected WEAVE_TEST_USERNAME in env or bootstrap env}"
 : "${WEAVE_TEST_PASSWORD:?Expected WEAVE_TEST_PASSWORD in env or bootstrap env}"
 
@@ -629,8 +631,14 @@ assert_json "${nextcloud_providers}" '.settings.groupProvisioning == true' "Next
 nextcloud_oidc_redirect="$(curl_location "${WEAVE_NEXTCLOUD_BASE_URL}/apps/user_oidc/login/1")"
 [[ "${nextcloud_oidc_redirect}" == "${WEAVE_AUTH_BASE_URL}"/realms/* ]] || fail "Smoke check failed: Nextcloud OIDC login should redirect to the canonical Auth base URL, got '${nextcloud_oidc_redirect}'"
 
-log "Checking Matrix auth routing and MAS wiring..."
-matrix_base_url="${WEAVE_MATRIX_HOMESERVER_URL}"
+log "Checking the OIDC-gated Weave Matrix facade..."
+matrix_facade_versions="$(curl_auth_json "${access_token}" "${WEAVE_MATRIX_HOMESERVER_URL}/_matrix/client/versions")"
+assert_json "${matrix_facade_versions}" '.matrixCore.oidcGatekeeper == "spring-boot-resource-server" and .matrixCore.northboundHomeserverDependency == false' "Weave Matrix facade should be OIDC-gated and provider-neutral"
+matrix_facade_whoami="$(curl_auth_json "${access_token}" "${WEAVE_MATRIX_HOMESERVER_URL}/_matrix/client/v3/account/whoami")"
+assert_json "${matrix_facade_whoami}" '.device_id == "weave-oidc" and .is_guest == false' "Weave Matrix facade should derive identity from the app OIDC token"
+
+log "Checking southbound Matrix provider auth routing and MAS wiring..."
+matrix_base_url="${WEAVE_MATRIX_PROVIDER_URL}"
 matrix_versions="$(curl_json "${matrix_base_url}/_matrix/client/versions")"
 assert_json "${matrix_versions}" '.versions | length > 0' "Matrix client versions should be reachable"
 matrix_client_discovery="$(curl_json "${matrix_base_url}/.well-known/matrix/client")"
