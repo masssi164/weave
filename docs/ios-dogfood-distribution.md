@@ -1,6 +1,6 @@
 # iOS dogfood distribution
 
-Weave uses one stable iOS application identity for engineering builds, TestFlight builds, and later release builds: bundle identifier `com.massimotter.weave`, Apple team `KNDHGC2KV6`, and Keychain application identifier `$(AppIdentifierPrefix)com.massimotter.weave`. A normal app iteration must update in place. It must not delete the installed app, rotate the bundle identifier, or clear the saved Weave profile and OIDC session.
+Weave uses one stable iOS application identity for engineering builds, TestFlight builds, and later release builds: bundle identifier `com.massimotter.weave`, Apple team `KNDHGC2KV6`, and Keychain application identifier `$(AppIdentifierPrefix)com.massimotter.weave`. A normal app iteration must update in place. It must not delete the installed app, rotate the bundle identifier, or clear the saved Weave profile, OIDC refresh session, Matrix device ID, or Matrix crypto-store passphrase.
 
 ## Human tester channel
 
@@ -30,4 +30,13 @@ tools/dogfood_ios_session_restore_smoke.sh
 
 The script copies support-safe preferences before launch, terminates and relaunches the installed app, and copies preferences again. The client appends `session_restored` only after the device-bound OIDC session has been restored and the authenticated profile facade succeeds; it then records `workspace_ready`. The checker emits `DOGFOOD_SESSION_CONTINUITY_RESULT` without reading or exporting Keychain contents.
 
-Repeat this gate after installing the next TestFlight or development-signed build in place. A destructive uninstall is a separate recovery test: it may disrupt development trust and is outside the session-continuity guarantee.
+Encrypted Chat continuity adds three device-local values to that contract:
+
+- `matrix_device_identity_v1` stays in the app Keychain and identifies the same Matrix device after relaunch or update.
+- `matrix_crypto_store_passphrase_v1_<profile-hash>` stays in the Keychain and unlocks the Matrix Rust SDK SQLite store under application support.
+- The profile hash binds API origin, Matrix user ID, and Matrix device ID, so an OIDC access-token refresh rebinds the same encrypted store rather than creating a new device.
+- The backend retains only a hash of the OIDC session-to-device binding. The same refreshed session reopens that device, while a revoked session cannot evade revocation by presenting a new Matrix device ID.
+
+Ordinary app close, process termination, token refresh, sign-out, and in-place update preserve these values. Explicit account removal is the destructive boundary that deletes the Matrix device ID, passphrase, and encrypted store. Uninstall/reinstall is tested as recovery on a new device, not as session continuity.
+
+Repeat this gate after installing the next TestFlight or development-signed build in place, then open an encrypted room and confirm that previously decrypted history remains readable without a new-device prompt. Record `MATRIX_E2EE_IPHONE_RELAUNCH` only when the same profile, OIDC session, Matrix device, and encrypted store are observed support-safely. A destructive uninstall is a separate recovery test: it may disrupt development trust and is outside the session-continuity guarantee.

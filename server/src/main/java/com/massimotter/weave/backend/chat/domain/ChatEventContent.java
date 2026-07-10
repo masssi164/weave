@@ -12,7 +12,8 @@ public record ChatEventContent(
         String formattedBody,
         ChatRelation relation,
         String reactionKey,
-        Map<String, Object> presentationExtensions) {
+        Map<String, Object> presentationExtensions,
+        ChatEncryptedEnvelope encryptedEnvelope) {
 
     private static final Set<String> ALLOWED_PRESENTATION_EXTENSIONS = Set.of(
             "com.openclaw.approval",
@@ -31,10 +32,29 @@ public record ChatEventContent(
         if (kind == ChatEventKind.MESSAGE && body == null) {
             throw new IllegalArgumentException("chat message body is required");
         }
+        if (kind == ChatEventKind.ENCRYPTED) {
+            if (encryptedEnvelope == null || body != null || formattedBody != null) {
+                throw new IllegalArgumentException("encrypted Chat events require an opaque envelope and no plaintext body");
+            }
+        } else if (encryptedEnvelope != null) {
+            throw new IllegalArgumentException("only encrypted Chat events may carry an encrypted envelope");
+        }
         if (kind == ChatEventKind.REACTION
                 && (reactionKey == null || relation == null || !"reaction".equals(relation.kind()))) {
             throw new IllegalArgumentException("chat reaction target and key are required");
         }
+    }
+
+    public ChatEventContent(
+            ChatEventKind kind,
+            String messageType,
+            String body,
+            String format,
+            String formattedBody,
+            ChatRelation relation,
+            String reactionKey,
+            Map<String, Object> presentationExtensions) {
+        this(kind, messageType, body, format, formattedBody, relation, reactionKey, presentationExtensions, null);
     }
 
     public static ChatEventContent text(String body) {
@@ -46,7 +66,21 @@ public record ChatEventContent(
                 null,
                 null,
                 null,
-                Map.of());
+                Map.of(),
+                null);
+    }
+
+    public static ChatEventContent encrypted(Map<String, Object> content) {
+        return new ChatEventContent(
+                ChatEventKind.ENCRYPTED,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                Map.of(),
+                new ChatEncryptedEnvelope(content));
     }
 
     private static Map<String, Object> copyExtensions(Map<String, Object> extensions) {

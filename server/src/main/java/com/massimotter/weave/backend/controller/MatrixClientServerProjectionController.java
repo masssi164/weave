@@ -4,6 +4,7 @@ import com.massimotter.weave.backend.chat.ChatDomainFacadeService;
 import com.massimotter.weave.backend.chat.domain.ChatActorRef;
 import com.massimotter.weave.backend.chat.domain.ChatConversation;
 import com.massimotter.weave.backend.chat.domain.ChatConversations;
+import com.massimotter.weave.backend.chat.domain.ChatEncryptedEnvelope;
 import com.massimotter.weave.backend.chat.domain.ChatEventContent;
 import com.massimotter.weave.backend.chat.domain.ChatEventKind;
 import com.massimotter.weave.backend.chat.domain.ChatMembership;
@@ -12,6 +13,7 @@ import com.massimotter.weave.backend.chat.domain.ChatTimeline;
 import com.massimotter.weave.backend.chat.domain.ChatTimelineEvent;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.matrix.MatrixFacadeClientStateService;
+import com.massimotter.weave.backend.matrix.MatrixE2eeStateService;
 import com.massimotter.weave.backend.matrix.MatrixProtocolCoreService;
 import com.massimotter.weave.backend.matrix.MatrixProtocolException;
 import io.swagger.v3.oas.annotations.Hidden;
@@ -41,7 +43,7 @@ import org.springframework.web.util.UriUtils;
 @Hidden
 public class MatrixClientServerProjectionController {
 
-    private static final String MATRIX_ALLOW = "OPTIONS, GET, POST, PUT";
+    private static final String MATRIX_ALLOW = "OPTIONS, GET, POST, PUT, DELETE";
     private static final Pattern SEND_PATH = Pattern.compile(
             "^/_matrix/client/(?:v3|r0)/rooms/([^/]+)/send/([^/]+)/([^/]+)$");
     private static final Pattern REDACT_PATH = Pattern.compile(
@@ -70,20 +72,31 @@ public class MatrixClientServerProjectionController {
             "^/_matrix/client/(?:v3|r0)/user/([^/]+)/account_data/([^/]+)$");
     private static final Pattern PROFILE_PATH = Pattern.compile(
             "^/_matrix/client/(?:v3|r0)/profile/([^/]+)$");
+    private static final Pattern SEND_TO_DEVICE_PATH = Pattern.compile(
+            "^/_matrix/client/(?:v3|r0)/sendToDevice/([^/]+)/([^/]+)$");
+    private static final Pattern DEVICE_PATH = Pattern.compile(
+            "^/_matrix/client/(?:v3|r0)/devices/([^/]+)$");
+    private static final Pattern ROOM_KEYS_VERSION_PATH = Pattern.compile(
+            "^/_matrix/client/(?:v3|r0)/room_keys/version(?:/([^/]+))?$");
+    private static final Pattern ROOM_KEYS_KEYS_PATH = Pattern.compile(
+            "^/_matrix/client/(?:v3|r0)/room_keys/keys(?:/([^/]+)(?:/([^/]+))?)?$");
 
     private final ChatDomainFacadeService chatDomainFacadeService;
     private final MatrixProtocolCoreService matrixProtocolCoreService;
     private final MatrixFacadeClientStateService matrixClientStateService;
+    private final MatrixE2eeStateService matrixE2eeStateService;
     private final String facadeBaseUrl;
 
     public MatrixClientServerProjectionController(
             ChatDomainFacadeService chatDomainFacadeService,
             MatrixProtocolCoreService matrixProtocolCoreService,
             MatrixFacadeClientStateService matrixClientStateService,
+            MatrixE2eeStateService matrixE2eeStateService,
             @Value("${weave.matrix.facade.base-url:https://api.weave.test}") String facadeBaseUrl) {
         this.chatDomainFacadeService = chatDomainFacadeService;
         this.matrixProtocolCoreService = matrixProtocolCoreService;
         this.matrixClientStateService = matrixClientStateService;
+        this.matrixE2eeStateService = matrixE2eeStateService;
         this.facadeBaseUrl = facadeBaseUrl.replaceAll("/+$", "");
     }
 
@@ -106,18 +119,21 @@ public class MatrixClientServerProjectionController {
             HttpServletRequest request,
             @AuthenticationPrincipal Jwt jwt) {
         String method = request.getMethod().toUpperCase(Locale.ROOT);
-        if (!List.of("GET", "POST", "PUT").contains(method)) {
+        if (!List.of("GET", "POST", "PUT", "DELETE").contains(method)) {
             return matrixError(
                     HttpStatus.NOT_IMPLEMENTED,
                     "M_WEAVE_MATRIX_METHOD_NOT_IMPLEMENTED",
-                    "This Weave Matrix Client-Server projection supports OPTIONS, GET, POST, and PUT.");
+                    "This Weave Matrix Client-Server projection supports OPTIONS, GET, POST, PUT, and DELETE.");
         }
         try {
             String path = requestPath(request);
             if (matrixClientStateService.revoked(jwt) && !isLogout(path)) {
                 throw new MatrixProtocolException("M_UNKNOWN_TOKEN", "The Matrix access token was revoked.");
             }
-            MatrixFacadeClientStateService.MatrixIdentity identity = matrixClientStateService.register(jwt);
+            MatrixFacadeClientStateService.MatrixIdentity identity = matrixClientStateService.register(
+                    jwt,
+                    request.getHeader(MatrixFacadeClientStateService.DEVICE_ID_HEADER));
+            matrixE2eeStateService.requireActive(identity);
             if ("GET".equals(method) && isVersions(path)) {
                 return matrixOk(matrixProtocolCoreService.versions());
             }
@@ -129,10 +145,88 @@ public class MatrixClientServerProjectionController {
                 return matrixOk(Map.of());
             }
             if ("GET".equals(method) && isWhoami(path)) {
-                return matrixOk(matrixProtocolCoreService.whoami(jwt.getSubject()));
+                return matrixOk(matrixProtocolCoreService.whoami(jwt.getSubject(), identity.deviceId()));
             }
             if ("GET".equals(method) && isPushRules(path)) {
                 return matrixOk(matrixClientStateService.pushRules());
+            }
+            if ("POST".equals(method) && isKeysUpload(path)) {
+                return matrixOk(matrixE2eeStateService.uploadKeys(identity, requestBodyMap(request)));
+            }
+            if ("POST".equals(method) && isKeysQuery(path)) {
+                return matrixOk(matrixE2eeStateService.queryKeys(identity, requestBodyMap(request)));
+            }
+            if ("POST".equals(method) && isKeysClaim(path)) {
+                return matrixOk(matrixE2eeStateService.claimKeys(identity, requestBodyMap(request)));
+            }
+            if ("POST".equals(method) && isDeviceSigningUpload(path)) {
+                matrixE2eeStateService.uploadCrossSigning(identity, requestBodyMap(request));
+                return matrixOk(Map.of());
+            }
+            if ("POST".equals(method) && isSignaturesUpload(path)) {
+                return matrixOk(matrixE2eeStateService.uploadSignatures(identity, requestBodyMap(request)));
+            }
+            if ("GET".equals(method) && isKeysChanges(path)) {
+                String decodedFrom = matrixProtocolCoreService.decodeSyncCursor(request.getParameter("from"));
+                return matrixOk(matrixE2eeStateService.keyChanges(
+                        identity,
+                        matrixE2eeStateService.cryptoSequence(decodedFrom)));
+            }
+            Matcher sendToDevice = SEND_TO_DEVICE_PATH.matcher(path);
+            if ("PUT".equals(method) && sendToDevice.matches()) {
+                matrixE2eeStateService.sendToDevice(
+                        identity,
+                        decode(sendToDevice.group(1)),
+                        decode(sendToDevice.group(2)),
+                        requestBodyMap(request));
+                return matrixOk(Map.of());
+            }
+            Matcher device = DEVICE_PATH.matcher(path);
+            if ("DELETE".equals(method) && device.matches()) {
+                matrixE2eeStateService.revokeDevice(identity, decode(device.group(1)));
+                return matrixOk(Map.of());
+            }
+            Matcher backupVersion = ROOM_KEYS_VERSION_PATH.matcher(path);
+            if (backupVersion.matches()) {
+                String version = decode(backupVersion.group(1));
+                if ("POST".equals(method) && version == null) {
+                    return matrixOk(matrixE2eeStateService.createBackupVersion(identity, requestBodyMap(request)));
+                }
+                if ("GET".equals(method)) {
+                    return matrixOk(matrixE2eeStateService.backupVersion(identity, version));
+                }
+                if ("PUT".equals(method) && version != null) {
+                    matrixE2eeStateService.updateBackupVersion(identity, version, requestBodyMap(request));
+                    return matrixOk(Map.of());
+                }
+                if ("DELETE".equals(method) && version != null) {
+                    matrixE2eeStateService.deleteBackupVersion(identity, version);
+                    return matrixOk(Map.of());
+                }
+            }
+            Matcher backupKeys = ROOM_KEYS_KEYS_PATH.matcher(path);
+            if (backupKeys.matches()) {
+                String version = request.getParameter("version");
+                if (version == null || version.isBlank()) {
+                    throw new MatrixProtocolException("M_INVALID_PARAM", "The Matrix room-key backup version is required.");
+                }
+                String roomId = decode(backupKeys.group(1));
+                String sessionId = decode(backupKeys.group(2));
+                if ("PUT".equals(method)) {
+                    return matrixOk(matrixE2eeStateService.putBackupKeys(
+                            identity,
+                            version,
+                            roomId,
+                            sessionId,
+                            requestBodyMap(request)));
+                }
+                if ("GET".equals(method)) {
+                    return matrixOk(matrixE2eeStateService.backupKeys(identity, version, roomId, sessionId));
+                }
+                if ("DELETE".equals(method)) {
+                    matrixE2eeStateService.deleteBackupKeys(identity, version, roomId, sessionId);
+                    return matrixOk(Map.of());
+                }
             }
 
             Matcher filterCollection = FILTER_COLLECTION_PATH.matcher(path);
@@ -151,13 +245,19 @@ public class MatrixClientServerProjectionController {
                         decode(filterItem.group(2))));
             }
             Matcher accountData = ACCOUNT_DATA_PATH.matcher(path);
-            if ("PUT".equals(method) && accountData.matches()) {
+            if (accountData.matches()) {
                 requireCurrentUser(identity, decode(accountData.group(1)));
-                matrixClientStateService.putAccountData(
-                        identity.userId(),
-                        decode(accountData.group(2)),
-                        requestBodyValue(request));
-                return matrixOk(Map.of());
+                String eventType = decode(accountData.group(2));
+                if ("PUT".equals(method)) {
+                    matrixE2eeStateService.putAccountData(
+                            identity,
+                            eventType,
+                            requestBodyMap(request));
+                    return matrixOk(Map.of());
+                }
+                if ("GET".equals(method)) {
+                    return matrixOk(matrixE2eeStateService.accountData(identity, eventType));
+                }
             }
             if ("GET".equals(method) && isSync(path)) {
                 return matrixOk(sync(jwt, identity, request.getParameter("since")));
@@ -194,6 +294,21 @@ public class MatrixClientServerProjectionController {
                 return matrixOkList(roomState(jwt, decodeRoomId(roomState.group(1))));
             }
             Matcher roomStateEvent = ROOM_STATE_EVENT_PATH.matcher(path);
+            if ("PUT".equals(method) && roomStateEvent.matches()) {
+                String conversationId = decodeRoomId(roomStateEvent.group(1));
+                String eventType = decode(roomStateEvent.group(2));
+                String stateKey = decode(roomStateEvent.group(3));
+                if (!"m.room.encryption".equals(eventType) || (stateKey != null && !stateKey.isBlank())) {
+                    throw new MatrixProtocolException("M_UNSUPPORTED", "This Matrix room state write is unsupported.");
+                }
+                Map<String, Object> content = requestBodyMap(request);
+                Object rawAlgorithm = content.get("algorithm");
+                if (!(rawAlgorithm instanceof String algorithm)) {
+                    throw new MatrixProtocolException("M_BAD_JSON", "Matrix room encryption algorithm is required.");
+                }
+                chatDomainFacadeService.enableEncryption(conversationId, algorithm, jwt);
+                return matrixOk(matrixProtocolCoreService.sendResponse("state-encryption-" + conversationId));
+            }
             if ("GET".equals(method) && roomStateEvent.matches()) {
                 return matrixOk(roomStateEvent(
                         jwt,
@@ -277,6 +392,8 @@ public class MatrixClientServerProjectionController {
             MatrixFacadeClientStateService.MatrixIdentity identity,
             String since) {
         matrixProtocolCoreService.validateSyncToken(since);
+        String decodedCursor = matrixProtocolCoreService.decodeSyncCursor(since);
+        long cryptoSequence = matrixE2eeStateService.cryptoSequence(decodedCursor);
         ChatConversations conversations = chatDomainFacadeService.conversations(jwt);
         List<MatrixProtocolCoreService.CanonicalConversation> projection = conversations.conversations().stream()
                 .map(conversation -> projectConversation(
@@ -285,10 +402,11 @@ public class MatrixClientServerProjectionController {
                 .toList();
         return matrixProtocolCoreService.sync(
                 jwt.getSubject(),
-                chatDomainFacadeService.syncCursor(jwt),
+                matrixE2eeStateService.combinedCursor(chatDomainFacadeService.syncCursor(jwt)),
                 since,
                 projection,
-                matrixClientStateService.accountData(identity.userId()));
+                matrixE2eeStateService.accountData(identity),
+                matrixE2eeStateService.sync(identity, cryptoSequence));
     }
 
     private Map<String, Object> joinedRooms(Jwt jwt) {
@@ -361,6 +479,12 @@ public class MatrixClientServerProjectionController {
                 kind,
                 invitedActors,
                 jwt);
+        if (requestsEncryption(body)) {
+            conversation = chatDomainFacadeService.enableEncryption(
+                    conversation.conversationId(),
+                    ChatEncryptedEnvelope.MEGOLM_V1,
+                    jwt);
+        }
         return Map.of("room_id", matrixProtocolCoreService.roomId(conversation.conversationId()));
     }
 
@@ -371,6 +495,12 @@ public class MatrixClientServerProjectionController {
                 "type", "m.room.name",
                 "state_key", "",
                 "content", Map.of("name", conversation.title())));
+        if (conversation.encryptionState().encrypted()) {
+            events.add(Map.of(
+                    "type", "m.room.encryption",
+                    "state_key", "",
+                    "content", Map.of("algorithm", conversation.encryptionState().mode())));
+        }
         for (ChatMembership membership : conversation.memberships()) {
             events.add(Map.of(
                     "type", "m.room.member",
@@ -388,6 +518,11 @@ public class MatrixClientServerProjectionController {
         ChatConversation conversation = chatDomainFacadeService.conversation(conversationId, jwt);
         if ("m.room.name".equals(eventType) && (stateKey == null || stateKey.isBlank())) {
             return Map.of("name", conversation.title());
+        }
+        if ("m.room.encryption".equals(eventType)
+                && (stateKey == null || stateKey.isBlank())
+                && conversation.encryptionState().encrypted()) {
+            return Map.of("algorithm", conversation.encryptionState().mode());
         }
         if ("m.room.member".equals(eventType)) {
             return conversation.memberships().stream()
@@ -428,6 +563,7 @@ public class MatrixClientServerProjectionController {
         ChatEventKind kind = switch (parsed.kind()) {
             case "message" -> ChatEventKind.MESSAGE;
             case "reaction" -> ChatEventKind.REACTION;
+            case "encrypted" -> ChatEventKind.ENCRYPTED;
             default -> throw new MatrixProtocolException("M_UNSUPPORTED", "Matrix event type is unsupported.");
         };
         ChatRelation relation = parsed.relationKind() == null
@@ -444,7 +580,8 @@ public class MatrixClientServerProjectionController {
                 parsed.formattedBody(),
                 relation,
                 parsed.reactionKey(),
-                parsed.presentationExtensions());
+                parsed.presentationExtensions(),
+                parsed.encryptedContent() == null ? null : new ChatEncryptedEnvelope(parsed.encryptedContent()));
     }
 
     private MatrixProtocolCoreService.CanonicalConversation projectConversation(
@@ -492,8 +629,23 @@ public class MatrixClientServerProjectionController {
                 event.content().reactionKey(),
                 event.content().presentationExtensions(),
                 event.deliveryState(),
-                false,
+                event.content().encryptedEnvelope() == null
+                        ? null
+                        : event.content().encryptedEnvelope().content(),
                 event.redacted());
+    }
+
+    private boolean requestsEncryption(Map<String, Object> body) {
+        Object rawInitialState = body.get("initial_state");
+        if (!(rawInitialState instanceof List<?> initialState)) {
+            return false;
+        }
+        return initialState.stream()
+                .filter(Map.class::isInstance)
+                .map(Map.class::cast)
+                .anyMatch(event -> "m.room.encryption".equals(event.get("type"))
+                        && event.get("content") instanceof Map<?, ?> content
+                        && ChatEncryptedEnvelope.MEGOLM_V1.equals(content.get("algorithm")));
     }
 
     private String decodeRoomId(String matrixRoomId) {
@@ -575,6 +727,30 @@ public class MatrixClientServerProjectionController {
 
     private boolean isCreateRoom(String path) {
         return path.matches("^/_matrix/client/(?:v3|r0)/createRoom$");
+    }
+
+    private boolean isKeysUpload(String path) {
+        return path.matches("^/_matrix/client/(?:v3|r0)/keys/upload$");
+    }
+
+    private boolean isKeysQuery(String path) {
+        return path.matches("^/_matrix/client/(?:v3|r0)/keys/query$");
+    }
+
+    private boolean isKeysClaim(String path) {
+        return path.matches("^/_matrix/client/(?:v3|r0)/keys/claim$");
+    }
+
+    private boolean isKeysChanges(String path) {
+        return path.matches("^/_matrix/client/(?:v3|r0)/keys/changes$");
+    }
+
+    private boolean isDeviceSigningUpload(String path) {
+        return path.matches("^/_matrix/client/(?:v3|r0)/keys/device_signing/upload$");
+    }
+
+    private boolean isSignaturesUpload(String path) {
+        return path.matches("^/_matrix/client/(?:v3|r0)/keys/signatures/upload$");
     }
 
     private boolean isLogin(String path) {

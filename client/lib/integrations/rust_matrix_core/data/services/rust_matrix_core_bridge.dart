@@ -144,10 +144,232 @@ class RustMatrixMessageProjection {
   final String contentType;
 }
 
+class RustMatrixEncryptedRoom {
+  const RustMatrixEncryptedRoom({
+    required this.roomId,
+    required this.title,
+    required this.unreadCount,
+    required this.encrypted,
+  });
+
+  factory RustMatrixEncryptedRoom.fromJson(Map<String, dynamic> json) {
+    return RustMatrixEncryptedRoom(
+      roomId: _string(json['roomId']),
+      title: _string(json['title']),
+      unreadCount: _integer(json['unreadCount']),
+      encrypted: json['encrypted'] == true,
+    );
+  }
+
+  final String roomId;
+  final String title;
+  final int unreadCount;
+  final bool encrypted;
+}
+
+class RustMatrixVerificationProjection {
+  const RustMatrixVerificationProjection({
+    required this.phase,
+    required this.sasNumbers,
+    required this.sasEmojis,
+  });
+
+  factory RustMatrixVerificationProjection.fromJson(Map<String, dynamic> json) {
+    return RustMatrixVerificationProjection(
+      phase: _string(json['phase']),
+      sasNumbers: json['sasNumbers'] is List
+          ? (json['sasNumbers'] as List)
+                .whereType<num>()
+                .map((value) => value.toInt())
+                .toList(growable: false)
+          : const <int>[],
+      sasEmojis: _mapList(json['sasEmojis'], (emoji) => emoji),
+    );
+  }
+
+  final String phase;
+  final List<int> sasNumbers;
+  final List<Map<String, dynamic>> sasEmojis;
+}
+
+class RustMatrixSecurityProjection {
+  const RustMatrixSecurityProjection({
+    required this.signedIn,
+    required this.recoveryState,
+    required this.crossSigningReady,
+    required this.deviceVerified,
+    required this.accountVerified,
+    required this.encryptedRoomCount,
+    required this.verification,
+  });
+
+  factory RustMatrixSecurityProjection.fromJson(Map<String, dynamic> json) {
+    final verification = json['verification'];
+    return RustMatrixSecurityProjection(
+      signedIn: json['signedIn'] == true,
+      recoveryState: _string(json['recoveryState']),
+      crossSigningReady: json['crossSigningReady'] == true,
+      deviceVerified: json['deviceVerified'] == true,
+      accountVerified: json['accountVerified'] == true,
+      encryptedRoomCount: _integer(json['encryptedRoomCount']),
+      verification: RustMatrixVerificationProjection.fromJson(
+        verification is Map
+            ? Map<String, dynamic>.from(verification)
+            : const <String, dynamic>{},
+      ),
+    );
+  }
+
+  final bool signedIn;
+  final String recoveryState;
+  final bool crossSigningReady;
+  final bool deviceVerified;
+  final bool accountVerified;
+  final int encryptedRoomCount;
+  final RustMatrixVerificationProjection verification;
+}
+
 class RustMatrixCoreBridge {
   const RustMatrixCoreBridge();
 
   static Future<void>? _initialization;
+
+  Future<void> initializeClient({
+    required String profileKey,
+    required String homeserverUrl,
+    required String userId,
+    required String deviceId,
+    required String accessToken,
+    required String storePath,
+    required String storePassphrase,
+  }) async {
+    await _native(
+      () => initializeMatrixClient(
+        profileKey: profileKey,
+        homeserverUrl: homeserverUrl,
+        userId: userId,
+        deviceId: deviceId,
+        accessToken: accessToken,
+        storePath: storePath,
+        storePassphrase: storePassphrase,
+      ),
+    );
+  }
+
+  Future<void> syncClient({required String profileKey}) async {
+    await _native(() => syncMatrixClient(profileKey: profileKey));
+  }
+
+  Future<List<RustMatrixEncryptedRoom>> loadEncryptedRooms({
+    required String profileKey,
+  }) async {
+    final result = await _native(() => matrixRooms(profileKey: profileKey));
+    return _mapList(result['rooms'], RustMatrixEncryptedRoom.fromJson);
+  }
+
+  Future<List<RustMatrixMessageProjection>> loadEncryptedRoomMessages({
+    required String profileKey,
+    required String roomId,
+    int limit = 100,
+  }) async {
+    final result = await _native(
+      () => matrixRoomMessages(
+        profileKey: profileKey,
+        roomId: roomId,
+        limit: limit,
+      ),
+    );
+    return _mapList(result['messages'], RustMatrixMessageProjection.fromJson);
+  }
+
+  Future<String> sendEncryptedText({
+    required String profileKey,
+    required String roomId,
+    required String body,
+  }) async {
+    final result = await _native(
+      () => matrixSendText(profileKey: profileKey, roomId: roomId, body: body),
+    );
+    return _string(result['eventId']);
+  }
+
+  Future<void> markRead({
+    required String profileKey,
+    required String roomId,
+    required String eventId,
+  }) async {
+    await _native(
+      () => matrixMarkRead(
+        profileKey: profileKey,
+        roomId: roomId,
+        eventId: eventId,
+      ),
+    );
+  }
+
+  Future<RustMatrixSecurityProjection> loadSecurityState({
+    required String profileKey,
+  }) async {
+    return RustMatrixSecurityProjection.fromJson(
+      await _native(() => matrixSecurityState(profileKey: profileKey)),
+    );
+  }
+
+  Future<String> bootstrapRecovery({
+    required String profileKey,
+    String passphrase = '',
+  }) async {
+    final result = await _native(
+      () => matrixBootstrapRecovery(
+        profileKey: profileKey,
+        passphrase: passphrase,
+      ),
+    );
+    return _string(result['recoveryKey']);
+  }
+
+  Future<void> recover({
+    required String profileKey,
+    required String recoveryKeyOrPassphrase,
+  }) async {
+    await _native(
+      () => matrixRecover(
+        profileKey: profileKey,
+        recoveryKeyOrPassphrase: recoveryKeyOrPassphrase,
+      ),
+    );
+  }
+
+  Future<RustMatrixVerificationProjection> startVerification({
+    required String profileKey,
+  }) => _verification(() => matrixStartVerification(profileKey: profileKey));
+
+  Future<RustMatrixVerificationProjection> acceptVerification({
+    required String profileKey,
+  }) => _verification(() => matrixAcceptVerification(profileKey: profileKey));
+
+  Future<RustMatrixVerificationProjection> startSas({
+    required String profileKey,
+  }) => _verification(() => matrixStartSas(profileKey: profileKey));
+
+  Future<RustMatrixVerificationProjection> confirmSas({
+    required String profileKey,
+    required bool matches,
+  }) => _verification(
+    () => matrixConfirmSas(profileKey: profileKey, matches: matches),
+  );
+
+  Future<RustMatrixVerificationProjection> cancelVerification({
+    required String profileKey,
+  }) => _verification(() => matrixCancelVerification(profileKey: profileKey));
+
+  Future<void> dismissVerification({required String profileKey}) async {
+    await _native(() => matrixDismissVerification(profileKey: profileKey));
+  }
+
+  Future<void> disposeClient({required String profileKey}) async {
+    await _native(() => disposeMatrixClient(profileKey: profileKey));
+  }
 
   Future<RustMatrixCoreBridgeDescriptor> descriptor({
     String serverName = 'api.weave.test',
@@ -253,6 +475,28 @@ class RustMatrixCoreBridge {
     final decoded = jsonDecode(output);
     if (decoded is! Map) {
       throw const RustMatrixCoreBridgeException('M_WEAVE_MATRIX_CORE_ERROR');
+    }
+    final result = Map<String, dynamic>.from(decoded);
+    if (result['errcode'] case final String errcode) {
+      throw RustMatrixCoreBridgeException(errcode);
+    }
+    return result;
+  }
+
+  Future<RustMatrixVerificationProjection> _verification(
+    Future<String> Function() operation,
+  ) async {
+    return RustMatrixVerificationProjection.fromJson(await _native(operation));
+  }
+
+  Future<Map<String, dynamic>> _native(
+    Future<String> Function() operation,
+  ) async {
+    await _ensureInitialized();
+    final output = await operation();
+    final decoded = jsonDecode(output);
+    if (decoded is! Map) {
+      throw const RustMatrixCoreBridgeException('M_WEAVE_E2EE_SERIALIZATION');
     }
     final result = Map<String, dynamic>.from(decoded);
     if (result['errcode'] case final String errcode) {

@@ -2,13 +2,17 @@ package com.massimotter.weave.backend.chat.adapter;
 
 import com.massimotter.weave.backend.chat.domain.ChatActorRef;
 import com.massimotter.weave.backend.chat.domain.ChatCursor;
+import com.massimotter.weave.backend.chat.domain.ChatEncryptedEnvelope;
+import com.massimotter.weave.backend.chat.domain.ChatEventContent;
 import com.massimotter.weave.backend.chat.domain.ChatTransactionId;
 import com.massimotter.weave.backend.chat.domain.ConversationId;
 import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
 import java.time.Instant;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class WeaveCanonicalChatAdapterTest {
 
@@ -42,6 +46,7 @@ class WeaveCanonicalChatAdapterTest {
 
     @Test
     void conformanceAccountsForPortableLossyAndUnsupportedChatSemantics() {
+        // MATRIX_E2EE_PROVIDER_SWITCH_BLOCKED
         ProviderConformanceProfile profile = new WeaveCanonicalChatAdapter().conformanceProfile();
 
         assertThat(profile.domain()).isEqualTo("chat");
@@ -64,6 +69,46 @@ class WeaveCanonicalChatAdapterTest {
         assertThat(profile.atomicWrites()).isTrue();
         assertThat(profile.stableVersionTokens()).isTrue();
         assertThat(profile.supportSafe()).isTrue();
+    }
+
+    @Test
+    void encryptedRoomRejectsPlaintextAndPreservesOnlyOpaqueEnvelope() {
+        WeaveCanonicalChatAdapter adapter = new WeaveCanonicalChatAdapter();
+        adapter.enableEncryption(actor, conversation, ChatEncryptedEnvelope.MEGOLM_V1);
+        Map<String, Object> envelope = Map.of(
+                "algorithm", ChatEncryptedEnvelope.MEGOLM_V1,
+                "ciphertext", "opaque-ciphertext",
+                "sender_key", "curve25519:alice",
+                "session_id", "megolm-session-1",
+                "device_id", "WEAVEDEVICEALICE");
+
+        var encrypted = adapter.sendEvent(
+                actor,
+                conversation,
+                new ChatTransactionId("txn-encrypted"),
+                ChatEventContent.encrypted(envelope));
+
+        assertThat(encrypted.content().body()).isNull();
+        assertThat(encrypted.content().encryptedEnvelope().content()).isEqualTo(envelope);
+        assertThat(adapter.conversation(actor, conversation).encryptionState().serverMayReadContent()).isFalse();
+        assertThatThrownBy(() -> adapter.send(
+                actor,
+                conversation,
+                new ChatTransactionId("txn-plaintext"),
+                "plaintext must fail"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("plaintext Chat events are forbidden");
+    }
+
+    @Test
+    void roomEncryptionCannotBeDisabledOrChanged() {
+        WeaveCanonicalChatAdapter adapter = new WeaveCanonicalChatAdapter();
+        adapter.enableEncryption(actor, conversation, ChatEncryptedEnvelope.MEGOLM_V1);
+
+        assertThatThrownBy(() -> adapter.enableEncryption(actor, conversation, "m.weave.unsupported"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("unsupported");
+        assertThat(adapter.conversation(actor, conversation).encryptionState().encrypted()).isTrue();
     }
 
     @Test

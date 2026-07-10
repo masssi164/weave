@@ -9,6 +9,7 @@ import com.massimotter.weave.backend.chat.domain.ChatActorRef;
 import com.massimotter.weave.backend.chat.domain.ChatCursor;
 import com.massimotter.weave.backend.chat.domain.ChatHistoryPolicy;
 import com.massimotter.weave.backend.chat.domain.ChatEventContent;
+import com.massimotter.weave.backend.chat.domain.ChatEncryptedEnvelope;
 import com.massimotter.weave.backend.chat.domain.ChatMessage;
 import com.massimotter.weave.backend.chat.domain.ChatMemberState;
 import com.massimotter.weave.backend.chat.domain.ChatMessages;
@@ -249,6 +250,34 @@ public class ChatDomainFacadeService {
         return chatProviderPort.leaveConversation(
                 new ChatActorRef(actorRef(jwt)),
                 new ConversationId(safeIdentifier(conversationId, "conversation-unavailable")));
+    }
+
+    public com.massimotter.weave.backend.chat.domain.ChatConversation enableEncryption(
+            String conversationId,
+            String algorithm,
+            Jwt jwt) {
+        workspaceCapabilityService.requireCapability(jwt, "chat.send", "chat", "enable-encryption");
+        var conversation = chatProviderPort.enableEncryption(
+                new ChatActorRef(actorRef(jwt)),
+                new ConversationId(safeIdentifier(conversationId, "conversation-unavailable")),
+                algorithm);
+        Instant timestamp = Instant.now(clock);
+        auditEventPublisher.publish(new AuditEvent(
+                organizationId(jwt),
+                conversation.conversationId(),
+                actorRef(jwt),
+                "matrix-client-server-facade",
+                AuditAction.CHAT_ENCRYPTION_ENABLED,
+                timestamp,
+                "chat-encryption:" + conversation.conversationId(),
+                AuditRedactionLevel.SECRET_REDACTED,
+                Map.of(
+                        "domain", "chat",
+                        "conversationId", conversation.conversationId(),
+                        "algorithm", ChatEncryptedEnvelope.MEGOLM_V1,
+                        "serverMayReadContent", false,
+                        "providerPayloadExposed", false)));
+        return conversation;
     }
 
     public ChatReadReceipt markRead(String conversationId, String eventId, Jwt jwt) {

@@ -92,6 +92,10 @@ weave:
     # accessibility gates are proven by Matrix-native client/smoke/E2E flows.
     federation-enabled: ${WEAVE_MATRIX_FEDERATION_ENABLED:false}
     e2ee:
+      storage:
+        # Memory is isolated-test only. Shipped infrastructure selects JDBC so
+        # public keys, to-device envelopes, and encrypted backups survive restart.
+        mode: ${WEAVE_MATRIX_E2EE_STORAGE_MODE:memory}
       encrypted-rooms-validated: ${WEAVE_MATRIX_E2EE_ENCRYPTED_ROOMS_VALIDATED:false}
       device-verification-validated: ${WEAVE_MATRIX_E2EE_DEVICE_VERIFICATION_VALIDATED:false}
       key-backup-validated: ${WEAVE_MATRIX_E2EE_KEY_BACKUP_VALIDATED:false}

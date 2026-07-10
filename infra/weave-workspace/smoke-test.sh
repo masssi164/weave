@@ -216,6 +216,23 @@ curl_basic_propfind_status() {
     "$url"
 }
 
+curl_bearer_propfind_status() {
+  local token="$1"
+  local url="$2"
+  local host_port
+
+  host_port="$(host_port_from_url "${url}")"
+  curl --silent --show-error \
+    --cacert "${CADDY_TLS_CA_FILE}" \
+    --resolve "${host_port}:127.0.0.1" \
+    --header "Authorization: Bearer ${token}" \
+    --request PROPFIND \
+    --header 'Depth: 0' \
+    -o /dev/null \
+    -w '%{http_code}' \
+    "${url}"
+}
+
 curl_location() {
   local url="$1"
   local host_port
@@ -438,28 +455,6 @@ check_matrix_provisioner_key_backup_diagnostic() {
   esac
 }
 
-probe_authenticated_facade() {
-  local name="$1"
-  local token="$2"
-  local url="$3"
-  local body_file
-  local status
-
-  body_file="$(mktemp)"
-  status="$(curl_auth_status_to_file "${token}" "${url}" "${body_file}" || true)"
-  if grep -q 'nextcloud-adapter-not-configured' "${body_file}"; then
-    rm -f -- "${body_file}"
-    fail "Smoke check failed: ${name} facade reports missing backend-owned Nextcloud actor configuration"
-  fi
-  rm -f -- "${body_file}"
-
-  if [[ "${status}" == 2* ]]; then
-    log "${name} facade answered HTTP ${status}."
-  else
-    log "${name} facade probe answered HTTP ${status}; actor config is present, but full downstream user/calendar readiness is not gated here."
-  fi
-}
-
 require_command curl
 require_command docker
 require_command jq
@@ -608,10 +603,12 @@ log "Checking admin API protection with a member token..."
 admin_control_plane_status="$(curl_auth_status "${access_token}" "${WEAVE_BASE_URL}/admin/control-plane" || true)"
 [[ "${admin_control_plane_status}" == "403" ]] || fail "Smoke check failed: member token should receive 403 from admin control plane, got ${admin_control_plane_status}"
 
-log "Checking backend files/calendar facade actor wiring..."
+log "Checking authenticated WebDAV and CalDAV northbound facades..."
 assert_backend_nextcloud_actor_config
-probe_authenticated_facade "Files" "${access_token}" "${WEAVE_BASE_URL}/files"
-probe_authenticated_facade "Calendar" "${access_token}" "${WEAVE_BASE_URL}/calendar/events"
+files_facade_status="$(curl_bearer_propfind_status "${access_token}" "$(public_url "${TF_VAR_api_subdomain:-api}")/dav/files" || true)"
+[[ "${files_facade_status}" == "207" ]] || fail "Smoke check failed: authenticated WebDAV facade returned HTTP ${files_facade_status}"
+calendar_facade_status="$(curl_bearer_propfind_status "${access_token}" "$(public_url "${TF_VAR_api_subdomain:-api}")/caldav" || true)"
+[[ "${calendar_facade_status}" == "207" ]] || fail "Smoke check failed: authenticated CalDAV facade returned HTTP ${calendar_facade_status}"
 
 log "Checking Nextcloud OIDC bootstrap..."
 nextcloud_status="$(curl_json "${WEAVE_NEXTCLOUD_BASE_URL}/status.php")"

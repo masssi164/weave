@@ -133,7 +133,8 @@ public class OpenStandardsGatewayStepDefinitions {
     @Then("Chat advertises a Matrix Client-Server endpoint")
     public void chatAdvertisesAMatrixClientServerEndpoint() {
         assertThat(lastJson.at("/clientAccessDiscovery/chat/surfaces").toString())
-                .contains("Matrix-compatible transport")
+                .contains("Weave Matrix Client-Server projection")
+                .contains("encrypted_data_plane_available")
                 .contains("/_matrix/client");
     }
 

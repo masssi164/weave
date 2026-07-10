@@ -40,6 +40,8 @@ import '../integration_test/helpers/auth_helper.dart';
 import '../integration_test/helpers/test_config.dart';
 import '../integration_test/helpers/test_http_overrides.dart';
 
+const _liveMatrixDeviceId = 'WEAVELIVEE2EDEVICE';
+
 void main() {
   HttpOverrides.global = TestHttpOverrides();
 
@@ -335,6 +337,10 @@ void main() {
       final authorization = <String, String>{
         'Authorization': 'Bearer $accessToken',
       };
+      final matrixAuthorization = <String, String>{
+        ...authorization,
+        'X-Weave-Matrix-Device-Id': _liveMatrixDeviceId,
+      };
 
       final platformResponse = await httpClient.get(
         config.apiUri('/api/platform/config'),
@@ -360,7 +366,7 @@ void main() {
         apiOrigin.replace(
           pathSegments: const ['_matrix', 'client', 'v3', 'account', 'whoami'],
         ),
-        headers: authorization,
+        headers: matrixAuthorization,
       );
 
       expect(files.statusCode, 204, reason: files.body);
@@ -369,7 +375,7 @@ void main() {
       expect(calendar.headers['dav'], contains('calendar-access'));
       expect(matrix.statusCode, 200, reason: matrix.body);
       final matrixIdentity = _decodeObject(matrix.body);
-      expect(matrixIdentity['device_id'], 'weave-oidc');
+      expect(matrixIdentity['device_id'], _liveMatrixDeviceId);
       expect(matrixIdentity['is_guest'], isFalse);
 
       for (final response in <http.Response>[files, calendar, matrix]) {
@@ -390,14 +396,14 @@ void main() {
         apiOrigin.replace(
           pathSegments: const ['_matrix', 'client', 'v3', 'logout'],
         ),
-        headers: authorization,
+        headers: matrixAuthorization,
       );
       expect(revoked.statusCode, 200, reason: revoked.body);
       final deniedMatrix = await httpClient.get(
         apiOrigin.replace(
           pathSegments: const ['_matrix', 'client', 'v3', 'account', 'whoami'],
         ),
-        headers: authorization,
+        headers: matrixAuthorization,
       );
       expect(deniedMatrix.statusCode, 401, reason: deniedMatrix.body);
       expect(_decodeObject(deniedMatrix.body)['errcode'], 'M_UNKNOWN_TOKEN');
