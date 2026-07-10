@@ -11,6 +11,7 @@ use matrix_sdk::{
     room::MessagesOptions,
     ruma::{
         api::client::receipt::create_receipt::v3::ReceiptType,
+        api::error::ErrorKind,
         api::MatrixVersion,
         events::receipt::ReceiptThread,
         events::{
@@ -228,7 +229,7 @@ async fn sync_inner(profile_key: &str) -> Result<Value, String> {
     let first = client
         .sync_once(SyncSettings::new().timeout(Duration::from_secs(0)))
         .await
-        .map_err(|_| "M_WEAVE_E2EE_SYNC".to_string())?;
+        .map_err(|error| matrix_sdk_error_code(&error, "M_WEAVE_E2EE_SYNC"))?;
 
     let mut enabled_rooms = 0_u64;
     for room in client.joined_rooms() {
@@ -247,7 +248,7 @@ async fn sync_inner(profile_key: &str) -> Result<Value, String> {
         client
             .sync_once(SyncSettings::new().timeout(Duration::from_secs(0)))
             .await
-            .map_err(|_| "M_WEAVE_E2EE_SYNC".to_string())?;
+            .map_err(|error| matrix_sdk_error_code(&error, "M_WEAVE_E2EE_SYNC"))?;
     }
 
     Ok(json!({
@@ -706,6 +707,18 @@ fn bootstrap_recovery_error_code(error: &RecoveryError) -> &'static str {
     }
 }
 
+fn matrix_sdk_error_code(error: &matrix_sdk::Error, fallback: &str) -> String {
+    if let matrix_sdk::Error::Http(http_error) = error {
+        return matrix_error_kind_code(http_error.client_api_error_kind(), fallback);
+    }
+    fallback.to_owned()
+}
+
+fn matrix_error_kind_code(kind: Option<&ErrorKind>, fallback: &str) -> String {
+    kind.map(|value| value.errcode().as_str().to_owned())
+        .unwrap_or_else(|| fallback.to_owned())
+}
+
 fn validate_identifier(value: &str, kind: &str) -> Result<(), String> {
     if value.len() < 8
         || value.len() > 512
@@ -759,6 +772,18 @@ mod tests {
                 SecretStorageError::MissingKeyInfo { key_id: None }
             )),
             "M_WEAVE_E2EE_RECOVERY_SECRET_STORAGE"
+        );
+    }
+
+    #[test]
+    fn matrix_server_errcodes_survive_the_native_sync_boundary() {
+        assert_eq!(
+            matrix_error_kind_code(Some(&ErrorKind::MissingToken), "M_WEAVE_E2EE_SYNC"),
+            "M_MISSING_TOKEN"
+        );
+        assert_eq!(
+            matrix_error_kind_code(None, "M_WEAVE_E2EE_SYNC"),
+            "M_WEAVE_E2EE_SYNC"
         );
     }
 }
