@@ -2,7 +2,7 @@ use matrix_sdk::{
     authentication::{matrix::MatrixSession, SessionTokens},
     config::SyncSettings,
     encryption::{
-        recovery::RecoveryState,
+        recovery::{RecoveryError, RecoveryState},
         verification::{
             SasVerification, Verification, VerificationRequest, VerificationRequestState,
         },
@@ -154,6 +154,11 @@ async fn initialize_inner(
         )
         .await
         .map_err(|_| "M_WEAVE_E2EE_SESSION".to_string())?;
+
+    client
+        .encryption()
+        .wait_for_e2ee_initialization_tasks()
+        .await;
 
     let handler_client = client.clone();
     let handler_profile_key = profile_key.clone();
@@ -409,7 +414,7 @@ pub async fn bootstrap_recovery(profile_key: String, passphrase: String) -> Stri
         } else {
             enable.with_passphrase(passphrase.trim()).await
         }
-        .map_err(|_| "M_WEAVE_E2EE_RECOVERY".to_string())?;
+        .map_err(|error| bootstrap_recovery_error_code(&error).to_string())?;
         Ok(json!({ "recoveryKey": recovery_key }))
     }
     .await;
@@ -679,6 +684,14 @@ fn recovery_state_name(state: RecoveryState) -> &'static str {
     }
 }
 
+fn bootstrap_recovery_error_code(error: &RecoveryError) -> &'static str {
+    match error {
+        RecoveryError::BackupExistsOnServer => "M_WEAVE_E2EE_RECOVERY_BACKUP_EXISTS",
+        RecoveryError::Sdk(_) => "M_WEAVE_E2EE_RECOVERY_BACKUP_SETUP",
+        RecoveryError::SecretStorage(_) => "M_WEAVE_E2EE_RECOVERY_SECRET_STORAGE",
+    }
+}
+
 fn validate_identifier(value: &str, kind: &str) -> Result<(), String> {
     if value.len() < 8
         || value.len() > 512
@@ -707,6 +720,7 @@ fn json_result(result: Result<Value, String>) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use matrix_sdk::encryption::secret_storage::SecretStorageError;
 
     #[test]
     fn platform_roots_remain_the_default() {
@@ -718,5 +732,19 @@ mod tests {
         let result = build_http_client(HeaderMap::new(), "not a PEM certificate");
 
         assert_eq!(result.err().as_deref(), Some("M_WEAVE_E2EE_TLS_ROOT"));
+    }
+
+    #[test]
+    fn recovery_bootstrap_errors_are_support_safe_and_phase_specific() {
+        assert_eq!(
+            bootstrap_recovery_error_code(&RecoveryError::BackupExistsOnServer),
+            "M_WEAVE_E2EE_RECOVERY_BACKUP_EXISTS"
+        );
+        assert_eq!(
+            bootstrap_recovery_error_code(&RecoveryError::SecretStorage(
+                SecretStorageError::MissingKeyInfo { key_id: None }
+            )),
+            "M_WEAVE_E2EE_RECOVERY_SECRET_STORAGE"
+        );
     }
 }
