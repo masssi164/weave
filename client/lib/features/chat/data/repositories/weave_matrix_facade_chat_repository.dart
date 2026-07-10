@@ -116,8 +116,9 @@ class WeaveMatrixFacadeChatRepository implements ChatRepository {
           'Write a message before sending it through Weave Chat.',
         );
       }
-      throw const ChatFailure.protocol(
+      throw ChatFailure.protocol(
         'Weave Chat could not send this encrypted message.',
+        cause: error,
       );
     }
   }

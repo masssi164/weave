@@ -207,6 +207,14 @@ struct MatrixEvent {
     state_key: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+struct MatrixRoomMemberEvent {
+    #[serde(flatten)]
+    event: MatrixEvent,
+    room_id: String,
+    unsigned: BTreeMap<String, Value>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct MatrixTimeline {
     #[serde(default)]
@@ -331,6 +339,7 @@ pub fn matrix_facade_descriptor(
             "GET /_matrix/client/v3/sync".to_string(),
             "GET /_matrix/client/v3/joined_rooms".to_string(),
             "GET /_matrix/client/v3/rooms/{roomId}/messages".to_string(),
+            "GET /_matrix/client/v3/rooms/{roomId}/members".to_string(),
             "PUT /_matrix/client/v3/rooms/{roomId}/send/m.room.message/{txnId}".to_string(),
             "PUT /_matrix/client/v3/rooms/{roomId}/send/m.reaction/{txnId}".to_string(),
             "PUT /_matrix/client/v3/rooms/{roomId}/redact/{eventId}/{txnId}".to_string(),
@@ -399,6 +408,7 @@ pub fn project_json(
         "decode-sync-token" => decode_sync_token_value(&parse(&input_json)?)?,
         "joined-rooms" => joined_rooms_value(&parse(&input_json)?, &server_name)?,
         "messages" => messages_value(&parse(&input_json)?, &server_name)?,
+        "members" => members_value(&parse(&input_json)?, &server_name)?,
         "parse-object" => parse_object_value(&input_json)?,
         "parse-send" => parse_send_value(&input_json)?,
         "parse-event" => parse_event_value(&input_json, &server_name)?,
@@ -586,6 +596,29 @@ fn messages_value(
         "end": encode_sync_token(&input.cursor),
         "chunk": events,
     }))
+}
+
+fn members_value(
+    input: &ProjectionInput,
+    server_name: &OwnedServerName,
+) -> Result<Value, MatrixCoreError> {
+    let conversation = input
+        .conversations
+        .first()
+        .ok_or(MatrixCoreError::InvalidRequest)?;
+    let room_id = matrix_room_id(&conversation.conversation_id, server_name)?.to_string();
+    let chunk = conversation
+        .memberships
+        .iter()
+        .map(|membership| {
+            Ok(MatrixRoomMemberEvent {
+                event: membership_event(conversation, membership, server_name)?,
+                room_id: room_id.clone(),
+                unsigned: BTreeMap::new(),
+            })
+        })
+        .collect::<Result<Vec<_>, MatrixCoreError>>()?;
+    Ok(json!({ "chunk": chunk }))
 }
 
 fn parse_send_value(input_json: &str) -> Result<Value, MatrixCoreError> {
@@ -1497,6 +1530,10 @@ mod tests {
                 "title": "General",
                 "updatedAtEpochMillis": 1_720_432_800_000_i64,
                 "unreadCount": 2,
+                "memberships": [{
+                    "memberRef": "user:alice",
+                    "state": "joined"
+                }],
                 "messages": [{
                     "messageId": "msg-1",
                     "senderRef": "user:alice",
@@ -1538,6 +1575,31 @@ mod tests {
                 ["content"]["body"],
             "Hello from Weave Chat"
         );
+    }
+
+    #[test]
+    fn members_projection_is_a_typed_ruma_response() {
+        use ruma::{events::room::member::RoomMemberEvent, serde::Raw};
+
+        #[derive(Deserialize)]
+        struct MembersResponse {
+            chunk: Vec<Raw<RoomMemberEvent>>,
+        }
+
+        let json = project_json(
+            "members".to_string(),
+            canonical_input(),
+            "matrix.weave.test".to_string(),
+        )
+        .unwrap();
+        let response: MembersResponse = serde_json::from_str(&json).unwrap();
+        response.chunk[0].deserialize().unwrap();
+        let member: Value = serde_json::from_str(response.chunk[0].json().get()).unwrap();
+
+        assert_eq!(member["type"], "m.room.member");
+        assert_eq!(member["state_key"], "@alice:matrix.weave.test");
+        assert_eq!(member["room_id"], "!channel-general:matrix.weave.test");
+        assert_eq!(member["content"]["membership"], "join");
     }
 
     #[test]
