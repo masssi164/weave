@@ -14331,7 +14331,7 @@
       "name": "Connectors"
     },
     {
-      "description": "Provider-neutral read-only DevOps facade for GitLab CE/FOSS and Forgejo adapters.",
+      "description": "Provider-neutral read-only DevOps facade for the represented GitLab CE/FOSS adapter.",
       "name": "DevOps facade"
     },
     {

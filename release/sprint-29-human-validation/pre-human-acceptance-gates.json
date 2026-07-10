@@ -17,8 +17,8 @@
       "issue": 651,
       "requiredBeforeHumanValidation": true,
       "status": "pending-current-evidence",
-      "commands": ["./gradlew adminCicdOrchestrationCheck", "./gradlew adminCi"],
-      "evidence": ["docs/evidence/local-cicd-bootstrapper.md", "docs/evidence/local-forgejo-runner-readiness.md"]
+      "commands": ["./gradlew bootstrapFoundationCheck", "./gradlew adminCi"],
+      "evidence": ["docs/bootstrap-foundation-contract.md", ".github/workflows/test-stack-deploy.yml"]
     },
     {
       "id": "user-login",

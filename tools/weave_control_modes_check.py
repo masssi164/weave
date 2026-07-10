@@ -32,7 +32,7 @@ REQUIRED_CLAIM_STATES = {
 REQUIRED_TAGS = {
     "@weave-control-plan-preflight-modes",
     "@weave-control-admin-console-client-responsibility-split",
-    "@weave-control-deploy-new-local-forgejo-e2e-boundary",
+    "@weave-control-deploy-new-github-dogfood-e2e-boundary",
     "@weave-control-attach-existing-preflight-boundary",
     "@weave-control-hybrid-domain-separation",
     "@weave-control-member-bootstrap-invariant",
@@ -115,7 +115,7 @@ def main() -> int:
             "Flutter or App E2E evidence is collected in a separate client lane against the handoff target",
             "Weave Control, Admin Console, and Client keep separate responsibilities",
             "Weaver is represented only as a future governed organization capability",
-            "Forgejo deployment lane remains client-free",
+            "GitHub deployment lane remains client-free",
         ],
     )
 

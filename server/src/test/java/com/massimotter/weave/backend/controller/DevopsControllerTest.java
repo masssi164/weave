@@ -71,7 +71,7 @@ class DevopsControllerTest {
                 .andExpect(jsonPath("$.mergeRequests.length()").value(0))
                 .andExpect(jsonPath("$.pipelines.length()").value(0))
                 .andExpect(jsonPath("$.releases.length()").value(0))
-                .andExpect(jsonPath("$.providerReadiness[*].providerKey", hasItems("gitlab-ce-foss", "forgejo")))
+                .andExpect(jsonPath("$.providerReadiness[*].providerKey", hasItems("gitlab-ce-foss")))
                 .andExpect(jsonPath("$.providerReadiness[*].readiness", hasItems("not_configured")))
                 .andExpect(jsonPath("$.providerReadiness[*].unsupportedOperations[*]", hasItems("premium-ultimate-only-features")))
                 .andExpect(content().string(not(containsString("CI_JOB_TOKEN"))))

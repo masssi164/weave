@@ -270,7 +270,6 @@ assert_backend_env_present() {
 assert_backend_provider_stack_config() {
   local name
   local gitlab_enabled
-  local forgejo_enabled
   local onlyoffice_enabled
   local contacts_enabled
   local forms_enabled
@@ -281,15 +280,10 @@ assert_backend_provider_stack_config() {
     WEAVE_PROVIDER_STACK_PROFILE \
     WEAVE_PROVIDER_STACK_READINESS \
     WEAVE_DEVOPS_PRIMARY_PROVIDER \
-    WEAVE_DEVOPS_ALTERNATIVE_PROVIDER \
     WEAVE_DEVOPS_GITLAB_RUNTIME_ENABLED \
     WEAVE_DEVOPS_GITLAB_BASE_URL \
     WEAVE_DEVOPS_GITLAB_API_TOKEN \
     WEAVE_DEVOPS_GITLAB_WRITES_ENABLED \
-    WEAVE_DEVOPS_FORGEJO_RUNTIME_ENABLED \
-    WEAVE_DEVOPS_FORGEJO_BASE_URL \
-    WEAVE_DEVOPS_FORGEJO_API_TOKEN \
-    WEAVE_DEVOPS_FORGEJO_WRITES_ENABLED \
     WEAVE_OFFICE_PRIMARY_PROVIDER \
     WEAVE_OFFICE_ONLYOFFICE_RUNTIME_ENABLED \
     WEAVE_OFFICE_ONLYOFFICE_DOCUMENT_SERVER_URL \
@@ -306,22 +300,18 @@ assert_backend_provider_stack_config() {
     fail "Operator check failed: unsupported provider-stack profile"
   [[ "$(container_env_value weave-backend WEAVE_DEVOPS_PRIMARY_PROVIDER)" == "gitlab-ce-foss" ]] || \
     fail "Operator check failed: GitLab CE/FOSS must remain the primary DevOps provider assumption"
-  [[ "$(container_env_value weave-backend WEAVE_DEVOPS_ALTERNATIVE_PROVIDER)" == "forgejo" ]] || \
-    fail "Operator check failed: Forgejo must remain the first-class DevOps alternative"
   [[ "$(container_env_value weave-backend WEAVE_OFFICE_PRIMARY_PROVIDER)" == "onlyoffice-community" ]] || \
     fail "Operator check failed: ONLYOFFICE Docs Community must remain the default Office candidate"
   [[ "$(container_env_value weave-backend WEAVE_OFFICE_NEXTCLOUD_INTEGRATION_MODE)" == "nextcloud-onlyoffice-app-behind-backend-facade" ]] || \
     fail "Operator check failed: Office integration must stay behind Nextcloud/backend facade"
 
   gitlab_enabled="$(container_env_value weave-backend WEAVE_DEVOPS_GITLAB_RUNTIME_ENABLED)"
-  forgejo_enabled="$(container_env_value weave-backend WEAVE_DEVOPS_FORGEJO_RUNTIME_ENABLED)"
   onlyoffice_enabled="$(container_env_value weave-backend WEAVE_OFFICE_ONLYOFFICE_RUNTIME_ENABLED)"
   contacts_enabled="$(container_env_value weave-backend WEAVE_GROUPWARE_CONTACTS_RUNTIME_ENABLED)"
   forms_enabled="$(container_env_value weave-backend WEAVE_GROUPWARE_FORMS_RUNTIME_ENABLED)"
   deck_enabled="$(container_env_value weave-backend WEAVE_BOARDS_NEXTCLOUD_DECK_RUNTIME_ENABLED)"
 
   [[ "$(container_env_value weave-backend WEAVE_DEVOPS_GITLAB_WRITES_ENABLED)" != "true" ]] || fail "Operator check failed: GitLab provider writes must stay disabled for the read-only DevOps facade"
-  [[ "$(container_env_value weave-backend WEAVE_DEVOPS_FORGEJO_WRITES_ENABLED)" != "true" ]] || fail "Operator check failed: Forgejo provider writes must stay disabled for the read-only DevOps facade"
   [[ "$(container_env_value weave-backend WEAVE_OFFICE_COLLABORA_RUNTIME_ENABLED)" != "true" ]] || fail "Operator check failed: Collabora/CODE must stay disabled until licensing/runtime fit is validated"
   [[ "${contacts_enabled}" != "true" ]] || fail "Operator check failed: Contacts runtime must stay disabled until backend PR #104 is merged and validated"
   [[ "${forms_enabled}" != "true" ]] || fail "Operator check failed: Forms runtime must stay disabled until backend PR #104 is merged and validated"
@@ -332,13 +322,6 @@ assert_backend_provider_stack_config() {
   else
     [[ -n "$(container_env_value weave-backend WEAVE_DEVOPS_GITLAB_BASE_URL)" ]] || fail "Operator check failed: enabled GitLab runtime requires a backend-only base URL"
     [[ -n "$(container_env_value weave-backend WEAVE_DEVOPS_GITLAB_API_TOKEN)" ]] || fail "Operator check failed: enabled GitLab runtime requires a backend-held service token"
-  fi
-
-  if [[ "${forgejo_enabled}" != "true" ]]; then
-    [[ -z "$(container_env_value weave-backend WEAVE_DEVOPS_FORGEJO_API_TOKEN)" ]] || fail "Operator check failed: disabled Forgejo runtime must not carry an API token"
-  else
-    [[ -n "$(container_env_value weave-backend WEAVE_DEVOPS_FORGEJO_BASE_URL)" ]] || fail "Operator check failed: enabled Forgejo runtime requires a backend-only base URL"
-    [[ -n "$(container_env_value weave-backend WEAVE_DEVOPS_FORGEJO_API_TOKEN)" ]] || fail "Operator check failed: enabled Forgejo runtime requires a backend-held service token"
   fi
 
   if [[ "${onlyoffice_enabled}" != "true" ]]; then

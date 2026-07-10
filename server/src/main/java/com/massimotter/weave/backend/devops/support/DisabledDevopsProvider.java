@@ -43,20 +43,15 @@ public final class DisabledDevopsProvider implements SourceControlProvider, Issu
                         "raw-provider-errors"),
                 List.of("devops-provider-not-configured", "devops-provider-disabled", "devops-provider-unavailable"),
                 "support-safe: no tokens, deploy keys, webhook secrets, CI variables, repository secrets, clone credentials, or raw provider errors",
-                List.of("gitlab-ce-foss", "forgejo"),
+                List.of("gitlab-ce-foss"),
                 Map.of(
                         "primaryProvider", "gitlab-ce-foss",
-                        "alternativeProvider", "forgejo",
                         "readOnly", true,
                         "paidFeaturesRequired", false));
     }
 
     public static DisabledDevopsProvider gitlab(ProviderModule module, Set<String> capabilities) {
         return new DisabledDevopsProvider(module, "gitlab-ce-foss", capabilities);
-    }
-
-    public static DisabledDevopsProvider forgejo(ProviderModule module, Set<String> capabilities) {
-        return new DisabledDevopsProvider(module, "forgejo", capabilities);
     }
 
     @Override

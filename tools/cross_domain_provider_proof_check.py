@@ -154,10 +154,10 @@ def validate_scoreboard(scoreboard: dict[str, Any], fixtures: dict[str, dict[str
     if levels.get("chat") != "migration_apply_ready":
         fail("scoreboard must name chat reality separately from Sprint 27 domains")
     setup = scoreboard.get("setupFlowEvidence", {})
-    if setup.get("deployedStackE2eIssue") != 665:
-        fail("scoreboard must name #665 separately")
-    if setup.get("deployedStackE2eStatus") != "separate_not_required_for_domain_aggregate":
-        fail("#665 must not block Calendar/Files/Identity aggregate evidence")
+    if setup.get("status") != "obsolete_forgejo_evidence_excluded":
+        fail("scoreboard must exclude obsolete Forgejo delivery evidence")
+    if setup.get("replacementAuthority") != "github-protected-delivery-lanes":
+        fail("scoreboard must name GitHub as the replacement delivery authority")
     for relpath in list(scoreboard.get("domainEvidence", {}).values()) + setup.get("evidenceRefs", []) + [scoreboard.get("claimGateRef")]:
         if not relpath or not (ROOT / relpath).exists():
             fail(f"scoreboard references missing artifact {relpath}")
@@ -202,7 +202,7 @@ def validate_safety_regression_samples() -> None:
 
 def validate_docs_and_mapping() -> None:
     assert_fragments(DOC, [
-        "#643", "#644", "#645", "#646", "#665 remains separate",
+        "#643", "#644", "#645", "#646", "Historical #665 evidence is obsolete",
         "release/provider-lab/cross-domain-provider-proof/calendar-nextcloud-radicale.fixture.json",
         "release/provider-lab/cross-domain-provider-proof/files-nextcloud-minio.fixture.json",
         "release/provider-lab/cross-domain-provider-proof/identity-keycloak-authentik.fixture.json",
@@ -287,7 +287,7 @@ def main() -> None:
     validate_scoreboard(scoreboard, {"calendar": calendar, "files": files, "identity": identity})
     validate_claim_gate(claim_gate, scoreboard)
     validate_docs_and_mapping()
-    print("cross-domain-provider-proof-check: ok issues=643,644,645,646 reality=migration_dry_run #665=separate")
+    print("cross-domain-provider-proof-check: ok issues=643,644,645,646 reality=migration_dry_run delivery=github-only")
     print("SPRINT27_CALENDAR_PROVIDER_BOUNDARY_PROOF")
     print("SPRINT27_FILES_PROVIDER_BOUNDARY_PROOF")
     print("SPRINT27_IDENTITY_PROVIDER_BOUNDARY_PROOF")

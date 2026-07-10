@@ -30,7 +30,7 @@
       "setupModeDefault": "hybrid",
       "targetProviderLanes": [
         "local-shell",
-        "local-forgejo-actions"
+        "github-actions"
       ],
       "controlPlane": "deploy",
       "providerStack": "deploy_selected_local_domains",
@@ -47,7 +47,7 @@
       "purpose": "LAN-reachable dogfood handoff for physical phone/member testing.",
       "setupModeDefault": "hybrid",
       "targetProviderLanes": [
-        "local-forgejo-actions",
+        "github-actions",
         "local-shell"
       ],
       "controlPlane": "deploy",
@@ -78,10 +78,7 @@
       "purpose": "Customer already owns providers; Weave deploys Control Plane and binds adapters.",
       "setupModeDefault": "attach_existing",
       "targetProviderLanes": [
-        "github-actions",
-        "gitlab-ci",
-        "azure-pipelines",
-        "forgejo-actions"
+        "github-actions"
       ],
       "controlPlane": "deploy",
       "providerStack": "attach_existing_only",
@@ -99,9 +96,6 @@
       "setupModeDefault": "hybrid",
       "targetProviderLanes": [
         "github-actions",
-        "gitlab-ci",
-        "azure-pipelines",
-        "forgejo-actions",
         "local-shell"
       ],
       "controlPlane": "deploy",
@@ -119,10 +113,7 @@
       "purpose": "Reference self-hosted organization stack with approved provider domains.",
       "setupModeDefault": "deploy_new",
       "targetProviderLanes": [
-        "forgejo-actions",
-        "github-actions",
-        "gitlab-ci",
-        "azure-pipelines"
+        "github-actions"
       ],
       "controlPlane": "deploy",
       "providerStack": "deploy_approved_domains",

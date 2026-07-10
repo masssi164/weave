@@ -522,15 +522,10 @@ module "backend" {
   provider_stack_profile                           = var.provider_stack_profile
   provider_stack_readiness                         = var.provider_stack_readiness
   devops_primary_provider                          = var.devops_primary_provider
-  devops_alternative_provider                      = var.devops_alternative_provider
   devops_gitlab_runtime_enabled                    = var.devops_gitlab_runtime_enabled
   devops_gitlab_base_url                           = var.devops_gitlab_base_url
   devops_gitlab_api_token                          = var.devops_gitlab_api_token
   devops_gitlab_writes_enabled                     = var.devops_gitlab_writes_enabled
-  devops_forgejo_runtime_enabled                   = var.devops_forgejo_runtime_enabled
-  devops_forgejo_base_url                          = var.devops_forgejo_base_url
-  devops_forgejo_api_token                         = var.devops_forgejo_api_token
-  devops_forgejo_writes_enabled                    = var.devops_forgejo_writes_enabled
   office_primary_provider                          = var.office_primary_provider
   office_onlyoffice_runtime_enabled                = var.office_onlyoffice_runtime_enabled
   office_onlyoffice_document_server_url            = var.office_onlyoffice_document_server_url

@@ -271,7 +271,7 @@ def assert_bootstrap_runtime() -> None:
 
     forged_output = run_command([
         "python3", str(WEAVECTL.relative_to(ROOT)), "bootstrap", "plan",
-        "--profile", "external-providers", "--target", "forgejo-actions",
+        "--profile", "external-providers", "--target", "github-actions",
         "--run-id", "foundation-check-forged", "--output-dir", "build/evidence/bootstrap-foundation",
     ])
     forged_plan_path = ROOT / extract_output_ref(forged_output, "plan")

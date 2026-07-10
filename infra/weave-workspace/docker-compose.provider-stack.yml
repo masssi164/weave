@@ -1,7 +1,7 @@
 # Optional provider-stack runtimes for local/demo/full-suite validation.
 # The core Weave stack does not start these services. Use explicit profiles only,
 # for example:
-#   docker compose -f docker-compose.yml -f docker-compose.provider-stack.yml --profile forgejo up -d
+#   docker compose -f docker-compose.yml -f docker-compose.provider-stack.yml --profile gitlab-ce up -d
 # Backend-facing tokens/secrets must still be supplied through private env files.
 
 services:
@@ -27,28 +27,6 @@ services:
       weave:
         aliases:
           - weave-gitlab
-
-  forgejo:
-    profiles:
-      - forgejo
-    image: ${TF_VAR_devops_forgejo_image:-codeberg.org/forgejo/forgejo:9}
-    container_name: weave-forgejo
-    restart: unless-stopped
-    environment:
-      USER_UID: ${TF_VAR_devops_forgejo_uid:-1000}
-      USER_GID: ${TF_VAR_devops_forgejo_gid:-1000}
-      FORGEJO__server__DOMAIN: ${TF_VAR_devops_forgejo_domain:-forgejo.weave.test}
-      FORGEJO__server__ROOT_URL: ${TF_VAR_devops_forgejo_root_url:-http://forgejo.weave.test:48089/}
-      FORGEJO__server__SSH_PORT: ${TF_VAR_devops_forgejo_ssh_host_port:-48023}
-    ports:
-      - "${TF_VAR_devops_forgejo_http_host_port:-48089}:3000"
-      - "${TF_VAR_devops_forgejo_ssh_host_port:-48023}:22"
-    volumes:
-      - weave_forgejo_data:/data
-    networks:
-      weave:
-        aliases:
-          - weave-forgejo
 
   onlyoffice-documentserver:
     profiles:
@@ -92,8 +70,6 @@ volumes:
     name: weave_gitlab_logs
   weave_gitlab_data:
     name: weave_gitlab_data
-  weave_forgejo_data:
-    name: weave_forgejo_data
   weave_onlyoffice_data:
     name: weave_onlyoffice_data
   weave_onlyoffice_logs:

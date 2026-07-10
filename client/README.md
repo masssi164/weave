@@ -25,7 +25,7 @@ Weave is not a raw bundle of provider UIs and it is not claiming to be a finishe
 
 - **Accessible workspace shell:** setup, sign-in, navigation, settings, recovery states, semantic labels, keyboard/screen-reader-friendly flows, and non-color-only status.
 - **Sovereign collaboration:** chat, files, and calendar foundations presented through Weave-owned UX instead of raw provider screens.
-- **Backend-owned provider boundary:** Flutter talks to `weave-backend` product APIs. It does not call GitLab, Forgejo, OpenProject, ONLYOFFICE, Collabora, Nextcloud admin APIs, or other provider runtimes directly.
+- **Backend-owned provider boundary:** Flutter talks to `weave-backend` product APIs. It does not call GitLab, OpenProject, ONLYOFFICE, Collabora, Nextcloud admin APIs, or other provider runtimes directly.
 - **Honest readiness:** provider status, capability snapshots, degraded states, and fail-closed errors are visible without leaking backend actor tokens, provider URLs, raw errors, or secrets.
 - **Operator-grade validation:** offline checks stay cheap for normal PRs; live-stack E2E runs only when the full stack and runner budget are explicitly available.
 

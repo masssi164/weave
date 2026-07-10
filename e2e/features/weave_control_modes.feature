@@ -16,15 +16,15 @@ Feature: Weave Control setup modes and bootstrap-to-client proof
     When admins review organization readiness in the Admin Console
     Then the Admin Console may show provider, policy, readiness, audit, whitelist, and future Weaver governance states with sanitized refs
     And the Weave App consumes only organization URL, invite link, or deep link handoff plus provider-neutral capability states
-    And the Forgejo deployment lane remains client-free and never emits member_provider_neutral_join_passed or weave_client_e2e_passed
+    And the GitHub deployment lane remains client-free and never emits member_provider_neutral_join_passed or weave_client_e2e_passed
 
-  @weave-control-deploy-new-local-forgejo-e2e-boundary
+  @weave-control-deploy-new-github-dogfood-e2e-boundary
   Scenario: Deploy-new proof requires pipeline, server/infra readiness, Weave Control, and client-bootstrap handoff
-    Given an admin selects deploy_new for the dogfood stack through a local Forgejo target
+    Given an admin selects deploy_new for the dogfood stack through the protected GitHub dogfood workflow
     When the approved workflow dispatch reaches a terminal result
     Then Weave Control requires pipeline_terminal_success, server_infra_readiness_passed, weave_control_ready, and client_bootstrap_handoff_ready before a deployment handoff claim
     And dispatch or preflight evidence alone remains dispatch_preflight_only
-    And Flutter or App E2E evidence is collected in a separate client lane against the handoff target, not on the Forgejo deployment runner
+    And Flutter or App E2E evidence is collected in a separate client lane against the handoff target, not in the GitHub deployment job
 
   @weave-control-attach-existing-preflight-boundary
   Scenario: Attach-existing proof binds existing systems without redeploying them

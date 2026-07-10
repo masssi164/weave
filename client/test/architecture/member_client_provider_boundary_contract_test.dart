@@ -25,7 +25,7 @@ void main() {
         'secretref://',
         'SecretRef inventory',
         'provider replacement dry-run',
-        'Forgejo pipeline',
+        'CI/CD pipeline',
         'OIDC client setup',
       ];
 
