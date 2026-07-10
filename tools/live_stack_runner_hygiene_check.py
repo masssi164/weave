@@ -91,8 +91,8 @@ def main() -> int:
         "live tests must forward the compile-time extra-root gate as a dart-define",
     )
     require(
-        "minimum_kib=$((4 * 1024 * 1024))" in workflow,
-        "live-stack native-test preflight must require 4 GiB",
+        "minimum_kib=$((5 * 1024 * 1024))" in workflow,
+        "live-stack native-test preflight must preserve 4 GiB plus the reserve",
     )
     require(
         'mkfile 1g "$reserve"' in workflow,
@@ -127,6 +127,7 @@ def main() -> int:
     for phrase in (
         "stale Weave-generated outputs",
         "10 GiB",
+        "5 GiB",
         "4 GiB",
         "1 GiB emergency reserve",
         "explicit extra root",

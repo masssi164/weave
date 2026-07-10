@@ -312,13 +312,13 @@ jobs:
         run: |
           set -euo pipefail
           available_kib="$(df -Pk "$RUNNER_TEMP" | awk 'NR == 2 { print $4 }')"
-          minimum_kib=$((4 * 1024 * 1024))
+          minimum_kib=$((5 * 1024 * 1024))
           reserve="$RUNNER_TEMP/weave-live-stack-emergency-reserve"
           released_marker="$RUNNER_TEMP/weave-live-stack-emergency-reserve-released"
           rm -f "$reserve" "$released_marker"
           df -h "$RUNNER_TEMP"
           if (( available_kib < minimum_kib )); then
-            echo "::error::Live Stack E2E requires at least 4 GiB free immediately before native tests; only $((available_kib / 1024)) MiB is available." >&2
+            echo "::error::Live Stack E2E requires at least 5 GiB before allocating its 1 GiB recovery reserve, preserving 4 GiB for native tests; only $((available_kib / 1024)) MiB is available." >&2
             exit 1
           fi
           mkfile 1g "$reserve"
