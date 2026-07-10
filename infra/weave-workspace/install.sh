@@ -52,13 +52,9 @@ readonly PERSISTED_TF_VARS=(
   TF_VAR_provider_stack_profile
   TF_VAR_provider_stack_readiness
   TF_VAR_devops_primary_provider
-  TF_VAR_devops_alternative_provider
   TF_VAR_devops_gitlab_runtime_enabled
   TF_VAR_devops_gitlab_base_url
   TF_VAR_devops_gitlab_writes_enabled
-  TF_VAR_devops_forgejo_runtime_enabled
-  TF_VAR_devops_forgejo_base_url
-  TF_VAR_devops_forgejo_writes_enabled
   TF_VAR_office_primary_provider
   TF_VAR_office_onlyoffice_runtime_enabled
   TF_VAR_office_onlyoffice_document_server_url
@@ -342,13 +338,9 @@ persist_bootstrap_env() {
     printf 'export WEAVE_PROVIDER_STACK_PROFILE=%q\n' "${TF_VAR_provider_stack_profile}"
     printf 'export WEAVE_PROVIDER_STACK_READINESS=%q\n' "${TF_VAR_provider_stack_readiness}"
     printf 'export WEAVE_DEVOPS_PRIMARY_PROVIDER=%q\n' "${TF_VAR_devops_primary_provider}"
-    printf 'export WEAVE_DEVOPS_ALTERNATIVE_PROVIDER=%q\n' "${TF_VAR_devops_alternative_provider}"
     printf 'export WEAVE_DEVOPS_GITLAB_RUNTIME_ENABLED=%q\n' "${TF_VAR_devops_gitlab_runtime_enabled}"
     printf 'export WEAVE_DEVOPS_GITLAB_BASE_URL=%q\n' "${TF_VAR_devops_gitlab_base_url}"
     printf 'export WEAVE_DEVOPS_GITLAB_WRITES_ENABLED=%q\n' "${TF_VAR_devops_gitlab_writes_enabled}"
-    printf 'export WEAVE_DEVOPS_FORGEJO_RUNTIME_ENABLED=%q\n' "${TF_VAR_devops_forgejo_runtime_enabled}"
-    printf 'export WEAVE_DEVOPS_FORGEJO_BASE_URL=%q\n' "${TF_VAR_devops_forgejo_base_url}"
-    printf 'export WEAVE_DEVOPS_FORGEJO_WRITES_ENABLED=%q\n' "${TF_VAR_devops_forgejo_writes_enabled}"
     printf 'export WEAVE_OFFICE_PRIMARY_PROVIDER=%q\n' "${TF_VAR_office_primary_provider}"
     printf 'export WEAVE_OFFICE_ONLYOFFICE_RUNTIME_ENABLED=%q\n' "${TF_VAR_office_onlyoffice_runtime_enabled}"
     printf 'export WEAVE_OFFICE_ONLYOFFICE_DOCUMENT_SERVER_URL=%q\n' "${TF_VAR_office_onlyoffice_document_server_url}"
@@ -1086,13 +1078,9 @@ write_app_config_summary() {
     printf 'export WEAVE_PROVIDER_STACK_PROFILE=%q\n' "${TF_VAR_provider_stack_profile}"
     printf 'export WEAVE_PROVIDER_STACK_READINESS=%q\n' "${TF_VAR_provider_stack_readiness}"
     printf 'export WEAVE_DEVOPS_PRIMARY_PROVIDER=%q\n' "${TF_VAR_devops_primary_provider}"
-    printf 'export WEAVE_DEVOPS_ALTERNATIVE_PROVIDER=%q\n' "${TF_VAR_devops_alternative_provider}"
     printf 'export WEAVE_DEVOPS_GITLAB_RUNTIME_ENABLED=%q\n' "${TF_VAR_devops_gitlab_runtime_enabled}"
     printf 'export WEAVE_DEVOPS_GITLAB_BASE_URL=%q\n' "${TF_VAR_devops_gitlab_base_url}"
     printf 'export WEAVE_DEVOPS_GITLAB_WRITES_ENABLED=%q\n' "${TF_VAR_devops_gitlab_writes_enabled}"
-    printf 'export WEAVE_DEVOPS_FORGEJO_RUNTIME_ENABLED=%q\n' "${TF_VAR_devops_forgejo_runtime_enabled}"
-    printf 'export WEAVE_DEVOPS_FORGEJO_BASE_URL=%q\n' "${TF_VAR_devops_forgejo_base_url}"
-    printf 'export WEAVE_DEVOPS_FORGEJO_WRITES_ENABLED=%q\n' "${TF_VAR_devops_forgejo_writes_enabled}"
     printf 'export WEAVE_OFFICE_PRIMARY_PROVIDER=%q\n' "${TF_VAR_office_primary_provider}"
     printf 'export WEAVE_OFFICE_ONLYOFFICE_RUNTIME_ENABLED=%q\n' "${TF_VAR_office_onlyoffice_runtime_enabled}"
     printf 'export WEAVE_OFFICE_ONLYOFFICE_DOCUMENT_SERVER_URL=%q\n' "${TF_VAR_office_onlyoffice_document_server_url}"
@@ -1275,13 +1263,9 @@ ensure_default_inputs() {
     "TF_VAR_provider_stack_profile=fail-closed"
     "TF_VAR_provider_stack_readiness=fail-closed"
     "TF_VAR_devops_primary_provider=gitlab-ce-foss"
-    "TF_VAR_devops_alternative_provider=forgejo"
     "TF_VAR_devops_gitlab_runtime_enabled=false"
     "TF_VAR_devops_gitlab_base_url="
     "TF_VAR_devops_gitlab_writes_enabled=false"
-    "TF_VAR_devops_forgejo_runtime_enabled=false"
-    "TF_VAR_devops_forgejo_base_url="
-    "TF_VAR_devops_forgejo_writes_enabled=false"
     "TF_VAR_office_primary_provider=onlyoffice-community"
     "TF_VAR_office_onlyoffice_runtime_enabled=false"
     "TF_VAR_office_onlyoffice_document_server_url="
@@ -1370,7 +1354,6 @@ ensure_generated_secrets() {
   set_default_secret TF_VAR_nextcloud_admin_password "$(random_base64 24)"
   set_default_secret TF_VAR_nextcloud_backend_actor_token "$(random_base64 24)"
   set_default_var TF_VAR_devops_gitlab_api_token ""
-  set_default_var TF_VAR_devops_forgejo_api_token ""
   set_default_var TF_VAR_office_onlyoffice_jwt_secret ""
   set_default_var TF_VAR_livekit_api_key ""
   set_default_var TF_VAR_livekit_api_secret ""

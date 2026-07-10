@@ -2,7 +2,7 @@
 
 Status: support-safe provider-lab evidence for #643, #644, #645, and #646.
 
-This report records the Sprint 27 domain-proof slice without waiting for the separate deployed-stack E2E handoff in #665. It proves Calendar, Files, and Identity at `migration_dry_run` reality level and keeps broad provider-neutrality, release-ready, customer-ready, and production rollback wording blocked.
+This report records the Sprint 27 domain-proof slice independently from repository delivery. It proves Calendar, Files, and Identity at `migration_dry_run` reality level and keeps broad provider-neutrality, release-ready, customer-ready, and production rollback wording blocked.
 
 ## Evidence artifacts
 
@@ -31,7 +31,7 @@ The Identity fixture covers OIDC, SAML, roles, groups, user mapping, session bou
 
 The claim gate blocks chat-only evidence from broad provider-neutrality claims. The scoreboard shows each domain reality level separately: Calendar, Files, and Identity are `migration_dry_run`; Chat remains scoped to the existing Sprint 23 provider-lab switch evidence; setup-flow evidence is named separately.
 
-Setup-flow evidence refs for #666, #662, #664, and #663 are included in the scoreboard. #665 remains separate deployed-stack E2E evidence and is not used to block the Calendar/Files/Identity aggregate proof in this slice.
+Historical #665 evidence is obsolete and excluded from the scoreboard. GitHub protected delivery-lane evidence remains separate and is not used to block the Calendar/Files/Identity aggregate proof in this slice.
 
 ## Gate
 

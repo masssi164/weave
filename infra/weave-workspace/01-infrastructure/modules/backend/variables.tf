@@ -323,11 +323,6 @@ variable "devops_primary_provider" {
   type        = string
 }
 
-variable "devops_alternative_provider" {
-  description = "Alternative DevOps provider candidate exported to the backend. Forgejo remains first-class but disabled by default."
-  type        = string
-}
-
 variable "devops_gitlab_runtime_enabled" {
   description = "Enable GitLab CE/FOSS DevOps provider runtime. Defaults false/fail-closed."
   type        = bool
@@ -346,27 +341,6 @@ variable "devops_gitlab_api_token" {
 
 variable "devops_gitlab_writes_enabled" {
   description = "Enable GitLab provider writes. Defaults false; current DevOps facade is read-only."
-  type        = bool
-}
-
-variable "devops_forgejo_runtime_enabled" {
-  description = "Enable Forgejo DevOps provider runtime. Defaults false/fail-closed."
-  type        = bool
-}
-
-variable "devops_forgejo_base_url" {
-  description = "Backend-only Forgejo base URL. Leave blank unless the Forgejo provider runtime is intentionally enabled."
-  type        = string
-}
-
-variable "devops_forgejo_api_token" {
-  description = "Backend-held Forgejo service token. Never expose to Flutter, app config, or support bundles."
-  type        = string
-  sensitive   = true
-}
-
-variable "devops_forgejo_writes_enabled" {
-  description = "Enable Forgejo provider writes. Defaults false; current DevOps facade is read-only."
   type        = bool
 }
 

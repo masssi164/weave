@@ -63,13 +63,9 @@ output "app_config" {
     WEAVE_PROVIDER_STACK_PROFILE                 = var.provider_stack_profile
     WEAVE_PROVIDER_STACK_READINESS               = var.provider_stack_readiness
     WEAVE_DEVOPS_PRIMARY_PROVIDER                = var.devops_primary_provider
-    WEAVE_DEVOPS_ALTERNATIVE_PROVIDER            = var.devops_alternative_provider
     WEAVE_DEVOPS_GITLAB_RUNTIME_ENABLED          = tostring(var.devops_gitlab_runtime_enabled)
     WEAVE_DEVOPS_GITLAB_BASE_URL                 = var.devops_gitlab_base_url
     WEAVE_DEVOPS_GITLAB_WRITES_ENABLED           = tostring(var.devops_gitlab_writes_enabled)
-    WEAVE_DEVOPS_FORGEJO_RUNTIME_ENABLED         = tostring(var.devops_forgejo_runtime_enabled)
-    WEAVE_DEVOPS_FORGEJO_BASE_URL                = var.devops_forgejo_base_url
-    WEAVE_DEVOPS_FORGEJO_WRITES_ENABLED          = tostring(var.devops_forgejo_writes_enabled)
     WEAVE_OFFICE_PRIMARY_PROVIDER                = var.office_primary_provider
     WEAVE_OFFICE_ONLYOFFICE_RUNTIME_ENABLED      = tostring(var.office_onlyoffice_runtime_enabled)
     WEAVE_OFFICE_ONLYOFFICE_DOCUMENT_SERVER_URL  = var.office_onlyoffice_document_server_url

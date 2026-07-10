@@ -189,7 +189,6 @@ void main() {
           'openproject.example',
           'openproject.weave.test',
           'gitlab.com/api',
-          'forgejo/api',
           'onlyoffice',
           'collabora-code',
           'nextcloud/forms',

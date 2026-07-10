@@ -91,7 +91,7 @@ Optional providers are fail-closed by default:
 
 - OpenProject is an optional provider-backed Boards validation path behind the backend workspace facade, not a visible product UX or direct client dependency.
 - ONLYOFFICE/Collabora are optional office candidates behind backend-owned capabilities and launch checks.
-- DevOps providers such as GitLab/Forgejo stay disabled unless an explicit runtime contract configures them.
+- The optional product DevOps facade represents GitLab only and stays disabled unless an explicit runtime contract configures it. Repository delivery and dogfood promotion are GitHub-only.
 - Missing provider credentials must produce support-safe unavailable/not-configured readiness, not insecure fallback behavior.
 - Support bundles redact tokens, cookies, app passwords, signing keys, provider URLs, raw provider errors, and generated secrets.
 - Nextcloud Contacts/CardDAV and Forms seams are visible to the backend but stay disabled/fail-closed until the backend contracts are merged and live-validated.

@@ -94,6 +94,8 @@ Developers should treat this repository as implementation and evidence truth, wi
 
 Before changing cross-domain contracts, read `AGENTS.md`, `specs/README.md`, and the pinned spec corpus in `../weave-specs`. Public routes, auth, topology, generated OpenAPI, protocol facades, E2E evidence, and docs must move together.
 
+Repository delivery is GitHub-only: feature work flows into `dev`, validated candidates move to `dogfood`, and stable release-capable truth moves to `main` through protected GitHub pull requests and Actions. Physical-iPhone iterations use the stable Weave app identity, with TestFlight as the preferred human dogfood channel and development-signed in-place installs as an engineering fallback.
+
 ## Release Notes
 
 The frontdoor keeps the current release track visible here; the full chronology stays in the versioned release notes and evidence docs.

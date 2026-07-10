@@ -20,7 +20,6 @@ Gherkin files and marker mappings.
 | `v0-1-dogfood-release-spine` | `pr-safe-offline-contract` | Deterministic release-scope evidence across member, admin, server, docs, and fixtures. |
 | `spec-0001-org-embedding` | `pr-safe-offline-contract` | Pinned-corpus organization embedding acceptance projection. |
 | `admin-provider-portability-lifecycle` | `pr-safe-offline-contract` | Admin/provider lifecycle, identity/offboarding, WOPI posture, Weaver preflight, and release operations. |
-| `operator-ci-cd-and-local-e2e-readiness` | `operator-fixture-contract` | Local Forgejo pipeline, runner, bootstrap, and deployed-stack handoff readiness. |
 | `cross-domain-provider-proof` | `provider-proof-fixture-contract` | Calendar/files/identity provider switch evidence and commercial adapter readiness boundaries. |
 | `product-e2e-scenario-layer` | `scenario-first-offline-contract` | Product/business flows that must be specified before runtime implementation expands, including guests, degraded states, documents, support bundles, backup/restore, lifecycle actions, and Weaver consent. |
 

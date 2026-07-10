@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @Validated
-@Tag(name = "DevOps facade", description = "Provider-neutral read-only DevOps facade for GitLab CE/FOSS and Forgejo adapters.")
+@Tag(name = "DevOps facade", description = "Provider-neutral read-only DevOps facade for the represented GitLab CE/FOSS adapter.")
 @SecurityRequirement(name = "bearer-jwt")
 @ApiResponses({
         @ApiResponse(responseCode = "401", description = "Missing or invalid bearer token.",

@@ -6,7 +6,7 @@
 
 `weave-backend` is the Spring Boot product boundary between Weave clients and the self-hosted provider stack. It validates Weave access tokens, exposes stable product APIs, normalizes readiness/errors, keeps backend-owned credentials server-side, and refuses unsafe provider paths by default.
 
-It is intentionally not a generic proxy for Matrix, Nextcloud, Keycloak, OpenProject, GitLab, Forgejo, ONLYOFFICE, Collabora, or future connectors. Flutter may use native OIDC and Matrix flows where those are the correct client protocols; everything that needs product orchestration, provider secrets, support-safe diagnostics, or fail-closed behavior belongs here.
+It is intentionally not a generic proxy for Matrix, Nextcloud, Keycloak, OpenProject, GitLab, ONLYOFFICE, Collabora, or future connectors. Flutter may use native OIDC and Matrix flows where those are the correct client protocols; everything that needs product orchestration, provider secrets, support-safe diagnostics, or fail-closed behavior belongs here.
 
 ## What the backend owns
 
@@ -23,7 +23,7 @@ It is intentionally not a generic proxy for Matrix, Nextcloud, Keycloak, OpenPro
 - Raw provider UI embedding as a normal Weave product surface.
 - Generic credential brokering or bearer-token forwarding to clients.
 - A custom login proxy in front of standards-based OIDC/Matrix flows.
-- Direct Flutter-to-provider contracts for Nextcloud WebDAV/OCS/CalDAV, OpenProject, GitLab, Forgejo, ONLYOFFICE, Collabora, Slack, Teams, or other provider runtimes.
+- Direct Flutter-to-provider contracts for Nextcloud WebDAV/OCS/CalDAV, OpenProject, GitLab, ONLYOFFICE, Collabora, Slack, Teams, or other provider runtimes.
 - Provider writes until authorization, audit, consent, smoke/E2E, export/recovery, and accessibility gates are promoted.
 
 ## Active API scope

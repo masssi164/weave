@@ -1706,229 +1706,6 @@
       ]
     },
     {
-      "feature": "e2e/features/sprint_26_admin_cicd_setup.feature",
-      "executableTest": "tools/admin_cicd_orchestration_check.py",
-      "evidenceMode": "offline-spec",
-      "tag": "@sprint26-admin-cicd-setup",
-      "scenario": "Admin sees missing Forgejo runner registration before pipeline dispatch",
-      "evidenceMarkers": [
-        "SPRINT26_ADMIN_CICD_SETUP_PROOF"
-      ],
-      "additionalEvidence": [
-        {
-          "path": "specs/admin-ci-cd-orchestration-contract.md",
-          "fragments": [
-            "The Organization/Admin Console is the canonical setup surface",
-            "PipelineProviderManifest v1",
-            "PipelineRunRef v1",
-            "Local Forgejo proof seam"
-          ]
-        },
-        {
-          "path": "release/provider-lab/admin-cicd/local-forgejo-setup-proof.fixture.json",
-          "fragments": [
-            "FORGEJO_ACTIONS_RUNNER_REGISTRATION",
-            "runner_missing",
-            "none-trigger-blocked-before-dispatch"
-          ]
-        },
-        {
-          "path": "release/provider-lab/admin-cicd/admin-console-copy.fixture.json",
-          "fragments": [
-            "Setup is blocked until required CI/CD names exist.",
-            "values stay hidden",
-            "Runner readiness is missing."
-          ]
-        }
-      ]
-    },
-    {
-      "feature": "e2e/features/sprint_27_local_cicd_bootstrapper.feature",
-      "executableTest": "tools/local_cicd_bootstrapper_check.py",
-      "evidenceMode": "offline-spec",
-      "tag": "@sprint27-local-cicd-bootstrapper",
-      "scenario": "Operator selects Forgejo without persisting GitHub secrets",
-      "evidenceMarkers": [
-        "LOCAL_CICD_BOOTSTRAPPER_PROOF"
-      ],
-      "additionalEvidence": [
-        {
-          "path": "tools/weave-setup/internal/bootstrap/core.go",
-          "fragments": [
-            "TargetForgejo",
-            "TargetGitHub",
-            "Detect",
-            "BuildPlan",
-            "GitHubSecretsRequired"
-          ]
-        },
-        {
-          "path": "release/provider-lab/local-cicd-bootstrapper/support-safe-plan.fixture.json",
-          "fragments": [
-            "weave-local-cicd-bootstrap-plan-v1",
-            "forgejoRequiresGitHubSecrets",
-            "pushOnlySelectedTarget"
-          ]
-        },
-        {
-          "path": "docs/evidence/local-cicd-bootstrapper.md",
-          "fragments": [
-            "Go-built executable",
-            "GitHub repository secrets are backend-specific",
-            "weave-setup app"
-          ]
-        }
-      ]
-    },
-    {
-      "feature": "e2e/features/sprint_27_local_forgejo_runner_readiness.feature",
-      "executableTest": "tools/local_forgejo_runner_readiness_check.py",
-      "evidenceMode": "offline-spec",
-      "tag": "@sprint27-local-forgejo-runner-readiness",
-      "scenario": "Runner readiness records the real local runner and keeps dispatch gated",
-      "evidenceMarkers": [
-        "LOCAL_FORGEJO_RUNNER_READINESS_PROOF"
-      ],
-      "additionalEvidence": [
-        {
-          "path": "release/provider-lab/local-forgejo-runner-readiness/runner-readiness.fixture.json",
-          "fragments": [
-            "weave-local-forgejo-runner-readiness-v1",
-            "local-forgejo-actions",
-            "runner_registered",
-            "dispatch_allowed"
-          ]
-        },
-        {
-          "path": "docs/evidence/local-forgejo-runner-readiness.md",
-          "fragments": [
-            "customer-owned Forgejo Actions runner under `~/server`",
-            "service_exists",
-            "Workflow ref"
-          ]
-        },
-        {
-          "path": "tools/weave-setup/internal/bootstrap/core.go",
-          "fragments": [
-            "EvaluateRunnerReadiness",
-            "RunnerMissing",
-            "ReadinessDispatchAllowed"
-          ]
-        }
-      ]
-    },
-    {
-      "feature": "e2e/features/sprint_27_local_forgejo_e2e_handoff.feature",
-      "executableTest": "tools/local_forgejo_e2e_handoff_check.py",
-      "evidenceMode": "offline-spec",
-      "tag": "@sprint27-local-forgejo-e2e-handoff",
-      "scenario": "Direct local handoff and client evidence pass while Forgejo-runner terminal proof remains explicit",
-      "evidenceMarkers": [
-        "LOCAL_FORGEJO_E2E_HANDOFF_PROOF"
-      ],
-      "additionalEvidence": [
-        {
-          "path": "release/provider-lab/local-forgejo-e2e/local-stack-e2e-handoff.fixture.json",
-          "fragments": [
-            "weave-local-forgejo-e2e-handoff-v1",
-            "forgejo_runner_handoff_and_separate_client_e2e_passed",
-            "currentSeparateClientLane",
-            "weaveClientE2ePassed"
-          ]
-        },
-        {
-          "path": "docs/evidence/local-forgejo-e2e-handoff.md",
-          "fragments": [
-            "concise `~/server` signal",
-            "pipeline_terminal_success",
-            "forgejo_runner_handoff_and_separate_client_e2e_passed",
-            "forgejo_runner_workflow_terminal_success"
-          ]
-        },
-        {
-          "path": "release/provider-lab/local-forgejo-runner-readiness/runner-readiness.fixture.json",
-          "fragments": [
-            "localInfraReality",
-            "~/server",
-            "runner_registered"
-          ]
-        }
-      ]
-    },
-    {
-      "feature": "e2e/features/sprint_27_local_domain_adapter_plan.feature",
-      "executableTest": "tools/local_domain_adapter_plan_check.py",
-      "evidenceMode": "offline-spec",
-      "tag": "@sprint27-local-domain-adapter-plan",
-      "scenario": "Domain choices produce a support-safe Forgejo deployable plan",
-      "evidenceMarkers": [
-        "LOCAL_DOMAIN_ADAPTER_PLAN_PROOF"
-      ],
-      "additionalEvidence": [
-        {
-          "path": "release/provider-lab/local-domain-plan/deployable-domain-plan.fixture.json",
-          "fragments": [
-            "weave-local-domain-adapter-deployable-plan-v1",
-            "server-backend",
-            "health-readiness",
-            "support_safe_domain_plan_ref"
-          ]
-        },
-        {
-          "path": "docs/evidence/local-domain-adapter-deployable-plan.md",
-          "fragments": [
-            "Server/backend",
-            "Infrastructure stack",
-            "Fail-closed cases"
-          ]
-        },
-        {
-          "path": "release/provider-lab/local-forgejo-runner-readiness/runner-readiness.fixture.json",
-          "fragments": [
-            "runner_registered",
-            "local-forgejo-actions"
-          ]
-        }
-      ]
-    },
-    {
-      "feature": "e2e/features/sprint_27_local_forgejo_pipeline_provider.feature",
-      "executableTest": "tools/local_forgejo_pipeline_provider_check.py",
-      "evidenceMode": "offline-spec",
-      "tag": "@sprint27-local-forgejo-pipeline-provider",
-      "scenario": "Local Forgejo PipelineProvider gates dispatch and observes support-safe run status",
-      "evidenceMarkers": [
-        "LOCAL_FORGEJO_PIPELINE_PROVIDER_PROOF"
-      ],
-      "additionalEvidence": [
-        {
-          "path": "release/provider-lab/admin-cicd/local-forgejo-pipeline-provider.fixture.json",
-          "fragments": [
-            "weave-local-forgejo-pipeline-provider-v1",
-            "PipelineProvider",
-            "PipelineRunRef",
-            "approval_missing"
-          ]
-        },
-        {
-          "path": "docs/evidence/local-forgejo-pipeline-provider.md",
-          "fragments": [
-            "PipelineProvider",
-            "Live dispatch boundary",
-            "explicit admin approval"
-          ]
-        },
-        {
-          "path": "server/src/main/java/com/massimotter/weave/backend/cicd/LocalForgejoPipelineProvider.java",
-          "fragments": [
-            "LocalForgejoPipelineProvider",
-            "requestDispatch",
-            "observe"
-          ]
-        }
-      ]
-    },
-    {
       "feature": "e2e/features/sprint_27_cross_domain_provider_proof.feature",
       "executableTest": "tools/cross_domain_provider_proof_check.py",
       "evidenceMode": "offline-spec",
@@ -2031,7 +1808,8 @@
           "fragments": [
             "weave-sprint-27-cross-domain-provider-proof-scoreboard-v1",
             "domainRealityLevels",
-            "separate_not_required_for_domain_aggregate"
+            "obsolete_forgejo_evidence_excluded",
+            "github-protected-delivery-lanes"
           ]
         },
         {
@@ -2039,15 +1817,15 @@
           "fragments": [
             "weave-sprint-27-provider-neutrality-claim-gate-v1",
             "Chat switch evidence alone",
-            "Deployed-stack E2E handoff remains separate"
+            "Historical Forgejo evidence from #665 is obsolete and excluded"
           ]
         },
         {
           "path": "docs/evidence/sprint-27-cross-domain-provider-proof.md",
           "fragments": [
             "Provider-neutrality gate (#646)",
-            "#665 remains separate",
-            "setup-flow evidence"
+            "Historical #665 evidence is obsolete",
+            "GitHub protected delivery-lane evidence"
           ]
         }
       ]
@@ -2252,14 +2030,6 @@
           ]
         },
         {
-          "path": "docs/evidence/local-forgejo-e2e-handoff.md",
-          "fragments": [
-            "Responsibility split evidence",
-            "Forgejo deployment runner must stay client-free",
-            "No v0.1 Spec 0001 Weaver/AI runtime claim"
-          ]
-        },
-        {
           "path": "release/provider-lab/weave-control-modes/weave-control-mode-matrix.fixture.json",
           "fragments": [
             "responsibilitySurfaces",
@@ -2272,7 +2042,7 @@
       ]
     },
     {
-      "tag": "@weave-control-deploy-new-local-forgejo-e2e-boundary",
+      "tag": "@weave-control-deploy-new-github-dogfood-e2e-boundary",
       "scenario": "Deploy-new proof requires pipeline, server/infra readiness, Weave Control, and client-bootstrap handoff",
       "feature": "e2e/features/weave_control_modes.feature",
       "executableTest": "tools/weave_control_modes_check.py",

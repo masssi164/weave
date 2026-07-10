@@ -82,7 +82,7 @@ Default local providers:
 - Weave backend and Weave MCP runtime
 - Boards: `local-workspace` by default, with OpenProject gated separately
 
-Attaching to existing home services such as Authentik, Nextcloud, or Forgejo under `~/server` is a later `attach-existing-home` profile. It must start read-only/preflight, must not copy secrets into the repo, and must not mutate household services without explicit approval.
+Attaching to existing home services such as Authentik or Nextcloud under `~/server` is a later `attach-existing-home` profile. It must start read-only/preflight, must not copy secrets into the repo, and must not mutate household services without explicit approval. Repository delivery remains GitHub-only.
 
 ## iPhone dogfood expectation
 

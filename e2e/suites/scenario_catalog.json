@@ -56,14 +56,6 @@
       "scenarios": []
     },
     {
-      "id": "operator-ci-cd-and-local-e2e-readiness",
-      "name": "Operator CI/CD and local E2E readiness",
-      "evidenceMode": "offline-spec",
-      "executionLane": "operator-fixture-contract",
-      "description": "Forgejo pipeline/runner/bootstrap/deployed-stack handoff readiness with support-safe evidence and no persisted GitHub secrets.",
-      "scenarios": []
-    },
-    {
       "id": "cross-domain-provider-proof",
       "name": "Cross-domain provider proof",
       "evidenceMode": "offline-spec",
@@ -1105,100 +1097,6 @@
       ]
     },
     {
-      "tag": "@sprint26-admin-cicd-setup",
-      "suiteId": "operator-ci-cd-and-local-e2e-readiness",
-      "personas": [
-        "admin",
-        "operator"
-      ],
-      "domains": [
-        "operator-release",
-        "admin-health-ops"
-      ],
-      "testLevel": "offline-contract",
-      "assertionFocus": [
-        "runner missing state",
-        "pipeline dispatch gated"
-      ]
-    },
-    {
-      "tag": "@sprint27-local-cicd-bootstrapper",
-      "suiteId": "operator-ci-cd-and-local-e2e-readiness",
-      "personas": [
-        "operator"
-      ],
-      "domains": [
-        "operator-release"
-      ],
-      "testLevel": "offline-contract",
-      "assertionFocus": [
-        "Forgejo selection",
-        "no persisted GitHub secrets"
-      ]
-    },
-    {
-      "tag": "@sprint27-local-forgejo-runner-readiness",
-      "suiteId": "operator-ci-cd-and-local-e2e-readiness",
-      "personas": [
-        "operator"
-      ],
-      "domains": [
-        "operator-release"
-      ],
-      "testLevel": "offline-contract",
-      "assertionFocus": [
-        "local runner readiness",
-        "dispatch gated"
-      ]
-    },
-    {
-      "tag": "@sprint27-local-forgejo-e2e-handoff",
-      "suiteId": "operator-ci-cd-and-local-e2e-readiness",
-      "personas": [
-        "operator"
-      ],
-      "domains": [
-        "operator-release"
-      ],
-      "testLevel": "offline-contract",
-      "assertionFocus": [
-        "blocked handoff honesty",
-        "deployment handoff and separate client-lane signal requirements"
-      ]
-    },
-    {
-      "tag": "@sprint27-local-domain-adapter-plan",
-      "suiteId": "operator-ci-cd-and-local-e2e-readiness",
-      "personas": [
-        "operator",
-        "admin"
-      ],
-      "domains": [
-        "operator-release",
-        "provider-portability"
-      ],
-      "testLevel": "offline-contract",
-      "assertionFocus": [
-        "support-safe deployable plan",
-        "domain choices"
-      ]
-    },
-    {
-      "tag": "@sprint27-local-forgejo-pipeline-provider",
-      "suiteId": "operator-ci-cd-and-local-e2e-readiness",
-      "personas": [
-        "operator"
-      ],
-      "domains": [
-        "operator-release"
-      ],
-      "testLevel": "offline-contract",
-      "assertionFocus": [
-        "PipelineProvider dispatch gates",
-        "support-safe run status"
-      ]
-    },
-    {
       "tag": "@sprint27-calendar-provider-boundary",
       "suiteId": "cross-domain-provider-proof",
       "personas": [
@@ -1515,7 +1413,7 @@
       "scenario": "Weave Control, Admin Console, and Client keep separate responsibilities"
     },
     {
-      "tag": "@weave-control-deploy-new-local-forgejo-e2e-boundary",
+      "tag": "@weave-control-deploy-new-github-dogfood-e2e-boundary",
       "suiteId": "weave-control-setup-modes",
       "personas": [
         "admin",
@@ -1528,12 +1426,12 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "deploy_new local Forgejo deployment handoff boundary",
+        "deploy_new protected GitHub dogfood deployment handoff boundary",
         "pipeline_terminal_success",
         "server_infra_readiness_passed",
         "weave_control_ready",
         "client_bootstrap_handoff_ready",
-        "separate client E2E evidence is not collected on the Forgejo deployment runner"
+        "separate client E2E evidence is not collected in the GitHub deployment job"
       ],
       "scenario": "Deploy-new proof requires pipeline, server/infra readiness, Weave Control, and client-bootstrap handoff"
     },

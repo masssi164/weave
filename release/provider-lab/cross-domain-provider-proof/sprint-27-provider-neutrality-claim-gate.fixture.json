@@ -12,13 +12,8 @@
     "release/provider-lab/cross-domain-provider-proof/identity-keycloak-authentik.fixture.json"
   ],
   "setupFlowEvidenceSeparated": true,
-  "setupFlowEvidenceRefs": [
-    "release/provider-lab/local-cicd-bootstrapper/support-safe-plan.fixture.json",
-    "release/provider-lab/local-forgejo-runner-readiness/runner-readiness.fixture.json",
-    "release/provider-lab/local-domain-plan/deployable-domain-plan.fixture.json",
-    "release/provider-lab/admin-cicd/local-forgejo-pipeline-provider.fixture.json"
-  ],
-  "separateIssue665Boundary": "Deployed-stack E2E handoff remains separate release evidence and does not block Calendar, Files, Identity aggregate proof.",
+  "setupFlowEvidenceRefs": [],
+  "separateIssue665Boundary": "Historical Forgejo evidence from #665 is obsolete and excluded; current GitHub dogfood delivery evidence remains separate from the Calendar, Files, Identity aggregate proof.",
   "rejectedClaims": [
     {
       "claim": "Chat switch evidence alone proves Weave providers are interchangeable.",

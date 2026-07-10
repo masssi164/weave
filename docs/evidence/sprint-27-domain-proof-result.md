@@ -1,6 +1,6 @@
 # Sprint 27 domain-proof implementation result
 
-Scope: #643, #644, #645, and #646. #665 remains separate deployed-stack E2E evidence and does not block this Calendar/Files/Identity aggregate proof.
+Scope: #643, #644, #645, and #646. Historical #665 Forgejo evidence is obsolete; current GitHub delivery evidence remains separate from this Calendar/Files/Identity aggregate proof.
 
 ## Implemented
 
