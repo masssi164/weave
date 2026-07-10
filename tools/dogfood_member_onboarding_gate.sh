@@ -9,6 +9,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # - DOGFOOD_POST_LOGIN_CHAT_FILES_RESULT
 # - DOGFOOD_TRUST_STABILITY_RESULT
 # - DOGFOOD_TRUST_STABILITY_BLOCKED
+# - DOGFOOD_SESSION_CONTINUITY_RESULT
 
 original_args=("$@")
 prefs_plist=""
@@ -68,4 +69,8 @@ fi
 if [[ "${WEAVE_DOGFOOD_TRUST_CHECK:-0}" == "1" ]]; then
   # shellcheck disable=SC2086 # Operator-provided trust-check args are intentionally split.
   python3 "${ROOT_DIR}/tools/dogfood_trust_stability_check.py" ${WEAVE_DOGFOOD_TRUST_ARGS:-}
+fi
+
+if [[ "${WEAVE_DOGFOOD_SESSION_CONTINUITY_CHECK:-0}" == "1" ]]; then
+  "${ROOT_DIR}/tools/dogfood_ios_session_restore_smoke.sh"
 fi

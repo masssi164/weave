@@ -183,6 +183,27 @@ def main() -> None:
     ]:
         if phrase not in ios_smoke:
             fail(f"iOS physical smoke missing local TLS preflight guard: {phrase}")
+    iphone_entry = read("tools/dogfood_iphone_entry.sh")
+    for phrase in [
+        "https://api.weave.test:44443",
+        "WEAVE_DOGFOOD_API_BASE_URL",
+        "API_BASE_URL/api/platform/config",
+    ]:
+        if phrase not in iphone_entry:
+            fail(f"iPhone entry missing canonical API platform config default: {phrase}")
+    ios_entitlements = read("client/ios/Runner/Runner.entitlements")
+    if "$(AppIdentifierPrefix)com.massimotter.weave" not in ios_entitlements:
+        fail("iOS Keychain application identity must remain stable across dogfood updates")
+    ios_distribution = read(".github/workflows/ios-dogfood.yml")
+    for phrase in ["ios-dogfood", "dogfood", "xcrun altool --upload-app"]:
+        if phrase not in ios_distribution:
+            fail(f"iOS TestFlight workflow missing {phrase}")
+    session_restore = read("tools/dogfood_ios_session_restore_smoke.sh")
+    for phrase in ["--terminate-existing", "dogfood_ios_session_continuity_check.py"]:
+        if phrase not in session_restore:
+            fail(f"iOS session restore smoke missing {phrase}")
+    run(["python3", "tools/ios_dogfood_distribution_check.py"])
+    run(["python3", "tools/dogfood_ios_session_continuity_check_test.py"])
     with tempfile.TemporaryDirectory() as tmp:
         result = run(
             [
