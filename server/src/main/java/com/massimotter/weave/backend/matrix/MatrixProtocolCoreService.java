@@ -106,6 +106,10 @@ public class MatrixProtocolCoreService {
         return project("messages", new CanonicalProjection("", cursor, from, List.of(conversation), Map.of()));
     }
 
+    public Map<String, Object> members(CanonicalConversation conversation) {
+        return project("members", new CanonicalProjection("", "", null, List.of(conversation), Map.of()));
+    }
+
     public String parseSendBody(String requestJson) {
         Object body = projectRaw("parse-send", requestJson).get("body");
         if (!(body instanceof String value) || value.isBlank()) {

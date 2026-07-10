@@ -524,6 +524,21 @@ class MatrixClientServerProjectionControllerTest {
     }
 
     @Test
+    void encryptedSendMemberPreflightUsesCanonicalRumaEvents() throws Exception {
+        stubConversation();
+
+        mockMvc.perform(get("/_matrix/client/v3/rooms/!channel-general:api.weave.test/members")
+                        .with(workspaceJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.chunk[0].type").value("m.room.member"))
+                .andExpect(jsonPath("$.chunk[0].state_key").value("@alice:api.weave.test"))
+                .andExpect(jsonPath("$.chunk[0].room_id").value("!channel-general:api.weave.test"))
+                .andExpect(jsonPath("$.chunk[0].content.membership").value("join"))
+                .andExpect(jsonPath("$.chunk[0].unsigned").isMap())
+                .andExpect(content().string(not(containsString("providerAccessToken"))));
+    }
+
+    @Test
     void stockOpenClawMemberReceiptAndTypingCallsStayOnCanonicalChat() throws Exception {
         stubConversation();
 

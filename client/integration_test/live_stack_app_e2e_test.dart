@@ -292,7 +292,13 @@ void main() {
       }
       final sentMessage =
           'live-e2e message ${DateTime.now().toUtc().toIso8601String()}';
-      await chatRepository.sendMessage(roomId: roomId, message: sentMessage);
+      try {
+        await chatRepository.sendMessage(roomId: roomId, message: sentMessage);
+      } on ChatFailure catch (failure) {
+        fail(
+          'chat_facade_send_failed error=${_supportSafeDiagnostic(failure)}',
+        );
+      }
       final timeline = await chatRepository.loadRoomTimeline(roomId);
       final deliveredMessage = timeline.messages
           .where((message) => message.text == sentMessage)

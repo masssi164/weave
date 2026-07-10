@@ -75,6 +75,17 @@ class _FailingDescriptorBridge extends FakeRustMatrixCoreBridge {
   }
 }
 
+class _FailingSendBridge extends FakeRustMatrixCoreBridge {
+  @override
+  Future<String> sendEncryptedText({
+    required String profileKey,
+    required String roomId,
+    required String body,
+  }) {
+    throw const RustMatrixCoreBridgeException('M_WEAVE_E2EE_SEND_API');
+  }
+}
+
 void main() {
   late _FakeServerConfigurationRepository configurationRepository;
   late _FakeAuthSessionRepository authSessionRepository;
@@ -190,6 +201,40 @@ void main() {
     expect(timeline.messages.single.text, 'decrypted only in Rust');
     expect(timeline.messages.single.isMine, isTrue);
   });
+
+  test(
+    'encrypted send retains only the support-safe Rust cause code',
+    () async {
+      await expectLater(
+        repository(rustBridge: _FailingSendBridge()).sendMessage(
+          roomId: '!general:api.weave.test',
+          message: 'encrypted through Rust',
+        ),
+        throwsA(
+          isA<ChatFailure>()
+              .having(
+                (failure) => failure.type,
+                'type',
+                ChatFailureType.protocol,
+              )
+              .having(
+                (failure) => failure.message,
+                'message',
+                isNot(contains('M_WEAVE_E2EE_SEND_API')),
+              )
+              .having(
+                (failure) => failure.cause,
+                'cause',
+                isA<RustMatrixCoreBridgeException>().having(
+                  (cause) => cause.code,
+                  'code',
+                  'M_WEAVE_E2EE_SEND_API',
+                ),
+              ),
+        ),
+      );
+    },
+  );
 
   test(
     'normal sign-out and session clear preserve local crypto state',

@@ -50,6 +50,8 @@ public class MatrixClientServerProjectionController {
             "^/_matrix/client/(?:v3|r0)/rooms/([^/]+)/redact/([^/]+)/([^/]+)$");
     private static final Pattern ROOM_MESSAGES_PATH = Pattern.compile(
             "^/_matrix/client/(?:v3|r0)/rooms/([^/]+)/messages$");
+    private static final Pattern ROOM_MEMBERS_PATH = Pattern.compile(
+            "^/_matrix/client/(?:v3|r0)/rooms/([^/]+)/members$");
     private static final Pattern ROOM_LEAVE_PATH = Pattern.compile(
             "^/_matrix/client/(?:v3|r0)/rooms/([^/]+)/leave$");
     private static final Pattern ROOM_STATE_PATH = Pattern.compile(
@@ -288,6 +290,13 @@ public class MatrixClientServerProjectionController {
                         decodeRoomId(roomMessages.group(1)),
                         request.getParameter("from"),
                         boundedLimit(request.getParameter("limit"))));
+            }
+            Matcher roomMembers = ROOM_MEMBERS_PATH.matcher(path);
+            if ("GET".equals(method) && roomMembers.matches()) {
+                ChatConversation conversation = chatDomainFacadeService.conversation(
+                        decodeRoomId(roomMembers.group(1)),
+                        jwt);
+                return matrixOk(matrixProtocolCoreService.members(projectConversation(conversation, null)));
             }
             Matcher roomState = ROOM_STATE_PATH.matcher(path);
             if ("GET".equals(method) && roomState.matches()) {
