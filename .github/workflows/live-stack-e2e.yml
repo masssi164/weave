@@ -124,7 +124,10 @@ jobs:
             "$checkout_root/server/build" \
             "$checkout_root/weave-mcp-server/build" \
             "$RUNNER_TEMP/weave-live-stack-acceptance-evidence" \
-            "$RUNNER_TEMP/weave-live-stack-e2e.log"; do
+            "$RUNNER_TEMP/weave-live-stack-e2e.log" \
+            "$RUNNER_TEMP/weave-live-stack-docker-config" \
+            "$RUNNER_TEMP/weave-live-stack-emergency-reserve" \
+            "$RUNNER_TEMP/weave-live-stack-emergency-reserve-released"; do
             remove_runner_output "$path"
           done
           df -h "$RUNNER_TEMP"
@@ -153,7 +156,7 @@ jobs:
             echo "DOCKER_HOST=unix://$HOME/.orbstack/run/docker.sock" >> "$GITHUB_ENV"
             export DOCKER_HOST="unix://$HOME/.orbstack/run/docker.sock"
           fi
-          export DOCKER_CONFIG="$RUNNER_TEMP/docker-config"
+          export DOCKER_CONFIG="$RUNNER_TEMP/weave-live-stack-docker-config"
           mkdir -p "$DOCKER_CONFIG"
           chmod 700 "$DOCKER_CONFIG"
           auth_b64="$(printf '%s' "${GITHUB_ACTOR}:${GHCR_TOKEN}" | base64 | tr -d '\n')"
@@ -174,10 +177,10 @@ jobs:
         run: |
           set -euo pipefail
           available_kib="$(df -Pk "$RUNNER_TEMP" | awk 'NR == 2 { print $4 }')"
-          minimum_kib=$((6 * 1024 * 1024))
+          minimum_kib=$((10 * 1024 * 1024))
           df -h "$RUNNER_TEMP"
           if (( available_kib < minimum_kib )); then
-            echo "::error::Live Stack E2E requires at least 6 GiB free after stale-output cleanup and before tool and image setup; only $((available_kib / 1024)) MiB is available." >&2
+            echo "::error::Live Stack E2E requires at least 10 GiB free after stale-output cleanup and before tool and image setup; only $((available_kib / 1024)) MiB is available." >&2
             echo "Runner-owned tool cache sizes:" >&2
             du -sh "$RUNNER_TOOL_CACHE"/* 2>/dev/null | sort -h >&2 || true
             exit 1
@@ -305,9 +308,23 @@ jobs:
         working-directory: weave/client
         run: flutter gen-l10n
 
-      - name: Generate code
-        working-directory: weave/client
-        run: dart run build_runner build --delete-conflicting-outputs
+      - name: Verify live test disk headroom and reserve recovery space
+        run: |
+          set -euo pipefail
+          available_kib="$(df -Pk "$RUNNER_TEMP" | awk 'NR == 2 { print $4 }')"
+          minimum_kib=$((5 * 1024 * 1024))
+          reserve="$RUNNER_TEMP/weave-live-stack-emergency-reserve"
+          released_marker="$RUNNER_TEMP/weave-live-stack-emergency-reserve-released"
+          rm -f "$reserve" "$released_marker"
+          df -h "$RUNNER_TEMP"
+          if (( available_kib < minimum_kib )); then
+            echo "::error::Live Stack E2E requires at least 5 GiB before allocating its 1 GiB recovery reserve, preserving 4 GiB for native tests; only $((available_kib / 1024)) MiB is available." >&2
+            exit 1
+          fi
+          mkfile 1g "$reserve"
+          test "$(stat -f '%z' "$reserve")" -eq $((1024 * 1024 * 1024))
+          echo "WEAVE_RUNNER_EMERGENCY_RESERVE=$reserve" >> "$GITHUB_ENV"
+          echo "WEAVE_RUNNER_EMERGENCY_RESERVE_RELEASED=$released_marker" >> "$GITHUB_ENV"
 
       - name: Run live stack integration tests
         working-directory: weave/client
@@ -315,7 +332,34 @@ jobs:
           WEAVE_BOOTSTRAP_ENV: ${{ github.workspace }}/weave/infra/weave-workspace/.generated/bootstrap.env
         run: |
           set -euo pipefail
+          reserve="${WEAVE_RUNNER_EMERGENCY_RESERVE:?}"
+          released_marker="${WEAVE_RUNNER_EMERGENCY_RESERVE_RELEASED:?}"
+          monitor_pid=""
+          release_reserve() {
+            if [ -n "$monitor_pid" ]; then
+              kill "$monitor_pid" >/dev/null 2>&1 || true
+              wait "$monitor_pid" >/dev/null 2>&1 || true
+            fi
+            rm -f "$reserve"
+          }
+          trap release_reserve EXIT INT TERM
+          (
+            while [ -e "$reserve" ]; do
+              available_kib="$(df -Pk "$RUNNER_TEMP" | awk 'NR == 2 { print $4 }')"
+              if (( available_kib < 2 * 1024 * 1024 )); then
+                rm -f "$reserve"
+                : > "$released_marker"
+                exit 0
+              fi
+              sleep 2
+            done
+          ) &
+          monitor_pid=$!
           make integration-test 2>&1 | tee "$WEAVE_ACCEPTANCE_TEST_LOG"
+          if [ -e "$released_marker" ]; then
+            echo "::error::Live Stack E2E consumed its emergency disk reserve; increase durable runner headroom before retrying." >&2
+            exit 1
+          fi
 
       - name: Generate live stack acceptance evidence
         if: always()
@@ -384,7 +428,10 @@ jobs:
             "$checkout_root/server/build" \
             "$checkout_root/weave-mcp-server/build" \
             "${WEAVE_ACCEPTANCE_EVIDENCE_DIR:-$RUNNER_TEMP/weave-live-stack-acceptance-evidence}" \
-            "${WEAVE_ACCEPTANCE_TEST_LOG:-$RUNNER_TEMP/weave-live-stack-e2e.log}"; do
+            "${WEAVE_ACCEPTANCE_TEST_LOG:-$RUNNER_TEMP/weave-live-stack-e2e.log}" \
+            "${DOCKER_CONFIG:-$RUNNER_TEMP/weave-live-stack-docker-config}" \
+            "${WEAVE_RUNNER_EMERGENCY_RESERVE:-$RUNNER_TEMP/weave-live-stack-emergency-reserve}" \
+            "${WEAVE_RUNNER_EMERGENCY_RESERVE_RELEASED:-$RUNNER_TEMP/weave-live-stack-emergency-reserve-released}"; do
             remove_runner_output "$path"
           done
           for image_ref in "$WEAVE_BACKEND_IMAGE" "$WEAVE_MCP_SERVER_IMAGE"; do

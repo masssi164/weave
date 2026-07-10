@@ -28,6 +28,7 @@ def main() -> int:
         "- name: Check out weave",
         "- name: Verify runner disk headroom",
         "- name: Expose generated local CA to Rust Matrix tests",
+        "- name: Verify live test disk headroom and reserve recovery space",
         "- name: Run live stack integration tests",
         "- name: Generate live stack acceptance evidence",
         "- name: Generate support-safe failure diagnostics",
@@ -38,12 +39,16 @@ def main() -> int:
     positions = [workflow.index(step) for step in ordered_steps]
     require(positions == sorted(positions), "live-stack cleanup/evidence steps are misordered")
     require(
-        "minimum_kib=$((6 * 1024 * 1024))" in workflow,
-        "live-stack preflight must require 6 GiB after stale-output cleanup",
+        "minimum_kib=$((10 * 1024 * 1024))" in workflow,
+        "live-stack preflight must require 10 GiB after stale-output cleanup",
     )
     require(
         workflow.count('"$checkout_root/client/.dart_tool"') == 2,
         "Flutter/Rust native outputs must be cleaned once before and once after the run",
+    )
+    require(
+        workflow.count('weave-live-stack-docker-config') >= 3,
+        "workflow-owned Docker auth must be namespaced and cleaned before and after the run",
     )
 
     finalizer = workflow[positions[-1] :]
@@ -85,6 +90,26 @@ def main() -> int:
         '\\"WEAVE_MATRIX_LIVE_TEST_EXTRA_ROOT_ENABLED\\": ' in client_makefile,
         "live tests must forward the compile-time extra-root gate as a dart-define",
     )
+    require(
+        "minimum_kib=$((5 * 1024 * 1024))" in workflow,
+        "live-stack native-test preflight must preserve 4 GiB plus the reserve",
+    )
+    require(
+        'mkfile 1g "$reserve"' in workflow,
+        "live-stack tests must hold a 1 GiB emergency reserve",
+    )
+    require(
+        "available_kib < 2 * 1024 * 1024" in workflow,
+        "live-stack monitor must release the reserve before starving the runner",
+    )
+    require(
+        "Live Stack E2E consumed its emergency disk reserve" in workflow,
+        "live-stack tests must fail when emergency headroom is consumed",
+    )
+    require(
+        "- name: Generate code" not in workflow,
+        "live-stack behavior tests must not repeat root-CI generated-source work",
+    )
 
     for forbidden in (
         "docker system prune",
@@ -101,7 +126,10 @@ def main() -> int:
 
     for phrase in (
         "stale Weave-generated outputs",
-        "6 GiB",
+        "10 GiB",
+        "5 GiB",
+        "4 GiB",
+        "1 GiB runner-owned emergency reserve",
         "explicit extra root",
         "after acceptance evidence upload",
         "unrelated containers, volumes, signing identities, or physical-device data",
