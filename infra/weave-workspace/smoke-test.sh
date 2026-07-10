@@ -146,11 +146,14 @@ curl_auth_json() {
   local url="$2"
   local host_port
 
+  shift 2
+
   host_port="$(host_port_from_url "${url}")"
   curl --silent --show-error --fail \
     --cacert "${CADDY_TLS_CA_FILE}" \
     --resolve "${host_port}:127.0.0.1" \
     -H "Authorization: Bearer ${token}" \
+    "$@" \
     "$url"
 }
 
@@ -631,8 +634,14 @@ nextcloud_oidc_redirect="$(curl_location "${WEAVE_NEXTCLOUD_BASE_URL}/apps/user_
 log "Checking the OIDC-gated Weave Matrix facade..."
 matrix_facade_versions="$(curl_auth_json "${access_token}" "${WEAVE_MATRIX_HOMESERVER_URL}/_matrix/client/versions")"
 assert_json "${matrix_facade_versions}" '.matrixCore.oidcGatekeeper == "spring-boot-resource-server" and .matrixCore.northboundHomeserverDependency == false' "Weave Matrix facade should be OIDC-gated and provider-neutral"
-matrix_facade_whoami="$(curl_auth_json "${access_token}" "${WEAVE_MATRIX_HOMESERVER_URL}/_matrix/client/v3/account/whoami")"
-assert_json "${matrix_facade_whoami}" '.device_id == "weave-oidc" and .is_guest == false' "Weave Matrix facade should derive identity from the app OIDC token"
+matrix_smoke_device_id="WEAVE_SMOKE_DEVICE"
+matrix_facade_whoami="$(curl_auth_json \
+  "${access_token}" \
+  "${WEAVE_MATRIX_HOMESERVER_URL}/_matrix/client/v3/account/whoami" \
+  -H "X-Weave-Matrix-Device-Id: ${matrix_smoke_device_id}")"
+assert_json "${matrix_facade_whoami}" \
+  '.device_id == "'"${matrix_smoke_device_id}"'" and .is_guest == false and (.user_id | startswith("@") and endswith(":'"$(public_host "${TF_VAR_api_subdomain:-api}")"'"))' \
+  "Weave Matrix facade should preserve the client device identity and derive its user from the app OIDC token"
 
 log "Checking southbound Matrix provider auth routing and MAS wiring..."
 matrix_base_url="${WEAVE_MATRIX_PROVIDER_URL}"
