@@ -5,6 +5,69 @@ import 'package:weave/integrations/rust_matrix_core/data/services/rust_matrix_co
 
 // RUST_MATRIX_CORE_BRIDGE_CONTRACT
 void main() {
+  group('live-test Matrix root certificate', () {
+    const pem = '''-----BEGIN CERTIFICATE-----
+test-certificate
+-----END CERTIFICATE-----
+''';
+
+    test('decodes the compile-time payload when explicitly enabled', () {
+      expect(
+        decodeMatrixLiveTestExtraRootCertificate(
+          enabled: true,
+          encodedCertificate: base64Encode(utf8.encode(pem)),
+        ),
+        pem,
+      );
+    });
+
+    test('stays compiled off by default regardless of payload', () {
+      expect(
+        decodeMatrixLiveTestExtraRootCertificate(
+          enabled: false,
+          encodedCertificate: 'not-base64',
+        ),
+        isEmpty,
+      );
+    });
+
+    test('fails closed when the enabled payload is missing or malformed', () {
+      for (final encodedCertificate in <String>['', 'not-base64']) {
+        expect(
+          () => decodeMatrixLiveTestExtraRootCertificate(
+            enabled: true,
+            encodedCertificate: encodedCertificate,
+          ),
+          throwsA(
+            isA<RustMatrixCoreBridgeException>().having(
+              (error) => error.code,
+              'code',
+              'M_WEAVE_E2EE_TLS_ROOT',
+            ),
+          ),
+        );
+      }
+    });
+
+    test('rejects an oversized compile-time payload', () {
+      final oversized = base64Encode(List<int>.filled(64 * 1024 + 1, 0x41));
+
+      expect(
+        () => decodeMatrixLiveTestExtraRootCertificate(
+          enabled: true,
+          encodedCertificate: oversized,
+        ),
+        throwsA(
+          isA<RustMatrixCoreBridgeException>().having(
+            (error) => error.code,
+            'code',
+            'M_WEAVE_E2EE_TLS_ROOT',
+          ),
+        ),
+      );
+    });
+  });
+
   test(
     'descriptor points Flutter at the OIDC gated Rust Matrix facade',
     () async {
