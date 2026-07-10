@@ -51,7 +51,7 @@ output "app_config" {
     WEAVE_API_BASE_URL                           = local.client_api_base_url
     WEAVE_AUTH_BASE_URL                          = local.client_auth_url
     WEAVE_OIDC_ISSUER_URL                        = local.keycloak_issuer_url
-    WEAVE_MATRIX_HOMESERVER_URL                  = local.client_matrix_url
+    WEAVE_MATRIX_HOMESERVER_URL                  = local.client_matrix_facade_url
     WEAVE_FILES_PRODUCT_URL                      = local.client_files_product_url
     WEAVE_CALENDAR_PRODUCT_URL                   = local.client_calendar_product_url
     WEAVE_LOCAL_CA_URL                           = "http://${local.public_hosts.weave}:${var.proxy_http_host_port}/weave-local-ca.pem"
@@ -63,13 +63,9 @@ output "app_config" {
     WEAVE_PROVIDER_STACK_PROFILE                 = var.provider_stack_profile
     WEAVE_PROVIDER_STACK_READINESS               = var.provider_stack_readiness
     WEAVE_DEVOPS_PRIMARY_PROVIDER                = var.devops_primary_provider
-    WEAVE_DEVOPS_ALTERNATIVE_PROVIDER            = var.devops_alternative_provider
     WEAVE_DEVOPS_GITLAB_RUNTIME_ENABLED          = tostring(var.devops_gitlab_runtime_enabled)
     WEAVE_DEVOPS_GITLAB_BASE_URL                 = var.devops_gitlab_base_url
     WEAVE_DEVOPS_GITLAB_WRITES_ENABLED           = tostring(var.devops_gitlab_writes_enabled)
-    WEAVE_DEVOPS_FORGEJO_RUNTIME_ENABLED         = tostring(var.devops_forgejo_runtime_enabled)
-    WEAVE_DEVOPS_FORGEJO_BASE_URL                = var.devops_forgejo_base_url
-    WEAVE_DEVOPS_FORGEJO_WRITES_ENABLED          = tostring(var.devops_forgejo_writes_enabled)
     WEAVE_OFFICE_PRIMARY_PROVIDER                = var.office_primary_provider
     WEAVE_OFFICE_ONLYOFFICE_RUNTIME_ENABLED      = tostring(var.office_onlyoffice_runtime_enabled)
     WEAVE_OFFICE_ONLYOFFICE_DOCUMENT_SERVER_URL  = var.office_onlyoffice_document_server_url
@@ -117,6 +113,16 @@ output "weave_backend_required_audience" {
 output "weave_backend_client_id" {
   description = "OIDC client ID configured for Weave backend authorized-party validation."
   value       = local.weave_app_client_id
+}
+
+output "weave_mcp_internal_endpoint" {
+  description = "Internal stateful Streamable HTTP endpoint for governed Weaver runtimes."
+  value       = "http://${module.mcp.container_name}:${var.mcp_container_port}/mcp"
+}
+
+output "weave_mcp_health_endpoint" {
+  description = "Loopback-only MCP health endpoint used by operator smoke checks."
+  value       = "http://127.0.0.1:${var.mcp_host_port}/actuator/health"
 }
 
 output "service_names" {

@@ -68,6 +68,8 @@ main() {
 
   output="$(run_case "preserves volumes by default" 0)"
   assert_contains "${output}" "Persistent Docker volumes: preserved."
+  assert_contains "${output}" "DRY RUN: would remove container weave-mcp-server"
+  assert_contains "${output}" "DRY RUN: would remove container weave-mailpit"
   assert_not_contains "${output}" "DRY RUN: would remove volume weave_synapse_data"
   rm -f "${output}"
 

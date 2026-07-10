@@ -14,6 +14,7 @@ enum MemberAuthOnboardingStage {
   ssoInProgress('sso_in_progress'),
   authenticated('authenticated'),
   workspaceBootstrapLoading('workspace_bootstrap_loading'),
+  sessionRestored('session_restored'),
   workspaceReady('workspace_ready'),
   recoverableError('recoverable_error'),
   terminalSetupError('terminal_setup_error');

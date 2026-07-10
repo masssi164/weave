@@ -222,7 +222,7 @@ function buildEffectiveWeaverPreview(
   policy: WeaverDistributionPolicy,
 ): string[] {
   return [
-    `channel=channels.weave-chat via chat.provider=${policy.chatProviderKey}`,
+    `channel=channels.matrix via chat.provider=${policy.chatProviderKey}`,
     `chat.readiness=${readableState(policy.chatReadinessState)}`,
     `model.default=${policy.defaultModelAlias}`,
     `model.fallback=${policy.fallbackModelAliases.join(" -> ") || "none"}`,

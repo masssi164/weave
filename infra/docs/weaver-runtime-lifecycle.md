@@ -39,7 +39,7 @@ Default egress is deny. The only allowed destinations are internal Weave endpoin
 
 - Weave API through the internal service route;
 - Weave MCP Gateway;
-- allowed channel proxies such as stable `channels.weave-chat` through Weave Chat-domain routing;
+- the OIDC-gated Weave Matrix Client-Server facade used by stock `channels.matrix`;
 - allowed MCP proxies that enforce the same runtime token and capability grants.
 
 Public internet egress, provider APIs, metadata services, local host networks, and cross-user runtime networks are blocked unless a future signed profile and admin policy explicitly adds a mediated proxy. Even then, the runtime receives a short-lived runtime token only; provider credentials remain in the Weave Credential Broker.

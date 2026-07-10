@@ -55,10 +55,8 @@ assert_no_secret_markers() {
     'CI_JOB_TOKEN'
     'webhook_secret'
     'WEAVE_DEVOPS_GITLAB_API_TOKEN'
-    'WEAVE_DEVOPS_FORGEJO_API_TOKEN'
     'WEAVE_OFFICE_ONLYOFFICE_JWT_SECRET'
     'TF_VAR_devops_gitlab_api_token'
-    'TF_VAR_devops_forgejo_api_token'
     'TF_VAR_office_onlyoffice_jwt_secret'
   )
 
@@ -76,7 +74,7 @@ run_static_checks() {
   assert_file_contains "${ROOT_DIR}/01-infrastructure/modules/backend/main.tf" 'WEAVE_NEXTCLOUD_FILES_WEBDAV_ROOT_PATH'
   assert_file_contains "${ROOT_DIR}/01-infrastructure/modules/backend/main.tf" 'WEAVE_CALDAV_BASE_URL'
   assert_file_contains "${ROOT_DIR}/01-infrastructure/modules/backend/main.tf" 'WEAVE_DEVOPS_GITLAB_RUNTIME_ENABLED'
-  assert_file_contains "${ROOT_DIR}/01-infrastructure/modules/backend/main.tf" 'WEAVE_DEVOPS_FORGEJO_RUNTIME_ENABLED'
+  assert_file_not_contains "${ROOT_DIR}/01-infrastructure/modules/backend/main.tf" 'WEAVE_DEVOPS_FORGEJO_'
   assert_file_contains "${ROOT_DIR}/01-infrastructure/modules/backend/main.tf" 'WEAVE_OFFICE_ONLYOFFICE_RUNTIME_ENABLED'
   assert_file_contains "${ROOT_DIR}/01-infrastructure/modules/backend/main.tf" 'WEAVE_OFFICE_NEXTCLOUD_INTEGRATION_MODE'
   assert_file_contains "${ROOT_DIR}/01-infrastructure/modules/backend/main.tf" 'WEAVE_GROUPWARE_CONTACTS_RUNTIME_ENABLED'
@@ -93,7 +91,7 @@ run_static_checks() {
   assert_file_contains "${ROOT_DIR}/.env.example" 'TF_VAR_nextcloud_subdomain=files'
   assert_file_contains "${ROOT_DIR}/.env.example" 'TF_VAR_devops_primary_provider=gitlab-ce-foss'
   assert_file_contains "${ROOT_DIR}/.env.example" 'TF_VAR_devops_gitlab_runtime_enabled=false'
-  assert_file_contains "${ROOT_DIR}/.env.example" 'TF_VAR_devops_forgejo_runtime_enabled=false'
+  assert_file_not_contains "${ROOT_DIR}/.env.example" 'TF_VAR_devops_forgejo_'
   assert_file_contains "${ROOT_DIR}/.env.example" 'TF_VAR_office_primary_provider=onlyoffice-community'
   assert_file_contains "${ROOT_DIR}/.env.example" 'TF_VAR_office_onlyoffice_runtime_enabled=false'
   assert_file_contains "${ROOT_DIR}/.env.example" 'TF_VAR_office_nextcloud_integration_mode=nextcloud-onlyoffice-app-behind-backend-facade'
@@ -107,15 +105,13 @@ run_static_checks() {
 
   assert_file_contains "${ROOT_DIR}/docker-compose.provider-stack.yml" 'profiles:'
   assert_file_contains "${ROOT_DIR}/docker-compose.provider-stack.yml" 'gitlab-ce'
-  assert_file_contains "${ROOT_DIR}/docker-compose.provider-stack.yml" 'forgejo'
+  assert_file_not_contains "${ROOT_DIR}/docker-compose.provider-stack.yml" 'forgejo'
   assert_file_contains "${ROOT_DIR}/docker-compose.provider-stack.yml" 'onlyoffice'
   assert_file_contains "${ROOT_DIR}/docker-compose.provider-stack.yml" 'livekit/livekit-server'
 
   assert_file_not_contains "${APP_CONFIG_ENV_FILE}" 'TF_VAR_devops_gitlab_api_token'
-  assert_file_not_contains "${APP_CONFIG_ENV_FILE}" 'TF_VAR_devops_forgejo_api_token'
   assert_file_not_contains "${APP_CONFIG_ENV_FILE}" 'TF_VAR_office_onlyoffice_jwt_secret'
   assert_file_not_contains "${APP_CONFIG_ENV_FILE}" 'WEAVE_DEVOPS_GITLAB_API_TOKEN'
-  assert_file_not_contains "${APP_CONFIG_ENV_FILE}" 'WEAVE_DEVOPS_FORGEJO_API_TOKEN'
   assert_file_not_contains "${APP_CONFIG_ENV_FILE}" 'WEAVE_OFFICE_ONLYOFFICE_JWT_SECRET'
   assert_file_not_contains "${APP_CONFIG_ENV_FILE}" 'WEAVE_LIVEKIT_API_KEY'
   assert_file_not_contains "${APP_CONFIG_ENV_FILE}" 'WEAVE_LIVEKIT_API_SECRET'
@@ -226,7 +222,7 @@ run_endpoint_checks() {
   assert_json "${providers_json}" '[.providers[] | select(.module == "meetings" and .providerKey == "livekit" and .enabled == false and .configured == false and .failClosed == true)] | length == 1' 'LiveKit meeting/video-call provider seam must be present and fail-closed until configured'
   assert_json "${providers_json}" '[.providers[] | select(.module == "boards" and .providerKey == "openproject-primary" and .failClosed == true)] | length == 1' 'OpenProject Boards provider seam must be present and fail-closed when unconfigured'
   assert_json "${providers_json}" '[.providers[] | select(.module == "source-control" and .providerKey == "gitlab-ce-foss" and .enabled == false and .configured == false and .failClosed == true)] | length == 1' 'GitLab CE/FOSS source-control provider must be disabled/fail-closed'
-  assert_json "${providers_json}" '[.providers[] | select(.module == "source-control" and .providerKey == "forgejo" and .enabled == false and .configured == false and .failClosed == true)] | length == 1' 'Forgejo source-control provider must be disabled/fail-closed'
+  assert_json "${providers_json}" '[.providers[] | select(.providerKey == "forgejo")] | length == 0' 'Obsolete Forgejo providers must not be registered'
   assert_json "${providers_json}" '[.providers[] | select(.module == "office" and .providerKey == "onlyoffice-community" and .enabled == false and .configured == false and .failClosed == true)] | length == 1' 'ONLYOFFICE provider must be disabled/fail-closed'
   assert_no_secret_markers 'providers/status' "${providers_json}"
 
@@ -239,7 +235,7 @@ run_endpoint_checks() {
   assert_json "${devops_json}" '.readOnly == true and .paidFeaturesRequired == false and .supportSafe == true' 'DevOps summary must be read-only/support-safe and free of paid-feature dependencies'
   assert_json "${devops_json}" '(.linkedProjects | length) == 0 and (.repositories | length) == 0 and (.openIssues | length) == 0 and (.mergeRequests | length) == 0 and (.pipelines | length) == 0 and (.releases | length) == 0' 'DevOps summary must be empty while providers are not configured'
   assert_json "${devops_json}" '[.providerReadiness[] | select(.providerKey == "gitlab-ce-foss" and .enabled == false and .configured == false and .readiness == "not_configured")] | length >= 1' 'GitLab CE/FOSS DevOps readiness must be not_configured'
-  assert_json "${devops_json}" '[.providerReadiness[] | select(.providerKey == "forgejo" and .enabled == false and .configured == false and .readiness == "not_configured")] | length >= 1' 'Forgejo DevOps readiness must be not_configured'
+  assert_json "${devops_json}" '[.providerReadiness[] | select(.providerKey == "forgejo")] | length == 0' 'Obsolete Forgejo readiness must not be advertised'
   assert_no_secret_markers 'devops/summary' "${devops_json}"
 
   log "Live provider endpoint fail-closed checks passed."

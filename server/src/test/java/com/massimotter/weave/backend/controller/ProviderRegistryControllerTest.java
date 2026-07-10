@@ -246,7 +246,7 @@ class ProviderRegistryControllerTest {
                 .andExpect(jsonPath("$.providers[?(@.module == 'meetings')].diagnostics.apiSecretConfigured", hasItems(false)))
                 .andExpect(jsonPath("$.providers[?(@.module == 'meetings')].diagnostics.tokenEndpointConfigured", hasItems(false)))
                 .andExpect(jsonPath("$.providers[?(@.module == 'contacts')].providerKey", hasItems("nextcloud-carddav")))
-                .andExpect(jsonPath("$.providers[?(@.module == 'source-control')].providerKey", hasItems("gitlab-ce-foss", "forgejo")))
+                .andExpect(jsonPath("$.providers[?(@.module == 'source-control')].providerKey", hasItems("gitlab-ce-foss")))
                 .andExpect(jsonPath("$.providers[?(@.module == 'forms')].diagnostics.dependency", hasItems("weave-backend#104")))
                 .andExpect(content().string(not(containsString("matrix-meetings"))))
                 .andExpect(content().string(not(containsString("WEAVE_LIVEKIT_API_KEY=secret"))))

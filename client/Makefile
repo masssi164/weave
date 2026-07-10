@@ -56,23 +56,38 @@ integration-contract-test:
 	WEAVE_OIDC_ISSUER_URL="$${WEAVE_OIDC_ISSUER_URL:-https://auth.weave.test/realms/weave}"; \
 	WEAVE_OIDC_CLIENT_ID="$${WEAVE_OIDC_CLIENT_ID:-weave-app}"; \
 	WEAVE_NEXTCLOUD_BASE_URL="$${WEAVE_NEXTCLOUD_BASE_URL:-$${WEAVE_NEXTCLOUD_URL:-}}"; \
-	WEAVE_MATRIX_HOMESERVER_URL="$${WEAVE_MATRIX_HOMESERVER_URL:-$${WEAVE_MATRIX_URL:-}}"; \
+	WEAVE_MATRIX_HOMESERVER_URL="$${WEAVE_MATRIX_HOMESERVER_URL:-}"; \
+	matrix_extra_root_base64=""; \
+	if [ "$${WEAVE_MATRIX_LIVE_TEST_EXTRA_ROOT_ENABLED:-false}" = "true" ]; then \
+	  matrix_extra_root_path="$${WEAVE_MATRIX_EXTRA_ROOT_CERTIFICATE_PATH:-}"; \
+	  if [ ! -s "$$matrix_extra_root_path" ]; then \
+	    echo "WEAVE_MATRIX_EXTRA_ROOT_CERTIFICATE_PATH must name a non-empty PEM file when live-test Matrix trust is enabled." >&2; \
+	    exit 2; \
+	  fi; \
+	  matrix_extra_root_bytes=$$(wc -c < "$$matrix_extra_root_path" | tr -d '[:space:]'); \
+	  if [ "$$matrix_extra_root_bytes" -gt 65536 ]; then \
+	    echo "The live-test Matrix extra root exceeds the 64 KiB safety limit." >&2; \
+	    exit 2; \
+	  fi; \
+	  matrix_extra_root_base64=$$(base64 < "$$matrix_extra_root_path" | tr -d '\n'); \
+	fi; \
 	if [ "$${WEAVE_OFFLINE_CONTRACT_ONLY:-false}" != "true" ] && { [ -z "$${WEAVE_TEST_USERNAME:-}" ] || [ -z "$${WEAVE_TEST_PASSWORD:-}" ]; }; then \
 	  echo "Real WEAVE_TEST_USERNAME/WEAVE_TEST_PASSWORD are required for integration-contract-test. Use make offline-contract-test for the no-network PR-safe gate." >&2; \
 	  exit 2; \
 	fi; \
-	printf '%s\n' \
-	  "{" \
-	  "  \"WEAVE_API_BASE_URL\": \"$$WEAVE_API_BASE_URL\"," \
-	  "  \"WEAVE_BASE_URL\": \"$$WEAVE_BASE_URL\"," \
-	  "  \"WEAVE_OIDC_ISSUER_URL\": \"$$WEAVE_OIDC_ISSUER_URL\"," \
-	  "  \"WEAVE_OIDC_CLIENT_ID\": \"$$WEAVE_OIDC_CLIENT_ID\"," \
-	  "  \"WEAVE_NEXTCLOUD_BASE_URL\": \"$$WEAVE_NEXTCLOUD_BASE_URL\"," \
-	  "  \"WEAVE_MATRIX_HOMESERVER_URL\": \"$$WEAVE_MATRIX_HOMESERVER_URL\"," \
-	  "  \"WEAVE_TEST_USERNAME\": \"$${WEAVE_TEST_USERNAME:-}\"," \
-	  "  \"WEAVE_TEST_PASSWORD\": \"$${WEAVE_TEST_PASSWORD:-}\"," \
-	  "  \"WEAVE_OFFLINE_CONTRACT_ONLY\": \"$${WEAVE_OFFLINE_CONTRACT_ONLY:-false}\"" \
-	  "}" > "$$dart_defines_file"; \
+	jq -n \
+	  --arg WEAVE_API_BASE_URL "$$WEAVE_API_BASE_URL" \
+	  --arg WEAVE_BASE_URL "$$WEAVE_BASE_URL" \
+	  --arg WEAVE_OIDC_ISSUER_URL "$$WEAVE_OIDC_ISSUER_URL" \
+	  --arg WEAVE_OIDC_CLIENT_ID "$$WEAVE_OIDC_CLIENT_ID" \
+	  --arg WEAVE_NEXTCLOUD_BASE_URL "$$WEAVE_NEXTCLOUD_BASE_URL" \
+	  --arg WEAVE_MATRIX_HOMESERVER_URL "$$WEAVE_MATRIX_HOMESERVER_URL" \
+	  --arg WEAVE_MATRIX_LIVE_TEST_EXTRA_ROOT_ENABLED "$${WEAVE_MATRIX_LIVE_TEST_EXTRA_ROOT_ENABLED:-false}" \
+	  --arg WEAVE_MATRIX_LIVE_TEST_EXTRA_ROOT_BASE64 "$$matrix_extra_root_base64" \
+	  --arg WEAVE_TEST_USERNAME "$${WEAVE_TEST_USERNAME:-}" \
+	  --arg WEAVE_TEST_PASSWORD "$${WEAVE_TEST_PASSWORD:-}" \
+	  --arg WEAVE_OFFLINE_CONTRACT_ONLY "$${WEAVE_OFFLINE_CONTRACT_ONLY:-false}" \
+	  '$$ARGS.named' > "$$dart_defines_file"; \
 	flutter test test/live_stack_contract_test.dart \
 	  --dart-define-from-file="$$dart_defines_file"
 
@@ -91,25 +106,41 @@ integration-app-e2e:
 	WEAVE_OIDC_ISSUER_URL="$${WEAVE_OIDC_ISSUER_URL:-https://auth.weave.test/realms/weave}"; \
 	WEAVE_OIDC_CLIENT_ID="$${WEAVE_OIDC_CLIENT_ID:-weave-app}"; \
 	WEAVE_NEXTCLOUD_BASE_URL="$${WEAVE_NEXTCLOUD_BASE_URL:-$${WEAVE_NEXTCLOUD_URL:-}}"; \
-	WEAVE_MATRIX_HOMESERVER_URL="$${WEAVE_MATRIX_HOMESERVER_URL:-$${WEAVE_MATRIX_URL:-}}"; \
+	WEAVE_MATRIX_HOMESERVER_URL="$${WEAVE_MATRIX_HOMESERVER_URL:-}"; \
 	test_device="$${WEAVE_INTEGRATION_TEST_DEVICE:-$${FLUTTER_TEST_DEVICE:-macos}}"; \
+	matrix_extra_root_base64=""; \
+	if [ "$${WEAVE_MATRIX_LIVE_TEST_EXTRA_ROOT_ENABLED:-false}" = "true" ]; then \
+	  matrix_extra_root_path="$${WEAVE_MATRIX_EXTRA_ROOT_CERTIFICATE_PATH:-}"; \
+	  if [ ! -s "$$matrix_extra_root_path" ]; then \
+	    echo "WEAVE_MATRIX_EXTRA_ROOT_CERTIFICATE_PATH must name a non-empty PEM file when live-test Matrix trust is enabled." >&2; \
+	    exit 2; \
+	  fi; \
+	  matrix_extra_root_bytes=$$(wc -c < "$$matrix_extra_root_path" | tr -d '[:space:]'); \
+	  if [ "$$matrix_extra_root_bytes" -gt 65536 ]; then \
+	    echo "The live-test Matrix extra root exceeds the 64 KiB safety limit." >&2; \
+	    exit 2; \
+	  fi; \
+	  matrix_extra_root_base64=$$(base64 < "$$matrix_extra_root_path" | tr -d '\n'); \
+	fi; \
 	if [ -z "$${WEAVE_TEST_USERNAME:-}" ] || [ -z "$${WEAVE_TEST_PASSWORD:-}" ]; then \
 	  echo "Real WEAVE_TEST_USERNAME/WEAVE_TEST_PASSWORD are required for integration-app-e2e." >&2; \
 	  exit 2; \
 	fi; \
-	printf '%s\n' \
-	  "{" \
-	  "  \"WEAVE_API_BASE_URL\": \"$$WEAVE_API_BASE_URL\"," \
-	  "  \"WEAVE_BASE_URL\": \"$$WEAVE_BASE_URL\"," \
-	  "  \"WEAVE_OIDC_ISSUER_URL\": \"$$WEAVE_OIDC_ISSUER_URL\"," \
-	  "  \"WEAVE_OIDC_CLIENT_ID\": \"$$WEAVE_OIDC_CLIENT_ID\"," \
-	  "  \"WEAVE_NEXTCLOUD_BASE_URL\": \"$$WEAVE_NEXTCLOUD_BASE_URL\"," \
-	  "  \"WEAVE_MATRIX_HOMESERVER_URL\": \"$$WEAVE_MATRIX_HOMESERVER_URL\"," \
-	  "  \"WEAVE_TEST_USERNAME\": \"$${WEAVE_TEST_USERNAME}\"," \
-	  "  \"WEAVE_TEST_PASSWORD\": \"$${WEAVE_TEST_PASSWORD}\"" \
-	  "}" > "$$dart_defines_file"; \
+	jq -n \
+	  --arg WEAVE_API_BASE_URL "$$WEAVE_API_BASE_URL" \
+	  --arg WEAVE_BASE_URL "$$WEAVE_BASE_URL" \
+	  --arg WEAVE_OIDC_ISSUER_URL "$$WEAVE_OIDC_ISSUER_URL" \
+	  --arg WEAVE_OIDC_CLIENT_ID "$$WEAVE_OIDC_CLIENT_ID" \
+	  --arg WEAVE_NEXTCLOUD_BASE_URL "$$WEAVE_NEXTCLOUD_BASE_URL" \
+	  --arg WEAVE_MATRIX_HOMESERVER_URL "$$WEAVE_MATRIX_HOMESERVER_URL" \
+	  --arg WEAVE_MATRIX_LIVE_TEST_EXTRA_ROOT_ENABLED "$${WEAVE_MATRIX_LIVE_TEST_EXTRA_ROOT_ENABLED:-false}" \
+	  --arg WEAVE_MATRIX_LIVE_TEST_EXTRA_ROOT_BASE64 "$$matrix_extra_root_base64" \
+	  --arg WEAVE_TEST_USERNAME "$${WEAVE_TEST_USERNAME}" \
+	  --arg WEAVE_TEST_PASSWORD "$${WEAVE_TEST_PASSWORD}" \
+	  '$$ARGS.named' > "$$dart_defines_file"; \
 	for test_file in \
 	  integration_test/live_stack_app_e2e_test.dart \
+	  integration_test/matrix_e2ee_live_e2e_test.dart \
 	  integration_test/app_test.dart; do \
 	  flutter test "$$test_file" -d "$$test_device" \
 	    --dart-define-from-file="$$dart_defines_file"; \

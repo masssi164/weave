@@ -7,13 +7,10 @@ import 'package:weave/features/auth/data/services/oidc_client.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/domain/entities/auth_failure.dart';
 import 'package:weave/features/auth/domain/entities/oidc_constants.dart';
-import 'package:weave/features/chat/data/services/matrix_auth_browser.dart';
-import 'package:weave/integrations/nextcloud/data/services/nextcloud_login_launcher.dart';
 
 import 'test_config.dart';
 
-class LiveOidcTestDriver
-    implements OidcClient, MatrixAuthBrowser, NextcloudLoginLauncher {
+class LiveOidcTestDriver implements OidcClient {
   LiveOidcTestDriver({required TestConfig config}) : _config = config;
 
   final TestConfig _config;
@@ -131,7 +128,6 @@ class LiveOidcTestDriver
     }
   }
 
-  @override
   Future<Uri> authenticate({
     required Uri authorizationUri,
     required Uri redirectUri,
@@ -139,14 +135,6 @@ class LiveOidcTestDriver
     return _authenticateInBrowserLikeFlow(
       authorizationUri: authorizationUri,
       redirectUri: redirectUri,
-    );
-  }
-
-  @override
-  Future<void> launch(Uri loginUri) {
-    throw StateError(
-      'Nextcloud browser-login fallback is disabled for live tests. '
-      'Configure Nextcloud OIDC bearer/WebDAV access instead of relying on HTML login-flow scraping.',
     );
   }
 

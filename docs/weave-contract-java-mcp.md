@@ -1,65 +1,35 @@
-# Weave contract and MCP server transition
+# Weave canonical contract and Spring AI MCP
 
-Issue #818 introduced a contract-first member/Weaver/MCP boundary. ADR-004 supersedes the long-term authority model: `server` and its OpenAPI artifact are now the canonical contract authority for member, Admin Console, and MCP consumers.
+Status: active projection contract. The former handwritten Java JSON-RPC and Python/FastMCP transition paths are retired.
 
-## Modules
+## Authority
 
-- `server` owns domains, validation, authorization, approval, audit, provider selection, support-safe errors, and the OpenAPI contract artifact.
-- `weave-contract` is transitional compatibility debt. New hand-written canonical domain truth must not be added here; move authority into server/OpenAPI and treat this module as removable or generated-only after migration.
-- `weave-mcp-server` is a transitional Java/Spring Boot MCP JSON-RPC adapter. It exposes MCP `initialize`, `tools/list`, and `tools/call`, but must not become a second contract authority.
-- `infra/weave-mcp` is the Python MCP path selected for the OpenAPI-consuming adapter. It should consume server OpenAPI with deny-by-default route maps/allowlists and delegate policy-sensitive actions to the server.
+- Canonical domain models and application use cases own Files, Calendar, Chat, and governed Weaver semantics.
+- `weave-contract` currently carries the shared MCP catalog DTOs and exact JSON schemas consumed by both `server` and `weave-mcp-server`. It is a projection module, not a provider or product-domain authority.
+- `server` owns RuntimeProfile policy, effective capability grants, approval enforcement, validation, canonical dispatch, provider selection, audit, and support-safe result projection.
+- `weave-mcp-server` owns only the OIDC-protected Spring AI 2.0 stateful Streamable HTTP transport at `/mcp`, standard form elicitation, and MCP protocol projection.
+- OpenAPI remains the control-plane/generated-model authority. MCP does not mirror OpenAPI routes.
 
-Admin/control-plane DTOs, adapter assignment/provenance records, SecretRef diagnostics, provider-native payloads, and provider IDs remain server-local unless a later explicit architecture review moves them.
+## Active surface
 
-## Capability model
+The fixed protocol catalog ceiling contains:
 
-Canonical member/MCP capabilities use contract names such as:
-
+- `files.search`
 - `files.read`
-- `calendar.read`
-- `calendar.manage_events`
-- `boards.read`
-- `boards.update_task`
+- `calendar.search_events`
+- `calendar.create_event`
+- `chat.send_message`
 
-The `weaver.*` dialect must not be used as canonical domain-tool capability truth. If a runtime needs another grant representation, implement it as a projection from `weave-contract` metadata and test the mapping.
+The read-only resource `weave://runtime/approved-tools` reports the backend-approved subset for the current signed RuntimeProfile. The prompt `weave.workspace.plan` names only that approved subset. Listing a tool from the fixed catalog is not authorization; every call performs backend discovery again before dispatch.
 
-Write-like tools are marked in contract metadata and require approval before backend invocation. The backend remains the final policy, authorization, and audit authority; MCP-layer hints are discovery/UX aids, not security enforcement by themselves.
+Write-like tools call standard MCP form elicitation through `McpSyncRequestContext`. OpenClaw routes that elicitation through plugin approvals and returns bounded evidence; the trusted MCP boundary exchanges it for a short-lived, one-use Weave receipt. The receipt binds the actor, current RuntimeProfile hash, canonical domain and exact scopes, normalized arguments, exact tool, MCP contract version, backend policy version, decision time, expiry, and audit ref. Changed arguments, replay, foreign evidence, a reference, tool annotation, caller header, or prompt never grants authority.
 
-## Weaver/OpenClaw projection
+## Deployment
 
-The preferred runtime configuration is a trusted server/namespace allow for `weave-mcp` plus endpoint/auth details. Tools are discovered from MCP `tools/list` only after the adapter has a valid runtime token and RuntimeProfile context; the adapter delegates tool availability to backend-governed discovery. Weaver/OpenClaw should not hand-maintain a duplicate per-tool registry. If a deployment requires per-tool filtering, generate it from `weave-contract` metadata.
+The OpenTofu MCP module runs `weave-mcp-server` on the internal Weave network. Weaver runtimes connect to:
 
-Weaver is a separate repository. This repo records the projection contract only; create a Weaver repository task before mutating runtime-profile code there.
-
-## Local development from containerized runtimes
-
-When Weaver or a user runtime runs in a container, `localhost` is the container, not the host. Run `weave-mcp-server` on the host and point the container at the host gateway:
-
-```sh
-export WEAVE_SERVER_BASE_URL=http://host.docker.internal:8080
-export WEAVE_MCP_BASE_URL=http://host.docker.internal:8765
-./gradlew :weave-mcp-server:bootRun --args='--server.port=8765 --weave.server.base-url=http://localhost:8080'
+```text
+http://weave-mcp-server:8091/mcp
 ```
 
-Docker Desktop provides `host.docker.internal` automatically. On Linux/native Docker, add the host gateway:
-
-```yaml
-services:
-  weaver-runtime:
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    environment:
-      WEAVE_MCP_BASE_URL: http://host.docker.internal:8765
-      WEAVE_SERVER_BASE_URL: http://host.docker.internal:8080
-```
-
-Smoke test from a container:
-
-```sh
-docker run --rm --add-host=host.docker.internal:host-gateway curlimages/curl \
-  -sS -H 'content-type: application/json' \
-  -H 'authorization: Bearer <runtime-token>' \
-  -H 'x-weave-runtime-profile: sha256:<runtime-profile-hash>' \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' \
-  http://host.docker.internal:8765/mcp
-```
+The loopback host port is for operator health checks only. `/mcp` requires a valid OIDC bearer token with the configured issuer, audience, expiry, and `weave:workspace` scope, plus `X-Weave-Runtime-Profile` for governed discovery and invocation. Provider credentials and provider endpoints are never accepted by the MCP process.

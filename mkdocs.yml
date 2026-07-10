@@ -58,6 +58,10 @@ nav:
       - No-unaccounted-data-loss portability contract: architecture/no-unaccounted-data-loss.md
       - Weaver OpenClaw-derived runtime profile: architecture/weaver-openclaw-profile.md
       - ADR-004 server OpenAPI contract authority: architecture/adr-004-server-openapi-contract-authority.md
+      - ADR-005 Files WebDAV facade slice: architecture/adr-005-files-webdav-facade-slice.md
+      - ADR-006 enterprise hard-plan decision lock: architecture/adr-006-enterprise-hard-plan-decision-lock.md
+      - ADR-007 persistence entity strategy: architecture/adr-007-persistence-entity-strategy.md
+      - ADR-008 no transitional compatibility as architecture: architecture/adr-008-no-transitional-compatibility-as-architecture.md
       - Acceptance contracts: acceptance-contracts.md
       - Quality and evidence: quality-and-evidence.md
       - Build, evidence, and delivery system: build-evidence-delivery-system.md

@@ -14,29 +14,29 @@ public final class WeaveMcpBridgeDtos {
         public WeaveMcpRef { value = WeaveMcpTypes.text(value, "value"); }
     }
 
-    public record ApprovalReceiptRef(String value) {
-        public ApprovalReceiptRef {
-            value = WeaveMcpTypes.text(value, "value");
-            if (!value.startsWith("approval://")) throw new IllegalArgumentException("value must start with approval://");
-        }
-    }
-
-    public record ApprovalReceipt(
-            String receiptRef,
-            String actorRef,
-            String action,
+    public record ApprovalEvidence(
+            String protocol,
+            String evidenceRef,
+            String toolName,
             List<String> scopeRefs,
-            String policyVersion,
-            String expiresAt,
-            String auditRef) {
-        public ApprovalReceipt {
-            receiptRef = WeaveMcpTypes.text(receiptRef, "receiptRef");
-            actorRef = WeaveMcpTypes.text(actorRef, "actorRef");
-            action = WeaveMcpTypes.text(action, "action");
+            String decision,
+            String decidedAt) {
+        public ApprovalEvidence {
+            protocol = WeaveMcpTypes.text(protocol, "protocol");
+            evidenceRef = WeaveMcpTypes.text(evidenceRef, "evidenceRef");
+            toolName = WeaveMcpTypes.text(toolName, "toolName");
             scopeRefs = WeaveMcpTypes.copyStrings(scopeRefs);
-            policyVersion = WeaveMcpTypes.text(policyVersion, "policyVersion");
-            expiresAt = WeaveMcpTypes.text(expiresAt, "expiresAt");
-            auditRef = WeaveMcpTypes.text(auditRef, "auditRef");
+            decision = WeaveMcpTypes.text(decision, "decision");
+            decidedAt = WeaveMcpTypes.text(decidedAt, "decidedAt");
+            if (!"mcp-elicitation/v1".equals(protocol)) {
+                throw new IllegalArgumentException("unsupported MCP approval evidence protocol");
+            }
+            if (!evidenceRef.startsWith("elicitation://")) {
+                throw new IllegalArgumentException("evidenceRef must start with elicitation://");
+            }
+            if (!List.of("allow-once", "allow-always").contains(decision)) {
+                throw new IllegalArgumentException("decision must be allow-once or allow-always");
+            }
         }
     }
 
@@ -47,8 +47,6 @@ public final class WeaveMcpBridgeDtos {
             String runtimeProfileHash,
             WeaveMcpRef runtimeTokenRef,
             String auditRef,
-            ApprovalReceiptRef approvalReceiptRef,
-            WeaveMcpRef alwaysAllowGrantRef,
             List<String> capabilityGrants,
             List<String> allowedTools) {
 
@@ -64,6 +62,7 @@ public final class WeaveMcpBridgeDtos {
 
     public enum ToolInvocationStatus {
         SUCCESS,
+        APPROVAL_REQUIRED,
         DENIED,
         VALIDATION_ERROR,
         UNAVAILABLE,
@@ -124,7 +123,11 @@ public final class WeaveMcpBridgeDtos {
         }
     }
 
-    public record BridgeInvocationRequest(String toolName, Map<String, Object> arguments, RuntimeInvocationContext runtime, ApprovalReceipt approvalReceipt) {
+    public record BridgeInvocationRequest(
+            String toolName,
+            Map<String, Object> arguments,
+            RuntimeInvocationContext runtime,
+            ApprovalEvidence approvalEvidence) {
         public BridgeInvocationRequest {
             toolName = WeaveMcpTypes.text(toolName, "toolName");
             arguments = WeaveMcpTypes.copyMap(arguments);

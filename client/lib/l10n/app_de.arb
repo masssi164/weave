@@ -1472,5 +1472,31 @@
         "type": "String"
       }
     }
-  }
+  },
+  "weaverPermissionModeTitle": "Berechtigungsmodus",
+  "@weaverPermissionModeTitle": {"description": "Label for the governed Weaver permission mode selector"},
+  "weaverPermissionModeDeny": "Alles verweigern",
+  "@weaverPermissionModeDeny": {"description": "Weaver permission mode that denies actions"},
+  "weaverPermissionModeAllowlist": "Nur Positivliste",
+  "@weaverPermissionModeAllowlist": {"description": "Weaver permission mode that permits remembered exact grants"},
+  "weaverPermissionModeAsk": "Jedes Mal fragen",
+  "@weaverPermissionModeAsk": {"description": "Weaver permission mode that requests member approval"},
+  "weaverPermissionModeAuto": "Automatische Prüfung",
+  "@weaverPermissionModeAuto": {"description": "Weaver permission mode using automatic host review"},
+  "weaverPermissionModeFull": "Vollzugriff (gefährlich)",
+  "@weaverPermissionModeFull": {"description": "Dangerous Weaver full access mode"},
+  "weaverPermissionFullWarningTitle": "Gefährlichen Vollzugriff aktivieren?",
+  "@weaverPermissionFullWarningTitle": {"description": "Warning title before enabling dangerous Weaver full access"},
+  "weaverPermissionFullWarningBody": "Weaver darf Host-Befehle ohne Freigabe ausführen und vertrauenswürdige Weave-Tool-Anfragen automatisch annehmen. Organisationsrichtlinie, Anmeldung, Validierung, Provider-Grenzen und Audit-Protokollierung gelten weiterhin.",
+  "@weaverPermissionFullWarningBody": {"description": "Warning body before enabling dangerous Weaver full access"},
+  "weaverPermissionFullConfirm": "Vollzugriff aktivieren",
+  "@weaverPermissionFullConfirm": {"description": "Confirmation button for dangerous Weaver full access"},
+  "weaverPermissionCancel": "Abbrechen",
+  "@weaverPermissionCancel": {"description": "Cancel button for Weaver permission mode warning"},
+  "weaverPermissionUpdated": "Weaver-Berechtigungsmodus aktualisiert.",
+  "@weaverPermissionUpdated": {"description": "Success feedback after updating Weaver permission mode"},
+  "weaverPermissionPolicyDenied": "Deine Organisationsrichtlinie erlaubt diesen Modus nicht.",
+  "@weaverPermissionPolicyDenied": {"description": "Feedback when organization policy denies a Weaver permission mode"},
+  "weaverPermissionUpdateFailed": "Der Weaver-Berechtigungsmodus konnte nicht aktualisiert werden.",
+  "@weaverPermissionUpdateFailed": {"description": "Failure feedback after updating Weaver permission mode"}
 }

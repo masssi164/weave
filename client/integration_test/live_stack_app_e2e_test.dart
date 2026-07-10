@@ -18,6 +18,8 @@ import 'package:weave/features/auth/data/services/flutter_appauth_oidc_client.da
 import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
 import 'package:weave/features/calendar/domain/repositories/calendar_repository.dart';
 import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
+import 'package:weave/features/chat/domain/entities/chat_failure.dart';
+import 'package:weave/features/chat/domain/entities/chat_room_timeline.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/files/domain/entities/file_upload_request.dart';
@@ -32,6 +34,7 @@ import 'package:weave/features/server_config/domain/entities/server_configuratio
 import 'package:weave/features/server_config/domain/entities/service_endpoints.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
+import 'package:weave/integrations/rust_matrix_core/data/services/rust_matrix_core_bridge.dart';
 
 import 'package:weave/main.dart';
 
@@ -281,7 +284,7 @@ void main() {
       final conversations = await chatRepository.loadConversations();
       final roomId = conversations
           .map((conversation) => conversation.id)
-          .firstWhere((id) => id == 'channel-general', orElse: () => '');
+          .firstWhere((id) => id.contains('channel-general'), orElse: () => '');
       if (roomId.isEmpty) {
         fail(
           'chat_facade_conversation_missing '
@@ -290,13 +293,27 @@ void main() {
       }
       final sentMessage =
           'live-e2e message ${DateTime.now().toUtc().toIso8601String()}';
-      await chatRepository.sendMessage(roomId: roomId, message: sentMessage);
-      final timeline = await chatRepository.loadRoomTimeline(roomId);
+      try {
+        await chatRepository.sendMessage(roomId: roomId, message: sentMessage);
+      } on ChatFailure catch (failure) {
+        fail(
+          'chat_facade_send_failed error=${_supportSafeDiagnostic(failure)}',
+        );
+      }
+      late ChatRoomTimeline timeline;
+      try {
+        timeline = await chatRepository.loadRoomTimeline(roomId);
+      } on ChatFailure catch (failure) {
+        fail(
+          'chat_facade_timeline_failed error=${_supportSafeDiagnostic(failure)}',
+        );
+      }
       final deliveredMessage = timeline.messages
           .where((message) => message.text == sentMessage)
           .toList(growable: false);
       // ignore: avoid_print
       print(
+        'MATRIX_FACADE_RESULT '
         'CHAT_RESULT roomId=$roomId '
         'backendFacade=true '
         'conversations=${conversations.length} '
@@ -417,34 +434,31 @@ void main() {
       );
 
       final workspaceLoopFileRef = 'file:$seededFileName';
-      final workspaceLoopChatMessage = _decodeHttpJson(
-        await providerHttpClient.post(
-          config.apiUri('/api/chat/conversations/channel-general/messages'),
-          headers: <String, String>{
-            'Accept': 'application/json',
-            'Authorization': 'Bearer ${appSession.accessToken}',
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode(<String, Object>{
-            'text':
-                'Workspace loop evidence: file reference is ready for board, calendar, and decision follow-up.',
-            'attachmentRefs': <String>[workspaceLoopFileRef],
-          }),
-        ),
-        operation: 'send workspace loop chat message',
+      const workspaceLoopConversationId = 'channel-general';
+      final workspaceLoopChatText =
+          'Workspace loop evidence: file reference $workspaceLoopFileRef is ready for board, calendar, and decision follow-up.';
+      await chatRepository.sendMessage(
+        roomId: roomId,
+        message: workspaceLoopChatText,
       );
-      final workspaceLoopChatMessageId = _jsonString(
-        workspaceLoopChatMessage['id'],
+      final workspaceLoopTimeline = await chatRepository.loadRoomTimeline(
+        roomId,
       );
-      final workspaceLoopConversationId = _jsonString(
-        workspaceLoopChatMessage['conversationId'],
-      );
+      final workspaceLoopChatMessages = workspaceLoopTimeline.messages
+          .where((message) => message.text == workspaceLoopChatText)
+          .toList(growable: false);
+      final workspaceLoopChatMessage = workspaceLoopChatMessages.isEmpty
+          ? null
+          : workspaceLoopChatMessages.last;
+      final workspaceLoopChatMessageId =
+          workspaceLoopChatMessage?.id ?? 'matrix-message-missing';
       final workspaceLoopChatUsesCanonicalIds =
           workspaceLoopConversationId == 'channel-general' &&
-          workspaceLoopChatMessageId.startsWith('msg-') &&
-          _jsonList(
-            workspaceLoopChatMessage['attachmentRefs'],
-          ).contains(workspaceLoopFileRef);
+          roomId.contains('channel-general') &&
+          workspaceLoopChatMessageId.startsWith(r'$') &&
+          workspaceLoopChatMessageId.contains(
+            ':${config.matrixHomeserverUrl.host}',
+          );
 
       final calendarRepository = container.read(calendarRepositoryProvider);
       final calendarScopes = await calendarRepository.loadScopes();
@@ -1111,9 +1125,6 @@ List<Map<String, dynamic>> _jsonListOfMaps(Object? value) {
 
 String _jsonString(Object? value) => value is String ? value : '';
 
-List<Object?> _jsonList(Object? value) =>
-    value is List ? value : const <Object?>[];
-
 bool _supportSafeEvidenceValue(Object? value) {
   final encoded = jsonEncode(value);
   return !RegExp(
@@ -1217,8 +1228,13 @@ String _supportSafeDiagnostic(Object? error) {
   if (error == null) {
     return 'none';
   }
-  return error
-      .toString()
+  final cause = error is ChatFailure ? error.cause : null;
+  final causeCode =
+      cause is RustMatrixCoreBridgeException &&
+          RegExp(r'^M_[A-Z0-9_]+$').hasMatch(cause.code)
+      ? ' causeCode=${cause.code}'
+      : '';
+  return '${error.toString()}$causeCode'
       .replaceAll(
         RegExp(r'Bearer\s+[^\s,]+', caseSensitive: false),
         'Bearer ***',

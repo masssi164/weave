@@ -3,24 +3,20 @@ package com.massimotter.weave.backend.service;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.files.port.FilesProviderPort;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyState;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
-import com.massimotter.weave.backend.model.files.CreateFolderRequest;
-import com.massimotter.weave.backend.model.files.FileItemResponse;
-import com.massimotter.weave.backend.model.files.FileListResponse;
-import com.massimotter.weave.backend.model.files.FileUploadResponse;
-import com.massimotter.weave.backend.service.files.DownloadedFile;
-import com.massimotter.weave.backend.service.files.FilesStorageAdapter;
-import com.massimotter.weave.backend.service.files.FilesStorageReadiness;
+import com.massimotter.weave.backend.portability.ProviderReadiness;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
 import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.web.multipart.MultipartFile;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class WorkspaceCapabilityServiceTest {
 
@@ -321,81 +317,15 @@ class WorkspaceCapabilityServiceTest {
                 .build();
     }
 
-    private FilesStorageAdapter failingFilesAdapter() {
-        return new FilesStorageAdapter() {
-            @Override
-            public boolean isConfigured() {
-                return true;
-            }
-
-            @Override
-            public FilesStorageReadiness readinessProbe() {
-                return FilesStorageReadiness.degraded("files-storage-backend-unavailable");
-            }
-
-            @Override
-            public FileListResponse list(String path) {
-                throw new UnsupportedOperationException("not used by this test");
-            }
-
-            @Override
-            public FileItemResponse createFolder(CreateFolderRequest request) {
-                throw new UnsupportedOperationException("not used by this test");
-            }
-
-            @Override
-            public FileUploadResponse upload(String parentPath, MultipartFile file) {
-                throw new UnsupportedOperationException("not used by this test");
-            }
-
-            @Override
-            public DownloadedFile download(String id) {
-                throw new UnsupportedOperationException("not used by this test");
-            }
-
-            @Override
-            public void delete(String id) {
-                throw new UnsupportedOperationException("not used by this test");
-            }
-        };
+    private FilesProviderPort failingFilesAdapter() {
+        FilesProviderPort adapter = mock(FilesProviderPort.class);
+        when(adapter.readiness()).thenReturn(ProviderReadiness.degraded("files-storage-backend-unavailable"));
+        return adapter;
     }
 
-    private FilesStorageAdapter throwingFilesAdapter() {
-        return new FilesStorageAdapter() {
-            @Override
-            public boolean isConfigured() {
-                return true;
-            }
-
-            @Override
-            public FilesStorageReadiness readinessProbe() {
-                throw new RuntimeException("provider-specific failure must not escape");
-            }
-
-            @Override
-            public FileListResponse list(String path) {
-                throw new UnsupportedOperationException("not used by this test");
-            }
-
-            @Override
-            public FileItemResponse createFolder(CreateFolderRequest request) {
-                throw new UnsupportedOperationException("not used by this test");
-            }
-
-            @Override
-            public FileUploadResponse upload(String parentPath, MultipartFile file) {
-                throw new UnsupportedOperationException("not used by this test");
-            }
-
-            @Override
-            public DownloadedFile download(String id) {
-                throw new UnsupportedOperationException("not used by this test");
-            }
-
-            @Override
-            public void delete(String id) {
-                throw new UnsupportedOperationException("not used by this test");
-            }
-        };
+    private FilesProviderPort throwingFilesAdapter() {
+        FilesProviderPort adapter = mock(FilesProviderPort.class);
+        when(adapter.readiness()).thenThrow(new RuntimeException("provider-specific failure must not escape"));
+        return adapter;
     }
 }

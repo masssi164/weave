@@ -10,9 +10,9 @@ void main() {
           weaveApiUri(Uri.parse('https://api.weave.test'), const [
             'api',
             'calendar',
-            'events',
+            'scopes',
           ]).toString(),
-          'https://api.weave.test/api/calendar/events',
+          'https://api.weave.test/api/calendar/scopes',
         );
       },
     );
@@ -24,9 +24,9 @@ void main() {
           weaveApiUri(Uri.parse('https://api.weave.test/api'), const [
             'api',
             'calendar',
-            'events',
+            'scopes',
           ]).toString(),
-          'https://api.weave.test/api/calendar/events',
+          'https://api.weave.test/api/calendar/scopes',
         );
       },
     );

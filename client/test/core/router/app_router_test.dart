@@ -25,6 +25,7 @@ import 'package:weave/features/files/presentation/providers/files_repository_pro
 import 'package:weave/features/help/presentation/help_screen.dart';
 import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
 import 'package:weave/features/onboarding/domain/entities/member_auth_onboarding_state.dart';
+import 'package:weave/features/onboarding/domain/use_cases/consume_member_handoff.dart';
 import 'package:weave/features/onboarding/presentation/first_run_screen.dart';
 import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
 import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
@@ -336,6 +337,78 @@ void main() {
       expect(find.byType(FirstRunScreen), findsNothing);
       expect(find.byType(NavigationBar), findsOneWidget);
     });
+
+    testWidgets(
+      'records session restoration after a relaunched profile request succeeds',
+      (tester) async {
+        final handoffEvidence = <String, Object>{
+          'schemaVersion': 'weave.dogfood.handoff-consumed.v1',
+          'result': 'saved_configuration',
+          'handoffRef': 'handoff-session-restore',
+          'runId': 'run-session-restore',
+          'organizationSlug': 'massimo-dogfood',
+          'workspaceSlug': 'home',
+          'profile': 'local-lan-dogfood',
+          'supportSafe': true,
+        };
+        final workspaceReady = <String, Object>{
+          'schemaVersion': 'weave.client.dogfood_auth_state.v1',
+          'recordedAt': '2026-07-10T00:00:00Z',
+          'state': 'workspace_ready',
+          'handoffRef': 'handoff-session-restore',
+          'runId': 'run-session-restore',
+          'organizationSlug': 'massimo-dogfood',
+          'workspaceSlug': 'home',
+          'profile': 'local-lan-dogfood',
+          'supportSafe': true,
+        };
+        final preferencesStore = InMemoryPreferencesStore({
+          lastHandoffConsumedStorageKey: jsonEncode(handoffEvidence),
+          dogfoodAuthStateStorageKey: jsonEncode(workspaceReady),
+          dogfoodAuthStateHistoryStorageKey: jsonEncode([workspaceReady]),
+        });
+        final secureStore = InMemorySecureStore();
+        await secureStore.write(
+          authSessionStorageKey,
+          AuthSessionDto.fromSession(buildTestAuthSession()).encode(),
+        );
+        final container = createContainer(
+          configuration: buildTestConfiguration(),
+          secureStore: secureStore,
+          preferencesStore: preferencesStore,
+          userProfile: const UserProfile(
+            userId: 'member-1',
+            username: 'member',
+            displayName: 'Member',
+            locale: 'en',
+            timezone: 'Europe/Berlin',
+            emailVerified: true,
+          ),
+        );
+        addTearDown(container.dispose);
+
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: const WeaveApp(),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final rawHistory = preferencesStore.rawString(
+          dogfoodAuthStateHistoryStorageKey,
+        );
+        expect(rawHistory, isNotNull);
+        final history = jsonDecode(rawHistory!) as List<dynamic>;
+        final historyStates = history
+            .map((entry) => (entry as Map<String, dynamic>)['state'])
+            .toList();
+        expect(historyStates.sublist(historyStates.length - 2), [
+          'session_restored',
+          'workspace_ready',
+        ]);
+      },
+    );
 
     testWidgets('uses the saved profile locale for the app language', (
       tester,

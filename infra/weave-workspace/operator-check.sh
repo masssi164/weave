@@ -203,6 +203,24 @@ curl_auth_status() {
   curl "${args[@]}" -H "Authorization: Bearer ${token}" -o /dev/null -w '%{http_code}' "$url"
 }
 
+curl_bearer_propfind_status() {
+  local token="$1"
+  local url="$2"
+  local -a args=()
+
+  while IFS= read -r -d '' arg; do
+    args+=("${arg}")
+  done < <(curl_common_args "${url}")
+
+  curl "${args[@]}" \
+    --header "Authorization: Bearer ${token}" \
+    --request PROPFIND \
+    --header 'Depth: 0' \
+    -o /dev/null \
+    -w '%{http_code}' \
+    "${url}"
+}
+
 assert_container_running() {
   local name="$1"
   local state
@@ -270,7 +288,6 @@ assert_backend_env_present() {
 assert_backend_provider_stack_config() {
   local name
   local gitlab_enabled
-  local forgejo_enabled
   local onlyoffice_enabled
   local contacts_enabled
   local forms_enabled
@@ -281,15 +298,10 @@ assert_backend_provider_stack_config() {
     WEAVE_PROVIDER_STACK_PROFILE \
     WEAVE_PROVIDER_STACK_READINESS \
     WEAVE_DEVOPS_PRIMARY_PROVIDER \
-    WEAVE_DEVOPS_ALTERNATIVE_PROVIDER \
     WEAVE_DEVOPS_GITLAB_RUNTIME_ENABLED \
     WEAVE_DEVOPS_GITLAB_BASE_URL \
     WEAVE_DEVOPS_GITLAB_API_TOKEN \
     WEAVE_DEVOPS_GITLAB_WRITES_ENABLED \
-    WEAVE_DEVOPS_FORGEJO_RUNTIME_ENABLED \
-    WEAVE_DEVOPS_FORGEJO_BASE_URL \
-    WEAVE_DEVOPS_FORGEJO_API_TOKEN \
-    WEAVE_DEVOPS_FORGEJO_WRITES_ENABLED \
     WEAVE_OFFICE_PRIMARY_PROVIDER \
     WEAVE_OFFICE_ONLYOFFICE_RUNTIME_ENABLED \
     WEAVE_OFFICE_ONLYOFFICE_DOCUMENT_SERVER_URL \
@@ -306,22 +318,18 @@ assert_backend_provider_stack_config() {
     fail "Operator check failed: unsupported provider-stack profile"
   [[ "$(container_env_value weave-backend WEAVE_DEVOPS_PRIMARY_PROVIDER)" == "gitlab-ce-foss" ]] || \
     fail "Operator check failed: GitLab CE/FOSS must remain the primary DevOps provider assumption"
-  [[ "$(container_env_value weave-backend WEAVE_DEVOPS_ALTERNATIVE_PROVIDER)" == "forgejo" ]] || \
-    fail "Operator check failed: Forgejo must remain the first-class DevOps alternative"
   [[ "$(container_env_value weave-backend WEAVE_OFFICE_PRIMARY_PROVIDER)" == "onlyoffice-community" ]] || \
     fail "Operator check failed: ONLYOFFICE Docs Community must remain the default Office candidate"
   [[ "$(container_env_value weave-backend WEAVE_OFFICE_NEXTCLOUD_INTEGRATION_MODE)" == "nextcloud-onlyoffice-app-behind-backend-facade" ]] || \
     fail "Operator check failed: Office integration must stay behind Nextcloud/backend facade"
 
   gitlab_enabled="$(container_env_value weave-backend WEAVE_DEVOPS_GITLAB_RUNTIME_ENABLED)"
-  forgejo_enabled="$(container_env_value weave-backend WEAVE_DEVOPS_FORGEJO_RUNTIME_ENABLED)"
   onlyoffice_enabled="$(container_env_value weave-backend WEAVE_OFFICE_ONLYOFFICE_RUNTIME_ENABLED)"
   contacts_enabled="$(container_env_value weave-backend WEAVE_GROUPWARE_CONTACTS_RUNTIME_ENABLED)"
   forms_enabled="$(container_env_value weave-backend WEAVE_GROUPWARE_FORMS_RUNTIME_ENABLED)"
   deck_enabled="$(container_env_value weave-backend WEAVE_BOARDS_NEXTCLOUD_DECK_RUNTIME_ENABLED)"
 
   [[ "$(container_env_value weave-backend WEAVE_DEVOPS_GITLAB_WRITES_ENABLED)" != "true" ]] || fail "Operator check failed: GitLab provider writes must stay disabled for the read-only DevOps facade"
-  [[ "$(container_env_value weave-backend WEAVE_DEVOPS_FORGEJO_WRITES_ENABLED)" != "true" ]] || fail "Operator check failed: Forgejo provider writes must stay disabled for the read-only DevOps facade"
   [[ "$(container_env_value weave-backend WEAVE_OFFICE_COLLABORA_RUNTIME_ENABLED)" != "true" ]] || fail "Operator check failed: Collabora/CODE must stay disabled until licensing/runtime fit is validated"
   [[ "${contacts_enabled}" != "true" ]] || fail "Operator check failed: Contacts runtime must stay disabled until backend PR #104 is merged and validated"
   [[ "${forms_enabled}" != "true" ]] || fail "Operator check failed: Forms runtime must stay disabled until backend PR #104 is merged and validated"
@@ -332,13 +340,6 @@ assert_backend_provider_stack_config() {
   else
     [[ -n "$(container_env_value weave-backend WEAVE_DEVOPS_GITLAB_BASE_URL)" ]] || fail "Operator check failed: enabled GitLab runtime requires a backend-only base URL"
     [[ -n "$(container_env_value weave-backend WEAVE_DEVOPS_GITLAB_API_TOKEN)" ]] || fail "Operator check failed: enabled GitLab runtime requires a backend-held service token"
-  fi
-
-  if [[ "${forgejo_enabled}" != "true" ]]; then
-    [[ -z "$(container_env_value weave-backend WEAVE_DEVOPS_FORGEJO_API_TOKEN)" ]] || fail "Operator check failed: disabled Forgejo runtime must not carry an API token"
-  else
-    [[ -n "$(container_env_value weave-backend WEAVE_DEVOPS_FORGEJO_BASE_URL)" ]] || fail "Operator check failed: enabled Forgejo runtime requires a backend-only base URL"
-    [[ -n "$(container_env_value weave-backend WEAVE_DEVOPS_FORGEJO_API_TOKEN)" ]] || fail "Operator check failed: enabled Forgejo runtime requires a backend-held service token"
   fi
 
   if [[ "${onlyoffice_enabled}" != "true" ]]; then
@@ -398,7 +399,7 @@ assert_matrix_room_unencrypted_until_e2ee_promoted() {
 
   [[ -n "${WEAVE_MATRIX_PROVISIONER_ACCESS_TOKEN:-}" ]] ||     fail "Operator check failed: Matrix provisioner token is missing from private bootstrap env; cannot verify E2EE room posture"
 
-  status="$(curl_auth_status "${WEAVE_MATRIX_PROVISIONER_ACCESS_TOKEN}" "${WEAVE_MATRIX_HOMESERVER_URL}/_matrix/client/v3/rooms/$(url_encode "${room_id}")/state/m.room.encryption/" || true)"
+  status="$(curl_auth_status "${WEAVE_MATRIX_PROVISIONER_ACCESS_TOKEN}" "${WEAVE_MATRIX_PROVIDER_URL}/_matrix/client/v3/rooms/$(url_encode "${room_id}")/state/m.room.encryption/" || true)"
   case "${status}" in
     404) ;;
     200) fail "Operator check failed: ${room_name} has m.room.encryption while WEAVE_CHAT_E2EE is still active-architecture-gated; promote encrypted-room/device/recovery validation before claiming E2EE" ;;
@@ -411,7 +412,7 @@ check_matrix_provisioner_key_backup_diagnostic() {
 
   [[ -n "${WEAVE_MATRIX_PROVISIONER_ACCESS_TOKEN:-}" ]] ||     fail "Operator check failed: Matrix provisioner token is missing from private bootstrap env; cannot verify provisioner key-backup posture"
 
-  status="$(curl_auth_status "${WEAVE_MATRIX_PROVISIONER_ACCESS_TOKEN}" "${WEAVE_MATRIX_HOMESERVER_URL}/_matrix/client/v3/room_keys/version" || true)"
+  status="$(curl_auth_status "${WEAVE_MATRIX_PROVISIONER_ACCESS_TOKEN}" "${WEAVE_MATRIX_PROVIDER_URL}/_matrix/client/v3/room_keys/version" || true)"
   case "${status}" in
     404) ;;
     200) log "Matrix provisioner account has key-backup state; this is diagnostic only and does not prove global E2EE recovery readiness." ;;
@@ -512,6 +513,7 @@ assert_authenticated_backend_facades_accept_test_user() {
   local profile_readiness
   local provider_status
   local files_status
+  local calendar_status
 
   if [[ "${TF_VAR_create_test_user:-false}" != "true" ]]; then
     return
@@ -546,8 +548,11 @@ assert_authenticated_backend_facades_accept_test_user() {
   admin_control_plane_status="$(curl_auth_status "${access_token}" "${WEAVE_BASE_URL}/admin/control-plane" || true)"
   [[ "${admin_control_plane_status}" == "403" ]] || fail "Operator check failed: member token should receive 403 from admin control plane, got HTTP ${admin_control_plane_status}"
 
-  files_status="$(curl_auth_status "${access_token}" "${WEAVE_BASE_URL}/files" || true)"
-  [[ "${files_status}" == 2* ]] || fail "Operator check failed: authenticated files facade rejected the test-user app token with HTTP ${files_status}"
+  files_status="$(curl_bearer_propfind_status "${access_token}" "$(api_public_url)/dav/files" || true)"
+  [[ "${files_status}" == "207" ]] || fail "Operator check failed: authenticated WebDAV facade rejected the test-user app token with HTTP ${files_status}"
+
+  calendar_status="$(curl_bearer_propfind_status "${access_token}" "$(api_public_url)/caldav" || true)"
+  [[ "${calendar_status}" == "207" ]] || fail "Operator check failed: authenticated CalDAV facade rejected the test-user app token with HTTP ${calendar_status}"
 }
 
 assert_backend_product_gate_config() {
@@ -595,7 +600,8 @@ source "${SYNAPSE_VOLUME_HELPER}"
 : "${WEAVE_PUBLIC_BASE_URL:=$(product_public_url)}"
 : "${WEAVE_OIDC_ISSUER_URL:=$(public_url "${TF_VAR_auth_subdomain:-auth}")/realms/${TF_VAR_tenant_slug:-weave}}"
 : "${WEAVE_NEXTCLOUD_BASE_URL:=$(public_url "${TF_VAR_nextcloud_subdomain:-files}")}"
-: "${WEAVE_MATRIX_HOMESERVER_URL:=$(public_url "${TF_VAR_matrix_subdomain:-matrix}")}"
+: "${WEAVE_MATRIX_HOMESERVER_URL:=$(api_public_url)}"
+: "${WEAVE_MATRIX_PROVIDER_URL:=$(public_url "${TF_VAR_matrix_subdomain:-matrix}")}"
 : "${WEAVE_LOCAL_CA_URL:=http://${TF_VAR_tenant_domain:-weave.test}:${TF_VAR_proxy_http_host_port:-44080}/weave-local-ca.pem}"
 
 [[ "${WEAVE_PUBLIC_BASE_URL}" == "$(product_public_url)" ]] || fail "Operator check failed: product URL must stay DNS-first on ${TF_VAR_tenant_domain:-weave.test}, got ${WEAVE_PUBLIC_BASE_URL}"
@@ -603,7 +609,7 @@ source "${SYNAPSE_VOLUME_HELPER}"
 [[ "${WEAVE_OIDC_ISSUER_URL}" == "$(public_url "${TF_VAR_auth_subdomain:-auth}")/realms/${TF_VAR_tenant_slug:-weave}" ]] || fail "Operator check failed: OIDC issuer must stay DNS-first on $(public_host "${TF_VAR_auth_subdomain:-auth}"), got ${WEAVE_OIDC_ISSUER_URL}"
 [[ "${WEAVE_LOCAL_CA_URL}" == "http://${TF_VAR_tenant_domain:-weave.test}:${TF_VAR_proxy_http_host_port:-44080}/weave-local-ca.pem" ]] || fail "Operator check failed: local CA URL must be advertised on weave.test, got ${WEAVE_LOCAL_CA_URL}"
 if [[ -n "${TF_VAR_local_lan_host:-}" ]]; then
-  for dns_first_url in "${WEAVE_PUBLIC_BASE_URL}" "${WEAVE_BASE_URL}" "${WEAVE_OIDC_ISSUER_URL}" "${WEAVE_NEXTCLOUD_BASE_URL}" "${WEAVE_MATRIX_HOMESERVER_URL}" "${WEAVE_LOCAL_CA_URL}"; do
+  for dns_first_url in "${WEAVE_PUBLIC_BASE_URL}" "${WEAVE_BASE_URL}" "${WEAVE_OIDC_ISSUER_URL}" "${WEAVE_NEXTCLOUD_BASE_URL}" "${WEAVE_MATRIX_HOMESERVER_URL}" "${WEAVE_MATRIX_PROVIDER_URL}" "${WEAVE_LOCAL_CA_URL}"; do
     [[ "${dns_first_url}" != *"${TF_VAR_local_lan_host}"* ]] || fail "Operator check failed: local_lan_host is non-canonical and must not appear in DNS-first app/service URLs: ${dns_first_url}"
   done
 fi
@@ -611,13 +617,14 @@ fi
 synapse_operator_diagnose_volume
 
 log "Checking core containers..."
-for container in weave-proxy weave-keycloak weave-backend weave-mas weave-synapse weave-nextcloud weave-db; do
+for container in weave-proxy weave-keycloak weave-backend weave-mcp-server weave-mas weave-synapse weave-nextcloud weave-db; do
   assert_container_running "${container}"
 done
 
 log "Checking loopback health endpoints..."
 assert_http_200 "Keycloak management" "http://${LOOPBACK_HOST}:${TF_VAR_keycloak_management_host_port:-49000}/health/ready"
 assert_http_200 "Weave backend" "http://${LOOPBACK_HOST}:${TF_VAR_backend_host_port:-48084}/api/health/ready"
+assert_http_200 "Weave MCP server" "http://${LOOPBACK_HOST}:${TF_VAR_mcp_host_port:-48085}/actuator/health"
 assert_http_200 "MAS" "http://${LOOPBACK_HOST}:${TF_VAR_mas_host_port:-48082}/health"
 assert_http_200 "Synapse" "http://${LOOPBACK_HOST}:${TF_VAR_synapse_host_port:-48008}/_matrix/client/versions"
 
@@ -673,14 +680,14 @@ nextcloud_oidc_provider="$(docker exec --user www-data weave-nextcloud php occ u
 assert_json "${nextcloud_oidc_provider}" '.settings.checkBearer == true or .settings.checkBearer == "1" or .settings.checkBearer == 1' "Nextcloud OIDC provider should validate Bearer tokens"
 assert_json "${nextcloud_oidc_provider}" '.settings.bearerProvisioning == true or .settings.bearerProvisioning == "1" or .settings.bearerProvisioning == 1' "Nextcloud OIDC provider should provision Bearer-token users"
 
-mas_discovery="$(curl_json "${WEAVE_MATRIX_HOMESERVER_URL}/.well-known/openid-configuration")"
-assert_json "${mas_discovery}" ".issuer == \"${WEAVE_MATRIX_HOMESERVER_URL}/\"" "MAS issuer should match the public matrix URL"
+mas_discovery="$(curl_json "${WEAVE_MATRIX_PROVIDER_URL}/.well-known/openid-configuration")"
+assert_json "${mas_discovery}" ".issuer == \"${WEAVE_MATRIX_PROVIDER_URL}/\"" "MAS issuer should match the southbound Matrix provider URL"
 
-matrix_versions="$(curl_json "${WEAVE_MATRIX_HOMESERVER_URL}/_matrix/client/versions")"
-assert_json "${matrix_versions}" '.versions | type == "array"' "public Matrix client versions route should be served by Synapse"
+matrix_versions="$(curl_json "${WEAVE_MATRIX_PROVIDER_URL}/_matrix/client/versions")"
+assert_json "${matrix_versions}" '.versions | type == "array"' "southbound Matrix provider versions route should be served by Synapse"
 
-matrix_auth_metadata="$(curl_json "${WEAVE_MATRIX_HOMESERVER_URL}/_matrix/client/v1/auth_metadata")"
-assert_json "${matrix_auth_metadata}" ".issuer == \"${WEAVE_MATRIX_HOMESERVER_URL}/\"" "Matrix OAuth metadata should be served by MAS"
+matrix_auth_metadata="$(curl_json "${WEAVE_MATRIX_PROVIDER_URL}/_matrix/client/v1/auth_metadata")"
+assert_json "${matrix_auth_metadata}" ".issuer == \"${WEAVE_MATRIX_PROVIDER_URL}/\"" "Matrix provider OAuth metadata should be served by MAS"
 assert_json "${matrix_auth_metadata}" '.authorization_endpoint | contains("/authorize")' "Matrix OAuth metadata should expose the MAS authorization endpoint"
 
 log "Checking default Matrix room aliases..."
@@ -690,10 +697,10 @@ matrix_announcements_alias="#${WEAVE_MATRIX_ANNOUNCEMENTS_ALIAS_LOCALPART:-annou
 matrix_general_alias="#${WEAVE_MATRIX_GENERAL_ALIAS_LOCALPART:-general}:${matrix_homeserver}"
 matrix_help_alias="#${WEAVE_MATRIX_HELP_ALIAS_LOCALPART:-help}:${matrix_homeserver}"
 
-matrix_space_id="$(matrix_room_id_by_alias "${WEAVE_MATRIX_HOMESERVER_URL}" "${matrix_space_alias}")"
-matrix_announcements_id="$(matrix_room_id_by_alias "${WEAVE_MATRIX_HOMESERVER_URL}" "${matrix_announcements_alias}")"
-matrix_general_id="$(matrix_room_id_by_alias "${WEAVE_MATRIX_HOMESERVER_URL}" "${matrix_general_alias}")"
-matrix_help_id="$(matrix_room_id_by_alias "${WEAVE_MATRIX_HOMESERVER_URL}" "${matrix_help_alias}")"
+matrix_space_id="$(matrix_room_id_by_alias "${WEAVE_MATRIX_PROVIDER_URL}" "${matrix_space_alias}")"
+matrix_announcements_id="$(matrix_room_id_by_alias "${WEAVE_MATRIX_PROVIDER_URL}" "${matrix_announcements_alias}")"
+matrix_general_id="$(matrix_room_id_by_alias "${WEAVE_MATRIX_PROVIDER_URL}" "${matrix_general_alias}")"
+matrix_help_id="$(matrix_room_id_by_alias "${WEAVE_MATRIX_PROVIDER_URL}" "${matrix_help_alias}")"
 [[ "${matrix_space_id}" == \!* ]] || fail "Operator check failed: default Matrix space alias did not resolve"
 [[ "${matrix_announcements_id}" == \!* ]] || fail "Operator check failed: announcements room alias did not resolve"
 [[ "${matrix_general_id}" == \!* ]] || fail "Operator check failed: general room alias did not resolve"

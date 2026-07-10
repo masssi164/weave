@@ -13,9 +13,11 @@ import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Repository;
 
 @Repository
+@ConditionalOnProperty(name = "weave.migration.evidence.storage.mode", havingValue = "file", matchIfMissing = true)
 class FileMigrationRunEvidenceRepository implements MigrationRunEvidenceRepository {
 
     private static final TypeReference<Map<String, MigrationRunEvidence>> EVIDENCE_MAP = new TypeReference<>() {

@@ -8,7 +8,7 @@ import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.util.UriUtils;
 
-final class FilePathCodec {
+public final class FilePathCodec {
 
     private static final String ID_PREFIX = "files:";
 
@@ -21,7 +21,7 @@ final class FilePathCodec {
         return ID_PREFIX + encoded;
     }
 
-    static String pathFromId(String id) {
+    public static String pathFromId(String id) {
         if (id == null || id.isBlank()) {
             throw invalidPath("File identifier is required.");
         }
@@ -40,7 +40,7 @@ final class FilePathCodec {
         throw invalidPath("File identifier is not valid.");
     }
 
-    static String normalizeProductPath(String path) {
+    public static String normalizeProductPath(String path) {
         if (path == null || path.isBlank()) {
             throw invalidPath("Path is required.");
         }
@@ -69,7 +69,7 @@ final class FilePathCodec {
         return trimmed;
     }
 
-    static String childPath(String parentPath, String name) {
+    public static String childPath(String parentPath, String name) {
         String parent = normalizeProductPath(parentPath);
         String childName = validateFileName(name);
         return "/".equals(parent) ? "/" + childName : parent + "/" + childName;

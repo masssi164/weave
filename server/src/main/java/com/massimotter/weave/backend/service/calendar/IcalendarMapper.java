@@ -1,9 +1,18 @@
 package com.massimotter.weave.backend.service.calendar;
 
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.Attendee;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarEvent;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarId;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarScope;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.EventId;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.EventVersion;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.RecurrenceFrequency;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.RecurrenceSet;
 import com.massimotter.weave.backend.model.calendar.CalendarAttendeeResponse;
 import com.massimotter.weave.backend.model.calendar.CalendarEventResponse;
 import com.massimotter.weave.backend.model.calendar.CalendarProviderRefResponse;
 import com.massimotter.weave.backend.model.calendar.CalendarScopeResponse;
+import com.massimotter.weave.backend.model.calendar.CalendarThreadRefResponse;
 import com.massimotter.weave.backend.model.calendar.CreateCalendarEventRequest;
 import com.massimotter.weave.backend.model.calendar.UpdateCalendarEventRequest;
 import java.time.LocalDate;
@@ -44,7 +53,10 @@ public class IcalendarMapper {
                 request.endsAt(),
                 request.timezone(),
                 blankToNull(request.location()),
-                request.allDay());
+                request.allDay(),
+                List.of(),
+                null,
+                null);
     }
 
     public EventDraft merge(EventDraft existing, UpdateCalendarEventRequest request) {
@@ -56,10 +68,17 @@ public class IcalendarMapper {
                 request.endsAt() == null ? existing.endsAt() : request.endsAt(),
                 request.timezone() == null || request.timezone().isBlank() ? existing.timezone() : request.timezone(),
                 request.location() == null ? existing.location() : blankToNull(request.location()),
-                request.allDay() == null ? existing.allDay() : request.allDay());
+                request.allDay() == null ? existing.allDay() : request.allDay(),
+                existing.attendees(),
+                existing.recurrence(),
+                existing.updatedAt());
     }
 
     public String toIcalendar(EventDraft event) {
+        return toIcalendar(event, null);
+    }
+
+    private String toIcalendar(EventDraft event, CalendarThreadRefResponse threadRef) {
         StringBuilder builder = new StringBuilder();
         builder.append("BEGIN:VCALENDAR\r\n");
         builder.append("VERSION:2.0\r\n");
@@ -67,12 +86,22 @@ public class IcalendarMapper {
         builder.append("CALSCALE:GREGORIAN\r\n");
         builder.append("BEGIN:VEVENT\r\n");
         builder.append("UID:").append(escape(event.uid())).append("\r\n");
+        if (threadRef != null) {
+            appendText(builder, "X-WEAVE-CONTEXT-ID", threadRef.contextId());
+            appendText(builder, "X-WEAVE-CHANNEL-ID", threadRef.channelId());
+            appendText(builder, "X-WEAVE-MEETING-THREAD-ID", threadRef.meetingThreadId());
+        }
         builder.append("DTSTAMP:").append(UTC_FORMAT.format(OffsetDateTime.now(ZoneOffset.UTC))).append("\r\n");
+        if (event.updatedAt() != null) {
+            builder.append("LAST-MODIFIED:").append(UTC_FORMAT.format(event.updatedAt())).append("\r\n");
+        }
         appendDateTime(builder, "DTSTART", event.startsAt(), event.timezone(), event.allDay());
         appendDateTime(builder, "DTEND", event.endsAt(), event.timezone(), event.allDay());
         appendText(builder, "SUMMARY", event.title());
         appendText(builder, "DESCRIPTION", event.description());
         appendText(builder, "LOCATION", event.location());
+        appendRecurrence(builder, event.recurrence(), event.timezone(), event.allDay());
+        event.attendees().forEach(attendee -> appendAttendee(builder, attendee));
         builder.append("END:VEVENT\r\n");
         builder.append("END:VCALENDAR\r\n");
         return builder.toString();
@@ -94,7 +123,13 @@ public class IcalendarMapper {
                 cleanEtag(etag),
                 CalendarScopeResponse.workspace(),
                 null,
-                attendees(eventProperties),
+                draft.attendees().stream()
+                        .map(attendee -> new CalendarAttendeeResponse(
+                                attendee.displayName(),
+                                attendee.address(),
+                                attendee.role(),
+                                attendee.response()))
+                        .toList(),
                 CalendarProviderRefResponse.caldavEvent(id, cleanEtag(etag), updatedAt),
                 updatedAt);
     }
@@ -104,17 +139,6 @@ public class IcalendarMapper {
         Map<String, Property> properties = new LinkedHashMap<>();
         for (Property property : eventProperties) {
             properties.putIfAbsent(property.name(), property);
-        }
-
-        if (properties.containsKey("RRULE") || properties.containsKey("RDATE") || properties.containsKey("EXDATE")) {
-            throw new CalendarAdapterException(
-                    CalendarAdapterException.Type.INVALID_RESPONSE,
-                    "Recurring CalDAV events are not yet represented by the Weave calendar facade.",
-                    Map.of(
-                            "module", "calendar",
-                            "operation", "map-event",
-                            "unsupportedFields", List.of("RRULE", "RDATE", "EXDATE"),
-                            "supportSafeReason", "recurrence-not-yet-supported"));
         }
 
         Property uid = properties.get("UID");
@@ -136,7 +160,57 @@ public class IcalendarMapper {
                 parseDateTime(end, timezone),
                 timezone,
                 blankToNull(unescape(value(properties, "LOCATION"))),
-                allDay);
+                allDay,
+                attendees(eventProperties),
+                recurrence(eventProperties, timezone),
+                updatedAt(eventProperties));
+    }
+
+    public CalendarEvent parse(
+            CalendarId calendarId,
+            CalendarScope scope,
+            EventVersion version,
+            String calendarData) {
+        EventDraft draft = parse(calendarData);
+        ZoneId timezone = zoneId(draft.timezone());
+        return new CalendarEvent(
+                calendarId,
+                new EventId(draft.uid()),
+                scope,
+                draft.title(),
+                draft.description(),
+                draft.startsAt().atZoneSameInstant(timezone).toLocalDateTime(),
+                draft.endsAt().atZoneSameInstant(timezone).toLocalDateTime(),
+                timezone,
+                draft.allDay(),
+                draft.location(),
+                draft.attendees(),
+                draft.recurrence(),
+                version,
+                draft.updatedAt() == null ? null : draft.updatedAt().toInstant());
+    }
+
+    public String toIcalendar(CalendarEvent event) {
+        return toIcalendar(toDraft(event));
+    }
+
+    public String toNorthboundIcalendar(CalendarEvent event, CalendarScopeResponse scope) {
+        return toIcalendar(toDraft(event), CalendarThreadRefResponse.forEvent(scope, event.id().value()));
+    }
+
+    private EventDraft toDraft(CalendarEvent event) {
+        return new EventDraft(
+                event.id().value(),
+                event.title(),
+                event.description(),
+                event.startsAt().toOffsetDateTime(),
+                event.endsAt().toOffsetDateTime(),
+                event.timezone().getId(),
+                event.location(),
+                event.allDay(),
+                event.attendees(),
+                event.recurrence(),
+                event.updatedAt() == null ? null : OffsetDateTime.ofInstant(event.updatedAt(), ZoneOffset.UTC));
     }
 
     private List<Property> eventProperties(String calendarData) {
@@ -159,15 +233,198 @@ public class IcalendarMapper {
         return properties;
     }
 
-    private List<CalendarAttendeeResponse> attendees(List<Property> properties) {
+    private List<Attendee> attendees(List<Property> properties) {
         return properties.stream()
                 .filter(property -> "ATTENDEE".equals(property.name()))
-                .map(property -> new CalendarAttendeeResponse(
+                .map(property -> new Attendee(
+                        null,
                         unquote(unescape(property.params().get("CN"))),
                         mailToEmail(unescape(property.value())),
                         property.params().get("ROLE"),
                         property.params().get("PARTSTAT")))
                 .toList();
+    }
+
+    private RecurrenceSet recurrence(List<Property> properties, String eventTimezone) {
+        List<Property> rules = properties.stream()
+                .filter(property -> "RRULE".equals(property.name()))
+                .toList();
+        boolean hasRecurrenceDates = properties.stream()
+                .anyMatch(property -> "RDATE".equals(property.name()) || "EXDATE".equals(property.name()));
+        if (rules.isEmpty()) {
+            if (hasRecurrenceDates) {
+                throw recurrenceUnsupported("RDATE and EXDATE require a bounded RRULE.");
+            }
+            return null;
+        }
+        if (rules.size() != 1) {
+            throw recurrenceUnsupported("Exactly one RRULE is supported per event.");
+        }
+
+        Map<String, String> values = new LinkedHashMap<>();
+        for (String part : rules.get(0).value().split(";")) {
+            int separator = part.indexOf('=');
+            if (separator <= 0 || separator == part.length() - 1) {
+                throw recurrenceUnsupported("RRULE contains an invalid component.");
+            }
+            values.put(part.substring(0, separator).toUpperCase(Locale.ROOT), part.substring(separator + 1));
+        }
+        List<String> unsupported = values.keySet().stream()
+                .filter(key -> !List.of("FREQ", "INTERVAL", "COUNT", "UNTIL").contains(key))
+                .sorted()
+                .toList();
+        if (!unsupported.isEmpty()) {
+            throw recurrenceUnsupported("RRULE components are not supported: " + String.join(", ", unsupported));
+        }
+
+        RecurrenceFrequency frequency;
+        try {
+            frequency = RecurrenceFrequency.valueOf(values.getOrDefault("FREQ", "").toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException exception) {
+            throw recurrenceUnsupported("Only DAILY and WEEKLY RRULE frequencies are supported.");
+        }
+        int interval = parsePositiveInteger(values.getOrDefault("INTERVAL", "1"), "INTERVAL");
+        Integer count = values.containsKey("COUNT") ? parsePositiveInteger(values.get("COUNT"), "COUNT") : null;
+        ZonedDateTime until = values.containsKey("UNTIL")
+                ? parseRecurrenceDate(values.get("UNTIL"), eventTimezone, false)
+                : null;
+        if ((count == null) == (until == null)) {
+            throw recurrenceUnsupported("RRULE requires exactly one COUNT or UNTIL bound.");
+        }
+        try {
+            return new RecurrenceSet(
+                    frequency,
+                    interval,
+                    count,
+                    until,
+                    recurrenceDates(properties, "RDATE", eventTimezone),
+                    recurrenceDates(properties, "EXDATE", eventTimezone));
+        } catch (IllegalArgumentException exception) {
+            throw recurrenceUnsupported(exception.getMessage());
+        }
+    }
+
+    private List<ZonedDateTime> recurrenceDates(
+            List<Property> properties,
+            String propertyName,
+            String eventTimezone) {
+        List<ZonedDateTime> dates = new ArrayList<>();
+        properties.stream()
+                .filter(property -> propertyName.equals(property.name()))
+                .forEach(property -> {
+                    String timezone = valueOrDefault(property.params().get("TZID"), eventTimezone);
+                    boolean dateOnly = "DATE".equalsIgnoreCase(property.params().get("VALUE"));
+                    for (String value : property.value().split(",")) {
+                        dates.add(parseRecurrenceDate(value, timezone, dateOnly));
+                    }
+                });
+        return List.copyOf(dates);
+    }
+
+    private ZonedDateTime parseRecurrenceDate(String value, String timezone, boolean dateOnly) {
+        try {
+            if (dateOnly || value.length() == 8) {
+                return LocalDate.parse(value, DATE_FORMAT).atStartOfDay(zoneId(timezone));
+            }
+            if (value.endsWith("Z")) {
+                return LocalDateTime.parse(value.substring(0, value.length() - 1), LOCAL_DATE_TIME_FORMAT)
+                        .atOffset(ZoneOffset.UTC)
+                        .toZonedDateTime();
+            }
+            return LocalDateTime.parse(value, LOCAL_DATE_TIME_FORMAT).atZone(zoneId(timezone));
+        } catch (RuntimeException exception) {
+            if (exception instanceof CalendarAdapterException adapterException) {
+                throw adapterException;
+            }
+            throw recurrenceUnsupported("Recurrence date-time is invalid.");
+        }
+    }
+
+    private int parsePositiveInteger(String value, String field) {
+        try {
+            int parsed = Integer.parseInt(value);
+            if (parsed < 1) {
+                throw new NumberFormatException("not positive");
+            }
+            return parsed;
+        } catch (NumberFormatException exception) {
+            throw recurrenceUnsupported(field + " must be a positive integer.");
+        }
+    }
+
+    private CalendarAdapterException recurrenceUnsupported(String reason) {
+        return new CalendarAdapterException(
+                CalendarAdapterException.Type.INVALID_REQUEST,
+                "Calendar recurrence is outside the supported bounded profile.",
+                Map.of(
+                        "module", "calendar",
+                        "operation", "map-recurrence",
+                        "errorCode", "caldav-recurrence-unsupported",
+                        "reason", reason,
+                        "supportSafe", true));
+    }
+
+    private void appendRecurrence(
+            StringBuilder builder,
+            RecurrenceSet recurrence,
+            String timezone,
+            boolean allDay) {
+        if (recurrence == null) {
+            return;
+        }
+        builder.append("RRULE:FREQ=").append(recurrence.frequency().name());
+        if (recurrence.interval() != 1) {
+            builder.append(";INTERVAL=").append(recurrence.interval());
+        }
+        if (recurrence.count() != null) {
+            builder.append(";COUNT=").append(recurrence.count());
+        } else {
+            builder.append(";UNTIL=").append(UTC_FORMAT.format(recurrence.until()));
+        }
+        builder.append("\r\n");
+        appendRecurrenceDates(builder, "RDATE", recurrence.additionalDates(), timezone, allDay);
+        appendRecurrenceDates(builder, "EXDATE", recurrence.excludedDates(), timezone, allDay);
+    }
+
+    private void appendRecurrenceDates(
+            StringBuilder builder,
+            String name,
+            List<ZonedDateTime> values,
+            String timezone,
+            boolean allDay) {
+        if (values == null || values.isEmpty()) {
+            return;
+        }
+        builder.append(name);
+        if (allDay) {
+            builder.append(";VALUE=DATE:");
+            builder.append(values.stream()
+                    .map(value -> DATE_FORMAT.format(value.withZoneSameInstant(zoneId(timezone)).toLocalDate()))
+                    .collect(java.util.stream.Collectors.joining(",")));
+        } else {
+            builder.append(";TZID=").append(timezone).append(":");
+            builder.append(values.stream()
+                    .map(value -> LOCAL_DATE_TIME_FORMAT.format(value.withZoneSameInstant(zoneId(timezone)).toLocalDateTime()))
+                    .collect(java.util.stream.Collectors.joining(",")));
+        }
+        builder.append("\r\n");
+    }
+
+    private void appendAttendee(StringBuilder builder, Attendee attendee) {
+        String address = attendee.address() == null
+                ? "urn:weave:member:" + attendee.memberRef()
+                : "mailto:" + attendee.address();
+        builder.append("ATTENDEE");
+        if (attendee.displayName() != null) {
+            builder.append(";CN=\"").append(attendee.displayName().replace("\"", "'")).append("\"");
+        }
+        if (attendee.response() != null) {
+            builder.append(";PARTSTAT=").append(attendee.response().toUpperCase(Locale.ROOT));
+        }
+        if (attendee.role() != null) {
+            builder.append(";ROLE=").append(attendee.role().toUpperCase(Locale.ROOT));
+        }
+        builder.append(":").append(escape(address)).append("\r\n");
     }
 
     private OffsetDateTime updatedAt(List<Property> properties) {
@@ -346,7 +603,26 @@ public class IcalendarMapper {
             OffsetDateTime endsAt,
             String timezone,
             String location,
-            boolean allDay) {
+            boolean allDay,
+            List<Attendee> attendees,
+            RecurrenceSet recurrence,
+            OffsetDateTime updatedAt) {
+
+        public EventDraft(
+                String uid,
+                String title,
+                String description,
+                OffsetDateTime startsAt,
+                OffsetDateTime endsAt,
+                String timezone,
+                String location,
+                boolean allDay) {
+            this(uid, title, description, startsAt, endsAt, timezone, location, allDay, List.of(), null, null);
+        }
+
+        public EventDraft {
+            attendees = attendees == null ? List.of() : List.copyOf(attendees);
+        }
     }
 
     private record Property(String name, Map<String, String> params, String value) {

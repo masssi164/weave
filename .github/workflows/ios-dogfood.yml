@@ -1,0 +1,175 @@
+name: iOS Dogfood
+
+on:
+  push:
+    branches:
+      - dogfood
+  workflow_dispatch:
+    inputs:
+      upload_to_testflight:
+        description: "Archive and upload the current dogfood commit to TestFlight"
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-dogfood-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  contract:
+    name: iOS dogfood contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Validate stable distribution and session contracts
+        run: |
+          python3 tools/ios_dogfood_distribution_check.py
+          python3 tools/dogfood_ios_session_continuity_check_test.py
+
+  testflight:
+    name: Archive and upload TestFlight build
+    needs: contract
+    if: github.event_name == 'push' || inputs.upload_to_testflight
+    runs-on: macos-15
+    timeout-minutes: 60
+    environment:
+      name: ios-dogfood
+    env:
+      APPLE_TEAM_ID: KNDHGC2KV6
+      APPLE_BUNDLE_ID: com.massimotter.weave
+      APPLE_DISTRIBUTION_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_DISTRIBUTION_CERTIFICATE_P12_BASE64 }}
+      APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+      APPLE_PROVISIONING_PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
+      APPLE_PROVISIONING_PROFILE_NAME: ${{ secrets.APPLE_PROVISIONING_PROFILE_NAME }}
+      APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      APP_STORE_CONNECT_API_PRIVATE_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_PRIVATE_KEY_BASE64 }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.4'
+          channel: stable
+          cache: true
+      - name: Validate protected signing inputs
+        run: |
+          set -euo pipefail
+          missing=()
+          for name in \
+            APPLE_DISTRIBUTION_CERTIFICATE_P12_BASE64 \
+            APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD \
+            APPLE_PROVISIONING_PROFILE_BASE64 \
+            APPLE_PROVISIONING_PROFILE_NAME \
+            APP_STORE_CONNECT_API_KEY_ID \
+            APP_STORE_CONNECT_ISSUER_ID \
+            APP_STORE_CONNECT_API_PRIVATE_KEY_BASE64; do
+            [ -n "${!name:-}" ] || missing+=("$name")
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            printf 'Missing ios-dogfood environment SecretRefs: %s\n' "$(IFS=,; echo "${missing[*]}")" >&2
+            exit 2
+          fi
+      - name: Import distribution identity
+        env:
+          SIGNING_KEYCHAIN_PASSWORD: ${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          certificate_path="$RUNNER_TEMP/weave-distribution.p12"
+          profile_path="$RUNNER_TEMP/weave-dogfood.mobileprovision"
+          keychain_path="$RUNNER_TEMP/weave-signing.keychain-db"
+          printf '%s' "$APPLE_DISTRIBUTION_CERTIFICATE_P12_BASE64" | base64 --decode > "$certificate_path"
+          printf '%s' "$APPLE_PROVISIONING_PROFILE_BASE64" | base64 --decode > "$profile_path"
+          security create-keychain -p "$SIGNING_KEYCHAIN_PASSWORD" "$keychain_path"
+          security set-keychain-settings -lut 21600 "$keychain_path"
+          security unlock-keychain -p "$SIGNING_KEYCHAIN_PASSWORD" "$keychain_path"
+          security import "$certificate_path" -P "$APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$keychain_path"
+          security list-keychain -d user -s "$keychain_path"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$SIGNING_KEYCHAIN_PASSWORD" "$keychain_path"
+          profile_uuid="$(security cms -D -i "$profile_path" | /usr/libexec/PlistBuddy -c 'Print UUID' /dev/stdin)"
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          cp "$profile_path" "$HOME/Library/MobileDevice/Provisioning Profiles/$profile_uuid.mobileprovision"
+      - name: Prepare App Store Connect key and export policy
+        run: |
+          set -euo pipefail
+          api_key_path="$RUNNER_TEMP/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8"
+          printf '%s' "$APP_STORE_CONNECT_API_PRIVATE_KEY_BASE64" | base64 --decode > "$api_key_path"
+          chmod 600 "$api_key_path"
+          export_options="$RUNNER_TEMP/ExportOptions.plist"
+          cat > "$export_options" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>teamID</key><string>${APPLE_TEAM_ID}</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>${APPLE_BUNDLE_ID}</key><string>${APPLE_PROVISIONING_PROFILE_NAME}</string>
+            </dict>
+            <key>uploadSymbols</key><true/>
+          </dict>
+          </plist>
+          PLIST
+          echo "APP_STORE_CONNECT_API_KEY_PATH=$api_key_path" >> "$GITHUB_ENV"
+          echo "WEAVE_IOS_EXPORT_OPTIONS_PATH=$export_options" >> "$GITHUB_ENV"
+      - name: Build signed IPA
+        working-directory: client
+        run: |
+          set -euo pipefail
+          flutter pub get
+          flutter gen-l10n
+          dart run build_runner build --delete-conflicting-outputs
+          flutter test test/features/auth/data/repositories/oidc_auth_session_repository_test.dart
+          flutter build ipa \
+            --release \
+            --build-number "${GITHUB_RUN_NUMBER}" \
+            --export-options-plist "$WEAVE_IOS_EXPORT_OPTIONS_PATH"
+      - name: Validate archive identity
+        run: |
+          set -euo pipefail
+          ipa="$(find client/build/ios/ipa -maxdepth 1 -name '*.ipa' -print -quit)"
+          [ -n "$ipa" ]
+          echo "WEAVE_IOS_IPA=$ipa" >> "$GITHUB_ENV"
+          unzip -q "$ipa" -d "$RUNNER_TEMP/weave-ipa"
+          app_path="$(find "$RUNNER_TEMP/weave-ipa/Payload" -maxdepth 1 -name '*.app' -print -quit)"
+          bundle_id="$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$app_path/Info.plist")"
+          build_number="$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "$app_path/Info.plist")"
+          [ "$bundle_id" = "$APPLE_BUNDLE_ID" ]
+          [ "$build_number" = "$GITHUB_RUN_NUMBER" ]
+      - name: Upload build to TestFlight
+        run: |
+          set -euo pipefail
+          xcrun altool --upload-app \
+            --file "$WEAVE_IOS_IPA" \
+            --type ios \
+            --apiKey "$APP_STORE_CONNECT_API_KEY_ID" \
+            --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"
+      - name: Emit support-safe distribution evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p build/evidence
+          jq -n \
+            --arg commit "$GITHUB_SHA" \
+            --arg ref "$GITHUB_REF_NAME" \
+            --arg bundleId "$APPLE_BUNDLE_ID" \
+            --arg buildNumber "$GITHUB_RUN_NUMBER" \
+            --arg runId "$GITHUB_RUN_ID" \
+            --arg result "${{ job.status }}" \
+            '{schemaVersion:"weave.ios-dogfood-distribution.v1",supportSafe:true,channel:"testflight",commit:$commit,ref:$ref,bundleId:$bundleId,buildNumber:$buildNumber,githubRunId:$runId,result:$result,credentialsIncluded:false}' \
+            > build/evidence/ios-dogfood-distribution.json
+      - name: Upload support-safe distribution evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-dogfood-distribution-${{ github.run_number }}
+          path: build/evidence/ios-dogfood-distribution.json
+          if-no-files-found: error

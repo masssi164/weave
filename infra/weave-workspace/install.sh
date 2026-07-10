@@ -46,16 +46,15 @@ readonly PERSISTED_TF_VARS=(
   TF_VAR_backend_host_port
   TF_VAR_backend_container_port
   TF_VAR_weave_backend_image
+  TF_VAR_mcp_host_port
+  TF_VAR_mcp_container_port
+  TF_VAR_weave_mcp_server_image
   TF_VAR_provider_stack_profile
   TF_VAR_provider_stack_readiness
   TF_VAR_devops_primary_provider
-  TF_VAR_devops_alternative_provider
   TF_VAR_devops_gitlab_runtime_enabled
   TF_VAR_devops_gitlab_base_url
   TF_VAR_devops_gitlab_writes_enabled
-  TF_VAR_devops_forgejo_runtime_enabled
-  TF_VAR_devops_forgejo_base_url
-  TF_VAR_devops_forgejo_writes_enabled
   TF_VAR_office_primary_provider
   TF_VAR_office_onlyoffice_runtime_enabled
   TF_VAR_office_onlyoffice_document_server_url
@@ -98,6 +97,8 @@ readonly PERSISTED_TF_VARS=(
   TF_VAR_db_name
   TF_VAR_db_admin_username
   TF_VAR_db_admin_password
+  TF_VAR_backend_db_username
+  TF_VAR_backend_db_password
   TF_VAR_keycloak_admin_username
   TF_VAR_keycloak_admin_password
   TF_VAR_keycloak_db_username
@@ -337,13 +338,9 @@ persist_bootstrap_env() {
     printf 'export WEAVE_PROVIDER_STACK_PROFILE=%q\n' "${TF_VAR_provider_stack_profile}"
     printf 'export WEAVE_PROVIDER_STACK_READINESS=%q\n' "${TF_VAR_provider_stack_readiness}"
     printf 'export WEAVE_DEVOPS_PRIMARY_PROVIDER=%q\n' "${TF_VAR_devops_primary_provider}"
-    printf 'export WEAVE_DEVOPS_ALTERNATIVE_PROVIDER=%q\n' "${TF_VAR_devops_alternative_provider}"
     printf 'export WEAVE_DEVOPS_GITLAB_RUNTIME_ENABLED=%q\n' "${TF_VAR_devops_gitlab_runtime_enabled}"
     printf 'export WEAVE_DEVOPS_GITLAB_BASE_URL=%q\n' "${TF_VAR_devops_gitlab_base_url}"
     printf 'export WEAVE_DEVOPS_GITLAB_WRITES_ENABLED=%q\n' "${TF_VAR_devops_gitlab_writes_enabled}"
-    printf 'export WEAVE_DEVOPS_FORGEJO_RUNTIME_ENABLED=%q\n' "${TF_VAR_devops_forgejo_runtime_enabled}"
-    printf 'export WEAVE_DEVOPS_FORGEJO_BASE_URL=%q\n' "${TF_VAR_devops_forgejo_base_url}"
-    printf 'export WEAVE_DEVOPS_FORGEJO_WRITES_ENABLED=%q\n' "${TF_VAR_devops_forgejo_writes_enabled}"
     printf 'export WEAVE_OFFICE_PRIMARY_PROVIDER=%q\n' "${TF_VAR_office_primary_provider}"
     printf 'export WEAVE_OFFICE_ONLYOFFICE_RUNTIME_ENABLED=%q\n' "${TF_VAR_office_onlyoffice_runtime_enabled}"
     printf 'export WEAVE_OFFICE_ONLYOFFICE_DOCUMENT_SERVER_URL=%q\n' "${TF_VAR_office_onlyoffice_document_server_url}"
@@ -383,7 +380,8 @@ persist_bootstrap_env() {
         printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_1_SOURCE=%q\n' "local-dogfood-bootstrap"
       fi
     fi
-    printf 'export WEAVE_MATRIX_HOMESERVER_URL=%q\n' "$(client_matrix_public_url)"
+    printf 'export WEAVE_MATRIX_HOMESERVER_URL=%q\n' "$(client_matrix_facade_url)"
+    printf 'export WEAVE_MATRIX_PROVIDER_URL=%q\n' "$(matrix_provider_public_url)"
     printf 'export WEAVE_OIDC_ISSUER_URL=%q\n' "$(integration_test_oidc_issuer_url)"
     printf 'export WEAVE_OIDC_CLIENT_ID=%q\n' "weave-app"
     printf 'export WEAVE_TARGET_MOBILE=%q\n' "true"
@@ -829,6 +827,7 @@ ensure_existing_stack_terraform_state() {
   import_existing_docker_container_state module.keycloak.docker_container.this weave-keycloak
   import_existing_docker_container_state module.mailpit.docker_container.this weave-mailpit
   import_existing_docker_container_state module.backend.docker_container.this weave-backend
+  import_existing_docker_container_state module.mcp.docker_container.this weave-mcp-server
   import_existing_docker_container_state module.matrix.docker_container.mas weave-mas
   import_existing_docker_container_state module.matrix.docker_container.synapse weave-synapse
   import_existing_docker_container_state module.nextcloud.docker_container.this weave-nextcloud
@@ -841,8 +840,10 @@ terraform_output_raw() {
   "${WEAVE_IAC_BIN}" -chdir="${dir}" output -raw "${name}"
 }
 
-refresh_backend_container_if_image_changed() {
-  local desired_image="${TF_VAR_weave_backend_image:-}"
+refresh_runtime_container_if_image_changed() {
+  local container_name="$1"
+  local desired_image="$2"
+  local runtime_label="$3"
   local desired_image_id
   local current_image_id
 
@@ -854,24 +855,35 @@ refresh_backend_container_if_image_changed() {
     return
   fi
 
-  if ! docker container inspect weave-backend >/dev/null 2>&1; then
-    log "Recreating missing Weave backend container for image ${desired_image}..."
+  if ! docker container inspect "${container_name}" >/dev/null 2>&1; then
+    log "Recreating missing ${runtime_label} container for image ${desired_image}..."
     "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" init -input=false
     "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" apply -input=false -auto-approve
     return
   fi
 
   desired_image_id="$(docker image inspect --format '{{.Id}}' "${desired_image}")"
-  current_image_id="$(docker inspect --format '{{.Image}}' weave-backend)"
+  current_image_id="$(docker inspect --format '{{.Image}}' "${container_name}")"
 
   if [[ "${desired_image_id}" == "${current_image_id}" ]]; then
     return
   fi
 
-  log "Refreshing Weave backend container to match image ${desired_image}..."
-  docker rm -f weave-backend >/dev/null
+  log "Refreshing ${runtime_label} container to match image ${desired_image}..."
+  docker rm -f "${container_name}" >/dev/null
   "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" init -input=false
   "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" apply -input=false -auto-approve
+}
+
+refresh_runtime_containers_if_images_changed() {
+  refresh_runtime_container_if_image_changed \
+    weave-backend \
+    "${TF_VAR_weave_backend_image:-}" \
+    "Weave backend"
+  refresh_runtime_container_if_image_changed \
+    weave-mcp-server \
+    "${TF_VAR_weave_mcp_server_image:-}" \
+    "Weave MCP server"
 }
 
 ensure_postgres_bootstrap_applied() {
@@ -935,7 +947,11 @@ client_auth_public_url() {
   auth_public_url
 }
 
-client_matrix_public_url() {
+client_matrix_facade_url() {
+  client_api_origin_url
+}
+
+matrix_provider_public_url() {
   printf '%s://%s%s' "${TF_VAR_public_scheme}" "$(public_host "${TF_VAR_matrix_subdomain}")" "$(public_port_suffix)"
 }
 
@@ -1034,7 +1050,7 @@ write_app_config_summary() {
 
   api_base_url="$(integration_test_base_url)"
   auth_base_url="$(client_auth_public_url)"
-  matrix_url="$(client_matrix_public_url)"
+  matrix_url="$(client_matrix_facade_url)"
   nextcloud_url="$(nextcloud_public_url)"
   product_url="$(client_public_url)"
 
@@ -1067,13 +1083,9 @@ write_app_config_summary() {
     printf 'export WEAVE_PROVIDER_STACK_PROFILE=%q\n' "${TF_VAR_provider_stack_profile}"
     printf 'export WEAVE_PROVIDER_STACK_READINESS=%q\n' "${TF_VAR_provider_stack_readiness}"
     printf 'export WEAVE_DEVOPS_PRIMARY_PROVIDER=%q\n' "${TF_VAR_devops_primary_provider}"
-    printf 'export WEAVE_DEVOPS_ALTERNATIVE_PROVIDER=%q\n' "${TF_VAR_devops_alternative_provider}"
     printf 'export WEAVE_DEVOPS_GITLAB_RUNTIME_ENABLED=%q\n' "${TF_VAR_devops_gitlab_runtime_enabled}"
     printf 'export WEAVE_DEVOPS_GITLAB_BASE_URL=%q\n' "${TF_VAR_devops_gitlab_base_url}"
     printf 'export WEAVE_DEVOPS_GITLAB_WRITES_ENABLED=%q\n' "${TF_VAR_devops_gitlab_writes_enabled}"
-    printf 'export WEAVE_DEVOPS_FORGEJO_RUNTIME_ENABLED=%q\n' "${TF_VAR_devops_forgejo_runtime_enabled}"
-    printf 'export WEAVE_DEVOPS_FORGEJO_BASE_URL=%q\n' "${TF_VAR_devops_forgejo_base_url}"
-    printf 'export WEAVE_DEVOPS_FORGEJO_WRITES_ENABLED=%q\n' "${TF_VAR_devops_forgejo_writes_enabled}"
     printf 'export WEAVE_OFFICE_PRIMARY_PROVIDER=%q\n' "${TF_VAR_office_primary_provider}"
     printf 'export WEAVE_OFFICE_ONLYOFFICE_RUNTIME_ENABLED=%q\n' "${TF_VAR_office_onlyoffice_runtime_enabled}"
     printf 'export WEAVE_OFFICE_ONLYOFFICE_DOCUMENT_SERVER_URL=%q\n' "${TF_VAR_office_onlyoffice_document_server_url}"
@@ -1250,16 +1262,15 @@ ensure_default_inputs() {
     "TF_VAR_backend_host_port=48084"
     "TF_VAR_backend_container_port=8080"
     "TF_VAR_weave_backend_image=weave-backend:local"
+    "TF_VAR_mcp_host_port=48085"
+    "TF_VAR_mcp_container_port=8091"
+    "TF_VAR_weave_mcp_server_image=weave-mcp-server:local"
     "TF_VAR_provider_stack_profile=fail-closed"
     "TF_VAR_provider_stack_readiness=fail-closed"
     "TF_VAR_devops_primary_provider=gitlab-ce-foss"
-    "TF_VAR_devops_alternative_provider=forgejo"
     "TF_VAR_devops_gitlab_runtime_enabled=false"
     "TF_VAR_devops_gitlab_base_url="
     "TF_VAR_devops_gitlab_writes_enabled=false"
-    "TF_VAR_devops_forgejo_runtime_enabled=false"
-    "TF_VAR_devops_forgejo_base_url="
-    "TF_VAR_devops_forgejo_writes_enabled=false"
     "TF_VAR_office_primary_provider=onlyoffice-community"
     "TF_VAR_office_onlyoffice_runtime_enabled=false"
     "TF_VAR_office_onlyoffice_document_server_url="
@@ -1338,6 +1349,8 @@ ensure_docker_provider_inputs() {
 
 ensure_generated_secrets() {
   set_default_secret TF_VAR_db_admin_password "$(random_base64 24)"
+  set_default_secret TF_VAR_backend_db_password "$(random_base64 24)"
+  set_default_secret TF_VAR_mcp_boundary_token "$(random_base64 32)"
   set_default_secret TF_VAR_keycloak_admin_password "$(random_base64 24)"
   set_default_secret TF_VAR_keycloak_db_password "$(random_base64 24)"
   set_default_secret TF_VAR_mas_db_password "$(random_base64 24)"
@@ -1346,7 +1359,6 @@ ensure_generated_secrets() {
   set_default_secret TF_VAR_nextcloud_admin_password "$(random_base64 24)"
   set_default_secret TF_VAR_nextcloud_backend_actor_token "$(random_base64 24)"
   set_default_var TF_VAR_devops_gitlab_api_token ""
-  set_default_var TF_VAR_devops_forgejo_api_token ""
   set_default_var TF_VAR_office_onlyoffice_jwt_secret ""
   set_default_var TF_VAR_livekit_api_key ""
   set_default_var TF_VAR_livekit_api_secret ""
@@ -1690,7 +1702,8 @@ print_summary() {
   log "- Auth:        $(client_auth_public_url)"
   log "- Files UX:    $(client_public_url)/files"
   log "- Calendar:    $(client_public_url)/calendar"
-  log "- Matrix:      $(client_matrix_public_url)"
+  log "- Matrix facade:   $(client_matrix_facade_url)"
+  log "- Matrix provider: $(matrix_provider_public_url)  (southbound/operator path)"
   log "- Admin:      ${TF_VAR_public_scheme}://$(public_host "${TF_VAR_admin_subdomain}")${suffix}"
   log "- Files raw:  $(nextcloud_public_url)  (Nextcloud admin/protocol fallback, not normal end-user UX)"
   log "- Local CA:   http://${TF_VAR_tenant_domain}:${TF_VAR_proxy_http_host_port}/weave-local-ca.pem"
@@ -1708,8 +1721,9 @@ print_summary() {
   log
   log "Health checks:"
   log "- Backend ready: $(integration_test_base_url)/health/ready"
+  log "- MCP ready: http://${LOOPBACK_HOST}:${TF_VAR_mcp_host_port}/actuator/health"
   log "- Keycloak discovery: $(integration_test_oidc_issuer_url)/.well-known/openid-configuration"
-  log "- Matrix versions: $(client_matrix_public_url)/_matrix/client/versions"
+  log "- Matrix facade versions: $(client_matrix_facade_url)/_matrix/client/versions"
   log "- Matrix default rooms: #announcements:$(public_host "${TF_VAR_matrix_subdomain}"), #general:$(public_host "${TF_VAR_matrix_subdomain}"), #help:$(public_host "${TF_VAR_matrix_subdomain}")"
   log "- Raw Nextcloud: $(nextcloud_public_url)/"
   log "- Dogfood mail inbox: http://127.0.0.1:${TF_VAR_mailpit_web_host_port:-8025}"
@@ -1725,6 +1739,7 @@ print_summary() {
   log "- Run: TF_VAR_create_test_user=true ./install.sh && ./smoke-test.sh"
   log "- For diagnostics, run: ./operator-check.sh"
   log "- Weave backend image: ${TF_VAR_weave_backend_image}"
+  log "- Weave MCP image: ${TF_VAR_weave_mcp_server_image}"
 
   if create_test_user_enabled; then
     log "- Test user: ${TEST_USER_EMAIL} (password stored in ${BOOTSTRAP_ENV_FILE})"
@@ -1760,7 +1775,7 @@ main() {
   synapse_repair_volume_permissions
   synapse_verify_volume_writable
   ensure_postgres_bootstrap_applied
-  refresh_backend_container_if_image_changed
+  refresh_runtime_containers_if_images_changed
 
   log "Waiting for Keycloak management readiness..."
   wait_for_http_200 "Keycloak management" "http://${LOOPBACK_HOST}:${TF_VAR_keycloak_management_host_port}/health/ready"
@@ -1774,6 +1789,9 @@ main() {
 
   log "Waiting for Weave backend readiness..."
   wait_for_http_200 "Weave backend" "http://${LOOPBACK_HOST}:${TF_VAR_backend_host_port}/api/health/ready"
+
+  log "Waiting for Weave MCP readiness..."
+  wait_for_http_200 "Weave MCP server" "http://${LOOPBACK_HOST}:${TF_VAR_mcp_host_port}/actuator/health"
 
   log "Waiting for Matrix Authentication Service readiness..."
   wait_for_http_200 "Matrix Authentication Service" "http://${LOOPBACK_HOST}:${TF_VAR_mas_host_port}/health"

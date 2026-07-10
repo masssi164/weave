@@ -8,6 +8,7 @@ import 'package:weave/features/app/domain/entities/matrix_e2ee_diagnostic.dart';
 import 'package:weave/features/app/domain/entities/provider_stack_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_home_snapshot.dart';
+import 'package:weave/features/agents/domain/entities/weaver_permission_mode.dart';
 import 'package:weave/features/app/presentation/providers/workspace_invalidation_provider.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/domain/entities/auth_failure.dart';
@@ -106,6 +107,52 @@ final weaveApiOfficeCapabilitiesSnapshotProvider =
         );
       });
     });
+
+final weaverPermissionModeProvider =
+    AsyncNotifierProvider<WeaverPermissionModeController, WeaverPermissionMode>(
+      WeaverPermissionModeController.new,
+    );
+
+class WeaverPermissionModeController
+    extends AsyncNotifier<WeaverPermissionMode> {
+  @override
+  Future<WeaverPermissionMode> build() async {
+    return await _withWeaveApiSession(ref, (client, baseUrl, accessToken) {
+          return client.fetchWeaverPermissionMode(
+            baseUrl: baseUrl,
+            accessToken: accessToken,
+          );
+        }) ??
+        WeaverPermissionMode.ask;
+  }
+
+  Future<WeaverPermissionModeUpdate> updateMode(
+    WeaverPermissionMode mode,
+  ) async {
+    final previous = state.value ?? WeaverPermissionMode.ask;
+    state = const AsyncLoading();
+    try {
+      final result = await _withWeaveApiSession(
+        ref,
+        (client, baseUrl, accessToken) => client.updateWeaverPermissionMode(
+          baseUrl: baseUrl,
+          accessToken: accessToken,
+          mode: mode,
+        ),
+      );
+      if (result == null) {
+        throw const AppFailure.unknown(
+          'A signed-in Weave session is required to update this mode.',
+        );
+      }
+      state = AsyncData(result.accepted ? result.mode : previous);
+      return result;
+    } catch (error, stackTrace) {
+      state = AsyncError(error, stackTrace);
+      rethrow;
+    }
+  }
+}
 
 Future<T?> _withWeaveApiSession<T>(
   Ref ref,

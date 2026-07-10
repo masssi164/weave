@@ -25,7 +25,7 @@ Calendar is not a private personal-calendar ingestion feature. The product model
    - Boards/Tasks can reference calendar dates and channel meetings.
    - Calendar entries may expose related board/task IDs through backend product metadata, not provider-specific Flutter transport.
 
-The current guarded implementation exposes workspace, team, and channel scope metadata through the backend facade, and the live-stack E2E gate validates channel event create/read/update/delete. Copy, tests, and specs must continue to describe this as a workspace/team/channel hierarchy rather than as a private-personal calendar stepping stone; meeting-thread attachment remains gated follow-up work until implemented and validated.
+The CalDAV/iCalendar facade exposes workspace, team, and channel scope metadata and a stable canonical meeting-thread reference. The server derives that reference from canonical scope and event identifiers, projects it through `X-WEAVE-CONTEXT-ID`, `X-WEAVE-CHANNEL-ID`, and `X-WEAVE-MEETING-THREAD-ID`, and never sends those northbound fields to a southbound provider. The live-stack E2E gate validates channel event create/read/update/delete and reference stability. A concrete Matrix room/thread binding remains optional and must not be claimed until provisioned and validated.
 
 ## Explicitly out of scope: private personal calendars
 
@@ -34,7 +34,7 @@ Private personal calendar ingestion is not a current product goal. Weave must no
 Allowed:
 
 - shared workspace/team/channel calendars;
-- backend-facade calendar APIs with explicit scope metadata;
+- the Weave CalDAV/iCalendar facade with explicit canonical scope metadata;
 - secret-free setup metadata;
 - future free/busy-style availability only if a separate product decision approves it.
 
@@ -50,12 +50,14 @@ Weave should use native Matrix E2EE. Do not invent custom cryptography.
 
 Active requirements:
 
-- Matrix device identity, crypto bootstrap, key backup/recovery, and user verification must stay in the chat/Matrix integration boundary.
+- Matrix device identity, crypto bootstrap, key backup/recovery, and user verification stay in the Flutter/Rust chat integration boundary. Spring stores only public keys and opaque encrypted protocol payloads.
+- The Apache-2.0 Matrix Rust SDK is the client crypto engine behind `flutter_rust_bridge`; the retired Dart Matrix SDK and server-side decryption are not compatibility paths.
+- The encrypted SQLite store, stable device ID, and Keychain-held passphrase survive close, relaunch, OIDC refresh, and an in-place app update. Explicit account removal is the only destructive product action.
 - The UI must expose understandable security/recovery states for screen-reader and keyboard users.
 - New devices must be explicit; verification/recovery prompts must be actionable and not rely on color or icon-only signals.
 - Agents/bots are security-relevant participants. If a bot/agent can read an encrypted room, it is effectively a device or member with consent/audit implications.
 - Server-readable metadata boundaries must be honest: room membership, timestamps, sender IDs, event types, push/routing metadata, and unencrypted feature data may remain visible even when message bodies are encrypted.
-- E2EE enablement must be tested with real Matrix crypto state and must fail closed if the SDK or homeserver cannot provide required crypto support.
+- E2EE enablement must be tested with real Matrix crypto state and must fail closed if the SDK or facade cannot provide required crypto support. Release evidence includes ciphertext-only persistence, two-device SAS, recovery, lost-device denial, accessibility, and physical-iPhone relaunch.
 
 ## Boards/Tasks as active product scope
 
@@ -79,4 +81,4 @@ A change that promotes any of these scopes should update at least one of:
 - feature tests or architecture tests;
 - deterministic screenshots if README/marketing claims change.
 
-Do not merge claims that overstate implementation state. Feature-gated active scope is fine; pretending a live provider or full E2EE is complete is not.
+Do not merge claims that overstate implementation state. The E2EE implementation may merge as a release candidate, but the product claim stays guarded until its live-stack and physical-iPhone evidence is green.

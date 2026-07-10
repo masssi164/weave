@@ -6,6 +6,7 @@ import static org.mockito.Mockito.when;
 
 import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
+import com.massimotter.weave.backend.chat.adapter.WeaveCanonicalChatAdapter;
 import com.massimotter.weave.backend.chat.domain.ChatMemberState;
 import com.massimotter.weave.backend.chat.domain.ChatMigrationPreflightRequest;
 import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
@@ -80,7 +81,7 @@ class ChatDomainFacadeServiceTest {
     }
 
     @Test
-    void readyProviderUsesCanonicalEmptyWeaveDomainCollections() {
+    void readyProviderUsesCanonicalProviderPortCollections() {
         InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
         selections.save(selection("chat", "synapse-homeserver", false, List.of()));
         ChatDomainFacadeService service = service(selections, true, capability());
@@ -88,12 +89,38 @@ class ChatDomainFacadeServiceTest {
         var conversations = service.conversations(memberJwt());
 
         assertThat(conversations.readiness().memberState()).isEqualTo(ChatMemberState.READY);
-        assertThat(conversations.conversations()).isEmpty();
+        assertThat(conversations.conversations())
+                .extracting(conversation -> conversation.conversationId())
+                .containsExactly("channel-general");
         assertThat(conversations.readiness().defaultHistoryPolicy().visibility()).isEqualTo("conversation_members");
         assertThat(service.adminReadiness(adminJwt()).supportSafeDiagnostics())
                 .containsEntry("currentRealProviderPath", "matrix-chat")
                 .containsEntry("currentRealProviderAliases", List.of("synapse-homeserver"));
         assertThat(conversations.toString()).doesNotContain("rawProvider", "Authorization");
+    }
+
+    @Test
+    void matrixSendUsesCanonicalProviderAndPublishesSupportSafeAudit() {
+        InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
+        selections.save(selection("chat", "synapse-homeserver", false, List.of()));
+        InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
+        ChatDomainFacadeService service = service(selections, true, capability(), audit);
+
+        var event = service.sendEvent(
+                "channel-general",
+                "matrix-transaction-1",
+                com.massimotter.weave.backend.chat.domain.ChatEventContent.text("Sent through Matrix"),
+                memberJwt());
+
+        assertThat(event.conversationId()).isEqualTo("channel-general");
+        assertThat(event.content().body()).isEqualTo("Sent through Matrix");
+        assertThat(audit.events()).singleElement().satisfies(auditEvent -> {
+            assertThat(auditEvent.action()).isEqualTo(AuditAction.CHAT_MESSAGE_SENT);
+            assertThat(auditEvent.sourceRef()).isEqualTo("matrix-client-server-facade");
+            assertThat(auditEvent.payload())
+                    .containsEntry("operation", "event-sent")
+                    .containsEntry("providerPayloadExposed", false);
+        });
     }
 
     @Test
@@ -156,7 +183,13 @@ class ChatDomainFacadeServiceTest {
         when(capabilities.snapshot()).thenReturn(snapshot);
         when(capabilities.snapshot(any())).thenReturn(snapshot);
         ProviderRegistry registry = new ProviderRegistry(List.of(chatProvider(configuredProvider)), capabilities, selections);
-        return new ChatDomainFacadeService(registry, selections, capabilities, audit, FIXED);
+        return new ChatDomainFacadeService(
+                registry,
+                selections,
+                capabilities,
+                audit,
+                new WeaveCanonicalChatAdapter(),
+                FIXED);
     }
 
     private StaticProviderPort chatProvider(boolean configured) {

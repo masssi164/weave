@@ -13,6 +13,7 @@ This directory is the provider-stack implementation layer inside the Weave monor
 - Matrix/Synapse with Matrix Authentication Service delegated auth.
 - Nextcloud as the technical/admin/protocol backing service for files and calendar.
 - `weave-backend` behind the canonical API route.
+- `weave-mcp-server` as an internal OIDC-protected Spring AI stateful Streamable HTTP projection over backend-owned domain tools with standard form elicitation.
 - PostgreSQL databases and persisted Docker volumes.
 - Default Matrix workspace space/rooms for local/dev and smoke evidence.
 - Optional provider-stack config for OpenProject, ONLYOFFICE/Collabora, DevOps candidates, and other guarded seams.
@@ -62,7 +63,7 @@ For a real single-host deployment, start here:
 - [CalDAV/CardDAV external clients](docs/calendar-caldav-external-clients.md): DAV discovery, safe external-client credential path, and blocked private calendar/addressbook/profile flows.
 - [Connector runtime guardrails](docs/connector-runtime-guardrails.md): disabled-by-default connector runtime, callback, secret, and support-bundle boundaries.
 - [Weaver runtime lifecycle](docs/weaver-runtime-lifecycle.md): signed RuntimeProfile input, one active per-user runtime container boundary, internal-only network, reload/restart/rollback/revocation gates, and support-safe evidence; execution remains disabled by default.
-- [Weave MCP tool contract](docs/weave-mcp-tool-contract.md): disabled-by-default design foundation for future FastMCP-style governed Weave domain tools under infra, with backend authority and support-safe outputs only.
+- [Weave MCP runtime contract](docs/weave-mcp-tool-contract.md): Spring AI transport, OIDC gatekeeper, canonical domain dispatch, approval, audit, and support-safe output boundaries.
 - [OpenProject Boards runtime](docs/openproject-boards-runtime.md): optional provider-backed validation setup and live E2E gate; off by default.
 
 After installation, verify public and host-local state:
@@ -90,7 +91,7 @@ Optional providers are fail-closed by default:
 
 - OpenProject is an optional provider-backed Boards validation path behind the backend workspace facade, not a visible product UX or direct client dependency.
 - ONLYOFFICE/Collabora are optional office candidates behind backend-owned capabilities and launch checks.
-- DevOps providers such as GitLab/Forgejo stay disabled unless an explicit runtime contract configures them.
+- The optional product DevOps facade represents GitLab only and stays disabled unless an explicit runtime contract configures it. Repository delivery and dogfood promotion are GitHub-only.
 - Missing provider credentials must produce support-safe unavailable/not-configured readiness, not insecure fallback behavior.
 - Support bundles redact tokens, cookies, app passwords, signing keys, provider URLs, raw provider errors, and generated secrets.
 - Nextcloud Contacts/CardDAV and Forms seams are visible to the backend but stay disabled/fail-closed until the backend contracts are merged and live-validated.
@@ -115,7 +116,7 @@ Optional providers are fail-closed by default:
 - `weave-workspace/release-verify.sh`: public endpoint verification for non-local single-host installs.
 - `weave-workspace/operator-check.sh`: host-local container and health checks.
 - `weave-workspace/backup.sh`, `restore-smoke.sh`, `support-bundle.sh`: operator support and recovery helpers.
-- `weave-workspace/weave-mcp-tool-contract.json`: support-safe canonical domain tool contract for future governed MCP gateway proof slices.
+- `weave-workspace/weave-mcp-tool-contract.json`: support-safe canonical domain contract and active Spring AI MCP runtime evidence.
 - `weave-workspace/01-infrastructure`: Docker runtime, generated config, and service modules.
 - `weave-workspace/02-keycloak-setup`: Keycloak tenant configuration stage.
 

@@ -1,0 +1,152 @@
+package com.massimotter.weave.backend.audit;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import javax.sql.DataSource;
+import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+
+import static java.util.Objects.requireNonNull;
+
+/**
+ * Durable append-only relational audit sink for support-safe control-plane evidence.
+ */
+public final class JdbcAuditEventPublisher implements AuditEventPublisher {
+
+    private static final TypeReference<Map<String, Object>> AUDIT_PAYLOAD = new TypeReference<>() {
+    };
+
+    private final JdbcTemplate jdbcTemplate;
+    private final TransactionTemplate transactionTemplate;
+    private final ObjectMapper objectMapper;
+
+    public JdbcAuditEventPublisher(JdbcTemplate jdbcTemplate) {
+        this(jdbcTemplate, new ObjectMapper().findAndRegisterModules());
+    }
+
+    public JdbcAuditEventPublisher(JdbcTemplate jdbcTemplate, ObjectMapper objectMapper) {
+        this.jdbcTemplate = jdbcTemplate;
+        this.objectMapper = objectMapper;
+        DataSource dataSource = jdbcTemplate.getDataSource();
+        if (dataSource == null) {
+            throw new IllegalArgumentException("JdbcAuditEventPublisher requires a JdbcTemplate with a DataSource.");
+        }
+        this.transactionTemplate = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
+    }
+
+    @Override
+    public void publish(AuditEvent event) {
+        AuditEvent safeEvent = requireNonNull(event, "event must not be null");
+        try {
+            transactionTemplate.executeWithoutResult(status -> {
+                Optional<AuditEvent> existing = findByIdempotencyKey(safeEvent.tenantId(), safeEvent.idempotencyKey());
+                if (existing.isPresent()) {
+                    requireRetryEquivalent(existing.get(), safeEvent);
+                    return;
+                }
+                jdbcTemplate.update(
+                        "insert into weave_audit_events "
+                                + "(tenant_id, context_id, actor_ref, source_ref, action, occurred_at_utc, "
+                                + "idempotency_key, redaction_level, payload_json) "
+                                + "values (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        safeEvent.tenantId(),
+                        safeEvent.contextId(),
+                        safeEvent.actorRef(),
+                        safeEvent.sourceRef(),
+                        safeEvent.action().name(),
+                        OffsetDateTime.ofInstant(safeEvent.occurredAt(), ZoneOffset.UTC),
+                        safeEvent.idempotencyKey(),
+                        safeEvent.redactionLevel().name(),
+                        payloadJson(safeEvent.payload()));
+            });
+        } catch (DuplicateKeyException exception) {
+            try {
+                AuditEvent existing = findByIdempotencyKey(safeEvent.tenantId(), safeEvent.idempotencyKey())
+                        .orElseThrow(() -> new AuditRequiredException(
+                                "Durable audit idempotency conflict could not be reconciled.", exception));
+                requireRetryEquivalent(existing, safeEvent);
+            } catch (DataAccessException readException) {
+                throw new AuditRequiredException("durable audit read failed", readException);
+            }
+        } catch (DataAccessException exception) {
+            throw new AuditRequiredException("durable audit publication failed", exception);
+        }
+    }
+
+    public List<AuditEvent> events() {
+        try {
+            return jdbcTemplate.query(
+                    "select tenant_id, context_id, actor_ref, source_ref, action, occurred_at_utc, "
+                            + "idempotency_key, redaction_level, payload_json "
+                            + "from weave_audit_events order by sequence_id",
+                    (rs, rowNum) -> mapEvent(rs));
+        } catch (DataAccessException exception) {
+            throw new AuditRequiredException("durable audit read failed", exception);
+        }
+    }
+
+    public String persistencePosture() {
+        return "durable-relational-flyway";
+    }
+
+    private AuditEvent mapEvent(ResultSet rs) throws SQLException {
+        return new AuditEvent(
+                rs.getString("tenant_id"),
+                rs.getString("context_id"),
+                rs.getString("actor_ref"),
+                rs.getString("source_ref"),
+                AuditAction.valueOf(rs.getString("action")),
+                rs.getObject("occurred_at_utc", OffsetDateTime.class).toInstant(),
+                rs.getString("idempotency_key"),
+                AuditRedactionLevel.valueOf(rs.getString("redaction_level")),
+                payload(rs.getString("payload_json")));
+    }
+
+    private Optional<AuditEvent> findByIdempotencyKey(String tenantId, String idempotencyKey) {
+        return jdbcTemplate.query(
+                        "select tenant_id, context_id, actor_ref, source_ref, action, occurred_at_utc, "
+                                + "idempotency_key, redaction_level, payload_json "
+                                + "from weave_audit_events where tenant_id = ? and idempotency_key = ?",
+                        (rs, rowNum) -> mapEvent(rs),
+                        tenantId,
+                        idempotencyKey)
+                .stream()
+                .findFirst();
+    }
+
+    private void requireRetryEquivalent(AuditEvent existing, AuditEvent incoming) {
+        if (!existing.equals(incoming)) {
+            throw new AuditRequiredException("Conflicting durable audit event for idempotency key.");
+        }
+    }
+
+    private String payloadJson(Map<String, Object> payload) {
+        try {
+            return objectMapper.writeValueAsString(payload);
+        } catch (JsonProcessingException exception) {
+            throw new AuditRequiredException("durable audit publication failed", exception);
+        }
+    }
+
+    private Map<String, Object> payload(String payloadJson) {
+        if (payloadJson == null || payloadJson.isBlank()) {
+            return Map.of();
+        }
+        try {
+            return objectMapper.readValue(payloadJson, AUDIT_PAYLOAD);
+        } catch (JsonProcessingException exception) {
+            throw new AuditRequiredException("durable audit read failed", exception);
+        }
+    }
+}

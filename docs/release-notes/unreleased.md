@@ -4,6 +4,8 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Added
 
+- Adds a client-owned Matrix E2EE release candidate through the Apache-2.0 Matrix Rust SDK and `flutter_rust_bridge`: encrypted room sync/send, encrypted SQLite state, stable device identity, cross-signing, accessible SAS verification, recovery, lost-device denial, opaque server persistence, and live E2E evidence gates.
+- Adds stable physical-iPhone session continuity for in-place TestFlight iterations. The saved organization profile, OIDC refresh session, Matrix device ID, Keychain-held crypto-store passphrase, and encrypted history survive ordinary close, relaunch, and app update; explicit account removal remains the destructive boundary.
 - Sprint 22 adds a CI-safe free provider lab gate, manifests, fixture evidence, and operator runbook for Keycloak, Authentik, Matrix/Synapse, Zulip, Nextcloud, MinIO, Radicale, OpenProject, and the Docker Runtime boundary without claiming provider interchangeability or release readiness.
 - Sprint 23 adds a CI-safe Chat Provider Switch contract gate for Matrix/Synapse to Zulip canonical object coverage, fixture dry-run/apply evidence, rollback-honesty classification, LossyFieldReport enforcement, scoped claim gating, and support-safe ProviderRef redaction without claiming lossless migration, production apply, production rollback, release readiness, or provider interchangeability.
 - Sprint 24 adds a guarded Weaver Runtime Factory provider-lab fixture and gate for per-user runtime lifecycle, desired-state reconciliation, isolation, support-safe redaction, revoke, and claim safety without claiming production PA availability, customer-ready Weaver, release-ready Weaver, or broad autonomous AI availability.
@@ -15,12 +17,20 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Changed
 
+- Normal member Files, Calendar, and Chat data planes are now documented coherently as OIDC-gated Weave WebDAV, CalDAV/iCalendar, and Matrix Client-Server facades over canonical domains; obsolete REST event/message data-plane access is not a compatibility target.
 - Public docs and README evidence pointers now identify `v0.1.0-rc.3` as the latest published prerelease and link the RC3 evidence audit.
 - Sprint 21 product-reality gates now require free/self-hosted provider proof, explicit reality levels, and automated claim blocking before any customer-ready, Weaver-available, provider-interchangeable, production-rollback, or release-ready wording.
 
 ## Fixed
 
-- No post-`v0.1.0-rc.3` bugfix release notes yet.
+- Preserves stable canonical context, channel, and meeting-thread identifiers across Calendar CalDAV query, read, sync, create, and update flows without leaking those northbound fields into southbound provider adapters.
+- Preserves the device-bound mobile profile and saved OIDC refresh session when relaunch refresh fails transiently; only an explicit rejected refresh grant clears the unusable local network session.
+- Allows ciphertext-only canonical Chat events to pass through the Rust Matrix `/sync` projection after encrypted sends, while plaintext message events still require a bounded non-empty body and supported Matrix message type.
+- Makes Live Stack E2E reclaim only its restorable Flutter tool cache when the dedicated runner remains below the 10 GiB preflight, retains support-safe Rust phase codes when encrypted room or timeline loading fails, and emits Ruma-valid full room events from the Matrix `/messages` facade.
+- Adds the Ruma `GET /_matrix/client/v3/rooms/{roomId}/members` projection required by the Rust Matrix SDK before encrypted send, using canonical Chat memberships without exposing a provider homeserver.
+- Makes the dedicated Live Stack E2E runner self-maintaining with a 10 GiB initial gate and a 5 GiB pre-test gate that preserves 4 GiB usable headroom plus a monitored 1 GiB recovery reserve, complete targeted stack teardown, sandbox-safe generated public CA injection into Rust without Keychain mutation or disabled TLS validation, and generated-output scrubbing after support-safe acceptance evidence upload.
+- Normalizes Nextcloud WebDAV non-finite quota values at the provider adapter boundary so unlimited, unknown, or uncomputed storage no longer breaks the OIDC-gated Files facade with HTTP 502.
+- Omits one-time DAV secret fields entirely after credential creation across Files and Calendar list/revoke responses, preserving the revocable native-client contract without serializing credential placeholders.
 
 ## Security
 

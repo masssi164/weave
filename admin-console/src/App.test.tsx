@@ -704,7 +704,7 @@ describe("Admin Console MVP", () => {
         name: /weaver distribution policy/i,
       }),
     ).toBeInTheDocument();
-    expect(screen.getAllByText(/channels.weave-chat/i).length).toBeGreaterThan(
+    expect(screen.getAllByText(/channels.matrix/i).length).toBeGreaterThan(
       0,
     );
     expect(screen.getByText(/chat readiness: ready/i)).toBeInTheDocument();

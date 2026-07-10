@@ -334,7 +334,7 @@ class PlatformProductContractControllerTest {
     }
 
     @Test
-    void calendarAccessPolicyAndSetupCredentialsAreRevocableWithoutSecretOutput() throws Exception {
+    void calendarAccessPolicyAndSetupCredentialsReturnSecretOnceAndRemainRevocable() throws Exception {
         mockMvc.perform(get("/api/calendar/access-policy").with(workspaceJwt()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.backendActorMayReadPrivateUserCalendars").value(false))
@@ -345,17 +345,20 @@ class PlatformProductContractControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"label\":\"iPhone\",\"clientType\":\"apple-mobileconfig\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.state").value("active-no-secret-issued"))
-                .andExpect(jsonPath("$.secretMaterialReturned").value(false))
+                .andExpect(jsonPath("$.state").value("active"))
+                .andExpect(jsonPath("$.secretMaterialReturned").value(true))
+                .andExpect(jsonPath("$.secret").isNotEmpty())
                 .andExpect(jsonPath("$.profilePasswordEligible").value(false))
-                .andExpect(content().string(not(containsString("password"))))
                 .andExpect(content().string(not(containsString("bearer"))))
+                .andExpect(content().string(not(containsString("remote.php"))))
                 .andReturn();
 
         String credentialId = com.jayway.jsonpath.JsonPath.read(created.getResponse().getContentAsString(), "$.credentialId");
         mockMvc.perform(get("/api/calendar/client-setup/credentials").with(workspaceJwt()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.credentials[0].credentialId").value(credentialId));
+                .andExpect(jsonPath("$.credentials[0].credentialId").value(credentialId))
+                .andExpect(jsonPath("$.credentials[0].secretMaterialReturned").value(false))
+                .andExpect(jsonPath("$.credentials[0].secret").doesNotExist());
 
         mockMvc.perform(delete("/api/calendar/client-setup/credentials/{credentialId}", credentialId)
                         .with(workspaceJwt()))

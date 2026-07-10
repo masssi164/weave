@@ -4,8 +4,6 @@ import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.AuditEvent;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.audit.AuditRedactionLevel;
-import com.massimotter.weave.backend.audit.FileAuditEventPublisher;
-import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import com.massimotter.weave.backend.config.WeaverRuntimeProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.identity.realm.IdentityRealmApplyProperties;
@@ -62,7 +60,14 @@ import com.massimotter.weave.backend.provider.ProviderSelectionRepository;
 import com.massimotter.weave.backend.provider.ProviderState;
 import com.massimotter.weave.backend.provider.ProviderStatusResponse;
 import com.massimotter.weave.backend.domainfacade.CanonicalDomainDefinition;
+import com.massimotter.weave.backend.service.migration.InMemoryMigrationRunEvidenceRepository;
+import com.massimotter.weave.backend.service.migration.MigrationRunEvidence;
+import com.massimotter.weave.backend.service.migration.MigrationRunEvidenceRepository;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -119,12 +124,15 @@ public class AdminControlPlaneService {
     private static final int MAX_BOOTSTRAP_ADMIN_KEYS = 25;
     private static final int MAX_BOOTSTRAP_ADMIN_KEY_LENGTH = MAX_PRIMARY_IDENTITY_KEY_LENGTH;
     private static final Pattern PRIMARY_IDENTITY_KEY_REGEX = Pattern.compile(PRIMARY_IDENTITY_KEY_PATTERN);
+    private static final Duration PROVIDER_REPLACEMENT_EVIDENCE_TTL = Duration.ofHours(24);
 
     private final ProviderRegistry providerRegistry;
     private final WorkspaceCapabilityService workspaceCapabilityService;
     private final ProviderSelectionRepository providerSelectionRepository;
+    private final ProductProfileOverrideRepository productProfileOverrideRepository;
     private final OrganizationBootstrapRepository organizationBootstrapRepository;
     private final AuditEventPublisher auditEventPublisher;
+    private final MigrationRunEvidenceRepository migrationRunEvidenceRepository;
     private final List<IdentityRealmProvider> identityRealmProviders;
     private final IdentityRealmEvidenceRepository identityRealmEvidenceRepository;
     private final List<IdentityRealmLiveApplyAdapter> identityRealmLiveApplyAdapters;
@@ -143,13 +151,17 @@ public class AdminControlPlaneService {
             ObjectProvider<IdentityRealmEvidenceRepository> identityRealmEvidenceRepository,
             ObjectProvider<List<IdentityRealmLiveApplyAdapter>> identityRealmLiveApplyAdapters,
             ObjectProvider<IdentityRealmApplyProperties> identityRealmApplyProperties,
-            ObjectProvider<WeaverRuntimeProperties> weaverRuntimeProperties) {
+            ObjectProvider<WeaverRuntimeProperties> weaverRuntimeProperties,
+            ObjectProvider<ProductProfileOverrideRepository> productProfileOverrideRepository,
+            ObjectProvider<MigrationRunEvidenceRepository> migrationRunEvidenceRepository) {
         IdentityRealmApplyProperties properties = identityRealmApplyProperties.getIfAvailable(IdentityRealmApplyProperties::new);
         this.providerRegistry = providerRegistry;
         this.workspaceCapabilityService = workspaceCapabilityService;
         this.providerSelectionRepository = providerSelectionRepository;
+        this.productProfileOverrideRepository = productProfileOverrideRepository.getIfAvailable();
         this.organizationBootstrapRepository = organizationBootstrapRepository;
         this.auditEventPublisher = auditEventPublisher;
+        this.migrationRunEvidenceRepository = migrationRunEvidenceRepository.getIfAvailable(InMemoryMigrationRunEvidenceRepository::new);
         this.identityRealmProviders = identityRealmProviders == null || identityRealmProviders.isEmpty()
                 ? List.of(new KeycloakRealmDryRunProvider())
                 : List.copyOf(identityRealmProviders);
@@ -188,11 +200,34 @@ public class AdminControlPlaneService {
             IdentityRealmApplyProperties identityRealmApplyProperties,
             Clock clock,
             WeaverRuntimeProperties weaverRuntimeProperties) {
+        this(providerRegistry, workspaceCapabilityService, providerSelectionRepository, organizationBootstrapRepository, auditEventPublisher,
+                identityRealmProviders, identityRealmEvidenceRepository, identityRealmLiveApplyAdapters, identityRealmApplyProperties, clock,
+                weaverRuntimeProperties, null, new InMemoryMigrationRunEvidenceRepository());
+    }
+
+    AdminControlPlaneService(
+            ProviderRegistry providerRegistry,
+            WorkspaceCapabilityService workspaceCapabilityService,
+            ProviderSelectionRepository providerSelectionRepository,
+            OrganizationBootstrapRepository organizationBootstrapRepository,
+            AuditEventPublisher auditEventPublisher,
+            List<IdentityRealmProvider> identityRealmProviders,
+            IdentityRealmEvidenceRepository identityRealmEvidenceRepository,
+            List<IdentityRealmLiveApplyAdapter> identityRealmLiveApplyAdapters,
+            IdentityRealmApplyProperties identityRealmApplyProperties,
+            Clock clock,
+            WeaverRuntimeProperties weaverRuntimeProperties,
+            ProductProfileOverrideRepository productProfileOverrideRepository,
+            MigrationRunEvidenceRepository migrationRunEvidenceRepository) {
         this.providerRegistry = providerRegistry;
         this.workspaceCapabilityService = workspaceCapabilityService;
         this.providerSelectionRepository = providerSelectionRepository;
+        this.productProfileOverrideRepository = productProfileOverrideRepository;
         this.organizationBootstrapRepository = organizationBootstrapRepository;
         this.auditEventPublisher = auditEventPublisher;
+        this.migrationRunEvidenceRepository = migrationRunEvidenceRepository == null
+                ? new InMemoryMigrationRunEvidenceRepository()
+                : migrationRunEvidenceRepository;
         this.identityRealmProviders = identityRealmProviders == null || identityRealmProviders.isEmpty()
                 ? List.of(new KeycloakRealmDryRunProvider())
                 : List.copyOf(identityRealmProviders);
@@ -339,6 +374,19 @@ public class AdminControlPlaneService {
         String status = conflicts.isEmpty() ? "dry-run-ready" : matrixChatDryRun ? "dry-run-blocked-for-apply" : "requires-admin-review";
         String dryRunId = "provider-replacement-dry-run-" + category + "-" + Instant.now(clock).toEpochMilli();
         String auditRef = "provider-replacement-dry-run-" + category + "-" + Instant.now(clock).toEpochMilli();
+        ProviderReplacementDryRunResponse.ConsequencePreview consequencePreview =
+                consequencePreview(category, matrixChatDryRun, adminNotes, conflicts);
+        ProviderReplacementDryRunResponse.NoUnaccountedDataLossReport noUnaccountedDataLossReport =
+                noUnaccountedDataLossReport(category, matrixChatDryRun, adminNotes);
+        ProviderReplacementDryRunResponse.BoundedApplyCutoverRollbackProof boundedProof =
+                boundedProof(category, matrixChatDryRun, auditRef);
+        List<ProviderReplacementDryRunResponse.CrossDomainImpactItem> crossDomainImpact =
+                crossDomainImpact(category, matrixChatDryRun, auditRef);
+        ProviderReplacementDryRunResponse.BaselineSnapshot baselineSnapshot =
+                baselineSnapshot(category, currentAdapter, jwt, dryRunId, auditRef);
+        List<String> memberImpactStates = matrixChatDryRun
+                ? List.of("available", "degraded", "unavailable", "coming_later")
+                : List.of("available", "disabled_by_policy", "degraded", "coming_later");
         auditEventPublisher.publish(new AuditEvent(
                 organizationId(jwt),
                 "admin-control-plane",
@@ -357,10 +405,25 @@ public class AdminControlPlaneService {
                         Map.entry("secretRefPresent", true),
                         Map.entry("secretRef", safeSecretRef(request.secretRef())),
                         Map.entry("migrationDryRunRequired", migrationRequired),
+                        Map.entry("migrationEvidenceRef", "migration:" + dryRunId + ":" + category + ":dry-run-report"),
+                        Map.entry("baselineComparisonRef", "migration:" + dryRunId + ":" + category + ":read-model-comparison"),
                         Map.entry("portableExportImportRequired", request.portableExportImportRequired()),
                         Map.entry("lossyMappingNoteCount", adminNotes.size()),
                         Map.entry("rawProviderError", "redacted before audit"),
                         Map.entry("token", "not-stored"))));
+        persistProviderReplacementEvidence(
+                dryRunId,
+                category,
+                auditRef,
+                baselineSnapshot,
+                noUnaccountedDataLossReport,
+                consequencePreview,
+                boundedProof,
+                crossDomainImpact,
+                matrixChatDryRun);
+        ProviderReplacementDryRunResponse.ReadModelComparison readModelComparison =
+                readModelComparison(baselineSnapshot, memberImpactStates, true);
+        List<String> evidenceRefs = providerReplacementEvidenceRefs(dryRunId, category, auditRef, matrixChatDryRun);
         return new ProviderReplacementDryRunResponse(
                 dryRunId,
                 status,
@@ -405,10 +468,12 @@ public class AdminControlPlaneService {
                                 : List.of(
                                         "keep current adapter active until export/import evidence is accepted",
                                         "block apply when rollback evidence or support-safe audit refs are missing")),
-                consequencePreview(category, matrixChatDryRun, adminNotes, conflicts),
-                noUnaccountedDataLossReport(category, matrixChatDryRun, adminNotes),
-                boundedProof(category, matrixChatDryRun, auditRef),
-                crossDomainImpact(category, matrixChatDryRun, auditRef),
+                consequencePreview,
+                noUnaccountedDataLossReport,
+                boundedProof,
+                crossDomainImpact,
+                baselineSnapshot,
+                readModelComparison,
                 matrixChatDryRun
                         ? List.of(
                                 "SecretRef exists and remains backend-only; raw credentials are never returned.",
@@ -418,12 +483,168 @@ public class AdminControlPlaneService {
                                 "SecretRef exists and remains backend-only; raw credentials are never returned.",
                                 "Admin confirms source-of-truth, export/delete, lossy mapping, and rollback/support notes.",
                                 "Readiness test and migration dry-run evidence are reviewed before activation."),
-                matrixChatDryRun
-                        ? List.of("available", "degraded", "unsupported", "coming_later")
-                        : List.of("available", "disabled_by_policy", "degraded", "coming_later"),
+                memberImpactStates,
+                evidenceRefs,
                 true,
                 true,
                 List.of(auditRef));
+    }
+
+    private ProviderReplacementDryRunResponse.BaselineSnapshot baselineSnapshot(
+            String category,
+            String currentAdapter,
+            Jwt jwt,
+            String dryRunId,
+            String auditRef) {
+        Optional<ProviderSelection> persisted = providerSelectionRepository.findByCategory(category);
+        ProductProfileOverride profileOverride = profileOverride(jwt);
+        String providerKey = persisted.map(ProviderSelection::providerKey).orElse("not-configured");
+        String choiceModel = persisted.map(ProviderSelection::choiceModel).orElse("not-configured");
+        boolean selectionMatches = persisted
+                .map(selection -> selection.providerKey().equalsIgnoreCase(currentAdapter))
+                .orElse(false);
+        return new ProviderReplacementDryRunResponse.BaselineSnapshot(
+                category,
+                providerKey,
+                choiceModel,
+                providerSelectionRepository.persistencePosture(),
+                selectionMatches,
+                productProfileOverrideRepository == null ? "not-wired" : productProfileOverrideRepository.persistencePosture(),
+                profileOverride != null,
+                STABLE_MEMBER_IMPACT_STATES,
+                List.of(
+                        "provider-selection:" + category + ":" + providerKey,
+                        "profile-override:" + (profileOverride == null ? "absent" : "present"),
+                        "migration:" + dryRunId + ":" + category + ":baseline-snapshot",
+                        auditRef));
+    }
+
+    private ProductProfileOverride profileOverride(Jwt jwt) {
+        if (productProfileOverrideRepository == null || jwt == null) {
+            return null;
+        }
+        try {
+            String primaryIdentityKey = OrganizationIdentityContextFactory.fromJwt(jwt).primaryIdentityKey();
+            return productProfileOverrideRepository.findByPrimaryIdentityKey(primaryIdentityKey);
+        } catch (RuntimeException exception) {
+            return null;
+        }
+    }
+
+    private ProviderReplacementDryRunResponse.ReadModelComparison readModelComparison(
+            ProviderReplacementDryRunResponse.BaselineSnapshot baselineSnapshot,
+            List<String> memberImpactStates,
+            boolean migrationEvidenceRecorded) {
+        boolean providerNeutralStates = memberImpactStates.stream()
+                .allMatch(STABLE_MEMBER_IMPACT_STATES::contains);
+        List<String> findings = new ArrayList<>();
+        findings.add(baselineSnapshot.persistedSelectionMatchesRequest()
+                ? "requested current adapter matches persisted provider selection"
+                : "requested current adapter differs from persisted provider selection and remains an admin-review input");
+        findings.add(baselineSnapshot.profileOverridePresent()
+                ? "product profile override was considered as provider-neutral read-model state"
+                : "no product profile override exists for the actor baseline");
+        findings.add(migrationEvidenceRecorded
+                ? "support-safe migration run evidence was recorded for dry-run comparison"
+                : "migration run evidence was not recorded");
+        findings.add("northbound member states remain provider-neutral and no production provider default is flipped");
+        return new ProviderReplacementDryRunResponse.ReadModelComparison(
+                true,
+                false,
+                providerNeutralStates,
+                migrationEvidenceRecorded,
+                findings);
+    }
+
+    private void persistProviderReplacementEvidence(
+            String dryRunId,
+            String category,
+            String auditRef,
+            ProviderReplacementDryRunResponse.BaselineSnapshot baselineSnapshot,
+            ProviderReplacementDryRunResponse.NoUnaccountedDataLossReport noUnaccountedDataLossReport,
+            ProviderReplacementDryRunResponse.ConsequencePreview consequencePreview,
+            ProviderReplacementDryRunResponse.BoundedApplyCutoverRollbackProof boundedProof,
+            List<ProviderReplacementDryRunResponse.CrossDomainImpactItem> crossDomainImpact,
+            boolean matrixChatDryRun) {
+        Instant now = Instant.now(clock);
+        migrationRunEvidenceRepository.save(new MigrationRunEvidence(
+                dryRunId,
+                category,
+                "dry_run_completed",
+                objectCounts(noUnaccountedDataLossReport, consequencePreview),
+                List.of(sha256Ref(dryRunId + ":" + category + ":" + baselineSnapshot.persistedProviderKey())),
+                List.of(auditRef),
+                providerReplacementArtifactRefs(dryRunId, category, matrixChatDryRun),
+                providerReplacementDiagnostics(baselineSnapshot, boundedProof, crossDomainImpact),
+                baselineSnapshot.persistedSelectionMatchesRequest(),
+                true,
+                false,
+                now,
+                now.plus(PROVIDER_REPLACEMENT_EVIDENCE_TTL)));
+    }
+
+    private Map<String, Integer> objectCounts(
+            ProviderReplacementDryRunResponse.NoUnaccountedDataLossReport noUnaccountedDataLossReport,
+            ProviderReplacementDryRunResponse.ConsequencePreview consequencePreview) {
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        counts.put("PortableObject", noUnaccountedDataLossReport.supportedCount());
+        counts.put("LossyObject", noUnaccountedDataLossReport.lossyCount());
+        counts.put("UnsupportedObject", noUnaccountedDataLossReport.unsupportedCount());
+        counts.put("ManualReviewObject", noUnaccountedDataLossReport.manualReviewCount());
+        counts.put("ArchiveOnlyObject", noUnaccountedDataLossReport.archiveOnlyCount());
+        counts.put("VendorLockedObject", noUnaccountedDataLossReport.vendorLockedCount());
+        counts.put("PreservedObject", consequencePreview.preservedCount());
+        return counts;
+    }
+
+    private Map<String, String> providerReplacementArtifactRefs(
+            String dryRunId,
+            String category,
+            boolean matrixChatDryRun) {
+        String prefix = "migration:" + dryRunId + ":" + category + ":";
+        Map<String, String> refs = new LinkedHashMap<>();
+        refs.put("baselineSnapshotRef", prefix + "baseline-snapshot");
+        refs.put("readModelComparisonRef", prefix + "read-model-comparison");
+        refs.put("dryRunReportRef", prefix + "dry-run-report");
+        refs.put("exportSnapshotRef", prefix + "export-snapshot");
+        refs.put("importPlanRef", prefix + "import-plan");
+        refs.put("providerMappingRef", prefix + "provider-mapping");
+        refs.put("lossyMappingReportRef", prefix + "lossy-mapping-report");
+        refs.put("conflictReportRef", prefix + "conflict-report");
+        refs.put("memberImpactPreviewRef", prefix + "member-impact-preview");
+        refs.put("cutoverPlanRef", prefix + "cutover-plan");
+        refs.put("rollbackArchiveRef", prefix + "rollback-archive");
+        refs.put("rollbackRestoreSmokeRef", prefix + "rollback-restore-smoke");
+        refs.put("noUnaccountedDataLossReportRef", prefix + "no-unaccounted-data-loss-report");
+        refs.put("releaseClaimBoundaryRef", prefix + "release-claim-boundary");
+        if (matrixChatDryRun) {
+            refs.put("crossDomainImpactReportRef", prefix + "cross-domain-impact-report");
+            refs.put("crossDomainRollbackRetentionRef", prefix + "cross-domain-rollback-retention");
+        }
+        return refs;
+    }
+
+    private List<String> providerReplacementDiagnostics(
+            ProviderReplacementDryRunResponse.BaselineSnapshot baselineSnapshot,
+            ProviderReplacementDryRunResponse.BoundedApplyCutoverRollbackProof boundedProof,
+            List<ProviderReplacementDryRunResponse.CrossDomainImpactItem> crossDomainImpact) {
+        return List.of(
+                "support-safe provider replacement dry-run evidence",
+                "provider-selection-posture:" + baselineSnapshot.providerSelectionPersistencePosture(),
+                "profile-override-posture:" + baselineSnapshot.profileOverridePersistencePosture(),
+                "bounded-proof:" + boundedProof.proofBoundary(),
+                "cross-domain-impact-items:" + crossDomainImpact.size());
+    }
+
+    private List<String> providerReplacementEvidenceRefs(
+            String dryRunId,
+            String category,
+            String auditRef,
+            boolean matrixChatDryRun) {
+        Map<String, String> refs = providerReplacementArtifactRefs(dryRunId, category, matrixChatDryRun);
+        List<String> evidenceRefs = new ArrayList<>(refs.values());
+        evidenceRefs.add(auditRef);
+        return List.copyOf(evidenceRefs);
     }
 
     private List<ProviderReplacementDryRunResponse.CrossDomainImpactItem> crossDomainImpact(
@@ -525,7 +746,7 @@ public class AdminControlPlaneService {
         if (matrixChatDryRun) {
             return new ProviderReplacementDryRunResponse.BoundedApplyCutoverRollbackProof(
                     "fixture_only_matrix_synapse_chat_sprint18",
-                    true,
+                    false,
                     false,
                     true,
                     List.of(
@@ -1047,13 +1268,7 @@ public class AdminControlPlaneService {
 
     public List<AdminAuditEventResponse> auditEvents(Jwt jwt) {
         workspaceCapabilityService.requireCapability(jwt, "admin_control_plane.readiness_read", "admin-control-plane", "read-audit-events");
-        if (auditEventPublisher instanceof InMemoryAuditEventPublisher memoryAudit) {
-            return auditEventResponses(memoryAudit.events());
-        }
-        if (auditEventPublisher instanceof FileAuditEventPublisher fileAudit) {
-            return auditEventResponses(fileAudit.events());
-        }
-        return List.of();
+        return auditEventResponses(auditEventPublisher.events());
     }
 
     private List<AdminAuditEventResponse> auditEventResponses(List<AuditEvent> events) {
@@ -1784,7 +1999,7 @@ public class AdminControlPlaneService {
                 List.of(),
                 List.of("audit://weaver/runtime-profile/projection"),
                 List.of(
-                        projectionItem("chat-route", "chat", "channels.weave-chat via " + chatProviderKey, "ready", "available", "Stable chat route only; provider rooms stay behind Weave Chat.", false),
+                        projectionItem("chat-route", "chat", "channels.matrix via Weave facade; southbound " + chatProviderKey, "ready", "available", "Stock Matrix channel uses the Weave northbound facade; provider rooms stay behind canonical Chat.", false),
                         projectionItem("model-alias-general", "model", "general-assistant via " + modelProviderKey, readinessFor("model", registry), "disabled_by_policy", "Alias is admin-selected but runtime remains disabled by default.", false),
                         projectionItem("tool-calendar-search", "tool", "calendar.search_events", readinessFor("calendar", registry), "disabled_by_policy", "Read-only discovery requires weaver.calendar_read and calendar.read grants.", false),
                         projectionItem("tool-boards-comment", "tool", "boards.comment", readinessFor("boards-tasks", registry), "disabled_by_policy", "Write-like tool requires explicit approval receipt and audit.", true),
@@ -1868,25 +2083,25 @@ public class AdminControlPlaneService {
                 List.of(),
                 List.of("chat.search_messages"),
                 List.of("workspace-triage"),
-                List.of(new WeaverMcpGrantResponse("weave-chat", List.of("reply"), true)),
+                List.of(new WeaverMcpGrantResponse("matrix", List.of("reply", "approval"), true)),
                 List.of("shell.exec", "provider.raw_config.read"),
                 List.of("chat.reply", "external.send"),
                 List.of(
                         "chat.provider=" + chatProviderKey,
                         "model.provider=" + modelProviderKey,
                         "models.default=general-assistant",
-                        "credentialRef=credentialref://weave/channels/weave-chat/runtime-token"),
+                        "credentialRef=credentialref://weave/channels/matrix/access-token"),
                 "runtime-profile-hash-pending-live-regeneration",
                 null,
                 "not_revoked",
                 null,
-                List.of("audit://weaver/pa-chat/bridge-roundtrip"),
+                List.of("audit://weaver/matrix-facade/runtime-profile"),
                 List.of(new WeaverRuntimeProfileChangeResponse(
-                        "sprint-14-pa-chat",
+                        "matrix-mcp-cutover",
                         "runtime-profile-hash-pending-live-regeneration",
                         Instant.now(clock).toString(),
                         "draft",
-                        "Admin-selected model provider is projected into Weaver aliases without exposing provider secrets to members.")));
+                        "Stock Matrix and Spring AI MCP are projected without exposing provider secrets to members.")));
     }
 
     private String readinessFor(String category, ProviderRegistryResponse registry) {
@@ -2062,6 +2277,19 @@ public class AdminControlPlaneService {
                 .replaceAll("(?i)xox[baprs]-[A-Za-z0-9-]+", "slack-token-[redacted]")
                 .replaceAll("(?i)https?://[^\\s]+", "url-[redacted]")
                 .replaceAll("(?i)secret(ref)?://[^\\s]+", "secret-ref-[redacted]");
+    }
+
+    private String sha256Ref(String value) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
+            StringBuilder builder = new StringBuilder("sha256:");
+            for (byte b : digest) {
+                builder.append(String.format("%02x", b));
+            }
+            return builder.toString();
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 digest is required for provider replacement evidence", exception);
+        }
     }
 
     private String organizationId(Jwt jwt) {

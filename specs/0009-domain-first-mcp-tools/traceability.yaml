@@ -1,11 +1,13 @@
 corpus:
-- WEAVE-STEERING-SPEC-KIT-OPERATING-MODEL
+- WEAVE-ADR-0003
+- WEAVE-DOMAIN-WEAVER-GOVERNED-PA
 repo_feature: specs/0009-domain-first-mcp-tools
 related_repos:
 - /Users/flotterotter/code/weaver/specs
 gates:
 - ./gradlew specContract
-- rg "nextcloud|caldav|matrix" server admin-console client specs -g "*.md" -g "*.yaml"
+- ./gradlew acceptanceContract
+- python3 tools/spring_ai_mcp_facade_acceptance_check.py
 acceptance_features:
 - e2e/features/weave_spec_0009_acceptance.feature
 acceptance_scenarios:

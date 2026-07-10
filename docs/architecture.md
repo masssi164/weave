@@ -3,7 +3,7 @@
 ## Overview
 Weave uses a feature-first clean architecture with deterministic bootstrap before routing. App-level OIDC bootstrap is resolved before navigation, while protocol-specific or platform-specific code lives either inside the owning feature or in `lib/integrations/<integration>/` when the boundary is shared across multiple features.
 
-Weave is product-first and provider-neutral. It models organization capabilities such as identity, chat, files, calendar, boards/tasks, meetings, decisions, documents/collaboration, embedded manuals, release evidence, and later Weaver. Concrete systems such as Keycloak, Entra ID, Matrix, Teams, Slack, Nextcloud, SharePoint, OpenProject, Jira, or LiveKit attach as provider adapters behind Weave domain contracts. The server is the canonical domain, policy, validation, and OpenAPI contract authority for generated client/admin/MCP consumers; see [ADR-004: Server OpenAPI is the contract authority](architecture/adr-004-server-openapi-contract-authority.md). See also [Weave product line and Weaver integration plan](product-line-and-weaver-plan.md), [Organization embedding contract](organization-embedding-contract.md), [Identity provisioning strategy](identity-provisioning-strategy.md), [Provider replacement and anti-silo contract](provider-replacement-and-anti-silo-contract.md), [Canonical domains](architecture/canonical-domains.md), [Provider portability contract](architecture/provider-portability.md), and [Weaver OpenClaw-derived runtime profile](architecture/weaver-openclaw-profile.md).
+Weave is product-first and provider-neutral. It models organization capabilities such as identity, chat, files, calendar, boards/tasks, meetings, decisions, documents/collaboration, embedded manuals, release evidence, and later Weaver. Concrete systems such as Keycloak, Entra ID, Matrix, Teams, Slack, Nextcloud, SharePoint, OpenProject, Jira, or LiveKit attach as provider adapters behind Weave domain contracts. The server is the canonical domain, policy, validation, and control-plane authority. Northbound data planes use open standards where the domain has one: OIDC/OAuth2 for Identity, WebDAV for Files, CalDAV/iCalendar for Calendar, Matrix Client-Server API for Chat through the OIDC-gated Weave Matrix facade, WebRTC plus Weave join grants for Calls, MCP for Agents, and OpenAPI/REST for Admin/control-plane work. The Matrix facade uses a shared Rust/Ruma protocol core through server JNI and Flutter `flutter_rust_bridge`; Synapse or another homeserver can be a southbound provider or fixture, not the northbound product boundary. See [ADR-004: Server OpenAPI is the control-plane contract authority](architecture/adr-004-server-openapi-contract-authority.md). The first Files WebDAV projection decisions are captured in [ADR-005: Files WebDAV facade slice](architecture/adr-005-files-webdav-facade-slice.md). See also [Weave product line and Weaver integration plan](product-line-and-weaver-plan.md), [Organization embedding contract](organization-embedding-contract.md), [Identity provisioning strategy](identity-provisioning-strategy.md), [Provider replacement and anti-silo contract](provider-replacement-and-anti-silo-contract.md), [Canonical domains](architecture/canonical-domains.md), [Provider portability contract](architecture/provider-portability.md), and [Weaver OpenClaw-derived runtime profile](architecture/weaver-openclaw-profile.md).
 
 ## Provider-neutral capability contracts
 
@@ -84,9 +84,9 @@ Shell destinations:
 - **Channels** contain team/topic rooms and remain the main collaboration spine for future channel workspaces.
 - **AI chats** provide a distinct home for specialized assistant and agent chats instead of mixing them into ordinary DMs.
 
-The current member Chat path uses the backend Chat facade as the conversation source. Flutter maps `/api/chat/*` OpenAPI DTOs inside `features/chat/data/` and presents Weave-domain conversations, messages, and readiness through `ChatRepository`. Channel detail treats a channel as a workspace container, but normal member copy may only show available product surfaces or impact-level unavailable states. Files, board/task, calendar, and meeting setup details stay behind admin/operator Workspace Health until the corresponding backend capability is enabled; channel UX must not expose provider setup diagnostics or preview claims.
+The member Chat data plane is the Matrix Client-Server API projection over Weave Chat; Slack and Teams stay southbound bridge/provider adapters. Flutter wires `ChatRepository` to the Matrix projection for normal sync/send. `/api/chat/*` remains only for readiness, admin/operator migration evidence, decisions, meeting capsules, and Weaver scout product-control surfaces. REST conversation/message compatibility routes are obsolete and removed; member sync/send must enter through `/_matrix/client/**`. Channel detail treats a channel as a workspace container, but normal member copy may only show available product surfaces or impact-level unavailable states. Files, board/task, calendar, and meeting setup details stay behind admin/operator Workspace Health until the corresponding backend capability is enabled; channel UX must not expose provider setup diagnostics or preview claims.
 
-The server now owns a Chat domain facade seam. Member routes under `/api/chat/*` return Weave-domain readiness/conversation/message contracts and fail closed for missing, unsupported, degraded, blocked, or unconfigured Chat mappings. Admin/operator routes under `/api/admin/chat/*` may show support-safe selected mapping, redacted readiness diagnostics, and migration dry-run/preflight reports; destructive migration apply is intentionally out of scope.
+The server owns a Chat domain facade seam and an OIDC-gated Matrix Client-Server projection. `/_matrix/client/**` is served on the public API origin as a Weave northbound facade, not a Synapse container or raw provider passthrough; a `matrix.<tenant>` origin remains a southbound provider/operator detail. The facade projects canonical Chat conversations/messages and delegates protocol-shape work to the Rust/Ruma core boundary. Calendar event REST CRUD is obsolete as a member data plane; Calendar sync and event CRUD move through `/caldav/**`, while `/api/calendar/**` remains setup/readiness/access-policy control plane. Admin/operator routes under `/api/admin/chat/*` may show support-safe selected mapping, redacted readiness diagnostics, and migration dry-run/preflight reports; destructive migration apply is intentionally out of scope.
 
 The remaining canonical server domain facades are represented by non-Chat skeleton contracts for Files/Documents, Calendar/Meetings, Boards/Tasks, and Identity/Admin/Policy. They are Weave product contracts, not provider proxies: each names canonical object kinds and adapter-boundary operations, evaluates capability policy before provider lookup, fails closed for unknown capabilities, returns empty Weave-domain collections until a promoted adapter exists, and exposes only support-safe admin mappings with SecretRef presence flags rather than secret material, raw provider URLs, downstream payloads, or provider errors.
 
@@ -123,7 +123,7 @@ Persistence is split by responsibility:
 - `PreferencesStore` for harmless configuration and future non-sensitive flags
 - `SecureStore` for tokens, sensitive protocol credentials, and persisted sessions that should not live in preferences
 
-Current secure-storage usage includes app-auth session persistence and the shared Nextcloud session store.
+Current secure-storage usage is app-auth session persistence. Dogfood reset still deletes the old `nextcloud_session_v1` key so upgraded developer devices clear stale provider-client state without keeping the removed integration package.
 
 ## Failure model
 `AppFailure` is the shared app-level failure model used across bootstrap, storage, and repositories. Presentation should respond to `AppFailure` rather than raw package exceptions.
@@ -155,10 +155,9 @@ Shared integrations follow the same layering under `lib/integrations/<integratio
 Current feature repository boundaries:
 
 - `auth` -> `AuthSessionRepository` + `OidcClient`
-- `chat` -> `ChatRepository` + backend Chat facade OpenAPI DTO mapping in `data/`; Matrix SDK access is fenced to legacy/diagnostic chat-owned services until #895 removes or replaces that seam
-- `files` -> `FilesRepository` + backend Files facade OpenAPI DTO mapping in `data/`; direct Nextcloud/WebDAV transport stays outside normal member UI paths
-- `integrations/nextcloud` -> transitional Nextcloud auth/session helpers only for fenced legacy or provider-owned integration work; normal member Files presentation must use the backend Files facade
-- `calendar` -> `CalendarRepository` + backend `CalendarFacadeClient` (no direct Flutter-to-CalDAV product path)
+- `chat` -> `ChatRepository` + Matrix Client-Server projection mapping in `data/`; backend Chat facade OpenAPI DTO mapping remains a fenced control-plane/conformance seam and Slack/Teams never become northbound member data-plane transports
+- `files` -> `FilesRepository` + Weave WebDAV data-plane mapping in `data/`, with OpenAPI retained for discovery/readiness/setup/revoke/control-plane state; direct provider WebDAV/Nextcloud transport is removed from Flutter member code
+- `calendar` -> `CalendarRepository` + Weave CalDAV/iCalendar projection for the event data plane, with backend OpenAPI retained for discovery/readiness/setup/revoke/control-plane state; direct provider CalDAV/Graph/Google transport stays behind server adapters
 - `deck` / future `tasks_boards` -> exploratory board repository/client boundaries; future work should use a provider-neutral Weave model with adapters
 
 Presentation depends on repository contracts and Riverpod providers only. It does not own storage or protocol logic.
@@ -172,45 +171,39 @@ Boundary rule:
 - features may depend on integrations, but integrations must not depend on feature presentation state or feature-owned transport mappings they are meant to support
 
 ## Session separation
-App auth, legacy Matrix diagnostic auth, and transitional Nextcloud integration state are intentionally separate concerns:
+App auth, the Weave Matrix facade session boundary, and Files facade state are intentionally separate concerns:
 
 - `auth/` owns the app-level OIDC session that decides whether the shell is reachable
-- `chat/data/repositories/BackendChatRepository` consumes the Weave app session and calls the canonical backend Chat facade; remaining Matrix protocol discovery, Matrix Native OAuth 2.0 login, refresh, logout, and SDK persistence are fenced legacy/diagnostic seams pending #895
-- `files/data/repositories/BackendFilesRepository` consumes the Weave app session and calls the canonical backend Files facade; `integrations/nextcloud/` remains transitional provider-integration code rather than the normal member Files path
-- the app does not assume an app-level OIDC access token is also a Matrix access token
-- the app does not assume an app-level OIDC token can be persisted as a raw Nextcloud bearer session; persisted Nextcloud bearer sessions are stored as tokenless markers and rehydrated from app auth state
-- changing the Matrix homeserver invalidates the Matrix session without redesigning bootstrap
-- changing the configured Nextcloud base URL invalidates the persisted Nextcloud session without requiring feature-owned cleanup logic
+- `chat/data/repositories/WeaveMatrixFacadeChatRepository` consumes the OIDC-gated Weave Matrix Client-Server projection for member chat sync/send; the obsolete REST `BackendChatRepository` has been removed
+- `files/data/repositories/BackendFilesRepository` consumes the Weave app session and calls the canonical backend Files facade; the old Flutter `integrations/nextcloud/` provider client is removed
+- the app does not call a raw Matrix homeserver or persist a Matrix SDK access token; the Weave Matrix facade validates the app-level OIDC token
+- changing the Matrix facade URL invalidates chat data-plane requests without redesigning bootstrap
+- changing configured Files/backend endpoints invalidates Files view state without feature-owned provider-session cleanup
 
 Matrix E2EE state also stays inside `features/chat/`:
 
-- the Matrix crypto runtime is wired in the chat-owned Matrix client
-- bootstrap, trust, verification, and recovery state are mapped to Weave-owned chat models before UI consumes them
+- the previous Dart Matrix SDK crypto path is retired and must not be reintroduced
+- bootstrap, trust, verification, and recovery state remain chat-owned models before UI consumes them
 - settings may host chat-owned security UI, but other features must not depend on raw Matrix crypto objects
 - recovery keys must be treated as external user-held material; local secure storage can help cache secrets, but reinstall/device-restore behavior differs across Android, iOS, and macOS and must not be overclaimed
-- the Matrix SDK `getCryptoIdentityState()` is the primary initialized/connected signal for chat-owned bootstrap mapping
-- verification state must stay chat-owned as well; SDK states such as `askSSSS` are surfaced as recovery/unlock prompts rather than exposed directly in widgets
-- current verification support is limited to SAS emoji/numbers plus SSSS unlock; QR verification remains out of scope until the client explicitly supports QR methods end-to-end
+- the current Flutter security repository fails closed until generated `flutter_rust_bridge` bindings expose Rust Matrix core device verification and recovery behavior
+- future verification states must stay chat-owned and surface recovery/unlock prompts rather than raw protocol or SDK state names
 
-The remaining Matrix integration is a fenced legacy/diagnostic seam pending #895. It uses:
+The Matrix integration is the standard Chat data-plane seam. It uses:
 
-- the configured Matrix homeserver URL from `ServerConfiguration`
-- `Client.checkHomeserver(..., fetchAuthMetadata: true)` for capability discovery
-- Matrix Native OAuth 2.0 when `/_matrix/client/v1/auth_metadata` is available
-- a typed unsupported-configuration failure when the homeserver only exposes legacy login
-- Matrix SDK crypto setup helpers for first-device bootstrap, recovery reconnect, and self-verification continuation
+- the configured Weave Matrix facade URL from `ServerConfiguration`
+- OIDC bearer tokens from the app session, validated by Spring Boot before Matrix responses are emitted
+- `/_matrix/client/versions`, `/sync`, `/joined_rooms`, `/rooms/{roomId}/messages`, and `/rooms/{roomId}/send/m.room.message/{txnId}` for the current member data-plane slice
+- the shared Rust/Ruma Matrix core boundary through server JNI and Flutter `flutter_rust_bridge`
 
-## Nextcloud integration split
-Normal member Files uses the backend Files facade through `BackendFilesRepository`; Flutter maps `/api/files/*` OpenAPI DTOs inside `features/files/data/` and presents Weave-domain `DirectoryListing` and `FileEntry` objects. The transitional Nextcloud integration is now split into fenced provider-owned helpers:
+## Legacy Nextcloud Flutter Integration
+Normal member Files uses the Weave WebDAV facade through `BackendFilesRepository` for list, read, upload, create-folder, and delete data-plane behavior; Flutter keeps OpenAPI only for discovery/readiness/setup/revoke/control-plane state. Server-side `/dav/files` supports guarded `PUT`, `MKCOL`, and `DELETE` with ETags, conditional preconditions, support-safe errors, and mutation audit, and the Flutter repository calls those WebDAV methods instead of legacy OpenAPI member data-plane endpoints.
 
-- `integrations/nextcloud/` for legacy/shared auth, session, account validation, login-flow handling, revoke policy, provider wiring, and connection lifecycle orchestration where a fenced provider adapter still needs it
-- `features/files/` for backend Files facade calls, OpenAPI DTO-to-domain mapping, and file-facing presentation/state
-
-This keeps the current Files UX intact while moving provider transport behind backend domain services. Future Calendar or provider-adapter board work must not import `features/files/` or add direct member UI provider setup paths.
+The old Flutter `integrations/nextcloud/` auth/session/Login Flow package has been removed. Nextcloud remains a valid southbound server adapter, but member-client code must not own raw Nextcloud sessions, app passwords, provider DAV validation, or provider Login Flow. Future Calendar or provider-adapter board work must not import `features/files/` or add direct member UI provider setup paths.
 
 ## Calendar backend facade scope
 
-Calendar is active shared-scheduling scope and remains wired through the Weave backend product facade rather than direct CalDAV. The product model is shared scheduling: workspace calendar, team calendars, and channel calendars/events/meeting threads. The backend currently exposes the first safe slice as `scope.type = "workspace"`: a shared Weave workspace calendar owned/provisioned through the backend actor. The frontend parses that scope metadata and labels the surface as the first shared workspace scope, not as a private-personal calendar.
+Calendar is active shared-scheduling scope and moves through the Weave CalDAV/iCalendar projection rather than direct provider CalDAV. The product model is shared scheduling: workspace calendar, team calendars, and channel calendars/events/meeting threads. Backend OpenAPI remains for calendar setup, readiness, revoke, scoped credentials, generated models, and admin/operator control. CalDAV collections expose all three shared scopes. Each projected event carries canonical context and stable meeting-thread metadata; concrete Matrix room/thread bindings remain optional.
 
 Private personal calendars are out of scope for the current product path. Frontend code must continue to fail through the backend facade and must not add a direct private-personal CalDAV fallback or secret-bearing client setup path.
 

@@ -10,8 +10,8 @@ variable "docker_host" {
   default     = "unix:///var/run/docker.sock"
 
   validation {
-    condition     = startswith(var.docker_host, "unix://") || var.docker_host == "tcp://forgejo-runner-dind:2375"
-    error_message = "docker_host must be a unix socket endpoint such as unix:///var/run/docker.sock, or the local Forgejo runner DinD endpoint tcp://forgejo-runner-dind:2375."
+    condition     = startswith(var.docker_host, "unix://")
+    error_message = "docker_host must be a unix socket endpoint such as unix:///var/run/docker.sock."
   }
 }
 
@@ -163,6 +163,30 @@ variable "weave_backend_image" {
   default     = "weave-backend:local"
 }
 
+variable "mcp_host_port" {
+  description = "Loopback host port for the OIDC-protected Weave MCP server."
+  type        = number
+  default     = 8085
+}
+
+variable "mcp_container_port" {
+  description = "Internal HTTP port exposed by the Weave MCP server container."
+  type        = number
+  default     = 8091
+}
+
+variable "mcp_boundary_token" {
+  description = "Private service credential shared only by the Weave backend and Spring AI MCP server."
+  type        = string
+  sensitive   = true
+}
+
+variable "weave_mcp_server_image" {
+  description = "Docker image for the Spring AI Weave MCP server."
+  type        = string
+  default     = "weave-mcp-server:local"
+}
+
 variable "nextcloud_trusted_proxies" {
   description = "Space-separated proxy IPs or CIDRs trusted by Nextcloud."
   type        = string
@@ -239,17 +263,6 @@ variable "devops_primary_provider" {
   }
 }
 
-variable "devops_alternative_provider" {
-  description = "Alternative DevOps provider candidate. Forgejo stays first-class but disabled unless explicitly enabled."
-  type        = string
-  default     = "forgejo"
-
-  validation {
-    condition     = contains(["forgejo"], var.devops_alternative_provider)
-    error_message = "devops_alternative_provider must be forgejo."
-  }
-}
-
 variable "devops_gitlab_runtime_enabled" {
   description = "Enable GitLab CE/FOSS source-control/CI/issues/releases provider runtime. Defaults false/fail-closed."
   type        = bool
@@ -271,31 +284,6 @@ variable "devops_gitlab_api_token" {
 
 variable "devops_gitlab_writes_enabled" {
   description = "Enable writes to GitLab. Defaults false; the current backend DevOps facade is read-only."
-  type        = bool
-  default     = false
-}
-
-variable "devops_forgejo_runtime_enabled" {
-  description = "Enable Forgejo source-control/CI/issues/releases provider runtime. Defaults false/fail-closed."
-  type        = bool
-  default     = false
-}
-
-variable "devops_forgejo_base_url" {
-  description = "Backend-only Forgejo base URL. Leave blank unless the Forgejo provider runtime is intentionally enabled."
-  type        = string
-  default     = ""
-}
-
-variable "devops_forgejo_api_token" {
-  description = "Backend-held Forgejo service token. Never expose to Flutter, app config, support bundles, or provider status output."
-  type        = string
-  default     = ""
-  sensitive   = true
-}
-
-variable "devops_forgejo_writes_enabled" {
-  description = "Enable writes to Forgejo. Defaults false; the current backend DevOps facade is read-only."
   type        = bool
   default     = false
 }
@@ -622,6 +610,18 @@ variable "db_admin_username" {
 
 variable "db_admin_password" {
   description = "PostgreSQL bootstrap administrator password."
+  type        = string
+  sensitive   = true
+}
+
+variable "backend_db_username" {
+  description = "Weave backend PostgreSQL username."
+  type        = string
+  default     = "weave_backend"
+}
+
+variable "backend_db_password" {
+  description = "Weave backend PostgreSQL password."
   type        = string
   sensitive   = true
 }

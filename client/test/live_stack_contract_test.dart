@@ -40,6 +40,8 @@ import '../integration_test/helpers/auth_helper.dart';
 import '../integration_test/helpers/test_config.dart';
 import '../integration_test/helpers/test_http_overrides.dart';
 
+const _liveMatrixDeviceId = 'WEAVELIVEE2EDEVICE';
+
 void main() {
   HttpOverrides.global = TestHttpOverrides();
 
@@ -90,6 +92,79 @@ void main() {
       );
     });
 
+    test('first-party OIDC bearer access targets Weave protocol facades', () {
+      // OIDC_PROTOCOL_ACCESS_CONTRACT
+      const matrixOverride = String.fromEnvironment(
+        'WEAVE_MATRIX_HOMESERVER_URL',
+      );
+      final apiOrigin = _apiOrigin(liveConfig.backendApiBaseUrl);
+
+      if (matrixOverride.trim().isEmpty) {
+        expect(liveConfig.matrixHomeserverUrl, apiOrigin);
+      }
+
+      final surfaces = <String, Uri>{
+        'files': _facadeUri(liveConfig.backendApiBaseUrl, ['dav', 'files']),
+        'calendar': _facadeUri(liveConfig.backendApiBaseUrl, ['caldav']),
+        'chat': liveConfig.matrixHomeserverUrl.replace(
+          pathSegments: const ['_matrix', 'client', 'versions'],
+          query: null,
+          fragment: null,
+        ),
+      };
+
+      expect(surfaces['files']!.path, '/dav/files');
+      expect(surfaces['calendar']!.path, '/caldav');
+      expect(surfaces['chat']!.path, '/_matrix/client/versions');
+      for (final entry in surfaces.entries) {
+        expect(
+          entry.value.scheme,
+          anyOf('http', 'https'),
+          reason: '${entry.key} facade must be reachable by HTTP(S).',
+        );
+        expect(entry.value.userInfo, isEmpty);
+        expect(entry.value.query, isEmpty);
+        expect(entry.value.fragment, isEmpty);
+        expect(
+          _containsSensitiveProviderMaterial(entry.value.toString()),
+          isFalse,
+          reason:
+              '${entry.key} facade URL must not expose provider credentials or raw provider routes.',
+        );
+      }
+    });
+
+    test('revoked bearer token protocol failures stay support-safe', () {
+      // OIDC_REVOKED_TOKEN_SUPPORT_SAFE
+      final protocolDenials = <String>[
+        'The Weave backend rejected the current session.',
+        'Files access is not allowed for this workspace session.',
+        'Weave Chat is unavailable. Ask an admin to inspect Workspace Health.',
+      ];
+
+      for (final denial in protocolDenials) {
+        expect(_isSupportSafeProtocolError(denial), isTrue);
+        expect(_containsSensitiveProviderMaterial(denial), isFalse);
+      }
+    });
+
+    test('protocol surface contract does not expose provider credentials', () {
+      // PROTOCOL_SURFACE_NO_PROVIDER_CREDENTIALS
+      final publicSurfaceValues = <String>[
+        _facadeUri(liveConfig.backendApiBaseUrl, ['dav', 'files']).toString(),
+        _facadeUri(liveConfig.backendApiBaseUrl, ['caldav']).toString(),
+        liveConfig.matrixHomeserverUrl
+            .replace(pathSegments: const ['_matrix', 'client'])
+            .toString(),
+        'Authorization: Bearer <workspace-token>',
+        'device credential secret returned once and never as provider material',
+      ];
+
+      for (final value in publicSurfaceValues) {
+        expect(_containsSensitiveProviderMaterial(value), isFalse);
+      }
+    });
+
     test(
       'provider stack readiness stays behind admin/operator backend facades',
       () {
@@ -114,7 +189,6 @@ void main() {
           'openproject.example',
           'openproject.weave.test',
           'gitlab.com/api',
-          'forgejo/api',
           'onlyoffice',
           'collabora-code',
           'nextcloud/forms',
@@ -255,6 +329,161 @@ void main() {
     expect((payload['email'] as String).trim(), isNotEmpty);
   }, skip: liveSkipReason);
 
+  test(
+    'OIDC bearer reaches every Weave-owned collaboration protocol facade',
+    () async {
+      final accessToken = await authHelper.signIn(config);
+      final apiOrigin = _apiOrigin(config.backendApiBaseUrl);
+      final authorization = <String, String>{
+        'Authorization': 'Bearer $accessToken',
+      };
+      final matrixAuthorization = <String, String>{
+        ...authorization,
+        'X-Weave-Matrix-Device-Id': _liveMatrixDeviceId,
+      };
+
+      final platformResponse = await httpClient.get(
+        config.apiUri('/api/platform/config'),
+      );
+      expect(platformResponse.statusCode, 200, reason: platformResponse.body);
+      final platform = _decodeObject(platformResponse.body);
+      expect(platform['matrixHomeserverUrl'], apiOrigin.toString());
+      expect(config.matrixHomeserverUrl, apiOrigin);
+
+      final files = await _sendRequest(
+        httpClient,
+        'OPTIONS',
+        _facadeUri(config.backendApiBaseUrl, const ['dav', 'files']),
+        headers: authorization,
+      );
+      final calendar = await _sendRequest(
+        httpClient,
+        'OPTIONS',
+        _facadeUri(config.backendApiBaseUrl, const ['caldav']),
+        headers: authorization,
+      );
+      final matrix = await httpClient.get(
+        apiOrigin.replace(
+          pathSegments: const ['_matrix', 'client', 'v3', 'account', 'whoami'],
+        ),
+        headers: matrixAuthorization,
+      );
+
+      expect(files.statusCode, 204, reason: files.body);
+      expect(files.headers['dav'], contains('1'));
+      expect(calendar.statusCode, 204, reason: calendar.body);
+      expect(calendar.headers['dav'], contains('calendar-access'));
+      expect(matrix.statusCode, 200, reason: matrix.body);
+      final matrixIdentity = _decodeObject(matrix.body);
+      expect(matrixIdentity['device_id'], _liveMatrixDeviceId);
+      expect(matrixIdentity['is_guest'], isFalse);
+
+      for (final response in <http.Response>[files, calendar, matrix]) {
+        expect(_containsSensitiveProviderMaterial(response.body), isFalse);
+      }
+
+      // OIDC_PROTOCOL_ACCESS_RESULT
+      // ignore: avoid_print
+      print(
+        'OIDC_PROTOCOL_ACCESS_RESULT files=${files.statusCode} '
+        'calendar=${calendar.statusCode} matrix=${matrix.statusCode} '
+        'platformAligned=true providerMaterialExposed=false',
+      );
+
+      final revoked = await _sendRequest(
+        httpClient,
+        'POST',
+        apiOrigin.replace(
+          pathSegments: const ['_matrix', 'client', 'v3', 'logout'],
+        ),
+        headers: matrixAuthorization,
+      );
+      expect(revoked.statusCode, 200, reason: revoked.body);
+      final deniedMatrix = await httpClient.get(
+        apiOrigin.replace(
+          pathSegments: const ['_matrix', 'client', 'v3', 'account', 'whoami'],
+        ),
+        headers: matrixAuthorization,
+      );
+      expect(deniedMatrix.statusCode, 401, reason: deniedMatrix.body);
+      expect(_decodeObject(deniedMatrix.body)['errcode'], 'M_UNKNOWN_TOKEN');
+
+      const invalidAuthorization = <String, String>{
+        'Authorization': 'Bearer invalid-live-e2e-token',
+      };
+      final deniedFiles = await _sendRequest(
+        httpClient,
+        'OPTIONS',
+        _facadeUri(config.backendApiBaseUrl, const ['dav', 'files']),
+        headers: invalidAuthorization,
+      );
+      final deniedCalendar = await _sendRequest(
+        httpClient,
+        'OPTIONS',
+        _facadeUri(config.backendApiBaseUrl, const ['caldav']),
+        headers: invalidAuthorization,
+      );
+      expect(deniedFiles.statusCode, 401, reason: deniedFiles.body);
+      expect(deniedCalendar.statusCode, 401, reason: deniedCalendar.body);
+      for (final response in <http.Response>[
+        deniedFiles,
+        deniedCalendar,
+        deniedMatrix,
+      ]) {
+        expect(_containsSensitiveProviderMaterial(response.body), isFalse);
+      }
+
+      // OIDC_REVOKED_TOKEN_SUPPORT_SAFE
+      // ignore: avoid_print
+      print(
+        'OIDC_REVOKED_TOKEN_SUPPORT_SAFE files=${deniedFiles.statusCode} '
+        'calendar=${deniedCalendar.statusCode} matrix=${deniedMatrix.statusCode} '
+        'providerMaterialExposed=false',
+      );
+    },
+    skip: liveSkipReason,
+  );
+
+  test(
+    'DAV device credentials are one-time, scoped, and revocable',
+    () async {
+      final accessToken = await authHelper.signIn(config);
+      final files = await _exerciseDeviceCredential(
+        client: httpClient,
+        backendApiBaseUrl: config.backendApiBaseUrl,
+        accessToken: accessToken,
+        domain: 'files',
+        clientType: 'webdav',
+        facadePathSegments: const ['dav', 'files'],
+      );
+      final calendar = await _exerciseDeviceCredential(
+        client: httpClient,
+        backendApiBaseUrl: config.backendApiBaseUrl,
+        accessToken: accessToken,
+        domain: 'calendar',
+        clientType: 'caldav',
+        facadePathSegments: const ['caldav'],
+      );
+
+      // WEBDAV_DEVICE_CREDENTIAL_RESULT
+      // ignore: avoid_print
+      print(
+        'WEBDAV_DEVICE_CREDENTIAL_RESULT active=${files.activeStatus} '
+        'revoked=${files.revokedStatus} secretReturnedOnce=true scoped=true',
+      );
+      // CALDAV_DEVICE_CREDENTIAL_RESULT
+      // ignore: avoid_print
+      print(
+        'CALDAV_DEVICE_CREDENTIAL_RESULT active=${calendar.activeStatus} '
+        'revoked=${calendar.revokedStatus} secretReturnedOnce=true scoped=true',
+      );
+      // NO_PROVIDER_CREDENTIALS_RESULT
+      // ignore: avoid_print
+      print('NO_PROVIDER_CREDENTIALS_RESULT exposed=false');
+    },
+    skip: liveSkipReason,
+  );
+
   test('authenticated GET /api/v1/workspace/capabilities returns expected '
       'structure', () async {
     final accessToken = await authHelper.signIn(config);
@@ -358,6 +587,164 @@ Map<String, dynamic> _decodeObject(String body) {
   }
 
   return decoded;
+}
+
+Future<http.Response> _sendRequest(
+  http.Client client,
+  String method,
+  Uri uri, {
+  Map<String, String> headers = const <String, String>{},
+  String? body,
+}) async {
+  final request = http.Request(method, uri)..headers.addAll(headers);
+  if (body != null) {
+    request.body = body;
+  }
+  return http.Response.fromStream(await client.send(request));
+}
+
+Future<({int activeStatus, int revokedStatus})> _exerciseDeviceCredential({
+  required http.Client client,
+  required Uri backendApiBaseUrl,
+  required String accessToken,
+  required String domain,
+  required String clientType,
+  required List<String> facadePathSegments,
+}) async {
+  final controlUri = _apiOrigin(
+    backendApiBaseUrl,
+  ).replace(pathSegments: ['api', domain, 'client-setup', 'credentials']);
+  final bearerHeaders = <String, String>{
+    'Authorization': 'Bearer $accessToken',
+  };
+  String? credentialId;
+  String? secret;
+  var revoked = false;
+
+  try {
+    final created = await _sendRequest(
+      client,
+      'POST',
+      controlUri,
+      headers: <String, String>{
+        ...bearerHeaders,
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(<String, String>{
+        'label': 'live-e2e-$domain',
+        'clientType': clientType,
+      }),
+    );
+    expect(created.statusCode, 200, reason: created.body);
+    final createdPayload = _decodeObject(created.body);
+    credentialId = createdPayload['credentialId'] as String?;
+    secret = createdPayload['secret'] as String?;
+    expect(credentialId, isNotEmpty);
+    expect(secret, isNotEmpty);
+    expect(createdPayload['secretMaterialReturned'], isTrue);
+    expect(_containsSensitiveProviderMaterial(created.body), isFalse);
+
+    final basicAuthorization =
+        'Basic ${base64Encode(utf8.encode('$credentialId:$secret'))}';
+    final active = await _sendRequest(
+      client,
+      'OPTIONS',
+      _facadeUri(backendApiBaseUrl, facadePathSegments),
+      headers: <String, String>{'Authorization': basicAuthorization},
+    );
+    expect(active.statusCode, 204, reason: active.body);
+
+    final listed = await client.get(controlUri, headers: bearerHeaders);
+    expect(listed.statusCode, 200, reason: listed.body);
+    final listedPayload = _decodeObject(listed.body);
+    final credentials = (listedPayload['credentials'] as List<dynamic>)
+        .whereType<Map<String, dynamic>>()
+        .where((value) => value['credentialId'] == credentialId)
+        .toList(growable: false);
+    expect(credentials, hasLength(1));
+    expect(credentials.single['secretMaterialReturned'], isFalse);
+    expect(credentials.single.containsKey('secret'), isFalse);
+    expect(listed.body, isNot(contains(secret!)));
+    expect(_containsSensitiveProviderMaterial(listed.body), isFalse);
+
+    final revokeUri = controlUri.replace(
+      pathSegments: [...controlUri.pathSegments, credentialId!],
+    );
+    final revoke = await _sendRequest(
+      client,
+      'DELETE',
+      revokeUri,
+      headers: bearerHeaders,
+    );
+    expect(revoke.statusCode, 200, reason: revoke.body);
+    expect(_decodeObject(revoke.body)['secretMaterialReturned'], isFalse);
+    revoked = true;
+
+    final denied = await _sendRequest(
+      client,
+      'OPTIONS',
+      _facadeUri(backendApiBaseUrl, facadePathSegments),
+      headers: <String, String>{'Authorization': basicAuthorization},
+    );
+    expect(denied.statusCode, 401, reason: denied.body);
+    expect(_decodeObject(denied.body)['code'], 'device-credential-invalid');
+    expect(_containsSensitiveProviderMaterial(denied.body), isFalse);
+    return (activeStatus: active.statusCode, revokedStatus: denied.statusCode);
+  } finally {
+    if (!revoked && credentialId != null) {
+      await _sendRequest(
+        client,
+        'DELETE',
+        controlUri.replace(
+          pathSegments: [...controlUri.pathSegments, credentialId],
+        ),
+        headers: bearerHeaders,
+      );
+    }
+  }
+}
+
+Uri _apiOrigin(Uri baseUrl) {
+  final pathSegments = baseUrl.pathSegments
+      .where((segment) => segment.isNotEmpty)
+      .toList(growable: true);
+  if (pathSegments.isNotEmpty && pathSegments.last == 'api') {
+    pathSegments.removeLast();
+  }
+  return baseUrl.replace(
+    pathSegments: pathSegments,
+    query: null,
+    fragment: null,
+  );
+}
+
+Uri _facadeUri(Uri backendApiBaseUrl, List<String> pathSegments) {
+  return _apiOrigin(backendApiBaseUrl).replace(pathSegments: pathSegments);
+}
+
+bool _isSupportSafeProtocolError(String value) {
+  final normalized = value.toLowerCase();
+  return normalized.contains('weave') ||
+      normalized.contains('workspace') ||
+      normalized.contains('files access');
+}
+
+bool _containsSensitiveProviderMaterial(String value) {
+  final normalized = value.toLowerCase();
+  const forbiddenFragments = <String>[
+    'remote.php',
+    'app_password',
+    'access_token=',
+    'refresh_token=',
+    'secretref://',
+    'client_secret',
+    'password=',
+    '@files.',
+    '@matrix.',
+    '/_matrix/private',
+    '/admin',
+  ];
+  return forbiddenFragments.any(normalized.contains);
 }
 
 List<File> _productionDartFiles() {

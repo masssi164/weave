@@ -1,4 +1,11 @@
 **
+!Cargo.toml
+!Cargo.lock
+!rust/
+!rust/matrix-core/
+!rust/matrix-core/Cargo.toml
+!rust/matrix-core/src/
+!rust/matrix-core/src/**
 !server/
 !server/build/
 !server/build/libs/

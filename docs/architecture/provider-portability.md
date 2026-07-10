@@ -55,6 +55,31 @@ The first release-quality Nextcloud path uses backend actor adapters. Member-fac
 | Files via Nextcloud WebDAV | Portable objects are folders, files, MIME type, byte size, modified timestamp, quota used/total, and opaque Weave file IDs derived from normalized product paths. Import may recreate folders and upload file bytes through the backend actor. | Provider-native shares, versions, locks, comments, tags, external links, and retention/legal-hold metadata require a lossy report before adapter replacement. | Path traversal and invalid identifiers are rejected before a WebDAV request. Permission, lock, quota, not-found, auth, and unavailable responses map to stable product errors; delete conflicts are surfaced as refresh-and-retry conflicts rather than raw provider failures. | Admin readiness must prove backend actor credentials, WebDAV route, quota/status access, and write/delete scope without returning the actor username, app password, base URL, or raw response body to members. |
 | Calendar via Nextcloud CalDAV | Portable objects are scoped workspace/team/channel events with title, description, start/end, timezone, location, all-day state, attendees, ETag, updated timestamp, and opaque Weave event IDs. Import may PUT iCalendar VEVENT resources through backend actor collections. | Recurrence (`RRULE`, `RDATE`, `EXDATE`) is explicitly blocked until the Weave recurrence contract preserves intent. Provider alarms, attachments, organizer delegation, resources, and free/busy semantics require a lossy report. | Event IDs are scoped opaque IDs; reading through the wrong scope is rejected. Downstream auth, not-found, conflict, invalid response, and unavailable states map to stable calendar errors with provider paths redacted. | Admin readiness must prove CalDAV collection access, backend actor auth, scoped collection creation/read/write/delete, and credential setup safety without exposing passwords, tokens, user IDs, base URLs, or raw provider errors to members. |
 
+## Native OS integration boundary
+
+Native OS integrations sit above the provider adapter layer. The governing
+decision is [Domain facade protocol projections](domain-facade-protocol-projections.md):
+Weave domain facades are product truth, while WebDAV, CalDAV/iCalendar, Matrix,
+OpenAPI, native OS extensions/providers, and MCP tools are projections or
+adapters over that truth.
+
+Native integrations use OS contracts but receive only Weave-owned
+setup/status/provisioning metadata:
+
+| Domain | Native OS boundary | Weave facade contract | Availability gate |
+| --- | --- | --- | --- |
+| Files | iOS File Provider extension; Android DocumentsProvider / Storage Access Framework. | `GET /api/files/native-provider-setup` for setup/readiness plus `/dav/files` WebDAV facade roots/list/open hooks. The response contains Weave paths only; `PUT`, `MKCOL`, and `DELETE` use Weave ETags, conditional preconditions, support-safe errors, and mutation audit. | Full native availability is blocked until iOS/Android provider implementations list/open/write at least one Weave file through the facade and revocation is proven on device. |
+| Calendar | iOS CalDAV configuration profile semantics; Android Account/SyncAdapter plus Calendar Provider / CalendarContract. | `GET /api/calendar/native-sync-setup` plus setup credential lifecycle and event facade hooks. The response contains Weave API paths only and no raw calendar-provider host. | Full native availability is blocked until signed profile/account setup, event sync, and revoke/fail-closed behavior are proven on physical or instrumentation devices. |
+| Calls/Meetings | iOS CallKit + PushKit/VoIP concerns; Android Telecom / ConnectionService where supported. | `GET /api/calls/native-boundary-setup` describes Weave meeting invitation, policy, and join-grant boundaries. Actual media transport remains separate. | Full native availability is blocked until provider-neutral meetings facade endpoints, native call UI, permissions, audio routing, and revoke/join evidence are proven on devices. |
+
+OpenAPI remains the primary setup/status/provisioning surface for Weave clients,
+Admin Console, and MCP route allowlists. It does not replace native OS provider,
+account, sync, call UI, or protocol projections where standards are the better
+fit. Files may expose a Weave WebDAV-compatible projection; Calendar may expose
+a Weave CalDAV/iCalendar projection; Chat may use Matrix for transport and
+federation. These projections must use Weave facades and never become provider
+pass-throughs.
+
 ## Keycloak desired-state dry-run direction
 
 Sprint 8 identity work uses Keycloak as the concrete desired-state dry-run profile. The dry-run must compare a desired realm/client/role/group mapping with the current support-safe snapshot and report planned create/update/delete/no-op actions without mutating a live realm.

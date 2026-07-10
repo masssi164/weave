@@ -1,5 +1,6 @@
 package com.massimotter.weave.contract.mcp;
 
+import java.util.List;
 import java.util.Map;
 
 import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.WeaveMcpToolAnnotations;
@@ -26,6 +27,50 @@ public record MemberMcpToolDefinition(
     }
 
     public boolean writeLike() { return mode.approvalRequiredByDefault(); }
+
+    public boolean argumentsMatchSchema(Map<String, Object> arguments) {
+        Map<String, Object> safeArguments = arguments == null ? Map.of() : arguments;
+        Object propertyNode = inputSchema.get("properties");
+        if (!(propertyNode instanceof Map<?, ?> properties)
+                || safeArguments.keySet().stream().anyMatch(key -> !properties.containsKey(key))) {
+            return false;
+        }
+        Object requiredNode = inputSchema.get("required");
+        if (requiredNode instanceof List<?> required) {
+            for (Object field : required) {
+                Object value = safeArguments.get(field);
+                if (value == null || value instanceof String text && text.isBlank()) {
+                    return false;
+                }
+            }
+        }
+        for (Map.Entry<String, Object> argument : safeArguments.entrySet()) {
+            Object schemaNode = properties.get(argument.getKey());
+            if (!(schemaNode instanceof Map<?, ?> propertySchema)
+                    || !matchesType(argument.getValue(), propertySchema.get("type"))) {
+                return false;
+            }
+            Object minimum = propertySchema.get("minimum");
+            if (minimum instanceof Number requiredMinimum
+                    && argument.getValue() instanceof Number supplied
+                    && supplied.doubleValue() < requiredMinimum.doubleValue()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean matchesType(Object value, Object type) {
+        return switch (String.valueOf(type)) {
+            case "string" -> value instanceof String;
+            case "integer" -> value instanceof Byte
+                    || value instanceof Short
+                    || value instanceof Integer
+                    || value instanceof Long;
+            case "boolean" -> value instanceof Boolean;
+            default -> false;
+        };
+    }
 
     public WeaveMcpBridgeDtos.WeaveMcpToolDefinition asBridgeDefinition() {
         return new WeaveMcpBridgeDtos.WeaveMcpToolDefinition(

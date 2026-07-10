@@ -298,58 +298,43 @@ class ApiErrorResponse {
   };
 }
 
-class ApprovalReceipt {
-  const ApprovalReceipt({
-    this.action,
-    this.actorRef,
-    this.auditRef,
-    this.expiresAt,
-    this.policyVersion,
-    this.receiptRef,
+class ApprovalEvidence {
+  const ApprovalEvidence({
+    this.decidedAt,
+    this.decision,
+    this.evidenceRef,
+    this.protocol,
     this.scopeRefs,
+    this.toolName,
   });
 
-  factory ApprovalReceipt.fromJson(Map<String, dynamic> json) =>
-      ApprovalReceipt(
-        action: json["action"] as String?,
-        actorRef: json["actorRef"] as String?,
-        auditRef: json["auditRef"] as String?,
-        expiresAt: json["expiresAt"] as String?,
-        policyVersion: json["policyVersion"] as String?,
-        receiptRef: json["receiptRef"] as String?,
+  factory ApprovalEvidence.fromJson(Map<String, dynamic> json) =>
+      ApprovalEvidence(
+        decidedAt: json["decidedAt"] as String?,
+        decision: json["decision"] as String?,
+        evidenceRef: json["evidenceRef"] as String?,
+        protocol: json["protocol"] as String?,
         scopeRefs: (json["scopeRefs"] as List<dynamic>?)
             ?.map((e) => e as String)
             .toList(),
+        toolName: json["toolName"] as String?,
       );
 
-  final String? action;
-  final String? actorRef;
-  final String? auditRef;
-  final String? expiresAt;
-  final String? policyVersion;
-  final String? receiptRef;
+  final String? decidedAt;
+  final String? decision;
+  final String? evidenceRef;
+  final String? protocol;
   final List<String>? scopeRefs;
+  final String? toolName;
 
   Map<String, dynamic> toJson() => {
-    "action": _openApiJsonValue(action),
-    "actorRef": _openApiJsonValue(actorRef),
-    "auditRef": _openApiJsonValue(auditRef),
-    "expiresAt": _openApiJsonValue(expiresAt),
-    "policyVersion": _openApiJsonValue(policyVersion),
-    "receiptRef": _openApiJsonValue(receiptRef),
+    "decidedAt": _openApiJsonValue(decidedAt),
+    "decision": _openApiJsonValue(decision),
+    "evidenceRef": _openApiJsonValue(evidenceRef),
+    "protocol": _openApiJsonValue(protocol),
     "scopeRefs": _openApiJsonValue(scopeRefs),
+    "toolName": _openApiJsonValue(toolName),
   };
-}
-
-class ApprovalReceiptRef {
-  const ApprovalReceiptRef({this.value});
-
-  factory ApprovalReceiptRef.fromJson(Map<String, dynamic> json) =>
-      ApprovalReceiptRef(value: json["value"] as String?);
-
-  final String? value;
-
-  Map<String, dynamic> toJson() => {"value": _openApiJsonValue(value)};
 }
 
 class AuthenticatedUserResponse {
@@ -456,6 +441,69 @@ class AuthenticatedUserResponse {
     "timezone": _openApiJsonValue(timezone),
     "userId": _openApiJsonValue(userId),
     "username": _openApiJsonValue(username),
+  };
+}
+
+class BaselineSnapshot {
+  const BaselineSnapshot({
+    this.category,
+    this.evidenceRefs,
+    this.persistedChoiceModel,
+    this.persistedProviderKey,
+    this.persistedSelectionMatchesRequest,
+    this.profileOverridePersistencePosture,
+    this.profileOverridePresent,
+    this.providerSelectionPersistencePosture,
+    this.stableMemberImpactStates,
+  });
+
+  factory BaselineSnapshot.fromJson(Map<String, dynamic> json) =>
+      BaselineSnapshot(
+        category: json["category"] as String?,
+        evidenceRefs: (json["evidenceRefs"] as List<dynamic>?)
+            ?.map((e) => e as String)
+            .toList(),
+        persistedChoiceModel: json["persistedChoiceModel"] as String?,
+        persistedProviderKey: json["persistedProviderKey"] as String?,
+        persistedSelectionMatchesRequest:
+            json["persistedSelectionMatchesRequest"] as bool?,
+        profileOverridePersistencePosture:
+            json["profileOverridePersistencePosture"] as String?,
+        profileOverridePresent: json["profileOverridePresent"] as bool?,
+        providerSelectionPersistencePosture:
+            json["providerSelectionPersistencePosture"] as String?,
+        stableMemberImpactStates:
+            (json["stableMemberImpactStates"] as List<dynamic>?)
+                ?.map((e) => e as String)
+                .toList(),
+      );
+
+  final String? category;
+  final List<String>? evidenceRefs;
+  final String? persistedChoiceModel;
+  final String? persistedProviderKey;
+  final bool? persistedSelectionMatchesRequest;
+  final String? profileOverridePersistencePosture;
+  final bool? profileOverridePresent;
+  final String? providerSelectionPersistencePosture;
+  final List<String>? stableMemberImpactStates;
+
+  Map<String, dynamic> toJson() => {
+    "category": _openApiJsonValue(category),
+    "evidenceRefs": _openApiJsonValue(evidenceRefs),
+    "persistedChoiceModel": _openApiJsonValue(persistedChoiceModel),
+    "persistedProviderKey": _openApiJsonValue(persistedProviderKey),
+    "persistedSelectionMatchesRequest": _openApiJsonValue(
+      persistedSelectionMatchesRequest,
+    ),
+    "profileOverridePersistencePosture": _openApiJsonValue(
+      profileOverridePersistencePosture,
+    ),
+    "profileOverridePresent": _openApiJsonValue(profileOverridePresent),
+    "providerSelectionPersistencePosture": _openApiJsonValue(
+      providerSelectionPersistencePosture,
+    ),
+    "stableMemberImpactStates": _openApiJsonValue(stableMemberImpactStates),
   };
 }
 
@@ -848,7 +896,7 @@ class BridgeDiscoveryResponse {
 
 class BridgeInvocationRequest {
   const BridgeInvocationRequest({
-    this.approvalReceipt,
+    this.approvalEvidence,
     this.arguments,
     this.runtime,
     this.toolName,
@@ -856,10 +904,10 @@ class BridgeInvocationRequest {
 
   factory BridgeInvocationRequest.fromJson(Map<String, dynamic> json) =>
       BridgeInvocationRequest(
-        approvalReceipt: json["approvalReceipt"] == null
+        approvalEvidence: json["approvalEvidence"] == null
             ? null
-            : ApprovalReceipt.fromJson(
-                json["approvalReceipt"] as Map<String, dynamic>,
+            : ApprovalEvidence.fromJson(
+                json["approvalEvidence"] as Map<String, dynamic>,
               ),
         arguments: (json["arguments"] as Map<String, dynamic>?)
             ?.cast<String, Object?>(),
@@ -871,13 +919,13 @@ class BridgeInvocationRequest {
         toolName: json["toolName"] as String?,
       );
 
-  final ApprovalReceipt? approvalReceipt;
+  final ApprovalEvidence? approvalEvidence;
   final Map<String, Object?>? arguments;
   final RuntimeInvocationContext? runtime;
   final String? toolName;
 
   Map<String, dynamic> toJson() => {
-    "approvalReceipt": _openApiJsonValue(approvalReceipt),
+    "approvalEvidence": _openApiJsonValue(approvalEvidence),
     "arguments": _openApiJsonValue(arguments),
     "runtime": _openApiJsonValue(runtime),
     "toolName": _openApiJsonValue(toolName),
@@ -967,35 +1015,6 @@ class CalendarAccessModelResponse {
     "privateUserCalendarsReason": _openApiJsonValue(privateUserCalendarsReason),
     "productScope": _openApiJsonValue(productScope),
     "type": _openApiJsonValue(type),
-  };
-}
-
-class CalendarAttendeeResponse {
-  const CalendarAttendeeResponse({
-    this.email,
-    this.name,
-    this.responseStatus,
-    this.role,
-  });
-
-  factory CalendarAttendeeResponse.fromJson(Map<String, dynamic> json) =>
-      CalendarAttendeeResponse(
-        email: json["email"] as String?,
-        name: json["name"] as String?,
-        responseStatus: json["responseStatus"] as String?,
-        role: json["role"] as String?,
-      );
-
-  final String? email;
-  final String? name;
-  final String? responseStatus;
-  final String? role;
-
-  Map<String, dynamic> toJson() => {
-    "email": _openApiJsonValue(email),
-    "name": _openApiJsonValue(name),
-    "responseStatus": _openApiJsonValue(responseStatus),
-    "role": _openApiJsonValue(role),
   };
 }
 
@@ -1154,115 +1173,6 @@ class CalendarCredentialReadinessResponse {
   };
 }
 
-class CalendarEventResponse {
-  const CalendarEventResponse({
-    this.allDay,
-    this.attendees,
-    this.description,
-    this.endsAt,
-    this.etag,
-    this.id,
-    this.location,
-    this.providerRef,
-    this.scope,
-    this.startsAt,
-    this.threadRef,
-    this.timezone,
-    this.title,
-    this.updatedAt,
-  });
-
-  factory CalendarEventResponse.fromJson(Map<String, dynamic> json) =>
-      CalendarEventResponse(
-        allDay: json["allDay"] as bool?,
-        attendees: (json["attendees"] as List<dynamic>?)
-            ?.map(
-              (e) =>
-                  CalendarAttendeeResponse.fromJson(e as Map<String, dynamic>),
-            )
-            .toList(),
-        description: json["description"] as String?,
-        endsAt: json["endsAt"] as String?,
-        etag: json["etag"] as String?,
-        id: json["id"] as String?,
-        location: json["location"] as String?,
-        providerRef: json["providerRef"] == null
-            ? null
-            : CalendarProviderRefResponse.fromJson(
-                json["providerRef"] as Map<String, dynamic>,
-              ),
-        scope: json["scope"] == null
-            ? null
-            : CalendarScopeResponse.fromJson(
-                json["scope"] as Map<String, dynamic>,
-              ),
-        startsAt: json["startsAt"] as String?,
-        threadRef: json["threadRef"] == null
-            ? null
-            : CalendarThreadRefResponse.fromJson(
-                json["threadRef"] as Map<String, dynamic>,
-              ),
-        timezone: json["timezone"] as String?,
-        title: json["title"] as String?,
-        updatedAt: json["updatedAt"] as String?,
-      );
-
-  final bool? allDay;
-  final List<CalendarAttendeeResponse>? attendees;
-  final String? description;
-  final String? endsAt;
-  final String? etag;
-  final String? id;
-  final String? location;
-  final CalendarProviderRefResponse? providerRef;
-  final CalendarScopeResponse? scope;
-  final String? startsAt;
-  final CalendarThreadRefResponse? threadRef;
-  final String? timezone;
-  final String? title;
-  final String? updatedAt;
-
-  Map<String, dynamic> toJson() => {
-    "allDay": _openApiJsonValue(allDay),
-    "attendees": _openApiJsonValue(attendees),
-    "description": _openApiJsonValue(description),
-    "endsAt": _openApiJsonValue(endsAt),
-    "etag": _openApiJsonValue(etag),
-    "id": _openApiJsonValue(id),
-    "location": _openApiJsonValue(location),
-    "providerRef": _openApiJsonValue(providerRef),
-    "scope": _openApiJsonValue(scope),
-    "startsAt": _openApiJsonValue(startsAt),
-    "threadRef": _openApiJsonValue(threadRef),
-    "timezone": _openApiJsonValue(timezone),
-    "title": _openApiJsonValue(title),
-    "updatedAt": _openApiJsonValue(updatedAt),
-  };
-}
-
-class CalendarEventsResponse {
-  const CalendarEventsResponse({this.events, this.scope});
-
-  factory CalendarEventsResponse.fromJson(
-    Map<String, dynamic> json,
-  ) => CalendarEventsResponse(
-    events: (json["events"] as List<dynamic>?)
-        ?.map((e) => CalendarEventResponse.fromJson(e as Map<String, dynamic>))
-        .toList(),
-    scope: json["scope"] == null
-        ? null
-        : CalendarScopeResponse.fromJson(json["scope"] as Map<String, dynamic>),
-  );
-
-  final List<CalendarEventResponse>? events;
-  final CalendarScopeResponse? scope;
-
-  Map<String, dynamic> toJson() => {
-    "events": _openApiJsonValue(events),
-    "scope": _openApiJsonValue(scope),
-  };
-}
-
 class CalendarExternalEndpointsResponse {
   const CalendarExternalEndpointsResponse({
     this.caldavDiscoveryUrl,
@@ -1289,40 +1199,125 @@ class CalendarExternalEndpointsResponse {
   };
 }
 
-class CalendarProviderRefResponse {
-  const CalendarProviderRefResponse({
-    this.etag,
-    this.lastSyncedAt,
-    this.objectKind,
-    this.opaqueId,
-    this.provider,
-    this.rawProviderPathExposed,
+class CalendarNativeSyncOptionResponse {
+  const CalendarNativeSyncOptionResponse({
+    this.available,
+    this.bridge,
+    this.notes,
+    this.osBoundary,
+    this.platform,
+    this.requiredContracts,
+    this.setupAction,
+    this.setupState,
   });
 
-  factory CalendarProviderRefResponse.fromJson(Map<String, dynamic> json) =>
-      CalendarProviderRefResponse(
-        etag: json["etag"] as String?,
-        lastSyncedAt: json["lastSyncedAt"] as String?,
-        objectKind: json["objectKind"] as String?,
-        opaqueId: json["opaqueId"] as String?,
-        provider: json["provider"] as String?,
-        rawProviderPathExposed: json["rawProviderPathExposed"] as bool?,
-      );
+  factory CalendarNativeSyncOptionResponse.fromJson(
+    Map<String, dynamic> json,
+  ) => CalendarNativeSyncOptionResponse(
+    available: json["available"] as bool?,
+    bridge: json["bridge"] as String?,
+    notes: (json["notes"] as List<dynamic>?)?.map((e) => e as String).toList(),
+    osBoundary: json["osBoundary"] as String?,
+    platform: json["platform"] as String?,
+    requiredContracts: (json["requiredContracts"] as List<dynamic>?)
+        ?.map((e) => e as String)
+        .toList(),
+    setupAction: json["setupAction"] as String?,
+    setupState: json["setupState"] as String?,
+  );
 
-  final String? etag;
-  final String? lastSyncedAt;
-  final String? objectKind;
-  final String? opaqueId;
-  final String? provider;
-  final bool? rawProviderPathExposed;
+  final bool? available;
+  final String? bridge;
+  final List<String>? notes;
+  final String? osBoundary;
+  final String? platform;
+  final List<String>? requiredContracts;
+  final String? setupAction;
+  final String? setupState;
 
   Map<String, dynamic> toJson() => {
-    "etag": _openApiJsonValue(etag),
-    "lastSyncedAt": _openApiJsonValue(lastSyncedAt),
-    "objectKind": _openApiJsonValue(objectKind),
-    "opaqueId": _openApiJsonValue(opaqueId),
-    "provider": _openApiJsonValue(provider),
-    "rawProviderPathExposed": _openApiJsonValue(rawProviderPathExposed),
+    "available": _openApiJsonValue(available),
+    "bridge": _openApiJsonValue(bridge),
+    "notes": _openApiJsonValue(notes),
+    "osBoundary": _openApiJsonValue(osBoundary),
+    "platform": _openApiJsonValue(platform),
+    "requiredContracts": _openApiJsonValue(requiredContracts),
+    "setupAction": _openApiJsonValue(setupAction),
+    "setupState": _openApiJsonValue(setupState),
+  };
+}
+
+class CalendarNativeSyncSetupResponse {
+  const CalendarNativeSyncSetupResponse({
+    this.appleProfilePath,
+    this.blockedUntil,
+    this.credentialLifecyclePath,
+    this.credentialsExposed,
+    this.eventSyncPathTemplate,
+    this.facadeBasePath,
+    this.options,
+    this.proofHooks,
+    this.providerConfigurationExposed,
+    this.readiness,
+    this.supportSafe,
+  });
+
+  factory CalendarNativeSyncSetupResponse.fromJson(
+    Map<String, dynamic> json,
+  ) => CalendarNativeSyncSetupResponse(
+    appleProfilePath: json["appleProfilePath"] as String?,
+    blockedUntil: (json["blockedUntil"] as List<dynamic>?)
+        ?.map((e) => e as String)
+        .toList(),
+    credentialLifecyclePath: json["credentialLifecyclePath"] as String?,
+    credentialsExposed: json["credentialsExposed"] as bool?,
+    eventSyncPathTemplate: json["eventSyncPathTemplate"] as String?,
+    facadeBasePath: json["facadeBasePath"] as String?,
+    options: (json["options"] as List<dynamic>?)
+        ?.map(
+          (e) => CalendarNativeSyncOptionResponse.fromJson(
+            e as Map<String, dynamic>,
+          ),
+        )
+        .toList(),
+    proofHooks: (json["proofHooks"] as List<dynamic>?)
+        ?.map((e) => e as String)
+        .toList(),
+    providerConfigurationExposed: json["providerConfigurationExposed"] as bool?,
+    readiness: json["readiness"] == null
+        ? null
+        : WorkspaceCapabilityStatusResponse.fromJson(
+            json["readiness"] as Map<String, dynamic>,
+          ),
+    supportSafe: json["supportSafe"] as bool?,
+  );
+
+  final String? appleProfilePath;
+  final List<String>? blockedUntil;
+  final String? credentialLifecyclePath;
+  final bool? credentialsExposed;
+  final String? eventSyncPathTemplate;
+  final String? facadeBasePath;
+  final List<CalendarNativeSyncOptionResponse>? options;
+  final List<String>? proofHooks;
+  final bool? providerConfigurationExposed;
+  final WorkspaceCapabilityStatusResponse? readiness;
+  final bool? supportSafe;
+
+  Map<String, dynamic> toJson() => {
+    "appleProfilePath": _openApiJsonValue(appleProfilePath),
+    "blockedUntil": _openApiJsonValue(blockedUntil),
+    "credentialLifecyclePath": _openApiJsonValue(credentialLifecyclePath),
+    "credentialsExposed": _openApiJsonValue(credentialsExposed),
+    "eventSyncPathTemplate": _openApiJsonValue(eventSyncPathTemplate),
+    "facadeBasePath": _openApiJsonValue(facadeBasePath),
+    "options": _openApiJsonValue(options),
+    "proofHooks": _openApiJsonValue(proofHooks),
+    "providerConfigurationExposed": _openApiJsonValue(
+      providerConfigurationExposed,
+    ),
+    "readiness": _openApiJsonValue(readiness),
+    "supportSafe": _openApiJsonValue(supportSafe),
   };
 }
 
@@ -1394,6 +1389,28 @@ class CalendarScopesResponse {
   Map<String, dynamic> toJson() => {"scopes": _openApiJsonValue(scopes)};
 }
 
+class CalendarSetupCredentialListResponse {
+  const CalendarSetupCredentialListResponse({this.credentials});
+
+  factory CalendarSetupCredentialListResponse.fromJson(
+    Map<String, dynamic> json,
+  ) => CalendarSetupCredentialListResponse(
+    credentials: (json["credentials"] as List<dynamic>?)
+        ?.map(
+          (e) => CalendarSetupCredentialResponse.fromJson(
+            e as Map<String, dynamic>,
+          ),
+        )
+        .toList(),
+  );
+
+  final List<CalendarSetupCredentialResponse>? credentials;
+
+  Map<String, dynamic> toJson() => {
+    "credentials": _openApiJsonValue(credentials),
+  };
+}
+
 class CalendarSetupCredentialRequest {
   const CalendarSetupCredentialRequest({this.clientType, this.label});
 
@@ -1412,46 +1429,377 @@ class CalendarSetupCredentialRequest {
   };
 }
 
-class CalendarThreadRefResponse {
-  const CalendarThreadRefResponse({
-    this.boardTaskIds,
-    this.channelId,
-    this.contextId,
-    this.kind,
-    this.matrixRoomId,
-    this.matrixThreadId,
-    this.meetingThreadId,
+class CalendarSetupCredentialResponse {
+  const CalendarSetupCredentialResponse({
+    this.clientType,
+    this.credentialId,
+    this.expiresAt,
+    this.issuedAt,
+    this.label,
+    this.principalRef,
+    this.profilePasswordEligible,
+    this.revocationActions,
+    this.revokedAt,
+    this.secret,
+    this.secretMaterialReturned,
+    this.state,
+    this.username,
   });
 
-  factory CalendarThreadRefResponse.fromJson(Map<String, dynamic> json) =>
-      CalendarThreadRefResponse(
-        boardTaskIds: (json["boardTaskIds"] as List<dynamic>?)
+  factory CalendarSetupCredentialResponse.fromJson(Map<String, dynamic> json) =>
+      CalendarSetupCredentialResponse(
+        clientType: json["clientType"] as String?,
+        credentialId: json["credentialId"] as String?,
+        expiresAt: json["expiresAt"] as String?,
+        issuedAt: json["issuedAt"] as String?,
+        label: json["label"] as String?,
+        principalRef: json["principalRef"] as String?,
+        profilePasswordEligible: json["profilePasswordEligible"] as bool?,
+        revocationActions: (json["revocationActions"] as List<dynamic>?)
             ?.map((e) => e as String)
             .toList(),
-        channelId: json["channelId"] as String?,
-        contextId: json["contextId"] as String?,
-        kind: json["kind"] as String?,
-        matrixRoomId: json["matrixRoomId"] as String?,
-        matrixThreadId: json["matrixThreadId"] as String?,
-        meetingThreadId: json["meetingThreadId"] as String?,
+        revokedAt: json["revokedAt"] as String?,
+        secret: json["secret"] as String?,
+        secretMaterialReturned: json["secretMaterialReturned"] as bool?,
+        state: json["state"] as String?,
+        username: json["username"] as String?,
       );
 
-  final List<String>? boardTaskIds;
-  final String? channelId;
-  final String? contextId;
-  final String? kind;
-  final String? matrixRoomId;
-  final String? matrixThreadId;
-  final String? meetingThreadId;
+  final String? clientType;
+  final String? credentialId;
+  final String? expiresAt;
+  final String? issuedAt;
+  final String? label;
+  final String? principalRef;
+  final bool? profilePasswordEligible;
+  final List<String>? revocationActions;
+  final String? revokedAt;
+  final String? secret;
+  final bool? secretMaterialReturned;
+  final String? state;
+  final String? username;
 
   Map<String, dynamic> toJson() => {
-    "boardTaskIds": _openApiJsonValue(boardTaskIds),
-    "channelId": _openApiJsonValue(channelId),
-    "contextId": _openApiJsonValue(contextId),
-    "kind": _openApiJsonValue(kind),
-    "matrixRoomId": _openApiJsonValue(matrixRoomId),
-    "matrixThreadId": _openApiJsonValue(matrixThreadId),
-    "meetingThreadId": _openApiJsonValue(meetingThreadId),
+    "clientType": _openApiJsonValue(clientType),
+    "credentialId": _openApiJsonValue(credentialId),
+    "expiresAt": _openApiJsonValue(expiresAt),
+    "issuedAt": _openApiJsonValue(issuedAt),
+    "label": _openApiJsonValue(label),
+    "principalRef": _openApiJsonValue(principalRef),
+    "profilePasswordEligible": _openApiJsonValue(profilePasswordEligible),
+    "revocationActions": _openApiJsonValue(revocationActions),
+    "revokedAt": _openApiJsonValue(revokedAt),
+    "secret": _openApiJsonValue(secret),
+    "secretMaterialReturned": _openApiJsonValue(secretMaterialReturned),
+    "state": _openApiJsonValue(state),
+    "username": _openApiJsonValue(username),
+  };
+}
+
+class CallCreateRequest {
+  const CallCreateRequest({
+    this.linkedCalendarRefs,
+    this.linkedChatRefs,
+    this.linkedDecisionRefs,
+    this.linkedFileRefs,
+    this.spaceId,
+    this.title,
+  });
+
+  factory CallCreateRequest.fromJson(Map<String, dynamic> json) =>
+      CallCreateRequest(
+        linkedCalendarRefs: (json["linkedCalendarRefs"] as List<dynamic>?)
+            ?.map((e) => e as String)
+            .toList(),
+        linkedChatRefs: (json["linkedChatRefs"] as List<dynamic>?)
+            ?.map((e) => e as String)
+            .toList(),
+        linkedDecisionRefs: (json["linkedDecisionRefs"] as List<dynamic>?)
+            ?.map((e) => e as String)
+            .toList(),
+        linkedFileRefs: (json["linkedFileRefs"] as List<dynamic>?)
+            ?.map((e) => e as String)
+            .toList(),
+        spaceId: json["spaceId"] as String?,
+        title: json["title"] as String?,
+      );
+
+  final List<String>? linkedCalendarRefs;
+  final List<String>? linkedChatRefs;
+  final List<String>? linkedDecisionRefs;
+  final List<String>? linkedFileRefs;
+  final String? spaceId;
+  final String? title;
+
+  Map<String, dynamic> toJson() => {
+    "linkedCalendarRefs": _openApiJsonValue(linkedCalendarRefs),
+    "linkedChatRefs": _openApiJsonValue(linkedChatRefs),
+    "linkedDecisionRefs": _openApiJsonValue(linkedDecisionRefs),
+    "linkedFileRefs": _openApiJsonValue(linkedFileRefs),
+    "spaceId": _openApiJsonValue(spaceId),
+    "title": _openApiJsonValue(title),
+  };
+}
+
+class CallJoinRequest {
+  const CallJoinRequest({this.role});
+
+  factory CallJoinRequest.fromJson(Map<String, dynamic> json) =>
+      CallJoinRequest(role: json["role"] as String?);
+
+  final String? role;
+
+  Map<String, dynamic> toJson() => {"role": _openApiJsonValue(role)};
+}
+
+class CallJoinResponse {
+  const CallJoinResponse({
+    this.accessToken,
+    this.callId,
+    this.expiresAt,
+    this.joinUrl,
+    this.mediaProvider,
+    this.roomRef,
+  });
+
+  factory CallJoinResponse.fromJson(Map<String, dynamic> json) =>
+      CallJoinResponse(
+        accessToken: json["accessToken"] as String?,
+        callId: json["callId"] as String?,
+        expiresAt: json["expiresAt"] as String?,
+        joinUrl: json["joinUrl"] as String?,
+        mediaProvider: json["mediaProvider"] as String?,
+        roomRef: json["roomRef"] as String?,
+      );
+
+  final String? accessToken;
+  final String? callId;
+  final String? expiresAt;
+  final String? joinUrl;
+  final String? mediaProvider;
+  final String? roomRef;
+
+  Map<String, dynamic> toJson() => {
+    "accessToken": _openApiJsonValue(accessToken),
+    "callId": _openApiJsonValue(callId),
+    "expiresAt": _openApiJsonValue(expiresAt),
+    "joinUrl": _openApiJsonValue(joinUrl),
+    "mediaProvider": _openApiJsonValue(mediaProvider),
+    "roomRef": _openApiJsonValue(roomRef),
+  };
+}
+
+class CallLeaveResponse {
+  const CallLeaveResponse({this.auditRef, this.callId, this.left, this.leftAt});
+
+  factory CallLeaveResponse.fromJson(Map<String, dynamic> json) =>
+      CallLeaveResponse(
+        auditRef: json["auditRef"] as String?,
+        callId: json["callId"] as String?,
+        left: json["left"] as bool?,
+        leftAt: json["leftAt"] as String?,
+      );
+
+  final String? auditRef;
+  final String? callId;
+  final bool? left;
+  final String? leftAt;
+
+  Map<String, dynamic> toJson() => {
+    "auditRef": _openApiJsonValue(auditRef),
+    "callId": _openApiJsonValue(callId),
+    "left": _openApiJsonValue(left),
+    "leftAt": _openApiJsonValue(leftAt),
+  };
+}
+
+class CallNativeBoundaryOptionResponse {
+  const CallNativeBoundaryOptionResponse({
+    this.available,
+    this.bridge,
+    this.notes,
+    this.osBoundary,
+    this.platform,
+    this.requiredContracts,
+    this.setupAction,
+    this.setupState,
+  });
+
+  factory CallNativeBoundaryOptionResponse.fromJson(
+    Map<String, dynamic> json,
+  ) => CallNativeBoundaryOptionResponse(
+    available: json["available"] as bool?,
+    bridge: json["bridge"] as String?,
+    notes: (json["notes"] as List<dynamic>?)?.map((e) => e as String).toList(),
+    osBoundary: json["osBoundary"] as String?,
+    platform: json["platform"] as String?,
+    requiredContracts: (json["requiredContracts"] as List<dynamic>?)
+        ?.map((e) => e as String)
+        .toList(),
+    setupAction: json["setupAction"] as String?,
+    setupState: json["setupState"] as String?,
+  );
+
+  final bool? available;
+  final String? bridge;
+  final List<String>? notes;
+  final String? osBoundary;
+  final String? platform;
+  final List<String>? requiredContracts;
+  final String? setupAction;
+  final String? setupState;
+
+  Map<String, dynamic> toJson() => {
+    "available": _openApiJsonValue(available),
+    "bridge": _openApiJsonValue(bridge),
+    "notes": _openApiJsonValue(notes),
+    "osBoundary": _openApiJsonValue(osBoundary),
+    "platform": _openApiJsonValue(platform),
+    "requiredContracts": _openApiJsonValue(requiredContracts),
+    "setupAction": _openApiJsonValue(setupAction),
+    "setupState": _openApiJsonValue(setupState),
+  };
+}
+
+class CallNativeBoundarySetupResponse {
+  const CallNativeBoundarySetupResponse({
+    this.blockedUntil,
+    this.credentialsExposed,
+    this.facadeBasePath,
+    this.joinGrantPathTemplate,
+    this.mediaBoundary,
+    this.options,
+    this.proofHooks,
+    this.providerConfigurationExposed,
+    this.readiness,
+    this.signalingBoundary,
+    this.supportSafe,
+  });
+
+  factory CallNativeBoundarySetupResponse.fromJson(
+    Map<String, dynamic> json,
+  ) => CallNativeBoundarySetupResponse(
+    blockedUntil: (json["blockedUntil"] as List<dynamic>?)
+        ?.map((e) => e as String)
+        .toList(),
+    credentialsExposed: json["credentialsExposed"] as bool?,
+    facadeBasePath: json["facadeBasePath"] as String?,
+    joinGrantPathTemplate: json["joinGrantPathTemplate"] as String?,
+    mediaBoundary: json["mediaBoundary"] as String?,
+    options: (json["options"] as List<dynamic>?)
+        ?.map(
+          (e) => CallNativeBoundaryOptionResponse.fromJson(
+            e as Map<String, dynamic>,
+          ),
+        )
+        .toList(),
+    proofHooks: (json["proofHooks"] as List<dynamic>?)
+        ?.map((e) => e as String)
+        .toList(),
+    providerConfigurationExposed: json["providerConfigurationExposed"] as bool?,
+    readiness: json["readiness"] == null
+        ? null
+        : WorkspaceCapabilityStatusResponse.fromJson(
+            json["readiness"] as Map<String, dynamic>,
+          ),
+    signalingBoundary: json["signalingBoundary"] as String?,
+    supportSafe: json["supportSafe"] as bool?,
+  );
+
+  final List<String>? blockedUntil;
+  final bool? credentialsExposed;
+  final String? facadeBasePath;
+  final String? joinGrantPathTemplate;
+  final String? mediaBoundary;
+  final List<CallNativeBoundaryOptionResponse>? options;
+  final List<String>? proofHooks;
+  final bool? providerConfigurationExposed;
+  final WorkspaceCapabilityStatusResponse? readiness;
+  final String? signalingBoundary;
+  final bool? supportSafe;
+
+  Map<String, dynamic> toJson() => {
+    "blockedUntil": _openApiJsonValue(blockedUntil),
+    "credentialsExposed": _openApiJsonValue(credentialsExposed),
+    "facadeBasePath": _openApiJsonValue(facadeBasePath),
+    "joinGrantPathTemplate": _openApiJsonValue(joinGrantPathTemplate),
+    "mediaBoundary": _openApiJsonValue(mediaBoundary),
+    "options": _openApiJsonValue(options),
+    "proofHooks": _openApiJsonValue(proofHooks),
+    "providerConfigurationExposed": _openApiJsonValue(
+      providerConfigurationExposed,
+    ),
+    "readiness": _openApiJsonValue(readiness),
+    "signalingBoundary": _openApiJsonValue(signalingBoundary),
+    "supportSafe": _openApiJsonValue(supportSafe),
+  };
+}
+
+class CallResponse {
+  const CallResponse({
+    this.callId,
+    this.ended,
+    this.joinAvailable,
+    this.linkedCalendarRefs,
+    this.linkedChatRefs,
+    this.linkedDecisionRefs,
+    this.linkedFileRefs,
+    this.mediaProvider,
+    this.roomRef,
+    this.spaceId,
+    this.title,
+    this.updatedAt,
+  });
+
+  factory CallResponse.fromJson(Map<String, dynamic> json) => CallResponse(
+    callId: json["callId"] as String?,
+    ended: json["ended"] as bool?,
+    joinAvailable: json["joinAvailable"] as bool?,
+    linkedCalendarRefs: (json["linkedCalendarRefs"] as List<dynamic>?)
+        ?.map((e) => e as String)
+        .toList(),
+    linkedChatRefs: (json["linkedChatRefs"] as List<dynamic>?)
+        ?.map((e) => e as String)
+        .toList(),
+    linkedDecisionRefs: (json["linkedDecisionRefs"] as List<dynamic>?)
+        ?.map((e) => e as String)
+        .toList(),
+    linkedFileRefs: (json["linkedFileRefs"] as List<dynamic>?)
+        ?.map((e) => e as String)
+        .toList(),
+    mediaProvider: json["mediaProvider"] as String?,
+    roomRef: json["roomRef"] as String?,
+    spaceId: json["spaceId"] as String?,
+    title: json["title"] as String?,
+    updatedAt: json["updatedAt"] as String?,
+  );
+
+  final String? callId;
+  final bool? ended;
+  final bool? joinAvailable;
+  final List<String>? linkedCalendarRefs;
+  final List<String>? linkedChatRefs;
+  final List<String>? linkedDecisionRefs;
+  final List<String>? linkedFileRefs;
+  final String? mediaProvider;
+  final String? roomRef;
+  final String? spaceId;
+  final String? title;
+  final String? updatedAt;
+
+  Map<String, dynamic> toJson() => {
+    "callId": _openApiJsonValue(callId),
+    "ended": _openApiJsonValue(ended),
+    "joinAvailable": _openApiJsonValue(joinAvailable),
+    "linkedCalendarRefs": _openApiJsonValue(linkedCalendarRefs),
+    "linkedChatRefs": _openApiJsonValue(linkedChatRefs),
+    "linkedDecisionRefs": _openApiJsonValue(linkedDecisionRefs),
+    "linkedFileRefs": _openApiJsonValue(linkedFileRefs),
+    "mediaProvider": _openApiJsonValue(mediaProvider),
+    "roomRef": _openApiJsonValue(roomRef),
+    "spaceId": _openApiJsonValue(spaceId),
+    "title": _openApiJsonValue(title),
+    "updatedAt": _openApiJsonValue(updatedAt),
   };
 }
 
@@ -1765,131 +2113,6 @@ class ChangeRecord {
   };
 }
 
-class ChatAttachmentPolicyResponse {
-  const ChatAttachmentPolicyResponse({
-    required this.attachmentRefsSupported,
-    required this.maxAttachmentRefs,
-    required this.rawProviderMediaUrlsExposed,
-  });
-
-  factory ChatAttachmentPolicyResponse.fromJson(Map<String, dynamic> json) =>
-      ChatAttachmentPolicyResponse(
-        attachmentRefsSupported: json["attachmentRefsSupported"] as bool,
-        maxAttachmentRefs: (json["maxAttachmentRefs"] as num).toInt(),
-        rawProviderMediaUrlsExposed:
-            json["rawProviderMediaUrlsExposed"] as bool,
-      );
-
-  final bool attachmentRefsSupported;
-  final int maxAttachmentRefs;
-  final bool rawProviderMediaUrlsExposed;
-
-  Map<String, dynamic> toJson() => {
-    "attachmentRefsSupported": _openApiJsonValue(attachmentRefsSupported),
-    "maxAttachmentRefs": _openApiJsonValue(maxAttachmentRefs),
-    "rawProviderMediaUrlsExposed": _openApiJsonValue(
-      rawProviderMediaUrlsExposed,
-    ),
-  };
-}
-
-class ChatConversationResponse {
-  const ChatConversationResponse({
-    required this.attachmentPolicy,
-    required this.availableActions,
-    required this.contextId,
-    required this.historyPolicy,
-    required this.id,
-    required this.kind,
-    this.lastMessageAt,
-    required this.membership,
-    required this.title,
-  });
-
-  factory ChatConversationResponse.fromJson(Map<String, dynamic> json) =>
-      ChatConversationResponse(
-        attachmentPolicy: ChatAttachmentPolicyResponse.fromJson(
-          json["attachmentPolicy"] as Map<String, dynamic>,
-        ),
-        availableActions: (json["availableActions"] as List<dynamic>)
-            .map((e) => e as String)
-            .toList(),
-        contextId: json["contextId"] as String,
-        historyPolicy: ChatHistoryPolicyResponse.fromJson(
-          json["historyPolicy"] as Map<String, dynamic>,
-        ),
-        id: json["id"] as String,
-        kind: json["kind"] as String,
-        lastMessageAt: json["lastMessageAt"] as String?,
-        membership: ChatMembershipResponse.fromJson(
-          json["membership"] as Map<String, dynamic>,
-        ),
-        title: json["title"] as String,
-      );
-
-  final ChatAttachmentPolicyResponse attachmentPolicy;
-  final List<String> availableActions;
-  final String contextId;
-  final ChatHistoryPolicyResponse historyPolicy;
-  final String id;
-  final String kind;
-  final String? lastMessageAt;
-  final ChatMembershipResponse membership;
-  final String title;
-
-  Map<String, dynamic> toJson() => {
-    "attachmentPolicy": _openApiJsonValue(attachmentPolicy),
-    "availableActions": _openApiJsonValue(availableActions),
-    "contextId": _openApiJsonValue(contextId),
-    "historyPolicy": _openApiJsonValue(historyPolicy),
-    "id": _openApiJsonValue(id),
-    "kind": _openApiJsonValue(kind),
-    "lastMessageAt": _openApiJsonValue(lastMessageAt),
-    "membership": _openApiJsonValue(membership),
-    "title": _openApiJsonValue(title),
-  };
-}
-
-class ChatConversationsResponse {
-  const ChatConversationsResponse({
-    required this.conversations,
-    required this.domain,
-    required this.readiness,
-    required this.releaseStatus,
-    required this.source,
-  });
-
-  factory ChatConversationsResponse.fromJson(Map<String, dynamic> json) =>
-      ChatConversationsResponse(
-        conversations: (json["conversations"] as List<dynamic>)
-            .map(
-              (e) =>
-                  ChatConversationResponse.fromJson(e as Map<String, dynamic>),
-            )
-            .toList(),
-        domain: json["domain"] as String,
-        readiness: ChatReadinessResponse.fromJson(
-          json["readiness"] as Map<String, dynamic>,
-        ),
-        releaseStatus: json["releaseStatus"] as String,
-        source: json["source"] as String,
-      );
-
-  final List<ChatConversationResponse> conversations;
-  final String domain;
-  final ChatReadinessResponse readiness;
-  final String releaseStatus;
-  final String source;
-
-  Map<String, dynamic> toJson() => {
-    "conversations": _openApiJsonValue(conversations),
-    "domain": _openApiJsonValue(domain),
-    "readiness": _openApiJsonValue(readiness),
-    "releaseStatus": _openApiJsonValue(releaseStatus),
-    "source": _openApiJsonValue(source),
-  };
-}
-
 class ChatHistoryPolicy {
   const ChatHistoryPolicy({
     this.exportAllowed,
@@ -1922,147 +2145,6 @@ class ChatHistoryPolicy {
     "retention": _openApiJsonValue(retention),
     "supportSafeNotes": _openApiJsonValue(supportSafeNotes),
     "visibility": _openApiJsonValue(visibility),
-  };
-}
-
-class ChatHistoryPolicyResponse {
-  const ChatHistoryPolicyResponse({
-    required this.backendReadable,
-    required this.encryptedProviderContentRedacted,
-    required this.policyKey,
-    required this.visibility,
-  });
-
-  factory ChatHistoryPolicyResponse.fromJson(Map<String, dynamic> json) =>
-      ChatHistoryPolicyResponse(
-        backendReadable: json["backendReadable"] as bool,
-        encryptedProviderContentRedacted:
-            json["encryptedProviderContentRedacted"] as bool,
-        policyKey: json["policyKey"] as String,
-        visibility: json["visibility"] as String,
-      );
-
-  final bool backendReadable;
-  final bool encryptedProviderContentRedacted;
-  final String policyKey;
-  final String visibility;
-
-  Map<String, dynamic> toJson() => {
-    "backendReadable": _openApiJsonValue(backendReadable),
-    "encryptedProviderContentRedacted": _openApiJsonValue(
-      encryptedProviderContentRedacted,
-    ),
-    "policyKey": _openApiJsonValue(policyKey),
-    "visibility": _openApiJsonValue(visibility),
-  };
-}
-
-class ChatMembershipResponse {
-  const ChatMembershipResponse({
-    required this.principalRef,
-    required this.role,
-    required this.state,
-  });
-
-  factory ChatMembershipResponse.fromJson(Map<String, dynamic> json) =>
-      ChatMembershipResponse(
-        principalRef: json["principalRef"] as String,
-        role: json["role"] as String,
-        state: json["state"] as String,
-      );
-
-  final String principalRef;
-  final String role;
-  final String state;
-
-  Map<String, dynamic> toJson() => {
-    "principalRef": _openApiJsonValue(principalRef),
-    "role": _openApiJsonValue(role),
-    "state": _openApiJsonValue(state),
-  };
-}
-
-class ChatMessageResponse {
-  const ChatMessageResponse({
-    required this.attachmentRefs,
-    required this.conversationId,
-    required this.deliveryEvidence,
-    required this.encryptedProviderContentRedacted,
-    required this.id,
-    required this.isMine,
-    required this.senderRef,
-    required this.sentAt,
-    this.text,
-  });
-
-  factory ChatMessageResponse.fromJson(Map<String, dynamic> json) =>
-      ChatMessageResponse(
-        attachmentRefs: (json["attachmentRefs"] as List<dynamic>)
-            .map((e) => e as String)
-            .toList(),
-        conversationId: json["conversationId"] as String,
-        deliveryEvidence: (json["deliveryEvidence"] as Map<String, dynamic>)
-            .cast<String, Object?>(),
-        encryptedProviderContentRedacted:
-            json["encryptedProviderContentRedacted"] as bool,
-        id: json["id"] as String,
-        isMine: json["isMine"] as bool,
-        senderRef: json["senderRef"] as String,
-        sentAt: json["sentAt"] as String,
-        text: json["text"] as String?,
-      );
-
-  final List<String> attachmentRefs;
-  final String conversationId;
-  final Map<String, Object?> deliveryEvidence;
-  final bool encryptedProviderContentRedacted;
-  final String id;
-  final bool isMine;
-  final String senderRef;
-  final String sentAt;
-  final String? text;
-
-  Map<String, dynamic> toJson() => {
-    "attachmentRefs": _openApiJsonValue(attachmentRefs),
-    "conversationId": _openApiJsonValue(conversationId),
-    "deliveryEvidence": _openApiJsonValue(deliveryEvidence),
-    "encryptedProviderContentRedacted": _openApiJsonValue(
-      encryptedProviderContentRedacted,
-    ),
-    "id": _openApiJsonValue(id),
-    "isMine": _openApiJsonValue(isMine),
-    "senderRef": _openApiJsonValue(senderRef),
-    "sentAt": _openApiJsonValue(sentAt),
-    "text": _openApiJsonValue(text),
-  };
-}
-
-class ChatMessagesResponse {
-  const ChatMessagesResponse({
-    required this.conversationId,
-    required this.messages,
-    required this.readiness,
-  });
-
-  factory ChatMessagesResponse.fromJson(Map<String, dynamic> json) =>
-      ChatMessagesResponse(
-        conversationId: json["conversationId"] as String,
-        messages: (json["messages"] as List<dynamic>)
-            .map((e) => ChatMessageResponse.fromJson(e as Map<String, dynamic>))
-            .toList(),
-        readiness: ChatReadinessResponse.fromJson(
-          json["readiness"] as Map<String, dynamic>,
-        ),
-      );
-
-  final String conversationId;
-  final List<ChatMessageResponse> messages;
-  final ChatReadinessResponse readiness;
-
-  Map<String, dynamic> toJson() => {
-    "conversationId": _openApiJsonValue(conversationId),
-    "messages": _openApiJsonValue(messages),
-    "readiness": _openApiJsonValue(readiness),
   };
 }
 
@@ -2372,57 +2454,6 @@ class ChatReadiness {
   };
 }
 
-class ChatReadinessResponse {
-  const ChatReadinessResponse({
-    required this.diagnosticsRedacted,
-    required this.grantedCapabilities,
-    required this.impactState,
-    required this.memberImpact,
-  });
-
-  factory ChatReadinessResponse.fromJson(Map<String, dynamic> json) =>
-      ChatReadinessResponse(
-        diagnosticsRedacted: json["diagnosticsRedacted"] as bool,
-        grantedCapabilities: (json["grantedCapabilities"] as List<dynamic>)
-            .map((e) => e as String)
-            .toList(),
-        impactState: json["impactState"] as String,
-        memberImpact: json["memberImpact"] as String,
-      );
-
-  final bool diagnosticsRedacted;
-  final List<String> grantedCapabilities;
-  final String impactState;
-  final String memberImpact;
-
-  Map<String, dynamic> toJson() => {
-    "diagnosticsRedacted": _openApiJsonValue(diagnosticsRedacted),
-    "grantedCapabilities": _openApiJsonValue(grantedCapabilities),
-    "impactState": _openApiJsonValue(impactState),
-    "memberImpact": _openApiJsonValue(memberImpact),
-  };
-}
-
-class ChatSendMessageRequest {
-  const ChatSendMessageRequest({this.attachmentRefs, required this.text});
-
-  factory ChatSendMessageRequest.fromJson(Map<String, dynamic> json) =>
-      ChatSendMessageRequest(
-        attachmentRefs: (json["attachmentRefs"] as List<dynamic>?)
-            ?.map((e) => e as String)
-            .toList(),
-        text: json["text"] as String,
-      );
-
-  final List<String>? attachmentRefs;
-  final String text;
-
-  Map<String, dynamic> toJson() => {
-    "attachmentRefs": _openApiJsonValue(attachmentRefs),
-    "text": _openApiJsonValue(text),
-  };
-}
-
 class ClaimMapper {
   const ClaimMapper({
     this.name,
@@ -2448,6 +2479,128 @@ class ClaimMapper {
     "required": _openApiJsonValue(required_),
     "sourceClaim": _openApiJsonValue(sourceClaim),
     "targetClaim": _openApiJsonValue(targetClaim),
+  };
+}
+
+class ClientAccessCredentialLifecycleResponse {
+  const ClientAccessCredentialLifecycleResponse({
+    this.blockedUntil,
+    this.lifecyclePaths,
+    this.secretMaterialReturned,
+    this.status,
+  });
+
+  factory ClientAccessCredentialLifecycleResponse.fromJson(
+    Map<String, dynamic> json,
+  ) => ClientAccessCredentialLifecycleResponse(
+    blockedUntil: (json["blockedUntil"] as List<dynamic>?)
+        ?.map((e) => e as String)
+        .toList(),
+    lifecyclePaths: (json["lifecyclePaths"] as List<dynamic>?)
+        ?.map((e) => e as String)
+        .toList(),
+    secretMaterialReturned: json["secretMaterialReturned"] as bool?,
+    status: json["status"] as String?,
+  );
+
+  final List<String>? blockedUntil;
+  final List<String>? lifecyclePaths;
+  final bool? secretMaterialReturned;
+  final String? status;
+
+  Map<String, dynamic> toJson() => {
+    "blockedUntil": _openApiJsonValue(blockedUntil),
+    "lifecyclePaths": _openApiJsonValue(lifecyclePaths),
+    "secretMaterialReturned": _openApiJsonValue(secretMaterialReturned),
+    "status": _openApiJsonValue(status),
+  };
+}
+
+class ClientAccessDiscoveryResponse {
+  const ClientAccessDiscoveryResponse({
+    this.credentialLifecycle,
+    this.domain,
+    this.openApiTag,
+    this.productApiBasePath,
+    this.providerConfigurationExposed,
+    this.supportSafe,
+    this.surfaces,
+  });
+
+  factory ClientAccessDiscoveryResponse.fromJson(Map<String, dynamic> json) =>
+      ClientAccessDiscoveryResponse(
+        credentialLifecycle: json["credentialLifecycle"] == null
+            ? null
+            : ClientAccessCredentialLifecycleResponse.fromJson(
+                json["credentialLifecycle"] as Map<String, dynamic>,
+              ),
+        domain: json["domain"] as String?,
+        openApiTag: json["openApiTag"] as String?,
+        productApiBasePath: json["productApiBasePath"] as String?,
+        providerConfigurationExposed:
+            json["providerConfigurationExposed"] as bool?,
+        supportSafe: json["supportSafe"] as bool?,
+        surfaces: (json["surfaces"] as List<dynamic>?)
+            ?.map(
+              (e) => ClientAccessProtocolSurfaceResponse.fromJson(
+                e as Map<String, dynamic>,
+              ),
+            )
+            .toList(),
+      );
+
+  final ClientAccessCredentialLifecycleResponse? credentialLifecycle;
+  final String? domain;
+  final String? openApiTag;
+  final String? productApiBasePath;
+  final bool? providerConfigurationExposed;
+  final bool? supportSafe;
+  final List<ClientAccessProtocolSurfaceResponse>? surfaces;
+
+  Map<String, dynamic> toJson() => {
+    "credentialLifecycle": _openApiJsonValue(credentialLifecycle),
+    "domain": _openApiJsonValue(domain),
+    "openApiTag": _openApiJsonValue(openApiTag),
+    "productApiBasePath": _openApiJsonValue(productApiBasePath),
+    "providerConfigurationExposed": _openApiJsonValue(
+      providerConfigurationExposed,
+    ),
+    "supportSafe": _openApiJsonValue(supportSafe),
+    "surfaces": _openApiJsonValue(surfaces),
+  };
+}
+
+class ClientAccessProtocolSurfaceResponse {
+  const ClientAccessProtocolSurfaceResponse({
+    this.kind,
+    this.name,
+    this.notes,
+    this.readiness,
+    this.setupPath,
+  });
+
+  factory ClientAccessProtocolSurfaceResponse.fromJson(
+    Map<String, dynamic> json,
+  ) => ClientAccessProtocolSurfaceResponse(
+    kind: json["kind"] as String?,
+    name: json["name"] as String?,
+    notes: (json["notes"] as List<dynamic>?)?.map((e) => e as String).toList(),
+    readiness: json["readiness"] as String?,
+    setupPath: json["setupPath"] as String?,
+  );
+
+  final String? kind;
+  final String? name;
+  final List<String>? notes;
+  final String? readiness;
+  final String? setupPath;
+
+  Map<String, dynamic> toJson() => {
+    "kind": _openApiJsonValue(kind),
+    "name": _openApiJsonValue(name),
+    "notes": _openApiJsonValue(notes),
+    "readiness": _openApiJsonValue(readiness),
+    "setupPath": _openApiJsonValue(setupPath),
   };
 }
 
@@ -2726,77 +2879,6 @@ class ContinuityReport {
     "provenanceRefs": _openApiJsonValue(provenanceRefs),
     "stableIdStrategy": _openApiJsonValue(stableIdStrategy),
     "unsupportedObjects": _openApiJsonValue(unsupportedObjects),
-  };
-}
-
-class CreateCalendarEventRequest {
-  const CreateCalendarEventRequest({
-    this.allDay,
-    this.description,
-    required this.endsAt,
-    this.location,
-    this.scope,
-    required this.startsAt,
-    this.timeRangeValid,
-    required this.timezone,
-    required this.title,
-  });
-
-  factory CreateCalendarEventRequest.fromJson(Map<String, dynamic> json) =>
-      CreateCalendarEventRequest(
-        allDay: json["allDay"] as bool?,
-        description: json["description"] as String?,
-        endsAt: json["endsAt"] as String,
-        location: json["location"] as String?,
-        scope: json["scope"] == null
-            ? null
-            : CalendarScopeResponse.fromJson(
-                json["scope"] as Map<String, dynamic>,
-              ),
-        startsAt: json["startsAt"] as String,
-        timeRangeValid: json["timeRangeValid"] as bool?,
-        timezone: json["timezone"] as String,
-        title: json["title"] as String,
-      );
-
-  final bool? allDay;
-  final String? description;
-  final String endsAt;
-  final String? location;
-  final CalendarScopeResponse? scope;
-  final String startsAt;
-  final bool? timeRangeValid;
-  final String timezone;
-  final String title;
-
-  Map<String, dynamic> toJson() => {
-    "allDay": _openApiJsonValue(allDay),
-    "description": _openApiJsonValue(description),
-    "endsAt": _openApiJsonValue(endsAt),
-    "location": _openApiJsonValue(location),
-    "scope": _openApiJsonValue(scope),
-    "startsAt": _openApiJsonValue(startsAt),
-    "timeRangeValid": _openApiJsonValue(timeRangeValid),
-    "timezone": _openApiJsonValue(timezone),
-    "title": _openApiJsonValue(title),
-  };
-}
-
-class CreateFolderRequest {
-  const CreateFolderRequest({required this.name, required this.parentPath});
-
-  factory CreateFolderRequest.fromJson(Map<String, dynamic> json) =>
-      CreateFolderRequest(
-        name: json["name"] as String,
-        parentPath: json["parentPath"] as String,
-      );
-
-  final String name;
-  final String parentPath;
-
-  Map<String, dynamic> toJson() => {
-    "name": _openApiJsonValue(name),
-    "parentPath": _openApiJsonValue(parentPath),
   };
 }
 
@@ -4053,105 +4135,236 @@ class Features {
   };
 }
 
-class FileItemResponse {
-  const FileItemResponse({
-    required this.downloadable,
-    required this.id,
-    this.mimeType,
-    this.modifiedAt,
-    required this.name,
-    required this.path,
-    this.size,
-    required this.type,
+class FileNativeProviderOptionResponse {
+  const FileNativeProviderOptionResponse({
+    this.available,
+    this.bridge,
+    this.notes,
+    this.osBoundary,
+    this.platform,
+    this.requiredContracts,
+    this.setupAction,
+    this.setupState,
   });
 
-  factory FileItemResponse.fromJson(Map<String, dynamic> json) =>
-      FileItemResponse(
-        downloadable: json["downloadable"] as bool,
-        id: json["id"] as String,
-        mimeType: json["mimeType"] as String?,
-        modifiedAt: json["modifiedAt"] as String?,
-        name: json["name"] as String,
-        path: json["path"] as String,
-        size: (json["size"] as num?)?.toInt(),
-        type: json["type"] as String,
-      );
+  factory FileNativeProviderOptionResponse.fromJson(
+    Map<String, dynamic> json,
+  ) => FileNativeProviderOptionResponse(
+    available: json["available"] as bool?,
+    bridge: json["bridge"] as String?,
+    notes: (json["notes"] as List<dynamic>?)?.map((e) => e as String).toList(),
+    osBoundary: json["osBoundary"] as String?,
+    platform: json["platform"] as String?,
+    requiredContracts: (json["requiredContracts"] as List<dynamic>?)
+        ?.map((e) => e as String)
+        .toList(),
+    setupAction: json["setupAction"] as String?,
+    setupState: json["setupState"] as String?,
+  );
 
-  final bool downloadable;
-  final String id;
-  final String? mimeType;
-  final String? modifiedAt;
-  final String name;
-  final String path;
-  final int? size;
-  final String type;
+  final bool? available;
+  final String? bridge;
+  final List<String>? notes;
+  final String? osBoundary;
+  final String? platform;
+  final List<String>? requiredContracts;
+  final String? setupAction;
+  final String? setupState;
 
   Map<String, dynamic> toJson() => {
-    "downloadable": _openApiJsonValue(downloadable),
-    "id": _openApiJsonValue(id),
-    "mimeType": _openApiJsonValue(mimeType),
-    "modifiedAt": _openApiJsonValue(modifiedAt),
-    "name": _openApiJsonValue(name),
-    "path": _openApiJsonValue(path),
-    "size": _openApiJsonValue(size),
-    "type": _openApiJsonValue(type),
+    "available": _openApiJsonValue(available),
+    "bridge": _openApiJsonValue(bridge),
+    "notes": _openApiJsonValue(notes),
+    "osBoundary": _openApiJsonValue(osBoundary),
+    "platform": _openApiJsonValue(platform),
+    "requiredContracts": _openApiJsonValue(requiredContracts),
+    "setupAction": _openApiJsonValue(setupAction),
+    "setupState": _openApiJsonValue(setupState),
   };
 }
 
-class FileListResponse {
-  const FileListResponse({required this.items, required this.path, this.quota});
+class FileNativeProviderSetupResponse {
+  const FileNativeProviderSetupResponse({
+    this.blockedUntil,
+    this.credentialLifecyclePath,
+    this.credentialsExposed,
+    this.downloadPathTemplate,
+    this.facadeBasePath,
+    this.listPathTemplate,
+    this.options,
+    this.proofHooks,
+    this.providerConfigurationExposed,
+    this.readiness,
+    this.supportSafe,
+    this.uploadPath,
+  });
 
-  factory FileListResponse.fromJson(Map<String, dynamic> json) =>
-      FileListResponse(
-        items: (json["items"] as List<dynamic>)
-            .map((e) => FileItemResponse.fromJson(e as Map<String, dynamic>))
+  factory FileNativeProviderSetupResponse.fromJson(
+    Map<String, dynamic> json,
+  ) => FileNativeProviderSetupResponse(
+    blockedUntil: (json["blockedUntil"] as List<dynamic>?)
+        ?.map((e) => e as String)
+        .toList(),
+    credentialLifecyclePath: json["credentialLifecyclePath"] as String?,
+    credentialsExposed: json["credentialsExposed"] as bool?,
+    downloadPathTemplate: json["downloadPathTemplate"] as String?,
+    facadeBasePath: json["facadeBasePath"] as String?,
+    listPathTemplate: json["listPathTemplate"] as String?,
+    options: (json["options"] as List<dynamic>?)
+        ?.map(
+          (e) => FileNativeProviderOptionResponse.fromJson(
+            e as Map<String, dynamic>,
+          ),
+        )
+        .toList(),
+    proofHooks: (json["proofHooks"] as List<dynamic>?)
+        ?.map((e) => e as String)
+        .toList(),
+    providerConfigurationExposed: json["providerConfigurationExposed"] as bool?,
+    readiness: json["readiness"] == null
+        ? null
+        : WorkspaceCapabilityStatusResponse.fromJson(
+            json["readiness"] as Map<String, dynamic>,
+          ),
+    supportSafe: json["supportSafe"] as bool?,
+    uploadPath: json["uploadPath"] as String?,
+  );
+
+  final List<String>? blockedUntil;
+  final String? credentialLifecyclePath;
+  final bool? credentialsExposed;
+  final String? downloadPathTemplate;
+  final String? facadeBasePath;
+  final String? listPathTemplate;
+  final List<FileNativeProviderOptionResponse>? options;
+  final List<String>? proofHooks;
+  final bool? providerConfigurationExposed;
+  final WorkspaceCapabilityStatusResponse? readiness;
+  final bool? supportSafe;
+  final String? uploadPath;
+
+  Map<String, dynamic> toJson() => {
+    "blockedUntil": _openApiJsonValue(blockedUntil),
+    "credentialLifecyclePath": _openApiJsonValue(credentialLifecyclePath),
+    "credentialsExposed": _openApiJsonValue(credentialsExposed),
+    "downloadPathTemplate": _openApiJsonValue(downloadPathTemplate),
+    "facadeBasePath": _openApiJsonValue(facadeBasePath),
+    "listPathTemplate": _openApiJsonValue(listPathTemplate),
+    "options": _openApiJsonValue(options),
+    "proofHooks": _openApiJsonValue(proofHooks),
+    "providerConfigurationExposed": _openApiJsonValue(
+      providerConfigurationExposed,
+    ),
+    "readiness": _openApiJsonValue(readiness),
+    "supportSafe": _openApiJsonValue(supportSafe),
+    "uploadPath": _openApiJsonValue(uploadPath),
+  };
+}
+
+class FileSetupCredentialListResponse {
+  const FileSetupCredentialListResponse({this.credentials});
+
+  factory FileSetupCredentialListResponse.fromJson(Map<String, dynamic> json) =>
+      FileSetupCredentialListResponse(
+        credentials: (json["credentials"] as List<dynamic>?)
+            ?.map(
+              (e) => FileSetupCredentialResponse.fromJson(
+                e as Map<String, dynamic>,
+              ),
+            )
             .toList(),
-        path: json["path"] as String,
-        quota: json["quota"] == null
-            ? null
-            : FileQuotaResponse.fromJson(json["quota"] as Map<String, dynamic>),
       );
 
-  final List<FileItemResponse> items;
-  final String path;
-  final FileQuotaResponse? quota;
+  final List<FileSetupCredentialResponse>? credentials;
 
   Map<String, dynamic> toJson() => {
-    "items": _openApiJsonValue(items),
-    "path": _openApiJsonValue(path),
-    "quota": _openApiJsonValue(quota),
+    "credentials": _openApiJsonValue(credentials),
   };
 }
 
-class FileQuotaResponse {
-  const FileQuotaResponse({this.totalBytes, this.usedBytes});
+class FileSetupCredentialRequest {
+  const FileSetupCredentialRequest({this.clientType, this.label});
 
-  factory FileQuotaResponse.fromJson(Map<String, dynamic> json) =>
-      FileQuotaResponse(
-        totalBytes: (json["totalBytes"] as num?)?.toInt(),
-        usedBytes: (json["usedBytes"] as num?)?.toInt(),
+  factory FileSetupCredentialRequest.fromJson(Map<String, dynamic> json) =>
+      FileSetupCredentialRequest(
+        clientType: json["clientType"] as String?,
+        label: json["label"] as String?,
       );
 
-  final int? totalBytes;
-  final int? usedBytes;
+  final String? clientType;
+  final String? label;
 
   Map<String, dynamic> toJson() => {
-    "totalBytes": _openApiJsonValue(totalBytes),
-    "usedBytes": _openApiJsonValue(usedBytes),
+    "clientType": _openApiJsonValue(clientType),
+    "label": _openApiJsonValue(label),
   };
 }
 
-class FileUploadResponse {
-  const FileUploadResponse({required this.item});
+class FileSetupCredentialResponse {
+  const FileSetupCredentialResponse({
+    this.clientType,
+    this.credentialId,
+    this.expiresAt,
+    this.issuedAt,
+    this.label,
+    this.principalRef,
+    this.revocationActions,
+    this.revokedAt,
+    this.secret,
+    this.secretMaterialReturned,
+    this.state,
+    this.username,
+    this.webDavBasePath,
+  });
 
-  factory FileUploadResponse.fromJson(Map<String, dynamic> json) =>
-      FileUploadResponse(
-        item: FileItemResponse.fromJson(json["item"] as Map<String, dynamic>),
+  factory FileSetupCredentialResponse.fromJson(Map<String, dynamic> json) =>
+      FileSetupCredentialResponse(
+        clientType: json["clientType"] as String?,
+        credentialId: json["credentialId"] as String?,
+        expiresAt: json["expiresAt"] as String?,
+        issuedAt: json["issuedAt"] as String?,
+        label: json["label"] as String?,
+        principalRef: json["principalRef"] as String?,
+        revocationActions: (json["revocationActions"] as List<dynamic>?)
+            ?.map((e) => e as String)
+            .toList(),
+        revokedAt: json["revokedAt"] as String?,
+        secret: json["secret"] as String?,
+        secretMaterialReturned: json["secretMaterialReturned"] as bool?,
+        state: json["state"] as String?,
+        username: json["username"] as String?,
+        webDavBasePath: json["webDavBasePath"] as String?,
       );
 
-  final FileItemResponse item;
+  final String? clientType;
+  final String? credentialId;
+  final String? expiresAt;
+  final String? issuedAt;
+  final String? label;
+  final String? principalRef;
+  final List<String>? revocationActions;
+  final String? revokedAt;
+  final String? secret;
+  final bool? secretMaterialReturned;
+  final String? state;
+  final String? username;
+  final String? webDavBasePath;
 
-  Map<String, dynamic> toJson() => {"item": _openApiJsonValue(item)};
+  Map<String, dynamic> toJson() => {
+    "clientType": _openApiJsonValue(clientType),
+    "credentialId": _openApiJsonValue(credentialId),
+    "expiresAt": _openApiJsonValue(expiresAt),
+    "issuedAt": _openApiJsonValue(issuedAt),
+    "label": _openApiJsonValue(label),
+    "principalRef": _openApiJsonValue(principalRef),
+    "revocationActions": _openApiJsonValue(revocationActions),
+    "revokedAt": _openApiJsonValue(revokedAt),
+    "secret": _openApiJsonValue(secret),
+    "secretMaterialReturned": _openApiJsonValue(secretMaterialReturned),
+    "state": _openApiJsonValue(state),
+    "username": _openApiJsonValue(username),
+    "webDavBasePath": _openApiJsonValue(webDavBasePath),
+  };
 }
 
 class GoLiveReadinessResponse {
@@ -6285,6 +6498,7 @@ class OrganizationManifestResponse {
   const OrganizationManifestResponse({
     this.adminConsoleResponsibilities,
     this.capabilities,
+    this.clientAccessDiscovery,
     this.clientResponsibilities,
     this.diagnosticsExposed,
     this.displayName,
@@ -6310,6 +6524,9 @@ class OrganizationManifestResponse {
         : WorkspaceCapabilitiesResponse.fromJson(
             json["capabilities"] as Map<String, dynamic>,
           ),
+    clientAccessDiscovery:
+        (json["clientAccessDiscovery"] as Map<String, dynamic>?)
+            ?.cast<String, Object?>(),
     clientResponsibilities: (json["clientResponsibilities"] as List<dynamic>?)
         ?.map((e) => e as String)
         .toList(),
@@ -6329,6 +6546,7 @@ class OrganizationManifestResponse {
 
   final List<String>? adminConsoleResponsibilities;
   final WorkspaceCapabilitiesResponse? capabilities;
+  final Map<String, Object?>? clientAccessDiscovery;
   final List<String>? clientResponsibilities;
   final bool? diagnosticsExposed;
   final String? displayName;
@@ -6346,6 +6564,7 @@ class OrganizationManifestResponse {
       adminConsoleResponsibilities,
     ),
     "capabilities": _openApiJsonValue(capabilities),
+    "clientAccessDiscovery": _openApiJsonValue(clientAccessDiscovery),
     "clientResponsibilities": _openApiJsonValue(clientResponsibilities),
     "diagnosticsExposed": _openApiJsonValue(diagnosticsExposed),
     "displayName": _openApiJsonValue(displayName),
@@ -7196,6 +7415,7 @@ class ProviderReplacementDryRunRequest {
 class ProviderReplacementDryRunResponse {
   const ProviderReplacementDryRunResponse({
     this.auditRefs,
+    this.baselineSnapshot,
     this.boundedProof,
     this.category,
     this.choiceModel,
@@ -7205,6 +7425,7 @@ class ProviderReplacementDryRunResponse {
     this.cutoverGates,
     this.declaredSourceOfTruth,
     this.dryRunId,
+    this.evidenceRefs,
     this.lifecycleExpectations,
     this.lossyMappingReport,
     this.memberImpactStates,
@@ -7213,6 +7434,7 @@ class ProviderReplacementDryRunResponse {
     this.noUnaccountedDataLossReport,
     this.portableExportImportContract,
     this.providerDiagnosticsRedacted,
+    this.readModelComparison,
     this.readinessState,
     this.secretRefPresent,
     this.status,
@@ -7227,6 +7449,11 @@ class ProviderReplacementDryRunResponse {
     auditRefs: (json["auditRefs"] as List<dynamic>?)
         ?.map((e) => e as String)
         .toList(),
+    baselineSnapshot: json["baselineSnapshot"] == null
+        ? null
+        : BaselineSnapshot.fromJson(
+            json["baselineSnapshot"] as Map<String, dynamic>,
+          ),
     boundedProof: json["boundedProof"] == null
         ? null
         : BoundedApplyCutoverRollbackProof.fromJson(
@@ -7248,6 +7475,9 @@ class ProviderReplacementDryRunResponse {
         .toList(),
     declaredSourceOfTruth: json["declaredSourceOfTruth"] as String?,
     dryRunId: json["dryRunId"] as String?,
+    evidenceRefs: (json["evidenceRefs"] as List<dynamic>?)
+        ?.map((e) => e as String)
+        .toList(),
     lifecycleExpectations: json["lifecycleExpectations"] == null
         ? null
         : LifecycleExpectations.fromJson(
@@ -7274,6 +7504,11 @@ class ProviderReplacementDryRunResponse {
             json["portableExportImportContract"] as Map<String, dynamic>,
           ),
     providerDiagnosticsRedacted: json["providerDiagnosticsRedacted"] as bool?,
+    readModelComparison: json["readModelComparison"] == null
+        ? null
+        : ReadModelComparison.fromJson(
+            json["readModelComparison"] as Map<String, dynamic>,
+          ),
     readinessState: json["readinessState"] as String?,
     secretRefPresent: json["secretRefPresent"] as bool?,
     status: json["status"] as String?,
@@ -7285,6 +7520,7 @@ class ProviderReplacementDryRunResponse {
   );
 
   final List<String>? auditRefs;
+  final BaselineSnapshot? baselineSnapshot;
   final BoundedApplyCutoverRollbackProof? boundedProof;
   final String? category;
   final String? choiceModel;
@@ -7294,6 +7530,7 @@ class ProviderReplacementDryRunResponse {
   final List<String>? cutoverGates;
   final String? declaredSourceOfTruth;
   final String? dryRunId;
+  final List<String>? evidenceRefs;
   final LifecycleExpectations? lifecycleExpectations;
   final LossyMappingReport? lossyMappingReport;
   final List<String>? memberImpactStates;
@@ -7302,6 +7539,7 @@ class ProviderReplacementDryRunResponse {
   final NoUnaccountedDataLossReport? noUnaccountedDataLossReport;
   final PortableExportImportContract? portableExportImportContract;
   final bool? providerDiagnosticsRedacted;
+  final ReadModelComparison? readModelComparison;
   final String? readinessState;
   final bool? secretRefPresent;
   final String? status;
@@ -7311,6 +7549,7 @@ class ProviderReplacementDryRunResponse {
 
   Map<String, dynamic> toJson() => {
     "auditRefs": _openApiJsonValue(auditRefs),
+    "baselineSnapshot": _openApiJsonValue(baselineSnapshot),
     "boundedProof": _openApiJsonValue(boundedProof),
     "category": _openApiJsonValue(category),
     "choiceModel": _openApiJsonValue(choiceModel),
@@ -7320,6 +7559,7 @@ class ProviderReplacementDryRunResponse {
     "cutoverGates": _openApiJsonValue(cutoverGates),
     "declaredSourceOfTruth": _openApiJsonValue(declaredSourceOfTruth),
     "dryRunId": _openApiJsonValue(dryRunId),
+    "evidenceRefs": _openApiJsonValue(evidenceRefs),
     "lifecycleExpectations": _openApiJsonValue(lifecycleExpectations),
     "lossyMappingReport": _openApiJsonValue(lossyMappingReport),
     "memberImpactStates": _openApiJsonValue(memberImpactStates),
@@ -7334,6 +7574,7 @@ class ProviderReplacementDryRunResponse {
     "providerDiagnosticsRedacted": _openApiJsonValue(
       providerDiagnosticsRedacted,
     ),
+    "readModelComparison": _openApiJsonValue(readModelComparison),
     "readinessState": _openApiJsonValue(readinessState),
     "secretRefPresent": _openApiJsonValue(secretRefPresent),
     "status": _openApiJsonValue(status),
@@ -7680,6 +7921,50 @@ class RcEvidenceGateReadinessResponse {
   };
 }
 
+class ReadModelComparison {
+  const ReadModelComparison({
+    this.findings,
+    this.memberImpactStatesProviderNeutral,
+    this.migrationEvidenceRecorded,
+    this.northboundContractUnchanged,
+    this.providerSemanticsLeakedToMembers,
+  });
+
+  factory ReadModelComparison.fromJson(Map<String, dynamic> json) =>
+      ReadModelComparison(
+        findings: (json["findings"] as List<dynamic>?)
+            ?.map((e) => e as String)
+            .toList(),
+        memberImpactStatesProviderNeutral:
+            json["memberImpactStatesProviderNeutral"] as bool?,
+        migrationEvidenceRecorded: json["migrationEvidenceRecorded"] as bool?,
+        northboundContractUnchanged:
+            json["northboundContractUnchanged"] as bool?,
+        providerSemanticsLeakedToMembers:
+            json["providerSemanticsLeakedToMembers"] as bool?,
+      );
+
+  final List<String>? findings;
+  final bool? memberImpactStatesProviderNeutral;
+  final bool? migrationEvidenceRecorded;
+  final bool? northboundContractUnchanged;
+  final bool? providerSemanticsLeakedToMembers;
+
+  Map<String, dynamic> toJson() => {
+    "findings": _openApiJsonValue(findings),
+    "memberImpactStatesProviderNeutral": _openApiJsonValue(
+      memberImpactStatesProviderNeutral,
+    ),
+    "migrationEvidenceRecorded": _openApiJsonValue(migrationEvidenceRecorded),
+    "northboundContractUnchanged": _openApiJsonValue(
+      northboundContractUnchanged,
+    ),
+    "providerSemanticsLeakedToMembers": _openApiJsonValue(
+      providerSemanticsLeakedToMembers,
+    ),
+  };
+}
+
 class ReadinessCheck {
   const ReadinessCheck({
     this.key,
@@ -7831,8 +8116,6 @@ class ReleaseClaimControlResponse {
 class RuntimeInvocationContext {
   const RuntimeInvocationContext({
     this.allowedTools,
-    this.alwaysAllowGrantRef,
-    this.approvalReceiptRef,
     this.auditRef,
     this.capabilityGrants,
     this.orgRef,
@@ -7847,16 +8130,6 @@ class RuntimeInvocationContext {
         allowedTools: (json["allowedTools"] as List<dynamic>?)
             ?.map((e) => e as String)
             .toList(),
-        alwaysAllowGrantRef: json["alwaysAllowGrantRef"] == null
-            ? null
-            : WeaveMcpRef.fromJson(
-                json["alwaysAllowGrantRef"] as Map<String, dynamic>,
-              ),
-        approvalReceiptRef: json["approvalReceiptRef"] == null
-            ? null
-            : ApprovalReceiptRef.fromJson(
-                json["approvalReceiptRef"] as Map<String, dynamic>,
-              ),
         auditRef: json["auditRef"] as String?,
         capabilityGrants: (json["capabilityGrants"] as List<dynamic>?)
             ?.map((e) => e as String)
@@ -7881,8 +8154,6 @@ class RuntimeInvocationContext {
       );
 
   final List<String>? allowedTools;
-  final WeaveMcpRef? alwaysAllowGrantRef;
-  final ApprovalReceiptRef? approvalReceiptRef;
   final String? auditRef;
   final List<String>? capabilityGrants;
   final WeaveMcpRef? orgRef;
@@ -7893,8 +8164,6 @@ class RuntimeInvocationContext {
 
   Map<String, dynamic> toJson() => {
     "allowedTools": _openApiJsonValue(allowedTools),
-    "alwaysAllowGrantRef": _openApiJsonValue(alwaysAllowGrantRef),
-    "approvalReceiptRef": _openApiJsonValue(approvalReceiptRef),
     "auditRef": _openApiJsonValue(auditRef),
     "capabilityGrants": _openApiJsonValue(capabilityGrants),
     "orgRef": _openApiJsonValue(orgRef),
@@ -8410,63 +8679,6 @@ class UnmappableContentReport {
   };
 }
 
-class UpdateCalendarEventRequest {
-  const UpdateCalendarEventRequest({
-    this.allDay,
-    this.description,
-    this.endsAt,
-    this.etag,
-    this.location,
-    this.scope,
-    this.startsAt,
-    this.timeRangeValid,
-    this.timezone,
-    this.title,
-  });
-
-  factory UpdateCalendarEventRequest.fromJson(Map<String, dynamic> json) =>
-      UpdateCalendarEventRequest(
-        allDay: json["allDay"] as bool?,
-        description: json["description"] as String?,
-        endsAt: json["endsAt"] as String?,
-        etag: json["etag"] as String?,
-        location: json["location"] as String?,
-        scope: json["scope"] == null
-            ? null
-            : CalendarScopeResponse.fromJson(
-                json["scope"] as Map<String, dynamic>,
-              ),
-        startsAt: json["startsAt"] as String?,
-        timeRangeValid: json["timeRangeValid"] as bool?,
-        timezone: json["timezone"] as String?,
-        title: json["title"] as String?,
-      );
-
-  final bool? allDay;
-  final String? description;
-  final String? endsAt;
-  final String? etag;
-  final String? location;
-  final CalendarScopeResponse? scope;
-  final String? startsAt;
-  final bool? timeRangeValid;
-  final String? timezone;
-  final String? title;
-
-  Map<String, dynamic> toJson() => {
-    "allDay": _openApiJsonValue(allDay),
-    "description": _openApiJsonValue(description),
-    "endsAt": _openApiJsonValue(endsAt),
-    "etag": _openApiJsonValue(etag),
-    "location": _openApiJsonValue(location),
-    "scope": _openApiJsonValue(scope),
-    "startsAt": _openApiJsonValue(startsAt),
-    "timeRangeValid": _openApiJsonValue(timeRangeValid),
-    "timezone": _openApiJsonValue(timezone),
-    "title": _openApiJsonValue(title),
-  };
-}
-
 class UpdateProductProfileRequest {
   const UpdateProductProfileRequest({
     this.accessibilityPreferences,
@@ -8977,6 +9189,50 @@ class WeaverModelAliasResponse {
   };
 }
 
+class WeaverPermissionModeRequest {
+  const WeaverPermissionModeRequest({required this.mode});
+
+  factory WeaverPermissionModeRequest.fromJson(Map<String, dynamic> json) =>
+      WeaverPermissionModeRequest(mode: json["mode"] as String);
+
+  final String mode;
+
+  Map<String, dynamic> toJson() => {"mode": _openApiJsonValue(mode)};
+}
+
+class WeaverPermissionModeResponse {
+  const WeaverPermissionModeResponse({
+    required this.accepted,
+    required this.dangerous,
+    required this.mode,
+    required this.policyReason,
+    required this.runtimeProfileHash,
+  });
+
+  factory WeaverPermissionModeResponse.fromJson(Map<String, dynamic> json) =>
+      WeaverPermissionModeResponse(
+        accepted: json["accepted"] as bool,
+        dangerous: json["dangerous"] as bool,
+        mode: json["mode"] as String,
+        policyReason: json["policyReason"] as String,
+        runtimeProfileHash: json["runtimeProfileHash"] as String,
+      );
+
+  final bool accepted;
+  final bool dangerous;
+  final String mode;
+  final String policyReason;
+  final String runtimeProfileHash;
+
+  Map<String, dynamic> toJson() => {
+    "accepted": _openApiJsonValue(accepted),
+    "dangerous": _openApiJsonValue(dangerous),
+    "mode": _openApiJsonValue(mode),
+    "policyReason": _openApiJsonValue(policyReason),
+    "runtimeProfileHash": _openApiJsonValue(runtimeProfileHash),
+  };
+}
+
 class WeaverRuntimeProfileChangeResponse {
   const WeaverRuntimeProfileChangeResponse({
     this.createdAt,
@@ -9033,6 +9289,7 @@ class WeaverRuntimeProfileResponse {
     required this.mcpProjection,
     required this.memberImpact,
     required this.modelProvider,
+    required this.permissionMode,
     required this.pluginAllowlist,
     required this.posture,
     required this.previousProfileHash,
@@ -9082,6 +9339,7 @@ class WeaverRuntimeProfileResponse {
             .cast<String, Object?>(),
         memberImpact: json["memberImpact"] as String,
         modelProvider: json["modelProvider"] as String,
+        permissionMode: json["permissionMode"] as String,
         pluginAllowlist: (json["pluginAllowlist"] as List<dynamic>)
             .map((e) => e as String)
             .toList(),
@@ -9128,6 +9386,7 @@ class WeaverRuntimeProfileResponse {
   final Map<String, Object?> mcpProjection;
   final String memberImpact;
   final String modelProvider;
+  final String permissionMode;
   final List<String> pluginAllowlist;
   final String posture;
   final String previousProfileHash;
@@ -9168,6 +9427,7 @@ class WeaverRuntimeProfileResponse {
     "mcpProjection": _openApiJsonValue(mcpProjection),
     "memberImpact": _openApiJsonValue(memberImpact),
     "modelProvider": _openApiJsonValue(modelProvider),
+    "permissionMode": _openApiJsonValue(permissionMode),
     "pluginAllowlist": _openApiJsonValue(pluginAllowlist),
     "posture": _openApiJsonValue(posture),
     "previousProfileHash": _openApiJsonValue(previousProfileHash),

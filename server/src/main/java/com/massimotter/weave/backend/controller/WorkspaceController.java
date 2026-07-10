@@ -7,6 +7,8 @@ import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyResponse;
 import com.massimotter.weave.backend.model.WorkspaceHomeResponse;
 import com.massimotter.weave.backend.model.WorkspaceReleaseReadinessResponse;
 import com.massimotter.weave.backend.model.WeaverRuntimeProfileResponse;
+import com.massimotter.weave.backend.model.WeaverPermissionModeRequest;
+import com.massimotter.weave.backend.model.WeaverPermissionModeResponse;
 import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.BridgeDiscoveryResponse;
 import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.BridgeInvocationRequest;
 import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.BridgeInvocationResponse;
@@ -30,7 +32,9 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -139,6 +143,17 @@ public class WorkspaceController {
         return weaverRuntimeService.profileFor(jwt);
     }
 
+    @PutMapping({"/api/workspace/weaver/permission-mode", "/api/v1/workspace/weaver/permission-mode"})
+    @Operation(
+            summary = "Update the Weaver permission mode",
+            description = "Updates the authenticated member's governed Weaver mode. Full access remains subject to organization exec and elevated-runtime policy.",
+            security = @SecurityRequirement(name = "bearer-jwt"))
+    public WeaverPermissionModeResponse updateWeaverPermissionMode(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestBody WeaverPermissionModeRequest request) {
+        return weaverRuntimeService.updatePermissionMode(jwt, request.mode());
+    }
+
     @GetMapping({"/api/workspace/weaver/runtime-profiles/{runtimeProfileHash}", "/api/v1/workspace/weaver/runtime-profiles/{runtimeProfileHash}"})
     @Operation(
             summary = "Fetch generated Weaver runtime profile by hash",
@@ -181,8 +196,9 @@ public class WorkspaceController {
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable String serverKey,
             @PathVariable String toolName,
+            @RequestHeader("X-Weave-Mcp-Boundary-Token") String boundaryToken,
             @RequestBody BridgeInvocationRequest request) {
-        return weaverMcpBridgeService.invokeMcpTool(jwt, serverKey, toolName, request);
+        return weaverMcpBridgeService.invokeMcpTool(jwt, serverKey, toolName, request, boundaryToken);
     }
 
     @GetMapping({"/api/workspace/release-readiness", "/api/v1/workspace/release-readiness"})

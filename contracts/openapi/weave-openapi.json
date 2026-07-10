@@ -228,24 +228,18 @@
         ],
         "type": "object"
       },
-      "ApprovalReceipt": {
+      "ApprovalEvidence": {
         "properties": {
-          "action": {
+          "decidedAt": {
             "type": "string"
           },
-          "actorRef": {
+          "decision": {
             "type": "string"
           },
-          "auditRef": {
+          "evidenceRef": {
             "type": "string"
           },
-          "expiresAt": {
-            "type": "string"
-          },
-          "policyVersion": {
-            "type": "string"
-          },
-          "receiptRef": {
+          "protocol": {
             "type": "string"
           },
           "scopeRefs": {
@@ -253,13 +247,8 @@
               "type": "string"
             },
             "type": "array"
-          }
-        },
-        "type": "object"
-      },
-      "ApprovalReceiptRef": {
-        "properties": {
-          "value": {
+          },
+          "toolName": {
             "type": "string"
           }
         },
@@ -366,6 +355,44 @@
           "username": {
             "description": "Stable login/workspace handle.",
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "BaselineSnapshot": {
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "evidenceRefs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "persistedChoiceModel": {
+            "type": "string"
+          },
+          "persistedProviderKey": {
+            "type": "string"
+          },
+          "persistedSelectionMatchesRequest": {
+            "type": "boolean"
+          },
+          "profileOverridePersistencePosture": {
+            "type": "string"
+          },
+          "profileOverridePresent": {
+            "type": "boolean"
+          },
+          "providerSelectionPersistencePosture": {
+            "type": "string"
+          },
+          "stableMemberImpactStates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           }
         },
         "type": "object"
@@ -696,8 +723,8 @@
       },
       "BridgeInvocationRequest": {
         "properties": {
-          "approvalReceipt": {
-            "$ref": "#/components/schemas/ApprovalReceipt"
+          "approvalEvidence": {
+            "$ref": "#/components/schemas/ApprovalEvidence"
           },
           "arguments": {
             "additionalProperties": {
@@ -727,6 +754,7 @@
           },
           "status": {
             "enum": [
+              "APPROVAL_REQUIRED",
               "DENIED",
               "PROVIDER_FAILURE",
               "SUCCESS",
@@ -775,39 +803,13 @@
             "type": "string"
           },
           "productScope": {
-            "description": "Product calendar scope served by /api/calendar/events.",
+            "description": "Product calendar scope served by the Weave CalDAV facade.",
             "example": "workspace",
             "type": "string"
           },
           "type": {
             "description": "Stable access model identifier.",
             "example": "workspace-calendar",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "CalendarAttendeeResponse": {
-        "description": "Safe attendee metadata for a calendar event. Does not expose provider credentials or raw scheduling tokens.",
-        "properties": {
-          "email": {
-            "description": "Email address when supplied by the calendar data.",
-            "example": "ada@example.com",
-            "type": "string"
-          },
-          "name": {
-            "description": "Display name when supplied by the calendar data.",
-            "example": "Ada Lovelace",
-            "type": "string"
-          },
-          "responseStatus": {
-            "description": "iCalendar participation status normalized to lower-case when available.",
-            "example": "accepted",
-            "type": "string"
-          },
-          "role": {
-            "description": "iCalendar attendee role normalized to lower-case when available.",
-            "example": "req-participant",
             "type": "string"
           }
         },
@@ -917,151 +919,152 @@
           },
           "revocableCredentialsAvailable": {
             "description": "Whether Weave can issue/revoke per-client CalDAV credentials.",
-            "example": false,
+            "example": true,
             "type": "boolean"
           },
           "status": {
             "description": "Stable machine-readable readiness status.",
-            "example": "blocked_until_revocable_credentials",
+            "example": "revocable_credentials_ready",
             "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "CalendarEventResponse": {
-        "description": "Calendar event metadata returned by the Weave calendar facade.",
-        "properties": {
-          "allDay": {
-            "description": "Whether the event is all-day.",
-            "type": "boolean"
-          },
-          "attendees": {
-            "description": "Safe attendee metadata when supplied by the backing calendar data.",
-            "items": {
-              "$ref": "#/components/schemas/CalendarAttendeeResponse"
-            },
-            "type": "array"
-          },
-          "description": {
-            "description": "Plain-text event description when available.",
-            "type": "string"
-          },
-          "endsAt": {
-            "description": "Event end timestamp.",
-            "format": "date-time",
-            "type": "string"
-          },
-          "etag": {
-            "description": "Opaque revision token used for conflict detection when available.",
-            "type": "string"
-          },
-          "id": {
-            "description": "Stable backend facade identifier for this event.",
-            "example": "calendar:personal:123",
-            "type": "string"
-          },
-          "location": {
-            "description": "Event location when provided.",
-            "example": "Office",
-            "type": "string"
-          },
-          "providerRef": {
-            "$ref": "#/components/schemas/CalendarProviderRefResponse"
-          },
-          "scope": {
-            "$ref": "#/components/schemas/CalendarScopeResponse"
-          },
-          "startsAt": {
-            "description": "Event start timestamp.",
-            "format": "date-time",
-            "type": "string"
-          },
-          "threadRef": {
-            "$ref": "#/components/schemas/CalendarThreadRefResponse"
-          },
-          "timezone": {
-            "description": "IANA timezone used for display and editing.",
-            "example": "Europe/Berlin",
-            "type": "string"
-          },
-          "title": {
-            "description": "Event title.",
-            "example": "Planning",
-            "type": "string"
-          },
-          "updatedAt": {
-            "description": "Last known event update timestamp when available.",
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "CalendarEventsResponse": {
-        "description": "Calendar facade event listing response.",
-        "properties": {
-          "events": {
-            "items": {
-              "$ref": "#/components/schemas/CalendarEventResponse"
-            },
-            "type": "array"
-          },
-          "scope": {
-            "$ref": "#/components/schemas/CalendarScopeResponse"
           }
         },
         "type": "object"
       },
       "CalendarExternalEndpointsResponse": {
-        "description": "Secret-free standards endpoints for external calendar clients.",
+        "description": "Secret-free Weave CalDAV projection paths for external calendar clients.",
         "properties": {
           "caldavDiscoveryUrl": {
-            "description": "CalDAV discovery root for DAV clients.",
-            "example": "https://files.weave.test/remote.php/dav",
+            "description": "Weave-owned CalDAV discovery root for DAV clients.",
+            "example": "/caldav",
             "type": "string"
           },
           "principalUrl": {
-            "description": "User principal URL template for CalDAV clients. Contains no credential.",
-            "example": "https://files.weave.test/remote.php/dav/principals/users/maria/",
+            "description": "Weave-owned user principal path template for CalDAV clients. Contains no credential.",
+            "example": "/caldav/principals/users/maria/",
             "type": "string"
           },
           "serverUrl": {
-            "description": "Canonical Nextcloud/CalDAV technical base URL.",
-            "example": "https://files.weave.test",
+            "description": "Weave-owned CalDAV projection base path.",
+            "example": "/caldav",
             "type": "string"
           }
         },
         "type": "object"
       },
-      "CalendarProviderRefResponse": {
-        "description": "Safe provider reference for a calendar event. Raw provider paths, URLs, and credentials are deliberately not exposed.",
+      "CalendarNativeSyncOptionResponse": {
+        "description": "One native OS calendar setup/sync option backed by the Weave calendar facade.",
         "properties": {
-          "etag": {
-            "description": "Opaque revision token when available.",
-            "type": "string"
-          },
-          "lastSyncedAt": {
-            "description": "Last known provider synchronization/update timestamp when available.",
-            "format": "date-time",
-            "type": "string"
-          },
-          "objectKind": {
-            "description": "Provider object kind.",
-            "example": "calendar-event",
-            "type": "string"
-          },
-          "opaqueId": {
-            "description": "Opaque Weave facade identifier for the provider object.",
-            "type": "string"
-          },
-          "provider": {
-            "description": "Provider family behind the facade.",
-            "example": "nextcloud-caldav",
-            "type": "string"
-          },
-          "rawProviderPathExposed": {
-            "description": "Always false for public Calendar API responses; raw provider paths must not be exposed.",
+          "available": {
+            "description": "Whether this native sync option is ready for end-user setup.",
             "example": false,
+            "type": "boolean"
+          },
+          "bridge": {
+            "description": "Flutter/native bridge role for setup, status, and revoke only.",
+            "example": "pigeon-or-platform-channel",
+            "type": "string"
+          },
+          "notes": {
+            "description": "Support-safe notes for member/admin setup surfaces.",
+            "items": {
+              "description": "Support-safe notes for member/admin setup surfaces.",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "osBoundary": {
+            "description": "Native OS boundary to implement.",
+            "example": "CalDAVConfigurationProfile",
+            "type": "string"
+          },
+          "platform": {
+            "description": "Target platform family.",
+            "example": "ios",
+            "type": "string"
+          },
+          "requiredContracts": {
+            "description": "Native implementation contracts required before availability can be true.",
+            "items": {
+              "description": "Native implementation contracts required before availability can be true.",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "setupAction": {
+            "description": "Support-safe setup action or route. Does not expose raw provider URLs.",
+            "example": "open-weave-calendar-native-setup",
+            "type": "string"
+          },
+          "setupState": {
+            "description": "Support-safe setup state.",
+            "example": "setup_contract_ready",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CalendarNativeSyncSetupResponse": {
+        "description": "Support-safe native Calendar setup/sync contract for OS calendar accounts.",
+        "properties": {
+          "appleProfilePath": {
+            "description": "Weave-owned Apple profile download path. The profile itself remains unavailable until signing and scoped credentials exist.",
+            "example": "/api/calendar/client-setup/apple.mobileconfig",
+            "type": "string"
+          },
+          "blockedUntil": {
+            "description": "Support-safe blockers before native calendar availability can be true.",
+            "items": {
+              "description": "Support-safe blockers before native calendar availability can be true.",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "credentialLifecyclePath": {
+            "description": "Weave-owned setup credential lifecycle path.",
+            "example": "/api/calendar/client-setup/credentials",
+            "type": "string"
+          },
+          "credentialsExposed": {
+            "description": "False: this contract never returns provider credentials or bearer tokens.",
+            "example": false,
+            "type": "boolean"
+          },
+          "eventSyncPathTemplate": {
+            "description": "Weave-owned event sync facade path template.",
+            "example": "/caldav/{scopePath}/{eventUid}.ics",
+            "type": "string"
+          },
+          "facadeBasePath": {
+            "description": "Weave-owned calendar facade base path for CalDAV sync.",
+            "example": "/caldav",
+            "type": "string"
+          },
+          "options": {
+            "description": "OS-specific sync setup options.",
+            "items": {
+              "$ref": "#/components/schemas/CalendarNativeSyncOptionResponse"
+            },
+            "type": "array"
+          },
+          "proofHooks": {
+            "description": "Executable proof hooks that can be exercised before full native sync availability.",
+            "items": {
+              "description": "Executable proof hooks that can be exercised before full native sync availability.",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "providerConfigurationExposed": {
+            "description": "False: member/native setup must not receive raw calendar-provider configuration.",
+            "example": false,
+            "type": "boolean"
+          },
+          "readiness": {
+            "$ref": "#/components/schemas/WorkspaceCapabilityStatusResponse"
+          },
+          "supportSafe": {
+            "description": "True when this setup contract excludes raw provider endpoints, credentials, and diagnostics.",
+            "example": true,
             "type": "boolean"
           }
         },
@@ -1139,6 +1142,17 @@
         },
         "type": "object"
       },
+      "CalendarSetupCredentialListResponse": {
+        "properties": {
+          "credentials": {
+            "items": {
+              "$ref": "#/components/schemas/CalendarSetupCredentialResponse"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "CalendarSetupCredentialRequest": {
         "properties": {
           "clientType": {
@@ -1154,43 +1168,368 @@
         },
         "type": "object"
       },
-      "CalendarThreadRefResponse": {
-        "description": "Safe event thread/context metadata for a calendar event. Does not expose Matrix message contents or provider secrets.",
+      "CalendarSetupCredentialResponse": {
+        "description": "Weave-issued, revocable CalDAV client credential. Secret material is returned only at creation.",
         "properties": {
-          "boardTaskIds": {
-            "description": "Board task ids linked to this event when available.",
+          "clientType": {
+            "type": "string"
+          },
+          "credentialId": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "issuedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "principalRef": {
+            "type": "string"
+          },
+          "profilePasswordEligible": {
+            "type": "boolean"
+          },
+          "revocationActions": {
             "items": {
-              "description": "Board task ids linked to this event when available.",
               "type": "string"
             },
             "type": "array"
           },
-          "channelId": {
-            "description": "Channel projection identifier when the event belongs to a channel scope.",
-            "example": "engineering-general",
+          "revokedAt": {
+            "format": "date-time",
             "type": "string"
           },
-          "contextId": {
-            "description": "Durable Weave Context/Space identifier for event discussion and follow-up work.",
-            "example": "channel-engineering-general",
+          "secret": {
+            "description": "One-time CalDAV secret. Present only in the create response.",
+            "nullable": true,
             "type": "string"
           },
-          "kind": {
-            "description": "Reference kind exposed by the calendar facade.",
-            "example": "context",
+          "secretMaterialReturned": {
+            "type": "boolean"
+          },
+          "state": {
             "type": "string"
           },
-          "matrixRoomId": {
-            "description": "Matrix room id when a safe room mapping is available. Null when unavailable or unsafe to expose.",
+          "username": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CallCreateRequest": {
+        "description": "Create a Weave-owned call control-plane record.",
+        "properties": {
+          "linkedCalendarRefs": {
+            "description": "Support-safe linked calendar refs.",
+            "items": {
+              "description": "Support-safe linked calendar refs.",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "linkedChatRefs": {
+            "description": "Support-safe linked chat refs.",
+            "items": {
+              "description": "Support-safe linked chat refs.",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "linkedDecisionRefs": {
+            "description": "Support-safe linked decision refs.",
+            "items": {
+              "description": "Support-safe linked decision refs.",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "linkedFileRefs": {
+            "description": "Support-safe linked file refs.",
+            "items": {
+              "description": "Support-safe linked file refs.",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "spaceId": {
+            "description": "Context/Space reference for the call.",
+            "example": "workspace-default",
+            "maxLength": 128,
+            "minLength": 0,
             "type": "string"
           },
-          "matrixThreadId": {
-            "description": "Matrix thread id when a safe thread mapping is available. Null when unavailable or unsafe to expose.",
+          "title": {
+            "description": "Call title shown in Weave surfaces.",
+            "example": "Planning call",
+            "maxLength": 255,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CallJoinRequest": {
+        "description": "Request a short-lived Weave call join grant.",
+        "properties": {
+          "role": {
+            "description": "Requested call role.",
+            "example": "participant",
+            "maxLength": 32,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CallJoinResponse": {
+        "description": "Short-lived Weave call join grant.",
+        "properties": {
+          "accessToken": {
+            "description": "Short-lived access token scoped to this call and participant.",
             "type": "string"
           },
-          "meetingThreadId": {
-            "description": "Stable Weave meeting-thread identifier for this calendar event.",
-            "example": "meeting:channel-engineering-general:7f3c6f3e1b9a",
+          "callId": {
+            "description": "Weave call id.",
+            "example": "call_123",
+            "type": "string"
+          },
+          "expiresAt": {
+            "description": "Grant expiration timestamp.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "joinUrl": {
+            "description": "Media join URL for the selected provider.",
+            "type": "string"
+          },
+          "mediaProvider": {
+            "description": "Selected media provider key.",
+            "example": "livekit",
+            "type": "string"
+          },
+          "roomRef": {
+            "description": "Weave room reference used by the media provider.",
+            "example": "weave-call-call_123",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CallLeaveResponse": {
+        "description": "Weave call leave acknowledgement.",
+        "properties": {
+          "auditRef": {
+            "description": "Support-safe audit/reference id.",
+            "type": "string"
+          },
+          "callId": {
+            "description": "Weave call id.",
+            "example": "call_123",
+            "type": "string"
+          },
+          "left": {
+            "description": "Whether the leave request was accepted.",
+            "type": "boolean"
+          },
+          "leftAt": {
+            "description": "Acknowledgement timestamp.",
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CallNativeBoundaryOptionResponse": {
+        "description": "One native OS calls/meetings boundary option backed by Weave meeting grants.",
+        "properties": {
+          "available": {
+            "description": "Whether this native call boundary is ready for end-user setup.",
+            "example": false,
+            "type": "boolean"
+          },
+          "bridge": {
+            "description": "Flutter/native bridge role for setup, status, and incoming-call handoff only.",
+            "example": "pigeon-or-platform-channel",
+            "type": "string"
+          },
+          "notes": {
+            "description": "Support-safe notes for member/admin setup surfaces.",
+            "items": {
+              "description": "Support-safe notes for member/admin setup surfaces.",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "osBoundary": {
+            "description": "Native OS boundary to qualify.",
+            "example": "CallKitPushKit",
+            "type": "string"
+          },
+          "platform": {
+            "description": "Target platform family.",
+            "example": "ios",
+            "type": "string"
+          },
+          "requiredContracts": {
+            "description": "Native implementation contracts required before availability can be true.",
+            "items": {
+              "description": "Native implementation contracts required before availability can be true.",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "setupAction": {
+            "description": "Support-safe setup action or route. Does not expose raw media-provider URLs.",
+            "example": "open-weave-calls-native-setup",
+            "type": "string"
+          },
+          "setupState": {
+            "description": "Support-safe setup state.",
+            "example": "boundary_contract_ready",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CallNativeBoundarySetupResponse": {
+        "description": "Executable native Calls/Meetings boundary contract for OS call surfaces.",
+        "properties": {
+          "blockedUntil": {
+            "description": "Support-safe blockers before native call availability can be true.",
+            "items": {
+              "description": "Support-safe blockers before native call availability can be true.",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "credentialsExposed": {
+            "description": "False: this contract never returns provider credentials, API keys, or bearer tokens.",
+            "example": false,
+            "type": "boolean"
+          },
+          "facadeBasePath": {
+            "description": "Weave-owned meetings facade base path for native setup/status.",
+            "example": "/api/calls",
+            "type": "string"
+          },
+          "joinGrantPathTemplate": {
+            "description": "Weave-owned join-grant path template for the current meeting transport.",
+            "example": "/api/calls/meetings/{meetingId}/join-grants",
+            "type": "string"
+          },
+          "mediaBoundary": {
+            "description": "Provider-neutral media/control-plane split for native call UI.",
+            "type": "string"
+          },
+          "options": {
+            "description": "OS-specific native call setup options.",
+            "items": {
+              "$ref": "#/components/schemas/CallNativeBoundaryOptionResponse"
+            },
+            "type": "array"
+          },
+          "proofHooks": {
+            "description": "Executable proof hooks that can be exercised before full native call availability.",
+            "items": {
+              "description": "Executable proof hooks that can be exercised before full native call availability.",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "providerConfigurationExposed": {
+            "description": "False: member/native setup must not receive raw media-provider configuration.",
+            "example": false,
+            "type": "boolean"
+          },
+          "readiness": {
+            "$ref": "#/components/schemas/WorkspaceCapabilityStatusResponse"
+          },
+          "signalingBoundary": {
+            "description": "Provider-neutral signaling requirement for native call invitations.",
+            "type": "string"
+          },
+          "supportSafe": {
+            "description": "True when this setup contract excludes raw media-provider endpoints, credentials, tokens, and diagnostics.",
+            "example": true,
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "CallResponse": {
+        "description": "Weave Calls control-plane state.",
+        "properties": {
+          "callId": {
+            "description": "Weave call id.",
+            "example": "call_123",
+            "type": "string"
+          },
+          "ended": {
+            "description": "Whether the call has been ended.",
+            "type": "boolean"
+          },
+          "joinAvailable": {
+            "description": "Whether join grants can currently be issued.",
+            "type": "boolean"
+          },
+          "linkedCalendarRefs": {
+            "description": "Support-safe linked calendar refs.",
+            "items": {
+              "description": "Support-safe linked calendar refs.",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "linkedChatRefs": {
+            "description": "Support-safe linked chat refs.",
+            "items": {
+              "description": "Support-safe linked chat refs.",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "linkedDecisionRefs": {
+            "description": "Support-safe linked decision refs.",
+            "items": {
+              "description": "Support-safe linked decision refs.",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "linkedFileRefs": {
+            "description": "Support-safe linked file refs.",
+            "items": {
+              "description": "Support-safe linked file refs.",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "mediaProvider": {
+            "description": "Selected media provider key.",
+            "example": "livekit",
+            "type": "string"
+          },
+          "roomRef": {
+            "description": "Weave room reference used for join grants.",
+            "example": "weave-call-call_123",
+            "type": "string"
+          },
+          "spaceId": {
+            "description": "Context/Space reference.",
+            "type": "string"
+          },
+          "title": {
+            "description": "Call title.",
+            "type": "string"
+          },
+          "updatedAt": {
+            "description": "Last state update timestamp.",
+            "format": "date-time",
             "type": "string"
           }
         },
@@ -1431,128 +1770,6 @@
         },
         "type": "object"
       },
-      "ChatAttachmentPolicyResponse": {
-        "description": "Support-safe attachment policy metadata for Weave Chat.",
-        "properties": {
-          "attachmentRefsSupported": {
-            "description": "Whether message attachment references are supported by this facade.",
-            "example": true,
-            "type": "boolean"
-          },
-          "maxAttachmentRefs": {
-            "description": "Maximum attachment references accepted on one message.",
-            "example": 8,
-            "format": "int32",
-            "type": "integer"
-          },
-          "rawProviderMediaUrlsExposed": {
-            "description": "Whether raw provider media URLs are exposed to clients. Always false for release behavior.",
-            "example": false,
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "attachmentRefsSupported",
-          "maxAttachmentRefs",
-          "rawProviderMediaUrlsExposed"
-        ],
-        "type": "object"
-      },
-      "ChatConversationResponse": {
-        "description": "Canonical Weave Chat conversation. Provider-specific room/channel ids are deliberately omitted.",
-        "properties": {
-          "attachmentPolicy": {
-            "$ref": "#/components/schemas/ChatAttachmentPolicyResponse"
-          },
-          "availableActions": {
-            "description": "Member-visible product actions available in this conversation.",
-            "items": {
-              "description": "Member-visible product actions available in this conversation.",
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "contextId": {
-            "description": "Weave Context/Space id that owns the conversation.",
-            "example": "workspace-default",
-            "type": "string"
-          },
-          "historyPolicy": {
-            "$ref": "#/components/schemas/ChatHistoryPolicyResponse"
-          },
-          "id": {
-            "description": "Stable Weave conversation id.",
-            "example": "channel-general",
-            "type": "string"
-          },
-          "kind": {
-            "description": "Conversation kind in Weave vocabulary.",
-            "example": "channel",
-            "type": "string"
-          },
-          "lastMessageAt": {
-            "description": "Last canonical message timestamp, if any.",
-            "format": "date-time",
-            "type": "string"
-          },
-          "membership": {
-            "$ref": "#/components/schemas/ChatMembershipResponse"
-          },
-          "title": {
-            "description": "Member-facing conversation title.",
-            "example": "General workspace channel",
-            "type": "string"
-          }
-        },
-        "required": [
-          "attachmentPolicy",
-          "availableActions",
-          "contextId",
-          "historyPolicy",
-          "id",
-          "kind",
-          "membership",
-          "title"
-        ],
-        "type": "object"
-      },
-      "ChatConversationsResponse": {
-        "description": "Canonical Weave Chat conversation snapshot.",
-        "properties": {
-          "conversations": {
-            "items": {
-              "$ref": "#/components/schemas/ChatConversationResponse"
-            },
-            "type": "array"
-          },
-          "domain": {
-            "description": "Product domain.",
-            "example": "chat",
-            "type": "string"
-          },
-          "readiness": {
-            "$ref": "#/components/schemas/ChatReadinessResponse"
-          },
-          "releaseStatus": {
-            "description": "Release posture for this facade.",
-            "example": "canonical-domain-facade",
-            "type": "string"
-          },
-          "source": {
-            "description": "Support-safe source label; not a raw provider name, URL, room id, or channel id.",
-            "example": "weave-chat-domain-facade",
-            "type": "string"
-          }
-        },
-        "required": [
-          "conversations",
-          "domain",
-          "readiness",
-          "releaseStatus",
-          "source"
-        ],
-        "type": "object"
-      },
       "ChatHistoryPolicy": {
         "properties": {
           "exportAllowed": {
@@ -1574,154 +1791,6 @@
             "type": "string"
           }
         },
-        "type": "object"
-      },
-      "ChatHistoryPolicyResponse": {
-        "description": "Support-safe chat history policy metadata for a canonical Weave conversation.",
-        "properties": {
-          "backendReadable": {
-            "description": "Whether backend-held chat history is readable through this facade.",
-            "example": true,
-            "type": "boolean"
-          },
-          "encryptedProviderContentRedacted": {
-            "description": "Whether encrypted-provider content is intentionally hidden from the backend facade.",
-            "example": true,
-            "type": "boolean"
-          },
-          "policyKey": {
-            "description": "Stable policy key, not a raw provider room or channel identifier.",
-            "example": "workspace-default-history",
-            "type": "string"
-          },
-          "visibility": {
-            "description": "Member-visible history visibility.",
-            "example": "joined-members",
-            "type": "string"
-          }
-        },
-        "required": [
-          "backendReadable",
-          "encryptedProviderContentRedacted",
-          "policyKey",
-          "visibility"
-        ],
-        "type": "object"
-      },
-      "ChatMembershipResponse": {
-        "description": "Canonical Weave Chat membership summary for the authenticated principal.",
-        "properties": {
-          "principalRef": {
-            "description": "Weave principal reference, not a raw provider user id.",
-            "example": "user:alice",
-            "type": "string"
-          },
-          "role": {
-            "description": "Conversation role in Weave vocabulary.",
-            "example": "member",
-            "type": "string"
-          },
-          "state": {
-            "description": "Conversation membership state.",
-            "example": "joined",
-            "type": "string"
-          }
-        },
-        "required": [
-          "principalRef",
-          "role",
-          "state"
-        ],
-        "type": "object"
-      },
-      "ChatMessageResponse": {
-        "description": "Canonical Weave Chat message. Provider event ids, room ids, and raw media URLs are deliberately omitted.",
-        "properties": {
-          "attachmentRefs": {
-            "description": "Attachment references mediated by Weave product/file facades, never raw provider URLs.",
-            "items": {
-              "description": "Attachment references mediated by Weave product/file facades, never raw provider URLs.",
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "conversationId": {
-            "description": "Stable Weave conversation id.",
-            "example": "channel-general",
-            "type": "string"
-          },
-          "deliveryEvidence": {
-            "additionalProperties": {
-              "description": "Support-safe delivery/runtime evidence. Raw provider ids, URLs, tokens, and diagnostics are deliberately omitted.",
-              "type": "object"
-            },
-            "description": "Support-safe delivery/runtime evidence. Raw provider ids, URLs, tokens, and diagnostics are deliberately omitted.",
-            "type": "object"
-          },
-          "encryptedProviderContentRedacted": {
-            "description": "Whether encrypted-provider content was redacted from this facade response.",
-            "example": false,
-            "type": "boolean"
-          },
-          "id": {
-            "description": "Stable Weave message id.",
-            "example": "msg-001",
-            "type": "string"
-          },
-          "isMine": {
-            "description": "Whether this message belongs to the authenticated member, computed server-side from the Weave principal.",
-            "example": true,
-            "type": "boolean"
-          },
-          "senderRef": {
-            "description": "Weave principal reference, not a raw provider user id.",
-            "example": "user:alice",
-            "type": "string"
-          },
-          "sentAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "text": {
-            "description": "Message text when readable through the Weave facade.",
-            "type": "string"
-          }
-        },
-        "required": [
-          "attachmentRefs",
-          "conversationId",
-          "deliveryEvidence",
-          "encryptedProviderContentRedacted",
-          "id",
-          "isMine",
-          "senderRef",
-          "sentAt"
-        ],
-        "type": "object"
-      },
-      "ChatMessagesResponse": {
-        "description": "Canonical Weave Chat messages for one conversation.",
-        "properties": {
-          "conversationId": {
-            "description": "Stable Weave conversation id.",
-            "example": "channel-general",
-            "type": "string"
-          },
-          "messages": {
-            "items": {
-              "$ref": "#/components/schemas/ChatMessageResponse"
-            },
-            "type": "array"
-          },
-          "readiness": {
-            "$ref": "#/components/schemas/ChatReadinessResponse"
-          }
-        },
-        "required": [
-          "conversationId",
-          "messages",
-          "readiness"
-        ],
         "type": "object"
       },
       "ChatMigrationPreflightRequest": {
@@ -1998,74 +2067,6 @@
         },
         "type": "object"
       },
-      "ChatReadinessResponse": {
-        "description": "Member-safe Weave Chat readiness and policy state.",
-        "properties": {
-          "diagnosticsRedacted": {
-            "description": "Whether provider diagnostics have been intentionally redacted from this member response.",
-            "example": true,
-            "type": "boolean"
-          },
-          "grantedCapabilities": {
-            "description": "Capabilities granted to the current principal for this domain.",
-            "items": {
-              "description": "Capabilities granted to the current principal for this domain.",
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "impactState": {
-            "description": "Stable member impact state.",
-            "enum": [
-              "available",
-              "coming_later",
-              "degraded",
-              "disabled_by_policy",
-              "not_configured",
-              "unavailable"
-            ],
-            "example": "available",
-            "type": "string"
-          },
-          "memberImpact": {
-            "description": "Support-safe member impact explanation.",
-            "type": "string"
-          }
-        },
-        "required": [
-          "diagnosticsRedacted",
-          "grantedCapabilities",
-          "impactState",
-          "memberImpact"
-        ],
-        "type": "object"
-      },
-      "ChatSendMessageRequest": {
-        "description": "Explicit user action to send a canonical Weave Chat message.",
-        "properties": {
-          "attachmentRefs": {
-            "description": "Optional Weave attachment references. Raw provider media URLs are rejected.",
-            "items": {
-              "description": "Optional Weave attachment references. Raw provider media URLs are rejected.",
-              "type": "string"
-            },
-            "maxItems": 8,
-            "minItems": 0,
-            "type": "array"
-          },
-          "text": {
-            "description": "Message text to send through the Weave Chat facade.",
-            "example": "The release notes draft is ready for review.",
-            "maxLength": 4000,
-            "minLength": 0,
-            "type": "string"
-          }
-        },
-        "required": [
-          "text"
-        ],
-        "type": "object"
-      },
       "ClaimMapper": {
         "properties": {
           "name": {
@@ -2078,6 +2079,110 @@
             "type": "string"
           },
           "targetClaim": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ClientAccessCredentialLifecycleResponse": {
+        "description": "Support-safe credential lifecycle summary for member, native, generic, and MCP clients.",
+        "properties": {
+          "blockedUntil": {
+            "description": "Support-safe blockers before this access surface can be called ready.",
+            "items": {
+              "description": "Support-safe blockers before this access surface can be called ready.",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "lifecyclePaths": {
+            "description": "Weave-owned lifecycle paths or references only; never provider URLs or raw secret refs.",
+            "items": {
+              "description": "Weave-owned lifecycle paths or references only; never provider URLs or raw secret refs.",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "secretMaterialReturned": {
+            "description": "Whether credentials or bearer tokens are returned in this manifest. Must remain false.",
+            "example": false,
+            "type": "boolean"
+          },
+          "status": {
+            "description": "Stable lifecycle posture.",
+            "example": "blocked_until_revocable_device_grants",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ClientAccessDiscoveryResponse": {
+        "description": "Support-safe discovery metadata for a Weave domain access surface.",
+        "properties": {
+          "credentialLifecycle": {
+            "$ref": "#/components/schemas/ClientAccessCredentialLifecycleResponse"
+          },
+          "domain": {
+            "description": "Provider-neutral Weave domain key.",
+            "example": "files",
+            "type": "string"
+          },
+          "openApiTag": {
+            "description": "OpenAPI tag or contract group for generated clients and MCP allowlists.",
+            "example": "Files",
+            "type": "string"
+          },
+          "productApiBasePath": {
+            "description": "Weave-owned product API base path.",
+            "example": "/api/files",
+            "type": "string"
+          },
+          "providerConfigurationExposed": {
+            "description": "False: discovery must not expose raw provider setup or endpoint configuration.",
+            "example": false,
+            "type": "boolean"
+          },
+          "supportSafe": {
+            "description": "True when discovery excludes raw provider URLs, credentials, endpoint rotation data, and diagnostics.",
+            "type": "boolean"
+          },
+          "surfaces": {
+            "description": "Open-standard or native projection surfaces exposed over Weave domain truth.",
+            "items": {
+              "$ref": "#/components/schemas/ClientAccessProtocolSurfaceResponse"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ClientAccessProtocolSurfaceResponse": {
+        "description": "One Weave-owned client access projection for a domain facade.",
+        "properties": {
+          "kind": {
+            "description": "Surface kind, such as openapi, standard-protocol, native-os, mcp, or provider-adapter.",
+            "type": "string"
+          },
+          "name": {
+            "description": "Surface name in product-neutral terms.",
+            "example": "Weave WebDAV projection",
+            "type": "string"
+          },
+          "notes": {
+            "description": "Support-safe notes for generated clients and admins.",
+            "items": {
+              "description": "Support-safe notes for generated clients and admins.",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "readiness": {
+            "description": "Stable readiness posture for this surface.",
+            "example": "contract_ready",
+            "type": "string"
+          },
+          "setupPath": {
+            "description": "Weave-owned API, setup, status, or lifecycle path when one exists. Null means the surface is documented but not exposed yet.",
             "type": "string"
           }
         },
@@ -2309,89 +2414,6 @@
             "type": "array"
           }
         },
-        "type": "object"
-      },
-      "CreateCalendarEventRequest": {
-        "description": "Create a calendar event through the product calendar facade.",
-        "properties": {
-          "allDay": {
-            "description": "Whether the event is all-day.",
-            "type": "boolean"
-          },
-          "description": {
-            "description": "Plain-text event description.",
-            "maxLength": 8192,
-            "minLength": 0,
-            "type": "string"
-          },
-          "endsAt": {
-            "description": "Event end timestamp.",
-            "format": "date-time",
-            "type": "string"
-          },
-          "location": {
-            "description": "Event location.",
-            "maxLength": 1024,
-            "minLength": 0,
-            "type": "string"
-          },
-          "scope": {
-            "$ref": "#/components/schemas/CalendarScopeResponse"
-          },
-          "startsAt": {
-            "description": "Event start timestamp.",
-            "format": "date-time",
-            "type": "string"
-          },
-          "timeRangeValid": {
-            "type": "boolean"
-          },
-          "timezone": {
-            "description": "IANA timezone used for display and editing.",
-            "example": "Europe/Berlin",
-            "maxLength": 128,
-            "minLength": 0,
-            "type": "string"
-          },
-          "title": {
-            "description": "Event title.",
-            "example": "Planning",
-            "maxLength": 255,
-            "minLength": 0,
-            "type": "string"
-          }
-        },
-        "required": [
-          "endsAt",
-          "startsAt",
-          "timezone",
-          "title"
-        ],
-        "type": "object"
-      },
-      "CreateFolderRequest": {
-        "description": "Create a folder through the product files facade.",
-        "properties": {
-          "name": {
-            "description": "Folder name to create.",
-            "example": "Design",
-            "maxLength": 255,
-            "minLength": 0,
-            "type": "string"
-          },
-          "parentPath": {
-            "description": "Parent product-relative path.",
-            "example": "/Team",
-            "maxLength": 1024,
-            "minLength": 0,
-            "pattern": "/.*",
-            "type": "string"
-          }
-        },
-        "required": [
-          "name",
-          "parentPath"
-        ],
         "type": "object"
       },
       "CrossDomainImpactItem": {
@@ -3402,116 +3424,207 @@
         },
         "type": "object"
       },
-      "FileItemResponse": {
-        "description": "Product file or folder metadata returned by the Weave files facade.",
+      "FileNativeProviderOptionResponse": {
+        "description": "One native OS file-provider setup option backed by the Weave files facade.",
         "properties": {
-          "downloadable": {
-            "description": "Whether the item can be downloaded through the product facade.",
+          "available": {
+            "description": "Whether this native provider option is ready for end-user setup.",
+            "example": false,
             "type": "boolean"
           },
-          "id": {
-            "description": "Stable backend facade identifier for this item.",
-            "example": "files:/Team/readme.md",
+          "bridge": {
+            "description": "Flutter/native bridge role for setup, status, and revoke only.",
+            "example": "pigeon-or-platform-channel",
             "type": "string"
           },
-          "mimeType": {
-            "description": "MIME type for files when known.",
-            "example": "text/markdown",
-            "type": "string"
-          },
-          "modifiedAt": {
-            "description": "Last modified timestamp when provided by the backing store.",
-            "format": "date-time",
-            "type": "string"
-          },
-          "name": {
-            "description": "Display name of the file or folder.",
-            "example": "readme.md",
-            "type": "string"
-          },
-          "path": {
-            "description": "Product-relative path of the item.",
-            "example": "/Team/readme.md",
-            "type": "string"
-          },
-          "size": {
-            "description": "Size in bytes for files when known.",
-            "example": 4096,
-            "format": "int64",
-            "type": "integer"
-          },
-          "type": {
-            "description": "Item type.",
-            "enum": [
-              "file",
-              "folder"
-            ],
-            "example": "file",
-            "type": "string"
-          }
-        },
-        "required": [
-          "downloadable",
-          "id",
-          "name",
-          "path",
-          "type"
-        ],
-        "type": "object"
-      },
-      "FileListResponse": {
-        "description": "Files facade folder listing response.",
-        "properties": {
-          "items": {
-            "description": "Files and folders directly under the listed path.",
+          "notes": {
+            "description": "Support-safe notes for member/admin setup surfaces.",
             "items": {
-              "$ref": "#/components/schemas/FileItemResponse"
+              "description": "Support-safe notes for member/admin setup surfaces.",
+              "type": "string"
             },
             "type": "array"
           },
-          "path": {
-            "description": "Listed product-relative folder path.",
-            "example": "/",
+          "osBoundary": {
+            "description": "Native OS boundary to implement.",
+            "example": "FileProviderExtension",
             "type": "string"
           },
-          "quota": {
-            "$ref": "#/components/schemas/FileQuotaResponse"
-          }
-        },
-        "required": [
-          "items",
-          "path"
-        ],
-        "type": "object"
-      },
-      "FileQuotaResponse": {
-        "description": "Files quota snapshot when available from the backing store.",
-        "properties": {
-          "totalBytes": {
-            "description": "Total available bytes when known.",
-            "example": 10737418240,
-            "format": "int64",
-            "type": "integer"
+          "platform": {
+            "description": "Target platform family.",
+            "example": "ios",
+            "type": "string"
           },
-          "usedBytes": {
-            "description": "Used bytes when known.",
-            "example": 1048576,
-            "format": "int64",
-            "type": "integer"
+          "requiredContracts": {
+            "description": "Native implementation contracts required before availability can be true.",
+            "items": {
+              "description": "Native implementation contracts required before availability can be true.",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "setupAction": {
+            "description": "Support-safe setup action or route. Does not expose raw provider URLs.",
+            "example": "open-weave-files-native-setup",
+            "type": "string"
+          },
+          "setupState": {
+            "description": "Support-safe setup state.",
+            "example": "extension_contract_ready",
+            "type": "string"
           }
         },
         "type": "object"
       },
-      "FileUploadResponse": {
-        "description": "Uploaded file metadata returned after a successful files facade upload.",
+      "FileNativeProviderSetupResponse": {
+        "description": "Support-safe native Files provider setup contract for OS extensions/providers.",
         "properties": {
-          "item": {
-            "$ref": "#/components/schemas/FileItemResponse"
+          "blockedUntil": {
+            "description": "Support-safe blockers before native provider availability can be true.",
+            "items": {
+              "description": "Support-safe blockers before native provider availability can be true.",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "credentialLifecyclePath": {
+            "description": "Weave-owned credential lifecycle path for native and generic WebDAV clients.",
+            "example": "/api/files/client-setup/credentials",
+            "type": "string"
+          },
+          "credentialsExposed": {
+            "description": "False: this contract never returns provider credentials or bearer tokens.",
+            "example": false,
+            "type": "boolean"
+          },
+          "downloadPathTemplate": {
+            "description": "Weave-owned WebDAV download path template for native providers.",
+            "example": "/dav/files/{path}",
+            "type": "string"
+          },
+          "facadeBasePath": {
+            "description": "Weave-owned WebDAV facade base path for native providers.",
+            "example": "/dav/files",
+            "type": "string"
+          },
+          "listPathTemplate": {
+            "description": "Weave-owned WebDAV list path template for native providers.",
+            "example": "/dav/files/{path}",
+            "type": "string"
+          },
+          "options": {
+            "description": "OS-specific provider setup options.",
+            "items": {
+              "$ref": "#/components/schemas/FileNativeProviderOptionResponse"
+            },
+            "type": "array"
+          },
+          "proofHooks": {
+            "description": "Executable proof hooks that can be exercised before full OS extension availability.",
+            "items": {
+              "description": "Executable proof hooks that can be exercised before full OS extension availability.",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "providerConfigurationExposed": {
+            "description": "False: member/native setup must not receive raw storage-provider configuration.",
+            "example": false,
+            "type": "boolean"
+          },
+          "readiness": {
+            "$ref": "#/components/schemas/WorkspaceCapabilityStatusResponse"
+          },
+          "supportSafe": {
+            "description": "True when this setup contract excludes raw provider endpoints, credentials, and diagnostics.",
+            "example": true,
+            "type": "boolean"
+          },
+          "uploadPath": {
+            "description": "Weave-owned WebDAV upload path for native providers.",
+            "example": "/dav/files/{path}",
+            "type": "string"
           }
         },
-        "required": [
-          "item"
-        ],
+        "type": "object"
+      },
+      "FileSetupCredentialListResponse": {
+        "properties": {
+          "credentials": {
+            "items": {
+              "$ref": "#/components/schemas/FileSetupCredentialResponse"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "FileSetupCredentialRequest": {
+        "properties": {
+          "clientType": {
+            "maxLength": 32,
+            "minLength": 0,
+            "type": "string"
+          },
+          "label": {
+            "maxLength": 128,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "FileSetupCredentialResponse": {
+        "description": "Weave-issued, revocable WebDAV client credential. Secret material is returned only at creation.",
+        "properties": {
+          "clientType": {
+            "type": "string"
+          },
+          "credentialId": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "issuedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "principalRef": {
+            "type": "string"
+          },
+          "revocationActions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "revokedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "secret": {
+            "description": "One-time WebDAV secret. Present only in the create response.",
+            "nullable": true,
+            "type": "string"
+          },
+          "secretMaterialReturned": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          },
+          "webDavBasePath": {
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "GoLiveReadinessResponse": {
@@ -5131,6 +5244,13 @@
           "capabilities": {
             "$ref": "#/components/schemas/WorkspaceCapabilitiesResponse"
           },
+          "clientAccessDiscovery": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ClientAccessDiscoveryResponse"
+            },
+            "description": "Support-safe domain access discovery for product APIs, standard-protocol projections, native setup, and governed MCP consumers.",
+            "type": "object"
+          },
           "clientResponsibilities": {
             "description": "Responsibilities owned by the member Weave Client.",
             "items": {
@@ -5912,6 +6032,9 @@
             },
             "type": "array"
           },
+          "baselineSnapshot": {
+            "$ref": "#/components/schemas/BaselineSnapshot"
+          },
           "boundedProof": {
             "$ref": "#/components/schemas/BoundedApplyCutoverRollbackProof"
           },
@@ -5945,6 +6068,12 @@
           "dryRunId": {
             "type": "string"
           },
+          "evidenceRefs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "lifecycleExpectations": {
             "$ref": "#/components/schemas/LifecycleExpectations"
           },
@@ -5971,6 +6100,9 @@
           },
           "providerDiagnosticsRedacted": {
             "type": "boolean"
+          },
+          "readModelComparison": {
+            "$ref": "#/components/schemas/ReadModelComparison"
           },
           "readinessState": {
             "type": "string"
@@ -6282,6 +6414,29 @@
         },
         "type": "object"
       },
+      "ReadModelComparison": {
+        "properties": {
+          "findings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "memberImpactStatesProviderNeutral": {
+            "type": "boolean"
+          },
+          "migrationEvidenceRecorded": {
+            "type": "boolean"
+          },
+          "northboundContractUnchanged": {
+            "type": "boolean"
+          },
+          "providerSemanticsLeakedToMembers": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "ReadinessCheck": {
         "properties": {
           "key": {
@@ -6391,12 +6546,6 @@
               "type": "string"
             },
             "type": "array"
-          },
-          "alwaysAllowGrantRef": {
-            "$ref": "#/components/schemas/WeaveMcpRef"
-          },
-          "approvalReceiptRef": {
-            "$ref": "#/components/schemas/ApprovalReceiptRef"
           },
           "auditRef": {
             "type": "string"
@@ -6836,62 +6985,6 @@
         },
         "type": "object"
       },
-      "UpdateCalendarEventRequest": {
-        "description": "Patch a calendar event through the product calendar facade.",
-        "properties": {
-          "allDay": {
-            "description": "Updated all-day flag.",
-            "type": "boolean"
-          },
-          "description": {
-            "description": "Updated plain-text event description.",
-            "maxLength": 8192,
-            "minLength": 0,
-            "type": "string"
-          },
-          "endsAt": {
-            "description": "Updated event end timestamp.",
-            "format": "date-time",
-            "type": "string"
-          },
-          "etag": {
-            "description": "Opaque revision token supplied by the client for conflict detection.",
-            "type": "string"
-          },
-          "location": {
-            "description": "Updated event location.",
-            "maxLength": 1024,
-            "minLength": 0,
-            "type": "string"
-          },
-          "scope": {
-            "$ref": "#/components/schemas/CalendarScopeResponse"
-          },
-          "startsAt": {
-            "description": "Updated event start timestamp.",
-            "format": "date-time",
-            "type": "string"
-          },
-          "timeRangeValid": {
-            "type": "boolean"
-          },
-          "timezone": {
-            "description": "Updated IANA timezone used for display and editing.",
-            "example": "Europe/Berlin",
-            "maxLength": 128,
-            "minLength": 0,
-            "type": "string"
-          },
-          "title": {
-            "description": "Updated event title.",
-            "example": "Planning",
-            "maxLength": 255,
-            "minLength": 0,
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
       "UpdateProductProfileRequest": {
         "description": "Partial product profile update. Null fields leave the current value unchanged.",
         "properties": {
@@ -7296,6 +7389,51 @@
         },
         "type": "object"
       },
+      "WeaverPermissionModeRequest": {
+        "properties": {
+          "mode": {
+            "enum": [
+              "allowlist",
+              "ask",
+              "auto",
+              "deny",
+              "full"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "type": "object"
+      },
+      "WeaverPermissionModeResponse": {
+        "properties": {
+          "accepted": {
+            "type": "boolean"
+          },
+          "dangerous": {
+            "type": "boolean"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "policyReason": {
+            "type": "string"
+          },
+          "runtimeProfileHash": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "accepted",
+          "dangerous",
+          "mode",
+          "policyReason",
+          "runtimeProfileHash"
+        ],
+        "type": "object"
+      },
       "WeaverRuntimeProfileChangeResponse": {
         "properties": {
           "createdAt": {
@@ -7393,6 +7531,16 @@
           "modelProvider": {
             "type": "string"
           },
+          "permissionMode": {
+            "enum": [
+              "allowlist",
+              "ask",
+              "auto",
+              "deny",
+              "full"
+            ],
+            "type": "string"
+          },
           "pluginAllowlist": {
             "items": {
               "type": "string"
@@ -7479,6 +7627,7 @@
           "mcpProjection",
           "memberImpact",
           "modelProvider",
+          "permissionMode",
           "pluginAllowlist",
           "posture",
           "previousProfileHash",
@@ -9487,6 +9636,16 @@
       "get": {
         "operationId": "setupCredentials",
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarSetupCredentialListResponse"
+                }
+              }
+            },
+            "description": "HTTP 200"
+          },
           "401": {
             "content": {
               "*/*": {
@@ -9541,6 +9700,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarSetupCredentialResponse"
+                }
+              }
+            },
+            "description": "HTTP 200"
+          },
           "401": {
             "content": {
               "*/*": {
@@ -9577,7 +9746,7 @@
             "bearer-jwt": []
           }
         ],
-        "summary": "Create a revocable calendar setup credential reference without returning secret material",
+        "summary": "Create a revocable calendar setup credential and return its secret once",
         "tags": [
           "Calendar"
         ]
@@ -9599,6 +9768,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarSetupCredentialResponse"
+                }
+              }
+            },
+            "description": "HTTP 200"
+          },
           "401": {
             "content": {
               "*/*": {
@@ -9641,65 +9820,16 @@
         ]
       }
     },
-    "/api/calendar/events": {
+    "/api/calendar/native-sync-setup": {
       "get": {
-        "operationId": "list",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "channelId",
-            "required": false,
-            "schema": {
-              "maxLength": 128,
-              "minLength": 0,
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "from",
-            "required": false,
-            "schema": {
-              "format": "date-time",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "scopeType",
-            "required": false,
-            "schema": {
-              "maxLength": 64,
-              "minLength": 0,
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "teamId",
-            "required": false,
-            "schema": {
-              "maxLength": 128,
-              "minLength": 0,
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "to",
-            "required": false,
-            "schema": {
-              "format": "date-time",
-              "type": "string"
-            }
-          }
-        ],
+        "description": "Returns support-safe iOS Calendar profile and Android Account/SyncAdapter setup metadata backed only by Weave-owned calendar facade endpoints.",
+        "operationId": "getCalendarNativeSyncSetup",
         "responses": {
           "200": {
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/CalendarEventsResponse"
+                  "$ref": "#/components/schemas/CalendarNativeSyncSetupResponse"
                 }
               }
             },
@@ -9741,271 +9871,7 @@
             "bearer-jwt": []
           }
         ],
-        "summary": "List calendar events",
-        "tags": [
-          "Calendar"
-        ]
-      },
-      "post": {
-        "operationId": "create",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateCalendarEventRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/CalendarEventResponse"
-                }
-              }
-            },
-            "description": "HTTP 200"
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 401"
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 403"
-          },
-          "503": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 503"
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Create a calendar event",
-        "tags": [
-          "Calendar"
-        ]
-      }
-    },
-    "/api/calendar/events/{id}": {
-      "delete": {
-        "operationId": "delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "maxLength": 2048,
-              "minLength": 0,
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 401"
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 403"
-          },
-          "503": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 503"
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Delete a calendar event",
-        "tags": [
-          "Calendar"
-        ]
-      },
-      "get": {
-        "operationId": "read",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "maxLength": 2048,
-              "minLength": 0,
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/CalendarEventResponse"
-                }
-              }
-            },
-            "description": "HTTP 200"
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 401"
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 403"
-          },
-          "503": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 503"
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Read a calendar event",
-        "tags": [
-          "Calendar"
-        ]
-      },
-      "patch": {
-        "operationId": "update",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "maxLength": 2048,
-              "minLength": 0,
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateCalendarEventRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/CalendarEventResponse"
-                }
-              }
-            },
-            "description": "HTTP 200"
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 401"
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 403"
-          },
-          "503": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 503"
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Update a calendar event",
+        "summary": "Describe native Calendar setup and sync boundary",
         "tags": [
           "Calendar"
         ]
@@ -10067,15 +9933,25 @@
         ]
       }
     },
-    "/api/chat/conversations": {
-      "get": {
-        "operationId": "listChatConversations",
+    "/api/calls": {
+      "post": {
+        "description": "Creates provider-neutral call state. Media access still requires a short-lived join grant.",
+        "operationId": "createCall",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CallCreateRequest"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChatConversationsResponse"
+                  "$ref": "#/components/schemas/CallResponse"
                 }
               }
             },
@@ -10100,16 +9976,6 @@
               }
             },
             "description": "HTTP 403"
-          },
-          "503": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 503"
           }
         },
         "security": [
@@ -10117,9 +9983,298 @@
             "bearer-jwt": []
           }
         ],
-        "summary": "List canonical Weave Chat conversations",
+        "summary": "Create a Weave Calls control-plane record",
         "tags": [
-          "Chat domain"
+          "Calls"
+        ]
+      }
+    },
+    "/api/calls/native-boundary-setup": {
+      "get": {
+        "description": "Returns support-safe CallKit/PushKit and Android Telecom/ConnectionService setup metadata backed only by Weave-owned meeting grants and control-plane endpoints.",
+        "operationId": "getCallsNativeBoundarySetup",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CallNativeBoundarySetupResponse"
+                }
+              }
+            },
+            "description": "HTTP 200"
+          },
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 401"
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 403"
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Describe native Calls and Meetings boundary setup",
+        "tags": [
+          "Calls"
+        ]
+      }
+    },
+    "/api/calls/{id}": {
+      "get": {
+        "operationId": "getCall",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 0,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CallResponse"
+                }
+              }
+            },
+            "description": "HTTP 200"
+          },
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 401"
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 403"
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Read Weave Calls control-plane state",
+        "tags": [
+          "Calls"
+        ]
+      }
+    },
+    "/api/calls/{id}/end": {
+      "post": {
+        "operationId": "endCall",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 0,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CallResponse"
+                }
+              }
+            },
+            "description": "HTTP 200"
+          },
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 401"
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 403"
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "End a Weave call",
+        "tags": [
+          "Calls"
+        ]
+      }
+    },
+    "/api/calls/{id}/join": {
+      "post": {
+        "description": "Returns a scoped join grant for the configured media provider without exposing provider API keys or backend service credentials.",
+        "operationId": "joinCall",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 0,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CallJoinRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CallJoinResponse"
+                }
+              }
+            },
+            "description": "HTTP 200"
+          },
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 401"
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 403"
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Create a short-lived call join grant",
+        "tags": [
+          "Calls"
+        ]
+      }
+    },
+    "/api/calls/{id}/leave": {
+      "post": {
+        "operationId": "leaveCall",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 0,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CallLeaveResponse"
+                }
+              }
+            },
+            "description": "HTTP 200"
+          },
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 401"
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 403"
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Leave a Weave call",
+        "tags": [
+          "Calls"
         ]
       }
     },
@@ -10411,150 +10566,6 @@
         ]
       }
     },
-    "/api/chat/conversations/{conversationId}/messages": {
-      "get": {
-        "operationId": "listChatMessages",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "conversationId",
-            "required": true,
-            "schema": {
-              "maxLength": 128,
-              "minLength": 0,
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ChatMessagesResponse"
-                }
-              }
-            },
-            "description": "HTTP 200"
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 401"
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 403"
-          },
-          "503": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 503"
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "List canonical Weave Chat messages",
-        "tags": [
-          "Chat domain"
-        ]
-      },
-      "post": {
-        "operationId": "sendChatMessage",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "conversationId",
-            "required": true,
-            "schema": {
-              "maxLength": 128,
-              "minLength": 0,
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ChatSendMessageRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ChatMessageResponse"
-                }
-              }
-            },
-            "description": "HTTP 200"
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 401"
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 403"
-          },
-          "503": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 503"
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Send a canonical Weave Chat message as an explicit audited user action",
-        "tags": [
-          "Chat domain"
-        ]
-      }
-    },
     "/api/chat/conversations/{conversationId}/weaver/scout/summaries": {
       "post": {
         "operationId": "createWeaverScoutSummary",
@@ -10751,30 +10762,15 @@
         ]
       }
     },
-    "/api/files": {
+    "/api/files/client-setup/credentials": {
       "get": {
-        "description": "Lists files through the Weave-owned product files facade without exposing backing provider URLs or credentials.",
-        "operationId": "listFiles",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "path",
-            "required": false,
-            "schema": {
-              "default": "/",
-              "maxLength": 1024,
-              "minLength": 0,
-              "pattern": "/.*",
-              "type": "string"
-            }
-          }
-        ],
+        "operationId": "getFilesSetupCredentials",
         "responses": {
           "200": {
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/FileListResponse"
+                  "$ref": "#/components/schemas/FileSetupCredentialListResponse"
                 }
               }
             },
@@ -10799,16 +10795,6 @@
               }
             },
             "description": "HTTP 403"
-          },
-          "503": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 503"
           }
         },
         "security": [
@@ -10816,21 +10802,18 @@
             "bearer-jwt": []
           }
         ],
-        "summary": "List files and folders",
+        "summary": "List revocable Files WebDAV setup credential references",
         "tags": [
           "Files"
         ]
-      }
-    },
-    "/api/files/folders": {
+      },
       "post": {
-        "description": "Creates a folder through the Weave-owned product files facade.",
-        "operationId": "createFilesFolder",
+        "operationId": "createFilesSetupCredential",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateFolderRequest"
+                "$ref": "#/components/schemas/FileSetupCredentialRequest"
               }
             }
           },
@@ -10841,7 +10824,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/FileItemResponse"
+                  "$ref": "#/components/schemas/FileSetupCredentialResponse"
                 }
               }
             },
@@ -10866,16 +10849,6 @@
               }
             },
             "description": "HTTP 403"
-          },
-          "503": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 503"
           }
         },
         "security": [
@@ -10883,7 +10856,112 @@
             "bearer-jwt": []
           }
         ],
-        "summary": "Create a folder",
+        "summary": "Create a revocable Files WebDAV setup credential and return its secret once",
+        "tags": [
+          "Files"
+        ]
+      }
+    },
+    "/api/files/client-setup/credentials/{credentialId}": {
+      "delete": {
+        "operationId": "revokeFilesSetupCredential",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "credentialId",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 0,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileSetupCredentialResponse"
+                }
+              }
+            },
+            "description": "HTTP 200"
+          },
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 401"
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 403"
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Revoke a Files WebDAV setup credential reference",
+        "tags": [
+          "Files"
+        ]
+      }
+    },
+    "/api/files/native-provider-setup": {
+      "get": {
+        "description": "Returns support-safe iOS File Provider and Android DocumentsProvider setup metadata backed only by Weave-owned file facade endpoints.",
+        "operationId": "getFilesNativeProviderSetup",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileNativeProviderSetupResponse"
+                }
+              }
+            },
+            "description": "HTTP 200"
+          },
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 401"
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 403"
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Describe native Files provider setup",
         "tags": [
           "Files"
         ]
@@ -10923,16 +11001,6 @@
               }
             },
             "description": "HTTP 403"
-          },
-          "503": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 503"
           }
         },
         "security": [
@@ -10941,227 +11009,6 @@
           }
         ],
         "summary": "Get Files readiness",
-        "tags": [
-          "Files"
-        ]
-      }
-    },
-    "/api/files/upload": {
-      "post": {
-        "description": "Uploads a file through the Weave-owned product files facade.",
-        "operationId": "uploadFile",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "parentPath",
-            "required": false,
-            "schema": {
-              "default": "/",
-              "maxLength": 1024,
-              "minLength": 0,
-              "pattern": "/.*",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "properties": {
-                  "file": {
-                    "format": "binary",
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "file"
-                ],
-                "type": "object"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/FileUploadResponse"
-                }
-              }
-            },
-            "description": "HTTP 200"
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 401"
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 403"
-          },
-          "503": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 503"
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Upload a file",
-        "tags": [
-          "Files"
-        ]
-      }
-    },
-    "/api/files/{id}": {
-      "delete": {
-        "description": "Deletes a file or folder through the Weave-owned product files facade.",
-        "operationId": "deleteFile",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "maxLength": 2048,
-              "minLength": 0,
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "HTTP 204"
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 401"
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 403"
-          },
-          "503": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 503"
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Delete a file or folder",
-        "tags": [
-          "Files"
-        ]
-      }
-    },
-    "/api/files/{id}/download": {
-      "get": {
-        "description": "Downloads file bytes through the Weave-owned product files facade without exposing backing provider URLs or credentials.",
-        "operationId": "downloadFile",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "maxLength": 2048,
-              "minLength": 0,
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "format": "binary",
-                  "type": "string"
-                }
-              }
-            },
-            "description": "HTTP 200"
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 401"
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 403"
-          },
-          "503": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 503"
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Download a file",
         "tags": [
           "Files"
         ]
@@ -13725,6 +13572,14 @@
         "operationId": "weaverMcpToolInvokeV1",
         "parameters": [
           {
+            "in": "header",
+            "name": "X-Weave-Mcp-Boundary-Token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "in": "path",
             "name": "serverKey",
             "required": true,
@@ -13763,6 +13618,43 @@
             "description": "HTTP 200"
           }
         },
+        "tags": [
+          "Workspace"
+        ]
+      }
+    },
+    "/api/v1/workspace/weaver/permission-mode": {
+      "put": {
+        "description": "Updates the authenticated member's governed Weaver mode. Full access remains subject to organization exec and elevated-runtime policy.",
+        "operationId": "updateWeaverPermissionModeV1",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WeaverPermissionModeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/WeaverPermissionModeResponse"
+                }
+              }
+            },
+            "description": "HTTP 200"
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Update the Weaver permission mode",
         "tags": [
           "Workspace"
         ]
@@ -14144,6 +14036,14 @@
         "operationId": "weaverMcpToolInvoke",
         "parameters": [
           {
+            "in": "header",
+            "name": "X-Weave-Mcp-Boundary-Token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "in": "path",
             "name": "serverKey",
             "required": true,
@@ -14182,6 +14082,43 @@
             "description": "HTTP 200"
           }
         },
+        "tags": [
+          "Workspace"
+        ]
+      }
+    },
+    "/api/workspace/weaver/permission-mode": {
+      "put": {
+        "description": "Updates the authenticated member's governed Weaver mode. Full access remains subject to organization exec and elevated-runtime policy.",
+        "operationId": "updateWeaverPermissionMode",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WeaverPermissionModeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/WeaverPermissionModeResponse"
+                }
+              }
+            },
+            "description": "HTTP 200"
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Update the Weaver permission mode",
         "tags": [
           "Workspace"
         ]
@@ -14378,8 +14315,12 @@
       "name": "Boards workspace"
     },
     {
-      "description": "Authenticated product calendar facade backed by Nextcloud CalDAV.",
+      "description": "Authenticated product calendar facade backed by Weave-owned calendar projections.",
       "name": "Calendar"
+    },
+    {
+      "description": "Authenticated product calls/meetings facade and native call boundary contracts.",
+      "name": "Calls"
     },
     {
       "description": "Canonical Weave Chat facade with provider-neutral conversations/messages, Context/Space authorization, capability checks, audit, and support-safe provider replacement seams.",
@@ -14390,11 +14331,11 @@
       "name": "Connectors"
     },
     {
-      "description": "Provider-neutral read-only DevOps facade for GitLab CE/FOSS and Forgejo adapters.",
+      "description": "Provider-neutral read-only DevOps facade for the represented GitLab CE/FOSS adapter.",
       "name": "DevOps facade"
     },
     {
-      "description": "Authenticated product files facade backed by Nextcloud APIs.",
+      "description": "Authenticated Files control plane. File data-plane operations use the Weave WebDAV facade at /dav/files.",
       "name": "Files"
     },
     {

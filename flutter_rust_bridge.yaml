@@ -1,0 +1,5 @@
+rust_input: crate::frb_api
+rust_root: rust/matrix-core/
+rust_features:
+  - flutter
+dart_output: client/lib/integrations/rust_matrix_core/generated

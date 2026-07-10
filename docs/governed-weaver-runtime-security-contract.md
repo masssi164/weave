@@ -22,11 +22,11 @@ Required projection controls:
 - Normal members cannot edit `openclaw.json`, run the OpenClaw config wizard, manage gateway/channels/plugins/MCP/secrets/sandbox/exec/tool allowlists, or use raw dashboard controls for those areas.
 - Member-facing Weaver settings are limited to policy-allowed model aliases, style, memory/workspace preferences, allowed skills, and allowed personal MCP connection flows exposed by Weave.
 - Admin policy projects model defaults, fallbacks, and allowed aliases; users choose only among Weave aliases, not raw provider/model identifiers.
-- Weaver normally exposes one stable OpenClaw channel plugin, `channels.weave-chat`. Matrix, Teams, iMessage, Slack, Telegram, and other chat systems remain Weave Chat-domain providers behind Weave server routing, not separate per-user Weaver channel configs.
+- Weaver exposes OpenClaw's stock `channels.matrix` plugin against the OIDC-gated Weave Matrix Client-Server facade. Matrix, Teams, iMessage, Slack, Telegram, and other southbound chat systems remain Weave Chat-domain providers behind Weave server routing, not separate per-user Weaver channel configs.
 - MCP servers, skills, and tools are distributed through Weave policy. `tools.deny` is hard-deny; `bundle-mcp`, gateway, cron, exec, write, and patch-style capabilities remain default-deny unless the signed profile explicitly allows a constrained use.
 - OpenClaw Policy/Doctor output is conformance lint over generated settings. It is not a second source of truth.
 
-Correct Chat provider-change flow: Admin changes the Chat domain provider in Weave -> readiness/migration checks run -> Credential Broker binds new provider credentials -> Weave backend routing/profile version changes -> signed RuntimeProfile vNext still exposes `channels.weave-chat` with updated profile hash/runtime token metadata -> the stable channel reloads or restarts if needed -> the user continues through Weave UX.
+Correct Chat provider-change flow: Admin changes the Chat domain provider in Weave -> readiness/migration checks run -> Credential Broker binds new provider credentials -> Weave backend routing/profile version changes -> signed RuntimeProfile vNext still exposes stock `channels.matrix` against the same Weave northbound facade with updated profile metadata -> the runtime reloads or restarts if needed -> the user continues through Weave UX.
 
 ## Disabled-by-default gates
 
@@ -57,7 +57,7 @@ Each enabled active user/trust boundary receives one isolated runtime boundary, 
 
 ## Approval policy
 
-Read tools may run within the user's granted capability set. Write-like actions require approval receipts before invocation:
+Read tools may run within the user's granted capability set. Write-like Spring AI MCP tools use standard form elicitation routed through OpenClaw plugin approvals; Weave then mints a short-lived, one-use receipt bound to the exact actor, runtime profile, tool, canonical scopes, normalized arguments, policy version, and tool-contract version. The signed runtime profile exposes `deny`, `allowlist`, `ask`, `auto`, and `full` modes. `full` is deliberately dangerous, requires an explicit warning confirmation in the Weave client, and must project matching host exec policy. Write-like actions still require the resulting receipt before invocation:
 
 - writes;
 - deletes;

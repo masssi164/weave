@@ -86,7 +86,7 @@ Caddy is managed by the OpenTofu infrastructure stage. `weave-workspace/docker-c
 `install.sh` writes two generated env files:
 
 - `weave-workspace/.generated/bootstrap.env`: private local bootstrap values and secrets. Use only for local backend/server-side runs that need those secrets.
-- `weave-workspace/.generated/app-config.env`: no-secrets app/runtime summary. It includes product gateway, backend API, auth issuer, Matrix homeserver, Weave product files/calendar routes, and a clearly labeled `WEAVE_NEXTCLOUD_TECHNICAL_BASE_URL` for raw Nextcloud admin/protocol fallback only.
+- `weave-workspace/.generated/app-config.env`: no-secrets app/runtime summary. It includes product gateway, backend API, auth issuer, the API-origin Matrix facade, Weave product files/calendar routes, and clearly labeled technical provider URLs for operator/admin use only.
 
 Do not attach `bootstrap.env` to support issues or logs.
 

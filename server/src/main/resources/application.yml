@@ -4,6 +4,10 @@ server:
 spring:
   application:
     name: weave-backend
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
   security:
     oauth2:
       resourceserver:
@@ -27,11 +31,13 @@ management:
         enabled: true
 
 weave:
+  mcp:
+    boundary-token: ${WEAVE_MCP_BOUNDARY_TOKEN:local-dev-mcp-boundary}
   platform:
     public-base-url: ${WEAVE_PUBLIC_BASE_URL:https://weave.test}
     api-base-url: ${WEAVE_API_BASE_URL:https://api.weave.test/api}
     auth-base-url: ${WEAVE_AUTH_BASE_URL:https://auth.weave.test}
-    matrix-homeserver-url: ${WEAVE_MATRIX_HOMESERVER_URL:https://matrix.weave.test}
+    matrix-homeserver-url: ${WEAVE_MATRIX_HOMESERVER_URL:}
     files-product-url: ${WEAVE_FILES_PRODUCT_URL:https://weave.test/files}
     calendar-product-url: ${WEAVE_CALENDAR_PRODUCT_URL:https://weave.test/calendar}
     nextcloud-base-url: ${WEAVE_NEXTCLOUD_PUBLIC_BASE_URL:${WEAVE_NEXTCLOUD_BASE_URL:https://files.weave.test}}
@@ -44,6 +50,11 @@ weave:
     required-audience: ${WEAVE_OIDC_REQUIRED_AUDIENCE:weave-app}
     # JWT azp and/or client_id must identify the first-party Weave app client.
     client-id: ${WEAVE_CLIENT_ID:weave-app}
+    device-credentials:
+      # Memory is reserved for local development and isolated tests. The shipped
+      # infrastructure selects JDBC so DAV credentials remain revocable after restart.
+      storage:
+        mode: ${WEAVE_DEVICE_CREDENTIAL_STORAGE_MODE:memory}
   nextcloud:
     files:
       base-url: ${WEAVE_NEXTCLOUD_BASE_URL:https://files.weave.test}
@@ -55,6 +66,9 @@ weave:
       actor-token: ${WEAVE_NEXTCLOUD_FILES_ACTOR_TOKEN:${WEAVE_NEXTCLOUD_FILES_APP_PASSWORD:}}
   calendar:
     caldav:
+      # Northbound Weave-owned CalDAV profile/discovery host. Do not point member-native
+      # setup profiles at a downstream provider URL.
+      public-base-url: ${WEAVE_CALDAV_PUBLIC_BASE_URL:https://calendar.weave.test}
       # Calendar product operations stay on /api; this backend actor is the only component
       # that talks to Nextcloud CalDAV. The first safe slice targets a backend-owned
       # workspace calendar; private per-user templates containing {user} fail closed until
@@ -67,12 +81,21 @@ weave:
       backend-token: ${WEAVE_CALDAV_BACKEND_TOKEN:}
       request-timeout-seconds: ${WEAVE_CALDAV_REQUEST_TIMEOUT_SECONDS:10}
   matrix:
+    facade:
+      # Stable Weave-owned Matrix server name. It identifies the northbound projection,
+      # not a southbound homeserver and must not change during provider replacement.
+      server-name: ${WEAVE_MATRIX_FACADE_SERVER_NAME:api.weave.test}
+      base-url: ${WEAVE_MATRIX_FACADE_BASE_URL:https://api.weave.test}
     # Backend diagnostics must remain E2EE-compatible: the backend never inspects
     # encrypted Matrix message bodies. These validation flags are false until real
     # encrypted-room, device verification, recovery, lost-device, multi-device, and
     # accessibility gates are proven by Matrix-native client/smoke/E2E flows.
     federation-enabled: ${WEAVE_MATRIX_FEDERATION_ENABLED:false}
     e2ee:
+      storage:
+        # Memory is isolated-test only. Shipped infrastructure selects JDBC so
+        # public keys, to-device envelopes, and encrypted backups survive restart.
+        mode: ${WEAVE_MATRIX_E2EE_STORAGE_MODE:memory}
       encrypted-rooms-validated: ${WEAVE_MATRIX_E2EE_ENCRYPTED_ROOMS_VALIDATED:false}
       device-verification-validated: ${WEAVE_MATRIX_E2EE_DEVICE_VERIFICATION_VALIDATED:false}
       key-backup-validated: ${WEAVE_MATRIX_E2EE_KEY_BACKUP_VALIDATED:false}
@@ -88,7 +111,7 @@ weave:
       enabled: ${WEAVE_WORKSPACE_SHELL_ACCESS_ENABLED:true}
     chat:
       enabled: ${WEAVE_WORKSPACE_CHAT_ENABLED:true}
-      dependency-url: ${WEAVE_MATRIX_HOMESERVER_URL:https://matrix.weave.test}
+      dependency-url: ${WEAVE_MATRIX_BASE_URL:https://matrix.weave.test}
       readiness: ${WEAVE_WORKSPACE_CHAT_READINESS:}
     files:
       enabled: ${WEAVE_WORKSPACE_FILES_ENABLED:true}
@@ -125,15 +148,6 @@ weave:
       elevated-enabled: ${WEAVE_WEAVER_RUNTIME_ELEVATED_ENABLED:false}
       audit-required: true
       fork-required: ${WEAVE_WEAVER_RUNTIME_FORK_REQUIRED:false}
-    pa-chat:
-      # Real PA Weaver chat must call a governed Weaver runtime bridge. When
-      # disabled or unset, Weave Chat fails closed instead of synthesizing
-      # Weaver/LM Studio success evidence.
-      enabled: ${WEAVE_WEAVER_PA_CHAT_ENABLED:false}
-      bridge-url: ${WEAVE_WEAVER_PA_CHAT_BRIDGE_URL:}
-      # Local LM Studio/Qwen tool-call turns can be much slower than cloud chat completions.
-      timeout: ${WEAVE_WEAVER_PA_CHAT_TIMEOUT:120s}
-      runtime-token-ref: ${WEAVE_WEAVER_PA_CHAT_RUNTIME_TOKEN_REF:credentialref://weave/channels/weave-chat/runtime-token}
   boards:
     runtime-enabled: ${WEAVE_BOARDS_RUNTIME_ENABLED:${WEAVE_BOARDS_WORKSPACE_RUNTIME_ENABLED:false}}
     provider: ${WEAVE_BOARDS_PROVIDER:${WEAVE_BOARDS_WORKSPACE_PROVIDER:local-workspace}}
@@ -168,18 +182,31 @@ weave:
       provisioning-state: ${WEAVE_ONBOARDING_NEXTCLOUD_PROVISIONING_STATE:}
   profile:
     # Persistent product-profile override store for mutable fields accepted by PATCH /api/profile.
-    # Mount this path on durable storage for containerized runs.
+    # The default remains file-backed until relational parity, rollback, and dogfood migration
+    # notes are complete.
     storage:
+      mode: ${WEAVE_PROFILE_STORAGE_MODE:file}
       path: ${WEAVE_PROFILE_STORAGE_PATH:./data/profile-overrides.json}
   provider:
     selections:
-      # Persistent Admin Console provider selections. Mount this path on durable storage for server restarts.
+      # Persistent Admin Console provider selections. The default remains file-backed until
+      # relational parity, rollback, and dogfood migration notes are complete.
       storage:
+        mode: ${WEAVE_PROVIDER_SELECTIONS_STORAGE_MODE:file}
         path: ${WEAVE_PROVIDER_SELECTIONS_STORAGE_PATH:./data/provider-selections.json}
+  persistence:
+    jdbc:
+      # Disabled unless a repository storage mode explicitly selects JDBC. H2 is local/test
+      # only; release-grade proof must use PostgreSQL-compatible migrations.
+      url: ${WEAVE_PERSISTENCE_JDBC_URL:}
+      username: ${WEAVE_PERSISTENCE_JDBC_USERNAME:}
+      password: ${WEAVE_PERSISTENCE_JDBC_PASSWORD:}
+      driver-class-name: ${WEAVE_PERSISTENCE_JDBC_DRIVER:}
   audit:
     events:
       # Append-only support-safe audit sink for provider/control-plane apply decisions.
       storage:
+        mode: ${WEAVE_AUDIT_EVENTS_STORAGE_MODE:file}
         path: ${WEAVE_AUDIT_EVENTS_STORAGE_PATH:./data/audit-events.jsonl}
   interop:
     enabled: ${WEAVE_INTEROP_ENABLED:false}
@@ -202,6 +229,7 @@ weave:
     evidence:
       # Persistent support-safe dry-run/apply evidence. Mount this path on durable storage for server restarts.
       storage:
+        mode: ${WEAVE_MIGRATION_EVIDENCE_STORAGE_MODE:file}
         path: ${WEAVE_MIGRATION_EVIDENCE_STORAGE_PATH:./data/migration-run-evidence.json}
   connectors:
     public-sdk-enabled: ${WEAVE_CONNECTORS_PUBLIC_SDK_ENABLED:false}

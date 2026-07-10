@@ -49,7 +49,12 @@ variable "auth_base_url" {
 }
 
 variable "matrix_base_url" {
-  description = "Public Matrix base URL."
+  description = "Southbound Matrix provider base URL consumed only by backend/provider wiring."
+  type        = string
+}
+
+variable "matrix_facade_url" {
+  description = "Client-facing Weave Matrix facade URL on the public backend origin."
   type        = string
 }
 
@@ -282,6 +287,32 @@ variable "provider_selections_storage_path" {
   type        = string
 }
 
+variable "persistence_jdbc_url" {
+  description = "JDBC URL for backend-owned durable stores."
+  type        = string
+}
+
+variable "persistence_jdbc_username" {
+  description = "Database role used by backend-owned durable stores."
+  type        = string
+}
+
+variable "persistence_jdbc_password" {
+  description = "Database password used by backend-owned durable stores."
+  type        = string
+  sensitive   = true
+}
+
+variable "device_credential_storage_mode" {
+  description = "Storage mode for revocable WebDAV and CalDAV device credentials."
+  type        = string
+
+  validation {
+    condition     = contains(["memory", "jdbc"], var.device_credential_storage_mode)
+    error_message = "device_credential_storage_mode must be memory or jdbc."
+  }
+}
+
 variable "provider_stack_profile" {
   description = "Provider-stack runtime posture profile. The default fail-closed profile advertises provider seams without enabling provider runtimes or secrets."
   type        = string
@@ -294,11 +325,6 @@ variable "provider_stack_readiness" {
 
 variable "devops_primary_provider" {
   description = "Primary DevOps provider candidate exported to the backend. GitLab CE/FOSS is the default primary path."
-  type        = string
-}
-
-variable "devops_alternative_provider" {
-  description = "Alternative DevOps provider candidate exported to the backend. Forgejo remains first-class but disabled by default."
   type        = string
 }
 
@@ -320,27 +346,6 @@ variable "devops_gitlab_api_token" {
 
 variable "devops_gitlab_writes_enabled" {
   description = "Enable GitLab provider writes. Defaults false; current DevOps facade is read-only."
-  type        = bool
-}
-
-variable "devops_forgejo_runtime_enabled" {
-  description = "Enable Forgejo DevOps provider runtime. Defaults false/fail-closed."
-  type        = bool
-}
-
-variable "devops_forgejo_base_url" {
-  description = "Backend-only Forgejo base URL. Leave blank unless the Forgejo provider runtime is intentionally enabled."
-  type        = string
-}
-
-variable "devops_forgejo_api_token" {
-  description = "Backend-held Forgejo service token. Never expose to Flutter, app config, or support bundles."
-  type        = string
-  sensitive   = true
-}
-
-variable "devops_forgejo_writes_enabled" {
-  description = "Enable Forgejo provider writes. Defaults false; current DevOps facade is read-only."
   type        = bool
 }
 
@@ -441,4 +446,10 @@ variable "client_id" {
 variable "healthcheck_path" {
   description = "HTTP path used by Docker to check backend health."
   type        = string
+}
+
+variable "mcp_boundary_token" {
+  description = "Private credential accepted only from the Spring AI MCP service boundary."
+  type        = string
+  sensitive   = true
 }

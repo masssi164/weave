@@ -16,7 +16,7 @@
 ## Sprint 13 RuntimeProfile projection refresh
 
 - [x] T011 [#519/#522] Define the signed `WeaverRuntimeProfile` as the only source consumed by the OpenClaw-derived runtime.
-- [x] T012 [#519/#522] Preserve stable `channels.weave-chat` for Chat-domain provider changes while Matrix, Teams, iMessage, Slack, and future providers remain backend `providerRef` bindings.
+- [x] T012 [#519/#522] Superseded by the stock `channels.matrix` northbound-facade decision: preserve the stable Weave Matrix protocol contract while Matrix, Teams, iMessage, Slack, and future southbound providers remain backend `providerRef` bindings.
 - [x] T013 [#519/#522] Require CredentialRefs and short-lived runtime token references only; exclude provider secrets and OAuth refresh tokens from profiles, logs, support bundles, and release evidence.
 - [x] T014 [#519/#522] Map the provider-change acceptance evidence to the Sprint 13 RuntimeProfile projection and Weaver/OpenClaw architecture boundary.
 - [x] T015 [#526] Define the per-user runtime context/container lifecycle with signed RuntimeProfile input, isolated state/workspace/agentDir, internal-only network, quota/memory boundaries, and reload/restart/rollback/revocation gates.
@@ -28,4 +28,3 @@
 - [ ] T020 [Northstar] Add `ApprovalReceipt` schema and tests for once/scoped-persistent/denied/revoked semantics, expiry/revocation, drift fail-closed, and distinction from OpenClaw exec permissions.
 - [ ] T021 [Northstar] Add Weaver channel + MCP access spec/tasks without leaking personal runtime config.
 - [ ] T022 [#719] Add isolated Keycloak group/user opt-in/governed MCP event-creation E2E before any customer-ready or live-runtime Weaver claim.
-

@@ -39,6 +39,7 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
@@ -103,6 +104,7 @@ class WorkspaceControllerTest {
     @Test
     void returnsOrganizationManifestForMemberClientWithoutAdminConsoleLeakage() throws Exception {
         // V01_ORG_MANIFEST_CLIENT_ADMIN_SPLIT
+        // SUPPORT_SAFE_CAPABILITY_STATES_CONTRACT
         mockMvc.perform(get("/api/v1/organization/manifest").with(jwt()
                         .jwt(jwt -> jwt
                                 .subject("calendar-editor@example.invalid")
@@ -140,10 +142,60 @@ class WorkspaceControllerTest {
                 .andExpect(jsonPath("$.memberCapabilityStates['boards-tasks']").value("disabled_by_policy"))
                 .andExpect(jsonPath("$.memberCapabilityStates.meetings").value("not_configured"))
                 .andExpect(jsonPath("$.memberCapabilityStates['forms-contacts']").value("coming_later"))
+                .andExpect(jsonPath("$.clientAccessDiscovery.files.productApiBasePath").value("/api/files"))
+                .andExpect(jsonPath("$.clientAccessDiscovery.files.openApiTag").value("Files"))
+                .andExpect(jsonPath("$.clientAccessDiscovery.files.supportSafe").value(true))
+                .andExpect(jsonPath("$.clientAccessDiscovery.files.providerConfigurationExposed").value(false))
+                .andExpect(jsonPath("$.clientAccessDiscovery.files.surfaces[?(@.kind == 'standard-protocol')].name")
+                        .value(hasItem("Weave WebDAV projection")))
+                .andExpect(jsonPath("$.clientAccessDiscovery.files.surfaces[?(@.kind == 'standard-protocol')].setupPath")
+                        .value(hasItem("/dav/files")))
+                .andExpect(jsonPath("$.clientAccessDiscovery.files.surfaces[?(@.kind == 'standard-protocol')].readiness")
+                        .value(hasItem("data_plane_read_write_available")))
+                .andExpect(jsonPath("$.clientAccessDiscovery.files.surfaces[?(@.kind == 'mcp')].readiness")
+                        .value(hasItem("read_allowlist_available_write_cutover_blocked")))
+                .andExpect(jsonPath("$.clientAccessDiscovery.files.surfaces[?(@.kind == 'native-os')].setupPath")
+                        .value(hasItem("/api/files/native-provider-setup")))
+                .andExpect(jsonPath("$.clientAccessDiscovery.files.credentialLifecycle.status")
+                        .value("revocable_device_grants_available"))
+                .andExpect(jsonPath("$.clientAccessDiscovery.files.credentialLifecycle.lifecyclePaths", hasItems(
+                        "/api/files/client-setup/credentials",
+                        "/api/files/native-provider-setup")))
+                .andExpect(jsonPath("$.clientAccessDiscovery.files.credentialLifecycle.secretMaterialReturned").value(false))
+                .andExpect(jsonPath("$.clientAccessDiscovery.calendar.surfaces[?(@.kind == 'standard-protocol')].name")
+                        .value(hasItem("Weave CalDAV/iCalendar projection")))
+                .andExpect(jsonPath("$.clientAccessDiscovery.calendar.surfaces[?(@.kind == 'standard-protocol')].setupPath")
+                        .value(hasItem("/caldav")))
+                .andExpect(jsonPath("$.clientAccessDiscovery.calendar.surfaces[?(@.kind == 'native-os')].setupPath")
+                        .value(hasItem("/api/calendar/native-sync-setup")))
+                .andExpect(jsonPath("$.clientAccessDiscovery.calendar.credentialLifecycle.lifecyclePaths", hasItems(
+                        "/api/calendar/client-setup/credentials",
+                        "/api/calendar/client-setup/apple.mobileconfig")))
+                .andExpect(jsonPath("$.clientAccessDiscovery.chat.openApiTag").value("Chat domain"))
+                .andExpect(jsonPath("$.clientAccessDiscovery.chat.surfaces[?(@.kind == 'openapi')].name")
+                        .value(hasItem("Weave Chat control and context API")))
+                .andExpect(jsonPath("$.clientAccessDiscovery.chat.surfaces[?(@.kind == 'openapi')].readiness")
+                        .value(hasItem("control_plane_available")))
+                .andExpect(jsonPath("$.clientAccessDiscovery.chat.surfaces[?(@.kind == 'standard-protocol')].name")
+                        .value(hasItem("Weave Matrix Client-Server projection")))
+                .andExpect(jsonPath("$.clientAccessDiscovery.chat.surfaces[?(@.kind == 'standard-protocol')].setupPath")
+                        .value(hasItem("/_matrix/client")))
+                .andExpect(jsonPath("$.clientAccessDiscovery.chat.surfaces[?(@.kind == 'standard-protocol')].readiness")
+                        .value(hasItem("encrypted_data_plane_available")))
+                .andExpect(jsonPath("$.clientAccessDiscovery.chat.credentialLifecycle.status")
+                        .value("session_bound_no_raw_matrix_credentials"))
+                .andExpect(jsonPath("$.clientAccessDiscovery['meetings-calls'].surfaces[?(@.kind == 'native-os')].setupPath")
+                        .value(hasItem("/api/calls/native-boundary-setup")))
+                .andExpect(jsonPath("$.clientAccessDiscovery['meetings-calls'].surfaces[?(@.kind == 'standard-protocol')].readiness")
+                        .value(hasItem("boundary_only")))
                 .andExpect(jsonPath("$.capabilities.calendar.grantedCapabilities", hasItems("calendar.manage_events")))
                 .andExpect(jsonPath("$.capabilities.weaver.policyState").value("disabled"))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("matrix.weave.test"))))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("files.weave.test"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("nextcloud"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("provider.example"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("token="))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("secretref://"))))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("providerDiagnostics"))))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("Authorization: Bearer"))));
     }
@@ -304,7 +356,8 @@ class WorkspaceControllerTest {
     @Test
     void returnsContractBridgeInvocationEnvelope() throws Exception {
         String runtimeProfileHash = runtimeProfileHash();
-        when(weaverMcpBridgeService.invokeMcpTool(any(), eq("weave-domain-tools"), eq("files.read"), any()))
+        when(weaverMcpBridgeService.invokeMcpTool(
+                        any(), eq("weave-domain-tools"), eq("files.read"), any(), eq("test-mcp-boundary")))
                 .thenReturn(new BridgeInvocationResponse(
                         "files.read",
                         ToolInvocationStatus.DENIED,
@@ -320,6 +373,7 @@ class WorkspaceControllerTest {
                                         .claim("groups", List.of("weave-weaver-runtime", "weave-weaver-pilot")))
                                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace")))
                         .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .header("X-Weave-Mcp-Boundary-Token", "test-mcp-boundary")
                         .content("""
                                 {
                                   "toolName": "files.read",
@@ -375,8 +429,6 @@ class WorkspaceControllerTest {
                 runtimeProfileHash,
                 new WeaveMcpRef("credentialref://weave/runtime/short-lived/test"),
                 "audit://weaver-mcp/weave-domain-tools/discover",
-                null,
-                null,
                 List.of(),
                 List.of());
     }

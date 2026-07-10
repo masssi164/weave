@@ -2842,7 +2842,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get serverConfigurationServicesHelper =>
-      'Defaults for Matrix, Nextcloud, and the backend API are derived from the issuer host. Edit them if your services live elsewhere.';
+      'The Matrix facade is fixed to the backend API origin. Files and backend product endpoints are derived from the issuer host.';
 
   @override
   String get serverConfigurationBackendApiHelper =>
@@ -2856,7 +2856,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Provider selection is owned by the Weave Admin Console and backend control plane. This member client stores only canonical Weave endpoints needed to sign in.';
 
   @override
-  String get serverConfigurationMatrixLabel => 'Matrix Homeserver URL';
+  String get serverConfigurationMatrixLabel => 'Weave Matrix Facade URL';
 
   @override
   String get serverConfigurationNextcloudLabel => 'Nextcloud Base URL';
@@ -4169,4 +4169,47 @@ class AppLocalizationsEn extends AppLocalizations {
   String memberHandoffErrorCode(String code) {
     return 'Error code: $code';
   }
+
+  @override
+  String get weaverPermissionModeTitle => 'Permission mode';
+
+  @override
+  String get weaverPermissionModeDeny => 'Deny all';
+
+  @override
+  String get weaverPermissionModeAllowlist => 'Allowlist only';
+
+  @override
+  String get weaverPermissionModeAsk => 'Ask every time';
+
+  @override
+  String get weaverPermissionModeAuto => 'Automatic review';
+
+  @override
+  String get weaverPermissionModeFull => 'Full access (dangerous)';
+
+  @override
+  String get weaverPermissionFullWarningTitle =>
+      'Enable dangerous full access?';
+
+  @override
+  String get weaverPermissionFullWarningBody =>
+      'Weaver will be allowed to run host commands without approval and will automatically accept trusted Weave tool requests. Organization policy, your sign-in, validation, provider boundaries, and audit logging still apply.';
+
+  @override
+  String get weaverPermissionFullConfirm => 'Enable full access';
+
+  @override
+  String get weaverPermissionCancel => 'Cancel';
+
+  @override
+  String get weaverPermissionUpdated => 'Weaver permission mode updated.';
+
+  @override
+  String get weaverPermissionPolicyDenied =>
+      'Your organization policy does not allow this mode.';
+
+  @override
+  String get weaverPermissionUpdateFailed =>
+      'Weaver permission mode could not be updated.';
 }

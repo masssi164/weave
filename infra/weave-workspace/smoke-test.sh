@@ -216,6 +216,23 @@ curl_basic_propfind_status() {
     "$url"
 }
 
+curl_bearer_propfind_status() {
+  local token="$1"
+  local url="$2"
+  local host_port
+
+  host_port="$(host_port_from_url "${url}")"
+  curl --silent --show-error \
+    --cacert "${CADDY_TLS_CA_FILE}" \
+    --resolve "${host_port}:127.0.0.1" \
+    --header "Authorization: Bearer ${token}" \
+    --request PROPFIND \
+    --header 'Depth: 0' \
+    -o /dev/null \
+    -w '%{http_code}' \
+    "${url}"
+}
+
 curl_location() {
   local url="$1"
   local host_port
@@ -438,28 +455,6 @@ check_matrix_provisioner_key_backup_diagnostic() {
   esac
 }
 
-probe_authenticated_facade() {
-  local name="$1"
-  local token="$2"
-  local url="$3"
-  local body_file
-  local status
-
-  body_file="$(mktemp)"
-  status="$(curl_auth_status_to_file "${token}" "${url}" "${body_file}" || true)"
-  if grep -q 'nextcloud-adapter-not-configured' "${body_file}"; then
-    rm -f -- "${body_file}"
-    fail "Smoke check failed: ${name} facade reports missing backend-owned Nextcloud actor configuration"
-  fi
-  rm -f -- "${body_file}"
-
-  if [[ "${status}" == 2* ]]; then
-    log "${name} facade answered HTTP ${status}."
-  else
-    log "${name} facade probe answered HTTP ${status}; actor config is present, but full downstream user/calendar readiness is not gated here."
-  fi
-}
-
 require_command curl
 require_command docker
 require_command jq
@@ -475,7 +470,8 @@ WEAVE_BASE_URL="${WEAVE_API_BASE_URL%/}"
 WEAVE_AUTH_BASE_URL="${WEAVE_AUTH_BASE_URL:-$(public_url "${TF_VAR_auth_subdomain:-auth}")}"
 WEAVE_OIDC_ISSUER_URL="${WEAVE_OIDC_ISSUER_URL:-${WEAVE_AUTH_BASE_URL}/realms/${TF_VAR_tenant_slug:-weave}}"
 WEAVE_NEXTCLOUD_BASE_URL="${WEAVE_NEXTCLOUD_BASE_URL:-$(public_url "${TF_VAR_nextcloud_subdomain:-files}")}"
-WEAVE_MATRIX_HOMESERVER_URL="${WEAVE_MATRIX_HOMESERVER_URL:-$(public_url "${TF_VAR_matrix_subdomain:-matrix}")}"
+WEAVE_MATRIX_HOMESERVER_URL="${WEAVE_MATRIX_HOMESERVER_URL:-$(public_url "${TF_VAR_api_subdomain:-api}")}"
+WEAVE_MATRIX_PROVIDER_URL="${WEAVE_MATRIX_PROVIDER_URL:-$(public_url "${TF_VAR_matrix_subdomain:-matrix}")}"
 WEAVE_LOCAL_CA_HOST="${TF_VAR_tenant_domain:-weave.test}"
 WEAVE_LOCAL_CA_EXPECTED_URL="http://${WEAVE_LOCAL_CA_HOST}:${TF_VAR_proxy_http_host_port:-44080}/weave-local-ca.pem"
 WEAVE_LOCAL_CA_URL="${WEAVE_LOCAL_CA_URL:-${WEAVE_LOCAL_CA_EXPECTED_URL}}"
@@ -488,13 +484,14 @@ assert_url_no_legacy_local_truth "${WEAVE_LOCAL_CA_URL}" "Local CA bootstrap URL
 local_ca_status="$(curl_status "${WEAVE_LOCAL_CA_URL}")"
 [[ "${local_ca_status}" == "200" ]] || fail "Smoke check failed: local CA must be reachable through ${WEAVE_LOCAL_CA_HOST} bootstrap URL, got HTTP ${local_ca_status}"
 if [[ -n "${TF_VAR_local_lan_host:-}" ]]; then
-  for dns_first_url in "${WEAVE_PUBLIC_BASE_URL}" "${WEAVE_BASE_URL}" "${WEAVE_AUTH_BASE_URL}" "${WEAVE_OIDC_ISSUER_URL}" "${WEAVE_MATRIX_HOMESERVER_URL}" "${WEAVE_LOCAL_CA_URL}"; do
+  for dns_first_url in "${WEAVE_PUBLIC_BASE_URL}" "${WEAVE_BASE_URL}" "${WEAVE_AUTH_BASE_URL}" "${WEAVE_OIDC_ISSUER_URL}" "${WEAVE_MATRIX_HOMESERVER_URL}" "${WEAVE_MATRIX_PROVIDER_URL}" "${WEAVE_LOCAL_CA_URL}"; do
     [[ "${dns_first_url}" != *"${TF_VAR_local_lan_host}"* ]] || fail "Smoke check failed: local_lan_host is non-canonical and must not appear in DNS-first app/service URLs: ${dns_first_url}"
   done
 fi
 : "${WEAVE_OIDC_CLIENT_ID:?Expected WEAVE_OIDC_CLIENT_ID in env or bootstrap env}"
 : "${WEAVE_NEXTCLOUD_BASE_URL:?Expected WEAVE_NEXTCLOUD_BASE_URL in env or bootstrap env}"
 : "${WEAVE_MATRIX_HOMESERVER_URL:?Expected WEAVE_MATRIX_HOMESERVER_URL in env or bootstrap env}"
+: "${WEAVE_MATRIX_PROVIDER_URL:?Expected WEAVE_MATRIX_PROVIDER_URL in env or bootstrap env}"
 : "${WEAVE_TEST_USERNAME:?Expected WEAVE_TEST_USERNAME in env or bootstrap env}"
 : "${WEAVE_TEST_PASSWORD:?Expected WEAVE_TEST_PASSWORD in env or bootstrap env}"
 
@@ -508,6 +505,10 @@ token_endpoint="$(jq -r '.token_endpoint' <<<"${issuer_config}")"
 log "Checking public backend health..."
 backend_health="$(curl_json "${WEAVE_BASE_URL}/health/ready")"
 assert_json "${backend_health}" '.status == "up"' "Backend readiness should report up"
+
+log "Checking internal Spring AI MCP health..."
+mcp_health="$(curl --silent --show-error --fail "http://127.0.0.1:${TF_VAR_mcp_host_port:-48085}/actuator/health")"
+assert_json "${mcp_health}" '.status == "UP"' "MCP readiness should report up"
 
 log "Checking product shell routes..."
 product_status="$(curl_status "${WEAVE_PUBLIC_BASE_URL}/")"
@@ -602,10 +603,12 @@ log "Checking admin API protection with a member token..."
 admin_control_plane_status="$(curl_auth_status "${access_token}" "${WEAVE_BASE_URL}/admin/control-plane" || true)"
 [[ "${admin_control_plane_status}" == "403" ]] || fail "Smoke check failed: member token should receive 403 from admin control plane, got ${admin_control_plane_status}"
 
-log "Checking backend files/calendar facade actor wiring..."
+log "Checking authenticated WebDAV and CalDAV northbound facades..."
 assert_backend_nextcloud_actor_config
-probe_authenticated_facade "Files" "${access_token}" "${WEAVE_BASE_URL}/files"
-probe_authenticated_facade "Calendar" "${access_token}" "${WEAVE_BASE_URL}/calendar/events"
+files_facade_status="$(curl_bearer_propfind_status "${access_token}" "$(public_url "${TF_VAR_api_subdomain:-api}")/dav/files" || true)"
+[[ "${files_facade_status}" == "207" ]] || fail "Smoke check failed: authenticated WebDAV facade returned HTTP ${files_facade_status}"
+calendar_facade_status="$(curl_bearer_propfind_status "${access_token}" "$(public_url "${TF_VAR_api_subdomain:-api}")/caldav" || true)"
+[[ "${calendar_facade_status}" == "207" ]] || fail "Smoke check failed: authenticated CalDAV facade returned HTTP ${calendar_facade_status}"
 
 log "Checking Nextcloud OIDC bootstrap..."
 nextcloud_status="$(curl_json "${WEAVE_NEXTCLOUD_BASE_URL}/status.php")"
@@ -625,8 +628,14 @@ assert_json "${nextcloud_providers}" '.settings.groupProvisioning == true' "Next
 nextcloud_oidc_redirect="$(curl_location "${WEAVE_NEXTCLOUD_BASE_URL}/apps/user_oidc/login/1")"
 [[ "${nextcloud_oidc_redirect}" == "${WEAVE_AUTH_BASE_URL}"/realms/* ]] || fail "Smoke check failed: Nextcloud OIDC login should redirect to the canonical Auth base URL, got '${nextcloud_oidc_redirect}'"
 
-log "Checking Matrix auth routing and MAS wiring..."
-matrix_base_url="${WEAVE_MATRIX_HOMESERVER_URL}"
+log "Checking the OIDC-gated Weave Matrix facade..."
+matrix_facade_versions="$(curl_auth_json "${access_token}" "${WEAVE_MATRIX_HOMESERVER_URL}/_matrix/client/versions")"
+assert_json "${matrix_facade_versions}" '.matrixCore.oidcGatekeeper == "spring-boot-resource-server" and .matrixCore.northboundHomeserverDependency == false' "Weave Matrix facade should be OIDC-gated and provider-neutral"
+matrix_facade_whoami="$(curl_auth_json "${access_token}" "${WEAVE_MATRIX_HOMESERVER_URL}/_matrix/client/v3/account/whoami")"
+assert_json "${matrix_facade_whoami}" '.device_id == "weave-oidc" and .is_guest == false' "Weave Matrix facade should derive identity from the app OIDC token"
+
+log "Checking southbound Matrix provider auth routing and MAS wiring..."
+matrix_base_url="${WEAVE_MATRIX_PROVIDER_URL}"
 matrix_versions="$(curl_json "${matrix_base_url}/_matrix/client/versions")"
 assert_json "${matrix_versions}" '.versions | length > 0' "Matrix client versions should be reachable"
 matrix_client_discovery="$(curl_json "${matrix_base_url}/.well-known/matrix/client")"

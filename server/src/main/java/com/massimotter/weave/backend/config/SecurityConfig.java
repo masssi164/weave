@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.config;
 
+import com.massimotter.weave.backend.security.device.DeviceCredentialAuthenticationFilter;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -7,6 +8,7 @@ import java.util.Locale;
 import java.util.Map;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -18,8 +20,11 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.expression.WebExpressionAuthorizationManager;
+import org.springframework.security.web.firewall.HttpFirewall;
+import org.springframework.security.web.firewall.StrictHttpFirewall;
 
 @Configuration
 @EnableMethodSecurity
@@ -31,11 +36,14 @@ public class SecurityConfig {
 
     private final ApiAuthenticationEntryPoint authenticationEntryPoint;
     private final ApiAccessDeniedHandler accessDeniedHandler;
+    private final DeviceCredentialAuthenticationFilter deviceCredentialAuthenticationFilter;
 
     public SecurityConfig(ApiAuthenticationEntryPoint authenticationEntryPoint,
-            ApiAccessDeniedHandler accessDeniedHandler) {
+            ApiAccessDeniedHandler accessDeniedHandler,
+            ObjectProvider<DeviceCredentialAuthenticationFilter> deviceCredentialAuthenticationFilterProvider) {
         this.authenticationEntryPoint = authenticationEntryPoint;
         this.accessDeniedHandler = accessDeniedHandler;
+        this.deviceCredentialAuthenticationFilter = deviceCredentialAuthenticationFilterProvider.getIfAvailable();
     }
 
     @Bean
@@ -49,16 +57,30 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/actuator/health", "/actuator/info", "/error").permitAll()
                         .requestMatchers("/api/health/**", "/api/platform/config", "/api/platform/status").permitAll()
+                        .requestMatchers("/.well-known/matrix/client").permitAll()
                         .requestMatchers("/v3/api-docs", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/api/migration/**").access(MIGRATION_CONTROL_PLANE_ACCESS)
+                        .requestMatchers("/dav/**", "/caldav/**", "/_matrix/client/**").hasAuthority(WORKSPACE_SCOPE_AUTHORITY)
                         .requestMatchers("/api/**").hasAuthority(WORKSPACE_SCOPE_AUTHORITY)
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .authenticationEntryPoint(authenticationEntryPoint)
                         .accessDeniedHandler(accessDeniedHandler)
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())));
+        if (deviceCredentialAuthenticationFilter != null) {
+            http.addFilterBefore(deviceCredentialAuthenticationFilter, BearerTokenAuthenticationFilter.class);
+        }
 
         return http.build();
+    }
+
+    @Bean
+    HttpFirewall httpFirewall() {
+        StrictHttpFirewall firewall = new StrictHttpFirewall();
+        firewall.setAllowedHttpMethods(List.of(
+                "DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT",
+                "PROPFIND", "REPORT", "COPY", "MOVE", "MKCOL", "LOCK", "UNLOCK"));
+        return firewall;
     }
 
     @Bean

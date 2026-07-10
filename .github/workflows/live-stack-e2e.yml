@@ -100,6 +100,50 @@ jobs:
             exit 1
           fi
 
+      - name: Remove stale runner-owned Weave outputs
+        run: |
+          set -euo pipefail
+          checkout_root="${GITHUB_WORKSPACE%/}/weave"
+          remove_runner_output() {
+            local path="$1"
+            case "$path" in
+              "$checkout_root"/*|"${RUNNER_TEMP%/}"/weave-live-stack-*)
+                rm -rf -- "$path"
+                ;;
+              *)
+                echo "::error::Refusing to remove non-runner-owned path: $path" >&2
+                exit 1
+                ;;
+            esac
+          }
+          for path in \
+            "$checkout_root/.gradle" \
+            "$checkout_root/build" \
+            "$checkout_root/client/.dart_tool" \
+            "$checkout_root/client/build" \
+            "$checkout_root/server/build" \
+            "$checkout_root/weave-mcp-server/build" \
+            "$RUNNER_TEMP/weave-live-stack-acceptance-evidence" \
+            "$RUNNER_TEMP/weave-live-stack-e2e.log" \
+            "$RUNNER_TEMP/weave-live-stack-docker-config" \
+            "$RUNNER_TEMP/weave-live-stack-emergency-reserve" \
+            "$RUNNER_TEMP/weave-live-stack-emergency-reserve-released"; do
+            remove_runner_output "$path"
+          done
+          available_kib="$(df -Pk "$RUNNER_TEMP" | awk 'NR == 2 { print $4 }')"
+          minimum_kib=$((10 * 1024 * 1024))
+          runner_tool_cache="${RUNNER_TOOL_CACHE:-}"
+          if [ -z "$runner_tool_cache" ] || [ "$runner_tool_cache" = "/" ] || [[ "$runner_tool_cache" != /* ]]; then
+            echo "::error::RUNNER_TOOL_CACHE must name an absolute, non-root dedicated runner tool-cache directory." >&2
+            exit 1
+          fi
+          flutter_tool_cache="${runner_tool_cache%/}/flutter"
+          if (( available_kib < minimum_kib )) && [ -d "$flutter_tool_cache" ]; then
+            echo "Reclaiming the restorable dedicated-runner Flutter tool cache for live-test headroom."
+            rm -rf -- "$flutter_tool_cache"
+          fi
+          df -h "$RUNNER_TEMP"
+
       - name: Check out weave
         uses: actions/checkout@v5
         with:
@@ -124,7 +168,7 @@ jobs:
             echo "DOCKER_HOST=unix://$HOME/.orbstack/run/docker.sock" >> "$GITHUB_ENV"
             export DOCKER_HOST="unix://$HOME/.orbstack/run/docker.sock"
           fi
-          export DOCKER_CONFIG="$RUNNER_TEMP/docker-config"
+          export DOCKER_CONFIG="$RUNNER_TEMP/weave-live-stack-docker-config"
           mkdir -p "$DOCKER_CONFIG"
           chmod 700 "$DOCKER_CONFIG"
           auth_b64="$(printf '%s' "${GITHUB_ACTOR}:${GHCR_TOKEN}" | base64 | tr -d '\n')"
@@ -135,15 +179,32 @@ jobs:
           echo "DOCKER_CONFIG=$DOCKER_CONFIG" >> "$GITHUB_ENV"
           docker --config "$DOCKER_CONFIG" info >/dev/null
 
+      - name: Remove orphaned live-runner Buildx resources
+        run: bash weave/tools/cleanup_orphaned_buildx.sh
+
       - name: Set up Java
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
 
+      - name: Verify runner disk headroom
+        run: |
+          set -euo pipefail
+          available_kib="$(df -Pk "$RUNNER_TEMP" | awk 'NR == 2 { print $4 }')"
+          minimum_kib=$((10 * 1024 * 1024))
+          df -h "$RUNNER_TEMP"
+          if (( available_kib < minimum_kib )); then
+            echo "::error::Live Stack E2E requires at least 10 GiB free after stale-output cleanup and before tool and image setup; only $((available_kib / 1024)) MiB is available." >&2
+            echo "Runner-owned tool cache sizes:" >&2
+            du -sh "$RUNNER_TOOL_CACHE"/* 2>/dev/null | sort -h >&2 || true
+            exit 1
+          fi
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
+          flutter-version: '3.44.4'
           channel: stable
 
       - name: Set up Docker Buildx
@@ -216,10 +277,14 @@ jobs:
             docker buildx build --load -t "${WEAVE_MCP_SERVER_IMAGE}" -f weave/weave-mcp-server/Dockerfile weave
           fi
 
+      - name: Release Buildx cache before stack tests
+        run: bash weave/tools/cleanup_orphaned_buildx.sh
+
       - name: Bootstrap local stack
         working-directory: weave/infra/weave-workspace
         env:
           TF_VAR_weave_backend_image: ${{ env.WEAVE_BACKEND_IMAGE }}
+          TF_VAR_weave_mcp_server_image: ${{ env.WEAVE_MCP_SERVER_IMAGE }}
         run: ./install.sh
 
       - name: Verify local test hostnames resolve on the runner
@@ -236,23 +301,22 @@ jobs:
         working-directory: weave/infra/weave-workspace
         run: bash ./operator-check.sh
 
-      - name: Trust local Weave CA for this runner user
+      - name: Expose generated local CA to Rust Matrix tests
         run: |
           set -euo pipefail
           CA_FILE="$GITHUB_WORKSPACE/weave/infra/weave-workspace/01-infrastructure/.generated/caddy/certs/weave-local-ca.pem"
+          LEAF_FILE="$GITHUB_WORKSPACE/weave/infra/weave-workspace/01-infrastructure/.generated/caddy/certs/weave.test.pem"
           if [ ! -s "$CA_FILE" ]; then
             echo "::error::Weave local CA certificate not found at $CA_FILE"
             exit 1
           fi
-          # The login keychain can prompt/hang on the self-hosted macOS runner. Use
-          # passwordless sudo and the system keychain only; never wait for UI input.
-          if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
-            if ! sudo -n security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "$CA_FILE"; then
-              echo "::warning::Could not add Weave local CA to the system keychain; integration tests may fail TLS validation."
-            fi
-          else
-            echo "::warning::Passwordless sudo is unavailable; skipping non-interactive Weave local CA trust."
+          if [ ! -s "$LEAF_FILE" ]; then
+            echo "::error::Weave local leaf certificate not found at $LEAF_FILE"
+            exit 1
           fi
+          openssl verify -CAfile "$CA_FILE" "$LEAF_FILE"
+          echo "WEAVE_MATRIX_EXTRA_ROOT_CERTIFICATE_PATH=$CA_FILE" >> "$GITHUB_ENV"
+          echo "WEAVE_MATRIX_LIVE_TEST_EXTRA_ROOT_ENABLED=true" >> "$GITHUB_ENV"
 
       - name: Install Flutter dependencies
         working-directory: weave/client
@@ -262,9 +326,23 @@ jobs:
         working-directory: weave/client
         run: flutter gen-l10n
 
-      - name: Generate code
-        working-directory: weave/client
-        run: dart run build_runner build --delete-conflicting-outputs
+      - name: Verify live test disk headroom and reserve recovery space
+        run: |
+          set -euo pipefail
+          available_kib="$(df -Pk "$RUNNER_TEMP" | awk 'NR == 2 { print $4 }')"
+          minimum_kib=$((5 * 1024 * 1024))
+          reserve="$RUNNER_TEMP/weave-live-stack-emergency-reserve"
+          released_marker="$RUNNER_TEMP/weave-live-stack-emergency-reserve-released"
+          rm -f "$reserve" "$released_marker"
+          df -h "$RUNNER_TEMP"
+          if (( available_kib < minimum_kib )); then
+            echo "::error::Live Stack E2E requires at least 5 GiB before allocating its 1 GiB recovery reserve, preserving 4 GiB for native tests; only $((available_kib / 1024)) MiB is available." >&2
+            exit 1
+          fi
+          mkfile 1g "$reserve"
+          test "$(stat -f '%z' "$reserve")" -eq $((1024 * 1024 * 1024))
+          echo "WEAVE_RUNNER_EMERGENCY_RESERVE=$reserve" >> "$GITHUB_ENV"
+          echo "WEAVE_RUNNER_EMERGENCY_RESERVE_RELEASED=$released_marker" >> "$GITHUB_ENV"
 
       - name: Run live stack integration tests
         working-directory: weave/client
@@ -272,7 +350,34 @@ jobs:
           WEAVE_BOOTSTRAP_ENV: ${{ github.workspace }}/weave/infra/weave-workspace/.generated/bootstrap.env
         run: |
           set -euo pipefail
+          reserve="${WEAVE_RUNNER_EMERGENCY_RESERVE:?}"
+          released_marker="${WEAVE_RUNNER_EMERGENCY_RESERVE_RELEASED:?}"
+          monitor_pid=""
+          release_reserve() {
+            if [ -n "$monitor_pid" ]; then
+              kill "$monitor_pid" >/dev/null 2>&1 || true
+              wait "$monitor_pid" >/dev/null 2>&1 || true
+            fi
+            rm -f "$reserve"
+          }
+          trap release_reserve EXIT INT TERM
+          (
+            while [ -e "$reserve" ]; do
+              available_kib="$(df -Pk "$RUNNER_TEMP" | awk 'NR == 2 { print $4 }')"
+              if (( available_kib < 2 * 1024 * 1024 )); then
+                rm -f "$reserve"
+                : > "$released_marker"
+                exit 0
+              fi
+              sleep 2
+            done
+          ) &
+          monitor_pid=$!
           make integration-test 2>&1 | tee "$WEAVE_ACCEPTANCE_TEST_LOG"
+          if [ -e "$released_marker" ]; then
+            echo "::error::Live Stack E2E consumed its emergency disk reserve; increase durable runner headroom before retrying." >&2
+            exit 1
+          fi
 
       - name: Generate live stack acceptance evidence
         if: always()
@@ -315,3 +420,41 @@ jobs:
           path: ${{ env.WEAVE_ACCEPTANCE_EVIDENCE_DIR }}
           if-no-files-found: error
           retention-days: 30
+
+      - name: Scrub current runner-owned Weave outputs
+        if: always()
+        run: |
+          set -euo pipefail
+          checkout_root="${GITHUB_WORKSPACE%/}/weave"
+          remove_runner_output() {
+            local path="$1"
+            case "$path" in
+              "$checkout_root"/*|"${RUNNER_TEMP%/}"/weave-live-stack-*)
+                rm -rf -- "$path"
+                ;;
+              *)
+                echo "::error::Refusing to remove non-runner-owned path: $path" >&2
+                exit 1
+                ;;
+            esac
+          }
+          for path in \
+            "$checkout_root/.gradle" \
+            "$checkout_root/build" \
+            "$checkout_root/client/.dart_tool" \
+            "$checkout_root/client/build" \
+            "$checkout_root/server/build" \
+            "$checkout_root/weave-mcp-server/build" \
+            "${WEAVE_ACCEPTANCE_EVIDENCE_DIR:-$RUNNER_TEMP/weave-live-stack-acceptance-evidence}" \
+            "${WEAVE_ACCEPTANCE_TEST_LOG:-$RUNNER_TEMP/weave-live-stack-e2e.log}" \
+            "${DOCKER_CONFIG:-$RUNNER_TEMP/weave-live-stack-docker-config}" \
+            "${WEAVE_RUNNER_EMERGENCY_RESERVE:-$RUNNER_TEMP/weave-live-stack-emergency-reserve}" \
+            "${WEAVE_RUNNER_EMERGENCY_RESERVE_RELEASED:-$RUNNER_TEMP/weave-live-stack-emergency-reserve-released}"; do
+            remove_runner_output "$path"
+          done
+          for image_ref in "$WEAVE_BACKEND_IMAGE" "$WEAVE_MCP_SERVER_IMAGE"; do
+            if [[ "$image_ref" != ghcr.io/* ]]; then
+              docker image rm "$image_ref" >/dev/null 2>&1 || true
+            fi
+          done
+          df -h "$RUNNER_TEMP"

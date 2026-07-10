@@ -52,6 +52,6 @@ Role-specific surfaces are deliberately different:
 No implementation may introduce a parallel `calendar-events`, `files_documents`, or `boards_tasks` tool/domain vocabulary for these canonical non-chat domains. Drift tests should fail when a member facade, Weaver tool registry, or infra MCP contract invents names outside the canonical contract.
 
 
-## Contract-first Java MCP boundary
+## Spring AI MCP projection
 
-Member/Weaver-facing MCP DTOs, canonical domain identifiers, capability names, and tool metadata are owned by `weave-contract`. The backend consumes that metadata for governed Weaver tool discovery while remaining the authority for policy, authorization, audit, provider selection, and business logic. `weave-mcp-server` is a Java/Spring adapter over MCP JSON-RPC that exposes schemas from the shared DTO metadata and delegates invocation to `weave-server`; it must not call provider adapters directly or define an independent capability vocabulary. Admin/control-plane DTOs remain server-local.
+Member/Weaver-facing MCP DTOs, canonical domain identifiers, capability names, and tool metadata are projected from the shared contract metadata. The backend consumes that metadata for governed Weaver discovery while remaining authoritative for policy, authorization, audit, provider selection, and business logic. `weave-mcp-server` uses Spring AI 2.0 stateful Streamable HTTP, exposes annotated tools/resources/prompts plus standard form elicitation from that shared catalog, and delegates every invocation to `weave-server`; it cannot call provider adapters directly or define another capability vocabulary. Admin/control-plane DTOs remain server-local.

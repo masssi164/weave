@@ -21,6 +21,20 @@ policies:
   - If repo reality conflicts with the pinned corpus, open either a spec-corpus change or an implementation conformance fix.
   - Deletion or migration of transitional packets must preserve any fixture/evidence value that gates still consume.
   - Weaver/OpenClaw runtime specifications live in their own repository and are dependency/runtime evidence only for Weave product work.
+  - For PR #1043 and later, repo-local text that preserves member OpenAPI/REST data-plane access for Files, Calendar events, or Chat messages is obsolete unless explicitly scoped as admin/control/evidence only.
+obsoleteLocalMeanings:
+  - scope: files
+    obsolete: OpenAPI or provider-shaped member file list/read/write data plane
+    canonicalReplacement: /dav/files/**
+  - scope: calendar
+    obsolete: /api/calendar/events/** as normal member event data plane
+    canonicalReplacement: /caldav/**
+  - scope: chat
+    obsolete: /api/chat/conversations/** as normal member message data plane
+    canonicalReplacement: /_matrix/client/**
+  - scope: weaver-mcp
+    obsolete: Python/FastMCP OpenAPI route maps or handwritten JSON-RPC as an active MCP runtime
+    canonicalReplacement: Spring AI 2.0 stateful Streamable HTTP over canonical domain use cases and form elicitation
 artifacts:
   - path: specs/0000-weave-spec-framework
     status: transitional-conformance
@@ -72,11 +86,11 @@ artifacts:
     notes: JSON dry-run and negative fixtures are implementation evidence unless promoted to corpus contracts.
   - path: specs/0007-governed-weaver-runtime
     status: transitional-conformance
-    action: split-weave-product-policy-from-weaver-runtime-dependency-evidence
+    action: keep-only-while-acceptance-gates-consume-repo-projection
     corpusCandidates:
       - domains/weaver-governed-pa/spec.md
       - steering/openclaw-orchestrator-pattern.md
-    notes: Weaver/OpenClaw runtime implementation proof belongs to the Weaver/OpenClaw runtime repository.
+    notes: Canonical product policy is already owned by domains/weaver-governed-pa/spec.md; deleted Python MCP evidence is obsolete and Spring AI evidence is the active repo projection. Weaver/OpenClaw runtime implementation proof belongs to its runtime repository.
   - path: specs/0008-local-dogfood-topology-weave-test
     status: implementation-evidence
     action: keep-as-repo-owned-dogfood-evidence-unless-replaced-by-release-gate
@@ -85,11 +99,11 @@ artifacts:
       - steering/devops-conformance.md
   - path: specs/0009-domain-first-mcp-tools
     status: transitional-conformance
-    action: keep-until-domain-mcp-contract-is-owned-by-corpus-or-runtime-repo
+    action: prune-after-acceptance-mappings-consume-corpus-adr-0003-directly
     corpusCandidates:
-      - steering/openclaw-orchestrator-pattern.md
+      - architecture/adr/0003-canonical-domain-projections-and-spring-ai-mcp.md
       - domains/weaver-governed-pa/spec.md
-    notes: Domain naming is product truth; MCP runtime mechanics are Weaver/OpenClaw runtime truth.
+    notes: Obsolete as product truth; the corpus already owns domain naming and Spring AI projection semantics. Keep temporarily as acceptance traceability only.
   - path: specs/0010-full-product-target
     status: transitional-conformance
     action: migrate-product-scope-to-corpus-then-prune-repo-copy
@@ -103,11 +117,12 @@ artifacts:
       - domains/weaver-governed-pa/spec.md
       - steering/openclaw-orchestrator-pattern.md
   - path: specs/admin-ci-cd-orchestration-contract.md
-    status: implementation-evidence
-    action: keep-as-repo-owned-devops-conformance-unless-migrated-to-corpus-release-gate
+    status: obsolete-historical
+    action: retain-as-non-executable-migration-record-only
     corpusCandidates:
       - steering/devops-conformance.md
       - releases/rc-gates/release-candidate-gate.md
+    notes: Replaced by weave-specs commit 78f6c58fef0ebb53684c5c861c2453b8c4c577c9; Forgejo delivery/runtime evidence is not active.
 cleanupSequence:
   - Add or update corpus files for any remaining product/domain meaning.
   - Update repo tests/gates to consume corpus contracts or generated projections.

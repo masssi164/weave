@@ -1,5 +1,7 @@
 # Sprint 16 closure report — Organization Setup Control Plane & Suite Facade Expansion
 
+> Historical evidence only. The Python/FastMCP paths recorded here were retired by the Spring AI MCP cutover; see `infra/docs/weave-mcp-tool-contract.md` for the active runtime.
+
 Date: 2026-06-01
 
 ## Scope delivered

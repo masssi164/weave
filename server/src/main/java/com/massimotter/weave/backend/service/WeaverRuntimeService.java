@@ -7,6 +7,7 @@ import com.massimotter.weave.backend.audit.AuditRedactionLevel;
 import com.massimotter.weave.backend.config.WeaverRuntimeProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.model.WeaverRuntimeProfileResponse;
+import com.massimotter.weave.backend.model.WeaverPermissionModeResponse;
 import com.massimotter.weave.backend.weaver.WeaverApprovalReceipt;
 import com.massimotter.weave.backend.weaver.WeaverToolInvocationResult;
 import java.nio.charset.StandardCharsets;
@@ -25,6 +26,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -48,6 +50,8 @@ public class WeaverRuntimeService {
     private final WorkspaceCapabilityProperties workspaceCapabilityProperties;
     private final WeaverRuntimeProperties weaverRuntimeProperties;
     private final AuditEventPublisher auditEventPublisher;
+    @Value("${weave.matrix.facade.server-name:api.weave.test}")
+    private String matrixFacadeServerName = "api.weave.test";
 
     public WeaverRuntimeService(
             WorkspaceCapabilityService workspaceCapabilityService,
@@ -91,6 +95,7 @@ public class WeaverRuntimeService {
         boolean execEnabled = weaverRuntimeProperties.execEnabled() && grantedCapabilities.contains("weaver.exec_enabled");
         boolean elevatedEnabled = weaverRuntimeProperties.elevatedEnabled() && grantedCapabilities.contains("weaver.elevated_enabled");
         Map<String, Object> customization = customizationByUser.getOrDefault(userRef, Map.of());
+        String permissionMode = permissionMode(customization, execEnabled, elevatedEnabled);
         String profileVersion = profileVersion(userRef, profileFingerprint(allowedCapabilities, pluginAllowlist, toolAllowlist, execEnabled, elevatedEnabled, customization));
         String expiresAt = Instant.now().plus(1, ChronoUnit.HOURS).toString();
         String runtimeTokenExpiresAt = Instant.now().plus(10, ChronoUnit.MINUTES).toString();
@@ -108,6 +113,7 @@ public class WeaverRuntimeService {
                 toolAllowlist,
                 execEnabled,
                 elevatedEnabled,
+                permissionMode,
                 weaverRuntimeProperties.auditRequired(),
                 weaverRuntimeProperties.forkRequired(),
                 weaverRuntimeProperties.image(),
@@ -144,9 +150,10 @@ public class WeaverRuntimeService {
                 toolAllowlist,
                 execEnabled,
                 elevatedEnabled,
+                permissionMode,
                 weaverRuntimeProperties.auditRequired(),
                 weaverRuntimeProperties.forkRequired(),
-                channelProjection(runtimeProfileHash, profileVersion, previousProfileHash, userRef, expiresAt, runtimeTokenExpiresAt, allowedCapabilities, toolAllowlist),
+                channelProjection(runtimeProfileHash, profileVersion, previousProfileHash, userRef, expiresAt, runtimeTokenExpiresAt, permissionMode),
                 mcpProjection(runtimeProfileHash, profileVersion, previousProfileHash, userRef, expiresAt, runtimeTokenExpiresAt, toolAllowlist, allowedCapabilities),
                 credentialBrokerContract(userRef),
                 auditPolicy(runtimeProfileHash, userRef),
@@ -175,6 +182,42 @@ public class WeaverRuntimeService {
         WeaverRuntimeProfileResponse profile = profileFor(jwt);
         auditCustomization(userRef, "allowed_user_customization", true, request.keySet().stream().sorted().toList(), profile.runtimeProfileHash());
         return new WeaverRuntimeCustomizationDecision(true, "allowed_user_customization", profile, "Customization accepted inside organization policy boundaries.");
+    }
+
+    public WeaverPermissionModeResponse updatePermissionMode(Jwt jwt, String requestedMode) {
+        String userRef = supportSafeUserRef(jwt);
+        String mode = normalizePermissionMode(requestedMode);
+        List<String> grants = workspaceCapabilityService.grantedCapabilities(jwt);
+        boolean execAllowed = weaverRuntimeProperties.execEnabled() && grants.contains("weaver.exec_enabled");
+        boolean elevatedAllowed = weaverRuntimeProperties.elevatedEnabled()
+                && grants.contains("weaver.elevated_enabled");
+        String denial = switch (mode) {
+            case "auto" -> execAllowed ? null : "organization_policy_denies_exec";
+            case "full" -> execAllowed && elevatedAllowed
+                    ? null
+                    : "organization_policy_denies_dangerous_full_access";
+            default -> null;
+        };
+        if (denial != null) {
+            auditCustomization(userRef, denial, false, List.of("permissionMode"), "blocked");
+            return new WeaverPermissionModeResponse(
+                    false,
+                    currentPermissionMode(userRef),
+                    "full".equals(mode),
+                    denial,
+                    currentProfileHashByUser.getOrDefault(userRef, "none"));
+        }
+        Map<String, Object> current = new LinkedHashMap<>(customizationByUser.getOrDefault(userRef, Map.of()));
+        current.put("permissionMode", mode);
+        customizationByUser.put(userRef, Map.copyOf(current));
+        WeaverRuntimeProfileResponse profile = profileFor(jwt);
+        auditCustomization(userRef, "permission_mode_updated", true, List.of("permissionMode"), profile.runtimeProfileHash());
+        return new WeaverPermissionModeResponse(
+                true,
+                mode,
+                "full".equals(mode),
+                "permission_mode_updated",
+                profile.runtimeProfileHash());
     }
 
     public WeaverRuntimeProfileResponse rollbackRuntimeProfile(Jwt jwt, String rollbackProfileHash) {
@@ -337,6 +380,7 @@ public class WeaverRuntimeService {
                 List.of(),
                 false,
                 false,
+                "deny",
                 true,
                 false,
                 "",
@@ -373,9 +417,10 @@ public class WeaverRuntimeService {
                 List.of(),
                 false,
                 false,
+                "deny",
                 true,
                 false,
-                channelProjection(runtimeProfileHash, profileVersion, "none", userRef, expiresAt, expiresAt, List.of(), List.of()),
+                channelProjection(runtimeProfileHash, profileVersion, "none", userRef, expiresAt, expiresAt, "deny"),
                 mcpProjection(runtimeProfileHash, profileVersion, "none", userRef, expiresAt, expiresAt, List.of(), List.of()),
                 credentialBrokerContract(userRef),
                 auditPolicy(runtimeProfileHash, userRef),
@@ -439,6 +484,7 @@ public class WeaverRuntimeService {
                 issued.toolAllowlist(),
                 issued.execEnabled(),
                 issued.elevatedEnabled(),
+                issued.permissionMode(),
                 issued.auditRequired(),
                 issued.forkRequired(),
                 issued.channelProjection(),
@@ -605,6 +651,46 @@ public class WeaverRuntimeService {
         return null;
     }
 
+    private String permissionMode(
+            Map<String, Object> customization,
+            boolean execEnabled,
+            boolean elevatedEnabled) {
+        String requested = normalizePermissionMode(String.valueOf(
+                customization.getOrDefault("permissionMode", "ask")));
+        if ("auto".equals(requested) && !execEnabled) {
+            return "ask";
+        }
+        if ("full".equals(requested) && (!execEnabled || !elevatedEnabled)) {
+            return "ask";
+        }
+        return requested;
+    }
+
+    private String currentPermissionMode(String userRef) {
+        return normalizePermissionMode(String.valueOf(
+                customizationByUser.getOrDefault(userRef, Map.of()).getOrDefault("permissionMode", "ask")));
+    }
+
+    private String normalizePermissionMode(String rawMode) {
+        String mode = rawMode == null ? "" : rawMode.trim().toLowerCase(Locale.ROOT);
+        if (!List.of("deny", "allowlist", "ask", "auto", "full").contains(mode)) {
+            throw new IllegalArgumentException("Unknown Weaver permission mode.");
+        }
+        return mode;
+    }
+
+    private String matrixUserId(String userRef) {
+        String localpart = userRef.replaceFirst("^[^:]+:", "")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("[^a-z0-9._=/\\-]", "_")
+                .replaceAll("^_+|_+$", "");
+        return "@" + (localpart.isBlank() ? "member" : localpart) + ":" + matrixFacadeServerName;
+    }
+
+    private String matrixFacadeBaseUrl() {
+        return "https://" + matrixFacadeServerName;
+    }
+
     private String runtimeProfileHash(
             String userRef,
             String profileVersion,
@@ -617,6 +703,7 @@ public class WeaverRuntimeService {
             List<String> toolAllowlist,
             boolean execEnabled,
             boolean elevatedEnabled,
+            String permissionMode,
             boolean auditRequired,
             boolean forkRequired,
             String containerImage,
@@ -641,11 +728,12 @@ public class WeaverRuntimeService {
                 toolAllowlist.toString(),
                 Boolean.toString(execEnabled),
                 Boolean.toString(elevatedEnabled),
+                permissionMode,
                 Boolean.toString(auditRequired),
                 Boolean.toString(forkRequired),
-                "channels.weave-chat",
+                "channels.matrix",
                 "provider:chat:selected-by-admin",
-                "credentialref://weave/runtime/weave-chat/" + credentialUserRef.replace("user:", ""),
+                "credentialref://weave/runtime/matrix/" + credentialUserRef.replace("user:", ""),
                 credentialBrokerContract(credentialUserRef).toString()));
     }
 
@@ -660,9 +748,9 @@ public class WeaverRuntimeService {
             String userRef,
             String expiresAt,
             String runtimeTokenExpiresAt,
-            List<String> allowedCapabilities,
-            List<String> toolAllowlist) {
+            String permissionMode) {
         String runtimeTokenRef = "credentialref://weave/runtime/short-lived/" + userRef.replace("user:", "");
+        String matrixUserId = matrixUserId(userRef);
         Map<String, Object> runtimeProfileFetch = Map.ofEntries(
                 Map.entry("fetchRef", "weave-runtime-profile://" + runtimeProfileHash),
                 Map.entry("runtimeProfileHash", runtimeProfileHash),
@@ -676,15 +764,29 @@ public class WeaverRuntimeService {
                 Map.entry("supportSafe", true),
                 Map.entry("rawProfileBodyReturnedToMembers", false));
         return Map.ofEntries(
-                Map.entry("channelId", "channels.weave-chat"),
+                Map.entry("channelId", "channels.matrix"),
                 Map.entry("domain", "chat"),
+                Map.entry("protocol", "matrix-client-server"),
+                Map.entry("homeserver", matrixFacadeBaseUrl()),
+                Map.entry("userId", matrixUserId),
+                Map.entry("memberUserId", matrixUserId),
+                Map.entry("accessTokenRef", Map.of(
+                        "source", "env",
+                        "provider", "default",
+                        "id", "WEAVE_MATRIX_ACCESS_TOKEN")),
+                Map.entry("encryption", false),
+                Map.entry("permissionMode", permissionMode),
+                Map.entry("execApprovals", Map.of(
+                        "enabled", true,
+                        "approvers", List.of(matrixUserId),
+                        "target", "both")),
                 Map.entry("providerRef", "provider:chat:selected-by-admin"),
                 Map.entry("routingProfileVersion", profileVersion),
                 Map.entry("runtimeProfileHash", runtimeProfileHash),
                 Map.entry("runtimeTokenRef", runtimeTokenRef),
                 Map.entry("runtimeTokenExpiresAt", runtimeTokenExpiresAt),
                 Map.entry("runtimeProfileFetch", runtimeProfileFetch),
-                Map.entry("reloadStrategy", "reload-or-restart-stable-channel"),
+                Map.entry("reloadStrategy", "reload-or-restart-matrix-northbound"),
                 Map.entry("rawProviderChannelConfigsRendered", false),
                 Map.entry("memberMaySwitchProviderAdapters", false),
                 Map.entry("mcpServersProjectedSeparately", true));
@@ -704,12 +806,13 @@ public class WeaverRuntimeService {
                 Map.entry("serverKey", "weave-domain-tools"),
                 Map.entry("displayName", "Weave governed domain tools"),
                 Map.entry("transport", "streamable-http"),
+                Map.entry("supportsParallelToolCalls", false),
                 Map.entry("endpointRef", "internal://weave-mcp/streamable-http"),
                 Map.entry("credentialRef", "credentialref://weave/mcp/weave-domain-tools/runtime-token"),
                 Map.entry("runtimeTokenRef", runtimeTokenRef),
                 Map.entry("runtimeTokenExpiresAt", runtimeTokenExpiresAt),
                 Map.entry("runtimeProfileFetchRef", "weave-runtime-profile://" + runtimeProfileHash),
-                Map.entry("routingChannelRef", "channels.weave-chat"),
+                Map.entry("routingChannelRef", "channels.matrix"),
                 Map.entry("routingPlaneSeparated", true),
                 Map.entry("enabled", !toolAllowlist.isEmpty()),
                 Map.entry("supportSafe", true),
@@ -726,7 +829,7 @@ public class WeaverRuntimeService {
                 "servers", Map.of("weave-domain-tools", binding),
                 "supportSafe", true,
                 "denyByDefault", true,
-                "channelPlaneRef", "channels.weave-chat",
+                "channelPlaneRef", "channels.matrix",
                 "memberMayMutateServerBindings", false,
                 "rawProviderEndpointsExposed", false);
     }

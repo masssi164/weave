@@ -64,11 +64,17 @@ class ServiceEndpointDeriver {
     final scheme = issuerUrl.scheme;
 
     return ServiceEndpoints(
-      matrixHomeserverUrl: Uri.parse('$scheme://matrix.$baseHost'),
+      matrixHomeserverUrl: Uri.parse('$scheme://api.$baseHost'),
       nextcloudBaseUrl: Uri.parse('$scheme://files.$baseHost'),
       backendApiBaseUrl: Uri.parse('$scheme://api.$baseHost/api'),
     );
   }
+
+  Uri matrixFacadeFromBackendApi(Uri backendApiBaseUrl) => Uri(
+    scheme: backendApiBaseUrl.scheme,
+    host: backendApiBaseUrl.host,
+    port: backendApiBaseUrl.hasPort ? backendApiBaseUrl.port : null,
+  );
 
   String _deriveWorkspaceBaseHost(String issuerHost) {
     final labels = issuerHost.split('.');

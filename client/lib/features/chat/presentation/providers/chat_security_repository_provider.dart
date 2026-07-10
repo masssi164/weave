@@ -1,21 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:weave/features/chat/data/repositories/matrix_chat_security_repository.dart';
-import 'package:weave/features/chat/data/services/matrix_security_service.dart';
-import 'package:weave/features/chat/data/services/matrix_verification_service.dart';
+import 'package:weave/features/chat/data/repositories/rust_matrix_core_chat_security_repository.dart';
 import 'package:weave/features/chat/domain/repositories/chat_security_repository.dart';
-import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
+import 'package:weave/integrations/rust_matrix_core/presentation/providers/matrix_crypto_session_provider.dart';
 
-/// Diagnostic-only Matrix E2EE/security seam.
-///
-/// Normal member chat/readiness flows must use backend-owned Chat and workspace
-/// capability facades. This provider is kept only for isolated diagnostics;
-/// normal member routes must not import or mount it.
+/// Matrix E2EE device, verification, and recovery through the shared Rust core.
 final chatSecurityRepositoryProvider = Provider<ChatSecurityRepository>((ref) {
-  return MatrixChatSecurityRepository(
-    securityService: ref.watch(matrixSecurityServiceProvider),
-    verificationService: ref.watch(matrixVerificationServiceProvider),
-    serverConfigurationRepository: ref.watch(
-      serverConfigurationRepositoryProvider,
+  return RustMatrixCoreChatSecurityRepository(
+    matrixCryptoSessionCoordinator: ref.watch(
+      matrixCryptoSessionCoordinatorProvider,
     ),
   );
 });

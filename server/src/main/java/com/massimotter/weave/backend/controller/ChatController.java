@@ -5,12 +5,8 @@ import com.massimotter.weave.backend.chat.domain.ChatMigrationPreflightReport;
 import com.massimotter.weave.backend.chat.domain.ChatMigrationPreflightRequest;
 import com.massimotter.weave.backend.chat.domain.ChatReadiness;
 import com.massimotter.weave.backend.model.ApiErrorResponse;
-import com.massimotter.weave.backend.model.chat.ChatConversationsResponse;
-import com.massimotter.weave.backend.model.chat.ChatMessageResponse;
-import com.massimotter.weave.backend.model.chat.ChatMessagesResponse;
 import com.massimotter.weave.backend.model.chat.ChatProviderReplacementDryRunRequest;
 import com.massimotter.weave.backend.model.chat.ChatProviderReplacementDryRunResponse;
-import com.massimotter.weave.backend.model.chat.ChatSendMessageRequest;
 import com.massimotter.weave.backend.model.chat.DecisionLedgerCreateRequest;
 import com.massimotter.weave.backend.model.chat.DecisionLedgerRecordResponse;
 import com.massimotter.weave.backend.model.chat.DecisionLedgerRecordsResponse;
@@ -67,35 +63,6 @@ public class ChatController {
             content = @Content(schema = @Schema(implementation = ChatReadiness.class)))
     public ChatReadiness readiness(@AuthenticationPrincipal Jwt jwt) {
         return chatDomainFacadeService.memberReadiness(jwt);
-    }
-
-    @GetMapping("/api/chat/conversations")
-    @Operation(operationId = "listChatConversations", summary = "List canonical Weave Chat conversations")
-    @ApiResponse(responseCode = "200", description = "Provider-neutral Chat conversations.",
-            content = @Content(schema = @Schema(implementation = ChatConversationsResponse.class)))
-    public ChatConversationsResponse conversations(@AuthenticationPrincipal Jwt jwt) {
-        return chatFacadeService.conversations(jwt);
-    }
-
-    @GetMapping("/api/chat/conversations/{conversationId}/messages")
-    @Operation(operationId = "listChatMessages", summary = "List canonical Weave Chat messages")
-    @ApiResponse(responseCode = "200", description = "Provider-neutral Chat messages.",
-            content = @Content(schema = @Schema(implementation = ChatMessagesResponse.class)))
-    public ChatMessagesResponse messages(
-            @AuthenticationPrincipal Jwt jwt,
-            @PathVariable @Size(max = 128) String conversationId) {
-        return chatFacadeService.messages(jwt, conversationId);
-    }
-
-    @PostMapping("/api/chat/conversations/{conversationId}/messages")
-    @Operation(operationId = "sendChatMessage", summary = "Send a canonical Weave Chat message as an explicit audited user action")
-    @ApiResponse(responseCode = "200", description = "Created provider-neutral Chat message.",
-            content = @Content(schema = @Schema(implementation = ChatMessageResponse.class)))
-    public ChatMessageResponse sendMessage(
-            @AuthenticationPrincipal Jwt jwt,
-            @PathVariable @Size(max = 128) String conversationId,
-            @Valid @RequestBody ChatSendMessageRequest request) {
-        return chatFacadeService.sendMessage(jwt, conversationId, request);
     }
 
     @GetMapping({"/api/chat/conversations/{conversationId}/decisions", "/api/v1/chat/conversations/{conversationId}/decisions"})

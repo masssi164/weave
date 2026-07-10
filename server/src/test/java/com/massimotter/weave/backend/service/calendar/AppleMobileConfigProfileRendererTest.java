@@ -10,7 +10,7 @@ class AppleMobileConfigProfileRendererTest {
 
     @Test
     void rendersNoSecretAppleCaldavProfileMetadata() {
-        AppleMobileConfigProfileRenderer renderer = new AppleMobileConfigProfileRenderer("https://files.weave.test");
+        AppleMobileConfigProfileRenderer renderer = new AppleMobileConfigProfileRenderer("https://calendar.weave.test");
 
         AppleMobileConfigProfile profile = renderer.renderUnsignedNoSecretProfile(
                 new CalendarPrincipal("subject-123", "maria"));
@@ -20,15 +20,19 @@ class AppleMobileConfigProfileRendererTest {
         assertThat(plist)
                 .contains("<string>com.apple.caldav.account</string>")
                 .contains("<key>CalDAVHostName</key>")
-                .contains("<string>files.weave.test</string>")
+                .contains("<string>calendar.weave.test</string>")
                 .contains("<key>CalDAVPort</key>")
                 .contains("<integer>443</integer>")
                 .contains("<key>CalDAVUseSSL</key>")
                 .contains("<true/>")
                 .contains("<key>CalDAVPrincipalURL</key>")
-                .contains("<string>/remote.php/dav/principals/users/maria/</string>")
+                .contains("<string>/dav/principals/users/maria/</string>")
                 .contains("<key>CalDAVUsername</key>")
                 .contains("<string>maria</string>");
+        assertThat(plist)
+                .doesNotContain("/remote.php/dav")
+                .doesNotContain("Nextcloud")
+                .doesNotContain("app password");
     }
 
     @Test

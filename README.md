@@ -6,11 +6,41 @@
 
 Provider-neutral collaboration for organizations that need control, portability, and governed assistance.
 
+**Weave – Collaboration Seamlessly Woven with Agentic AI, Activated on Your Terms.**
+
 Weave is a provider-neutral collaboration suite and governed workspace for organizations that want collaboration to stay portable, reviewable, and under their own rules.
 
 It gives members one place for chat, files, calendars, tasks, decisions, meetings, help, and workspace context, while giving admins and operators a controlled way to connect providers, review readiness, keep evidence support-safe, and change direction without pretending provider changes are risk-free.
 
 Weaver, the AI assistance layer, follows that product order: optional, policy-bound, auditable, and disabled until an organization chooses to enable it.
+
+## Architecture At A Glance
+
+Weave is an open-standards gateway and product surface, not a branded skin over one provider. The northbound side exposes stable Weave-owned protocols and product APIs to clients. The southbound side adapts replaceable providers behind canonical Weave domains.
+
+| Domain | Northbound member data plane | Canonical Weave boundary | Current dogfood/default southbound |
+| --- | --- | --- | --- |
+| Chat | Matrix Client-Server-compatible facade at the public API origin under `/_matrix/client/**` | Chat conversations, rooms, messages, decisions, meeting capsules, and Weaver scout context | Matrix/Synapse-class provider adapters or bridges, with federation disabled by default for MVP |
+| Files | WebDAV facade under `/dav/files/**` | Files, folders, download/upload, copy/move, lock state, quota/conflict errors, audit | Nextcloud/WebDAV-class storage adapter |
+| Calendar | CalDAV/iCalendar facade under `/caldav/**` | Workspace, team, and channel calendars with stable canonical meeting-thread references plus setup/readiness control plane | Nextcloud/CalDAV-class calendar adapter |
+| Identity | OIDC/SAML-compatible organization identity | One login, user profile, roles, policy, audit, support-safe diagnostics | Keycloak by default, adapter-friendly for Entra ID/Auth0/Authentik-style sources |
+| Boards and Calls | Weave product/control APIs while protocol parity matures | Provider-neutral domain contracts, readiness, join grants, approvals, and audit | OpenProject/LiveKit-class adapters as configured |
+| Weaver | OIDC-protected MCP at `/mcp` using Spring AI stateful Streamable HTTP | RuntimeProfile-filtered `@McpTool` domain tools, resources, prompts, form elicitation, argument-bound approval receipts, and support-safe audit | Weave canonical use cases; downstream providers are never MCP authorities |
+
+Spring Boot is the server gatekeeper for OIDC, authorization, audit, readiness, and support-safe errors. The Matrix facade shares the public API origin; a `matrix.<tenant>` host is a southbound provider/operator endpoint, never a member-client setting. Matrix protocol shaping targets a shared Rust/Ruma core: server integration through JNI, Flutter integration through `flutter_rust_bridge`. Flutter consumes Weave-owned facades, not raw provider SDKs or provider secrets.
+
+Matrix encryption is device-owned. The Flutter bridge uses the Apache-2.0 Matrix Rust SDK for encrypted-room state, cross-signing, SAS verification, recovery, and an encrypted SQLite crypto store. Spring and southbound adapters may persist public device keys, opaque encrypted events, to-device envelopes, and room-key backup ciphertext, but never user private keys or decrypted message bodies. Plaintext fallback is rejected for encrypted rooms.
+
+```mermaid
+flowchart LR
+  clients["Flutter, native DAV clients, and Weaver runtimes"] --> oidc["Weave OIDC and scoped protocol credentials"]
+  oidc --> northbound["WebDAV | CalDAV | Matrix Client-Server | Spring AI MCP"]
+  northbound --> domains["Files | Calendar | Chat | Governed Weaver canonical domains"]
+  domains --> ports["Provider ports, mappings, conformance, and audit"]
+  ports --> providers["Replaceable WebDAV, CalDAV, Matrix, Slack, Teams, S3, and future adapters"]
+```
+
+Provider switching happens below the canonical domain boundary. Adapters translate provider identifiers, errors, and capabilities into Weave values; durable mappings and conformance reports preserve continuity. A provider URL, token, SDK type, Matrix homeserver, or Nextcloud endpoint is therefore an implementation detail, never the member contract.
 
 ## Enterprise Workflow
 
@@ -37,12 +67,15 @@ These checked-in visuals are support-safe proof assets for the current dogfood p
 ## What Works Today
 
 - The current frontdoor proves a provider-neutral member path with guided setup, service review, chat, files, and settings visuals backed by checked-in evidence.
+- The current implementation moves normal member data planes to northbound standards: Chat through the OIDC-gated Matrix facade, Files through WebDAV, and Calendar through CalDAV/iCalendar. Legacy REST chat messages and calendar event data-plane routes are obsolete rather than compatibility targets.
+- Chat uses the client-owned Rust crypto engine for encrypted sync/send, durable device identity, SAS verification, recovery, and lost-device revocation. A support-safe hash binds each OIDC login session to its first Matrix device so a lost refresh session cannot rename itself after revocation. The OIDC refresh session, Matrix device ID, Keychain-held store passphrase, and encrypted app-support store survive normal force-quit, relaunch, and in-place app updates; only explicit account removal deletes that device state.
+- The governed Weaver projection uses Spring AI 2.0 at `/mcp`. Its Files, Calendar, and Chat tools call the same canonical application services as the protocol facades, with RuntimeProfile filtering, approval-required writes, and support-safe results.
 - Weave treats admin/operator readiness as part of the product: provider categories, policy boundaries, evidence, and support-safe diagnostics belong in the control plane, not in member setup.
 - The release track already carries product-level proof for dogfood collaboration, governed assistance boundaries, portability dry-runs, operator recovery guardrails, and release-claim control.
 
 ## What Is Guarded
 
-Weave is in active dogfood and does not claim public production readiness. The portability promise is no unaccounted data loss; perfect lossless migration is not claimed. Provider changes remain a governed dry-run and review path, so universal provider interchangeability is not claimed. Weaver remains optional and policy-bound, and unrestricted autonomous agents are not part of the current public claim.
+Weave is in active dogfood and does not claim public production readiness. The portability promise is no unaccounted data loss; perfect lossless migration is not claimed. In particular, universal provider interchangeability is not claimed. Encrypted history remains blocked from provider-switch apply when target fidelity or client-side key export cannot be proven. Matrix E2EE is an implemented release candidate, but the product claim remains gated on green live two-device, ciphertext-only, recovery, revocation, accessibility, and physical-iPhone relaunch evidence. Weaver remains optional and policy-bound, and unrestricted autonomous agents are not part of the current public claim.
 
 The detailed boundary lives in the [product trust claim matrix](docs/product-trust-provider-choice-claim-matrix.md), the [provider portability docs](docs/architecture/provider-portability.md), and the [roadmap and guarded surfaces](docs/roadmap-and-guarded-surfaces.md).
 
@@ -61,6 +94,10 @@ Start with the [admin/operator handbook](docs/admin-operator-handbook.md), [Boot
 ## For Developers
 
 Developers should treat this repository as implementation and evidence truth, with product/domain truth pinned through the spec corpus. The shortest path in is the [developer handbook](docs/developer-handbook.md), followed by the [PR workflow](docs/gitflow-pr-workflow.md), the [operating model](docs/weave-operating-model.md), and [spec-driven development](docs/spec-driven-development.md).
+
+Before changing cross-domain contracts, read `AGENTS.md`, `specs/README.md`, and the pinned spec corpus in `../weave-specs`. Public routes, auth, topology, generated OpenAPI, protocol facades, E2E evidence, and docs must move together.
+
+Repository delivery is GitHub-only: feature work flows into `dev`, validated candidates move to `dogfood`, and stable release-capable truth moves to `main` through protected GitHub pull requests and Actions. Physical-iPhone iterations use the stable Weave app identity, with TestFlight as the preferred human dogfood channel and development-signed in-place installs as an engineering fallback. Normal updates preserve the saved organization profile, OIDC refresh session, Matrix device ID, and encrypted crypto store; dogfood never relies on repeatedly trusting a developer certificate.
 
 ## Release Notes
 

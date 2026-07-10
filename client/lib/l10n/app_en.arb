@@ -3265,7 +3265,7 @@
   "@serverConfigurationServicesLabel": {
     "description": "Section title for derived service endpoints"
   },
-  "serverConfigurationServicesHelper": "Defaults for Matrix, Nextcloud, and the backend API are derived from the issuer host. Edit them if your services live elsewhere.",
+  "serverConfigurationServicesHelper": "The Matrix facade is fixed to the backend API origin. Files and backend product endpoints are derived from the issuer host.",
   "@serverConfigurationServicesHelper": {
     "description": "Helper text for the service endpoints section"
   },
@@ -3281,9 +3281,9 @@
   "@serverConfigurationIdentityEndpointHelper": {
     "description": "Helper text for the identity endpoint section in setup and settings"
   },
-  "serverConfigurationMatrixLabel": "Matrix Homeserver URL",
+  "serverConfigurationMatrixLabel": "Weave Matrix Facade URL",
   "@serverConfigurationMatrixLabel": {
-    "description": "Label for the Matrix homeserver URL field"
+    "description": "Label for the Weave-owned Matrix facade URL field"
   },
   "serverConfigurationNextcloudLabel": "Nextcloud Base URL",
   "@serverConfigurationNextcloudLabel": {
@@ -4951,5 +4951,31 @@
         "type": "String"
       }
     }
-  }
+  },
+  "weaverPermissionModeTitle": "Permission mode",
+  "@weaverPermissionModeTitle": {"description": "Label for the governed Weaver permission mode selector"},
+  "weaverPermissionModeDeny": "Deny all",
+  "@weaverPermissionModeDeny": {"description": "Weaver permission mode that denies actions"},
+  "weaverPermissionModeAllowlist": "Allowlist only",
+  "@weaverPermissionModeAllowlist": {"description": "Weaver permission mode that permits remembered exact grants"},
+  "weaverPermissionModeAsk": "Ask every time",
+  "@weaverPermissionModeAsk": {"description": "Weaver permission mode that requests member approval"},
+  "weaverPermissionModeAuto": "Automatic review",
+  "@weaverPermissionModeAuto": {"description": "Weaver permission mode using automatic host review"},
+  "weaverPermissionModeFull": "Full access (dangerous)",
+  "@weaverPermissionModeFull": {"description": "Dangerous Weaver full access mode"},
+  "weaverPermissionFullWarningTitle": "Enable dangerous full access?",
+  "@weaverPermissionFullWarningTitle": {"description": "Warning title before enabling dangerous Weaver full access"},
+  "weaverPermissionFullWarningBody": "Weaver will be allowed to run host commands without approval and will automatically accept trusted Weave tool requests. Organization policy, your sign-in, validation, provider boundaries, and audit logging still apply.",
+  "@weaverPermissionFullWarningBody": {"description": "Warning body before enabling dangerous Weaver full access"},
+  "weaverPermissionFullConfirm": "Enable full access",
+  "@weaverPermissionFullConfirm": {"description": "Confirmation button for dangerous Weaver full access"},
+  "weaverPermissionCancel": "Cancel",
+  "@weaverPermissionCancel": {"description": "Cancel button for Weaver permission mode warning"},
+  "weaverPermissionUpdated": "Weaver permission mode updated.",
+  "@weaverPermissionUpdated": {"description": "Success feedback after updating Weaver permission mode"},
+  "weaverPermissionPolicyDenied": "Your organization policy does not allow this mode.",
+  "@weaverPermissionPolicyDenied": {"description": "Feedback when organization policy denies a Weaver permission mode"},
+  "weaverPermissionUpdateFailed": "Weaver permission mode could not be updated.",
+  "@weaverPermissionUpdateFailed": {"description": "Failure feedback after updating Weaver permission mode"}
 }

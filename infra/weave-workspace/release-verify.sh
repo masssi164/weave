@@ -227,6 +227,7 @@ WEAVE_BASE_URL="${WEAVE_API_BASE_URL%/}"
 : "${WEAVE_OIDC_ISSUER_URL:?Expected WEAVE_OIDC_ISSUER_URL in env}"
 : "${WEAVE_NEXTCLOUD_BASE_URL:?Expected WEAVE_NEXTCLOUD_BASE_URL in env}"
 : "${WEAVE_MATRIX_HOMESERVER_URL:?Expected WEAVE_MATRIX_HOMESERVER_URL in env}"
+: "${WEAVE_MATRIX_PROVIDER_URL:?Expected WEAVE_MATRIX_PROVIDER_URL in env}"
 
 if [[ -n "${WEAVE_TLS_CA_FILE:-}" ]]; then
   [[ -f "${WEAVE_TLS_CA_FILE}" ]] || fail "WEAVE_TLS_CA_FILE points to a missing file: ${WEAVE_TLS_CA_FILE}"
@@ -273,15 +274,19 @@ nextcloud_oidc_provider="$(docker exec --user www-data weave-nextcloud php occ u
 assert_json "${nextcloud_oidc_provider}" '.settings.checkBearer == true or .settings.checkBearer == "1" or .settings.checkBearer == 1' "Nextcloud OIDC provider should validate Bearer tokens"
 assert_json "${nextcloud_oidc_provider}" '.settings.bearerProvisioning == true or .settings.bearerProvisioning == "1" or .settings.bearerProvisioning == 1' "Nextcloud OIDC provider should provision Bearer-token users"
 
-log "Checking Matrix delegated auth discovery..."
-mas_discovery="$(curl_json "${WEAVE_MATRIX_HOMESERVER_URL}/.well-known/openid-configuration")"
-assert_json "${mas_discovery}" ".issuer == \"${WEAVE_MATRIX_HOMESERVER_URL}/\"" "MAS issuer should match the public Matrix URL"
+log "Checking the OIDC-gated Weave Matrix facade..."
+matrix_facade_status="$(curl_status "${WEAVE_MATRIX_HOMESERVER_URL}/_matrix/client/versions")"
+[[ "${matrix_facade_status}" == "401" ]] || fail "Release verify failed: unauthenticated Matrix facade access should be denied with HTTP 401, got ${matrix_facade_status}"
+
+log "Checking southbound Matrix provider delegated auth discovery..."
+mas_discovery="$(curl_json "${WEAVE_MATRIX_PROVIDER_URL}/.well-known/openid-configuration")"
+assert_json "${mas_discovery}" ".issuer == \"${WEAVE_MATRIX_PROVIDER_URL}/\"" "MAS issuer should match the southbound Matrix provider URL"
 assert_json "${mas_discovery}" '.authorization_endpoint | contains("/authorize")' "MAS should expose an authorization endpoint"
 
-matrix_versions="$(curl_json "${WEAVE_MATRIX_HOMESERVER_URL}/_matrix/client/versions")"
-assert_json "${matrix_versions}" '.versions | type == "array"' "Matrix client versions should be served by the public Matrix route"
+matrix_versions="$(curl_json "${WEAVE_MATRIX_PROVIDER_URL}/_matrix/client/versions")"
+assert_json "${matrix_versions}" '.versions | type == "array"' "Matrix client versions should be served by the southbound provider route"
 
-authorize_status="$(curl_status "${WEAVE_MATRIX_HOMESERVER_URL}/authorize")"
+authorize_status="$(curl_status "${WEAVE_MATRIX_PROVIDER_URL}/authorize")"
 [[ "${authorize_status}" == "400" ]] || fail "Release verify failed: Matrix authorize endpoint should answer with 400 for an incomplete request"
 
 log "Release verification checks passed."

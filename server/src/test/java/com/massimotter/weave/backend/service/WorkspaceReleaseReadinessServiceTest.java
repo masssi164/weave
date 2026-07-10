@@ -96,7 +96,7 @@ class WorkspaceReleaseReadinessServiceTest {
 
         assertThat(snapshot.readiness()).isEqualTo(WorkspaceCapabilityReadiness.DEGRADED);
         assertThat(snapshot.actions()).containsExactly(
-                "Set WEAVE_MATRIX_HOMESERVER_URL to the public Matrix base URL, for example https://matrix.weave.test.",
+                "Set WEAVE_MATRIX_BASE_URL to the southbound Matrix provider URL; clients receive the Weave facade from the API origin.",
                 "Set WEAVE_NEXTCLOUD_BASE_URL to the canonical Nextcloud URL, for example https://files.weave.test.");
     }
 

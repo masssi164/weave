@@ -15,19 +15,6 @@ extension CalendarScopesOpenApiMapper on openapi.CalendarScopesResponse {
   }
 }
 
-extension CalendarEventsOpenApiMapper on openapi.CalendarEventsResponse {
-  CalendarEventList toDomain() {
-    final responseScope = scope?.toDomain() ?? CalendarScope.workspace;
-    final mappedEvents = events
-        ?.map((event) => event.toDomain(defaultScope: responseScope))
-        .toList(growable: false);
-    return CalendarEventList(
-      scope: responseScope,
-      events: mappedEvents ?? const [],
-    );
-  }
-}
-
 extension CalendarClientSetupOpenApiMapper
     on openapi.CalendarClientSetupResponse {
   CalendarClientSetup toDomain() {
@@ -44,41 +31,10 @@ extension CalendarClientSetupOpenApiMapper
           CalendarAccessModel.workspaceBlockedPrivateCalendars,
       credentialReadiness:
           credentialReadiness?.toDomain() ??
-          CalendarCredentialReadiness.blockedUntilRevocableCredentials,
+          CalendarCredentialReadiness.revocableCredentialsReady,
       options:
           options?.map((option) => option.toDomain()).toList(growable: false) ??
           const [],
-    );
-  }
-}
-
-extension CalendarEventOpenApiMapper on openapi.CalendarEventResponse {
-  CalendarEvent toDomain({
-    CalendarScope defaultScope = CalendarScope.workspace,
-  }) {
-    final eventScope =
-        scope?.toDomain(defaultScope: defaultScope) ?? defaultScope;
-    return CalendarEvent(
-      id: _requiredString(id, 'calendar event id'),
-      title: _requiredString(title, 'calendar event title'),
-      description: _optionalString(description),
-      startTime: _requiredDateTime(startsAt, 'calendar event start'),
-      endTime: _requiredDateTime(endsAt, 'calendar event end'),
-      timezone: _optionalString(timezone),
-      location: _optionalString(location),
-      allDay: allDay == true,
-      etag: _optionalString(etag),
-      scope: eventScope,
-      threadRef:
-          threadRef?.toDomain(defaultScope: eventScope) ??
-          CalendarThreadRef.forScope(eventScope),
-      attendees:
-          attendees
-              ?.map((attendee) => attendee.toDomain())
-              .toList(growable: false) ??
-          const [],
-      providerRef: providerRef?.toDomain(),
-      updatedAt: _optionalDateTime(updatedAt),
     );
   }
 }
@@ -105,48 +61,6 @@ extension CalendarScopeOpenApiMapper on openapi.CalendarScopeResponse {
       channelId: channel,
       accessModel: _optionalString(accessModel) ?? defaultScope.accessModel,
       capabilities: capabilities ?? const [],
-    );
-  }
-}
-
-extension CalendarThreadRefOpenApiMapper on openapi.CalendarThreadRefResponse {
-  CalendarThreadRef toDomain({required CalendarScope defaultScope}) {
-    return CalendarThreadRef(
-      kind: _optionalString(kind) ?? 'context',
-      contextId: _optionalString(contextId) ?? defaultScope.contextId,
-      meetingThreadId: _optionalString(meetingThreadId),
-      channelId: _optionalString(channelId),
-      matrixRoomId: _optionalString(matrixRoomId),
-      matrixThreadId: _optionalString(matrixThreadId),
-      boardTaskIds: boardTaskIds ?? const [],
-    );
-  }
-}
-
-extension CalendarAttendeeOpenApiMapper on openapi.CalendarAttendeeResponse {
-  CalendarAttendee toDomain() {
-    return CalendarAttendee(
-      name: _optionalString(name),
-      email: _optionalString(email),
-      role: _optionalString(role),
-      responseStatus: _optionalString(responseStatus),
-    );
-  }
-}
-
-extension CalendarProviderRefOpenApiMapper
-    on openapi.CalendarProviderRefResponse {
-  CalendarProviderRef toDomain() {
-    return CalendarProviderRef(
-      provider: _requiredString(provider, 'calendar provider ref provider'),
-      objectKind: _requiredString(
-        objectKind,
-        'calendar provider ref object kind',
-      ),
-      opaqueId: _optionalString(opaqueId),
-      etag: _optionalString(etag),
-      lastSyncedAt: _optionalDateTime(lastSyncedAt),
-      rawProviderPathExposed: rawProviderPathExposed == true,
     );
   }
 }
@@ -232,19 +146,6 @@ String _requiredString(String? value, String label) {
 String? _optionalString(String? value) {
   final trimmed = value?.trim();
   return trimmed == null || trimmed.isEmpty ? null : trimmed;
-}
-
-DateTime _requiredDateTime(String? value, String label) {
-  final parsed = _optionalDateTime(value);
-  if (parsed != null) {
-    return parsed;
-  }
-  throw AppFailure.unknown('The Weave backend returned invalid $label.');
-}
-
-DateTime? _optionalDateTime(String? value) {
-  final trimmed = _optionalString(value);
-  return trimmed == null ? null : DateTime.tryParse(trimmed);
 }
 
 String _fallbackScopeId(String type, String? teamId, String? channelId) {
