@@ -300,7 +300,9 @@ class FilesCalendarFacadeControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.credentials[0].credentialId").value(credentialId))
                 .andExpect(jsonPath("$.credentials[0].secretMaterialReturned").value(false))
-                .andExpect(jsonPath("$.credentials[0].secret").doesNotExist());
+                .andExpect(jsonPath("$.credentials[0].secret").doesNotExist())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("\"secret\":"))));
 
         mockMvc.perform(request(HttpMethod.DELETE, "/api/files/client-setup/credentials/{credentialId}", credentialId)
                         .with(workspaceJwt()))
@@ -309,6 +311,8 @@ class FilesCalendarFacadeControllerTest {
                 .andExpect(jsonPath("$.state").value("revoked"))
                 .andExpect(jsonPath("$.revokedAt").exists())
                 .andExpect(jsonPath("$.secretMaterialReturned").value(false))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("\"secret\":"))))
                 .andExpect(jsonPath("$.revocationActions").isEmpty());
 
         mockMvc.perform(request(HttpMethod.valueOf("OPTIONS"), "/dav/files")
@@ -493,14 +497,18 @@ class FilesCalendarFacadeControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.credentials[0].credentialId").value(credentialId))
                 .andExpect(jsonPath("$.credentials[0].secretMaterialReturned").value(false))
-                .andExpect(jsonPath("$.credentials[0].secret").doesNotExist());
+                .andExpect(jsonPath("$.credentials[0].secret").doesNotExist())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("\"secret\":"))));
 
         mockMvc.perform(request(HttpMethod.DELETE,
                         "/api/calendar/client-setup/credentials/{credentialId}", credentialId)
                         .with(workspaceJwt()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.state").value("revoked"))
-                .andExpect(jsonPath("$.secretMaterialReturned").value(false));
+                .andExpect(jsonPath("$.secretMaterialReturned").value(false))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("\"secret\":"))));
 
         mockMvc.perform(request(HttpMethod.valueOf("OPTIONS"), "/caldav")
                         .with(httpBasic(credentialId, secret)))

@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.model.calendar;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import java.time.OffsetDateTime;
 import java.util.List;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -16,6 +17,7 @@ public record CalendarSetupCredentialResponse(
         OffsetDateTime expiresAt,
         OffsetDateTime revokedAt,
         boolean secretMaterialReturned,
+        @JsonInclude(JsonInclude.Include.NON_NULL)
         @Schema(description = "One-time CalDAV secret. Present only in the create response.", nullable = true)
         String secret,
         boolean profilePasswordEligible,
