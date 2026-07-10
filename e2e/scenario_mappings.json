@@ -500,7 +500,9 @@
           "path": "client/test/features/auth/data/repositories/oidc_auth_session_repository_test.dart",
           "fragments": [
             "a new repository instance restores the persisted session",
-            "refresh-after-process-close"
+            "refresh-after-process-close",
+            "temporary refresh failure preserves the device-bound session",
+            "rejected refresh grant clears the unusable local session"
           ]
         },
         {
