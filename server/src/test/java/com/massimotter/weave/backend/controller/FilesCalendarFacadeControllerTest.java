@@ -628,6 +628,10 @@ class FilesCalendarFacadeControllerTest {
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                         .string(org.hamcrest.Matchers.containsString("SUMMARY:Planning")))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.containsString("X-WEAVE-CONTEXT-ID:workspace-default")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.containsString("X-WEAVE-MEETING-THREAD-ID:meeting:workspace-default:")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                         .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("remote.php"))));
 
         mockMvc.perform(request(HttpMethod.valueOf("REPORT"), "/caldav/workspace/")
@@ -711,7 +715,14 @@ class FilesCalendarFacadeControllerTest {
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                         .string(org.hamcrest.Matchers.containsString("/caldav/channel%3Aengineering-general/channel-planning.ics")))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
-                        .string(org.hamcrest.Matchers.containsString("SUMMARY:Channel planning")));
+                        .string(org.hamcrest.Matchers.containsString("SUMMARY:Channel planning")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.containsString("X-WEAVE-CONTEXT-ID:channel-engineering-general")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.containsString("X-WEAVE-CHANNEL-ID:engineering-general")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.containsString(
+                                "X-WEAVE-MEETING-THREAD-ID:meeting:channel-engineering-general:")));
 
         verify(calendarProviderPort).changes(
                 any(CalendarId.class),
@@ -814,6 +825,10 @@ class FilesCalendarFacadeControllerTest {
                         .string(org.hamcrest.Matchers.containsString("UID:planning")))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                         .string(org.hamcrest.Matchers.containsString("SUMMARY:Planning")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.containsString("X-WEAVE-CONTEXT-ID:workspace-default")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.containsString("X-WEAVE-MEETING-THREAD-ID:meeting:workspace-default:")))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                         .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("Nextcloud"))))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()

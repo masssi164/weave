@@ -22,7 +22,7 @@ Weave is an open-standards gateway and product surface, not a branded skin over 
 | --- | --- | --- | --- |
 | Chat | Matrix Client-Server-compatible facade at the public API origin under `/_matrix/client/**` | Chat conversations, rooms, messages, decisions, meeting capsules, and Weaver scout context | Matrix/Synapse-class provider adapters or bridges, with federation disabled by default for MVP |
 | Files | WebDAV facade under `/dav/files/**` | Files, folders, download/upload, copy/move, lock state, quota/conflict errors, audit | Nextcloud/WebDAV-class storage adapter |
-| Calendar | CalDAV/iCalendar facade under `/caldav/**` | Workspace, team, and channel calendars plus setup/readiness control plane | Nextcloud/CalDAV-class calendar adapter |
+| Calendar | CalDAV/iCalendar facade under `/caldav/**` | Workspace, team, and channel calendars with stable canonical meeting-thread references plus setup/readiness control plane | Nextcloud/CalDAV-class calendar adapter |
 | Identity | OIDC/SAML-compatible organization identity | One login, user profile, roles, policy, audit, support-safe diagnostics | Keycloak by default, adapter-friendly for Entra ID/Auth0/Authentik-style sources |
 | Boards and Calls | Weave product/control APIs while protocol parity matures | Provider-neutral domain contracts, readiness, join grants, approvals, and audit | OpenProject/LiveKit-class adapters as configured |
 | Weaver | OIDC-protected MCP at `/mcp` using Spring AI stateful Streamable HTTP | RuntimeProfile-filtered `@McpTool` domain tools, resources, prompts, form elicitation, argument-bound approval receipts, and support-safe audit | Weave canonical use cases; downstream providers are never MCP authorities |

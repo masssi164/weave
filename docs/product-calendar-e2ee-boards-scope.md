@@ -25,7 +25,7 @@ Calendar is not a private personal-calendar ingestion feature. The product model
    - Boards/Tasks can reference calendar dates and channel meetings.
    - Calendar entries may expose related board/task IDs through backend product metadata, not provider-specific Flutter transport.
 
-The current guarded implementation exposes workspace, team, and channel scope metadata through the backend facade, and the live-stack E2E gate validates channel event create/read/update/delete. Copy, tests, and specs must continue to describe this as a workspace/team/channel hierarchy rather than as a private-personal calendar stepping stone; meeting-thread attachment remains gated follow-up work until implemented and validated.
+The CalDAV/iCalendar facade exposes workspace, team, and channel scope metadata and a stable canonical meeting-thread reference. The server derives that reference from canonical scope and event identifiers, projects it through `X-WEAVE-CONTEXT-ID`, `X-WEAVE-CHANNEL-ID`, and `X-WEAVE-MEETING-THREAD-ID`, and never sends those northbound fields to a southbound provider. The live-stack E2E gate validates channel event create/read/update/delete and reference stability. A concrete Matrix room/thread binding remains optional and must not be claimed until provisioned and validated.
 
 ## Explicitly out of scope: private personal calendars
 
@@ -34,7 +34,7 @@ Private personal calendar ingestion is not a current product goal. Weave must no
 Allowed:
 
 - shared workspace/team/channel calendars;
-- backend-facade calendar APIs with explicit scope metadata;
+- the Weave CalDAV/iCalendar facade with explicit canonical scope metadata;
 - secret-free setup metadata;
 - future free/busy-style availability only if a separate product decision approves it.
 

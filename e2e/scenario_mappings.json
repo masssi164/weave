@@ -5168,6 +5168,40 @@
       ]
     },
     {
+      "tag": "@caldav-canonical-thread",
+      "scenario": "Channel event keeps one canonical meeting-thread reference",
+      "feature": "e2e/features/calendar_caldav_facade.feature",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/service/calendar/IcalendarMapperTest.java",
+      "evidenceMarkers": [
+        "CALDAV_CANONICAL_THREAD_PROJECTION"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
+          "fragments": [
+            "X-WEAVE-CONTEXT-ID:channel-engineering-general",
+            "X-WEAVE-CHANNEL-ID:engineering-general",
+            "X-WEAVE-MEETING-THREAD-ID:meeting:channel-engineering-general:"
+          ]
+        },
+        {
+          "path": "client/test/features/calendar/data/services/calendar_facade_client_test.dart",
+          "fragments": [
+            "meeting:channel-engineering-general:79cc2c616b93",
+            "events.events.single.threadRef.meetingThreadId"
+          ]
+        },
+        {
+          "path": "client/integration_test/live_stack_app_e2e_test.dart",
+          "fragments": [
+            "calendarMeetingThreadStable",
+            "_channelMeetingThreadReady"
+          ]
+        }
+      ]
+    },
+    {
       "tag": "@calendar-flutter-caldav",
       "scenario": "Flutter Calendar repository uses CalDAV and iCalendar for calendar data",
       "feature": "e2e/features/calendar_caldav_facade.feature",

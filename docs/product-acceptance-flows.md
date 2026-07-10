@@ -118,7 +118,7 @@ Acceptance evidence:
 
 ## Flow 5: Calendar workspace/team/channel event and meeting-thread reference
 
-Purpose: channel events round-trip through Weave and keep a stable meeting-thread reference for future chat/meeting linkage.
+Purpose: channel events round-trip through the CalDAV/iCalendar facade and keep a stable canonical meeting-thread reference for later concrete chat/meeting linkage.
 
 ```mermaid
 flowchart TD

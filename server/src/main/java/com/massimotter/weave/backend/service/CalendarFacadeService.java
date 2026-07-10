@@ -658,7 +658,7 @@ public class CalendarFacadeService {
                 event.id().value(),
                 scope,
                 event.version().value(),
-                icalendarMapper.toIcalendar(event),
+                icalendarMapper.toNorthboundIcalendar(event, scope),
                 event.startsAt().toOffsetDateTime(),
                 event.endsAt().toOffsetDateTime());
     }

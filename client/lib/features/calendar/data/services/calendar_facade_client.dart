@@ -60,7 +60,12 @@ class CalendarFacadeClient {
       (accessToken) async => http.Response.fromStream(
         await _httpClient.send(
           http.Request('REPORT', _caldavUri(context.baseUrl, [scope.id]))
-            ..headers.addAll(_caldavHeaders(accessToken))
+            ..headers.addAll(
+              _caldavHeaders(
+                accessToken,
+                contentType: 'application/xml; charset=utf-8',
+              ),
+            )
             ..headers['Depth'] = '1'
             ..body = _calendarQueryBody(rangeStart, rangeEnd),
         ),
@@ -122,7 +127,13 @@ class CalendarFacadeClient {
       context,
       (accessToken) => _httpClient.put(
         _caldavUri(context.baseUrl, [draft.scope.id, '$uid.ics']),
-        headers: {..._caldavHeaders(accessToken), 'If-None-Match': '*'},
+        headers: {
+          ..._caldavHeaders(
+            accessToken,
+            contentType: 'text/calendar; charset=utf-8',
+          ),
+          'If-None-Match': '*',
+        },
         body: _toIcalendar(uid, draft),
       ),
       fallbackMessage: 'Unable to create the calendar event.',
@@ -145,7 +156,10 @@ class CalendarFacadeClient {
       (accessToken) => _httpClient.put(
         _caldavUri(context.baseUrl, [scope.id, '${ref.uid}.ics']),
         headers: {
-          ..._caldavHeaders(accessToken),
+          ..._caldavHeaders(
+            accessToken,
+            contentType: 'text/calendar; charset=utf-8',
+          ),
           if (patch.etag != null) 'If-Match': patch.etag!,
         },
         body: _toIcalendar(
@@ -357,10 +371,13 @@ class CalendarFacadeClient {
     };
   }
 
-  Map<String, String> _caldavHeaders(String accessToken) {
+  Map<String, String> _caldavHeaders(
+    String accessToken, {
+    String? contentType,
+  }) {
     return {
       'Accept': 'application/xml, text/calendar, */*',
-      'Content-Type': 'application/xml; charset=utf-8',
+      if (contentType != null) 'Content-Type': contentType,
       'Authorization': 'Bearer $accessToken',
     };
   }
@@ -456,24 +473,52 @@ class CalendarFacadeClient {
     required CalendarScope scope,
   }) {
     final fields = <String, String>{};
-    for (final line in body.replaceAll('\r\n', '\n').split('\n')) {
+    final unfoldedLines = <String>[];
+    for (final line
+        in body.replaceAll('\r\n', '\n').replaceAll('\r', '\n').split('\n')) {
+      if ((line.startsWith(' ') || line.startsWith('\t')) &&
+          unfoldedLines.isNotEmpty) {
+        unfoldedLines[unfoldedLines.length - 1] += line.substring(1);
+      } else {
+        unfoldedLines.add(line);
+      }
+    }
+    for (final line in unfoldedLines) {
       final separator = line.indexOf(':');
       if (separator <= 0) continue;
       final key = line.substring(0, separator).split(';').first.toUpperCase();
-      fields[key] = line.substring(separator + 1).replaceAll(r'\n', '\n');
+      fields[key] = line.substring(separator + 1);
     }
     final start = _parseIcsDate(fields['DTSTART']);
     final end = _parseIcsDate(fields['DTEND']);
+    final projectedContextId = _optionalIcsText(fields['X-WEAVE-CONTEXT-ID']);
+    final projectedChannelId = _optionalIcsText(fields['X-WEAVE-CHANNEL-ID']);
+    if (projectedContextId != null && projectedContextId != scope.contextId) {
+      throw const AppFailure.unknown(
+        'The calendar facade returned an event for a different context.',
+      );
+    }
+    if (projectedChannelId != null && projectedChannelId != scope.channelId) {
+      throw const AppFailure.unknown(
+        'The calendar facade returned an event for a different channel.',
+      );
+    }
     return CalendarEvent(
       id: id,
-      title: fields['SUMMARY'] ?? 'Calendar event',
-      description: fields['DESCRIPTION'],
+      title: _optionalIcsText(fields['SUMMARY']) ?? 'Calendar event',
+      description: _optionalIcsText(fields['DESCRIPTION']),
       startTime: start,
       endTime: end.isAfter(start) ? end : start.add(const Duration(hours: 1)),
       timezone: 'UTC',
-      location: fields['LOCATION'],
+      location: _optionalIcsText(fields['LOCATION']),
       etag: etag,
       scope: scope,
+      threadRef: CalendarThreadRef(
+        contextId: projectedContextId ?? scope.contextId,
+        meetingThreadId: _optionalIcsText(fields['X-WEAVE-MEETING-THREAD-ID']),
+        channelId:
+            projectedChannelId ?? (scope.isChannel ? scope.channelId : null),
+      ),
       updatedAt: _parseOptionalIcsDate(fields['DTSTAMP']),
     );
   }
@@ -523,6 +568,25 @@ END:VCALENDAR\r
         .replaceAll('\n', r'\n')
         .replaceAll(',', r'\,')
         .replaceAll(';', r'\;');
+  }
+
+  String? _optionalIcsText(String? value) {
+    if (value == null || value.trim().isEmpty) return null;
+    final decoded = StringBuffer();
+    var escaped = false;
+    for (final codePoint in value.runes) {
+      final character = String.fromCharCode(codePoint);
+      if (escaped) {
+        decoded.write(character.toLowerCase() == 'n' ? '\n' : character);
+        escaped = false;
+      } else if (character == r'\') {
+        escaped = true;
+      } else {
+        decoded.write(character);
+      }
+    }
+    if (escaped) decoded.write(r'\');
+    return decoded.toString();
   }
 
   String? _firstChildText(XmlElement element, String localName) {
