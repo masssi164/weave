@@ -97,6 +97,13 @@ def main() -> int:
         "sandboxed Matrix clients must not read runner paths at runtime",
     )
     require(
+        client_makefile.count(
+            "--arg WEAVE_MATRIX_LIVE_TEST_EXTRA_ROOT_ENABLED"
+        )
+        == 2,
+        "both live test define files must forward the compile-time root gate",
+    )
+    require(
         client_makefile.count("WEAVE_MATRIX_LIVE_TEST_EXTRA_ROOT_BASE64") == 2,
         "both live test define files must carry the sandbox-safe Matrix root",
     )
