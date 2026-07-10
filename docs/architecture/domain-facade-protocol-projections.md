@@ -257,7 +257,7 @@ media, signaling, permissions, join-grant, and revoke boundaries.
 ## MCP projection rule
 
 MCP tools are semantic Weave tools, not raw protocol scripts. The target runtime
-is the Spring AI 2.x stateless Streamable HTTP server. Its annotated tools,
+is the Spring AI 2.x stateful Streamable HTTP server. Its annotated tools,
 resources, and prompts call domain use cases and never scrape or mirror OpenAPI.
 Files MCP data-plane tools route through the
 WebDAV-backed Weave Files facade/projection. Calendar, People/Contacts, Chat,
@@ -272,11 +272,17 @@ projections under the server boundary, but:
 - destructive or shared-state writes require the same approval/audit receipts as
   product clients.
 
-The Python/FastMCP OpenAPI route-map gateway and the handwritten Java JSON-RPC
-controller are transitional evidence. They are removed after the Spring AI
-projection proves discovery, invocation, schema/hint correctness, OIDC and
-RuntimeProfile policy, approval, audit, redaction, and Streamable HTTP parity.
-There is no compatibility endpoint or second MCP catalog after that cutover.
+The Spring AI cutover is complete for Files, Calendar, and Chat. The
+Python/FastMCP OpenAPI route-map gateway and handwritten Java JSON-RPC
+controller are removed. There is no compatibility endpoint or second MCP
+catalog. Spring AI publishes the fixed canonical catalog ceiling, while the
+backend-owned RuntimeProfile filters discovery and revalidates every
+invocation. Approval-required calls use standard form elicitation through the
+OpenClaw plugin approval manager, then carry an argument-bound one-use receipt
+`_meta`; a receipt reference alone never authorizes a write. The backend binds
+that receipt to the current RuntimeProfile hash, canonical domain and scopes,
+exact tool, contract/policy versions, decision, approval time, expiry, and
+audit reference before any domain use case runs.
 
 ## Cleanup required
 

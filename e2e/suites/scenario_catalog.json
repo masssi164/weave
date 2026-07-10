@@ -3516,9 +3516,9 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "archive target scenario is checked in",
-        "current implementation gap remains explicit",
-        "completion claim is blocked until executable evidence replaces the gap marker"
+        "OIDC bearer authentication gates the Matrix facade",
+        "versions and whoami are shaped by the shared Rust core",
+        "provider credentials and southbound URLs are absent"
       ]
     },
     {
@@ -3538,9 +3538,9 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "archive target scenario is checked in",
-        "current implementation gap remains explicit",
-        "completion claim is blocked until executable evidence replaces the gap marker"
+        "canonical conversations project to stable Matrix room identifiers",
+        "room state and memberships stay provider-neutral",
+        "Flutter sync consumes the same northbound facade"
       ]
     },
     {
@@ -3556,9 +3556,43 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "archive target scenario is checked in",
-        "current implementation gap remains explicit",
-        "completion claim is blocked until executable evidence replaces the gap marker"
+        "Matrix message payloads are parsed by the Rust core",
+        "send and timeline route through canonical Chat",
+        "transaction identifiers preserve idempotency"
+      ]
+    },
+    {
+      "tag": "@matrix-openclaw-stock-channel",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "weaver_user",
+        "member"
+      ],
+      "domains": [
+        "chat",
+        "weaver-governed-pa"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "signed RuntimeProfile projects stock channels.matrix",
+        "OpenClaw startup and approval calls are supported by the Weave facade",
+        "the retired custom weave-chat plugin is not a runtime dependency"
+      ]
+    },
+    {
+      "tag": "@matrix-read-receipt",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "chat"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Flutter validates its Matrix identity through Rust",
+        "read receipts use the northbound Matrix facade",
+        "canonical Chat stores actor conversation event and timestamp"
       ]
     },
     {
@@ -3577,6 +3611,80 @@
         "archive target scenario is checked in",
         "current implementation gap remains explicit",
         "completion claim is blocked until executable evidence replaces the gap marker"
+      ]
+    },
+    {
+      "tag": "@spring-ai-mcp-transport",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "weaver_user",
+        "operator"
+      ],
+      "domains": [
+        "weaver-governed-pa",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Spring AI 2.0 owns stateful Streamable HTTP protocol handling",
+        "stateful sessions enable standard form elicitation",
+        "the handwritten Java JSON-RPC controller is absent",
+        "the Python and FastMCP runtime is absent"
+      ]
+    },
+    {
+      "tag": "@spring-ai-mcp-oidc",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "weaver_user",
+        "operator"
+      ],
+      "domains": [
+        "identity-idm",
+        "weaver-governed-pa"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "issuer audience and expiry validation are configured",
+        "weave:workspace scope is required",
+        "unauthenticated requests fail before MCP dispatch"
+      ]
+    },
+    {
+      "tag": "@mcp-runtime-approved-discovery",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "weaver_user"
+      ],
+      "domains": [
+        "weaver-governed-pa",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "backend RuntimeProfile projection owns approved tool discovery",
+        "protocol catalog presence does not authorize invocation",
+        "discovery omits runtime tokens credentials and provider internals"
+      ]
+    },
+    {
+      "tag": "@mcp-approval-receipt-boundary",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "weaver_user",
+        "member"
+      ],
+      "domains": [
+        "weaver-governed-pa",
+        "identity-idm",
+        "calendar",
+        "chat"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "OpenClaw plugin approvals resolve standard MCP form elicitation",
+        "approval receipts bind actor profile tool scopes normalized arguments policy and contract",
+        "changed arguments replay foreign evidence and receipt references fail closed"
       ]
     },
     {
@@ -4290,9 +4398,9 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "archive target scenario is checked in",
-        "current implementation gap remains explicit",
-        "completion claim is blocked until executable evidence replaces the gap marker"
+        "Files tools route through the canonical Files service and WebDAV-backed projection",
+        "runtime profile grants are checked before invocation",
+        "raw provider URLs and credentials are excluded"
       ]
     },
     {
@@ -4310,9 +4418,9 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "archive target scenario is checked in",
-        "current implementation gap remains explicit",
-        "completion claim is blocked until executable evidence replaces the gap marker"
+        "Calendar tools route through the canonical Calendar service and CalDAV-backed projection",
+        "event writes require verifiable approval receipts",
+        "raw CalDAV and provider payloads are excluded"
       ]
     },
     {
@@ -4330,9 +4438,9 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "archive target scenario is checked in",
-        "current implementation gap remains explicit",
-        "completion claim is blocked until executable evidence replaces the gap marker"
+        "Chat sends route through ChatDomainFacadeService and the canonical provider port",
+        "idempotency keys survive MCP-to-domain dispatch",
+        "provider-shaped thread references fail before canonical dispatch"
       ]
     },
     {
@@ -4370,9 +4478,9 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "archive target scenario is checked in",
-        "current implementation gap remains explicit",
-        "completion claim is blocked until executable evidence replaces the gap marker"
+        "tools resources and prompts contain canonical Weave vocabulary only",
+        "runtime token and CredentialRef values are excluded",
+        "backend failures are mapped to support-safe MCP results"
       ]
     },
     {

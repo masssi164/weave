@@ -24,9 +24,21 @@ Weave is an open-standards gateway and product surface, not a branded skin over 
 | Files | WebDAV facade under `/dav/files/**` | Files, folders, download/upload, copy/move, lock state, quota/conflict errors, audit | Nextcloud/WebDAV-class storage adapter |
 | Calendar | CalDAV/iCalendar facade under `/caldav/**` | Workspace, team, and channel calendars plus setup/readiness control plane | Nextcloud/CalDAV-class calendar adapter |
 | Identity | OIDC/SAML-compatible organization identity | One login, user profile, roles, policy, audit, support-safe diagnostics | Keycloak by default, adapter-friendly for Entra ID/Auth0/Authentik-style sources |
-| Boards, Calls, Weaver | Weave product/control APIs while protocol parity matures | Provider-neutral domain contracts, readiness, approvals, and audit | OpenProject/LiveKit/model-provider adapters as configured |
+| Boards and Calls | Weave product/control APIs while protocol parity matures | Provider-neutral domain contracts, readiness, join grants, approvals, and audit | OpenProject/LiveKit-class adapters as configured |
+| Weaver | OIDC-protected MCP at `/mcp` using Spring AI stateful Streamable HTTP | RuntimeProfile-filtered `@McpTool` domain tools, resources, prompts, form elicitation, argument-bound approval receipts, and support-safe audit | Weave canonical use cases; downstream providers are never MCP authorities |
 
 Spring Boot is the server gatekeeper for OIDC, authorization, audit, readiness, and support-safe errors. Matrix protocol shaping targets a shared Rust/Ruma core: server integration through JNI, Flutter integration through `flutter_rust_bridge`. Flutter should consume Weave-owned facades, not raw provider SDKs or provider secrets.
+
+```mermaid
+flowchart LR
+  clients["Flutter, native DAV clients, and Weaver runtimes"] --> oidc["Weave OIDC and scoped protocol credentials"]
+  oidc --> northbound["WebDAV | CalDAV | Matrix Client-Server | Spring AI MCP"]
+  northbound --> domains["Files | Calendar | Chat | Governed Weaver canonical domains"]
+  domains --> ports["Provider ports, mappings, conformance, and audit"]
+  ports --> providers["Replaceable WebDAV, CalDAV, Matrix, Slack, Teams, S3, and future adapters"]
+```
+
+Provider switching happens below the canonical domain boundary. Adapters translate provider identifiers, errors, and capabilities into Weave values; durable mappings and conformance reports preserve continuity. A provider URL, token, SDK type, Matrix homeserver, or Nextcloud endpoint is therefore an implementation detail, never the member contract.
 
 ## Enterprise Workflow
 
@@ -54,6 +66,7 @@ These checked-in visuals are support-safe proof assets for the current dogfood p
 
 - The current frontdoor proves a provider-neutral member path with guided setup, service review, chat, files, and settings visuals backed by checked-in evidence.
 - The current implementation moves normal member data planes to northbound standards: Chat through the OIDC-gated Matrix facade, Files through WebDAV, and Calendar through CalDAV/iCalendar. Legacy REST chat messages and calendar event data-plane routes are obsolete rather than compatibility targets.
+- The governed Weaver projection uses Spring AI 2.0 at `/mcp`. Its Files, Calendar, and Chat tools call the same canonical application services as the protocol facades, with RuntimeProfile filtering, approval-required writes, and support-safe results.
 - Weave treats admin/operator readiness as part of the product: provider categories, policy boundaries, evidence, and support-safe diagnostics belong in the control plane, not in member setup.
 - The release track already carries product-level proof for dogfood collaboration, governed assistance boundaries, portability dry-runs, operator recovery guardrails, and release-claim control.
 

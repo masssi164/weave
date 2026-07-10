@@ -1,6 +1,9 @@
 package com.massimotter.weave.backend.controller;
 
 import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.controller.protocol.CalDavReportParser;
+import com.massimotter.weave.backend.controller.protocol.CalDavReportParser.InvalidCalDavReportException;
+import com.massimotter.weave.backend.controller.protocol.CalDavReportParser.Report;
 import com.massimotter.weave.backend.model.calendar.CalendarEventResponse;
 import com.massimotter.weave.backend.model.calendar.CalendarScopeResponse;
 import com.massimotter.weave.backend.model.calendar.CalendarScopesResponse;
@@ -21,8 +24,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -39,14 +40,6 @@ public class CalDavCalendarController {
     private static final String CALDAV_ROOT = "/caldav";
     private static final MediaType XML = MediaType.APPLICATION_XML;
     private static final MediaType CALENDAR = MediaType.parseMediaType("text/calendar; charset=UTF-8");
-    private static final Pattern TIME_RANGE = Pattern.compile(
-            "time-range[^>]*\\sstart=[\"']([^\"']+)[\"'][^>]*\\send=[\"']([^\"']+)[\"']",
-            Pattern.CASE_INSENSITIVE);
-    private static final Pattern HREF = Pattern.compile("<[^:>/]*:?href[^>]*>([^<]+)</[^:>/]*:?href>",
-            Pattern.CASE_INSENSITIVE);
-    private static final Pattern SYNC_TOKEN = Pattern.compile(
-            "<[^:>/]*:?sync-token[^>]*>([^<]*)</[^:>/]*:?sync-token>",
-            Pattern.CASE_INSENSITIVE);
     private static final DateTimeFormatter CALDAV_TIME = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'")
             .withZone(ZoneOffset.UTC);
 
@@ -119,35 +112,26 @@ public class CalDavCalendarController {
     }
 
     private ResponseEntity<String> report(HttpServletRequest request) {
-        String rawBody = requestBody(request);
-        String body = rawBody.toLowerCase(Locale.ROOT);
-        String reportKind = body.contains("free-busy-query")
-                ? "free-busy-query"
-                : body.contains("calendar-multiget")
-                        ? "calendar-multiget"
-                        : body.contains("sync-collection")
-                                ? "sync-collection"
-                                : "calendar-query";
-        if (!body.contains("calendar-query")
-                && !body.contains("calendar-multiget")
-                && !body.contains("sync-collection")
-                && !body.contains("free-busy-query")) {
+        Report report;
+        try {
+            report = CalDavReportParser.parse(requestBody(request));
+        } catch (InvalidCalDavReportException exception) {
             throw new ApiErrorException(
                     HttpStatus.BAD_REQUEST,
-                    "caldav-report-unsupported",
-                    "Only calendar-query, calendar-multiget, sync-collection, and free-busy-query REPORT bodies are recognized by the Weave CalDAV facade.",
+                    "caldav-report-invalid",
+                    exception.getMessage(),
                     Map.of("module", "calendar", "operation", "caldav-report"));
         }
-        if ("calendar-multiget".equals(reportKind)) {
+        if (report.kind() == CalDavReportParser.Kind.CALENDAR_MULTIGET) {
             return ResponseEntity.status(207)
                     .contentType(XML)
                     .header("DAV", "1, calendar-access")
                     .header("X-Weave-Projection", "caldav-calendar-data-plane")
-                    .body(calendarMultigetMultistatus(rawBody));
+                    .body(calendarMultigetMultistatus(report.hrefs()));
         }
-        if ("sync-collection".equals(reportKind)) {
+        if (report.kind() == CalDavReportParser.Kind.SYNC_COLLECTION) {
             CalendarScopeResponse scope = scope(request);
-            CalDavSyncResult result = calendarFacadeService.syncCalDavResources(scope, syncToken(rawBody));
+            CalDavSyncResult result = calendarFacadeService.syncCalDavResources(scope, report.syncToken());
             return ResponseEntity.status(207)
                     .contentType(XML)
                     .header("DAV", "1, calendar-access")
@@ -156,8 +140,8 @@ public class CalDavCalendarController {
                     .body(calendarSyncMultistatus(result));
         }
         CalendarScopeResponse scope = scope(request);
-        TimeRange range = timeRange(body, reportKind);
-        if ("free-busy-query".equals(reportKind)) {
+        TimeRange range = timeRange(report);
+        if (report.kind() == CalDavReportParser.Kind.FREE_BUSY_QUERY) {
             return ResponseEntity.ok()
                     .contentType(CALENDAR)
                     .header("X-Weave-Projection", "caldav-calendar-data-plane")
@@ -332,11 +316,9 @@ public class CalDavCalendarController {
         return xml.toString();
     }
 
-    private String calendarMultigetMultistatus(String reportBody) {
+    private String calendarMultigetMultistatus(List<String> hrefs) {
         List<CalDavEventResource> events = new ArrayList<>();
-        Matcher matcher = HREF.matcher(reportBody);
-        while (matcher.find()) {
-            String href = matcher.group(1);
+        for (String href : hrefs) {
             CalendarEventReference reference = eventReferenceFromHref(href);
             if (reference != null && reference.eventUid() != null && !reference.eventUid().isBlank()) {
                 events.add(calendarFacadeService.readCalDavResource(reference.eventUid(), reference.scope()));
@@ -426,25 +408,16 @@ public class CalDavCalendarController {
         return calendar.toString();
     }
 
-    private String syncToken(String body) {
-        Matcher matcher = SYNC_TOKEN.matcher(body == null ? "" : body);
-        if (!matcher.find()) {
-            return null;
-        }
-        String token = matcher.group(1);
-        return token == null || token.isBlank() ? null : token.trim();
-    }
-
-    private TimeRange timeRange(String body, String reportKind) {
-        Matcher matcher = TIME_RANGE.matcher(body);
-        if (!matcher.find()) {
+    private TimeRange timeRange(Report report) {
+        if (report.rangeStart() == null || report.rangeEnd() == null) {
             throw new ApiErrorException(
                     HttpStatus.BAD_REQUEST,
                     "caldav-time-range-required",
-                    "CalDAV " + reportKind + " REPORT requires a valid time-range.",
-                    Map.of("module", "calendar", "operation", "caldav-report-" + reportKind));
+                    "CalDAV " + report.kind().name().toLowerCase(Locale.ROOT)
+                            + " REPORT requires a valid time-range.",
+                    Map.of("module", "calendar", "operation", "caldav-report-" + report.kind().name().toLowerCase(Locale.ROOT)));
         }
-        return new TimeRange(parseCalDavTime(matcher.group(1)), parseCalDavTime(matcher.group(2)));
+        return new TimeRange(parseCalDavTime(report.rangeStart()), parseCalDavTime(report.rangeEnd()));
     }
 
     private OffsetDateTime parseCalDavTime(String value) {

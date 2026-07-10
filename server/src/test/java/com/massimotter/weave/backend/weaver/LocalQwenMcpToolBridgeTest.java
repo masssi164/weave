@@ -15,12 +15,12 @@ class LocalQwenMcpToolBridgeTest {
         InMemoryAuditEventPublisher auditPublisher = new InMemoryAuditEventPublisher();
         LocalQwenMcpToolBridge bridge = new LocalQwenMcpToolBridge(new WeaverToolRegistry(auditPublisher));
 
-        var turn = bridge.execute(request("calendar.search_events", false, Map.of("spaceRef", "space:default")));
+        var turn = bridge.execute(request("calendar.search_events", false, Map.of("calendarRef", "calendar:workspace")));
 
         assertThat(turn.allowed()).isTrue();
         assertThat(turn.decision()).isEqualTo("ok");
         assertThat(turn.supportSafeEvidence())
-                .containsEntry("channelId", "channels.weave-chat")
+                .containsEntry("channelId", "channels.matrix")
                 .containsEntry("modelRef", "lmstudio/qwen/qwen3.5-9b")
                 .containsEntry("runtimeProfileHash", "rph-qwen-tool-test")
                 .containsEntry("runtimeProfileVersion", "weaver-runtime-profile:v1")
@@ -83,7 +83,7 @@ class LocalQwenMcpToolBridgeTest {
         InMemoryAuditEventPublisher auditPublisher = new InMemoryAuditEventPublisher();
         LocalQwenMcpToolBridge bridge = new LocalQwenMcpToolBridge(new WeaverToolRegistry(auditPublisher));
 
-        var turn = bridge.execute(request("calendar.search_events", false, Map.of("spaceRef", "space:default", "unexpected", "value")));
+        var turn = bridge.execute(request("calendar.search_events", false, Map.of("calendarRef", "calendar:workspace", "unexpected", "value")));
 
         assertThat(turn.allowed()).isFalse();
         assertThat(turn.decision()).isEqualTo("overbroad_args");
@@ -160,7 +160,7 @@ class LocalQwenMcpToolBridgeTest {
         InMemoryAuditEventPublisher auditPublisher = new InMemoryAuditEventPublisher();
         LocalQwenMcpToolBridge bridge = new LocalQwenMcpToolBridge(new WeaverToolRegistry(auditPublisher));
 
-        var turn = bridge.execute(request("calendar.search_events", true, Map.of("spaceRef", "space:default")));
+        var turn = bridge.execute(request("calendar.search_events", true, Map.of("calendarRef", "calendar:workspace")));
 
         assertThat(turn.allowed()).isTrue();
         assertThat(turn.decision()).isEqualTo("ok");
@@ -194,7 +194,7 @@ class LocalQwenMcpToolBridgeTest {
             boolean revoked,
             Map<String, Object> input) {
         return new LocalQwenMcpToolBridge.QwenMcpToolRequest(
-                "channels.weave-chat",
+                "channels.matrix",
                 "lmstudio/qwen/qwen3.5-9b",
                 toolName,
                 "user:123",

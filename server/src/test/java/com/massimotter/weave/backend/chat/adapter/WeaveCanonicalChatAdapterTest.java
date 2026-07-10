@@ -5,6 +5,7 @@ import com.massimotter.weave.backend.chat.domain.ChatCursor;
 import com.massimotter.weave.backend.chat.domain.ChatTransactionId;
 import com.massimotter.weave.backend.chat.domain.ConversationId;
 import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
+import java.time.Instant;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -45,9 +46,19 @@ class WeaveCanonicalChatAdapterTest {
 
         assertThat(profile.domain()).isEqualTo("chat");
         assertThat(profile.supportedOperations())
-                .contains("joined-conversations", "timeline", "send", "changes", "idempotent-send");
+                .contains(
+                        "joined-conversations",
+                        "timeline",
+                        "send",
+                        "reactions",
+                        "read-receipts",
+                        "typing",
+                        "changes",
+                        "idempotent-send");
         assertThat(profile.fieldMappings())
                 .containsEntry("conversation", ProviderConformanceProfile.MappingClass.PORTABLE)
+                .containsEntry("reaction", ProviderConformanceProfile.MappingClass.PORTABLE)
+                .containsEntry("read-receipt", ProviderConformanceProfile.MappingClass.PORTABLE)
                 .containsEntry("attachment", ProviderConformanceProfile.MappingClass.ARCHIVE_ONLY)
                 .containsEntry("encrypted-history", ProviderConformanceProfile.MappingClass.UNSUPPORTED);
         assertThat(profile.atomicWrites()).isTrue();
@@ -64,6 +75,27 @@ class WeaveCanonicalChatAdapterTest {
         assertThat(joined.conversationId()).isEqualTo("channel-general");
         assertThat(joined.encryptionState().mode()).isEqualTo("unencrypted");
         assertThat(joined.toString())
-                .doesNotContain("Synapse", "Slack", "Teams", "access_token", "homeserver");
+                .doesNotContain("Synapse", "providerTenant", "providerChannelId", "access_token", "homeserver");
+    }
+
+    @Test
+    void readReceiptsAndTypingRemainCanonicalUserState() {
+        WeaveCanonicalChatAdapter adapter = new WeaveCanonicalChatAdapter();
+        var event = adapter.send(
+                actor,
+                conversation,
+                new ChatTransactionId("txn-read-state"),
+                "Read me");
+
+        var receipt = adapter.markRead(actor, conversation, event.messageId());
+        var typing = adapter.setTyping(actor, conversation, true, 15_000);
+        var stopped = adapter.setTyping(actor, conversation, false, 0);
+
+        assertThat(receipt.conversationId()).isEqualTo("channel-general");
+        assertThat(receipt.actorRef()).isEqualTo("user:subject-1");
+        assertThat(receipt.eventId()).isEqualTo(event.messageId());
+        assertThat(typing.typing()).isTrue();
+        assertThat(typing.expiresAt()).isAfter(Instant.now());
+        assertThat(stopped.typing()).isFalse();
     }
 }

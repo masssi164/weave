@@ -23,15 +23,15 @@ REQUIRED_FEATURES = {
     "oidc_protocol_access.feature": 5,
     "files_webdav_full_facade.feature": 11,
     "calendar_caldav_facade.feature": 9,
-    "chat_matrix_facade.feature": 11,
+    "chat_matrix_facade.feature": 13,
     "calls_webrtc_join_grants.feature": 9,
-    "mcp_domain_facade_boundary.feature": 5,
+    "mcp_domain_facade_boundary.feature": 9,
     "provider_neutral_no_leakage.feature": 5,
     "flutter_protocol_boundary.feature": 5,
     "native_os_integration_readiness.feature": 4,
 }
 
-REQUIRED_GAPS = {
+REQUIRED_EVIDENCE_BOUNDARIES = {
     "files-full-webdav": [
         "MOVE",
         "COPY",
@@ -44,7 +44,8 @@ REQUIRED_GAPS = {
         "calendar-multiget",
         "sync-collection",
         "MKCALENDAR",
-        "recurrence DST",
+        "recurrence",
+        "DST",
         "Flutter CalDAV",
     ],
     "chat-matrix-parity": [
@@ -110,10 +111,10 @@ def require_gap_inventory() -> None:
     docs = require(
         "docs/open-standards-gateway-archive-integration.md",
         MARKER,
-        "Spring.ai.mcp remains blocked",
+        "Spring AI MCP is implemented",
         "not complete",
     )
-    for gap_id, fragments in REQUIRED_GAPS.items():
+    for gap_id, fragments in REQUIRED_EVIDENCE_BOUNDARIES.items():
         if gap_id not in docs:
             fail(f"gap inventory is missing {gap_id}")
         for fragment in fragments:
@@ -151,7 +152,7 @@ def require_current_evidence_boundaries() -> None:
         "server/src/main/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionController.java",
         '"X-Weave-Matrix-Core", "rust-ruma-jni"',
         "chatDomainFacadeService.conversations(jwt)",
-        "chatDomainFacadeService.sendMessage(",
+        "chatDomainFacadeService.sendEvent(",
     )
     require(
         "server/src/main/java/com/massimotter/weave/backend/matrix/MatrixProtocolCoreService.java",
@@ -162,6 +163,14 @@ def require_current_evidence_boundaries() -> None:
         "server/src/main/java/com/massimotter/weave/backend/controller/CallsController.java",
         '@PostMapping("/api/calls/{id}/join")',
         '@PostMapping("/api/calls/{id}/end")',
+    )
+    require(
+        "tools/spring_ai_mcp_facade_acceptance_check.py",
+        "SPRING_AI_MCP_STATEFUL_TRANSPORT",
+        "MCP_OIDC_GATEKEEPER",
+        "MCP_CANONICAL_DOMAIN_DISPATCH",
+        "MCP_APPROVAL_RECEIPT_BOUNDARY",
+        "MCP_LEGACY_RUNTIME_REMOVED",
     )
 
 

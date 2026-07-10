@@ -46,6 +46,9 @@ readonly PERSISTED_TF_VARS=(
   TF_VAR_backend_host_port
   TF_VAR_backend_container_port
   TF_VAR_weave_backend_image
+  TF_VAR_mcp_host_port
+  TF_VAR_mcp_container_port
+  TF_VAR_weave_mcp_server_image
   TF_VAR_provider_stack_profile
   TF_VAR_provider_stack_readiness
   TF_VAR_devops_primary_provider
@@ -831,6 +834,7 @@ ensure_existing_stack_terraform_state() {
   import_existing_docker_container_state module.keycloak.docker_container.this weave-keycloak
   import_existing_docker_container_state module.mailpit.docker_container.this weave-mailpit
   import_existing_docker_container_state module.backend.docker_container.this weave-backend
+  import_existing_docker_container_state module.mcp.docker_container.this weave-mcp-server
   import_existing_docker_container_state module.matrix.docker_container.mas weave-mas
   import_existing_docker_container_state module.matrix.docker_container.synapse weave-synapse
   import_existing_docker_container_state module.nextcloud.docker_container.this weave-nextcloud
@@ -843,8 +847,10 @@ terraform_output_raw() {
   "${WEAVE_IAC_BIN}" -chdir="${dir}" output -raw "${name}"
 }
 
-refresh_backend_container_if_image_changed() {
-  local desired_image="${TF_VAR_weave_backend_image:-}"
+refresh_runtime_container_if_image_changed() {
+  local container_name="$1"
+  local desired_image="$2"
+  local runtime_label="$3"
   local desired_image_id
   local current_image_id
 
@@ -856,24 +862,35 @@ refresh_backend_container_if_image_changed() {
     return
   fi
 
-  if ! docker container inspect weave-backend >/dev/null 2>&1; then
-    log "Recreating missing Weave backend container for image ${desired_image}..."
+  if ! docker container inspect "${container_name}" >/dev/null 2>&1; then
+    log "Recreating missing ${runtime_label} container for image ${desired_image}..."
     "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" init -input=false
     "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" apply -input=false -auto-approve
     return
   fi
 
   desired_image_id="$(docker image inspect --format '{{.Id}}' "${desired_image}")"
-  current_image_id="$(docker inspect --format '{{.Image}}' weave-backend)"
+  current_image_id="$(docker inspect --format '{{.Image}}' "${container_name}")"
 
   if [[ "${desired_image_id}" == "${current_image_id}" ]]; then
     return
   fi
 
-  log "Refreshing Weave backend container to match image ${desired_image}..."
-  docker rm -f weave-backend >/dev/null
+  log "Refreshing ${runtime_label} container to match image ${desired_image}..."
+  docker rm -f "${container_name}" >/dev/null
   "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" init -input=false
   "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" apply -input=false -auto-approve
+}
+
+refresh_runtime_containers_if_images_changed() {
+  refresh_runtime_container_if_image_changed \
+    weave-backend \
+    "${TF_VAR_weave_backend_image:-}" \
+    "Weave backend"
+  refresh_runtime_container_if_image_changed \
+    weave-mcp-server \
+    "${TF_VAR_weave_mcp_server_image:-}" \
+    "Weave MCP server"
 }
 
 ensure_postgres_bootstrap_applied() {
@@ -1252,6 +1269,9 @@ ensure_default_inputs() {
     "TF_VAR_backend_host_port=48084"
     "TF_VAR_backend_container_port=8080"
     "TF_VAR_weave_backend_image=weave-backend:local"
+    "TF_VAR_mcp_host_port=48085"
+    "TF_VAR_mcp_container_port=8091"
+    "TF_VAR_weave_mcp_server_image=weave-mcp-server:local"
     "TF_VAR_provider_stack_profile=fail-closed"
     "TF_VAR_provider_stack_readiness=fail-closed"
     "TF_VAR_devops_primary_provider=gitlab-ce-foss"
@@ -1341,6 +1361,7 @@ ensure_docker_provider_inputs() {
 ensure_generated_secrets() {
   set_default_secret TF_VAR_db_admin_password "$(random_base64 24)"
   set_default_secret TF_VAR_backend_db_password "$(random_base64 24)"
+  set_default_secret TF_VAR_mcp_boundary_token "$(random_base64 32)"
   set_default_secret TF_VAR_keycloak_admin_password "$(random_base64 24)"
   set_default_secret TF_VAR_keycloak_db_password "$(random_base64 24)"
   set_default_secret TF_VAR_mas_db_password "$(random_base64 24)"
@@ -1711,6 +1732,7 @@ print_summary() {
   log
   log "Health checks:"
   log "- Backend ready: $(integration_test_base_url)/health/ready"
+  log "- MCP ready: http://${LOOPBACK_HOST}:${TF_VAR_mcp_host_port}/actuator/health"
   log "- Keycloak discovery: $(integration_test_oidc_issuer_url)/.well-known/openid-configuration"
   log "- Matrix versions: $(client_matrix_public_url)/_matrix/client/versions"
   log "- Matrix default rooms: #announcements:$(public_host "${TF_VAR_matrix_subdomain}"), #general:$(public_host "${TF_VAR_matrix_subdomain}"), #help:$(public_host "${TF_VAR_matrix_subdomain}")"
@@ -1728,6 +1750,7 @@ print_summary() {
   log "- Run: TF_VAR_create_test_user=true ./install.sh && ./smoke-test.sh"
   log "- For diagnostics, run: ./operator-check.sh"
   log "- Weave backend image: ${TF_VAR_weave_backend_image}"
+  log "- Weave MCP image: ${TF_VAR_weave_mcp_server_image}"
 
   if create_test_user_enabled; then
     log "- Test user: ${TEST_USER_EMAIL} (password stored in ${BOOTSTRAP_ENV_FILE})"
@@ -1763,7 +1786,7 @@ main() {
   synapse_repair_volume_permissions
   synapse_verify_volume_writable
   ensure_postgres_bootstrap_applied
-  refresh_backend_container_if_image_changed
+  refresh_runtime_containers_if_images_changed
 
   log "Waiting for Keycloak management readiness..."
   wait_for_http_200 "Keycloak management" "http://${LOOPBACK_HOST}:${TF_VAR_keycloak_management_host_port}/health/ready"
@@ -1777,6 +1800,9 @@ main() {
 
   log "Waiting for Weave backend readiness..."
   wait_for_http_200 "Weave backend" "http://${LOOPBACK_HOST}:${TF_VAR_backend_host_port}/api/health/ready"
+
+  log "Waiting for Weave MCP readiness..."
+  wait_for_http_200 "Weave MCP server" "http://${LOOPBACK_HOST}:${TF_VAR_mcp_host_port}/actuator/health"
 
   log "Waiting for Matrix Authentication Service readiness..."
   wait_for_http_200 "Matrix Authentication Service" "http://${LOOPBACK_HOST}:${TF_VAR_mas_host_port}/health"

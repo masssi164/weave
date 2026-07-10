@@ -1,54 +1,56 @@
-# Weave MCP tool contract
+# Weave MCP runtime contract
 
-Status: Sprint 17 local RC evidence contract, disabled by default unless bound by a generated signed RuntimeProfile projection.
+Status: implemented as an internal, OIDC-protected Spring AI 2.0 stateful Streamable HTTP service with standard form elicitation.
 
-This document records the MCP refinement for Sprint 16 without turning MCP into the product API. The Java/Kotlin backend remains the product and control-plane authority. A future MCP gateway under `infra/weave-mcp` may expose governed Weave domain tools to approved Weaver runtimes, but only as infra glue over backend-owned contracts.
-
-## Placement
-
-Keep the Sprint 16 machine-readable contract under `infra/weave-workspace` because that operator/runtime area already owns Weaver lifecycle evidence and internal network boundaries. Use `infra/weave-mcp/` for any future Python FastMCP server package so the runnable MCP gateway stays clearly separated from workspace contracts and local lifecycle fixtures.
-
-FastMCP with Python `@tool` remains an implementation candidate only. Its architecture principle is `MCP = governed tool projection over Weave APIs`: validate typed input, derive org/user/runtime context from a Weave-generated signed RuntimeProfile projection, call backend facade APIs, redact output, and emit audit evidence. Caller-supplied capability headers are not policy input.
+The runnable MCP projection is `weave-mcp-server`. OpenTofu deploys it as `weave-mcp-server` on the internal Weave network through `01-infrastructure/modules/mcp`. The earlier `infra/weave-mcp` Python/FastMCP gateway and handwritten Java JSON-RPC controller are removed; they are not compatibility paths.
 
 ## Authority boundary
 
-- Weave backend is authoritative for product domains, provider choices, policy decisions, readiness, audit, and SecretRef/CredentialRef handling.
+- Spring Security validates issuer, audience, expiry, and the `weave:workspace` scope at `/mcp`.
+- `weave-backend` remains authoritative for RuntimeProfile lookup, capability intersection, authorization, approval receipts, audit, canonical domain commands, and provider selection.
+- The MCP process forwards the same bearer identity to the backend and cannot call a provider adapter.
 - MCP exposes governed actions for approved runtimes; it does not replace backend APIs.
-- Runtime containers must not call provider APIs directly.
-- Normal members must not configure providers, secrets, endpoint URLs, or raw OpenClaw/MCP server config through MCP.
-- All tool calls are deny-by-default, audited, and filtered by the generated signed RuntimeProfile projection, which carries the Weave capability-policy intersection as support-safe grants and allowed tool names. The local RC proof verifies a projection signature; production signing/fetch-by-hash remains a non-claim.
+- Normal members never configure raw endpoints, secrets, provider credentials, or runtime policy through MCP.
 
-## Canonical MCP domains
+The protocol catalog is a fixed canonical capability ceiling generated from `MemberMcpToolCatalog`; listing a tool is not authorization. Before every invocation, `WeaveServerClient` fetches the caller's backend-owned RuntimeProfile projection. A tool absent from that approved catalog fails before dispatch. The resource `weave://runtime/approved-tools` exposes only the runtime-approved, support-safe subset.
 
-The canonical domain sketch is captured in `../weave-workspace/weave-mcp-tool-contract.json`:
+## Spring AI surface
 
-- `calendar`: event CRUD, calendar CRUD where appropriate, free/busy, invite/RSVP, recurrence, provider source mapping.
-- `files_documents`: file/folder CRUD, search, metadata, version/content reads, permissions/share links, document actions.
-- `boards_tasks`: board/list/card/task CRUD, assignments, labels, statuses, due dates, comments/activity.
-- `chat_comms`: channels/rooms/messages, membership, send/read/search where allowed, support-safe provider abstraction.
-- `people_identity_org`: users, groups, roles, org units, effective rights/policy, readiness.
-- `admin_setup_providers`: provider registry, category mapping, readiness checks, dry-runs, capability mapping, SecretRef references only.
-- `audit_policy`: audit events, redaction/support-safe views, policy simulation, permission scopes.
-- `weaver_runtime_governance`: org tool allowlists, capability bundles, consent policy, sandbox/package projection, runtime audit handoff.
+The server uses the official `spring-ai-starter-mcp-server-webmvc` 2.0 runtime with `spring.ai.mcp.server.protocol=STREAMABLE`, a stateful WebMVC transport at `/mcp`, and standard form elicitation for approval-required writes.
 
-## Support-safe rules
+Tools currently projected end to end:
 
-Every future `@tool` must return Weave domain objects or support-safe refs only. It must not return:
+- `files.search` and `files.read` through the canonical Files service and WebDAV-backed projection;
+- `calendar.search_events` and `calendar.create_event` through the canonical Calendar service and CalDAV-backed projection;
+- `chat.send_message` through `ChatDomainFacadeService`, the canonical chat provider port, and the shared Matrix/Rust projection.
 
-- raw provider internals, raw downstream request/response bodies, or raw provider errors;
-- bearer tokens, cookies, OAuth access/refresh tokens, private keys, or SecretRef values;
-- credential-bearing URLs, direct provider admin URLs, room IDs/event IDs, or filenames in support-safe bundles;
-- `openclaw.json`, raw MCP server config, runtime tokens, sandbox bypass controls, or exec policy bypasses.
+Resources and prompts:
 
-Write/delete/external-send/provider-switch actions require approval receipts. Routine reads may be grant-based when the user has normal Weave rights and the organization has granted that tool class.
+- `weave://runtime/approved-tools` returns approved domain names, capabilities, and approval posture without runtime token or CredentialRef values;
+- `weave.workspace.plan` creates a bounded prompt containing only approved Weave tool names and explicit approval constraints.
 
-## Sprint 16 slice
+The full domain inventory remains in `../weave-workspace/weave-mcp-tool-contract.json`. Additional domains become executable only after their canonical backend port and conformance evidence exist.
 
-Do not build every provider adapter in Sprint 16. The safe proof slice is:
+## Security and audit
 
-1. keep backend-owned Admin Console/readiness and suite facade contracts as the source of truth;
-2. record the MCP contract and test its fail-closed, support-safe domain shape;
-3. project Weaver RuntimeProfile/tool governance from those domains while disabled by default;
-4. if a runnable proof is added later, place it under `infra/weave-mcp/` with read-only tools such as `admin.get_readiness`, `weaver.get_runtime_profile_projection`, and one suite-domain search, plus an approval-required write stub that fails closed without an approval receipt.
+- Tool inputs use exact shared JSON schemas with `additionalProperties=false`.
+- Unknown, ungranted, malformed, or unavailable calls fail closed with support-safe MCP results.
+- Caller-supplied capability headers are never policy input.
+- Read operations require a valid runtime grant.
+- Write, delete, external-send, provider-switch, and admin-risk operations require a verifiable Weave approval receipt in the individual `tools/call` request's `weave/approvalReceipt` MCP `_meta` entry.
+- The MCP adapter derives `approvalReceiptRef` from that receipt and sends both to the backend. An HTTP header or receipt reference alone cannot authorize a write.
+- Receipt validation binds actor, current RuntimeProfile hash, canonical domain, exact tool, canonical scope refs, MCP contract version, backend policy version, approved decision, approval time, expiry, and audit ref. Profile, policy, scope, domain, or contract drift fails closed before canonical dispatch.
+- The backend emits the authoritative audit result. MCP returns only its support-safe audit reference.
+- SecretRef/CredentialRef handling stays backend-owned; values never appear in tools, resources, prompts, or errors.
 
-This is a scope adjustment to the Weaver/runtime and suite-facade design foundation, not a runtime launch or production MCP gateway claim.
+Forbidden output includes bearer tokens, cookies, OAuth tokens, private keys, raw downstream bodies, raw provider errors, credential-bearing URLs, provider admin endpoints, raw Matrix/CalDAV/WebDAV payloads, and `openclaw.json`.
+
+## Operations
+
+The service is internal-only. Its host port is loopback-bound for operator health checks; Weaver runtimes use:
+
+```text
+http://weave-mcp-server:8091/mcp
+```
+
+Operator health is available at `http://127.0.0.1:${TF_VAR_mcp_host_port}/actuator/health`. The endpoint itself still requires OIDC; health reveals no tool, policy, user, or provider data.

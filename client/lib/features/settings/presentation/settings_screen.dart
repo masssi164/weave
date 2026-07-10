@@ -21,6 +21,7 @@ import 'package:weave/features/app/domain/entities/workspace_capability_snapshot
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
 import 'package:weave/features/app/presentation/workspace_capability_recovery_presenter.dart';
 import 'package:weave/features/agents/domain/entities/agent_capability_policy.dart';
+import 'package:weave/features/agents/domain/entities/weaver_permission_mode.dart';
 import 'package:weave/features/agents/presentation/providers/agent_capability_policy_provider.dart';
 import 'package:weave/features/agents/presentation/widgets/agent_capability_policy_card.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
@@ -626,14 +627,14 @@ class _WeaverMemberSettingsSection extends ConsumerWidget {
   }
 }
 
-class _WeaverMemberSettingsCard extends StatelessWidget {
+class _WeaverMemberSettingsCard extends ConsumerWidget {
   const _WeaverMemberSettingsCard({required this.state, this.statusOverride});
 
   final WeaverMemberUxState state;
   final String? statusOverride;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final available = state.available;
@@ -708,6 +709,12 @@ class _WeaverMemberSettingsCard extends StatelessWidget {
               if (available) ...[
                 _AdminApprovedModelAliasPicker(aliases: state.modelAliases),
                 const SizedBox(height: 16),
+                _WeaverPermissionModeControl(
+                  mode: ref.watch(weaverPermissionModeProvider),
+                  onSelected: (mode) =>
+                      _updatePermissionMode(context, ref, mode),
+                ),
+                const SizedBox(height: 16),
                 _WeaverPersonalSettingsList(state: state),
                 const SizedBox(height: 16),
                 _WeaverAllowedItemsWrap(
@@ -733,6 +740,130 @@ class _WeaverMemberSettingsCard extends StatelessWidget {
       ),
     );
   }
+
+  Future<void> _updatePermissionMode(
+    BuildContext context,
+    WidgetRef ref,
+    WeaverPermissionMode mode,
+  ) async {
+    final l10n = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    if (mode.isDangerous) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          icon: Icon(
+            Icons.warning_amber_rounded,
+            color: Theme.of(dialogContext).colorScheme.error,
+          ),
+          title: Text(l10n.weaverPermissionFullWarningTitle),
+          content: Text(l10n.weaverPermissionFullWarningBody),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(l10n.weaverPermissionCancel),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              icon: const Icon(Icons.warning_amber_rounded),
+              label: Text(l10n.weaverPermissionFullConfirm),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !context.mounted) {
+        return;
+      }
+    }
+    try {
+      final result = await ref
+          .read(weaverPermissionModeProvider.notifier)
+          .updateMode(mode);
+      if (!messenger.mounted) {
+        return;
+      }
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            result.accepted
+                ? l10n.weaverPermissionUpdated
+                : l10n.weaverPermissionPolicyDenied,
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!messenger.mounted) {
+        return;
+      }
+      messenger.showSnackBar(
+        SnackBar(content: Text(l10n.weaverPermissionUpdateFailed)),
+      );
+    }
+  }
+}
+
+class _WeaverPermissionModeControl extends StatelessWidget {
+  const _WeaverPermissionModeControl({
+    required this.mode,
+    required this.onSelected,
+  });
+
+  final AsyncValue<WeaverPermissionMode> mode;
+  final ValueChanged<WeaverPermissionMode> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final selected = mode.value ?? WeaverPermissionMode.ask;
+    return Semantics(
+      label: l10n.weaverPermissionModeTitle,
+      child: DropdownButtonFormField<WeaverPermissionMode>(
+        initialValue: selected,
+        isExpanded: true,
+        decoration: InputDecoration(
+          labelText: l10n.weaverPermissionModeTitle,
+          prefixIcon: const Icon(Icons.shield_outlined),
+        ),
+        items: WeaverPermissionMode.values
+            .map(
+              (value) => DropdownMenuItem(
+                value: value,
+                child: Row(
+                  children: [
+                    Icon(
+                      value.isDangerous
+                          ? Icons.warning_amber_rounded
+                          : Icons.security_outlined,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Flexible(child: Text(_permissionModeLabel(l10n, value))),
+                  ],
+                ),
+              ),
+            )
+            .toList(),
+        onChanged: mode.isLoading
+            ? null
+            : (value) {
+                if (value != null && value != selected) {
+                  onSelected(value);
+                }
+              },
+      ),
+    );
+  }
+
+  String _permissionModeLabel(
+    AppLocalizations l10n,
+    WeaverPermissionMode mode,
+  ) => switch (mode) {
+    WeaverPermissionMode.deny => l10n.weaverPermissionModeDeny,
+    WeaverPermissionMode.allowlist => l10n.weaverPermissionModeAllowlist,
+    WeaverPermissionMode.ask => l10n.weaverPermissionModeAsk,
+    WeaverPermissionMode.auto => l10n.weaverPermissionModeAuto,
+    WeaverPermissionMode.full => l10n.weaverPermissionModeFull,
+  };
 }
 
 class _AdminApprovedModelAliasPicker extends StatefulWidget {

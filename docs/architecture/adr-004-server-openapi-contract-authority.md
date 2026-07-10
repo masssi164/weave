@@ -10,7 +10,7 @@ Weave currently has several overlapping contract surfaces:
 - hand-written shared Java metadata and DTOs in `weave-contract`;
 - hand-written Flutter integration models and API clients;
 - hand-written Admin Console API types;
-- Java and Python MCP adapter experiments.
+- historical Java and Python MCP adapter experiments.
 
 That split made short-term delivery possible, but it creates long-term drift risk. The latest live-stack evidence already showed validation drift at the product boundary: a Flutter live E2E request sent a `followUpRefs[0]` value rejected by server validation (`size must be between 0 and 160`). Similar drift would recur if client, admin, and MCP each keep their own hand-maintained contract truth.
 
@@ -55,7 +55,7 @@ MCP tool annotations are UX/risk hints only. They are not enforcement. Approval,
 - OpenAPI quality becomes a build gate: stable `operationId`, stable schema names, validation constraints, support-safe errors, and no provider secret/raw payload leakage.
 - The root build orchestrates all consumer checks from the repository root; it does not replace Flutter, npm, or Python tooling.
 - Existing `weave-contract` usages remain compatibility debt until migrated. Follow-up PRs must move authority back into server/OpenAPI before deleting the module.
-- Java `weave-mcp-server` remains a transitional adapter until the Python OpenAPI-consuming MCP path is implemented or the architecture is explicitly revised again.
+- Superseded by ADR-006/ADR-008 and the pinned corpus ADR-0003: `weave-mcp-server` is the active Spring AI MCP projection over canonical domain use cases. The Python/OpenAPI route-map path and handwritten JSON-RPC controller are removed.
 
 ## Migration plan
 
@@ -63,7 +63,7 @@ MCP tool annotations are UX/risk hints only. They are not enforcement. Approval,
 2. Harden server OpenAPI for the member/admin/MCP slices that consumers need.
 3. Generate Admin Console client/types from OpenAPI first; it is the smaller consumer surface.
 4. Generate Flutter member API client/models from OpenAPI and remove covered hand-maintained duplicates.
-5. Rework MCP to expose domain-first Weave tools over approved domain capabilities; OpenAPI route maps remain explicit and deny-by-default for control-plane operations.
+5. Rework MCP to expose domain-first Weave tools over approved domain capabilities; completed for the Files, Calendar, and Chat slice through Spring AI stateful Streamable HTTP and standard form elicitation. OpenAPI remains control-plane authority, not MCP tool truth.
 6. Remove or narrow hand-written `weave-contract` contract truth once no consumer depends on it as authority.
 7. Update live-stack readiness so server health, OpenAPI, admin, MCP initialize/tools-list, and approval smoke checks run before Flutter E2E.
 

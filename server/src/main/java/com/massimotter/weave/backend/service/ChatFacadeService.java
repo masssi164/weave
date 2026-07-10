@@ -180,6 +180,11 @@ public class ChatFacadeService {
         seedConversations();
     }
 
+    /**
+     * @deprecated Matrix and {@link com.massimotter.weave.backend.chat.ChatDomainFacadeService} own Chat readiness.
+     *             Removal is tracked by issue #1023 after the stock Matrix and Spring AI MCP cutover.
+     */
+    @Deprecated(forRemoval = true)
     public ChatReadinessResponse readiness(Jwt jwt) {
         List<String> granted = grantedChatCapabilities(jwt);
         WorkspaceCapabilityProperties.Capability chat = workspaceCapabilityProperties.chat();
@@ -219,6 +224,9 @@ public class ChatFacadeService {
                 true);
     }
 
+    /**
+     * @deprecated Normal Chat data-plane access is the northbound Matrix facade. Removal is tracked by issue #1023.
+     */
     @Deprecated(forRemoval = true, since = "0.2")
     public ChatConversationsResponse conversations(Jwt jwt) {
         requireChatReady(jwt, "chat.read", "list_conversations");
@@ -231,6 +239,9 @@ public class ChatFacadeService {
         return new ChatConversationsResponse(DOMAIN, "canonical-domain-facade", SOURCE, readiness(jwt), response);
     }
 
+    /**
+     * @deprecated Normal Chat data-plane access is the northbound Matrix facade. Removal is tracked by issue #1023.
+     */
     @Deprecated(forRemoval = true, since = "0.2")
     public ChatMessagesResponse messages(Jwt jwt, String conversationId) {
         requireChatReady(jwt, "chat.read", "list_messages");
@@ -239,6 +250,9 @@ public class ChatFacadeService {
         return new ChatMessagesResponse(conversation.id(), readiness(jwt), conversation.messagesFor(principal.principalRef()));
     }
 
+    /**
+     * @deprecated Normal Chat data-plane access is the northbound Matrix facade. Removal is tracked by issue #1023.
+     */
     @Deprecated(forRemoval = true, since = "0.2")
     public ChatMessageResponse sendMessage(Jwt jwt, String conversationId, ChatSendMessageRequest request) {
         requireChatReady(jwt, "chat.send", "send_message");

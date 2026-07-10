@@ -6803,6 +6803,84 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Error code: {code}'**
   String memberHandoffErrorCode(String code);
+
+  /// Label for the governed Weaver permission mode selector
+  ///
+  /// In en, this message translates to:
+  /// **'Permission mode'**
+  String get weaverPermissionModeTitle;
+
+  /// Weaver permission mode that denies actions
+  ///
+  /// In en, this message translates to:
+  /// **'Deny all'**
+  String get weaverPermissionModeDeny;
+
+  /// Weaver permission mode that permits remembered exact grants
+  ///
+  /// In en, this message translates to:
+  /// **'Allowlist only'**
+  String get weaverPermissionModeAllowlist;
+
+  /// Weaver permission mode that requests member approval
+  ///
+  /// In en, this message translates to:
+  /// **'Ask every time'**
+  String get weaverPermissionModeAsk;
+
+  /// Weaver permission mode using automatic host review
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic review'**
+  String get weaverPermissionModeAuto;
+
+  /// Dangerous Weaver full access mode
+  ///
+  /// In en, this message translates to:
+  /// **'Full access (dangerous)'**
+  String get weaverPermissionModeFull;
+
+  /// Warning title before enabling dangerous Weaver full access
+  ///
+  /// In en, this message translates to:
+  /// **'Enable dangerous full access?'**
+  String get weaverPermissionFullWarningTitle;
+
+  /// Warning body before enabling dangerous Weaver full access
+  ///
+  /// In en, this message translates to:
+  /// **'Weaver will be allowed to run host commands without approval and will automatically accept trusted Weave tool requests. Organization policy, your sign-in, validation, provider boundaries, and audit logging still apply.'**
+  String get weaverPermissionFullWarningBody;
+
+  /// Confirmation button for dangerous Weaver full access
+  ///
+  /// In en, this message translates to:
+  /// **'Enable full access'**
+  String get weaverPermissionFullConfirm;
+
+  /// Cancel button for Weaver permission mode warning
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get weaverPermissionCancel;
+
+  /// Success feedback after updating Weaver permission mode
+  ///
+  /// In en, this message translates to:
+  /// **'Weaver permission mode updated.'**
+  String get weaverPermissionUpdated;
+
+  /// Feedback when organization policy denies a Weaver permission mode
+  ///
+  /// In en, this message translates to:
+  /// **'Your organization policy does not allow this mode.'**
+  String get weaverPermissionPolicyDenied;
+
+  /// Failure feedback after updating Weaver permission mode
+  ///
+  /// In en, this message translates to:
+  /// **'Weaver permission mode could not be updated.'**
+  String get weaverPermissionUpdateFailed;
 }
 
 class _AppLocalizationsDelegate

@@ -11,7 +11,7 @@ import 'package:weave/features/server_config/domain/repositories/server_configur
 import 'package:weave/integrations/rust_matrix_core/data/services/rust_matrix_core_bridge.dart';
 
 class WeaveMatrixFacadeChatRepository implements ChatRepository {
-  const WeaveMatrixFacadeChatRepository({
+  WeaveMatrixFacadeChatRepository({
     required ServerConfigurationRepository serverConfigurationRepository,
     required AuthSessionRepository authSessionRepository,
     required http.Client httpClient,
@@ -25,6 +25,8 @@ class WeaveMatrixFacadeChatRepository implements ChatRepository {
   final AuthSessionRepository _authSessionRepository;
   final http.Client _httpClient;
   final RustMatrixCoreBridge _rustMatrixCoreBridge;
+  final Map<String, String> _latestEventByRoom = <String, String>{};
+  String? _currentUserId;
 
   @override
   Future<List<ChatConversation>> loadConversations() async {
@@ -88,6 +90,7 @@ class WeaveMatrixFacadeChatRepository implements ChatRepository {
   Future<ChatRoomTimeline> loadRoomTimeline(String roomId) async {
     final configuration = await _loadConfiguration();
     try {
+      final currentUserId = await _currentMatrixUserId(configuration);
       final projection = await _rustMatrixCoreBridge.parseMessages(
         responseJson: await _matrixRequestBody(
           'GET',
@@ -96,13 +99,19 @@ class WeaveMatrixFacadeChatRepository implements ChatRepository {
         ),
         serverName: configuration.serviceEndpoints.matrixHomeserverUrl.host,
       );
+      if (projection.isNotEmpty) {
+        _latestEventByRoom[roomId] = projection.last.eventId;
+      }
       return ChatRoomTimeline(
         roomId: roomId,
         roomTitle: _titleFromRoomId(roomId),
         isInvite: false,
         canSendMessages: true,
         messages: projection
-            .map(_messageFromProjection)
+            .map(
+              (message) =>
+                  _messageFromProjection(message, currentUserId: currentUserId),
+            )
             .toList(growable: false),
       );
     } on RustMatrixCoreBridgeException {
@@ -140,7 +149,17 @@ class WeaveMatrixFacadeChatRepository implements ChatRepository {
 
   @override
   Future<void> markRoomRead(String roomId) async {
-    // Read receipts stay unavailable until the canonical port and Rust core own them.
+    final eventId = _latestEventByRoom[roomId];
+    if (eventId == null) {
+      return;
+    }
+    final configuration = await _loadConfiguration();
+    await _matrixRequestBody(
+      'POST',
+      '/_matrix/client/v3/rooms/${Uri.encodeComponent(roomId)}/receipt/m.read/${Uri.encodeComponent(eventId)}',
+      configuration: configuration,
+      body: '{}',
+    );
   }
 
   @override
@@ -162,6 +181,7 @@ class WeaveMatrixFacadeChatRepository implements ChatRepository {
         ),
         serverName: serverName,
       );
+      await _currentMatrixUserId(configuration);
     } on RustMatrixCoreBridgeException {
       throw const ChatFailure.configuration(
         'The Matrix facade is not compatible with this Weave client.',
@@ -235,7 +255,27 @@ class WeaveMatrixFacadeChatRepository implements ChatRepository {
     );
   }
 
-  ChatMessage _messageFromProjection(RustMatrixMessageProjection projection) {
+  Future<String> _currentMatrixUserId(ServerConfiguration configuration) async {
+    final current = _currentUserId;
+    if (current != null) {
+      return current;
+    }
+    final resolved = await _rustMatrixCoreBridge.parseWhoamiUserId(
+      responseJson: await _matrixRequestBody(
+        'GET',
+        '/_matrix/client/v3/account/whoami',
+        configuration: configuration,
+      ),
+      serverName: configuration.serviceEndpoints.matrixHomeserverUrl.host,
+    );
+    _currentUserId = resolved;
+    return resolved;
+  }
+
+  ChatMessage _messageFromProjection(
+    RustMatrixMessageProjection projection, {
+    required String currentUserId,
+  }) {
     final contentType = switch (projection.contentType) {
       'text' => ChatMessageContentType.text,
       'encrypted' => ChatMessageContentType.encrypted,
@@ -249,7 +289,7 @@ class WeaveMatrixFacadeChatRepository implements ChatRepository {
         projection.originServerTimestamp,
         isUtc: true,
       ),
-      isMine: false,
+      isMine: projection.sender == currentUserId,
       deliveryState: ChatMessageDeliveryState.sent,
       contentType: contentType,
       text: contentType == ChatMessageContentType.text ? projection.body : null,

@@ -51,26 +51,36 @@ public class MatrixProtocolCoreService {
             String cursor,
             String since,
             List<CanonicalConversation> conversations) {
+        return sync(subject, cursor, since, conversations, Map.of());
+    }
+
+    public Map<String, Object> sync(
+            String subject,
+            String cursor,
+            String since,
+            List<CanonicalConversation> conversations,
+            Map<String, Object> accountData) {
         return project("sync", new CanonicalProjection(
                 subject,
                 cursor,
                 since,
-                conversations));
+                conversations,
+                accountData));
     }
 
     public void validateSyncToken(String since) {
-        project("validate-sync-token", new CanonicalProjection("", "", since, List.of()));
+        project("validate-sync-token", new CanonicalProjection("", "", since, List.of(), Map.of()));
     }
 
     public Map<String, Object> joinedRooms(List<CanonicalConversation> conversations) {
-        return project("joined-rooms", new CanonicalProjection("", "", null, conversations));
+        return project("joined-rooms", new CanonicalProjection("", "", null, conversations, Map.of()));
     }
 
     public Map<String, Object> messages(
             String cursor,
             String from,
             CanonicalConversation conversation) {
-        return project("messages", new CanonicalProjection("", cursor, from, List.of(conversation)));
+        return project("messages", new CanonicalProjection("", cursor, from, List.of(conversation), Map.of()));
     }
 
     public String parseSendBody(String requestJson) {
@@ -79,6 +89,33 @@ public class MatrixProtocolCoreService {
             throw new MatrixProtocolException("M_BAD_JSON", "Matrix message body must not be blank.");
         }
         return value;
+    }
+
+    public Map<String, Object> parseObject(String requestJson) {
+        Object value = projectRaw("parse-object", requestJson).get("value");
+        if (!(value instanceof Map<?, ?> object)) {
+            throw new MatrixProtocolException("M_BAD_JSON", "Matrix request body must be a JSON object.");
+        }
+        Map<String, Object> result = new java.util.LinkedHashMap<>();
+        object.forEach((key, nested) -> {
+            if (!(key instanceof String text)) {
+                throw new MatrixProtocolException("M_BAD_JSON", "Matrix request body keys must be strings.");
+            }
+            result.put(text, nested);
+        });
+        return java.util.Collections.unmodifiableMap(result);
+    }
+
+    public ParsedEventContent parseEvent(String eventType, String requestJson) {
+        try {
+            Object content = objectMapper.readValue(requestJson, Object.class);
+            Map<String, Object> parsed = project("parse-event", Map.of(
+                    "eventType", requireText(eventType, "Matrix event type"),
+                    "content", content));
+            return objectMapper.convertValue(parsed, ParsedEventContent.class);
+        } catch (JsonProcessingException | IllegalArgumentException exception) {
+            throw new MatrixProtocolException("M_BAD_JSON", "Matrix event content is invalid.");
+        }
     }
 
     public Map<String, Object> sendResponse(String messageId) {
@@ -90,6 +127,33 @@ public class MatrixProtocolCoreService {
                 .get("conversationId");
         if (!(conversationId instanceof String value) || value.isBlank()) {
             throw new MatrixProtocolException("M_INVALID_PARAM", "Matrix room identifier is invalid.");
+        }
+        return value;
+    }
+
+    public String decodeEventId(String matrixEventId) {
+        Object eventId = project("decode-event", Map.of("eventId", matrixEventId == null ? "" : matrixEventId))
+                .get("eventId");
+        if (!(eventId instanceof String value) || value.isBlank()) {
+            throw new MatrixProtocolException("M_INVALID_PARAM", "Matrix event identifier is invalid.");
+        }
+        return value;
+    }
+
+    public String roomId(String conversationId) {
+        Object roomId = project("room-id", Map.of("conversationId", requireText(conversationId, "conversation id")))
+                .get("roomId");
+        if (!(roomId instanceof String value) || value.isBlank()) {
+            throw new MatrixProtocolException("M_WEAVE_MATRIX_CORE_ERROR", "Matrix room identifier could not be projected.");
+        }
+        return value;
+    }
+
+    public String userId(String memberRef) {
+        Object userId = project("user-id", Map.of("memberRef", requireText(memberRef, "member reference")))
+                .get("userId");
+        if (!(userId instanceof String value) || value.isBlank()) {
+            throw new MatrixProtocolException("M_WEAVE_MATRIX_CORE_ERROR", "Matrix user identifier could not be projected.");
         }
         return value;
     }
@@ -150,12 +214,14 @@ public class MatrixProtocolCoreService {
             String subject,
             String cursor,
             String since,
-            List<CanonicalConversation> conversations) {
+            List<CanonicalConversation> conversations,
+            Map<String, Object> accountData) {
 
         public CanonicalProjection {
             subject = subject == null ? "" : subject;
             cursor = cursor == null ? "" : cursor;
             conversations = conversations == null ? List.of() : List.copyOf(conversations);
+            accountData = accountData == null ? Map.of() : Map.copyOf(accountData);
         }
     }
 
@@ -164,19 +230,94 @@ public class MatrixProtocolCoreService {
             String title,
             long updatedAtEpochMillis,
             long unreadCount,
+            List<CanonicalMembership> memberships,
             List<CanonicalMessage> messages) {
 
         public CanonicalConversation {
+            memberships = memberships == null ? List.of() : List.copyOf(memberships);
             messages = messages == null ? List.of() : List.copyOf(messages);
         }
+
+        public CanonicalConversation(
+                String conversationId,
+                String title,
+                long updatedAtEpochMillis,
+                long unreadCount,
+                List<CanonicalMessage> messages) {
+            this(conversationId, title, updatedAtEpochMillis, unreadCount, List.of(), messages);
+        }
+    }
+
+    public record CanonicalMembership(String memberRef, String state) {
     }
 
     public record CanonicalMessage(
             String messageId,
             String senderRef,
             long sentAtEpochMillis,
+            String kind,
+            String messageType,
             String body,
+            String format,
+            String formattedBody,
+            String relationKind,
+            String relationTargetEventId,
+            String replyToEventId,
+            String reactionKey,
+            Map<String, Object> presentationExtensions,
             String deliveryState,
-            boolean encrypted) {
+            boolean encrypted,
+            boolean redacted) {
+
+        public CanonicalMessage(
+                String messageId,
+                String senderRef,
+                long sentAtEpochMillis,
+                String body,
+                String deliveryState,
+                boolean encrypted) {
+            this(
+                    messageId,
+                    senderRef,
+                    sentAtEpochMillis,
+                    "message",
+                    "m.text",
+                    body,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    Map.of(),
+                    deliveryState,
+                    encrypted,
+                    false);
+        }
+
+        public CanonicalMessage {
+            presentationExtensions = presentationExtensions == null
+                    ? Map.of()
+                    : Map.copyOf(presentationExtensions);
+        }
+    }
+
+    public record ParsedEventContent(
+            String kind,
+            String messageType,
+            String body,
+            String format,
+            String formattedBody,
+            String relationKind,
+            String relationTargetEventId,
+            String replyToEventId,
+            String reactionKey,
+            Map<String, Object> presentationExtensions) {
+
+        public ParsedEventContent {
+            presentationExtensions = presentationExtensions == null
+                    ? Map.of()
+                    : Map.copyOf(presentationExtensions);
+        }
     }
 }

@@ -111,6 +111,8 @@ struct ProjectionInput {
     since: Option<String>,
     #[serde(default)]
     conversations: Vec<CanonicalConversationInput>,
+    #[serde(default)]
+    account_data: BTreeMap<String, Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -123,7 +125,16 @@ struct CanonicalConversationInput {
     #[serde(default)]
     unread_count: u64,
     #[serde(default)]
+    memberships: Vec<CanonicalMembershipInput>,
+    #[serde(default)]
     messages: Vec<CanonicalMessageInput>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CanonicalMembershipInput {
+    member_ref: String,
+    state: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -132,12 +143,40 @@ struct CanonicalMessageInput {
     message_id: String,
     sender_ref: String,
     sent_at_epoch_millis: i64,
+    #[serde(default = "default_event_kind")]
+    kind: String,
+    #[serde(default = "default_message_type")]
+    message_type: String,
     #[serde(default)]
     body: String,
+    #[serde(default)]
+    format: Option<String>,
+    #[serde(default)]
+    formatted_body: Option<String>,
+    #[serde(default)]
+    relation_kind: Option<String>,
+    #[serde(default)]
+    relation_target_event_id: Option<String>,
+    #[serde(default)]
+    reply_to_event_id: Option<String>,
+    #[serde(default)]
+    reaction_key: Option<String>,
+    #[serde(default)]
+    presentation_extensions: BTreeMap<String, Value>,
     #[serde(default = "default_delivery_state")]
     delivery_state: String,
     #[serde(default)]
     encrypted: bool,
+    #[serde(default)]
+    redacted: bool,
+}
+
+fn default_event_kind() -> String {
+    "message".to_string()
+}
+
+fn default_message_type() -> String {
+    "m.text".to_string()
 }
 
 fn default_delivery_state() -> String {
@@ -221,6 +260,13 @@ struct SendMessageRequest {
     body: String,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SendEventRequest {
+    event_type: String,
+    content: Value,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ClientSyncProjection {
@@ -274,6 +320,19 @@ pub fn matrix_facade_descriptor(
             "GET /_matrix/client/v3/joined_rooms".to_string(),
             "GET /_matrix/client/v3/rooms/{roomId}/messages".to_string(),
             "PUT /_matrix/client/v3/rooms/{roomId}/send/m.room.message/{txnId}".to_string(),
+            "PUT /_matrix/client/v3/rooms/{roomId}/send/m.reaction/{txnId}".to_string(),
+            "PUT /_matrix/client/v3/rooms/{roomId}/redact/{eventId}/{txnId}".to_string(),
+            "GET /_matrix/client/v3/rooms/{roomId}/joined_members".to_string(),
+            "POST /_matrix/client/v3/rooms/{roomId}/receipt/m.read/{eventId}".to_string(),
+            "PUT /_matrix/client/v3/rooms/{roomId}/typing/{userId}".to_string(),
+            "POST /_matrix/client/v3/createRoom".to_string(),
+            "POST /_matrix/client/v3/join/{roomId}".to_string(),
+            "POST /_matrix/client/v3/rooms/{roomId}/leave".to_string(),
+            "GET /_matrix/client/v3/rooms/{roomId}/state".to_string(),
+            "GET /_matrix/client/v3/profile/{userId}".to_string(),
+            "GET /_matrix/client/v3/pushrules/".to_string(),
+            "POST /_matrix/client/v3/user/{userId}/filter".to_string(),
+            "PUT /_matrix/client/v3/user/{userId}/account_data/{type}".to_string(),
         ],
     })
 }
@@ -312,14 +371,20 @@ pub fn project_json(
         "validate-sync-token" => validate_sync_token_value(&parse(&input_json)?)?,
         "joined-rooms" => joined_rooms_value(&parse(&input_json)?, &server_name)?,
         "messages" => messages_value(&parse(&input_json)?, &server_name)?,
+        "parse-object" => parse_object_value(&input_json)?,
         "parse-send" => parse_send_value(&input_json)?,
+        "parse-event" => parse_event_value(&input_json, &server_name)?,
         "serialize-send" => serialize_send_value(&input_json)?,
         "send-response" => send_response_value(&input_json, &server_name)?,
         "decode-room" => decode_room_value(&input_json, &server_name)?,
+        "decode-event" => decode_event_value(&input_json, &server_name)?,
+        "room-id" => room_id_value(&input_json, &server_name)?,
+        "user-id" => user_id_value(&input_json, &server_name)?,
         "error" => matrix_error_value(&input_json)?,
         "parse-sync" => parse_sync_value(&input_json, &server_name)?,
         "parse-messages" => parse_messages_value(&input_json, &server_name)?,
         "parse-versions" => parse_versions_value(&input_json)?,
+        "parse-whoami" => parse_whoami_value(&input_json, &server_name)?,
         _ => return Err(MatrixCoreError::InvalidOperation),
     };
     Ok(serde_json::to_string(&value)?)
@@ -363,6 +428,19 @@ fn whoami_value(
     }))
 }
 
+fn parse_whoami_value(
+    input_json: &str,
+    server_name: &OwnedServerName,
+) -> Result<Value, MatrixCoreError> {
+    let input: Value = parse(input_json)?;
+    let user_id = input
+        .get("user_id")
+        .and_then(Value::as_str)
+        .ok_or(MatrixCoreError::InvalidRequest)?;
+    validate_user_for_server(user_id, server_name)?;
+    Ok(json!({ "userId": user_id }))
+}
+
 fn sync_value(
     input: &ProjectionInput,
     server_name: &OwnedServerName,
@@ -377,7 +455,7 @@ fn sync_value(
             room_id,
             MatrixJoinedRoom {
                 state: MatrixState {
-                    events: vec![room_name_event(conversation, server_name)?],
+                    events: room_state_events(conversation, server_name)?,
                 },
                 timeline: MatrixTimeline {
                     limited: false,
@@ -398,6 +476,12 @@ fn sync_value(
     Ok(json!({
         "next_batch": encode_sync_token(&input.cursor),
         "rooms": { "join": joined },
+        "account_data": {
+            "events": input.account_data.iter().map(|(event_type, content)| json!({
+                "type": event_type,
+                "content": content,
+            })).collect::<Vec<_>>()
+        },
         "weaveBoundary": "northbound-matrix-client-server",
         "canonicalDomain": "chat",
         "providerDataPlaneExposed": false,
@@ -459,6 +543,138 @@ fn parse_send_value(input_json: &str) -> Result<Value, MatrixCoreError> {
     Ok(json!({ "body": body, "msgtype": "m.text" }))
 }
 
+fn parse_object_value(input_json: &str) -> Result<Value, MatrixCoreError> {
+    let value: Value =
+        serde_json::from_str(input_json).map_err(|_| MatrixCoreError::InvalidRequest)?;
+    if !value.is_object() {
+        return Err(MatrixCoreError::InvalidRequest);
+    }
+    Ok(json!({ "value": value }))
+}
+
+fn parse_event_value(
+    input_json: &str,
+    server_name: &OwnedServerName,
+) -> Result<Value, MatrixCoreError> {
+    let request: SendEventRequest =
+        serde_json::from_str(input_json).map_err(|_| MatrixCoreError::InvalidRequest)?;
+    match request.event_type.as_str() {
+        "m.room.message" => parse_message_content(&request.content, server_name),
+        "m.reaction" => parse_reaction_content(&request.content, server_name),
+        _ => Err(MatrixCoreError::UnsupportedMessageType),
+    }
+}
+
+fn parse_message_content(
+    content: &Value,
+    server_name: &OwnedServerName,
+) -> Result<Value, MatrixCoreError> {
+    let object = content.as_object().ok_or(MatrixCoreError::InvalidRequest)?;
+    let message_type = object
+        .get("msgtype")
+        .and_then(Value::as_str)
+        .unwrap_or("m.text");
+    if !matches!(message_type, "m.text" | "m.notice" | "m.emote") {
+        return Err(MatrixCoreError::UnsupportedMessageType);
+    }
+    let body = object
+        .get("body")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty() && value.len() <= 65_536)
+        .ok_or(MatrixCoreError::InvalidRequest)?;
+    let (relation_kind, relation_target_event_id, reply_to_event_id) =
+        parse_relation(object.get("m.relates_to"), server_name)?;
+    let extensions = object
+        .iter()
+        .filter(|(key, _)| {
+            matches!(
+                key.as_str(),
+                "com.openclaw.approval" | "com.openclaw.presentation"
+            )
+        })
+        .map(|(key, value)| (key.clone(), value.clone()))
+        .collect::<BTreeMap<_, _>>();
+    Ok(json!({
+        "kind": "message",
+        "messageType": message_type,
+        "body": body,
+        "format": object.get("format").and_then(Value::as_str),
+        "formattedBody": object.get("formatted_body").and_then(Value::as_str),
+        "relationKind": relation_kind,
+        "relationTargetEventId": relation_target_event_id,
+        "replyToEventId": reply_to_event_id,
+        "reactionKey": Value::Null,
+        "presentationExtensions": extensions,
+    }))
+}
+
+fn parse_reaction_content(
+    content: &Value,
+    server_name: &OwnedServerName,
+) -> Result<Value, MatrixCoreError> {
+    let relation = content
+        .get("m.relates_to")
+        .and_then(Value::as_object)
+        .ok_or(MatrixCoreError::InvalidRequest)?;
+    if relation.get("rel_type").and_then(Value::as_str) != Some("m.annotation") {
+        return Err(MatrixCoreError::InvalidRequest);
+    }
+    let target = relation
+        .get("event_id")
+        .and_then(Value::as_str)
+        .ok_or(MatrixCoreError::InvalidRequest)?;
+    let key = relation
+        .get("key")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty() && value.len() <= 128)
+        .ok_or(MatrixCoreError::InvalidRequest)?;
+    Ok(json!({
+        "kind": "reaction",
+        "messageType": Value::Null,
+        "body": Value::Null,
+        "format": Value::Null,
+        "formattedBody": Value::Null,
+        "relationKind": "reaction",
+        "relationTargetEventId": decode_event_id(target, server_name)?,
+        "replyToEventId": Value::Null,
+        "reactionKey": key,
+        "presentationExtensions": {},
+    }))
+}
+
+fn parse_relation(
+    relation: Option<&Value>,
+    server_name: &OwnedServerName,
+) -> Result<(Option<String>, Option<String>, Option<String>), MatrixCoreError> {
+    let Some(relation) = relation.and_then(Value::as_object) else {
+        return Ok((None, None, None));
+    };
+    let reply_to = relation
+        .get("m.in_reply_to")
+        .and_then(Value::as_object)
+        .and_then(|reply| reply.get("event_id"))
+        .and_then(Value::as_str)
+        .map(|event_id| decode_event_id(event_id, server_name))
+        .transpose()?;
+    let relation_type = relation.get("rel_type").and_then(Value::as_str);
+    let target = relation
+        .get("event_id")
+        .and_then(Value::as_str)
+        .map(|event_id| decode_event_id(event_id, server_name))
+        .transpose()?;
+    let kind = match relation_type {
+        Some("m.thread") => Some("thread".to_string()),
+        Some("m.replace") => Some("replace".to_string()),
+        Some(_) => return Err(MatrixCoreError::InvalidRequest),
+        None if reply_to.is_some() => Some("reply".to_string()),
+        None => None,
+    };
+    let canonical_target = target.or_else(|| reply_to.clone());
+    Ok((kind, canonical_target, reply_to))
+}
+
 fn serialize_send_value(input_json: &str) -> Result<Value, MatrixCoreError> {
     #[derive(Deserialize)]
     struct Input {
@@ -508,6 +724,52 @@ fn decode_room_value(
         return Err(MatrixCoreError::InvalidMatrixId { kind: "room_id" });
     }
     Ok(json!({ "conversationId": &value[1..separator] }))
+}
+
+fn decode_event_value(
+    input_json: &str,
+    server_name: &OwnedServerName,
+) -> Result<Value, MatrixCoreError> {
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Input {
+        event_id: String,
+    }
+    let input: Input =
+        serde_json::from_str(input_json).map_err(|_| MatrixCoreError::InvalidRequest)?;
+    Ok(json!({ "eventId": decode_event_id(&input.event_id, server_name)? }))
+}
+
+fn room_id_value(
+    input_json: &str,
+    server_name: &OwnedServerName,
+) -> Result<Value, MatrixCoreError> {
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Input {
+        conversation_id: String,
+    }
+    let input: Input =
+        serde_json::from_str(input_json).map_err(|_| MatrixCoreError::InvalidRequest)?;
+    Ok(json!({
+        "roomId": matrix_room_id(&input.conversation_id, server_name)?.to_string()
+    }))
+}
+
+fn user_id_value(
+    input_json: &str,
+    server_name: &OwnedServerName,
+) -> Result<Value, MatrixCoreError> {
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct UserIdRequest {
+        member_ref: String,
+    }
+    let request: UserIdRequest =
+        serde_json::from_str(input_json).map_err(|_| MatrixCoreError::InvalidRequest)?;
+    Ok(json!({
+        "userId": matrix_user_id(&request.member_ref, server_name)?.to_string()
+    }))
 }
 
 fn matrix_error_value(input_json: &str) -> Result<Value, MatrixCoreError> {
@@ -686,11 +948,58 @@ fn room_name_event(
     })
 }
 
+fn room_state_events(
+    conversation: &CanonicalConversationInput,
+    server_name: &OwnedServerName,
+) -> Result<Vec<MatrixEvent>, MatrixCoreError> {
+    let mut events = vec![room_name_event(conversation, server_name)?];
+    events.extend(
+        conversation
+            .memberships
+            .iter()
+            .map(|membership| membership_event(conversation, membership, server_name))
+            .collect::<Result<Vec<_>, _>>()?,
+    );
+    Ok(events)
+}
+
+fn membership_event(
+    conversation: &CanonicalConversationInput,
+    membership: &CanonicalMembershipInput,
+    server_name: &OwnedServerName,
+) -> Result<MatrixEvent, MatrixCoreError> {
+    let state = match membership.state.as_str() {
+        "joined" | "join" => "join",
+        "invited" | "invite" => "invite",
+        "left" | "leave" => "leave",
+        "banned" | "ban" => "ban",
+        _ => return Err(MatrixCoreError::InvalidRequest),
+    };
+    let user_id = matrix_user_id(&membership.member_ref, server_name)?.to_string();
+    Ok(MatrixEvent {
+        event_type: "m.room.member".to_string(),
+        sender: user_id.clone(),
+        event_id: matrix_event_id(
+            &format!(
+                "membership-{}-{}",
+                conversation.conversation_id, membership.member_ref
+            ),
+            server_name,
+        )?
+        .to_string(),
+        origin_server_ts: conversation.updated_at_epoch_millis,
+        content: json!({ "membership": state }),
+        state_key: Some(user_id),
+    })
+}
+
 fn message_event(
     message: &CanonicalMessageInput,
     server_name: &OwnedServerName,
 ) -> Result<MatrixEvent, MatrixCoreError> {
-    let (event_type, content) = if message.encrypted {
+    let (event_type, content) = if message.redacted {
+        ("m.room.message", json!({}))
+    } else if message.encrypted {
         (
             "m.room.encrypted",
             json!({
@@ -698,18 +1007,54 @@ fn message_event(
                 "weaveEncryptionState": "ciphertext_not_available_to_server_projection",
             }),
         )
-    } else {
+    } else if message.kind == "reaction" {
+        let target = message
+            .relation_target_event_id
+            .as_deref()
+            .ok_or(MatrixCoreError::InvalidRequest)?;
+        let key = message
+            .reaction_key
+            .as_deref()
+            .ok_or(MatrixCoreError::InvalidRequest)?;
         (
-            "m.room.message",
+            "m.reaction",
             json!({
-                "msgtype": "m.text",
-                "body": message.body,
-                "weaveMessageId": message.message_id,
-                "weaveDeliveryState": message.delivery_state,
-                "weaveCanonicalDomain": "chat",
-                "providerDataPlaneExposed": false,
+                "m.relates_to": {
+                    "rel_type": "m.annotation",
+                    "event_id": matrix_event_id(target, server_name)?.to_string(),
+                    "key": key,
+                },
             }),
         )
+    } else {
+        let mut content = serde_json::Map::new();
+        content.insert("msgtype".to_string(), json!(message.message_type));
+        content.insert("body".to_string(), json!(message.body));
+        if let Some(format) = &message.format {
+            content.insert("format".to_string(), json!(format));
+        }
+        if let Some(formatted_body) = &message.formatted_body {
+            content.insert("formatted_body".to_string(), json!(formatted_body));
+        }
+        if let Some(relation) = matrix_relation(message, server_name)? {
+            content.insert("m.relates_to".to_string(), relation);
+        }
+        for (key, value) in &message.presentation_extensions {
+            if matches!(
+                key.as_str(),
+                "com.openclaw.approval" | "com.openclaw.presentation"
+            ) {
+                content.insert(key.clone(), value.clone());
+            }
+        }
+        content.insert("weaveMessageId".to_string(), json!(message.message_id));
+        content.insert(
+            "weaveDeliveryState".to_string(),
+            json!(message.delivery_state),
+        );
+        content.insert("weaveCanonicalDomain".to_string(), json!("chat"));
+        content.insert("providerDataPlaneExposed".to_string(), json!(false));
+        ("m.room.message", Value::Object(content))
     };
     Ok(MatrixEvent {
         event_type: event_type.to_string(),
@@ -719,6 +1064,46 @@ fn message_event(
         content,
         state_key: None,
     })
+}
+
+fn matrix_relation(
+    message: &CanonicalMessageInput,
+    server_name: &OwnedServerName,
+) -> Result<Option<Value>, MatrixCoreError> {
+    let Some(kind) = message.relation_kind.as_deref() else {
+        return Ok(None);
+    };
+    let target = message
+        .relation_target_event_id
+        .as_deref()
+        .ok_or(MatrixCoreError::InvalidRequest)?;
+    let target = matrix_event_id(target, server_name)?.to_string();
+    let relation = match kind {
+        "reply" => json!({ "m.in_reply_to": { "event_id": target } }),
+        "thread" => json!({
+            "rel_type": "m.thread",
+            "event_id": target,
+            "m.in_reply_to": {
+                "event_id": matrix_event_id(
+                    message.reply_to_event_id.as_deref().unwrap_or(
+                        message.relation_target_event_id.as_deref().unwrap_or_default()
+                    ),
+                    server_name,
+                )?.to_string(),
+            },
+        }),
+        "replace" => json!({ "rel_type": "m.replace", "event_id": target }),
+        _ => return Err(MatrixCoreError::InvalidRequest),
+    };
+    Ok(Some(relation))
+}
+
+fn decode_event_id(value: &str, server_name: &OwnedServerName) -> Result<String, MatrixCoreError> {
+    validate_event_for_server(value, server_name)?;
+    let separator = value
+        .rfind(':')
+        .ok_or(MatrixCoreError::InvalidMatrixId { kind: "event_id" })?;
+    Ok(value[1..separator].to_string())
 }
 
 fn parse<T: for<'de> Deserialize<'de>>(input_json: &str) -> Result<T, MatrixCoreError> {
@@ -978,6 +1363,30 @@ mod tests {
     }
 
     #[test]
+    fn client_whoami_projection_validates_the_facade_server_name() {
+        let valid = project_json(
+            "parse-whoami".to_string(),
+            json!({"user_id": "@user_alice:matrix.weave.test"}).to_string(),
+            "matrix.weave.test".to_string(),
+        )
+        .unwrap();
+        assert_eq!(
+            serde_json::from_str::<Value>(&valid).unwrap()["userId"],
+            "@user_alice:matrix.weave.test"
+        );
+
+        let invalid = project_json_or_error(
+            "parse-whoami".to_string(),
+            json!({"user_id": "@user_alice:provider.invalid"}).to_string(),
+            "matrix.weave.test".to_string(),
+        );
+        assert_eq!(
+            serde_json::from_str::<Value>(&invalid).unwrap()["errcode"],
+            "M_WEAVE_MATRIX_CORE_ERROR"
+        );
+    }
+
+    #[test]
     fn malformed_send_and_sync_tokens_return_matrix_safe_errors() {
         let send = project_json_or_error(
             "parse-send".to_string(),
@@ -1000,6 +1409,130 @@ mod tests {
             serde_json::from_str::<Value>(&sync).unwrap()["errcode"],
             "M_BAD_JSON"
         );
+    }
+
+    #[test]
+    fn generic_matrix_request_objects_are_parsed_by_the_rust_core() {
+        let object = project_json(
+            "parse-object".to_string(),
+            json!({"name": "General", "is_direct": false, "nested": {"enabled": true}}).to_string(),
+            "matrix.weave.test".to_string(),
+        )
+        .unwrap();
+        let parsed: Value = serde_json::from_str(&object).unwrap();
+        assert_eq!(parsed["value"]["name"], "General");
+        assert_eq!(parsed["value"]["nested"]["enabled"], true);
+
+        let invalid = project_json_or_error(
+            "parse-object".to_string(),
+            json!(["not", "an", "object"]).to_string(),
+            "matrix.weave.test".to_string(),
+        );
+        assert_eq!(
+            serde_json::from_str::<Value>(&invalid).unwrap()["errcode"],
+            "M_BAD_JSON"
+        );
+    }
+
+    #[test]
+    fn approval_messages_and_reactions_round_trip_through_canonical_events() {
+        let approval = project_json(
+            "parse-event".to_string(),
+            json!({
+                "eventType": "m.room.message",
+                "content": {
+                    "msgtype": "m.text",
+                    "body": "Approve calendar creation",
+                    "com.openclaw.approval": {
+                        "version": 1,
+                        "kind": "plugin",
+                        "state": "pending"
+                    },
+                    "providerSecret": "must-not-cross"
+                }
+            })
+            .to_string(),
+            "matrix.weave.test".to_string(),
+        )
+        .unwrap();
+        let approval: Value = serde_json::from_str(&approval).unwrap();
+        assert_eq!(approval["kind"], "message");
+        assert_eq!(
+            approval["presentationExtensions"]["com.openclaw.approval"]["kind"],
+            "plugin"
+        );
+        assert!(approval["presentationExtensions"]
+            .get("providerSecret")
+            .is_none());
+
+        let reaction = project_json(
+            "parse-event".to_string(),
+            json!({
+                "eventType": "m.reaction",
+                "content": {
+                    "m.relates_to": {
+                        "rel_type": "m.annotation",
+                        "event_id": "$approval-event:matrix.weave.test",
+                        "key": "allow"
+                    }
+                }
+            })
+            .to_string(),
+            "matrix.weave.test".to_string(),
+        )
+        .unwrap();
+        let reaction: Value = serde_json::from_str(&reaction).unwrap();
+        assert_eq!(reaction["kind"], "reaction");
+        assert_eq!(reaction["relationTargetEventId"], "approval-event");
+        assert_eq!(reaction["reactionKey"], "allow");
+    }
+
+    #[test]
+    fn sync_serializes_reactions_and_redactions_without_provider_payloads() {
+        let input = json!({
+            "subject": "user@example.com",
+            "cursor": "revision-8",
+            "accountData": {"m.direct": {"@assistant:matrix.weave.test": ["!general:matrix.weave.test"]}},
+            "conversations": [{
+                "conversationId": "general",
+                "title": "General",
+                "messages": [{
+                    "messageId": "reaction-1",
+                    "senderRef": "user:alice",
+                    "sentAtEpochMillis": 1,
+                    "kind": "reaction",
+                    "relationKind": "reaction",
+                    "relationTargetEventId": "approval-event",
+                    "reactionKey": "allow",
+                    "deliveryState": "sent"
+                }, {
+                    "messageId": "redacted-1",
+                    "senderRef": "user:alice",
+                    "sentAtEpochMillis": 2,
+                    "kind": "message",
+                    "body": "removed",
+                    "redacted": true,
+                    "deliveryState": "sent"
+                }]
+            }]
+        });
+
+        let sync = project_json(
+            "sync".to_string(),
+            input.to_string(),
+            "matrix.weave.test".to_string(),
+        )
+        .unwrap();
+        let sync: Value = serde_json::from_str(&sync).unwrap();
+        let events = &sync["rooms"]["join"]["!general:matrix.weave.test"]["timeline"]["events"];
+        assert_eq!(events[0]["type"], "m.reaction");
+        assert_eq!(
+            events[0]["content"]["m.relates_to"]["event_id"],
+            "$approval-event:matrix.weave.test"
+        );
+        assert_eq!(events[1]["content"], json!({}));
+        assert_eq!(sync["account_data"]["events"][0]["type"], "m.direct");
+        assert!(!sync.to_string().contains("providerSecret"));
     }
 
     #[test]

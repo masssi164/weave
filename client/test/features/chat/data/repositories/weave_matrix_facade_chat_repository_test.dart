@@ -88,9 +88,15 @@ void main() {
 
   test('connect validates the OIDC-gated Rust Matrix facade', () async {
     // MATRIX_CONNECT_CONTRACT
-    late http.Request capturedRequest;
+    final capturedRequests = <http.Request>[];
     final client = MockClient((request) async {
-      capturedRequest = request;
+      capturedRequests.add(request);
+      if (request.url.path == '/_matrix/client/v3/account/whoami') {
+        return http.Response(
+          jsonEncode({'user_id': '@user_example.com:api.weave.test'}),
+          200,
+        );
+      }
       return http.Response(
         jsonEncode({
           'versions': ['v1.18'],
@@ -116,11 +122,14 @@ void main() {
 
     await repository(client).connect();
 
-    expect(
-      capturedRequest.url.toString(),
+    expect(capturedRequests.map((request) => request.url.toString()), [
       'https://api.weave.test/_matrix/client/versions',
+      'https://api.weave.test/_matrix/client/v3/account/whoami',
+    ]);
+    expect(
+      capturedRequests.map((request) => request.headers['authorization']),
+      everyElement('Bearer weave-oidc-token'),
     );
-    expect(capturedRequest.headers['authorization'], 'Bearer weave-oidc-token');
   });
 
   test(
@@ -184,6 +193,20 @@ void main() {
           200,
         );
       }
+      if (request.url.path == '/_matrix/client/v3/account/whoami') {
+        return http.Response(
+          jsonEncode({'user_id': '@user_alice:api.weave.test'}),
+          200,
+        );
+      }
+      if (request.method == 'POST') {
+        expect(
+          request.url.path,
+          '/_matrix/client/v3/rooms/!general%3Aapi.weave.test/receipt/m.read/%24sent%3Aapi.weave.test',
+        );
+        expect(request.body, '{}');
+        return http.Response('{}', 200);
+      }
       expect(
         request.url.path,
         '/_matrix/client/v3/rooms/!general%3Aapi.weave.test/messages',
@@ -213,8 +236,14 @@ void main() {
       message: 'hello through Matrix facade',
     );
     final timeline = await chat.loadRoomTimeline('!general:api.weave.test');
+    await chat.markRoomRead('!general:api.weave.test');
 
-    expect(requests.map((request) => request.method), ['PUT', 'GET']);
+    expect(requests.map((request) => request.method), [
+      'PUT',
+      'GET',
+      'GET',
+      'POST',
+    ]);
     expect(timeline.roomId, '!general:api.weave.test');
     expect(timeline.messages.single.contentType, ChatMessageContentType.text);
     expect(
@@ -223,6 +252,7 @@ void main() {
     );
     expect(timeline.messages.single.text, 'hello through Matrix facade');
     expect(timeline.messages.single.senderDisplayName, 'user alice');
+    expect(timeline.messages.single.isMine, isTrue);
   });
 
   test(

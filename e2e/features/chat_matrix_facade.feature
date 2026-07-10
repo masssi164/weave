@@ -20,6 +20,20 @@ Feature: Chat Matrix facade
     When one member sends a message
     Then the other receives it through Matrix Client-Server API
 
+  @matrix-openclaw-stock-channel
+  Scenario: Stock OpenClaw Matrix channel runs against the Weave facade
+    Given a signed Weaver RuntimeProfile enables Chat
+    When Weaver starts the stock channels.matrix plugin against the Weave Matrix facade
+    Then whoami, push rules, filters, sync, joined rooms, joined members, messages, typing, receipts, reactions, and redactions stay on canonical Chat
+    And no custom weave-chat plugin or southbound provider credential is used
+
+  @matrix-read-receipt
+  Scenario: Flutter marks the latest canonical message as read
+    Given Flutter loaded a room timeline and validated its own Matrix identity in the shared Rust core
+    When the room is marked read
+    Then Flutter posts a Matrix read receipt through the Weave facade
+    And the canonical Chat provider port records the actor, conversation, event, and timestamp
+
   @matrix-e2ee-state
   Scenario: E2EE and device state are surfaced support-safely
     Given E2EE is enabled or pending setup

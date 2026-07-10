@@ -468,3 +468,9 @@ variable "healthcheck_path" {
   description = "HTTP path used by Docker to check backend health."
   type        = string
 }
+
+variable "mcp_boundary_token" {
+  description = "Private credential accepted only from the Spring AI MCP service boundary."
+  type        = string
+  sensitive   = true
+}

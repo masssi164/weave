@@ -15,6 +15,8 @@ MARKERS = [
     "MATRIX_E2EE_STATE_CONTRACT",
     "FLUTTER_MATRIX_BOUNDARY_CONTRACT",
     "RUST_MATRIX_CORE_BRIDGE_CONTRACT",
+    "MATRIX_OPENCLAW_STOCK_CHANNEL_CONTRACT",
+    "MATRIX_READ_RECEIPT_CONTRACT",
 ]
 
 
@@ -68,6 +70,8 @@ def require_matrix_repository_contracts() -> None:
         "parseSync",
         "parseMessages",
         "serializeTextMessage",
+        "parseWhoamiUserId",
+        "receipt/m.read",
         "configuration.serviceEndpoints.matrixHomeserverUrl",
         "RustMatrixCoreBridge",
     )
@@ -124,6 +128,8 @@ def require_flutter_matrix_boundary() -> None:
     require(
         "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
         "whoamiUsesRumaValidatedIdentityDerivedFromOidcSubject",
+        "stockOpenClawMemberReceiptAndTypingCallsStayOnCanonicalChat",
+        "roomLifecycleStateAndProfileProjectCanonicalChat",
         "/_matrix/client/v3/account/whoami",
         "spring-boot-resource-server",
     )
@@ -162,6 +168,7 @@ def require_flutter_matrix_boundary() -> None:
         "repeatedTransactionReturnsSameCanonicalMessageAndSingleChange",
         "conformanceAccountsForPortableLossyAndUnsupportedChatSemantics",
         "northboundIdentifiersRemainCanonicalAndProviderNeutral",
+        "readReceiptsAndTypingRemainCanonicalUserState",
     )
 
 

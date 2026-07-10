@@ -18,6 +18,10 @@ evidence_gates:
 
 # Feature 0009: Domain-first MCP tools
 
+> Obsolete as independent product/domain truth. The pinned corpus ADR
+> `WEAVE-ADR-0003` and `WEAVE-DOMAIN-WEAVER-GOVERNED-PA` now own this meaning.
+> This packet remains temporarily as repo-side acceptance traceability.
+
 Corpus sources: `WEAVE-STEERING-SPEC-KIT-OPERATING-MODEL`, provider portability principles, domain context map.
 
 Weaver-facing MCP tools expose Weave domain capabilities, not provider adapters. Names, policies, audit receipts, approvals, and runtime profile grants use domain verbs and nouns (`calendar.search_events`, `files.share_item`, `chat.send_message`). Provider references remain support-safe evidence behind Weave server/domain facades.

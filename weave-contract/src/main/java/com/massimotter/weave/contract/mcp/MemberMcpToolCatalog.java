@@ -14,7 +14,7 @@ public final class MemberMcpToolCatalog {
             tool("calendar.create_event", MemberMcpDomainDefinition.CALENDAR_MEETINGS.domain(), MemberMcpToolMode.WRITE, "calendar.manage_events", true, true),
             tool("boards.search_tasks", MemberMcpDomainDefinition.BOARDS_TASKS.domain(), MemberMcpToolMode.READ, "boards.read", false, false),
             tool("boards.comment", MemberMcpDomainDefinition.BOARDS_TASKS.domain(), MemberMcpToolMode.WRITE, "boards.update_task", true, false),
-            tool("chat.send_message", "chat", MemberMcpToolMode.EXTERNAL_SEND, "chat.send", true, false));
+            tool("chat.send_message", "chat", MemberMcpToolMode.EXTERNAL_SEND, "chat.send", true, true));
 
     private MemberMcpToolCatalog() {}
     public static List<MemberMcpToolDefinition> tools() { return TOOLS; }
@@ -25,7 +25,7 @@ public final class MemberMcpToolCatalog {
     }
 
     private static MemberMcpToolDefinition tool(String name, String domain, MemberMcpToolMode mode, String capability, boolean approval, boolean serverExecutable) {
-        return new MemberMcpToolDefinition(name, "v1", domain, mode, capability, approval, serverExecutable, schema(name), "Delegates to weave-server; provider adapters and policy remain server-side.");
+        return new MemberMcpToolDefinition(name, "v1", domain, mode, capability, approval, serverExecutable, schema(name), description(name));
     }
 
     private static Map<String, Object> schema(String toolName) {
@@ -38,7 +38,6 @@ public final class MemberMcpToolCatalog {
             case "files.search" -> objectSchema(toolName, Map.of(
                     "query", stringProperty("Search query."),
                     "path", stringProperty("Optional Weave Files product path to search from."),
-                    "spaceRef", stringProperty("Optional canonical space reference."),
                     "limit", integerProperty("Maximum number of results.", 1)));
             case "files.read" -> objectSchema(toolName, List.of("fileRef"), Map.of(
                     "fileRef", stringProperty("Canonical Weave file reference, for example file:/Team/readme.md.")));
@@ -46,13 +45,17 @@ public final class MemberMcpToolCatalog {
                     "from", stringProperty("Inclusive ISO-8601 start boundary."),
                     "to", stringProperty("Exclusive ISO-8601 end boundary."),
                     "query", stringProperty("Optional full-text filter."),
-                    "spaceRef", stringProperty("Optional canonical space reference."),
+                    "calendarRef", stringProperty("Canonical calendar ref: calendar:workspace, calendar:team:<team>, or calendar:channel:<team>:<channel>."),
                     "limit", integerProperty("Maximum number of events to return.", 1)));
-            case "calendar.create_event" -> objectSchema(toolName, List.of("title", "startsAt"), Map.of(
+            case "calendar.create_event" -> objectSchema(toolName, List.of("title", "startsAt", "calendarRef"), Map.of(
                     "title", stringProperty("Support-safe event title."),
+                    "description", stringProperty("Optional plain-text event description."),
                     "startsAt", stringProperty("ISO-8601 event start timestamp."),
                     "endsAt", stringProperty("ISO-8601 event end timestamp."),
-                    "calendarRef", stringProperty("Optional canonical calendar reference.")));
+                    "timezone", stringProperty("IANA timezone for display and editing."),
+                    "location", stringProperty("Optional event location."),
+                    "allDay", booleanProperty("Whether the event is all-day."),
+                    "calendarRef", stringProperty("Canonical calendar ref: calendar:workspace, calendar:team:<team>, or calendar:channel:<team>:<channel>.")));
             case "boards.search_tasks" -> objectSchema(toolName, Map.of(
                     "query", stringProperty("Optional task search query."),
                     "boardRef", stringProperty("Optional canonical board reference."),
@@ -61,10 +64,10 @@ public final class MemberMcpToolCatalog {
             case "boards.comment" -> objectSchema(toolName, List.of("taskRef", "body"), Map.of(
                     "taskRef", stringProperty("Canonical task reference."),
                     "body", stringProperty("Support-safe comment body.")));
-            case "chat.send_message" -> objectSchema(toolName, List.of("threadRef", "body"), Map.of(
-                    "threadRef", stringProperty("Canonical chat thread reference."),
+            case "chat.send_message" -> objectSchema(toolName, List.of("threadRef", "body", "idempotencyKey"), Map.of(
+                    "threadRef", stringProperty("Canonical Weave chat reference, for example thread:channel-general."),
                     "body", stringProperty("Message body."),
-                    "idempotencyKey", stringProperty("Optional client-supplied idempotency key.")));
+                    "idempotencyKey", stringProperty("Caller-stable idempotency key for safe retries.")));
             default -> objectSchema(toolName, Map.of());
         };
     }
@@ -93,5 +96,16 @@ public final class MemberMcpToolCatalog {
 
     private static Map<String, Object> integerProperty(String description, int minimum) {
         return Map.of("type", "integer", "description", description, "minimum", minimum);
+    }
+
+    private static String description(String toolName) {
+        return switch (toolName) {
+            case "files.search" -> "Search canonical Weave file metadata through the Files facade.";
+            case "files.read" -> "Read support-safe metadata for a canonical Weave file reference.";
+            case "calendar.search_events" -> "Search canonical Weave calendar events through the Calendar facade.";
+            case "calendar.create_event" -> "Create an event in an explicitly scoped canonical Weave calendar.";
+            case "chat.send_message" -> "Send one idempotent message to a canonical Weave chat thread.";
+            default -> "Delegates to weave-server; provider adapters and policy remain server-side.";
+        };
     }
 }

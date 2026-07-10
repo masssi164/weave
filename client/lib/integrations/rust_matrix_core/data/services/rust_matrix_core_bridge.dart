@@ -199,6 +199,22 @@ class RustMatrixCoreBridge {
     return _mapList(result['messages'], RustMatrixMessageProjection.fromJson);
   }
 
+  Future<String> parseWhoamiUserId({
+    required String responseJson,
+    required String serverName,
+  }) async {
+    final result = await _projectRaw(
+      operation: 'parse-whoami',
+      inputJson: responseJson,
+      serverName: serverName,
+    );
+    final userId = _string(result['userId']);
+    if (userId.isEmpty) {
+      throw const RustMatrixCoreBridgeException('M_WEAVE_MATRIX_CORE_ERROR');
+    }
+    return userId;
+  }
+
   Future<String> serializeTextMessage({
     required String body,
     required String serverName,

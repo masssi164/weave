@@ -18,6 +18,8 @@ import org.springframework.stereotype.Service;
 @Service
 public class WeaverToolRegistry {
 
+    static final String APPROVAL_POLICY_VERSION = "policy:support-safe-bridge-v1";
+
     private final AuditEventPublisher auditEventPublisher;
     private final Map<String, WeaverDomainToolDefinition> definitions;
     private final ConcurrentMap<String, Boolean> consumedApprovalReceipts = new ConcurrentHashMap<>();
@@ -70,8 +72,15 @@ public class WeaverToolRegistry {
                 return blocked(request.toolName(), terminalApprovalStatus, "Weaver action failed closed after the user runtime did not approve it.");
             }
             List<String> requiredScopeRefs = canonicalScopeRefs(request.input());
-            String expectedPolicyVersion = expectedPolicyVersion(request.input());
-            if (approvalReceipt == null || !approvalReceipt.validFor(request.userRef(), request.toolName(), requiredScopeRefs, expectedPolicyVersion)) {
+            if (approvalReceipt == null || !approvalReceipt.validFor(
+                    request.userRef(),
+                    request.runtimeProfileHash(),
+                    definition.domain(),
+                    request.toolName(),
+                    requiredScopeRefs,
+                    request.input(),
+                    APPROVAL_POLICY_VERSION,
+                    com.massimotter.weave.contract.mcp.MemberMcpDomainDefinition.CONTRACT_VERSION)) {
                 String status = approvalReceipt == null ? "approval_required" : "approval_receipt_invalid";
                 audit(request.userRef(), request.runtimeProfileHash(), request.toolName(), status, Map.of(
                         "domain", definition.domain(),
@@ -191,14 +200,6 @@ public class WeaverToolRegistry {
         return null;
     }
 
-    private String expectedPolicyVersion(Map<String, Object> input) {
-        if (input == null) {
-            return "";
-        }
-        Object value = input.get("policyVersion");
-        return value instanceof String policyVersion ? policyVersion.strip() : "";
-    }
-
     private boolean runtimeTokenExpired(String runtimeTokenExpiresAt) {
         try {
             return runtimeTokenExpiresAt == null || runtimeTokenExpiresAt.isBlank()
@@ -266,6 +267,7 @@ public class WeaverToolRegistry {
                 .filter(ref -> ref.startsWith("space:")
                         || ref.startsWith("channel:")
                         || ref.startsWith("thread:")
+                        || ref.startsWith("decision:")
                         || ref.startsWith("board-task:")
                         || ref.startsWith("task:")
                         || ref.startsWith("calendar:")

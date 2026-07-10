@@ -25,16 +25,27 @@ assert_contains() {
 
 jq -e '
   .schema == "weave-mcp-tool-contract-v1"
-  and .status == "design-foundation-disabled"
+  and .status == "implemented-spring-ai-stateful"
   and .placement.contractArea == "infra/weave-workspace"
-  and .placement.futureServerPackage == "infra/weave-mcp"
-  and (.placement.implementationHint | test("FastMCP"))
+  and .placement.runtimeModule == "weave-mcp-server"
+  and (.placement.implementation | test("Spring AI 2.0"))
+  and (.placement.retiredRuntime | test("Python and FastMCP"))
   and (.placement.architecturePrinciple | test("governed tool projection over Weave APIs"))
   and .authorityBoundary.productAuthority == "weave-backend"
   and .authorityBoundary.canonicalApiRemainsAuthoritative == true
   and .authorityBoundary.runtimeDirectProviderAccessAllowed == false
   and .authorityBoundary.memberMayConfigureProvidersThroughMcp == false
   and .globalControls.defaultExposeTools == false
+  and .globalControls.protocolCatalogIsCanonicalCapabilityCeiling == true
+  and .globalControls.runtimeProfileGrantRequiredForInvocation == true
+  and .globalControls.runtimeApprovedDiscoveryResource == "weave://runtime/approved-tools"
+  and .globalControls.approvalReceiptReferenceAloneAuthorizes == false
+  and (.globalControls.approvalReceiptBindings | index("runtimeProfileHash"))
+  and (.globalControls.approvalReceiptBindings | index("argumentDigest"))
+  and (.globalControls.approvalReceiptBindings | index("approvalMode"))
+  and (.globalControls.approvalReceiptBindings | index("evidenceRef"))
+  and (.globalControls.approvalReceiptBindings | index("toolContractVersion"))
+  and (.globalControls.approvalReceiptBindings | index("policyVersion"))
   and .globalControls.denyUnknownTools == true
   and .globalControls.supportSafeOutputsOnly == true
   and .globalControls.secretRefOnly == true
@@ -59,12 +70,20 @@ jq -e '
   and ([.canonicalDomains[].writeToolsRequireApproval | length] | all(. > 0))
   and .sprint16ProofSlice.implementAllAdapters == false
   and .sprint16ProofSlice.allowedProofAdaptersMax <= 2
+  and .activeRuntimeEvidence.transport == "stateful-streamable-http"
+  and .activeRuntimeEvidence.elicitation == "form"
+  and .activeRuntimeEvidence.oidcGatekeeper == "spring-security-oauth2-resource-server"
+  and (.activeRuntimeEvidence.tools | index("files.search"))
+  and (.activeRuntimeEvidence.tools | index("calendar.search_events"))
+  and (.activeRuntimeEvidence.tools | index("chat.send_message"))
+  and .activeRuntimeEvidence.pythonFastMcpRemoved == true
+  and .activeRuntimeEvidence.handwrittenJsonRpcRemoved == true
 ' "${CONTRACT}" >/dev/null || fail "Weave MCP tool contract is missing required support-safe/fail-closed controls"
 
 assert_contains "${DOC}" "MCP exposes governed actions for approved runtimes; it does not replace backend APIs."
-assert_contains "${DOC}" 'FastMCP with Python `@tool` remains an implementation candidate only.'
+assert_contains "${DOC}" 'The earlier `infra/weave-mcp` Python/FastMCP gateway and handwritten Java JSON-RPC controller are removed'
 assert_contains "${DOC}" "SecretRef/CredentialRef handling"
-assert_contains "${DOC}" "Do not build every provider adapter in Sprint 16."
+assert_contains "${DOC}" "spring.ai.mcp.server.protocol=STREAMABLE"
 assert_contains "${PRODUCT_PLAN}" "Weave is planned product-first, not agent-first."
 assert_contains "${PRODUCT_PLAN}" "OpenClaw configuration remains an implementation target, not the product model."
 

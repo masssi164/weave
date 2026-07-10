@@ -13,6 +13,7 @@ import 'package:weave/features/app/domain/entities/provider_stack_snapshot.dart'
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
+import 'package:weave/features/agents/domain/entities/weaver_permission_mode.dart';
 import 'package:weave/features/chat/presentation/providers/chat_security_repository_provider.dart';
 import 'package:weave/features/profile/domain/entities/user_profile.dart';
 import 'package:weave/features/profile/domain/repositories/user_profile_repository.dart';
@@ -48,6 +49,29 @@ class _RetryableAppBootstrap extends AppBootstrap {
     shouldFail = false;
     state = const AsyncLoading();
     state = const AsyncData(BootstrapState.ready());
+  }
+}
+
+class _FakeWeaverPermissionModeController
+    extends WeaverPermissionModeController {
+  final updates = <WeaverPermissionMode>[];
+
+  @override
+  Future<WeaverPermissionMode> build() async => WeaverPermissionMode.ask;
+
+  @override
+  Future<WeaverPermissionModeUpdate> updateMode(
+    WeaverPermissionMode mode,
+  ) async {
+    updates.add(mode);
+    state = AsyncData(mode);
+    return WeaverPermissionModeUpdate(
+      accepted: true,
+      mode: mode,
+      dangerous: mode.isDangerous,
+      policyReason: 'permission_mode_updated',
+      runtimeProfileHash: 'sha256:test',
+    );
   }
 }
 
@@ -632,6 +656,84 @@ void main() {
         expect(find.text('Server Configuration'), findsNothing);
       },
     );
+
+    testWidgets('requires explicit confirmation before dangerous full mode', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1200, 2600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final capabilities = _workspaceCapabilitySnapshotWithWeaver();
+      final permissionController = _FakeWeaverPermissionModeController();
+      final container = ProviderContainer.test(
+        overrides: [
+          preferencesStoreProvider.overrideWith(
+            (ref) => InMemoryPreferencesStore(buildStoredConfiguration()),
+          ),
+          chatSecurityRepositoryProvider.overrideWithValue(
+            FakeChatSecurityRepository(),
+          ),
+          workspaceConnectionStateProvider.overrideWithValue(
+            _workspaceConnectionState(),
+          ),
+          workspaceCapabilitySnapshotProvider.overrideWithValue(capabilities),
+          weaveApiWorkspaceCapabilitySnapshotProvider.overrideWith(
+            (ref) async => capabilities.requireValue,
+          ),
+          weaveBackendConnectionStateProvider.overrideWithValue(
+            WeaveBackendConnectionState.connected,
+          ),
+          userProfileProvider.overrideWith((ref) async => _memberProfile),
+          weaverPermissionModeProvider.overrideWith(() => permissionController),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(body: SettingsScreen()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final picker = find.byType(DropdownButtonFormField<WeaverPermissionMode>);
+      await tester.scrollUntilVisible(
+        picker,
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(picker);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Full access (dangerous)').last);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Enable dangerous full access?'), findsOneWidget);
+      expect(
+        find.textContaining('run host commands without approval'),
+        findsOneWidget,
+      );
+      expect(permissionController.updates, isEmpty);
+
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(permissionController.updates, isEmpty);
+
+      await tester.tap(picker);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Full access (dangerous)').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Enable full access'));
+      await tester.pumpAndSettle();
+
+      expect(permissionController.updates, [WeaverPermissionMode.full]);
+      expect(find.text('Weaver permission mode updated.'), findsOneWidget);
+    });
 
     testWidgets('localizes unavailable Mein Weaver copy', (tester) async {
       tester.view.physicalSize = const Size(1200, 2400);

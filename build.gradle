@@ -23,7 +23,7 @@ ext.registerRootCommandTask = { String taskName, List<String> args, String taskD
     registerCommandTask(taskName, projectDir, args, taskDescription)
 }
 
-registerRootCommandTask('acceptanceContract', ['bash', '-lc', 'cd client && dart run tool/acceptance_contract.dart guard --root .. --features e2e/features --mapping e2e/scenario_mappings.json && cd .. && python3 tools/e2e_structure_check.py && python3 tools/files_webdav_facade_acceptance_check.py && python3 tools/enterprise_target_architecture_spine_check.py && python3 tools/open_standards_gateway_archive_gap_check.py'], 'Verify Gherkin scenario mappings, acceptance contracts, and professional E2E suite coverage.')
+registerRootCommandTask('acceptanceContract', ['bash', '-lc', 'cd client && dart run tool/acceptance_contract.dart guard --root .. --features e2e/features --mapping e2e/scenario_mappings.json && cd .. && python3 tools/e2e_structure_check.py && python3 tools/files_webdav_facade_acceptance_check.py && python3 tools/enterprise_target_architecture_spine_check.py && python3 tools/spring_ai_mcp_facade_acceptance_check.py && python3 tools/open_standards_gateway_archive_gap_check.py'], 'Verify Gherkin scenario mappings, acceptance contracts, and professional E2E suite coverage.')
 registerRootCommandTask('e2eStructureCheck', ['python3', 'tools/e2e_structure_check.py'], 'Validate the professional E2E suite catalog covers every mapped scenario by suite, persona, domain, and evidence lane.')
 registerRootCommandTask('filesWebDavFacadeAcceptanceCheck', ['python3', 'tools/files_webdav_facade_acceptance_check.py'], 'Verify the Files WebDAV facade Cucumber scenarios against deterministic implementation evidence.')
 registerRootCommandTask('enterpriseTargetArchitectureSpineCheck', ['python3', 'tools/enterprise_target_architecture_spine_check.py'], 'Validate the Enterprise Target Architecture E2E evidence spine.')
@@ -41,16 +41,16 @@ registerCommandTask('clientOpenApiDriftPrevention', file('client'), ['bash', '-l
 tasks.named('clientCi') {
     dependsOn 'checkClientOpenApiModelsFresh', 'clientOpenApiDriftPrevention'
 }
-registerRootCommandTask('pythonMcpCi', ['bash', 'infra/weave-workspace/tests/weave-mcp-server-test.sh'], 'Run the transitional Python Weave MCP gateway unit smoke tests from the root build.')
 tasks.register('javaMcpServerCi') {
     group = 'verification'
     description = 'Run Java weave-mcp-server checks through the root Gradle multiproject build.'
     dependsOn ':weave-mcp-server:test'
 }
+registerRootCommandTask('mcpProjectionContract', ['bash', '-lc', 'python3 tools/spring_ai_mcp_facade_acceptance_check.py && bash infra/weave-workspace/tests/weave-mcp-tool-contract-test.sh'], 'Verify Spring AI transport, OIDC, canonical dispatch, approval, provider-neutral output, and infrastructure contract evidence.')
 tasks.register('mcpCi') {
     group = 'verification'
-    description = 'Run Java MCP adapter and transitional Python MCP gateway checks.'
-    dependsOn 'javaMcpServerCi', 'pythonMcpCi'
+    description = 'Run the OIDC-protected Spring AI MCP server and canonical-domain bridge checks.'
+    dependsOn 'javaMcpServerCi', 'mcpProjectionContract'
 }
 tasks.register('contractAuthorityArchitectureCheck') {
     group = 'verification'

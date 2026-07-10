@@ -163,6 +163,30 @@ variable "weave_backend_image" {
   default     = "weave-backend:local"
 }
 
+variable "mcp_host_port" {
+  description = "Loopback host port for the OIDC-protected Weave MCP server."
+  type        = number
+  default     = 8085
+}
+
+variable "mcp_container_port" {
+  description = "Internal HTTP port exposed by the Weave MCP server container."
+  type        = number
+  default     = 8091
+}
+
+variable "mcp_boundary_token" {
+  description = "Private service credential shared only by the Weave backend and Spring AI MCP server."
+  type        = string
+  sensitive   = true
+}
+
+variable "weave_mcp_server_image" {
+  description = "Docker image for the Spring AI Weave MCP server."
+  type        = string
+  default     = "weave-mcp-server:local"
+}
+
 variable "nextcloud_trusted_proxies" {
   description = "Space-separated proxy IPs or CIDRs trusted by Nextcloud."
   type        = string

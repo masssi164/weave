@@ -124,9 +124,21 @@ class WeaverToolRegistryTest {
                 new WeaverApprovalReceipt(
                         "approval:abc123",
                         "user:abc123",
+                        "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                        MemberMcpDomainDefinition.BOARDS_TASKS.domain(),
                         "boards.comment",
-                        List.of("space:control-room", "board-task:WEAVE-601"),
-                        "policy:test",
+                        List.of("space:control-room", "decision:governed-weaver", "board-task:WEAVE-601"),
+                        WeaverApprovalReceipt.argumentDigest(Map.of(
+                                "spaceRef", "space:control-room",
+                                "decisionRef", "decision:governed-weaver",
+                                "boardTaskRef", "board-task:WEAVE-601",
+                                "body", "Looks good")),
+                        MemberMcpDomainDefinition.CONTRACT_VERSION,
+                        "policy:support-safe-bridge-v1",
+                        "approved",
+                        "allow-once",
+                        "elicitation://openclaw/test",
+                        Instant.now().minusSeconds(1).toString(),
                         future(),
                         "audit://weaver-approval/test")));
 
@@ -144,7 +156,7 @@ class WeaverToolRegistryTest {
         assertThat(audit.events().get(1).payload())
                 .containsEntry("approvalReceiptValidated", true)
                 .containsEntry("approvalReceiptAuditRef", "audit://weaver-approval/test")
-                .containsEntry("approvalReceiptPolicyVersion", "policy:test");
+                .containsEntry("approvalReceiptPolicyVersion", "policy:support-safe-bridge-v1");
     }
 
     @Test
@@ -172,9 +184,21 @@ class WeaverToolRegistryTest {
                 new WeaverApprovalReceipt(
                         "approval:abc123",
                         "user:abc123",
+                        "sha256:scope-mismatch000000000000000000000000000000000000000000000000",
+                        MemberMcpDomainDefinition.BOARDS_TASKS.domain(),
                         "boards.comment",
                         List.of("space:control-room", "decision:governed-weaver", "board-task:WEAVE-601"),
-                        "policy:test",
+                        WeaverApprovalReceipt.argumentDigest(Map.of(
+                                "spaceRef", "space:control-room",
+                                "decisionRef", "decision:governed-weaver",
+                                "boardTaskRef", "board-task:WEAVE-602",
+                                "body", "Looks good")),
+                        MemberMcpDomainDefinition.CONTRACT_VERSION,
+                        "policy:support-safe-bridge-v1",
+                        "approved",
+                        "allow-once",
+                        "elicitation://openclaw/test",
+                        Instant.now().minusSeconds(1).toString(),
                         future(),
                         "audit://weaver-approval/test")));
 

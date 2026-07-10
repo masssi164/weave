@@ -52,4 +52,22 @@ void main() {
       serverName: 'api.weave.test',
     );
   });
+
+  test('whoami identity is validated inside the Rust core', () async {
+    const bridge = RustMatrixCoreBridge();
+
+    final userId = await bridge.parseWhoamiUserId(
+      responseJson: jsonEncode({'user_id': '@user_alice:api.weave.test'}),
+      serverName: 'api.weave.test',
+    );
+
+    expect(userId, '@user_alice:api.weave.test');
+    await expectLater(
+      bridge.parseWhoamiUserId(
+        responseJson: jsonEncode({'user_id': '@user_alice:provider.invalid'}),
+        serverName: 'api.weave.test',
+      ),
+      throwsA(isA<RustMatrixCoreBridgeException>()),
+    );
+  });
 }

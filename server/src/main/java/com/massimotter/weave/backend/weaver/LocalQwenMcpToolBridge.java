@@ -195,7 +195,7 @@ public class LocalQwenMcpToolBridge {
             List<String> scopedToolGrants,
             Map<String, Object> input) {
         public QwenMcpToolRequest {
-            channelId = channelId == null || channelId.isBlank() ? "channels.weave-chat" : channelId;
+            channelId = channelId == null || channelId.isBlank() ? "channels.matrix" : channelId;
             modelRef = modelRef == null || modelRef.isBlank() ? "lmstudio/qwen/qwen3.5-9b" : modelRef;
             runtimeProfileVersion = runtimeProfileVersion == null || runtimeProfileVersion.isBlank()
                     ? RUNTIME_PROFILE_VERSION
