@@ -8,7 +8,12 @@ enum AuthFailureType {
 }
 
 class AuthFailure implements Exception {
-  const AuthFailure({required this.type, required this.message, this.cause});
+  const AuthFailure({
+    required this.type,
+    required this.message,
+    this.cause,
+    this.invalidatesSavedSession = false,
+  });
 
   const AuthFailure.cancelled(String message, {Object? cause})
     : this(type: AuthFailureType.cancelled, message: message, cause: cause);
@@ -18,6 +23,14 @@ class AuthFailure implements Exception {
 
   const AuthFailure.protocol(String message, {Object? cause})
     : this(type: AuthFailureType.protocol, message: message, cause: cause);
+
+  const AuthFailure.sessionRejected(String message, {Object? cause})
+    : this(
+        type: AuthFailureType.protocol,
+        message: message,
+        cause: cause,
+        invalidatesSavedSession: true,
+      );
 
   const AuthFailure.storage(String message, {Object? cause})
     : this(type: AuthFailureType.storage, message: message, cause: cause);
@@ -35,6 +48,7 @@ class AuthFailure implements Exception {
   final AuthFailureType type;
   final String message;
   final Object? cause;
+  final bool invalidatesSavedSession;
 
   @override
   String toString() => 'AuthFailure(type: $type, message: $message)';
