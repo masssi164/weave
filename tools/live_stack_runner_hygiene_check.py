@@ -43,6 +43,25 @@ def main() -> int:
         "live-stack preflight must require 10 GiB after stale-output cleanup",
     )
     require(
+        workflow.count('flutter_tool_cache="${runner_tool_cache%/}/flutter"') == 1
+        and workflow.count('rm -rf -- "$flutter_tool_cache"') == 1,
+        "low-headroom recovery must target only the restorable Flutter tool cache",
+    )
+    require(
+        'if [ -z "$runner_tool_cache" ] || [ "$runner_tool_cache" = "/" ]'
+        in workflow,
+        "runner tool-cache cleanup must reject empty and root paths",
+    )
+    require(
+        '[[ "$runner_tool_cache" != /* ]]' in workflow,
+        "runner tool-cache cleanup must reject relative paths",
+    )
+    require(
+        'if (( available_kib < minimum_kib )) && [ -d "$flutter_tool_cache" ]'
+        in workflow,
+        "the Flutter tool cache must be reclaimed only below the 10 GiB preflight",
+    )
+    require(
         workflow.count('"$checkout_root/client/.dart_tool"') == 2,
         "Flutter/Rust native outputs must be cleaned once before and once after the run",
     )
@@ -151,6 +170,7 @@ def main() -> int:
 
     for phrase in (
         "stale Weave-generated outputs",
+        "restorable runner-owned Flutter tool cache",
         "10 GiB",
         "5 GiB",
         "4 GiB",

@@ -130,6 +130,18 @@ jobs:
             "$RUNNER_TEMP/weave-live-stack-emergency-reserve-released"; do
             remove_runner_output "$path"
           done
+          available_kib="$(df -Pk "$RUNNER_TEMP" | awk 'NR == 2 { print $4 }')"
+          minimum_kib=$((10 * 1024 * 1024))
+          runner_tool_cache="${RUNNER_TOOL_CACHE:-}"
+          if [ -z "$runner_tool_cache" ] || [ "$runner_tool_cache" = "/" ] || [[ "$runner_tool_cache" != /* ]]; then
+            echo "::error::RUNNER_TOOL_CACHE must name an absolute, non-root dedicated runner tool-cache directory." >&2
+            exit 1
+          fi
+          flutter_tool_cache="${runner_tool_cache%/}/flutter"
+          if (( available_kib < minimum_kib )) && [ -d "$flutter_tool_cache" ]; then
+            echo "Reclaiming the restorable dedicated-runner Flutter tool cache for live-test headroom."
+            rm -rf -- "$flutter_tool_cache"
+          fi
           df -h "$RUNNER_TEMP"
 
       - name: Check out weave

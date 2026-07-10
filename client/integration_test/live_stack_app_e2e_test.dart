@@ -19,6 +19,7 @@ import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
 import 'package:weave/features/calendar/domain/repositories/calendar_repository.dart';
 import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
+import 'package:weave/features/chat/domain/entities/chat_room_timeline.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/files/domain/entities/file_upload_request.dart';
@@ -299,7 +300,14 @@ void main() {
           'chat_facade_send_failed error=${_supportSafeDiagnostic(failure)}',
         );
       }
-      final timeline = await chatRepository.loadRoomTimeline(roomId);
+      late ChatRoomTimeline timeline;
+      try {
+        timeline = await chatRepository.loadRoomTimeline(roomId);
+      } on ChatFailure catch (failure) {
+        fail(
+          'chat_facade_timeline_failed error=${_supportSafeDiagnostic(failure)}',
+        );
+      }
       final deliveredMessage = timeline.messages
           .where((message) => message.text == sentMessage)
           .toList(growable: false);

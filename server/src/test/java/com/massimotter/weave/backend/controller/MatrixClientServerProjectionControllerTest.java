@@ -520,7 +520,10 @@ class MatrixClientServerProjectionControllerTest {
                         .with(workspaceJwt()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.chunk[0].event_id").value("$msg-1:api.weave.test"))
-                .andExpect(jsonPath("$.chunk[0].content.body").value("Hello from Weave Chat"));
+                .andExpect(jsonPath("$.chunk[0].content.body").value("Hello from Weave Chat"))
+                .andExpect(jsonPath("$.chunk[0].room_id").value("!channel-general:api.weave.test"))
+                .andExpect(jsonPath("$.chunk[0].unsigned").isMap())
+                .andExpect(content().string(not(containsString("providerAccessToken"))));
     }
 
     @Test
