@@ -100,6 +100,35 @@ jobs:
             exit 1
           fi
 
+      - name: Remove stale runner-owned Weave outputs
+        run: |
+          set -euo pipefail
+          checkout_root="${GITHUB_WORKSPACE%/}/weave"
+          remove_runner_output() {
+            local path="$1"
+            case "$path" in
+              "$checkout_root"/*|"${RUNNER_TEMP%/}"/weave-live-stack-*)
+                rm -rf -- "$path"
+                ;;
+              *)
+                echo "::error::Refusing to remove non-runner-owned path: $path" >&2
+                exit 1
+                ;;
+            esac
+          }
+          for path in \
+            "$checkout_root/.gradle" \
+            "$checkout_root/build" \
+            "$checkout_root/client/.dart_tool" \
+            "$checkout_root/client/build" \
+            "$checkout_root/server/build" \
+            "$checkout_root/weave-mcp-server/build" \
+            "$RUNNER_TEMP/weave-live-stack-acceptance-evidence" \
+            "$RUNNER_TEMP/weave-live-stack-e2e.log"; do
+            remove_runner_output "$path"
+          done
+          df -h "$RUNNER_TEMP"
+
       - name: Check out weave
         uses: actions/checkout@v5
         with:
@@ -145,10 +174,10 @@ jobs:
         run: |
           set -euo pipefail
           available_kib="$(df -Pk "$RUNNER_TEMP" | awk 'NR == 2 { print $4 }')"
-          minimum_kib=$((4 * 1024 * 1024))
+          minimum_kib=$((6 * 1024 * 1024))
           df -h "$RUNNER_TEMP"
           if (( available_kib < minimum_kib )); then
-            echo "::error::Live Stack E2E requires at least 4 GiB free before tool and image setup; only $((available_kib / 1024)) MiB is available." >&2
+            echo "::error::Live Stack E2E requires at least 6 GiB free after stale-output cleanup and before tool and image setup; only $((available_kib / 1024)) MiB is available." >&2
             echo "Runner-owned tool cache sizes:" >&2
             du -sh "$RUNNER_TOOL_CACHE"/* 2>/dev/null | sort -h >&2 || true
             exit 1
@@ -251,23 +280,39 @@ jobs:
         working-directory: weave/infra/weave-workspace
         run: bash ./operator-check.sh
 
-      - name: Trust local Weave CA for this runner user
+      - name: Trust local Weave CA through a job-scoped keychain
         run: |
           set -euo pipefail
           CA_FILE="$GITHUB_WORKSPACE/weave/infra/weave-workspace/01-infrastructure/.generated/caddy/certs/weave-local-ca.pem"
+          LEAF_FILE="$GITHUB_WORKSPACE/weave/infra/weave-workspace/01-infrastructure/.generated/caddy/certs/weave.test.pem"
+          trust_keychain="$RUNNER_TEMP/weave-live-stack-trust.keychain-db"
+          keychain_list="$RUNNER_TEMP/weave-live-stack-user-keychains.txt"
           if [ ! -s "$CA_FILE" ]; then
             echo "::error::Weave local CA certificate not found at $CA_FILE"
             exit 1
           fi
-          # The login keychain can prompt/hang on the self-hosted macOS runner. Use
-          # passwordless sudo and the system keychain only; never wait for UI input.
-          if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
-            if ! sudo -n security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "$CA_FILE"; then
-              echo "::warning::Could not add Weave local CA to the system keychain; integration tests may fail TLS validation."
-            fi
-          else
-            echo "::warning::Passwordless sudo is unavailable; skipping non-interactive Weave local CA trust."
+          if [ ! -s "$LEAF_FILE" ]; then
+            echo "::error::Weave local leaf certificate not found at $LEAF_FILE"
+            exit 1
           fi
+          security list-keychains -d user \
+            | sed -E 's/^[[:space:]]*"//; s/"[[:space:]]*$//' \
+            | awk -v stale="$trust_keychain" '$0 != stale' \
+            > "$keychain_list"
+          security delete-keychain "$trust_keychain" >/dev/null 2>&1 || rm -f "$trust_keychain"
+          echo "WEAVE_LIVE_TRUST_KEYCHAIN=$trust_keychain" >> "$GITHUB_ENV"
+          echo "WEAVE_LIVE_TRUST_KEYCHAIN_LIST=$keychain_list" >> "$GITHUB_ENV"
+          keychain_password="weave-live-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          security create-keychain -p "$keychain_password" "$trust_keychain"
+          security set-keychain-settings -lut 7200 "$trust_keychain"
+          security unlock-keychain -p "$keychain_password" "$trust_keychain"
+          security add-trusted-cert -r trustRoot -k "$trust_keychain" "$CA_FILE"
+          keychains=()
+          while IFS= read -r keychain; do
+            [ -n "$keychain" ] && keychains+=("$keychain")
+          done < "$keychain_list"
+          security list-keychains -d user -s "$trust_keychain" "${keychains[@]}"
+          security verify-cert -c "$LEAF_FILE" -p ssl -s api.weave.test
 
       - name: Install Flutter dependencies
         working-directory: weave/client
@@ -330,3 +375,51 @@ jobs:
           path: ${{ env.WEAVE_ACCEPTANCE_EVIDENCE_DIR }}
           if-no-files-found: error
           retention-days: 30
+
+      - name: Scrub current runner-owned Weave outputs
+        if: always()
+        run: |
+          set -euo pipefail
+          checkout_root="${GITHUB_WORKSPACE%/}/weave"
+          remove_runner_output() {
+            local path="$1"
+            case "$path" in
+              "$checkout_root"/*|"${RUNNER_TEMP%/}"/weave-live-stack-*)
+                rm -rf -- "$path"
+                ;;
+              *)
+                echo "::error::Refusing to remove non-runner-owned path: $path" >&2
+                exit 1
+                ;;
+            esac
+          }
+          for path in \
+            "$checkout_root/.gradle" \
+            "$checkout_root/build" \
+            "$checkout_root/client/.dart_tool" \
+            "$checkout_root/client/build" \
+            "$checkout_root/server/build" \
+            "$checkout_root/weave-mcp-server/build" \
+            "${WEAVE_ACCEPTANCE_EVIDENCE_DIR:-$RUNNER_TEMP/weave-live-stack-acceptance-evidence}" \
+            "${WEAVE_ACCEPTANCE_TEST_LOG:-$RUNNER_TEMP/weave-live-stack-e2e.log}"; do
+            remove_runner_output "$path"
+          done
+          for image_ref in "$WEAVE_BACKEND_IMAGE" "$WEAVE_MCP_SERVER_IMAGE"; do
+            if [[ "$image_ref" != ghcr.io/* ]]; then
+              docker image rm "$image_ref" >/dev/null 2>&1 || true
+            fi
+          done
+          trust_keychain="${WEAVE_LIVE_TRUST_KEYCHAIN:-$RUNNER_TEMP/weave-live-stack-trust.keychain-db}"
+          keychain_list="${WEAVE_LIVE_TRUST_KEYCHAIN_LIST:-$RUNNER_TEMP/weave-live-stack-user-keychains.txt}"
+          if [ -s "$keychain_list" ]; then
+            keychains=()
+            while IFS= read -r keychain; do
+              [ -n "$keychain" ] && keychains+=("$keychain")
+            done < "$keychain_list"
+            if (( ${#keychains[@]} > 0 )); then
+              security list-keychains -d user -s "${keychains[@]}" >/dev/null
+            fi
+          fi
+          security delete-keychain "$trust_keychain" >/dev/null 2>&1 || rm -f "$trust_keychain"
+          rm -f "$keychain_list"
+          df -h "$RUNNER_TEMP"

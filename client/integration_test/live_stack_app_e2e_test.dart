@@ -18,6 +18,7 @@ import 'package:weave/features/auth/data/services/flutter_appauth_oidc_client.da
 import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
 import 'package:weave/features/calendar/domain/repositories/calendar_repository.dart';
 import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
+import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/files/domain/entities/file_upload_request.dart';
@@ -32,6 +33,7 @@ import 'package:weave/features/server_config/domain/entities/server_configuratio
 import 'package:weave/features/server_config/domain/entities/service_endpoints.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
+import 'package:weave/integrations/rust_matrix_core/data/services/rust_matrix_core_bridge.dart';
 
 import 'package:weave/main.dart';
 
@@ -1210,8 +1212,13 @@ String _supportSafeDiagnostic(Object? error) {
   if (error == null) {
     return 'none';
   }
-  return error
-      .toString()
+  final cause = error is ChatFailure ? error.cause : null;
+  final causeCode =
+      cause is RustMatrixCoreBridgeException &&
+          RegExp(r'^M_[A-Z0-9_]+$').hasMatch(cause.code)
+      ? ' causeCode=${cause.code}'
+      : '';
+  return '${error.toString()}$causeCode'
       .replaceAll(
         RegExp(r'Bearer\s+[^\s,]+', caseSensitive: false),
         'Bearer ***',

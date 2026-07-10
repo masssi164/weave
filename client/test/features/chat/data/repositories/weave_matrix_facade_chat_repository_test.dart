@@ -66,6 +66,15 @@ class _FailingRoomBridge extends FakeRustMatrixCoreBridge {
   }
 }
 
+class _FailingDescriptorBridge extends FakeRustMatrixCoreBridge {
+  @override
+  Future<RustMatrixCoreBridgeDescriptor> descriptor({
+    String serverName = 'api.weave.test',
+  }) {
+    throw const RustMatrixCoreBridgeException('M_WEAVE_E2EE_SYNC');
+  }
+}
+
 void main() {
   late _FakeServerConfigurationRepository configurationRepository;
   late _FakeAuthSessionRepository authSessionRepository;
@@ -97,6 +106,29 @@ void main() {
     await repository().connect();
 
     expect(cryptoSession.synchronizeValues, <bool>[true]);
+  });
+
+  test('connect retains only the support-safe Rust failure code', () async {
+    await expectLater(
+      repository(rustBridge: _FailingDescriptorBridge()).connect(),
+      throwsA(
+        isA<ChatFailure>()
+            .having(
+              (failure) => failure.message,
+              'message',
+              isNot(contains('M_WEAVE_E2EE_SYNC')),
+            )
+            .having(
+              (failure) => failure.cause,
+              'cause',
+              isA<RustMatrixCoreBridgeException>().having(
+                (cause) => cause.code,
+                'code',
+                'M_WEAVE_E2EE_SYNC',
+              ),
+            ),
+      ),
+    );
   });
 
   test('maps only Rust-projected encrypted rooms into chat entities', () async {
