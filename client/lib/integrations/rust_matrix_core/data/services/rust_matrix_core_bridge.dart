@@ -1,9 +1,18 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:weave/integrations/rust_matrix_core/generated/frb_api.dart';
 import 'package:weave/integrations/rust_matrix_core/generated/frb_generated.dart';
 
 import 'rust_matrix_core_external_library.dart';
+
+const _matrixExtraRootCertificatePathEnvironmentKey =
+    'WEAVE_MATRIX_EXTRA_ROOT_CERTIFICATE_PATH';
+const _matrixLiveTestExtraRootEnabled = bool.fromEnvironment(
+  'WEAVE_MATRIX_LIVE_TEST_EXTRA_ROOT_ENABLED',
+  defaultValue: false,
+);
+const _maximumExtraRootCertificateBytes = 64 * 1024;
 
 class RustMatrixCoreBridgeException implements Exception {
   const RustMatrixCoreBridgeException(this.code);
@@ -242,7 +251,10 @@ class RustMatrixCoreBridge {
     required String accessToken,
     required String storePath,
     required String storePassphrase,
+    String? extraRootCertificatePem,
   }) async {
+    final resolvedExtraRootCertificatePem =
+        extraRootCertificatePem ?? await _loadExtraRootCertificatePem();
     await _native(
       () => initializeMatrixClient(
         profileKey: profileKey,
@@ -252,8 +264,33 @@ class RustMatrixCoreBridge {
         accessToken: accessToken,
         storePath: storePath,
         storePassphrase: storePassphrase,
+        extraRootCertificatePem: resolvedExtraRootCertificatePem,
       ),
     );
+  }
+
+  Future<String> _loadExtraRootCertificatePem() async {
+    if (!_matrixLiveTestExtraRootEnabled) {
+      return '';
+    }
+    final path =
+        Platform.environment[_matrixExtraRootCertificatePathEnvironmentKey];
+    if (path == null || path.trim().isEmpty) {
+      return '';
+    }
+
+    try {
+      final file = File(path);
+      final length = await file.length();
+      if (length == 0 || length > _maximumExtraRootCertificateBytes) {
+        throw const RustMatrixCoreBridgeException('M_WEAVE_E2EE_TLS_ROOT');
+      }
+      return await file.readAsString();
+    } on RustMatrixCoreBridgeException {
+      rethrow;
+    } on Object {
+      throw const RustMatrixCoreBridgeException('M_WEAVE_E2EE_TLS_ROOT');
+    }
   }
 
   Future<void> syncClient({required String profileKey}) async {

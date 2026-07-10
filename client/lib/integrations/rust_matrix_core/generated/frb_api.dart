@@ -24,6 +24,7 @@ Future<String> initializeMatrixClient({
   required String accessToken,
   required String storePath,
   required String storePassphrase,
+  required String extraRootCertificatePem,
 }) => RustLib.instance.api.crateFrbApiInitializeMatrixClient(
   profileKey: profileKey,
   homeserverUrl: homeserverUrl,
@@ -32,6 +33,7 @@ Future<String> initializeMatrixClient({
   accessToken: accessToken,
   storePath: storePath,
   storePassphrase: storePassphrase,
+  extraRootCertificatePem: extraRootCertificatePem,
 );
 
 Future<String> syncMatrixClient({required String profileKey}) =>

@@ -9,18 +9,25 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/live-stack-e2e.yml"
 DOCS = ROOT / "docs/quality-and-evidence.md"
+CLIENT_BRIDGE = (
+    ROOT
+    / "client/lib/integrations/rust_matrix_core/data/services/rust_matrix_core_bridge.dart"
+)
+CLIENT_MAKEFILE = ROOT / "client/Makefile"
 
 
 def main() -> int:
     workflow = WORKFLOW.read_text(encoding="utf-8")
     docs = DOCS.read_text(encoding="utf-8")
+    client_bridge = CLIENT_BRIDGE.read_text(encoding="utf-8")
+    client_makefile = CLIENT_MAKEFILE.read_text(encoding="utf-8")
 
     ordered_steps = (
         "- name: Verify dedicated live runner",
         "- name: Remove stale runner-owned Weave outputs",
         "- name: Check out weave",
         "- name: Verify runner disk headroom",
-        "- name: Trust local Weave CA through a job-scoped keychain",
+        "- name: Expose generated local CA to Rust Matrix tests",
         "- name: Run live stack integration tests",
         "- name: Generate live stack acceptance evidence",
         "- name: Generate support-safe failure diagnostics",
@@ -56,21 +63,27 @@ def main() -> int:
         "finalizer must preserve pulled registry images",
     )
     require(
-        'security add-trusted-cert -r trustRoot -k "$trust_keychain" "$CA_FILE"'
+        'openssl verify -CAfile "$CA_FILE" "$LEAF_FILE"'
         in workflow,
-        "live-stack Rust TLS must trust the generated CA without disabling validation",
+        "live-stack setup must verify the generated certificate chain",
     )
     require(
-        'awk -v stale="$trust_keychain"' in workflow,
-        "live-stack trust setup must exclude a stale job keychain from the saved search list",
+        'echo "WEAVE_MATRIX_EXTRA_ROOT_CERTIFICATE_PATH=$CA_FILE" >> "$GITHUB_ENV"'
+        in workflow,
+        "live-stack Rust TLS must receive the generated CA without mutating Keychains",
     )
     require(
-        'security verify-cert -c "$LEAF_FILE" -p ssl -s api.weave.test' in workflow,
-        "live-stack trust setup must verify the API leaf before Rust tests",
+        'echo "WEAVE_MATRIX_LIVE_TEST_EXTRA_ROOT_ENABLED=true" >> "$GITHUB_ENV"'
+        in workflow,
+        "live-stack workflow must explicitly enable the compile-time extra-root gate",
     )
     require(
-        'security delete-keychain "$trust_keychain"' in finalizer,
-        "live-stack finalizer must remove the job-scoped trust keychain",
+        "const _matrixLiveTestExtraRootEnabled = bool.fromEnvironment(" in client_bridge,
+        "Matrix extra-root loading must default off at compile time",
+    )
+    require(
+        '\\"WEAVE_MATRIX_LIVE_TEST_EXTRA_ROOT_ENABLED\\": ' in client_makefile,
+        "live tests must forward the compile-time extra-root gate as a dart-define",
     )
 
     for forbidden in (
@@ -80,15 +93,18 @@ def main() -> int:
         "xcrun simctl delete",
         "rm -rf -- \"$HOME",
         "rm -rf -- /Users",
+        "security add-trusted-cert",
+        "danger_accept_invalid_certs",
+        "badCertificateCallback",
     ):
         require(forbidden not in workflow, f"live-stack cleanup is too broad: {forbidden}")
 
     for phrase in (
         "stale Weave-generated outputs",
         "6 GiB",
-        "temporary job-scoped keychain",
+        "explicit extra root",
         "after acceptance evidence upload",
-        "unrelated containers, volumes, Keychains, signing identities, or physical-device data",
+        "unrelated containers, volumes, signing identities, or physical-device data",
     ):
         require(phrase in docs, f"quality documentation is missing {phrase!r}")
 

@@ -89,6 +89,7 @@ class FakeRustMatrixCoreBridge extends RustMatrixCoreBridge {
     required String accessToken,
     required String storePath,
     required String storePassphrase,
+    String? extraRootCertificatePem,
   }) async {
     initializations.add(<String, String>{
       'profileKey': profileKey,
@@ -98,6 +99,7 @@ class FakeRustMatrixCoreBridge extends RustMatrixCoreBridge {
       'accessToken': accessToken,
       'storePath': storePath,
       'storePassphrase': storePassphrase,
+      'extraRootCertificatePem': extraRootCertificatePem ?? '',
     });
   }
 

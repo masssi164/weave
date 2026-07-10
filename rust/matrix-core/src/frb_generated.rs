@@ -111,6 +111,7 @@ fn wire__crate__frb_api__initialize_matrix_client_impl(
             let api_access_token = <String>::sse_decode(&mut deserializer);
             let api_store_path = <String>::sse_decode(&mut deserializer);
             let api_store_passphrase = <String>::sse_decode(&mut deserializer);
+            let api_extra_root_certificate_pem = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, ()>(
@@ -124,6 +125,7 @@ fn wire__crate__frb_api__initialize_matrix_client_impl(
                                 api_access_token,
                                 api_store_path,
                                 api_store_passphrase,
+                                api_extra_root_certificate_pem,
                             )
                             .await,
                         )?;

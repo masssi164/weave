@@ -1352,6 +1352,7 @@ pub mod frb_api {
         access_token: String,
         store_path: String,
         store_passphrase: String,
+        extra_root_certificate_pem: String,
     ) -> String {
         crate::flutter_crypto::initialize(
             profile_key,
@@ -1361,6 +1362,7 @@ pub mod frb_api {
             access_token,
             store_path,
             store_passphrase,
+            extra_root_certificate_pem,
         )
         .await
     }
