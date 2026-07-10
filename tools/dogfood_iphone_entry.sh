@@ -11,7 +11,8 @@ LOCAL_CA_TRUST_STATUS="${WEAVE_IOS_LOCAL_CA_TRUST_STATUS:-not_verified}"
 RUN_ID="${WEAVE_DOGFOOD_RUN_ID:-s32-massimo-dogfood}"
 HANDOFF_REF="${WEAVE_DOGFOOD_HANDOFF_REF:-handoff-s32-massimo-dogfood-home}"
 PRODUCT_BASE_URL="${WEAVE_DOGFOOD_PRODUCT_BASE_URL:-https://weave.test:44443}"
-PLATFORM_CONFIG_URL="${WEAVE_DOGFOOD_PLATFORM_CONFIG_URL:-${PRODUCT_BASE_URL}/api/platform/config}"
+API_BASE_URL="${WEAVE_DOGFOOD_API_BASE_URL:-https://api.weave.test:44443}"
+PLATFORM_CONFIG_URL="${WEAVE_DOGFOOD_PLATFORM_CONFIG_URL:-${API_BASE_URL}/api/platform/config}"
 ACTION="run"
 
 usage() {
@@ -34,7 +35,8 @@ Options:
   --run-id ID                   Dogfood evidence run id.
   --handoff-ref REF             Support-safe handoff/invite reference.
   --product-base-url URL        Dogfood base URL. Default: https://weave.test:44443.
-  --platform-config-url URL     Platform config URL. Default: PRODUCT_BASE_URL/api/platform/config.
+  --api-base-url URL            Dogfood API URL. Default: https://api.weave.test:44443.
+  --platform-config-url URL     Platform config URL. Default: API_BASE_URL/api/platform/config.
   --evidence-dir DIR            Evidence output directory.
   -h, --help                    Show this help.
 
@@ -94,6 +96,11 @@ while [[ "$#" -gt 0 ]]; do
       ;;
     --product-base-url)
       PRODUCT_BASE_URL="${2:-}"
+      shift 2
+      ;;
+    --api-base-url)
+      API_BASE_URL="${2:-}"
+      PLATFORM_CONFIG_URL="${API_BASE_URL}/api/platform/config"
       shift 2
       ;;
     --platform-config-url)

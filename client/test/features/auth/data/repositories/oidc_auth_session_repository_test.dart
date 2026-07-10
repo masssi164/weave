@@ -97,6 +97,30 @@ void main() {
       expect(secureStore.rawValue(authSessionStorageKey), contains('access-1'));
     });
 
+    test('a new repository instance restores the persisted session', () async {
+      oidcClient.authorizeHandler = (configuration) async {
+        return OidcTokenBundle(
+          accessToken: 'access-before-process-close',
+          refreshToken: 'refresh-after-process-close',
+          idToken: 'id-after-process-close',
+          expiresAt: DateTime.now().toUtc().add(const Duration(hours: 1)),
+          tokenType: 'Bearer',
+          scopes: const ['openid', 'offline_access'],
+        );
+      };
+      await repository.signIn(configuration);
+
+      final relaunchedRepository = OidcAuthSessionRepository(
+        secureStore: secureStore,
+        oidcClient: _FakeOidcClient(),
+      );
+      final restored = await relaunchedRepository.restoreSession(configuration);
+
+      expect(restored.status, AuthStatus.authenticated);
+      expect(restored.session?.accessToken, 'access-before-process-close');
+      expect(restored.session?.refreshToken, 'refresh-after-process-close');
+    });
+
     test('restoreSession clears mismatched issuer or client ids', () async {
       final mismatchedSession = buildTestAuthSession(clientId: 'other-client');
       await secureStore.write(

@@ -402,7 +402,8 @@
         "DOGFOOD_MEMBER_ONBOARDING_RESULT",
         "DOGFOOD_ACTIVATION_MAIL_RESULT",
         "DOGFOOD_POST_LOGIN_CHAT_FILES_RESULT",
-        "DOGFOOD_TRUST_STABILITY_RESULT"
+        "DOGFOOD_TRUST_STABILITY_RESULT",
+        "DOGFOOD_SESSION_CONTINUITY_RESULT"
       ],
       "evidenceMode": "live-runtime",
       "runtimeSources": [
@@ -476,6 +477,38 @@
             "developerTrustStatus",
             "localTlsStable",
             "signingStable"
+          ]
+        },
+        {
+          "path": "tools/dogfood_ios_session_restore_smoke.sh",
+          "fragments": [
+            "--terminate-existing",
+            "dogfood_ios_session_continuity_check.py",
+            "ios-session-continuity.json"
+          ]
+        },
+        {
+          "path": "tools/dogfood_ios_session_continuity_check.py",
+          "fragments": [
+            "session_restored",
+            "workspace_ready",
+            "DOGFOOD_SESSION_CONTINUITY_RESULT",
+            "keychainContentsInspected"
+          ]
+        },
+        {
+          "path": "client/test/features/auth/data/repositories/oidc_auth_session_repository_test.dart",
+          "fragments": [
+            "a new repository instance restores the persisted session",
+            "refresh-after-process-close"
+          ]
+        },
+        {
+          "path": "docs/ios-dogfood-distribution.md",
+          "fragments": [
+            "TestFlight is the preferred physical-iPhone dogfood channel",
+            "DOGFOOD_SESSION_CONTINUITY_RESULT",
+            "destructive uninstall"
           ]
         },
         {
