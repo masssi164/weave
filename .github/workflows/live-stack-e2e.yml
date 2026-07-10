@@ -179,6 +179,9 @@ jobs:
           echo "DOCKER_CONFIG=$DOCKER_CONFIG" >> "$GITHUB_ENV"
           docker --config "$DOCKER_CONFIG" info >/dev/null
 
+      - name: Remove orphaned live-runner Buildx resources
+        run: bash weave/tools/cleanup_orphaned_buildx.sh
+
       - name: Set up Java
         uses: actions/setup-java@v5
         with:
@@ -273,6 +276,9 @@ jobs:
             echo "Building MCP server runtime image from CI-built weave-mcp-server JAR artifact."
             docker buildx build --load -t "${WEAVE_MCP_SERVER_IMAGE}" -f weave/weave-mcp-server/Dockerfile weave
           fi
+
+      - name: Release Buildx cache before stack tests
+        run: bash weave/tools/cleanup_orphaned_buildx.sh
 
       - name: Bootstrap local stack
         working-directory: weave/infra/weave-workspace
