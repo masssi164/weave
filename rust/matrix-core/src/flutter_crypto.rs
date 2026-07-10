@@ -2,15 +2,16 @@ use matrix_sdk::{
     authentication::{matrix::MatrixSession, SessionTokens},
     config::SyncSettings,
     encryption::{
-        recovery::RecoveryState,
+        recovery::{RecoveryError, RecoveryState},
         verification::{
             SasVerification, Verification, VerificationRequest, VerificationRequestState,
         },
-        EncryptionSettings, VerificationState,
+        BackupDownloadStrategy, EncryptionSettings, VerificationState,
     },
     room::MessagesOptions,
     ruma::{
         api::client::receipt::create_receipt::v3::ReceiptType,
+        api::error::ErrorKind,
         api::MatrixVersion,
         events::receipt::ReceiptThread,
         events::{
@@ -131,6 +132,7 @@ async fn initialize_inner(
         .with_encryption_settings(EncryptionSettings {
             auto_enable_cross_signing: true,
             auto_enable_backups: true,
+            backup_download_strategy: BackupDownloadStrategy::AfterDecryptionFailure,
             ..Default::default()
         })
         .build()
@@ -154,6 +156,11 @@ async fn initialize_inner(
         )
         .await
         .map_err(|_| "M_WEAVE_E2EE_SESSION".to_string())?;
+
+    client
+        .encryption()
+        .wait_for_e2ee_initialization_tasks()
+        .await;
 
     let handler_client = client.clone();
     let handler_profile_key = profile_key.clone();
@@ -222,7 +229,7 @@ async fn sync_inner(profile_key: &str) -> Result<Value, String> {
     let first = client
         .sync_once(SyncSettings::new().timeout(Duration::from_secs(0)))
         .await
-        .map_err(|_| "M_WEAVE_E2EE_SYNC".to_string())?;
+        .map_err(|error| matrix_sdk_error_code(&error, "M_WEAVE_E2EE_SYNC"))?;
 
     let mut enabled_rooms = 0_u64;
     for room in client.joined_rooms() {
@@ -241,7 +248,7 @@ async fn sync_inner(profile_key: &str) -> Result<Value, String> {
         client
             .sync_once(SyncSettings::new().timeout(Duration::from_secs(0)))
             .await
-            .map_err(|_| "M_WEAVE_E2EE_SYNC".to_string())?;
+            .map_err(|error| matrix_sdk_error_code(&error, "M_WEAVE_E2EE_SYNC"))?;
     }
 
     Ok(json!({
@@ -409,7 +416,7 @@ pub async fn bootstrap_recovery(profile_key: String, passphrase: String) -> Stri
         } else {
             enable.with_passphrase(passphrase.trim()).await
         }
-        .map_err(|_| "M_WEAVE_E2EE_RECOVERY".to_string())?;
+        .map_err(|error| bootstrap_recovery_error_code(&error).to_string())?;
         Ok(json!({ "recoveryKey": recovery_key }))
     }
     .await;
@@ -421,12 +428,25 @@ pub async fn recover(profile_key: String, recovery_key_or_passphrase: String) ->
         if recovery_key_or_passphrase.trim().is_empty() {
             return Err("M_INVALID_PARAM".to_string());
         }
-        client_for(&profile_key)?
+        let client = client_for(&profile_key)?;
+        client
             .encryption()
             .recovery()
             .recover(recovery_key_or_passphrase.trim())
             .await
             .map_err(|_| "M_WEAVE_E2EE_RECOVERY".to_string())?;
+        for room in client
+            .joined_rooms()
+            .into_iter()
+            .filter(|room| room.encryption_state().is_encrypted())
+        {
+            client
+                .encryption()
+                .backups()
+                .download_room_keys_for_room(room.room_id())
+                .await
+                .map_err(|_| "M_WEAVE_E2EE_RECOVERY_ROOM_KEYS".to_string())?;
+        }
         Ok(json!({ "recovered": true }))
     }
     .await;
@@ -679,6 +699,26 @@ fn recovery_state_name(state: RecoveryState) -> &'static str {
     }
 }
 
+fn bootstrap_recovery_error_code(error: &RecoveryError) -> &'static str {
+    match error {
+        RecoveryError::BackupExistsOnServer => "M_WEAVE_E2EE_RECOVERY_BACKUP_EXISTS",
+        RecoveryError::Sdk(_) => "M_WEAVE_E2EE_RECOVERY_BACKUP_SETUP",
+        RecoveryError::SecretStorage(_) => "M_WEAVE_E2EE_RECOVERY_SECRET_STORAGE",
+    }
+}
+
+fn matrix_sdk_error_code(error: &matrix_sdk::Error, fallback: &str) -> String {
+    if let matrix_sdk::Error::Http(http_error) = error {
+        return matrix_error_kind_code(http_error.client_api_error_kind(), fallback);
+    }
+    fallback.to_owned()
+}
+
+fn matrix_error_kind_code(kind: Option<&ErrorKind>, fallback: &str) -> String {
+    kind.map(|value| value.errcode().as_str().to_owned())
+        .unwrap_or_else(|| fallback.to_owned())
+}
+
 fn validate_identifier(value: &str, kind: &str) -> Result<(), String> {
     if value.len() < 8
         || value.len() > 512
@@ -707,6 +747,7 @@ fn json_result(result: Result<Value, String>) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use matrix_sdk::encryption::secret_storage::SecretStorageError;
 
     #[test]
     fn platform_roots_remain_the_default() {
@@ -718,5 +759,31 @@ mod tests {
         let result = build_http_client(HeaderMap::new(), "not a PEM certificate");
 
         assert_eq!(result.err().as_deref(), Some("M_WEAVE_E2EE_TLS_ROOT"));
+    }
+
+    #[test]
+    fn recovery_bootstrap_errors_are_support_safe_and_phase_specific() {
+        assert_eq!(
+            bootstrap_recovery_error_code(&RecoveryError::BackupExistsOnServer),
+            "M_WEAVE_E2EE_RECOVERY_BACKUP_EXISTS"
+        );
+        assert_eq!(
+            bootstrap_recovery_error_code(&RecoveryError::SecretStorage(
+                SecretStorageError::MissingKeyInfo { key_id: None }
+            )),
+            "M_WEAVE_E2EE_RECOVERY_SECRET_STORAGE"
+        );
+    }
+
+    #[test]
+    fn matrix_server_errcodes_survive_the_native_sync_boundary() {
+        assert_eq!(
+            matrix_error_kind_code(Some(&ErrorKind::MissingToken), "M_WEAVE_E2EE_SYNC"),
+            "M_MISSING_TOKEN"
+        );
+        assert_eq!(
+            matrix_error_kind_code(None, "M_WEAVE_E2EE_SYNC"),
+            "M_WEAVE_E2EE_SYNC"
+        );
     }
 }
