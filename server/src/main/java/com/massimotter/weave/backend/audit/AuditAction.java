@@ -8,7 +8,6 @@ public enum AuditAction {
     DECISION_LEDGER_RECORD_CREATED("decision_ledger.record.created"),
     MEETING_CAPSULE_CREATED("meeting_capsule.created"),
     WEAVER_SCOUT_SUMMARY_REQUESTED("weaver_scout.summary.requested"),
-    WEAVER_PA_CHAT_TURN_COMPLETED("weaver.pa_chat.turn_completed"),
     BOARD_TASK_CREATED("board.task.created"),
     BOARD_TASK_MOVED("board.task.moved"),
     BOARD_TASK_COMPLETED("board.task.completed"),

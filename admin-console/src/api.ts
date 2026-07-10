@@ -2132,7 +2132,7 @@ const sampleWeaverDistributionPolicy: WeaverDistributionPolicy = {
   chatProviderKey: "synapse-homeserver",
   chatReadinessState: "ready",
   chatMigrationConsequences: [
-    "Chat provider changes regenerate RuntimeProfile vNext but preserve channels.weave-chat.",
+    "Chat provider changes regenerate RuntimeProfile vNext but preserve channels.matrix.",
     "Backend migration dry-run must confirm room, membership, history, attachment, and mention mapping before apply.",
     "CredentialRefs rotate through the Credential Broker; raw channel tokens never enter the profile.",
   ],
@@ -2189,7 +2189,7 @@ const sampleWeaverDistributionPolicy: WeaverDistributionPolicy = {
     "shared-space-participation",
   ],
   effectivePolicyPreview: [
-    "channel=channels.weave-chat via chat.provider=synapse-homeserver",
+    "channel=channels.matrix via chat.provider=synapse-homeserver",
     "model.default=general-assistant",
     "model.fallback=fallback-safe -> sovereign-local",
     "tool.allow=chat.search_messages",
@@ -2217,7 +2217,7 @@ const sampleWeaverDistributionPolicy: WeaverDistributionPolicy = {
       createdAt: "2026-05-31T08:00:00Z",
       status: "active",
       summary:
-        "Active profile preserves channels.weave-chat and applies admin-approved model/tool/MCP policy.",
+        "Active profile preserves channels.matrix and applies admin-approved model/tool/MCP policy.",
     },
     {
       version: "vNext",

@@ -100,6 +100,30 @@ class ChatDomainFacadeServiceTest {
     }
 
     @Test
+    void matrixSendUsesCanonicalProviderAndPublishesSupportSafeAudit() {
+        InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
+        selections.save(selection("chat", "synapse-homeserver", false, List.of()));
+        InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
+        ChatDomainFacadeService service = service(selections, true, capability(), audit);
+
+        var event = service.sendEvent(
+                "channel-general",
+                "matrix-transaction-1",
+                com.massimotter.weave.backend.chat.domain.ChatEventContent.text("Sent through Matrix"),
+                memberJwt());
+
+        assertThat(event.conversationId()).isEqualTo("channel-general");
+        assertThat(event.content().body()).isEqualTo("Sent through Matrix");
+        assertThat(audit.events()).singleElement().satisfies(auditEvent -> {
+            assertThat(auditEvent.action()).isEqualTo(AuditAction.CHAT_MESSAGE_SENT);
+            assertThat(auditEvent.sourceRef()).isEqualTo("matrix-client-server-facade");
+            assertThat(auditEvent.payload())
+                    .containsEntry("operation", "event-sent")
+                    .containsEntry("providerPayloadExposed", false);
+        });
+    }
+
+    @Test
     void policyBlockedMemberStateDoesNotExposeProviderDiagnostics() {
         InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
         selections.save(selection("chat", "synapse-homeserver", false, List.of()));

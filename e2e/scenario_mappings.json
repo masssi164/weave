@@ -996,18 +996,34 @@
       "tag": "@weave-v01-chat-domain-facade",
       "scenario": "Chat uses a canonical backend domain facade",
       "feature": "e2e/features/v0_1_dogfood_release.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/ChatControllerTest.java",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
       "evidenceMarkers": [
         "WEAVE_CHAT_DOMAIN_FACADE"
       ],
       "additionalEvidence": [
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/service/ChatFacadeServiceTest.java",
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
           "fragments": [
-            "paWeaverConversationCompletesWeaveChatToLmStudioTurnWhenRuntimePolicyAllowsMember",
-            "paWeaverChatFailsClosedForMemberWithoutWeaverRuntimePolicy",
+            "matrixClientServerProjectionRequiresWorkspaceToken",
+            "syncProjectsCanonicalChatThroughRustWithStableWeaveCursor",
+            "sendParsesInRustAndForwardsTransactionForCanonicalIdempotency",
+            "stockOpenClawMemberReceiptAndTypingCallsStayOnCanonicalChat"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/chat/ChatDomainFacadeServiceTest.java",
+          "fragments": [
+            "matrixSendUsesCanonicalProviderAndPublishesSupportSafeAudit",
             "CHAT_MESSAGE_SENT",
-            "rawProviderDiagnosticsExposed"
+            "providerPayloadExposed"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/ChatControllerTest.java",
+          "fragments": [
+            "chatLegacyRestDataPlaneRoutesAreRemovedInFavorOfMatrixFacade",
+            "chatProviderReplacementDryRunIsAdminOnlySupportSafeAndAudited",
+            "providerDiagnosticsRedacted"
           ]
         },
         {

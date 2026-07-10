@@ -78,6 +78,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 class MatrixClientServerProjectionControllerTest {
 
+    // WEAVE_CHAT_DOMAIN_FACADE
+
     @Autowired
     private MockMvc mockMvc;
 
