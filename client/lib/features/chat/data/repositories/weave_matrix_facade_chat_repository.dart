@@ -57,9 +57,10 @@ class WeaveMatrixFacadeChatRepository implements ChatRepository {
             : left.title.toLowerCase().compareTo(right.title.toLowerCase());
       });
       return conversations;
-    } on RustMatrixCoreBridgeException {
-      throw const ChatFailure.protocol(
+    } on RustMatrixCoreBridgeException catch (error) {
+      throw ChatFailure.protocol(
         'Weave Chat could not establish the encrypted timeline.',
+        cause: error,
       );
     }
   }
@@ -89,9 +90,10 @@ class WeaveMatrixFacadeChatRepository implements ChatRepository {
             )
             .toList(growable: false),
       );
-    } on RustMatrixCoreBridgeException {
-      throw const ChatFailure.protocol(
+    } on RustMatrixCoreBridgeException catch (error) {
+      throw ChatFailure.protocol(
         'Weave Chat could not decrypt this timeline.',
+        cause: error,
       );
     }
   }

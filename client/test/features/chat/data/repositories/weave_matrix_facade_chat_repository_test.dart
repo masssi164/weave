@@ -86,6 +86,17 @@ class _FailingSendBridge extends FakeRustMatrixCoreBridge {
   }
 }
 
+class _FailingTimelineBridge extends FakeRustMatrixCoreBridge {
+  @override
+  Future<List<RustMatrixMessageProjection>> loadEncryptedRoomMessages({
+    required String profileKey,
+    required String roomId,
+    int limit = 50,
+  }) {
+    throw const RustMatrixCoreBridgeException('M_WEAVE_E2EE_TIMELINE');
+  }
+}
+
 void main() {
   late _FakeServerConfigurationRepository configurationRepository;
   late _FakeAuthSessionRepository authSessionRepository;
@@ -237,6 +248,39 @@ void main() {
   );
 
   test(
+    'encrypted timeline retains only the support-safe Rust cause code',
+    () async {
+      await expectLater(
+        repository(
+          rustBridge: _FailingTimelineBridge(),
+        ).loadRoomTimeline('!general:api.weave.test'),
+        throwsA(
+          isA<ChatFailure>()
+              .having(
+                (failure) => failure.type,
+                'type',
+                ChatFailureType.protocol,
+              )
+              .having(
+                (failure) => failure.message,
+                'message',
+                isNot(contains('M_WEAVE_E2EE_TIMELINE')),
+              )
+              .having(
+                (failure) => failure.cause,
+                'cause',
+                isA<RustMatrixCoreBridgeException>().having(
+                  (cause) => cause.code,
+                  'code',
+                  'M_WEAVE_E2EE_TIMELINE',
+                ),
+              ),
+        ),
+      );
+    },
+  );
+
+  test(
     'normal sign-out and session clear preserve local crypto state',
     () async {
       final chat = repository();
@@ -261,6 +305,15 @@ void main() {
               (failure) => failure.message,
               'message',
               isNot(contains('access_token')),
+            )
+            .having(
+              (failure) => failure.cause,
+              'cause',
+              isA<RustMatrixCoreBridgeException>().having(
+                (cause) => cause.code,
+                'code',
+                'M_WEAVE_E2EE_SYNC',
+              ),
             ),
       ),
     );
