@@ -86,6 +86,7 @@ registerRootCommandTask('sprint31LanDogfoodCheck', ['python3', 'tools/sprint31_l
 registerRootCommandTask('dogfoodActivationMailCheckTest', ['python3', 'tools/dogfood_activation_mail_check_test.py'], 'Run fixture tests for support-safe dogfood activation mail evidence checks.')
 registerRootCommandTask('dogfoodIosSessionContinuityCheckTest', ['python3', 'tools/dogfood_ios_session_continuity_check_test.py'], 'Run fixture tests for support-safe physical iPhone session restoration evidence.')
 registerRootCommandTask('iosDogfoodDistributionCheck', ['python3', 'tools/ios_dogfood_distribution_check.py'], 'Validate the GitHub-only stable iOS TestFlight dogfood distribution contract.')
+registerRootCommandTask('liveStackRunnerHygieneCheck', ['python3', 'tools/live_stack_runner_hygiene_check.py'], 'Validate bounded self-hosted Live Stack cleanup, headroom, and evidence ordering.')
 registerRootCommandTask('crossDomainProviderProofCheck', ['python3', 'tools/cross_domain_provider_proof_check.py'], 'Validate Sprint 27 Calendar, Files, Identity provider-boundary fixtures, scoreboard, claim gate, and acceptance mapping.')
 registerRootCommandTask('specContractTest', ['python3', 'tools/spec_contract_check_test.py'], 'Run fixture tests for the repo-local Weave spec contract guard.')
 registerRootCommandTask('androidReleaseIdentityCheck', ['python3', 'tools/android_release_identity_check.py'], 'Validate Android package identity and release-signing fail-safe posture.')
@@ -175,6 +176,7 @@ ext.ciEvidenceGates = [
     'sprint31LanDogfoodCheck',
     'dogfoodIosSessionContinuityCheckTest',
     'iosDogfoodDistributionCheck',
+    'liveStackRunnerHygieneCheck',
     'crossDomainProviderProofCheck',
     'androidReleaseIdentityCheck',
     'adminDependencyPolicyCheck',
@@ -383,10 +385,10 @@ tasks.register('doctor') {
 tasks.register('ci') {
     group = 'verification'
     description = 'Run the canonical monorepo CI orchestration checks.'
-    dependsOn 'doctor', 'acceptanceContract', 'specContract', 'specContractTest', 'domainRegistryCheck', 'portabilityContractCheck', 'productTrustClaimMatrixCheck', 'androidReleaseIdentityCheck', 'adminDependencyPolicyCheck', 'bootstrapFoundationCheck', 'clientCi', 'serverCi', 'mcpCi', 'infraStatic', 'adminCi', 'docsCheck', 'releaseNotesLabelCheck', 'releaseEvidenceCheck', 'projectReadinessEvidenceCheck'
+    dependsOn 'doctor', 'acceptanceContract', 'specContract', 'specContractTest', 'domainRegistryCheck', 'portabilityContractCheck', 'productTrustClaimMatrixCheck', 'androidReleaseIdentityCheck', 'adminDependencyPolicyCheck', 'bootstrapFoundationCheck', 'clientCi', 'serverCi', 'mcpCi', 'infraStatic', 'adminCi', 'docsCheck', 'releaseNotesLabelCheck', 'releaseEvidenceCheck', 'liveStackRunnerHygieneCheck', 'projectReadinessEvidenceCheck'
 }
 
-['acceptanceContract', 'specContract', 'specContractTest', 'domainRegistryCheck', 'spaceAnchorCheck', 'portabilityContractCheck', 'productTrustClaimMatrixCheck', 'androidReleaseIdentityCheck', 'adminDependencyPolicyCheck', 'bootstrapFoundationCheck', 'clientCi', 'serverCi', 'mcpCi', 'infraStatic', 'adminCi', 'docsStructureCheck', 'docsBuild', 'releaseNotesLabelCheck', 'releaseEvidenceCheck', 'sprint30HotPhaseCheck', 'crossDomainProviderProofCheck', 'projectReadinessEvidenceCheck', 'enterpriseReleaseGateCheck', 'releaseReadinessFixtureTest', 'releaseReadinessCheck'].each { taskName ->
+['acceptanceContract', 'specContract', 'specContractTest', 'domainRegistryCheck', 'spaceAnchorCheck', 'portabilityContractCheck', 'productTrustClaimMatrixCheck', 'androidReleaseIdentityCheck', 'adminDependencyPolicyCheck', 'bootstrapFoundationCheck', 'clientCi', 'serverCi', 'mcpCi', 'infraStatic', 'adminCi', 'docsStructureCheck', 'docsBuild', 'releaseNotesLabelCheck', 'releaseEvidenceCheck', 'liveStackRunnerHygieneCheck', 'sprint30HotPhaseCheck', 'crossDomainProviderProofCheck', 'projectReadinessEvidenceCheck', 'enterpriseReleaseGateCheck', 'releaseReadinessFixtureTest', 'releaseReadinessCheck'].each { taskName ->
     tasks.named(taskName) {
         mustRunAfter tasks.named('doctor')
     }

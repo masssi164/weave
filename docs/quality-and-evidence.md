@@ -71,6 +71,8 @@ The persistent test stack is the required bridge between `dev` and `main`: a com
 
 The disposable live-stack workflow prepares an acceptance evidence directory, runs the app-level live-stack E2E, and uploads support-safe acceptance evidence from the run. The artifact set includes `release-evidence-manifest.json`, which names the source lane, commit, workflow run metadata, artifact list, and RC promotion rule. On failure, the same uploaded artifact may include `failure-diagnostics/` with `failure-summary.md`, `failure-summary.json`, `container-status.tsv`, `failed-markers.json`, redacted readiness output, and a redacted support-bundle reference. It must not include blindly dumped raw container logs. Do not cite a single workflow run ID as a permanent product claim; link to the workflow, the relevant docs, the manifest, and the PR evidence instead.
 
+The dedicated runner removes stale Weave-generated outputs before checkout and requires at least 6 GiB of free space before tool and image setup. Current Flutter/Rust native outputs remain untouched while tests, diagnostics, and evidence generation run; cleanup occurs only after acceptance evidence upload. The cleanup boundary is limited to generated paths inside the runner's Weave checkout, the named live-stack temporary evidence files, and the two locally built Weave image tags. It must not prune unrelated containers, volumes, Keychains, signing identities, or physical-device data.
+
 ## Interpreting pass/fail states
 
 - **Offline Flutter failure**: inspect the failing command first. Re-run locally after regenerating l10n/build output.

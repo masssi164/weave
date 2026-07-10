@@ -100,6 +100,35 @@ jobs:
             exit 1
           fi
 
+      - name: Remove stale runner-owned Weave outputs
+        run: |
+          set -euo pipefail
+          checkout_root="${GITHUB_WORKSPACE%/}/weave"
+          remove_runner_output() {
+            local path="$1"
+            case "$path" in
+              "$checkout_root"/*|"${RUNNER_TEMP%/}"/weave-live-stack-*)
+                rm -rf -- "$path"
+                ;;
+              *)
+                echo "::error::Refusing to remove non-runner-owned path: $path" >&2
+                exit 1
+                ;;
+            esac
+          }
+          for path in \
+            "$checkout_root/.gradle" \
+            "$checkout_root/build" \
+            "$checkout_root/client/.dart_tool" \
+            "$checkout_root/client/build" \
+            "$checkout_root/server/build" \
+            "$checkout_root/weave-mcp-server/build" \
+            "$RUNNER_TEMP/weave-live-stack-acceptance-evidence" \
+            "$RUNNER_TEMP/weave-live-stack-e2e.log"; do
+            remove_runner_output "$path"
+          done
+          df -h "$RUNNER_TEMP"
+
       - name: Check out weave
         uses: actions/checkout@v5
         with:
@@ -145,10 +174,10 @@ jobs:
         run: |
           set -euo pipefail
           available_kib="$(df -Pk "$RUNNER_TEMP" | awk 'NR == 2 { print $4 }')"
-          minimum_kib=$((4 * 1024 * 1024))
+          minimum_kib=$((6 * 1024 * 1024))
           df -h "$RUNNER_TEMP"
           if (( available_kib < minimum_kib )); then
-            echo "::error::Live Stack E2E requires at least 4 GiB free before tool and image setup; only $((available_kib / 1024)) MiB is available." >&2
+            echo "::error::Live Stack E2E requires at least 6 GiB free after stale-output cleanup and before tool and image setup; only $((available_kib / 1024)) MiB is available." >&2
             echo "Runner-owned tool cache sizes:" >&2
             du -sh "$RUNNER_TOOL_CACHE"/* 2>/dev/null | sort -h >&2 || true
             exit 1
@@ -330,3 +359,38 @@ jobs:
           path: ${{ env.WEAVE_ACCEPTANCE_EVIDENCE_DIR }}
           if-no-files-found: error
           retention-days: 30
+
+      - name: Scrub current runner-owned Weave outputs
+        if: always()
+        run: |
+          set -euo pipefail
+          checkout_root="${GITHUB_WORKSPACE%/}/weave"
+          remove_runner_output() {
+            local path="$1"
+            case "$path" in
+              "$checkout_root"/*|"${RUNNER_TEMP%/}"/weave-live-stack-*)
+                rm -rf -- "$path"
+                ;;
+              *)
+                echo "::error::Refusing to remove non-runner-owned path: $path" >&2
+                exit 1
+                ;;
+            esac
+          }
+          for path in \
+            "$checkout_root/.gradle" \
+            "$checkout_root/build" \
+            "$checkout_root/client/.dart_tool" \
+            "$checkout_root/client/build" \
+            "$checkout_root/server/build" \
+            "$checkout_root/weave-mcp-server/build" \
+            "${WEAVE_ACCEPTANCE_EVIDENCE_DIR:-$RUNNER_TEMP/weave-live-stack-acceptance-evidence}" \
+            "${WEAVE_ACCEPTANCE_TEST_LOG:-$RUNNER_TEMP/weave-live-stack-e2e.log}"; do
+            remove_runner_output "$path"
+          done
+          for image_ref in "$WEAVE_BACKEND_IMAGE" "$WEAVE_MCP_SERVER_IMAGE"; do
+            if [[ "$image_ref" != ghcr.io/* ]]; then
+              docker image rm "$image_ref" >/dev/null 2>&1 || true
+            fi
+          done
+          df -h "$RUNNER_TEMP"
