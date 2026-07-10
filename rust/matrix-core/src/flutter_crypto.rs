@@ -6,7 +6,7 @@ use matrix_sdk::{
         verification::{
             SasVerification, Verification, VerificationRequest, VerificationRequestState,
         },
-        EncryptionSettings, VerificationState,
+        BackupDownloadStrategy, EncryptionSettings, VerificationState,
     },
     room::MessagesOptions,
     ruma::{
@@ -131,6 +131,7 @@ async fn initialize_inner(
         .with_encryption_settings(EncryptionSettings {
             auto_enable_cross_signing: true,
             auto_enable_backups: true,
+            backup_download_strategy: BackupDownloadStrategy::AfterDecryptionFailure,
             ..Default::default()
         })
         .build()
@@ -426,12 +427,25 @@ pub async fn recover(profile_key: String, recovery_key_or_passphrase: String) ->
         if recovery_key_or_passphrase.trim().is_empty() {
             return Err("M_INVALID_PARAM".to_string());
         }
-        client_for(&profile_key)?
+        let client = client_for(&profile_key)?;
+        client
             .encryption()
             .recovery()
             .recover(recovery_key_or_passphrase.trim())
             .await
             .map_err(|_| "M_WEAVE_E2EE_RECOVERY".to_string())?;
+        for room in client
+            .joined_rooms()
+            .into_iter()
+            .filter(|room| room.encryption_state().is_encrypted())
+        {
+            client
+                .encryption()
+                .backups()
+                .download_room_keys_for_room(room.room_id())
+                .await
+                .map_err(|_| "M_WEAVE_E2EE_RECOVERY_ROOM_KEYS".to_string())?;
+        }
         Ok(json!({ "recovered": true }))
     }
     .await;

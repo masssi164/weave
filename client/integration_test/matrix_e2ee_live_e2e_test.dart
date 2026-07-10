@@ -180,6 +180,15 @@ void main() {
 
       final recoveryKey = await bridge.bootstrapRecovery(profileKey: _profileA);
       expect(recoveryKey, isNotEmpty);
+      expect(
+        await _currentRoomKeyBackupCount(
+          httpClient,
+          homeserver,
+          accessTokenA,
+          _deviceA,
+        ),
+        greaterThan(0),
+      );
       await initialize(
         _profileC,
         _deviceC,
@@ -364,6 +373,36 @@ Future<void> _deleteCurrentRoomKeyBackup(
       'Room-key backup cleanup failed with HTTP ${deleted.statusCode}.',
     );
   }
+}
+
+Future<int> _currentRoomKeyBackupCount(
+  http.Client client,
+  Uri homeserver,
+  String accessToken,
+  String deviceId,
+) async {
+  final current = await client.get(
+    homeserver.replace(
+      pathSegments: const <String>[
+        '_matrix',
+        'client',
+        'v3',
+        'room_keys',
+        'version',
+      ],
+    ),
+    headers: _matrixHeaders(accessToken, deviceId),
+  );
+  if (current.statusCode != 200) {
+    throw TestFailure(
+      'Room-key backup evidence failed with HTTP ${current.statusCode}.',
+    );
+  }
+  final count = (jsonDecode(current.body) as Map<String, dynamic>)['count'];
+  if (count is! num) {
+    throw TestFailure('Room-key backup evidence returned no count.');
+  }
+  return count.toInt();
 }
 
 Future<String> _whoami(
