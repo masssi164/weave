@@ -85,8 +85,8 @@ What `operator-check.sh` adds beyond `release-verify.sh`:
 
 - confirms the core containers exist and are running
 - checks loopback health endpoints for Keycloak, MAS, Synapse, and backend
-- checks the public product, backend, auth, Matrix, and raw Nextcloud fallback routes through the configured release URLs
-- checks that the default Matrix workspace aliases resolve (`#weave-workspace`, `#announcements`, `#general`, and `#help` on the configured Matrix homeserver)
+- checks the public product, backend, auth, OIDC-gated Matrix facade, southbound Matrix provider, and raw Nextcloud fallback routes through the configured release URLs
+- checks that the default Matrix workspace aliases resolve (`#weave-workspace`, `#announcements`, `#general`, and `#help` on the configured southbound Matrix provider)
 - checks that `weave-backend` has the required server-side Files/Calendar Nextcloud actor env and that the actor user exists in Nextcloud
 - treats the actor's own `personal` CalDAV collection as the temporary Weave-managed workspace calendar fallback while team/channel scopes are implemented; private personal calendars require later explicit sharing/provisioning before they are safe to expose through the backend facade
 

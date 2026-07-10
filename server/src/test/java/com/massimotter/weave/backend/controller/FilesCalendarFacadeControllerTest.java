@@ -251,6 +251,7 @@ class FilesCalendarFacadeControllerTest {
     @Test
     void filesCredentialLifecycleReturnsSecretOnceAuthenticatesWebdavAndRevokes() throws Exception {
         // FILES_WEBDAV_DEVICE_CREDENTIAL_CONTROL_PLANE
+        // WEBDAV_DEVICE_CREDENTIAL_CONTRACT
         String body = """
                 {"label":"Mac Finder","clientType":"webdav"}
                 """;
@@ -465,6 +466,7 @@ class FilesCalendarFacadeControllerTest {
 
     @Test
     void calendarCredentialLifecycleReturnsSecretOnceAuthenticatesCaldavAndRevokes() throws Exception {
+        // CALDAV_DEVICE_CREDENTIAL_CONTRACT
         String createdBody = mockMvc.perform(post("/api/calendar/client-setup/credentials")
                         .with(workspaceJwt())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -540,6 +542,12 @@ class FilesCalendarFacadeControllerTest {
 
     @Test
     void calDavOptionsAndPropfindExposeWeaveCalendarProjectionWithoutProviderLeaks() throws Exception {
+        // CALDAV_DISCOVERY_AND_HOME_FACADE
+        mockMvc.perform(get("/.well-known/caldav")
+                        .with(workspaceJwt()))
+                .andExpect(status().isPermanentRedirect())
+                .andExpect(header().string("Location", "/caldav"));
+
         mockMvc.perform(request(HttpMethod.valueOf("OPTIONS"), "/caldav")
                         .with(workspaceJwt()))
                 .andExpect(status().isNoContent())
@@ -562,10 +570,22 @@ class FilesCalendarFacadeControllerTest {
                         .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("remote.php"))))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                         .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("Bearer"))));
+
+        mockMvc.perform(request(HttpMethod.valueOf("PROPFIND"), "/caldav/principals/users/user@example.com/")
+                        .header("Depth", "0")
+                        .with(workspaceJwt()))
+                .andExpect(status().is(207))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.containsString("<d:principal/>")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.containsString("<c:calendar-home-set><d:href>/caldav/</d:href>")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("remote.php"))));
     }
 
     @Test
     void calDavReportCalendarQueryAndFreeBusyReturnFacadeBackedCalendarData() throws Exception {
+        // CALDAV_QUERY_FREEBUSY_FACADE
         when(calendarProviderPort.query(
                         any(CalendarId.class),
                         any(CalendarScope.class),
@@ -620,6 +640,7 @@ class FilesCalendarFacadeControllerTest {
 
     @Test
     void calDavReportMultigetAndSyncCollectionUseScopedFacadeCalendars() throws Exception {
+        // CALDAV_MULTIGET_SYNC_FACADE
         when(calendarProviderPort.changes(
                         any(CalendarId.class),
                         argThat(scope -> scope != null && scope.type() == ScopeType.TEAM

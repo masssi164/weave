@@ -151,6 +151,7 @@ void main() {
     });
 
     test('lists events through the CalDAV calendar facade', () async {
+      // FLUTTER_CALDAV_DATA_PLANE
       late http.Request capturedRequest;
       final facade = client(
         MockClient((request) async {
@@ -395,6 +396,7 @@ END:VCALENDAR
     test(
       'creates, updates, and deletes events through CalDAV endpoints',
       () async {
+        // FLUTTER_CALDAV_MUTATION_DATA_PLANE
         final requests = <http.Request>[];
         final facade = client(
           MockClient((request) async {

@@ -27,6 +27,7 @@ class BackendFilesRepository
     implements
         FilesRepository,
         FilesEntryMutationRepository,
+        FilesRelocationRepository,
         FilesExportRepository {
   const BackendFilesRepository({
     required http.Client httpClient,
@@ -219,6 +220,79 @@ class BackendFilesRepository
       fallbackMessage: 'Unable to delete the file through the Weave backend.',
     );
     _ensureSuccess(response, successCodes: const {204});
+  }
+
+  @override
+  Future<FileEntry> copyEntry(
+    FileEntry source, {
+    required String destinationPath,
+    bool overwrite = false,
+  }) {
+    return _relocateEntry(
+      method: 'COPY',
+      source: source,
+      destinationPath: destinationPath,
+      overwrite: overwrite,
+    );
+  }
+
+  @override
+  Future<FileEntry> moveEntry(
+    FileEntry source, {
+    required String destinationPath,
+    bool overwrite = false,
+  }) {
+    return _relocateEntry(
+      method: 'MOVE',
+      source: source,
+      destinationPath: destinationPath,
+      overwrite: overwrite,
+    );
+  }
+
+  Future<FileEntry> _relocateEntry({
+    required String method,
+    required FileEntry source,
+    required String destinationPath,
+    required bool overwrite,
+  }) async {
+    final normalizedDestination = _normalizeFilesPath(destinationPath);
+    if (normalizedDestination == '/') {
+      throw const FilesFailure.protocol(
+        'The Files root cannot be used as a copy or move destination.',
+      );
+    }
+    final context = await _requireContext();
+    final response = await _sendAuthenticated(
+      context,
+      (accessToken) async {
+        final request =
+            http.Request(method, _davUri(context.baseUrl, source.path))
+              ..headers.addAll({
+                ..._webdavHeaders(accessToken),
+                'Destination': _davUri(
+                  context.baseUrl,
+                  normalizedDestination,
+                ).toString(),
+                'Overwrite': overwrite ? 'T' : 'F',
+                'If-Match': '*',
+              });
+        return http.Response.fromStream(await _httpClient.send(request));
+      },
+      fallbackMessage:
+          'Unable to ${method == 'COPY' ? 'copy' : 'move'} the entry through the Weave backend.',
+    );
+    _ensureSuccess(response, successCodes: const {201, 204});
+    final resultPath =
+        _pathFromLocation(response.headers) ?? normalizedDestination;
+    return FileEntry(
+      id: resultPath,
+      name: _fallbackNameFromPath(resultPath),
+      path: resultPath,
+      isDirectory: source.isDirectory,
+      modifiedAt: source.modifiedAt,
+      sizeInBytes: source.sizeInBytes,
+    );
   }
 
   Future<_BackendFilesContext> _requireContext() async {

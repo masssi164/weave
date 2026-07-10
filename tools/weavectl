@@ -490,9 +490,9 @@ def apply_profile(args: argparse.Namespace) -> int:
     host = normalize_host(args.lan_host or args.public_host, args.profile)
     host_class = validate_phone_host(host, args.profile)
     run_id = args.run_id or now_run_id()
-    app_base_url = f"{args.scheme}://{host}:{args.app_port}"
+    product_base_url = f"{args.scheme}://{host}:{args.app_port}"
     api_base_url = f"{args.scheme}://{host}:{args.api_port}"
-    handoff_ref = support_safe_ref("handoff", run_id, args.profile, app_base_url)
+    handoff_ref = support_safe_ref("handoff", run_id, args.profile, product_base_url)
     readiness_ref = support_safe_ref("readiness", run_id, args.profile, api_base_url)
     audit_ref = support_safe_ref("audit", run_id, handoff_ref, readiness_ref)
 
@@ -507,16 +507,16 @@ def apply_profile(args: argparse.Namespace) -> int:
             {"port": args.api_port, "reachable": "shape-validated", "summary": "S31-LAN-PREFLIGHT-SHAPE-OK"},
         ]
 
-    platform_config_url = f"{app_base_url}/api/platform/config"
+    platform_config_url = f"{product_base_url}/api/platform/config"
     handoff_query = urlencode({"handoff_ref": handoff_ref, "org": args.organization_slug, "workspace": args.workspace_slug, "run_id": run_id, "profile": args.profile})
-    tester_url = f"{app_base_url}/join?{handoff_query}"
+    tester_url = f"{product_base_url}/join?{handoff_query}"
     deep_link_query = urlencode({
         "handoff_ref": handoff_ref,
         "org": args.organization_slug,
         "workspace": args.workspace_slug,
         "run_id": run_id,
         "profile": args.profile,
-        "product_base_url": app_base_url,
+        "product_base_url": product_base_url,
         "platform_config_url": platform_config_url,
     })
     deep_link = f"weave:/join?{deep_link_query}"

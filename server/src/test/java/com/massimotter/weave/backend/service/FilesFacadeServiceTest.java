@@ -29,6 +29,7 @@ import com.massimotter.weave.backend.model.files.FileListResponse;
 import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
 import com.massimotter.weave.backend.portability.ProviderReadiness;
 import com.massimotter.weave.backend.service.files.WebDavPropfindResource;
+import com.massimotter.weave.backend.service.files.WebDavLockResult;
 import com.massimotter.weave.backend.service.files.WebDavMutationResult;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -251,6 +252,8 @@ class FilesFacadeServiceTest {
 
     @Test
     void webDavPutCreateFolderAndDeleteUseFacadePolicyAndPublishMutationAudit() {
+        // FILES_WEBDAV_PUT_CREATE_AUDIT
+        // FILES_WEBDAV_DELETE_AUDIT
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
         InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
         StubAdapter adapter = new StubAdapter(true);
@@ -289,7 +292,33 @@ class FilesFacadeServiceTest {
     }
 
     @Test
+    void webDavMkcolRejectsDuplicatesAndMissingParentsBeforeStorageMutation() {
+        // FILES_WEBDAV_MKCOL_CONFLICTS
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
+        StubAdapter adapter = new StubAdapter(true);
+        FilesFacadeService service = service(adapter, new InMemoryAuditEventPublisher());
+
+        assertThatThrownBy(() -> service.createWebDavFolder("/Team", null, null))
+                .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
+                    assertThat(exception.status()).isEqualTo(HttpStatus.CONFLICT);
+                    assertThat(exception.code()).isEqualTo("file-conflict");
+                    assertThat(exception.details()).containsEntry("operation", "webdav-mkcol");
+                });
+        assertThatThrownBy(() -> service.createWebDavFolder("/Missing/Child", null, "*"))
+                .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
+                    assertThat(exception.status()).isEqualTo(HttpStatus.CONFLICT);
+                    assertThat(exception.code()).isEqualTo("file-conflict");
+                    assertThat(exception.details())
+                            .containsEntry("operation", "webdav-mkcol")
+                            .containsEntry("diagnosticsRedacted", true);
+                });
+
+        assertThat(adapter.createdFolderPath).isNull();
+    }
+
+    @Test
     void webDavWritePreconditionsFailBeforeStorageMutationButAfterAttemptAudit() {
+        // FILES_WEBDAV_STALE_ETAG_PRECONDITION
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
         InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
         StubAdapter adapter = new StubAdapter(true);
@@ -318,6 +347,75 @@ class FilesFacadeServiceTest {
                     .containsEntry("webDavMethod", "PUT")
                     .containsEntry("productPath", "/Team/readme.md");
         });
+    }
+
+    @Test
+    void webDavCopyAndMoveEnforceDestinationsAndPublishAudit() {
+        // FILES_WEBDAV_COPY_MOVE_CANONICAL
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
+        InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
+        StubAdapter adapter = new StubAdapter(true);
+        FilesFacadeService service = service(adapter, audit);
+
+        WebDavMutationResult copied = service.copyWebDavPath(
+                "/Team/readme.md", "/Team/readme-copy.md", false, null, null);
+        WebDavMutationResult moved = service.moveWebDavPath(
+                "/Team/readme.md", "/Team/readme-moved.md", false, null, null);
+
+        assertThat(copied.created()).isTrue();
+        assertThat(copied.item().path()).isEqualTo("/Team/readme-copy.md");
+        assertThat(moved.created()).isTrue();
+        assertThat(moved.item().path()).isEqualTo("/Team/readme-moved.md");
+        assertThat(adapter.copiedPath).isEqualTo("/Team/readme-copy.md");
+        assertThat(adapter.movedPath).isEqualTo("/Team/readme-moved.md");
+        assertThat(audit.events())
+                .extracting(event -> event.action())
+                .containsExactly(
+                        AuditAction.FILES_WEBDAV_WRITE_ATTEMPTED,
+                        AuditAction.FILES_WEBDAV_WRITE_COMPLETED,
+                        AuditAction.FILES_WEBDAV_WRITE_ATTEMPTED,
+                        AuditAction.FILES_WEBDAV_WRITE_COMPLETED);
+        assertThat(audit.events()).allSatisfy(event -> assertThat(event.payload())
+                .containsEntry("webDavFacadePath", "/dav/files")
+                .doesNotContainKeys("providerUrl", "rawProviderPayload", "bearerToken"));
+    }
+
+    @Test
+    void webDavLockBlocksConflictingWritesUntilMatchingUnlock() {
+        // FILES_WEBDAV_LOCK_CONFLICT
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
+        StubAdapter adapter = new StubAdapter(true);
+        FilesFacadeService service = service(adapter, new InMemoryAuditEventPublisher());
+
+        WebDavLockResult lock = service.lockWebDavPath("/Team/readme.md", null);
+
+        assertThatThrownBy(() -> service.putWebDavFile(
+                        "/Team/readme.md",
+                        "blocked".getBytes(StandardCharsets.UTF_8),
+                        "text/markdown",
+                        null,
+                        null,
+                        null))
+                .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
+                    assertThat(exception.status()).isEqualTo(HttpStatus.LOCKED);
+                    assertThat(exception.code()).isEqualTo("files-locked");
+                    assertThat(exception.details()).containsEntry("webDavFacadePath", "/dav/files");
+                });
+        assertThatThrownBy(() -> service.unlockWebDavPath(
+                        "/Team/readme.md", "<opaquelocktoken:wrong>"))
+                .isInstanceOfSatisfying(ApiErrorException.class, exception ->
+                        assertThat(exception.status()).isEqualTo(HttpStatus.LOCKED));
+
+        service.unlockWebDavPath("/Team/readme.md", "<" + lock.token() + ">");
+        WebDavMutationResult updated = service.putWebDavFile(
+                "/Team/readme.md",
+                "unlocked".getBytes(StandardCharsets.UTF_8),
+                "text/markdown",
+                null,
+                null,
+                null);
+        assertThat(updated.created()).isFalse();
+        assertThat(adapter.putPath).isEqualTo("/Team/readme.md");
     }
 
     @Test
@@ -616,6 +714,8 @@ class FilesFacadeServiceTest {
         private String putPath;
         private String createdFolderPath;
         private String deletedPath;
+        private String copiedPath;
+        private String movedPath;
         private int listWithVersionTokenCalls;
         private int versionTokenCalls;
 
@@ -705,12 +805,24 @@ class FilesFacadeServiceTest {
 
         @Override
         public FileObject copy(FilePath source, FilePath destination, boolean overwrite) {
-            throw new UnsupportedOperationException("not needed");
+            byte[] content = contentByPath.get(source.value());
+            if (content == null) {
+                throw new IllegalArgumentException("source file is missing");
+            }
+            copiedPath = destination.value();
+            contentByPath.put(copiedPath, content.clone());
+            return file(copiedPath, contentByPath.get(copiedPath));
         }
 
         @Override
         public FileObject move(FilePath source, FilePath destination, boolean overwrite) {
-            throw new UnsupportedOperationException("not needed");
+            byte[] content = contentByPath.remove(source.value());
+            if (content == null) {
+                throw new IllegalArgumentException("source file is missing");
+            }
+            movedPath = destination.value();
+            contentByPath.put(movedPath, content);
+            return file(movedPath, content);
         }
 
         @Override

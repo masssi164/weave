@@ -81,6 +81,7 @@ readonly PUBLIC_ENV_KEYS=(
   WEAVE_BOARDS_OPENPROJECT_BASE_URL
   WEAVE_CHAT_E2EE
   WEAVE_MATRIX_HOMESERVER_URL
+  WEAVE_MATRIX_PROVIDER_URL
   WEAVE_TLS_CA_FILE
 )
 
@@ -207,7 +208,7 @@ collect_public_env_from_file() {
 is_provider_endpoint_key() {
   local key="$1"
   case "${key}" in
-    WEAVE_DEVOPS_GITLAB_BASE_URL|WEAVE_OFFICE_ONLYOFFICE_DOCUMENT_SERVER_URL|WEAVE_PUBLIC_BASE_URL|WEAVE_OIDC_ISSUER_URL|WEAVE_NEXTCLOUD_BASE_URL|WEAVE_BOARDS_OPENPROJECT_BASE_URL|WEAVE_MATRIX_HOMESERVER_URL)
+    WEAVE_DEVOPS_GITLAB_BASE_URL|WEAVE_OFFICE_ONLYOFFICE_DOCUMENT_SERVER_URL|WEAVE_PUBLIC_BASE_URL|WEAVE_OIDC_ISSUER_URL|WEAVE_NEXTCLOUD_BASE_URL|WEAVE_BOARDS_OPENPROJECT_BASE_URL|WEAVE_MATRIX_PROVIDER_URL)
       return 0
       ;;
     *)
@@ -326,7 +327,7 @@ collect_adapter_readiness_evidence() {
   local identity_configured="false" chat_configured="false" files_configured="false" calendar_configured="false" boards_configured="false" meetings_configured="false"
 
   (bool_from_env_presence WEAVE_OIDC_ISSUER_URL || bool_from_env_files WEAVE_OIDC_ISSUER_URL) && identity_configured="true"
-  (bool_from_env_presence WEAVE_MATRIX_HOMESERVER_URL || bool_from_env_files WEAVE_MATRIX_HOMESERVER_URL) && chat_configured="true"
+  (bool_from_env_presence WEAVE_MATRIX_PROVIDER_URL || bool_from_env_files WEAVE_MATRIX_PROVIDER_URL) && chat_configured="true"
   (bool_from_env_presence WEAVE_NEXTCLOUD_BASE_URL || bool_from_env_files WEAVE_NEXTCLOUD_BASE_URL) && files_configured="true" && calendar_configured="true"
   (bool_from_env_presence WEAVE_BOARDS_OPENPROJECT_BASE_URL || bool_from_env_files WEAVE_BOARDS_OPENPROJECT_BASE_URL) && boards_configured="true"
   if [[ "${WEAVE_LIVEKIT_ENABLED:-false}" == "true" || "${WEAVE_LIVEKIT_TOKEN_ENDPOINT_CONFIGURED:-false}" == "true" ]]; then

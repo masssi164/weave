@@ -892,57 +892,60 @@ void main() {
       expect(find.textContaining('Flutter provider calls'), findsNothing);
     });
 
-    testWidgets('preserves overridden service URLs when the issuer changes', (
-      tester,
-    ) async {
-      final store = InMemoryPreferencesStore(
-        buildStoredConfiguration(
-          nextcloudBaseUrl: 'https://cloud.custom.internal',
-          backendApiBaseUrl: 'https://backend.custom.internal',
-        ),
-      );
-      final container = ProviderContainer.test(
-        overrides: [
-          preferencesStoreProvider.overrideWith((ref) => store),
-          chatSecurityRepositoryProvider.overrideWithValue(
-            FakeChatSecurityRepository(),
+    testWidgets(
+      'preserves editable product URLs and hides the Matrix provider boundary',
+      (tester) async {
+        final store = InMemoryPreferencesStore(
+          buildStoredConfiguration(
+            nextcloudBaseUrl: 'https://cloud.custom.internal',
+            backendApiBaseUrl: 'https://backend.custom.internal',
           ),
-          workspaceConnectionStateProvider.overrideWithValue(
-            _workspaceConnectionState(),
-          ),
-          workspaceCapabilitySnapshotProvider.overrideWithValue(
-            _workspaceCapabilitySnapshot(),
-          ),
-          weaveBackendConnectionStateProvider.overrideWithValue(
-            WeaveBackendConnectionState.connected,
-          ),
-          userProfileProvider.overrideWith((ref) async => _ownerProfile),
-        ],
-      );
-      addTearDown(container.dispose);
+        );
+        final container = ProviderContainer.test(
+          overrides: [
+            preferencesStoreProvider.overrideWith((ref) => store),
+            chatSecurityRepositoryProvider.overrideWithValue(
+              FakeChatSecurityRepository(),
+            ),
+            workspaceConnectionStateProvider.overrideWithValue(
+              _workspaceConnectionState(),
+            ),
+            workspaceCapabilitySnapshotProvider.overrideWithValue(
+              _workspaceCapabilitySnapshot(),
+            ),
+            weaveBackendConnectionStateProvider.overrideWithValue(
+              WeaveBackendConnectionState.connected,
+            ),
+            userProfileProvider.overrideWith((ref) async => _ownerProfile),
+          ],
+        );
+        addTearDown(container.dispose);
 
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: const MaterialApp(
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: Scaffold(body: WorkspaceHealthScreen()),
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: const MaterialApp(
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: Scaffold(body: WorkspaceHealthScreen()),
+            ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      await tester.enterText(
-        _textFieldWithLabel('OIDC Issuer URL'),
-        'https://sso.example.com',
-      );
-      await tester.pumpAndSettle();
+        await tester.enterText(
+          _textFieldWithLabel('OIDC Issuer URL'),
+          'https://sso.example.com',
+        );
+        await tester.pumpAndSettle();
 
-      expect(find.text('https://api.example.com'), findsWidgets);
-      expect(find.text('https://cloud.custom.internal'), findsWidgets);
-      expect(find.text('https://backend.custom.internal'), findsWidgets);
-    });
+        expect(find.text('Weave Matrix Facade URL'), findsNothing);
+        expect(find.text('https://api.example.com'), findsNothing);
+        expect(find.text('https://matrix.home.internal'), findsNothing);
+        expect(find.text('https://cloud.custom.internal'), findsWidgets);
+        expect(find.text('https://backend.custom.internal'), findsWidgets);
+      },
+    );
 
     testWidgets('persists shell module visibility changes', (tester) async {
       final store = InMemoryPreferencesStore(buildStoredConfiguration());

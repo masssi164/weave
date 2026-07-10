@@ -236,6 +236,9 @@ public class FilesFacadeService {
             if (existing != null && existing.item().kind() != Kind.FILE) {
                 throw fileConflict(operation, normalizedPath, "PUT cannot replace a collection.");
             }
+            if (existing == null) {
+                requireParentCollection(adapter, normalizedPath, operation);
+            }
             byte[] writeContent = content == null ? new byte[0] : content;
             FileObject stored = adapter.write(new FileWrite(new FilePath(normalizedPath), writeContent, contentType));
             VersionedFileItem updated = firstNonNull(
@@ -266,6 +269,7 @@ public class FilesFacadeService {
             if (existing != null) {
                 throw fileConflict(operation, normalizedPath, "A collection or file already exists at this path.");
             }
+            requireParentCollection(adapter, normalizedPath, operation);
             FileObject stored = adapter.createCollection(new FilePath(normalizedPath));
             VersionedFileItem updated = firstNonNull(
                     existingVersionedItem(adapter, normalizedPath, operation, false),
@@ -333,6 +337,9 @@ public class FilesFacadeService {
             if (destination != null && !overwrite) {
                 throw preconditionFailed(operation, "Overwrite is false and the destination already exists.");
             }
+            if (destination == null) {
+                requireParentCollection(adapter, normalizedDestination, operation);
+            }
             FileObject copied = adapter.copy(new FilePath(normalizedSource), new FilePath(normalizedDestination), overwrite);
             VersionedFileItem updated = firstNonNull(
                     existingVersionedItem(adapter, normalizedDestination, operation, false),
@@ -373,6 +380,9 @@ public class FilesFacadeService {
             VersionedFileItem destination = existingVersionedItem(adapter, normalizedDestination, operation, true);
             if (destination != null && !overwrite) {
                 throw preconditionFailed(operation, "Overwrite is false and the destination already exists.");
+            }
+            if (destination == null) {
+                requireParentCollection(adapter, normalizedDestination, operation);
             }
             FileObject moved = adapter.move(new FilePath(normalizedSource), new FilePath(normalizedDestination), overwrite);
             VersionedFileItem updated = firstNonNull(
@@ -890,6 +900,17 @@ public class FilesFacadeService {
                 throw fileConflict(operation, path, "The parent collection does not exist.");
             }
             throw exception;
+        }
+    }
+
+    private void requireParentCollection(
+            FilesProviderPort adapter,
+            String path,
+            String operation) {
+        String parent = parentPath(path);
+        VersionedFileItem parentItem = existingVersionedItem(adapter, parent, operation, false);
+        if (parentItem == null || parentItem.item().kind() != Kind.COLLECTION) {
+            throw fileConflict(operation, path, "The parent collection does not exist.");
         }
     }
 

@@ -3265,7 +3265,7 @@
   "@serverConfigurationServicesLabel": {
     "description": "Section title for derived service endpoints"
   },
-  "serverConfigurationServicesHelper": "Defaults for Matrix, Nextcloud, and the backend API are derived from the issuer host. Edit them if your services live elsewhere.",
+  "serverConfigurationServicesHelper": "The Matrix facade is fixed to the backend API origin. Files and backend product endpoints are derived from the issuer host.",
   "@serverConfigurationServicesHelper": {
     "description": "Helper text for the service endpoints section"
   },
@@ -3281,9 +3281,9 @@
   "@serverConfigurationIdentityEndpointHelper": {
     "description": "Helper text for the identity endpoint section in setup and settings"
   },
-  "serverConfigurationMatrixLabel": "Matrix Homeserver URL",
+  "serverConfigurationMatrixLabel": "Weave Matrix Facade URL",
   "@serverConfigurationMatrixLabel": {
-    "description": "Label for the Matrix homeserver URL field"
+    "description": "Label for the Weave-owned Matrix facade URL field"
   },
   "serverConfigurationNextcloudLabel": "Nextcloud Base URL",
   "@serverConfigurationNextcloudLabel": {

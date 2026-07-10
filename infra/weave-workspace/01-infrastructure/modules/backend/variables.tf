@@ -49,7 +49,12 @@ variable "auth_base_url" {
 }
 
 variable "matrix_base_url" {
-  description = "Public Matrix base URL."
+  description = "Southbound Matrix provider base URL consumed only by backend/provider wiring."
+  type        = string
+}
+
+variable "matrix_facade_url" {
+  description = "Client-facing Weave Matrix facade URL on the public backend origin."
   type        = string
 }
 

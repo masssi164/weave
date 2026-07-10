@@ -215,7 +215,10 @@ Final shape:
 
 Matrix is the target northbound chat protocol, but it must be exposed through
 Weave's own facade, not by promoting Synapse or another homeserver to the
-product boundary. The staged implementation starts with Matrix Client-Server
+product boundary. The facade is served from the public Weave API origin;
+`matrix.<tenant>` is reserved for the selected southbound provider and operator
+checks. Platform configuration, member handoff, Flutter, and Weaver must reject
+that provider origin as a member endpoint. The staged implementation starts with Matrix Client-Server
 core before federation. Weave must own `server_name`, signing keys, Matrix user
 IDs, room IDs, event IDs, membership, timeline persistence, and the canonical
 chat ledger before any federation claim.
@@ -223,10 +226,10 @@ Tenant isolation, identity mapping, moderation, invite policy, retention, E2EE,
 and external-room UX must be proven before broad inter-organization federation
 is enabled.
 
-Existing Chat API-first surfaces are transitional. They receive a retirement
-path after Matrix core parity and may remain only as control/admin/setup
-convenience or fixture-fenced evidence where a focused issue permits it. Slack
-and Teams remain southbound adapter or bridge candidates.
+Member Chat API-first message surfaces are obsolete and removed. REST remains
+only for control/admin/setup convenience and fixture-fenced evidence where a
+focused contract permits it. Slack and Teams remain southbound adapter or
+bridge candidates.
 
 MCP must not receive raw Matrix access by default. E2EE and room history make
 chat the hardest domain for server-side tools; MCP should operate on governed

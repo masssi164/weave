@@ -297,7 +297,7 @@ void main() {
           .toList(growable: false);
       // ignore: avoid_print
       print(
-        'MATRIX_LIVE_HOMESERVER_RESULT '
+        'MATRIX_FACADE_RESULT '
         'CHAT_RESULT roomId=$roomId '
         'backendFacade=true '
         'conversations=${conversations.length} '

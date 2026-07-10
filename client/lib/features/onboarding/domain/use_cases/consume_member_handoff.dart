@@ -226,7 +226,7 @@ class AppStartDiscoveryClient {
     }
 
     final payload = _decodeJsonObject(response.body);
-    return _configurationFromJson(payload, handoff);
+    return _configurationFromJson(payload);
   }
 
   Map<String, String> _headers(MemberHandoff handoff) => {
@@ -302,89 +302,63 @@ class AppStartDiscoveryClient {
     );
   }
 
-  AppStartConfiguration _configurationFromJson(
-    Map<String, dynamic> json,
-    MemberHandoff handoff,
-  ) {
+  AppStartConfiguration _configurationFromJson(Map<String, dynamic> json) {
     final oidcIssuerUrl = _uri(
-      json['oidcIssuerUrl'] ?? _issuerFromAuthBaseUrl(json['authBaseUrl']),
+      json['oidcIssuerUrl'],
       fieldName: 'oidcIssuerUrl',
-      fallback: handoff.fallbackIssuerUrl,
     );
-    final oidcClientId = _clientId(json['oidcClientId'], fallback: 'weave-app');
-    final backendApiBaseUrl = _uri(
-      json['apiBaseUrl'],
-      fieldName: 'apiBaseUrl',
-      fallback: _backendFallbackFromPlatformConfig(handoff),
-    );
+    final oidcClientId = _clientId(json['oidcClientId']);
+    final backendApiBaseUrl = _uri(json['apiBaseUrl'], fieldName: 'apiBaseUrl');
+    final advertisedMatrixFacade = json['matrixHomeserverUrl'];
+    if (advertisedMatrixFacade is! String ||
+        advertisedMatrixFacade.trim().isEmpty) {
+      throw const AppFailure.validation(
+        'WEAVE-APP-START-DISCOVERY-INVALID: matrixHomeserverUrl is required.',
+      );
+    }
     final matrixHomeserverUrl = _uri(
-      json['matrixHomeserverUrl'],
+      advertisedMatrixFacade,
       fieldName: 'matrixHomeserverUrl',
-      fallback: handoff.fallbackProviderNeutralServiceUrl,
     );
+    final expectedMatrixFacadeUrl = _apiOrigin(backendApiBaseUrl);
+    final matrixPath = matrixHomeserverUrl.path;
+    if (_apiOrigin(matrixHomeserverUrl) != expectedMatrixFacadeUrl ||
+        (matrixPath.isNotEmpty && matrixPath != '/')) {
+      throw const AppFailure.validation(
+        'WEAVE-APP-START-DISCOVERY-INVALID: matrixHomeserverUrl must be the Weave API origin.',
+      );
+    }
     final nextcloudBaseUrl = _uri(
-      json['filesProductUrl'] ?? json['nextcloudBaseUrl'],
+      json['filesProductUrl'],
       fieldName: 'filesProductUrl',
-      fallback: handoff.fallbackProviderNeutralServiceUrl,
     );
 
     return AppStartConfiguration(
       oidcIssuerUrl: oidcIssuerUrl,
       oidcClientId: oidcClientId,
       backendApiBaseUrl: backendApiBaseUrl,
-      matrixHomeserverUrl: matrixHomeserverUrl,
+      matrixHomeserverUrl: expectedMatrixFacadeUrl,
       nextcloudBaseUrl: nextcloudBaseUrl,
     );
   }
 
-  Uri? _issuerFromAuthBaseUrl(Object? rawValue) {
-    if (rawValue is! String || rawValue.trim().isEmpty) {
-      return null;
-    }
-    final authBaseUrl = Uri.tryParse(rawValue.trim());
-    if (authBaseUrl == null ||
-        !authBaseUrl.isAbsolute ||
-        authBaseUrl.host.isEmpty) {
-      return null;
-    }
-    if (authBaseUrl.userInfo.isNotEmpty) {
-      throw const AppFailure.validation(
-        'WEAVE-APP-START-DISCOVERY-INVALID: authBaseUrl must not embed credentials.',
-      );
-    }
-    return Uri(
-      scheme: authBaseUrl.scheme,
-      host: authBaseUrl.host,
-      port: authBaseUrl.hasPort ? authBaseUrl.port : null,
-      path: _joinPath(authBaseUrl.path, '/realms/weave'),
-    );
-  }
+  Uri _apiOrigin(Uri backendApiBaseUrl) => Uri(
+    scheme: backendApiBaseUrl.scheme,
+    host: backendApiBaseUrl.host,
+    port: backendApiBaseUrl.hasPort ? backendApiBaseUrl.port : null,
+  );
 
-  Uri _backendFallbackFromPlatformConfig(MemberHandoff handoff) {
-    final path = handoff.platformConfigUrl.path;
-    if (path.endsWith('/platform/config')) {
-      return Uri(
-        scheme: handoff.platformConfigUrl.scheme,
-        host: handoff.platformConfigUrl.host,
-        port: handoff.platformConfigUrl.hasPort
-            ? handoff.platformConfigUrl.port
-            : null,
-        path: path.substring(0, path.length - '/platform/config'.length),
-      );
-    }
-    return handoff.fallbackBackendApiBaseUrl;
-  }
-
-  Uri _uri(
-    Object? rawValue, {
-    required String fieldName,
-    required Uri fallback,
-  }) {
+  Uri _uri(Object? rawValue, {required String fieldName}) {
     final value = rawValue is Uri
         ? rawValue.toString()
         : rawValue is String && rawValue.trim().isNotEmpty
         ? rawValue.trim()
-        : fallback.toString();
+        : null;
+    if (value == null) {
+      throw AppFailure.validation(
+        'WEAVE-APP-START-DISCOVERY-INVALID: $fieldName is required.',
+      );
+    }
     final uri = Uri.tryParse(value);
     if (uri == null || !uri.isAbsolute || uri.host.isEmpty) {
       throw AppFailure.validation(
@@ -409,22 +383,18 @@ class AppStartDiscoveryClient {
     return uri;
   }
 
-  String _clientId(Object? rawValue, {required String fallback}) {
-    final value = rawValue is String && rawValue.trim().isNotEmpty
-        ? rawValue.trim()
-        : fallback;
+  String _clientId(Object? rawValue) {
+    if (rawValue is! String || rawValue.trim().isEmpty) {
+      throw const AppFailure.validation(
+        'WEAVE-APP-START-DISCOVERY-INVALID: oidcClientId is required.',
+      );
+    }
+    final value = rawValue.trim();
     if (!RegExp(r'^[A-Za-z0-9._:-]{3,80}$').hasMatch(value)) {
       throw const AppFailure.validation(
         'WEAVE-APP-START-DISCOVERY-INVALID: oidcClientId is not support-safe.',
       );
     }
     return value;
-  }
-
-  String _joinPath(String left, String right) {
-    final normalizedLeft = left.endsWith('/')
-        ? left.substring(0, left.length - 1)
-        : left;
-    return '$normalizedLeft$right';
   }
 }

@@ -39,7 +39,7 @@ class TestConfig {
       password: const String.fromEnvironment('WEAVE_TEST_PASSWORD').trim(),
       issuerUrl: issuerUrl,
       clientId: clientId,
-      matrixHomeserverUrl: _matrixHomeserverUrl(baseUrl, workspaceHost),
+      matrixHomeserverUrl: _matrixFacadeUrl(baseUrl),
       nextcloudBaseUrl: _nextcloudBaseUrl(baseUrl, workspaceHost),
       backendApiBaseUrl: baseUrl,
       offlineContractOnly:
@@ -165,15 +165,10 @@ class TestConfig {
     );
   }
 
-  static Uri _matrixHomeserverUrl(Uri baseUrl, String workspaceHost) {
+  static Uri _matrixFacadeUrl(Uri baseUrl) {
     const override = String.fromEnvironment('WEAVE_MATRIX_HOMESERVER_URL');
     if (override.trim().isNotEmpty) {
       return _parseUrl(override, variableName: 'WEAVE_MATRIX_HOMESERVER_URL');
-    }
-
-    const legacyOverride = String.fromEnvironment('WEAVE_MATRIX_URL');
-    if (legacyOverride.trim().isNotEmpty) {
-      return _parseUrl(legacyOverride, variableName: 'WEAVE_MATRIX_URL');
     }
 
     return _apiOriginUrl(baseUrl);

@@ -133,5 +133,31 @@ void main() {
 
       expect(loaded?.oidcClientRegistration.clientId, 'weave-app');
     });
+
+    test(
+      'normalizes stale Matrix provider state to the backend API origin',
+      () async {
+        final store = InMemoryPreferencesStore(
+          buildStoredConfiguration(
+            matrixHomeserverUrl: 'https://matrix.home.internal',
+            backendApiBaseUrl: 'https://api.home.internal/api',
+          ),
+        );
+        final container = ProviderContainer.test(
+          overrides: [preferencesStoreProvider.overrideWith((ref) => store)],
+        );
+        addTearDown(container.dispose);
+        final repository = container.read(
+          serverConfigurationRepositoryProvider,
+        );
+
+        final loaded = await repository.loadConfiguration();
+
+        expect(
+          loaded?.serviceEndpoints.matrixHomeserverUrl.toString(),
+          'https://api.home.internal',
+        );
+      },
+    );
   });
 }
