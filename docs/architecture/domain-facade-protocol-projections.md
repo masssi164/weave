@@ -202,7 +202,10 @@ Final shape:
   the shared Rust/Ruma Matrix core. Federation identity is later and gated.
 - Shared protocol core: server consumes the Rust core through JNI; Flutter
   consumes the same core through `flutter_rust_bridge`. Ruma, serde,
-  serde_json, thiserror, and tracing own reusable Matrix protocol modeling.
+  serde_json, thiserror, and tracing own reusable Matrix protocol modeling. The
+  Flutter feature additionally uses the Apache-2.0 Matrix Rust SDK for Matrix
+  E2EE state machines and its encrypted SQLite store; the retired Dart Matrix
+  SDK is not a compatibility path.
 - Native clients: Weave mobile clients use a Matrix-capable transport layer where
   encrypted room participation requires it, but product UI exposes Weave
   conversations/channels rather than raw Matrix IDs.
@@ -225,6 +228,29 @@ chat ledger before any federation claim.
 Tenant isolation, identity mapping, moderation, invite policy, retention, E2EE,
 and external-room UX must be proven before broad inter-organization federation
 is enabled.
+
+The E2EE boundary is deliberately asymmetric. Spring/JNI validates OIDC and
+capabilities, projects Matrix endpoints, and persists only public device and
+cross-signing keys, opaque to-device traffic, encrypted room-key backups, and
+`m.room.encrypted` event envelopes. Flutter's Rust client owns private keys,
+Olm/Megolm state, decryption, encrypted local persistence, SAS verification,
+cross-signing, and recovery secrets. A stable Weave device ID and a
+Keychain-held per-profile store passphrase reopen the same encrypted store after
+force-quit, relaunch, token refresh, and an in-place TestFlight update. Sign-out
+closes the in-process client without deleting crypto state; explicit account
+removal is the only product action that deletes the passphrase, store, and
+device ID. The facade persists a support-safe hash of the Keycloak `sid` or
+`session_state` binding to that device. Token refresh may reopen the same
+device, but the same OIDC session cannot claim a different device ID to bypass
+revocation. Separate physical devices use separate OIDC login sessions.
+
+Encrypted rooms fail closed. The canonical Chat adapter accepts opaque
+encrypted envelopes and immutable `m.room.encryption` state, while the Flutter
+repository only projects SDK-decrypted events and never falls back to a
+plaintext timeline or send route. Lost-device revocation denies further Matrix
+operations for that device. Provider replacement must classify encrypted
+history as lossy, `unsupported`, or `archive_only` unless opaque events and the
+client-side key strategy are both proven.
 
 Member Chat API-first message surfaces are obsolete and removed. REST remains
 only for control/admin/setup convenience and fixture-fenced evidence where a

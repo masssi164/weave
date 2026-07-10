@@ -346,6 +346,14 @@ const _hardcodedCopyAllowlist = <LegacyFence>[
         'E2EE recovery copy is localized from typed failure codes.',
   ),
   LegacyFence(
+    path:
+        'lib/integrations/rust_matrix_core/data/services/matrix_crypto_session_coordinator.dart',
+    issue: '#908',
+    reason:
+        'Matrix crypto bootstrap and identity failures remain fenced until typed '
+        'Chat failure codes feed localized member recovery copy.',
+  ),
+  LegacyFence(
     path: 'lib/features/chat/data/services/archived_message_store.dart',
     issue: '#908',
     reason:

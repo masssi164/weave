@@ -1,8 +1,4 @@
-import 'dart:convert';
-
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/domain/entities/auth_state.dart';
 import 'package:weave/features/auth/domain/repositories/auth_session_repository.dart';
@@ -11,10 +7,11 @@ import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/chat/domain/entities/chat_message.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
-import 'package:weave/features/server_config/domain/repositories/'
-    'server_configuration_repository.dart';
+import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
+import 'package:weave/integrations/rust_matrix_core/data/services/rust_matrix_core_bridge.dart';
 
 import '../../../../helpers/auth_test_data.dart';
+import '../../../../helpers/fake_matrix_crypto.dart';
 import '../../../../helpers/server_config_test_data.dart';
 
 class _FakeServerConfigurationRepository
@@ -24,9 +21,7 @@ class _FakeServerConfigurationRepository
   ServerConfiguration? configuration;
 
   @override
-  Future<void> clearConfiguration() async {
-    configuration = null;
-  }
+  Future<void> clearConfiguration() async => configuration = null;
 
   @override
   Future<ServerConfiguration?> loadConfiguration() async => configuration;
@@ -38,13 +33,12 @@ class _FakeServerConfigurationRepository
 }
 
 class _FakeAuthSessionRepository implements AuthSessionRepository {
-  _FakeAuthSessionRepository(this.state);
-
-  AuthState state;
+  AuthState state = AuthState.authenticated(buildTestAuthSession());
   AuthConfiguration? signOutConfiguration;
+  int clearCalls = 0;
 
   @override
-  Future<void> clearLocalSession() async {}
+  Future<void> clearLocalSession() async => clearCalls += 1;
 
   @override
   Future<AuthState> refreshSession(AuthConfiguration configuration) async =>
@@ -63,15 +57,29 @@ class _FakeAuthSessionRepository implements AuthSessionRepository {
   }
 }
 
+class _FailingRoomBridge extends FakeRustMatrixCoreBridge {
+  @override
+  Future<List<RustMatrixEncryptedRoom>> loadEncryptedRooms({
+    required String profileKey,
+  }) {
+    throw const RustMatrixCoreBridgeException('M_WEAVE_E2EE_SYNC');
+  }
+}
+
 void main() {
   late _FakeServerConfigurationRepository configurationRepository;
   late _FakeAuthSessionRepository authSessionRepository;
+  late FakeMatrixCryptoSessionPort cryptoSession;
+  late FakeRustMatrixCoreBridge bridge;
 
-  WeaveMatrixFacadeChatRepository repository(http.Client client) {
+  WeaveMatrixFacadeChatRepository repository({
+    FakeRustMatrixCoreBridge? rustBridge,
+  }) {
     return WeaveMatrixFacadeChatRepository(
       serverConfigurationRepository: configurationRepository,
       authSessionRepository: authSessionRepository,
-      httpClient: client,
+      matrixCryptoSessionCoordinator: cryptoSession,
+      rustMatrixCoreBridge: rustBridge ?? bridge,
     );
   }
 
@@ -79,285 +87,125 @@ void main() {
     configurationRepository = _FakeServerConfigurationRepository(
       buildTestConfiguration(matrixHomeserverUrl: 'https://api.weave.test'),
     );
-    authSessionRepository = _FakeAuthSessionRepository(
-      AuthState.authenticated(
-        buildTestAuthSession(accessToken: 'weave-oidc-token'),
-      ),
-    );
+    authSessionRepository = _FakeAuthSessionRepository();
+    cryptoSession = FakeMatrixCryptoSessionPort();
+    bridge = FakeRustMatrixCoreBridge();
   });
 
-  test('connect validates the OIDC-gated Rust Matrix facade', () async {
+  test('connect opens the OIDC-gated encrypted Rust session', () async {
     // MATRIX_CONNECT_CONTRACT
-    final capturedRequests = <http.Request>[];
-    final client = MockClient((request) async {
-      capturedRequests.add(request);
-      if (request.url.path == '/_matrix/client/v3/account/whoami') {
-        return http.Response(
-          jsonEncode({'user_id': '@user_example.com:api.weave.test'}),
-          200,
-        );
-      }
-      return http.Response(
-        jsonEncode({
-          'versions': ['v1.18'],
-          'weaveBoundary': 'northbound-matrix-client-server',
-          'canonicalDomain': 'chat',
-          'providerDataPlaneExposed': false,
-          'matrixCore': {
-            'protocolSurface': 'matrix-client-server-facade',
-            'oidcGatekeeper': 'spring-boot-resource-server',
-            'northboundHomeserverDependency': false,
-            'rustProtocolCore': 'ruma-serde-serde_json-thiserror-tracing',
-            'serverJniBoundary': 'server-jni-wrapper',
-            'flutterBridgeBoundary': 'flutter-rust-bridge',
-            'nativeLinked': true,
-            'serverName': 'api.weave.test',
-            'supportedMatrixVersions': ['v1.18'],
-            'supportedEndpoints': ['GET /_matrix/client/v3/sync'],
-          },
-        }),
-        200,
-      );
-    });
+    await repository().connect();
 
-    await repository(client).connect();
-
-    expect(capturedRequests.map((request) => request.url.toString()), [
-      'https://api.weave.test/_matrix/client/versions',
-      'https://api.weave.test/_matrix/client/v3/account/whoami',
-    ]);
-    expect(
-      capturedRequests.map((request) => request.headers['authorization']),
-      everyElement('Bearer weave-oidc-token'),
-    );
+    expect(cryptoSession.synchronizeValues, <bool>[true]);
   });
 
-  test(
-    'maps Matrix sync rooms from the Weave facade into chat entities',
-    () async {
-      // MATRIX_SPACES_ROOMS_CONTRACT
-      final client = MockClient((request) async {
-        expect(request.url.path, '/_matrix/client/v3/sync');
-        return http.Response(
-          jsonEncode({
-            'next_batch': 'weave.s1.6e657874',
-            'rooms': {
-              'join': {
-                '!quiet:api.weave.test': _room(
-                  title: 'Quiet',
-                  body: 'Earlier update',
-                  timestamp: 1778244000000,
-                  unreadCount: 0,
-                ),
-                '!general:api.weave.test': _room(
-                  title: 'General',
-                  body: 'Hello from the Matrix facade',
-                  timestamp: 1778244300000,
-                  unreadCount: 2,
-                ),
-              },
-            },
-            'matrixCore': {'flutterBridgeBoundary': 'flutter-rust-bridge'},
-          }),
-          200,
-        );
-      });
+  test('maps only Rust-projected encrypted rooms into chat entities', () async {
+    // MATRIX_SPACES_ROOMS_CONTRACT
+    bridge.rooms = const <RustMatrixEncryptedRoom>[
+      RustMatrixEncryptedRoom(
+        roomId: '!quiet:api.weave.test',
+        title: 'Quiet',
+        unreadCount: 0,
+        encrypted: true,
+      ),
+      RustMatrixEncryptedRoom(
+        roomId: '!general:api.weave.test',
+        title: 'General',
+        unreadCount: 2,
+        encrypted: true,
+      ),
+    ];
 
-      final conversations = await repository(client).loadConversations();
+    final conversations = await repository().loadConversations();
 
-      expect(conversations.map((room) => room.title), ['General', 'Quiet']);
-      expect(conversations.first.id, '!general:api.weave.test');
-      expect(conversations.first.previewType, ChatConversationPreviewType.text);
-      expect(conversations.first.previewText, 'Hello from the Matrix facade');
-      expect(conversations.first.unreadCount, 2);
-      expect(conversations.first.isDirectMessage, isFalse);
-    },
-  );
-
-  test('sends through Matrix facade and reads room messages', () async {
-    // MATRIX_MESSAGE_CONTRACT
-    final requests = <http.Request>[];
-    final client = MockClient((request) async {
-      requests.add(request);
-      if (request.method == 'PUT') {
-        expect(
-          request.url.path,
-          '/_matrix/client/v3/rooms/!general%3Aapi.weave.test/send/m.room.message/${request.url.pathSegments.last}',
-        );
-        expect(jsonDecode(request.body), {
-          'msgtype': 'm.text',
-          'body': 'hello through Matrix facade',
-        });
-        return http.Response(
-          jsonEncode({'event_id': r'$sent:api.weave.test'}),
-          200,
-        );
-      }
-      if (request.url.path == '/_matrix/client/v3/account/whoami') {
-        return http.Response(
-          jsonEncode({'user_id': '@user_alice:api.weave.test'}),
-          200,
-        );
-      }
-      if (request.method == 'POST') {
-        expect(
-          request.url.path,
-          '/_matrix/client/v3/rooms/!general%3Aapi.weave.test/receipt/m.read/%24sent%3Aapi.weave.test',
-        );
-        expect(request.body, '{}');
-        return http.Response('{}', 200);
-      }
-      expect(
-        request.url.path,
-        '/_matrix/client/v3/rooms/!general%3Aapi.weave.test/messages',
-      );
-      return http.Response(
-        jsonEncode({
-          'chunk': [
-            {
-              'type': 'm.room.message',
-              'event_id': r'$sent:api.weave.test',
-              'sender': '@user_alice:api.weave.test',
-              'origin_server_ts': 1778244300000,
-              'content': {
-                'msgtype': 'm.text',
-                'body': 'hello through Matrix facade',
-              },
-            },
-          ],
-        }),
-        200,
-      );
-    });
-    final chat = repository(client);
-
-    await chat.sendMessage(
-      roomId: '!general:api.weave.test',
-      message: 'hello through Matrix facade',
-    );
-    final timeline = await chat.loadRoomTimeline('!general:api.weave.test');
-    await chat.markRoomRead('!general:api.weave.test');
-
-    expect(requests.map((request) => request.method), [
-      'PUT',
-      'GET',
-      'GET',
-      'POST',
+    expect(conversations.map((room) => room.title), <String>[
+      'General',
+      'Quiet',
     ]);
-    expect(timeline.roomId, '!general:api.weave.test');
-    expect(timeline.messages.single.contentType, ChatMessageContentType.text);
     expect(
-      timeline.messages.single.deliveryState,
-      ChatMessageDeliveryState.sent,
+      conversations.first.previewType,
+      ChatConversationPreviewType.encrypted,
     );
-    expect(timeline.messages.single.text, 'hello through Matrix facade');
-    expect(timeline.messages.single.senderDisplayName, 'user alice');
+    expect(conversations.first.previewText, isNull);
+    expect(conversations.first.unreadCount, 2);
+  });
+
+  test('send, decrypt, and receipt stay inside the Rust Matrix core', () async {
+    // MATRIX_MESSAGE_CONTRACT
+    const roomId = '!general:api.weave.test';
+    bridge.messages[roomId] = const <RustMatrixMessageProjection>[
+      RustMatrixMessageProjection(
+        eventId: r'$sent:api.weave.test',
+        sender: '@user:api.weave.test',
+        originServerTimestamp: 1778244300000,
+        body: 'decrypted only in Rust',
+        contentType: 'encryptedText',
+      ),
+    ];
+    final chat = repository();
+
+    await chat.sendMessage(roomId: roomId, message: 'encrypted through Rust');
+    final timeline = await chat.loadRoomTimeline(roomId);
+    await chat.markRoomRead(roomId);
+
+    expect(bridge.sentMessages.single, <String, String>{
+      'profileKey': 'profile-key',
+      'roomId': roomId,
+      'body': 'encrypted through Rust',
+    });
+    expect(bridge.receipts.single['eventId'], r'$sent:api.weave.test');
+    expect(timeline.messages.single.contentType, ChatMessageContentType.text);
+    expect(timeline.messages.single.text, 'decrypted only in Rust');
     expect(timeline.messages.single.isMine, isTrue);
   });
 
   test(
-    'fails support-safely when the Matrix facade rejects a request',
+    'normal sign-out and session clear preserve local crypto state',
     () async {
-      final client = MockClient((request) async {
-        return http.Response(
-          jsonEncode({
-            'errcode': 'M_FORBIDDEN',
-            'error': 'support-safe denial',
-            'providerDataPlaneExposed': false,
-          }),
-          403,
-        );
-      });
+      final chat = repository();
 
-      expect(
-        repository(client).loadConversations(),
-        throwsA(
-          isA<ChatFailure>()
-              .having(
-                (failure) => failure.type,
-                'type',
-                ChatFailureType.protocol,
-              )
-              .having(
-                (failure) => failure.message,
-                'message',
-                isNot(contains('access_token')),
-              )
-              .having(
-                (failure) => failure.message,
-                'message',
-                isNot(contains('homeserver')),
-              ),
-        ),
-      );
+      await chat.signOut();
+      await chat.clearSession();
+
+      expect(cryptoSession.disposeCalls, 2);
+      expect(cryptoSession.removeCalls, 0);
+      expect(authSessionRepository.signOutConfiguration, isNotNull);
+      expect(authSessionRepository.clearCalls, 1);
     },
   );
 
-  test('fails clearly when setup or session is missing', () async {
-    final client = MockClient((_) async => http.Response('{}', 200));
-    configurationRepository.configuration = null;
-
+  test('Rust crypto failures remain support-safe', () async {
     await expectLater(
-      repository(client).loadConversations(),
+      repository(rustBridge: _FailingRoomBridge()).loadConversations(),
       throwsA(
-        isA<ChatFailure>().having(
-          (failure) => failure.type,
-          'type',
-          ChatFailureType.configuration,
-        ),
-      ),
-    );
-
-    configurationRepository.configuration = buildTestConfiguration();
-    authSessionRepository.state = const AuthState.signedOut();
-
-    await expectLater(
-      repository(client).loadConversations(),
-      throwsA(
-        isA<ChatFailure>().having(
-          (failure) => failure.type,
-          'type',
-          ChatFailureType.sessionRequired,
-        ),
+        isA<ChatFailure>()
+            .having((failure) => failure.type, 'type', ChatFailureType.protocol)
+            .having(
+              (failure) => failure.message,
+              'message',
+              isNot(contains('access_token')),
+            ),
       ),
     );
   });
-}
 
-Map<String, Object?> _room({
-  required String title,
-  required String body,
-  required int timestamp,
-  int unreadCount = 0,
-}) {
-  return {
-    'summary': {'m.joined_member_count': 1, 'm.invited_member_count': 0},
-    'state': {
-      'events': [
-        {
-          'type': 'm.room.name',
-          'state_key': '',
-          'event_id': r'$state:api.weave.test',
-          'sender': '@weave:api.weave.test',
-          'origin_server_ts': timestamp,
-          'content': {'name': title},
-        },
-      ],
-    },
-    'timeline': {
-      'events': [
-        {
-          'type': 'm.room.message',
-          'event_id': r'$message:api.weave.test',
-          'sender': '@user_alice:api.weave.test',
-          'origin_server_ts': timestamp,
-          'content': {'msgtype': 'm.text', 'body': body},
-        },
-      ],
-    },
-    'unread_notifications': {
-      'notification_count': unreadCount,
-      'highlight_count': 0,
-    },
-  };
+  test('an unencrypted room cannot downgrade the E2EE client path', () async {
+    // MATRIX_E2EE_CLIENT_FAILS_CLOSED
+    bridge.rooms = const <RustMatrixEncryptedRoom>[
+      RustMatrixEncryptedRoom(
+        roomId: '!legacy:api.weave.test',
+        title: 'Legacy',
+        unreadCount: 0,
+        encrypted: false,
+      ),
+    ];
+
+    final conversations = await repository().loadConversations();
+
+    expect(
+      conversations.single.previewType,
+      ChatConversationPreviewType.unsupported,
+    );
+    expect(conversations.single.previewText, isNull);
+  });
 }

@@ -4,6 +4,7 @@ public enum AuditAction {
     CONNECTOR_WRITE_ATTEMPTED("connector.write.attempted"),
     ASSISTANT_WRITE_ATTEMPTED("assistant.write.attempted"),
     CHAT_MESSAGE_SENT("chat.message.sent"),
+    CHAT_ENCRYPTION_ENABLED("chat.encryption.enabled"),
     CHAT_PROVIDER_REPLACEMENT_DRY_RUN("chat.provider_replacement.dry_run"),
     DECISION_LEDGER_RECORD_CREATED("decision_ledger.record.created"),
     MEETING_CAPSULE_CREATED("meeting_capsule.created"),

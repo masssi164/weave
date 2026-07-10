@@ -4651,6 +4651,126 @@
         "current implementation gap remains explicit",
         "completion claim is blocked until executable evidence replaces the gap marker"
       ]
+    },
+    {
+      "tag": "@matrix-e2ee-ciphertext-only",
+      "suiteId": "member-live-critical-path",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "chat",
+        "identity-idm"
+      ],
+      "testLevel": "live-e2e",
+      "assertionFocus": [
+        "the client Rust core encrypts and decrypts",
+        "server and evidence surfaces contain ciphertext only",
+        "plaintext writes to encrypted rooms fail closed"
+      ]
+    },
+    {
+      "tag": "@matrix-e2ee-iphone-relaunch",
+      "suiteId": "member-live-critical-path",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "chat",
+        "identity-idm"
+      ],
+      "testLevel": "live-e2e",
+      "assertionFocus": [
+        "installed profile and OIDC refresh session survive relaunch",
+        "Matrix device identity remains stable",
+        "encrypted history remains decryptable after update"
+      ]
+    },
+    {
+      "tag": "@matrix-e2ee-two-device-verification",
+      "suiteId": "member-live-critical-path",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "chat",
+        "identity-idm"
+      ],
+      "testLevel": "live-e2e",
+      "assertionFocus": [
+        "two distinct devices verify through SAS",
+        "numeric and labelled emoji alternatives match",
+        "verification is accessible without server-held private keys"
+      ]
+    },
+    {
+      "tag": "@matrix-e2ee-recovery",
+      "suiteId": "member-live-critical-path",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "chat",
+        "identity-idm"
+      ],
+      "testLevel": "live-e2e",
+      "assertionFocus": [
+        "recovery restores secret storage and key backup",
+        "retained encrypted history becomes decryptable",
+        "recovery material stays out of support evidence"
+      ]
+    },
+    {
+      "tag": "@matrix-e2ee-lost-device",
+      "suiteId": "member-live-critical-path",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "chat",
+        "identity-idm"
+      ],
+      "testLevel": "live-e2e",
+      "assertionFocus": [
+        "lost device loses new key access",
+        "remaining devices keep encrypted delivery",
+        "revocation never downgrades the room"
+      ]
+    },
+    {
+      "tag": "@matrix-e2ee-provider-switch",
+      "suiteId": "admin-provider-portability-lifecycle",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "chat",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "encrypted history fidelity is classified explicitly",
+        "unsupported migration blocks apply",
+        "server-side decryption is not a portability fallback"
+      ]
+    },
+    {
+      "tag": "@matrix-e2ee-fail-closed-client",
+      "suiteId": "v0-1-dogfood-release-spine",
+      "personas": [
+        "member",
+        "weaver_user"
+      ],
+      "domains": [
+        "chat"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "E2EE-incapable clients are denied",
+        "no plaintext compatibility room is created",
+        "denial remains member-safe and support-safe"
+      ]
     }
   ]
 }

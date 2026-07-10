@@ -110,6 +110,7 @@ integration-app-e2e:
 	  "}" > "$$dart_defines_file"; \
 	for test_file in \
 	  integration_test/live_stack_app_e2e_test.dart \
+	  integration_test/matrix_e2ee_live_e2e_test.dart \
 	  integration_test/app_test.dart; do \
 	  flutter test "$$test_file" -d "$$test_device" \
 	    --dart-define-from-file="$$dart_defines_file"; \

@@ -42,8 +42,10 @@ public class MatrixProtocolCoreService {
         return project("descriptor", Map.of());
     }
 
-    public Map<String, Object> whoami(String subject) {
-        return project("whoami", Map.of("subject", subject == null ? "" : subject));
+    public Map<String, Object> whoami(String subject, String deviceId) {
+        return project("whoami", Map.of(
+                "subject", subject == null ? "" : subject,
+                "deviceId", deviceId == null ? "" : deviceId));
     }
 
     public Map<String, Object> sync(
@@ -60,16 +62,37 @@ public class MatrixProtocolCoreService {
             String since,
             List<CanonicalConversation> conversations,
             Map<String, Object> accountData) {
+        return sync(subject, cursor, since, conversations, accountData, MatrixSyncCrypto.empty());
+    }
+
+    public Map<String, Object> sync(
+            String subject,
+            String cursor,
+            String since,
+            List<CanonicalConversation> conversations,
+            Map<String, Object> accountData,
+            MatrixSyncCrypto crypto) {
         return project("sync", new CanonicalProjection(
                 subject,
                 cursor,
                 since,
                 conversations,
-                accountData));
+                accountData,
+                crypto.toDeviceEvents(),
+                crypto.deviceListsChanged(),
+                crypto.deviceListsLeft(),
+                crypto.oneTimeKeyCounts(),
+                crypto.unusedFallbackKeyTypes()));
     }
 
     public void validateSyncToken(String since) {
         project("validate-sync-token", new CanonicalProjection("", "", since, List.of(), Map.of()));
+    }
+
+    public String decodeSyncCursor(String since) {
+        Object cursor = project("decode-sync-token", new CanonicalProjection("", "", since, List.of(), Map.of()))
+                .get("cursor");
+        return cursor instanceof String value ? value : "";
     }
 
     public Map<String, Object> joinedRooms(List<CanonicalConversation> conversations) {
@@ -215,13 +238,54 @@ public class MatrixProtocolCoreService {
             String cursor,
             String since,
             List<CanonicalConversation> conversations,
-            Map<String, Object> accountData) {
+            Map<String, Object> accountData,
+            List<Map<String, Object>> toDeviceEvents,
+            List<String> deviceListsChanged,
+            List<String> deviceListsLeft,
+            Map<String, Long> deviceOneTimeKeysCount,
+            List<String> deviceUnusedFallbackKeyTypes) {
+
+        public CanonicalProjection(
+                String subject,
+                String cursor,
+                String since,
+                List<CanonicalConversation> conversations,
+                Map<String, Object> accountData) {
+            this(subject, cursor, since, conversations, accountData, List.of(), List.of(), List.of(), Map.of(), List.of());
+        }
 
         public CanonicalProjection {
             subject = subject == null ? "" : subject;
             cursor = cursor == null ? "" : cursor;
             conversations = conversations == null ? List.of() : List.copyOf(conversations);
             accountData = accountData == null ? Map.of() : Map.copyOf(accountData);
+            toDeviceEvents = toDeviceEvents == null ? List.of() : List.copyOf(toDeviceEvents);
+            deviceListsChanged = deviceListsChanged == null ? List.of() : List.copyOf(deviceListsChanged);
+            deviceListsLeft = deviceListsLeft == null ? List.of() : List.copyOf(deviceListsLeft);
+            deviceOneTimeKeysCount = deviceOneTimeKeysCount == null ? Map.of() : Map.copyOf(deviceOneTimeKeysCount);
+            deviceUnusedFallbackKeyTypes = deviceUnusedFallbackKeyTypes == null
+                    ? List.of()
+                    : List.copyOf(deviceUnusedFallbackKeyTypes);
+        }
+    }
+
+    public record MatrixSyncCrypto(
+            List<Map<String, Object>> toDeviceEvents,
+            List<String> deviceListsChanged,
+            List<String> deviceListsLeft,
+            Map<String, Long> oneTimeKeyCounts,
+            List<String> unusedFallbackKeyTypes) {
+
+        public MatrixSyncCrypto {
+            toDeviceEvents = toDeviceEvents == null ? List.of() : List.copyOf(toDeviceEvents);
+            deviceListsChanged = deviceListsChanged == null ? List.of() : List.copyOf(deviceListsChanged);
+            deviceListsLeft = deviceListsLeft == null ? List.of() : List.copyOf(deviceListsLeft);
+            oneTimeKeyCounts = oneTimeKeyCounts == null ? Map.of() : Map.copyOf(oneTimeKeyCounts);
+            unusedFallbackKeyTypes = unusedFallbackKeyTypes == null ? List.of() : List.copyOf(unusedFallbackKeyTypes);
+        }
+
+        public static MatrixSyncCrypto empty() {
+            return new MatrixSyncCrypto(List.of(), List.of(), List.of(), Map.of(), List.of());
         }
     }
 
@@ -266,39 +330,14 @@ public class MatrixProtocolCoreService {
             String reactionKey,
             Map<String, Object> presentationExtensions,
             String deliveryState,
-            boolean encrypted,
+            Map<String, Object> encryptedContent,
             boolean redacted) {
-
-        public CanonicalMessage(
-                String messageId,
-                String senderRef,
-                long sentAtEpochMillis,
-                String body,
-                String deliveryState,
-                boolean encrypted) {
-            this(
-                    messageId,
-                    senderRef,
-                    sentAtEpochMillis,
-                    "message",
-                    "m.text",
-                    body,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    Map.of(),
-                    deliveryState,
-                    encrypted,
-                    false);
-        }
 
         public CanonicalMessage {
             presentationExtensions = presentationExtensions == null
                     ? Map.of()
                     : Map.copyOf(presentationExtensions);
+            encryptedContent = encryptedContent == null ? null : Map.copyOf(encryptedContent);
         }
     }
 
@@ -312,12 +351,14 @@ public class MatrixProtocolCoreService {
             String relationTargetEventId,
             String replyToEventId,
             String reactionKey,
-            Map<String, Object> presentationExtensions) {
+            Map<String, Object> presentationExtensions,
+            Map<String, Object> encryptedContent) {
 
         public ParsedEventContent {
             presentationExtensions = presentationExtensions == null
                     ? Map.of()
                     : Map.copyOf(presentationExtensions);
+            encryptedContent = encryptedContent == null ? null : Map.copyOf(encryptedContent);
         }
     }
 }

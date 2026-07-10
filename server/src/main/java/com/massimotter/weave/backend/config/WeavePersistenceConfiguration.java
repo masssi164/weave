@@ -24,7 +24,8 @@ public class WeavePersistenceConfiguration {
             + "|| '${weave.profile.storage.mode:file}' == 'jdbc' "
             + "|| '${weave.audit.events.storage.mode:file}' == 'jdbc' "
             + "|| '${weave.security.device-credentials.storage.mode:memory}' == 'jdbc' "
-            + "|| '${weave.migration.evidence.storage.mode:file}' == 'jdbc'")
+            + "|| '${weave.migration.evidence.storage.mode:file}' == 'jdbc' "
+            + "|| '${weave.matrix.e2ee.storage.mode:memory}' == 'jdbc'")
     DataSource weaveDataSource(WeavePersistenceProperties properties) {
         DriverManagerDataSource dataSource = new DriverManagerDataSource();
         dataSource.setUrl(properties.requiredUrl());
@@ -41,7 +42,8 @@ public class WeavePersistenceConfiguration {
             + "|| '${weave.profile.storage.mode:file}' == 'jdbc' "
             + "|| '${weave.audit.events.storage.mode:file}' == 'jdbc' "
             + "|| '${weave.security.device-credentials.storage.mode:memory}' == 'jdbc' "
-            + "|| '${weave.migration.evidence.storage.mode:file}' == 'jdbc'")
+            + "|| '${weave.migration.evidence.storage.mode:file}' == 'jdbc' "
+            + "|| '${weave.matrix.e2ee.storage.mode:memory}' == 'jdbc'")
     Flyway weaveFlyway(DataSource weaveDataSource) {
         return Flyway.configure()
                 .dataSource(weaveDataSource)
@@ -54,7 +56,8 @@ public class WeavePersistenceConfiguration {
             + "|| '${weave.profile.storage.mode:file}' == 'jdbc' "
             + "|| '${weave.audit.events.storage.mode:file}' == 'jdbc' "
             + "|| '${weave.security.device-credentials.storage.mode:memory}' == 'jdbc' "
-            + "|| '${weave.migration.evidence.storage.mode:file}' == 'jdbc'")
+            + "|| '${weave.migration.evidence.storage.mode:file}' == 'jdbc' "
+            + "|| '${weave.matrix.e2ee.storage.mode:memory}' == 'jdbc'")
     JdbcTemplate weaveJdbcTemplate(DataSource weaveDataSource, Flyway weaveFlyway) {
         return new JdbcTemplate(weaveDataSource);
     }

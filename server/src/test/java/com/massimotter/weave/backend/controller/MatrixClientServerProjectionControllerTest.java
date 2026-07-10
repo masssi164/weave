@@ -20,6 +20,7 @@ import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
 import com.massimotter.weave.backend.matrix.MatrixFacadeClientStateService;
+import com.massimotter.weave.backend.matrix.MatrixE2eeStateService;
 import com.massimotter.weave.backend.matrix.MatrixProtocolCoreService;
 import java.time.Instant;
 import java.util.List;
@@ -50,6 +51,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -69,7 +71,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         ApiErrorResponseWriter.class,
         ApiExceptionHandler.class,
         MatrixProtocolCoreService.class,
-        MatrixFacadeClientStateService.class
+        MatrixFacadeClientStateService.class,
+        MatrixE2eeStateService.class
 })
 @TestPropertySource(properties = {
         "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.example.invalid/realms/weave",
@@ -106,7 +109,7 @@ class MatrixClientServerProjectionControllerTest {
         mockMvc.perform(request(HttpMethod.valueOf("OPTIONS"), "/_matrix/client/v3/sync")
                         .with(workspaceJwt()))
                 .andExpect(status().isNoContent())
-                .andExpect(header().string(HttpHeaders.ALLOW, "OPTIONS, GET, POST, PUT"))
+                .andExpect(header().string(HttpHeaders.ALLOW, "OPTIONS, GET, POST, PUT, DELETE"))
                 .andExpect(header().string("X-Weave-Projection", "matrix-client-server"))
                 .andExpect(header().string("X-Weave-Matrix-Core", "rust-ruma-jni"));
     }
@@ -135,11 +138,29 @@ class MatrixClientServerProjectionControllerTest {
 
     @Test
     void whoamiUsesRumaValidatedIdentityDerivedFromOidcSubject() throws Exception {
-        mockMvc.perform(get("/_matrix/client/v3/account/whoami").with(workspaceJwt()))
+        mockMvc.perform(get("/_matrix/client/v3/account/whoami")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, "WEAVE0123456789abcdef0123456789abcdef0123")
+                        .with(workspaceJwt()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.user_id").value("@user_example.com:api.weave.test"))
-                .andExpect(jsonPath("$.device_id").value("weave-oidc"))
+                .andExpect(jsonPath("$.device_id").value("WEAVE0123456789abcdef0123456789abcdef0123"))
                 .andExpect(jsonPath("$.is_guest").value(false));
+    }
+
+    @Test
+    void oidcSessionCannotRenameItselfToBypassDeviceRevocation() throws Exception {
+        String token = "stable-oidc-device-session";
+
+        mockMvc.perform(get("/_matrix/client/v3/account/whoami")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, "WEAVEDEVICEBOUNDONE")
+                        .with(workspaceJwt(token)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/_matrix/client/v3/account/whoami")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, "WEAVEDEVICEBOUNDOTHER")
+                        .with(workspaceJwt(token)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errcode").value("M_UNKNOWN_TOKEN"));
     }
 
     @Test
@@ -148,7 +169,8 @@ class MatrixClientServerProjectionControllerTest {
 
         mockMvc.perform(get("/_matrix/client/v3/sync").with(workspaceJwt()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.next_batch").value("weave.s1.636861742d7265766973696f6e2d37"))
+                .andExpect(jsonPath("$.next_batch")
+                        .value("weave.s1.636861742d7265766973696f6e2d377c653265653a30"))
                 .andExpect(jsonPath("$.rooms.join['!channel-general:api.weave.test'].state.events[0].content.name")
                         .value("General"))
                 .andExpect(jsonPath("$.rooms.join['!channel-general:api.weave.test'].timeline.events[0].content.body")
@@ -192,6 +214,12 @@ class MatrixClientServerProjectionControllerTest {
                                 """))
                 .andExpect(status().isOk());
 
+        mockMvc.perform(get("/_matrix/client/v3/user/@user_example.com:api.weave.test/account_data/m.direct")
+                        .with(workspaceJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$['@assistant:api.weave.test'][0]")
+                        .value("!channel-general:api.weave.test"));
+
         mockMvc.perform(get("/_matrix/client/v3/sync?filter=" + filterId).with(workspaceJwt()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.account_data.events[0].type").value("m.direct"));
@@ -230,6 +258,196 @@ class MatrixClientServerProjectionControllerTest {
                 content.capture(),
                 any());
         assertThat(content.getValue().body()).isEqualTo("Sent through Matrix");
+    }
+
+    @Test
+    void encryptedRoomRejectsPlaintextAndProjectsOpaqueCiphertext() throws Exception {
+        // MATRIX_E2EE_CIPHERTEXT_ONLY
+        when(chatDomainFacadeService.enableEncryption(
+                eq("channel-general"),
+                eq("m.megolm.v1.aes-sha2"),
+                any()))
+                .thenReturn(encryptedConversation());
+        when(chatDomainFacadeService.sendEvent(
+                eq("channel-general"),
+                eq("txn-encrypted"),
+                any(ChatEventContent.class),
+                any()))
+                .thenAnswer(invocation -> event("msg-encrypted", invocation.getArgument(2)));
+
+        mockMvc.perform(put("/_matrix/client/v3/rooms/!channel-general:api.weave.test/state/m.room.encryption/")
+                        .with(workspaceJwt())
+                        .contentType("application/json")
+                        .content("""
+                                {"algorithm":"m.megolm.v1.aes-sha2"}
+                                """))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(put("/_matrix/client/v3/rooms/!channel-general:api.weave.test/send/m.room.encrypted/txn-encrypted")
+                        .with(workspaceJwt())
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "algorithm":"m.megolm.v1.aes-sha2",
+                                  "ciphertext":"opaque-ciphertext",
+                                  "sender_key":"curve25519:alice",
+                                  "session_id":"megolm-session-1",
+                                  "device_id":"WEAVEDEVICEALICE"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.event_id").value("$msg-encrypted:api.weave.test"))
+                .andExpect(content().string(not(containsString("plaintext"))));
+
+        ArgumentCaptor<ChatEventContent> content = ArgumentCaptor.forClass(ChatEventContent.class);
+        verify(chatDomainFacadeService).sendEvent(
+                eq("channel-general"),
+                eq("txn-encrypted"),
+                content.capture(),
+                any());
+        assertThat(content.getValue().body()).isNull();
+        assertThat(content.getValue().encryptedEnvelope().content())
+                .containsEntry("ciphertext", "opaque-ciphertext")
+                .doesNotContainKey("body");
+    }
+
+    @Test
+    void keyLifecycleToDeviceSyncAndLostDeviceRevocationAreDeviceScoped() throws Exception {
+        stubConversation();
+        String userId = "@user_example.com:api.weave.test";
+        String trustedDevice = "WEAVETRUSTEDDEVICE";
+        String secondDevice = "WEAVESECONDDEVICE";
+
+        uploadDeviceKeys(trustedDevice, "trusted-key", null);
+        uploadDeviceKeys(secondDevice, "second-key", "one-time-key-value");
+
+        mockMvc.perform(post("/_matrix/client/v3/keys/query")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, trustedDevice)
+                        .with(workspaceJwt("trusted-session"))
+                        .contentType("application/json")
+                        .content("""
+                                {"device_keys":{"%s":[]}}
+                                """.formatted(userId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.device_keys['%s'].%s.keys['ed25519:%s']"
+                                .formatted(userId, secondDevice, secondDevice))
+                        .value("second-key"));
+
+        mockMvc.perform(post("/_matrix/client/v3/keys/claim")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, trustedDevice)
+                        .with(workspaceJwt("trusted-session"))
+                        .contentType("application/json")
+                        .content("""
+                                {"one_time_keys":{"%s":{"%s":"signed_curve25519"}}}
+                                """.formatted(userId, secondDevice)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.one_time_keys['%s'].%s['signed_curve25519:AAAA'].key"
+                                .formatted(userId, secondDevice))
+                        .value("one-time-key-value"));
+
+        mockMvc.perform(put("/_matrix/client/v3/sendToDevice/m.room_key_request/txn-device-1")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, trustedDevice)
+                        .with(workspaceJwt("trusted-session"))
+                        .contentType("application/json")
+                        .content("""
+                                {"messages":{"%s":{"%s":{"request_id":"request-1"}}}}
+                                """.formatted(userId, secondDevice)))
+                .andExpect(status().isOk());
+
+        String firstSync = mockMvc.perform(get("/_matrix/client/v3/sync")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, secondDevice)
+                        .with(workspaceJwt("second-session")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.to_device.events[0].type").value("m.room_key_request"))
+                .andExpect(jsonPath("$.to_device.events[0].content.request_id").value("request-1"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        String nextBatch = objectMapper.readTree(firstSync).path("next_batch").asText();
+
+        mockMvc.perform(get("/_matrix/client/v3/sync")
+                        .queryParam("since", nextBatch)
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, secondDevice)
+                        .with(workspaceJwt("second-session")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.to_device.events").isEmpty());
+
+        mockMvc.perform(delete("/_matrix/client/v3/devices/{deviceId}", secondDevice)
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, trustedDevice)
+                        .with(workspaceJwt("trusted-session"))
+                        .contentType("application/json")
+                        .content("{}"))
+                .andExpect(status().isOk());
+
+        // MATRIX_E2EE_LOST_DEVICE_REVOKED
+        mockMvc.perform(get("/_matrix/client/v3/sync")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, secondDevice)
+                        .with(workspaceJwt("second-session")))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errcode").value("M_UNKNOWN_TOKEN"));
+    }
+
+    @Test
+    void roomKeyBackupStoresOnlyOpaqueRecoveryPayloads() throws Exception {
+        String deviceId = "WEAVEBACKUPDEVICE";
+        String created = mockMvc.perform(post("/_matrix/client/v3/room_keys/version")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceId)
+                        .with(workspaceJwt("backup-session"))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "algorithm":"m.megolm_backup.v1.curve25519-aes-sha2",
+                                  "auth_data":{"public_key":"curve25519-public","signatures":{}}
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        String version = objectMapper.readTree(created).path("version").asText();
+
+        mockMvc.perform(put("/_matrix/client/v3/room_keys/keys/{roomId}/{sessionId}",
+                        "!channel-general:api.weave.test", "session-1")
+                        .queryParam("version", version)
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceId)
+                        .with(workspaceJwt("backup-session"))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "first_message_index":0,
+                                  "forwarded_count":0,
+                                  "is_verified":true,
+                                  "session_data":{"ephemeral":"public","mac":"opaque-mac","ciphertext":"opaque-backup"}
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.count").value(1));
+
+        mockMvc.perform(get("/_matrix/client/v3/room_keys/keys/{roomId}/{sessionId}",
+                        "!channel-general:api.weave.test", "session-1")
+                        .queryParam("version", version)
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceId)
+                        .with(workspaceJwt("backup-session")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.session_data.ciphertext").value("opaque-backup"))
+                .andExpect(content().string(not(containsString("recoveryKey"))))
+                .andExpect(content().string(not(containsString("plaintext"))));
+
+        mockMvc.perform(get("/_matrix/client/v3/room_keys/version/{version}", version)
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceId)
+                        .with(workspaceJwt("backup-session")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.count").value(1))
+                .andExpect(jsonPath("$.algorithm").value("m.megolm_backup.v1.curve25519-aes-sha2"));
+
+        mockMvc.perform(delete("/_matrix/client/v3/room_keys/version/{version}", version)
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceId)
+                        .with(workspaceJwt("backup-session")))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/_matrix/client/v3/room_keys/version/{version}", version)
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceId)
+                        .with(workspaceJwt("backup-session")))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -450,6 +668,47 @@ class MatrixClientServerProjectionControllerTest {
                 Instant.parse("2026-07-08T10:00:00Z"));
     }
 
+    private ChatConversation encryptedConversation() {
+        ChatConversation conversation = conversations().conversations().getFirst();
+        return new ChatConversation(
+                conversation.conversationId(),
+                conversation.title(),
+                conversation.kind(),
+                conversation.state(),
+                conversation.memberImpact(),
+                conversation.updatedAt(),
+                ChatEncryptionState.matrixMegolm(),
+                conversation.historyPolicy(),
+                conversation.memberships(),
+                conversation.recentAttachments());
+    }
+
+    private void uploadDeviceKeys(String deviceId, String signingKey, String oneTimeKey) throws Exception {
+        String userId = "@user_example.com:api.weave.test";
+        String oneTimeKeys = oneTimeKey == null
+                ? "{}"
+                : """
+                  {"signed_curve25519:AAAA":{"key":"%s","signatures":{}}}
+                  """.formatted(oneTimeKey).trim();
+        mockMvc.perform(post("/_matrix/client/v3/keys/upload")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceId)
+                        .with(workspaceJwt(deviceId + "-session"))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "device_keys":{
+                                    "user_id":"%s",
+                                    "device_id":"%s",
+                                    "algorithms":["m.megolm.v1.aes-sha2"],
+                                    "keys":{"ed25519:%s":"%s"},
+                                    "signatures":{}
+                                  },
+                                  "one_time_keys":%s
+                                }
+                                """.formatted(userId, deviceId, deviceId, signingKey, oneTimeKeys)))
+                .andExpect(status().isOk());
+    }
+
     private ChatHistoryPolicy historyPolicy() {
         return new ChatHistoryPolicy("conversation_members", "organization_default_retention", false, true, List.of());
     }
@@ -463,6 +722,7 @@ class MatrixClientServerProjectionControllerTest {
                         .tokenValue(tokenValue)
                         .subject("user@example.com")
                         .claim("jti", tokenValue)
+                        .claim("sid", "weave-test-session-" + tokenValue)
                         .claim("iss", "https://auth.example.invalid/realms/acme")
                         .claim("aud", List.of("weave-app"))
                         .claim("weave_tenant_id", "tenant-default")

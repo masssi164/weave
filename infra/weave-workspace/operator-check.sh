@@ -203,6 +203,24 @@ curl_auth_status() {
   curl "${args[@]}" -H "Authorization: Bearer ${token}" -o /dev/null -w '%{http_code}' "$url"
 }
 
+curl_bearer_propfind_status() {
+  local token="$1"
+  local url="$2"
+  local -a args=()
+
+  while IFS= read -r -d '' arg; do
+    args+=("${arg}")
+  done < <(curl_common_args "${url}")
+
+  curl "${args[@]}" \
+    --header "Authorization: Bearer ${token}" \
+    --request PROPFIND \
+    --header 'Depth: 0' \
+    -o /dev/null \
+    -w '%{http_code}' \
+    "${url}"
+}
+
 assert_container_running() {
   local name="$1"
   local state
@@ -495,6 +513,7 @@ assert_authenticated_backend_facades_accept_test_user() {
   local profile_readiness
   local provider_status
   local files_status
+  local calendar_status
 
   if [[ "${TF_VAR_create_test_user:-false}" != "true" ]]; then
     return
@@ -529,8 +548,11 @@ assert_authenticated_backend_facades_accept_test_user() {
   admin_control_plane_status="$(curl_auth_status "${access_token}" "${WEAVE_BASE_URL}/admin/control-plane" || true)"
   [[ "${admin_control_plane_status}" == "403" ]] || fail "Operator check failed: member token should receive 403 from admin control plane, got HTTP ${admin_control_plane_status}"
 
-  files_status="$(curl_auth_status "${access_token}" "${WEAVE_BASE_URL}/files" || true)"
-  [[ "${files_status}" == 2* ]] || fail "Operator check failed: authenticated files facade rejected the test-user app token with HTTP ${files_status}"
+  files_status="$(curl_bearer_propfind_status "${access_token}" "$(api_public_url)/dav/files" || true)"
+  [[ "${files_status}" == "207" ]] || fail "Operator check failed: authenticated WebDAV facade rejected the test-user app token with HTTP ${files_status}"
+
+  calendar_status="$(curl_bearer_propfind_status "${access_token}" "$(api_public_url)/caldav" || true)"
+  [[ "${calendar_status}" == "207" ]] || fail "Operator check failed: authenticated CalDAV facade rejected the test-user app token with HTTP ${calendar_status}"
 }
 
 assert_backend_product_gate_config() {

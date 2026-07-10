@@ -15,3 +15,110 @@ Future<String> projectMatrixJson({
   inputJson: inputJson,
   serverName: serverName,
 );
+
+Future<String> initializeMatrixClient({
+  required String profileKey,
+  required String homeserverUrl,
+  required String userId,
+  required String deviceId,
+  required String accessToken,
+  required String storePath,
+  required String storePassphrase,
+}) => RustLib.instance.api.crateFrbApiInitializeMatrixClient(
+  profileKey: profileKey,
+  homeserverUrl: homeserverUrl,
+  userId: userId,
+  deviceId: deviceId,
+  accessToken: accessToken,
+  storePath: storePath,
+  storePassphrase: storePassphrase,
+);
+
+Future<String> syncMatrixClient({required String profileKey}) =>
+    RustLib.instance.api.crateFrbApiSyncMatrixClient(profileKey: profileKey);
+
+Future<String> matrixRooms({required String profileKey}) =>
+    RustLib.instance.api.crateFrbApiMatrixRooms(profileKey: profileKey);
+
+Future<String> matrixRoomMessages({
+  required String profileKey,
+  required String roomId,
+  required int limit,
+}) => RustLib.instance.api.crateFrbApiMatrixRoomMessages(
+  profileKey: profileKey,
+  roomId: roomId,
+  limit: limit,
+);
+
+Future<String> matrixSendText({
+  required String profileKey,
+  required String roomId,
+  required String body,
+}) => RustLib.instance.api.crateFrbApiMatrixSendText(
+  profileKey: profileKey,
+  roomId: roomId,
+  body: body,
+);
+
+Future<String> matrixMarkRead({
+  required String profileKey,
+  required String roomId,
+  required String eventId,
+}) => RustLib.instance.api.crateFrbApiMatrixMarkRead(
+  profileKey: profileKey,
+  roomId: roomId,
+  eventId: eventId,
+);
+
+Future<String> matrixSecurityState({required String profileKey}) =>
+    RustLib.instance.api.crateFrbApiMatrixSecurityState(profileKey: profileKey);
+
+Future<String> matrixBootstrapRecovery({
+  required String profileKey,
+  required String passphrase,
+}) => RustLib.instance.api.crateFrbApiMatrixBootstrapRecovery(
+  profileKey: profileKey,
+  passphrase: passphrase,
+);
+
+Future<String> matrixRecover({
+  required String profileKey,
+  required String recoveryKeyOrPassphrase,
+}) => RustLib.instance.api.crateFrbApiMatrixRecover(
+  profileKey: profileKey,
+  recoveryKeyOrPassphrase: recoveryKeyOrPassphrase,
+);
+
+Future<String> matrixStartVerification({required String profileKey}) => RustLib
+    .instance
+    .api
+    .crateFrbApiMatrixStartVerification(profileKey: profileKey);
+
+Future<String> matrixAcceptVerification({required String profileKey}) => RustLib
+    .instance
+    .api
+    .crateFrbApiMatrixAcceptVerification(profileKey: profileKey);
+
+Future<String> matrixStartSas({required String profileKey}) =>
+    RustLib.instance.api.crateFrbApiMatrixStartSas(profileKey: profileKey);
+
+Future<String> matrixConfirmSas({
+  required String profileKey,
+  required bool matches,
+}) => RustLib.instance.api.crateFrbApiMatrixConfirmSas(
+  profileKey: profileKey,
+  matches: matches,
+);
+
+Future<String> matrixCancelVerification({required String profileKey}) => RustLib
+    .instance
+    .api
+    .crateFrbApiMatrixCancelVerification(profileKey: profileKey);
+
+Future<String> matrixDismissVerification({required String profileKey}) =>
+    RustLib.instance.api.crateFrbApiMatrixDismissVerification(
+      profileKey: profileKey,
+    );
+
+Future<String> disposeMatrixClient({required String profileKey}) =>
+    RustLib.instance.api.crateFrbApiDisposeMatrixClient(profileKey: profileKey);

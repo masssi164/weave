@@ -88,7 +88,8 @@ class JdbcProviderSelectionRepositoryTest {
                         "WEAVE_PRODUCT_PROFILE_OVERRIDES",
                         "WEAVE_AUDIT_EVENTS",
                         "WEAVE_MIGRATION_RUN_EVIDENCE",
-                        "WEAVE_DEVICE_CREDENTIALS");
+                        "WEAVE_DEVICE_CREDENTIALS",
+                        "WEAVE_MATRIX_E2EE_SNAPSHOTS");
     }
 
     @Test

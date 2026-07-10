@@ -64,6 +64,8 @@ public interface ChatProviderPort {
 
     ChatConversation conversation(ChatActorRef actorRef, ConversationId conversationId);
 
+    ChatConversation enableEncryption(ChatActorRef actorRef, ConversationId conversationId, String algorithm);
+
     ChatReadReceipt markRead(ChatActorRef actorRef, ConversationId conversationId, String eventId);
 
     ChatTypingIndicator setTyping(

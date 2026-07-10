@@ -106,6 +106,8 @@ struct ProjectionInput {
     #[serde(default)]
     subject: String,
     #[serde(default)]
+    device_id: String,
+    #[serde(default)]
     cursor: String,
     #[serde(default)]
     since: Option<String>,
@@ -113,6 +115,16 @@ struct ProjectionInput {
     conversations: Vec<CanonicalConversationInput>,
     #[serde(default)]
     account_data: BTreeMap<String, Value>,
+    #[serde(default)]
+    to_device_events: Vec<Value>,
+    #[serde(default)]
+    device_lists_changed: Vec<String>,
+    #[serde(default)]
+    device_lists_left: Vec<String>,
+    #[serde(default)]
+    device_one_time_keys_count: BTreeMap<String, u64>,
+    #[serde(default)]
+    device_unused_fallback_key_types: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -166,7 +178,7 @@ struct CanonicalMessageInput {
     #[serde(default = "default_delivery_state")]
     delivery_state: String,
     #[serde(default)]
-    encrypted: bool,
+    encrypted_content: Option<Value>,
     #[serde(default)]
     redacted: bool,
 }
@@ -332,7 +344,22 @@ pub fn matrix_facade_descriptor(
             "GET /_matrix/client/v3/profile/{userId}".to_string(),
             "GET /_matrix/client/v3/pushrules/".to_string(),
             "POST /_matrix/client/v3/user/{userId}/filter".to_string(),
-            "PUT /_matrix/client/v3/user/{userId}/account_data/{type}".to_string(),
+            "GET|PUT /_matrix/client/v3/user/{userId}/account_data/{type}".to_string(),
+            "POST /_matrix/client/v3/keys/upload".to_string(),
+            "POST /_matrix/client/v3/keys/query".to_string(),
+            "POST /_matrix/client/v3/keys/claim".to_string(),
+            "GET /_matrix/client/v3/keys/changes".to_string(),
+            "POST /_matrix/client/v3/keys/device_signing/upload".to_string(),
+            "POST /_matrix/client/v3/keys/signatures/upload".to_string(),
+            "PUT /_matrix/client/v3/sendToDevice/{eventType}/{txnId}".to_string(),
+            "PUT /_matrix/client/v3/rooms/{roomId}/state/m.room.encryption".to_string(),
+            "PUT /_matrix/client/v3/rooms/{roomId}/send/m.room.encrypted/{txnId}".to_string(),
+            "DELETE /_matrix/client/v3/devices/{deviceId}".to_string(),
+            "GET|POST /_matrix/client/v3/room_keys/version".to_string(),
+            "GET|PUT|DELETE /_matrix/client/v3/room_keys/version/{version}".to_string(),
+            "GET|PUT|DELETE /_matrix/client/v3/room_keys/keys".to_string(),
+            "GET|PUT|DELETE /_matrix/client/v3/room_keys/keys/{roomId}".to_string(),
+            "GET|PUT|DELETE /_matrix/client/v3/room_keys/keys/{roomId}/{sessionId}".to_string(),
         ],
     })
 }
@@ -369,6 +396,7 @@ pub fn project_json(
         "whoami" => whoami_value(&parse(&input_json)?, &server_name)?,
         "sync" => sync_value(&parse(&input_json)?, &server_name)?,
         "validate-sync-token" => validate_sync_token_value(&parse(&input_json)?)?,
+        "decode-sync-token" => decode_sync_token_value(&parse(&input_json)?)?,
         "joined-rooms" => joined_rooms_value(&parse(&input_json)?, &server_name)?,
         "messages" => messages_value(&parse(&input_json)?, &server_name)?,
         "parse-object" => parse_object_value(&input_json)?,
@@ -417,15 +445,28 @@ fn whoami_value(
     input: &ProjectionInput,
     server_name: &OwnedServerName,
 ) -> Result<Value, MatrixCoreError> {
+    let device_id = validate_device_id(&input.device_id)?;
     Ok(json!({
         "user_id": matrix_user_id(&input.subject, server_name)?.to_string(),
-        "device_id": "weave-oidc",
+        "device_id": device_id,
         "is_guest": false,
         "weaveBoundary": "northbound-matrix-client-server",
         "canonicalDomain": "chat",
         "providerDataPlaneExposed": false,
         "matrixCore": matrix_facade_descriptor(server_name.to_string())?,
     }))
+}
+
+fn validate_device_id(value: &str) -> Result<&str, MatrixCoreError> {
+    if value.len() < 8
+        || value.len() > 128
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'=' | b'-'))
+    {
+        return Err(MatrixCoreError::InvalidMatrixId { kind: "device" });
+    }
+    Ok(value)
 }
 
 fn parse_whoami_value(
@@ -482,6 +523,13 @@ fn sync_value(
                 "content": content,
             })).collect::<Vec<_>>()
         },
+        "to_device": { "events": input.to_device_events },
+        "device_lists": {
+            "changed": input.device_lists_changed,
+            "left": input.device_lists_left,
+        },
+        "device_one_time_keys_count": input.device_one_time_keys_count,
+        "device_unused_fallback_key_types": input.device_unused_fallback_key_types,
         "weaveBoundary": "northbound-matrix-client-server",
         "canonicalDomain": "chat",
         "providerDataPlaneExposed": false,
@@ -494,6 +542,16 @@ fn validate_sync_token_value(input: &ProjectionInput) -> Result<Value, MatrixCor
         decode_sync_token(since)?;
     }
     Ok(json!({ "valid": true }))
+}
+
+fn decode_sync_token_value(input: &ProjectionInput) -> Result<Value, MatrixCoreError> {
+    let cursor = input
+        .since
+        .as_deref()
+        .map(decode_sync_token)
+        .transpose()?
+        .unwrap_or_default();
+    Ok(json!({ "cursor": cursor }))
 }
 
 fn joined_rooms_value(
@@ -561,8 +619,47 @@ fn parse_event_value(
     match request.event_type.as_str() {
         "m.room.message" => parse_message_content(&request.content, server_name),
         "m.reaction" => parse_reaction_content(&request.content, server_name),
+        "m.room.encrypted" => parse_encrypted_content(&request.content),
         _ => Err(MatrixCoreError::UnsupportedMessageType),
     }
+}
+
+fn parse_encrypted_content(content: &Value) -> Result<Value, MatrixCoreError> {
+    let object = content.as_object().ok_or(MatrixCoreError::InvalidRequest)?;
+    if object.get("algorithm").and_then(Value::as_str) != Some("m.megolm.v1.aes-sha2") {
+        return Err(MatrixCoreError::UnsupportedMessageType);
+    }
+    for (field, max_length) in [
+        ("ciphertext", 262_144),
+        ("sender_key", 512),
+        ("session_id", 512),
+        ("device_id", 128),
+    ] {
+        let value = object
+            .get(field)
+            .and_then(Value::as_str)
+            .filter(|value| !value.is_empty() && value.len() <= max_length)
+            .ok_or(MatrixCoreError::InvalidRequest)?;
+        if value.chars().any(char::is_control) {
+            return Err(MatrixCoreError::InvalidRequest);
+        }
+    }
+    if serde_json::to_vec(content)?.len() > 393_216 {
+        return Err(MatrixCoreError::InvalidRequest);
+    }
+    Ok(json!({
+        "kind": "encrypted",
+        "messageType": Value::Null,
+        "body": Value::Null,
+        "format": Value::Null,
+        "formattedBody": Value::Null,
+        "relationKind": Value::Null,
+        "relationTargetEventId": Value::Null,
+        "replyToEventId": Value::Null,
+        "reactionKey": Value::Null,
+        "presentationExtensions": {},
+        "encryptedContent": content,
+    }))
 }
 
 fn parse_message_content(
@@ -999,14 +1096,8 @@ fn message_event(
 ) -> Result<MatrixEvent, MatrixCoreError> {
     let (event_type, content) = if message.redacted {
         ("m.room.message", json!({}))
-    } else if message.encrypted {
-        (
-            "m.room.encrypted",
-            json!({
-                "algorithm": "m.megolm.v1.aes-sha2",
-                "weaveEncryptionState": "ciphertext_not_available_to_server_projection",
-            }),
-        )
+    } else if let Some(encrypted_content) = &message.encrypted_content {
+        ("m.room.encrypted", encrypted_content.clone())
     } else if message.kind == "reaction" {
         let target = message
             .relation_target_event_id
@@ -1251,7 +1342,111 @@ pub mod frb_api {
     ) -> String {
         crate::project_json_or_error(operation, input_json, server_name)
     }
+
+    #[cfg(feature = "flutter")]
+    pub async fn initialize_matrix_client(
+        profile_key: String,
+        homeserver_url: String,
+        user_id: String,
+        device_id: String,
+        access_token: String,
+        store_path: String,
+        store_passphrase: String,
+    ) -> String {
+        crate::flutter_crypto::initialize(
+            profile_key,
+            homeserver_url,
+            user_id,
+            device_id,
+            access_token,
+            store_path,
+            store_passphrase,
+        )
+        .await
+    }
+
+    #[cfg(feature = "flutter")]
+    pub async fn sync_matrix_client(profile_key: String) -> String {
+        crate::flutter_crypto::sync(profile_key).await
+    }
+
+    #[cfg(feature = "flutter")]
+    pub async fn matrix_rooms(profile_key: String) -> String {
+        crate::flutter_crypto::rooms(profile_key).await
+    }
+
+    #[cfg(feature = "flutter")]
+    pub async fn matrix_room_messages(profile_key: String, room_id: String, limit: u32) -> String {
+        crate::flutter_crypto::room_messages(profile_key, room_id, limit).await
+    }
+
+    #[cfg(feature = "flutter")]
+    pub async fn matrix_send_text(profile_key: String, room_id: String, body: String) -> String {
+        crate::flutter_crypto::send_text(profile_key, room_id, body).await
+    }
+
+    #[cfg(feature = "flutter")]
+    pub async fn matrix_mark_read(
+        profile_key: String,
+        room_id: String,
+        event_id: String,
+    ) -> String {
+        crate::flutter_crypto::mark_read(profile_key, room_id, event_id).await
+    }
+
+    #[cfg(feature = "flutter")]
+    pub async fn matrix_security_state(profile_key: String) -> String {
+        crate::flutter_crypto::security_state(profile_key).await
+    }
+
+    #[cfg(feature = "flutter")]
+    pub async fn matrix_bootstrap_recovery(profile_key: String, passphrase: String) -> String {
+        crate::flutter_crypto::bootstrap_recovery(profile_key, passphrase).await
+    }
+
+    #[cfg(feature = "flutter")]
+    pub async fn matrix_recover(profile_key: String, recovery_key_or_passphrase: String) -> String {
+        crate::flutter_crypto::recover(profile_key, recovery_key_or_passphrase).await
+    }
+
+    #[cfg(feature = "flutter")]
+    pub async fn matrix_start_verification(profile_key: String) -> String {
+        crate::flutter_crypto::start_verification(profile_key).await
+    }
+
+    #[cfg(feature = "flutter")]
+    pub async fn matrix_accept_verification(profile_key: String) -> String {
+        crate::flutter_crypto::accept_verification(profile_key).await
+    }
+
+    #[cfg(feature = "flutter")]
+    pub async fn matrix_start_sas(profile_key: String) -> String {
+        crate::flutter_crypto::start_sas(profile_key).await
+    }
+
+    #[cfg(feature = "flutter")]
+    pub async fn matrix_confirm_sas(profile_key: String, matches: bool) -> String {
+        crate::flutter_crypto::confirm_sas(profile_key, matches).await
+    }
+
+    #[cfg(feature = "flutter")]
+    pub async fn matrix_cancel_verification(profile_key: String) -> String {
+        crate::flutter_crypto::cancel_verification(profile_key).await
+    }
+
+    #[cfg(feature = "flutter")]
+    pub fn matrix_dismiss_verification(profile_key: String) -> String {
+        crate::flutter_crypto::dismiss_verification(profile_key)
+    }
+
+    #[cfg(feature = "flutter")]
+    pub fn dispose_matrix_client(profile_key: String) -> String {
+        crate::flutter_crypto::dispose(profile_key)
+    }
 }
+
+#[cfg(feature = "flutter")]
+mod flutter_crypto;
 
 #[cfg(feature = "flutter")]
 mod frb_generated;
@@ -1569,5 +1764,61 @@ mod tests {
             "@user_123_example.com:matrix.weave.test"
         );
         assert_eq!(projection.room_id, "!conversation_456:matrix.weave.test");
+    }
+
+    #[test]
+    fn encrypted_events_round_trip_as_opaque_megolm_content() {
+        let encrypted_content = json!({
+            "algorithm": "m.megolm.v1.aes-sha2",
+            "ciphertext": "opaque-ciphertext",
+            "sender_key": "curve25519:alice",
+            "session_id": "megolm-session-1",
+            "device_id": "WEAVEDEVICEALICE",
+        });
+        let parsed = project_json(
+            "parse-event".to_string(),
+            json!({
+                "eventType": "m.room.encrypted",
+                "content": encrypted_content,
+            })
+            .to_string(),
+            "api.weave.test".to_string(),
+        )
+        .unwrap();
+        let parsed: Value = serde_json::from_str(&parsed).unwrap();
+        assert_eq!(parsed["kind"], "encrypted");
+        assert_eq!(
+            parsed["encryptedContent"]["ciphertext"],
+            "opaque-ciphertext"
+        );
+        assert!(parsed["body"].is_null());
+
+        let sync = project_json(
+            "sync".to_string(),
+            json!({
+                "subject": "alice",
+                "cursor": "chat-revision-2",
+                "conversations": [{
+                    "conversationId": "channel-general",
+                    "title": "General",
+                    "messages": [{
+                        "messageId": "event-encrypted",
+                        "senderRef": "user:alice",
+                        "sentAtEpochMillis": 1_720_432_800_000_i64,
+                        "kind": "encrypted",
+                        "encryptedContent": encrypted_content,
+                        "deliveryState": "sent"
+                    }]
+                }]
+            })
+            .to_string(),
+            "api.weave.test".to_string(),
+        )
+        .unwrap();
+        let sync: Value = serde_json::from_str(&sync).unwrap();
+        let content = &sync["rooms"]["join"]["!channel-general:api.weave.test"]["timeline"]
+            ["events"][0]["content"];
+        assert_eq!(content["ciphertext"], "opaque-ciphertext");
+        assert!(content.get("body").is_none());
     }
 }

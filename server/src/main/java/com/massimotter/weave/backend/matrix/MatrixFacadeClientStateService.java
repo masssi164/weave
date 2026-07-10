@@ -17,13 +17,12 @@ import org.springframework.stereotype.Service;
 @Service
 public class MatrixFacadeClientStateService {
 
+    public static final String DEVICE_ID_HEADER = "X-Weave-Matrix-Device-Id";
     private static final int MAX_FILTERS_PER_USER = 50;
 
     private final MatrixProtocolCoreService matrixProtocolCoreService;
     private final ConcurrentMap<String, ChatActorRef> actorsByMatrixUserId = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, ConcurrentMap<String, Map<String, Object>>> filtersByUser =
-            new ConcurrentHashMap<>();
-    private final ConcurrentMap<String, ConcurrentMap<String, Object>> accountDataByUser =
             new ConcurrentHashMap<>();
     private final java.util.Set<String> revokedTokenHashes = ConcurrentHashMap.newKeySet();
     private final AtomicLong filterSequence = new AtomicLong();
@@ -32,17 +31,18 @@ public class MatrixFacadeClientStateService {
         this.matrixProtocolCoreService = matrixProtocolCoreService;
     }
 
-    public MatrixIdentity register(Jwt jwt) {
+    public MatrixIdentity register(Jwt jwt, String requestedDeviceId) {
         if (jwt == null || jwt.getSubject() == null || jwt.getSubject().isBlank()) {
             throw new MatrixProtocolException("M_MISSING_TOKEN", "A Matrix bearer token is required.");
         }
-        Object rawUserId = matrixProtocolCoreService.whoami(jwt.getSubject()).get("user_id");
+        String deviceId = deviceId(jwt, requestedDeviceId);
+        Object rawUserId = matrixProtocolCoreService.whoami(jwt.getSubject(), deviceId).get("user_id");
         if (!(rawUserId instanceof String userId) || userId.isBlank()) {
             throw new MatrixProtocolException("M_WEAVE_MATRIX_CORE_ERROR", "Matrix identity could not be projected.");
         }
         ChatActorRef actorRef = new ChatActorRef("user:" + jwt.getSubject());
         actorsByMatrixUserId.put(userId, actorRef);
-        return new MatrixIdentity(userId, actorRef);
+        return new MatrixIdentity(userId, actorRef, deviceId, tenantId(jwt), oidcSessionHash(jwt));
     }
 
     public Optional<ChatActorRef> actorForMatrixUserId(String userId) {
@@ -66,15 +66,6 @@ public class MatrixFacadeClientStateService {
             throw new MatrixProtocolException("M_NOT_FOUND", "The Matrix filter was not found.");
         }
         return filter;
-    }
-
-    public void putAccountData(String userId, String eventType, Object content) {
-        accountDataByUser.computeIfAbsent(userId, ignored -> new ConcurrentHashMap<>())
-                .put(eventType, content == null ? Map.of() : content);
-    }
-
-    public Map<String, Object> accountData(String userId) {
-        return Map.copyOf(accountDataByUser.getOrDefault(userId, new ConcurrentHashMap<>()));
     }
 
     public Map<String, Object> pushRules() {
@@ -132,6 +123,65 @@ public class MatrixFacadeClientStateService {
                 + ":expires:" + jwt.getExpiresAt();
     }
 
-    public record MatrixIdentity(String userId, ChatActorRef actorRef) {
+    private String oidcSessionHash(Jwt jwt) {
+        for (String claim : List.of("sid", "session_state")) {
+            String value = jwt.getClaimAsString(claim);
+            if (value != null && !value.isBlank()) {
+                return tokenHash(claim + ":" + value.trim());
+            }
+        }
+        return null;
+    }
+
+    private String deviceId(Jwt jwt, String requestedDeviceId) {
+        if (requestedDeviceId != null && !requestedDeviceId.isBlank()) {
+            return requireDeviceId(requestedDeviceId.trim());
+        }
+        for (String claim : List.of("weave_matrix_device_id", "device_id", "sid")) {
+            String value = jwt.getClaimAsString(claim);
+            if (value != null && !value.isBlank()) {
+                String trimmed = value.trim();
+                if (validDeviceId(trimmed)) {
+                    return trimmed;
+                }
+                return "WEAVE" + tokenHash(claim + ":" + trimmed).substring(0, 36);
+            }
+        }
+        throw new MatrixProtocolException(
+                "M_INVALID_PARAM",
+                "A stable Matrix device identity is required for this OIDC session.");
+    }
+
+    private String requireDeviceId(String value) {
+        if (!validDeviceId(value)) {
+            throw new MatrixProtocolException("M_INVALID_PARAM", "The Matrix device identity is invalid.");
+        }
+        return value;
+    }
+
+    private boolean validDeviceId(String value) {
+        return value.matches("[A-Za-z0-9._=-]{8,128}");
+    }
+
+    private String tenantId(Jwt jwt) {
+        for (String claim : List.of("weave_tenant_id", "tenant_id", "org_id")) {
+            String value = jwt.getClaimAsString(claim);
+            if (value != null && !value.isBlank()) {
+                return value.trim();
+            }
+        }
+        return "tenant-default";
+    }
+
+    public record MatrixIdentity(
+            String userId,
+            ChatActorRef actorRef,
+            String deviceId,
+            String tenantId,
+            String oidcSessionHash) {
+
+        public MatrixIdentity(String userId, ChatActorRef actorRef, String deviceId, String tenantId) {
+            this(userId, actorRef, deviceId, tenantId, null);
+        }
     }
 }

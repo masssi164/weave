@@ -65,6 +65,7 @@ resource "docker_container" "this" {
     "WEAVE_PERSISTENCE_JDBC_USERNAME=${var.persistence_jdbc_username}",
     "WEAVE_PERSISTENCE_JDBC_PASSWORD=${var.persistence_jdbc_password}",
     "WEAVE_DEVICE_CREDENTIAL_STORAGE_MODE=${var.device_credential_storage_mode}",
+    "WEAVE_MATRIX_E2EE_STORAGE_MODE=jdbc",
     "WEAVE_DEVOPS_PRIMARY_PROVIDER=${var.devops_primary_provider}",
     "WEAVE_DEVOPS_GITLAB_RUNTIME_ENABLED=${var.devops_gitlab_runtime_enabled}",
     "WEAVE_DEVOPS_GITLAB_BASE_URL=${var.devops_gitlab_base_url}",

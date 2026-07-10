@@ -198,5 +198,55 @@ void main() {
       expect(submittedRecoveryMaterial, 'RECOVERY-KEY');
       expect(find.text('Continue verification'), findsNothing);
     });
+
+    testWidgets('announces SAS emoji labels and numbers accessibly', (
+      tester,
+    ) async {
+      final repository = FakeChatSecurityRepository(
+        loadSecurityStateHandler: ({bool refresh = false}) async {
+          return const ChatSecurityState(
+            isMatrixSignedIn: true,
+            bootstrapState: ChatSecurityBootstrapState.ready,
+            accountVerificationState: ChatAccountVerificationState.verified,
+            deviceVerificationState: ChatDeviceVerificationState.unverified,
+            keyBackupState: ChatKeyBackupState.ready,
+            roomEncryptionReadiness: ChatRoomEncryptionReadiness.ready,
+            secretStorageReady: true,
+            crossSigningReady: true,
+            hasEncryptedConversations: true,
+            verificationSession: ChatVerificationSession(
+              phase: ChatVerificationPhase.compareSas,
+              sasNumbers: <int>[1234, 5678, 9012],
+              sasEmojis: <ChatVerificationEmoji>[
+                ChatVerificationEmoji(symbol: 'A', label: 'Alpha'),
+                ChatVerificationEmoji(symbol: 'B', label: 'Bravo'),
+              ],
+            ),
+          );
+        },
+      );
+
+      await tester.pumpWidget(
+        createTestApp(
+          const SingleChildScrollView(child: ChatSecuritySettingsSection()),
+          overrides: [
+            chatSecurityRepositoryProvider.overrideWithValue(repository),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.bySemanticsLabel(
+          RegExp(
+            'emoji.*Alpha A.*Bravo B.*1234, 5678, 9012',
+            caseSensitive: false,
+          ),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Emoji match'), findsOneWidget);
+      expect(find.text('They do not match'), findsOneWidget);
+    });
   });
 }

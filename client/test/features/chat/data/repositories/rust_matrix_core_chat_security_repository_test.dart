@@ -2,106 +2,126 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/features/chat/data/repositories/rust_matrix_core_chat_security_repository.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/chat/domain/entities/chat_security_state.dart';
-import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
-import 'package:weave/features/server_config/domain/repositories/'
-    'server_configuration_repository.dart';
+import 'package:weave/integrations/rust_matrix_core/data/services/rust_matrix_core_bridge.dart';
 
-import '../../../../helpers/server_config_test_data.dart';
+import '../../../../helpers/fake_matrix_crypto.dart';
 
-class _FakeServerConfigurationRepository
-    implements ServerConfigurationRepository {
-  _FakeServerConfigurationRepository(this.configuration);
-
-  ServerConfiguration? configuration;
-
+class _NoOtherDeviceBridge extends FakeRustMatrixCoreBridge {
   @override
-  Future<void> clearConfiguration() async {
-    configuration = null;
-  }
-
-  @override
-  Future<ServerConfiguration?> loadConfiguration() async => configuration;
-
-  @override
-  Future<void> saveConfiguration(ServerConfiguration configuration) async {
-    this.configuration = configuration;
+  Future<RustMatrixVerificationProjection> startVerification({
+    required String profileKey,
+  }) {
+    throw const RustMatrixCoreBridgeException('M_WEAVE_E2EE_NO_OTHER_DEVICE');
   }
 }
 
 void main() {
-  group('RustMatrixCoreChatSecurityRepository', () {
-    test('fails E2EE state closed until the Rust bridge owns it', () async {
-      // MATRIX_E2EE_STATE_CONTRACT
-      final repository = RustMatrixCoreChatSecurityRepository(
-        serverConfigurationRepository: _FakeServerConfigurationRepository(
-          buildTestConfiguration(),
-        ),
-      );
+  late FakeMatrixCryptoSessionPort cryptoSession;
+  late FakeRustMatrixCoreBridge bridge;
 
-      final security = await repository.loadSecurityState();
+  RustMatrixCoreChatSecurityRepository repository({
+    FakeRustMatrixCoreBridge? rustBridge,
+  }) {
+    return RustMatrixCoreChatSecurityRepository(
+      matrixCryptoSessionCoordinator: cryptoSession,
+      rustMatrixCoreBridge: rustBridge ?? bridge,
+    );
+  }
 
-      expect(security.bootstrapState, ChatSecurityBootstrapState.unavailable);
-      expect(
-        security.accountVerificationState,
-        ChatAccountVerificationState.unavailable,
-      );
-      expect(
-        security.deviceVerificationState,
-        ChatDeviceVerificationState.unavailable,
-      );
-      expect(security.keyBackupState, ChatKeyBackupState.unavailable);
-      expect(
-        security.roomEncryptionReadiness,
-        ChatRoomEncryptionReadiness.unavailable,
-      );
-      expect(security.readinessState, ChatReadinessState.unsupportedDevice);
-    });
+  setUp(() {
+    cryptoSession = FakeMatrixCryptoSessionPort();
+    bridge = FakeRustMatrixCoreBridge();
+  });
 
-    test('security actions stay blocked without Matrix SDK fallback', () async {
-      final repository = RustMatrixCoreChatSecurityRepository(
-        serverConfigurationRepository: _FakeServerConfigurationRepository(
-          buildTestConfiguration(),
-        ),
-      );
+  test('maps SDK recovery, cross-signing, and encrypted-room state', () async {
+    // MATRIX_E2EE_STATE_CONTRACT
+    final security = await repository().loadSecurityState(refresh: true);
 
-      await expectLater(
-        repository.startVerification(),
-        throwsA(
-          isA<ChatFailure>()
-              .having(
-                (failure) => failure.type,
-                'type',
-                ChatFailureType.unsupportedConfiguration,
-              )
-              .having(
-                (failure) => failure.message,
-                'message',
-                contains('Rust Matrix core Flutter bridge'),
-              )
-              .having(
-                (failure) => failure.message,
-                'message',
-                isNot(contains('access_token')),
-              ),
-        ),
-      );
-    });
+    expect(security.bootstrapState, ChatSecurityBootstrapState.ready);
+    expect(
+      security.accountVerificationState,
+      ChatAccountVerificationState.verified,
+    );
+    expect(
+      security.deviceVerificationState,
+      ChatDeviceVerificationState.verified,
+    );
+    expect(security.keyBackupState, ChatKeyBackupState.ready);
+    expect(security.roomEncryptionReadiness, ChatRoomEncryptionReadiness.ready);
+    expect(security.readinessState, ChatReadinessState.e2eeEncryptedTimeline);
+    expect(cryptoSession.synchronizeValues, <bool>[true]);
+  });
 
-    test('fails clearly when setup is missing', () async {
-      final repository = RustMatrixCoreChatSecurityRepository(
-        serverConfigurationRepository: _FakeServerConfigurationRepository(null),
-      );
+  test('reports recovery-required state without claiming readiness', () async {
+    bridge.security = const RustMatrixSecurityProjection(
+      signedIn: true,
+      recoveryState: 'incomplete',
+      crossSigningReady: false,
+      deviceVerified: false,
+      accountVerified: false,
+      encryptedRoomCount: 1,
+      verification: RustMatrixVerificationProjection(
+        phase: 'needsRecoveryKey',
+        sasNumbers: <int>[],
+        sasEmojis: <Map<String, dynamic>>[],
+      ),
+    );
 
-      await expectLater(
-        repository.loadSecurityState(),
-        throwsA(
-          isA<ChatFailure>().having(
-            (failure) => failure.type,
-            'type',
-            ChatFailureType.configuration,
-          ),
-        ),
-      );
-    });
+    final security = await repository().loadSecurityState();
+
+    expect(
+      security.bootstrapState,
+      ChatSecurityBootstrapState.recoveryRequired,
+    );
+    expect(security.keyBackupState, ChatKeyBackupState.recoveryRequired);
+    expect(
+      security.roomEncryptionReadiness,
+      ChatRoomEncryptionReadiness.encryptedRoomsNeedAttention,
+    );
+    expect(
+      security.verificationSession.phase,
+      ChatVerificationPhase.needsRecoveryKey,
+    );
+    expect(security.requiresAttention, isTrue);
+  });
+
+  test('bootstrap and SAS actions delegate to the same Rust profile', () async {
+    bridge.verification = const RustMatrixVerificationProjection(
+      phase: 'compareSas',
+      sasNumbers: <int>[1234, 5678, 9012],
+      sasEmojis: <Map<String, dynamic>>[
+        <String, dynamic>{'symbol': 'A', 'label': 'Alpha'},
+      ],
+    );
+
+    final recoveryKey = await repository().bootstrapSecurity(
+      passphrase: 'correct horse battery staple',
+    );
+    await repository().startVerification();
+    await repository().acceptVerification();
+    await repository().startSasVerification();
+    await repository().confirmSas(matches: true);
+
+    expect(recoveryKey, 'recovery-key');
+    expect(cryptoSession.synchronizeValues, everyElement(isTrue));
+  });
+
+  test('explains when no second trusted device exists', () async {
+    await expectLater(
+      repository(rustBridge: _NoOtherDeviceBridge()).startVerification(),
+      throwsA(
+        isA<ChatFailure>()
+            .having(
+              (failure) => failure.type,
+              'type',
+              ChatFailureType.unsupportedConfiguration,
+            )
+            .having(
+              (failure) => failure.message,
+              'message',
+              contains('recovery key'),
+            ),
+      ),
+    );
   });
 }

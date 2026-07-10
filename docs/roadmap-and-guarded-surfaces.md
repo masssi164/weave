@@ -44,7 +44,7 @@ Current evidence and boundaries:
 
 ## Matrix E2EE
 
-Matrix E2EE is active chat architecture scope, not a completed product claim. Weave must not claim chat is end-to-end encrypted until encrypted-room behavior, device verification, key backup/recovery, lost-device handling, multi-device behavior, metadata boundaries, and accessible verification/recovery UX are implemented and validated.
+Matrix E2EE is implemented as a client-owned Rust release candidate, not yet a completed product claim. Weave must not claim chat is end-to-end encrypted until live encrypted-room behavior, device verification, key backup/recovery, lost-device handling, multi-device behavior, metadata boundaries, accessible verification/recovery UX, and physical-iPhone relaunch continuity are validated.
 
 ## Provider stack readiness
 

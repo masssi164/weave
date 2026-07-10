@@ -75,9 +75,12 @@ void main() {
     final filesRepository = await File(
       'lib/features/files/data/repositories/backend_files_repository.dart',
     ).readAsString();
-    expect(chatRepository, contains('/_matrix/client/v3/sync'));
-    expect(chatRepository, contains('/_matrix/client/v3/rooms/'));
     expect(chatRepository, contains('RustMatrixCoreBridge'));
+    expect(chatRepository, contains('loadEncryptedRooms'));
+    expect(chatRepository, contains('loadEncryptedRoomMessages'));
+    expect(chatRepository, contains('sendEncryptedText'));
+    expect(chatRepository, isNot(contains('http.Client')));
+    expect(chatRepository, isNot(contains('/_matrix/client/')));
     expect(chatRepository, isNot(contains('/api/chat/conversations')));
     expect(chatRepository, isNot(contains('BackendChatRepository')));
 
@@ -203,14 +206,20 @@ void main() {
       ).readAsString();
       expect(
         securityProvider,
-        contains(
-          'Diagnostic-only Matrix E2EE/security seam through the Rust core boundary',
-        ),
+        contains('Matrix E2EE device, verification, and recovery'),
       );
       expect(
         securityProvider,
-        contains('Direct Matrix SDK crypto is intentionally absent'),
+        contains('matrixCryptoSessionCoordinatorProvider'),
       );
+
+      final rustManifest = await File(
+        '../rust/matrix-core/Cargo.toml',
+      ).readAsString();
+      final flutterManifest = await File('pubspec.yaml').readAsString();
+      expect(rustManifest, contains('matrix-sdk'));
+      expect(rustManifest, contains('e2e-encryption'));
+      expect(flutterManifest, isNot(contains('\n  matrix:')));
     },
   );
 

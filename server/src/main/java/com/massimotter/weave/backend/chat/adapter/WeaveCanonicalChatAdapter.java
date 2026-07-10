@@ -7,6 +7,7 @@ import com.massimotter.weave.backend.chat.domain.ChatChange;
 import com.massimotter.weave.backend.chat.domain.ChatChangeSet;
 import com.massimotter.weave.backend.chat.domain.ChatCursor;
 import com.massimotter.weave.backend.chat.domain.ChatEncryptionState;
+import com.massimotter.weave.backend.chat.domain.ChatEncryptedEnvelope;
 import com.massimotter.weave.backend.chat.domain.ChatEventContent;
 import com.massimotter.weave.backend.chat.domain.ChatEventKind;
 import com.massimotter.weave.backend.chat.domain.ChatHistoryPolicy;
@@ -47,6 +48,7 @@ public class WeaveCanonicalChatAdapter implements ChatProviderPort {
             List.of("Weave canonical history policy is independent of provider retention controls."));
 
     private final Map<String, ConversationState> conversations = new ConcurrentHashMap<>();
+    private final Map<String, ChatEncryptionState> encryptionStates = new ConcurrentHashMap<>();
     private final Map<String, ChatTimelineEvent> transactions = new ConcurrentHashMap<>();
     private final Map<String, ChatConversation> conversationTransactions = new ConcurrentHashMap<>();
     private final Map<String, ChatReadReceipt> readReceipts = new ConcurrentHashMap<>();
@@ -71,6 +73,7 @@ public class WeaveCanonicalChatAdapter implements ChatProviderPort {
                 "sent",
                 false));
         conversations.put(general.conversationId(), general);
+        encryptionStates.put(general.conversationId(), ChatEncryptionState.unencrypted());
         changes.add(new ChatChange(
                 1,
                 "message.created",
@@ -189,6 +192,13 @@ public class WeaveCanonicalChatAdapter implements ChatProviderPort {
             ChatEventContent content) {
         ConversationState conversation = requireConversation(conversationId.value());
         requireJoined(conversation, actorRef);
+        ChatEncryptionState encryptionState = encryptionState(conversation.conversationId());
+        if (encryptionState.encrypted() && content.kind() != ChatEventKind.ENCRYPTED) {
+            throw new IllegalArgumentException("plaintext Chat events are forbidden after room encryption is enabled");
+        }
+        if (!encryptionState.encrypted() && content.kind() == ChatEventKind.ENCRYPTED) {
+            throw new IllegalArgumentException("encrypted Chat events require room encryption state");
+        }
         String transactionKey = conversationId.value() + ":" + transactionId.value();
         return transactions.computeIfAbsent(transactionKey, ignored -> {
             String eventId = "event-" + UUID.nameUUIDFromBytes(transactionKey.getBytes(StandardCharsets.UTF_8));
@@ -254,6 +264,7 @@ public class WeaveCanonicalChatAdapter implements ChatProviderPort {
                     memberships,
                     new CopyOnWriteArrayList<>());
             conversations.put(conversationId, state);
+            encryptionStates.put(conversationId, ChatEncryptionState.unencrypted());
             revision.incrementAndGet();
             return conversation(state, actorRef);
         });
@@ -278,6 +289,26 @@ public class WeaveCanonicalChatAdapter implements ChatProviderPort {
     @Override
     public ChatConversation conversation(ChatActorRef actorRef, ConversationId conversationId) {
         return conversation(requireConversation(conversationId.value()), actorRef);
+    }
+
+    @Override
+    public ChatConversation enableEncryption(
+            ChatActorRef actorRef,
+            ConversationId conversationId,
+            String algorithm) {
+        ConversationState conversation = requireConversation(conversationId.value());
+        requireJoined(conversation, actorRef);
+        if (!ChatEncryptedEnvelope.MEGOLM_V1.equals(algorithm)) {
+            throw new IllegalArgumentException("canonical Chat encryption algorithm is unsupported");
+        }
+        encryptionStates.compute(conversationId.value(), (ignored, existing) -> {
+            if (existing != null && existing.encrypted() && !existing.mode().equals(algorithm)) {
+                throw new IllegalArgumentException("canonical Chat encryption cannot be changed or disabled");
+            }
+            return ChatEncryptionState.matrixMegolm();
+        });
+        revision.incrementAndGet();
+        return conversation(conversation, actorRef);
     }
 
     @Override
@@ -348,7 +379,7 @@ public class WeaveCanonicalChatAdapter implements ChatProviderPort {
                 ChatMemberState.READY,
                 "Chat is available through the Weave workspace.",
                 updatedAt,
-                ChatEncryptionState.unencrypted(),
+                encryptionState(state.conversationId()),
                 HISTORY_POLICY,
                 memberships,
                 List.of());
@@ -374,6 +405,10 @@ public class WeaveCanonicalChatAdapter implements ChatProviderPort {
                 event.redacted() ? "" : event.content().body(),
                 event.deliveryState(),
                 List.of());
+    }
+
+    private ChatEncryptionState encryptionState(String conversationId) {
+        return encryptionStates.getOrDefault(conversationId, ChatEncryptionState.unencrypted());
     }
 
     private void recordChange(ConversationId conversationId, ChatTimelineEvent event, String kind) {

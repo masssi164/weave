@@ -5204,8 +5204,8 @@
           "path": "client/test/features/chat/data/repositories/weave_matrix_facade_chat_repository_test.dart",
           "fragments": [
             "MATRIX_CONNECT_CONTRACT",
-            "connect validates the OIDC-gated Rust Matrix facade",
-            "https://api.weave.test/_matrix/client/versions"
+            "connect opens the OIDC-gated encrypted Rust session",
+            "cryptoSession.synchronizeValues"
           ]
         },
         {
@@ -5230,9 +5230,9 @@
         {
           "path": "client/test/features/chat/data/repositories/weave_matrix_facade_chat_repository_test.dart",
           "fragments": [
-            "maps Matrix sync rooms from the Weave facade into chat entities",
+            "maps only Rust-projected encrypted rooms into chat entities",
             "MATRIX_SPACES_ROOMS_CONTRACT",
-            "Hello from the Matrix facade"
+            "RustMatrixEncryptedRoom"
           ]
         }
       ]
@@ -5251,8 +5251,8 @@
           "path": "client/test/features/chat/data/repositories/weave_matrix_facade_chat_repository_test.dart",
           "fragments": [
             "MATRIX_MESSAGE_CONTRACT",
-            "sends through Matrix facade and reads room messages",
-            "ChatMessageDeliveryState.sent"
+            "send, decrypt, and receipt stay inside the Rust Matrix core",
+            "bridge.sentMessages"
           ]
         },
         {
@@ -5307,7 +5307,7 @@
           "path": "client/test/features/chat/data/repositories/weave_matrix_facade_chat_repository_test.dart",
           "fragments": [
             "markRoomRead",
-            "receipt/m.read",
+            "bridge.receipts",
             "isMine"
           ]
         },
@@ -5335,9 +5335,9 @@
           "path": "client/test/features/chat/data/repositories/rust_matrix_core_chat_security_repository_test.dart",
           "fragments": [
             "MATRIX_E2EE_STATE_CONTRACT",
-            "fails E2EE state closed until the Rust bridge owns it",
-            "ChatDeviceVerificationState.unavailable",
-            "Rust Matrix core Flutter bridge"
+            "maps SDK recovery, cross-signing, and encrypted-room state",
+            "ChatDeviceVerificationState.verified",
+            "ChatRoomEncryptionReadiness.ready"
           ]
         }
       ]
@@ -6147,6 +6147,125 @@
           ]
         }
       ]
+    },
+    {
+      "tag": "@matrix-e2ee-ciphertext-only",
+      "scenario": "Encrypted room content is opaque to the server",
+      "feature": "e2e/features/chat_matrix_e2ee.feature",
+      "executableTest": "client/integration_test/matrix_e2ee_live_e2e_test.dart",
+      "evidenceMarkers": [
+        "MATRIX_E2EE_CIPHERTEXT_ONLY"
+      ],
+      "evidenceMode": "live-runtime",
+      "additionalEvidence": [
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
+          "fragments": [
+            "encryptedRoomRejectsPlaintextAndProjectsOpaqueCiphertext",
+            "m.room.encrypted",
+            "MATRIX_E2EE_CIPHERTEXT_ONLY"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@matrix-e2ee-iphone-relaunch",
+      "scenario": "Closing and updating the iPhone preserves encrypted chat state",
+      "feature": "e2e/features/chat_matrix_e2ee.feature",
+      "executableTest": "client/integration_test/matrix_e2ee_live_e2e_test.dart",
+      "evidenceMarkers": [
+        "MATRIX_E2EE_IPHONE_RELAUNCH"
+      ],
+      "evidenceMode": "live-runtime",
+      "additionalEvidence": [
+        {
+          "path": "client/test/integrations/rust_matrix_core/data/services/matrix_crypto_session_coordinator_test.dart",
+          "fragments": [
+            "MATRIX_E2EE_IPHONE_RELAUNCH",
+            "app relaunch restores the same profile, device, and crypto store",
+            "disposePreservingCryptoState"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@matrix-e2ee-two-device-verification",
+      "scenario": "A member verifies a second device accessibly",
+      "feature": "e2e/features/chat_matrix_e2ee.feature",
+      "executableTest": "client/integration_test/matrix_e2ee_live_e2e_test.dart",
+      "evidenceMarkers": [
+        "MATRIX_E2EE_TWO_DEVICE_VERIFIED"
+      ],
+      "evidenceMode": "live-runtime",
+      "additionalEvidence": [
+        {
+          "path": "client/test/features/chat/presentation/widgets/chat_security_settings_section_test.dart",
+          "fragments": [
+            "announces SAS emoji labels and numbers accessibly",
+            "find.bySemanticsLabel",
+            "Emoji match"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@matrix-e2ee-recovery",
+      "scenario": "Recovery restores encrypted history on a new device",
+      "feature": "e2e/features/chat_matrix_e2ee.feature",
+      "executableTest": "client/integration_test/matrix_e2ee_live_e2e_test.dart",
+      "evidenceMarkers": [
+        "MATRIX_E2EE_RECOVERY_RESTORED"
+      ],
+      "evidenceMode": "live-runtime",
+      "additionalEvidence": [
+        {
+          "path": "client/lib/features/chat/data/repositories/rust_matrix_core_chat_security_repository.dart",
+          "fragments": [
+            "restoreSecurity",
+            "recoveryKeyOrPassphrase",
+            "ChatKeyBackupState.ready"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@matrix-e2ee-lost-device",
+      "scenario": "Revoking a lost device preserves encryption for remaining devices",
+      "feature": "e2e/features/chat_matrix_e2ee.feature",
+      "executableTest": "client/integration_test/matrix_e2ee_live_e2e_test.dart",
+      "evidenceMarkers": [
+        "MATRIX_E2EE_LOST_DEVICE_REVOKED"
+      ],
+      "evidenceMode": "live-runtime",
+      "additionalEvidence": [
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
+          "fragments": [
+            "keyLifecycleToDeviceSyncAndLostDeviceRevocationAreDeviceScoped",
+            "M_UNKNOWN_TOKEN"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@matrix-e2ee-provider-switch",
+      "scenario": "Provider replacement accounts for encrypted history",
+      "feature": "e2e/features/chat_matrix_e2ee.feature",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/chat/adapter/WeaveCanonicalChatAdapterTest.java",
+      "evidenceMarkers": [
+        "MATRIX_E2EE_PROVIDER_SWITCH_BLOCKED"
+      ],
+      "evidenceMode": "offline-spec"
+    },
+    {
+      "tag": "@matrix-e2ee-fail-closed-client",
+      "scenario": "A client without E2EE capability cannot downgrade a room",
+      "feature": "e2e/features/chat_matrix_e2ee.feature",
+      "executableTest": "client/test/features/chat/data/repositories/weave_matrix_facade_chat_repository_test.dart",
+      "evidenceMarkers": [
+        "MATRIX_E2EE_CLIENT_FAILS_CLOSED"
+      ],
+      "evidenceMode": "offline-spec"
     }
   ]
 }

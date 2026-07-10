@@ -2,7 +2,8 @@ package com.massimotter.weave.backend.chat.domain;
 
 public enum ChatEventKind {
     MESSAGE("message"),
-    REACTION("reaction");
+    REACTION("reaction"),
+    ENCRYPTED("encrypted");
 
     private final String value;
 

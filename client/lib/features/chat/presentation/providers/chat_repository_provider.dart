@@ -3,7 +3,7 @@ import 'package:weave/features/auth/presentation/providers/auth_session_reposito
 import 'package:weave/features/chat/data/repositories/weave_matrix_facade_chat_repository.dart';
 import 'package:weave/features/chat/domain/repositories/chat_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
-import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
+import 'package:weave/integrations/rust_matrix_core/presentation/providers/matrix_crypto_session_provider.dart';
 
 /// Release chat flows use the Matrix Client-Server projection as the chat data plane.
 ///
@@ -16,6 +16,8 @@ final chatRepositoryProvider = Provider<ChatRepository>((ref) {
       serverConfigurationRepositoryProvider,
     ),
     authSessionRepository: ref.watch(authSessionRepositoryProvider),
-    httpClient: ref.watch(weaveApiHttpClientProvider),
+    matrixCryptoSessionCoordinator: ref.watch(
+      matrixCryptoSessionCoordinatorProvider,
+    ),
   );
 });

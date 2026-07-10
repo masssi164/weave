@@ -246,8 +246,8 @@ public class OrganizationManifestService {
                 "/api/calendar",
                 "Calendar",
                 List.of(
-                        surface("openapi", "Weave Calendar API", "/api/calendar", "available",
-                                "Primary generated contract for Weave clients, Admin Console setup/status, and MCP route allowlists."),
+                        surface("openapi", "Weave Calendar control API", "/api/calendar", "control_plane_available",
+                                "Generated contract for discovery, policy, setup, and credential lifecycle; Calendar event data-plane operations belong to the CalDAV/iCalendar facade."),
                         surface("standard-protocol", "Weave CalDAV/iCalendar projection", "/caldav", "data_plane_read_write_available",
                                 "Discovery, query, multiget, sync, free-busy, event reads/writes, recurrence, and scoped device credentials run through Weave policy and canonical events."),
                         surface("native-os", "iOS CalDAV profile and Android SyncAdapter setup", "/api/calendar/native-sync-setup", "contract_ready_implementation_blocked",
@@ -270,10 +270,10 @@ public class OrganizationManifestService {
                 "/api/chat",
                 "Chat domain",
                 List.of(
-                        surface("openapi", "Weave Chat API", "/api/chat", "available",
-                                "Primary product API for Weave conversations, messages, membership, readiness, decisions, and governed writes."),
-                        surface("standard-protocol", "Matrix-compatible transport and federation projection", "/_matrix/client", "governed_later",
-                                "Matrix may back encrypted rooms and federation, but Weave Chat remains product truth and federation stays policy-gated."),
+                        surface("openapi", "Weave Chat control and context API", "/api/chat", "control_plane_available",
+                                "Generated contract for readiness, decisions, meeting capsules, Weaver context, and migration review; conversation/message data-plane operations belong to the Matrix Client-Server facade."),
+                        surface("standard-protocol", "Weave Matrix Client-Server projection", "/_matrix/client", "encrypted_data_plane_available",
+                                "OIDC-gated room sync, encrypted timelines, sends, receipts, verification, and recovery project the canonical Chat domain through the client-owned Rust crypto core; federation stays disabled by default."),
                         surface("mcp", "Governed Chat MCP tools", null, "planned_allowlist",
                                 "MCP receives semantic Weave chat operations, consented summaries, and decision references rather than raw Matrix access.")),
                 credentialLifecycle(
