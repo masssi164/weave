@@ -9,11 +9,18 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/live-stack-e2e.yml"
 DOCS = ROOT / "docs/quality-and-evidence.md"
+CLIENT_BRIDGE = (
+    ROOT
+    / "client/lib/integrations/rust_matrix_core/data/services/rust_matrix_core_bridge.dart"
+)
+CLIENT_MAKEFILE = ROOT / "client/Makefile"
 
 
 def main() -> int:
     workflow = WORKFLOW.read_text(encoding="utf-8")
     docs = DOCS.read_text(encoding="utf-8")
+    client_bridge = CLIENT_BRIDGE.read_text(encoding="utf-8")
+    client_makefile = CLIENT_MAKEFILE.read_text(encoding="utf-8")
 
     ordered_steps = (
         "- name: Verify dedicated live runner",
@@ -64,6 +71,19 @@ def main() -> int:
         'echo "WEAVE_MATRIX_EXTRA_ROOT_CERTIFICATE_PATH=$CA_FILE" >> "$GITHUB_ENV"'
         in workflow,
         "live-stack Rust TLS must receive the generated CA without mutating Keychains",
+    )
+    require(
+        'echo "WEAVE_MATRIX_LIVE_TEST_EXTRA_ROOT_ENABLED=true" >> "$GITHUB_ENV"'
+        in workflow,
+        "live-stack workflow must explicitly enable the compile-time extra-root gate",
+    )
+    require(
+        "const _matrixLiveTestExtraRootEnabled = bool.fromEnvironment(" in client_bridge,
+        "Matrix extra-root loading must default off at compile time",
+    )
+    require(
+        '\\"WEAVE_MATRIX_LIVE_TEST_EXTRA_ROOT_ENABLED\\": ' in client_makefile,
+        "live tests must forward the compile-time extra-root gate as a dart-define",
     )
 
     for forbidden in (

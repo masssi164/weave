@@ -8,6 +8,10 @@ import 'rust_matrix_core_external_library.dart';
 
 const _matrixExtraRootCertificatePathEnvironmentKey =
     'WEAVE_MATRIX_EXTRA_ROOT_CERTIFICATE_PATH';
+const _matrixLiveTestExtraRootEnabled = bool.fromEnvironment(
+  'WEAVE_MATRIX_LIVE_TEST_EXTRA_ROOT_ENABLED',
+  defaultValue: false,
+);
 const _maximumExtraRootCertificateBytes = 64 * 1024;
 
 class RustMatrixCoreBridgeException implements Exception {
@@ -266,6 +270,9 @@ class RustMatrixCoreBridge {
   }
 
   Future<String> _loadExtraRootCertificatePem() async {
+    if (!_matrixLiveTestExtraRootEnabled) {
+      return '';
+    }
     final path =
         Platform.environment[_matrixExtraRootCertificatePathEnvironmentKey];
     if (path == null || path.trim().isEmpty) {

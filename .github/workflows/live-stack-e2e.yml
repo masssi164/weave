@@ -295,6 +295,7 @@ jobs:
           fi
           openssl verify -CAfile "$CA_FILE" "$LEAF_FILE"
           echo "WEAVE_MATRIX_EXTRA_ROOT_CERTIFICATE_PATH=$CA_FILE" >> "$GITHUB_ENV"
+          echo "WEAVE_MATRIX_LIVE_TEST_EXTRA_ROOT_ENABLED=true" >> "$GITHUB_ENV"
 
       - name: Install Flutter dependencies
         working-directory: weave/client
