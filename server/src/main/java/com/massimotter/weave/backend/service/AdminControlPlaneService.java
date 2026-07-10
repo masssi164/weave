@@ -2095,13 +2095,13 @@ public class AdminControlPlaneService {
                 null,
                 "not_revoked",
                 null,
-                List.of("audit://weaver/pa-chat/bridge-roundtrip"),
+                List.of("audit://weaver/matrix-facade/runtime-profile"),
                 List.of(new WeaverRuntimeProfileChangeResponse(
-                        "sprint-14-pa-chat",
+                        "matrix-mcp-cutover",
                         "runtime-profile-hash-pending-live-regeneration",
                         Instant.now(clock).toString(),
                         "draft",
-                        "Admin-selected model provider is projected into Weaver aliases without exposing provider secrets to members.")));
+                        "Stock Matrix and Spring AI MCP are projected without exposing provider secrets to members.")));
     }
 
     private String readinessFor(String category, ProviderRegistryResponse registry) {

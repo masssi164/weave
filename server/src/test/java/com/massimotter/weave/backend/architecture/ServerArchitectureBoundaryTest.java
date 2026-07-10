@@ -284,6 +284,19 @@ class ServerArchitectureBoundaryTest {
     }
 
     @Test
+    void obsoletePaChatTransportCannotReturnToProductionSources() throws IOException {
+        String production = productionSources().stream()
+                .map(JavaSource::text)
+                .collect(java.util.stream.Collectors.joining("\n"));
+
+        assertThat(production)
+                .doesNotContain("WeaverPaChat")
+                .doesNotContain("channels.weave-chat")
+                .doesNotContain("WEAVE_WEAVER_PA_CHAT")
+                .doesNotContain("weaver.pa_chat.turn_completed");
+    }
+
+    @Test
     void matrixProtocolCoreBoundaryDefinesRustJniAndFlutterBridgeTarget() throws IOException {
         JavaSource matrixCore = productionSources().stream()
                 .filter(source -> source.path().endsWith(Path.of("matrix", "MatrixProtocolCoreService.java")))

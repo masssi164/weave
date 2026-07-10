@@ -10,16 +10,16 @@ Weave keeps two planes separate:
 
 | Plane | Owner | Purpose | Support-safe ids in proof |
 | --- | --- | --- | --- |
-| Channel plane | Weave Chat / Weaver `weave-chat` channel | Member message, approval prompt, plain-language approval status, and user-facing reply/hint. | `channel:weave-chat-general`, `conversation:weaver-consent-demo`, `message:member-request-001`, `turn:weaver-852-001` |
+| Channel plane | Weave Matrix facade / OpenClaw stock `matrix` channel | Member message, approval prompt, plain-language approval status, and user-facing reply/hint. | `channel:general`, `conversation:weaver-consent-demo`, `message:member-request-001`, `turn:weaver-852-001` |
 | Tool/MCP plane | Weave MCP server and domain tool registry | Runtime tool discovery/invocation, scoped grants, policy checks, `ApprovalReceipt` validation, and audit. | `mcp-server:weave-domain-tools`, `tool:chat.send_message`, `approval:chat-send:32:001`, `audit://weaver-tool/chat.send_message/*` |
 
-`chat.send_message` is tested only as a governed post-turn domain tool. It is not an inbound user-to-agent channel transport. The inbound user path remains the `channels.weave-chat` channel projection, and MCP server projection is marked `routingPlaneSeparated=true`.
+`chat.send_message` is tested only as a governed post-turn domain tool. It is not an inbound user-to-agent channel transport. The inbound user path is OpenClaw's stock `channels.matrix` projection against the OIDC-gated Weave Matrix facade, and MCP server projection is marked `routingPlaneSeparated=true`.
 
 ## Channel-plane UX evidence
 
 The #852 harness models the user-facing consent step as a Weave Chat approval hint/status, not an MCP prompt:
 
-- Plain-language prompt: “Send this message to `channel:weave-chat-general` in `space:control-room`?”
+- Plain-language prompt: “Send this message to `channel:general` in `space:control-room`?”
 - Status states: `approval required`, `approved`, `denied`, `expired`, `revoked`, `already used`, and `temporarily unavailable`.
 - Accessibility constraint: each state is asserted as text/status evidence and must not rely on color alone.
 - Correlation constraint: channel `message:*` and `turn:*` ids are distinct from `approval:*`, `mcp-server:*`, `tool:*`, and `audit://*` ids.
@@ -51,7 +51,7 @@ The approved path validates actor, action, scope refs, policy version, expiry, a
 
 ## Redaction and support-safety
 
-Evidence may include support-safe refs such as `space:control-room`, `channel:weave-chat-general`, `approval:chat-send:32:001`, and `audit://weaver-tool/chat.send_message/invoked`.
+Evidence may include support-safe refs such as `space:control-room`, `channel:general`, `approval:chat-send:32:001`, and `audit://weaver-tool/chat.send_message/invoked`.
 
 Evidence must not include secrets, raw provider ids, raw external payloads, prompts/private memory, tokens, credential-bearing URLs, `openclaw.json`, or provider endpoint details. Tests assert redacted results and audit payloads avoid those strings.
 
@@ -67,6 +67,6 @@ Proven:
 
 Not proven:
 
-- Live OpenClaw/Weaver channel plugin execution against a real provider.
+- Credentialed live-stack OpenClaw execution through the Weave Matrix facade against a configured southbound provider.
 - Manual assistive-technology signoff or broad customer-ready accessibility.
 - Production cutover, broad Weaver availability, or public GA readiness.

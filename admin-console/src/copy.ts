@@ -144,7 +144,7 @@ export const adminConsoleMessages = {
       'Admin Console is the source of Weaver Chat, model, tool, skill, and MCP distribution policy. RuntimeProfile regeneration is blocked until readiness, migration, effective policy, revocation, and audit consequences are visible before apply.',
     weaverChatProviderLabel: 'Weaver Chat-domain provider',
     weaverChatProviderHelper:
-      'Members keep stable channels.weave-chat; this selects backend Chat routing/providerRef for profile vNext.',
+      'Members keep the stable channels.matrix facade; this selects backend Chat routing/providerRef for profile vNext.',
     weaverModelAliasesLabel: 'Model aliases (alias=provider/model selectable|locked)',
     weaverDefaultModelLabel: 'Default model alias',
     weaverFallbackModelsLabel: 'Fallback model aliases',
@@ -322,7 +322,7 @@ export const adminConsoleMessages = {
       'Die Admin-Konsole ist Source of Truth für Weaver Chat-, Modell-, Tool-, Skill- und MCP-Verteilungsrichtlinien. RuntimeProfile-Regeneration bleibt blockiert, bis Bereitschaft, Migration, wirksame Richtlinie, Widerruf und Audit-Konsequenzen vor Apply sichtbar sind.',
     weaverChatProviderLabel: 'Weaver Chat-Domain-Provider',
     weaverChatProviderHelper:
-      'Mitglieder behalten stabile channels.weave-chat; dies wählt Backend-Chat-Routing/providerRef für profile vNext.',
+      'Mitglieder behalten die stabile channels.matrix-Fassade; dies wählt Backend-Chat-Routing/providerRef für profile vNext.',
     weaverModelAliasesLabel: 'Modell-Aliase (alias=provider/model selectable|locked)',
     weaverDefaultModelLabel: 'Standardmodell-Alias',
     weaverFallbackModelsLabel: 'Fallback-Modell-Aliase',

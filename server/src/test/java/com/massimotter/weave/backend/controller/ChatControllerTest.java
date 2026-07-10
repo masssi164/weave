@@ -34,27 +34,18 @@ import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
 import com.massimotter.weave.backend.context.authz.ContextPermission;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
-import com.massimotter.weave.backend.provider.InMemoryProviderSelectionRepository;
-import com.massimotter.weave.backend.provider.ProviderSelection;
-import com.massimotter.weave.backend.provider.ProviderSelectionRepository;
 import com.massimotter.weave.backend.service.ChatFacadeService;
-import com.massimotter.weave.backend.service.WeaverPaChatClient;
-import com.massimotter.weave.backend.service.WeaverPaChatTurnRequest;
-import com.massimotter.weave.backend.service.WeaverPaChatTurnResult;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
 import org.springframework.boot.autoconfigure.security.oauth2.resource.servlet.OAuth2ResourceServerAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
@@ -73,7 +64,6 @@ import org.springframework.test.web.servlet.MockMvc;
         ApiErrorResponseWriter.class,
         ApiExceptionHandler.class,
         WorkspaceCapabilityService.class,
-        ChatControllerTest.PaWeaverTestClientConfiguration.class,
         ChatFacadeService.class
 })
 @TestPropertySource(properties = {
@@ -113,47 +103,6 @@ class ChatControllerTest {
 
     @MockBean
     private ChatDomainFacadeService chatDomainFacadeService;
-
-    private static final AtomicReference<WeaverPaChatTurnRequest> LAST_PA_WEAVER_REQUEST = new AtomicReference<>();
-
-    @TestConfiguration
-    static class PaWeaverTestClientConfiguration {
-        @Bean
-        ProviderSelectionRepository providerSelectionRepository() {
-            InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
-            selections.save(new ProviderSelection(
-                    "model",
-                    "custom-lmstudio",
-                    "recommended_self_hosted_default",
-                    "secretref://weave/provider/custom-lmstudio",
-                    "actor:admin",
-                    Instant.parse("2026-05-25T10:00:00Z"),
-                    true,
-                    true,
-                    false,
-                    List.of()));
-            return selections;
-        }
-
-        @Bean
-        WeaverPaChatClient weaverPaChatClient() {
-            return request -> {
-                LAST_PA_WEAVER_REQUEST.set(request);
-                return new WeaverPaChatTurnResult(
-                        true,
-                        true,
-                        "PA Weaver returned a test LM Studio answer through channels.weave-chat.",
-                        request.modelRef(),
-                        request.providerRef(),
-                        "audit://weaver/pa-chat/test-roundtrip",
-                        Map.of(
-                                "channelId", request.channelId(),
-                                "modelRef", request.modelRef(),
-                                "rawProviderDiagnosticsExposed", false,
-                                "supportSafe", true));
-            };
-        }
-    }
 
     @Test
     void memberReadinessExposesOnlyStableProductState() throws Exception {
