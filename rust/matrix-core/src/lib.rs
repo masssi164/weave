@@ -208,7 +208,7 @@ struct MatrixEvent {
 }
 
 #[derive(Debug, Clone, Serialize)]
-struct MatrixRoomMemberEvent {
+struct MatrixRoomEvent {
     #[serde(flatten)]
     event: MatrixEvent,
     room_id: String,
@@ -574,7 +574,7 @@ fn joined_rooms_value(
         .map(|conversation| {
             matrix_room_id(&conversation.conversation_id, server_name).map(|id| id.to_string())
         })
-        .collect::<Result<Vec<_>, _>>()?;
+        .collect::<Result<Vec<_>, MatrixCoreError>>()?;
     Ok(json!({ "joined_rooms": rooms }))
 }
 
@@ -586,11 +586,18 @@ fn messages_value(
         .conversations
         .first()
         .ok_or(MatrixCoreError::InvalidRequest)?;
+    let room_id = matrix_room_id(&conversation.conversation_id, server_name)?.to_string();
     let events = conversation
         .messages
         .iter()
-        .map(|message| message_event(message, server_name))
-        .collect::<Result<Vec<_>, _>>()?;
+        .map(|message| {
+            Ok(MatrixRoomEvent {
+                event: message_event(message, server_name)?,
+                room_id: room_id.clone(),
+                unsigned: BTreeMap::new(),
+            })
+        })
+        .collect::<Result<Vec<_>, MatrixCoreError>>()?;
     Ok(json!({
         "start": input.since.clone().unwrap_or_else(|| encode_sync_token("start")),
         "end": encode_sync_token(&input.cursor),
@@ -611,7 +618,7 @@ fn members_value(
         .memberships
         .iter()
         .map(|membership| {
-            Ok(MatrixRoomMemberEvent {
+            Ok(MatrixRoomEvent {
                 event: membership_event(conversation, membership, server_name)?,
                 room_id: room_id.clone(),
                 unsigned: BTreeMap::new(),
@@ -1600,6 +1607,25 @@ mod tests {
         assert_eq!(member["state_key"], "@alice:matrix.weave.test");
         assert_eq!(member["room_id"], "!channel-general:matrix.weave.test");
         assert_eq!(member["content"]["membership"], "join");
+    }
+
+    #[test]
+    fn messages_projection_is_a_typed_ruma_response() {
+        use ruma::{events::AnyTimelineEvent, serde::Raw};
+
+        #[derive(Deserialize)]
+        struct MessagesResponse {
+            chunk: Vec<Raw<AnyTimelineEvent>>,
+        }
+
+        let json = project_json(
+            "messages".to_string(),
+            canonical_input(),
+            "matrix.weave.test".to_string(),
+        )
+        .unwrap();
+        let response: MessagesResponse = serde_json::from_str(&json).unwrap();
+        response.chunk[0].deserialize().unwrap();
     }
 
     #[test]

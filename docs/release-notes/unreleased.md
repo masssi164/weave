@@ -23,7 +23,7 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Fixed
 
-- Makes Live Stack E2E reclaim only its restorable Flutter tool cache when the dedicated runner remains below the 10 GiB preflight, and retains support-safe Rust phase codes when encrypted room or timeline loading fails.
+- Makes Live Stack E2E reclaim only its restorable Flutter tool cache when the dedicated runner remains below the 10 GiB preflight, retains support-safe Rust phase codes when encrypted room or timeline loading fails, and emits Ruma-valid full room events from the Matrix `/messages` facade.
 - Adds the Ruma `GET /_matrix/client/v3/rooms/{roomId}/members` projection required by the Rust Matrix SDK before encrypted send, using canonical Chat memberships without exposing a provider homeserver.
 - Makes the dedicated Live Stack E2E runner self-maintaining with a 10 GiB initial gate and a 5 GiB pre-test gate that preserves 4 GiB usable headroom plus a monitored 1 GiB recovery reserve, complete targeted stack teardown, sandbox-safe generated public CA injection into Rust without Keychain mutation or disabled TLS validation, and generated-output scrubbing after support-safe acceptance evidence upload.
 - Normalizes Nextcloud WebDAV non-finite quota values at the provider adapter boundary so unlimited, unknown, or uncomputed storage no longer breaks the OIDC-gated Files facade with HTTP 502.
