@@ -61,6 +61,10 @@ def main() -> int:
         "live-stack Rust TLS must trust the generated CA without disabling validation",
     )
     require(
+        'awk -v stale="$trust_keychain"' in workflow,
+        "live-stack trust setup must exclude a stale job keychain from the saved search list",
+    )
+    require(
         'security verify-cert -c "$LEAF_FILE" -p ssl -s api.weave.test' in workflow,
         "live-stack trust setup must verify the API leaf before Rust tests",
     )

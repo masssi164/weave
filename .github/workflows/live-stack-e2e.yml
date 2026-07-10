@@ -297,8 +297,9 @@ jobs:
           fi
           security list-keychains -d user \
             | sed -E 's/^[[:space:]]*"//; s/"[[:space:]]*$//' \
+            | awk -v stale="$trust_keychain" '$0 != stale' \
             > "$keychain_list"
-          rm -f "$trust_keychain"
+          security delete-keychain "$trust_keychain" >/dev/null 2>&1 || rm -f "$trust_keychain"
           echo "WEAVE_LIVE_TRUST_KEYCHAIN=$trust_keychain" >> "$GITHUB_ENV"
           echo "WEAVE_LIVE_TRUST_KEYCHAIN_LIST=$keychain_list" >> "$GITHUB_ENV"
           keychain_password="weave-live-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
