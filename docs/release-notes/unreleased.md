@@ -23,7 +23,7 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Fixed
 
-- Makes the dedicated Live Stack E2E runner self-maintaining by removing stale Weave build outputs before its 6 GiB headroom gate, supplying the generated public CA to Rust as an explicit live-test root without mutating macOS Keychains or disabling TLS validation, and scrubbing current generated outputs only after support-safe acceptance evidence is uploaded.
+- Makes the dedicated Live Stack E2E runner self-maintaining with 10 GiB initial and 4 GiB native-test headroom gates, a monitored 1 GiB recovery reserve, complete targeted stack teardown, generated public CA injection into Rust without Keychain mutation or disabled TLS validation, and generated-output scrubbing after support-safe acceptance evidence upload.
 - Normalizes Nextcloud WebDAV non-finite quota values at the provider adapter boundary so unlimited, unknown, or uncomputed storage no longer breaks the OIDC-gated Files facade with HTTP 502.
 - Omits one-time DAV secret fields entirely after credential creation across Files and Calendar list/revoke responses, preserving the revocable native-client contract without serializing credential placeholders.
 

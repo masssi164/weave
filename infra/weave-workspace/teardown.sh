@@ -21,6 +21,8 @@ readonly WEAVE_CONTAINERS=(
   weave-synapse
   weave-nextcloud
   weave-db
+  weave-mcp-server
+  weave-mailpit
 )
 readonly WEAVE_VOLUMES=(
   weave_caddy_data
