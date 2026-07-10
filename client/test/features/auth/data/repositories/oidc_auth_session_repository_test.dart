@@ -164,6 +164,60 @@ void main() {
       );
     });
 
+    test(
+      'temporary refresh failure preserves the device-bound session',
+      () async {
+        final expiredSession = buildTestAuthSession(
+          expiresAt: DateTime.now().toUtc().subtract(
+            const Duration(minutes: 5),
+          ),
+        );
+        await secureStore.write(
+          authSessionStorageKey,
+          AuthSessionDto.fromSession(expiredSession).encode(),
+        );
+        oidcClient.refreshHandler = (configuration, refreshToken) async {
+          throw const AuthFailure.unknown('Identity service is unreachable.');
+        };
+
+        await expectLater(
+          repository.restoreSession(configuration),
+          throwsA(
+            isA<AuthFailure>().having(
+              (failure) => failure.type,
+              'type',
+              AuthFailureType.unknown,
+            ),
+          ),
+        );
+
+        expect(
+          await secureStore.read(authSessionStorageKey),
+          contains('refresh-token'),
+        );
+      },
+    );
+
+    test('rejected refresh grant clears the unusable local session', () async {
+      final expiredSession = buildTestAuthSession(
+        expiresAt: DateTime.now().toUtc().subtract(const Duration(minutes: 5)),
+      );
+      await secureStore.write(
+        authSessionStorageKey,
+        AuthSessionDto.fromSession(expiredSession).encode(),
+      );
+      oidcClient.refreshHandler = (configuration, refreshToken) async {
+        throw const AuthFailure.sessionRejected(
+          'The saved session is no longer valid.',
+        );
+      };
+
+      final state = await repository.restoreSession(configuration);
+
+      expect(state.status, AuthStatus.signedOut);
+      expect(await secureStore.read(authSessionStorageKey), isNull);
+    });
+
     test('signOut clears local tokens even when end-session fails', () async {
       await secureStore.write(
         authSessionStorageKey,
