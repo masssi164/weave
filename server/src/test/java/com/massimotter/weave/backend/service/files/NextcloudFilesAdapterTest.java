@@ -113,6 +113,38 @@ class NextcloudFilesAdapterTest {
     }
 
     @Test
+    void normalizesNextcloudNonFiniteQuotaSentinelsAtTheAdapterBoundary() {
+        for (String sentinel : new String[] {"-1", "-2", "-3"}) {
+            server.expect(requestTo("https://files.example.test/remote.php/dav/files/weave-service/"))
+                    .andExpect(method(HttpMethod.valueOf("PROPFIND")))
+                    .andExpect(header("Depth", "1"))
+                    .andRespond(withStatus(HttpStatus.MULTI_STATUS)
+                            .contentType(MediaType.APPLICATION_XML)
+                            .body("""
+                                    <?xml version="1.0" encoding="utf-8" ?>
+                                    <d:multistatus xmlns:d="DAV:">
+                                      <d:response>
+                                        <d:href>/remote.php/dav/files/weave-service/</d:href>
+                                        <d:propstat><d:prop>
+                                          <d:resourcetype><d:collection /></d:resourcetype>
+                                          <d:quota-used-bytes>10</d:quota-used-bytes>
+                                          <d:quota-available-bytes>%s</d:quota-available-bytes>
+                                        </d:prop></d:propstat>
+                                      </d:response>
+                                    </d:multistatus>
+                                    """.formatted(sentinel)));
+        }
+
+        for (int index = 0; index < 3; index++) {
+            var quota = adapter.list(new FilePath("/")).listing().quota();
+
+            assertThat(quota.usedBytes()).isEqualTo(10);
+            assertThat(quota.availableBytes()).isNull();
+        }
+        server.verify();
+    }
+
+    @Test
     void exposesVersionTokensFromTheSameWebdavPropfindResponse() {
         server.expect(requestTo("https://files.example.test/remote.php/dav/files/weave-service/Team"))
                 .andExpect(method(HttpMethod.valueOf("PROPFIND")))

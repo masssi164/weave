@@ -23,7 +23,7 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Fixed
 
-- No post-`v0.1.0-rc.3` bugfix release notes yet.
+- Normalizes Nextcloud WebDAV non-finite quota values at the provider adapter boundary so unlimited, unknown, or uncomputed storage no longer breaks the OIDC-gated Files facade with HTTP 502.
 
 ## Security
 

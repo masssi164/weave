@@ -409,8 +409,13 @@ public class NextcloudFilesAdapter implements FilesProviderPort {
 
     private FileQuota quotaFrom(Element prop) {
         Long used = parseLong(childText(prop, "quota-used-bytes"));
-        Long available = parseLong(childText(prop, "quota-available-bytes"));
+        Long available = parseAvailableQuota(childText(prop, "quota-available-bytes"));
         return used == null && available == null ? FileQuota.unknown() : new FileQuota(available, used);
+    }
+
+    private Long parseAvailableQuota(String value) {
+        Long available = parseLong(value);
+        return available == null || available < 0 ? null : available;
     }
 
     private String parseVersionToken(InputStream body) {
