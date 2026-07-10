@@ -634,7 +634,11 @@ nextcloud_oidc_redirect="$(curl_location "${WEAVE_NEXTCLOUD_BASE_URL}/apps/user_
 log "Checking the OIDC-gated Weave Matrix facade..."
 matrix_facade_versions="$(curl_auth_json "${access_token}" "${WEAVE_MATRIX_HOMESERVER_URL}/_matrix/client/versions")"
 assert_json "${matrix_facade_versions}" '.matrixCore.oidcGatekeeper == "spring-boot-resource-server" and .matrixCore.northboundHomeserverDependency == false' "Weave Matrix facade should be OIDC-gated and provider-neutral"
-matrix_smoke_device_id="WEAVE_SMOKE_DEVICE"
+matrix_session_whoami="$(curl_auth_json "${access_token}" "${WEAVE_MATRIX_HOMESERVER_URL}/_matrix/client/v3/account/whoami")"
+assert_json "${matrix_session_whoami}" \
+  '.is_guest == false and (.device_id | type == "string" and length > 0) and (.user_id | startswith("@") and endswith(":'"$(public_host "${TF_VAR_api_subdomain:-api}")"'"))' \
+  "Weave Matrix facade should derive a stable device and user from the app OIDC session"
+matrix_smoke_device_id="$(jq -r '.device_id' <<<"${matrix_session_whoami}")"
 matrix_facade_whoami="$(curl_auth_json \
   "${access_token}" \
   "${WEAVE_MATRIX_HOMESERVER_URL}/_matrix/client/v3/account/whoami" \
