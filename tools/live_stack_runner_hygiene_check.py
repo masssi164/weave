@@ -87,8 +87,26 @@ def main() -> int:
         "Matrix extra-root loading must default off at compile time",
     )
     require(
-        '\\"WEAVE_MATRIX_LIVE_TEST_EXTRA_ROOT_ENABLED\\": ' in client_makefile,
-        "live tests must forward the compile-time extra-root gate as a dart-define",
+        "const _matrixLiveTestExtraRootBase64 = String.fromEnvironment("
+        in client_bridge,
+        "Matrix extra-root material must use a compile-time-only payload",
+    )
+    require(
+        "Platform.environment" not in client_bridge
+        and "File(path)" not in client_bridge,
+        "sandboxed Matrix clients must not read runner paths at runtime",
+    )
+    require(
+        client_makefile.count("WEAVE_MATRIX_LIVE_TEST_EXTRA_ROOT_BASE64") == 2,
+        "both live test define files must carry the sandbox-safe Matrix root",
+    )
+    require(
+        client_makefile.count("jq -n") == 2,
+        "live test dart-define files must use structured JSON generation",
+    )
+    require(
+        client_makefile.count('base64 < "$$matrix_extra_root_path"') == 2,
+        "live tests must encode the generated root without logging its contents",
     )
     require(
         "minimum_kib=$((5 * 1024 * 1024))" in workflow,
