@@ -280,23 +280,38 @@ jobs:
         working-directory: weave/infra/weave-workspace
         run: bash ./operator-check.sh
 
-      - name: Trust local Weave CA for this runner user
+      - name: Trust local Weave CA through a job-scoped keychain
         run: |
           set -euo pipefail
           CA_FILE="$GITHUB_WORKSPACE/weave/infra/weave-workspace/01-infrastructure/.generated/caddy/certs/weave-local-ca.pem"
+          LEAF_FILE="$GITHUB_WORKSPACE/weave/infra/weave-workspace/01-infrastructure/.generated/caddy/certs/weave.test.pem"
+          trust_keychain="$RUNNER_TEMP/weave-live-stack-trust.keychain-db"
+          keychain_list="$RUNNER_TEMP/weave-live-stack-user-keychains.txt"
           if [ ! -s "$CA_FILE" ]; then
             echo "::error::Weave local CA certificate not found at $CA_FILE"
             exit 1
           fi
-          # The login keychain can prompt/hang on the self-hosted macOS runner. Use
-          # passwordless sudo and the system keychain only; never wait for UI input.
-          if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
-            if ! sudo -n security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "$CA_FILE"; then
-              echo "::warning::Could not add Weave local CA to the system keychain; integration tests may fail TLS validation."
-            fi
-          else
-            echo "::warning::Passwordless sudo is unavailable; skipping non-interactive Weave local CA trust."
+          if [ ! -s "$LEAF_FILE" ]; then
+            echo "::error::Weave local leaf certificate not found at $LEAF_FILE"
+            exit 1
           fi
+          security list-keychains -d user \
+            | sed -E 's/^[[:space:]]*"//; s/"[[:space:]]*$//' \
+            > "$keychain_list"
+          rm -f "$trust_keychain"
+          echo "WEAVE_LIVE_TRUST_KEYCHAIN=$trust_keychain" >> "$GITHUB_ENV"
+          echo "WEAVE_LIVE_TRUST_KEYCHAIN_LIST=$keychain_list" >> "$GITHUB_ENV"
+          keychain_password="weave-live-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          security create-keychain -p "$keychain_password" "$trust_keychain"
+          security set-keychain-settings -lut 7200 "$trust_keychain"
+          security unlock-keychain -p "$keychain_password" "$trust_keychain"
+          security add-trusted-cert -r trustRoot -k "$trust_keychain" "$CA_FILE"
+          keychains=()
+          while IFS= read -r keychain; do
+            [ -n "$keychain" ] && keychains+=("$keychain")
+          done < "$keychain_list"
+          security list-keychains -d user -s "$trust_keychain" "${keychains[@]}"
+          security verify-cert -c "$LEAF_FILE" -p ssl -s api.weave.test
 
       - name: Install Flutter dependencies
         working-directory: weave/client
@@ -393,4 +408,17 @@ jobs:
               docker image rm "$image_ref" >/dev/null 2>&1 || true
             fi
           done
+          trust_keychain="${WEAVE_LIVE_TRUST_KEYCHAIN:-$RUNNER_TEMP/weave-live-stack-trust.keychain-db}"
+          keychain_list="${WEAVE_LIVE_TRUST_KEYCHAIN_LIST:-$RUNNER_TEMP/weave-live-stack-user-keychains.txt}"
+          if [ -s "$keychain_list" ]; then
+            keychains=()
+            while IFS= read -r keychain; do
+              [ -n "$keychain" ] && keychains+=("$keychain")
+            done < "$keychain_list"
+            if (( ${#keychains[@]} > 0 )); then
+              security list-keychains -d user -s "${keychains[@]}" >/dev/null
+            fi
+          fi
+          security delete-keychain "$trust_keychain" >/dev/null 2>&1 || rm -f "$trust_keychain"
+          rm -f "$keychain_list"
           df -h "$RUNNER_TEMP"

@@ -149,9 +149,10 @@ class WeaveMatrixFacadeChatRepository implements ChatRepository {
         throw const RustMatrixCoreBridgeException('M_WEAVE_MATRIX_CORE_ERROR');
       }
       await _matrixCryptoSessionCoordinator.open();
-    } on RustMatrixCoreBridgeException {
-      throw const ChatFailure.configuration(
+    } on RustMatrixCoreBridgeException catch (error) {
+      throw ChatFailure.configuration(
         'The encrypted Matrix facade is not compatible with this Weave client.',
+        cause: error,
       );
     }
   }

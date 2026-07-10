@@ -20,6 +20,7 @@ def main() -> int:
         "- name: Remove stale runner-owned Weave outputs",
         "- name: Check out weave",
         "- name: Verify runner disk headroom",
+        "- name: Trust local Weave CA through a job-scoped keychain",
         "- name: Run live stack integration tests",
         "- name: Generate live stack acceptance evidence",
         "- name: Generate support-safe failure diagnostics",
@@ -54,6 +55,19 @@ def main() -> int:
         'if [[ "$image_ref" != ghcr.io/* ]]' in finalizer,
         "finalizer must preserve pulled registry images",
     )
+    require(
+        'security add-trusted-cert -r trustRoot -k "$trust_keychain" "$CA_FILE"'
+        in workflow,
+        "live-stack Rust TLS must trust the generated CA without disabling validation",
+    )
+    require(
+        'security verify-cert -c "$LEAF_FILE" -p ssl -s api.weave.test' in workflow,
+        "live-stack trust setup must verify the API leaf before Rust tests",
+    )
+    require(
+        'security delete-keychain "$trust_keychain"' in finalizer,
+        "live-stack finalizer must remove the job-scoped trust keychain",
+    )
 
     for forbidden in (
         "docker system prune",
@@ -68,6 +82,7 @@ def main() -> int:
     for phrase in (
         "stale Weave-generated outputs",
         "6 GiB",
+        "temporary job-scoped keychain",
         "after acceptance evidence upload",
         "unrelated containers, volumes, Keychains, signing identities, or physical-device data",
     ):
