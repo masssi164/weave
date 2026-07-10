@@ -13,6 +13,25 @@ java {
     }
 }
 
+def nativeLibraryFileName = System.getProperty('os.name').toLowerCase().contains('mac')
+        ? 'libweave_matrix_core.dylib'
+        : System.getProperty('os.name').toLowerCase().contains('win')
+                ? 'weave_matrix_core.dll'
+                : 'libweave_matrix_core.so'
+def matrixCoreLibrary = rootProject.file("target/debug/${nativeLibraryFileName}")
+
+tasks.register('buildMatrixRustCoreJni', Exec) {
+    group = 'build'
+    description = 'Build the mandatory Rust/Ruma JNI library used by the Matrix facade.'
+    workingDir rootProject.projectDir
+    commandLine 'cargo', 'build', '-p', 'weave-matrix-core', '--features', 'jni'
+    inputs.file(rootProject.file('Cargo.toml'))
+    inputs.file(rootProject.file('Cargo.lock'))
+    inputs.dir(rootProject.file('rust/matrix-core/src'))
+    inputs.file(rootProject.file('rust/matrix-core/Cargo.toml'))
+    outputs.file(matrixCoreLibrary)
+}
+
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.springframework.boot:spring-boot-starter-web'
@@ -37,10 +56,17 @@ dependencies {
 }
 
 tasks.named('test') {
+    dependsOn tasks.named('buildMatrixRustCoreJni')
     useJUnitPlatform()
+    systemProperty 'weave.matrix.core.library.path', matrixCoreLibrary.absolutePath
     if (System.getProperty('weave.openapi.export.path') != null) {
         systemProperty 'weave.openapi.export.path', System.getProperty('weave.openapi.export.path')
     }
+}
+
+tasks.named('bootRun') {
+    dependsOn tasks.named('buildMatrixRustCoreJni')
+    systemProperty 'weave.matrix.core.library.path', matrixCoreLibrary.absolutePath
 }
 
 tasks.matching { it.name == 'wrapper' }.configureEach {

@@ -298,58 +298,43 @@ class ApiErrorResponse {
   };
 }
 
-class ApprovalReceipt {
-  const ApprovalReceipt({
-    this.action,
-    this.actorRef,
-    this.auditRef,
-    this.expiresAt,
-    this.policyVersion,
-    this.receiptRef,
+class ApprovalEvidence {
+  const ApprovalEvidence({
+    this.decidedAt,
+    this.decision,
+    this.evidenceRef,
+    this.protocol,
     this.scopeRefs,
+    this.toolName,
   });
 
-  factory ApprovalReceipt.fromJson(Map<String, dynamic> json) =>
-      ApprovalReceipt(
-        action: json["action"] as String?,
-        actorRef: json["actorRef"] as String?,
-        auditRef: json["auditRef"] as String?,
-        expiresAt: json["expiresAt"] as String?,
-        policyVersion: json["policyVersion"] as String?,
-        receiptRef: json["receiptRef"] as String?,
+  factory ApprovalEvidence.fromJson(Map<String, dynamic> json) =>
+      ApprovalEvidence(
+        decidedAt: json["decidedAt"] as String?,
+        decision: json["decision"] as String?,
+        evidenceRef: json["evidenceRef"] as String?,
+        protocol: json["protocol"] as String?,
         scopeRefs: (json["scopeRefs"] as List<dynamic>?)
             ?.map((e) => e as String)
             .toList(),
+        toolName: json["toolName"] as String?,
       );
 
-  final String? action;
-  final String? actorRef;
-  final String? auditRef;
-  final String? expiresAt;
-  final String? policyVersion;
-  final String? receiptRef;
+  final String? decidedAt;
+  final String? decision;
+  final String? evidenceRef;
+  final String? protocol;
   final List<String>? scopeRefs;
+  final String? toolName;
 
   Map<String, dynamic> toJson() => {
-    "action": _openApiJsonValue(action),
-    "actorRef": _openApiJsonValue(actorRef),
-    "auditRef": _openApiJsonValue(auditRef),
-    "expiresAt": _openApiJsonValue(expiresAt),
-    "policyVersion": _openApiJsonValue(policyVersion),
-    "receiptRef": _openApiJsonValue(receiptRef),
+    "decidedAt": _openApiJsonValue(decidedAt),
+    "decision": _openApiJsonValue(decision),
+    "evidenceRef": _openApiJsonValue(evidenceRef),
+    "protocol": _openApiJsonValue(protocol),
     "scopeRefs": _openApiJsonValue(scopeRefs),
+    "toolName": _openApiJsonValue(toolName),
   };
-}
-
-class ApprovalReceiptRef {
-  const ApprovalReceiptRef({this.value});
-
-  factory ApprovalReceiptRef.fromJson(Map<String, dynamic> json) =>
-      ApprovalReceiptRef(value: json["value"] as String?);
-
-  final String? value;
-
-  Map<String, dynamic> toJson() => {"value": _openApiJsonValue(value)};
 }
 
 class AuthenticatedUserResponse {
@@ -911,7 +896,7 @@ class BridgeDiscoveryResponse {
 
 class BridgeInvocationRequest {
   const BridgeInvocationRequest({
-    this.approvalReceipt,
+    this.approvalEvidence,
     this.arguments,
     this.runtime,
     this.toolName,
@@ -919,10 +904,10 @@ class BridgeInvocationRequest {
 
   factory BridgeInvocationRequest.fromJson(Map<String, dynamic> json) =>
       BridgeInvocationRequest(
-        approvalReceipt: json["approvalReceipt"] == null
+        approvalEvidence: json["approvalEvidence"] == null
             ? null
-            : ApprovalReceipt.fromJson(
-                json["approvalReceipt"] as Map<String, dynamic>,
+            : ApprovalEvidence.fromJson(
+                json["approvalEvidence"] as Map<String, dynamic>,
               ),
         arguments: (json["arguments"] as Map<String, dynamic>?)
             ?.cast<String, Object?>(),
@@ -934,13 +919,13 @@ class BridgeInvocationRequest {
         toolName: json["toolName"] as String?,
       );
 
-  final ApprovalReceipt? approvalReceipt;
+  final ApprovalEvidence? approvalEvidence;
   final Map<String, Object?>? arguments;
   final RuntimeInvocationContext? runtime;
   final String? toolName;
 
   Map<String, dynamic> toJson() => {
-    "approvalReceipt": _openApiJsonValue(approvalReceipt),
+    "approvalEvidence": _openApiJsonValue(approvalEvidence),
     "arguments": _openApiJsonValue(arguments),
     "runtime": _openApiJsonValue(runtime),
     "toolName": _openApiJsonValue(toolName),
@@ -1404,6 +1389,28 @@ class CalendarScopesResponse {
   Map<String, dynamic> toJson() => {"scopes": _openApiJsonValue(scopes)};
 }
 
+class CalendarSetupCredentialListResponse {
+  const CalendarSetupCredentialListResponse({this.credentials});
+
+  factory CalendarSetupCredentialListResponse.fromJson(
+    Map<String, dynamic> json,
+  ) => CalendarSetupCredentialListResponse(
+    credentials: (json["credentials"] as List<dynamic>?)
+        ?.map(
+          (e) => CalendarSetupCredentialResponse.fromJson(
+            e as Map<String, dynamic>,
+          ),
+        )
+        .toList(),
+  );
+
+  final List<CalendarSetupCredentialResponse>? credentials;
+
+  Map<String, dynamic> toJson() => {
+    "credentials": _openApiJsonValue(credentials),
+  };
+}
+
 class CalendarSetupCredentialRequest {
   const CalendarSetupCredentialRequest({this.clientType, this.label});
 
@@ -1419,6 +1426,73 @@ class CalendarSetupCredentialRequest {
   Map<String, dynamic> toJson() => {
     "clientType": _openApiJsonValue(clientType),
     "label": _openApiJsonValue(label),
+  };
+}
+
+class CalendarSetupCredentialResponse {
+  const CalendarSetupCredentialResponse({
+    this.clientType,
+    this.credentialId,
+    this.expiresAt,
+    this.issuedAt,
+    this.label,
+    this.principalRef,
+    this.profilePasswordEligible,
+    this.revocationActions,
+    this.revokedAt,
+    this.secret,
+    this.secretMaterialReturned,
+    this.state,
+    this.username,
+  });
+
+  factory CalendarSetupCredentialResponse.fromJson(Map<String, dynamic> json) =>
+      CalendarSetupCredentialResponse(
+        clientType: json["clientType"] as String?,
+        credentialId: json["credentialId"] as String?,
+        expiresAt: json["expiresAt"] as String?,
+        issuedAt: json["issuedAt"] as String?,
+        label: json["label"] as String?,
+        principalRef: json["principalRef"] as String?,
+        profilePasswordEligible: json["profilePasswordEligible"] as bool?,
+        revocationActions: (json["revocationActions"] as List<dynamic>?)
+            ?.map((e) => e as String)
+            .toList(),
+        revokedAt: json["revokedAt"] as String?,
+        secret: json["secret"] as String?,
+        secretMaterialReturned: json["secretMaterialReturned"] as bool?,
+        state: json["state"] as String?,
+        username: json["username"] as String?,
+      );
+
+  final String? clientType;
+  final String? credentialId;
+  final String? expiresAt;
+  final String? issuedAt;
+  final String? label;
+  final String? principalRef;
+  final bool? profilePasswordEligible;
+  final List<String>? revocationActions;
+  final String? revokedAt;
+  final String? secret;
+  final bool? secretMaterialReturned;
+  final String? state;
+  final String? username;
+
+  Map<String, dynamic> toJson() => {
+    "clientType": _openApiJsonValue(clientType),
+    "credentialId": _openApiJsonValue(credentialId),
+    "expiresAt": _openApiJsonValue(expiresAt),
+    "issuedAt": _openApiJsonValue(issuedAt),
+    "label": _openApiJsonValue(label),
+    "principalRef": _openApiJsonValue(principalRef),
+    "profilePasswordEligible": _openApiJsonValue(profilePasswordEligible),
+    "revocationActions": _openApiJsonValue(revocationActions),
+    "revokedAt": _openApiJsonValue(revokedAt),
+    "secret": _openApiJsonValue(secret),
+    "secretMaterialReturned": _openApiJsonValue(secretMaterialReturned),
+    "state": _openApiJsonValue(state),
+    "username": _openApiJsonValue(username),
   };
 }
 
@@ -4187,6 +4261,27 @@ class FileNativeProviderSetupResponse {
   };
 }
 
+class FileSetupCredentialListResponse {
+  const FileSetupCredentialListResponse({this.credentials});
+
+  factory FileSetupCredentialListResponse.fromJson(Map<String, dynamic> json) =>
+      FileSetupCredentialListResponse(
+        credentials: (json["credentials"] as List<dynamic>?)
+            ?.map(
+              (e) => FileSetupCredentialResponse.fromJson(
+                e as Map<String, dynamic>,
+              ),
+            )
+            .toList(),
+      );
+
+  final List<FileSetupCredentialResponse>? credentials;
+
+  Map<String, dynamic> toJson() => {
+    "credentials": _openApiJsonValue(credentials),
+  };
+}
+
 class FileSetupCredentialRequest {
   const FileSetupCredentialRequest({this.clientType, this.label});
 
@@ -4202,6 +4297,73 @@ class FileSetupCredentialRequest {
   Map<String, dynamic> toJson() => {
     "clientType": _openApiJsonValue(clientType),
     "label": _openApiJsonValue(label),
+  };
+}
+
+class FileSetupCredentialResponse {
+  const FileSetupCredentialResponse({
+    this.clientType,
+    this.credentialId,
+    this.expiresAt,
+    this.issuedAt,
+    this.label,
+    this.principalRef,
+    this.revocationActions,
+    this.revokedAt,
+    this.secret,
+    this.secretMaterialReturned,
+    this.state,
+    this.username,
+    this.webDavBasePath,
+  });
+
+  factory FileSetupCredentialResponse.fromJson(Map<String, dynamic> json) =>
+      FileSetupCredentialResponse(
+        clientType: json["clientType"] as String?,
+        credentialId: json["credentialId"] as String?,
+        expiresAt: json["expiresAt"] as String?,
+        issuedAt: json["issuedAt"] as String?,
+        label: json["label"] as String?,
+        principalRef: json["principalRef"] as String?,
+        revocationActions: (json["revocationActions"] as List<dynamic>?)
+            ?.map((e) => e as String)
+            .toList(),
+        revokedAt: json["revokedAt"] as String?,
+        secret: json["secret"] as String?,
+        secretMaterialReturned: json["secretMaterialReturned"] as bool?,
+        state: json["state"] as String?,
+        username: json["username"] as String?,
+        webDavBasePath: json["webDavBasePath"] as String?,
+      );
+
+  final String? clientType;
+  final String? credentialId;
+  final String? expiresAt;
+  final String? issuedAt;
+  final String? label;
+  final String? principalRef;
+  final List<String>? revocationActions;
+  final String? revokedAt;
+  final String? secret;
+  final bool? secretMaterialReturned;
+  final String? state;
+  final String? username;
+  final String? webDavBasePath;
+
+  Map<String, dynamic> toJson() => {
+    "clientType": _openApiJsonValue(clientType),
+    "credentialId": _openApiJsonValue(credentialId),
+    "expiresAt": _openApiJsonValue(expiresAt),
+    "issuedAt": _openApiJsonValue(issuedAt),
+    "label": _openApiJsonValue(label),
+    "principalRef": _openApiJsonValue(principalRef),
+    "revocationActions": _openApiJsonValue(revocationActions),
+    "revokedAt": _openApiJsonValue(revokedAt),
+    "secret": _openApiJsonValue(secret),
+    "secretMaterialReturned": _openApiJsonValue(secretMaterialReturned),
+    "state": _openApiJsonValue(state),
+    "username": _openApiJsonValue(username),
+    "webDavBasePath": _openApiJsonValue(webDavBasePath),
   };
 }
 
@@ -7954,8 +8116,6 @@ class ReleaseClaimControlResponse {
 class RuntimeInvocationContext {
   const RuntimeInvocationContext({
     this.allowedTools,
-    this.alwaysAllowGrantRef,
-    this.approvalReceiptRef,
     this.auditRef,
     this.capabilityGrants,
     this.orgRef,
@@ -7970,16 +8130,6 @@ class RuntimeInvocationContext {
         allowedTools: (json["allowedTools"] as List<dynamic>?)
             ?.map((e) => e as String)
             .toList(),
-        alwaysAllowGrantRef: json["alwaysAllowGrantRef"] == null
-            ? null
-            : WeaveMcpRef.fromJson(
-                json["alwaysAllowGrantRef"] as Map<String, dynamic>,
-              ),
-        approvalReceiptRef: json["approvalReceiptRef"] == null
-            ? null
-            : ApprovalReceiptRef.fromJson(
-                json["approvalReceiptRef"] as Map<String, dynamic>,
-              ),
         auditRef: json["auditRef"] as String?,
         capabilityGrants: (json["capabilityGrants"] as List<dynamic>?)
             ?.map((e) => e as String)
@@ -8004,8 +8154,6 @@ class RuntimeInvocationContext {
       );
 
   final List<String>? allowedTools;
-  final WeaveMcpRef? alwaysAllowGrantRef;
-  final ApprovalReceiptRef? approvalReceiptRef;
   final String? auditRef;
   final List<String>? capabilityGrants;
   final WeaveMcpRef? orgRef;
@@ -8016,8 +8164,6 @@ class RuntimeInvocationContext {
 
   Map<String, dynamic> toJson() => {
     "allowedTools": _openApiJsonValue(allowedTools),
-    "alwaysAllowGrantRef": _openApiJsonValue(alwaysAllowGrantRef),
-    "approvalReceiptRef": _openApiJsonValue(approvalReceiptRef),
     "auditRef": _openApiJsonValue(auditRef),
     "capabilityGrants": _openApiJsonValue(capabilityGrants),
     "orgRef": _openApiJsonValue(orgRef),
@@ -9043,6 +9189,50 @@ class WeaverModelAliasResponse {
   };
 }
 
+class WeaverPermissionModeRequest {
+  const WeaverPermissionModeRequest({required this.mode});
+
+  factory WeaverPermissionModeRequest.fromJson(Map<String, dynamic> json) =>
+      WeaverPermissionModeRequest(mode: json["mode"] as String);
+
+  final String mode;
+
+  Map<String, dynamic> toJson() => {"mode": _openApiJsonValue(mode)};
+}
+
+class WeaverPermissionModeResponse {
+  const WeaverPermissionModeResponse({
+    required this.accepted,
+    required this.dangerous,
+    required this.mode,
+    required this.policyReason,
+    required this.runtimeProfileHash,
+  });
+
+  factory WeaverPermissionModeResponse.fromJson(Map<String, dynamic> json) =>
+      WeaverPermissionModeResponse(
+        accepted: json["accepted"] as bool,
+        dangerous: json["dangerous"] as bool,
+        mode: json["mode"] as String,
+        policyReason: json["policyReason"] as String,
+        runtimeProfileHash: json["runtimeProfileHash"] as String,
+      );
+
+  final bool accepted;
+  final bool dangerous;
+  final String mode;
+  final String policyReason;
+  final String runtimeProfileHash;
+
+  Map<String, dynamic> toJson() => {
+    "accepted": _openApiJsonValue(accepted),
+    "dangerous": _openApiJsonValue(dangerous),
+    "mode": _openApiJsonValue(mode),
+    "policyReason": _openApiJsonValue(policyReason),
+    "runtimeProfileHash": _openApiJsonValue(runtimeProfileHash),
+  };
+}
+
 class WeaverRuntimeProfileChangeResponse {
   const WeaverRuntimeProfileChangeResponse({
     this.createdAt,
@@ -9099,6 +9289,7 @@ class WeaverRuntimeProfileResponse {
     required this.mcpProjection,
     required this.memberImpact,
     required this.modelProvider,
+    required this.permissionMode,
     required this.pluginAllowlist,
     required this.posture,
     required this.previousProfileHash,
@@ -9148,6 +9339,7 @@ class WeaverRuntimeProfileResponse {
             .cast<String, Object?>(),
         memberImpact: json["memberImpact"] as String,
         modelProvider: json["modelProvider"] as String,
+        permissionMode: json["permissionMode"] as String,
         pluginAllowlist: (json["pluginAllowlist"] as List<dynamic>)
             .map((e) => e as String)
             .toList(),
@@ -9194,6 +9386,7 @@ class WeaverRuntimeProfileResponse {
   final Map<String, Object?> mcpProjection;
   final String memberImpact;
   final String modelProvider;
+  final String permissionMode;
   final List<String> pluginAllowlist;
   final String posture;
   final String previousProfileHash;
@@ -9234,6 +9427,7 @@ class WeaverRuntimeProfileResponse {
     "mcpProjection": _openApiJsonValue(mcpProjection),
     "memberImpact": _openApiJsonValue(memberImpact),
     "modelProvider": _openApiJsonValue(modelProvider),
+    "permissionMode": _openApiJsonValue(permissionMode),
     "pluginAllowlist": _openApiJsonValue(pluginAllowlist),
     "posture": _openApiJsonValue(posture),
     "previousProfileHash": _openApiJsonValue(previousProfileHash),

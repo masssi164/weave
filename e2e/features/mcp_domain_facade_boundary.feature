@@ -33,3 +33,31 @@ Feature: MCP domain facade boundary
   Scenario: MCP outputs contain no provider internals
     Given MCP outputs are inspected
     Then no raw provider URL, credential, token, tenant ID, SecretRef value, or downstream payload is present
+
+  @spring-ai-mcp-transport
+  Scenario: MCP uses Spring AI stateful Streamable HTTP
+    Given the governed Weave MCP server is running
+    When a client initializes at /mcp
+    Then Spring AI 2.0 serves the stateful Streamable HTTP protocol required for elicitation
+    And the handwritten JSON-RPC and Python FastMCP runtimes are absent
+
+  @spring-ai-mcp-oidc
+  Scenario: OIDC is the MCP gatekeeper
+    Given an MCP request has no valid OIDC bearer token with weave:workspace scope
+    When the request reaches /mcp
+    Then Spring Security rejects it before MCP tool or backend dispatch
+
+  @mcp-runtime-approved-discovery
+  Scenario: Runtime-approved MCP discovery is support-safe
+    Given an OIDC-authenticated Weaver runtime profile
+    When it reads weave://runtime/approved-tools
+    Then only backend-approved Weave domain tools are returned
+    And no runtime token, CredentialRef value, or provider internal is returned
+
+  @mcp-approval-receipt-boundary
+  Scenario: MCP write approval is bound to one tool invocation
+    Given a governed Weaver write tool requires approval
+    When the runtime invokes the tool through Spring AI MCP
+    Then OpenClaw routes the Spring AI form elicitation through its plugin approval manager
+    And Weave mints a short-lived receipt bound to actor, runtime profile, tool, canonical scopes, arguments, policy, and contract version
+    And changed arguments, replay, foreign elicitation evidence, or a receipt reference alone cannot authorize the write

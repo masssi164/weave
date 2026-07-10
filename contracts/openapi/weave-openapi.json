@@ -228,24 +228,18 @@
         ],
         "type": "object"
       },
-      "ApprovalReceipt": {
+      "ApprovalEvidence": {
         "properties": {
-          "action": {
+          "decidedAt": {
             "type": "string"
           },
-          "actorRef": {
+          "decision": {
             "type": "string"
           },
-          "auditRef": {
+          "evidenceRef": {
             "type": "string"
           },
-          "expiresAt": {
-            "type": "string"
-          },
-          "policyVersion": {
-            "type": "string"
-          },
-          "receiptRef": {
+          "protocol": {
             "type": "string"
           },
           "scopeRefs": {
@@ -253,13 +247,8 @@
               "type": "string"
             },
             "type": "array"
-          }
-        },
-        "type": "object"
-      },
-      "ApprovalReceiptRef": {
-        "properties": {
-          "value": {
+          },
+          "toolName": {
             "type": "string"
           }
         },
@@ -734,8 +723,8 @@
       },
       "BridgeInvocationRequest": {
         "properties": {
-          "approvalReceipt": {
-            "$ref": "#/components/schemas/ApprovalReceipt"
+          "approvalEvidence": {
+            "$ref": "#/components/schemas/ApprovalEvidence"
           },
           "arguments": {
             "additionalProperties": {
@@ -765,6 +754,7 @@
           },
           "status": {
             "enum": [
+              "APPROVAL_REQUIRED",
               "DENIED",
               "PROVIDER_FAILURE",
               "SUCCESS",
@@ -929,12 +919,12 @@
           },
           "revocableCredentialsAvailable": {
             "description": "Whether Weave can issue/revoke per-client CalDAV credentials.",
-            "example": false,
+            "example": true,
             "type": "boolean"
           },
           "status": {
             "description": "Stable machine-readable readiness status.",
-            "example": "blocked_until_revocable_credentials",
+            "example": "revocable_credentials_ready",
             "type": "string"
           }
         },
@@ -1152,6 +1142,17 @@
         },
         "type": "object"
       },
+      "CalendarSetupCredentialListResponse": {
+        "properties": {
+          "credentials": {
+            "items": {
+              "$ref": "#/components/schemas/CalendarSetupCredentialResponse"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "CalendarSetupCredentialRequest": {
         "properties": {
           "clientType": {
@@ -1162,6 +1163,59 @@
           "label": {
             "maxLength": 128,
             "minLength": 0,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CalendarSetupCredentialResponse": {
+        "description": "Weave-issued, revocable CalDAV client credential. Secret material is returned only at creation.",
+        "properties": {
+          "clientType": {
+            "type": "string"
+          },
+          "credentialId": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "issuedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "principalRef": {
+            "type": "string"
+          },
+          "profilePasswordEligible": {
+            "type": "boolean"
+          },
+          "revocationActions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "revokedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "secret": {
+            "description": "One-time CalDAV secret. Present only in the create response.",
+            "nullable": true,
+            "type": "string"
+          },
+          "secretMaterialReturned": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "string"
+          },
+          "username": {
             "type": "string"
           }
         },
@@ -3494,6 +3548,17 @@
         },
         "type": "object"
       },
+      "FileSetupCredentialListResponse": {
+        "properties": {
+          "credentials": {
+            "items": {
+              "$ref": "#/components/schemas/FileSetupCredentialResponse"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "FileSetupCredentialRequest": {
         "properties": {
           "clientType": {
@@ -3504,6 +3569,59 @@
           "label": {
             "maxLength": 128,
             "minLength": 0,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "FileSetupCredentialResponse": {
+        "description": "Weave-issued, revocable WebDAV client credential. Secret material is returned only at creation.",
+        "properties": {
+          "clientType": {
+            "type": "string"
+          },
+          "credentialId": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "issuedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "principalRef": {
+            "type": "string"
+          },
+          "revocationActions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "revokedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "secret": {
+            "description": "One-time WebDAV secret. Present only in the create response.",
+            "nullable": true,
+            "type": "string"
+          },
+          "secretMaterialReturned": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          },
+          "webDavBasePath": {
             "type": "string"
           }
         },
@@ -6429,12 +6547,6 @@
             },
             "type": "array"
           },
-          "alwaysAllowGrantRef": {
-            "$ref": "#/components/schemas/WeaveMcpRef"
-          },
-          "approvalReceiptRef": {
-            "$ref": "#/components/schemas/ApprovalReceiptRef"
-          },
           "auditRef": {
             "type": "string"
           },
@@ -7277,6 +7389,51 @@
         },
         "type": "object"
       },
+      "WeaverPermissionModeRequest": {
+        "properties": {
+          "mode": {
+            "enum": [
+              "allowlist",
+              "ask",
+              "auto",
+              "deny",
+              "full"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "type": "object"
+      },
+      "WeaverPermissionModeResponse": {
+        "properties": {
+          "accepted": {
+            "type": "boolean"
+          },
+          "dangerous": {
+            "type": "boolean"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "policyReason": {
+            "type": "string"
+          },
+          "runtimeProfileHash": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "accepted",
+          "dangerous",
+          "mode",
+          "policyReason",
+          "runtimeProfileHash"
+        ],
+        "type": "object"
+      },
       "WeaverRuntimeProfileChangeResponse": {
         "properties": {
           "createdAt": {
@@ -7374,6 +7531,16 @@
           "modelProvider": {
             "type": "string"
           },
+          "permissionMode": {
+            "enum": [
+              "allowlist",
+              "ask",
+              "auto",
+              "deny",
+              "full"
+            ],
+            "type": "string"
+          },
           "pluginAllowlist": {
             "items": {
               "type": "string"
@@ -7460,6 +7627,7 @@
           "mcpProjection",
           "memberImpact",
           "modelProvider",
+          "permissionMode",
           "pluginAllowlist",
           "posture",
           "previousProfileHash",
@@ -9468,6 +9636,16 @@
       "get": {
         "operationId": "setupCredentials",
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarSetupCredentialListResponse"
+                }
+              }
+            },
+            "description": "HTTP 200"
+          },
           "401": {
             "content": {
               "*/*": {
@@ -9522,6 +9700,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarSetupCredentialResponse"
+                }
+              }
+            },
+            "description": "HTTP 200"
+          },
           "401": {
             "content": {
               "*/*": {
@@ -9558,7 +9746,7 @@
             "bearer-jwt": []
           }
         ],
-        "summary": "Create a revocable calendar setup credential reference without returning secret material",
+        "summary": "Create a revocable calendar setup credential and return its secret once",
         "tags": [
           "Calendar"
         ]
@@ -9580,6 +9768,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarSetupCredentialResponse"
+                }
+              }
+            },
+            "description": "HTTP 200"
+          },
           "401": {
             "content": {
               "*/*": {
@@ -10568,6 +10766,16 @@
       "get": {
         "operationId": "getFilesSetupCredentials",
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileSetupCredentialListResponse"
+                }
+              }
+            },
+            "description": "HTTP 200"
+          },
           "401": {
             "content": {
               "*/*": {
@@ -10612,6 +10820,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileSetupCredentialResponse"
+                }
+              }
+            },
+            "description": "HTTP 200"
+          },
           "401": {
             "content": {
               "*/*": {
@@ -10638,7 +10856,7 @@
             "bearer-jwt": []
           }
         ],
-        "summary": "Create a revocable Files WebDAV setup credential reference without returning secret material",
+        "summary": "Create a revocable Files WebDAV setup credential and return its secret once",
         "tags": [
           "Files"
         ]
@@ -10660,6 +10878,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileSetupCredentialResponse"
+                }
+              }
+            },
+            "description": "HTTP 200"
+          },
           "401": {
             "content": {
               "*/*": {
@@ -13344,6 +13572,14 @@
         "operationId": "weaverMcpToolInvokeV1",
         "parameters": [
           {
+            "in": "header",
+            "name": "X-Weave-Mcp-Boundary-Token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "in": "path",
             "name": "serverKey",
             "required": true,
@@ -13382,6 +13618,43 @@
             "description": "HTTP 200"
           }
         },
+        "tags": [
+          "Workspace"
+        ]
+      }
+    },
+    "/api/v1/workspace/weaver/permission-mode": {
+      "put": {
+        "description": "Updates the authenticated member's governed Weaver mode. Full access remains subject to organization exec and elevated-runtime policy.",
+        "operationId": "updateWeaverPermissionModeV1",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WeaverPermissionModeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/WeaverPermissionModeResponse"
+                }
+              }
+            },
+            "description": "HTTP 200"
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Update the Weaver permission mode",
         "tags": [
           "Workspace"
         ]
@@ -13763,6 +14036,14 @@
         "operationId": "weaverMcpToolInvoke",
         "parameters": [
           {
+            "in": "header",
+            "name": "X-Weave-Mcp-Boundary-Token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "in": "path",
             "name": "serverKey",
             "required": true,
@@ -13801,6 +14082,43 @@
             "description": "HTTP 200"
           }
         },
+        "tags": [
+          "Workspace"
+        ]
+      }
+    },
+    "/api/workspace/weaver/permission-mode": {
+      "put": {
+        "description": "Updates the authenticated member's governed Weaver mode. Full access remains subject to organization exec and elevated-runtime policy.",
+        "operationId": "updateWeaverPermissionMode",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WeaverPermissionModeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/WeaverPermissionModeResponse"
+                }
+              }
+            },
+            "description": "HTTP 200"
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Update the Weaver permission mode",
         "tags": [
           "Workspace"
         ]

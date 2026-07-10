@@ -352,7 +352,8 @@ class WorkspaceControllerTest {
     @Test
     void returnsContractBridgeInvocationEnvelope() throws Exception {
         String runtimeProfileHash = runtimeProfileHash();
-        when(weaverMcpBridgeService.invokeMcpTool(any(), eq("weave-domain-tools"), eq("files.read"), any()))
+        when(weaverMcpBridgeService.invokeMcpTool(
+                        any(), eq("weave-domain-tools"), eq("files.read"), any(), eq("test-mcp-boundary")))
                 .thenReturn(new BridgeInvocationResponse(
                         "files.read",
                         ToolInvocationStatus.DENIED,
@@ -368,6 +369,7 @@ class WorkspaceControllerTest {
                                         .claim("groups", List.of("weave-weaver-runtime", "weave-weaver-pilot")))
                                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace")))
                         .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .header("X-Weave-Mcp-Boundary-Token", "test-mcp-boundary")
                         .content("""
                                 {
                                   "toolName": "files.read",
@@ -423,8 +425,6 @@ class WorkspaceControllerTest {
                 runtimeProfileHash,
                 new WeaveMcpRef("credentialref://weave/runtime/short-lived/test"),
                 "audit://weaver-mcp/weave-domain-tools/discover",
-                null,
-                null,
                 List.of(),
                 List.of());
     }

@@ -11,21 +11,34 @@ import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest;
 import com.massimotter.weave.backend.context.authz.ContextPermission;
+import com.massimotter.weave.backend.files.domain.FilesDomain.FileContent;
+import com.massimotter.weave.backend.files.domain.FilesDomain.FileId;
+import com.massimotter.weave.backend.files.domain.FilesDomain.FileListing;
+import com.massimotter.weave.backend.files.domain.FilesDomain.FileObject;
+import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
+import com.massimotter.weave.backend.files.domain.FilesDomain.FileQuota;
+import com.massimotter.weave.backend.files.domain.FilesDomain.FileVersion;
+import com.massimotter.weave.backend.files.domain.FilesDomain.FileWrite;
+import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
+import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedFile;
+import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedListing;
+import com.massimotter.weave.backend.files.port.FilesProviderPort;
 import com.massimotter.weave.backend.model.files.CreateFolderRequest;
 import com.massimotter.weave.backend.model.files.FileItemResponse;
 import com.massimotter.weave.backend.model.files.FileListResponse;
-import com.massimotter.weave.backend.model.files.FileUploadResponse;
-import com.massimotter.weave.backend.service.files.DownloadedFile;
-import com.massimotter.weave.backend.service.files.FilesStorageAdapter;
-import com.massimotter.weave.backend.service.files.VersionedFileListResponse;
+import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
+import com.massimotter.weave.backend.portability.ProviderReadiness;
 import com.massimotter.weave.backend.service.files.WebDavPropfindResource;
 import com.massimotter.weave.backend.service.files.WebDavMutationResult;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -39,7 +52,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.web.multipart.MultipartFile;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -372,17 +384,20 @@ class FilesFacadeServiceTest {
                         "webdav"));
 
         assertThat(credential.credentialId()).startsWith("files_device_");
-        assertThat(credential.state()).isEqualTo("active-no-secret-issued");
+        assertThat(credential.state()).isEqualTo("active");
         assertThat(credential.principalRef()).isEqualTo("user:user-123");
         assertThat(credential.webDavBasePath()).isEqualTo("/dav/files");
-        assertThat(credential.secretMaterialReturned()).isFalse();
+        assertThat(credential.secretMaterialReturned()).isTrue();
+        assertThat(credential.username()).isEqualTo(credential.credentialId());
+        assertThat(credential.secret()).hasSizeGreaterThanOrEqualTo(40);
         assertThat(credential.revocationActions())
                 .containsExactly("DELETE /api/files/client-setup/credentials/" + credential.credentialId());
         assertThat(service.setupCredentials().credentials())
                 .extracting(com.massimotter.weave.backend.model.files.FileSetupCredentialResponse::credentialId)
                 .containsExactly(credential.credentialId());
+        assertThat(service.setupCredentials().credentials().get(0).secret()).isNull();
         assertThat(service.requireActiveSetupCredential(credential.credentialId()).state())
-                .isEqualTo("active-no-secret-issued");
+                .isEqualTo("active");
 
         var revoked = service.revokeSetupCredential(credential.credentialId());
 
@@ -490,34 +505,34 @@ class FilesFacadeServiceTest {
         assertThat(captured.get().principalRef()).isEqualTo("user:test");
     }
 
-    private FilesFacadeService service(FilesStorageAdapter adapter) {
+    private FilesFacadeService service(FilesProviderPort adapter) {
         return service(adapter, request -> ContextAuthorizationDecision.allow("test allow"));
     }
 
-    private FilesFacadeService service(FilesStorageAdapter adapter, InMemoryAuditEventPublisher auditEventPublisher) {
+    private FilesFacadeService service(FilesProviderPort adapter, InMemoryAuditEventPublisher auditEventPublisher) {
         return service(adapter, request -> ContextAuthorizationDecision.allow("test allow"), auditEventPublisher);
     }
 
-    private FilesFacadeService service(FilesStorageAdapter adapter, ContextAuthorizationPort contextAuthorizationPort) {
+    private FilesFacadeService service(FilesProviderPort adapter, ContextAuthorizationPort contextAuthorizationPort) {
         return service(adapter, contextAuthorizationPort, new InMemoryAuditEventPublisher());
     }
 
     private FilesFacadeService service(
-            FilesStorageAdapter adapter,
+            FilesProviderPort adapter,
             ContextAuthorizationPort contextAuthorizationPort,
             InMemoryAuditEventPublisher auditEventPublisher) {
         return service(adapter, contextAuthorizationPort, defaultContextAuthorizationProperties(), auditEventPublisher);
     }
 
     private FilesFacadeService service(
-            FilesStorageAdapter adapter,
+            FilesProviderPort adapter,
             ContextAuthorizationPort contextAuthorizationPort,
             ContextAuthorizationProperties contextAuthorizationProperties) {
         return service(adapter, contextAuthorizationPort, contextAuthorizationProperties, new InMemoryAuditEventPublisher());
     }
 
     private FilesFacadeService service(
-            FilesStorageAdapter adapter,
+            FilesProviderPort adapter,
             ContextAuthorizationPort contextAuthorizationPort,
             ContextAuthorizationProperties contextAuthorizationProperties,
             InMemoryAuditEventPublisher auditEventPublisher) {
@@ -563,40 +578,41 @@ class FilesFacadeServiceTest {
     static class ContextAuthorizationTestConfiguration {
     }
 
-    private ObjectProvider<FilesStorageAdapter> provider(FilesStorageAdapter adapter) {
+    private ObjectProvider<FilesProviderPort> provider(FilesProviderPort adapter) {
         return new ObjectProvider<>() {
             @Override
-            public FilesStorageAdapter getObject(Object... args) {
+            public FilesProviderPort getObject(Object... args) {
                 return adapter;
             }
 
             @Override
-            public FilesStorageAdapter getIfAvailable() {
+            public FilesProviderPort getIfAvailable() {
                 return adapter;
             }
 
             @Override
-            public FilesStorageAdapter getIfUnique() {
+            public FilesProviderPort getIfUnique() {
                 return adapter;
             }
 
             @Override
-            public FilesStorageAdapter getObject() {
+            public FilesProviderPort getObject() {
                 return adapter;
             }
 
             @Override
-            public Iterator<FilesStorageAdapter> iterator() {
-                return adapter == null ? List.<FilesStorageAdapter>of().iterator() : List.of(adapter).iterator();
+            public Iterator<FilesProviderPort> iterator() {
+                return adapter == null ? List.<FilesProviderPort>of().iterator() : List.of(adapter).iterator();
             }
         };
     }
 
-    private static final class StubAdapter implements FilesStorageAdapter {
+    private static class StubAdapter implements FilesProviderPort {
 
         private final boolean configured;
         private final Map<String, byte[]> contentByPath = new HashMap<>(Map.of(
                 "/Team/readme.md", "aaaaaaaaaaaa".getBytes(StandardCharsets.UTF_8)));
+        private final Set<String> collections = new java.util.HashSet<>(Set.of("/", "/Team"));
         private String putPath;
         private String createdFolderPath;
         private String deletedPath;
@@ -608,113 +624,146 @@ class FilesFacadeServiceTest {
         }
 
         @Override
-        public boolean isConfigured() {
+        public boolean configured() {
             return configured;
         }
 
         @Override
-        public FileListResponse list(String path) {
-            String normalized = path.endsWith("/") && path.length() > 1 ? path.substring(0, path.length() - 1) : path;
-            if ("/Team".equals(normalized)) {
-                return new FileListResponse(normalized, contentByPath.keySet().stream()
-                        .filter(pathValue -> pathValue.startsWith("/Team/"))
-                        .map(pathValue -> new FileItemResponse(
-                                "files:test",
-                                pathValue.substring(pathValue.lastIndexOf('/') + 1),
-                                pathValue,
-                                "file",
-                                "text/markdown",
-                                (long) contentByPath.get(pathValue).length,
-                                OffsetDateTime.parse("2026-04-26T08:00:00Z"),
-                                true))
-                        .toList(), null);
-            }
-            return new FileListResponse(path, List.of(new FileItemResponse(
-                    "files:test",
-                    "readme.md",
-                    path + "/readme.md",
-                    "file",
-                    "text/markdown",
-                    12L,
-                    OffsetDateTime.parse("2026-04-26T08:00:00Z"),
-                    true)), null);
+        public ProviderReadiness readiness() {
+            return configured
+                    ? ProviderReadiness.ready("files-storage-ready")
+                    : ProviderReadiness.degraded("files-storage-not-configured");
         }
 
         @Override
-        public VersionedFileListResponse listWithVersionTokens(String path) {
-            listWithVersionTokenCalls++;
-            FileListResponse listing = list(path);
-            Map<String, String> childVersionTokens = new HashMap<>();
-            for (FileItemResponse item : listing.items()) {
-                byte[] content = contentByPath.get(item.path());
-                if (content != null) {
-                    childVersionTokens.put(item.path(), new String(content, StandardCharsets.UTF_8));
-                }
-            }
-            return new VersionedFileListResponse(listing, null, childVersionTokens);
-        }
-
-        @Override
-        public FileItemResponse createFolder(CreateFolderRequest request) {
-            createdFolderPath = request.parentPath() + "/" + request.name();
-            return new FileItemResponse(
-                    "files:folder",
-                    request.name(),
-                    createdFolderPath,
-                    "folder",
-                    null,
-                    null,
-                    OffsetDateTime.parse("2026-04-26T08:05:00Z"),
-                    false);
-        }
-
-        @Override
-        public FileUploadResponse upload(String parentPath, MultipartFile file) {
-            throw new UnsupportedOperationException("not needed");
-        }
-
-        @Override
-        public String versionToken(String path) {
-            versionTokenCalls++;
-            byte[] content = contentByPath.get(path);
-            return content == null ? null : new String(content, StandardCharsets.UTF_8);
-        }
-
-        @Override
-        public FileItemResponse put(String path, byte[] content, String mimeType) {
-            putPath = path;
-            contentByPath.put(path, content);
-            return new FileItemResponse(
-                    "files:put",
-                    path.substring(path.lastIndexOf('/') + 1),
-                    path,
-                    "file",
-                    mimeType,
-                    (long) content.length,
-                    OffsetDateTime.parse("2026-04-26T08:05:00Z"),
+        public ProviderConformanceProfile conformanceProfile() {
+            return new ProviderConformanceProfile(
+                    "files",
+                    "test-memory",
+                    Set.of("list", "read", "write", "create-collection", "delete"),
+                    Map.of(),
+                    true,
+                    true,
                     true);
         }
 
         @Override
-        public DownloadedFile download(String id) {
+        public VersionedListing list(FilePath path) {
+            listWithVersionTokenCalls++;
+            String normalized = path.value();
+            List<FileObject> children = contentByPath.entrySet().stream()
+                    .filter(entry -> parent(entry.getKey()).equals(normalized))
+                    .map(entry -> file(entry.getKey(), entry.getValue()))
+                    .toList();
+            if (children.isEmpty() && "/".equals(normalized)) {
+                children = List.of(file("/readme.md", "aaaaaaaaaaaa".getBytes(StandardCharsets.UTF_8)));
+            }
+            Map<FilePath, FileVersion> childVersions = new HashMap<>();
+            for (FileObject item : children) {
+                byte[] content = contentByPath.get(item.path().value());
+                if (content != null) {
+                    childVersions.put(item.path(), version(content));
+                }
+            }
+            return new VersionedListing(
+                    new FileListing(path, children, FileQuota.unknown()),
+                    FileVersion.unknown(),
+                    childVersions);
+        }
+
+        @Override
+        public Optional<VersionedFile> find(FilePath path) {
+            versionTokenCalls++;
+            byte[] content = contentByPath.get(path.value());
+            if (content != null) {
+                return Optional.of(new VersionedFile(file(path.value(), content), version(content)));
+            }
+            if (collections.contains(path.value())) {
+                return Optional.of(new VersionedFile(collection(path.value()), FileVersion.unknown()));
+            }
+            return Optional.empty();
+        }
+
+        @Override
+        public FileContent read(FileId id) {
             throw new UnsupportedOperationException("not needed");
         }
 
         @Override
-        public void delete(String id) {
-            deletedPath = id;
+        public FileObject write(FileWrite write) {
+            putPath = write.path().value();
+            contentByPath.put(putPath, write.bytes());
+            return file(putPath, write.bytes(), write.mediaType(), Instant.parse("2026-04-26T08:05:00Z"));
+        }
+
+        @Override
+        public FileObject createCollection(FilePath path) {
+            createdFolderPath = path.value();
+            collections.add(createdFolderPath);
+            return collection(createdFolderPath);
+        }
+
+        @Override
+        public FileObject copy(FilePath source, FilePath destination, boolean overwrite) {
+            throw new UnsupportedOperationException("not needed");
+        }
+
+        @Override
+        public FileObject move(FilePath source, FilePath destination, boolean overwrite) {
+            throw new UnsupportedOperationException("not needed");
+        }
+
+        @Override
+        public void delete(FilePath path, FileVersion expectedVersion) {
+            deletedPath = path.value();
+            contentByPath.remove(deletedPath);
+            collections.remove(deletedPath);
+        }
+
+        private FileObject file(String path, byte[] content) {
+            return file(path, content, "text/markdown", Instant.parse("2026-04-26T08:00:00Z"));
+        }
+
+        private FileObject file(String path, byte[] content, String mediaType, Instant modifiedAt) {
+            return new FileObject(
+                    new FileId("files:" + path),
+                    new FilePath(path),
+                    Kind.FILE,
+                    content.length,
+                    mediaType,
+                    modifiedAt,
+                    false);
+        }
+
+        private FileObject collection(String path) {
+            return new FileObject(
+                    new FileId("files:" + path),
+                    new FilePath(path),
+                    Kind.COLLECTION,
+                    0,
+                    null,
+                    Instant.parse("2026-04-26T08:05:00Z"),
+                    false);
+        }
+
+        private FileVersion version(byte[] content) {
+            return new FileVersion(new String(content, StandardCharsets.UTF_8));
+        }
+
+        private String parent(String path) {
+            int separator = path.lastIndexOf('/');
+            return separator <= 0 ? "/" : path.substring(0, separator);
         }
     }
 
-    private static final class ProviderErrorAdapter implements FilesStorageAdapter {
+    private static final class ProviderErrorAdapter extends StubAdapter {
 
-        @Override
-        public boolean isConfigured() {
-            return true;
+        private ProviderErrorAdapter() {
+            super(true);
         }
 
         @Override
-        public FileListResponse list(String path) {
+        public VersionedListing list(FilePath path) {
             throw new ApiErrorException(
                     HttpStatus.SERVICE_UNAVAILABLE,
                     "nextcloud-unavailable",
@@ -724,26 +773,6 @@ class FilesFacadeServiceTest {
                             "operation", "list-files",
                             "downstreamStatus", 503,
                             "providerUrl", "https://files.example.invalid/remote.php/dav"));
-        }
-
-        @Override
-        public FileItemResponse createFolder(CreateFolderRequest request) {
-            throw new UnsupportedOperationException("not needed");
-        }
-
-        @Override
-        public FileUploadResponse upload(String parentPath, MultipartFile file) {
-            throw new UnsupportedOperationException("not needed");
-        }
-
-        @Override
-        public DownloadedFile download(String id) {
-            throw new UnsupportedOperationException("not needed");
-        }
-
-        @Override
-        public void delete(String id) {
-            throw new UnsupportedOperationException("not needed");
         }
     }
 }

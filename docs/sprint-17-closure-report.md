@@ -1,5 +1,7 @@
 # Sprint 17 closure report — First RC Shape: Governed Weaver, Workspace Flow & Guided Go-Live
 
+> Historical evidence only. The Python/FastMCP paths and smoke commands recorded here were retired by the Spring AI MCP cutover; see `infra/docs/weave-mcp-tool-contract.md` for the active runtime.
+
 Date: 2026-06-01
 
 ## Governing specs

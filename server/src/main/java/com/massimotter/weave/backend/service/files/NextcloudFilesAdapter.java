@@ -2,15 +2,25 @@ package com.massimotter.weave.backend.service.files;
 
 import com.massimotter.weave.backend.config.NextcloudFilesProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
-import com.massimotter.weave.backend.model.files.CreateFolderRequest;
-import com.massimotter.weave.backend.model.files.FileItemResponse;
-import com.massimotter.weave.backend.model.files.FileListResponse;
-import com.massimotter.weave.backend.model.files.FileQuotaResponse;
-import com.massimotter.weave.backend.model.files.FileUploadResponse;
+import com.massimotter.weave.backend.files.domain.FilesDomain.FileContent;
+import com.massimotter.weave.backend.files.domain.FilesDomain.FileId;
+import com.massimotter.weave.backend.files.domain.FilesDomain.FileListing;
+import com.massimotter.weave.backend.files.domain.FilesDomain.FileObject;
+import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
+import com.massimotter.weave.backend.files.domain.FilesDomain.FileQuota;
+import com.massimotter.weave.backend.files.domain.FilesDomain.FileVersion;
+import com.massimotter.weave.backend.files.domain.FilesDomain.FileWrite;
+import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
+import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedFile;
+import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedListing;
+import com.massimotter.weave.backend.files.port.FilesProviderPort;
+import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
+import com.massimotter.weave.backend.portability.ProviderConformanceProfile.MappingClass;
+import com.massimotter.weave.backend.portability.ProviderReadiness;
 import java.io.InputStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
-import java.time.OffsetDateTime;
+import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
@@ -20,6 +30,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import javax.xml.parsers.DocumentBuilderFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -32,7 +44,6 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
-import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.util.UriUtils;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -40,7 +51,7 @@ import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
 @Component
-public class NextcloudFilesAdapter implements FilesStorageAdapter {
+public class NextcloudFilesAdapter implements FilesProviderPort {
 
     private static final HttpMethod PROPFIND = HttpMethod.valueOf("PROPFIND");
     private static final HttpMethod MKCOL = HttpMethod.valueOf("MKCOL");
@@ -71,32 +82,45 @@ public class NextcloudFilesAdapter implements FilesStorageAdapter {
     }
 
     @Override
-    public boolean isConfigured() {
+    public boolean configured() {
         return properties.isConfigured();
     }
 
     @Override
-    public FilesStorageReadiness readinessProbe() {
-        if (!isConfigured()) {
-            return FilesStorageReadiness.degraded("files-storage-not-configured");
+    public ProviderReadiness readiness() {
+        if (!configured()) {
+            return ProviderReadiness.degraded("files-storage-not-configured");
         }
         try {
             probeRoot();
-            return FilesStorageReadiness.ready();
+            return ProviderReadiness.ready("files-storage-ready");
         } catch (ApiErrorException exception) {
-            return FilesStorageReadiness.degraded(readinessCode(exception.code()));
+            return ProviderReadiness.degraded(readinessCode(exception.code()));
         }
     }
 
     @Override
-    public FileListResponse list(String path) {
-        return listWithVersionTokens(path).listing();
+    public ProviderConformanceProfile conformanceProfile() {
+        return new ProviderConformanceProfile(
+                "files",
+                "nextcloud-webdav",
+                Set.of("list", "read", "write", "create_collection", "delete", "copy", "move", "versions", "quota"),
+                Map.of(
+                        "path", MappingClass.PORTABLE,
+                        "content", MappingClass.PORTABLE,
+                        "mediaType", MappingClass.PORTABLE,
+                        "version", MappingClass.PORTABLE,
+                        "lock", MappingClass.MANUAL_REVIEW,
+                        "share", MappingClass.LOSSY),
+                true,
+                true,
+                true);
     }
 
     @Override
-    public VersionedFileListResponse listWithVersionTokens(String path) {
+    public VersionedListing list(FilePath path) {
         ensureConfigured();
-        String normalizedPath = FilePathCodec.normalizeProductPath(path);
+        String normalizedPath = path.value();
         try {
             return restClient.method(PROPFIND)
                     .uri(webdavUri(normalizedPath, true))
@@ -118,11 +142,24 @@ public class NextcloudFilesAdapter implements FilesStorageAdapter {
     }
 
     @Override
-    public String versionToken(String path) {
+    public Optional<VersionedFile> find(FilePath path) {
+        if (path.root()) {
+            return Optional.of(new VersionedFile(collectionObject(path, null), version(path)));
+        }
+        VersionedListing listing = list(new FilePath(parentPath(path.value())));
+        return listing.listing().children().stream()
+                .filter(item -> item.path().equals(path))
+                .findFirst()
+                .map(item -> new VersionedFile(
+                        item,
+                        listing.childVersions().getOrDefault(path, FileVersion.unknown())));
+    }
+
+    private FileVersion version(FilePath path) {
         ensureConfigured();
-        String normalizedPath = FilePathCodec.normalizeProductPath(path);
+        String normalizedPath = path.value();
         try {
-            return restClient.method(PROPFIND)
+            String token = restClient.method(PROPFIND)
                     .uri(webdavUri(normalizedPath, false))
                     .headers(this::applyActorHeaders)
                     .header("Depth", "0")
@@ -134,6 +171,7 @@ public class NextcloudFilesAdapter implements FilesStorageAdapter {
                         }
                         throw mapStatus(response.getStatusCode(), "version-token", normalizedPath);
                     });
+            return new FileVersion(token);
         } catch (ResourceAccessException exception) {
             throw downstreamUnavailable("version-token", exception);
         } catch (RestClientException exception) {
@@ -142,16 +180,16 @@ public class NextcloudFilesAdapter implements FilesStorageAdapter {
     }
 
     @Override
-    public FileItemResponse createFolder(CreateFolderRequest request) {
+    public FileObject createCollection(FilePath path) {
         ensureConfigured();
-        String folderPath = FilePathCodec.childPath(request.parentPath(), request.name());
+        String folderPath = path.value();
         try {
             return restClient.method(MKCOL)
                     .uri(webdavUri(folderPath, false))
                     .headers(this::applyActorHeaders)
                     .exchange((webdavRequest, response) -> {
                         if (response.getStatusCode().is2xxSuccessful()) {
-                            return folderItem(folderPath, null);
+                            return collectionObject(path, null);
                         }
                         throw mapStatus(response.getStatusCode(), "create-folder", folderPath);
                     });
@@ -163,60 +201,21 @@ public class NextcloudFilesAdapter implements FilesStorageAdapter {
     }
 
     @Override
-    public FileUploadResponse upload(String parentPath, MultipartFile file) {
+    public FileObject write(FileWrite write) {
         ensureConfigured();
-        String filename = FilePathCodec.validateFileName(firstText(file.getOriginalFilename(), file.getName()));
-        String targetPath = FilePathCodec.childPath(parentPath, filename);
-        try {
-            byte[] content = file.getBytes();
-            FileItemResponse item = restClient.method(HttpMethod.PUT)
-                    .uri(webdavUri(targetPath, false))
-                    .headers(headers -> {
-                        applyActorHeaders(headers);
-                        MediaType mediaType = file.getContentType() == null
-                                ? MediaType.APPLICATION_OCTET_STREAM
-                                : MediaType.parseMediaType(file.getContentType());
-                        headers.setContentType(mediaType);
-                    })
-                    .body(content)
-                    .exchange((request, response) -> {
-                        if (response.getStatusCode().is2xxSuccessful()) {
-                            return fileItem(targetPath, file.getContentType(), (long) content.length, null);
-                        }
-                        throw mapStatus(response.getStatusCode(), "upload-file", targetPath);
-                    });
-            return new FileUploadResponse(item);
-        } catch (ApiErrorException exception) {
-            throw exception;
-        } catch (ResourceAccessException exception) {
-            throw downstreamUnavailable("upload-file", exception);
-        } catch (RestClientException exception) {
-            throw downstreamFailure("upload-file", exception);
-        } catch (Exception exception) {
-            throw new ApiErrorException(
-                    HttpStatus.BAD_REQUEST,
-                    "file-upload-unreadable",
-                    "Uploaded file could not be read by the backend.",
-                    Map.of("module", "files", "operation", "upload-file"));
-        }
-    }
-
-    @Override
-    public FileItemResponse put(String path, byte[] content, String mimeType) {
-        ensureConfigured();
-        String targetPath = FilePathCodec.normalizeProductPath(path);
-        byte[] body = content == null ? new byte[0] : content;
+        String targetPath = write.path().value();
+        byte[] body = write.bytes();
         try {
             return restClient.method(HttpMethod.PUT)
                     .uri(webdavUri(targetPath, false))
                     .headers(headers -> {
                         applyActorHeaders(headers);
-                        headers.setContentType(mediaType(mimeType));
+                        headers.setContentType(mediaType(write.mediaType()));
                     })
                     .body(body)
                     .exchange((request, response) -> {
                         if (response.getStatusCode().is2xxSuccessful()) {
-                            return fileItem(targetPath, mimeType, (long) body.length, null);
+                            return fileObject(write.path(), write.mediaType(), body.length, null);
                         }
                         throw mapStatus(response.getStatusCode(), "webdav-put", targetPath);
                     });
@@ -230,33 +229,31 @@ public class NextcloudFilesAdapter implements FilesStorageAdapter {
     }
 
     @Override
-    public FileItemResponse copy(String sourcePath, String destinationPath, boolean overwrite) {
-        return copyOrMove(COPY, "webdav-copy", sourcePath, destinationPath, overwrite);
+    public FileObject copy(FilePath source, FilePath destination, boolean overwrite) {
+        return copyOrMove(COPY, "webdav-copy", source, destination, overwrite);
     }
 
     @Override
-    public FileItemResponse move(String sourcePath, String destinationPath, boolean overwrite) {
-        return copyOrMove(MOVE, "webdav-move", sourcePath, destinationPath, overwrite);
+    public FileObject move(FilePath source, FilePath destination, boolean overwrite) {
+        return copyOrMove(MOVE, "webdav-move", source, destination, overwrite);
     }
 
     @Override
-    public DownloadedFile download(String id) {
+    public FileContent read(FileId id) {
         ensureConfigured();
-        String path = FilePathCodec.pathFromId(id);
+        FilePath path = new FilePath(FilePathCodec.pathFromId(id.value()));
         try {
             return restClient.get()
-                    .uri(webdavUri(path, false))
+                    .uri(webdavUri(path.value(), false))
                     .headers(this::applyActorHeaders)
                     .exchange((request, response) -> {
                         if (response.getStatusCode().is2xxSuccessful()) {
                             byte[] body = StreamUtils.copyToByteArray(response.getBody());
                             MediaType mediaType = response.getHeaders().getContentType();
-                            return new DownloadedFile(
-                                    filename(path),
-                                    mediaType == null ? MediaType.APPLICATION_OCTET_STREAM_VALUE : mediaType.toString(),
-                                    body);
+                            String contentType = mediaType == null ? MediaType.APPLICATION_OCTET_STREAM_VALUE : mediaType.toString();
+                            return new FileContent(fileObject(path, contentType, body.length, null), body);
                         }
-                        throw mapStatus(response.getStatusCode(), "download-file", path);
+                        throw mapStatus(response.getStatusCode(), "download-file", path.value());
                     });
         } catch (ResourceAccessException exception) {
             throw downstreamUnavailable("download-file", exception);
@@ -265,15 +262,15 @@ public class NextcloudFilesAdapter implements FilesStorageAdapter {
         }
     }
 
-    private FileItemResponse copyOrMove(
+    private FileObject copyOrMove(
             HttpMethod method,
             String operation,
-            String sourcePath,
-            String destinationPath,
+            FilePath sourcePath,
+            FilePath destinationPath,
             boolean overwrite) {
         ensureConfigured();
-        String normalizedSource = FilePathCodec.normalizeProductPath(sourcePath);
-        String normalizedDestination = FilePathCodec.normalizeProductPath(destinationPath);
+        String normalizedSource = sourcePath.value();
+        String normalizedDestination = destinationPath.value();
         try {
             restClient.method(method)
                     .uri(webdavUri(normalizedSource, false))
@@ -288,11 +285,11 @@ public class NextcloudFilesAdapter implements FilesStorageAdapter {
                         }
                         throw mapStatus(response.getStatusCode(), operation, normalizedSource);
                     });
-            FileItemResponse existing = list(parentPath(normalizedDestination)).items().stream()
-                    .filter(item -> FilePathCodec.normalizeProductPath(item.path()).equals(normalizedDestination))
+            FileObject existing = list(new FilePath(parentPath(normalizedDestination))).listing().children().stream()
+                    .filter(item -> item.path().value().equals(normalizedDestination))
                     .findFirst()
                     .orElse(null);
-            return existing == null ? fileItem(normalizedDestination, null, null, null) : existing;
+            return existing == null ? fileObject(destinationPath, null, 0, null) : existing;
         } catch (ApiErrorException exception) {
             throw exception;
         } catch (ResourceAccessException exception) {
@@ -303,18 +300,17 @@ public class NextcloudFilesAdapter implements FilesStorageAdapter {
     }
 
     @Override
-    public void delete(String id) {
+    public void delete(FilePath path, FileVersion expectedVersion) {
         ensureConfigured();
-        String path = FilePathCodec.pathFromId(id);
         try {
             restClient.method(HttpMethod.DELETE)
-                    .uri(webdavUri(path, false))
+                    .uri(webdavUri(path.value(), false))
                     .headers(this::applyActorHeaders)
                     .exchange((request, response) -> {
                         if (response.getStatusCode().is2xxSuccessful()) {
                             return null;
                         }
-                        throw mapStatus(response.getStatusCode(), "delete-file", path);
+                        throw mapStatus(response.getStatusCode(), "delete-file", path.value());
                     });
         } catch (ResourceAccessException exception) {
             throw downstreamUnavailable("delete-file", exception);
@@ -324,7 +320,7 @@ public class NextcloudFilesAdapter implements FilesStorageAdapter {
     }
 
     private void ensureConfigured() {
-        if (!isConfigured()) {
+        if (!configured()) {
             throw new ApiErrorException(
                     HttpStatus.SERVICE_UNAVAILABLE,
                     "nextcloud-adapter-not-configured",
@@ -355,7 +351,7 @@ public class NextcloudFilesAdapter implements FilesStorageAdapter {
         headers.set("OCS-APIRequest", "true");
     }
 
-    private VersionedFileListResponse parseVersionedList(String listedPath, InputStream body) {
+    private VersionedListing parseVersionedList(String listedPath, InputStream body) {
         try {
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             factory.setNamespaceAware(true);
@@ -364,9 +360,9 @@ public class NextcloudFilesAdapter implements FilesStorageAdapter {
             factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
             Document document = factory.newDocumentBuilder().parse(body);
             NodeList responses = document.getElementsByTagNameNS("*", "response");
-            List<FileItemResponse> items = new ArrayList<>();
-            Map<String, String> versionTokens = new LinkedHashMap<>();
-            FileQuotaResponse quota = null;
+            List<FileObject> items = new ArrayList<>();
+            Map<FilePath, FileVersion> versionTokens = new LinkedHashMap<>();
+            FileQuota quota = null;
             String listedVersionToken = null;
             for (int index = 0; index < responses.getLength(); index++) {
                 Element response = (Element) responses.item(index);
@@ -384,20 +380,21 @@ public class NextcloudFilesAdapter implements FilesStorageAdapter {
                 boolean folder = firstElement(prop, "collection") != null;
                 Long size = folder ? null : parseLong(childText(prop, "getcontentlength"));
                 String mimeType = folder ? null : childText(prop, "getcontenttype");
-                OffsetDateTime modifiedAt = parseModifiedAt(childText(prop, "getlastmodified"));
+                Instant modifiedAt = parseModifiedAt(childText(prop, "getlastmodified"));
+                FilePath path = new FilePath(itemPath);
                 items.add(folder
-                        ? folderItem(itemPath, modifiedAt)
-                        : fileItem(itemPath, mimeType, size, modifiedAt));
+                        ? collectionObject(path, modifiedAt)
+                        : fileObject(path, mimeType, size == null ? 0 : size, modifiedAt));
                 if (StringUtils.hasText(versionToken)) {
-                    versionTokens.put(FilePathCodec.normalizeProductPath(itemPath), versionToken.trim());
+                    versionTokens.put(path, new FileVersion(versionToken));
                 }
             }
             items.sort(Comparator
-                    .comparing((FileItemResponse item) -> "folder".equals(item.type()) ? 0 : 1)
-                    .thenComparing(FileItemResponse::name, String.CASE_INSENSITIVE_ORDER));
-            return new VersionedFileListResponse(
-                    new FileListResponse(listedPath, List.copyOf(items), quota),
-                    listedVersionToken,
+                    .comparing((FileObject item) -> item.kind() == Kind.COLLECTION ? 0 : 1)
+                    .thenComparing(FileObject::name, String.CASE_INSENSITIVE_ORDER));
+            return new VersionedListing(
+                    new FileListing(new FilePath(listedPath), items, quota),
+                    new FileVersion(listedVersionToken),
                     Map.copyOf(versionTokens));
         } catch (ApiErrorException exception) {
             throw exception;
@@ -410,14 +407,10 @@ public class NextcloudFilesAdapter implements FilesStorageAdapter {
         }
     }
 
-    private FileQuotaResponse quotaFrom(Element prop) {
+    private FileQuota quotaFrom(Element prop) {
         Long used = parseLong(childText(prop, "quota-used-bytes"));
         Long available = parseLong(childText(prop, "quota-available-bytes"));
-        Long total = used != null && available != null && available >= 0 ? used + available : null;
-        if (used == null && total == null) {
-            return null;
-        }
-        return new FileQuotaResponse(used, total);
+        return used == null && available == null ? FileQuota.unknown() : new FileQuota(available, used);
     }
 
     private String parseVersionToken(InputStream body) {
@@ -465,30 +458,26 @@ public class NextcloudFilesAdapter implements FilesStorageAdapter {
         return FilePathCodec.normalizeProductPath(relative);
     }
 
-    private FileItemResponse folderItem(String path, OffsetDateTime modifiedAt) {
-        String normalized = FilePathCodec.normalizeProductPath(path);
-        return new FileItemResponse(
-                FilePathCodec.toId(normalized),
-                filename(normalized),
-                normalized,
-                "folder",
-                null,
+    private FileObject collectionObject(FilePath path, Instant modifiedAt) {
+        return new FileObject(
+                new FileId(FilePathCodec.toId(path.value())),
+                path,
+                Kind.COLLECTION,
+                0,
                 null,
                 modifiedAt,
                 false);
     }
 
-    private FileItemResponse fileItem(String path, String mimeType, Long size, OffsetDateTime modifiedAt) {
-        String normalized = FilePathCodec.normalizeProductPath(path);
-        return new FileItemResponse(
-                FilePathCodec.toId(normalized),
-                filename(normalized),
-                normalized,
-                "file",
-                mimeType,
+    private FileObject fileObject(FilePath path, String mimeType, long size, Instant modifiedAt) {
+        return new FileObject(
+                new FileId(FilePathCodec.toId(path.value())),
+                path,
+                Kind.FILE,
                 size,
+                mimeType,
                 modifiedAt,
-                true);
+                false);
     }
 
     private String filename(String normalizedPath) {
@@ -531,12 +520,12 @@ public class NextcloudFilesAdapter implements FilesStorageAdapter {
         }
     }
 
-    private OffsetDateTime parseModifiedAt(String value) {
+    private Instant parseModifiedAt(String value) {
         if (!StringUtils.hasText(value)) {
             return null;
         }
         try {
-            return ZonedDateTime.parse(value, DateTimeFormatter.RFC_1123_DATE_TIME).toOffsetDateTime();
+            return ZonedDateTime.parse(value, DateTimeFormatter.RFC_1123_DATE_TIME).toInstant();
         } catch (DateTimeParseException exception) {
             return null;
         }

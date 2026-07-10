@@ -1,16 +1,30 @@
-plugins { id 'org.springframework.boot' version '3.2.2'; id 'io.spring.dependency-management' version '1.1.2'; id 'java' }
+plugins {
+    id 'org.springframework.boot' version '4.1.0'
+    id 'io.spring.dependency-management' version '1.1.7'
+    id 'java'
+}
 
 group = 'com.massimotter.weave'
 version = '0.1.0'
 
 java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }
 
+dependencyManagement {
+    imports {
+        mavenBom 'org.springframework.ai:spring-ai-bom:2.0.0'
+    }
+}
 
 dependencies {
     implementation project(':weave-contract')
-    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.ai:spring-ai-starter-mcp-server-webmvc'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.boot:spring-boot-starter-security-oauth2-resource-server'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+    testImplementation 'org.springframework.security:spring-security-test'
 }
 
 tasks.named('test') { useJUnitPlatform() }
+tasks.withType(JavaCompile).configureEach { options.compilerArgs += ['-Xlint:deprecation'] }

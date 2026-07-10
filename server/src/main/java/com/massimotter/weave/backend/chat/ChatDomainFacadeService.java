@@ -5,13 +5,24 @@ import com.massimotter.weave.backend.audit.AuditEvent;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.audit.AuditRedactionLevel;
 import com.massimotter.weave.backend.chat.domain.ChatConversations;
+import com.massimotter.weave.backend.chat.domain.ChatActorRef;
+import com.massimotter.weave.backend.chat.domain.ChatCursor;
 import com.massimotter.weave.backend.chat.domain.ChatHistoryPolicy;
+import com.massimotter.weave.backend.chat.domain.ChatEventContent;
+import com.massimotter.weave.backend.chat.domain.ChatMessage;
 import com.massimotter.weave.backend.chat.domain.ChatMemberState;
 import com.massimotter.weave.backend.chat.domain.ChatMessages;
+import com.massimotter.weave.backend.chat.domain.ChatTimeline;
+import com.massimotter.weave.backend.chat.domain.ChatTimelineEvent;
+import com.massimotter.weave.backend.chat.domain.ChatTransactionId;
+import com.massimotter.weave.backend.chat.domain.ConversationId;
 import com.massimotter.weave.backend.chat.domain.ChatMigrationPreflightReport;
 import com.massimotter.weave.backend.chat.domain.ChatMigrationPreflightRequest;
 import com.massimotter.weave.backend.chat.domain.ChatProviderMappingRecord;
 import com.massimotter.weave.backend.chat.domain.ChatReadiness;
+import com.massimotter.weave.backend.chat.domain.ChatReadReceipt;
+import com.massimotter.weave.backend.chat.domain.ChatTypingIndicator;
+import com.massimotter.weave.backend.chat.port.ChatProviderPort;
 import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyState;
 import com.massimotter.weave.backend.provider.ProviderCapabilityContracts;
@@ -43,6 +54,7 @@ public class ChatDomainFacadeService {
     private final ProviderSelectionRepository providerSelectionRepository;
     private final WorkspaceCapabilityService workspaceCapabilityService;
     private final AuditEventPublisher auditEventPublisher;
+    private final ChatProviderPort chatProviderPort;
     private final Clock clock;
 
     @Autowired
@@ -50,8 +62,15 @@ public class ChatDomainFacadeService {
             ProviderRegistry providerRegistry,
             ProviderSelectionRepository providerSelectionRepository,
             WorkspaceCapabilityService workspaceCapabilityService,
-            AuditEventPublisher auditEventPublisher) {
-        this(providerRegistry, providerSelectionRepository, workspaceCapabilityService, auditEventPublisher, Clock.systemUTC());
+            AuditEventPublisher auditEventPublisher,
+            ChatProviderPort chatProviderPort) {
+        this(
+                providerRegistry,
+                providerSelectionRepository,
+                workspaceCapabilityService,
+                auditEventPublisher,
+                chatProviderPort,
+                Clock.systemUTC());
     }
 
     ChatDomainFacadeService(
@@ -59,11 +78,13 @@ public class ChatDomainFacadeService {
             ProviderSelectionRepository providerSelectionRepository,
             WorkspaceCapabilityService workspaceCapabilityService,
             AuditEventPublisher auditEventPublisher,
+            ChatProviderPort chatProviderPort,
             Clock clock) {
         this.providerRegistry = providerRegistry;
         this.providerSelectionRepository = providerSelectionRepository;
         this.workspaceCapabilityService = workspaceCapabilityService;
         this.auditEventPublisher = auditEventPublisher;
+        this.chatProviderPort = chatProviderPort;
         this.clock = clock;
     }
 
@@ -81,9 +102,8 @@ public class ChatDomainFacadeService {
         if (readiness.memberState() != ChatMemberState.READY) {
             return new ChatConversations(readiness, List.of());
         }
-        // Provider adapters will populate canonical conversations behind this seam. Until then,
-        // the facade returns an empty Weave-domain collection rather than leaking provider APIs.
-        return new ChatConversations(readiness, List.of());
+        ChatConversations conversations = chatProviderPort.joinedConversations(new ChatActorRef(actorRef(jwt)));
+        return new ChatConversations(readiness, conversations.conversations());
     }
 
     public ChatMessages messages(String conversationId, Jwt jwt) {
@@ -91,7 +111,189 @@ public class ChatDomainFacadeService {
         if (readiness.memberState() != ChatMemberState.READY) {
             return new ChatMessages(readiness, safeIdentifier(conversationId, "conversation-unavailable"), List.of());
         }
-        return new ChatMessages(readiness, safeIdentifier(conversationId, "conversation-empty"), List.of());
+        ChatMessages messages = chatProviderPort.timeline(
+                new ChatActorRef(actorRef(jwt)),
+                new ConversationId(safeIdentifier(conversationId, "conversation-empty")),
+                null,
+                100);
+        return new ChatMessages(readiness, messages.conversationId(), messages.messages());
+    }
+
+    public com.massimotter.weave.backend.chat.domain.ChatConversation conversation(
+            String conversationId,
+            Jwt jwt) {
+        ChatReadiness readiness = memberReadiness(jwt);
+        if (readiness.memberState() != ChatMemberState.READY) {
+            throw new IllegalStateException("Chat is not ready.");
+        }
+        return chatProviderPort.conversation(
+                new ChatActorRef(actorRef(jwt)),
+                new ConversationId(safeIdentifier(conversationId, "conversation-unavailable")));
+    }
+
+    public String syncCursor(Jwt jwt) {
+        ChatReadiness readiness = memberReadiness(jwt);
+        if (readiness.memberState() != ChatMemberState.READY) {
+            return "chat-unavailable";
+        }
+        return chatProviderPort.currentCursor(new ChatActorRef(actorRef(jwt))).value();
+    }
+
+    public ChatMessage sendMessage(
+            String conversationId,
+            String transactionId,
+            String body,
+            Jwt jwt) {
+        workspaceCapabilityService.requireCapability(jwt, "chat.send", "chat", "send-message");
+        ChatReadiness readiness = memberReadiness(jwt);
+        if (readiness.memberState() != ChatMemberState.READY) {
+            throw new IllegalStateException("Chat is not ready for message delivery.");
+        }
+        ChatMessage message = chatProviderPort.send(
+                new ChatActorRef(actorRef(jwt)),
+                new ConversationId(safeIdentifier(conversationId, "conversation-unavailable")),
+                new ChatTransactionId(safeIdentifier(transactionId, "transaction-required")),
+                body);
+        auditEventPublisher.publish(new AuditEvent(
+                organizationId(jwt),
+                message.conversationId(),
+                actorRef(jwt),
+                "matrix-client-server-facade",
+                AuditAction.CHAT_MESSAGE_SENT,
+                Instant.now(clock),
+                message.messageId(),
+                AuditRedactionLevel.SECRET_REDACTED,
+                Map.of(
+                        "domain", "chat",
+                        "conversationId", message.conversationId(),
+                        "messageId", message.messageId(),
+                        "transactionId", transactionId,
+                        "providerPayloadExposed", false)));
+        return message;
+    }
+
+    public ChatTimeline timeline(String conversationId, Jwt jwt, int limit) {
+        ChatReadiness readiness = memberReadiness(jwt);
+        if (readiness.memberState() != ChatMemberState.READY) {
+            return new ChatTimeline(safeIdentifier(conversationId, "conversation-unavailable"), List.of());
+        }
+        return chatProviderPort.timelineEvents(
+                new ChatActorRef(actorRef(jwt)),
+                new ConversationId(safeIdentifier(conversationId, "conversation-empty")),
+                null,
+                limit);
+    }
+
+    public ChatTimelineEvent sendEvent(
+            String conversationId,
+            String transactionId,
+            ChatEventContent content,
+            Jwt jwt) {
+        workspaceCapabilityService.requireCapability(jwt, "chat.send", "chat", "send-event");
+        ChatReadiness readiness = memberReadiness(jwt);
+        if (readiness.memberState() != ChatMemberState.READY) {
+            throw new IllegalStateException("Chat is not ready for event delivery.");
+        }
+        ChatTimelineEvent event = chatProviderPort.sendEvent(
+                new ChatActorRef(actorRef(jwt)),
+                new ConversationId(safeIdentifier(conversationId, "conversation-unavailable")),
+                new ChatTransactionId(safeIdentifier(transactionId, "transaction-required")),
+                content);
+        auditTimelineMutation(jwt, event, transactionId, "event-sent");
+        return event;
+    }
+
+    public ChatTimelineEvent redactEvent(
+            String conversationId,
+            String eventId,
+            String transactionId,
+            Jwt jwt) {
+        workspaceCapabilityService.requireCapability(jwt, "chat.send", "chat", "redact-event");
+        ChatTimelineEvent event = chatProviderPort.redactEvent(
+                new ChatActorRef(actorRef(jwt)),
+                new ConversationId(safeIdentifier(conversationId, "conversation-unavailable")),
+                new ChatTransactionId(safeIdentifier(transactionId, "transaction-required")),
+                safeIdentifier(eventId, "event-required"));
+        auditTimelineMutation(jwt, event, transactionId, "event-redacted");
+        return event;
+    }
+
+    public com.massimotter.weave.backend.chat.domain.ChatConversation createConversation(
+            String transactionId,
+            String title,
+            String kind,
+            List<ChatActorRef> invitedActors,
+            Jwt jwt) {
+        workspaceCapabilityService.requireCapability(jwt, "chat.send", "chat", "create-conversation");
+        return chatProviderPort.createConversation(
+                new ChatActorRef(actorRef(jwt)),
+                new ChatTransactionId(safeIdentifier(transactionId, "transaction-required")),
+                title,
+                kind,
+                invitedActors);
+    }
+
+    public com.massimotter.weave.backend.chat.domain.ChatConversation joinConversation(
+            String conversationId,
+            Jwt jwt) {
+        workspaceCapabilityService.requireCapability(jwt, "chat.send", "chat", "join-conversation");
+        return chatProviderPort.joinConversation(
+                new ChatActorRef(actorRef(jwt)),
+                new ConversationId(safeIdentifier(conversationId, "conversation-unavailable")));
+    }
+
+    public com.massimotter.weave.backend.chat.domain.ChatConversation leaveConversation(
+            String conversationId,
+            Jwt jwt) {
+        workspaceCapabilityService.requireCapability(jwt, "chat.send", "chat", "leave-conversation");
+        return chatProviderPort.leaveConversation(
+                new ChatActorRef(actorRef(jwt)),
+                new ConversationId(safeIdentifier(conversationId, "conversation-unavailable")));
+    }
+
+    public ChatReadReceipt markRead(String conversationId, String eventId, Jwt jwt) {
+        workspaceCapabilityService.requireCapability(jwt, "chat.read", "chat", "mark-read");
+        return chatProviderPort.markRead(
+                new ChatActorRef(actorRef(jwt)),
+                new ConversationId(safeIdentifier(conversationId, "conversation-unavailable")),
+                safeIdentifier(eventId, "event-required"));
+    }
+
+    public ChatTypingIndicator setTyping(
+            String conversationId,
+            boolean typing,
+            int timeoutMilliseconds,
+            Jwt jwt) {
+        workspaceCapabilityService.requireCapability(jwt, "chat.send", "chat", "set-typing");
+        return chatProviderPort.setTyping(
+                new ChatActorRef(actorRef(jwt)),
+                new ConversationId(safeIdentifier(conversationId, "conversation-unavailable")),
+                typing,
+                timeoutMilliseconds);
+    }
+
+    private void auditTimelineMutation(
+            Jwt jwt,
+            ChatTimelineEvent event,
+            String transactionId,
+            String operation) {
+        auditEventPublisher.publish(new AuditEvent(
+                organizationId(jwt),
+                event.conversationId(),
+                actorRef(jwt),
+                "matrix-client-server-facade",
+                AuditAction.CHAT_MESSAGE_SENT,
+                Instant.now(clock),
+                event.eventId(),
+                AuditRedactionLevel.SECRET_REDACTED,
+                Map.of(
+                        "domain", "chat",
+                        "operation", operation,
+                        "eventKind", event.content().kind().value(),
+                        "conversationId", event.conversationId(),
+                        "eventId", event.eventId(),
+                        "transactionId", transactionId,
+                        "providerPayloadExposed", false)));
     }
 
     public ChatMigrationPreflightReport preflight(ChatMigrationPreflightRequest request, Jwt jwt) {
@@ -178,6 +380,11 @@ public class ChatDomainFacadeService {
                         .findFirst());
 
         ChatMemberState state = mapState(chatCapability.policyState(), chatCapability.enabled(), maybeSelection, maybeProvider);
+        if (state == ChatMemberState.READY && !chatProviderPort.configured()) {
+            state = ChatMemberState.MISCONFIGURED;
+        } else if (state == ChatMemberState.READY && !chatProviderPort.readiness().available()) {
+            state = ChatMemberState.DEGRADED;
+        }
         String impact = memberImpact(state, chatCapability.memberImpact());
         ChatProviderMappingRecord mapping = includeAdminDiagnostics
                 ? mapping(maybeSelection, maybeProvider, state)
@@ -278,6 +485,9 @@ public class ChatDomainFacadeService {
         diagnostics.put("currentRealProviderPath", "matrix-chat");
         diagnostics.put("currentRealProviderAliases", List.of("synapse-homeserver"));
         diagnostics.put("contractOnlyChatProviders", List.of("microsoft-teams", "slack", "nextcloud-talk"));
+        diagnostics.put("canonicalAdapterKey", chatProviderPort.conformanceProfile().adapterKey());
+        diagnostics.put("canonicalAdapterReadiness", chatProviderPort.readiness().supportSafeCode());
+        diagnostics.put("canonicalSupportedOperations", chatProviderPort.conformanceProfile().supportedOperations().stream().sorted().toList());
         diagnostics.put("secretsReturned", false);
         diagnostics.put("downstreamErrorsReturned", false);
         diagnostics.put("diagnosticsRedacted", true);

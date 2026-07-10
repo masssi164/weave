@@ -1,5 +1,17 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarEvent;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarChange;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarChangeSet;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarId;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarScope;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarWrite;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.EventId;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.EventVersion;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.FreeBusyWindow;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.ScopeType;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.WriteIntent;
+import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
 import com.massimotter.weave.backend.config.ApiAccessDeniedHandler;
 import com.massimotter.weave.backend.config.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
@@ -18,10 +30,16 @@ import com.massimotter.weave.backend.service.CalendarFacadeService;
 import com.massimotter.weave.backend.service.CallsFacadeService;
 import com.massimotter.weave.backend.service.FilesFacadeService;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
-import com.massimotter.weave.backend.service.calendar.CalendarAdapter;
 import com.massimotter.weave.backend.service.calendar.CalendarAdapterException;
+import com.massimotter.weave.backend.security.device.DeviceCredentialAuthenticationFilter;
+import com.massimotter.weave.backend.security.device.DeviceCredentialRepository;
+import com.massimotter.weave.backend.security.device.DeviceCredentialService;
+import com.massimotter.weave.backend.security.device.InMemoryDeviceCredentialRepository;
 import com.jayway.jsonpath.JsonPath;
+import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,6 +51,8 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Bean;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -50,6 +70,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
@@ -58,7 +79,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(
-        controllers = {FilesController.class, CalendarController.class, CalDavCalendarController.class, CallsController.class},
+        controllers = {
+                FilesController.class,
+                FilesWebDavController.class,
+                CalendarController.class,
+                CalDavCalendarController.class,
+                CallsController.class},
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
 @Import({
         SecurityConfig.class,
@@ -66,6 +92,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         ApiAccessDeniedHandler.class,
         ApiErrorResponseWriter.class,
         ApiExceptionHandler.class,
+        DeviceCredentialAuthenticationFilter.class,
+        FilesCalendarFacadeControllerTest.DeviceCredentialTestConfiguration.class,
         FilesFacadeService.class,
         CalendarFacadeService.class,
         CallsFacadeService.class,
@@ -89,6 +117,19 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 class FilesCalendarFacadeControllerTest {
 
+    @TestConfiguration
+    static class DeviceCredentialTestConfiguration {
+        @Bean
+        DeviceCredentialRepository deviceCredentialRepository() {
+            return new InMemoryDeviceCredentialRepository();
+        }
+
+        @Bean
+        DeviceCredentialService deviceCredentialService(DeviceCredentialRepository repository) {
+            return new DeviceCredentialService(repository);
+        }
+    }
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -102,7 +143,7 @@ class FilesCalendarFacadeControllerTest {
     private ContextAuthorizationProperties contextAuthorizationProperties;
 
     @MockBean
-    private CalendarAdapter calendarAdapter;
+    private CalendarProviderPort calendarProviderPort;
 
     @BeforeEach
     void allowContextAccess() {
@@ -118,16 +159,28 @@ class FilesCalendarFacadeControllerTest {
                 CalendarAdapterException.Type.NOT_CONFIGURED,
                 "Calendar facade is available, but calendar storage is not configured yet.",
                 Map.of("module", "calendar"));
-        when(calendarAdapter.list(
-                        any(),
-                        any(CalendarScopeResponse.class),
-                        nullable(OffsetDateTime.class),
-                        nullable(OffsetDateTime.class)))
+        when(calendarProviderPort.query(
+                        any(CalendarId.class),
+                        any(CalendarScope.class),
+                        nullable(Instant.class),
+                        nullable(Instant.class)))
                 .thenThrow(notConfigured);
-        when(calendarAdapter.read(any(), any(CalendarScopeResponse.class), any())).thenThrow(notConfigured);
-        when(calendarAdapter.create(any(), any())).thenThrow(notConfigured);
-        when(calendarAdapter.update(any(), any(CalendarScopeResponse.class), any(), any())).thenThrow(notConfigured);
-        doThrow(notConfigured).when(calendarAdapter).delete(any(), any(CalendarScopeResponse.class), any());
+        when(calendarProviderPort.read(any(CalendarId.class), any(CalendarScope.class), any(EventId.class)))
+                .thenThrow(notConfigured);
+        when(calendarProviderPort.write(any(CalendarWrite.class))).thenThrow(notConfigured);
+        when(calendarProviderPort.freeBusy(
+                        any(CalendarId.class),
+                        any(CalendarScope.class),
+                        any(Instant.class),
+                        any(Instant.class)))
+                .thenThrow(notConfigured);
+        when(calendarProviderPort.changes(
+                        any(CalendarId.class),
+                        any(CalendarScope.class),
+                        nullable(String.class)))
+                .thenThrow(notConfigured);
+        doThrow(notConfigured).when(calendarProviderPort).delete(
+                any(CalendarId.class), any(CalendarScope.class), any(EventId.class), any(EventVersion.class));
     }
 
     @Test
@@ -196,7 +249,7 @@ class FilesCalendarFacadeControllerTest {
     }
 
     @Test
-    void filesCredentialLifecycleCreatesListsAndRevokesWithoutSecretMaterial() throws Exception {
+    void filesCredentialLifecycleReturnsSecretOnceAuthenticatesWebdavAndRevokes() throws Exception {
         // FILES_WEBDAV_DEVICE_CREDENTIAL_CONTROL_PLANE
         String body = """
                 {"label":"Mac Finder","clientType":"webdav"}
@@ -207,11 +260,13 @@ class FilesCalendarFacadeControllerTest {
                         .content(body))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.credentialId").value(org.hamcrest.Matchers.startsWith("files_device_")))
-                .andExpect(jsonPath("$.state").value("active-no-secret-issued"))
+                .andExpect(jsonPath("$.state").value("active"))
                 .andExpect(jsonPath("$.principalRef").value("user:user@example.com"))
                 .andExpect(jsonPath("$.clientType").value("webdav"))
                 .andExpect(jsonPath("$.label").value("Mac Finder"))
-                .andExpect(jsonPath("$.secretMaterialReturned").value(false))
+                .andExpect(jsonPath("$.secretMaterialReturned").value(true))
+                .andExpect(jsonPath("$.username").value(org.hamcrest.Matchers.startsWith("files_device_")))
+                .andExpect(jsonPath("$.secret").isNotEmpty())
                 .andExpect(jsonPath("$.webDavBasePath").value("/dav/files"))
                 .andExpect(jsonPath("$.revocationActions[0]").value(org.hamcrest.Matchers.startsWith(
                         "DELETE /api/files/client-setup/credentials/files_device_")))
@@ -225,12 +280,26 @@ class FilesCalendarFacadeControllerTest {
                 .getResponse()
                 .getContentAsString();
         String credentialId = JsonPath.read(createdBody, "$.credentialId");
+        String secret = JsonPath.read(createdBody, "$.secret");
+
+        mockMvc.perform(request(HttpMethod.valueOf("OPTIONS"), "/dav/files")
+                        .with(httpBasic(credentialId, secret)))
+                .andExpect(status().isNoContent())
+                .andExpect(header().string("DAV", org.hamcrest.Matchers.containsString("1")));
+
+        mockMvc.perform(get("/api/files/readiness").with(httpBasic(credentialId, secret)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("unauthorized"));
+        mockMvc.perform(get("/_matrix/client/versions").with(httpBasic(credentialId, secret)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("unauthorized"));
 
         mockMvc.perform(get("/api/files/client-setup/credentials")
                         .with(workspaceJwt()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.credentials[0].credentialId").value(credentialId))
-                .andExpect(jsonPath("$.credentials[0].secretMaterialReturned").value(false));
+                .andExpect(jsonPath("$.credentials[0].secretMaterialReturned").value(false))
+                .andExpect(jsonPath("$.credentials[0].secret").doesNotExist());
 
         mockMvc.perform(request(HttpMethod.DELETE, "/api/files/client-setup/credentials/{credentialId}", credentialId)
                         .with(workspaceJwt()))
@@ -240,6 +309,12 @@ class FilesCalendarFacadeControllerTest {
                 .andExpect(jsonPath("$.revokedAt").exists())
                 .andExpect(jsonPath("$.secretMaterialReturned").value(false))
                 .andExpect(jsonPath("$.revocationActions").isEmpty());
+
+        mockMvc.perform(request(HttpMethod.valueOf("OPTIONS"), "/dav/files")
+                        .with(httpBasic(credentialId, secret)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("WWW-Authenticate", org.hamcrest.Matchers.containsString("Weave DAV")))
+                .andExpect(jsonPath("$.code").value("device-credential-invalid"));
     }
 
     @Test
@@ -349,10 +424,10 @@ class FilesCalendarFacadeControllerTest {
                 .andExpect(jsonPath("$.accessModel.type").value("workspace-team-channel-calendar"))
                 .andExpect(jsonPath("$.accessModel.productScope").value("workspace-team-channel"))
                 .andExpect(jsonPath("$.accessModel.privateUserCalendarsAvailable").value(false))
-                .andExpect(jsonPath("$.credentialReadiness.status").value("blocked_until_revocable_credentials"))
+                .andExpect(jsonPath("$.credentialReadiness.status").value("revocable_credentials_ready"))
                 .andExpect(jsonPath("$.credentialReadiness.appleProfileSigned").value(false))
                 .andExpect(jsonPath("$.credentialReadiness.appleProfilePasswordIncluded").value(false))
-                .andExpect(jsonPath("$.credentialReadiness.revocableCredentialsAvailable").value(false))
+                .andExpect(jsonPath("$.credentialReadiness.revocableCredentialsAvailable").value(true))
                 .andExpect(jsonPath("$.credentialReadiness.readOnlySubscriptionTokensAvailable").value(false))
                 .andExpect(jsonPath("$.credentialReadiness.backendActorCredentialsExposed").value(false))
                 .andExpect(jsonPath("$.username").value("user@example.com"))
@@ -370,7 +445,8 @@ class FilesCalendarFacadeControllerTest {
                 .andExpect(jsonPath("$.options[1].actionUrl").doesNotExist())
                 .andExpect(jsonPath("$.options[2].platform").value("desktop"))
                 .andExpect(jsonPath("$.options[2].method").value("caldav-manual"))
-                .andExpect(jsonPath("$.options[2].available").value(false))
+                .andExpect(jsonPath("$.options[2].available").value(true))
+                .andExpect(jsonPath("$.options[2].actionUrl").value("/api/calendar/client-setup/credentials"))
                 .andExpect(jsonPath("$.options[3].platform").value("subscription"))
                 .andExpect(jsonPath("$.options[3].available").value(false))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
@@ -385,6 +461,49 @@ class FilesCalendarFacadeControllerTest {
                         .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("http://"))))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                         .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("https://"))));
+    }
+
+    @Test
+    void calendarCredentialLifecycleReturnsSecretOnceAuthenticatesCaldavAndRevokes() throws Exception {
+        String createdBody = mockMvc.perform(post("/api/calendar/client-setup/credentials")
+                        .with(workspaceJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"label\":\"Apple Calendar\",\"clientType\":\"caldav\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.credentialId").value(org.hamcrest.Matchers.startsWith("calendar_device_")))
+                .andExpect(jsonPath("$.state").value("active"))
+                .andExpect(jsonPath("$.username").value(org.hamcrest.Matchers.startsWith("calendar_device_")))
+                .andExpect(jsonPath("$.principalRef").value("user:user@example.com"))
+                .andExpect(jsonPath("$.secretMaterialReturned").value(true))
+                .andExpect(jsonPath("$.secret").isNotEmpty())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        String credentialId = JsonPath.read(createdBody, "$.credentialId");
+        String secret = JsonPath.read(createdBody, "$.secret");
+
+        mockMvc.perform(request(HttpMethod.valueOf("OPTIONS"), "/caldav")
+                        .with(httpBasic(credentialId, secret)))
+                .andExpect(status().isNoContent())
+                .andExpect(header().string("DAV", "1, calendar-access"));
+
+        mockMvc.perform(get("/api/calendar/client-setup/credentials").with(workspaceJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.credentials[0].credentialId").value(credentialId))
+                .andExpect(jsonPath("$.credentials[0].secretMaterialReturned").value(false))
+                .andExpect(jsonPath("$.credentials[0].secret").doesNotExist());
+
+        mockMvc.perform(request(HttpMethod.DELETE,
+                        "/api/calendar/client-setup/credentials/{credentialId}", credentialId)
+                        .with(workspaceJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.state").value("revoked"))
+                .andExpect(jsonPath("$.secretMaterialReturned").value(false));
+
+        mockMvc.perform(request(HttpMethod.valueOf("OPTIONS"), "/caldav")
+                        .with(httpBasic(credentialId, secret)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("device-credential-invalid"));
     }
 
     @Test
@@ -447,21 +566,20 @@ class FilesCalendarFacadeControllerTest {
 
     @Test
     void calDavReportCalendarQueryAndFreeBusyReturnFacadeBackedCalendarData() throws Exception {
-        when(calendarAdapter.list(
-                        any(),
-                        any(CalendarScopeResponse.class),
-                        nullable(OffsetDateTime.class),
-                        nullable(OffsetDateTime.class)))
-                .thenReturn(List.of(new CalendarEventResponse(
-                        "planning",
-                        "Planning",
-                        "Roadmap sync",
-                        OffsetDateTime.parse("2026-07-08T10:00:00Z"),
-                        OffsetDateTime.parse("2026-07-08T11:00:00Z"),
-                        "UTC",
-                        "Room 1",
-                        false,
-                        "\"etag-planning\"")));
+        when(calendarProviderPort.query(
+                        any(CalendarId.class),
+                        any(CalendarScope.class),
+                        nullable(Instant.class),
+                        nullable(Instant.class)))
+                .thenReturn(List.of(calendarEvent("planning", "Planning", "\"etag-planning\"", CalendarScope.workspace())));
+        when(calendarProviderPort.freeBusy(
+                        any(CalendarId.class),
+                        any(CalendarScope.class),
+                        any(Instant.class),
+                        any(Instant.class)))
+                .thenReturn(List.of(new FreeBusyWindow(
+                        Instant.parse("2026-07-08T10:00:00Z"),
+                        Instant.parse("2026-07-08T11:00:00Z"))));
 
         mockMvc.perform(request(HttpMethod.valueOf("REPORT"), "/caldav/workspace/")
                         .with(workspaceJwt())
@@ -502,17 +620,37 @@ class FilesCalendarFacadeControllerTest {
 
     @Test
     void calDavReportMultigetAndSyncCollectionUseScopedFacadeCalendars() throws Exception {
-        when(calendarAdapter.list(
-                        any(),
-                        argThat(scope -> scope != null && "team:engineering".equals(scope.id())),
-                        nullable(OffsetDateTime.class),
-                        nullable(OffsetDateTime.class)))
-                .thenReturn(List.of(calendarEvent("team-planning", "Team planning", "\"etag-team\"")));
-        doReturn(calendarEvent("channel-planning", "Channel planning", "\"etag-channel\""))
-                .when(calendarAdapter).read(
-                        any(),
-                        argThat(scope -> scope != null && "channel:engineering-general".equals(scope.id())),
-                        eq("channel-planning"));
+        when(calendarProviderPort.changes(
+                        any(CalendarId.class),
+                        argThat(scope -> scope != null && scope.type() == ScopeType.TEAM
+                                && "engineering".equals(scope.teamId())),
+                        nullable(String.class)))
+                .thenReturn(new CalendarChangeSet(
+                        "provider-sync-2",
+                        List.of(new CalendarChange(
+                                "provider-sync-2",
+                                new EventId("team-planning"),
+                                false,
+                                new EventVersion("\"etag-team\"")))));
+        doReturn(calendarEvent(
+                "team-planning",
+                "Team planning",
+                "\"etag-team\"",
+                new CalendarScope(ScopeType.TEAM, "engineering", null)))
+                .when(calendarProviderPort).read(
+                        any(CalendarId.class),
+                        argThat(scope -> scope != null && scope.type() == ScopeType.TEAM),
+                        eq(new EventId("team-planning")));
+        doReturn(calendarEvent(
+                "channel-planning",
+                "Channel planning",
+                "\"etag-channel\"",
+                new CalendarScope(ScopeType.CHANNEL, "engineering", "engineering-general")))
+                .when(calendarProviderPort).read(
+                        any(CalendarId.class),
+                        argThat(scope -> scope != null && scope.type() == ScopeType.CHANNEL
+                                && "engineering-general".equals(scope.channelId())),
+                        eq(new EventId("channel-planning")));
 
         mockMvc.perform(request(HttpMethod.valueOf("REPORT"), "/caldav/team:engineering/")
                         .with(workspaceJwt())
@@ -546,15 +684,16 @@ class FilesCalendarFacadeControllerTest {
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                         .string(org.hamcrest.Matchers.containsString("SUMMARY:Channel planning")));
 
-        verify(calendarAdapter).list(
-                any(),
-                argThat(scope -> scope != null && "team:engineering".equals(scope.id())),
-                nullable(OffsetDateTime.class),
-                nullable(OffsetDateTime.class));
-        verify(calendarAdapter).read(
-                any(),
-                argThat(scope -> scope != null && "channel:engineering-general".equals(scope.id())),
-                eq("channel-planning"));
+        verify(calendarProviderPort).changes(
+                any(CalendarId.class),
+                argThat(scope -> scope != null && scope.type() == ScopeType.TEAM
+                        && "engineering".equals(scope.teamId())),
+                nullable(String.class));
+        verify(calendarProviderPort).read(
+                any(CalendarId.class),
+                argThat(scope -> scope != null && scope.type() == ScopeType.CHANNEL
+                        && "engineering-general".equals(scope.channelId())),
+                eq(new EventId("channel-planning")));
     }
 
     @Test
@@ -625,13 +764,15 @@ class FilesCalendarFacadeControllerTest {
     @Test
     void calDavEventReadPutCreateUpdateAndDeleteUseFacadeBackedIcalendar() throws Exception {
         // CALDAV_GET_PUT_DELETE_FACADE_MVP
-        doReturn(calendarEvent("planning", "Planning", "\"etag-existing\""))
-                .when(calendarAdapter).read(any(), any(CalendarScopeResponse.class), any());
-        doReturn(calendarEvent("planning-new", "Planning", "\"etag-created\""))
-                .when(calendarAdapter).create(any(), any());
-        doReturn(calendarEvent("planning", "Updated planning", "\"etag-updated\""))
-                .when(calendarAdapter).update(any(), any(CalendarScopeResponse.class), any(), any());
-        doNothing().when(calendarAdapter).delete(any(), any(CalendarScopeResponse.class), any());
+        doReturn(calendarEvent("planning", "Planning", "\"etag-existing\"", CalendarScope.workspace()))
+                .when(calendarProviderPort).read(
+                        any(CalendarId.class), any(CalendarScope.class), any(EventId.class));
+        doReturn(calendarEvent("planning-new", "Planning", "\"etag-created\"", CalendarScope.workspace()))
+                .when(calendarProviderPort).write(argThat(write -> write.intent() == WriteIntent.CREATE));
+        doReturn(calendarEvent("planning", "Updated planning", "\"etag-updated\"", CalendarScope.workspace()))
+                .when(calendarProviderPort).write(argThat(write -> write.intent() == WriteIntent.UPDATE));
+        doNothing().when(calendarProviderPort).delete(
+                any(CalendarId.class), any(CalendarScope.class), any(EventId.class), any(EventVersion.class));
 
         mockMvc.perform(get("/caldav/workspace/planning.ics")
                         .with(workspaceJwt()))
@@ -816,16 +957,25 @@ class FilesCalendarFacadeControllerTest {
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 
-    private CalendarEventResponse calendarEvent(String id, String title, String etag) {
-        return new CalendarEventResponse(
-                id,
+    private CalendarEvent calendarEvent(
+            String id,
+            String title,
+            String etag,
+            CalendarScope scope) {
+        return new CalendarEvent(
+                new CalendarId("user@example.com"),
+                new EventId(id),
+                scope,
                 title,
                 "Roadmap sync",
-                OffsetDateTime.parse("2026-07-08T10:00:00Z"),
-                OffsetDateTime.parse("2026-07-08T11:00:00Z"),
-                "UTC",
-                "Room 1",
+                LocalDateTime.parse("2026-07-08T10:00:00"),
+                LocalDateTime.parse("2026-07-08T11:00:00"),
+                ZoneId.of("UTC"),
                 false,
-                etag);
+                "Room 1",
+                List.of(),
+                null,
+                new EventVersion(etag),
+                null);
     }
 }

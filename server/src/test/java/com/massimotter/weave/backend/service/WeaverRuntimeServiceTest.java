@@ -10,6 +10,7 @@ import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
 import com.massimotter.weave.backend.weaver.WeaverApprovalReceipt;
 import com.massimotter.weave.backend.weaver.WeaverToolInvocationRequest;
 import com.massimotter.weave.backend.weaver.WeaverToolRegistry;
+import com.massimotter.weave.contract.mcp.MemberMcpDomainDefinition;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +44,7 @@ class WeaverRuntimeServiceTest {
         assertThat(profile.supportSafeProfileReceipt()).containsEntry("signed", true).containsEntry("containsRawSecrets", false);
         assertThat(profile.execEnabled()).isFalse();
         assertThat(profile.elevatedEnabled()).isFalse();
+        assertThat(profile.permissionMode()).isEqualTo("deny");
         assertThat(profile.auditRequired()).isTrue();
     }
 
@@ -90,10 +92,15 @@ class WeaverRuntimeServiceTest {
         assertThat(profile.toolAllowlist()).containsExactly("files.read");
         assertThat(profile.execEnabled()).isFalse();
         assertThat(profile.elevatedEnabled()).isFalse();
+        assertThat(profile.permissionMode()).isEqualTo("ask");
         assertThat(profile.auditRequired()).isTrue();
         assertThat(profile.forkRequired()).isFalse();
         assertThat(profile.channelProjection())
-                .containsEntry("channelId", "channels.weave-chat")
+                .containsEntry("channelId", "channels.matrix")
+                .containsEntry("protocol", "matrix-client-server")
+                .containsEntry("homeserver", "https://api.weave.test")
+                .containsEntry("permissionMode", "ask")
+                .containsEntry("encryption", false)
                 .containsEntry("providerRef", "provider:chat:selected-by-admin")
                 .containsEntry("runtimeTokenExpiresAt", profile.supportSafeProfileReceipt().get("runtimeTokenExpiresAt"))
                 .containsEntry("rawProviderChannelConfigsRendered", false)
@@ -107,10 +114,10 @@ class WeaverRuntimeServiceTest {
         assertThat(profile.mcpProjection())
                 .containsEntry("supportSafe", true)
                 .containsEntry("denyByDefault", true)
-                .containsEntry("channelPlaneRef", "channels.weave-chat")
+                .containsEntry("channelPlaneRef", "channels.matrix")
                 .containsEntry("memberMayMutateServerBindings", false);
         assertThat(profile.mcpProjection().get("servers").toString())
-                .contains("weave-domain-tools", "streamable-http")
+                .contains("weave-domain-tools", "streamable-http", "supportsParallelToolCalls=false")
                 .contains("runtimeProfileFetchRef=weave-runtime-profile://" + profile.runtimeProfileHash())
                 .contains("runtimeTokenRef=credentialref://weave/runtime/short-lived/")
                 .doesNotContain("Bearer ", "openclaw.json", "rawMcpServerConfig");
@@ -160,7 +167,7 @@ class WeaverRuntimeServiceTest {
         var serverProjection = service.mcpServerProjection(member, profile.runtimeProfileHash(), "weave-domain-tools");
 
         assertThat(serverProjection.toString())
-                .contains("weave-domain-tools", "routingPlaneSeparated=true", "channels.weave-chat")
+                .contains("weave-domain-tools", "routingPlaneSeparated=true", "channels.matrix")
                 .doesNotContain("Bearer ", "openclaw.json");
     }
 
@@ -173,7 +180,7 @@ class WeaverRuntimeServiceTest {
         var profile = service.profileFor(member);
 
         assertThat(profile.channelProjection())
-                .containsEntry("channelId", "channels.weave-chat")
+                .containsEntry("channelId", "channels.matrix")
                 .containsEntry("mcpServersProjectedSeparately", true)
                 .doesNotContainKeys("chat.send_message", "inboundMcpTransport");
         assertThat(profile.mcpProjection().toString())
@@ -213,39 +220,65 @@ class WeaverRuntimeServiceTest {
         WeaverApprovalReceipt explicitlyDeniedReceipt = new WeaverApprovalReceipt(
                 "approval:chat-send:denied",
                 profile.userRef(),
+                profile.runtimeProfileHash(),
+                "chat",
                 "chat.send_message",
                 List.of("space:control-room", "thread:weave-chat-general"),
-                "policy:v32",
+                WeaverApprovalReceipt.argumentDigest(Map.of(
+                        "spaceRef", "space:control-room",
+                        "threadRef", "thread:weave-chat-general")),
+                MemberMcpDomainDefinition.CONTRACT_VERSION,
+                "policy:support-safe-bridge-v1",
+                "approved",
+                "allow-once",
+                "elicitation://openclaw/denied",
+                Instant.now().minusSeconds(1).toString(),
                 Instant.now().plusSeconds(300).toString(),
                 "audit://weaver-approval/denied");
         var explicitlyDenied = registry.invoke(chatSendRequest(profile, Map.of(
                         "spaceRef", "space:control-room",
-                        "threadRef", "thread:weave-chat-general",
-                        "policyVersion", "policy:v32"),
+                        "threadRef", "thread:weave-chat-general"),
                 explicitlyDeniedReceipt));
         assertThat(explicitlyDenied.status()).isEqualTo("approval_denied");
 
         WeaverApprovalReceipt revokedReceipt = new WeaverApprovalReceipt(
                 "approval:chat-send:revoked",
                 profile.userRef(),
+                profile.runtimeProfileHash(),
+                "chat",
                 "chat.send_message",
                 List.of("space:control-room", "thread:weave-chat-general"),
-                "policy:v32",
+                WeaverApprovalReceipt.argumentDigest(Map.of(
+                        "spaceRef", "space:control-room",
+                        "threadRef", "thread:weave-chat-general")),
+                MemberMcpDomainDefinition.CONTRACT_VERSION,
+                "policy:support-safe-bridge-v1",
+                "approved",
+                "allow-once",
+                "elicitation://openclaw/revoked",
+                Instant.now().minusSeconds(1).toString(),
                 Instant.now().plusSeconds(300).toString(),
                 "audit://weaver-approval/revoked");
         var revoked = registry.invoke(chatSendRequest(profile, Map.of(
                         "spaceRef", "space:control-room",
-                        "threadRef", "thread:weave-chat-general",
-                        "policyVersion", "policy:v32"),
+                        "threadRef", "thread:weave-chat-general"),
                 revokedReceipt));
         assertThat(revoked.status()).isEqualTo("approval_revoked");
 
         WeaverApprovalReceipt expiredReceipt = new WeaverApprovalReceipt(
                 "approval:chat-send:expired",
                 profile.userRef(),
+                profile.runtimeProfileHash(),
+                "chat",
                 "chat.send_message",
                 List.of("space:control-room"),
-                "policy:v32",
+                WeaverApprovalReceipt.argumentDigest(Map.of("spaceRef", "space:control-room")),
+                MemberMcpDomainDefinition.CONTRACT_VERSION,
+                "policy:support-safe-bridge-v1",
+                "approved",
+                "allow-once",
+                "elicitation://openclaw/expired",
+                Instant.now().minusSeconds(120).toString(),
                 Instant.now().minusSeconds(60).toString(),
                 "audit://weaver-approval/expired");
         var expired = registry.invoke(chatSendRequest(profile, Map.of("spaceRef", "space:control-room"), expiredReceipt));
@@ -255,30 +288,48 @@ class WeaverRuntimeServiceTest {
         WeaverApprovalReceipt policyMismatchReceipt = new WeaverApprovalReceipt(
                 "approval:chat-send:policy-mismatch",
                 profile.userRef(),
+                profile.runtimeProfileHash(),
+                "chat",
                 "chat.send_message",
                 List.of("space:control-room", "thread:weave-chat-general"),
-                "policy:v31",
+                WeaverApprovalReceipt.argumentDigest(Map.of(
+                        "spaceRef", "space:control-room",
+                        "threadRef", "thread:weave-chat-general")),
+                MemberMcpDomainDefinition.CONTRACT_VERSION,
+                "policy:obsolete",
+                "approved",
+                "allow-once",
+                "elicitation://openclaw/policy-mismatch",
+                Instant.now().minusSeconds(1).toString(),
                 Instant.now().plusSeconds(300).toString(),
                 "audit://weaver-approval/policy-mismatch");
         var policyMismatch = registry.invoke(chatSendRequest(profile, Map.of(
                         "spaceRef", "space:control-room",
-                        "threadRef", "thread:weave-chat-general",
-                        "policyVersion", "policy:v32"),
+                        "threadRef", "thread:weave-chat-general"),
                 policyMismatchReceipt));
         assertThat(policyMismatch.status()).isEqualTo("approval_receipt_invalid");
 
         WeaverApprovalReceipt validReceipt = new WeaverApprovalReceipt(
                 "approval:chat-send:32:001",
                 profile.userRef(),
+                profile.runtimeProfileHash(),
+                "chat",
                 "chat.send_message",
                 List.of("space:control-room", "thread:weave-chat-general"),
-                "policy:v32",
+                WeaverApprovalReceipt.argumentDigest(Map.of(
+                        "spaceRef", "space:control-room",
+                        "threadRef", "thread:weave-chat-general")),
+                MemberMcpDomainDefinition.CONTRACT_VERSION,
+                "policy:support-safe-bridge-v1",
+                "approved",
+                "allow-once",
+                "elicitation://openclaw/chat-send-001",
+                Instant.now().minusSeconds(1).toString(),
                 Instant.now().plusSeconds(300).toString(),
                 "audit://weaver-approval/chat-send/001");
         WeaverToolInvocationRequest approvedRequest = chatSendRequest(profile, Map.of(
                         "spaceRef", "space:control-room",
-                        "threadRef", "thread:weave-chat-general",
-                        "policyVersion", "policy:v32"),
+                        "threadRef", "thread:weave-chat-general"),
                 validReceipt);
         var approved = registry.invoke(approvedRequest);
         var duplicate = registry.invoke(approvedRequest);
@@ -338,7 +389,7 @@ class WeaverRuntimeServiceTest {
         var regenerated = service.profileFor(jwt("different-member@example.invalid", List.of("member"), List.of("weave-weaver-runtime", "weave-weaver-pilot")));
 
         assertThat(regenerated.runtimeProfileHash()).isNotEqualTo(base.runtimeProfileHash());
-        assertThat(regenerated.channelProjection()).containsEntry("channelId", "channels.weave-chat");
+        assertThat(regenerated.channelProjection()).containsEntry("channelId", "channels.matrix");
         assertThat(regenerated.channelProjection()).containsEntry("providerRef", "provider:chat:selected-by-admin");
         assertThat(regenerated.supportSafeProfileReceipt()).containsEntry("regeneratesOnPolicyOrProviderChange", true);
     }
@@ -368,6 +419,27 @@ class WeaverRuntimeServiceTest {
         assertThat(audit.events()).extracting(event -> event.action())
                 .contains(AuditAction.ADMIN_POLICY_UPDATED, AuditAction.WEAVER_RUNTIME_PROFILE_ROLLED_BACK);
         assertThat(audit.events().toString()).doesNotContain("member@example.invalid", "openclaw.json", "Bearer ");
+    }
+
+    @Test
+    void permissionModesRotateTheProfileAndDangerousFullRemainsPolicyGated() {
+        WeaverRuntimeService service = service(true, runtimeProperties(true), new InMemoryAuditEventPublisher());
+        Jwt member = jwt(
+                "member@example.invalid",
+                List.of("member"),
+                List.of("weave-weaver-runtime", "weave-weaver-pilot"));
+        var initial = service.profileFor(member);
+
+        var allowlist = service.updatePermissionMode(member, "allowlist");
+        var deniedFull = service.updatePermissionMode(member, "full");
+
+        assertThat(allowlist.accepted()).isTrue();
+        assertThat(allowlist.mode()).isEqualTo("allowlist");
+        assertThat(allowlist.runtimeProfileHash()).isNotEqualTo(initial.runtimeProfileHash());
+        assertThat(service.profileFor(member).permissionMode()).isEqualTo("allowlist");
+        assertThat(deniedFull.accepted()).isFalse();
+        assertThat(deniedFull.dangerous()).isTrue();
+        assertThat(deniedFull.policyReason()).isEqualTo("organization_policy_denies_dangerous_full_access");
     }
 
     @Test

@@ -229,7 +229,7 @@ class AdminControlPlaneControllerTest {
                 .andExpect(jsonPath("$.selectedProviderMappings[*].supportSafe", hasItems(true)))
                 .andExpect(jsonPath("$.weaverDistributionPolicy.modelAliases[0].provider").value("lmstudio"))
                 .andExpect(jsonPath("$.weaverDistributionPolicy.modelAliases[0].model").value("lmstudio/qwen/qwen3.5-9b"))
-                .andExpect(jsonPath("$.weaverDistributionPolicy.effectivePolicyPreview[*]", hasItems("credentialRef=credentialref://weave/channels/weave-chat/runtime-token")))
+                .andExpect(jsonPath("$.weaverDistributionPolicy.effectivePolicyPreview[*]", hasItems("credentialRef=credentialref://weave/channels/matrix/access-token")))
                 .andExpect(jsonPath("$.weaverEligibilityPreview.policyEnabled").value(false))
                 .andExpect(jsonPath("$.weaverEligibilityPreview.requiredGroups[*]", hasItems("weaver-group", "weave-weaver-runtime")))
                 .andExpect(jsonPath("$.weaverEligibilityPreview.memberStateWithoutGroup").value("disabled_by_policy"))

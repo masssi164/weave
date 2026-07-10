@@ -31,6 +31,8 @@ management:
         enabled: true
 
 weave:
+  mcp:
+    boundary-token: ${WEAVE_MCP_BOUNDARY_TOKEN:local-dev-mcp-boundary}
   platform:
     public-base-url: ${WEAVE_PUBLIC_BASE_URL:https://weave.test}
     api-base-url: ${WEAVE_API_BASE_URL:https://api.weave.test/api}
@@ -48,6 +50,11 @@ weave:
     required-audience: ${WEAVE_OIDC_REQUIRED_AUDIENCE:weave-app}
     # JWT azp and/or client_id must identify the first-party Weave app client.
     client-id: ${WEAVE_CLIENT_ID:weave-app}
+    device-credentials:
+      # Memory is reserved for local development and isolated tests. The shipped
+      # infrastructure selects JDBC so DAV credentials remain revocable after restart.
+      storage:
+        mode: ${WEAVE_DEVICE_CREDENTIAL_STORAGE_MODE:memory}
   nextcloud:
     files:
       base-url: ${WEAVE_NEXTCLOUD_BASE_URL:https://files.weave.test}
@@ -74,6 +81,10 @@ weave:
       backend-token: ${WEAVE_CALDAV_BACKEND_TOKEN:}
       request-timeout-seconds: ${WEAVE_CALDAV_REQUEST_TIMEOUT_SECONDS:10}
   matrix:
+    facade:
+      # Stable Weave-owned Matrix server name. It identifies the northbound projection,
+      # not a southbound homeserver and must not change during provider replacement.
+      server-name: ${WEAVE_MATRIX_FACADE_SERVER_NAME:api.weave.test}
     # Backend diagnostics must remain E2EE-compatible: the backend never inspects
     # encrypted Matrix message bodies. These validation flags are false until real
     # encrypted-room, device verification, recovery, lost-device, multi-device, and
@@ -133,9 +144,9 @@ weave:
       audit-required: true
       fork-required: ${WEAVE_WEAVER_RUNTIME_FORK_REQUIRED:false}
     pa-chat:
-      # Real PA Weaver chat must call a governed Weaver runtime bridge. When
-      # disabled or unset, Weave Chat fails closed instead of synthesizing
-      # Weaver/LM Studio success evidence.
+      # Deprecated compatibility bridge. New Weaver runtimes use stock
+      # channels.matrix against the northbound Matrix facade and Spring AI MCP.
+      # Remove this block with the legacy ChatFacadeService PA bridge follow-up.
       enabled: ${WEAVE_WEAVER_PA_CHAT_ENABLED:false}
       bridge-url: ${WEAVE_WEAVER_PA_CHAT_BRIDGE_URL:}
       # Local LM Studio/Qwen tool-call turns can be much slower than cloud chat completions.

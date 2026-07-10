@@ -32,6 +32,10 @@ public record WeaverRuntimeProfileResponse(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<String> toolAllowlist,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean execEnabled,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean elevatedEnabled,
+        @Schema(
+                requiredMode = Schema.RequiredMode.REQUIRED,
+                allowableValues = {"deny", "allowlist", "ask", "auto", "full"})
+        String permissionMode,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean auditRequired,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean forkRequired,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Map<String, Object> channelProjection,
@@ -48,6 +52,7 @@ public record WeaverRuntimeProfileResponse(
         allowedCapabilities = List.copyOf(allowedCapabilities == null ? List.of() : allowedCapabilities);
         pluginAllowlist = List.copyOf(pluginAllowlist == null ? List.of() : pluginAllowlist);
         toolAllowlist = List.copyOf(toolAllowlist == null ? List.of() : toolAllowlist);
+        permissionMode = permissionMode == null || permissionMode.isBlank() ? "deny" : permissionMode.trim();
         channelProjection = Map.copyOf(channelProjection == null ? Map.of() : channelProjection);
         mcpProjection = Map.copyOf(mcpProjection == null ? Map.of() : mcpProjection);
         credentialBrokerContract = Map.copyOf(credentialBrokerContract == null ? Map.of() : credentialBrokerContract);

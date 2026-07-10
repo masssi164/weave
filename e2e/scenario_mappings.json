@@ -242,10 +242,10 @@
           "path": "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
           "fragments": [
             "matrixClientServerProjectionRequiresWorkspaceToken",
-            "matrixClientServerProjectionWhoamiDerivesMatrixIdentityFromOidcPrincipal",
-            "matrixClientServerProjectionSyncsCanonicalChatAsMatrixRoomsWithoutProviderPayloads",
-            "matrixClientServerProjectionSendsViaCanonicalChatFacade",
-            "matrixClientServerProjectionListsJoinedRoomsAndRoomMessages"
+            "whoamiUsesRumaValidatedIdentityDerivedFromOidcSubject",
+            "syncProjectsCanonicalChatThroughRustWithStableWeaveCursor",
+            "sendParsesInRustAndForwardsTransactionForCanonicalIdempotency",
+            "joinedRoomsAndMessagesUseCanonicalIdentifiers"
           ]
         }
       ]
@@ -1259,7 +1259,7 @@
           "path": "specs/0007-governed-weaver-runtime/spec.md",
           "fragments": [
             "The Weaver RuntimeProfile Loader renders internal `openclaw.json` and related channel/plugin/MCP/tool settings as runtime implementation detail.",
-            "Stable `channels.weave-chat` configuration with Weave API/runtime token/profile hash metadata.",
+            "OpenClaw stock `channels.matrix` configuration with the Weave Matrix-facade URL",
             "Provider-change flow: Admin changes the Weave Chat domain provider"
           ]
         },
@@ -1267,7 +1267,7 @@
           "path": "docs/architecture/weaver-openclaw-profile.md",
           "fragments": [
             "The `WeaverRuntimeProfile` is a support-safe runtime projection consumed by the OpenClaw-derived Weaver runtime, not the hard authorization boundary for governed tool calls.",
-            "Matrix, Teams, iMessage, Slack, Telegram, or another supported provider are backend providerRefs",
+            "Matrix, Teams, iMessage, Slack, Telegram, or another supported southbound provider are backend providerRefs",
             "Admin Chat provider changes are provider migrations, not member adapter switches"
           ]
         }
@@ -4438,10 +4438,10 @@
         {
           "path": "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
           "fragments": [
-            "matrixClientServerProjectionSyncsCanonicalChatAsMatrixRoomsWithoutProviderPayloads",
-            "matrixClientServerProjectionSendsViaCanonicalChatFacade",
-            "northbound-matrix-client-server",
-            "!channel-general:weave.local"
+            "syncProjectsCanonicalChatThroughRustWithStableWeaveCursor",
+            "sendParsesInRustAndForwardsTransactionForCanonicalIdempotency",
+            "rust-ruma-jni",
+            "!channel-general:api.weave.test"
           ]
         }
       ]
@@ -4532,7 +4532,7 @@
           "path": "server/src/test/java/com/massimotter/weave/backend/architecture/ServerArchitectureBoundaryTest.java",
           "fragments": [
             "calendarCalDavMethodsRouteThroughCalendarFacadeUseCases",
-            "matrixClientServerProjectionUsesChatFacadeNotBridgeOrRestChatDataPlane",
+            "matrixClientServerProjectionUsesCanonicalChatAndNativeCoreNotRestDtos",
             "protocolProjectionAndMcpCodeDoNotImportProviderAdapters"
           ]
         }
@@ -4866,7 +4866,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -4886,7 +4886,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -4970,7 +4970,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -4990,7 +4990,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -5010,7 +5010,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -5030,7 +5030,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -5050,7 +5050,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -5070,7 +5070,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -5090,7 +5090,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -5110,7 +5110,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -5130,7 +5130,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -5150,7 +5150,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -5170,7 +5170,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -5190,7 +5190,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -5210,7 +5210,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -5230,7 +5230,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -5274,7 +5274,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -5294,7 +5294,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -5314,7 +5314,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -5334,7 +5334,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -5415,6 +5415,62 @@
       ]
     },
     {
+      "tag": "@matrix-openclaw-stock-channel",
+      "scenario": "Stock OpenClaw Matrix channel runs against the Weave facade",
+      "feature": "e2e/features/chat_matrix_facade.feature",
+      "executableTest": "tools/chat_matrix_facade_acceptance_check.py",
+      "evidenceMarkers": [
+        "MATRIX_OPENCLAW_STOCK_CHANNEL_CONTRACT"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
+          "fragments": [
+            "openClawStartupCanLoadPushRulesCreateAFilterAndSyncAccountData",
+            "stockOpenClawMemberReceiptAndTypingCallsStayOnCanonicalChat",
+            "roomLifecycleStateAndProfileProjectCanonicalChat"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/WeaverRuntimeServiceTest.java",
+          "fragments": [
+            "channels.matrix",
+            "https://api.weave.test",
+            "runtimeTokenRef=credentialref://weave/runtime/short-lived/"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@matrix-read-receipt",
+      "scenario": "Flutter marks the latest canonical message as read",
+      "feature": "e2e/features/chat_matrix_facade.feature",
+      "executableTest": "tools/chat_matrix_facade_acceptance_check.py",
+      "evidenceMarkers": [
+        "MATRIX_READ_RECEIPT_CONTRACT"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "client/test/features/chat/data/repositories/weave_matrix_facade_chat_repository_test.dart",
+          "fragments": [
+            "markRoomRead",
+            "receipt/m.read",
+            "isMine"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/chat/adapter/WeaveCanonicalChatAdapterTest.java",
+          "fragments": [
+            "readReceiptsAndTypingRemainCanonicalUserState",
+            "markRead",
+            "setTyping"
+          ]
+        }
+      ]
+    },
+    {
       "tag": "@matrix-e2ee-state",
       "scenario": "E2EE and device state are surfaced support-safely",
       "feature": "e2e/features/chat_matrix_facade.feature",
@@ -5450,7 +5506,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -5470,7 +5526,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -5490,7 +5546,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -5517,6 +5573,74 @@
       ]
     },
     {
+      "tag": "@matrix-native-core",
+      "scenario": "Matrix wire behavior is owned by the shared native core",
+      "feature": "e2e/features/chat_matrix_facade.feature",
+      "executableTest": "tools/chat_matrix_facade_acceptance_check.py",
+      "evidenceMarkers": [
+        "RUST_MATRIX_CORE_BRIDGE_CONTRACT"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
+          "fragments": [
+            "versionsIsSerializedByTheLinkedRustRumaCore",
+            "syncProjectsCanonicalChatThroughRustWithStableWeaveCursor",
+            "rust-ruma-jni"
+          ]
+        },
+        {
+          "path": "client/test/integrations/rust_matrix_core/data/services/rust_matrix_core_bridge_test.dart",
+          "fragments": [
+            "RUST_MATRIX_CORE_BRIDGE_CONTRACT",
+            "versions response is validated inside the Rust core",
+            "nativeLinked"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@matrix-idempotent-send",
+      "scenario": "Retried Matrix transactions create one canonical message",
+      "feature": "e2e/features/chat_matrix_facade.feature",
+      "executableTest": "tools/chat_matrix_facade_acceptance_check.py",
+      "evidenceMarkers": [
+        "MATRIX_MESSAGE_CONTRACT"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/chat/adapter/WeaveCanonicalChatAdapterTest.java",
+          "fragments": [
+            "repeatedTransactionReturnsSameCanonicalMessageAndSingleChange",
+            "ChatTransactionId",
+            "changes(actor, before, 100)"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@matrix-provider-port",
+      "scenario": "Chat provider replacement preserves canonical and Matrix identifiers",
+      "feature": "e2e/features/chat_matrix_facade.feature",
+      "executableTest": "tools/chat_matrix_facade_acceptance_check.py",
+      "evidenceMarkers": [
+        "MATRIX_SPACES_ROOMS_CONTRACT"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/chat/adapter/WeaveCanonicalChatAdapterTest.java",
+          "fragments": [
+            "northboundIdentifiersRemainCanonicalAndProviderNeutral",
+            "conformanceAccountsForPortableLossyAndUnsupportedChatSemantics",
+            "ProviderConformanceProfile.MappingClass.UNSUPPORTED"
+          ]
+        }
+      ]
+    },
+    {
       "tag": "@calls-create",
       "scenario": "Member creates a Weave call",
       "feature": "e2e/features/calls_webrtc_join_grants.feature",
@@ -5531,7 +5655,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -5551,7 +5675,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -5571,7 +5695,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -5591,7 +5715,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -5611,7 +5735,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -5631,7 +5755,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -5651,7 +5775,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -5671,7 +5795,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -5691,7 +5815,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -5700,18 +5824,18 @@
       "tag": "@mcp-files-facade",
       "scenario": "MCP Files tools use Weave Files facade semantics",
       "feature": "e2e/features/mcp_domain_facade_boundary.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "executableTest": "tools/spring_ai_mcp_facade_acceptance_check.py",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "MCP_CANONICAL_DOMAIN_DISPATCH"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "server/src/test/java/com/massimotter/weave/backend/weaver/MemberDomainToolDispatcherTest.java",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring.ai.mcp remains blocked"
+            "filesSearchUsesFilesFacadeAndProjectsWebdavBackedMcpMetadata",
+            "filesReadRequiresCanonicalWeaveFileRefAndReturnsMetadataOnly",
+            "weave-webdav-facade"
           ]
         }
       ]
@@ -5720,18 +5844,18 @@
       "tag": "@mcp-calendar-facade",
       "scenario": "MCP Calendar tools use Weave Calendar facade semantics",
       "feature": "e2e/features/mcp_domain_facade_boundary.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "executableTest": "tools/spring_ai_mcp_facade_acceptance_check.py",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "MCP_CANONICAL_DOMAIN_DISPATCH"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/WeaverMcpBridgeServiceTest.java",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring.ai.mcp remains blocked"
+            "readToolUsesMemberDomainDispatcherAndPreservesStructuredFields",
+            "openClawElicitationEvidenceAuthorizesTheExactWriteOnce",
+            "calendar.search_events"
           ]
         }
       ]
@@ -5740,18 +5864,18 @@
       "tag": "@mcp-chat-facade",
       "scenario": "MCP Chat tools use Weave or Matrix-governed semantics",
       "feature": "e2e/features/mcp_domain_facade_boundary.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "executableTest": "tools/spring_ai_mcp_facade_acceptance_check.py",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "MCP_CANONICAL_DOMAIN_DISPATCH"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "server/src/test/java/com/massimotter/weave/backend/weaver/MemberDomainToolDispatcherTest.java",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring.ai.mcp remains blocked"
+            "chatSendUsesCanonicalChatFacadeAndProjectsNoProviderPayload",
+            "chatSendRejectsProviderShapedThreadBeforeCanonicalFacade",
+            "weave-matrix-facade"
           ]
         }
       ]
@@ -5771,7 +5895,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -5780,18 +5904,115 @@
       "tag": "@mcp-no-provider-leakage",
       "scenario": "MCP outputs contain no provider internals",
       "feature": "e2e/features/mcp_domain_facade_boundary.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "executableTest": "tools/spring_ai_mcp_facade_acceptance_check.py",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "MCP_PROVIDER_NEUTRAL_OUTPUT"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "weave-mcp-server/src/test/java/com/massimotter/weave/mcp/CanonicalMcpFeaturesTest.java",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring.ai.mcp remains blocked"
+            "approvedToolsResourceAndWorkspacePromptUseBackendGrantedCatalogOnly",
+            "doesNotContain(\"credentialref://\", \"Bearer \", \"remote.php\", \"tenantId\")",
+            "doesNotContain(\"nextcloud\", \"synapse\", \"providerAccessToken\")"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@spring-ai-mcp-transport",
+      "scenario": "MCP uses Spring AI stateful Streamable HTTP",
+      "feature": "e2e/features/mcp_domain_facade_boundary.feature",
+      "executableTest": "tools/spring_ai_mcp_facade_acceptance_check.py",
+      "evidenceMarkers": [
+        "SPRING_AI_MCP_STATEFUL_TRANSPORT",
+        "MCP_LEGACY_RUNTIME_REMOVED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "weave-mcp-server/src/test/java/com/massimotter/weave/mcp/SpringAiMcpTransportTest.java",
+          "fragments": [
+            "springAiInitializesAndAdvertisesOnlyCanonicalDomainToolNames",
+            "statefulRequestsRejectUnknownSessions",
+            "weave-domain-tools",
+            "chat.send_message"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@spring-ai-mcp-oidc",
+      "scenario": "OIDC is the MCP gatekeeper",
+      "feature": "e2e/features/mcp_domain_facade_boundary.feature",
+      "executableTest": "tools/spring_ai_mcp_facade_acceptance_check.py",
+      "evidenceMarkers": [
+        "MCP_OIDC_GATEKEEPER"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "weave-mcp-server/src/test/java/com/massimotter/weave/mcp/SpringAiMcpTransportTest.java",
+          "fragments": [
+            "oidcIsTheGatekeeperForSpringAiMcpTransport",
+            "status().isUnauthorized()",
+            "claim(\"scope\", \"weave:workspace\")"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@mcp-runtime-approved-discovery",
+      "scenario": "Runtime-approved MCP discovery is support-safe",
+      "feature": "e2e/features/mcp_domain_facade_boundary.feature",
+      "executableTest": "tools/spring_ai_mcp_facade_acceptance_check.py",
+      "evidenceMarkers": [
+        "MCP_RUNTIME_APPROVED_DISCOVERY"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "weave-mcp-server/src/test/java/com/massimotter/weave/mcp/SpringAiMcpTransportTest.java",
+          "fragments": [
+            "approvedToolsResourceIsResolvedThroughTheOidcBoundBackendProfile",
+            "weave://runtime/approved-tools",
+            "credentialref://"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@mcp-approval-receipt-boundary",
+      "scenario": "MCP write approval is bound to one tool invocation",
+      "feature": "e2e/features/mcp_domain_facade_boundary.feature",
+      "executableTest": "tools/spring_ai_mcp_facade_acceptance_check.py",
+      "evidenceMarkers": [
+        "MCP_APPROVAL_RECEIPT_BOUNDARY"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "weave-mcp-server/src/test/java/com/massimotter/weave/mcp/McpToolApprovalServiceTest.java",
+          "fragments": [
+            "acceptedElicitationProducesNarrowBackendEvidence",
+            "McpSyncRequestContext",
+            "allow-always"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/weaver/WeaverMcpApprovalReceiptServiceTest.java",
+          "fragments": [
+            "trustedExactElicitationMintsAOneUseServerReceipt",
+            "untrustedMismatchedExpiredAndForeignEvidenceFailClosed",
+            "argumentDigest"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/WeaverMcpBridgeServiceTest.java",
+          "fragments": [
+            "writeToolRequiresApprovalBeforeDispatch",
+            "openClawElicitationEvidenceAuthorizesTheExactWriteOnce"
           ]
         }
       ]
@@ -5811,7 +6032,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -5831,7 +6052,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -5851,7 +6072,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -5871,7 +6092,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -5891,7 +6112,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -5911,7 +6132,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -5931,7 +6152,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -5951,7 +6172,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -5971,7 +6192,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -5991,7 +6212,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -6032,7 +6253,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -6052,7 +6273,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]
@@ -6072,7 +6293,7 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring.ai.mcp remains blocked"
+            "Spring AI MCP is implemented"
           ]
         }
       ]

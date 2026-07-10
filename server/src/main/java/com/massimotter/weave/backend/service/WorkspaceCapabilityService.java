@@ -11,8 +11,8 @@ import com.massimotter.weave.backend.model.WorkspaceCapabilityStatusResponse;
 import com.massimotter.weave.backend.model.admin.EffectivePolicyDenyResponse;
 import com.massimotter.weave.backend.model.admin.EffectivePolicyResponse;
 import com.massimotter.weave.backend.exception.ApiErrorException;
-import com.massimotter.weave.backend.service.files.FilesStorageAdapter;
-import com.massimotter.weave.backend.service.files.FilesStorageReadiness;
+import com.massimotter.weave.backend.files.port.FilesProviderPort;
+import com.massimotter.weave.backend.portability.ProviderReadiness;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -84,7 +84,7 @@ public class WorkspaceCapabilityService {
     private final WeaveSecurityProperties weaveSecurityProperties;
     private final WorkspaceCapabilityProperties workspaceCapabilityProperties;
     private final WeaverRuntimeProperties weaverRuntimeProperties;
-    private final FilesStorageAdapter filesStorageAdapter;
+    private final FilesProviderPort filesProviderPort;
 
     public WorkspaceCapabilityService(
             OAuth2ResourceServerProperties resourceServerProperties,
@@ -95,7 +95,7 @@ public class WorkspaceCapabilityService {
                 weaveSecurityProperties,
                 workspaceCapabilityProperties,
                 new WeaverRuntimeProperties(false, null, null, null, null, null, null, null, null, null, false, false, true, false),
-                (FilesStorageAdapter) null);
+                (FilesProviderPort) null);
     }
 
     @Autowired
@@ -104,13 +104,13 @@ public class WorkspaceCapabilityService {
             WeaveSecurityProperties weaveSecurityProperties,
             WorkspaceCapabilityProperties workspaceCapabilityProperties,
             WeaverRuntimeProperties weaverRuntimeProperties,
-            ObjectProvider<FilesStorageAdapter> filesStorageAdapterProvider) {
+            ObjectProvider<FilesProviderPort> filesProviderPortProvider) {
         this(
                 resourceServerProperties,
                 weaveSecurityProperties,
                 workspaceCapabilityProperties,
                 weaverRuntimeProperties,
-                filesStorageAdapterProvider == null ? null : filesStorageAdapterProvider.getIfAvailable());
+                filesProviderPortProvider == null ? null : filesProviderPortProvider.getIfAvailable());
     }
 
     public WorkspaceCapabilityService(
@@ -123,7 +123,7 @@ public class WorkspaceCapabilityService {
                 weaveSecurityProperties,
                 workspaceCapabilityProperties,
                 weaverRuntimeProperties,
-                (FilesStorageAdapter) null);
+                (FilesProviderPort) null);
     }
 
     public WorkspaceCapabilityService(
@@ -131,25 +131,25 @@ public class WorkspaceCapabilityService {
             WeaveSecurityProperties weaveSecurityProperties,
             WorkspaceCapabilityProperties workspaceCapabilityProperties,
             WeaverRuntimeProperties weaverRuntimeProperties,
-            FilesStorageAdapter filesStorageAdapter) {
+            FilesProviderPort filesProviderPort) {
         this.resourceServerProperties = resourceServerProperties;
         this.weaveSecurityProperties = weaveSecurityProperties;
         this.workspaceCapabilityProperties = workspaceCapabilityProperties;
         this.weaverRuntimeProperties = weaverRuntimeProperties;
-        this.filesStorageAdapter = filesStorageAdapter;
+        this.filesProviderPort = filesProviderPort;
     }
 
     WorkspaceCapabilityService(
             OAuth2ResourceServerProperties resourceServerProperties,
             WeaveSecurityProperties weaveSecurityProperties,
             WorkspaceCapabilityProperties workspaceCapabilityProperties,
-            FilesStorageAdapter filesStorageAdapter) {
+            FilesProviderPort filesProviderPort) {
         this(
                 resourceServerProperties,
                 weaveSecurityProperties,
                 workspaceCapabilityProperties,
                 new WeaverRuntimeProperties(false, null, null, null, null, null, null, null, null, null, false, false, true, false),
-                filesStorageAdapter);
+                filesProviderPort);
     }
 
     public WorkspaceCapabilitiesResponse snapshot() {
@@ -314,7 +314,12 @@ public class WorkspaceCapabilityService {
                     "Authentication is required.",
                     Map.of("module", module, "operation", operation));
         }
-        if (!effectivePolicy(jwt).capabilities().contains(capability)) {
+        Set<String> grantedCapabilities = "device_credential".equals(jwt.getClaimAsString("weave_auth_method"))
+                ? Set.copyOf(jwt.getClaimAsStringList("weave_capabilities") == null
+                        ? List.of()
+                        : jwt.getClaimAsStringList("weave_capabilities"))
+                : effectivePolicy(jwt).capabilities();
+        if (!grantedCapabilities.contains(capability)) {
             throw new ApiErrorException(
                     HttpStatus.FORBIDDEN,
                     "capability-policy-blocked",
@@ -348,7 +353,7 @@ public class WorkspaceCapabilityService {
         }
         if (hasText(capability.dependencyUrl())) {
             if ("files".equals(category)) {
-                FilesStorageReadiness filesReadiness = filesStorageReadiness();
+                ProviderReadiness filesReadiness = filesStorageReadiness();
                 if (!filesReadiness.available()) {
                     return status(
                             capability,
@@ -366,14 +371,14 @@ public class WorkspaceCapabilityService {
                 "This capability is degraded. Ask an admin to inspect Workspace Health.");
     }
 
-    private FilesStorageReadiness filesStorageReadiness() {
-        if (filesStorageAdapter == null) {
-            return FilesStorageReadiness.ready();
+    private ProviderReadiness filesStorageReadiness() {
+        if (filesProviderPort == null) {
+            return ProviderReadiness.ready("files-storage-ready");
         }
         try {
-            return filesStorageAdapter.readinessProbe();
+            return filesProviderPort.readiness();
         } catch (RuntimeException exception) {
-            return FilesStorageReadiness.degraded("files-storage-readiness-probe-failed");
+            return ProviderReadiness.degraded("files-storage-readiness-probe-failed");
         }
     }
 

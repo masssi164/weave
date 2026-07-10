@@ -36,9 +36,11 @@ acceptance_scenarios:
 - tag: '@weave-v01-governed-weaver-tool-registry'
   evidence:
   - server/src/test/java/com/massimotter/weave/backend/weaver/WeaverToolRegistryTest.java
-  - infra/weave-mcp/tests/test_weave_mcp.py
-  - infra/weave-mcp/src/weave_mcp/tools/registry.py
-  - infra/weave-mcp/src/weave_mcp/client.py
+  - server/src/test/java/com/massimotter/weave/backend/weaver/MemberDomainToolDispatcherTest.java
+  - weave-contract/src/test/java/com/massimotter/weave/contract/mcp/MemberMcpToolCatalogTest.java
+  - weave-mcp-server/src/test/java/com/massimotter/weave/mcp/CanonicalMcpFeaturesTest.java
+  - weave-mcp-server/src/test/java/com/massimotter/weave/mcp/SpringAiMcpTransportTest.java
+  - infra/weave-workspace/tests/weave-mcp-tool-contract-test.sh
   assertions:
   - MCP tools are named for Weave domains/capabilities, not providers or adapters.
   - calendar.search_events delegates to the backend Calendar facade and never directly

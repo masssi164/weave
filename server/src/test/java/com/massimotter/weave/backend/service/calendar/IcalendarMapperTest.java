@@ -1,7 +1,11 @@
 package com.massimotter.weave.backend.service.calendar;
 
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarId;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarScope;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.EventVersion;
 import com.massimotter.weave.backend.model.calendar.CreateCalendarEventRequest;
 import com.massimotter.weave.backend.model.calendar.UpdateCalendarEventRequest;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import org.junit.jupiter.api.Test;
 
@@ -158,13 +162,47 @@ class IcalendarMapperTest {
     }
 
     @Test
-    void blocksRecurringEventsWithSupportSafeReasonUntilRecurrenceContractExists() {
-        assertRecurrenceFieldIsBlocked("RRULE:FREQ=WEEKLY;COUNT=3");
-        assertRecurrenceFieldIsBlocked("RDATE:20260503T100000");
-        assertRecurrenceFieldIsBlocked("EXDATE:20260510T100000");
+    void mapsBoundedRecurrenceAndPreservesLocalWallClockAcrossDst() {
+        var event = mapper.parse(
+                new CalendarId("calendar:user-1"),
+                CalendarScope.workspace(),
+                new EventVersion("\"etag-1\""),
+                """
+                        BEGIN:VCALENDAR
+                        BEGIN:VEVENT
+                        UID:weekly-planning
+                        DTSTART;TZID=Europe/Berlin:20260322T090000
+                        DTEND;TZID=Europe/Berlin:20260322T100000
+                        SUMMARY:Planning
+                        RRULE:FREQ=WEEKLY;COUNT=3
+                        RDATE;TZID=Europe/Berlin:20260412T090000
+                        EXDATE;TZID=Europe/Berlin:20260329T090000
+                        END:VEVENT
+                        END:VCALENDAR
+                        """);
+
+        var occurrences = event.occurrences(
+                Instant.parse("2026-03-20T00:00:00Z"),
+                Instant.parse("2026-04-20T00:00:00Z"));
+
+        assertThat(event.recurrence().frequency().name()).isEqualTo("WEEKLY");
+        assertThat(event.recurrence().count()).isEqualTo(3);
+        assertThat(occurrences).extracting(occurrence -> occurrence.start().toLocalDate().toString())
+                .containsExactly("2026-03-22", "2026-04-05", "2026-04-12");
+        assertThat(occurrences).extracting(occurrence -> occurrence.start().getHour())
+                .containsOnly(9);
+        assertThat(occurrences.get(0).start().getOffset().toString()).isEqualTo("+01:00");
+        assertThat(occurrences.get(1).start().getOffset().toString()).isEqualTo("+02:00");
+
+        String rendered = mapper.toIcalendar(event);
+        assertThat(rendered)
+                .contains("RRULE:FREQ=WEEKLY;COUNT=3")
+                .contains("RDATE;TZID=Europe/Berlin:20260412T090000")
+                .contains("EXDATE;TZID=Europe/Berlin:20260329T090000");
     }
 
-    private void assertRecurrenceFieldIsBlocked(String recurrenceProperty) {
+    @Test
+    void rejectsUnboundedOrUnsupportedRecurrenceWithStableReason() {
         assertThatThrownBy(() -> mapper.parse("""
                 BEGIN:VCALENDAR
                 BEGIN:VEVENT
@@ -172,14 +210,14 @@ class IcalendarMapperTest {
                 DTSTART;TZID=Europe/Berlin:20260426T100000
                 DTEND;TZID=Europe/Berlin:20260426T110000
                 SUMMARY:Planning
-                %s
+                RRULE:FREQ=MONTHLY
                 END:VEVENT
                 END:VCALENDAR
-                """.formatted(recurrenceProperty)))
+                """))
                 .isInstanceOfSatisfying(CalendarAdapterException.class, exception -> {
-                    assertThat(exception.type()).isEqualTo(CalendarAdapterException.Type.INVALID_RESPONSE);
-                    assertThat(exception.details()).containsEntry("supportSafeReason", "recurrence-not-yet-supported");
-                    assertThat(exception.details()).containsEntry("unsupportedFields", java.util.List.of("RRULE", "RDATE", "EXDATE"));
+                    assertThat(exception.type()).isEqualTo(CalendarAdapterException.Type.INVALID_REQUEST);
+                    assertThat(exception.details()).containsEntry("errorCode", "caldav-recurrence-unsupported");
+                    assertThat(exception.details()).containsEntry("supportSafe", true);
                 });
     }
 }

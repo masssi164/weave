@@ -24,6 +24,11 @@ These child modules keep the root stage orchestration-only.
   - `main.tf`: Weave backend image, container, healthcheck, OIDC environment, and Docker network aliases.
   - `variables.tf`: image, port, hostname, and OIDC contract inputs.
   - `outputs.tf`: container identifier.
+- `mcp/`
+  - `AGENTS.md`: module summary and ownership notes.
+  - `main.tf`: Spring AI MCP container, healthcheck, OIDC environment, and backend authority wiring.
+  - `variables.tf`: image, ports, backend, and OIDC inputs.
+  - `outputs.tf`: container identifier.
 - `matrix/`
   - `AGENTS.md`: module summary and ownership notes.
   - `main.tf`: MAS and Synapse images, Synapse volume, containers, and MAS local CA trust.

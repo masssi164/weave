@@ -4227,4 +4227,48 @@ class AppLocalizationsDe extends AppLocalizations {
   String memberHandoffErrorCode(String code) {
     return 'Fehlercode: $code';
   }
+
+  @override
+  String get weaverPermissionModeTitle => 'Berechtigungsmodus';
+
+  @override
+  String get weaverPermissionModeDeny => 'Alles verweigern';
+
+  @override
+  String get weaverPermissionModeAllowlist => 'Nur Positivliste';
+
+  @override
+  String get weaverPermissionModeAsk => 'Jedes Mal fragen';
+
+  @override
+  String get weaverPermissionModeAuto => 'Automatische Prüfung';
+
+  @override
+  String get weaverPermissionModeFull => 'Vollzugriff (gefährlich)';
+
+  @override
+  String get weaverPermissionFullWarningTitle =>
+      'Gefährlichen Vollzugriff aktivieren?';
+
+  @override
+  String get weaverPermissionFullWarningBody =>
+      'Weaver darf Host-Befehle ohne Freigabe ausführen und vertrauenswürdige Weave-Tool-Anfragen automatisch annehmen. Organisationsrichtlinie, Anmeldung, Validierung, Provider-Grenzen und Audit-Protokollierung gelten weiterhin.';
+
+  @override
+  String get weaverPermissionFullConfirm => 'Vollzugriff aktivieren';
+
+  @override
+  String get weaverPermissionCancel => 'Abbrechen';
+
+  @override
+  String get weaverPermissionUpdated =>
+      'Weaver-Berechtigungsmodus aktualisiert.';
+
+  @override
+  String get weaverPermissionPolicyDenied =>
+      'Deine Organisationsrichtlinie erlaubt diesen Modus nicht.';
+
+  @override
+  String get weaverPermissionUpdateFailed =>
+      'Der Weaver-Berechtigungsmodus konnte nicht aktualisiert werden.';
 }

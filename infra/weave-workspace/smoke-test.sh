@@ -509,6 +509,10 @@ log "Checking public backend health..."
 backend_health="$(curl_json "${WEAVE_BASE_URL}/health/ready")"
 assert_json "${backend_health}" '.status == "up"' "Backend readiness should report up"
 
+log "Checking internal Spring AI MCP health..."
+mcp_health="$(curl --silent --show-error --fail "http://127.0.0.1:${TF_VAR_mcp_host_port:-48085}/actuator/health")"
+assert_json "${mcp_health}" '.status == "UP"' "MCP readiness should report up"
+
 log "Checking product shell routes..."
 product_status="$(curl_status "${WEAVE_PUBLIC_BASE_URL}/")"
 [[ "${product_status}" == "200" ]] || fail "Smoke check failed: Weave product gateway should return 200, got ${product_status}"

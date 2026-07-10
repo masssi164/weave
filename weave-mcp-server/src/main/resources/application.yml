@@ -1,0 +1,44 @@
+server:
+  port: ${WEAVE_MCP_PORT:8091}
+
+spring:
+  application:
+    name: weave-mcp-server
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${WEAVE_OIDC_ISSUER_URI:https://auth.weave.test/realms/weave}
+          audiences:
+            - ${WEAVE_OIDC_AUDIENCE:weave-app}
+  ai:
+    mcp:
+      server:
+        enabled: true
+        protocol: STREAMABLE
+        type: SYNC
+        name: weave-domain-tools
+        version: 0.2.0
+        instructions: Use only approved Weave domain capabilities. Provider APIs and credentials are never MCP tools.
+        tool-callback-converter: true
+        annotation-scanner:
+          enabled: true
+        capabilities:
+          tool: true
+          resource: true
+          prompt: true
+          completion: false
+        streamable-http:
+          mcp-endpoint: /mcp
+          disallow-delete: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+weave:
+  server:
+    base-url: ${WEAVE_SERVER_BASE_URL:http://localhost:8080}
+    mcp-boundary-token: ${WEAVE_MCP_BOUNDARY_TOKEN:local-dev-mcp-boundary}

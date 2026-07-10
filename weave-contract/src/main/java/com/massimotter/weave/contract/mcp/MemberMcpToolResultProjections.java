@@ -42,6 +42,8 @@ public final class MemberMcpToolResultProjections {
         return Map.of(
                 "status", "ok",
                 "supportSafe", true,
+                "dataPlane", "weave-caldav-facade",
+                "openApiDataPlaneUsed", false,
                 "events", events,
                 "scope", scope,
                 "canonicalRefs", Map.of("calendarScope", WeaveMcpTypes.text(calendarScopeRef, "calendarScopeRef")),
@@ -52,10 +54,30 @@ public final class MemberMcpToolResultProjections {
         return Map.of(
                 "status", "ok",
                 "supportSafe", true,
+                "dataPlane", "weave-caldav-facade",
+                "openApiDataPlaneUsed", false,
                 "event", event,
                 "canonicalRefs", Map.of(
                         "calendarEvent", WeaveMcpTypes.text(calendarEventRef, "calendarEventRef"),
                         "calendarScope", WeaveMcpTypes.text(calendarScopeRef, "calendarScopeRef")),
+                "rawProviderPayload", "redacted");
+    }
+
+    public static Map<String, Object> chatSendMessage(
+            String conversationId,
+            String messageId,
+            String deliveryState,
+            Object sentAt) {
+        return Map.of(
+                "status", "ok",
+                "supportSafe", true,
+                "dataPlane", "weave-matrix-facade",
+                "messageRef", "message:" + WeaveMcpTypes.text(messageId, "messageId"),
+                "deliveryState", WeaveMcpTypes.text(deliveryState, "deliveryState"),
+                "sentAt", sentAt,
+                "canonicalRefs", Map.of(
+                        "conversation", "conversation:" + WeaveMcpTypes.text(conversationId, "conversationId"),
+                        "message", "message:" + messageId),
                 "rawProviderPayload", "redacted");
     }
 }

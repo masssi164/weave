@@ -280,10 +280,10 @@ END:VCALENDAR</c:calendar-data>
                 'notes': ['Workspace calendar setup only.'],
               },
               'credentialReadiness': {
-                'status': 'blocked_until_revocable_credentials',
+                'status': 'revocable_credentials_ready',
                 'appleProfileSigned': false,
                 'appleProfilePasswordIncluded': false,
-                'revocableCredentialsAvailable': false,
+                'revocableCredentialsAvailable': true,
                 'readOnlySubscriptionTokensAvailable': false,
                 'backendActorCredentialsExposed': false,
                 'blockers': ['Apple profiles are unsigned.'],

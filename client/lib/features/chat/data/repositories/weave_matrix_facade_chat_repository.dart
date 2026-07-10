@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:http/http.dart' as http;
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/domain/repositories/auth_session_repository.dart';
@@ -13,7 +11,7 @@ import 'package:weave/features/server_config/domain/repositories/server_configur
 import 'package:weave/integrations/rust_matrix_core/data/services/rust_matrix_core_bridge.dart';
 
 class WeaveMatrixFacadeChatRepository implements ChatRepository {
-  const WeaveMatrixFacadeChatRepository({
+  WeaveMatrixFacadeChatRepository({
     required ServerConfigurationRepository serverConfigurationRepository,
     required AuthSessionRepository authSessionRepository,
     required http.Client httpClient,
@@ -27,76 +25,100 @@ class WeaveMatrixFacadeChatRepository implements ChatRepository {
   final AuthSessionRepository _authSessionRepository;
   final http.Client _httpClient;
   final RustMatrixCoreBridge _rustMatrixCoreBridge;
+  final Map<String, String> _latestEventByRoom = <String, String>{};
+  String? _currentUserId;
 
   @override
   Future<List<ChatConversation>> loadConversations() async {
-    final payload = await _getMatrixJson('/_matrix/client/v3/sync');
-    final join = _joinedRooms(payload);
-    final conversations = join.entries
-        .map((entry) {
-          final room = _asMap(entry.value);
-          final events = _roomTimelineEvents(room);
-          final latest = _latestMessageEvent(events);
-          final content = _asMap(latest?['content']);
-          final previewText = _string(content['body']);
-          final lastActivityAt = _eventInstant(latest);
-          return ChatConversation(
-            id: entry.key,
-            title: _roomTitle(entry.key, room),
-            previewType: _previewType(latest),
-            previewText: previewText == null || previewText.isEmpty
-                ? null
-                : previewText,
-            lastActivityAt: lastActivityAt,
-            unreadCount: _intValue(
-              _asMap(room['unread_notifications'])['notification_count'],
-            ),
-            isInvite: false,
-            isDirectMessage: false,
-          );
-        })
-        .toList(growable: false);
+    final configuration = await _loadConfiguration();
+    final serverName = configuration.serviceEndpoints.matrixHomeserverUrl.host;
+    try {
+      final projection = await _rustMatrixCoreBridge.parseSync(
+        responseJson: await _matrixRequestBody(
+          'GET',
+          '/_matrix/client/v3/sync',
+          configuration: configuration,
+        ),
+        serverName: serverName,
+      );
+      final conversations = projection.rooms
+          .map((room) {
+            final latest = room.messages.isEmpty ? null : room.messages.last;
+            return ChatConversation(
+              id: room.roomId,
+              title: room.title.isEmpty
+                  ? _titleFromRoomId(room.roomId)
+                  : room.title,
+              previewType: _previewType(latest),
+              previewText: latest?.contentType == 'text' ? latest?.body : null,
+              lastActivityAt: latest == null
+                  ? null
+                  : DateTime.fromMillisecondsSinceEpoch(
+                      latest.originServerTimestamp,
+                      isUtc: true,
+                    ),
+              unreadCount: room.unreadCount,
+              isInvite: false,
+              isDirectMessage: false,
+            );
+          })
+          .toList(growable: false);
 
-    conversations.sort((a, b) {
-      final activityComparison =
-          (b.lastActivityAt ?? DateTime.fromMillisecondsSinceEpoch(0))
-              .compareTo(
-                a.lastActivityAt ?? DateTime.fromMillisecondsSinceEpoch(0),
-              );
-      if (activityComparison != 0) {
-        return activityComparison;
-      }
-
-      final unreadComparison = b.unreadCount.compareTo(a.unreadCount);
-      if (unreadComparison != 0) {
-        return unreadComparison;
-      }
-
-      return a.title.toLowerCase().compareTo(b.title.toLowerCase());
-    });
-
-    return conversations;
+      conversations.sort((a, b) {
+        final activityComparison =
+            (b.lastActivityAt ?? DateTime.fromMillisecondsSinceEpoch(0))
+                .compareTo(
+                  a.lastActivityAt ?? DateTime.fromMillisecondsSinceEpoch(0),
+                );
+        if (activityComparison != 0) {
+          return activityComparison;
+        }
+        final unreadComparison = b.unreadCount.compareTo(a.unreadCount);
+        return unreadComparison != 0
+            ? unreadComparison
+            : a.title.toLowerCase().compareTo(b.title.toLowerCase());
+      });
+      return conversations;
+    } on RustMatrixCoreBridgeException {
+      throw const ChatFailure.protocol(
+        'Weave Chat returned a Matrix response that could not be validated.',
+      );
+    }
   }
 
   @override
   Future<ChatRoomTimeline> loadRoomTimeline(String roomId) async {
-    final payload = await _getMatrixJson(
-      '/_matrix/client/v3/rooms/${Uri.encodeComponent(roomId)}/messages',
-    );
-    final events = _asList(payload['chunk']).whereType<Object?>();
-    final messages = events
-        .map(_asMap)
-        .where((event) => event.isNotEmpty)
-        .map(_messageFromEvent)
-        .toList(growable: false);
-
-    return ChatRoomTimeline(
-      roomId: roomId,
-      roomTitle: _titleFromRoomId(roomId),
-      isInvite: false,
-      canSendMessages: true,
-      messages: messages,
-    );
+    final configuration = await _loadConfiguration();
+    try {
+      final currentUserId = await _currentMatrixUserId(configuration);
+      final projection = await _rustMatrixCoreBridge.parseMessages(
+        responseJson: await _matrixRequestBody(
+          'GET',
+          '/_matrix/client/v3/rooms/${Uri.encodeComponent(roomId)}/messages',
+          configuration: configuration,
+        ),
+        serverName: configuration.serviceEndpoints.matrixHomeserverUrl.host,
+      );
+      if (projection.isNotEmpty) {
+        _latestEventByRoom[roomId] = projection.last.eventId;
+      }
+      return ChatRoomTimeline(
+        roomId: roomId,
+        roomTitle: _titleFromRoomId(roomId),
+        isInvite: false,
+        canSendMessages: true,
+        messages: projection
+            .map(
+              (message) =>
+                  _messageFromProjection(message, currentUserId: currentUserId),
+            )
+            .toList(growable: false),
+      );
+    } on RustMatrixCoreBridgeException {
+      throw const ChatFailure.protocol(
+        'Weave Chat returned a Matrix timeline that could not be validated.',
+      );
+    }
   }
 
   @override
@@ -104,43 +126,65 @@ class WeaveMatrixFacadeChatRepository implements ChatRepository {
     required String roomId,
     required String message,
   }) async {
-    final trimmed = message.trim();
-    if (trimmed.isEmpty) {
+    final configuration = await _loadConfiguration();
+    try {
+      final body = await _rustMatrixCoreBridge.serializeTextMessage(
+        body: message,
+        serverName: configuration.serviceEndpoints.matrixHomeserverUrl.host,
+      );
+      final transactionId =
+          'weave-${DateTime.now().toUtc().microsecondsSinceEpoch}';
+      await _matrixRequestBody(
+        'PUT',
+        '/_matrix/client/v3/rooms/${Uri.encodeComponent(roomId)}/send/m.room.message/$transactionId',
+        configuration: configuration,
+        body: body,
+      );
+    } on RustMatrixCoreBridgeException {
       throw const ChatFailure.configuration(
         'Write a message before sending it through Weave Chat.',
       );
     }
-    final txnId = 'weave-${DateTime.now().toUtc().microsecondsSinceEpoch}';
-    await _matrixRequestJson(
-      'PUT',
-      '/_matrix/client/v3/rooms/${Uri.encodeComponent(roomId)}/send/m.room.message/$txnId',
-      body: <String, Object?>{'msgtype': 'm.text', 'body': trimmed},
-    );
   }
 
   @override
   Future<void> markRoomRead(String roomId) async {
-    // Read receipts are not in the current Weave Matrix facade slice.
-    // Keep this support-safe until the Rust Matrix core owns receipt semantics.
+    final eventId = _latestEventByRoom[roomId];
+    if (eventId == null) {
+      return;
+    }
+    final configuration = await _loadConfiguration();
+    await _matrixRequestBody(
+      'POST',
+      '/_matrix/client/v3/rooms/${Uri.encodeComponent(roomId)}/receipt/m.read/${Uri.encodeComponent(eventId)}',
+      configuration: configuration,
+      body: '{}',
+    );
   }
 
   @override
   Future<void> connect() async {
     final configuration = await _loadConfiguration();
-    final descriptor = await _rustMatrixCoreBridge.descriptor(
-      serverName: configuration.serviceEndpoints.matrixHomeserverUrl.host,
-    );
-    if (!descriptor.isWeaveFacade) {
-      throw const ChatFailure.configuration(
-        'The Rust Matrix core bridge is not configured for the Weave facade.',
+    final serverName = configuration.serviceEndpoints.matrixHomeserverUrl.host;
+    try {
+      final descriptor = await _rustMatrixCoreBridge.descriptor(
+        serverName: serverName,
       );
-    }
-    final versions = await _getMatrixJson('/_matrix/client/versions');
-    final matrixCore = _asMap(versions['matrixCore']);
-    if (matrixCore['flutterBridgeBoundary'] != 'flutter-rust-bridge' ||
-        matrixCore['northboundHomeserverDependency'] != false) {
+      if (!descriptor.isWeaveFacade) {
+        throw const RustMatrixCoreBridgeException('M_WEAVE_MATRIX_CORE_ERROR');
+      }
+      await _rustMatrixCoreBridge.validateVersions(
+        responseJson: await _matrixRequestBody(
+          'GET',
+          '/_matrix/client/versions',
+          configuration: configuration,
+        ),
+        serverName: serverName,
+      );
+      await _currentMatrixUserId(configuration);
+    } on RustMatrixCoreBridgeException {
       throw const ChatFailure.configuration(
-        'The Matrix facade did not advertise the Rust bridge boundary.',
+        'The Matrix facade is not compatible with this Weave client.',
       );
     }
   }
@@ -154,16 +198,12 @@ class WeaveMatrixFacadeChatRepository implements ChatRepository {
   @override
   Future<void> clearSession() => _authSessionRepository.clearLocalSession();
 
-  Future<Map<String, dynamic>> _getMatrixJson(String path) {
-    return _matrixRequestJson('GET', path);
-  }
-
-  Future<Map<String, dynamic>> _matrixRequestJson(
+  Future<String> _matrixRequestBody(
     String method,
     String path, {
-    Map<String, Object?>? body,
+    required ServerConfiguration configuration,
+    String? body,
   }) async {
-    final configuration = await _loadConfiguration();
     final authState = await _authSessionRepository.restoreSession(
       _authConfiguration(configuration),
     );
@@ -183,27 +223,18 @@ class WeaveMatrixFacadeChatRepository implements ChatRepository {
           ..headers['Accept'] = 'application/json';
     if (body != null) {
       request.headers['Content-Type'] = 'application/json';
-      request.body = jsonEncode(body);
+      request.body = body;
     }
 
-    final streamed = await _httpClient.send(request);
-    final response = await http.Response.fromStream(streamed);
+    final response = await http.Response.fromStream(
+      await _httpClient.send(request),
+    );
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw const ChatFailure.protocol(
         'Weave Chat is unavailable. Ask an admin to inspect Workspace Health.',
       );
     }
-
-    final decoded = jsonDecode(response.body);
-    if (decoded is Map<String, dynamic>) {
-      return decoded;
-    }
-    if (decoded is Map) {
-      return Map<String, dynamic>.from(decoded);
-    }
-    throw const ChatFailure.protocol(
-      'The Weave Matrix facade returned an invalid response.',
-    );
+    return response.body;
   }
 
   Future<ServerConfiguration> _loadConfiguration() async {
@@ -224,148 +255,73 @@ class WeaveMatrixFacadeChatRepository implements ChatRepository {
     );
   }
 
-  Map<String, dynamic> _joinedRooms(Map<String, dynamic> payload) {
-    return _asMap(_asMap(payload['rooms'])['join']);
-  }
-
-  List<Map<String, dynamic>> _roomTimelineEvents(Map<String, dynamic> room) {
-    return _asList(
-      _asMap(room['timeline'])['events'],
-    ).map(_asMap).where((event) => event.isNotEmpty).toList(growable: false);
-  }
-
-  Map<String, dynamic>? _latestMessageEvent(List<Map<String, dynamic>> events) {
-    for (final event in events.reversed) {
-      if (event['type'] == 'm.room.message' ||
-          event['type'] == 'm.room.encrypted') {
-        return event;
-      }
+  Future<String> _currentMatrixUserId(ServerConfiguration configuration) async {
+    final current = _currentUserId;
+    if (current != null) {
+      return current;
     }
-    return null;
+    final resolved = await _rustMatrixCoreBridge.parseWhoamiUserId(
+      responseJson: await _matrixRequestBody(
+        'GET',
+        '/_matrix/client/v3/account/whoami',
+        configuration: configuration,
+      ),
+      serverName: configuration.serviceEndpoints.matrixHomeserverUrl.host,
+    );
+    _currentUserId = resolved;
+    return resolved;
   }
 
-  ChatMessage _messageFromEvent(Map<String, dynamic> event) {
-    final content = _asMap(event['content']);
-    final eventId = _string(event['event_id']) ?? '';
-    final sender = _string(event['sender']) ?? '@weave:weave.local';
-    final body = _string(content['body']);
-    final contentType = _messageContentType(event);
+  ChatMessage _messageFromProjection(
+    RustMatrixMessageProjection projection, {
+    required String currentUserId,
+  }) {
+    final contentType = switch (projection.contentType) {
+      'text' => ChatMessageContentType.text,
+      'encrypted' => ChatMessageContentType.encrypted,
+      _ => ChatMessageContentType.unsupported,
+    };
     return ChatMessage(
-      id: eventId.isEmpty ? 'weave-event' : eventId,
-      senderId: sender,
-      senderDisplayName: _displayName(sender),
-      sentAt: _eventInstant(event) ?? DateTime.fromMillisecondsSinceEpoch(0),
-      isMine: false,
+      id: projection.eventId,
+      senderId: projection.sender,
+      senderDisplayName: _displayName(projection.sender),
+      sentAt: DateTime.fromMillisecondsSinceEpoch(
+        projection.originServerTimestamp,
+        isUtc: true,
+      ),
+      isMine: projection.sender == currentUserId,
       deliveryState: ChatMessageDeliveryState.sent,
       contentType: contentType,
-      text: contentType == ChatMessageContentType.text ? body : null,
+      text: contentType == ChatMessageContentType.text ? projection.body : null,
     );
   }
 
-  ChatConversationPreviewType _previewType(Map<String, dynamic>? event) {
-    if (event == null) {
-      return ChatConversationPreviewType.none;
-    }
-    return switch (_messageContentType(event)) {
-      ChatMessageContentType.text => ChatConversationPreviewType.text,
-      ChatMessageContentType.encrypted => ChatConversationPreviewType.encrypted,
-      ChatMessageContentType.unsupported =>
-        ChatConversationPreviewType.unsupported,
+  ChatConversationPreviewType _previewType(
+    RustMatrixMessageProjection? message,
+  ) {
+    return switch (message?.contentType) {
+      null => ChatConversationPreviewType.none,
+      'text' => ChatConversationPreviewType.text,
+      'encrypted' => ChatConversationPreviewType.encrypted,
+      _ => ChatConversationPreviewType.unsupported,
     };
   }
 
-  ChatMessageContentType _messageContentType(Map<String, dynamic> event) {
-    final type = _string(event['type']);
-    final content = _asMap(event['content']);
-    if (type == 'm.room.encrypted') {
-      return ChatMessageContentType.encrypted;
-    }
-    if (type == 'm.room.message' && content['msgtype'] == 'm.text') {
-      return ChatMessageContentType.text;
-    }
-    return ChatMessageContentType.unsupported;
-  }
-
-  String _roomTitle(String roomId, Map<String, dynamic> room) {
-    final stateEvents = _asList(_asMap(room['state'])['events']).map(_asMap);
-    for (final event in stateEvents) {
-      if (event['type'] == 'm.room.name') {
-        final name = _string(_asMap(event['content'])['name']);
-        if (name != null && name.trim().isNotEmpty) {
-          return name.trim();
-        }
-      }
-    }
-    return _titleFromRoomId(roomId);
-  }
-
   String _titleFromRoomId(String roomId) {
-    var title = roomId;
-    if (title.startsWith('!')) {
-      title = title.substring(1);
-    }
-    final serverSeparator = title.indexOf(':');
-    if (serverSeparator >= 0) {
-      title = title.substring(0, serverSeparator);
+    var title = roomId.startsWith('!') ? roomId.substring(1) : roomId;
+    final separator = title.indexOf(':');
+    if (separator >= 0) {
+      title = title.substring(0, separator);
     }
     return title.isEmpty ? 'Weave Chat' : title;
   }
 
   String _displayName(String sender) {
-    var value = sender;
-    if (value.startsWith('@')) {
-      value = value.substring(1);
-    }
+    var value = sender.startsWith('@') ? sender.substring(1) : sender;
     final separator = value.indexOf(':');
     if (separator >= 0) {
       value = value.substring(0, separator);
     }
     return value.replaceAll('_', ' ');
-  }
-
-  DateTime? _eventInstant(Map<String, dynamic>? event) {
-    if (event == null) {
-      return null;
-    }
-    final raw = event['origin_server_ts'];
-    if (raw is int) {
-      return DateTime.fromMillisecondsSinceEpoch(raw, isUtc: true);
-    }
-    if (raw is num) {
-      return DateTime.fromMillisecondsSinceEpoch(raw.toInt(), isUtc: true);
-    }
-    return null;
-  }
-
-  int _intValue(Object? value) {
-    if (value is int) {
-      return value;
-    }
-    if (value is num) {
-      return value.toInt();
-    }
-    return 0;
-  }
-
-  String? _string(Object? value) => value is String ? value : null;
-
-  Map<String, dynamic> _asMap(Object? value) {
-    if (value is Map<String, dynamic>) {
-      return value;
-    }
-    if (value is Map) {
-      return Map<String, dynamic>.from(value);
-    }
-    return <String, dynamic>{};
-  }
-
-  List<Object?> _asList(Object? value) {
-    if (value is List<Object?>) {
-      return value;
-    }
-    if (value is List) {
-      return List<Object?>.from(value);
-    }
-    return const <Object?>[];
   }
 }

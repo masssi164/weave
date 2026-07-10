@@ -1,26 +1,38 @@
 package com.massimotter.weave.backend.service.calendar;
 
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarChange;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarChangeSet;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarEvent;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarId;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarScope;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarWrite;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.EventId;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.EventVersion;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.FreeBusyWindow;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.WriteIntent;
+import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
 import com.massimotter.weave.backend.config.CalendarCalDavProperties;
-import com.massimotter.weave.backend.model.calendar.CalendarEventResponse;
-import com.massimotter.weave.backend.model.calendar.CalendarScopeResponse;
-import com.massimotter.weave.backend.model.calendar.CreateCalendarEventRequest;
-import com.massimotter.weave.backend.model.calendar.UpdateCalendarEventRequest;
+import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
+import com.massimotter.weave.backend.portability.ProviderConformanceProfile.MappingClass;
+import com.massimotter.weave.backend.portability.ProviderReadiness;
 import java.io.IOException;
 import java.io.StringReader;
 import java.net.URI;
+import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.time.OffsetDateTime;
+import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilderFactory;
 import org.w3c.dom.Document;
@@ -29,7 +41,7 @@ import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
 
-public class CalDavCalendarAdapter implements CalendarAdapter {
+public class CalDavCalendarAdapter implements CalendarProviderPort {
 
     private static final int HTTP_MULTI_STATUS = 207;
     private static final int HTTP_NOT_FOUND = 404;
@@ -54,19 +66,46 @@ public class CalDavCalendarAdapter implements CalendarAdapter {
     }
 
     @Override
-    public List<CalendarEventResponse> list(CalendarPrincipal principal, OffsetDateTime from, OffsetDateTime to) {
-        return list(principal, CalendarScopeResponse.workspace(), from, to);
+    public boolean configured() {
+        return properties.isConfigured();
     }
 
     @Override
-    public List<CalendarEventResponse> list(
-            CalendarPrincipal principal,
-            CalendarScopeResponse scope,
-            OffsetDateTime from,
-            OffsetDateTime to) {
+    public ProviderReadiness readiness() {
+        if (!configured()) {
+            return ProviderReadiness.degraded("calendar-storage-not-configured");
+        }
+        return ProviderReadiness.ready("calendar-storage-ready");
+    }
+
+    @Override
+    public ProviderConformanceProfile conformanceProfile() {
+        return new ProviderConformanceProfile(
+                "calendar",
+                "nextcloud-caldav",
+                Set.of("query", "read", "create", "update", "delete", "free-busy", "bounded-recurrence", "etag"),
+                Map.of(
+                        "event", MappingClass.PORTABLE,
+                        "timezone", MappingClass.PORTABLE,
+                        "recurrence", MappingClass.PORTABLE,
+                        "attendee", MappingClass.PORTABLE,
+                        "reminder", MappingClass.LOSSY,
+                        "meetingLink", MappingClass.LOSSY,
+                        "syncToken", MappingClass.MANUAL_REVIEW),
+                true,
+                true,
+                true);
+    }
+
+    @Override
+    public List<CalendarEvent> query(
+            CalendarId calendarId,
+            CalendarScope scope,
+            Instant from,
+            Instant to) {
         ensureConfigured("list-events");
-        CalendarScopeResponse resolvedScope = normalizeScope(scope);
-        URI calendarUri = calendarCollectionUri(principal, resolvedScope);
+        CalendarScope resolvedScope = normalizeScope(scope);
+        URI calendarUri = calendarCollectionUri(calendarId, resolvedScope);
         String body = calendarQuery(from, to);
         HttpRequest request = requestBuilder(calendarUri)
                 .method("REPORT", HttpRequest.BodyPublishers.ofString(body))
@@ -76,121 +115,108 @@ public class CalDavCalendarAdapter implements CalendarAdapter {
                 .build();
         HttpResponse<String> response = send(request, "list-events");
         if (response.statusCode() == HTTP_NOT_FOUND) {
-            ensureCalendarCollection(principal, resolvedScope);
+            ensureCalendarCollection(calendarId, resolvedScope);
             response = send(request, "list-events");
         }
         if (response.statusCode() != HTTP_MULTI_STATUS && !isSuccess(response.statusCode())) {
             throw mapStatus(response.statusCode(), "list-events", null);
         }
-        return parseMultistatus(response.body());
+        return parseMultistatus(calendarId, resolvedScope, response.body());
     }
 
     @Override
-    public CalendarEventResponse create(CalendarPrincipal principal, CreateCalendarEventRequest request) {
-        ensureConfigured("create-event");
-        CalendarScopeResponse scope = normalizeScope(request.scope());
-        IcalendarMapper.EventDraft draft = mapper.draftFrom(request);
-        String href = calendarHref(principal, scope, draft.uid() + ".ics");
+    public CalendarEvent write(CalendarWrite write) {
+        String operation = write.intent() == WriteIntent.CREATE ? "create-event" : "update-event";
+        ensureConfigured(operation);
+        CalendarEvent event = write.event();
+        CalendarScope scope = normalizeScope(event.scope());
+        String href = calendarHref(event.calendarId(), scope, eventFileName(event.id()));
         URI eventUri = eventUri(href);
-        HttpRequest httpRequest = requestBuilder(eventUri)
-                .PUT(HttpRequest.BodyPublishers.ofString(mapper.toIcalendar(draft)))
-                .header("Content-Type", "text/calendar; charset=utf-8")
-                .header("If-None-Match", "*")
-                .build();
-        HttpResponse<String> response = send(httpRequest, "create-event");
-        if (response.statusCode() == HTTP_NOT_FOUND) {
-            ensureCalendarCollection(principal, scope);
-            response = send(httpRequest, "create-event");
+        HttpRequest.Builder request = requestBuilder(eventUri)
+                .PUT(HttpRequest.BodyPublishers.ofString(mapper.toIcalendar(event)))
+                .header("Content-Type", "text/calendar; charset=utf-8");
+        if (write.intent() == WriteIntent.CREATE) {
+            request.header("If-None-Match", "*");
+        } else if (write.expectedVersion().value() != null) {
+            request.header("If-Match", write.expectedVersion().value());
+        }
+        HttpResponse<String> response = send(request.build(), operation);
+        if (response.statusCode() == HTTP_NOT_FOUND && write.intent() == WriteIntent.CREATE) {
+            ensureCalendarCollection(event.calendarId(), scope);
+            response = send(request.build(), operation);
         }
         if (!isSuccess(response.statusCode())) {
-            throw mapStatus(response.statusCode(), "create-event", href);
+            throw mapStatus(response.statusCode(), operation, href);
         }
-        return new CalendarEventResponse(
-                opaqueId(href),
-                draft.title(),
-                draft.description(),
-                draft.startsAt(),
-                draft.endsAt(),
-                draft.timezone(),
-                draft.location(),
-                draft.allDay(),
-                response.headers().firstValue("ETag").orElse(null));
+        return withVersion(event, new EventVersion(response.headers().firstValue("ETag").orElse(null)), Instant.now());
     }
 
     @Override
-    public CalendarEventResponse read(CalendarPrincipal principal, String id) {
-        return read(principal, CalendarScopeResponse.workspace(), id);
-    }
-
-    @Override
-    public CalendarEventResponse read(CalendarPrincipal principal, CalendarScopeResponse scope, String id) {
+    public CalendarEvent read(CalendarId calendarId, CalendarScope scope, EventId id) {
         ensureConfigured("read-event");
-        String href = hrefFromOpaqueId(id, principal, normalizeScope(scope));
+        CalendarScope resolvedScope = normalizeScope(scope);
+        String href = calendarHref(calendarId, resolvedScope, eventFileName(id));
         HttpResponse<String> existing = getEvent(href, "read-event");
-        return mapper.toResponse(id, existing.headers().firstValue("ETag").orElse(null), existing.body());
-    }
-
-    @Override
-    public CalendarEventResponse update(CalendarPrincipal principal, String id, UpdateCalendarEventRequest request) {
-        return update(principal, CalendarScopeResponse.workspace(), id, request);
-    }
-
-    @Override
-    public CalendarEventResponse update(
-            CalendarPrincipal principal,
-            CalendarScopeResponse scope,
-            String id,
-            UpdateCalendarEventRequest request) {
-        ensureConfigured("update-event");
-        String href = hrefFromOpaqueId(id, principal, normalizeScope(scope));
-        URI eventUri = eventUri(href);
-        HttpResponse<String> existing = getEvent(href, "update-event");
-
-        IcalendarMapper.EventDraft merged = mapper.merge(mapper.parse(existing.body()), request);
-        HttpRequest.Builder builder = requestBuilder(eventUri)
-                .PUT(HttpRequest.BodyPublishers.ofString(mapper.toIcalendar(merged)))
-                .header("Content-Type", "text/calendar; charset=utf-8");
-        if (request.etag() != null && !request.etag().isBlank()) {
-            builder.header("If-Match", request.etag());
+        CalendarEvent event = mapper.parse(
+                calendarId,
+                resolvedScope,
+                new EventVersion(existing.headers().firstValue("ETag").orElse(null)),
+                existing.body());
+        if (!event.id().equals(id)) {
+            throw new CalendarAdapterException(
+                    CalendarAdapterException.Type.INVALID_RESPONSE,
+                    "CalDAV event UID did not match the requested canonical event id.",
+                    Map.of("module", "calendar", "operation", "read-event", "supportSafe", true));
         }
-        HttpResponse<String> updated = send(builder.build(), "update-event");
-        if (!isSuccess(updated.statusCode())) {
-            throw mapStatus(updated.statusCode(), "update-event", href);
-        }
-        return new CalendarEventResponse(
-                id,
-                merged.title(),
-                merged.description(),
-                merged.startsAt(),
-                merged.endsAt(),
-                merged.timezone(),
-                merged.location(),
-                merged.allDay(),
-                updated.headers().firstValue("ETag").orElse(null));
+        return event;
     }
 
     @Override
-    public void delete(CalendarPrincipal principal, String id) {
-        delete(principal, CalendarScopeResponse.workspace(), id);
-    }
-
-    @Override
-    public void delete(CalendarPrincipal principal, CalendarScopeResponse scope, String id) {
+    public void delete(CalendarId calendarId, CalendarScope scope, EventId id, EventVersion expectedVersion) {
         ensureConfigured("delete-event");
-        String href = hrefFromOpaqueId(id, principal, normalizeScope(scope));
-        HttpResponse<String> response = send(requestBuilder(eventUri(href))
-                .DELETE()
-                .build(), "delete-event");
+        String href = calendarHref(calendarId, normalizeScope(scope), eventFileName(id));
+        HttpRequest.Builder request = requestBuilder(eventUri(href)).DELETE();
+        if (expectedVersion != null && expectedVersion.value() != null) {
+            request.header("If-Match", expectedVersion.value());
+        }
+        HttpResponse<String> response = send(request.build(), "delete-event");
         if (!isSuccess(response.statusCode())) {
             throw mapStatus(response.statusCode(), "delete-event", href);
         }
     }
 
-    private List<CalendarEventResponse> parseMultistatus(String body) {
+    @Override
+    public List<FreeBusyWindow> freeBusy(CalendarId calendarId, CalendarScope scope, Instant from, Instant to) {
+        return query(calendarId, scope, from, to).stream()
+                .flatMap(event -> event.occurrences(from, to).stream())
+                .map(occurrence -> new FreeBusyWindow(occurrence.start().toInstant(), occurrence.end().toInstant()))
+                .sorted(java.util.Comparator.comparing(FreeBusyWindow::start))
+                .toList();
+    }
+
+    @Override
+    public CalendarChangeSet changes(CalendarId calendarId, CalendarScope scope, String sinceToken) {
+        ensureConfigured("sync-events");
+        CalendarScope resolvedScope = normalizeScope(scope);
+        String body = syncCollectionReport(sinceToken);
+        HttpRequest request = requestBuilder(calendarCollectionUri(calendarId, resolvedScope))
+                .method("REPORT", HttpRequest.BodyPublishers.ofString(body))
+                .header("Depth", "1")
+                .header("Content-Type", "application/xml; charset=utf-8")
+                .header("Accept", "application/xml, text/xml")
+                .build();
+        HttpResponse<String> response = send(request, "sync-events");
+        if (response.statusCode() != HTTP_MULTI_STATUS && !isSuccess(response.statusCode())) {
+            throw mapStatus(response.statusCode(), "sync-events", null);
+        }
+        return parseChanges(response.body());
+    }
+
+    private List<CalendarEvent> parseMultistatus(CalendarId calendarId, CalendarScope scope, String body) {
         try {
             Document document = parseXml(body);
             NodeList responseNodes = document.getElementsByTagNameNS("DAV:", "response");
-            List<CalendarEventResponse> events = new ArrayList<>();
+            List<CalendarEvent> events = new ArrayList<>();
             for (int index = 0; index < responseNodes.getLength(); index++) {
                 Element response = (Element) responseNodes.item(index);
                 String href = firstText(response, "DAV:", "href");
@@ -199,7 +225,7 @@ public class CalDavCalendarAdapter implements CalendarAdapter {
                     continue;
                 }
                 String etag = firstText(response, "DAV:", "getetag");
-                events.add(mapper.toResponse(opaqueId(pathFromHref(href)), etag, calendarData));
+                events.add(mapper.parse(calendarId, scope, new EventVersion(etag), calendarData));
             }
             return events;
         } catch (CalendarAdapterException exception) {
@@ -222,6 +248,41 @@ public class CalDavCalendarAdapter implements CalendarAdapter {
         return factory.newDocumentBuilder().parse(new InputSource(new StringReader(body.stripLeading())));
     }
 
+    private CalendarChangeSet parseChanges(String body) {
+        try {
+            Document document = parseXml(body);
+            String syncToken = firstText(document.getDocumentElement(), "DAV:", "sync-token");
+            if (syncToken == null || syncToken.isBlank()) {
+                throw new IllegalArgumentException("sync token is missing");
+            }
+            NodeList responseNodes = document.getElementsByTagNameNS("DAV:", "response");
+            List<CalendarChange> changes = new ArrayList<>();
+            for (int index = 0; index < responseNodes.getLength(); index++) {
+                Element response = (Element) responseNodes.item(index);
+                String href = firstText(response, "DAV:", "href");
+                if (href == null || href.isBlank() || href.endsWith("/")) {
+                    continue;
+                }
+                String status = firstText(response, "DAV:", "status");
+                String etag = firstText(response, "DAV:", "getetag");
+                changes.add(new CalendarChange(
+                        syncToken.trim(),
+                        eventIdFromHref(href),
+                        status != null && status.contains(" 404 "),
+                        new EventVersion(etag)));
+            }
+            return new CalendarChangeSet(syncToken.trim(), changes);
+        } catch (CalendarAdapterException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            throw new CalendarAdapterException(
+                    CalendarAdapterException.Type.INVALID_RESPONSE,
+                    "CalDAV sync-collection response could not be parsed.",
+                    Map.of("module", "calendar", "operation", "sync-events"),
+                    exception);
+        }
+    }
+
     private String firstText(Element parent, String namespace, String localName) {
         NodeList nodes = parent.getElementsByTagNameNS(namespace, localName);
         if (nodes.getLength() == 0) {
@@ -231,7 +292,7 @@ public class CalDavCalendarAdapter implements CalendarAdapter {
         return node == null ? null : node.getTextContent();
     }
 
-    private String calendarQuery(OffsetDateTime from, OffsetDateTime to) {
+    private String calendarQuery(Instant from, Instant to) {
         String timeRange = "";
         if (from != null && to != null) {
             timeRange = "<c:time-range start=\"" + CALDAV_TIME_RANGE_FORMAT.format(from) + "\" end=\""
@@ -251,6 +312,20 @@ public class CalDavCalendarAdapter implements CalendarAdapter {
                   </c:filter>
                 </c:calendar-query>
                 """.formatted(timeRange);
+    }
+
+    private String syncCollectionReport(String sinceToken) {
+        String token = sinceToken == null || sinceToken.isBlank()
+                ? "<d:sync-token/>"
+                : "<d:sync-token>" + xmlEscape(sinceToken.trim()) + "</d:sync-token>";
+        return """
+                <?xml version="1.0" encoding="utf-8" ?>
+                <d:sync-collection xmlns:d="DAV:">
+                  %s
+                  <d:sync-level>1</d:sync-level>
+                  <d:prop><d:getetag /></d:prop>
+                </d:sync-collection>
+                """.formatted(token);
     }
 
     private String mkCalendarBody() {
@@ -313,8 +388,8 @@ public class CalDavCalendarAdapter implements CalendarAdapter {
         }
     }
 
-    private void ensureCalendarCollection(CalendarPrincipal principal, CalendarScopeResponse scope) {
-        URI calendarUri = calendarCollectionUri(principal, scope);
+    private void ensureCalendarCollection(CalendarId calendarId, CalendarScope scope) {
+        URI calendarUri = calendarCollectionUri(calendarId, scope);
         HttpRequest request = requestBuilder(calendarUri)
                 .method("MKCALENDAR", HttpRequest.BodyPublishers.ofString(mkCalendarBody()))
                 .header("Content-Type", "application/xml; charset=utf-8")
@@ -325,7 +400,7 @@ public class CalDavCalendarAdapter implements CalendarAdapter {
                 || response.statusCode() == HTTP_METHOD_NOT_ALLOWED) {
             return;
         }
-        throw mapStatus(response.statusCode(), "ensure-calendar-collection", calendarHref(principal, scope, ""));
+        throw mapStatus(response.statusCode(), "ensure-calendar-collection", calendarHref(calendarId, scope, ""));
     }
 
     private CalendarAdapterException mapStatus(int status, String operation, String href) {
@@ -371,13 +446,13 @@ public class CalDavCalendarAdapter implements CalendarAdapter {
         }
     }
 
-    private URI calendarCollectionUri(CalendarPrincipal principal, CalendarScopeResponse scope) {
-        return eventUri(calendarHref(principal, scope, ""));
+    private URI calendarCollectionUri(CalendarId calendarId, CalendarScope scope) {
+        return eventUri(calendarHref(calendarId, scope, ""));
     }
 
-    private String calendarHref(CalendarPrincipal principal, CalendarScopeResponse scope, String eventFileName) {
-        CalendarScopeResponse resolvedScope = normalizeScope(scope);
-        String user = URLEncoder.encode(principal.userId(), StandardCharsets.UTF_8).replace("+", "%20");
+    private String calendarHref(CalendarId calendarId, CalendarScope scope, String eventFileName) {
+        CalendarScope resolvedScope = normalizeScope(scope);
+        String user = URLEncoder.encode(calendarId.value(), StandardCharsets.UTF_8).replace("+", "%20");
         String path = properties.calendarPathTemplate().replace("{user}", user);
         path = applyScopePath(path, resolvedScope);
         if (!path.startsWith("/")) {
@@ -389,18 +464,18 @@ public class CalDavCalendarAdapter implements CalendarAdapter {
         return path + eventFileName;
     }
 
-    private String applyScopePath(String path, CalendarScopeResponse scope) {
+    private String applyScopePath(String path, CalendarScope scope) {
         if (path.contains("{scopeId}")
                 || path.contains("{scopeType}")
                 || path.contains("{team}")
                 || path.contains("{channel}")) {
             return path
                     .replace("{scopeId}", scopeSegment(scope))
-                    .replace("{scopeType}", pathSegment(scope.type()))
+                    .replace("{scopeType}", pathSegment(scope.type().name()))
                     .replace("{team}", pathSegment(scope.teamId()))
                     .replace("{channel}", pathSegment(scope.channelId()));
         }
-        if ("workspace".equals(scope.type())) {
+        if (scope.type() == com.massimotter.weave.backend.calendar.domain.CalendarDomain.ScopeType.WORKSPACE) {
             return path;
         }
         String normalizedPath = path.endsWith("/") ? path.substring(0, path.length() - 1) : path;
@@ -409,17 +484,15 @@ public class CalDavCalendarAdapter implements CalendarAdapter {
         return parent + "weave-" + scopeSegment(scope) + "/";
     }
 
-    private CalendarScopeResponse normalizeScope(CalendarScopeResponse scope) {
-        return scope == null || scope.type() == null || scope.type().isBlank()
-                ? CalendarScopeResponse.workspace()
-                : scope;
+    private CalendarScope normalizeScope(CalendarScope scope) {
+        return scope == null ? CalendarScope.workspace() : scope;
     }
 
-    private String scopeSegment(CalendarScopeResponse scope) {
+    private String scopeSegment(CalendarScope scope) {
         return switch (scope.type()) {
-            case "team" -> "team-" + pathSegment(scope.teamId());
-            case "channel" -> "channel-" + pathSegment(scope.channelId());
-            default -> "workspace";
+            case TEAM -> "team-" + pathSegment(scope.teamId());
+            case CHANNEL -> "channel-" + pathSegment(scope.channelId());
+            case WORKSPACE -> "workspace";
         };
     }
 
@@ -437,36 +510,44 @@ public class CalDavCalendarAdapter implements CalendarAdapter {
         return URI.create(stripTrailingSlash(properties.baseUrl())).resolve(path);
     }
 
-    private String hrefFromOpaqueId(String id, CalendarPrincipal principal, CalendarScopeResponse scope) {
-        try {
-            String href = new String(Base64.getUrlDecoder().decode(id), StandardCharsets.UTF_8);
-            String calendarHref = calendarHref(principal, scope, "");
-            if (!href.startsWith("/") || href.contains("..") || !href.startsWith(calendarHref)) {
-                throw invalidId();
-            }
-            return href;
-        } catch (IllegalArgumentException exception) {
-            throw invalidId();
+    private String eventFileName(EventId id) {
+        return URLEncoder.encode(id.value(), StandardCharsets.UTF_8).replace("+", "%20") + ".ics";
+    }
+
+    private EventId eventIdFromHref(String href) {
+        String path = URI.create(href).getRawPath();
+        String filename = path.substring(path.lastIndexOf('/') + 1);
+        String decoded = URLDecoder.decode(filename, StandardCharsets.UTF_8);
+        if (decoded.endsWith(".ics")) {
+            decoded = decoded.substring(0, decoded.length() - 4);
         }
+        return new EventId(decoded);
     }
 
-    private CalendarAdapterException invalidId() {
-        return new CalendarAdapterException(
-                CalendarAdapterException.Type.INVALID_REQUEST,
-                "Calendar event id is not a valid Weave calendar facade id.",
-                Map.of("module", "calendar"));
+    private String xmlEscape(String value) {
+        return value.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&apos;");
     }
 
-    private String opaqueId(String href) {
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(pathFromHref(href).getBytes(StandardCharsets.UTF_8));
-    }
-
-    private String pathFromHref(String href) {
-        URI uri = URI.create(href);
-        if (uri.isAbsolute()) {
-            return uri.getRawPath();
-        }
-        return href;
+    private CalendarEvent withVersion(CalendarEvent event, EventVersion version, Instant updatedAt) {
+        return new CalendarEvent(
+                event.calendarId(),
+                event.id(),
+                event.scope(),
+                event.title(),
+                event.description(),
+                event.localStart(),
+                event.localEnd(),
+                event.timezone(),
+                event.allDay(),
+                event.location(),
+                event.attendees(),
+                event.recurrence(),
+                version,
+                updatedAt);
     }
 
     private String stripTrailingSlash(String value) {

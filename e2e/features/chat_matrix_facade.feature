@@ -20,6 +20,20 @@ Feature: Chat Matrix facade
     When one member sends a message
     Then the other receives it through Matrix Client-Server API
 
+  @matrix-openclaw-stock-channel
+  Scenario: Stock OpenClaw Matrix channel runs against the Weave facade
+    Given a signed Weaver RuntimeProfile enables Chat
+    When Weaver starts the stock channels.matrix plugin against the Weave Matrix facade
+    Then whoami, push rules, filters, sync, joined rooms, joined members, messages, typing, receipts, reactions, and redactions stay on canonical Chat
+    And no custom weave-chat plugin or southbound provider credential is used
+
+  @matrix-read-receipt
+  Scenario: Flutter marks the latest canonical message as read
+    Given Flutter loaded a room timeline and validated its own Matrix identity in the shared Rust core
+    When the room is marked read
+    Then Flutter posts a Matrix read receipt through the Weave facade
+    And the canonical Chat provider port records the actor, conversation, event, and timestamp
+
   @matrix-e2ee-state
   Scenario: E2EE and device state are surfaced support-safely
     Given E2EE is enabled or pending setup
@@ -49,3 +63,25 @@ Feature: Chat Matrix facade
     Given Flutter Chat is exercised
     Then it uses the Rust Matrix core bridge boundary
     And it does not call Slack or Teams client APIs directly
+
+  @matrix-native-core
+  Scenario: Matrix wire behavior is owned by the shared native core
+    Given the Spring Matrix facade and Flutter Chat client are running
+    When Matrix versions, sync, timeline, and message payloads are processed
+    Then JNI and flutter_rust_bridge call the same Rust and Ruma protocol core
+    And no handwritten Java or Dart Matrix protocol fallback is used
+
+  @matrix-idempotent-send
+  Scenario: Retried Matrix transactions create one canonical message
+    Given a member can send to a canonical Chat conversation
+    When the same Matrix transaction identifier is submitted more than once
+    Then the canonical Chat provider port returns the same message identifier
+    And the canonical change stream records one message creation
+
+  @matrix-provider-port
+  Scenario: Chat provider replacement preserves canonical and Matrix identifiers
+    Given Chat conversations use canonical identifiers and provider mappings
+    When the selected southbound Chat provider changes
+    Then the canonical conversation identifiers remain stable
+    And the northbound Matrix room identifiers remain stable
+    And unsupported provider semantics are reported by the conformance profile

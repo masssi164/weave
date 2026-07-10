@@ -134,16 +134,14 @@ class ServerArchitectureBoundaryTest {
     }
 
     @Test
-    void dtoShapedCollaborationAdaptersAreExplicitRemovalDebt() throws IOException {
-        for (String fileName : List.of("FilesStorageAdapter.java", "CalendarAdapter.java")) {
-            JavaSource legacyPort = productionSources().stream()
-                    .filter(source -> source.path().endsWith(fileName))
-                    .findFirst()
-                    .orElseThrow();
-            assertThat(legacyPort.text())
-                    .contains("@Deprecated(forRemoval = true")
-                    .contains("removal is tracked by #1004");
-        }
+    void dtoShapedCollaborationCompatibilityPortsHaveBeenRemoved() throws IOException {
+        assertThat(productionSources())
+                .extracting(source -> source.path().getFileName().toString())
+                .doesNotContain(
+                        "FilesStorageAdapter.java",
+                        "FilesStorageReadiness.java",
+                        "VersionedFileListResponse.java",
+                        "CalendarAdapter.java");
     }
 
     @Test
@@ -250,8 +248,8 @@ class ServerArchitectureBoundaryTest {
                 .contains("case \"GET\" -> get(request, false)")
                 .contains("case \"PUT\" -> put(request)")
                 .contains("case \"DELETE\" -> delete(request)")
-                .contains("calendarFacadeService.listCalDavEvents(")
-                .contains("calendarFacadeService.readCalDavEvent(")
+                .contains("calendarFacadeService.listCalDavResources(")
+                .contains("calendarFacadeService.readCalDavResource(")
                 .contains("calendarFacadeService.putCalDavEventIcs(")
                 .contains("calendarFacadeService.deleteCalDavEventIcs(")
                 .doesNotContain("CalDavCalendarAdapter")
@@ -260,7 +258,7 @@ class ServerArchitectureBoundaryTest {
     }
 
     @Test
-    void matrixClientServerProjectionUsesChatFacadeNotBridgeOrRestChatDataPlane() throws IOException {
+    void matrixClientServerProjectionUsesCanonicalChatAndNativeCoreNotRestDtos() throws IOException {
         JavaSource matrixProjection = productionSources().stream()
                 .filter(source -> source.path().endsWith(Path.of("controller", "MatrixClientServerProjectionController.java")))
                 .findFirst()
@@ -268,13 +266,18 @@ class ServerArchitectureBoundaryTest {
 
         assertThat(matrixProjection.text())
                 .contains("\"/_matrix/client/**\"")
-                .contains("northbound-matrix-client-server")
                 .contains("matrixProtocolCoreService.versions()")
-                .contains("matrixProtocolCoreService.descriptor()")
-                .contains("chatFacadeService.conversations(jwt)")
-                .contains("chatFacadeService.messages(jwt")
-                .contains("chatFacadeService.sendMessage(")
+                .contains("matrixProtocolCoreService.sync(")
+                .contains("matrixProtocolCoreService.parseEvent(")
+                .contains("matrixProtocolCoreService.parseObject(")
+                .contains("chatDomainFacadeService.conversations(jwt)")
+                .contains("chatDomainFacadeService.timeline(")
+                .contains("chatDomainFacadeService.sendEvent(")
                 .doesNotContain("/api/chat/conversations")
+                .doesNotContain("ChatFacadeService")
+                .doesNotContain("ChatConversationResponse")
+                .doesNotContain("ChatMessageResponse")
+                .doesNotContain("ObjectMapper")
                 .doesNotContain("BridgeAdapter")
                 .doesNotContain("providerAccessToken")
                 .doesNotContain("RestClient");
@@ -296,12 +299,12 @@ class ServerArchitectureBoundaryTest {
                 .contains("ruma-serde-serde_json-thiserror-tracing")
                 .contains("server-jni-wrapper")
                 .contains("flutter-rust-bridge")
-                .contains("northboundHomeserverDependency")
-                .contains("NativeMatrixCore.LIBRARY_NAME")
+                .contains("NativeMatrixCore.ensureLoaded()")
+                .contains("NativeMatrixCore.projectJson(")
                 .doesNotContain("Synapse")
                 .doesNotContain("RestClient");
         assertThat(nativeCore.text())
-                .contains("public static native String matrixFacadeDescriptorJson")
+                .contains("public static native String projectJson")
                 .contains("weave_matrix_core");
     }
 

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/integrations/rust_matrix_core/data/services/rust_matrix_core_bridge.dart';
 
@@ -19,7 +21,10 @@ void main() {
       );
       expect(descriptor.serverJniBoundary, 'server-jni-wrapper');
       expect(descriptor.flutterBridgeBoundary, 'flutter-rust-bridge');
+      expect(descriptor.nativeLinked, isTrue);
+      expect(descriptor.serverName, 'api.weave.test');
       expect(descriptor.supportedMatrixVersions, ['v1.18']);
+      expect(descriptor.supportedEndpoints, contains(contains('/sync')));
       expect(descriptor.isWeaveFacade, isTrue);
     },
   );
@@ -33,5 +38,36 @@ void main() {
     expect(json, isNot(contains('refresh_token')));
     expect(json, isNot(contains('Synapse')));
     expect(json, isNot(contains('providerAccessToken')));
+  });
+
+  test('versions response is validated inside the Rust core', () async {
+    const bridge = RustMatrixCoreBridge();
+    final descriptor = await bridge.descriptor(serverName: 'api.weave.test');
+
+    await bridge.validateVersions(
+      responseJson: jsonEncode({
+        'versions': ['v1.18'],
+        'matrixCore': descriptor.toJson(),
+      }),
+      serverName: 'api.weave.test',
+    );
+  });
+
+  test('whoami identity is validated inside the Rust core', () async {
+    const bridge = RustMatrixCoreBridge();
+
+    final userId = await bridge.parseWhoamiUserId(
+      responseJson: jsonEncode({'user_id': '@user_alice:api.weave.test'}),
+      serverName: 'api.weave.test',
+    );
+
+    expect(userId, '@user_alice:api.weave.test');
+    await expectLater(
+      bridge.parseWhoamiUserId(
+        responseJson: jsonEncode({'user_id': '@user_alice:provider.invalid'}),
+        serverName: 'api.weave.test',
+      ),
+      throwsA(isA<RustMatrixCoreBridgeException>()),
+    );
   });
 }

@@ -611,13 +611,14 @@ fi
 synapse_operator_diagnose_volume
 
 log "Checking core containers..."
-for container in weave-proxy weave-keycloak weave-backend weave-mas weave-synapse weave-nextcloud weave-db; do
+for container in weave-proxy weave-keycloak weave-backend weave-mcp-server weave-mas weave-synapse weave-nextcloud weave-db; do
   assert_container_running "${container}"
 done
 
 log "Checking loopback health endpoints..."
 assert_http_200 "Keycloak management" "http://${LOOPBACK_HOST}:${TF_VAR_keycloak_management_host_port:-49000}/health/ready"
 assert_http_200 "Weave backend" "http://${LOOPBACK_HOST}:${TF_VAR_backend_host_port:-48084}/api/health/ready"
+assert_http_200 "Weave MCP server" "http://${LOOPBACK_HOST}:${TF_VAR_mcp_host_port:-48085}/actuator/health"
 assert_http_200 "MAS" "http://${LOOPBACK_HOST}:${TF_VAR_mas_host_port:-48082}/health"
 assert_http_200 "Synapse" "http://${LOOPBACK_HOST}:${TF_VAR_synapse_host_port:-48008}/_matrix/client/versions"
 

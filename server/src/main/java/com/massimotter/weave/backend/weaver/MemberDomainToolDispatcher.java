@@ -1,7 +1,10 @@
 package com.massimotter.weave.backend.weaver;
 
+import com.massimotter.weave.backend.chat.ChatDomainFacadeService;
+import com.massimotter.weave.backend.chat.domain.ChatMessage;
 import com.massimotter.weave.backend.model.calendar.CalendarEventResponse;
 import com.massimotter.weave.backend.model.calendar.CalendarEventsResponse;
+import com.massimotter.weave.backend.model.calendar.CalendarScopeResponse;
 import com.massimotter.weave.backend.model.calendar.CreateCalendarEventRequest;
 import com.massimotter.weave.backend.model.files.FileItemResponse;
 import com.massimotter.weave.backend.model.files.FileListResponse;
@@ -12,12 +15,14 @@ import com.massimotter.weave.contract.mcp.MemberMcpToolResultProjections;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.web.util.UriUtils;
 
@@ -28,21 +33,31 @@ public class MemberDomainToolDispatcher {
 
     private final FilesFacadeService filesFacadeService;
     private final CalendarFacadeService calendarFacadeService;
+    private final ChatDomainFacadeService chatDomainFacadeService;
 
-    public MemberDomainToolDispatcher(FilesFacadeService filesFacadeService, CalendarFacadeService calendarFacadeService) {
+    public MemberDomainToolDispatcher(
+            FilesFacadeService filesFacadeService,
+            CalendarFacadeService calendarFacadeService,
+            ChatDomainFacadeService chatDomainFacadeService) {
         this.filesFacadeService = filesFacadeService;
         this.calendarFacadeService = calendarFacadeService;
+        this.chatDomainFacadeService = chatDomainFacadeService;
     }
 
-    public Map<String, Object> dispatch(String toolName, Map<String, Object> arguments) {
+    public Map<String, Object> dispatch(Jwt jwt, String toolName, Map<String, Object> arguments) {
         Map<String, Object> safeArguments = arguments == null ? Map.of() : arguments;
-        return switch (toolName) {
-            case "files.search" -> filesSearch(safeArguments);
-            case "files.read" -> filesRead(safeArguments);
-            case "calendar.search_events" -> calendarSearchEvents(safeArguments);
-            case "calendar.create_event" -> calendarCreateEvent(safeArguments);
-            default -> MemberMcpToolResultProjections.blocked("member_tool_dispatch_not_implemented");
-        };
+        try {
+            return switch (toolName) {
+                case "files.search" -> filesSearch(safeArguments);
+                case "files.read" -> filesRead(safeArguments);
+                case "calendar.search_events" -> calendarSearchEvents(safeArguments);
+                case "calendar.create_event" -> calendarCreateEvent(safeArguments);
+                case "chat.send_message" -> chatSendMessage(jwt, safeArguments);
+                default -> MemberMcpToolResultProjections.blocked("member_tool_dispatch_not_implemented");
+            };
+        } catch (RuntimeException exception) {
+            return MemberMcpToolResultProjections.blocked("member_domain_facade_unavailable");
+        }
     }
 
     private Map<String, Object> filesSearch(Map<String, Object> arguments) {
@@ -75,31 +90,95 @@ public class MemberDomainToolDispatcher {
     }
 
     private Map<String, Object> calendarSearchEvents(Map<String, Object> arguments) {
-        OffsetDateTime from = offsetDateTime(arguments.get("from"), OffsetDateTime.now(ZoneOffset.UTC).minusDays(1));
-        OffsetDateTime to = offsetDateTime(arguments.get("to"), from.plusDays(14));
-        CalendarEventsResponse response = calendarFacadeService.list(from, to);
-        return MemberMcpToolResultProjections.calendarSearchEvents(response.events(), response.scope(), response.scope().id());
+        Optional<OffsetDateTime> requestedFrom = optionalOffsetDateTime(arguments.get("from"));
+        Optional<OffsetDateTime> requestedTo = optionalOffsetDateTime(arguments.get("to"));
+        Optional<CalendarScopeResponse> scope = calendarScope(arguments.get("calendarRef"), true);
+        if (invalidDate(arguments.get("from"), requestedFrom)
+                || invalidDate(arguments.get("to"), requestedTo)
+                || scope.isEmpty()) {
+            return MemberMcpToolResultProjections.blocked("calendar_search_requires_valid_range_and_calendar_ref");
+        }
+        OffsetDateTime from = requestedFrom.orElseGet(() -> OffsetDateTime.now(ZoneOffset.UTC).minusDays(1));
+        OffsetDateTime to = requestedTo.orElseGet(() -> from.plusDays(14));
+        if (!to.isAfter(from)) {
+            return MemberMcpToolResultProjections.blocked("calendar_search_requires_valid_range_and_calendar_ref");
+        }
+        String query = text(arguments.get("query"), "").toLowerCase(Locale.ROOT);
+        int limit = limit(arguments.get("limit"), DEFAULT_FILES_LIMIT);
+        CalendarEventsResponse response = calendarFacadeService.listCalDavEvents(scope.get(), from, to);
+        List<Map<String, Object>> events = response.events().stream()
+                .filter(event -> query.isBlank() || calendarSearchText(event).contains(query))
+                .sorted(Comparator.comparing(CalendarEventResponse::startsAt))
+                .limit(limit)
+                .map(this::calendarEventProjection)
+                .toList();
+        return MemberMcpToolResultProjections.calendarSearchEvents(
+                events,
+                calendarScopeProjection(response.scope()),
+                calendarRef(response.scope()));
     }
 
     private Map<String, Object> calendarCreateEvent(Map<String, Object> arguments) {
-        OffsetDateTime startsAt = offsetDateTime(arguments.get("startsAt"), OffsetDateTime.now(ZoneOffset.UTC).plusHours(1));
-        OffsetDateTime endsAt = offsetDateTime(arguments.get("endsAt"), startsAt.plusHours(1));
+        String title = text(arguments.get("title"), "");
+        Optional<OffsetDateTime> startsAt = optionalOffsetDateTime(arguments.get("startsAt"));
+        Optional<OffsetDateTime> requestedEnd = optionalOffsetDateTime(arguments.get("endsAt"));
+        Optional<CalendarScopeResponse> scope = calendarScope(arguments.get("calendarRef"), false);
+        String timezone = text(arguments.get("timezone"), "UTC");
+        if (title.isBlank()
+                || title.length() > 255
+                || startsAt.isEmpty()
+                || invalidDate(arguments.get("endsAt"), requestedEnd)
+                || scope.isEmpty()
+                || !validTimezone(timezone)) {
+            return MemberMcpToolResultProjections.blocked("calendar_create_requires_valid_title_time_and_calendar_ref");
+        }
+        OffsetDateTime endsAt = requestedEnd.orElseGet(() -> startsAt.get().plusHours(1));
+        if (!endsAt.isAfter(startsAt.get())) {
+            return MemberMcpToolResultProjections.blocked("calendar_create_requires_valid_title_time_and_calendar_ref");
+        }
         CalendarEventResponse event = calendarFacadeService.create(new CreateCalendarEventRequest(
-                text(arguments.get("title"), "Weaver-created event"),
-                text(arguments.get("description"), "Created through governed Weaver MCP bridge."),
-                startsAt,
+                title,
+                text(arguments.get("description"), ""),
+                startsAt.get(),
                 endsAt,
-                text(arguments.get("timezone"), "UTC"),
+                timezone,
                 text(arguments.get("location"), ""),
-                Boolean.TRUE.equals(arguments.get("allDay"))));
-        return MemberMcpToolResultProjections.calendarCreateEvent(event, event.id(), event.scope().id());
+                Boolean.TRUE.equals(arguments.get("allDay")),
+                scope.get()));
+        return MemberMcpToolResultProjections.calendarCreateEvent(
+                calendarEventProjection(event),
+                eventRef(event),
+                calendarRef(event.scope()));
     }
 
-    private OffsetDateTime offsetDateTime(Object value, OffsetDateTime fallback) {
-        if (value instanceof String text && !text.isBlank()) {
-            return OffsetDateTime.parse(text);
+    private Map<String, Object> chatSendMessage(Jwt jwt, Map<String, Object> arguments) {
+        Optional<String> conversationId = conversationId(arguments.get("threadRef"));
+        String body = text(arguments.get("body"), "");
+        String idempotencyKey = text(arguments.get("idempotencyKey"), "");
+        if (jwt == null || conversationId.isEmpty() || body.isBlank() || idempotencyKey.isBlank()) {
+            return MemberMcpToolResultProjections.blocked("chat_send_requires_canonical_thread_body_and_idempotency_key");
         }
-        return fallback;
+        ChatMessage message = chatDomainFacadeService.sendMessage(
+                conversationId.get(),
+                idempotencyKey,
+                body,
+                jwt);
+        return MemberMcpToolResultProjections.chatSendMessage(
+                message.conversationId(),
+                message.messageId(),
+                message.deliveryState(),
+                message.sentAt());
+    }
+
+    private Optional<OffsetDateTime> optionalOffsetDateTime(Object value) {
+        if (!(value instanceof String text) || text.isBlank()) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(OffsetDateTime.parse(text));
+        } catch (RuntimeException exception) {
+            return Optional.empty();
+        }
     }
 
     private String text(Object value, String fallback) {
@@ -119,6 +198,102 @@ public class MemberDomainToolDispatcher {
             return Optional.empty();
         }
         return Optional.of(FilePathCodec.normalizeProductPath(suffix));
+    }
+
+    private Optional<String> conversationId(Object value) {
+        if (!(value instanceof String threadRef) || threadRef.isBlank()) {
+            return Optional.empty();
+        }
+        for (String prefix : List.of("thread:", "conversation:")) {
+            if (threadRef.startsWith(prefix) && threadRef.length() > prefix.length()) {
+                String candidate = threadRef.substring(prefix.length()).trim();
+                if (candidate.matches("[A-Za-z0-9][A-Za-z0-9._:-]{0,199}")) {
+                    return Optional.of(candidate);
+                }
+            }
+        }
+        return Optional.empty();
+    }
+
+    private Optional<CalendarScopeResponse> calendarScope(Object value, boolean defaultWorkspace) {
+        if (value == null && defaultWorkspace) {
+            return Optional.of(CalendarScopeResponse.workspace());
+        }
+        if (!(value instanceof String calendarRef) || calendarRef.isBlank()) {
+            return Optional.empty();
+        }
+        if (calendarRef.equals("calendar:workspace")) {
+            return Optional.of(CalendarScopeResponse.workspace());
+        }
+        if (calendarRef.startsWith("calendar:team:")) {
+            String teamId = calendarRef.substring("calendar:team:".length());
+            return canonicalId(teamId)
+                    ? Optional.of(CalendarScopeResponse.team(teamId, "Team " + teamId + " calendar"))
+                    : Optional.empty();
+        }
+        if (calendarRef.startsWith("calendar:channel:")) {
+            String[] ids = calendarRef.substring("calendar:channel:".length()).split(":", 2);
+            return ids.length == 2 && canonicalId(ids[0]) && canonicalId(ids[1])
+                    ? Optional.of(CalendarScopeResponse.channel(ids[0], ids[1], "Channel " + ids[1] + " calendar"))
+                    : Optional.empty();
+        }
+        return Optional.empty();
+    }
+
+    private boolean canonicalId(String value) {
+        return value != null && value.matches("[A-Za-z0-9][A-Za-z0-9._-]{0,99}");
+    }
+
+    private boolean invalidDate(Object value, Optional<OffsetDateTime> parsed) {
+        return value != null && parsed.isEmpty();
+    }
+
+    private boolean validTimezone(String timezone) {
+        try {
+            ZoneId.of(timezone);
+            return true;
+        } catch (RuntimeException exception) {
+            return false;
+        }
+    }
+
+    private String calendarSearchText(CalendarEventResponse event) {
+        return (text(event.title(), "") + " " + text(event.description(), ""))
+                .toLowerCase(Locale.ROOT);
+    }
+
+    private Map<String, Object> calendarEventProjection(CalendarEventResponse event) {
+        Map<String, Object> projection = new LinkedHashMap<>();
+        projection.put("eventRef", eventRef(event));
+        projection.put("calendarRef", calendarRef(event.scope()));
+        projection.put("title", event.title());
+        projection.put("description", text(event.description(), ""));
+        projection.put("startsAt", event.startsAt().toString());
+        projection.put("endsAt", event.endsAt().toString());
+        projection.put("timezone", event.timezone());
+        projection.put("location", text(event.location(), ""));
+        projection.put("allDay", event.allDay());
+        projection.put("etag", text(event.etag(), ""));
+        return Map.copyOf(projection);
+    }
+
+    private Map<String, Object> calendarScopeProjection(CalendarScopeResponse scope) {
+        return Map.of(
+                "calendarRef", calendarRef(scope),
+                "type", scope.type(),
+                "contextRef", "space:" + scope.contextId());
+    }
+
+    private String eventRef(CalendarEventResponse event) {
+        return event.id().startsWith("event:") ? event.id() : "event:" + event.id();
+    }
+
+    private String calendarRef(CalendarScopeResponse scope) {
+        return switch (scope.type()) {
+            case "team" -> "calendar:team:" + scope.teamId();
+            case "channel" -> "calendar:channel:" + scope.teamId() + ":" + scope.channelId();
+            default -> "calendar:workspace";
+        };
     }
 
     private String parentPath(String path) {

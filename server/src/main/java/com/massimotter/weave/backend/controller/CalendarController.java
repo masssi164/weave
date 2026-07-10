@@ -91,12 +91,16 @@ public class CalendarController {
 
     @GetMapping("/api/calendar/client-setup/credentials")
     @Operation(summary = "List revocable calendar setup credential references")
+    @ApiResponse(responseCode = "200", description = "Calendar setup credentials without secret material.",
+            content = @Content(schema = @Schema(implementation = CalendarSetupCredentialListResponse.class)))
     public CalendarSetupCredentialListResponse setupCredentials() {
         return calendarFacadeService.setupCredentials();
     }
 
     @PostMapping("/api/calendar/client-setup/credentials")
-    @Operation(summary = "Create a revocable calendar setup credential reference without returning secret material")
+    @Operation(summary = "Create a revocable calendar setup credential and return its secret once")
+    @ApiResponse(responseCode = "200", description = "New calendar credential with one-time secret material.",
+            content = @Content(schema = @Schema(implementation = CalendarSetupCredentialResponse.class)))
     public CalendarSetupCredentialResponse createSetupCredential(
             @Valid @RequestBody CalendarSetupCredentialRequest request) {
         return calendarFacadeService.createSetupCredential(request);
@@ -104,6 +108,8 @@ public class CalendarController {
 
     @DeleteMapping("/api/calendar/client-setup/credentials/{credentialId}")
     @Operation(summary = "Revoke a calendar setup credential reference")
+    @ApiResponse(responseCode = "200", description = "Revoked calendar credential without secret material.",
+            content = @Content(schema = @Schema(implementation = CalendarSetupCredentialResponse.class)))
     public CalendarSetupCredentialResponse revokeSetupCredential(@PathVariable @Size(max = 128) String credentialId) {
         return calendarFacadeService.revokeSetupCredential(credentialId);
     }

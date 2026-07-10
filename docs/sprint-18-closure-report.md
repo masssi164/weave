@@ -1,5 +1,7 @@
 # Sprint 18 closure report — Masterpiece Loop: Live Workspace, Migration Proof & Release Trust
 
+> Historical evidence only. References to the former Python MCP proof package are obsolete after the Spring AI MCP cutover; see `infra/docs/weave-mcp-tool-contract.md` for the active runtime.
+
 Date: 2026-06-01
 
 ## Governing specs

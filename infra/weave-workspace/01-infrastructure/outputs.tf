@@ -119,6 +119,16 @@ output "weave_backend_client_id" {
   value       = local.weave_app_client_id
 }
 
+output "weave_mcp_internal_endpoint" {
+  description = "Internal stateful Streamable HTTP endpoint for governed Weaver runtimes."
+  value       = "http://${module.mcp.container_name}:${var.mcp_container_port}/mcp"
+}
+
+output "weave_mcp_health_endpoint" {
+  description = "Loopback-only MCP health endpoint used by operator smoke checks."
+  value       = "http://127.0.0.1:${var.mcp_host_port}/actuator/health"
+}
+
 output "service_names" {
   description = "Stable internal Docker service names used by the stack."
   value       = local.service_names
