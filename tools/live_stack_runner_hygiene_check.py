@@ -129,7 +129,7 @@ def main() -> int:
         "10 GiB",
         "5 GiB",
         "4 GiB",
-        "1 GiB emergency reserve",
+        "1 GiB runner-owned emergency reserve",
         "explicit extra root",
         "after acceptance evidence upload",
         "unrelated containers, volumes, signing identities, or physical-device data",
