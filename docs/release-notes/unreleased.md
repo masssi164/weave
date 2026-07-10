@@ -24,6 +24,7 @@ Use this page for release-affecting changes that have merged but are not include
 ## Fixed
 
 - Normalizes Nextcloud WebDAV non-finite quota values at the provider adapter boundary so unlimited, unknown, or uncomputed storage no longer breaks the OIDC-gated Files facade with HTTP 502.
+- Omits one-time DAV secret fields entirely after credential creation across Files and Calendar list/revoke responses, preserving the revocable native-client contract without serializing credential placeholders.
 
 ## Security
 
