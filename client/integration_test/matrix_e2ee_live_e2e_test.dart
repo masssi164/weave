@@ -51,6 +51,13 @@ void main() {
       await _whoami(httpClient, homeserver, accessTokenC, _deviceC),
       userId,
     );
+    await _deleteCurrentRoomKeyBackup(
+      httpClient,
+      homeserver,
+      accessTokenA,
+      _deviceA,
+      strict: true,
+    );
     final initializedProfiles = <String>[];
 
     Future<void> initialize(
@@ -287,12 +294,76 @@ void main() {
       for (final profile in initializedProfiles.toSet()) {
         await bridge.disposeClient(profileKey: profile);
       }
+      await _deleteCurrentRoomKeyBackup(
+        httpClient,
+        homeserver,
+        accessTokenA,
+        _deviceA,
+        strict: false,
+      );
       httpClient.close();
       if (await root.exists()) {
         await root.delete(recursive: true);
       }
     }
   }, skip: skipTest);
+}
+
+Future<void> _deleteCurrentRoomKeyBackup(
+  http.Client client,
+  Uri homeserver,
+  String accessToken,
+  String deviceId, {
+  required bool strict,
+}) async {
+  final current = await client.get(
+    homeserver.replace(
+      pathSegments: const <String>[
+        '_matrix',
+        'client',
+        'v3',
+        'room_keys',
+        'version',
+      ],
+    ),
+    headers: _matrixHeaders(accessToken, deviceId),
+  );
+  if (current.statusCode == 404) {
+    return;
+  }
+  if (current.statusCode != 200) {
+    if (strict) {
+      throw TestFailure(
+        'Room-key backup isolation failed with HTTP ${current.statusCode}.',
+      );
+    }
+    return;
+  }
+  final version = (jsonDecode(current.body) as Map<String, dynamic>)['version'];
+  if (version is! String || version.isEmpty) {
+    if (strict) {
+      throw TestFailure('Room-key backup isolation returned no version.');
+    }
+    return;
+  }
+  final deleted = await client.delete(
+    homeserver.replace(
+      pathSegments: <String>[
+        '_matrix',
+        'client',
+        'v3',
+        'room_keys',
+        'version',
+        version,
+      ],
+    ),
+    headers: _matrixHeaders(accessToken, deviceId),
+  );
+  if (strict && deleted.statusCode != 200) {
+    throw TestFailure(
+      'Room-key backup cleanup failed with HTTP ${deleted.statusCode}.',
+    );
+  }
 }
 
 Future<String> _whoami(
