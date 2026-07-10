@@ -157,10 +157,10 @@ struct CanonicalMessageInput {
     sent_at_epoch_millis: i64,
     #[serde(default = "default_event_kind")]
     kind: String,
-    #[serde(default = "default_message_type")]
-    message_type: String,
     #[serde(default)]
-    body: String,
+    message_type: Option<String>,
+    #[serde(default)]
+    body: Option<String>,
     #[serde(default)]
     format: Option<String>,
     #[serde(default)]
@@ -185,10 +185,6 @@ struct CanonicalMessageInput {
 
 fn default_event_kind() -> String {
     "message".to_string()
-}
-
-fn default_message_type() -> String {
-    "m.text".to_string()
 }
 
 fn default_delivery_state() -> String {
@@ -1158,9 +1154,19 @@ fn message_event(
             }),
         )
     } else {
+        let message_type = message.message_type.as_deref().unwrap_or("m.text");
+        if !matches!(message_type, "m.text" | "m.notice" | "m.emote") {
+            return Err(MatrixCoreError::UnsupportedMessageType);
+        }
+        let body = message
+            .body
+            .as_deref()
+            .map(str::trim)
+            .filter(|body| !body.is_empty() && body.len() <= 65_536)
+            .ok_or(MatrixCoreError::InvalidRequest)?;
         let mut content = serde_json::Map::new();
-        content.insert("msgtype".to_string(), json!(message.message_type));
-        content.insert("body".to_string(), json!(message.body));
+        content.insert("msgtype".to_string(), json!(message_type));
+        content.insert("body".to_string(), json!(body));
         if let Some(format) = &message.format {
             content.insert("format".to_string(), json!(format));
         }
@@ -1582,6 +1588,47 @@ mod tests {
                 ["content"]["body"],
             "Hello from Weave Chat"
         );
+    }
+
+    #[test]
+    fn sync_projection_accepts_ciphertext_only_canonical_events() {
+        use ruma::{api::client::sync::sync_events::v3::Response, api::IncomingResponse};
+
+        let mut input: Value = serde_json::from_str(&canonical_input()).unwrap();
+        input["conversations"][0]["messages"] = json!([{
+            "messageId": "encrypted-1",
+            "senderRef": "user:alice",
+            "sentAtEpochMillis": 1_720_432_800_000_i64,
+            "kind": "encrypted",
+            "messageType": Value::Null,
+            "body": Value::Null,
+            "deliveryState": "sent",
+            "encryptedContent": {
+                "algorithm": "m.megolm.v1.aes-sha2",
+                "ciphertext": "opaque-ciphertext",
+                "sender_key": "curve25519:alice",
+                "session_id": "megolm-session-1",
+                "device_id": "WEAVEDEVICEALICE"
+            }
+        }]);
+
+        let projected = project_json(
+            "sync".to_string(),
+            input.to_string(),
+            "matrix.weave.test".to_string(),
+        )
+        .unwrap();
+        let _: Response = Response::try_from_http_response(ruma::exports::http::Response::new(
+            projected.as_bytes(),
+        ))
+        .unwrap();
+        let projected: Value = serde_json::from_str(&projected).unwrap();
+        let event = &projected["rooms"]["join"]["!channel-general:matrix.weave.test"]["timeline"]
+            ["events"][0];
+
+        assert_eq!(event["type"], "m.room.encrypted");
+        assert_eq!(event["content"]["ciphertext"], "opaque-ciphertext");
+        assert!(event["content"].get("body").is_none());
     }
 
     #[test]

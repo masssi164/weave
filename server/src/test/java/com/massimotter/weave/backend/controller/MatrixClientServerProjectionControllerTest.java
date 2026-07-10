@@ -312,6 +312,30 @@ class MatrixClientServerProjectionControllerTest {
     }
 
     @Test
+    void syncAfterEncryptedSendProjectsCiphertextWithoutPlaintextFields() throws Exception {
+        stubConversation();
+        when(chatDomainFacadeService.timeline(eq("channel-general"), any(), anyInt()))
+                .thenReturn(new ChatTimeline("channel-general", List.of(event(
+                        "msg-encrypted",
+                        ChatEventContent.encrypted(Map.of(
+                                "algorithm", "m.megolm.v1.aes-sha2",
+                                "ciphertext", "opaque-ciphertext",
+                                "sender_key", "curve25519:alice",
+                                "session_id", "megolm-session-1",
+                                "device_id", "WEAVEDEVICEALICE"))))));
+
+        mockMvc.perform(get("/_matrix/client/v3/sync").with(workspaceJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.rooms.join['!channel-general:api.weave.test'].timeline.events[0].type")
+                        .value("m.room.encrypted"))
+                .andExpect(jsonPath("$.rooms.join['!channel-general:api.weave.test'].timeline.events[0].content.ciphertext")
+                        .value("opaque-ciphertext"))
+                .andExpect(jsonPath("$.rooms.join['!channel-general:api.weave.test'].timeline.events[0].content.body")
+                        .doesNotExist())
+                .andExpect(content().string(not(containsString("providerAccessToken"))));
+    }
+
+    @Test
     void keyLifecycleToDeviceSyncAndLostDeviceRevocationAreDeviceScoped() throws Exception {
         stubConversation();
         String userId = "@user_example.com:api.weave.test";
