@@ -141,9 +141,23 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      - name: Verify runner disk headroom
+        run: |
+          set -euo pipefail
+          available_kib="$(df -Pk "$RUNNER_TEMP" | awk 'NR == 2 { print $4 }')"
+          minimum_kib=$((4 * 1024 * 1024))
+          df -h "$RUNNER_TEMP"
+          if (( available_kib < minimum_kib )); then
+            echo "::error::Live Stack E2E requires at least 4 GiB free before tool and image setup; only $((available_kib / 1024)) MiB is available." >&2
+            echo "Runner-owned tool cache sizes:" >&2
+            du -sh "$RUNNER_TOOL_CACHE"/* 2>/dev/null | sort -h >&2 || true
+            exit 1
+          fi
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
+          flutter-version: '3.44.4'
           channel: stable
 
       - name: Set up Docker Buildx
