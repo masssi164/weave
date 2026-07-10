@@ -162,9 +162,11 @@ def main() -> None:
         ], expect_success=False)
 
     client_join = read("client/lib/features/onboarding/domain/entities/member_handoff.dart")
-    for phrase in ["WEAVE-LAN-UNREACHABLE", "WEAVE-HANDOFF-SECRET-BLOCKED", "handoff_ref", "app_base_url"]:
+    for phrase in ["WEAVE-LAN-UNREACHABLE", "WEAVE-HANDOFF-SECRET-BLOCKED", "handoff_ref", "product_base_url"]:
         if phrase not in client_join:
             fail(f"client handoff parser missing {phrase}")
+    if "app_base_url" in client_join:
+        fail("client handoff parser must not preserve the obsolete app_base_url alias")
     sign_in = read("client/lib/features/auth/presentation/sign_in_screen.dart")
     for leaked in ["signInConfigurationIssuer", "signInConfigurationClientId"]:
         if leaked in sign_in:
