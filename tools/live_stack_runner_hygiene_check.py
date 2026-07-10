@@ -53,6 +53,10 @@ def main() -> int:
         "runner tool-cache cleanup must reject empty and root paths",
     )
     require(
+        '[[ "$runner_tool_cache" != /* ]]' in workflow,
+        "runner tool-cache cleanup must reject relative paths",
+    )
+    require(
         'if (( available_kib < minimum_kib )) && [ -d "$flutter_tool_cache" ]'
         in workflow,
         "the Flutter tool cache must be reclaimed only below the 10 GiB preflight",
