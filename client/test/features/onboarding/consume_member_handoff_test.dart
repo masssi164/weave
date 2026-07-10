@@ -67,7 +67,7 @@ void main() {
           'authBaseUrl': 'https://auth.weave.test:44443',
           'oidcIssuerUrl': 'https://auth.weave.test:44443/realms/weave',
           'oidcClientId': 'weave-app',
-          'matrixHomeserverUrl': 'https://api.weave.test:44443',
+          'matrixHomeserverUrl': 'https://api.weave.test:44443/',
           'filesProductUrl': 'https://weave.test:44443/files',
         }),
         200,
@@ -343,15 +343,16 @@ void main() {
     expect(repository.saved, isNull);
   });
 
-  test('rejects credential-bearing legacy authBaseUrl fallback', () async {
+  test('rejects obsolete authBaseUrl-only platform configuration', () async {
     final repository = _RecordingServerConfigurationRepository();
     final httpClient = MockClient((request) async {
       return http.Response(
         jsonEncode({
           'apiBaseUrl': 'https://api.weave.example/api',
-          'authBaseUrl': 'https://user:pass@auth.weave.example',
+          'authBaseUrl': 'https://auth.weave.example',
+          'oidcClientId': 'weave-app',
           'matrixHomeserverUrl': 'https://api.weave.example',
-          'nextcloudBaseUrl': 'https://files.weave.example',
+          'filesProductUrl': 'https://weave.example/files',
         }),
         200,
       );
@@ -366,41 +367,14 @@ void main() {
           'https://join.weave.example/join?handoff_ref=invite-abc123&org=acme&workspace=main&profile=production&run_id=prod-001',
         ),
       ),
-      throwsA(isA<AppFailure>()),
+      throwsA(
+        isA<AppFailure>().having(
+          (failure) => failure.message,
+          'message',
+          contains('oidcIssuerUrl is required'),
+        ),
+      ),
     );
     expect(repository.saved, isNull);
   });
-
-  test(
-    'falls back from authBaseUrl for older platform config responses',
-    () async {
-      final repository = _RecordingServerConfigurationRepository();
-      final httpClient = MockClient((request) async {
-        return http.Response(
-          jsonEncode({
-            'apiBaseUrl': 'https://api.weave.example/api',
-            'authBaseUrl': 'https://auth.weave.example',
-            'matrixHomeserverUrl': 'https://api.weave.example',
-            'nextcloudBaseUrl': 'https://files.weave.example',
-          }),
-          200,
-        );
-      });
-
-      await ConsumeMemberHandoff(
-        repository: repository,
-        discoveryClient: AppStartDiscoveryClient(httpClient: httpClient),
-      ).call(
-        Uri.parse(
-          'https://join.weave.example/join?handoff_ref=invite-abc123&org=acme&workspace=main&profile=production&run_id=prod-001',
-        ),
-      );
-
-      expect(
-        repository.saved!.oidcIssuerUrl.toString(),
-        'https://auth.weave.example/realms/weave',
-      );
-      expect(repository.saved!.oidcClientRegistration.clientId, 'weave-app');
-    },
-  );
 }

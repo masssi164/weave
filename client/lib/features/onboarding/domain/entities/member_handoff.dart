@@ -25,31 +25,9 @@ class MemberHandoff {
   /// control-plane state.
   final Uri platformConfigUrl;
 
-  /// Product/user-facing origin used for browser fallback copy and legacy
-  /// local-dev links. Do not derive provider internals from this origin.
+  /// Product/user-facing origin used for browser fallback copy.
+  /// Do not derive provider internals from this origin.
   final Uri productBaseUrl;
-
-  /// Backwards-compatible alias for older local dogfood tests/scripts.
-  Uri get appBaseUrl => productBaseUrl;
-
-  /// Emergency local-dev fallback only. Production configuration comes from
-  /// [platformConfigUrl].
-  Uri get fallbackIssuerUrl => _joinProductPath('/auth/realms/weave');
-
-  /// Emergency local-dev fallback only. Production configuration comes from
-  /// [platformConfigUrl].
-  Uri get fallbackBackendApiBaseUrl => _joinProductPath('/api');
-
-  /// Emergency local-dev fallback only. Production configuration comes from
-  /// [platformConfigUrl].
-  Uri get fallbackProviderNeutralServiceUrl => _joinProductPath('/');
-
-  Uri _joinProductPath(String path) => Uri(
-    scheme: productBaseUrl.scheme,
-    host: productBaseUrl.host,
-    port: productBaseUrl.hasPort ? productBaseUrl.port : null,
-    path: path,
-  );
 }
 
 class MemberHandoffParser {
@@ -113,7 +91,7 @@ class MemberHandoffParser {
   }
 
   Uri _productBaseUrlFrom(Uri uri, Map<String, String> query) {
-    final explicit = query['product_base_url'] ?? query['app_base_url'];
+    final explicit = query['product_base_url'];
     if (explicit != null && explicit.trim().isNotEmpty) {
       final parsed = _parseAbsoluteHttpUri(explicit, 'product_base_url');
       return Uri(
