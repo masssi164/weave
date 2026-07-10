@@ -203,7 +203,7 @@ The old Flutter `integrations/nextcloud/` auth/session/Login Flow package has be
 
 ## Calendar backend facade scope
 
-Calendar is active shared-scheduling scope and moves through the Weave CalDAV/iCalendar projection rather than direct provider CalDAV. The product model is shared scheduling: workspace calendar, team calendars, and channel calendars/events/meeting threads. Backend OpenAPI remains for calendar setup, readiness, revoke, scoped credentials, generated models, and admin/operator control. The backend currently exposes the first safe slice as `scope.type = "workspace"`: a shared Weave workspace calendar owned/provisioned through the backend actor. The frontend parses that scope metadata and labels the surface as the first shared workspace scope, not as a private-personal calendar.
+Calendar is active shared-scheduling scope and moves through the Weave CalDAV/iCalendar projection rather than direct provider CalDAV. The product model is shared scheduling: workspace calendar, team calendars, and channel calendars/events/meeting threads. Backend OpenAPI remains for calendar setup, readiness, revoke, scoped credentials, generated models, and admin/operator control. CalDAV collections expose all three shared scopes. Each projected event carries canonical context and stable meeting-thread metadata; concrete Matrix room/thread bindings remain optional.
 
 Private personal calendars are out of scope for the current product path. Frontend code must continue to fail through the backend facade and must not add a direct private-personal CalDAV fallback or secret-bearing client setup path.
 

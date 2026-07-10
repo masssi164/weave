@@ -456,7 +456,9 @@ void main() {
           workspaceLoopConversationId == 'channel-general' &&
           roomId.contains('channel-general') &&
           workspaceLoopChatMessageId.startsWith(r'$') &&
-          workspaceLoopChatMessageId.contains(':weave.local');
+          workspaceLoopChatMessageId.contains(
+            ':${config.matrixHomeserverUrl.host}',
+          );
 
       final calendarRepository = container.read(calendarRepositoryProvider);
       final calendarScopes = await calendarRepository.loadScopes();

@@ -49,6 +49,12 @@ Feature: Calendar CalDAV facade
     When the member queries the affected range
     Then recurrence expansion is deterministic and timezone-safe
 
+  @caldav-canonical-thread
+  Scenario: Channel event keeps one canonical meeting-thread reference
+    Given a member creates a channel calendar event through CalDAV
+    When the event is queried, read, and updated through the Calendar facade
+    Then its iCalendar projection keeps the same Weave context, channel, and meeting-thread identifiers
+
   @calendar-flutter-caldav
   Scenario: Flutter Calendar repository uses CalDAV and iCalendar for calendar data
     Given the Flutter Calendar repository is exercised

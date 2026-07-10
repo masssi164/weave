@@ -3949,6 +3949,24 @@
       ]
     },
     {
+      "tag": "@caldav-canonical-thread",
+      "suiteId": "open-standards-gateway-archive-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "calendar",
+        "spaces",
+        "meetings-calls"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "northbound iCalendar carries canonical context channel and meeting-thread identifiers",
+        "the meeting-thread identifier is stable across event reads and updates",
+        "southbound provider serialization contains no Weave projection metadata"
+      ]
+    },
+    {
       "tag": "@calendar-flutter-caldav",
       "suiteId": "open-standards-gateway-archive-target",
       "personas": [

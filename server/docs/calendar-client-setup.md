@@ -1,6 +1,6 @@
-# Calendar client setup and profile download plan
+# Calendar client setup
 
-Weave should make Calendar a fully integrated Weave feature while still allowing users to connect native calendar clients where platforms support it. The app UI remains backed by the `/api/calendar/**` facade; external client setup is a separate standards bridge, not a direct Flutter-to-CalDAV product shortcut.
+Weave provides one CalDAV/iCalendar data plane under `/caldav/**` for the Flutter Calendar product surface and compatible native clients. `/api/calendar/**` remains the authenticated control plane for scope discovery, readiness, setup, credential lifecycle, and future signed profile delivery. Neither client path talks directly to a provider CalDAV endpoint.
 
 ## Research findings
 
@@ -42,15 +42,15 @@ Active product implications:
 - Provide a future read-only webcal/ICS feed for clients that cannot do CalDAV, backed by revocable tokens.
 - Do not claim universal two-way native desktop support.
 
-### Nextcloud credential boundary
+### Credential boundary
 
-Nextcloud's Login Flow / Login Flow v2 issues per-client credentials/app passwords and lets users revoke clients. It is a safer fit than reusing the user's primary password or embedding backend credentials. Nextcloud also documents app password conversion and deletion endpoints for clients that already authenticate.
+Provider app passwords are southbound implementation details and are never distributed to member clients. Weave issues per-device, capability-scoped CalDAV credentials at its own facade boundary and stores only strong hashes of their one-time secrets.
 
 Active product implications:
 
-- External clients need a per-client Nextcloud credential or future Weave-scoped token accepted at the CalDAV/subscription boundary.
+- External clients use a revocable, expiring Weave-scoped credential accepted at the CalDAV boundary.
 - The backend must never expose its service-account CalDAV credential to users or generated profiles.
-- If Weave generates a token itself, it needs revocation, expiry/rotation, audit metadata, and a clear mapping to read/write or read-only scope.
+- Credential issuance, use, revocation, and denial-after-revoke are audited and covered by live protocol evidence.
 
 ## First backend slice
 
@@ -58,7 +58,7 @@ Active product implications:
 
 - current calendar scope (`workspace`)
 - explicit access model metadata (`workspace-calendar`, private personal calendars unavailable until a reviewed provisioning/sharing/delegated-token model exists)
-- profile/feed credential readiness metadata showing Apple profile signing, revocable credentials, and read-only subscription tokens are still blocked
+- profile/feed credential readiness metadata distinguishing available revocable credentials from blocked signed Apple profiles and read-only subscription tokens
 - current user's external calendar username
 - CalDAV discovery and principal URLs
 - platform option matrix for Apple `.mobileconfig`, Android DAVx5, desktop manual CalDAV, and webcal/ICS subscription
@@ -72,12 +72,13 @@ This endpoint is intentionally not a profile generator yet. It creates the contr
 
 The renderer includes only CalDAV host, port, SSL, principal URL, display label, username, and profile metadata. It deliberately omits `CalDAVPassword` and never reads backend actor credentials, bearer tokens, or static setup secrets. Password-bearing profiles remain blocked until a revocable per-client credential issuance and revocation model exists.
 
-## Active implementation sequence
+## Current boundaries
 
-1. **Contract and setup metadata (this PR):** expose `/api/calendar/client-setup` and document the platform/security model.
-2. **Access/credential readiness contract:** expose explicit access-model and credential-readiness fields so clients can show honest blocked states before any profile/feed download path exists. Keep `{user}` CalDAV templates fail-closed until tested.
-3. **Private/user calendar access model:** resolve `weave-backend#52` by choosing service-shared workspace calendar + optional per-user sharing, Nextcloud Login Flow/app passwords, or a Weave token bridge.
-4. **Apple profile generator:** keep the authenticated `.mobileconfig` endpoint fail-closed until profile signing is configured; then serve the tested no-secret profile through a signer, or include only a revocable scoped credential once issuance/revocation exists. Add tests proving no backend actor credential can appear in the profile.
+1. **Implemented:** Flutter and generic clients use the Weave CalDAV/iCalendar facade for event data; workspace, team, and channel collections share canonical scope and meeting-thread metadata.
+2. **Implemented:** authenticated setup metadata and one-time, strong-hash, revocable scoped device credentials expose only Weave endpoints.
+3. **Fail-closed:** the `.mobileconfig` endpoint stays unavailable until profile signing and distribution are configured; backend actor credentials can never appear in a profile.
+4. **Separate platform slice:** Android two-way native calendar integration requires a reviewed SyncAdapter or compatible client handoff.
+5. **Non-goal:** private personal calendar ingestion and provider Login Flow are not compatibility paths for the Weave member product.
 5. **Android setup handoff:** add app/UI support for DAVx5 setup URI, manual fallback instructions, and read-only subscription copy once tokenized ICS exists.
 6. **Read-only subscription tokens:** implement revocable webcal/ICS feed tokens for clients that cannot do CalDAV; label them one-way.
 7. **Calendar product promotion:** once create/read/update/delete and profile setup are safe, enable Calendar as a active module in app capability/navigation tests.

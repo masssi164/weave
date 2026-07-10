@@ -169,6 +169,9 @@ void main() {
 VERSION:2.0
 BEGIN:VEVENT
 UID:planning
+X-WEAVE-CONTEXT-ID:channel-engineering-general
+X-WEAVE-CHANNEL-ID:engineering-general
+X-WEAVE-MEETING-THREAD-ID:meeting:channel-engineering-general:79cc2c616b93
 DTSTAMP:20260426T084500Z
 DTSTART:20260426T090000Z
 DTEND:20260426T100000Z
@@ -209,6 +212,10 @@ END:VCALENDAR</c:calendar-data>
         'https://api.home.internal/caldav/channel:engineering-general',
       );
       expect(capturedRequest.headers['authorization'], 'Bearer calendar-token');
+      expect(
+        capturedRequest.headers['content-type'],
+        'application/xml; charset=utf-8',
+      );
       expect(capturedRequest.body, contains('calendar-query'));
       expect(capturedRequest.body, contains('20260426T000000Z'));
       expect(capturedRequest.body, contains('20260427T000000Z'));
@@ -233,6 +240,10 @@ END:VCALENDAR</c:calendar-data>
         'channel-engineering-general',
       );
       expect(events.events.single.threadRef.channelId, 'engineering-general');
+      expect(
+        events.events.single.threadRef.meetingThreadId,
+        'meeting:channel-engineering-general:79cc2c616b93',
+      );
       expect(events.events.single.threadRef.matrixThreadId, isNull);
       expect(events.events.single.attendees, isEmpty);
       expect(events.events.single.providerRef, isNull);
@@ -366,6 +377,8 @@ BEGIN:VCALENDAR
 VERSION:2.0
 BEGIN:VEVENT
 UID:calendar-workspace-1
+X-WEAVE-CONTEXT-ID:workspace-default
+X-WEAVE-MEETING-THREAD-ID:meeting:workspace-default:05d9f681bb3d
 DTSTART:20260426T090000Z
 DTEND:20260426T100000Z
 SUMMARY:Planning details
@@ -391,6 +404,10 @@ END:VCALENDAR
       expect(event.description, 'Fetched from CalDAV');
       expect(event.etag, '"read-etag"');
       expect(event.scope.type, 'workspace');
+      expect(
+        event.threadRef.meetingThreadId,
+        'meeting:workspace-default:05d9f681bb3d',
+      );
     });
 
     test(
@@ -412,6 +429,8 @@ BEGIN:VCALENDAR
 VERSION:2.0
 BEGIN:VEVENT
 UID:$uid
+X-WEAVE-CONTEXT-ID:workspace-default
+X-WEAVE-MEETING-THREAD-ID:meeting:workspace-default:$uid
 DTSTART:20260426T090000Z
 DTEND:20260426T100000Z
 SUMMARY:Planning
@@ -435,7 +454,7 @@ END:VCALENDAR
           }),
         );
 
-        await facade.createEvent(
+        final created = await facade.createEvent(
           CalendarEventDraft(
             title: 'Planning',
             startTime: DateTime.utc(2026, 4, 26, 9),
@@ -443,7 +462,7 @@ END:VCALENDAR
             timezone: 'Europe/Berlin',
           ),
         );
-        await facade.updateEvent(
+        final updated = await facade.updateEvent(
           id: 'planning',
           patch: const CalendarEventPatch(
             title: 'Updated Planning',
@@ -464,6 +483,10 @@ END:VCALENDAR
           startsWith('https://api.home.internal/caldav/workspace/weave-'),
         );
         expect(requests[0].headers['If-None-Match'], '*');
+        expect(
+          requests[0].headers['content-type'],
+          'text/calendar; charset=utf-8',
+        );
         expect(requests[0].body, contains('BEGIN:VCALENDAR'));
         expect(requests[0].body, contains('SUMMARY:Planning'));
         expect(
@@ -471,7 +494,19 @@ END:VCALENDAR
           'https://api.home.internal/caldav/workspace/planning.ics',
         );
         expect(requests[2].headers['If-Match'], 'abc');
+        expect(
+          requests[2].headers['content-type'],
+          'text/calendar; charset=utf-8',
+        );
         expect(requests[2].body, contains('SUMMARY:Updated Planning'));
+        expect(
+          created.threadRef.meetingThreadId,
+          'meeting:workspace-default:${created.id}',
+        );
+        expect(
+          updated.threadRef.meetingThreadId,
+          'meeting:workspace-default:planning',
+        );
         expect(
           requests[4].url.toString(),
           'https://api.home.internal/caldav/workspace/planning.ics',

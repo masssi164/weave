@@ -99,11 +99,11 @@ The app never sends raw Nextcloud credentials to this backend. Files operations 
 - `WEAVE_NEXTCLOUD_FILES_APP_PASSWORD`: compatibility alias used when `WEAVE_NEXTCLOUD_FILES_ACTOR_TOKEN` is blank.
 - `WEAVE_NEXTCLOUD_FILES_WEBDAV_ROOT_PATH`: Nextcloud WebDAV files root path, defaults to `/remote.php/dav/files`.
 
-If the actor model, username, or token is missing, files endpoints fail closed with `nextcloud-adapter-not-configured`. Implemented WebDAV operations are folder listing with quota when returned by Nextcloud, folder creation, upload, download, and delete. Move/share remain unsupported until product policy and endpoint contracts are specified.
+If the actor model, username, or token is missing, files endpoints fail closed with `nextcloud-adapter-not-configured`. The northbound WebDAV facade implements listing with quota, folder creation, upload, download, delete, guarded copy/move, and lock/unlock behavior. Provider-native sharing is not part of that member data plane.
 
 ## Calendar facade and CalDAV adapter
 
-Calendar product operations stay on `/api`; this backend is the only component that talks to Nextcloud CalDAV.
+Normal member event operations use the OIDC-gated CalDAV/iCalendar facade under `/caldav/**`. `/api/calendar/**` is retained only for scopes, readiness, setup, scoped credential lifecycle, and other control-plane metadata. Only the backend adapter talks to the selected southbound calendar provider.
 
 - `WEAVE_CALDAV_BASE_URL`: Nextcloud origin used by the backend CalDAV adapter, defaults to `WEAVE_NEXTCLOUD_BASE_URL` or `https://files.weave.test`.
 - `WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE`: CalDAV calendar collection path for the backend-owned workspace calendar, defaults to `/remote.php/dav/calendars/${WEAVE_CALDAV_BACKEND_USERNAME:-weave-backend}/personal/`. Optional scope placeholders `{scopeId}`, `{scopeType}`, `{team}`, and `{channel}` can be used by operators who provision explicit workspace/team/channel collections.
@@ -112,9 +112,9 @@ Calendar product operations stay on `/api`; this backend is the only component t
 - `WEAVE_CALDAV_BACKEND_TOKEN`: backend actor app password/token or bearer token; required for the CalDAV adapter to call Nextcloud.
 - `WEAVE_CALDAV_REQUEST_TIMEOUT_SECONDS`: CalDAV request timeout, defaults to `10`.
 
-The active Calendar facade stores Weave workspace/team/channel scopes in backend-actor CalDAV collections. With the default path template, workspace events use the configured collection, while team and channel scopes derive sibling backend-owned collections such as `weave-team-engineering` and `weave-channel-engineering-general` to avoid cross-scope event leakage. `WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE` values containing `{user}` are treated as private-personal calendar targets and fail closed with `nextcloud-adapter-not-configured` until a reviewed provisioning/sharing/delegated-token model is specified. Facade responses include `scope` and `contextId` metadata so clients do not present this as a private per-user calendar.
+The active Calendar facade stores Weave workspace/team/channel scopes in backend-actor CalDAV collections. With the default path template, workspace events use the configured collection, while team and channel scopes derive sibling backend-owned collections such as `weave-team-engineering` and `weave-channel-engineering-general` to avoid cross-scope event leakage. `WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE` values containing `{user}` are private-personal calendar targets and fail closed because private calendar ingestion is not a current product goal. Northbound `VEVENT` responses carry canonical `X-WEAVE-CONTEXT-ID`, `X-WEAVE-CHANNEL-ID` where applicable, and a stable `X-WEAVE-MEETING-THREAD-ID`; those fields are never written to the southbound provider.
 
-When required actor credentials are missing or an unsafe private-personal template is configured, calendar operations fail closed with `nextcloud-adapter-not-configured`. Recurrence creation, editing, reading, and expansion are deferred: the current DTO has no RRULE contract, and the adapter does not expose raw recurrence fields. Recurring events returned by CalDAV are blocked with the support-safe reason `recurrence-not-yet-supported` until a later product/API spec defines full recurrence UX.
+When required actor credentials are missing or a private-personal template is configured, calendar operations fail closed with `nextcloud-adapter-not-configured`. The CalDAV/iCalendar data plane accepts bounded `DAILY` and `WEEKLY` RRULEs using `COUNT` or `UNTIL`, plus `RDATE` and `EXDATE`, and preserves local wall-clock intent across DST transitions. Unsupported or unbounded recurrence fails closed with `caldav-recurrence-unsupported`. The Flutter Calendar UI does not yet provide a recurrence authoring form.
 
 ## Profile and onboarding variables
 

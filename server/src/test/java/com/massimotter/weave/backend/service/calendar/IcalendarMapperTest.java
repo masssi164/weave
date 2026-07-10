@@ -3,6 +3,8 @@ package com.massimotter.weave.backend.service.calendar;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarId;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarScope;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.EventVersion;
+import com.massimotter.weave.backend.calendar.domain.CalendarDomain.ScopeType;
+import com.massimotter.weave.backend.model.calendar.CalendarScopeResponse;
 import com.massimotter.weave.backend.model.calendar.CreateCalendarEventRequest;
 import com.massimotter.weave.backend.model.calendar.UpdateCalendarEventRequest;
 import java.time.Instant;
@@ -38,6 +40,41 @@ class IcalendarMapperTest {
         assertThat(parsed.endsAt()).isEqualTo(request.endsAt());
         assertThat(parsed.location()).isEqualTo("Office; Room 1");
         assertThat(parsed.timezone()).isEqualTo("Europe/Berlin");
+    }
+
+    @Test
+    void addsCanonicalThreadMetadataOnlyToNorthboundIcalendar() {
+        // CALDAV_CANONICAL_THREAD_PROJECTION
+        CalendarScope scope = new CalendarScope(
+                ScopeType.CHANNEL,
+                "engineering",
+                "engineering-general");
+        var event = mapper.parse(
+                new CalendarId("calendar:user-1"),
+                scope,
+                new EventVersion("\"etag-1\""),
+                """
+                        BEGIN:VCALENDAR
+                        BEGIN:VEVENT
+                        UID:planning
+                        DTSTART:20260426T090000Z
+                        DTEND:20260426T100000Z
+                        SUMMARY:Planning
+                        END:VEVENT
+                        END:VCALENDAR
+                        """);
+        CalendarScopeResponse projectionScope = CalendarScopeResponse.channel(
+                "engineering",
+                "engineering-general",
+                "Engineering / general channel calendar");
+
+        String northbound = mapper.toNorthboundIcalendar(event, projectionScope);
+
+        assertThat(northbound)
+                .contains("X-WEAVE-CONTEXT-ID:channel-engineering-general")
+                .contains("X-WEAVE-CHANNEL-ID:engineering-general")
+                .containsPattern("X-WEAVE-MEETING-THREAD-ID:meeting:channel-engineering-general:[0-9a-f]{12}");
+        assertThat(mapper.toIcalendar(event)).doesNotContain("X-WEAVE-");
     }
 
     @Test

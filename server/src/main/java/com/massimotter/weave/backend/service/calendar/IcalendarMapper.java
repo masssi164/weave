@@ -12,6 +12,7 @@ import com.massimotter.weave.backend.model.calendar.CalendarAttendeeResponse;
 import com.massimotter.weave.backend.model.calendar.CalendarEventResponse;
 import com.massimotter.weave.backend.model.calendar.CalendarProviderRefResponse;
 import com.massimotter.weave.backend.model.calendar.CalendarScopeResponse;
+import com.massimotter.weave.backend.model.calendar.CalendarThreadRefResponse;
 import com.massimotter.weave.backend.model.calendar.CreateCalendarEventRequest;
 import com.massimotter.weave.backend.model.calendar.UpdateCalendarEventRequest;
 import java.time.LocalDate;
@@ -74,6 +75,10 @@ public class IcalendarMapper {
     }
 
     public String toIcalendar(EventDraft event) {
+        return toIcalendar(event, null);
+    }
+
+    private String toIcalendar(EventDraft event, CalendarThreadRefResponse threadRef) {
         StringBuilder builder = new StringBuilder();
         builder.append("BEGIN:VCALENDAR\r\n");
         builder.append("VERSION:2.0\r\n");
@@ -81,6 +86,11 @@ public class IcalendarMapper {
         builder.append("CALSCALE:GREGORIAN\r\n");
         builder.append("BEGIN:VEVENT\r\n");
         builder.append("UID:").append(escape(event.uid())).append("\r\n");
+        if (threadRef != null) {
+            appendText(builder, "X-WEAVE-CONTEXT-ID", threadRef.contextId());
+            appendText(builder, "X-WEAVE-CHANNEL-ID", threadRef.channelId());
+            appendText(builder, "X-WEAVE-MEETING-THREAD-ID", threadRef.meetingThreadId());
+        }
         builder.append("DTSTAMP:").append(UTC_FORMAT.format(OffsetDateTime.now(ZoneOffset.UTC))).append("\r\n");
         if (event.updatedAt() != null) {
             builder.append("LAST-MODIFIED:").append(UTC_FORMAT.format(event.updatedAt())).append("\r\n");
@@ -181,7 +191,15 @@ public class IcalendarMapper {
     }
 
     public String toIcalendar(CalendarEvent event) {
-        return toIcalendar(new EventDraft(
+        return toIcalendar(toDraft(event));
+    }
+
+    public String toNorthboundIcalendar(CalendarEvent event, CalendarScopeResponse scope) {
+        return toIcalendar(toDraft(event), CalendarThreadRefResponse.forEvent(scope, event.id().value()));
+    }
+
+    private EventDraft toDraft(CalendarEvent event) {
+        return new EventDraft(
                 event.id().value(),
                 event.title(),
                 event.description(),
@@ -192,7 +210,7 @@ public class IcalendarMapper {
                 event.allDay(),
                 event.attendees(),
                 event.recurrence(),
-                event.updatedAt() == null ? null : OffsetDateTime.ofInstant(event.updatedAt(), ZoneOffset.UTC)));
+                event.updatedAt() == null ? null : OffsetDateTime.ofInstant(event.updatedAt(), ZoneOffset.UTC));
     }
 
     private List<Property> eventProperties(String calendarData) {
