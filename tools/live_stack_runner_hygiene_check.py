@@ -43,9 +43,14 @@ def main() -> int:
         "live-stack preflight must require 10 GiB after stale-output cleanup",
     )
     require(
-        workflow.count('flutter_tool_cache="${RUNNER_TOOL_CACHE%/}/flutter"') == 1
+        workflow.count('flutter_tool_cache="${runner_tool_cache%/}/flutter"') == 1
         and workflow.count('rm -rf -- "$flutter_tool_cache"') == 1,
         "low-headroom recovery must target only the restorable Flutter tool cache",
+    )
+    require(
+        'if [ -z "$runner_tool_cache" ] || [ "$runner_tool_cache" = "/" ]'
+        in workflow,
+        "runner tool-cache cleanup must reject empty and root paths",
     )
     require(
         'if (( available_kib < minimum_kib )) && [ -d "$flutter_tool_cache" ]'

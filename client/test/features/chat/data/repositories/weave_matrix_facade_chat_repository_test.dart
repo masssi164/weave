@@ -91,7 +91,7 @@ class _FailingTimelineBridge extends FakeRustMatrixCoreBridge {
   Future<List<RustMatrixMessageProjection>> loadEncryptedRoomMessages({
     required String profileKey,
     required String roomId,
-    int limit = 50,
+    int limit = 100,
   }) {
     throw const RustMatrixCoreBridgeException('M_WEAVE_E2EE_TIMELINE');
   }

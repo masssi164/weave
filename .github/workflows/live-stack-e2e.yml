@@ -132,12 +132,13 @@ jobs:
           done
           available_kib="$(df -Pk "$RUNNER_TEMP" | awk 'NR == 2 { print $4 }')"
           minimum_kib=$((10 * 1024 * 1024))
-          flutter_tool_cache="${RUNNER_TOOL_CACHE%/}/flutter"
+          runner_tool_cache="${RUNNER_TOOL_CACHE:-}"
+          if [ -z "$runner_tool_cache" ] || [ "$runner_tool_cache" = "/" ]; then
+            echo "::error::RUNNER_TOOL_CACHE must name the dedicated runner tool-cache directory." >&2
+            exit 1
+          fi
+          flutter_tool_cache="${runner_tool_cache%/}/flutter"
           if (( available_kib < minimum_kib )) && [ -d "$flutter_tool_cache" ]; then
-            if [ "$flutter_tool_cache" != "${RUNNER_TOOL_CACHE%/}/flutter" ]; then
-              echo "::error::Refusing to remove an unexpected runner tool-cache path." >&2
-              exit 1
-            fi
             echo "Reclaiming the restorable dedicated-runner Flutter tool cache for live-test headroom."
             rm -rf -- "$flutter_tool_cache"
           fi
