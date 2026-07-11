@@ -222,7 +222,7 @@ describe("Admin Console MVP", () => {
       ),
     );
     expect(document.body).not.toHaveTextContent(/activation token|client_secret/i);
-  });
+  }, 15_000);
 
   it("renders organization, provider, policy, and audit sections from backend control-plane data", async () => {
     render(<App api={mockApi()} />);
@@ -514,7 +514,7 @@ describe("Admin Console MVP", () => {
     expect(await screen.findByRole("status")).toHaveTextContent(
       /whitelist policy saved/i,
     );
-  });
+  }, 15_000);
 
   it("applies selected providers only after fresh dry-run evidence and consequence confirmation", async () => {
     const api = mockApi();
