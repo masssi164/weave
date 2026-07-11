@@ -31,6 +31,8 @@ import {
   adminConsoleConfig,
   CapabilityState,
   ControlPlaneResponse,
+  OrganizationInvitation,
+  OrganizationRole,
   ProviderCategory,
   ProviderReplacementDryRunReport,
   ProviderSwitchApplyGates,
@@ -352,6 +354,14 @@ export default function App({
     formatMcpServers(sampleControlPlane.weaverDistributionPolicy.mcpServers),
   );
   const [weaverPolicyConfirmed, setWeaverPolicyConfirmed] = useState(false);
+  const [invitations, setInvitations] = useState<OrganizationInvitation[]>([]);
+  const [invitationEmail, setInvitationEmail] = useState("");
+  const [invitationDisplayName, setInvitationDisplayName] = useState("");
+  const [invitationRole, setInvitationRole] =
+    useState<OrganizationRole>("member");
+  const [invitationGroups, setInvitationGroups] = useState("");
+  const [invitationBusy, setInvitationBusy] = useState(false);
+  const [invitationError, setInvitationError] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -394,6 +404,22 @@ export default function App({
         );
         setLoadState("loaded");
         setStatusMessage(copy.loadedStatus);
+        if (canConfigure) {
+          void api
+            .listOrganizationInvitations(response.organization.id)
+            .then((items) => {
+              if (alive) setInvitations(items);
+            })
+            .catch((cause: unknown) => {
+              if (alive) {
+                setInvitationError(
+                  cause instanceof Error
+                    ? cause.message
+                    : "Invitation lifecycle is unavailable.",
+                );
+              }
+            });
+        }
       })
       .catch((cause: unknown) => {
         if (!alive) return;
@@ -408,7 +434,7 @@ export default function App({
     return () => {
       alive = false;
     };
-  }, [api]);
+  }, [api, canConfigure, copy.loadedStatus, copy.offlineSampleStatus, copy.unavailableSampleError]);
 
   const selectedCategoryDetails = useMemo(
     () =>
@@ -603,6 +629,81 @@ export default function App({
     setStatusMessage(
       `Readiness test queued for ${result.providerKey}: ${readableState(result.state)}.`,
     );
+  }
+
+  async function refreshInvitations() {
+    const items = await api.listOrganizationInvitations(
+      controlPlane.organization.id,
+    );
+    setInvitations(items);
+  }
+
+  async function createInvitation() {
+    if (!canConfigure || !invitationEmail.trim()) return;
+    setInvitationBusy(true);
+    setInvitationError(null);
+    try {
+      await api.createOrganizationInvitation(controlPlane.organization.id, {
+        email: invitationEmail.trim(),
+        displayName: invitationDisplayName.trim() || undefined,
+        role: invitationRole,
+        organizationGroups: invitationGroups
+          .split(",")
+          .map((group) => group.trim())
+          .filter(Boolean),
+      });
+      await refreshInvitations();
+      setInvitationEmail("");
+      setInvitationDisplayName("");
+      setInvitationGroups("");
+      setStatusMessage(
+        "Invitation created. Keycloak owns delivery, activation, expiry, and membership.",
+      );
+    } catch (cause) {
+      setInvitationError(
+        cause instanceof Error ? cause.message : "Invitation could not be created.",
+      );
+    } finally {
+      setInvitationBusy(false);
+    }
+  }
+
+  async function resendInvitation(providerInvitationId: string) {
+    setInvitationBusy(true);
+    setInvitationError(null);
+    try {
+      await api.resendOrganizationInvitation(
+        controlPlane.organization.id,
+        providerInvitationId,
+      );
+      await refreshInvitations();
+      setStatusMessage("Keycloak invitation resent.");
+    } catch (cause) {
+      setInvitationError(
+        cause instanceof Error ? cause.message : "Invitation could not be resent.",
+      );
+    } finally {
+      setInvitationBusy(false);
+    }
+  }
+
+  async function revokeInvitation(providerInvitationId: string) {
+    setInvitationBusy(true);
+    setInvitationError(null);
+    try {
+      await api.revokeOrganizationInvitation(
+        controlPlane.organization.id,
+        providerInvitationId,
+      );
+      await refreshInvitations();
+      setStatusMessage("Keycloak invitation revoked.");
+    } catch (cause) {
+      setInvitationError(
+        cause instanceof Error ? cause.message : "Invitation could not be revoked.",
+      );
+    } finally {
+      setInvitationBusy(false);
+    }
   }
 
   return (
@@ -808,6 +909,134 @@ export default function App({
                   </Stack>
                 </CardContent>
               </Card>
+
+              {canConfigure ? (
+                <Card component="section" aria-labelledby="invitations-heading">
+                  <CardContent>
+                    <Typography
+                      id="invitations-heading"
+                      variant="h2"
+                      sx={{ fontSize: "1.35rem", mb: 1 }}
+                    >
+                      Member invitations
+                    </Typography>
+                    <Alert severity="info" sx={{ mb: 2 }}>
+                      Keycloak owns email delivery, activation, expiry, and
+                      organization membership. Weave records only temporary
+                      role and organization-group provisioning intent.
+                    </Alert>
+                    {invitationError ? (
+                      <Alert severity="error" sx={{ mb: 2 }}>
+                        {invitationError}
+                      </Alert>
+                    ) : null}
+                    <Stack spacing={2} component="form" onSubmit={(event) => {
+                      event.preventDefault();
+                      void createInvitation();
+                    }}>
+                      <TextField
+                        required
+                        type="email"
+                        label="Member email"
+                        value={invitationEmail}
+                        onChange={(event) => setInvitationEmail(event.target.value)}
+                      />
+                      <TextField
+                        label="Display name (optional)"
+                        value={invitationDisplayName}
+                        onChange={(event) =>
+                          setInvitationDisplayName(event.target.value)
+                        }
+                      />
+                      <FormControl>
+                        <InputLabel id="invitation-role-label">Role</InputLabel>
+                        <Select
+                          labelId="invitation-role-label"
+                          label="Role"
+                          value={invitationRole}
+                          onChange={(event) =>
+                            setInvitationRole(event.target.value as OrganizationRole)
+                          }
+                        >
+                          {(["owner", "admin", "member", "guest"] as const).map(
+                            (role) => (
+                              <MenuItem key={role} value={role}>
+                                {role}
+                              </MenuItem>
+                            ),
+                          )}
+                        </Select>
+                      </FormControl>
+                      <TextField
+                        label="Organization groups (optional)"
+                        helperText="Comma-separated Keycloak organization-group aliases."
+                        value={invitationGroups}
+                        onChange={(event) => setInvitationGroups(event.target.value)}
+                      />
+                      <Box>
+                        <Button
+                          type="submit"
+                          variant="contained"
+                          disabled={invitationBusy || !invitationEmail.trim()}
+                        >
+                          Invite member
+                        </Button>
+                      </Box>
+                    </Stack>
+                    <Divider sx={{ my: 3 }} />
+                    <Typography variant="h3" sx={{ fontSize: "1.1rem" }}>
+                      Current Keycloak invitations
+                    </Typography>
+                    {invitations.length === 0 ? (
+                      <Typography sx={{ mt: 1 }}>
+                        No active invitations were returned by Keycloak.
+                      </Typography>
+                    ) : (
+                      <List aria-label="Current Keycloak invitations">
+                        {invitations.map((invitation) => (
+                          <ListItem
+                            key={invitation.providerInvitationId}
+                            alignItems="flex-start"
+                            disableGutters
+                            secondaryAction={
+                              <Stack direction="row" spacing={1}>
+                                <Button
+                                  disabled={invitationBusy}
+                                  onClick={() =>
+                                    void resendInvitation(
+                                      invitation.providerInvitationId,
+                                    )
+                                  }
+                                >
+                                  Resend
+                                </Button>
+                                <Button
+                                  color="error"
+                                  disabled={invitationBusy}
+                                  onClick={() =>
+                                    void revokeInvitation(
+                                      invitation.providerInvitationId,
+                                    )
+                                  }
+                                >
+                                  Revoke
+                                </Button>
+                              </Stack>
+                            }
+                          >
+                            <ListItemText
+                              primary={invitation.displayName
+                                ? `${invitation.displayName} — ${invitation.email}`
+                                : invitation.email}
+                              secondary={`Invitation: ${readableState(invitation.lifecycleStatus)} · Provisioning: ${readableState(invitation.provisioningStatus)} · Role: ${invitation.requestedRole}${invitation.organizationGroups.length ? ` · Groups: ${invitation.organizationGroups.join(", ")}` : ""}`}
+                            />
+                          </ListItem>
+                        ))}
+                      </List>
+                    )}
+                  </CardContent>
+                </Card>
+              ) : null}
 
               <Card component="section" aria-labelledby="providers-heading">
                 <CardContent>

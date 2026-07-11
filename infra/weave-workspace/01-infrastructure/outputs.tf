@@ -35,12 +35,12 @@ output "nextcloud_backend_actor_username" {
 
 output "mailpit_smtp_endpoint" {
   description = "Dogfood/local SMTP endpoint captured by Mailpit."
-  value       = module.mailpit.smtp_endpoint
+  value       = var.mailpit_enabled ? module.mailpit[0].smtp_endpoint : null
 }
 
 output "mailpit_web_endpoint" {
   description = "Private-LAN Mailpit tester inbox URL."
-  value       = local.public_urls.mail
+  value       = var.mailpit_enabled ? local.public_urls.mail : null
 }
 
 output "app_config" {

@@ -17,7 +17,6 @@ import 'package:weave/features/onboarding/presentation/first_run_screen.dart';
 import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
 import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
 import 'package:weave/features/onboarding/presentation/setup_flow.dart';
-import 'package:weave/features/onboarding/presentation/welcome_screen.dart';
 import 'package:weave/features/profile/presentation/profile_screen.dart';
 import 'package:weave/features/settings/presentation/settings_screen.dart';
 import 'package:weave/features/shell/presentation/app_shell.dart';
@@ -63,9 +62,7 @@ GoRouter appRouter(Ref ref) {
       }
     },
     redirect: (context, state) async {
-      final onOnboarding =
-          state.matchedLocation == AppRoutes.welcome ||
-          state.matchedLocation == AppRoutes.setup;
+      final onOnboarding = state.matchedLocation == AppRoutes.welcome;
       final onSignIn = state.matchedLocation == AppRoutes.signIn;
       final onJoin = state.matchedLocation == AppRoutes.join;
       final onFirstRun = state.matchedLocation == AppRoutes.firstRun;
@@ -100,10 +97,6 @@ GoRouter appRouter(Ref ref) {
     routes: [
       GoRoute(
         path: AppRoutes.welcome,
-        builder: (context, state) => const WelcomeScreen(),
-      ),
-      GoRoute(
-        path: AppRoutes.setup,
         builder: (context, state) => const SetupFlow(),
       ),
       GoRoute(

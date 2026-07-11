@@ -103,6 +103,7 @@ locals {
     matrix_site_addresses = local.site_addresses.matrix
     keycloak_upstream     = "${local.service_names.keycloak}:8080"
     mailpit_upstream      = "${local.service_names.mailpit}:8025"
+    mailpit_enabled       = var.mailpit_enabled
     mailpit_allowed_cidrs = join(" ", var.mailpit_allowed_cidrs)
     nextcloud_upstream    = "${local.service_names.nextcloud}:80"
     api_public_url        = local.public_urls.api
@@ -452,26 +453,31 @@ module "reverse_proxy" {
 module "keycloak" {
   source = "./modules/keycloak"
 
-  network_name         = docker_network.weave_network.name
-  container_name       = local.service_names.keycloak
-  image_name           = var.keycloak_image
-  volume_name          = "weave_keycloak_data"
-  host_port            = var.keycloak_host_port
-  management_host_port = var.keycloak_management_host_port
-  public_url           = local.client_auth_url
-  db_host              = module.postgres.container_name
-  db_port              = 5432
-  db_name              = local.service_databases.keycloak.database_name
-  db_schema            = "public"
-  db_username          = var.keycloak_db_username
-  db_password          = var.keycloak_db_password
-  admin_username       = var.keycloak_admin_username
-  admin_password       = var.keycloak_admin_password
-  depends_on           = [terraform_data.network_ready, terraform_data.postgres_bootstrap]
+  network_name                = docker_network.weave_network.name
+  container_name              = local.service_names.keycloak
+  image_name                  = var.keycloak_image
+  image_build_context         = abspath("${path.module}/../../keycloak-event-listener")
+  keycloak_version            = var.keycloak_version
+  volume_name                 = "weave_keycloak_data"
+  host_port                   = var.keycloak_host_port
+  management_host_port        = var.keycloak_management_host_port
+  public_url                  = local.client_auth_url
+  db_host                     = module.postgres.container_name
+  db_port                     = 5432
+  db_name                     = local.service_databases.keycloak.database_name
+  db_schema                   = "public"
+  db_username                 = var.keycloak_db_username
+  db_password                 = var.keycloak_db_password
+  admin_username              = var.keycloak_admin_username
+  admin_password              = var.keycloak_admin_password
+  identity_events_endpoint    = "http://${local.service_names.backend}:${var.backend_container_port}/api/internal/keycloak/events"
+  identity_events_hmac_secret = var.identity_events_hmac_secret
+  depends_on                  = [terraform_data.network_ready, terraform_data.postgres_bootstrap]
 }
 
 module "mailpit" {
   source = "./modules/mailpit"
+  count  = var.mailpit_enabled ? 1 : 0
 
   network_name   = docker_network.weave_network.name
   container_name = local.service_names.mailpit
@@ -573,6 +579,7 @@ module "backend" {
   identity_keycloak_realm                          = var.tenant_slug
   identity_keycloak_organization_alias             = var.tenant_slug
   identity_keycloak_client_secret                  = var.identity_admin_client_secret
+  identity_events_hmac_secret                      = var.identity_events_hmac_secret
   mcp_boundary_token                               = var.mcp_boundary_token
   healthcheck_path                                 = "/api/health/ready"
   depends_on                                       = [terraform_data.network_ready, terraform_data.postgres_bootstrap, module.keycloak, local_sensitive_file.generated]

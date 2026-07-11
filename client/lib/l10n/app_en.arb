@@ -16,7 +16,7 @@
   "@continueButton": {
     "description": "Label for the primary CTA on the welcome screen"
   },
-  "setupTitle": "Join Weave",
+  "setupTitle": "Organization access",
   "@setupTitle": {
     "description": "Title for the setup flow screen"
   },

@@ -53,7 +53,7 @@ import '../helpers/in_memory_stores.dart';
 void main() {
   group('current release auth/files golden paths', () {
     testWidgets(
-      'setup, sign-in, ready shell, files browsing, chat room open plus send, sign-out/re-auth, and changed-server recovery',
+      'organization access, sign-in, ready shell, files browsing, chat send, and sign-out/re-auth',
       (tester) async {
         final authRepository = _ScenarioAuthSessionRepository();
         final serverConfigurationRepository =
@@ -129,10 +129,7 @@ void main() {
           container.read(appBootstrapProvider).requireValue.phase,
           BootstrapPhase.needsSetup,
         );
-        expect(find.text('Join your organization'), findsOneWidget);
-
-        await tester.tap(find.text('Join your organization'));
-        await tester.pumpAndSettle();
+        expect(find.text('Organization access'), findsOneWidget);
 
         await tester.enterText(
           _textFieldWithLabel('Server URI, invitation link, or QR payload'),
@@ -233,27 +230,16 @@ void main() {
 
         container.read(appRouterProvider).go(AppRoutes.workspaceHealth);
         await tester.pumpAndSettle();
-        await tester.drag(
-          find.byType(CustomScrollView),
-          const Offset(0, -1400),
-        );
-        await tester.pumpAndSettle();
-        await tester.enterText(
-          _textFieldWithLabel('Nextcloud Base URL'),
-          'https://files-alt.weave.test',
-        );
-        await tester.tap(find.widgetWithText(AccessibleButton, 'Save Changes'));
-        await tester.pumpAndSettle();
-        await _continueFirstRunIfPresent(tester);
+        expect(_textFieldWithLabel('OIDC Issuer URL'), findsNothing);
+        expect(_textFieldWithLabel('Nextcloud Base URL'), findsNothing);
 
         await tester.tap(_navigationDestination('Files'));
         await tester.pumpAndSettle();
 
-        expect(find.text('https://files-alt.weave.test'), findsNothing);
         expect(find.text('Connect Files'), findsWidgets);
         expect(
           filesRepository.lastConfiguredBaseUrl.toString(),
-          'https://files-alt.weave.test',
+          'https://weave.test/files',
         );
 
         await tester.tap(find.text('Connect Files').first);

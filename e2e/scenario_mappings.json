@@ -569,14 +569,16 @@
         {
           "path": "client/test/features/settings/settings_screen_test.dart",
           "fragments": [
-            "Provider categories",
-            "Keycloak/Auth",
-            "Chat",
-            "File storage",
-            "Calendar sync",
-            "Disabled by default",
-            "Admin/operator readiness cockpit",
             "hides OIDC and service endpoint setup from members"
+          ]
+        },
+        {
+          "path": "admin-console/src/App.test.tsx",
+          "fragments": [
+            "manages Keycloak invitation lifecycle separately from provisioning intent",
+            "member invitations",
+            "Keycloak owns email delivery",
+            "Calendar"
           ]
         }
       ],

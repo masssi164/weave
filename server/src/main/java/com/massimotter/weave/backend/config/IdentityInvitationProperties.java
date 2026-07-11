@@ -8,19 +8,26 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class IdentityInvitationProperties {
     private String storageMode = "memory";
     private Duration defaultLifetime = Duration.ofDays(7);
+    private String eventsHmacSecret = "";
+    private Duration eventFreshness = Duration.ofMinutes(5);
     private final Keycloak keycloak = new Keycloak();
 
     public String storageMode() { return storageMode; }
     public void setStorageMode(String storageMode) { this.storageMode = storageMode; }
     public Duration defaultLifetime() { return defaultLifetime; }
     public void setDefaultLifetime(Duration defaultLifetime) { this.defaultLifetime = defaultLifetime; }
+    public String eventsHmacSecret() { return eventsHmacSecret; }
+    public void setEventsHmacSecret(String eventsHmacSecret) { this.eventsHmacSecret = eventsHmacSecret; }
+    public Duration eventFreshness() { return eventFreshness; }
+    public void setEventFreshness(Duration eventFreshness) { this.eventFreshness = eventFreshness; }
     public Keycloak keycloak() { return keycloak; }
 
     public static class Keycloak {
         private URI baseUrl = URI.create("http://weave-keycloak:8080");
         private String realm = "weave";
+        private String organizationId = "";
         private String organizationAlias = "weave";
-        private String clientId = "weave-identity-adapter";
+        private String clientId = "weave-identity-admin";
         private String clientSecret = "";
         private Duration timeout = Duration.ofSeconds(10);
 
@@ -28,6 +35,8 @@ public class IdentityInvitationProperties {
         public void setBaseUrl(URI baseUrl) { this.baseUrl = baseUrl; }
         public String realm() { return realm; }
         public void setRealm(String realm) { this.realm = realm; }
+        public String organizationId() { return organizationId; }
+        public void setOrganizationId(String organizationId) { this.organizationId = organizationId; }
         public String organizationAlias() { return organizationAlias; }
         public void setOrganizationAlias(String organizationAlias) { this.organizationAlias = organizationAlias; }
         public String clientId() { return clientId; }

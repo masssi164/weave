@@ -32,11 +32,6 @@ import 'package:weave/features/guests/presentation/providers/guest_preview_provi
 import 'package:weave/features/guests/presentation/widgets/guest_access_preview_card.dart';
 import 'package:weave/features/profile/domain/entities/user_profile.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
-import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
-import 'package:weave/features/server_config/presentation/providers/'
-    'server_configuration_form_controller.dart';
-import 'package:weave/features/server_config/presentation/widgets/provider_category_summary.dart';
-import 'package:weave/features/server_config/presentation/widgets/server_configuration_form.dart';
 import 'package:weave/features/shell/domain/entities/shell_module.dart';
 import 'package:weave/features/shell/presentation/providers/shell_module_preferences_provider.dart';
 import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
@@ -234,274 +229,17 @@ class _AdminOnlySettingsSections extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context);
-    final savedConfiguration = ref.watch(savedServerConfigurationProvider);
-
-    return Column(
+    return const Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _WorkspaceReadinessCard(),
-        const SizedBox(height: 32),
-        const _AgentCapabilityPolicySection(),
+        _WorkspaceReadinessCard(),
+        SizedBox(height: 32),
+        _AgentCapabilityPolicySection(),
         if (FeatureFlags.hasFeatureGatedSurfaces) ...[
-          const SizedBox(height: 32),
-          const _FeaturePreviewSurfacesSection(),
+          SizedBox(height: 32),
+          _FeaturePreviewSurfacesSection(),
         ],
-        const SizedBox(height: 32),
-        savedConfiguration.when(
-          loading: () => LoadingState(message: l10n.loadingLabel),
-          error: (error, _) => ErrorState(
-            message: l10n.errorStateLabel,
-            retryLabel: l10n.retryButton,
-            onRetry: () => ref.invalidate(savedServerConfigurationProvider),
-          ),
-          data: (configuration) =>
-              _AdminSetupSection(configuration: configuration),
-        ),
       ],
-    );
-  }
-}
-
-class _AdminSetupSection extends ConsumerWidget {
-  const _AdminSetupSection({required this.configuration});
-
-  final ServerConfiguration? configuration;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final profile = ref.watch(userProfileProvider);
-
-    return switch (profile) {
-      AsyncData(value: final user) =>
-        user != null && user.canAdministerWorkspace
-            ? _AdminSetupConfigurationCard(
-                configuration: configuration,
-                profile: user,
-              )
-            : const _AdminSetupBoundaryCard(),
-      AsyncError() => const _AdminSetupBoundaryCard(showRetry: true),
-      _ => const _AdminSetupLoadingCard(),
-    };
-  }
-}
-
-class _AdminSetupConfigurationCard extends ConsumerWidget {
-  const _AdminSetupConfigurationCard({
-    required this.configuration,
-    required this.profile,
-  });
-
-  final ServerConfiguration? configuration;
-  final UserProfile profile;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-
-    return Card(
-      elevation: 0,
-      color: theme.colorScheme.surfaceContainerLow,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(24),
-        side: BorderSide(color: theme.colorScheme.primary),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Semantics(
-              header: true,
-              child: Text(
-                l10n.settingsAdminSetupTitle,
-                style: theme.textTheme.headlineSmall,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              l10n.settingsAdminSetupDescription,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 12),
-            _AdminPermissionSummary(profile: profile),
-            const SizedBox(height: 16),
-            const ProviderCategorySummary(compact: true),
-            const SizedBox(height: 16),
-            _AdminManualEmbedCard(
-              title: l10n.settingsAdminManualTitle,
-              description: l10n.settingsAdminManualDescription,
-              pathLabel: l10n.helpEmbeddedManualPathLabel,
-              path: 'docs/admin-operator-handbook.md',
-              permissionLabel: l10n.helpEmbeddedManualPermissionLabel,
-              fallbackLabel: l10n.helpEmbeddedManualUnavailableLabel,
-            ),
-            const SizedBox(height: 24),
-            Text(
-              l10n.settingsServerConfigurationTitle,
-              style: theme.textTheme.titleLarge,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              l10n.settingsServerConfigurationDescription,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 24),
-            ServerConfigurationForm(
-              layout: ServerConfigurationFormLayout.full,
-              initialConfiguration: configuration,
-              submitLabel: l10n.settingsSaveButton,
-              onSaved: (result) async {
-                await ref
-                    .read(authFlowControllerProvider.notifier)
-                    .handleConfigurationSaved(result);
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _AdminManualEmbedCard extends StatelessWidget {
-  const _AdminManualEmbedCard({
-    required this.title,
-    required this.description,
-    required this.pathLabel,
-    required this.path,
-    required this.permissionLabel,
-    required this.fallbackLabel,
-  });
-
-  final String title;
-  final String description;
-  final String pathLabel;
-  final String path;
-  final String permissionLabel;
-  final String fallbackLabel;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Semantics(
-      container: true,
-      label: '$title. $permissionLabel',
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.28),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: theme.colorScheme.secondary.withValues(alpha: 0.45),
-          ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(
-                    Icons.menu_book_outlined,
-                    color: theme.colorScheme.secondary,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Semantics(
-                      header: true,
-                      child: Text(title, style: theme.textTheme.titleMedium),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(description, style: theme.textTheme.bodyMedium),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  Chip(label: Text('$pathLabel $path')),
-                  Chip(label: Text(permissionLabel)),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                fallbackLabel,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _AdminPermissionSummary extends StatelessWidget {
-  const _AdminPermissionSummary({required this.profile});
-
-  final UserProfile profile;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    final roles = profile.roles.isEmpty ? '—' : profile.roles.join(', ');
-
-    return Semantics(
-      container: true,
-      label: l10n.settingsAdminPermissionSemantic(roles),
-      child: ExcludeSemantics(
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: theme.colorScheme.primaryContainer.withValues(alpha: 0.28),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: theme.colorScheme.primary.withValues(alpha: 0.45),
-            ),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  Icons.admin_panel_settings_outlined,
-                  color: theme.colorScheme.primary,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        l10n.settingsAdminPermissionTitle,
-                        style: theme.textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        l10n.settingsAdminPermissionDescription(roles),
-                        style: theme.textTheme.bodyMedium,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 }
@@ -555,25 +293,6 @@ class _AdminSetupBoundaryCard extends ConsumerWidget {
               ],
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _AdminSetupLoadingCard extends StatelessWidget {
-  const _AdminSetupLoadingCard();
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: LoadingState(
-          message: l10n.settingsAdminPermissionLoading,
-          icon: Icons.admin_panel_settings_outlined,
         ),
       ),
     );

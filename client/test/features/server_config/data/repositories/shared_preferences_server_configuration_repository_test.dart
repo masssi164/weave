@@ -114,7 +114,7 @@ void main() {
 
     test('normalizes a missing stored client ID to weave-app', () async {
       final raw = jsonEncode({
-        'providerType': 'authentik',
+        'providerType': 'keycloak',
         'oidcIssuerUrl': 'https://auth.home.internal',
         'oidcClientRegistrationMode': 'manual',
         'matrixHomeserverUrl': 'https://matrix.home.internal',

@@ -7,7 +7,6 @@ import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.model.OnboardingProvisioningState;
 import com.massimotter.weave.backend.model.OnboardingStatusResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
-import com.massimotter.weave.backend.identity.invitation.MemberInvitationStatus;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
@@ -105,15 +104,7 @@ public class OnboardingStatusService {
                     "The account can authenticate, but email verification is not complete yet.",
                     "Verify the email address in the identity provider, then sign in again.");
         }
-        MemberInvitationStatus canonicalStatus = memberInvitationService == null
-                ? MemberInvitationStatus.ACCEPTED
-                : memberInvitationService.reconcileAuthenticated(jwt);
-        if (canonicalStatus != MemberInvitationStatus.ACCEPTED) {
-            return new OnboardingStatusResponse.InviteStatus(
-                    canonicalStatus == MemberInvitationStatus.REVOKED ? "disabled" : "pending",
-                    "Organization activation is not complete for this account.",
-                    "Open a current organization invitation in the system browser or ask an admin to resend it.");
-        }
+        if (memberInvitationService != null) memberInvitationService.reconcileAuthenticated(jwt);
         return new OnboardingStatusResponse.InviteStatus(
                 "active",
                 "The invite has been accepted and the account is active for Weave.",

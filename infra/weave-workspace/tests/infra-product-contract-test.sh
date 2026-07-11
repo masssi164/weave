@@ -56,8 +56,11 @@ local_invite_script="${ROOT_DIR}/local-invite-link.sh"
 dogfood_handoff_bundle="${MONOREPO_DIR}/tools/dogfood_handoff_bundle.py"
 dogfood_ios_smoke="${MONOREPO_DIR}/tools/dogfood_ios_deeplink_smoke.sh"
 dogfood_cert_smoke="${MONOREPO_DIR}/tools/dogfood_cert_persistence_smoke.py"
+iphone_mailpit_smoke="${ROOT_DIR}/iphone-mailpit-smoke.sh"
+keycloak_extension="${REPO_DIR}/keycloak-event-listener/src/main/java/com/massimotter/weave/keycloak/events/WeaveIdentityEventListenerProvider.java"
+keycloak_extension_dockerfile="${REPO_DIR}/keycloak-event-listener/Dockerfile"
 
-for file in "${backend_main}" "${infra_main}" "${infra_outputs}" "${install_script}" "${release_verify}" "${keycloak_main}" "${release_env}" "${admin_doc}" "${caldav_doc}" "${connector_doc}" "${matrix_workspace_doc}" "${matrix_e2ee_doc}" "${openproject_doc}" "${openproject_compose}" "${provider_stack_compose}" "${provider_stack_check}" "${openproject_live_e2e}" "${support_bundle}" "${caddy_template}" "${local_invite_script}" "${dogfood_handoff_bundle}" "${dogfood_ios_smoke}" "${dogfood_cert_smoke}"; do
+for file in "${backend_main}" "${infra_main}" "${infra_outputs}" "${install_script}" "${release_verify}" "${keycloak_main}" "${release_env}" "${admin_doc}" "${caldav_doc}" "${connector_doc}" "${matrix_workspace_doc}" "${matrix_e2ee_doc}" "${openproject_doc}" "${openproject_compose}" "${provider_stack_compose}" "${provider_stack_check}" "${openproject_live_e2e}" "${support_bundle}" "${caddy_template}" "${local_invite_script}" "${dogfood_handoff_bundle}" "${dogfood_ios_smoke}" "${dogfood_cert_smoke}" "${iphone_mailpit_smoke}" "${keycloak_extension}" "${keycloak_extension_dockerfile}"; do
   [[ -f "${file}" ]] || fail "Missing expected contract file: ${file}"
 done
 
@@ -133,6 +136,7 @@ assert_file_contains "${keycloak_main}" 'weave-board-editors'
 assert_file_contains "${keycloak_main}" 'live_e2e_test_user_capability_groups'
 assert_file_contains "${keycloak_main}" 'keycloak_group_roles'
 assert_file_contains "${keycloak_main}" 'smtp_server'
+assert_file_contains "${keycloak_main}" 'for_each = var.smtp_username != "" ? [1] : []'
 assert_file_contains "${keycloak_main}" 'organizations_enabled'
 assert_file_contains "${keycloak_main}" 'resource "keycloak_organization" "tenant"'
 assert_file_contains "${keycloak_main}" 'client_id   = keycloak_openid_client.client["weave_app"].id'
@@ -141,6 +145,8 @@ assert_file_absent "${keycloak_main}" '"manage-users"'
 assert_file_absent "${keycloak_main}" 'operator ='
 assert_file_contains "${ROOT_DIR}/01-infrastructure/main.tf" 'mailpit'
 assert_file_contains "${ROOT_DIR}/01-infrastructure/main.tf" 'weave-mailpit'
+assert_file_contains "${ROOT_DIR}/01-infrastructure/main.tf" 'count  = var.mailpit_enabled ? 1 : 0'
+assert_file_contains "${release_env}" 'TF_VAR_mailpit_enabled=false'
 assert_file_contains "${ROOT_DIR}/01-infrastructure/modules/mailpit/main.tf" '127.0.0.1'
 assert_file_contains "${ROOT_DIR}/01-infrastructure/modules/mailpit/outputs.tf" 'Docker-network SMTP endpoint'
 assert_file_contains "${ROOT_DIR}/01-infrastructure/templates/Caddyfile.tpl" 'remote_ip ${mailpit_allowed_cidrs}'
@@ -149,6 +155,24 @@ assert_file_contains "${ROOT_DIR}/01-infrastructure/variables.tf" 'can(cidrhost(
 assert_file_absent "${ROOT_DIR}/01-infrastructure/variables.tf" 'can(cidrnetmask(cidr))'
 assert_file_contains "${ROOT_DIR}/smoke-test.sh" 'Mailpit SMTP port 1025 must not be published to the host'
 assert_file_contains "${ROOT_DIR}/install.sh" 'Dogfood mail inbox'
+assert_file_contains "${iphone_mailpit_smoke}" 'Safari URL:'
+assert_file_contains "${iphone_mailpit_smoke}" 'mail.${TENANT_DOMAIN}'
+assert_file_contains "${iphone_mailpit_smoke}" '--cacert'
+assert_file_contains "${keycloak_main}" 'events_listeners'
+assert_file_contains "${keycloak_main}" 'weave-identity-events'
+assert_file_contains "${keycloak_main}" 'login_theme                    = "weave"'
+assert_file_contains "${keycloak_main}" 'email_theme                    = "weave"'
+assert_file_contains "${keycloak_extension_dockerfile}" 'ARG KEYCLOAK_VERSION=26.7.0'
+assert_file_contains "${keycloak_extension}" 'organization_membership_added'
+assert_file_contains "${keycloak_extension}" 'X-Weave-Event-Signature'
+assert_file_contains "${keycloak_extension}" 'var timestamp = occurredAt.toString();'
+assert_file_contains "${caddy_template}" '@internal_api path /api/internal/*'
+assert_file_contains "${caddy_template}" '@internal_product_api path /api/internal/*'
+assert_file_contains "${caddy_template}" 'respond "Not Found" 404'
+assert_file_absent "${keycloak_extension}" 'activationToken'
+assert_file_absent "${keycloak_extension}" 'invitationLink'
+assert_file_absent "${keycloak_main}" 'Weave Dogfood'
+assert_file_absent "${keycloak_main}" 'test@weave.test'
 assert_file_contains "${keycloak_main}" 'keycloak_user_roles'
 assert_file_contains "${keycloak_main}" 'keycloak_openid_group_membership_protocol_mapper" "weave_app_groups"'
 assert_file_contains "${admin_doc}" 'Guests are mapped to `workspace-guests`, not member/admin groups.'

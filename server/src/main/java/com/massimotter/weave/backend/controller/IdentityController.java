@@ -28,7 +28,7 @@ public class IdentityController {
     @GetMapping("/api/me")
     @Operation(
             summary = "Get the authenticated caller profile",
-            description = "Returns the canonical Weave identity and profile snapshot available to the backend.",
+            description = "Returns the authenticated actor and Weave product-profile projection available to the backend.",
             security = @SecurityRequirement(name = "bearer-jwt"))
     @ApiResponses({
             @ApiResponse(

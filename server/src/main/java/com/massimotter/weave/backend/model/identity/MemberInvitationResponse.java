@@ -1,26 +1,33 @@
 package com.massimotter.weave.backend.model.identity;
 
-import com.massimotter.weave.backend.identity.invitation.MemberInvitation;
+import com.massimotter.weave.backend.identity.invitation.KeycloakIdentityAdminClient.ProviderInvitation;
+import com.massimotter.weave.backend.identity.invitation.ProvisioningIntent;
 import java.time.Instant;
 import java.util.List;
-import java.util.UUID;
 
 public record MemberInvitationResponse(
-        UUID invitationId,
+        String providerInvitationId,
         String organizationId,
         String email,
         String displayName,
-        String role,
-        List<String> workspaceIds,
-        String status,
+        String lifecycleStatus,
+        String provisioningStatus,
+        String requestedRole,
+        List<String> organizationGroups,
         Instant expiresAt,
         Instant createdAt,
         Instant updatedAt) {
 
-    public static MemberInvitationResponse from(MemberInvitation invitation) {
-        return new MemberInvitationResponse(invitation.invitationId(), invitation.organizationId(),
-                invitation.invitedEmail(), invitation.displayName(), invitation.requestedRole(),
-                invitation.workspaceIds(), invitation.status().name().toLowerCase(), invitation.expiresAt(),
-                invitation.createdAt(), invitation.updatedAt());
+    public static MemberInvitationResponse from(ProviderInvitation invitation, ProvisioningIntent intent) {
+        return new MemberInvitationResponse(invitation.providerInvitationId(), intent.organizationId(),
+                invitation.email(), invitation.displayName(), invitation.lifecycleStatus(),
+                intent.status().name().toLowerCase(), intent.requestedRole(), intent.organizationGroups(),
+                invitation.expiresAt(), invitation.createdAt(), intent.updatedAt());
+    }
+
+    public static MemberInvitationResponse withoutProvisioning(ProviderInvitation invitation, String organizationId) {
+        return new MemberInvitationResponse(invitation.providerInvitationId(), organizationId, invitation.email(),
+                invitation.displayName(), invitation.lifecycleStatus(), "not_requested", null, List.of(),
+                invitation.expiresAt(), invitation.createdAt(), null);
     }
 }

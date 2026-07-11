@@ -56,7 +56,43 @@ variable "smtp_port" {
 }
 
 variable "smtp_from" {
-  description = "From address used by the dogfood/local Keycloak realm."
+  description = "Environment-configured From address used by the Keycloak realm."
+  type        = string
+}
+
+variable "smtp_from_display_name" {
+  description = "Environment-configured sender display name used by Keycloak mail."
+  type        = string
+}
+
+variable "smtp_ssl" {
+  description = "Use implicit TLS for the configured SMTP transport."
+  type        = bool
+}
+
+variable "smtp_starttls" {
+  description = "Require STARTTLS for the configured SMTP transport."
+  type        = bool
+}
+
+variable "smtp_username" {
+  description = "Optional SMTP authentication username."
+  type        = string
+}
+
+variable "smtp_password" {
+  description = "Optional SMTP authentication password."
+  type        = string
+  sensitive   = true
+}
+
+variable "organization_display_name" {
+  description = "Human-readable organization name shared by Keycloak invitation and activation surfaces."
+  type        = string
+}
+
+variable "test_user_email" {
+  description = "Environment-derived email for the optional integration-test user."
   type        = string
 }
 

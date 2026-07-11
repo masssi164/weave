@@ -38,7 +38,7 @@ class ServerConfigurationFormState {
   const ServerConfigurationFormState.initial()
     : initialized = false,
       isSaving = false,
-      providerType = OidcProviderType.authentik,
+      providerType = OidcProviderType.keycloak,
       issuerUrl = '',
       clientId = oidcDefaultClientId,
       matrixHomeserverUrl = '',

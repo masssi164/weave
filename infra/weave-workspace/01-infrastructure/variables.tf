@@ -109,6 +109,12 @@ variable "mailpit_image" {
   default     = "axllent/mailpit:v1.30.0"
 }
 
+variable "mailpit_enabled" {
+  description = "Deploy and route the private Mailpit inbox. Enable only for local/dogfood mail capture; production must use external SMTP."
+  type        = bool
+  default     = true
+}
+
 variable "mailpit_web_host_port" {
   description = "Loopback-only host port for the Mailpit web/API inbox."
   type        = number
@@ -591,9 +597,31 @@ variable "postgres_image" {
 }
 
 variable "keycloak_image" {
-  description = "Keycloak image used for identity management."
+  description = "Locally built Keycloak image containing the version-matched Weave event provider."
   type        = string
-  default     = "quay.io/keycloak/keycloak:26.7.0"
+  default     = "weave-keycloak:26.7.0-identity-events-v1"
+}
+
+variable "keycloak_version" {
+  description = "Exact Keycloak server and extension compile version. Upgrade both together."
+  type        = string
+  default     = "26.7.0"
+
+  validation {
+    condition     = can(regex("^[0-9]+\\.[0-9]+\\.[0-9]+$", var.keycloak_version))
+    error_message = "keycloak_version must be an exact semantic version without a floating tag."
+  }
+}
+
+variable "identity_events_hmac_secret" {
+  description = "Private HMAC secret shared between the Keycloak event bridge and Weave Server."
+  type        = string
+  sensitive   = true
+
+  validation {
+    condition     = length(var.identity_events_hmac_secret) >= 32
+    error_message = "identity_events_hmac_secret must contain at least 32 characters."
+  }
 }
 
 variable "mas_image" {
