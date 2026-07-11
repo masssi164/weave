@@ -9,6 +9,8 @@ import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.service.OnboardingStatusService;
+import com.massimotter.weave.backend.service.MemberInvitationService;
+import com.massimotter.weave.backend.identity.invitation.MemberInvitationStatus;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -29,6 +31,8 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -64,8 +68,12 @@ class OnboardingControllerTest {
     @MockBean
     private JwtDecoder jwtDecoder;
 
+    @MockBean
+    private MemberInvitationService memberInvitationService;
+
     @Test
     void returnsFirstRunStatusForAuthenticatedUser() throws Exception {
+        when(memberInvitationService.reconcileAuthenticated(any())).thenReturn(MemberInvitationStatus.ACCEPTED);
         mockMvc.perform(get("/api/onboarding/status").with(jwt().jwt(jwt -> jwt
                         .subject("user-123")
                         .claim("iss", "https://auth.example.invalid/realms/acme")
@@ -76,7 +84,7 @@ class OnboardingControllerTest {
                         .claim("locale", "en")
                         .claim("timezone", "Europe/Berlin")
                         .claim("aud", List.of("weave-app"))
-                        .claim("realm_access", Map.of("roles", List.of("member")))
+                        .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member"))))
                         .claim("groups", List.of("workspace-default")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())
@@ -106,7 +114,7 @@ class OnboardingControllerTest {
                         .claim("email", realmRole + "@example.com")
                         .claim("email_verified", true)
                         .claim("aud", List.of("weave-app"))
-                        .claim("realm_access", Map.of("roles", List.of(realmRole))))
+                        .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of(realmRole)))))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.access.primaryRole").value(realmRole))
@@ -126,7 +134,7 @@ class OnboardingControllerTest {
                         .claim("email_verified", false)
                         .claim("weave_invite_status", "pending")
                         .claim("aud", List.of("weave-app"))
-                        .claim("realm_access", Map.of("roles", List.of("member"))))
+                        .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member")))))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.invite.status").value("pending"))
@@ -147,7 +155,6 @@ class OnboardingControllerTest {
         return Stream.of(
                 Arguments.of("owner", true, true, true),
                 Arguments.of("admin", true, true, true),
-                Arguments.of("operator", false, false, false),
                 Arguments.of("member", false, false, true),
                 Arguments.of("guest", false, false, false));
     }

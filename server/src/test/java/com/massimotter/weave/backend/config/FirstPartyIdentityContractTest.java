@@ -179,7 +179,7 @@ class FirstPartyIdentityContractTest {
                             "email", "alice@example.com",
                             "azp", FIRST_PARTY_CLIENT_ID,
                             "client_id", FIRST_PARTY_CLIENT_ID,
-                            "realm_access", Map.of("roles", List.of("member"))));
+                            "resource_access", Map.of(FIRST_PARTY_CLIENT_ID, Map.of("roles", List.of("member")))));
             default -> throw new JwtException("Unknown test token.");
         };
 

@@ -249,7 +249,7 @@ class ChatDomainFacadeServiceTest {
                 .header("alg", "none")
                 .subject("member-123")
                 .claim("weave_tenant", "weave-dogfood")
-                .claim("realm_access", Map.of("roles", List.of("member")))
+                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member"))))
                 .build();
     }
 
@@ -258,7 +258,7 @@ class ChatDomainFacadeServiceTest {
                 .header("alg", "none")
                 .subject("admin-123")
                 .claim("weave_tenant", "weave-dogfood")
-                .claim("realm_access", Map.of("roles", List.of("admin")))
+                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("admin"))))
                 .build();
     }
 }

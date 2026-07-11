@@ -1,7 +1,7 @@
 terraform {
   required_providers {
     keycloak = {
-      source = "mrparkers/keycloak"
+      source = "keycloak/keycloak"
     }
   }
 }
@@ -19,6 +19,7 @@ locals {
     "address",
     "microprofile-jwt",
     "offline_access",
+    "organization",
     "phone",
   ]
 
@@ -33,25 +34,22 @@ locals {
   ]
 
   weave_product_roles = {
-    owner    = "Full local/dev workspace ownership for bootstrap operators."
-    admin    = "Workspace administration without owner bootstrap authority."
-    operator = "Operational readiness, backup/restore, and support-bundle authority without ownership transfer."
-    member   = "Standard authenticated workspace member."
-    guest    = "Constrained guest identity for feature-flagged guest portal flows."
+    owner  = "Full local/dev workspace ownership for bootstrap operators."
+    admin  = "Workspace administration without owner bootstrap authority."
+    member = "Standard authenticated workspace member."
+    guest  = "Constrained guest identity for feature-flagged guest portal flows."
   }
 
   weave_product_role_groups = {
-    owner    = "workspace-owners"
-    admin    = "workspace-admins"
-    operator = "workspace-operators"
-    member   = "workspace-members"
-    guest    = "workspace-guests"
+    owner  = "workspace-owners"
+    admin  = "workspace-admins"
+    member = "workspace-members"
+    guest  = "workspace-guests"
   }
 
   weave_offline_session_product_roles = toset([
     "owner",
     "admin",
-    "operator",
     "member",
   ])
 
@@ -86,6 +84,7 @@ locals {
     client_secret                       = null
     backchannel_logout_url              = null
     backchannel_logout_session_required = null
+    service_accounts_enabled            = false
   }
 
   client_specs = {
@@ -105,6 +104,13 @@ locals {
       name        = "weave-backend"
       client_id   = "weave-backend"
       access_type = "BEARER-ONLY"
+    })
+    weave_identity_admin = merge(local.client_defaults, {
+      name                     = "weave-identity-admin"
+      client_id                = "weave-identity-admin"
+      access_type              = "CONFIDENTIAL"
+      client_secret            = var.identity_admin_client_secret
+      service_accounts_enabled = true
     })
     weave_admin_console = merge(local.client_defaults, {
       name                       = "weave-admin-console"
@@ -159,6 +165,7 @@ resource "keycloak_realm" "tenant" {
   edit_username_allowed          = false
   reset_password_allowed         = true
   duplicate_emails_allowed       = false
+  organizations_enabled          = true
 
   smtp_server {
     host              = var.smtp_host
@@ -168,6 +175,22 @@ resource "keycloak_realm" "tenant" {
     ssl               = false
     starttls          = false
   }
+}
+
+resource "keycloak_organization" "tenant" {
+  realm        = keycloak_realm.tenant.realm
+  name         = var.tenant_slug
+  alias        = var.tenant_slug
+  description  = "Weave organization whose identity lifecycle is managed by Keycloak."
+  redirect_url = "${var.product_public_url}/join"
+}
+
+resource "keycloak_required_action" "passwordless_passkey" {
+  realm_id       = keycloak_realm.tenant.realm
+  alias          = "webauthn-register-passwordless"
+  name           = "Register a passkey"
+  enabled        = true
+  default_action = false
 }
 
 resource "keycloak_user" "test" {
@@ -195,6 +218,7 @@ resource "keycloak_role" "weave_product" {
   for_each = local.weave_product_roles
 
   realm_id    = keycloak_realm.tenant.id
+  client_id   = keycloak_openid_client.client["weave_app"].id
   name        = each.key
   description = each.value
 }
@@ -267,6 +291,26 @@ resource "keycloak_openid_client" "client" {
   web_origins                         = each.value.web_origins
   backchannel_logout_url              = each.value.backchannel_logout_url
   backchannel_logout_session_required = each.value.backchannel_logout_session_required
+  service_accounts_enabled            = each.value.service_accounts_enabled
+}
+
+data "keycloak_openid_client" "realm_management" {
+  realm_id  = keycloak_realm.tenant.id
+  client_id = "realm-management"
+}
+
+resource "keycloak_openid_client_service_account_role" "identity_admin" {
+  for_each = toset([
+    "manage-organizations",
+    "query-organizations",
+    "view-organizations",
+    "query-users",
+  ])
+
+  realm_id                = keycloak_realm.tenant.id
+  service_account_user_id = keycloak_openid_client.client["weave_identity_admin"].service_account_user_id
+  client_id               = data.keycloak_openid_client.realm_management.id
+  role                    = each.value
 }
 
 resource "keycloak_openid_client_scope" "weave_workspace" {

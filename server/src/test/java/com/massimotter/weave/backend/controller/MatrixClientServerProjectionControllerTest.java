@@ -768,7 +768,7 @@ class MatrixClientServerProjectionControllerTest {
                         .claim("iss", "https://auth.example.invalid/realms/acme")
                         .claim("aud", List.of("weave-app"))
                         .claim("weave_tenant_id", "tenant-default")
-                        .claim("realm_access", Map.of("roles", List.of("member"))))
+                        .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member")))))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 }

@@ -92,7 +92,9 @@ export const adminConsoleMessages = {
       'Files/Documents, Boards/Tasks, and Calendar readiness is projected through provider-neutral Weave facades. The backend owns provider mappings; normal member flows never receive raw provider setup or credential-bearing config.',
     identityReadinessHeading: 'Identity provider readiness',
     identityReadinessDescription:
-      'Workspace Health reads identity readiness only from the Weave backend facade. Member clients do not receive OIDC URLs, client ids, realm internals, raw provider errors, or credentials.',
+      'Keycloak is the organization identity system of record. This console reads support-safe readiness through Weave APIs; member clients never receive realm internals, administrative URLs, raw errors, or credentials.',
+    identityAuthorityNotice:
+      'Keycloak is fixed as the central identity authority. Configure LDAP, Active Directory, or external OIDC/SAML connections in the operator-managed Keycloak setup; runtime IDM switching is not supported.',
     providerSelectionHeading: 'Provider selection and readiness',
     providerSelectionDescription:
       'Admin Console-selected mappings are the source of truth. Secrets stay as SecretRef handles; readiness tests run only through backend admin APIs.',
@@ -270,7 +272,9 @@ export const adminConsoleMessages = {
       'Dateien/Dokumente, Boards/Aufgaben und Kalender werden über provider-neutrale Weave-Fassaden projiziert. Das Backend besitzt Provider-Zuordnungen; normale Mitgliederflüsse erhalten keine rohen Provider-Setup- oder credentialtragenden Konfigurationen.',
     identityReadinessHeading: 'Identitätsprovider-Bereitschaft',
     identityReadinessDescription:
-      'Workspace Health liest Identitätsbereitschaft nur aus der Weave-Backend-Fassade. Mitglieder-Clients erhalten keine OIDC-URLs, Client-IDs, Realm-Interna, rohen Provider-Fehler oder Credentials.',
+      'Keycloak ist das führende Identitätssystem der Organisation. Diese Konsole liest support-sichere Bereitschaft über Weave-APIs; Mitglieder-Clients erhalten keine Realm-Interna, administrativen URLs, Rohfehler oder Zugangsdaten.',
+    identityAuthorityNotice:
+      'Keycloak ist als zentrale Identitätsinstanz festgelegt. LDAP, Active Directory oder externe OIDC-/SAML-Verbindungen werden im operatorverwalteten Keycloak-Setup konfiguriert; ein IDM-Wechsel zur Laufzeit wird nicht unterstützt.',
     providerSelectionHeading: 'Provider-Auswahl und Bereitschaft',
     providerSelectionDescription:
       'In der Admin-Konsole gewählte Zuordnungen sind Source of Truth. Secrets bleiben SecretRef-Handles; Bereitschaftstests laufen nur über Backend-Admin-APIs.',

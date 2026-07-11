@@ -319,7 +319,7 @@ public class OpenProjectBoardsStepDefinitions {
                 .issuer("https://auth.example.invalid/realms/acme")
                 .claim("weave_tenant_id", "tenant-acme")
                 .claim("weave_context_id", "ctx-product-channel")
-                .claim("realm_access", java.util.Map.of("roles", java.util.List.of("member")))
+                .claim("resource_access", java.util.Map.of("weave-app", java.util.Map.of("roles", java.util.List.of("member"))))
                 .claim("groups", java.util.List.of("weave-board-editors"))
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(300))

@@ -1227,6 +1227,9 @@ export default function App({
                     <Alert severity="info" sx={{ mb: 2 }}>
                       {copy.identityReadinessDescription}
                     </Alert>
+                    <Alert severity="info" sx={{ mb: 2 }}>
+                      {copy.identityAuthorityNotice}
+                    </Alert>
                     <Stack spacing={1}>
                       <Typography>
                         Contract:{" "}

@@ -1,10 +1,10 @@
 # Identity provisioning strategy
 
-Status: strategic identity/control-plane contract for organization embedding.
+Status: implementation projection of canonical Keycloak-authority specification.
 
 ## Principle
 
-Identity is a Weave control-plane dependency, not per-app glue. Weave must authenticate through existing organizational identity where possible, provision/deprovision through standard lifecycle channels, and keep authorization explainable through Weave capability policy.
+Identity is a Weave control-plane dependency, not per-app glue. Keycloak is the mandatory identity gateway and system of record. Existing organizational identity connects upstream through Keycloak User Federation or OIDC/SAML brokering. Weave keeps authorization explainable without duplicating Keycloak users, organization memberships, groups, or coarse roles.
 
 ## Standards posture
 
@@ -13,8 +13,8 @@ Preferred standards and protocols:
 - OIDC Core 1.0 / OAuth 2.0 for modern authentication.
 - Authorization Code + PKCE for interactive app sign-in.
 - SAML 2.0 for enterprise/legacy IdP compatibility.
-- SCIM 2.0 for user and group provisioning/deprovisioning.
-- LDAPv3/AD as an upstream directory source, preferably mediated by Entra ID, Keycloak, Authentik, Auth0, Okta, or similar.
+- SCIM 2.0 where supported by an upstream system or controlled Keycloak provisioning integration.
+- LDAPv3/AD as an upstream directory source through Keycloak User Federation.
 - OAuth 2.0 client credentials or workload identity for machine principals.
 
 Reference anchors:
@@ -27,11 +27,11 @@ Reference anchors:
 - SCIM schema/protocol: RFC 7643 and RFC 7644.
 - OIDC Core 1.0 and SAML 2.0 remain standards-level contracts even where provider behavior differs.
 
-## Canonical identity keys
+## Actor reference and Keycloak identity keys
 
 Never use email as the primary identity key.
 
-Required stable identity inputs:
+Weave product records use only normalized OIDC `issuer` plus immutable `subject` as an actor reference. This is a foreign reference, not a canonical Weave user aggregate. Keycloak retains source-specific immutable links for federation and brokering:
 
 - OIDC/SAML: `issuer` + `subject`.
 - SCIM: `externalId` plus provider tenant/source metadata.
@@ -39,25 +39,7 @@ Required stable identity inputs:
 - LDAP/AD: `objectGUID` or `objectSid`, not DN, CN, or mail.
 - Keycloak: realm + user ID / federated identity link.
 
-Canonical identity fields:
-
-- `org_id`
-- `account_id`
-- optional `person_id` for intentional account consolidation
-- `identity_source_id`
-- `source_system`
-- `issuer`
-- `subject`
-- `external_id`
-- `immutable_provider_id`
-- `email`
-- `display_name`
-- `lifecycle_state`
-- `groups`
-- `roles`
-- `managed_fields`
-- `last_reconciled_at`
-- `mapping_status`
+Weave must not create a parallel canonical identity record containing copied email, display name, groups, roles, or lifecycle state. Temporary invitation provisioning intent may correlate one verified email until requested Keycloak client-role and organization-group assignments are applied; it is never an authorization source.
 
 ## Source ownership
 
@@ -68,7 +50,7 @@ Typical defaults:
 - HRIS or directory: employment state, department, manager, cost center where available.
 - IdP: authentication, MFA, SSO lifecycle, group membership where authoritative.
 - SCIM source: user/group provisioning and deprovisioning.
-- Weave: local preferences, member UI settings, Weave-only context membership, capability profiles, audit references.
+- Weave: local preferences, member UI settings, product-domain resource permissions, capability policy, actor references, and audit evidence.
 - Provider adapters: external object provenance and provider-specific lossy metadata.
 
 If two sources claim ownership of the same field class, Weave must quarantine or require explicit precedence policy.

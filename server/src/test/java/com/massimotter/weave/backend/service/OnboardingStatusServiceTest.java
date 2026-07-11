@@ -83,7 +83,7 @@ class OnboardingStatusServiceTest {
                 .claim("email", "alice@example.com")
                 .claim("email_verified", true)
                 .claim("aud", List.of("weave-app"))
-                .claim("realm_access", Map.of("roles", roles))
+                .claim("resource_access", Map.of("weave-app", Map.of("roles", roles)))
                 .build();
     }
 }

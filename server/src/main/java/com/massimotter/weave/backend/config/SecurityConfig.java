@@ -57,7 +57,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/actuator/health", "/actuator/info", "/error").permitAll()
                         .requestMatchers("/api/health/**", "/api/platform/config", "/api/platform/status").permitAll()
-                        .requestMatchers("/.well-known/matrix/client").permitAll()
+                        .requestMatchers("/.well-known/matrix/client", "/.well-known/weave").permitAll()
                         .requestMatchers("/v3/api-docs", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/api/migration/**").access(MIGRATION_CONTROL_PLANE_ACCESS)
                         .requestMatchers("/dav/**", "/caldav/**", "/_matrix/client/**").hasAuthority(WORKSPACE_SCOPE_AUTHORITY)
@@ -110,31 +110,7 @@ public class SecurityConfig {
     }
 
     private List<String> extractRoles(Jwt jwt) {
-        LinkedHashSet<String> roles = new LinkedHashSet<>();
-        roles.addAll(extractStringClaims(jwt, "weave_roles"));
-        roles.addAll(extractStringClaims(jwt, "roles"));
-        roles.addAll(extractRealmRoles(jwt));
-        roles.addAll(extractClientRoles(jwt));
-        return List.copyOf(roles);
-    }
-
-    private List<String> extractRealmRoles(Jwt jwt) {
-        Map<String, Object> realmAccess = jwt.getClaimAsMap("realm_access");
-        if (realmAccess == null) {
-            return List.of();
-        }
-
-        Object roles = realmAccess.get("roles");
-        if (!(roles instanceof Collection<?> roleValues)) {
-            return List.of();
-        }
-
-        return roleValues.stream()
-                .filter(String.class::isInstance)
-                .map(String.class::cast)
-                .map(String::trim)
-                .filter(role -> !role.isEmpty())
-                .toList();
+        return extractClientRoles(jwt);
     }
 
     private List<String> extractClientRoles(Jwt jwt) {
@@ -143,27 +119,11 @@ public class SecurityConfig {
             return List.of();
         }
 
-        for (String client : new String[] {"weave", "weave-app", jwt.getClaimAsString("azp"), jwt.getClaimAsString("client_id")}) {
-            if (client == null || client.isBlank() || !(resourceAccess.get(client) instanceof Map<?, ?> clientAccess)) {
-                continue;
-            }
-            Object roles = clientAccess.get("roles");
-            if (roles instanceof Collection<?> roleValues) {
-                return stringValues(roleValues);
-            }
+        if (!(resourceAccess.get("weave-app") instanceof Map<?, ?> clientAccess)) {
+            return List.of();
         }
-        return List.of();
-    }
-
-    private List<String> extractStringClaims(Jwt jwt, String claimName) {
-        Object claim = jwt.getClaims().get(claimName);
-        if (claim instanceof String value) {
-            return value.isBlank() ? List.of() : List.of(value.trim());
-        }
-        if (claim instanceof Collection<?> values) {
-            return stringValues(values);
-        }
-        return List.of();
+        Object roles = clientAccess.get("roles");
+        return roles instanceof Collection<?> roleValues ? stringValues(roleValues) : List.of();
     }
 
     private List<String> stringValues(Collection<?> values) {

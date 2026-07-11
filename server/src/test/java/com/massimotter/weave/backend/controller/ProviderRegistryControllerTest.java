@@ -104,7 +104,7 @@ class ProviderRegistryControllerTest {
             org.springframework.security.oauth2.jwt.Jwt jwt = invocation.getArgument(0);
             List<String> roles = jwt == null
                     ? List.of()
-                    : jwt.getClaimAsMap("realm_access").getOrDefault("roles", List.of()) instanceof List<?> roleValues
+                    : ((Map<String, Object>) jwt.getClaimAsMap("resource_access").get("weave-app")).getOrDefault("roles", List.of()) instanceof List<?> roleValues
                             ? roleValues.stream().filter(String.class::isInstance).map(String.class::cast).toList()
                             : List.of();
             boolean allowed = roles.stream().anyMatch(role -> role.equals("owner") || role.equals("admin") || role.equals("operator"));
@@ -272,7 +272,7 @@ class ProviderRegistryControllerTest {
         return jwt().jwt(jwt -> jwt
                         .subject("admin-123")
                         .claim("aud", java.util.List.of("weave-app"))
-                        .claim("realm_access", java.util.Map.of("roles", java.util.List.of("admin"))))
+                        .claim("resource_access", java.util.Map.of("weave-app", java.util.Map.of("roles", java.util.List.of("admin")))))
                 .authorities(
                         new SimpleGrantedAuthority("SCOPE_weave:workspace"),
                         new SimpleGrantedAuthority("ROLE_ADMIN"));
@@ -282,7 +282,7 @@ class ProviderRegistryControllerTest {
         return jwt().jwt(jwt -> jwt
                         .subject("user-123")
                         .claim("aud", java.util.List.of("weave-app"))
-                        .claim("realm_access", java.util.Map.of("roles", java.util.List.of("member"))))
+                        .claim("resource_access", java.util.Map.of("weave-app", java.util.Map.of("roles", java.util.List.of("member")))))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 }

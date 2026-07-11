@@ -152,7 +152,7 @@ class ChatFacadeServiceTest {
                 .subject("user-123")
                 .issuer("https://auth.example.invalid/realms/acme")
                 .claim("weave_tenant_id", "tenant-default")
-                .claim("realm_access", Map.of("roles", roles))
+                .claim("resource_access", Map.of("weave-app", Map.of("roles", roles)))
                 .claim("groups", groups)
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(300))

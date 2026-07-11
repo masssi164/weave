@@ -106,7 +106,7 @@ class ProductProfileServiceTest {
                 .claim("timezone", "UTC")
                 .claim("azp", "weave-app")
                 .claim("aud", List.of("weave-app", "account"))
-                .claim("realm_access", Map.of("roles", List.of("member")))
+                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member"))))
                 .claim("groups", List.of("team-alpha"))
                 .build();
     }

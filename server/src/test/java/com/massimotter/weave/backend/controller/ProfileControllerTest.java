@@ -185,7 +185,7 @@ class ProfileControllerTest {
                         .claim("picture", "https://example.test/alice.png")
                         .claim("azp", "weave-app")
                         .claim("aud", List.of("weave-app", "account"))
-                        .claim("realm_access", Map.of("roles", List.of("member")))
+                        .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member"))))
                         .claim("groups", List.of("team-alpha")))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }

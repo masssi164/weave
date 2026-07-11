@@ -655,7 +655,7 @@ class WeaverRuntimeServiceTest {
                 Map.of(
                         "sub", subject,
                         "iss", "https://auth.example.invalid/realms/acme",
-                        "realm_access", Map.of("roles", roles),
+                        "resource_access", Map.of("weave-app", Map.of("roles", roles)),
                         "groups", groups));
     }
 }

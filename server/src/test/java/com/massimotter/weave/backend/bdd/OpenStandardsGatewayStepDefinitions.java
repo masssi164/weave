@@ -222,7 +222,7 @@ public class OpenStandardsGatewayStepDefinitions {
                         .claim("iss", "https://auth.weave.test/realms/weave")
                         .claim("aud", List.of("weave-app"))
                         .claim("weave_tenant_id", "tenant-default")
-                        .claim("realm_access", Map.of("roles", List.of("member")))
+                        .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member"))))
                         .claim("groups", List.of("weave-file-uploaders")))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
@@ -234,7 +234,7 @@ public class OpenStandardsGatewayStepDefinitions {
                 .issuer("https://auth.weave.test/realms/weave")
                 .claim("aud", List.of("weave-app"))
                 .claim("weave_tenant_id", "tenant-default")
-                .claim("realm_access", Map.of("roles", List.of("member")))
+                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member"))))
                 .claim("groups", List.of("weave-file-uploaders"))
                 .build();
     }

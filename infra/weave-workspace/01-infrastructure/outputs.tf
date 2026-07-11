@@ -39,8 +39,8 @@ output "mailpit_smtp_endpoint" {
 }
 
 output "mailpit_web_endpoint" {
-  description = "Loopback-only Mailpit operator inbox URL."
-  value       = module.mailpit.web_endpoint
+  description = "Private-LAN Mailpit tester inbox URL."
+  value       = local.public_urls.mail
 }
 
 output "app_config" {

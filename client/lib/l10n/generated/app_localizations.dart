@@ -6720,6 +6720,36 @@ abstract class AppLocalizations {
   /// **'Open the invite link, /join link, or organization sign-in URL your admin sent you. Weave will prepare your workspace from the organization manifest without asking you to edit provider endpoints.'**
   String get setupMemberHandoffDescription;
 
+  /// Organization access input label
+  ///
+  /// In en, this message translates to:
+  /// **'Server URI, invitation link, or QR payload'**
+  String get setupOrganizationUriLabel;
+
+  /// Organization access input help
+  ///
+  /// In en, this message translates to:
+  /// **'Paste the link from your email or QR code, or enter your organization\'s Weave address.'**
+  String get setupOrganizationUriHelper;
+
+  /// Invalid organization access input
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a secure Weave server URI or invitation link without embedded credentials.'**
+  String get setupOrganizationUriError;
+
+  /// Resolve organization access action
+  ///
+  /// In en, this message translates to:
+  /// **'Continue to organization'**
+  String get setupOrganizationContinueButton;
+
+  /// Explains equivalent organization access methods
+  ///
+  /// In en, this message translates to:
+  /// **'Your invitation email and organization QR code contain the same Weave address. After it is verified, the next screen always offers Sign in.'**
+  String get setupOrganizationAccessHelp;
+
   /// Primary action label for handoff-first setup
   ///
   /// In en, this message translates to:

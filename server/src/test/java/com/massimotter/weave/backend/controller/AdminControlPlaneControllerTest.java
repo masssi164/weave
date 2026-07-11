@@ -153,7 +153,7 @@ class AdminControlPlaneControllerTest {
             String capability = invocation.getArgument(1);
             List<String> roles = jwt == null
                     ? List.of()
-                    : ((Map<String, Object>) jwt.getClaimAsMap("realm_access"))
+                    : ((Map<String, Object>) ((Map<String, Object>) jwt.getClaimAsMap("resource_access")).get("weave-app"))
                             .getOrDefault("roles", List.of()) instanceof List<?> roleValues
                                     ? roleValues.stream().filter(String.class::isInstance).map(String.class::cast).toList()
                                     : List.of();
@@ -869,7 +869,7 @@ class AdminControlPlaneControllerTest {
                         .claim("iss", "https://auth.example.invalid/realms/weave")
                         .claim("aud", java.util.List.of("weave-app"))
                         .claim("weave_tenant", "weave-dogfood")
-                        .claim("realm_access", java.util.Map.of("roles", java.util.List.of("admin"))))
+                        .claim("resource_access", java.util.Map.of("weave-app", java.util.Map.of("roles", java.util.List.of("admin")))))
                 .authorities(
                         new SimpleGrantedAuthority("SCOPE_weave:workspace"),
                         new SimpleGrantedAuthority("ROLE_ADMIN"));
@@ -881,7 +881,7 @@ class AdminControlPlaneControllerTest {
                         .claim("iss", "https://auth.example.invalid/realms/weave")
                         .claim("aud", java.util.List.of("weave-app"))
                         .claim("weave_tenant", "weave-dogfood")
-                        .claim("realm_access", java.util.Map.of("roles", java.util.List.of("operator"))))
+                        .claim("resource_access", java.util.Map.of("weave-app", java.util.Map.of("roles", java.util.List.of("operator")))))
                 .authorities(
                         new SimpleGrantedAuthority("SCOPE_weave:workspace"),
                         new SimpleGrantedAuthority("ROLE_OPERATOR"));
@@ -892,7 +892,7 @@ class AdminControlPlaneControllerTest {
                         .subject("user-123")
                         .claim("iss", "https://auth.example.invalid/realms/weave")
                         .claim("aud", java.util.List.of("weave-app"))
-                        .claim("realm_access", java.util.Map.of("roles", java.util.List.of("member"))))
+                        .claim("resource_access", java.util.Map.of("weave-app", java.util.Map.of("roles", java.util.List.of("member")))))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 

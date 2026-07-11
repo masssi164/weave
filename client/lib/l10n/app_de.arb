@@ -1404,6 +1404,16 @@
   "@setupMemberHandoffDescription": {
     "description": "Description for the normal member handoff-first setup screen"
   },
+  "setupOrganizationUriLabel": "Server-URI, Einladungslink oder QR-Inhalt",
+  "@setupOrganizationUriLabel": {"description": "Eingabefeld für den Organisationszugang"},
+  "setupOrganizationUriHelper": "Füge den Link aus E-Mail oder QR-Code ein oder gib die Weave-Adresse deiner Organisation ein.",
+  "@setupOrganizationUriHelper": {"description": "Hilfe zum Organisationszugang"},
+  "setupOrganizationUriError": "Gib eine sichere Weave-Server-URI oder einen Einladungslink ohne eingebettete Zugangsdaten ein.",
+  "@setupOrganizationUriError": {"description": "Ungültiger Organisationszugang"},
+  "setupOrganizationContinueButton": "Weiter zur Organisation",
+  "@setupOrganizationContinueButton": {"description": "Organisationszugang auflösen"},
+  "setupOrganizationAccessHelp": "Deine Einladungs-E-Mail und der Organisations-QR-Code enthalten dieselbe Weave-Adresse. Nach der Prüfung bietet der nächste Bildschirm immer Anmelden an.",
+  "@setupOrganizationAccessHelp": {"description": "Erklärt gleichwertige Zugangswege"},
   "setupMemberHandoffPrimaryAction": "Ich habe eine Einladung oder einen Anmeldelink",
   "@setupMemberHandoffPrimaryAction": {
     "description": "Primary action label for handoff-first setup"

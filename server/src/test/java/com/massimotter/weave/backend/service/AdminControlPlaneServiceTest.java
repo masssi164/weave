@@ -106,7 +106,7 @@ class AdminControlPlaneServiceTest {
 
 
     @Test
-    void adminAndOperatorCanSimulateEffectiveProviderPolicyBeforeChanges() throws Exception {
+    void adminCanSimulateEffectiveProviderPolicyBeforeChanges() throws Exception {
         InMemoryAuditEventPublisher auditPublisher = new InMemoryAuditEventPublisher();
         AdminControlPlaneService service = adminControlPlaneService(auditPublisher);
         EffectivePolicySimulationRequest request = new EffectivePolicySimulationRequest(
@@ -118,7 +118,6 @@ class AdminControlPlaneServiceTest {
                 "simulate before #233 dry-run/apply with Bearer operator-token and secretref://weave/provider/keycloak");
 
         var adminResponse = service.simulateEffectivePolicy(request, jwt("admin"));
-        var operatorResponse = service.simulateEffectivePolicy(request, jwt("operator"));
 
         assertThat(adminResponse.supportSafe()).isTrue();
         assertThat(adminResponse.unknownInputsFailClosed()).isFalse();
@@ -132,9 +131,7 @@ class AdminControlPlaneServiceTest {
                     assertThat(state.state()).isEqualTo("disabled");
                     assertThat(state.reasonCode()).isEqualTo("weaver-default-disabled");
                 });
-        assertThat(operatorResponse.grantedCapabilities()).containsExactly("boards.update_task", "chat.send");
-
-        assertThat(auditPublisher.events()).hasSize(2);
+        assertThat(auditPublisher.events()).hasSize(1);
         assertThat(auditPublisher.events()).allSatisfy(event -> {
             assertThat(event.action()).isEqualTo(AuditAction.EFFECTIVE_POLICY_SIMULATED);
             assertThat(event.payload())
@@ -809,7 +806,7 @@ class AdminControlPlaneServiceTest {
                 .subject(role + "-123")
                 .issuer("https://auth.example.invalid/realms/acme")
                 .claim("weave_tenant", "weave-dogfood")
-                .claim("realm_access", Map.of("roles", List.of(role)))
+                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of(role))))
                 .claim("groups", List.of())
                 .build();
     }

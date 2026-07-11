@@ -9,6 +9,6 @@ output "smtp_endpoint" {
 }
 
 output "web_endpoint" {
-  description = "Loopback-only Mailpit operator inbox URL."
+  description = "Loopback-only Mailpit operator inbox fallback URL."
   value       = "http://127.0.0.1:${var.web_host_port}"
 }
