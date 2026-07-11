@@ -9,6 +9,15 @@ TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 mkdir -p "${TMP_DIR}/bin"
 
+file_mode() {
+  local path="$1"
+  if stat -c '%a' "${path}" >/dev/null 2>&1; then
+    stat -c '%a' "${path}"
+  else
+    stat -f '%Lp' "${path}"
+  fi
+}
+
 cat >"${TMP_DIR}/bin/curl" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -63,8 +72,8 @@ printf missing >"${FAKE_STATE}"; : >"${FAKE_CURL_LOG}"
 output="$(${SCRIPT} ensure --subject-file "${subject_file}" --evidence-file "${evidence_file}")"
 grep -Fq 'state=pending action=created_and_activation_sent' <<<"${output}"
 [[ "$(cat "${subject_file}")" == human-subject-1 ]]
-[[ "$(stat -f '%Lp' "${subject_file}" 2>/dev/null || stat -c '%a' "${subject_file}")" == 600 ]]
-[[ "$(stat -f '%Lp' "$(dirname "${subject_file}")" 2>/dev/null || stat -c '%a' "$(dirname "${subject_file}")")" == 700 ]]
+[[ "$(file_mode "${subject_file}")" == 600 ]]
+[[ "$(file_mode "$(dirname "${subject_file}")")" == 700 ]]
 [[ "$(grep -c 'POST .*\/users$' "${FAKE_CURL_LOG}")" -eq 1 ]]
 [[ "$(grep -c 'PUT .*execute-actions-email' "${FAKE_CURL_LOG}")" -eq 1 ]]
 jq -e '.state == "pending" and .action == "created_and_activation_sent" and .activation.mailSent == true and (.activation.requiredActions | contains(["UPDATE_PASSWORD"])) and .qrOrDeeplinkCarriesSecret == false and .appStoresActivationSecret == false and .supportSafe == true and (.subjectSha256 | test("^[0-9a-f]{64}$"))' "${evidence_file}" >/dev/null
