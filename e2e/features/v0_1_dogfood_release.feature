@@ -24,8 +24,10 @@ Feature: Weave v0.1 dogfood production release
   Scenario: Dogfood member invite activation reaches the workspace
     Given an admin has provisioned a dogfood member invite without passwords, bearer tokens, provider payloads, or raw secrets
     And the identity provider sends the initial credential setup mail into the local dogfood Mailpit inbox
-    When the member opens the current invite deeplink on an update-in-place or trust-preserving app-state-reset iOS install
-    And the member taps Sign In, completes first-login activation, sets their password, and returns to Weave
+    When the member completes Keycloak activation in the system browser
+    And opens the same secret-free organization access through the email completion link, QR code, or server URI
+    And the Organisation access screen offers Sign In
+    And the member taps Sign In, completes OIDC Authorization Code with PKCE, and returns to Weave
     Then Weave records support-safe handoff_ready, ready_for_sso, sso_in_progress, authenticated, workspace_bootstrap_loading, and workspace_ready evidence
     And the same dogfood member evidence proves Chat and Files are usable after login
     And the authenticated session is restored after force-quit and reopen
@@ -78,7 +80,8 @@ Feature: Weave v0.1 dogfood production release
     And Nextcloud or SharePoint-like files map to the same Drive, Node, Folder, File, Version, Share, Permission, Lock, and EditSession model
     And CalDAV or Microsoft Graph-like calendar and LiveKit or Teams-like meetings map to the same Calendar, Event, Attendee, Recurrence, Availability, Resource, Meeting, Participant, Recording, Captions, and MediaSession model
     And OpenProject or Planner-like tasks map to the same Board, List, Task, Status, Assignee, Comment, Attachment, Dependency, and CustomField model
-    And Keycloak or Entra-like identity maps to the same Organization, User, Group, Role, ProviderConfig, CapabilityPolicy, Whitelist, SecretRef, Readiness, and AuditEvent model
+    And Keycloak remains the identity authority while upstream LDAP, Active Directory, OIDC, and SAML identities are federated or brokered through it
+    And Weave stores actor references and audit evidence without duplicating Keycloak users, memberships, groups, or roles
 
   @weave-v01-member-provider-neutral-states
   Scenario: Member client sees stable feature states without raw provider details
@@ -99,9 +102,9 @@ Feature: Weave v0.1 dogfood production release
 
   @weave-v01-idm-rbac-capability-policy
   Scenario: IDM roles and groups decide capability profiles before Weaver runtime
-    Given an owner has selected an IDM provider for the organization
+    Given an owner has configured Keycloak federation and organization access
     When role and group claims are mapped into workspace capability profiles
-    Then Keycloak is the self-hosted default while OIDC and SAML adapters stay provider-neutral
+    Then Keycloak is the identity authority and upstream OIDC SAML LDAP or Active Directory sources remain behind it
     And capability profiles grant category-level capabilities deny-by-default
     And admins/operators can inspect support-safe policy state
     And members only see available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later impact states

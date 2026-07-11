@@ -57,7 +57,7 @@ class IdentityControllerTest {
                         .claim("timezone", "Europe/Berlin")
                         .claim("azp", "weave-app")
                         .claim("aud", List.of("weave-app", "account"))
-                        .claim("realm_access", Map.of("roles", List.of("member", "admin")))
+                        .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member", "admin"))))
                         .claim("groups", List.of("team-alpha", "team-beta"))
                         .claim("weave_context_roles", List.of("channel-admin")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
@@ -98,17 +98,17 @@ class IdentityControllerTest {
     }
 
     @Test
-    void includesOperatorAsAProductRole() throws Exception {
+    void ignoresOperatorAsAMemberProductRole() throws Exception {
         mockMvc.perform(get("/api/me").with(jwt().jwt(jwt -> jwt
                         .subject("operator-123")
                         .claim("iss", "https://auth.example.invalid/realms/acme")
                         .claim("preferred_username", "ops")
-                        .claim("realm_access", Map.of("roles", List.of("operator")))
+                        .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("operator"))))
                         .claim("aud", List.of("weave-app")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.roles[0]").value("operator"))
-                .andExpect(jsonPath("$.providerRoleMappings[0]").value("role_claim:operator"));
+                .andExpect(jsonPath("$.roles").isEmpty())
+                .andExpect(jsonPath("$.providerRoleMappings").isEmpty());
     }
 
     @Test
@@ -118,7 +118,7 @@ class IdentityControllerTest {
                         .claim("iss", "https://auth.example.invalid/realms/acme")
                         .claim("email", "alice.renamed@example.com")
                         .claim("preferred_username", "alice")
-                        .claim("realm_access", Map.of("roles", List.of("member")))
+                        .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member"))))
                         .claim("aud", List.of("weave-app")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())

@@ -114,6 +114,7 @@ readonly PERSISTED_TF_VARS=(
   TF_VAR_nextcloud_backend_actor_username
   TF_VAR_nextcloud_backend_actor_token
   TF_VAR_matrix_mas_client_secret
+  TF_VAR_identity_admin_client_secret
   TF_VAR_mas_encryption_secret
   TF_VAR_mas_signing_key_pem
   TF_VAR_mas_matrix_secret
@@ -614,21 +615,21 @@ ensure_existing_keycloak_terraform_state() {
 
   "${WEAVE_IAC_BIN}" -chdir="${KEYCLOAK_DIR}" init -input=false
 
+  if "${WEAVE_IAC_BIN}" -chdir="${KEYCLOAK_DIR}" providers 2>/dev/null | grep -q 'provider\[registry.opentofu.org/mrparkers/keycloak\]'; then
+    "${WEAVE_IAC_BIN}" -chdir="${KEYCLOAK_DIR}" state replace-provider -auto-approve \
+      registry.opentofu.org/mrparkers/keycloak \
+      registry.opentofu.org/keycloak/keycloak
+  fi
+
   if ! keycloak_realm_exists; then
     return
   fi
 
   keycloak_import_if_missing module.tenant_identity.keycloak_realm.tenant "${TF_VAR_tenant_slug}"
 
-  for role in owner admin operator member guest; do
-    uuid="$(keycloak_lookup_role_id "${role}")"
-    keycloak_import_if_missing "module.tenant_identity.keycloak_role.weave_product[\"${role}\"]" "${TF_VAR_tenant_slug}/${uuid}"
-  done
-
   for group_key_and_name in \
     owner:workspace-owners \
     admin:workspace-admins \
-    operator:workspace-operators \
     member:workspace-members \
     guest:workspace-guests; do
     local group_key="${group_key_and_name%%:*}"
@@ -655,13 +656,16 @@ ensure_existing_keycloak_terraform_state() {
   for client_key_and_id in \
     weave_app:weave-app \
     weave_backend:weave-backend \
+    weave_identity_admin:weave-identity-admin \
     weave_admin_console:weave-admin-console \
     matrix_mas:matrix-mas \
     nextcloud:nextcloud; do
     local client_key="${client_key_and_id%%:*}"
     local client_id="${client_key_and_id#*:}"
     uuid="$(keycloak_lookup_client_uuid "${client_id}")"
-    keycloak_import_if_missing "module.tenant_identity.keycloak_openid_client.client[\"${client_key}\"]" "${TF_VAR_tenant_slug}/${uuid}"
+    if [[ -n "${uuid}" ]]; then
+      keycloak_import_if_missing "module.tenant_identity.keycloak_openid_client.client[\"${client_key}\"]" "${TF_VAR_tenant_slug}/${uuid}"
+    fi
   done
 
   client_scope_id="$(keycloak_lookup_client_scope_id 'weave:workspace')"
@@ -1128,6 +1132,7 @@ preflight_checks() {
     "$(public_host "${TF_VAR_api_subdomain}")"
     "$(public_host "${TF_VAR_admin_subdomain}")"
     "$(public_host "${TF_VAR_auth_subdomain}")"
+    "mail.${TF_VAR_tenant_domain}"
     "$(public_host "${TF_VAR_nextcloud_subdomain}")"
     "$(public_host "${TF_VAR_matrix_subdomain}")"
   )
@@ -1365,6 +1370,7 @@ ensure_generated_secrets() {
   set_default_var TF_VAR_boards_openproject_api_token ""
   set_default_var TF_VAR_openproject_secret_key_base ""
   set_default_secret TF_VAR_matrix_mas_client_secret "$(random_base64 32)"
+  set_default_secret TF_VAR_identity_admin_client_secret "$(random_base64 32)"
   set_default_secret TF_VAR_mas_encryption_secret "$(random_hex 32)"
   set_default_secret TF_VAR_mas_matrix_secret "$(random_base64 32)"
   set_default_secret TF_VAR_synapse_registration_shared_secret "$(random_base64 32)"
@@ -1709,7 +1715,7 @@ print_summary() {
   log "- Local CA:   http://${TF_VAR_tenant_domain}:${TF_VAR_proxy_http_host_port}/weave-local-ca.pem"
   log
   log "App config file (no secrets): ${APP_CONFIG_ENV_FILE}"
-  log "DNS-first local hosts: ${TF_VAR_tenant_domain} $(public_host "${TF_VAR_api_subdomain}") $(public_host "${TF_VAR_auth_subdomain}") $(public_host "${TF_VAR_nextcloud_subdomain}") $(public_host "${TF_VAR_matrix_subdomain}") $(public_host "${TF_VAR_admin_subdomain}")"
+  log "DNS-first local hosts: ${TF_VAR_tenant_domain} $(public_host "${TF_VAR_api_subdomain}") $(public_host "${TF_VAR_auth_subdomain}") $(public_host "${TF_VAR_nextcloud_subdomain}") $(public_host "${TF_VAR_matrix_subdomain}") $(public_host "${TF_VAR_admin_subdomain}") mail.${TF_VAR_tenant_domain}"
   log "Trust this local TLS CA certificate before opening browser/native-client URLs: ${TF_VAR_caddy_tls_ca_file}"
   log
   log "MVP feature flags:"
@@ -1726,7 +1732,7 @@ print_summary() {
   log "- Matrix facade versions: $(client_matrix_facade_url)/_matrix/client/versions"
   log "- Matrix default rooms: #announcements:$(public_host "${TF_VAR_matrix_subdomain}"), #general:$(public_host "${TF_VAR_matrix_subdomain}"), #help:$(public_host "${TF_VAR_matrix_subdomain}")"
   log "- Raw Nextcloud: $(nextcloud_public_url)/"
-  log "- Dogfood mail inbox: http://127.0.0.1:${TF_VAR_mailpit_web_host_port:-8025}"
+  log "- Dogfood mail inbox: ${TF_VAR_public_scheme}://mail.${TF_VAR_tenant_domain}${suffix} (private LAN only; loopback fallback http://127.0.0.1:${TF_VAR_mailpit_web_host_port:-8025})"
   log
   log "Admin credentials (local/dev only):"
   log "- Keycloak admin user: ${TF_VAR_keycloak_admin_username} (password stored in ${BOOTSTRAP_ENV_FILE})"

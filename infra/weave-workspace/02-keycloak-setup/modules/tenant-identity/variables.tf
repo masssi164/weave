@@ -3,6 +3,11 @@ variable "tenant_slug" {
   type        = string
 }
 
+variable "product_public_url" {
+  description = "Browser-facing Weave product URL used after organization invitation activation."
+  type        = string
+}
+
 variable "keycloak_public_url" {
   description = "Browser-facing Keycloak base URL."
   type        = string
@@ -30,6 +35,12 @@ variable "matrix_mas_upstream_id" {
 
 variable "matrix_mas_client_secret" {
   description = "Shared confidential client secret for the matrix-mas client."
+  type        = string
+  sensitive   = true
+}
+
+variable "identity_admin_client_secret" {
+  description = "Client secret for the backend-only Keycloak organization identity administrator."
   type        = string
   sensitive   = true
 }

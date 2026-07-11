@@ -558,11 +558,11 @@
           ]
         },
         {
-          "path": "client/test/features/onboarding/setup_flow_test.dart",
+          "path": "admin-console/src/App.test.tsx",
           "fragments": [
-            "Configure provider categories",
-            "Provider categories",
-            "Documents/collaboration",
+            "configure provider categories, replacement dry-runs",
+            "provider categories",
+            "Documents",
             "Weaver"
           ]
         },

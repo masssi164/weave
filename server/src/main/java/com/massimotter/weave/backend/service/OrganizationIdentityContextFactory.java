@@ -17,7 +17,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 
 final class OrganizationIdentityContextFactory {
 
-    private static final List<String> WEAVE_ORG_ROLES = List.of("owner", "admin", "operator", "member", "guest");
+    private static final List<String> WEAVE_ORG_ROLES = List.of("owner", "admin", "member", "guest");
 
     private static final int MAX_IDENTITY_ISSUER_LENGTH = com.massimotter.weave.backend.model.IdentityKeyFormat.MAX_ISSUER_LENGTH;
     private static final int MAX_IDENTITY_SUBJECT_LENGTH = com.massimotter.weave.backend.model.IdentityKeyFormat.MAX_SUBJECT_LENGTH;
@@ -98,12 +98,7 @@ final class OrganizationIdentityContextFactory {
     }
 
     private static List<String> canonicalRoles(Jwt jwt) {
-        return Stream.of(
-                        stringClaims(jwt, "weave_roles"),
-                        stringClaims(jwt, "roles"),
-                        realmRoles(jwt),
-                        clientRoles(jwt))
-                .flatMap(Collection::stream)
+        return clientRoles(jwt).stream()
                 .map(role -> role.toLowerCase(Locale.ROOT))
                 .filter(WEAVE_ORG_ROLES::contains)
                 .distinct()
@@ -111,34 +106,17 @@ final class OrganizationIdentityContextFactory {
                 .toList();
     }
 
-    private static List<String> realmRoles(Jwt jwt) {
-        Map<String, Object> realmAccess = jwt == null ? null : jwt.getClaimAsMap("realm_access");
-        if (realmAccess == null) {
-            return List.of();
-        }
-        Object roles = realmAccess.get("roles");
-        if (!(roles instanceof Collection<?> roleValues)) {
-            return List.of();
-        }
-        return stringValues(roleValues);
-    }
-
     private static List<String> clientRoles(Jwt jwt) {
         Map<String, Object> resourceAccess = jwt == null ? null : jwt.getClaimAsMap("resource_access");
         if (resourceAccess == null) {
             return List.of();
         }
-        return Stream.of("weave", "weave-app", claim(jwt, "azp"), claim(jwt, "client_id"))
-                .filter(OrganizationIdentityContextFactory::hasText)
-                .map(resourceAccess::get)
-                .filter(Map.class::isInstance)
-                .map(Map.class::cast)
-                .map(clientAccess -> clientAccess.get("roles"))
-                .filter(Collection.class::isInstance)
-                .map(Collection.class::cast)
-                .findFirst()
-                .map(OrganizationIdentityContextFactory::stringValues)
-                .orElse(List.of());
+        Object client = resourceAccess.get("weave-app");
+        if (!(client instanceof Map<?, ?> clientAccess)) {
+            return List.of();
+        }
+        Object roles = clientAccess.get("roles");
+        return roles instanceof Collection<?> values ? stringValues(values) : List.of();
     }
 
     private static List<String> providerRoleMappings(List<String> roles, List<String> groups) {

@@ -4,7 +4,7 @@ Status: active implementation gate for the next physical iPhone dogfood attempt.
 
 ## Product decision
 
-Mobile members need long-lived sessions in normal use. Organizations still need a security boundary, so long-lived sessions are an explicit identity entitlement rather than a client-side workaround. For the dogfood Keycloak realm, `owner`, `admin`, `operator`, and `member` groups receive the built-in `offline_access` role; `guest` is excluded until guest-session policy is defined.
+Mobile members need long-lived sessions in normal use. Organizations still need a security boundary, so long-lived sessions are an explicit identity entitlement rather than a client-side workaround. Keycloak is the identity authority. For the dogfood realm, approved `weave-app` client roles receive the built-in `offline_access` role; `guest` is excluded until guest-session policy is defined. `operator` is not a member product role.
 
 The Weave mobile app may request `offline_access`. If the identity provider denies it, the app must show localized product copy and a support code, not a raw provider error.
 
@@ -13,7 +13,8 @@ The Weave mobile app may request `offline_access`. If the identity provider deni
 Use Mailpit for dogfood-only mail capture. It belongs in `infra/weave-workspace` as a local/dogfood service with:
 
 - SMTP endpoint for stack services: `weave-mailpit:1025`.
-- Operator web/API inbox: `http://127.0.0.1:8025` by default, optionally proxied only on dogfood/local profiles.
+- Operator web/API inbox: `http://127.0.0.1:8025` locally and `https://mail.weave.test` through Caddy only for explicitly configured private-LAN CIDRs.
+- SMTP remains private on the Docker network and is never routed through Caddy or exposed to the LAN.
 - No production mail path, no public Internet exposure, and no real external delivery.
 - Support-bundle redaction for message bodies unless a future evidence task explicitly stores sanitized fixtures.
 
@@ -21,9 +22,9 @@ This replaces ambiguous "mail catcher/mailkit-style" wording with one concrete l
 
 ## Activation invite lifecycle
 
-Dogfood member activation must not depend on publishing a password or long-lived token. The operator creates or refreshes the identity with `infra/weave-workspace/activate-user.sh`, which now provisions the account in a pending required-action state and asks Keycloak to send a short-lived one-time activation email to Mailpit.
+Dogfood member activation must not depend on publishing a password or long-lived token. An owner or admin creates a Keycloak Organization invitation through the Weave Admin API. Keycloak sends the short-lived activation email directly to Mailpit and owns the activation token, expiry, resend, deletion, registration, credentials, organization membership, organization groups, and `weave-app` client roles. Weave stores only temporary role/group provisioning intent when those assignments cannot be attached to the pending Keycloak invitation.
 
-The QR/deeplink remains bootstrap-only. It may contain the non-secret handoff or invite reference, organization/workspace context, route mode, CA/public-route guidance, and platform-config URL. It must not contain passwords, bearer tokens, refresh tokens, Keycloak action-token URLs, raw provider payloads, SecretRefs, or credential URLs. Treat the action URL inside Mailpit as a secret identity-provider artifact: open it only in the system browser activation path and never paste it into docs, logs, app preferences, QR payloads, GitHub comments, or support bundles.
+After browser activation, the email completion link, QR code, app/universal link, and manually entered server URI all resolve the same secret-free organization access contract. They must not contain passwords, bearer tokens, refresh tokens, Keycloak action-token URLs, raw provider payloads, SecretRefs, or credential URLs. Treat the action URL inside Mailpit as a secret identity-provider artifact: open it only in the system browser activation path and never paste it into docs, logs, app preferences, QR payloads, GitHub comments, or support bundles.
 
 Support-safe activation evidence may record hashed username/email, the invite reference, role/group, required action names, TTL, and whether Mailpit captured the message. It must not record the action URL or token value.
 
@@ -32,7 +33,7 @@ Support-safe activation evidence may record hashed username/email, the invite re
 The member app should model these states explicitly:
 
 - `handoff_received`: a join/deep link was opened and stored.
-- `platform_config_loaded`: `/api/platform/config` was fetched from the product origin.
+- `platform_config_loaded`: the organization access discovery contract was fetched from the product origin.
 - `ready_for_sso`: issuer/client/redirect configuration is complete.
 - `sso_in_progress`: AppAuth/browser sign-in is active.
 - `authenticated`: access token and refresh/offline token were saved.
@@ -41,13 +42,14 @@ The member app should model these states explicitly:
 - `recoverable_error`: localized retryable issue such as network, TLS trust, invite refresh needed, or offline-session entitlement missing.
 - `terminal_setup_error`: support-safe state requiring operator action.
 
-The ready/prepared screen must not reappear after successful credentials unless the session was not saved or the authenticated bootstrap explicitly failed with localized recovery guidance.
+The Organisation access screen must always expose a functional **Sign in** action once discovery succeeds. The ready/prepared screen must not reappear after successful credentials unless the session was not saved or the authenticated bootstrap explicitly failed with localized recovery guidance.
 
 ## Acceptance test matrix
 
 - Delivery gate: implement against `dev`, run the onboarding E2E gate in the iOS Simulator from the current `dev` state, and only then promote/install the dogfood candidate for physical iPhone testing.
 - Trust-preserving app-state reset or first install, handoff link, successful SSO, app lands in workspace/home and persists a refresh/offline token.
-- Operator-created activation invite uses Keycloak required actions with a short TTL, Mailpit capture, support-safe evidence, and no initial password output.
+- Admin-created Keycloak Organization invitation uses a short TTL, Mailpit capture, support-safe evidence, and no initial password output.
+- Email completion link, QR code, and manual server URI converge on the same Organisation access screen and explicit Sign in action.
 - Force-quit/reopen with saved session, no login prompt, backend profile/capability bootstrap succeeds.
 - Expired access token with valid refresh/offline token, refresh succeeds without interactive login.
 - Missing `offline_access` role, app shows localized offline-session entitlement guidance in English and German.
@@ -73,7 +75,7 @@ The ready/prepared screen must not reappear after successful credentials unless 
 
 ## Remaining implementation slices
 
-- Extend Mailpit coverage beyond Keycloak if backend-owned outbound email becomes part of dogfood.
+- Keep Mailpit directly connected to Keycloak; extend it beyond Keycloak only if backend-owned outbound email becomes an explicit product contract.
 - Convert the current handoff/sign-in flow into a typed onboarding state machine instead of relying on route side effects.
 - Add widget/integration tests for every localized state above.
 - Add dogfood runbook steps for trust-preserving app-state reset, manual login, session restore, and Mailpit inbox verification.

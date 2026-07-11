@@ -306,7 +306,7 @@ class WeaverMcpBridgeServiceTest {
                 Map.of(
                         "sub", "member@example.invalid",
                         "iss", "https://auth.example.invalid/realms/acme",
-                        "realm_access", Map.of("roles", List.of("member")),
+                        "resource_access", Map.of("weave-app", Map.of("roles", List.of("member"))),
                         "groups", List.of("weave-weaver-runtime", "weave-weaver-calendar")));
     }
 

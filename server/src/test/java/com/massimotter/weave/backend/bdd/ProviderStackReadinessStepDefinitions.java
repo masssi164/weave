@@ -78,7 +78,7 @@ public class ProviderStackReadinessStepDefinitions {
                         .subject("admin-123")
                         .claim("iss", "https://auth.weave.test/realms/weave")
                         .claim("aud", List.of("weave-app"))
-                        .claim("realm_access", Map.of("roles", List.of("admin"))))
+                        .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("admin")))))
                 .authorities(
                         new SimpleGrantedAuthority("SCOPE_weave:workspace"),
                         new SimpleGrantedAuthority("ROLE_ADMIN"));

@@ -7,38 +7,51 @@ import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.model.OnboardingProvisioningState;
 import com.massimotter.weave.backend.model.OnboardingStatusResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
+import com.massimotter.weave.backend.identity.invitation.MemberInvitationStatus;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
-import java.util.Set;
 import java.util.stream.Stream;
 import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 
 @Service
 public class OnboardingStatusService {
 
-    private static final List<String> ROLE_PRIORITY = List.of("owner", "admin", "operator", "member", "guest");
-    private static final Set<String> INVITE_STATUSES = Set.of("active", "pending", "disabled");
+    private static final List<String> ROLE_PRIORITY = List.of("owner", "admin", "member", "guest");
 
     private final OAuth2ResourceServerProperties resourceServerProperties;
     private final WeaveSecurityProperties securityProperties;
     private final WorkspaceCapabilityProperties workspaceProperties;
     private final PlatformContractProperties platformProperties;
     private final OnboardingStatusProperties onboardingProperties;
+    private final MemberInvitationService memberInvitationService;
 
+    @Autowired
     public OnboardingStatusService(
             OAuth2ResourceServerProperties resourceServerProperties,
             WeaveSecurityProperties securityProperties,
             WorkspaceCapabilityProperties workspaceProperties,
             PlatformContractProperties platformProperties,
-            OnboardingStatusProperties onboardingProperties) {
+            OnboardingStatusProperties onboardingProperties,
+            MemberInvitationService memberInvitationService) {
         this.resourceServerProperties = resourceServerProperties;
         this.securityProperties = securityProperties;
         this.workspaceProperties = workspaceProperties;
         this.platformProperties = platformProperties;
         this.onboardingProperties = onboardingProperties;
+        this.memberInvitationService = memberInvitationService;
+    }
+
+    OnboardingStatusService(
+            OAuth2ResourceServerProperties resourceServerProperties,
+            WeaveSecurityProperties securityProperties,
+            WorkspaceCapabilityProperties workspaceProperties,
+            PlatformContractProperties platformProperties,
+            OnboardingStatusProperties onboardingProperties) {
+        this(resourceServerProperties, securityProperties, workspaceProperties, platformProperties,
+                onboardingProperties, null);
     }
 
     public OnboardingStatusResponse status(Jwt jwt) {
@@ -86,43 +99,25 @@ public class OnboardingStatusService {
     }
 
     private OnboardingStatusResponse.InviteStatus inviteStatus(Jwt jwt, String email, boolean emailVerified) {
-        String claimedStatus = normalizeInviteStatus(firstText(
-                jwt.getClaimAsString("weave_invite_status"),
-                jwt.getClaimAsString("invite_status")));
-        if (claimedStatus != null) {
-            return switch (claimedStatus) {
-                case "pending" -> new OnboardingStatusResponse.InviteStatus(
-                        "pending",
-                        "The invite exists but still needs acceptance or activation before the full workspace is available.",
-                        "Ask a workspace owner or admin to finish activating this account if the invite was already accepted.");
-                case "disabled" -> new OnboardingStatusResponse.InviteStatus(
-                        "disabled",
-                        "This account is disabled for the Weave workspace.",
-                        "Ask a workspace owner or admin to reactivate the account.");
-                default -> new OnboardingStatusResponse.InviteStatus(
-                        "active",
-                        "The invite has been accepted and the account is active for Weave.",
-                        null);
-            };
-        }
         if (!hasText(email) || !emailVerified) {
             return new OnboardingStatusResponse.InviteStatus(
                     "pending",
                     "The account can authenticate, but email verification is not complete yet.",
                     "Verify the email address in the identity provider, then sign in again.");
         }
+        MemberInvitationStatus canonicalStatus = memberInvitationService == null
+                ? MemberInvitationStatus.ACCEPTED
+                : memberInvitationService.reconcileAuthenticated(jwt);
+        if (canonicalStatus != MemberInvitationStatus.ACCEPTED) {
+            return new OnboardingStatusResponse.InviteStatus(
+                    canonicalStatus == MemberInvitationStatus.REVOKED ? "disabled" : "pending",
+                    "Organization activation is not complete for this account.",
+                    "Open a current organization invitation in the system browser or ask an admin to resend it.");
+        }
         return new OnboardingStatusResponse.InviteStatus(
                 "active",
                 "The invite has been accepted and the account is active for Weave.",
                 null);
-    }
-
-    private String normalizeInviteStatus(String value) {
-        if (!hasText(value)) {
-            return null;
-        }
-        String normalized = value.trim().toLowerCase(Locale.ROOT).replace('-', '_');
-        return INVITE_STATUSES.contains(normalized) ? normalized : null;
     }
 
     private OnboardingStatusResponse.Access access(List<String> roles, List<String> groups) {

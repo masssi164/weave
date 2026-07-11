@@ -478,6 +478,7 @@ WEAVE_MATRIX_PROVIDER_URL="${WEAVE_MATRIX_PROVIDER_URL:-$(public_url "${TF_VAR_m
 WEAVE_LOCAL_CA_HOST="${TF_VAR_tenant_domain:-weave.test}"
 WEAVE_LOCAL_CA_EXPECTED_URL="http://${WEAVE_LOCAL_CA_HOST}:${TF_VAR_proxy_http_host_port:-44080}/weave-local-ca.pem"
 WEAVE_LOCAL_CA_URL="${WEAVE_LOCAL_CA_URL:-${WEAVE_LOCAL_CA_EXPECTED_URL}}"
+WEAVE_MAILPIT_URL="${WEAVE_MAILPIT_URL:-${TF_VAR_public_scheme:-https}://mail.${TF_VAR_tenant_domain:-weave.test}$(public_port_suffix)}"
 
 [[ "${WEAVE_PUBLIC_BASE_URL}" == "$(product_public_url)" ]] || fail "Smoke check failed: product URL must stay DNS-first on ${TF_VAR_tenant_domain:-weave.test}, got ${WEAVE_PUBLIC_BASE_URL}"
 [[ "${WEAVE_BASE_URL}" == "$(public_url "${TF_VAR_api_subdomain:-api}")/api" ]] || fail "Smoke check failed: API URL must stay DNS-first on $(public_host "${TF_VAR_api_subdomain:-api}"), got ${WEAVE_BASE_URL}"
@@ -497,6 +498,14 @@ fi
 : "${WEAVE_MATRIX_PROVIDER_URL:?Expected WEAVE_MATRIX_PROVIDER_URL in env or bootstrap env}"
 : "${WEAVE_TEST_USERNAME:?Expected WEAVE_TEST_USERNAME in env or bootstrap env}"
 : "${WEAVE_TEST_PASSWORD:?Expected WEAVE_TEST_PASSWORD in env or bootstrap env}"
+
+log "Checking dogfood Mailpit network boundary..."
+mailpit_info="$(curl --silent --show-error --fail "http://127.0.0.1:${TF_VAR_mailpit_web_host_port:-8025}/api/v1/info")"
+assert_json "${mailpit_info}" 'type == "object"' "Mailpit loopback API should return its info document"
+mailpit_https_status="$(curl_status "${WEAVE_MAILPIT_URL}")"
+[[ "${mailpit_https_status}" == "200" ]] || fail "Smoke check failed: private-network Mailpit HTTPS inbox returned HTTP ${mailpit_https_status}"
+docker inspect --format '{{json .HostConfig.PortBindings}}' weave-mailpit |
+  jq -e '."1025/tcp" == null' >/dev/null || fail "Smoke check failed: Mailpit SMTP port 1025 must not be published to the host"
 
 log "Checking Keycloak issuer discovery..."
 issuer_config="$(curl_json "${WEAVE_OIDC_ISSUER_URL}/.well-known/openid-configuration")"

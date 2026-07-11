@@ -111,7 +111,7 @@ class WorkspaceControllerTest {
                                 .claim("iss", "https://auth.example.invalid/realms/acme")
                                 .claim("weave_tenant_id", "weave-dogfood")
                                 .claim("weave_organization_name", "Weave Dogfood")
-                                .claim("realm_access", Map.of("roles", List.of()))
+                                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of())))
                                 .claim("groups", List.of("weave-calendar-editors", "weave-meeting-hosts")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())
@@ -210,7 +210,7 @@ class WorkspaceControllerTest {
                                     .subject("calendar-editor@example.invalid")
                                     .claim("iss", "https://auth.example.invalid/realms/acme")
                                     .claim("weave_tenant_id", "weave-dogfood")
-                                    .claim("realm_access", Map.of("roles", List.of()))
+                                    .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of())))
                                     .claim("groups", List.of("weave-calendar-editors")))
                             .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                     .andExpect(status().isServiceUnavailable())
@@ -230,7 +230,7 @@ class WorkspaceControllerTest {
                                     .subject("calendar-editor@example.invalid")
                                     .claim("iss", "https://auth.example.invalid/realms/acme")
                                     .claim("weave_tenant_id", "weave-dogfood")
-                                    .claim("realm_access", Map.of("roles", List.of()))
+                                    .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of())))
                                     .claim("groups", List.of("weave-calendar-editors")))
                             .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                     .andExpect(status().isServiceUnavailable())
@@ -246,7 +246,7 @@ class WorkspaceControllerTest {
                         .jwt(jwt -> jwt
                                 .subject("calendar-editor@example.invalid")
                                 .claim("iss", "https://auth.example.invalid/realms/acme")
-                                .claim("realm_access", Map.of("roles", List.of()))
+                                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of())))
                                 .claim("groups", List.of("weave-calendar-editors")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isUnauthorized())
@@ -270,7 +270,7 @@ class WorkspaceControllerTest {
         mockMvc.perform(get("/api/v1/workspace/release-readiness").with(jwt()
                         .jwt(jwt -> jwt
                                 .claim("iss", "https://auth.example.invalid/realms/acme")
-                                .claim("realm_access", Map.of("roles", List.of("member"))))
+                                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member")))))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("capability-policy-blocked"))
@@ -290,7 +290,7 @@ class WorkspaceControllerTest {
                         .jwt(jwt -> jwt
                                 .subject("member@example.invalid")
                                 .claim("iss", "https://auth.example.invalid/realms/acme")
-                                .claim("realm_access", Map.of("roles", List.of("member"))))
+                                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member")))))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.enabled").value(false))
@@ -307,7 +307,7 @@ class WorkspaceControllerTest {
         mockMvc.perform(get("/api/v1/workspace/capability-policy").with(jwt()
                         .jwt(jwt -> jwt
                                 .claim("iss", "https://auth.example.invalid/realms/acme")
-                                .claim("realm_access", Map.of("roles", List.of("admin")))
+                                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("admin"))))
                                 .claim("groups", List.of("weave-board-editors")))
                         .authorities(
                                 new SimpleGrantedAuthority("SCOPE_weave:workspace"),
@@ -325,7 +325,7 @@ class WorkspaceControllerTest {
         mockMvc.perform(get("/api/v1/workspace/capability-policy").with(jwt()
                         .jwt(jwt -> jwt
                                 .claim("iss", "https://auth.example.invalid/realms/acme")
-                                .claim("realm_access", Map.of("roles", List.of("member"))))
+                                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member")))))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("capability-policy-blocked"))
@@ -343,7 +343,7 @@ class WorkspaceControllerTest {
                         .with(jwt().jwt(jwt -> jwt
                                         .subject("member@example.invalid")
                                         .claim("iss", "https://auth.example.invalid/realms/acme")
-                                        .claim("realm_access", Map.of("roles", List.of("member")))
+                                        .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member"))))
                                         .claim("groups", List.of("weave-weaver-runtime", "weave-weaver-pilot")))
                                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())
@@ -369,7 +369,7 @@ class WorkspaceControllerTest {
                         .with(jwt().jwt(jwt -> jwt
                                         .subject("member@example.invalid")
                                         .claim("iss", "https://auth.example.invalid/realms/acme")
-                                        .claim("realm_access", Map.of("roles", List.of("member")))
+                                        .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member"))))
                                         .claim("groups", List.of("weave-weaver-runtime", "weave-weaver-pilot")))
                                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace")))
                         .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
@@ -438,7 +438,7 @@ class WorkspaceControllerTest {
                         .header("alg", "none")
                         .claim("sub", "member@example.invalid")
                         .claim("iss", "https://auth.example.invalid/realms/acme")
-                        .claim("realm_access", Map.of("roles", List.of("member")))
+                        .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member"))))
                         .claim("groups", List.of("weave-weaver-runtime", "weave-weaver-pilot"))
                         .issuedAt(java.time.Instant.now())
                         .expiresAt(java.time.Instant.now().plusSeconds(300))
@@ -450,7 +450,7 @@ class WorkspaceControllerTest {
         mockMvc.perform(get(path).with(jwt()
                         .jwt(jwt -> jwt
                                 .claim("iss", "https://auth.example.invalid/realms/acme")
-                                .claim("realm_access", Map.of("roles", List.of("member"))))
+                                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member")))))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.shellAccess.enabled").value(true))
@@ -469,10 +469,10 @@ class WorkspaceControllerTest {
         mockMvc.perform(get(path).with(jwt()
                         .jwt(jwt -> jwt
                                 .claim("iss", "https://auth.example.invalid/realms/acme")
-                                .claim("realm_access", Map.of("roles", List.of("operator"))))
+                                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("admin")))))
                         .authorities(
                                 new SimpleGrantedAuthority("SCOPE_weave:workspace"),
-                                new SimpleGrantedAuthority("ROLE_OPERATOR"))))
+                                new SimpleGrantedAuthority("ROLE_ADMIN"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.readiness").value("ready"))
                 .andExpect(jsonPath("$.checks[0].key").value("auth-contract"))
@@ -485,7 +485,7 @@ class WorkspaceControllerTest {
         mockMvc.perform(get(path).with(jwt()
                         .jwt(jwt -> jwt
                                 .claim("iss", "https://auth.example.invalid/realms/acme")
-                                .claim("realm_access", Map.of("roles", List.of("member"))))
+                                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member")))))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.version").value(1))
