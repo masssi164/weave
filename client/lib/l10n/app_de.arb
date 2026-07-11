@@ -4,7 +4,7 @@
   "welcomeTitle": "Willkommen bei Weave",
   "welcomeSubtitle": "Tritt deiner Organisation über eine Einladung oder Anmelde-Übergabe bei. Anbieter-Setup bleibt bei den Admins.",
   "continueButton": "Organisation beitreten",
-  "setupTitle": "Weave beitreten",
+  "setupTitle": "Organisationszugang",
   "setupProviderStepTitle": "Provider-Kategorien konfigurieren",
   "setupProviderStepDescription": "Die Admin-Einrichtung beginnt mit der Kategorie Identität/IDM und hält Chat, Dateien, Kalender, Boards/Aufgaben, Besprechungen/Anrufe, Dokumente/Zusammenarbeit und Weaver als Provider-Kategorien sichtbar, bevor Mitglieder beitreten.",
   "setupServicesStepTitle": "Backend-API prüfen",

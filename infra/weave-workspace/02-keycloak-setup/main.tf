@@ -42,6 +42,8 @@ locals {
   client_matrix_url = local.public_urls.matrix
 
   matrix_mas_upstream_id = "01JQ7N9R4QK6W3M5X8Y2ZC1DHF"
+  smtp_from              = coalesce(var.keycloak_smtp_from, "no-reply@${var.tenant_domain}")
+  test_user_email        = coalesce(var.test_user_email, "test@${var.tenant_domain}")
 }
 
 module "tenant_identity" {
@@ -58,7 +60,14 @@ module "tenant_identity" {
   identity_admin_client_secret            = var.identity_admin_client_secret
   smtp_host                               = var.keycloak_smtp_host
   smtp_port                               = var.keycloak_smtp_port
-  smtp_from                               = var.keycloak_smtp_from
+  smtp_from                               = local.smtp_from
+  smtp_from_display_name                  = var.keycloak_smtp_from_display_name
+  smtp_ssl                                = var.keycloak_smtp_ssl
+  smtp_starttls                           = var.keycloak_smtp_starttls
+  smtp_username                           = var.keycloak_smtp_username
+  smtp_password                           = var.keycloak_smtp_password
+  organization_display_name               = var.organization_display_name
+  test_user_email                         = local.test_user_email
   create_test_user                        = var.create_test_user
   test_user_password                      = var.test_user_password
   context_authorization_default_tenant_id = var.context_authorization_default_tenant_id

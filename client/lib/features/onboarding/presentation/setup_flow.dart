@@ -52,26 +52,6 @@ class _SetupFlowState extends State<SetupFlow> {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const WeaveLogo(
-              semanticLabel: 'Weave logo',
-              width: 40,
-              framed: false,
-              excludeFromSemantics: true,
-            ),
-            const SizedBox(width: 12),
-            Flexible(child: Text(l10n.setupTitle)),
-          ],
-        ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go(AppRoutes.welcome),
-          tooltip: l10n.semanticBackButton,
-        ),
-      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -81,13 +61,21 @@ class _SetupFlowState extends State<SetupFlow> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  Center(
+                    child: WeaveLogo(
+                      semanticLabel: l10n.semanticWeaveLogo,
+                      width: 144,
+                    ),
+                  ),
+                  const SizedBox(height: 28),
                   Focus(
                     focusNode: _focusNode,
                     child: Semantics(
                       header: true,
                       child: Text(
-                        l10n.setupMemberHandoffTitle,
-                        style: theme.textTheme.headlineSmall,
+                        l10n.setupTitle,
+                        style: theme.textTheme.headlineMedium,
+                        textAlign: TextAlign.center,
                       ),
                     ),
                   ),
@@ -97,6 +85,7 @@ class _SetupFlowState extends State<SetupFlow> {
                     style: theme.textTheme.bodyLarge?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
+                    textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 24),
                   TextField(

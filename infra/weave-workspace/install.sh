@@ -115,6 +115,7 @@ readonly PERSISTED_TF_VARS=(
   TF_VAR_nextcloud_backend_actor_token
   TF_VAR_matrix_mas_client_secret
   TF_VAR_identity_admin_client_secret
+  TF_VAR_identity_events_hmac_secret
   TF_VAR_mas_encryption_secret
   TF_VAR_mas_signing_key_pem
   TF_VAR_mas_matrix_secret
@@ -1371,6 +1372,7 @@ ensure_generated_secrets() {
   set_default_var TF_VAR_openproject_secret_key_base ""
   set_default_secret TF_VAR_matrix_mas_client_secret "$(random_base64 32)"
   set_default_secret TF_VAR_identity_admin_client_secret "$(random_base64 32)"
+  set_default_secret TF_VAR_identity_events_hmac_secret "$(random_base64 32)"
   set_default_secret TF_VAR_mas_encryption_secret "$(random_hex 32)"
   set_default_secret TF_VAR_mas_matrix_secret "$(random_base64 32)"
   set_default_secret TF_VAR_synapse_registration_shared_secret "$(random_base64 32)"

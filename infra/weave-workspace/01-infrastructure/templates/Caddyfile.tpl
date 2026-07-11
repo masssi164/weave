@@ -49,6 +49,11 @@ ${weave_site_addresses} {
 		respond "Weave calendar product route. Calendar data is served through the Weave backend facade." 200
 	}
 
+	@internal_product_api path /api/internal/*
+	handle @internal_product_api {
+		respond "Not Found" 404
+	}
+
 	@product_api path /api/*
 	handle @product_api {
 		reverse_proxy ${api_upstream}
@@ -130,6 +135,10 @@ ${api_site_addresses} {
 	encode zstd gzip
 
 ${connector_provider_callbacks_guard}
+	@internal_api path /api/internal/*
+	handle @internal_api {
+		respond "Not Found" 404
+	}
 
 	reverse_proxy ${api_upstream}
 }
@@ -153,6 +162,7 @@ ${mail_site_addresses} {
 	tls /certs/${tls_cert_filename} /certs/${tls_key_filename}
 	encode zstd gzip
 
+	%{ if mailpit_enabled ~}
 	@private_network remote_ip ${mailpit_allowed_cidrs}
 	handle @private_network {
 		reverse_proxy ${mailpit_upstream} {
@@ -161,6 +171,9 @@ ${mail_site_addresses} {
 	}
 
 	respond "Forbidden" 403
+	%{ else ~}
+	respond "Not Found" 404
+	%{ endif ~}
 }
 
 ${matrix_site_addresses} {

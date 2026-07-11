@@ -22,7 +22,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get continueButton => 'Join your organization';
 
   @override
-  String get setupTitle => 'Join Weave';
+  String get setupTitle => 'Organization access';
 
   @override
   String get setupProviderStepTitle => 'Configure provider categories';

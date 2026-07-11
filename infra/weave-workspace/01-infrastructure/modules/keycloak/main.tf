@@ -9,6 +9,13 @@ terraform {
 resource "docker_image" "this" {
   name         = var.image_name
   keep_locally = true
+
+  build {
+    context = var.image_build_context
+    build_args = {
+      KEYCLOAK_VERSION = var.keycloak_version
+    }
+  }
 }
 
 resource "docker_volume" "data" {
@@ -39,6 +46,8 @@ resource "docker_container" "this" {
     "KC_HEALTH_ENABLED=true",
     "KC_HTTP_MANAGEMENT_PORT=9000",
     "KC_PROXY_HEADERS=xforwarded",
+    "WEAVE_IDENTITY_EVENTS_ENDPOINT=${var.identity_events_endpoint}",
+    "WEAVE_IDENTITY_EVENTS_HMAC_SECRET=${var.identity_events_hmac_secret}",
   ]
 
   ports {

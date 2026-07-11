@@ -8,13 +8,9 @@ import 'package:weave/l10n/generated/app_localizations.dart';
 void main() {
   Widget buildApp() {
     final router = GoRouter(
-      initialLocation: AppRoutes.setup,
+      initialLocation: AppRoutes.welcome,
       routes: [
-        GoRoute(
-          path: AppRoutes.welcome,
-          builder: (_, __) => const SizedBox.shrink(),
-        ),
-        GoRoute(path: AppRoutes.setup, builder: (_, __) => const SetupFlow()),
+        GoRoute(path: AppRoutes.welcome, builder: (_, __) => const SetupFlow()),
         GoRoute(
           path: AppRoutes.join,
           builder: (_, state) => Scaffold(body: Text('resolved:${state.uri}')),
@@ -34,15 +30,13 @@ void main() {
       await tester.pumpWidget(buildApp());
       await tester.pumpAndSettle();
 
-      expect(
-        find.text('Join from an invite or organization sign-in'),
-        findsOneWidget,
-      );
+      expect(find.text('Organization access'), findsOneWidget);
       expect(
         find.text('Server URI, invitation link, or QR payload'),
         findsOneWidget,
       );
       expect(find.text('Continue to organization'), findsOneWidget);
+      expect(find.bySemanticsLabel('Weave logo'), findsOneWidget);
       expect(
         find.textContaining('next screen always offers Sign in'),
         findsOneWidget,
@@ -74,6 +68,16 @@ void main() {
       findsOneWidget,
     );
     expect(find.textContaining('workspace=default'), findsOneWidget);
+  });
+
+  testWidgets('meets accessible tap-target and labeling guidelines', (
+    tester,
+  ) async {
+    await tester.pumpWidget(buildApp());
+    await tester.pumpAndSettle();
+
+    await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+    await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
   });
 
   testWidgets('pasted email or QR join payload is preserved', (tester) async {

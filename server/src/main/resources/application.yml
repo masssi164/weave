@@ -184,11 +184,14 @@ weave:
     invitations:
       storage-mode: ${WEAVE_IDENTITY_INVITATIONS_STORAGE_MODE:memory}
       default-lifetime: ${WEAVE_IDENTITY_INVITATIONS_DEFAULT_LIFETIME:P7D}
+      events-hmac-secret: ${WEAVE_IDENTITY_EVENTS_HMAC_SECRET:}
+      event-freshness: ${WEAVE_IDENTITY_EVENTS_FRESHNESS:5m}
       keycloak:
         base-url: ${WEAVE_IDENTITY_KEYCLOAK_BASE_URL:http://weave-keycloak:8080}
         realm: ${WEAVE_IDENTITY_KEYCLOAK_REALM:weave}
+        organization-id: ${WEAVE_IDENTITY_KEYCLOAK_ORGANIZATION_ID:}
         organization-alias: ${WEAVE_IDENTITY_KEYCLOAK_ORGANIZATION_ALIAS:weave}
-        client-id: ${WEAVE_IDENTITY_KEYCLOAK_CLIENT_ID:weave-identity-adapter}
+        client-id: ${WEAVE_IDENTITY_KEYCLOAK_CLIENT_ID:weave-identity-admin}
         client-secret: ${WEAVE_IDENTITY_KEYCLOAK_CLIENT_SECRET:}
         timeout: ${WEAVE_IDENTITY_KEYCLOAK_TIMEOUT:10s}
   profile:

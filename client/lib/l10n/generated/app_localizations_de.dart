@@ -22,7 +22,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get continueButton => 'Organisation beitreten';
 
   @override
-  String get setupTitle => 'Weave beitreten';
+  String get setupTitle => 'Organisationszugang';
 
   @override
   String get setupProviderStepTitle => 'Provider-Kategorien konfigurieren';

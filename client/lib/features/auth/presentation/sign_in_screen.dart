@@ -80,7 +80,7 @@ class SignInScreen extends ConsumerWidget {
                                   .read(authFlowControllerProvider.notifier)
                                   .restartSetup();
                               if (context.mounted) {
-                                context.go(AppRoutes.setup);
+                                context.go(AppRoutes.welcome);
                               }
                             },
                           ),
@@ -216,7 +216,7 @@ class SignInScreen extends ConsumerWidget {
                                       .read(authFlowControllerProvider.notifier)
                                       .restartSetup();
                                   if (context.mounted) {
-                                    context.go(AppRoutes.setup);
+                                    context.go(AppRoutes.welcome);
                                   }
                                 },
                           semanticLabel: l10n.signInBackToSetupButton,

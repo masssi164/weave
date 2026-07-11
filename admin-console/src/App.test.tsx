@@ -146,6 +146,21 @@ function mockApi(
       summary: "Ready",
     }),
     listAuditEvents: vi.fn().mockResolvedValue(sampleControlPlane.auditEvents),
+    listOrganizationInvitations: vi.fn().mockResolvedValue([]),
+    createOrganizationInvitation: vi.fn().mockImplementation(
+      async (organizationId, request) => ({
+        providerInvitationId: "invite-123",
+        organizationId,
+        email: request.email,
+        displayName: request.displayName,
+        lifecycleStatus: "pending",
+        provisioningStatus: "pending",
+        requestedRole: request.role,
+        organizationGroups: request.organizationGroups,
+      }),
+    ),
+    resendOrganizationInvitation: vi.fn().mockResolvedValue({}),
+    revokeOrganizationInvitation: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   } as unknown as AdminControlPlaneApi;
 }
@@ -157,6 +172,58 @@ afterEach(() => {
 
 // V01_ADMIN_CONSOLE_MVP: admin console manages org/provider policy through backend APIs only.
 describe("Admin Console MVP", () => {
+  it("manages Keycloak invitation lifecycle separately from provisioning intent", async () => {
+    const listOrganizationInvitations = vi.fn().mockResolvedValue([
+      {
+        providerInvitationId: "invite-existing",
+        organizationId: "weave-dogfood",
+        email: "existing@example.test",
+        lifecycleStatus: "pending",
+        provisioningStatus: "applied",
+        requestedRole: "member",
+        organizationGroups: ["engineering"],
+      },
+    ]);
+    const createOrganizationInvitation = vi.fn().mockResolvedValue({});
+    const api = mockApi({
+      listOrganizationInvitations,
+      createOrganizationInvitation,
+    });
+    const user = userEvent.setup();
+
+    render(<App api={api} />);
+
+    expect(
+      await screen.findByRole("heading", { name: /member invitations/i }),
+    ).toBeInTheDocument();
+    expect(await screen.findByText("existing@example.test")).toBeInTheDocument();
+    expect(screen.getByText(/Invitation: pending/)).toHaveTextContent(
+      /Provisioning: applied/,
+    );
+    expect(screen.getByText(/Keycloak owns email delivery/i)).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText(/member email/i), "new@example.test");
+    await user.type(screen.getByLabelText(/display name/i), "New Member");
+    await user.type(
+      screen.getByLabelText(/organization groups/i),
+      "engineering, reviewers",
+    );
+    await user.click(screen.getByRole("button", { name: /invite member/i }));
+
+    await waitFor(() =>
+      expect(createOrganizationInvitation).toHaveBeenCalledWith(
+        "weave-dogfood",
+        {
+          email: "new@example.test",
+          displayName: "New Member",
+          role: "member",
+          organizationGroups: ["engineering", "reviewers"],
+        },
+      ),
+    );
+    expect(document.body).not.toHaveTextContent(/activation token|client_secret/i);
+  });
+
   it("renders organization, provider, policy, and audit sections from backend control-plane data", async () => {
     render(<App api={mockApi()} />);
 

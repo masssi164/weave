@@ -125,7 +125,7 @@ abstract class AppLocalizations {
   /// Title for the setup flow screen
   ///
   /// In en, this message translates to:
-  /// **'Join Weave'**
+  /// **'Organization access'**
   String get setupTitle;
 
   /// Title for the setup provider and issuer step

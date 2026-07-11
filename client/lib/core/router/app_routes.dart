@@ -3,7 +3,6 @@
 /// Centralising paths avoids typos and makes refactoring easier.
 abstract final class AppRoutes {
   static const welcome = '/welcome';
-  static const setup = '/setup';
   static const signIn = '/sign-in';
   static const join = '/join';
   static const firstRun = '/first-run';
