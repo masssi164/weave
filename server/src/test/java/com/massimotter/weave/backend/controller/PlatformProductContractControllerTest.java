@@ -383,7 +383,7 @@ class PlatformProductContractControllerTest {
                         .claim("preferred_username", "admin")
                         .claim("weave_tenant_id", "tenant-default")
                         .claim("aud", java.util.List.of("weave-app"))
-                        .claim("realm_access", java.util.Map.of("roles", java.util.List.of("admin"))))
+                        .claim("resource_access", java.util.Map.of("weave-app", java.util.Map.of("roles", java.util.List.of("admin")))))
                 .authorities(
                         new SimpleGrantedAuthority("SCOPE_weave:workspace"),
                         new SimpleGrantedAuthority("ROLE_ADMIN"));

@@ -408,7 +408,7 @@ class ChatControllerTest {
                         .claim("iss", "https://auth.example.invalid/realms/acme")
                         .claim("preferred_username", "test")
                         .claim("weave_tenant_id", "tenant-default")
-                        .claim("realm_access", Map.of("roles", List.of(role)))
+                        .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of(role))))
                         .claim("groups", groups)
                         .claim("aud", List.of("weave-app")))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));

@@ -43,6 +43,16 @@ output "weave_backend_audience" {
   value       = try(keycloak_openid_client.client["weave_app"].client_id, null)
 }
 
+output "weave_identity_admin_client_id" {
+  description = "Backend-only Keycloak client used for organization invitation administration."
+  value       = try(keycloak_openid_client.client["weave_identity_admin"].client_id, null)
+}
+
+output "weave_organization_id" {
+  description = "Keycloak organization identifier managed by this tenant module."
+  value       = keycloak_organization.tenant.id
+}
+
 output "weave_workspace_scope_name" {
   description = "Client scope that adds the Weave backend-required audience."
   value       = try(keycloak_openid_client_scope.weave_workspace.name, null)
@@ -71,7 +81,7 @@ output "test_user_password" {
 }
 
 output "weave_product_roles" {
-  description = "MVP product realm roles exposed through the default roles scope."
+  description = "MVP weave-app client roles exposed through the default roles scope."
   value       = sort(keys(keycloak_role.weave_product))
 }
 

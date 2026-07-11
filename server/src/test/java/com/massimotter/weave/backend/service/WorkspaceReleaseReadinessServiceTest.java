@@ -38,7 +38,7 @@ class WorkspaceReleaseReadinessServiceTest {
                         null),
                 capabilityService);
 
-        var snapshot = service.snapshot(jwt("operator"));
+        var snapshot = service.snapshot(jwt("admin"));
 
         assertThat(snapshot.readiness()).isEqualTo(WorkspaceCapabilityReadiness.READY);
         assertThat(snapshot.actions()).isEmpty();
@@ -64,7 +64,7 @@ class WorkspaceReleaseReadinessServiceTest {
                 properties,
                 capabilityService);
 
-        var snapshot = service.snapshot(jwt("operator"));
+        var snapshot = service.snapshot(jwt("admin"));
 
         assertThat(snapshot.readiness()).isEqualTo(WorkspaceCapabilityReadiness.BLOCKED);
         assertThat(snapshot.actions()).contains("Provide the missing auth runtime inputs for the backend: WEAVE_OIDC_ISSUER_URI.");
@@ -92,7 +92,7 @@ class WorkspaceReleaseReadinessServiceTest {
                 properties,
                 capabilityService);
 
-        var snapshot = service.snapshot(jwt("operator"));
+        var snapshot = service.snapshot(jwt("admin"));
 
         assertThat(snapshot.readiness()).isEqualTo(WorkspaceCapabilityReadiness.DEGRADED);
         assertThat(snapshot.actions()).containsExactly(
@@ -105,7 +105,7 @@ class WorkspaceReleaseReadinessServiceTest {
                 .header("alg", "none")
                 .subject(role + "-123")
                 .issuer("https://auth.example.invalid/realms/acme")
-                .claim("realm_access", Map.of("roles", List.of(role)))
+                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of(role))))
                 .claim("groups", List.of())
                 .build();
     }

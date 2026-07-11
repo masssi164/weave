@@ -180,6 +180,17 @@ weave:
       # Optional first-run provisioning override. When blank, status is derived from
       # the files/calendar capabilities and canonical Nextcloud route.
       provisioning-state: ${WEAVE_ONBOARDING_NEXTCLOUD_PROVISIONING_STATE:}
+  identity:
+    invitations:
+      storage-mode: ${WEAVE_IDENTITY_INVITATIONS_STORAGE_MODE:memory}
+      default-lifetime: ${WEAVE_IDENTITY_INVITATIONS_DEFAULT_LIFETIME:P7D}
+      keycloak:
+        base-url: ${WEAVE_IDENTITY_KEYCLOAK_BASE_URL:http://weave-keycloak:8080}
+        realm: ${WEAVE_IDENTITY_KEYCLOAK_REALM:weave}
+        organization-alias: ${WEAVE_IDENTITY_KEYCLOAK_ORGANIZATION_ALIAS:weave}
+        client-id: ${WEAVE_IDENTITY_KEYCLOAK_CLIENT_ID:weave-identity-adapter}
+        client-secret: ${WEAVE_IDENTITY_KEYCLOAK_CLIENT_SECRET:}
+        timeout: ${WEAVE_IDENTITY_KEYCLOAK_TIMEOUT:10s}
   profile:
     # Persistent product-profile override store for mutable fields accepted by PATCH /api/profile.
     # The default remains file-backed until relational parity, rollback, and dogfood migration

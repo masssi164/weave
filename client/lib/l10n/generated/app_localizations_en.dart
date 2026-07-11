@@ -4119,6 +4119,25 @@ class AppLocalizationsEn extends AppLocalizations {
       'Open the invite link, /join link, or organization sign-in URL your admin sent you. Weave will prepare your workspace from the organization manifest without asking you to edit provider endpoints.';
 
   @override
+  String get setupOrganizationUriLabel =>
+      'Server URI, invitation link, or QR payload';
+
+  @override
+  String get setupOrganizationUriHelper =>
+      'Paste the link from your email or QR code, or enter your organization\'s Weave address.';
+
+  @override
+  String get setupOrganizationUriError =>
+      'Enter a secure Weave server URI or invitation link without embedded credentials.';
+
+  @override
+  String get setupOrganizationContinueButton => 'Continue to organization';
+
+  @override
+  String get setupOrganizationAccessHelp =>
+      'Your invitation email and organization QR code contain the same Weave address. After it is verified, the next screen always offers Sign in.';
+
+  @override
   String get setupMemberHandoffPrimaryAction =>
       'I have an invite or sign-in link';
 

@@ -149,6 +149,20 @@ ${auth_site_addresses} {
 	reverse_proxy ${keycloak_upstream}
 }
 
+${mail_site_addresses} {
+	tls /certs/${tls_cert_filename} /certs/${tls_key_filename}
+	encode zstd gzip
+
+	@private_network remote_ip ${mailpit_allowed_cidrs}
+	handle @private_network {
+		reverse_proxy ${mailpit_upstream} {
+			header_up Host {host}
+		}
+	}
+
+	respond "Forbidden" 403
+}
+
 ${matrix_site_addresses} {
 	tls /certs/${tls_cert_filename} /certs/${tls_key_filename}
 	encode zstd gzip

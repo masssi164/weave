@@ -217,7 +217,7 @@ class BoardsControllerTest {
                         .claim("preferred_username", "test")
                         .claim("weave_tenant_id", "tenant-default")
                         .claim("aud", java.util.List.of("weave-app"))
-                        .claim("realm_access", java.util.Map.of("roles", java.util.List.of("member")))
+                        .claim("resource_access", java.util.Map.of("weave-app", java.util.Map.of("roles", java.util.List.of("member"))))
                         .claim("groups", java.util.List.of("weave-board-editors")))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }

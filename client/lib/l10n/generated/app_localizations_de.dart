@@ -4175,6 +4175,25 @@ class AppLocalizationsDe extends AppLocalizations {
       'Öffne den Einladungslink, /join-Link oder die Organisations-Anmelde-URL, die dein Admin gesendet hat. Weave bereitet deinen Workspace aus dem Organisationsmanifest vor, ohne dass du Anbieter-Endpunkte bearbeiten musst.';
 
   @override
+  String get setupOrganizationUriLabel =>
+      'Server-URI, Einladungslink oder QR-Inhalt';
+
+  @override
+  String get setupOrganizationUriHelper =>
+      'Füge den Link aus E-Mail oder QR-Code ein oder gib die Weave-Adresse deiner Organisation ein.';
+
+  @override
+  String get setupOrganizationUriError =>
+      'Gib eine sichere Weave-Server-URI oder einen Einladungslink ohne eingebettete Zugangsdaten ein.';
+
+  @override
+  String get setupOrganizationContinueButton => 'Weiter zur Organisation';
+
+  @override
+  String get setupOrganizationAccessHelp =>
+      'Deine Einladungs-E-Mail und der Organisations-QR-Code enthalten dieselbe Weave-Adresse. Nach der Prüfung bietet der nächste Bildschirm immer Anmelden an.';
+
+  @override
   String get setupMemberHandoffPrimaryAction =>
       'Ich habe eine Einladung oder einen Anmeldelink';
 

@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:weave/core/a11y/semantic_button.dart';
 import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
@@ -35,6 +37,8 @@ import 'package:weave/features/files/domain/entities/files_failure.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
 import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
+import 'package:weave/features/onboarding/domain/use_cases/consume_member_handoff.dart';
+import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
 import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
 import 'package:weave/features/profile/domain/entities/user_profile.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
@@ -57,6 +61,16 @@ void main() {
         final filesRepository = _ScenarioFilesRepository(
           serverConfigurationRepository,
         );
+        final discoveryClient = AppStartDiscoveryClient(
+          httpClient: MockClient((request) async {
+            expect(request.url.path, '/api/platform/config');
+            return http.Response(
+              '''{"oidcIssuerUrl":"https://auth.weave.test/realms/weave","oidcClientId":"weave-app","apiBaseUrl":"https://api.weave.test/api","matrixHomeserverUrl":"https://api.weave.test","filesProductUrl":"https://weave.test/files"}''',
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }),
+        );
 
         tester.binding.platformDispatcher.localeTestValue = const Locale('en');
         addTearDown(tester.binding.platformDispatcher.clearLocaleTestValue);
@@ -73,6 +87,12 @@ void main() {
             ),
             serverConfigurationRepositoryProvider.overrideWithValue(
               serverConfigurationRepository,
+            ),
+            consumeMemberHandoffProvider.overrideWithValue(
+              ConsumeMemberHandoff(
+                repository: serverConfigurationRepository,
+                discoveryClient: discoveryClient,
+              ),
             ),
             filesRepositoryProvider.overrideWithValue(filesRepository),
             chatRepositoryProvider.overrideWithValue(_ScenarioChatRepository()),
@@ -114,29 +134,16 @@ void main() {
         await tester.tap(find.text('Join your organization'));
         await tester.pumpAndSettle();
 
-        await tester.ensureVisible(find.text('Open operator recovery setup'));
-        await tester.tap(find.text('Open operator recovery setup'));
-        await tester.pumpAndSettle();
-
         await tester.enterText(
-          _textFieldWithLabel('OIDC Issuer URL'),
-          'https://auth.weave.test/realms/weave',
+          _textFieldWithLabel('Server URI, invitation link, or QR payload'),
+          'https://weave.test',
         );
-        await tester.tap(find.text('Next'));
+        await tester.tap(find.text('Continue to organization'));
         await tester.pumpAndSettle();
 
-        expect(find.text('Review Backend API'), findsOneWidget);
+        expect(find.text('Workspace ready for sign-in'), findsOneWidget);
         expect(find.text('https://matrix.weave.test'), findsNothing);
         expect(find.text('https://files.weave.test'), findsNothing);
-        expect(find.text('https://api.weave.test/api'), findsWidgets);
-
-        await tester.tap(find.text('Finish'));
-        await tester.pumpAndSettle();
-
-        expect(
-          container.read(appBootstrapProvider).requireValue.phase,
-          BootstrapPhase.needsSignIn,
-        );
         expect(find.text('Sign In'), findsWidgets);
 
         await tester.tap(find.widgetWithText(AccessibleButton, 'Sign In'));

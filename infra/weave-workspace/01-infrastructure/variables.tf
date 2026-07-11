@@ -106,13 +106,31 @@ variable "keycloak_management_host_port" {
 variable "mailpit_image" {
   description = "Mailpit image used for dogfood/local-only mail capture."
   type        = string
-  default     = "axllent/mailpit:v1.27"
+  default     = "axllent/mailpit:v1.30.0"
 }
 
 variable "mailpit_web_host_port" {
   description = "Loopback-only host port for the Mailpit web/API inbox."
   type        = number
   default     = 8025
+}
+
+variable "mailpit_allowed_cidrs" {
+  description = "Private network CIDRs allowed to reach the dogfood Mailpit HTTPS inbox through Caddy."
+  type        = list(string)
+  default = [
+    "127.0.0.0/8",
+    "::1/128",
+    "10.0.0.0/8",
+    "172.16.0.0/12",
+    "192.168.0.0/16",
+    "fc00::/7",
+  ]
+
+  validation {
+    condition     = length(var.mailpit_allowed_cidrs) > 0 && alltrue([for cidr in var.mailpit_allowed_cidrs : can(cidrnetmask(cidr))])
+    error_message = "mailpit_allowed_cidrs must contain one or more valid IPv4 or IPv6 CIDRs."
+  }
 }
 
 variable "mas_host_port" {
@@ -575,7 +593,7 @@ variable "postgres_image" {
 variable "keycloak_image" {
   description = "Keycloak image used for identity management."
   type        = string
-  default     = "quay.io/keycloak/keycloak:26.0.7"
+  default     = "quay.io/keycloak/keycloak:26.7.0"
 }
 
 variable "mas_image" {
@@ -712,6 +730,12 @@ variable "nextcloud_backend_actor_token" {
 
 variable "matrix_mas_client_secret" {
   description = "Shared confidential client secret for the matrix-mas Keycloak client."
+  type        = string
+  sensitive   = true
+}
+
+variable "identity_admin_client_secret" {
+  description = "Client secret used only by the backend Keycloak organization identity administrator."
   type        = string
   sensitive   = true
 }

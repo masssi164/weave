@@ -40,6 +40,7 @@ locals {
     api    = "${var.api_subdomain}.${var.tenant_domain}"
     admin  = "${var.admin_subdomain}.${var.tenant_domain}"
     auth   = "${var.auth_subdomain}.${var.tenant_domain}"
+    mail   = "mail.${var.tenant_domain}"
     matrix = "${var.matrix_subdomain}.${var.tenant_domain}"
     files  = "${var.nextcloud_subdomain}.${var.tenant_domain}"
   }
@@ -66,6 +67,7 @@ locals {
     api    = [local.public_hosts.api]
     admin  = [local.public_hosts.admin]
     auth   = [local.public_hosts.auth]
+    mail   = [local.public_hosts.mail]
     matrix = [local.public_hosts.matrix]
     files  = [local.public_hosts.files]
   }
@@ -96,9 +98,12 @@ locals {
     api_site_addresses    = local.site_addresses.api
     admin_site_addresses  = local.site_addresses.admin
     auth_site_addresses   = local.site_addresses.auth
+    mail_site_addresses   = local.site_addresses.mail
     files_site_addresses  = local.site_addresses.files
     matrix_site_addresses = local.site_addresses.matrix
     keycloak_upstream     = "${local.service_names.keycloak}:8080"
+    mailpit_upstream      = "${local.service_names.mailpit}:8025"
+    mailpit_allowed_cidrs = join(" ", var.mailpit_allowed_cidrs)
     nextcloud_upstream    = "${local.service_names.nextcloud}:80"
     api_public_url        = local.public_urls.api
     auth_public_url       = local.public_urls.auth
@@ -564,6 +569,10 @@ module "backend" {
   oidc_jwk_set_uri                                 = local.keycloak_jwk_set_uri
   oidc_required_audience                           = local.weave_backend_audience
   client_id                                        = local.weave_app_client_id
+  identity_keycloak_base_url                       = "http://${local.service_names.keycloak}:8080"
+  identity_keycloak_realm                          = var.tenant_slug
+  identity_keycloak_organization_alias             = var.tenant_slug
+  identity_keycloak_client_secret                  = var.identity_admin_client_secret
   mcp_boundary_token                               = var.mcp_boundary_token
   healthcheck_path                                 = "/api/health/ready"
   depends_on                                       = [terraform_data.network_ready, terraform_data.postgres_bootstrap, module.keycloak, local_sensitive_file.generated]

@@ -443,6 +443,27 @@ variable "client_id" {
   type        = string
 }
 
+variable "identity_keycloak_base_url" {
+  description = "Docker-network Keycloak base URL for the backend invitation adapter."
+  type        = string
+}
+
+variable "identity_keycloak_realm" {
+  description = "Keycloak realm used by the backend invitation adapter."
+  type        = string
+}
+
+variable "identity_keycloak_organization_alias" {
+  description = "Keycloak organization alias mapped from the canonical dogfood organization."
+  type        = string
+}
+
+variable "identity_keycloak_client_secret" {
+  description = "Backend-only service-account secret for Keycloak organization invitations."
+  type        = string
+  sensitive   = true
+}
+
 variable "healthcheck_path" {
   description = "HTTP path used by Docker to check backend health."
   type        = string
