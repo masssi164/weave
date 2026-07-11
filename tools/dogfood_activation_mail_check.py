@@ -25,7 +25,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
             "Check the support-safe activation evidence emitted by "
-            "infra/weave-workspace/activate-user.sh and verify Mailpit captured "
+            "the protected Dogfood Member workflow and verify Mailpit captured "
             "the corresponding local identity mail without printing action links."
         )
     )
@@ -50,14 +50,22 @@ def main() -> int:
     evidence = read_json_file(args.activation_evidence_file)
     assert_support_safe("activation evidence", evidence)
 
+    schema = evidence.get("schemaVersion")
     require(
-        evidence.get("schemaVersion") == "weave.dogfood.activation-invite.v1",
+        schema in {"weave.dogfood.activation-invite.v1", "weave.dogfood.persistent-member.v1"},
         "activation evidence schema mismatch",
     )
-    require(
-        evidence.get("inviteRef") == args.expected_invite_ref,
-        "activation inviteRef does not match the dogfood handoff",
-    )
+    if schema == "weave.dogfood.activation-invite.v1":
+        require(
+            evidence.get("inviteRef") == args.expected_invite_ref,
+            "activation inviteRef does not match the dogfood handoff",
+        )
+    else:
+        require(evidence.get("state") == "pending", "persistent member must be pending when activation mail is sent")
+        require(
+            evidence.get("action") in {"created_and_activation_sent", "activation_resent"},
+            "persistent member evidence does not prove an activation mail operation",
+        )
     require(evidence.get("supportSafe") is True, "activation evidence is not supportSafe=true")
     require(
         evidence.get("qrOrDeeplinkCarriesSecret") is False,
