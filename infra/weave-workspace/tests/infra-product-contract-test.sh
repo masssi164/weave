@@ -145,6 +145,8 @@ assert_file_contains "${ROOT_DIR}/01-infrastructure/modules/mailpit/main.tf" '12
 assert_file_contains "${ROOT_DIR}/01-infrastructure/modules/mailpit/outputs.tf" 'Docker-network SMTP endpoint'
 assert_file_contains "${ROOT_DIR}/01-infrastructure/templates/Caddyfile.tpl" 'remote_ip ${mailpit_allowed_cidrs}'
 assert_file_contains "${ROOT_DIR}/01-infrastructure/templates/Caddyfile.tpl" 'respond "Forbidden" 403'
+assert_file_contains "${ROOT_DIR}/01-infrastructure/variables.tf" 'can(cidrhost(cidr, 0))'
+assert_file_absent "${ROOT_DIR}/01-infrastructure/variables.tf" 'can(cidrnetmask(cidr))'
 assert_file_contains "${ROOT_DIR}/smoke-test.sh" 'Mailpit SMTP port 1025 must not be published to the host'
 assert_file_contains "${ROOT_DIR}/install.sh" 'Dogfood mail inbox'
 assert_file_contains "${keycloak_main}" 'keycloak_user_roles'

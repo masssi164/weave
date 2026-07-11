@@ -128,7 +128,7 @@ variable "mailpit_allowed_cidrs" {
   ]
 
   validation {
-    condition     = length(var.mailpit_allowed_cidrs) > 0 && alltrue([for cidr in var.mailpit_allowed_cidrs : can(cidrnetmask(cidr))])
+    condition     = length(var.mailpit_allowed_cidrs) > 0 && alltrue([for cidr in var.mailpit_allowed_cidrs : can(cidrhost(cidr, 0))])
     error_message = "mailpit_allowed_cidrs must contain one or more valid IPv4 or IPv6 CIDRs."
   }
 }
