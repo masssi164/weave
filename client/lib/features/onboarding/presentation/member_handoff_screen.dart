@@ -15,11 +15,9 @@ import 'package:weave/core/widgets/success_state.dart';
 import 'package:weave/features/app/presentation/providers/app_application_providers.dart';
 import 'package:weave/features/auth/domain/entities/auth_failure.dart';
 import 'package:weave/features/auth/presentation/auth_failure_message.dart';
-import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
 import 'package:weave/features/onboarding/domain/entities/member_auth_onboarding_state.dart';
 import 'package:weave/features/onboarding/domain/entities/member_handoff.dart';
 import 'package:weave/features/onboarding/domain/use_cases/consume_member_handoff.dart';
-import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
@@ -90,28 +88,18 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
     if (bootstrap?.phase != BootstrapPhase.ready) {
       return false;
     }
-    try {
-      final status = await ref.read(firstRunStatusProvider.future);
-      if (status is! FirstRunAuthenticated || !mounted) {
-        return false;
-      }
-      final handoff = _tryParseHandoff();
-      if (handoff != null) {
-        await ref
-            .read(memberAuthOnboardingStateRecorderProvider)
-            .record(MemberAuthOnboardingStage.workspaceReady, handoff: handoff);
-        _recordVisibleStateOnce('authenticated_redirect', handoff: handoff);
-      }
-      if (!mounted) {
-        return true;
-      }
-      context.go(
-        status.status.firstRunComplete ? AppRoutes.home : AppRoutes.firstRun,
-      );
-      return true;
-    } catch (_) {
-      return false;
+    final handoff = _tryParseHandoff();
+    if (handoff != null) {
+      await ref
+          .read(memberAuthOnboardingStateRecorderProvider)
+          .record(MemberAuthOnboardingStage.workspaceReady, handoff: handoff);
+      _recordVisibleStateOnce('authenticated_redirect', handoff: handoff);
     }
+    if (!mounted) {
+      return true;
+    }
+    context.go(AppRoutes.home);
+    return true;
   }
 
   MemberHandoff? _tryParseHandoff() {
@@ -229,9 +217,7 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
           );
       await ref.read(appBootstrapProvider.notifier).retry();
       final bootstrap = ref.read(appBootstrapProvider).asData?.value;
-      final workspaceReady =
-          bootstrap?.phase == BootstrapPhase.ready &&
-          await _hasAuthenticatedFirstRunStatus();
+      final workspaceReady = bootstrap?.phase == BootstrapPhase.ready;
       await ref
           .read(memberAuthOnboardingStateRecorderProvider)
           .record(
@@ -246,7 +232,7 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
       if (mounted) {
         setState(() => _signInBusy = false);
         if (context.mounted) {
-          context.go(AppRoutes.firstRun);
+          context.go(AppRoutes.home);
         }
       }
     } on AuthFailure catch (failure) {
@@ -283,15 +269,6 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
     return defaultTargetPlatform == TargetPlatform.android ||
         defaultTargetPlatform == TargetPlatform.iOS ||
         defaultTargetPlatform == TargetPlatform.macOS;
-  }
-
-  Future<bool> _hasAuthenticatedFirstRunStatus() async {
-    try {
-      final status = await ref.read(firstRunStatusProvider.future);
-      return status is FirstRunAuthenticated;
-    } catch (_) {
-      return false;
-    }
   }
 
   Future<void> _recordVisibleFailure(String errorCode) async {

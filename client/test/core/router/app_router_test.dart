@@ -19,16 +19,14 @@ import 'package:weave/features/app/presentation/providers/workspace_connection_p
 import 'package:weave/features/auth/presentation/sign_in_screen.dart';
 import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
 import 'package:weave/features/calendar/domain/repositories/calendar_repository.dart';
+import 'package:weave/features/calendar/presentation/calendar_screen.dart';
 import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
 import 'package:weave/features/help/presentation/help_screen.dart';
-import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
 import 'package:weave/features/onboarding/domain/entities/member_auth_onboarding_state.dart';
 import 'package:weave/features/onboarding/domain/use_cases/consume_member_handoff.dart';
-import 'package:weave/features/onboarding/presentation/first_run_screen.dart';
 import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
-import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
 import 'package:weave/features/onboarding/presentation/setup_flow.dart';
 import 'package:weave/features/profile/domain/entities/user_profile.dart';
 import 'package:weave/features/profile/presentation/profile_screen.dart';
@@ -43,7 +41,6 @@ import 'package:weave/main.dart';
 import '../../helpers/auth_test_data.dart';
 import '../../helpers/fake_chat_repository.dart';
 import '../../helpers/fake_files_repository.dart';
-import '../../helpers/first_run_status_fixture.dart';
 import '../../helpers/in_memory_stores.dart';
 import '../../helpers/server_config_test_data.dart';
 
@@ -221,8 +218,6 @@ void main() {
       required ServerConfiguration? configuration,
       InMemorySecureStore? secureStore,
       InMemoryPreferencesStore? preferencesStore,
-      FirstRunStatus? firstRunStatus,
-      Future<FirstRunLoadResult> Function()? firstRunStatusLoader,
       UserProfile? userProfile,
     }) {
       final container = ProviderContainer.test(
@@ -247,15 +242,6 @@ void main() {
           ),
           calendarRepositoryProvider.overrideWithValue(
             _FakeCalendarRepository(),
-          ),
-          firstRunStatusProvider.overrideWith(
-            (ref) =>
-                firstRunStatusLoader?.call() ??
-                Future.value(
-                  FirstRunLoadResult.authenticated(
-                    firstRunStatus ?? buildTestFirstRunStatus(),
-                  ),
-                ),
           ),
           userProfileProvider.overrideWith((ref) async => userProfile),
           workspaceConnectionStateProvider.overrideWithValue(
@@ -334,7 +320,16 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.byType(FirstRunScreen), findsNothing);
+      expect(find.byType(NavigationBar), findsOneWidget);
+
+      container.read(appRouterProvider).go(AppRoutes.calendar);
+      await tester.pumpAndSettle();
+      expect(find.byType(CalendarScreen), findsOneWidget);
+      expect(find.text('Calendar'), findsWidgets);
+
+      container.read(appRouterProvider).go(AppRoutes.profile);
+      await tester.pumpAndSettle();
+      expect(find.byType(ProfileScreen), findsOneWidget);
       expect(find.byType(NavigationBar), findsOneWidget);
     });
 
@@ -473,7 +468,6 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.byType(MemberHandoffScreen), findsNothing);
-        expect(find.byType(FirstRunScreen), findsNothing);
         expect(find.byType(NavigationBar), findsOneWidget);
         expect(
           container
@@ -523,48 +517,6 @@ void main() {
             .toString(),
         '/join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-massimo-dogfood&product_base_url=https%3A%2F%2Fweave.test%3A44443&platform_config_url=https%3A%2F%2Fweave.test%3A44443%2Fapi%2Fplatform%2Fconfig',
       );
-    });
-
-    testWidgets('redirects pending first-run users to status guidance', (
-      tester,
-    ) async {
-      final secureStore = InMemorySecureStore();
-      await secureStore.write(
-        authSessionStorageKey,
-        AuthSessionDto.fromSession(buildTestAuthSession()).encode(),
-      );
-      final container = createContainer(
-        configuration: buildTestConfiguration(),
-        secureStore: secureStore,
-        firstRunStatus: buildTestFirstRunStatus(
-          firstRunComplete: false,
-          matrix: const FirstRunModuleStatus(
-            state: FirstRunProvisioningState.pending,
-            message: 'Matrix chat provisioning is pending.',
-            action: 'Wait briefly, then refresh status.',
-          ),
-        ),
-      );
-      addTearDown(container.dispose);
-
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: const WeaveApp(),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      container.read(appRouterProvider).go(AppRoutes.files);
-      await tester.pumpAndSettle();
-
-      expect(find.byType(FirstRunScreen), findsOneWidget);
-      expect(
-        find.text('Your Weave workspace is being prepared'),
-        findsOneWidget,
-      );
-      expect(find.text('Chat is still being prepared.'), findsOneWidget);
-      expect(find.textContaining('Matrix'), findsNothing);
     });
 
     testWidgets('opens the routed help handbook for ready users', (
@@ -718,42 +670,6 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(SignInScreen), findsOneWidget);
-    });
-
-    testWidgets('routes signed-out first-run result to sign-in recovery', (
-      tester,
-    ) async {
-      final secureStore = InMemorySecureStore();
-      await secureStore.write(
-        authSessionStorageKey,
-        AuthSessionDto.fromSession(buildTestAuthSession()).encode(),
-      );
-      final container = createContainer(
-        configuration: buildTestConfiguration(),
-        secureStore: secureStore,
-        firstRunStatusLoader: () async => const FirstRunLoadResult.signedOut(),
-      );
-      addTearDown(container.dispose);
-
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: const WeaveApp(),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.byType(SignInScreen), findsOneWidget);
-      expect(find.byType(FirstRunScreen), findsNothing);
-      expect(
-        container
-            .read(appRouterProvider)
-            .routeInformationProvider
-            .value
-            .uri
-            .path,
-        AppRoutes.signIn,
-      );
     });
   });
 }

@@ -29,8 +29,6 @@ import 'package:weave/features/files/domain/entities/file_upload_request.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
-import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
-import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration_save_result.dart';
@@ -43,7 +41,6 @@ import 'package:weave/main.dart';
 
 import '../../helpers/auth_test_data.dart';
 import '../../helpers/fake_chat_security_repository.dart';
-import '../../helpers/first_run_status_fixture.dart';
 import '../../helpers/in_memory_stores.dart';
 import '../../helpers/server_config_test_data.dart';
 
@@ -386,7 +383,7 @@ void main() {
   tearDown(binding.platformDispatcher.clearLocaleTestValue);
 
   group('Release golden paths', () {
-    testWidgets('sign-in journey reviews first-run status then reaches shell', (
+    testWidgets('sign-in journey enters the product shell directly', (
       tester,
     ) async {
       final secureStore = InMemorySecureStore();
@@ -417,10 +414,6 @@ void main() {
             ),
             chatSecurityRepositoryProvider.overrideWithValue(
               FakeChatSecurityRepository(),
-            ),
-            firstRunStatusProvider.overrideWith(
-              (ref) async =>
-                  FirstRunLoadResult.authenticated(buildTestFirstRunStatus()),
             ),
             filesRepositoryProvider.overrideWithValue(
               _MutableFilesRepository(
@@ -553,10 +546,6 @@ void main() {
               chatSecurityRepositoryProvider.overrideWithValue(
                 FakeChatSecurityRepository(),
               ),
-              firstRunStatusProvider.overrideWith(
-                (ref) async =>
-                    FirstRunLoadResult.authenticated(buildTestFirstRunStatus()),
-              ),
               userProfileProvider.overrideWith((ref) async => null),
               filesRepositoryProvider.overrideWithValue(filesRepository),
               weaveApiClientProvider.overrideWithValue(
@@ -662,10 +651,6 @@ void main() {
             chatSecurityRepositoryProvider.overrideWithValue(
               FakeChatSecurityRepository(),
             ),
-            firstRunStatusProvider.overrideWith(
-              (ref) async =>
-                  FirstRunLoadResult.authenticated(buildTestFirstRunStatus()),
-            ),
             userProfileProvider.overrideWith((ref) async => null),
             filesRepositoryProvider.overrideWithValue(filesRepository),
             weaveApiClientProvider.overrideWithValue(
@@ -751,10 +736,6 @@ void main() {
               chatRepositoryProvider.overrideWithValue(chatRepository),
               chatSecurityRepositoryProvider.overrideWithValue(
                 FakeChatSecurityRepository(),
-              ),
-              firstRunStatusProvider.overrideWith(
-                (ref) async =>
-                    FirstRunLoadResult.authenticated(buildTestFirstRunStatus()),
               ),
               userProfileProvider.overrideWith((ref) async => null),
               filesRepositoryProvider.overrideWithValue(filesRepository),

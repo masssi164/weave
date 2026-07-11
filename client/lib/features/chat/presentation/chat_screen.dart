@@ -11,8 +11,6 @@ import 'package:weave/features/chat/presentation/chat_room_screen.dart';
 import 'package:weave/features/chat/presentation/providers/chat_provider.dart';
 import 'package:weave/features/agents/domain/entities/agent_capability_policy.dart';
 import 'package:weave/features/agents/presentation/providers/agent_capability_policy_provider.dart';
-import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
-import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
 /// The Chat feature screen.
@@ -26,29 +24,10 @@ class ChatScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final state = ref.watch(chatProvider);
-    final chatProvisioning = switch (ref.watch(
-      chatProvisioningStatusProvider,
-    )) {
-      AsyncData(value: final status) => status,
-      _ => null,
-    };
 
     return CustomScrollView(
       slivers: [
         SliverAppBar.large(title: Text(l10n.chatScreenTitle)),
-        if (chatProvisioning != null && !chatProvisioning.isReady)
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-            sliver: SliverToBoxAdapter(
-              child: _ChatProvisioningNotice(
-                status: chatProvisioning,
-                onRefresh: () {
-                  refreshChatProvisioningStatus(ref);
-                  ref.read(chatProvider.notifier).retry();
-                },
-              ),
-            ),
-          ),
         if (state.staleFailure != null)
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
@@ -127,134 +106,6 @@ class ChatScreen extends ConsumerWidget {
         },
       ],
     );
-  }
-}
-
-class _ChatProvisioningNotice extends StatelessWidget {
-  const _ChatProvisioningNotice({
-    required this.status,
-    required this.onRefresh,
-  });
-
-  final FirstRunModuleStatus status;
-  final VoidCallback onRefresh;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    final title = _titleForStatus(l10n, status.state);
-    final message = _messageForStatus(l10n, status.state);
-    final action = _actionForStatus(l10n, status.state);
-
-    return Semantics(
-      container: true,
-      liveRegion: true,
-      label: '$title. $message${action == null ? '' : '. $action'}',
-      child: ExcludeSemantics(
-        child: Card(
-          elevation: 0,
-          color: theme.colorScheme.secondaryContainer,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-            side: BorderSide(color: theme.colorScheme.secondary),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(
-                      Icons.info_outline,
-                      color: theme.colorScheme.onSecondaryContainer,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        title,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          color: theme.colorScheme.onSecondaryContainer,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  message,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSecondaryContainer,
-                  ),
-                ),
-                if (action != null) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    action,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSecondaryContainer,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 12),
-                Align(
-                  alignment: AlignmentDirectional.centerEnd,
-                  child: TextButton.icon(
-                    onPressed: onRefresh,
-                    icon: const Icon(Icons.refresh),
-                    label: Text(l10n.chatProvisioningRetryButton),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  String _titleForStatus(
-    AppLocalizations l10n,
-    FirstRunProvisioningState state,
-  ) {
-    return switch (state) {
-      FirstRunProvisioningState.pending => l10n.chatProvisioningPendingTitle,
-      FirstRunProvisioningState.degraded => l10n.chatProvisioningDegradedTitle,
-      FirstRunProvisioningState.notConfigured ||
-      FirstRunProvisioningState.failed =>
-        l10n.chatProvisioningActionNeededTitle,
-      FirstRunProvisioningState.ready => l10n.chatProvisioningReadyTitle,
-    };
-  }
-
-  String _messageForStatus(
-    AppLocalizations l10n,
-    FirstRunProvisioningState state,
-  ) {
-    return switch (state) {
-      FirstRunProvisioningState.pending => l10n.chatProvisioningPendingGuidance,
-      FirstRunProvisioningState.degraded =>
-        l10n.chatProvisioningDegradedGuidance,
-      FirstRunProvisioningState.notConfigured =>
-        l10n.chatProvisioningUnavailableGuidance,
-      FirstRunProvisioningState.failed => l10n.chatProvisioningFailedGuidance,
-      FirstRunProvisioningState.ready => l10n.chatProvisioningReadyGuidance,
-    };
-  }
-
-  String? _actionForStatus(
-    AppLocalizations l10n,
-    FirstRunProvisioningState state,
-  ) {
-    return switch (state) {
-      FirstRunProvisioningState.pending ||
-      FirstRunProvisioningState.ready => null,
-      FirstRunProvisioningState.degraded ||
-      FirstRunProvisioningState.notConfigured ||
-      FirstRunProvisioningState.failed => l10n.chatProvisioningAdminAction,
-    };
   }
 }
 

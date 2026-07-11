@@ -12,10 +12,7 @@ import 'package:weave/features/chat/presentation/chat_screen.dart';
 import 'package:weave/features/files/presentation/files_screen.dart';
 import 'package:weave/features/help/presentation/help_screen.dart';
 import 'package:weave/features/home/presentation/home_screen.dart';
-import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
-import 'package:weave/features/onboarding/presentation/first_run_screen.dart';
 import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
-import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
 import 'package:weave/features/onboarding/presentation/setup_flow.dart';
 import 'package:weave/features/profile/presentation/profile_screen.dart';
 import 'package:weave/features/settings/presentation/settings_screen.dart';
@@ -65,7 +62,6 @@ GoRouter appRouter(Ref ref) {
       final onOnboarding = state.matchedLocation == AppRoutes.welcome;
       final onSignIn = state.matchedLocation == AppRoutes.signIn;
       final onJoin = state.matchedLocation == AppRoutes.join;
-      final onFirstRun = state.matchedLocation == AppRoutes.firstRun;
       switch (bootstrapState.phase) {
         case BootstrapPhase.loading:
         case BootstrapPhase.error:
@@ -75,23 +71,7 @@ GoRouter appRouter(Ref ref) {
         case BootstrapPhase.needsSignIn:
           return (onSignIn || onJoin) ? null : AppRoutes.signIn;
         case BootstrapPhase.ready:
-          try {
-            final result = await ref.read(firstRunStatusProvider.future);
-            return switch (result) {
-              FirstRunAuthenticated(:final status) =>
-                !status.firstRunComplete
-                    ? (onFirstRun ? null : AppRoutes.firstRun)
-                    : (onOnboarding || onSignIn || onFirstRun
-                          ? AppRoutes.home
-                          : null),
-              FirstRunSignedOut() ||
-              FirstRunUnauthorized() => onSignIn ? null : AppRoutes.signIn,
-              FirstRunBackendUnavailable() || FirstRunInvalidPayload() =>
-                onFirstRun ? null : AppRoutes.firstRun,
-            };
-          } catch (_) {
-            return onFirstRun ? null : AppRoutes.firstRun;
-          }
+          return (onOnboarding || onSignIn) ? AppRoutes.home : null;
       }
     },
     routes: [
@@ -106,10 +86,6 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: AppRoutes.join,
         builder: (context, state) => MemberHandoffScreen(uri: state.uri),
-      ),
-      GoRoute(
-        path: AppRoutes.firstRun,
-        builder: (context, state) => const FirstRunScreen(),
       ),
       GoRoute(
         path: AppRoutes.help,

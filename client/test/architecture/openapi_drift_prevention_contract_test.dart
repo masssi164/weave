@@ -123,7 +123,6 @@ const _openApiCoveredResponsePrefixes = <String>{
   'Devops',
   'File',
   'Office',
-  'OnboardingStatus',
   'Organization',
   'Platform',
   'ProductProfile',
@@ -389,18 +388,11 @@ const _hardcodedCopyAllowlist = <LegacyFence>[
         'feed localized Files recovery copy.',
   ),
   LegacyFence(
-    path: 'lib/features/onboarding/data/',
-    issue: '#908',
-    reason:
-        'Onboarding backend clients still emit displayable failure text until '
-        'typed first-run recovery codes feed localized UI copy.',
-  ),
-  LegacyFence(
     path: 'lib/features/onboarding/domain/',
     issue: '#908',
     reason:
-        'Onboarding handoff/domain failures still carry displayable text until '
-        'typed first-run recovery codes feed localized UI copy.',
+        'Organization handoff failures still carry displayable text until '
+        'typed handoff recovery codes feed localized UI copy.',
   ),
   LegacyFence(
     path: 'lib/features/profile/data/',

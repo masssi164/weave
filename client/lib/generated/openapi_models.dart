@@ -16,44 +16,6 @@ Object? _openApiJsonValue(Object? value) {
   }
 }
 
-class Access {
-  const Access({
-    this.canAdministerWorkspace,
-    this.canInviteUsers,
-    this.canUseWorkspaceModules,
-    this.groups,
-    this.primaryRole,
-    this.roles,
-  });
-
-  factory Access.fromJson(Map<String, dynamic> json) => Access(
-    canAdministerWorkspace: json["canAdministerWorkspace"] as bool?,
-    canInviteUsers: json["canInviteUsers"] as bool?,
-    canUseWorkspaceModules: json["canUseWorkspaceModules"] as bool?,
-    groups: (json["groups"] as List<dynamic>?)
-        ?.map((e) => e as String)
-        .toList(),
-    primaryRole: json["primaryRole"] as String?,
-    roles: (json["roles"] as List<dynamic>?)?.map((e) => e as String).toList(),
-  );
-
-  final bool? canAdministerWorkspace;
-  final bool? canInviteUsers;
-  final bool? canUseWorkspaceModules;
-  final List<String>? groups;
-  final String? primaryRole;
-  final List<String>? roles;
-
-  Map<String, dynamic> toJson() => {
-    "canAdministerWorkspace": _openApiJsonValue(canAdministerWorkspace),
-    "canInviteUsers": _openApiJsonValue(canInviteUsers),
-    "canUseWorkspaceModules": _openApiJsonValue(canUseWorkspaceModules),
-    "groups": _openApiJsonValue(groups),
-    "primaryRole": _openApiJsonValue(primaryRole),
-    "roles": _openApiJsonValue(roles),
-  };
-}
-
 class AdminAuditEventResponse {
   const AdminAuditEventResponse({
     this.action,
@@ -4552,56 +4514,6 @@ class HealthResponse {
   };
 }
 
-class Identity {
-  const Identity({
-    this.displayName,
-    this.email,
-    this.emailVerified,
-    this.groups,
-    this.locale,
-    this.roles,
-    this.timezone,
-    this.userId,
-    this.username,
-  });
-
-  factory Identity.fromJson(Map<String, dynamic> json) => Identity(
-    displayName: json["displayName"] as String?,
-    email: json["email"] as String?,
-    emailVerified: json["emailVerified"] as bool?,
-    groups: (json["groups"] as List<dynamic>?)
-        ?.map((e) => e as String)
-        .toList(),
-    locale: json["locale"] as String?,
-    roles: (json["roles"] as List<dynamic>?)?.map((e) => e as String).toList(),
-    timezone: json["timezone"] as String?,
-    userId: json["userId"] as String?,
-    username: json["username"] as String?,
-  );
-
-  final String? displayName;
-  final String? email;
-  final bool? emailVerified;
-  final List<String>? groups;
-  final String? locale;
-  final List<String>? roles;
-  final String? timezone;
-  final String? userId;
-  final String? username;
-
-  Map<String, dynamic> toJson() => {
-    "displayName": _openApiJsonValue(displayName),
-    "email": _openApiJsonValue(email),
-    "emailVerified": _openApiJsonValue(emailVerified),
-    "groups": _openApiJsonValue(groups),
-    "locale": _openApiJsonValue(locale),
-    "roles": _openApiJsonValue(roles),
-    "timezone": _openApiJsonValue(timezone),
-    "userId": _openApiJsonValue(userId),
-    "username": _openApiJsonValue(username),
-  };
-}
-
 class IdentityProviderReadinessCardResponse {
   const IdentityProviderReadinessCardResponse({
     this.diagnostics,
@@ -5153,26 +5065,6 @@ class InventorySummary {
   };
 }
 
-class InviteStatus {
-  const InviteStatus({this.action, this.message, this.status});
-
-  factory InviteStatus.fromJson(Map<String, dynamic> json) => InviteStatus(
-    action: json["action"] as String?,
-    message: json["message"] as String?,
-    status: json["status"] as String?,
-  );
-
-  final String? action;
-  final String? message;
-  final String? status;
-
-  Map<String, dynamic> toJson() => {
-    "action": _openApiJsonValue(action),
-    "message": _openApiJsonValue(message),
-    "status": _openApiJsonValue(status),
-  };
-}
-
 class LifecycleExpectations {
   const LifecycleExpectations({
     this.deleteExpectation,
@@ -5636,6 +5528,96 @@ class MeetingCapsulesResponse {
   };
 }
 
+class MemberInvitationRequest {
+  const MemberInvitationRequest({
+    this.displayName,
+    required this.email,
+    this.organizationGroups,
+    required this.role,
+  });
+
+  factory MemberInvitationRequest.fromJson(Map<String, dynamic> json) =>
+      MemberInvitationRequest(
+        displayName: json["displayName"] as String?,
+        email: json["email"] as String,
+        organizationGroups: (json["organizationGroups"] as List<dynamic>?)
+            ?.map((e) => e as String)
+            .toList(),
+        role: json["role"] as String,
+      );
+
+  final String? displayName;
+  final String email;
+  final List<String>? organizationGroups;
+  final String role;
+
+  Map<String, dynamic> toJson() => {
+    "displayName": _openApiJsonValue(displayName),
+    "email": _openApiJsonValue(email),
+    "organizationGroups": _openApiJsonValue(organizationGroups),
+    "role": _openApiJsonValue(role),
+  };
+}
+
+class MemberInvitationResponse {
+  const MemberInvitationResponse({
+    this.createdAt,
+    this.displayName,
+    this.email,
+    this.expiresAt,
+    this.lifecycleStatus,
+    this.organizationGroups,
+    this.organizationId,
+    this.providerInvitationId,
+    this.provisioningStatus,
+    this.requestedRole,
+    this.updatedAt,
+  });
+
+  factory MemberInvitationResponse.fromJson(Map<String, dynamic> json) =>
+      MemberInvitationResponse(
+        createdAt: json["createdAt"] as String?,
+        displayName: json["displayName"] as String?,
+        email: json["email"] as String?,
+        expiresAt: json["expiresAt"] as String?,
+        lifecycleStatus: json["lifecycleStatus"] as String?,
+        organizationGroups: (json["organizationGroups"] as List<dynamic>?)
+            ?.map((e) => e as String)
+            .toList(),
+        organizationId: json["organizationId"] as String?,
+        providerInvitationId: json["providerInvitationId"] as String?,
+        provisioningStatus: json["provisioningStatus"] as String?,
+        requestedRole: json["requestedRole"] as String?,
+        updatedAt: json["updatedAt"] as String?,
+      );
+
+  final String? createdAt;
+  final String? displayName;
+  final String? email;
+  final String? expiresAt;
+  final String? lifecycleStatus;
+  final List<String>? organizationGroups;
+  final String? organizationId;
+  final String? providerInvitationId;
+  final String? provisioningStatus;
+  final String? requestedRole;
+  final String? updatedAt;
+
+  Map<String, dynamic> toJson() => {
+    "createdAt": _openApiJsonValue(createdAt),
+    "displayName": _openApiJsonValue(displayName),
+    "email": _openApiJsonValue(email),
+    "expiresAt": _openApiJsonValue(expiresAt),
+    "lifecycleStatus": _openApiJsonValue(lifecycleStatus),
+    "organizationGroups": _openApiJsonValue(organizationGroups),
+    "organizationId": _openApiJsonValue(organizationId),
+    "providerInvitationId": _openApiJsonValue(providerInvitationId),
+    "provisioningStatus": _openApiJsonValue(provisioningStatus),
+    "requestedRole": _openApiJsonValue(requestedRole),
+    "updatedAt": _openApiJsonValue(updatedAt),
+  };
+}
+
 class MigrationApplyGateRequest {
   const MigrationApplyGateRequest({
     this.adminApprovalRef,
@@ -5932,63 +5914,6 @@ class MigrationDryRunResponse {
     "status": _openApiJsonValue(status),
     "supportSafe": _openApiJsonValue(supportSafe),
     "unmappableContent": _openApiJsonValue(unmappableContent),
-  };
-}
-
-class ModuleProvisioning {
-  const ModuleProvisioning({
-    this.identity,
-    this.matrix,
-    this.nextcloud,
-    this.profile,
-  });
-
-  factory ModuleProvisioning.fromJson(Map<String, dynamic> json) =>
-      ModuleProvisioning(
-        identity: json["identity"] == null
-            ? null
-            : ModuleStatus.fromJson(json["identity"] as Map<String, dynamic>),
-        matrix: json["matrix"] == null
-            ? null
-            : ModuleStatus.fromJson(json["matrix"] as Map<String, dynamic>),
-        nextcloud: json["nextcloud"] == null
-            ? null
-            : ModuleStatus.fromJson(json["nextcloud"] as Map<String, dynamic>),
-        profile: json["profile"] == null
-            ? null
-            : ModuleStatus.fromJson(json["profile"] as Map<String, dynamic>),
-      );
-
-  final ModuleStatus? identity;
-  final ModuleStatus? matrix;
-  final ModuleStatus? nextcloud;
-  final ModuleStatus? profile;
-
-  Map<String, dynamic> toJson() => {
-    "identity": _openApiJsonValue(identity),
-    "matrix": _openApiJsonValue(matrix),
-    "nextcloud": _openApiJsonValue(nextcloud),
-    "profile": _openApiJsonValue(profile),
-  };
-}
-
-class ModuleStatus {
-  const ModuleStatus({this.action, this.message, this.state});
-
-  factory ModuleStatus.fromJson(Map<String, dynamic> json) => ModuleStatus(
-    action: json["action"] as String?,
-    message: json["message"] as String?,
-    state: json["state"] as String?,
-  );
-
-  final String? action;
-  final String? message;
-  final String? state;
-
-  Map<String, dynamic> toJson() => {
-    "action": _openApiJsonValue(action),
-    "message": _openApiJsonValue(message),
-    "state": _openApiJsonValue(state),
   };
 }
 
@@ -6355,58 +6280,62 @@ class OfficeProviderCandidateResponse {
   };
 }
 
-class OnboardingStatusResponse {
-  const OnboardingStatusResponse({
-    this.access,
-    this.actions,
-    this.firstRunComplete,
-    this.identity,
-    this.invite,
-    this.moduleProvisioning,
-    this.profile,
-  });
+class Organization {
+  const Organization({this.displayName, this.id});
 
-  factory OnboardingStatusResponse.fromJson(Map<String, dynamic> json) =>
-      OnboardingStatusResponse(
-        access: json["access"] == null
-            ? null
-            : Access.fromJson(json["access"] as Map<String, dynamic>),
-        actions: (json["actions"] as List<dynamic>?)
-            ?.map((e) => e as String)
-            .toList(),
-        firstRunComplete: json["firstRunComplete"] as bool?,
-        identity: json["identity"] == null
-            ? null
-            : Identity.fromJson(json["identity"] as Map<String, dynamic>),
-        invite: json["invite"] == null
-            ? null
-            : InviteStatus.fromJson(json["invite"] as Map<String, dynamic>),
-        moduleProvisioning: json["moduleProvisioning"] == null
-            ? null
-            : ModuleProvisioning.fromJson(
-                json["moduleProvisioning"] as Map<String, dynamic>,
-              ),
-        profile: json["profile"] == null
-            ? null
-            : ProfileStatus.fromJson(json["profile"] as Map<String, dynamic>),
-      );
+  factory Organization.fromJson(Map<String, dynamic> json) => Organization(
+    displayName: json["displayName"] as String?,
+    id: json["id"] as String?,
+  );
 
-  final Access? access;
-  final List<String>? actions;
-  final bool? firstRunComplete;
-  final Identity? identity;
-  final InviteStatus? invite;
-  final ModuleProvisioning? moduleProvisioning;
-  final ProfileStatus? profile;
+  final String? displayName;
+  final String? id;
 
   Map<String, dynamic> toJson() => {
-    "access": _openApiJsonValue(access),
-    "actions": _openApiJsonValue(actions),
-    "firstRunComplete": _openApiJsonValue(firstRunComplete),
-    "identity": _openApiJsonValue(identity),
-    "invite": _openApiJsonValue(invite),
-    "moduleProvisioning": _openApiJsonValue(moduleProvisioning),
-    "profile": _openApiJsonValue(profile),
+    "displayName": _openApiJsonValue(displayName),
+    "id": _openApiJsonValue(id),
+  };
+}
+
+class OrganizationAccessDiscovery {
+  const OrganizationAccessDiscovery({
+    this.apiBaseUrl,
+    this.capabilities,
+    this.contractVersion,
+    this.oidcClientId,
+    this.oidcIssuer,
+    this.organization,
+  });
+
+  factory OrganizationAccessDiscovery.fromJson(Map<String, dynamic> json) =>
+      OrganizationAccessDiscovery(
+        apiBaseUrl: json["apiBaseUrl"] as String?,
+        capabilities: (json["capabilities"] as Map<String, dynamic>?)
+            ?.cast<String, Object?>(),
+        contractVersion: json["contractVersion"] as String?,
+        oidcClientId: json["oidcClientId"] as String?,
+        oidcIssuer: json["oidcIssuer"] as String?,
+        organization: json["organization"] == null
+            ? null
+            : Organization.fromJson(
+                json["organization"] as Map<String, dynamic>,
+              ),
+      );
+
+  final String? apiBaseUrl;
+  final Map<String, Object?>? capabilities;
+  final String? contractVersion;
+  final String? oidcClientId;
+  final String? oidcIssuer;
+  final Organization? organization;
+
+  Map<String, dynamic> toJson() => {
+    "apiBaseUrl": _openApiJsonValue(apiBaseUrl),
+    "capabilities": _openApiJsonValue(capabilities),
+    "contractVersion": _openApiJsonValue(contractVersion),
+    "oidcClientId": _openApiJsonValue(oidcClientId),
+    "oidcIssuer": _openApiJsonValue(oidcIssuer),
+    "organization": _openApiJsonValue(organization),
   };
 }
 
@@ -6848,31 +6777,6 @@ class ProfileReadinessResponse {
     "readiness": _openApiJsonValue(readiness),
     "supportSafe": _openApiJsonValue(supportSafe),
     "unsupportedOperations": _openApiJsonValue(unsupportedOperations),
-  };
-}
-
-class ProfileStatus {
-  const ProfileStatus({this.action, this.message, this.missing, this.status});
-
-  factory ProfileStatus.fromJson(Map<String, dynamic> json) => ProfileStatus(
-    action: json["action"] as String?,
-    message: json["message"] as String?,
-    missing: (json["missing"] as List<dynamic>?)
-        ?.map((e) => e as String)
-        .toList(),
-    status: json["status"] as String?,
-  );
-
-  final String? action;
-  final String? message;
-  final List<String>? missing;
-  final String? status;
-
-  Map<String, dynamic> toJson() => {
-    "action": _openApiJsonValue(action),
-    "message": _openApiJsonValue(message),
-    "missing": _openApiJsonValue(missing),
-    "status": _openApiJsonValue(status),
   };
 }
 

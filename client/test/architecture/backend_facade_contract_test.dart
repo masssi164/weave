@@ -36,21 +36,6 @@ void main() {
     },
   );
 
-  test('onboarding status uses generated OpenAPI DTO source of truth', () async {
-    final mapper = await File(
-      'lib/features/onboarding/data/dtos/first_run_status_dto.dart',
-    ).readAsString();
-    final client = await File(
-      'lib/features/onboarding/data/services/backend_onboarding_status_client.dart',
-    ).readAsString();
-
-    expect(mapper, contains('openapi.OnboardingStatusResponse'));
-    expect(client, contains('openapi.OnboardingStatusResponse.fromJson'));
-    expect(mapper, isNot(contains('class FirstRunStatusDto')));
-    expect(mapper, isNot(contains('class FirstRunIdentityDto')));
-    expect(mapper, isNot(contains('class FirstRunModuleProvisioningDto')));
-  });
-
   test('profile facade uses generated OpenAPI DTO source of truth', () async {
     final mapper = await File(
       'lib/features/profile/data/dtos/user_profile_dto.dart',

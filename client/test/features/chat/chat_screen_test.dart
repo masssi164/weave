@@ -13,8 +13,6 @@ import 'package:weave/features/app/presentation/providers/workspace_invalidation
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/chat/domain/entities/chat_security_state.dart';
-import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
-import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
 import 'package:weave/features/chat/presentation/chat_screen.dart';
 import 'package:weave/features/chat/presentation/providers/chat_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
@@ -63,9 +61,6 @@ void main() {
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
             ),
-            firstRunStatusProvider.overrideWith(
-              (ref) async => const FirstRunLoadResult.signedOut(),
-            ),
           ],
         ),
       );
@@ -108,9 +103,6 @@ void main() {
             chatRepositoryProvider.overrideWithValue(repository),
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
-            ),
-            firstRunStatusProvider.overrideWith(
-              (ref) async => const FirstRunLoadResult.signedOut(),
             ),
           ],
         ),
@@ -216,9 +208,6 @@ void main() {
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
             ),
-            firstRunStatusProvider.overrideWith(
-              (ref) async => const FirstRunLoadResult.signedOut(),
-            ),
           ],
         ),
       );
@@ -266,9 +255,6 @@ void main() {
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
             ),
-            firstRunStatusProvider.overrideWith(
-              (ref) async => const FirstRunLoadResult.signedOut(),
-            ),
           ],
         );
         addTearDown(container.dispose);
@@ -302,57 +288,6 @@ void main() {
 
         expect(repository.connectCalls, 0);
         expect(find.text('Connect chat'), findsOneWidget);
-      },
-    );
-
-    testWidgets(
-      'shows a friendly Matrix provisioning notice when rooms failed',
-      (tester) async {
-        final repository = FakeChatRepository(
-          loadConversationsHandler: () async => const <ChatConversation>[],
-        );
-        final securityRepository = buildSecurityRepository();
-
-        await tester.pumpWidget(
-          createTestApp(
-            const ChatScreen(),
-            overrides: [
-              chatRepositoryProvider.overrideWithValue(repository),
-              chatSecurityRepositoryProvider.overrideWithValue(
-                securityRepository,
-              ),
-              firstRunStatusProvider.overrideWith(
-                (ref) async => FirstRunLoadResult.authenticated(
-                  _chatFirstRunStatus(
-                    const FirstRunModuleStatus(
-                      state: FirstRunProvisioningState.failed,
-                      message: 'Internal provider detail should not render.',
-                      action: 'Internal provider action should not render.',
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-        await tester.pumpAndSettle();
-
-        expect(find.text('Chat setup needs admin attention'), findsOneWidget);
-        expect(
-          find.text('Internal provider detail should not render.'),
-          findsNothing,
-        );
-        expect(
-          find.text('Internal provider action should not render.'),
-          findsNothing,
-        );
-        expect(
-          find.text(
-            'Ask a workspace admin to inspect support-safe diagnostics.',
-          ),
-          findsOneWidget,
-        );
-        expect(find.text('Retry status'), findsOneWidget);
       },
     );
 
@@ -390,9 +325,6 @@ void main() {
             chatRepositoryProvider.overrideWithValue(repository),
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
-            ),
-            firstRunStatusProvider.overrideWith(
-              (ref) async => const FirstRunLoadResult.signedOut(),
             ),
           ],
         ),
@@ -464,9 +396,6 @@ void main() {
               chatRepositoryProvider.overrideWithValue(repository),
               chatSecurityRepositoryProvider.overrideWithValue(
                 securityRepository,
-              ),
-              firstRunStatusProvider.overrideWith(
-                (ref) async => const FirstRunLoadResult.signedOut(),
               ),
             ],
           ),
@@ -540,9 +469,6 @@ void main() {
               chatRepositoryProvider.overrideWithValue(repository),
               chatSecurityRepositoryProvider.overrideWithValue(
                 securityRepository,
-              ),
-              firstRunStatusProvider.overrideWith(
-                (ref) async => const FirstRunLoadResult.signedOut(),
               ),
             ],
           ),
@@ -628,9 +554,6 @@ void main() {
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
             ),
-            firstRunStatusProvider.overrideWith(
-              (ref) async => const FirstRunLoadResult.signedOut(),
-            ),
           ],
         ),
       );
@@ -695,9 +618,6 @@ void main() {
         overrides: [
           chatRepositoryProvider.overrideWithValue(repository),
           chatSecurityRepositoryProvider.overrideWithValue(securityRepository),
-          firstRunStatusProvider.overrideWith(
-            (ref) async => const FirstRunLoadResult.signedOut(),
-          ),
         ],
       );
       addTearDown(container.dispose);
@@ -769,9 +689,6 @@ void main() {
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
             ),
-            firstRunStatusProvider.overrideWith(
-              (ref) async => const FirstRunLoadResult.signedOut(),
-            ),
           ],
         ),
       );
@@ -803,9 +720,6 @@ void main() {
             chatRepositoryProvider.overrideWithValue(repository),
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
-            ),
-            firstRunStatusProvider.overrideWith(
-              (ref) async => const FirstRunLoadResult.signedOut(),
             ),
           ],
         ),
@@ -839,9 +753,6 @@ void main() {
             chatRepositoryProvider.overrideWithValue(repository),
             chatSecurityRepositoryProvider.overrideWithValue(
               securityRepository,
-            ),
-            firstRunStatusProvider.overrideWith(
-              (ref) async => const FirstRunLoadResult.signedOut(),
             ),
             agentCapabilityPolicyProvider.overrideWithValue(
               const AsyncData(
@@ -887,54 +798,4 @@ void main() {
       );
     });
   });
-}
-
-FirstRunStatus _chatFirstRunStatus(FirstRunModuleStatus matrixStatus) {
-  return FirstRunStatus(
-    identity: const FirstRunIdentity(
-      userId: 'user-123',
-      username: 'alice',
-      email: 'alice@example.test',
-      emailVerified: true,
-      displayName: 'Alice Example',
-      locale: 'en',
-      timezone: 'Europe/Berlin',
-      roles: ['member'],
-      groups: ['workspace-default'],
-    ),
-    invite: const FirstRunInviteStatus(
-      status: 'active',
-      message: 'The invite is active.',
-    ),
-    access: const FirstRunAccess(
-      primaryRole: 'member',
-      roles: ['member'],
-      groups: ['workspace-default'],
-      canAdministerWorkspace: false,
-      canInviteUsers: false,
-      canUseWorkspaceModules: true,
-    ),
-    profile: const FirstRunProfileStatus(
-      status: 'ready',
-      missing: [],
-      message: 'The profile is ready.',
-    ),
-    moduleProvisioning: FirstRunModuleProvisioning(
-      identity: const FirstRunModuleStatus(
-        state: FirstRunProvisioningState.ready,
-        message: 'Identity is ready.',
-      ),
-      profile: const FirstRunModuleStatus(
-        state: FirstRunProvisioningState.ready,
-        message: 'Profile is ready.',
-      ),
-      matrix: matrixStatus,
-      nextcloud: const FirstRunModuleStatus(
-        state: FirstRunProvisioningState.ready,
-        message: 'Nextcloud is ready.',
-      ),
-    ),
-    firstRunComplete: matrixStatus.isReady,
-    actions: const [],
-  );
 }

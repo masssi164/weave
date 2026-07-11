@@ -170,16 +170,6 @@ weave:
       api-key: ${WEAVE_LIVEKIT_API_KEY:}
       api-secret: ${WEAVE_LIVEKIT_API_SECRET:}
       token-endpoint: ${WEAVE_LIVEKIT_TOKEN_ENDPOINT:}
-  onboarding:
-    matrix:
-      # Optional first-run provisioning override. When blank, status is derived from
-      # the workspace chat capability. Accepted values: not_configured, pending,
-      # ready, degraded, failed.
-      provisioning-state: ${WEAVE_ONBOARDING_MATRIX_PROVISIONING_STATE:}
-    nextcloud:
-      # Optional first-run provisioning override. When blank, status is derived from
-      # the files/calendar capabilities and canonical Nextcloud route.
-      provisioning-state: ${WEAVE_ONBOARDING_NEXTCLOUD_PROVISIONING_STATE:}
   identity:
     invitations:
       storage-mode: ${WEAVE_IDENTITY_INVITATIONS_STORAGE_MODE:memory}
