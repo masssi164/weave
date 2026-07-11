@@ -18,6 +18,8 @@ The GitHub `iOS Dogfood` workflow runs only for `dogfood` or an explicit manual 
 
 Create the App Store Connect app record and TestFlight tester group once. Configure automatic distribution for the intended internal tester group, or complete Apple's beta review before using an external tester group. The workflow validates the archive bundle/build identity, uploads with Apple's command-line tooling, and emits support-safe evidence without certificate, profile, API key, or member credential material.
 
+The Flutter native-assets hook derives `IPHONEOS_DEPLOYMENT_TARGET` from the iOS target version supplied by Flutter and passes it explicitly to the Matrix Rust bridge build. Keep that value target-derived: Xcode build phases can otherwise replace the Cargo child process deployment target with an older default, producing Rust and C objects that cannot be linked into the app. Non-iOS bridge builds must not receive the iOS variable.
+
 ## Session continuity gate
 
 After the member has completed SSO and reached `workspace_ready`, run:

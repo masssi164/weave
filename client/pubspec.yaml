@@ -21,6 +21,7 @@ dependencies:
   flutter_secure_storage: ^10.0.0
   flutter_rust_bridge: 2.13.0-beta.4
   flutter_rust_bridge_hooks: 2.13.0-beta.4
+  code_assets: ^1.2.1
   ffi: ^2.2.0
   http: ^1.2.2
   path_provider: ^2.1.5
