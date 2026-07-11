@@ -386,7 +386,7 @@ main() {
   log "- Keycloak sent a one-time required-action email for '${REQUIRED_ACTIONS}' with ${ACTIVATION_LIFESPAN_SECONDS}s lifetime."
   log "- Dogfood Mailpit should capture the message locally; do not copy the action URL into docs, QR codes, logs, or app storage."
   log "- After activation, the user should receive realm role '${ROLE}' plus group '${WORKSPACE_GROUP}'."
-  log "- Verify through the backend facade with /api/me or the app first-run profile/status screen."
+  log "- Verify through the backend facade with /api/me or the app Profile screen."
   [[ -n "${EVIDENCE_FILE}" ]] && log "- Support-safe evidence: ${EVIDENCE_FILE}"
   log "WEAVE_ACTIVATION_INVITE_CREATED inviteRef=${INVITE_REF} requiredActions=${REQUIRED_ACTIONS} lifespanSeconds=${ACTIVATION_LIFESPAN_SECONDS} supportSafe=true"
 }

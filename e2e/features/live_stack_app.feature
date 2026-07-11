@@ -12,7 +12,7 @@ Feature: Live Stack product acceptance journey
   Scenario: Sign-in restores the Weave workspace and profile
     Given the Weave workspace is ready for the live test person
     When the person signs in through Weave
-    Then Weave restores the signed-in workspace through backend-owned first-run status
+    Then Weave restores the signed-in workspace through the organization manifest and capability projection
     And the person sees member-safe Weave readiness without provider setup copy
     And the person can load, edit, reload, and restore their profile name without clearing omitted profile fields
 

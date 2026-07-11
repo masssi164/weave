@@ -14,14 +14,11 @@ import 'package:weave/features/app/domain/use_cases/resolve_app_bootstrap.dart';
 import 'package:weave/features/app/presentation/providers/app_application_providers.dart';
 import 'package:weave/features/auth/domain/entities/auth_failure.dart';
 import 'package:weave/features/onboarding/domain/entities/member_auth_onboarding_state.dart';
-import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
 import 'package:weave/features/onboarding/domain/entities/member_handoff.dart';
 import 'package:weave/features/onboarding/domain/use_cases/consume_member_handoff.dart';
 import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
-import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
-import '../../helpers/first_run_status_fixture.dart';
 import '../../helpers/in_memory_stores.dart';
 
 class _ThrowingConsumeMemberHandoff implements ConsumeMemberHandoff {
@@ -223,7 +220,7 @@ void main() {
               ),
             ),
             GoRoute(
-              path: AppRoutes.firstRun,
+              path: AppRoutes.home,
               builder: (context, state) =>
                   const Scaffold(body: Text('First run workspace shell')),
             ),
@@ -250,10 +247,6 @@ void main() {
             signInWithOidcProvider.overrideWithValue(signIn),
             resolveAppBootstrapProvider.overrideWithValue(
               const _ReadyResolveAppBootstrap(),
-            ),
-            firstRunStatusProvider.overrideWith(
-              (ref) async =>
-                  FirstRunLoadResult.authenticated(buildTestFirstRunStatus()),
             ),
           ],
         );

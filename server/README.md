@@ -11,7 +11,7 @@ It is intentionally not a generic proxy for Matrix, Nextcloud, Keycloak, OpenPro
 ## What the backend owns
 
 - JWT issuer, audience, client, and `weave:workspace` scope validation.
-- Product APIs for profile, onboarding, workspace capabilities, readiness, files, calendar, DevOps readiness, Matrix/MAS policy status, provider-stack status, and later documents/collaboration launch seams once the domain-facade foundation is ready.
+- Product APIs for profile, organization handoff, workspace capabilities, readiness, files, calendar, DevOps readiness, Matrix/MAS policy status, provider-stack status, and later documents/collaboration launch seams once the domain-facade foundation is ready.
 - Backend-held actors and provider credentials for server-side facades.
 - Support-safe error envelopes, request IDs, redaction, and diagnostics.
 - Feature gates for unsafe or incomplete provider paths.
@@ -33,7 +33,6 @@ Currently implemented or contract-backed surfaces:
 - Public health/platform bootstrap endpoints for gateways and smoke checks.
 - `GET /api/me` caller snapshot.
 - `GET /api/profile`, `PATCH /api/profile`, and `GET /api/profile/sync-status`.
-- `GET /api/onboarding/status`.
 - `GET /api/workspace/capabilities` and `GET /api/workspace/release-readiness`.
 - OIDC-gated Matrix Client-Server facade at `/_matrix/client/**`: member room sync, encrypted timeline/send, receipts, typing, reactions, redaction, room lifecycle, device keys, cross-signing, to-device traffic, room-key backup, recovery, and identity operations project the canonical Chat domain through the shared Rust/Ruma JNI core. Spring authorization and `chat.read`/`chat.send` capability checks run before the replaceable southbound `ChatProviderPort`; writes are audited without exposing provider payloads. This is a Weave protocol facade, not a northbound Synapse or other homeserver.
 - Matrix private keys, Olm/Megolm sessions, decrypted bodies, verification state machines, and recovery secrets belong to the Flutter-side Apache-2.0 Matrix Rust SDK. The backend persists public keys and opaque protocol envelopes only and rejects plaintext writes to encrypted rooms.

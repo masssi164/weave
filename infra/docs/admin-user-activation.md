@@ -4,7 +4,7 @@ The single-host operator path needs a support-safe way for an operator to invite
 
 - MVP realm roles: `owner`, `admin`, `member`, `guest`
 - default role-mapped group claims: `workspace-owners`, `workspace-admins`, `workspace-members`, `workspace-guests`
-- backend verification path: `/api/me` or the app first-run/profile status surfaces
+- backend verification path: `/api/me` or the app Profile surface
 
 ## Prerequisites
 

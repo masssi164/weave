@@ -149,60 +149,6 @@
   "semanticDeckIcon": "Boards-Workspace",
   "semanticSettingsIcon": "App-Einstellungen",
   "semanticWeaveLogo": "Weave-Logo",
-  "firstRunAppBarTitle": "Erststart-Status",
-  "firstRunLoadingLabel": "Weave-Arbeitsbereich wird geprüft…",
-  "firstRunLoadingHint": "Profil, Rolle und Modulbereitschaft werden vom Weave-Backend geladen.",
-  "firstRunLoadFailure": "Der Erststart-Status konnte nicht vom Weave-Backend geladen werden.",
-  "firstRunLoadFailureGuidance": "Prüfe deine Verbindung und versuche es erneut. Wenn das Problem bestehen bleibt, bitte einen Admin zu bestätigen, dass das Backend erreichbar ist.",
-  "firstRunSignedOutMessage": "Melde dich an, um deinen Weave-Erststart-Status zu sehen.",
-  "firstRunSignedOutGuidance": "Wir brauchen eine aktive Weave-SSO-Sitzung, bevor Profil, Rolle und Modulbereitschaft geprüft werden können.",
-  "firstRunSignInAction": "Zur Anmeldung",
-  "firstRunSignedOutSemanticLabel": "Melde dich an, um deinen Weave-Erststart-Status zu sehen. Wir brauchen eine aktive Weave-SSO-Sitzung, bevor Profil, Rolle und Modulbereitschaft geprüft werden können. Aktion: Zur Anmeldung",
-  "firstRunReadyTitle": "Dein Weave-Arbeitsbereich ist bereit",
-  "firstRunNeedsAttentionTitle": "Dein Weave-Arbeitsbereich wird vorbereitet",
-  "firstRunDescription": "Du hast dich einmal per Weave-SSO angemeldet. Weave prüft Profil und Zusammenarbeitsmodule; separate Zugangsdaten für Chat, Dateien oder Kalender sind nicht nötig.",
-  "firstRunIdentitySectionTitle": "Deine Weave-Identität",
-  "firstRunIdentitySectionDescription": "Dieses Profil und diese Rolle kommen nach SSO aus dem Weave-Backend-Vertrag.",
-  "firstRunDisplayNameLabel": "Name",
-  "firstRunUsernameLabel": "Benutzername",
-  "firstRunEmailLabel": "E-Mail",
-  "firstRunRoleLabel": "Rolle",
-  "firstRunInviteStatusLabel": "Einladung",
-  "firstRunRoleOwner": "Owner",
-  "firstRunRoleAdmin": "Admin",
-  "firstRunRoleOperator": "Operator",
-  "firstRunRoleMember": "Mitglied",
-  "firstRunRoleGuest": "Gast",
-  "firstRunRoleUnknown": "Workspace-Rolle",
-  "firstRunInviteAccepted": "Angenommen",
-  "firstRunInvitePending": "Ausstehend",
-  "firstRunInviteExpired": "Abgelaufen",
-  "firstRunInviteUnavailable": "Nicht verfügbar",
-  "firstRunModuleSectionTitle": "Modulbereitschaft",
-  "firstRunProfileModuleTitle": "Profil",
-  "firstRunChatModuleTitle": "Chat",
-  "firstRunFilesModuleTitle": "Dateien",
-  "firstRunCalendarModuleTitle": "Kalender",
-  "firstRunStateReady": "Bereit",
-  "firstRunStatePending": "Ausstehend",
-  "firstRunStateUnavailable": "Nicht verfügbar",
-  "firstRunStateDegraded": "Eingeschränkt",
-  "firstRunStateActionNeeded": "Aktion erforderlich",
-  "firstRunNextStepsTitle": "Nächste Schritte",
-  "firstRunProfileReadyGuidance": "Dein Profil ist für Weave bereit.",
-  "firstRunProfilePendingGuidance": "Dein Profil wird noch vorbereitet.",
-  "firstRunChatReadyGuidance": "Chat ist für diesen Arbeitsbereich bereit.",
-  "firstRunChatPendingGuidance": "Chat wird noch vorbereitet.",
-  "firstRunFilesReadyGuidance": "Dateien sind für diesen Arbeitsbereich bereit.",
-  "firstRunFilesPendingGuidance": "Dateien werden noch vorbereitet.",
-  "firstRunCalendarReadyGuidance": "Kalender ist für diesen Arbeitsbereich bereit.",
-  "firstRunCalendarPendingGuidance": "Kalender wird noch vorbereitet.",
-  "firstRunModuleUnavailableGuidance": "Diese Weave-Funktion ist für diesen Arbeitsbereich noch nicht verfügbar.",
-  "firstRunModuleDegradedGuidance": "Diese Weave-Funktion ist mit eingeschränkter Funktionalität verfügbar.",
-  "firstRunModuleActionNeededGuidance": "Die Einrichtung des Arbeitsbereichs benötigt Admin-Aufmerksamkeit.",
-  "firstRunNextStepAdminAttention": "Die Einrichtung des Arbeitsbereichs benötigt Admin-Aufmerksamkeit, bevor alle Funktionen bereit sind.",
-  "firstRunRefreshButton": "Status aktualisieren",
-  "firstRunContinueButton": "Weiter zum Chat",
   "chatProvisioningReadyTitle": "Chat ist bereit",
   "chatProvisioningPendingTitle": "Chaträume werden noch vorbereitet",
   "chatProvisioningDegradedTitle": "Chat ist eingeschränkt verfügbar",
@@ -1081,8 +1027,6 @@
   "chatContextEvidenceHintDescription": "Entscheidungsnotizen und Links können zitiert werden, ohne Graph-Interna offenzulegen.",
   "chatContextAgentHintTitle": "Agent-Kontextpakete",
   "chatContextAgentHintDescription": "Assistenten erhalten nur das begrenzte Paket für Anfrage, Erwähnung oder Zeitplan.",
-  "firstRunAdminSetupTitle": "Owner-/Admin-Verantwortung bei der Einrichtung",
-  "firstRunAdminSetupDescription": "Deine Rolle darf die Einrichtung des Arbeitsbereichs verwalten. Nutze die Admin-Einstellungen für Organisationszugang, Einladungen, Funktionsbereitschaft und Wiederherstellung; normale Mitglieder sollen nur eine Weave-Anmeldung brauchen.",
   "agentCapabilityPolicyTitle": "Governance für KI-Agenten-Funktionen",
   "@agentCapabilityPolicyTitle": {
     "description": "Settings card title for AI agent capability governance"
@@ -1405,15 +1349,25 @@
     "description": "Description for the normal member handoff-first setup screen"
   },
   "setupOrganizationUriLabel": "Server-URI, Einladungslink oder QR-Inhalt",
-  "@setupOrganizationUriLabel": {"description": "Eingabefeld für den Organisationszugang"},
+  "@setupOrganizationUriLabel": {
+    "description": "Eingabefeld für den Organisationszugang"
+  },
   "setupOrganizationUriHelper": "Füge den Link aus E-Mail oder QR-Code ein oder gib die Weave-Adresse deiner Organisation ein.",
-  "@setupOrganizationUriHelper": {"description": "Hilfe zum Organisationszugang"},
+  "@setupOrganizationUriHelper": {
+    "description": "Hilfe zum Organisationszugang"
+  },
   "setupOrganizationUriError": "Gib eine sichere Weave-Server-URI oder einen Einladungslink ohne eingebettete Zugangsdaten ein.",
-  "@setupOrganizationUriError": {"description": "Ungültiger Organisationszugang"},
+  "@setupOrganizationUriError": {
+    "description": "Ungültiger Organisationszugang"
+  },
   "setupOrganizationContinueButton": "Weiter zur Organisation",
-  "@setupOrganizationContinueButton": {"description": "Organisationszugang auflösen"},
+  "@setupOrganizationContinueButton": {
+    "description": "Organisationszugang auflösen"
+  },
   "setupOrganizationAccessHelp": "Deine Einladungs-E-Mail und der Organisations-QR-Code enthalten dieselbe Weave-Adresse. Nach der Prüfung bietet der nächste Bildschirm immer Anmelden an.",
-  "@setupOrganizationAccessHelp": {"description": "Erklärt gleichwertige Zugangswege"},
+  "@setupOrganizationAccessHelp": {
+    "description": "Erklärt gleichwertige Zugangswege"
+  },
   "setupMemberHandoffPrimaryAction": "Ich habe eine Einladung oder einen Anmeldelink",
   "@setupMemberHandoffPrimaryAction": {
     "description": "Primary action label for handoff-first setup"
@@ -1484,29 +1438,55 @@
     }
   },
   "weaverPermissionModeTitle": "Berechtigungsmodus",
-  "@weaverPermissionModeTitle": {"description": "Label for the governed Weaver permission mode selector"},
+  "@weaverPermissionModeTitle": {
+    "description": "Label for the governed Weaver permission mode selector"
+  },
   "weaverPermissionModeDeny": "Alles verweigern",
-  "@weaverPermissionModeDeny": {"description": "Weaver permission mode that denies actions"},
+  "@weaverPermissionModeDeny": {
+    "description": "Weaver permission mode that denies actions"
+  },
   "weaverPermissionModeAllowlist": "Nur Positivliste",
-  "@weaverPermissionModeAllowlist": {"description": "Weaver permission mode that permits remembered exact grants"},
+  "@weaverPermissionModeAllowlist": {
+    "description": "Weaver permission mode that permits remembered exact grants"
+  },
   "weaverPermissionModeAsk": "Jedes Mal fragen",
-  "@weaverPermissionModeAsk": {"description": "Weaver permission mode that requests member approval"},
+  "@weaverPermissionModeAsk": {
+    "description": "Weaver permission mode that requests member approval"
+  },
   "weaverPermissionModeAuto": "Automatische Prüfung",
-  "@weaverPermissionModeAuto": {"description": "Weaver permission mode using automatic host review"},
+  "@weaverPermissionModeAuto": {
+    "description": "Weaver permission mode using automatic host review"
+  },
   "weaverPermissionModeFull": "Vollzugriff (gefährlich)",
-  "@weaverPermissionModeFull": {"description": "Dangerous Weaver full access mode"},
+  "@weaverPermissionModeFull": {
+    "description": "Dangerous Weaver full access mode"
+  },
   "weaverPermissionFullWarningTitle": "Gefährlichen Vollzugriff aktivieren?",
-  "@weaverPermissionFullWarningTitle": {"description": "Warning title before enabling dangerous Weaver full access"},
+  "@weaverPermissionFullWarningTitle": {
+    "description": "Warning title before enabling dangerous Weaver full access"
+  },
   "weaverPermissionFullWarningBody": "Weaver darf Host-Befehle ohne Freigabe ausführen und vertrauenswürdige Weave-Tool-Anfragen automatisch annehmen. Organisationsrichtlinie, Anmeldung, Validierung, Provider-Grenzen und Audit-Protokollierung gelten weiterhin.",
-  "@weaverPermissionFullWarningBody": {"description": "Warning body before enabling dangerous Weaver full access"},
+  "@weaverPermissionFullWarningBody": {
+    "description": "Warning body before enabling dangerous Weaver full access"
+  },
   "weaverPermissionFullConfirm": "Vollzugriff aktivieren",
-  "@weaverPermissionFullConfirm": {"description": "Confirmation button for dangerous Weaver full access"},
+  "@weaverPermissionFullConfirm": {
+    "description": "Confirmation button for dangerous Weaver full access"
+  },
   "weaverPermissionCancel": "Abbrechen",
-  "@weaverPermissionCancel": {"description": "Cancel button for Weaver permission mode warning"},
+  "@weaverPermissionCancel": {
+    "description": "Cancel button for Weaver permission mode warning"
+  },
   "weaverPermissionUpdated": "Weaver-Berechtigungsmodus aktualisiert.",
-  "@weaverPermissionUpdated": {"description": "Success feedback after updating Weaver permission mode"},
+  "@weaverPermissionUpdated": {
+    "description": "Success feedback after updating Weaver permission mode"
+  },
   "weaverPermissionPolicyDenied": "Deine Organisationsrichtlinie erlaubt diesen Modus nicht.",
-  "@weaverPermissionPolicyDenied": {"description": "Feedback when organization policy denies a Weaver permission mode"},
+  "@weaverPermissionPolicyDenied": {
+    "description": "Feedback when organization policy denies a Weaver permission mode"
+  },
   "weaverPermissionUpdateFailed": "Der Weaver-Berechtigungsmodus konnte nicht aktualisiert werden.",
-  "@weaverPermissionUpdateFailed": {"description": "Failure feedback after updating Weaver permission mode"}
+  "@weaverPermissionUpdateFailed": {
+    "description": "Failure feedback after updating Weaver permission mode"
+  }
 }

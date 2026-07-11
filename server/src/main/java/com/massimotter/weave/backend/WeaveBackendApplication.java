@@ -10,7 +10,6 @@ import com.massimotter.weave.backend.config.LiveKitMeetingsProviderProperties;
 import com.massimotter.weave.backend.config.MatrixChatProperties;
 import com.massimotter.weave.backend.config.MigrationToolkitProperties;
 import com.massimotter.weave.backend.config.NextcloudFilesProperties;
-import com.massimotter.weave.backend.config.OnboardingStatusProperties;
 import com.massimotter.weave.backend.config.PlatformContractProperties;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WeaverRuntimeProperties;
@@ -31,7 +30,6 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
         MatrixChatProperties.class,
         MigrationToolkitProperties.class,
         NextcloudFilesProperties.class,
-        OnboardingStatusProperties.class,
         PlatformContractProperties.class,
         WeaveSecurityProperties.class,
         WeaverRuntimeProperties.class,

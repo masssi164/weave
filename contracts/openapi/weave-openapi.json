@@ -23,37 +23,6 @@
       }
     },
     "schemas": {
-      "Access": {
-        "description": "Product role mapping for first-run access decisions.",
-        "properties": {
-          "canAdministerWorkspace": {
-            "type": "boolean"
-          },
-          "canInviteUsers": {
-            "type": "boolean"
-          },
-          "canUseWorkspaceModules": {
-            "type": "boolean"
-          },
-          "groups": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "primaryRole": {
-            "description": "Highest MVP product role for routing: owner, admin, member, guest, or unassigned.",
-            "type": "string"
-          },
-          "roles": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          }
-        },
-        "type": "object"
-      },
       "AdminAuditEventResponse": {
         "description": "Support-safe admin audit event view.",
         "properties": {
@@ -3757,45 +3726,6 @@
         },
         "type": "object"
       },
-      "Identity": {
-        "description": "Canonical identity and profile data needed for first-run routing.",
-        "properties": {
-          "displayName": {
-            "type": "string"
-          },
-          "email": {
-            "type": "string"
-          },
-          "emailVerified": {
-            "type": "boolean"
-          },
-          "groups": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "locale": {
-            "type": "string"
-          },
-          "roles": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "timezone": {
-            "type": "string"
-          },
-          "userId": {
-            "type": "string"
-          },
-          "username": {
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
       "IdentityProviderReadinessCardResponse": {
         "description": "One support-safe identity provider readiness card for Workspace Health/Admin Console.",
         "properties": {
@@ -4224,23 +4154,6 @@
         },
         "type": "object"
       },
-      "InviteStatus": {
-        "description": "Invite or activation status derived from trusted identity claims.",
-        "properties": {
-          "action": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "description": "active, pending, or disabled.",
-            "example": "active",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
       "LifecycleExpectations": {
         "properties": {
           "deleteExpectation": {
@@ -4587,6 +4500,81 @@
         },
         "type": "object"
       },
+      "MemberInvitationRequest": {
+        "properties": {
+          "displayName": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "email": {
+            "maxLength": 320,
+            "minLength": 0,
+            "type": "string"
+          },
+          "organizationGroups": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 64,
+            "minItems": 0,
+            "type": "array"
+          },
+          "role": {
+            "pattern": "owner|admin|member|guest",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "role"
+        ],
+        "type": "object"
+      },
+      "MemberInvitationResponse": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lifecycleStatus": {
+            "type": "string"
+          },
+          "organizationGroups": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "organizationId": {
+            "type": "string"
+          },
+          "providerInvitationId": {
+            "type": "string"
+          },
+          "provisioningStatus": {
+            "type": "string"
+          },
+          "requestedRole": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "MigrationApplyGateRequest": {
         "properties": {
           "adminApprovalRef": {
@@ -4822,46 +4810,6 @@
           },
           "unmappableContent": {
             "$ref": "#/components/schemas/UnmappableContentReport"
-          }
-        },
-        "type": "object"
-      },
-      "ModuleProvisioning": {
-        "description": "Provisioning status for downstream collaboration modules.",
-        "properties": {
-          "identity": {
-            "$ref": "#/components/schemas/ModuleStatus"
-          },
-          "matrix": {
-            "$ref": "#/components/schemas/ModuleStatus"
-          },
-          "nextcloud": {
-            "$ref": "#/components/schemas/ModuleStatus"
-          },
-          "profile": {
-            "$ref": "#/components/schemas/ModuleStatus"
-          }
-        },
-        "type": "object"
-      },
-      "ModuleStatus": {
-        "properties": {
-          "action": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "state": {
-            "description": "Provisioning states exposed to first-run users for downstream modules.",
-            "enum": [
-              "degraded",
-              "failed",
-              "not_configured",
-              "pending",
-              "ready"
-            ],
-            "type": "string"
           }
         },
         "type": "object"
@@ -5118,35 +5066,39 @@
         },
         "type": "object"
       },
-      "OnboardingStatusResponse": {
-        "description": "First-run status for authenticated Weave users and admin onboarding flows.",
+      "Organization": {
         "properties": {
-          "access": {
-            "$ref": "#/components/schemas/Access"
+          "displayName": {
+            "type": "string"
           },
-          "actions": {
-            "description": "Frontend-safe next steps for statuses that are not ready.",
-            "items": {
-              "description": "Frontend-safe next steps for statuses that are not ready.",
-              "type": "string"
+          "id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "OrganizationAccessDiscovery": {
+        "properties": {
+          "apiBaseUrl": {
+            "type": "string"
+          },
+          "capabilities": {
+            "additionalProperties": {
+              "type": "boolean"
             },
-            "type": "array"
+            "type": "object"
           },
-          "firstRunComplete": {
-            "description": "True when invite, profile, and required modules are ready.",
-            "type": "boolean"
+          "contractVersion": {
+            "type": "string"
           },
-          "identity": {
-            "$ref": "#/components/schemas/Identity"
+          "oidcClientId": {
+            "type": "string"
           },
-          "invite": {
-            "$ref": "#/components/schemas/InviteStatus"
+          "oidcIssuer": {
+            "type": "string"
           },
-          "moduleProvisioning": {
-            "$ref": "#/components/schemas/ModuleProvisioning"
-          },
-          "profile": {
-            "$ref": "#/components/schemas/ProfileStatus"
+          "organization": {
+            "$ref": "#/components/schemas/Organization"
           }
         },
         "type": "object"
@@ -5510,29 +5462,6 @@
               "type": "string"
             },
             "type": "array"
-          }
-        },
-        "type": "object"
-      },
-      "ProfileStatus": {
-        "description": "Profile completeness needed before landing in the full workspace.",
-        "properties": {
-          "action": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "missing": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "status": {
-            "description": "ready or pending.",
-            "example": "ready",
-            "type": "string"
           }
         },
         "type": "object"
@@ -8194,6 +8123,26 @@
   },
   "openapi": "3.0.1",
   "paths": {
+    "/.well-known/weave": {
+      "get": {
+        "operationId": "discover",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationAccessDiscovery"
+                }
+              }
+            },
+            "description": "HTTP 200"
+          }
+        },
+        "tags": [
+          "organization-access-discovery-controller"
+        ]
+      }
+    },
     "/api/admin/audit/events": {
       "get": {
         "operationId": "listAdminAuditEvents",
@@ -8669,6 +8618,170 @@
         "summary": "Bootstrap or bind an organization with immutable identity recovery administrators",
         "tags": [
           "Admin control plane"
+        ]
+      }
+    },
+    "/api/admin/organizations/{organizationId}/invitations": {
+      "get": {
+        "operationId": "list",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "organizationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MemberInvitationResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "HTTP 200"
+          }
+        },
+        "tags": [
+          "member-invitation-controller"
+        ]
+      },
+      "post": {
+        "operationId": "create",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "organizationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemberInvitationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberInvitationResponse"
+                }
+              }
+            },
+            "description": "HTTP 201"
+          }
+        },
+        "tags": [
+          "member-invitation-controller"
+        ]
+      }
+    },
+    "/api/admin/organizations/{organizationId}/invitations/{invitationId}": {
+      "delete": {
+        "operationId": "revoke",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "invitationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "organizationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "HTTP 204"
+          }
+        },
+        "tags": [
+          "member-invitation-controller"
+        ]
+      }
+    },
+    "/api/admin/organizations/{organizationId}/invitations/{invitationId}/resend": {
+      "post": {
+        "operationId": "resend",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "invitationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "organizationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberInvitationResponse"
+                }
+              }
+            },
+            "description": "HTTP 200"
+          }
+        },
+        "tags": [
+          "member-invitation-controller"
         ]
       }
     },
@@ -11116,6 +11229,59 @@
         ]
       }
     },
+    "/api/internal/keycloak/events": {
+      "post": {
+        "operationId": "accept",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Weave-Event-Id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Weave-Event-Signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Weave-Event-Timestamp",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "items": {
+                  "format": "byte",
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "HTTP 204"
+          }
+        },
+        "tags": [
+          "keycloak-membership-event-controller"
+        ]
+      }
+    },
     "/api/interop/slack/events": {
       "post": {
         "operationId": "slackEvent",
@@ -11412,7 +11578,7 @@
     },
     "/api/me": {
       "get": {
-        "description": "Returns the canonical Weave identity and profile snapshot available to the backend.",
+        "description": "Returns the authenticated actor and Weave product-profile projection available to the backend.",
         "operationId": "me",
         "responses": {
           "200": {
@@ -11638,53 +11804,6 @@
         "summary": "Launch a future Office document session",
         "tags": [
           "Office facade"
-        ]
-      }
-    },
-    "/api/onboarding/status": {
-      "get": {
-        "description": "Returns the authenticated caller identity, role mapping, profile readiness, and Matrix/Nextcloud provisioning states for first-run routing.",
-        "operationId": "status",
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/OnboardingStatusResponse"
-                }
-              }
-            },
-            "description": "HTTP 200"
-          },
-          "401": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 401"
-          },
-          "403": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            },
-            "description": "HTTP 403"
-          }
-        },
-        "security": [
-          {
-            "bearer-jwt": []
-          }
-        ],
-        "summary": "Get first-run invite and module provisioning status",
-        "tags": [
-          "Onboarding"
         ]
       }
     },
@@ -14357,10 +14476,6 @@
     {
       "description": "Provider-neutral Office document collaboration facade.",
       "name": "Office facade"
-    },
-    {
-      "description": "First-run user invite and module provisioning status.",
-      "name": "Onboarding"
     },
     {
       "description": "Public platform configuration and module status endpoints.",

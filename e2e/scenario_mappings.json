@@ -271,7 +271,7 @@
           "fragments": [
             "primary files provider is wired through the backend-facade seam",
             "primary chat provider is wired through the Matrix Client-Server projection",
-            "onboarding status uses generated OpenAPI DTO source of truth",
+            "workspace API DTOs use generated OpenAPI response models",
             "profile facade uses generated OpenAPI DTO source of truth"
           ]
         }

@@ -20,8 +20,6 @@ import 'package:weave/features/files/domain/entities/directory_listing.dart';
 import 'package:weave/features/files/domain/entities/file_entry.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
-import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
-import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
 import 'package:weave/features/profile/domain/entities/user_profile.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
@@ -33,7 +31,6 @@ import '../test/helpers/auth_test_data.dart';
 import '../test/helpers/fake_chat_repository.dart';
 import '../test/helpers/fake_chat_security_repository.dart';
 import '../test/helpers/fake_files_repository.dart';
-import '../test/helpers/first_run_status_fixture.dart';
 import '../test/helpers/in_memory_stores.dart';
 import '../test/helpers/server_config_test_data.dart';
 
@@ -226,10 +223,6 @@ void main() {
               FakeChatSecurityRepository(),
             ),
             userProfileProvider.overrideWith((ref) async => _memberProfile),
-            firstRunStatusProvider.overrideWith(
-              (ref) async =>
-                  FirstRunLoadResult.authenticated(buildTestFirstRunStatus()),
-            ),
             filesRepositoryProvider.overrideWithValue(filesRepository),
             calendarRepositoryProvider.overrideWithValue(
               const _FakeCalendarRepository(),
@@ -283,10 +276,6 @@ void main() {
             FakeChatSecurityRepository(),
           ),
           userProfileProvider.overrideWith((ref) async => _memberProfile),
-          firstRunStatusProvider.overrideWith(
-            (ref) async =>
-                FirstRunLoadResult.authenticated(buildTestFirstRunStatus()),
-          ),
           filesRepositoryProvider.overrideWithValue(
             FakeFilesRepository(
               connectionState: const FilesConnectionState.disconnected(),
