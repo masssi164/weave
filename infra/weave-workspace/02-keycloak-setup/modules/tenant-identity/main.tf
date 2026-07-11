@@ -176,9 +176,13 @@ resource "keycloak_realm" "tenant" {
     from_display_name = var.smtp_from_display_name
     ssl               = var.smtp_ssl
     starttls          = var.smtp_starttls
-    auth {
-      username = var.smtp_username
-      password = var.smtp_password
+    dynamic "auth" {
+      for_each = var.smtp_username != "" ? [1] : []
+
+      content {
+        username = var.smtp_username
+        password = var.smtp_password
+      }
     }
   }
 }
