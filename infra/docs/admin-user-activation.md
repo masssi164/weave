@@ -1,95 +1,41 @@
-# Local/Dev Admin User Activation Helper
+# Persistent Dogfood Member
 
-The single-host operator path needs a support-safe way for an operator to invite and activate a Weave user without editing Keycloak internals by hand or distributing initial passwords. The helper is intentionally local/dev oriented and maps directly to the current backend product-profile contract:
+The protected dogfood path maintains one human client-testing member without Admin Console access, manual Keycloak editing, or an initial password. It is separate from the disposable CI `test` account and has only the `member` role plus the configured product capability groups.
 
-- MVP realm roles: `owner`, `admin`, `member`, `guest`
-- default role-mapped group claims: `workspace-owners`, `workspace-admins`, `workspace-members`, `workspace-guests`
-- backend verification path: `/api/me` or the app Profile surface
+The member is Keycloak runtime data, not an OpenTofu user resource. The immutable subject reference is stored on the dedicated runner outside the Git checkout so routine checkout cleanup and deployment cannot erase the persistence invariant.
 
-## Prerequisites
+## Protected GitHub workflow
 
-Run the local stack install first so `weave-workspace/.generated/bootstrap.env` contains the Keycloak admin URL and credentials:
+Run **Dogfood Member** from GitHub Actions on a phone or desktop. The workflow uses only protected `dogfood` environment configuration and offers:
 
-```bash
-cd weave-workspace
-./install.sh
-```
+- `status`: report `missing`, `pending`, or `active` with support-safe hashes;
+- `ensure`: create and mail an absent member once; pending and active members are unchanged;
+- `resend-activation`: resend only for a pending member; an active member returns `account_already_active`.
 
-The helper loads `.generated/bootstrap.env` automatically. If you are running it from a different shell, ensure these values are available:
+The workflow does not accept arbitrary usernames or email addresses, cannot grant owner/admin authority, and never writes an activation URL to logs or artifacts. Open the resulting message from Safari at `https://mail.weave.test:44443` on the allowed private LAN.
 
-- `TF_VAR_keycloak_admin_username`
-- `TF_VAR_keycloak_admin_password`
-- `TF_VAR_public_scheme`
-- `TF_VAR_tenant_domain`
-- optional `TF_VAR_auth_subdomain`, `TF_VAR_proxy_host_port`, `TF_VAR_caddy_tls_ca_file`, `WEAVE_TLS_CA_FILE`
+## Runner helper
 
-## Dry-run the activation invite plan
+The workflow invokes:
 
 ```bash
-cd weave-workspace
-./activate-user.sh \
-  --dry-run \
-  --username alice \
-  --email alice@example.test \
-  --display-name 'Alice Example' \
-  --role member \
-  --invite-ref activation-alice-home \
-  --evidence-file build/dogfood/activation-alice-home.json
+cd infra/weave-workspace
+./dogfood-member.sh status
+./dogfood-member.sh ensure
+./dogfood-member.sh resend-activation
 ```
 
-The dry run prints the realm, username, email, display name, role, role-mapped default group, non-secret invite reference, required action list, and action lifetime. It does not contact Keycloak. When `--evidence-file` is provided, the file stores only support-safe hashes and invite metadata; it does not store the activation URL, password, token, or raw provider payload.
+Required protected configuration:
 
-Guests are mapped to `workspace-guests`, not member/admin groups. Override `--workspace-group` only for an intentional local/dev policy test.
+- environment variable `WEAVE_DOGFOOD_MEMBER_USERNAME`;
+- environment secret `WEAVE_DOGFOOD_MEMBER_EMAIL`;
+- environment variable `WEAVE_DOGFOOD_MEMBER_DISPLAY_NAME`;
+- optional environment variable `WEAVE_DOGFOOD_MEMBER_GROUPS`.
 
-## Create an activation invite
+The helper also loads the generated Keycloak bootstrap environment on the dedicated runner. Active-member verification requires the same immutable subject, Keycloak organization membership, `weave-app` `member` role, and expected groups. A missing or changed recorded subject fails closed rather than creating a replacement.
 
-```bash
-cd weave-workspace
-./activate-user.sh \
-  --username alice \
-  --email alice@example.test \
-  --display-name 'Alice Example' \
-  --role member \
-  --invite-ref activation-alice-home \
-  --activation-lifespan 900 \
-  --evidence-file build/dogfood/activation-alice-home.json
-```
+Password and passkey recovery for an active account stays in Keycloak. It is never implemented as another invitation.
 
-The helper does not create, accept, or print an initial password. Password-based flags are rejected. The QR/deeplink remains a bootstrap handoff only and may carry the non-secret invite reference, organization/workspace context, route mode, and platform-config URL. Account activation happens in the system browser through the identity provider's one-time required-action link.
+## Deployment behavior
 
-For dogfood, Keycloak sends the required-action email to Mailpit. Treat the action URL in the Mailpit message as a secret, one-time, expiring activation artifact. Do not paste it into this repository, the field manual, QR codes, logs, screenshots, support bundles, app preferences, or issue/PR comments.
-
-Successful live creation prints `WEAVE_ACTIVATION_INVITE_CREATED` with only the invite reference, required action names, TTL, and `supportSafe=true`. Dry runs print `WEAVE_ACTIVATION_INVITE_DRY_RUN`.
-
-## What the helper changes
-
-The helper uses the Keycloak admin API to:
-
-1. ensure the selected MVP realm role exists;
-2. ensure the workspace group exists;
-3. create or update the user;
-4. mark the account with required first-login actions such as `VERIFY_EMAIL` and `UPDATE_PASSWORD`;
-5. assign the role and group;
-6. send a short-lived Keycloak required-action email for the system-browser activation path.
-
-It does not create separate Matrix or Nextcloud accounts. Those modules remain behind Weave/Keycloak SSO and the existing provisioning contracts.
-
-## Verify activation
-
-After sign-in, verify the user through the app profile/status screen or backend facade:
-
-```bash
-curl -sS "$WEAVE_API_BASE_URL/me" \
-  -H "Authorization: Bearer <user access token>" | jq .
-```
-
-Expected evidence:
-
-- `roles` includes the selected MVP role;
-- `groups` includes the role-mapped default group (`workspace-guests` for guest, `workspace-members` for member, etc.) unless a different `--workspace-group` was used;
-- profile display name/email match the activated user.
-- `build/dogfood/activation-*.json`, when written, has `qrOrDeeplinkCarriesSecret=false`, `appStoresActivationSecret=false`, `supportSafe=true`, hashed direct identity fields, and the required-action activation metadata.
-
-## Release boundary
-
-This is an operator helper, not the final product admin UI/API. The single-host operator path may use it for local/dev owner/admin activation evidence. A later product admin flow should replace this script for non-technical workspace administrators.
+Ordinary dogfood deployment checks the member before and after apply and runs a second OpenTofu plan for both infrastructure stages. It preserves persistent volumes, contains no reset input or pre-authorized destructive confirmation, and fails when the subject changes or the second plan contains drift. Identity-data reset remains a separate explicitly approved backup/restore operation.
