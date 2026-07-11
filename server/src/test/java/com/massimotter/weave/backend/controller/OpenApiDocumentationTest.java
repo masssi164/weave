@@ -41,7 +41,6 @@ class OpenApiDocumentationTest {
                 .andExpect(jsonPath("$.paths['/api/health/ready']").exists())
                 .andExpect(jsonPath("$.paths['/api/platform/config']").exists())
                 .andExpect(jsonPath("$.paths['/api/platform/status']").exists())
-                .andExpect(jsonPath("$.paths['/api/onboarding/status']").exists())
                 .andExpect(jsonPath("$.paths['/api/profile']").exists())
                 .andExpect(jsonPath("$.paths['/api/profile'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/profile'].get.operationId").value("getProductProfile"))

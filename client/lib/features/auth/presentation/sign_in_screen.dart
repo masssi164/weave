@@ -185,7 +185,7 @@ class SignInScreen extends ConsumerWidget {
                                     if (!context.mounted) {
                                       return;
                                     }
-                                    context.go(AppRoutes.firstRun);
+                                    context.go(AppRoutes.home);
                                   } else {
                                     final failure = ref
                                         .read(authFlowControllerProvider)

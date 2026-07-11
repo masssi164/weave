@@ -116,15 +116,11 @@ The active Calendar facade stores Weave workspace/team/channel scopes in backend
 
 When required actor credentials are missing or a private-personal template is configured, calendar operations fail closed with `nextcloud-adapter-not-configured`. The CalDAV/iCalendar data plane accepts bounded `DAILY` and `WEEKLY` RRULEs using `COUNT` or `UNTIL`, plus `RDATE` and `EXDATE`, and preserves local wall-clock intent across DST transitions. Unsupported or unbounded recurrence fails closed with `caldav-recurrence-unsupported`. The Flutter Calendar UI does not yet provide a recurrence authoring form.
 
-## Profile and onboarding variables
+## Profile variables
 
 - `WEAVE_PROFILE_STORAGE_PATH`: durable JSON file path for mutable `PATCH /api/profile` overrides, defaults to `./data/profile-overrides.json`.
-- `WEAVE_ONBOARDING_MATRIX_PROVISIONING_STATE`: optional first-run Matrix provisioning override (`not_configured`, `pending`, `ready`, `degraded`, `failed`); blank derives status from chat capability.
-- `WEAVE_ONBOARDING_NEXTCLOUD_PROVISIONING_STATE`: optional first-run Nextcloud provisioning override (`not_configured`, `pending`, `ready`, `degraded`, `failed`); blank derives status from files/calendar capability and Nextcloud route configuration.
 
 Profile facade endpoints are protected by the same first-party bearer-token contract as `/api/me`. `PATCH /api/profile` accepts partial updates for `displayName`, `avatar`, `locale`, `timezone`, `accessibilityPreferences`, and `profileVisibility`. Set `WEAVE_PROFILE_STORAGE_PATH` to mounted durable storage for containerized runs.
-
-Onboarding status returns identity, roles, groups, invite status, profile completeness, and module provisioning states. Downstream states must remain frontend-safe and must not expose stack traces, tokens, secrets, or raw service errors.
 
 ## Interop gateway, Slack on-ramp, guests, and migration previews
 

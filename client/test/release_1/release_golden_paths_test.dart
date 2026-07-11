@@ -36,10 +36,8 @@ import 'package:weave/features/files/domain/entities/files_connection_state.dart
 import 'package:weave/features/files/domain/entities/files_failure.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
-import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
 import 'package:weave/features/onboarding/domain/use_cases/consume_member_handoff.dart';
 import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
-import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
 import 'package:weave/features/profile/domain/entities/user_profile.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
@@ -98,10 +96,6 @@ void main() {
             chatRepositoryProvider.overrideWithValue(_ScenarioChatRepository()),
             chatSecurityRepositoryProvider.overrideWithValue(
               _SignedOutChatSecurityRepository(),
-            ),
-            firstRunStatusProvider.overrideWith(
-              (ref) async =>
-                  FirstRunLoadResult.authenticated(_releaseFirstRunStatus()),
             ),
             userProfileProvider.overrideWith((ref) async => _ownerProfile),
             workspaceConnectionStateProvider.overrideWithValue(
@@ -262,17 +256,7 @@ Finder _navigationDestination(String label) {
   return find.widgetWithText(NavigationDestination, label);
 }
 
-Future<void> _continueFirstRunIfPresent(WidgetTester tester) async {
-  final continueButton = find.text('Continue to chat');
-  if (continueButton.evaluate().isEmpty) {
-    return;
-  }
-
-  await tester.ensureVisible(continueButton);
-  await tester.pumpAndSettle();
-  await tester.tap(continueButton);
-  await tester.pumpAndSettle();
-}
+Future<void> _continueFirstRunIfPresent(WidgetTester tester) async {}
 
 const _ownerProfile = UserProfile(
   userId: 'release-owner',
@@ -285,54 +269,6 @@ const _ownerProfile = UserProfile(
   roles: <String>['owner'],
   groups: <String>['workspace-default'],
 );
-
-FirstRunStatus _releaseFirstRunStatus() {
-  const profile = FirstRunProfileStatus(
-    status: 'ready',
-    missing: <String>[],
-    message: 'The Weave profile has the required first-run identity fields.',
-  );
-
-  const moduleReady = FirstRunModuleStatus(
-    state: FirstRunProvisioningState.ready,
-    message: 'Provisioning is ready for this user.',
-  );
-
-  return const FirstRunStatus(
-    identity: FirstRunIdentity(
-      userId: 'release-user',
-      username: 'alex',
-      email: 'alex@example.test',
-      emailVerified: true,
-      displayName: 'Alex Doe',
-      locale: 'en',
-      timezone: 'Europe/Berlin',
-      roles: <String>['owner'],
-      groups: <String>['workspace-default'],
-    ),
-    invite: FirstRunInviteStatus(
-      status: 'active',
-      message: 'The invite has been accepted and the account is active.',
-    ),
-    access: FirstRunAccess(
-      primaryRole: 'owner',
-      roles: <String>['owner'],
-      groups: <String>['workspace-default'],
-      canAdministerWorkspace: true,
-      canInviteUsers: true,
-      canUseWorkspaceModules: true,
-    ),
-    profile: profile,
-    moduleProvisioning: FirstRunModuleProvisioning(
-      identity: moduleReady,
-      profile: moduleReady,
-      matrix: moduleReady,
-      nextcloud: moduleReady,
-    ),
-    firstRunComplete: true,
-    actions: <String>[],
-  );
-}
 
 AsyncValue<WorkspaceConnectionState> _workspaceConnectionState() {
   return const AsyncData(

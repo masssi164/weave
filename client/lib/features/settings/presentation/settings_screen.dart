@@ -1006,7 +1006,9 @@ class _PreviewSurfaceTile extends StatelessWidget {
       title: Text(title),
       subtitle: Text(description),
       trailing: Chip(
-        label: Text(AppLocalizations.of(context).firstRunStateUnavailable),
+        label: Text(
+          AppLocalizations.of(context).settingsWorkspaceRecoveryUnavailable,
+        ),
         side: BorderSide(color: theme.colorScheme.outlineVariant),
       ),
     );
