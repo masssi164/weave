@@ -6,6 +6,15 @@ on:
       - dogfood
   workflow_dispatch:
     inputs:
+      dogfood_member_operation:
+        description: "Optional persistent human member operation"
+        required: false
+        default: status
+        type: choice
+        options:
+          - status
+          - ensure
+          - resend-activation
       run_flutter_integration:
         description: "Run Flutter live integration tests after stack readiness"
         required: false
@@ -31,6 +40,7 @@ concurrency:
 jobs:
   deploy-test-stack:
     name: Deploy Persistent LAN Test Stack
+    environment: dogfood
     runs-on:
       - self-hosted
       - macOS
@@ -181,6 +191,17 @@ jobs:
           bash ./smoke-test.sh
           bash ./operator-check.sh
 
+      - name: Run requested persistent member operation
+        if: ${{ github.event_name == 'workflow_dispatch' && env.WEAVE_DOGFOOD_MEMBER_USERNAME != '' }}
+        working-directory: infra/weave-workspace
+        env:
+          DOGFOOD_MEMBER_OPERATION: ${{ inputs.dogfood_member_operation }}
+        run: |
+          set -euo pipefail
+          WEAVE_DOGFOOD_MEMBER_SUBJECT_FILE="$HOME/.weave/dogfood/persistent-member.subject" \
+            ./dogfood-member.sh "${DOGFOOD_MEMBER_OPERATION}" \
+            --evidence-file "$WEAVE_TEST_STACK_EVIDENCE_DIR/dogfood-member-operation.json"
+
       - name: Assert persistent human member after deploy
         if: ${{ env.WEAVE_DOGFOOD_MEMBER_USERNAME != '' }}
         working-directory: infra/weave-workspace
@@ -192,7 +213,11 @@ jobs:
           set -euo pipefail
           before="$(jq -r '.subjectSha256' "$WEAVE_TEST_STACK_EVIDENCE_DIR/dogfood-member-before.json")"
           after="$(jq -r '.subjectSha256' "$WEAVE_TEST_STACK_EVIDENCE_DIR/dogfood-member-after.json")"
-          [[ -n "$before" && "$before" != null && "$before" == "$after" ]] || {
+          [[ -n "$after" && "$after" != null ]] || {
+            echo "::error::Persistent dogfood member has not been created. Dispatch this workflow with dogfood_member_operation=ensure." >&2
+            exit 1
+          }
+          [[ -z "$before" || "$before" == null || "$before" == "$after" ]] || {
             echo "::error::Persistent dogfood member subject changed across deployment." >&2
             exit 1
           }
