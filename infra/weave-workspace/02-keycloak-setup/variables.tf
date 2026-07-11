@@ -105,9 +105,54 @@ variable "keycloak_smtp_port" {
 }
 
 variable "keycloak_smtp_from" {
-  description = "From address used by the dogfood/local Keycloak realm."
+  description = "Optional From address used by Keycloak. Defaults to no-reply at tenant_domain."
   type        = string
-  default     = "no-reply@weave.test"
+  default     = null
+  nullable    = true
+}
+
+variable "keycloak_smtp_from_display_name" {
+  description = "Sender display name used by Keycloak invitation and activation mail."
+  type        = string
+  default     = "Weave"
+}
+
+variable "keycloak_smtp_ssl" {
+  description = "Use implicit TLS for Keycloak SMTP."
+  type        = bool
+  default     = false
+}
+
+variable "keycloak_smtp_starttls" {
+  description = "Require STARTTLS for Keycloak SMTP. Enable for the typical production submission profile."
+  type        = bool
+  default     = false
+}
+
+variable "keycloak_smtp_username" {
+  description = "Optional Keycloak SMTP authentication username."
+  type        = string
+  default     = ""
+}
+
+variable "keycloak_smtp_password" {
+  description = "Optional Keycloak SMTP authentication password."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "organization_display_name" {
+  description = "Human-readable organization name used in Keycloak-managed identity surfaces."
+  type        = string
+  default     = "Weave"
+}
+
+variable "test_user_email" {
+  description = "Optional integration-test email. Defaults to test at tenant_domain."
+  type        = string
+  default     = null
+  nullable    = true
 }
 
 variable "matrix_mas_client_secret" {

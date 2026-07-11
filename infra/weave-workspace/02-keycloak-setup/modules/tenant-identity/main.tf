@@ -9,7 +9,7 @@ terraform {
 locals {
   test_user = {
     username   = "test"
-    email      = "test@weave.test"
+    email      = var.test_user_email
     first_name = "Test"
     last_name  = "User"
     password   = var.test_user_password
@@ -166,22 +166,35 @@ resource "keycloak_realm" "tenant" {
   reset_password_allowed         = true
   duplicate_emails_allowed       = false
   organizations_enabled          = true
+  login_theme                    = "weave"
+  email_theme                    = "weave"
 
   smtp_server {
     host              = var.smtp_host
     port              = var.smtp_port
     from              = var.smtp_from
-    from_display_name = "Weave Dogfood"
-    ssl               = false
-    starttls          = false
+    from_display_name = var.smtp_from_display_name
+    ssl               = var.smtp_ssl
+    starttls          = var.smtp_starttls
+    auth {
+      username = var.smtp_username
+      password = var.smtp_password
+    }
   }
+}
+
+resource "keycloak_realm_events" "identity_bridge" {
+  realm_id             = keycloak_realm.tenant.id
+  events_enabled       = true
+  admin_events_enabled = true
+  events_listeners     = ["jboss-logging", "weave-identity-events"]
 }
 
 resource "keycloak_organization" "tenant" {
   realm        = keycloak_realm.tenant.realm
   name         = var.tenant_slug
   alias        = var.tenant_slug
-  description  = "Weave organization whose identity lifecycle is managed by Keycloak."
+  description  = "${var.organization_display_name} organization whose identity lifecycle is managed by Keycloak."
   redirect_url = "${var.product_public_url}/join"
 }
 
@@ -337,7 +350,7 @@ resource "keycloak_openid_hardcoded_claim_protocol_mapper" "weave_organization_n
   client_scope_id     = keycloak_openid_client_scope.weave_workspace.id
   name                = "weave-organization-name"
   claim_name          = "weave_organization_name"
-  claim_value         = "Weave Dogfood"
+  claim_value         = var.organization_display_name
   claim_value_type    = "String"
   add_to_id_token     = false
   add_to_access_token = true

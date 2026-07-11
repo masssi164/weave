@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -19,7 +17,6 @@ import 'package:weave/features/profile/domain/entities/user_profile.dart';
 import 'package:weave/features/profile/domain/repositories/user_profile_repository.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
 import 'package:weave/features/profile/presentation/widgets/profile_summary_card.dart';
-import 'package:weave/features/server_config/data/repositories/shared_preferences_server_configuration_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
 import 'package:weave/features/settings/presentation/settings_screen.dart';
 import 'package:weave/features/shell/data/repositories/shared_preferences_shell_module_preferences_repository.dart';
@@ -270,7 +267,7 @@ ProviderStatusSnapshot _providerStatus({
 
 void main() {
   group('SettingsScreen', () {
-    testWidgets('workspace health loads the saved configuration and persists edits', (
+    testWidgets('workspace health keeps provider configuration out of the client', (
       tester,
     ) async {
       final store = InMemoryPreferencesStore(buildStoredConfiguration());
@@ -361,67 +358,11 @@ void main() {
         findsOneWidget,
       );
 
-      await tester.drag(find.byType(CustomScrollView), const Offset(0, -900));
-      await tester.pumpAndSettle();
-      expect(find.text('Provider categories'), findsOneWidget);
-      expect(find.text('Identity/IDM'), findsOneWidget);
-      expect(find.text('Chat'), findsWidgets);
-      expect(find.text('Files'), findsWidgets);
-      expect(find.text('Calendar'), findsWidgets);
-      expect(find.text('Boards/tasks'), findsOneWidget);
-      expect(find.text('Meetings/calls'), findsOneWidget);
-      expect(find.text('Documents/collaboration'), findsOneWidget);
-      expect(find.text('Weaver'), findsOneWidget);
-      expect(find.text('Disabled by default'), findsOneWidget);
-      expect(find.textContaining('Keycloak/Auth'), findsOneWidget);
-      expect(find.textContaining('Chat'), findsWidgets);
-      expect(find.textContaining('File storage'), findsOneWidget);
-      expect(find.textContaining('Calendar sync'), findsOneWidget);
-      expect(
-        find.textContaining('OpenProject Boards validation'),
-        findsOneWidget,
-      );
-      expect(find.textContaining('LiveKit Meetings readiness'), findsOneWidget);
-      expect(find.text('Embedded admin/operator manual'), findsOneWidget);
-      expect(
-        find.text('Manual source: docs/admin-operator-handbook.md'),
-        findsOneWidget,
-      );
-      expect(
-        find.text(
-          'Constrained embed: no broad script, camera, microphone, or provider access',
-        ),
-        findsOneWidget,
-      );
-      expect(find.text('Server Configuration'), findsOneWidget);
-      expect(find.text('https://auth.home.internal'), findsWidgets);
-      expect(find.text('weave-app'), findsWidgets);
-      expect(find.text('https://api.home.internal/api'), findsWidgets);
-
-      await tester.enterText(
-        _textFieldWithLabel('Nextcloud Base URL'),
-        'https://files-alt.home.internal',
-      );
-      await tester.pump();
-      expect(find.text('https://files-alt.home.internal'), findsWidgets);
-
-      expect(
-        container
-            .read(serverConfigurationFormControllerProvider)
-            .nextcloudBaseUrl,
-        'https://files-alt.home.internal',
-      );
-
-      await container
-          .read(serverConfigurationFormControllerProvider.notifier)
-          .save();
-      await tester.pumpAndSettle();
-
-      final raw = store.rawString(serverConfigurationStorageKey);
-      final json = jsonDecode(raw!) as Map<String, dynamic>;
-
-      expect(json['nextcloudBaseUrl'], 'https://files-alt.home.internal');
-      expect(json['backendApiBaseUrl'], 'https://api.home.internal/api');
+      expect(find.text('Provider categories'), findsNothing);
+      expect(find.text('Server Configuration'), findsNothing);
+      expect(find.text('OIDC Issuer URL'), findsNothing);
+      expect(find.text('OIDC Client ID'), findsNothing);
+      expect(find.text('Nextcloud Base URL'), findsNothing);
     });
 
     testWidgets('hides OIDC and service endpoint setup from members', (
@@ -893,7 +834,7 @@ void main() {
     });
 
     testWidgets(
-      'preserves editable product URLs and hides the Matrix provider boundary',
+      'keeps all editable identity and provider URLs out of workspace health',
       (tester) async {
         final store = InMemoryPreferencesStore(
           buildStoredConfiguration(
@@ -933,17 +874,14 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        await tester.enterText(
-          _textFieldWithLabel('OIDC Issuer URL'),
-          'https://sso.example.com',
-        );
-        await tester.pumpAndSettle();
-
+        expect(find.text('OIDC Issuer URL'), findsNothing);
+        expect(find.text('OIDC Client ID'), findsNothing);
+        expect(find.text('Nextcloud Base URL'), findsNothing);
         expect(find.text('Weave Matrix Facade URL'), findsNothing);
         expect(find.text('https://api.example.com'), findsNothing);
         expect(find.text('https://matrix.home.internal'), findsNothing);
-        expect(find.text('https://cloud.custom.internal'), findsWidgets);
-        expect(find.text('https://backend.custom.internal'), findsWidgets);
+        expect(find.text('https://cloud.custom.internal'), findsNothing);
+        expect(find.text('https://backend.custom.internal'), findsNothing);
       },
     );
 

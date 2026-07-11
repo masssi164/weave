@@ -29,7 +29,7 @@ import 'package:weave/features/onboarding/domain/use_cases/consume_member_handof
 import 'package:weave/features/onboarding/presentation/first_run_screen.dart';
 import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
 import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
-import 'package:weave/features/onboarding/presentation/welcome_screen.dart';
+import 'package:weave/features/onboarding/presentation/setup_flow.dart';
 import 'package:weave/features/profile/domain/entities/user_profile.dart';
 import 'package:weave/features/profile/presentation/profile_screen.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
@@ -290,7 +290,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.byType(WelcomeScreen), findsOneWidget);
+      expect(find.byType(SetupFlow), findsOneWidget);
     });
 
     testWidgets('shows the sign-in gate when config exists without a session', (
@@ -695,7 +695,7 @@ void main() {
       container.read(appRouterProvider).go(AppRoutes.settings);
       await tester.pumpAndSettle();
 
-      expect(find.byType(WelcomeScreen), findsOneWidget);
+      expect(find.byType(SetupFlow), findsOneWidget);
     });
 
     testWidgets('redirects shell routes to sign-in when auth is required', (

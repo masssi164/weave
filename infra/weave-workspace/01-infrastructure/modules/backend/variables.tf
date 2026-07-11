@@ -464,6 +464,12 @@ variable "identity_keycloak_client_secret" {
   sensitive   = true
 }
 
+variable "identity_events_hmac_secret" {
+  description = "HMAC secret used to authenticate Keycloak organization-membership events."
+  type        = string
+  sensitive   = true
+}
+
 variable "healthcheck_path" {
   description = "HTTP path used by Docker to check backend health."
   type        = string

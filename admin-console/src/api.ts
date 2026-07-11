@@ -185,6 +185,34 @@ export interface AuditEvent {
   summary: string;
 }
 
+export type OrganizationRole = "owner" | "admin" | "member" | "guest";
+export type InvitationProvisioningStatus =
+  | "pending"
+  | "applied"
+  | "failed"
+  | "expired";
+
+export interface CreateOrganizationInvitationRequest {
+  email: string;
+  displayName?: string;
+  role: OrganizationRole;
+  organizationGroups: string[];
+}
+
+export interface OrganizationInvitation {
+  providerInvitationId: string;
+  organizationId: string;
+  email: string;
+  displayName?: string;
+  lifecycleStatus: string;
+  provisioningStatus: InvitationProvisioningStatus;
+  requestedRole: OrganizationRole;
+  organizationGroups: string[];
+  expiresAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export type WeaverProjectionCategory =
   | "chat"
   | "model"
@@ -929,6 +957,44 @@ export class AdminControlPlaneApi {
     }));
   }
 
+  async listOrganizationInvitations(
+    organizationId: string,
+  ): Promise<OrganizationInvitation[]> {
+    return this.request<OrganizationInvitation[]>(
+      `/admin/organizations/${encodeURIComponent(organizationId)}/invitations`,
+    );
+  }
+
+  async createOrganizationInvitation(
+    organizationId: string,
+    invitation: CreateOrganizationInvitationRequest,
+  ): Promise<OrganizationInvitation> {
+    return this.request<OrganizationInvitation>(
+      `/admin/organizations/${encodeURIComponent(organizationId)}/invitations`,
+      { method: "POST", body: JSON.stringify(invitation) },
+    );
+  }
+
+  async resendOrganizationInvitation(
+    organizationId: string,
+    providerInvitationId: string,
+  ): Promise<OrganizationInvitation> {
+    return this.request<OrganizationInvitation>(
+      `/admin/organizations/${encodeURIComponent(organizationId)}/invitations/${encodeURIComponent(providerInvitationId)}/resend`,
+      { method: "POST" },
+    );
+  }
+
+  async revokeOrganizationInvitation(
+    organizationId: string,
+    providerInvitationId: string,
+  ): Promise<void> {
+    await this.request<void>(
+      `/admin/organizations/${encodeURIComponent(organizationId)}/invitations/${encodeURIComponent(providerInvitationId)}`,
+      { method: "DELETE" },
+    );
+  }
+
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const token = this.tokenProvider();
     const headers = new Headers(init.headers);
@@ -946,6 +1012,7 @@ export class AdminControlPlaneApi {
         response.status,
       );
     }
+    if (response.status === 204) return undefined as T;
     return response.json() as Promise<T>;
   }
 }

@@ -3,6 +3,65 @@ import { AdminControlPlaneApi, sampleControlPlane } from "./api";
 
 // V01_ADMIN_CONSOLE_MVP: Admin Console may call only Weave backend admin APIs, not optional provider APIs.
 describe("AdminControlPlaneApi provider boundary", () => {
+  it("uses only Weave admin APIs for Keycloak invitation lifecycle", async () => {
+    const calls: Array<{ url: string; method: string; body?: string }> = [];
+    const invitation = {
+      providerInvitationId: "invite-123",
+      organizationId: "acme",
+      email: "member@example.test",
+      lifecycleStatus: "pending",
+      provisioningStatus: "pending" as const,
+      requestedRole: "member" as const,
+      organizationGroups: ["engineering"],
+    };
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      calls.push({
+        url: String(input),
+        method: init?.method ?? "GET",
+        body: init?.body as string | undefined,
+      });
+      if (init?.method === "DELETE") return new Response(null, { status: 204 });
+      return new Response(
+        JSON.stringify(init?.method === "GET" || !init?.method ? [invitation] : invitation),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    });
+    const api = new AdminControlPlaneApi(
+      {
+        apiBaseUrl: "https://api.example.invalid/api",
+        oidcIssuerUrl: "https://auth.example.invalid",
+        oidcClientId: "weave-admin-console",
+      },
+      fetchImpl as typeof fetch,
+    );
+
+    await api.listOrganizationInvitations("acme");
+    await api.createOrganizationInvitation("acme", {
+      email: "member@example.test",
+      role: "member",
+      organizationGroups: ["engineering"],
+    });
+    await api.resendOrganizationInvitation("acme", "invite-123");
+    await api.revokeOrganizationInvitation("acme", "invite-123");
+
+    expect(calls.map(({ url, method }) => `${method} ${url}`)).toEqual([
+      "GET https://api.example.invalid/api/admin/organizations/acme/invitations",
+      "POST https://api.example.invalid/api/admin/organizations/acme/invitations",
+      "POST https://api.example.invalid/api/admin/organizations/acme/invitations/invite-123/resend",
+      "DELETE https://api.example.invalid/api/admin/organizations/acme/invitations/invite-123",
+    ]);
+    expect(calls[1]?.body).toBe(
+      JSON.stringify({
+        email: "member@example.test",
+        role: "member",
+        organizationGroups: ["engineering"],
+      }),
+    );
+    expect(calls.map(({ url }) => url).join("\n")).not.toMatch(
+      /auth\.example|keycloak|activation/i,
+    );
+  });
+
   it("uses backend admin endpoints for provider selection, readiness, and replacement dry-runs", async () => {
     const calls: string[] = [];
     const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {

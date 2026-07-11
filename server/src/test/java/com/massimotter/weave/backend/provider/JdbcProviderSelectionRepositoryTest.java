@@ -90,7 +90,8 @@ class JdbcProviderSelectionRepositoryTest {
                         "WEAVE_MIGRATION_RUN_EVIDENCE",
                         "WEAVE_DEVICE_CREDENTIALS",
                         "WEAVE_MATRIX_E2EE_SNAPSHOTS",
-                        "WEAVE_MEMBER_INVITATIONS");
+                        "WEAVE_IDENTITY_PROVISIONING_INTENTS",
+                        "WEAVE_KEYCLOAK_EVENT_RECEIPTS");
     }
 
     @Test

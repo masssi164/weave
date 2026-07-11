@@ -10,7 +10,6 @@ import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.service.OnboardingStatusService;
 import com.massimotter.weave.backend.service.MemberInvitationService;
-import com.massimotter.weave.backend.identity.invitation.MemberInvitationStatus;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -73,7 +72,6 @@ class OnboardingControllerTest {
 
     @Test
     void returnsFirstRunStatusForAuthenticatedUser() throws Exception {
-        when(memberInvitationService.reconcileAuthenticated(any())).thenReturn(MemberInvitationStatus.ACCEPTED);
         mockMvc.perform(get("/api/onboarding/status").with(jwt().jwt(jwt -> jwt
                         .subject("user-123")
                         .claim("iss", "https://auth.example.invalid/realms/acme")

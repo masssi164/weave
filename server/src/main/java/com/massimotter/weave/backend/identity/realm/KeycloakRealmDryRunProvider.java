@@ -16,6 +16,7 @@ import org.springframework.stereotype.Component;
 public class KeycloakRealmDryRunProvider implements IdentityRealmProvider {
 
     private static final String PROVIDER_KEY = "keycloak-realm";
+    // Realm-operation service accounts may still use the operator role. It is not a weave-app member role.
     private static final Set<String> KNOWN_ROLES = Set.of("owner", "admin", "operator", "member", "guest");
     private static final Set<String> KNOWN_SCOPES = Set.of("openid", "profile", "email", "weave:workspace", "offline_access");
     private static final Set<String> KNOWN_GROUPS = Set.of(

@@ -39,7 +39,7 @@ This is the concrete local provider-stack implementation path, not the canonical
 Add local host entries before opening browser-facing URLs:
 
 ```text
-127.0.0.1 weave.test api.weave.test auth.weave.test files.weave.test matrix.weave.test
+127.0.0.1 weave.test api.weave.test auth.weave.test mail.weave.test files.weave.test matrix.weave.test
 ```
 
 Bootstrap the stack:
@@ -65,6 +65,7 @@ For a real single-host deployment, start here:
 - [Weaver runtime lifecycle](docs/weaver-runtime-lifecycle.md): signed RuntimeProfile input, one active per-user runtime container boundary, internal-only network, reload/restart/rollback/revocation gates, and support-safe evidence; execution remains disabled by default.
 - [Weave MCP runtime contract](docs/weave-mcp-tool-contract.md): Spring AI transport, OIDC gatekeeper, canonical domain dispatch, approval, audit, and support-safe output boundaries.
 - [OpenProject Boards runtime](docs/openproject-boards-runtime.md): optional provider-backed validation setup and live E2E gate; off by default.
+- [Identity environment parity](docs/identity-environment-parity.md): one dogfood/production identity flow, the narrow Keycloak extension boundary, and iPhone Mailpit verification.
 
 After installation, verify public and host-local state:
 
@@ -80,6 +81,7 @@ Default local names resolve to loopback; non-local installs derive the same patt
 - `https://<tenant_domain>`: Weave product gateway, including `/files` and `/calendar` product routes.
 - `https://api.<tenant_domain>/api`: canonical backend API origin.
 - `https://auth.<tenant_domain>`: Keycloak.
+- `https://mail.<tenant_domain>`: private-CIDR dogfood Mailpit inbox only; absent in production.
 - `https://matrix.<tenant_domain>`: Matrix/Synapse/MAS behind the matrix hostname.
 - `https://files.<tenant_domain>`: raw Nextcloud technical/admin/protocol fallback.
 
