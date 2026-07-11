@@ -13,12 +13,18 @@ The Weave mobile app may request `offline_access`. If the identity provider deni
 Use Mailpit for dogfood-only mail capture. It belongs in `infra/weave-workspace` as a local/dogfood service with:
 
 - SMTP endpoint for stack services: `weave-mailpit:1025`.
-- Operator web/API inbox: `http://127.0.0.1:8025` locally and `https://mail.weave.test` through Caddy only for explicitly configured private-LAN CIDRs.
+- Human dogfood inbox: `https://mail.weave.test:44443` for the current LAN dogfood port profile, through Caddy only for explicitly configured private-LAN CIDRs. Runner-local checks may use the loopback API as an internal implementation detail.
 - SMTP remains private on the Docker network and is never routed through Caddy or exposed to the LAN.
 - No production mail path, no public Internet exposure, and no real external delivery.
 - Support-bundle redaction for message bodies unless a future evidence task explicitly stores sanitized fixtures.
 
 This replaces ambiguous "mail catcher/mailkit-style" wording with one concrete local stack component.
+
+## Persistent human dogfood member
+
+The iPhone tester uses one persistent Keycloak organization member with the `member` role. This identity is distinct from the disposable `test` automation principal and is not managed as an OpenTofu user resource. Protected dogfood automation may create it once, report its support-safe state, or resend activation while it is pending. Once active, deployment only verifies its immutable subject, organization membership, role, and expected capability groups; it never re-invites, recreates, or rewrites the account.
+
+The tester does not need Admin Console access. The supported remote path is the protected GitHub dogfood-member workflow for initial ensure/status/pending activation resend, Safari at `https://mail.weave.test:44443`, and normal OIDC sign-in in Weave. Active-account password or passkey recovery stays in Keycloak.
 
 ## Activation invite lifecycle
 

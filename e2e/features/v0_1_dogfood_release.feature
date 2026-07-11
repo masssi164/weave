@@ -23,6 +23,7 @@ Feature: Weave v0.1 dogfood production release
   @weave-v01-dogfood-member-invite-activation
   Scenario: Dogfood member invite activation reaches the workspace
     Given an admin has provisioned a dogfood member invite without passwords, bearer tokens, provider payloads, or raw secrets
+    And the persistent human dogfood member is separate from the disposable automation user
     And the identity provider sends the initial credential setup mail into the local dogfood Mailpit inbox
     When the member completes Keycloak activation in the system browser
     And opens the same secret-free organization access through the email completion link, QR code, or server URI
@@ -32,7 +33,8 @@ Feature: Weave v0.1 dogfood production release
     And the same dogfood member evidence proves Chat and Files are usable after login
     And the authenticated session is restored after force-quit and reopen
     And trust-preserving app-state reset plus manual sign-in from the saved organization configuration reaches the workspace
-    And Mailpit captures dogfood identity mail locally without external delivery
+    And Mailpit is reachable on the iPhone through the private HTTPS dogfood URL and captures identity mail without external delivery
+    And a routine repeated dogfood deployment preserves the same active Keycloak subject without re-inviting or mutating it
     And dogfood trust evidence proves stable local TLS certificates, stable iOS signing/provisioning, and no repeated Developer App trust prompt after normal update or app-state reset
     And no member-visible state leaks raw provider errors, setup internals, tokens, credentials, or secret references
 

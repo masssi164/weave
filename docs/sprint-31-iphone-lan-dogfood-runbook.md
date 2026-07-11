@@ -91,21 +91,9 @@ It includes the local CA downloads, iPhone trust steps, DNS-first service links,
 infra/weave-workspace/local-invite-link.sh --json
 ```
 
-Before handing Massimo the QR/link, create the pending activation invite without an initial password:
+Before handing Massimo the QR/link, use the protected dogfood-member GitHub workflow to ensure the persistent member or resend activation while it is still pending. The workflow is the remote iPhone-operable path and does not require Admin Console access. The repository helper used by that workflow must never rewrite an active account.
 
-```sh
-cd infra/weave-workspace
-./activate-user.sh \
-  --username massimo \
-  --email massimo@example.test \
-  --display-name 'Massimo Dogfood' \
-  --role member \
-  --invite-ref handoff-s32-massimo-dogfood-home \
-  --activation-lifespan 900 \
-  --evidence-file ../../build/dogfood/activation-massimo-home.json
-```
-
-This sends a short-lived Keycloak required-action email to Mailpit. The Mailpit action URL is a secret one-time identity-provider artifact; do not put it in the QR, field manual, logs, screenshots, app storage, or GitHub comments.
+For a missing identity, `ensure` creates it once and sends a short-lived Keycloak required-action email. For a pending identity, `resend_activation` sends a replacement activation message without replacing the user. For an active identity, both operations are non-mutating and no activation mail is sent. The Mailpit action URL is a secret one-time identity-provider artifact; do not put it in the QR, field manual, logs, screenshots, app storage, or GitHub comments.
 
 Default non-secret enrollment handoff link to give Massimo:
 
@@ -128,7 +116,7 @@ Expected tester path before Massimo is asked to try the build:
 7. After returning to Weave, copied app preferences must show `dogfood_auth_state_v1=workspace_ready`, and Weave must enter the authenticated workspace/home without raw provider/setup copy.
 8. Force-quit and reopen the app. The saved mobile session must restore without another interactive login.
 9. Run the trust-preserving app-state reset path, open the current handoff or organization sign-in path, and complete manual login to the workspace again. This proves fresh-session/manual-login recovery from a user perspective without deleting the Developer App trust anchor. A true uninstall/reinstall is a separate physical-trust-disruptive reset and must be explicitly requested.
-10. Verify local dogfood mail in Mailpit at `http://127.0.0.1:8025` or its API. Mailpit must capture identity mail locally and must not send dogfood mail externally.
+10. Verify dogfood mail from Safari on the iPhone at `https://mail.weave.test:44443` for the current LAN dogfood port profile. Mailpit must capture identity mail locally, remain restricted to the configured private LAN, and never send dogfood mail externally. Loopback port `8025` is only an internal runner-check detail.
 11. Verify `DOGFOOD_TRUST_STABILITY_RESULT` before handoff. If the trust checker emits `DOGFOOD_TRUST_STABILITY_BLOCKED`, report that blocker instead of asking Massimo to retest.
 
 After the full path, copy the app preferences and run:

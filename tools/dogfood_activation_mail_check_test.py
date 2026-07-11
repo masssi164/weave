@@ -16,6 +16,45 @@ CHECK = ROOT / "tools" / "dogfood_activation_mail_check.py"
 
 
 class DogfoodActivationMailCheckTest(unittest.TestCase):
+    def test_accepts_persistent_member_activation_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            email = "human@example.test"
+            evidence = self._write_json(
+                tmp_path / "persistent-member.json",
+                {
+                    "schemaVersion": "weave.dogfood.persistent-member.v1",
+                    "state": "pending",
+                    "action": "activation_resent",
+                    "emailSha256": hashlib.sha256(email.encode("utf-8")).hexdigest(),
+                    "activation": {
+                        "mode": "keycloak-required-actions-email",
+                        "requiredActions": ["VERIFY_EMAIL", "UPDATE_PASSWORD"],
+                        "mailSent": True,
+                    },
+                    "qrOrDeeplinkCarriesSecret": False,
+                    "appStoresActivationSecret": False,
+                    "supportSafe": True,
+                },
+            )
+            mailpit = self._write_json(
+                tmp_path / "mailpit.json",
+                {"messages": [{"ID": "mail-1", "To": [{"Address": email}], "Subject": "Update Your Account"}]},
+            )
+
+            result = self._run(
+                "--activation-evidence-file",
+                str(evidence),
+                "--expected-invite-ref",
+                "handoff-persistent-human",
+                "--mailpit-fixture",
+                str(mailpit),
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("DOGFOOD_ACTIVATION_MAIL_RESULT", result.stdout)
+            self.assertNotIn(email, result.stdout)
+
     def test_accepts_support_safe_activation_evidence_and_mailpit_fixture(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
