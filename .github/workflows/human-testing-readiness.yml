@@ -141,6 +141,7 @@ jobs:
           repository: ${{ github.repository_owner }}/weave-specs
           ref: ${{ steps.spec-corpus.outputs.commit }}
           path: weave-specs
+          ssh-key: ${{ secrets.WEAVE_SPECS_DEPLOY_KEY }}
           persist-credentials: false
 
       - uses: subosito/flutter-action@v2
