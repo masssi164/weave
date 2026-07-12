@@ -195,6 +195,7 @@ jobs:
           dogfood_root="$HOME/.weave/dogfood"
           state_root="$dogfood_root/opentofu-state"
           generated_root="$dogfood_root/generated"
+          cert_root="$generated_root/01-infrastructure/caddy/certs"
           mkdir -p "$state_root" "$generated_root"
           chmod 700 "$HOME/.weave" "$dogfood_root" "$state_root" "$generated_root"
           for stage in 01-infrastructure 02-keycloak-setup; do
@@ -206,6 +207,11 @@ jobs:
             rm -rf "$stage/.generated"
             ln -s "$generated_root/$stage" "$stage/.generated"
           done
+          {
+            echo "TF_VAR_caddy_tls_cert_file=$cert_root/weave.test.pem"
+            echo "TF_VAR_caddy_tls_key_file=$cert_root/weave.test-key.pem"
+            echo "TF_VAR_caddy_tls_ca_file=$cert_root/weave-local-ca.pem"
+          } >> "$GITHUB_ENV"
 
       - name: Deploy or update persistent LAN test stack
         working-directory: infra/weave-workspace
