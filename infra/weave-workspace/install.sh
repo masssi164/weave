@@ -798,9 +798,83 @@ occ() {
   docker exec --user www-data weave-nextcloud php occ "$@"
 }
 
+run_command_with_timeout() {
+  local timeout_seconds="$1"
+  shift
+
+  python3 - "${timeout_seconds}" "$@" <<'PY'
+import subprocess
+import sys
+
+timeout_seconds = float(sys.argv[1])
+command = sys.argv[2:]
+if timeout_seconds <= 0 or not command:
+    raise SystemExit(2)
+try:
+    completed = subprocess.run(command, check=False, timeout=timeout_seconds)
+except subprocess.TimeoutExpired:
+    raise SystemExit(124)
+raise SystemExit(completed.returncode)
+PY
+}
+
+nextcloud_occ_with_timeout() {
+  local timeout_seconds="$1"
+  shift
+
+  run_command_with_timeout "${timeout_seconds}" \
+    docker exec --user www-data weave-nextcloud php occ "$@"
+}
+
 nextcloud_is_installed() {
   occ status --output=json 2>/dev/null |
     grep -Eq '"installed"[[:space:]]*:[[:space:]]*true([[:space:]]*[,}]|[[:space:]]*$)'
+}
+
+nextcloud_occ_command_is_available() {
+  local command_name="$1"
+  local timeout_seconds="$2"
+  local commands
+
+  commands="$(nextcloud_occ_with_timeout "${timeout_seconds}" list --raw 2>/dev/null)" || return 1
+  awk -v target="${command_name}" '$1 == target { found = 1 } END { exit !found }' <<<"${commands}"
+}
+
+wait_for_nextcloud_occ_command() {
+  local command_name="$1"
+  local timeout_seconds="${2:-120}"
+  local sleep_seconds="${3:-2}"
+  local occ_timeout_seconds="${4:-5}"
+  local deadline
+  local remaining_seconds
+  local attempt_timeout_seconds
+  local sleep_duration
+
+  [[ "${timeout_seconds}" =~ ^[1-9][0-9]*$ ]] || fail "Nextcloud OCC readiness timeout must be a positive integer."
+  [[ "${occ_timeout_seconds}" =~ ^[1-9][0-9]*$ ]] || fail "Nextcloud OCC command timeout must be a positive integer."
+  [[ "${sleep_seconds}" =~ ^[0-9]+([.][0-9]+)?$ ]] || fail "Nextcloud OCC retry interval must be a non-negative number."
+
+  deadline=$((SECONDS + timeout_seconds))
+  while ((SECONDS < deadline)); do
+    remaining_seconds=$((deadline - SECONDS))
+    attempt_timeout_seconds="${occ_timeout_seconds}"
+    if ((attempt_timeout_seconds > remaining_seconds)); then
+      attempt_timeout_seconds="${remaining_seconds}"
+    fi
+
+    if nextcloud_occ_command_is_available "${command_name}" "${attempt_timeout_seconds}"; then
+      return 0
+    fi
+
+    remaining_seconds=$((deadline - SECONDS))
+    if ((remaining_seconds <= 0)); then
+      break
+    fi
+    sleep_duration="$(awk -v requested="${sleep_seconds}" -v remaining="${remaining_seconds}" 'BEGIN { print (requested < remaining ? requested : remaining) }')"
+    sleep "${sleep_duration}"
+  done
+
+  fail "Nextcloud OCC command ${command_name} did not become available within ${timeout_seconds} seconds after its app was enabled."
 }
 
 terraform_apply() {
@@ -1721,6 +1795,7 @@ configure_nextcloud_oidc() {
     occ app:install user_oidc
     occ app:enable user_oidc
   fi
+  wait_for_nextcloud_occ_command user_oidc:provider
 
   allow_insecure_http=0
   if [[ "${TF_VAR_public_scheme}" == "http" ]]; then
