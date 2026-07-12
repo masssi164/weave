@@ -1,11 +1,18 @@
 name: Test Stack Deploy
+run-name: Test Stack Deploy ${{ github.event.workflow_run.head_sha || inputs.candidate_sha }}
 
 on:
-  push:
-    branches:
-      - dogfood
+  workflow_run:
+    workflows:
+      - Live Stack E2E
+    types:
+      - completed
   workflow_dispatch:
     inputs:
+      candidate_sha:
+        description: "Exact dogfood commit with successful isolated Live Stack E2E evidence"
+        required: true
+        type: string
       dogfood_member_operation:
         description: "Optional persistent human member operation"
         required: false
@@ -15,11 +22,6 @@ on:
           - status
           - ensure
           - resend-activation
-      run_flutter_integration:
-        description: "Run Flutter live integration tests after stack readiness"
-        required: false
-        default: false
-        type: boolean
       weave_backend_image:
         description: "Backend image; ghcr.io/* is pulled, other refs are built locally from the checked-out commit"
         required: false
@@ -40,18 +42,23 @@ concurrency:
 jobs:
   deploy-test-stack:
     name: Deploy Persistent LAN Test Stack
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.head_branch == 'dogfood' &&
+       github.event.workflow_run.conclusion == 'success')
     environment: dogfood
     runs-on:
       - self-hosted
       - macOS
       - ARM64
+      - weave-live
     timeout-minutes: 90
     env:
       EXPECTED_RUNNER_NAME: weave-live-mac-mini
+      CANDIDATE_SHA: ${{ github.event.workflow_run.head_sha || inputs.candidate_sha }}
+      ISOLATED_E2E_RUN_ID: ${{ github.event.workflow_run.id || '' }}
       WEAVE_BACKEND_IMAGE: ${{ inputs.weave_backend_image || 'weave-backend:test-stack' }}
       WEAVE_MCP_SERVER_IMAGE: ${{ inputs.weave_mcp_server_image || 'weave-mcp-server:test-stack' }}
-      WEAVE_TEST_PASSWORD: ${{ secrets.WEAVE_TEST_PASSWORD || 'ci-dogfood-test-password' }}
-      TF_VAR_test_user_password: ${{ secrets.WEAVE_TEST_PASSWORD || 'ci-dogfood-test-password' }}
       TF_VAR_db_admin_password: ci-db-admin-password
       TF_VAR_keycloak_admin_password: ci-keycloak-admin-password
       TF_VAR_keycloak_db_password: ci-keycloak-db-password
@@ -65,7 +72,8 @@ jobs:
       TF_VAR_synapse_registration_shared_secret: ci-synapse-registration-shared-secret
       TF_VAR_synapse_macaroon_secret_key: ci-synapse-macaroon-secret-key
       TF_VAR_synapse_form_secret: ci-synapse-form-secret
-      TF_VAR_create_test_user: 'true'
+      TF_VAR_create_test_user: 'false'
+      TF_VAR_isolated_e2e_enabled: 'false'
       TF_VAR_boards_runtime_enabled: 'true'
       TF_VAR_boards_provider: local-workspace
       TF_VAR_provider_stack_profile: local-live
@@ -80,7 +88,7 @@ jobs:
       TF_VAR_backend_host_port: '48084'
       WEAVE_RUNNER_HYGIENE: 'false'
       WEAVE_REMOVE_VOLUMES: 'false'
-      WEAVE_INTEGRATION_TEST_DEVICE: macos
+      WEAVE_DOGFOOD_DEPLOYMENT_SCOPE: persistent-dogfood
       WEAVE_DOGFOOD_MEMBER_USERNAME: ${{ vars.WEAVE_DOGFOOD_MEMBER_USERNAME }}
       WEAVE_DOGFOOD_MEMBER_EMAIL: ${{ secrets.WEAVE_DOGFOOD_MEMBER_EMAIL }}
       WEAVE_DOGFOOD_MEMBER_DISPLAY_NAME: ${{ vars.WEAVE_DOGFOOD_MEMBER_DISPLAY_NAME }}
@@ -93,6 +101,10 @@ jobs:
       - name: Verify dedicated local runner
         run: |
           set -euo pipefail
+          [[ "$CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "::error::Persistent deployment requires an exact lowercase candidate SHA." >&2
+            exit 1
+          }
           echo "runner=${RUNNER_NAME:-unknown}"
           if [[ "${RUNNER_NAME:-}" != "${EXPECTED_RUNNER_NAME}" ]]; then
             echo "::error::Persistent LAN test stack must deploy only on ${EXPECTED_RUNNER_NAME}; got ${RUNNER_NAME:-unknown}." >&2
@@ -101,6 +113,37 @@ jobs:
 
       - name: Check out weave
         uses: actions/checkout@v5
+        with:
+          ref: ${{ env.CANDIDATE_SHA }}
+          fetch-depth: 0
+
+      - name: Verify exact-candidate isolated E2E source run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_EVENT_NAME" == workflow_run ]]; then
+            source_run="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${ISOLATED_E2E_RUN_ID}")"
+            [[ "$(jq -r '.name' <<<"$source_run")" == "Live Stack E2E" && \
+               "$(jq -r '.conclusion' <<<"$source_run")" == success && \
+               "$(jq -r '.head_sha' <<<"$source_run")" == "$CANDIDATE_SHA" ]] || {
+              echo "::error::Deployment source is not successful exact-candidate Live Stack E2E evidence." >&2
+              exit 1
+            }
+          else
+            runs="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/live-stack-e2e.yml/runs?head_sha=${CANDIDATE_SHA}&status=completed&per_page=30")"
+            ISOLATED_E2E_RUN_ID="$(jq -r '[.workflow_runs[] | select(.conclusion == "success")][0].id // empty' <<<"$runs")"
+            [[ -n "$ISOLATED_E2E_RUN_ID" ]] || {
+              echo "::error::No successful isolated Live Stack E2E run targets ${CANDIDATE_SHA}." >&2
+              exit 1
+            }
+            echo "ISOLATED_E2E_RUN_ID=$ISOLATED_E2E_RUN_ID" >> "$GITHUB_ENV"
+          fi
+          git fetch origin dogfood --prune
+          git merge-base --is-ancestor "$CANDIDATE_SHA" origin/dogfood || {
+            echo "::error::Persistent deployment candidate is not contained in origin/dogfood." >&2
+            exit 1
+          }
 
       - name: Prepare test-stack evidence directory
         run: |
@@ -213,6 +256,14 @@ jobs:
             echo "TF_VAR_caddy_tls_ca_file=$cert_root/weave-local-ca.pem"
           } >> "$GITHUB_ENV"
 
+      - name: Capture persistent dogfood state before candidate deployment
+        working-directory: infra/weave-workspace
+        run: |
+          set -euo pipefail
+          WEAVE_DOGFOOD_MEMBER_SUBJECT_FILE="$HOME/.weave/dogfood/persistent-member.subject" \
+            ./persistent-dogfood-observation.sh capture \
+            --output "$WEAVE_TEST_STACK_EVIDENCE_DIR/persistent-dogfood-before.json"
+
       - name: Deploy or update persistent LAN test stack
         working-directory: infra/weave-workspace
         env:
@@ -237,11 +288,10 @@ jobs:
             fi
           done
 
-      - name: Verify persistent stack readiness
+      - name: Verify persistent stack readiness non-destructively
         working-directory: infra/weave-workspace
         run: |
           set -euo pipefail
-          bash ./smoke-test.sh
           bash ./operator-check.sh
 
       - name: Run requested persistent member operation
@@ -275,12 +325,44 @@ jobs:
             exit 1
           }
 
+      - name: Apply the same candidate a second time non-destructively
+        working-directory: infra/weave-workspace
+        env:
+          TF_VAR_weave_backend_image: ${{ env.WEAVE_BACKEND_IMAGE }}
+          TF_VAR_weave_mcp_server_image: ${{ env.WEAVE_MCP_SERVER_IMAGE }}
+        run: ./install.sh
+
+      - name: Persist OpenTofu state after the second install
+        working-directory: infra/weave-workspace
+        run: |
+          set -euo pipefail
+          state_root="$HOME/.weave/dogfood/opentofu-state"
+          mkdir -p "$state_root"
+          chmod 700 "$HOME/.weave" "$HOME/.weave/dogfood" "$state_root"
+          for stage in 01-infrastructure 02-keycloak-setup; do
+            [[ -s "$stage/terraform.tfstate" ]] || {
+              echo "::error::Missing ${stage} state after second install." >&2
+              exit 1
+            }
+            temporary="$state_root/${stage}.tfstate.tmp"
+            cp "$stage/terraform.tfstate" "$temporary"
+            chmod 600 "$temporary"
+            mv "$temporary" "$state_root/${stage}.tfstate"
+          done
+
+      - name: Verify persistent stack non-destructively after the second install
+        working-directory: infra/weave-workspace
+        run: |
+          set -euo pipefail
+          bash ./operator-check.sh
+
       - name: Verify deployment is idempotent
         env:
           TF_VAR_weave_backend_image: ${{ env.WEAVE_BACKEND_IMAGE }}
           TF_VAR_weave_mcp_server_image: ${{ env.WEAVE_MCP_SERVER_IMAGE }}
         run: |
           set -euo pipefail
+          idempotence_status=0
           verify_no_drift() {
             local stage="$1"
             local log_file="$RUNNER_TEMP/tofu-${stage}-second-plan.log"
@@ -294,42 +376,118 @@ jobs:
               rm -f "${log_file}"
               return
             fi
+            failure_kind=plan_failed
             if grep -Fq 'The plugin crashed!' "${log_file}"; then
+              failure_kind=provider_crashed
               echo "::error::Pinned provider crashed during ${stage} idempotence plan. Raw log retained only on the protected runner: ${log_file}" >&2
             elif [[ ${rc} -eq 2 ]]; then
+              failure_kind=drift_detected
               echo "::error::Second OpenTofu plan for ${stage} contains changes; deployment is not idempotent." >&2
             else
               echo "::error::Second OpenTofu plan for ${stage} failed with exit ${rc}. Raw log retained only on the protected runner." >&2
             fi
-            exit 1
+            printf '{"stage":"%s","noChanges":false,"failureKind":"%s","supportSafe":true}\n' \
+              "${stage}" "${failure_kind}" >"$WEAVE_TEST_STACK_EVIDENCE_DIR/tofu-${stage}-idempotence.json"
+            idempotence_status=1
           }
           verify_no_drift 01-infrastructure
           verify_no_drift 02-keycloak-setup
+          echo "WEAVE_TOFU_IDEMPOTENCE_STATUS=$idempotence_status" >> "$GITHUB_ENV"
 
-      - name: Trust local Weave CA for optional runner-side app tests
+      - name: Compare persistent human Mailpit TLS and session invariants
+        working-directory: infra/weave-workspace
         run: |
           set -euo pipefail
-          CA_FILE="$GITHUB_WORKSPACE/infra/weave-workspace/01-infrastructure/.generated/caddy/certs/weave-local-ca.pem"
-          if [[ ! -s "$CA_FILE" ]]; then
-            echo "::error::Weave local CA certificate not found at $CA_FILE" >&2
-            exit 1
-          fi
-          if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
-            sudo -n security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "$CA_FILE" || \
-              echo "::warning::Could not add Weave local CA to the system keychain; optional app tests may fail TLS validation."
-          fi
+          WEAVE_DOGFOOD_MEMBER_SUBJECT_FILE="$HOME/.weave/dogfood/persistent-member.subject" \
+            ./persistent-dogfood-observation.sh capture \
+            --output "$WEAVE_TEST_STACK_EVIDENCE_DIR/persistent-dogfood-after.json"
+          set +e
+          ./persistent-dogfood-observation.sh compare \
+            --before "$WEAVE_TEST_STACK_EVIDENCE_DIR/persistent-dogfood-before.json" \
+            --after "$WEAVE_TEST_STACK_EVIDENCE_DIR/persistent-dogfood-after.json" \
+            --output "$WEAVE_TEST_STACK_EVIDENCE_DIR/persistent-dogfood-comparison.json"
+          comparison_status=$?
+          set -e
+          echo "WEAVE_PERSISTENT_COMPARISON_STATUS=$comparison_status" >> "$GITHUB_ENV"
 
-      - name: Optional Flutter live integration tests
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_flutter_integration }}
+      - name: Collect cached provider metrics without probing providers
+        run: |
+          set -euo pipefail
+          metrics_url="http://127.0.0.1:${TF_VAR_backend_host_port}/actuator/metrics"
+          deadline=$((SECONDS + 90))
+          for capability in files calendar; do
+            while true; do
+              if curl --silent --show-error --fail --max-time 5 \
+                  "${metrics_url}/weave.provider.health.cached.age.seconds?tag=capability:${capability}" \
+                  | jq -e 'any(.measurements[]?; .statistic == "VALUE" and .value >= 0)' >/dev/null; then
+                break
+              fi
+              if (( SECONDS >= deadline )); then
+                echo "::error::Cached provider observation for ${capability} was not available within 90 seconds." >&2
+                exit 1
+              fi
+              sleep 5
+            done
+          done
+          set +e
+          python3 tools/dogfood_deployment_evidence.py collect-provider-health \
+            --actuator-metrics-url "$metrics_url" \
+            --chat-state available \
+            --output "$WEAVE_TEST_STACK_EVIDENCE_DIR/provider-health-summary.json" \
+            2>&1 | tee "$WEAVE_TEST_STACK_EVIDENCE_DIR/dogfood-deployment.log"
+          provider_status=${PIPESTATUS[0]}
+          set -e
+          echo "WEAVE_PROVIDER_HEALTH_STATUS=$provider_status" >> "$GITHUB_ENV"
+
+      - name: Generate a support bundle with sanitized cached health
+        working-directory: infra/weave-workspace
+        run: |
+          set -euo pipefail
+          WEAVE_PROVIDER_HEALTH_EVIDENCE_FILE="$WEAVE_TEST_STACK_EVIDENCE_DIR/provider-health-summary.json" \
+          WEAVE_SUPPORT_BUNDLE_DIR="$WEAVE_TEST_STACK_EVIDENCE_DIR/support-bundle" \
+          WEAVE_SUPPORT_BUNDLE_RUN_CHECKS=false \
+            ./support-bundle.sh "$WEAVE_TEST_STACK_EVIDENCE_DIR/support-bundle"
+
+      - name: Assemble exact-candidate dogfood deployment evidence
+        run: |
+          set -o pipefail
+          set +e
+          python3 tools/dogfood_deployment_evidence.py assemble \
+            --candidate-commit "$CANDIDATE_SHA" \
+            --backend-version "0.1.0" \
+            --backend-build-number "$GITHUB_RUN_NUMBER" \
+            --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --persistent-comparison "$WEAVE_TEST_STACK_EVIDENCE_DIR/persistent-dogfood-comparison.json" \
+            --provider-health "$WEAVE_TEST_STACK_EVIDENCE_DIR/provider-health-summary.json" \
+            --tofu-idempotence "$WEAVE_TEST_STACK_EVIDENCE_DIR/tofu-01-infrastructure-idempotence.json" \
+            --tofu-idempotence "$WEAVE_TEST_STACK_EVIDENCE_DIR/tofu-02-keycloak-setup-idempotence.json" \
+            --output "$WEAVE_TEST_STACK_EVIDENCE_DIR/dogfood-deployment-evidence.json" \
+            --require-passed 2>&1 | tee -a "$WEAVE_TEST_STACK_EVIDENCE_DIR/dogfood-deployment.log"
+          evidence_status=${PIPESTATUS[0]}
+          set -e
+          echo "WEAVE_DOGFOOD_EVIDENCE_STATUS=$evidence_status" >> "$GITHUB_ENV"
+
+      - name: Map persistent dogfood runtime evidence
+        if: always()
         working-directory: client
-        env:
-          WEAVE_BOOTSTRAP_ENV: ${{ github.workspace }}/infra/weave-workspace/.generated/bootstrap.env
         run: |
           set -euo pipefail
-          flutter pub get
-          flutter gen-l10n
-          dart run build_runner build --delete-conflicting-outputs
-          make integration-test
+          if [[ -s "$WEAVE_TEST_STACK_EVIDENCE_DIR/dogfood-deployment.log" ]]; then
+            flutter pub get
+            dart run tool/acceptance_contract.dart guard \
+              --root .. \
+              --features e2e/features \
+              --mapping e2e/scenario_mappings.json \
+              --out "$WEAVE_TEST_STACK_EVIDENCE_DIR/acceptance-contract" \
+              --test-log "$WEAVE_TEST_STACK_EVIDENCE_DIR/dogfood-deployment.log" \
+              --append-summary "$GITHUB_STEP_SUMMARY" \
+              --source dogfood-deployment \
+              --lane persistent-dogfood-verification \
+              --commit "$CANDIDATE_SHA" \
+              --run-id "$GITHUB_RUN_ID" \
+              --run-attempt "$GITHUB_RUN_ATTEMPT" \
+              --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          fi
 
       - name: Write persistent test-stack manifest
         if: always()
@@ -340,8 +498,9 @@ jobs:
           {
             "schemaVersion": 1,
             "lane": "persistent-lan-test-stack",
-            "branch": "${GITHUB_REF_NAME}",
-            "commit": "${GITHUB_SHA}",
+            "branch": "dogfood",
+            "commit": "${CANDIDATE_SHA}",
+            "isolatedE2ERunId": "${ISOLATED_E2E_RUN_ID}",
             "runId": "${GITHUB_RUN_ID}",
             "runAttempt": "${GITHUB_RUN_ATTEMPT}",
             "runUrl": "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}",
@@ -349,10 +508,29 @@ jobs:
             "productUrl": "https://weave.test:44443/",
             "platformConfigUrl": "https://api.weave.test:44443/api/platform/config",
             "caBootstrapUrl": "http://weave.test:44080/weave-local-ca.pem",
-            "identityDataResetAllowed": false
+            "identityDataResetAllowed": false,
+            "staticTestUserEnabled": false,
+            "isolatedE2EEnabled": false,
+            "supportSafe": true
           }
           EOF
           cat "$manifest" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Enforce persistent dogfood readiness gates
+        if: always()
+        run: |
+          set -euo pipefail
+          test -s "$WEAVE_TEST_STACK_EVIDENCE_DIR/dogfood-deployment-evidence.json" || {
+            echo "::error::Dogfood deployment evidence was not assembled." >&2
+            exit 1
+          }
+          if [[ "${WEAVE_TOFU_IDEMPOTENCE_STATUS:-1}" != 0 || \
+                "${WEAVE_PERSISTENT_COMPARISON_STATUS:-1}" != 0 || \
+                "${WEAVE_PROVIDER_HEALTH_STATUS:-1}" != 0 || \
+                "${WEAVE_DOGFOOD_EVIDENCE_STATUS:-1}" != 0 ]]; then
+            echo "::error::Persistent dogfood is not ready; see explicit blockers in dogfood-deployment-evidence.json." >&2
+            exit 1
+          fi
 
       - name: Upload persistent test-stack evidence
         if: always()

@@ -12,6 +12,8 @@ import com.massimotter.weave.backend.calendar.domain.CalendarDomain.FreeBusyWind
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.ScopeType;
 import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
+import com.massimotter.weave.backend.config.WeaveSecurityProperties;
+import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest;
@@ -22,6 +24,8 @@ import com.massimotter.weave.backend.model.calendar.CreateCalendarEventRequest;
 import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
 import com.massimotter.weave.backend.portability.ProviderReadiness;
 import com.massimotter.weave.backend.service.calendar.CalendarAdapterException;
+import com.massimotter.weave.backend.security.device.DeviceCredentialService;
+import com.massimotter.weave.backend.security.device.InMemoryDeviceCredentialRepository;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -30,9 +34,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
+import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -290,6 +296,41 @@ class CalendarFacadeServiceTest {
     }
 
     @Test
+    void memberJwtWithoutCalendarEditorCapabilityIsDeniedBeforeRebacAndProviderWrite() {
+        AtomicBoolean contextChecked = new AtomicBoolean();
+        AtomicBoolean providerCalled = new AtomicBoolean();
+        CalendarProviderPort adapter = new StubCalendarProvider() {
+            @Override
+            public CalendarEvent write(CalendarWrite write) {
+                providerCalled.set(true);
+                return event("unexpected", write.event().scope());
+            }
+        };
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(
+                jwtWithoutCalendarEditor(), null));
+
+        assertThatThrownBy(() -> service(adapter, request -> {
+                    contextChecked.set(true);
+                    return ContextAuthorizationDecision.allow("would allow ReBAC");
+                }).create(request(CalendarScopeResponse.workspace())))
+                .isInstanceOfSatisfying(ApiErrorException.class, error -> {
+                    assertThat(error.status()).isEqualTo(org.springframework.http.HttpStatus.FORBIDDEN);
+                    assertThat(error.code()).isEqualTo("capability-policy-blocked");
+                    assertThat(error.getMessage())
+                            .doesNotContain("massimo")
+                            .doesNotContain("Keycloak")
+                            .doesNotContain("CalDAV provider");
+                    assertThat(error.details())
+                            .containsEntry("module", "calendar")
+                            .containsEntry("operation", "create-event")
+                            .containsEntry("requiredCapability", "calendar.manage_events")
+                            .containsEntry("diagnosticsRedacted", true);
+                });
+        assertThat(contextChecked).isFalse();
+        assertThat(providerCalled).isFalse();
+    }
+
+    @Test
     void syncCollectionWrapsProviderTokensAndScopesCursorsToOneCalendar() {
         AtomicReference<String> capturedProviderToken = new AtomicReference<>();
         CalendarProviderPort adapter = new StubCalendarProvider() {
@@ -342,7 +383,9 @@ class CalendarFacadeServiceTest {
                 beanFactory.getBeanProvider(CalendarProviderPort.class),
                 "https://files.weave.test",
                 contextAuthorizationPort,
-                contextAuthorizationProperties());
+                contextAuthorizationProperties(),
+                new DeviceCredentialService(new InMemoryDeviceCredentialRepository()),
+                workspaceCapabilityService());
     }
 
     private CreateCalendarEventRequest request(CalendarScopeResponse scope) {
@@ -394,10 +437,34 @@ class CalendarFacadeServiceTest {
     private Jwt jwt() {
         return Jwt.withTokenValue("token")
                 .header("alg", "none")
+                .issuer("https://auth.weave.test/realms/weave")
                 .subject("user-123")
                 .claim("preferred_username", "massimo")
                 .claim("weave_tenant_id", "tenant-default")
+                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member"))))
+                .claim("groups", List.of("weave-calendar-editors"))
                 .build();
+    }
+
+    private Jwt jwtWithoutCalendarEditor() {
+        return Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .issuer("https://auth.weave.test/realms/weave")
+                .subject("user-123")
+                .claim("preferred_username", "massimo")
+                .claim("weave_tenant_id", "tenant-default")
+                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member"))))
+                .claim("groups", List.of())
+                .build();
+    }
+
+    private WorkspaceCapabilityService workspaceCapabilityService() {
+        OAuth2ResourceServerProperties resourceServer = new OAuth2ResourceServerProperties();
+        resourceServer.getJwt().setIssuerUri("https://auth.weave.test/realms/weave");
+        return new WorkspaceCapabilityService(
+                resourceServer,
+                new WeaveSecurityProperties("weave-app", "weave-app"),
+                new WorkspaceCapabilityProperties(null, null, null, null, null, null));
     }
 
     private static class StubCalendarProvider implements CalendarProviderPort {

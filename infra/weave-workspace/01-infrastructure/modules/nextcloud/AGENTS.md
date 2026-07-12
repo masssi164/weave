@@ -4,8 +4,8 @@ This module owns the local Nextcloud runtime behind the Caddy reverse proxy.
 
 ## Files
 
-- `main.tf`: Nextcloud image, persistent volume, database wiring, admin bootstrap, proxy trust, and local CA mount.
-- `variables.tf`: image, storage, database, hostname, URL, proxy trust, TLS CA mount, and admin inputs.
+- `main.tf`: Nextcloud image, persistent volume, database wiring, admin bootstrap, forwarded-address header selection, and local CA mount. Exact Caddy trust is resolved after apply by `install.sh`.
+- `variables.tf`: image, storage, database, hostname, URL, TLS CA mount, and admin inputs.
 - `outputs.tf`: exported container and volume identifiers.
 
 ## Global Weave agent baseline

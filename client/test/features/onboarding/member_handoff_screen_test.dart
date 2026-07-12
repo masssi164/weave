@@ -222,7 +222,7 @@ void main() {
             GoRoute(
               path: AppRoutes.home,
               builder: (context, state) =>
-                  const Scaffold(body: Text('First run workspace shell')),
+                  const Scaffold(body: Text('Authenticated workspace shell')),
             ),
           ],
         );
@@ -270,7 +270,7 @@ void main() {
         signIn.completer.complete();
         await tester.pumpAndSettle();
 
-        expect(find.text('First run workspace shell'), findsOneWidget);
+        expect(find.text('Authenticated workspace shell'), findsOneWidget);
 
         final rawAuthState = preferencesStore.rawString(
           dogfoodAuthStateStorageKey,

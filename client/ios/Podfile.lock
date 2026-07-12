@@ -50,6 +50,8 @@ PODS:
     - FlutterMacOS
   - integration_test (0.0.1):
     - Flutter
+  - package_info_plus (0.4.5):
+    - Flutter
   - SDWebImage (5.21.7):
     - SDWebImage/Core (= 5.21.7)
   - SDWebImage/Core (5.21.7)
@@ -70,6 +72,7 @@ DEPENDENCIES:
   - flutter_appauth (from `.symlinks/plugins/flutter_appauth/ios`)
   - flutter_secure_storage_darwin (from `.symlinks/plugins/flutter_secure_storage_darwin/darwin`)
   - integration_test (from `.symlinks/plugins/integration_test/ios`)
+  - package_info_plus (from `.symlinks/plugins/package_info_plus/ios`)
   - shared_preferences_foundation (from `.symlinks/plugins/shared_preferences_foundation/darwin`)
   - sqflite_darwin (from `.symlinks/plugins/sqflite_darwin/darwin`)
   - url_launcher_ios (from `.symlinks/plugins/url_launcher_ios/ios`)
@@ -95,6 +98,8 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/flutter_secure_storage_darwin/darwin"
   integration_test:
     :path: ".symlinks/plugins/integration_test/ios"
+  package_info_plus:
+    :path: ".symlinks/plugins/package_info_plus/ios"
   shared_preferences_foundation:
     :path: ".symlinks/plugins/shared_preferences_foundation/darwin"
   sqflite_darwin:
@@ -112,6 +117,7 @@ SPEC CHECKSUMS:
   flutter_appauth: 53aecd8e5a88b27c0457bf06aa755d3b43625e85
   flutter_secure_storage_darwin: acdb3f316ed05a3e68f856e0353b133eec373a23
   integration_test: 4a889634ef21a45d28d50d622cf412dc6d9f586e
+  package_info_plus: af8e2ca6888548050f16fa2f1938db7b5a5df499
   SDWebImage: e9fc87c1aab89a8ab1bbd74eba378c6f53be8abf
   shared_preferences_foundation: 7036424c3d8ec98dfe75ff1667cb0cd531ec82bb
   sqflite_darwin: 20b2a3a3b70e43edae938624ce550a3cbf66a3d0

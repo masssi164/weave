@@ -9,6 +9,7 @@ import 'package:weave/features/auth/domain/entities/auth_failure.dart';
 import 'package:weave/features/auth/domain/entities/oidc_constants.dart';
 
 import 'test_config.dart';
+import 'live_test_tls.dart';
 
 class LiveOidcTestDriver implements OidcClient {
   LiveOidcTestDriver({required TestConfig config}) : _config = config;
@@ -425,14 +426,7 @@ class LiveOidcTestDriver implements OidcClient {
   }
 
   HttpClient _newHttpClient() {
-    return HttpClient()
-      ..badCertificateCallback = (cert, host, port) =>
-          host == 'localhost' ||
-          host == '127.0.0.1' ||
-          host.endsWith('.localhost') ||
-          host.endsWith('.weave.test') ||
-          host == '127.0.0.1.sslip.io' ||
-          host.endsWith('.127.0.0.1.sslip.io');
+    return createLiveTestHttpClient();
   }
 
   bool _isRedirect(int statusCode) =>

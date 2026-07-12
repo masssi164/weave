@@ -1,0 +1,149 @@
+#!/usr/bin/env python3
+"""Validate the ordered, fail-closed enterprise dogfood candidate pipeline."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def read(path: str) -> str:
+    value = ROOT / path
+    if not value.is_file():
+        raise SystemExit(f"candidate-pipeline-check: missing {path}")
+    return value.read_text(encoding="utf-8")
+
+
+def require(condition: bool, message: str) -> None:
+    if not condition:
+        raise SystemExit(f"candidate-pipeline-check: {message}")
+
+
+def ordered(document: str, fragments: tuple[str, ...], label: str) -> None:
+    positions = []
+    for fragment in fragments:
+        require(fragment in document, f"{label} is missing {fragment!r}")
+        positions.append(document.index(fragment))
+    require(positions == sorted(positions), f"{label} stages are not ordered")
+
+
+def main() -> int:
+    live = read(".github/workflows/live-stack-e2e.yml")
+    deployment = read(".github/workflows/test-stack-deploy.yml")
+    ios = read(".github/workflows/ios-dogfood.yml")
+    physical = read(".github/workflows/human-testing-readiness.yml")
+    promotion = read(".github/workflows/main-promotion-gate.yml")
+    docs = read("docs/ios-dogfood-distribution.md")
+    readiness_assembler = read("tools/human_testing_readiness_assemble.py")
+
+    require("push:\n    branches:\n      - dogfood" in live, "isolated E2E does not run on the exact dogfood commit")
+    ordered(
+        live,
+        (
+            "isolated-e2e-identities.sh prepare",
+            "isolated-e2e-identities.sh provision",
+            "isolated-e2e-authorization-probes.sh",
+            "WEAVE_E2E_EXECUTION_MODE=collaboration",
+            "calendar_outage_begin_status=${PIPESTATUS[0]}",
+            "WEAVE_E2E_EXECUTION_MODE=calendar-failure-containment",
+            "if restore_calendar_outage; then",
+            "isolated-e2e-identities.sh cleanup",
+            "multi_user_e2e_evidence.py",
+        ),
+        "isolated live E2E",
+    )
+    require("xcrun simctl bootstatus" in live, "functional collaboration is not bound to an iPhone Simulator")
+    require(
+        "--authorization-evidence" in live
+        and "isolated-authorization.json" in live
+        and "--require-passed" in live,
+        "isolated collaboration and authorization evidence is not fail closed",
+    )
+    require(
+        "isolated-e2e-calendar-outage.sh begin" in live
+        and "isolated-e2e-calendar-outage.sh restore" in live
+        and "--calendar-outage-evidence" in live
+        and "isolated-calendar-outage.json" in live
+        and "trap finalize_tests EXIT" in live,
+        "real Calendar failure containment is not restored and bound to evidence",
+    )
+
+    require("workflow_run:" in deployment and "- Live Stack E2E" in deployment, "persistent deployment is not downstream of isolated E2E")
+    require("ref: ${{ env.CANDIDATE_SHA }}" in deployment, "persistent deployment does not check out exact evidence candidate")
+    require(
+        'git merge-base --is-ancestor "$CANDIDATE_SHA" origin/dogfood' in deployment,
+        "manual persistent deployment can select a commit outside dogfood",
+    )
+    require("- weave-live" in deployment, "persistent deployment is not pinned to the dedicated live runner label")
+    require("TF_VAR_create_test_user: 'false'" in deployment, "persistent dogfood still creates an automation member")
+    require("TF_VAR_test_user_password" not in deployment and "WEAVE_TEST_PASSWORD" not in deployment, "persistent dogfood carries obsolete test-user credentials")
+    require(
+        "bash ./smoke-test.sh" not in deployment
+        and deployment.count("bash ./operator-check.sh") == 2,
+        "persistent dogfood must use non-destructive operator checks without the automation-user smoke suite",
+    )
+    require(deployment.count("./install.sh") == 2, "persistent candidate must be installed exactly twice")
+    ordered(
+        deployment,
+        (
+            "persistent-dogfood-observation.sh capture",
+            "Apply the same candidate a second time non-destructively",
+            "persistent-dogfood-observation.sh compare",
+            "collect-provider-health",
+            "dogfood_deployment_evidence.py assemble",
+        ),
+        "persistent dogfood deployment",
+    )
+    require("/actuator/metrics" in deployment and "providerProbeTriggered=false" not in deployment, "deployment must collect cached metrics through Actuator without fabricating a result")
+
+    require("workflow_run:" in ios and "- Test Stack Deploy" in ios, "iOS distribution is not downstream of deployment")
+    require('gh run download "$deployment_run_id" --name weave-test-stack-evidence' in ios, "iOS candidate is not read from deployment evidence")
+    require("name: ios-dogfood" in ios and "cancel-in-progress: true" in ios, "iOS environment/supersession policy is incomplete")
+    require("WEAVE_CANDIDATE_COMMIT=${CANDIDATE_SHA}" in ios, "iOS build does not embed its candidate")
+    require(
+        "stable-signing-fallback:" in ios
+        and "inputs.upload_to_testflight == false" in ios
+        and "tools/dogfood_ios_development_fallback.sh" in ios
+        and "ios-dogfood-distribution.json" in ios,
+        "documented stable-signing fallback does not emit protected canonical distribution evidence",
+    )
+    fallback = ios.split("  stable-signing-fallback:", 1)[1]
+    require("- weave-live" in fallback, "physical fallback is not pinned to the dedicated live runner label")
+
+    for value in (
+        "installed_commit:",
+        "voiceover_passed:",
+        "session_upgrade_passed:",
+        "navigation_and_interactions_passed:",
+        "name: ios-dogfood",
+        "--require-ready",
+    ):
+        require(value in physical, f"physical readiness workflow is missing {value!r}")
+    require(
+        "PHYSICAL_IPHONE_VOICEOVER_RESULT" in readiness_assembler
+        and "HUMAN_TESTING_READINESS_RESULT" in readiness_assembler,
+        "readiness assembler does not emit stable physical/final markers",
+    )
+    require("human_testing_readiness_manifest.py validate" in promotion and "--require-ready" in promotion, "main promotion does not require a ready exact-candidate manifest")
+    require(
+        all(value in promotion for value in (
+            "test-stack-deploy.yml|dogfood|Weave release owner or dogfood operator",
+            "ios-dogfood.yml|ios-dogfood|Weave release owner plus client/iOS release owner",
+            "human-testing readiness is blocked workflow=",
+            "environment=${environment}",
+            "run=${blocking_run_url}",
+            "commit=${candidate}",
+            "requiredApprover=${approver}",
+        )),
+        "readiness blockers do not name the exact workflow environment run commit and approver",
+    )
+    require("approval request expires after 24 hours" in docs, "protected-environment approval expiry is undocumented")
+
+    print("CANDIDATE_PIPELINE_RESULT status=passed ordered=true supportSafe=true")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

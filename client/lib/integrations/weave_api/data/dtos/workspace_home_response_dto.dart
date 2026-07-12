@@ -6,8 +6,30 @@ import 'package:weave/integrations/weave_api/data/dtos/workspace_capabilities_re
 
 extension WorkspaceHomeResponseMapper on openapi.WorkspaceHomeResponse {
   WorkspaceHomeSnapshot toSnapshot() {
+    final responseVersion = _requiredInt(version, 'version');
+    if (responseVersion != 2) {
+      throw const AppFailure.unknown(
+        'The backend returned an unsupported Weave Home payload version.',
+      );
+    }
+    if (!_requiredBool(supportSafe, 'supportSafe')) {
+      throw const AppFailure.unknown(
+        'The backend returned an unsafe Weave Home payload.',
+      );
+    }
+    final activities = _requiredList(
+      recentActivity,
+      'recentActivity',
+    ).map((activity) => activity.toActivity()).toList(growable: false);
+    if (activities.map((activity) => activity.activityRef).toSet().length !=
+        activities.length) {
+      throw const AppFailure.unknown(
+        'The backend returned duplicate Weave Home activity references.',
+      );
+    }
+
     return WorkspaceHomeSnapshot(
-      version: _requiredInt(version, 'version'),
+      version: responseVersion,
       readiness: _parseReadiness(_requiredText(readiness, 'readiness')),
       summary: _supportSafeText(_requiredText(summary, 'summary')),
       sections: _requiredList(
@@ -18,7 +40,44 @@ extension WorkspaceHomeResponseMapper on openapi.WorkspaceHomeResponse {
         actions,
         'actions',
       ).map((action) => action.toAction()).toList(growable: false),
-      supportSafe: _requiredBool(supportSafe, 'supportSafe'),
+      recentActivity: activities,
+      supportSafe: true,
+    );
+  }
+}
+
+extension WorkspaceHomeRecentActivityResponseMapper
+    on openapi.WorkspaceHomeRecentActivityResponse {
+  WorkspaceHomeActivity toActivity() {
+    if (!_requiredBool(supportSafe, 'recentActivity.supportSafe')) {
+      throw const AppFailure.unknown(
+        'The backend returned an unsafe Weave Home activity.',
+      );
+    }
+    return WorkspaceHomeActivity(
+      activityRef: _opaqueReference(
+        _requiredText(activityRef, 'recentActivity.activityRef'),
+        field: 'activityRef',
+        pattern: RegExp(r'^activity:sha256:[0-9a-f]{64}$'),
+      ),
+      domain: _activityDomain(_requiredText(domain, 'recentActivity.domain')),
+      action: _activityAction(_requiredText(action, 'recentActivity.action')),
+      occurredAt: _activityTimestamp(
+        _requiredText(occurredAt, 'recentActivity.occurredAt'),
+      ),
+      visibility: _activityVisibility(
+        _requiredText(visibility, 'recentActivity.visibility'),
+      ),
+      actorRefHash: _opaqueReference(
+        _requiredText(actorRefHash, 'recentActivity.actorRefHash'),
+        field: 'actorRefHash',
+        pattern: RegExp(r'^sha256:[0-9a-f]{64}$'),
+      ),
+      actorIsCurrentUser: _requiredBool(
+        actorIsCurrentUser,
+        'recentActivity.actorIsCurrentUser',
+      ),
+      supportSafe: true,
     );
   }
 }
@@ -112,4 +171,57 @@ String _supportSafeText(String value) {
     );
   }
   return trimmed;
+}
+
+String _opaqueReference(
+  String value, {
+  required String field,
+  required RegExp pattern,
+}) {
+  final trimmed = value.trim();
+  if (!pattern.hasMatch(trimmed)) {
+    throw AppFailure.unknown(
+      'The backend returned an invalid Weave Home activity reference.',
+      cause: '$field did not match the support-safe opaque format.',
+    );
+  }
+  return trimmed;
+}
+
+WorkspaceHomeActivityDomain _activityDomain(String value) {
+  return switch (value.trim()) {
+    'files' => WorkspaceHomeActivityDomain.files,
+    _ => throw const AppFailure.unknown(
+      'The backend returned an unknown Weave Home activity domain.',
+    ),
+  };
+}
+
+WorkspaceHomeActivityAction _activityAction(String value) {
+  return switch (value.trim()) {
+    'files.webdav_write.completed' =>
+      WorkspaceHomeActivityAction.filesWebDavWriteCompleted,
+    _ => throw const AppFailure.unknown(
+      'The backend returned an unknown Weave Home activity action.',
+    ),
+  };
+}
+
+WorkspaceHomeActivityVisibility _activityVisibility(String value) {
+  return switch (value.trim()) {
+    'workspace' => WorkspaceHomeActivityVisibility.workspace,
+    _ => throw const AppFailure.unknown(
+      'The backend returned an unknown Weave Home activity visibility.',
+    ),
+  };
+}
+
+DateTime _activityTimestamp(String value) {
+  final parsed = DateTime.tryParse(value.trim());
+  if (parsed == null || !parsed.isUtc) {
+    throw const AppFailure.unknown(
+      'The backend returned an invalid Weave Home activity timestamp.',
+    );
+  }
+  return parsed;
 }

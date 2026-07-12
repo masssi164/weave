@@ -3,15 +3,21 @@ package com.massimotter.weave.backend.controller;
 import com.massimotter.weave.backend.config.ApiAccessDeniedHandler;
 import com.massimotter.weave.backend.config.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
+import com.massimotter.weave.backend.audit.AuditAction;
+import com.massimotter.weave.backend.audit.AuditEvent;
+import com.massimotter.weave.backend.audit.AuditRedactionLevel;
 import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WeaverRuntimeProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
+import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
+import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
 import com.massimotter.weave.backend.service.OrganizationManifestService;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.service.WorkspaceHomeService;
+import com.massimotter.weave.backend.service.WorkspaceHomeRecentActivityService;
 import com.massimotter.weave.backend.service.WorkspaceReleaseReadinessService;
 import com.massimotter.weave.backend.service.WeaverMcpBridgeService;
 import com.massimotter.weave.backend.service.WeaverRuntimeService;
@@ -24,6 +30,7 @@ import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.ToolInvocationStatu
 import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.WeaveMcpContentBlock;
 import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.WeaveMcpRef;
 import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.WeaveMcpToolCatalog;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -60,6 +67,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         OrganizationManifestService.class,
         WorkspaceReleaseReadinessService.class,
         WorkspaceHomeService.class,
+        WorkspaceHomeRecentActivityService.class,
         WeaverRuntimeService.class,
         WeaverToolRegistry.class,
         ApiAuthenticationEntryPoint.class,
@@ -97,6 +105,9 @@ class WorkspaceControllerTest {
 
     @MockBean
     private AuditEventPublisher auditEventPublisher;
+
+    @MockBean
+    private ContextAuthorizationPort contextAuthorizationPort;
 
     @MockBean
     private WeaverMcpBridgeService weaverMcpBridgeService;
@@ -282,6 +293,65 @@ class WorkspaceControllerTest {
     void returnsWeaveHomeDailyWorkSnapshot() throws Exception {
         assertWeaveHomeSnapshot("/api/workspace/home");
         assertWeaveHomeSnapshot("/api/v1/workspace/home");
+    }
+
+    @Test
+    void homeProjectsOnlyContextAuthorizedSupportSafeActivityFromTheJwtCaller() throws Exception {
+        when(auditEventPublisher.events()).thenReturn(List.of(
+                new AuditEvent(
+                        "tenant-a",
+                        "workspace-shared",
+                        "user:author-sub",
+                        "files:webdav",
+                        AuditAction.FILES_WEBDAV_WRITE_COMPLETED,
+                        Instant.parse("2026-07-12T10:01:00Z"),
+                        "home-controller-file-write",
+                        AuditRedactionLevel.SUPPORT_SAFE,
+                        Map.of(
+                                "productPath", "/private/quarterly-plan.pdf",
+                                "providerId", "provider-resource-42")),
+                new AuditEvent(
+                        "tenant-a",
+                        "workspace-private",
+                        "user:private-author",
+                        "files:webdav",
+                        AuditAction.FILES_WEBDAV_WRITE_COMPLETED,
+                        Instant.parse("2026-07-12T10:02:00Z"),
+                        "home-controller-private-write",
+                        AuditRedactionLevel.SUPPORT_SAFE,
+                        Map.of("productPath", "/private/secret.pdf"))));
+        when(contextAuthorizationPort.check(any())).thenAnswer(invocation -> {
+            var request = (com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest) invocation.getArgument(0);
+            return "workspace-shared".equals(request.contextId())
+                    ? ContextAuthorizationDecision.allow("shared workspace")
+                    : ContextAuthorizationDecision.deny("not a member");
+        });
+
+        mockMvc.perform(get("/api/v1/workspace/home").with(jwt()
+                        .jwt(token -> token
+                                .subject("author-sub")
+                                .claim("iss", "https://auth.example.invalid/realms/acme")
+                                .claim("weave_tenant_id", "tenant-a")
+                                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member")))))
+                        .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.version").value(2))
+                .andExpect(jsonPath("$.recentActivity.length()").value(1))
+                .andExpect(jsonPath("$.recentActivity[0].activityRef").value(org.hamcrest.Matchers.matchesPattern(
+                        "activity:sha256:[0-9a-f]{64}")))
+                .andExpect(jsonPath("$.recentActivity[0].actorRefHash").value(org.hamcrest.Matchers.matchesPattern(
+                        "sha256:[0-9a-f]{64}")))
+                .andExpect(jsonPath("$.recentActivity[0].domain").value("files"))
+                .andExpect(jsonPath("$.recentActivity[0].action").value("files.webdav_write.completed"))
+                .andExpect(jsonPath("$.recentActivity[0].visibility").value("workspace"))
+                .andExpect(jsonPath("$.recentActivity[0].actorIsCurrentUser").value(true))
+                .andExpect(jsonPath("$.recentActivity[0].supportSafe").value(true))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(
+                        not(containsString("quarterly-plan.pdf"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(
+                        not(containsString("provider-resource-42"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(
+                        not(containsString("private-author"))));
     }
 
     @Test
@@ -488,7 +558,7 @@ class WorkspaceControllerTest {
                                 .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member")))))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.version").value(1))
+                .andExpect(jsonPath("$.version").value(2))
                 .andExpect(jsonPath("$.supportSafe").value(true))
                 .andExpect(jsonPath("$.sections[0].key").value("recent-channels"))
                 .andExpect(jsonPath("$.sections[0].productRoute").value("weave://home/channels"))
@@ -498,6 +568,7 @@ class WorkspaceControllerTest {
                 .andExpect(jsonPath("$.sections[2].readiness").value("degraded"))
                 .andExpect(jsonPath("$.sections[3].key").value("recent-decisions"))
                 .andExpect(jsonPath("$.sections[4].key").value("workspace-health"))
+                .andExpect(jsonPath("$.recentActivity").isEmpty())
                 .andExpect(jsonPath("$.actions[0].productRoute").value("weave://home/tasks"));
     }
 }

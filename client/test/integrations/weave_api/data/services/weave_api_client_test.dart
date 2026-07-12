@@ -6,6 +6,7 @@ import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/app/domain/entities/organization_manifest_snapshot.dart';
 import 'package:weave/features/app/domain/entities/provider_stack_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
+import 'package:weave/features/app/domain/entities/workspace_home_snapshot.dart';
 import 'package:weave/integrations/weave_api/data/services/weave_api_client.dart';
 
 class _RecordingHttpClient extends http.BaseClient {
@@ -29,6 +30,32 @@ http.StreamedResponse _jsonResponse(
     statusCode,
     headers: {'content-type': 'application/json'},
   );
+}
+
+Map<String, Object?> _workspaceHomeActivityJson({
+  String? activityRef,
+  String activityHash =
+      'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+  String domain = 'files',
+  String action = 'files.webdav_write.completed',
+  String occurredAt = '2026-07-12T10:00:00Z',
+  String visibility = 'workspace',
+  String? actorRefHash,
+  String actorHash =
+      'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff',
+  bool actorIsCurrentUser = false,
+  bool supportSafe = true,
+}) {
+  return <String, Object?>{
+    'activityRef': activityRef ?? 'activity:sha256:$activityHash',
+    'domain': domain,
+    'action': action,
+    'occurredAt': occurredAt,
+    'visibility': visibility,
+    'actorRefHash': actorRefHash ?? 'sha256:$actorHash',
+    'actorIsCurrentUser': actorIsCurrentUser,
+    'supportSafe': supportSafe,
+  };
 }
 
 Map<String, Object?> _capability({
@@ -327,7 +354,7 @@ void main() {
         httpClient: _RecordingHttpClient((request) async {
           capturedRequest = request;
           return _jsonResponse({
-            'version': 1,
+            'version': 2,
             'readiness': 'degraded',
             'summary': 'Weave Home is usable, with setup actions remaining.',
             'supportSafe': true,
@@ -359,6 +386,15 @@ void main() {
                 'reason': 'Board writes stay gated behind audit.',
               },
             ],
+            'recentActivity': [
+              _workspaceHomeActivityJson(
+                actorIsCurrentUser: true,
+                activityHash:
+                    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+                actorHash:
+                    'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+              ),
+            ],
           });
         }),
       );
@@ -377,6 +413,16 @@ void main() {
       expect(snapshot.sections.first.key, 'recent-channels');
       expect(snapshot.sections.first.productRoute, 'weave://home/channels');
       expect(snapshot.actions.single.productRoute, 'weave://home/tasks');
+      expect(snapshot.recentActivity.single.supportSafe, isTrue);
+      expect(
+        snapshot.recentActivity.single.domain,
+        WorkspaceHomeActivityDomain.files,
+      );
+      expect(
+        snapshot.recentActivity.single.action,
+        WorkspaceHomeActivityAction.filesWebDavWriteCompleted,
+      );
+      expect(snapshot.recentActivity.single.actorIsCurrentUser, isTrue);
       expect(snapshot.hasActionableWork, isTrue);
     });
 
@@ -384,17 +430,79 @@ void main() {
       final client = HttpWeaveApiClient(
         httpClient: _RecordingHttpClient((request) async {
           return _jsonResponse({
-            'version': 1,
+            'version': 2,
             'readiness': 'ready',
             'summary': 'Raw provider URL https://provider.example leaked.',
-            'supportSafe': false,
+            'supportSafe': true,
             'sections': [],
             'actions': [],
+            'recentActivity': [],
           });
         }),
       );
 
       expect(
+        () => client.fetchWorkspaceHome(
+          baseUrl: Uri.parse('https://api.weave.test/api'),
+          accessToken: 'token-123',
+        ),
+        throwsA(isA<AppFailure>()),
+      );
+    });
+
+    test('rejects unsafe or unknown Weave Home activity fields', () async {
+      final unsafeActivities = <Map<String, Object?>>[
+        _workspaceHomeActivityJson(activityRef: 'provider:file-123'),
+        _workspaceHomeActivityJson(actorRefHash: 'user:member@example.test'),
+        _workspaceHomeActivityJson(action: 'files.unknown.completed'),
+        _workspaceHomeActivityJson(domain: 'provider-files'),
+        _workspaceHomeActivityJson(visibility: 'context:private-id'),
+        _workspaceHomeActivityJson(occurredAt: '2026-07-12T10:00:00'),
+        _workspaceHomeActivityJson(supportSafe: false),
+      ];
+
+      for (final activity in unsafeActivities) {
+        final client = HttpWeaveApiClient(
+          httpClient: _RecordingHttpClient((request) async {
+            return _jsonResponse({
+              'version': 2,
+              'readiness': 'ready',
+              'summary': 'Weave Home is ready.',
+              'supportSafe': true,
+              'sections': [],
+              'actions': [],
+              'recentActivity': [activity],
+            });
+          }),
+        );
+
+        await expectLater(
+          () => client.fetchWorkspaceHome(
+            baseUrl: Uri.parse('https://api.weave.test/api'),
+            accessToken: 'token-123',
+          ),
+          throwsA(isA<AppFailure>()),
+        );
+      }
+    });
+
+    test('rejects duplicate Weave Home activity references', () async {
+      final activity = _workspaceHomeActivityJson();
+      final client = HttpWeaveApiClient(
+        httpClient: _RecordingHttpClient((request) async {
+          return _jsonResponse({
+            'version': 2,
+            'readiness': 'ready',
+            'summary': 'Weave Home is ready.',
+            'supportSafe': true,
+            'sections': [],
+            'actions': [],
+            'recentActivity': [activity, activity],
+          });
+        }),
+      );
+
+      await expectLater(
         () => client.fetchWorkspaceHome(
           baseUrl: Uri.parse('https://api.weave.test/api'),
           accessToken: 'token-123',

@@ -343,7 +343,7 @@ Examples:
     addTearDown(() => directory.deleteSync(recursive: true));
     final logFile = File('${directory.path}${Platform.pathSeparator}e2e.log')
       ..writeAsStringSync('''
-ACCESSIBILITY_RESULT accessible=true accessibility=ok accessToken=redacted accessKey=redacted apiKey=redacted token=redacted accessTokenPresent=true durationMs=42 id=123 displayName=Massimo
+ACCESSIBILITY_RESULT accessible=true accessibility=ok accessToken=redacted accessKey=redacted apiKey=redacted token=redacted accessTokenPresent=true durationMs=42 id=123 displayName=Massimo fileRef=file:private.txt requestPath=/dav/files/private.txt subject=person@example.invalid auth=Bearer-secret
 ''');
     const mapping = acceptance.ScenarioMapping(
       tag: '@weave-live-a11y',
@@ -371,6 +371,10 @@ ACCESSIBILITY_RESULT accessible=true accessibility=ok accessToken=redacted acces
     expect(sanitized, isNot(contains('token')));
     expect(sanitized, isNot(contains('id')));
     expect(sanitized, isNot(contains('displayName')));
+    expect(sanitized, isNot(contains('fileRef')));
+    expect(sanitized, isNot(contains('requestPath')));
+    expect(sanitized, isNot(contains('subject')));
+    expect(sanitized, isNot(contains('auth')));
   });
 
   test('release evidence manifest is support-safe and traceable', () {

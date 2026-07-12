@@ -3,12 +3,13 @@ package com.massimotter.weave.backend.service;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
-import com.massimotter.weave.backend.files.port.FilesProviderPort;
+import com.massimotter.weave.backend.model.admin.ProviderCapabilityHealthResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyState;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
-import com.massimotter.weave.backend.portability.ProviderReadiness;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -84,7 +85,7 @@ class WorkspaceCapabilityServiceTest {
     }
 
     @Test
-    void degradesFilesWhenBackendActorReadinessProbeFails() {
+    void degradesOnlyFilesWhenTheCachedProviderObservationIsDegraded() {
         WorkspaceCapabilityService service = new WorkspaceCapabilityService(
                 resourceServerProperties("https://auth.weave.test/realms/weave"),
                 new WeaveSecurityProperties("weave-app", "weave-app"),
@@ -95,7 +96,7 @@ class WorkspaceCapabilityServiceTest {
                         null,
                         null,
                         null),
-                failingFilesAdapter());
+                providerHealth("files", "degraded", "files-storage-backend-unavailable", false));
 
         var snapshot = service.snapshot(jwt(List.of("member"), List.of("workspace-default")));
 
@@ -109,10 +110,11 @@ class WorkspaceCapabilityServiceTest {
         assertThat(snapshot.files().supportRef())
                 .isEqualTo("support:workspace-capability:files:degraded:allowed:files-storage-backend-unavailable");
         assertThat(snapshot.files().grantedCapabilities()).containsExactly("files.read", "files.upload");
+        assertThat(snapshot.chat().readiness()).isEqualTo(WorkspaceCapabilityReadiness.READY);
     }
 
     @Test
-    void degradesFilesWhenBackendActorReadinessProbeThrows() {
+    void treatsAStaleProviderObservationAsDomainLocalDegradation() {
         WorkspaceCapabilityService service = new WorkspaceCapabilityService(
                 resourceServerProperties("https://auth.weave.test/realms/weave"),
                 new WeaveSecurityProperties("weave-app", "weave-app"),
@@ -123,16 +125,47 @@ class WorkspaceCapabilityServiceTest {
                         null,
                         null,
                         null),
-                throwingFilesAdapter());
+                providerHealth("files", "degraded", "files-health-cache-stale", true));
 
         var snapshot = service.snapshot(jwt(List.of("member"), List.of("workspace-default")));
 
         assertThat(snapshot.files().readiness()).isEqualTo(WorkspaceCapabilityReadiness.DEGRADED);
         assertThat(snapshot.files().memberImpact())
                 .contains("Files need admin attention")
-                .doesNotContain("RuntimeException");
+                .doesNotContain("Nextcloud");
         assertThat(snapshot.files().supportRef())
-                .isEqualTo("support:workspace-capability:files:degraded:allowed:files-storage-readiness-probe-failed");
+                .isEqualTo("support:workspace-capability:files:degraded:allowed:files-health-cache-stale");
+    }
+
+    @Test
+    void keepsOtherCapabilitiesReadyWhenCalendarAloneIsUnavailable() {
+        ProviderCapabilityHealthService providerHealth = mock(ProviderCapabilityHealthService.class);
+        when(providerHealth.cached("files")).thenReturn(Optional.of(observation(
+                "files", "available", "files-storage-ready", false)));
+        when(providerHealth.cached("calendar")).thenReturn(Optional.of(observation(
+                "calendar", "unavailable", "calendar-storage-auth-failed", false)));
+        WorkspaceCapabilityService service = new WorkspaceCapabilityService(
+                resourceServerProperties("https://auth.weave.test/realms/weave"),
+                new WeaveSecurityProperties("weave-app", "weave-app"),
+                new WorkspaceCapabilityProperties(
+                        new WorkspaceCapabilityProperties.Capability(true, null, null),
+                        new WorkspaceCapabilityProperties.Capability(true, "https://matrix.weave.test", null),
+                        new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.test", null),
+                        new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.test", null),
+                        null,
+                        null),
+                providerHealth);
+
+        var snapshot = service.snapshot(jwt(List.of("member"), List.of("workspace-default")));
+
+        assertThat(snapshot.shellAccess().readiness()).isEqualTo(WorkspaceCapabilityReadiness.READY);
+        assertThat(snapshot.chat().readiness()).isEqualTo(WorkspaceCapabilityReadiness.READY);
+        assertThat(snapshot.files().readiness()).isEqualTo(WorkspaceCapabilityReadiness.READY);
+        assertThat(snapshot.calendar().readiness()).isEqualTo(WorkspaceCapabilityReadiness.UNAVAILABLE);
+        assertThat(snapshot.calendar().memberImpact())
+                .contains("Other workspace areas remain available")
+                .doesNotContain("CalDAV")
+                .doesNotContain("Nextcloud");
     }
 
 
@@ -317,15 +350,33 @@ class WorkspaceCapabilityServiceTest {
                 .build();
     }
 
-    private FilesProviderPort failingFilesAdapter() {
-        FilesProviderPort adapter = mock(FilesProviderPort.class);
-        when(adapter.readiness()).thenReturn(ProviderReadiness.degraded("files-storage-backend-unavailable"));
-        return adapter;
+    private ProviderCapabilityHealthService providerHealth(
+            String capability,
+            String state,
+            String code,
+            boolean stale) {
+        ProviderCapabilityHealthService service = mock(ProviderCapabilityHealthService.class);
+        when(service.cached(capability)).thenReturn(Optional.of(observation(capability, state, code, stale)));
+        return service;
     }
 
-    private FilesProviderPort throwingFilesAdapter() {
-        FilesProviderPort adapter = mock(FilesProviderPort.class);
-        when(adapter.readiness()).thenThrow(new RuntimeException("provider-specific failure must not escape"));
-        return adapter;
+    private ProviderCapabilityHealthResponse.CapabilityHealth observation(
+            String capability,
+            String state,
+            String code,
+            boolean stale) {
+        return new ProviderCapabilityHealthResponse.CapabilityHealth(
+                capability,
+                state,
+                code,
+                "provider-health:" + capability + ":test",
+                Instant.parse("2026-07-12T08:00:00Z"),
+                Instant.parse("2026-07-12T08:01:00Z"),
+                null,
+                0L,
+                stale,
+                stale ? 1 : 0,
+                5,
+                0);
     }
 }

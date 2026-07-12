@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -62,6 +63,25 @@ class CalDavCalendarAdapterTest {
                     assertThat(error.details()).containsEntry("calendarScope", "private-personal");
                     assertThat(error.details()).containsEntry("privateUserTemplateAllowed", false);
                 });
+    }
+
+    @Test
+    void healthProbeUsesBoundedAuthenticatedCalDavAndNormalizesRetryAfter() throws Exception {
+        List<String> methods = new ArrayList<>();
+        server = server(exchange -> {
+            methods.add(exchange.getRequestMethod());
+            assertThat(exchange.getRequestHeaders().getFirst("Depth")).isEqualTo("0");
+            exchange.getResponseHeaders().add("Retry-After", "120");
+            respond(exchange, 429, "raw provider throttle for backend:secret", null);
+        });
+
+        var result = adapter().healthProbe();
+
+        assertThat(methods).containsExactly("PROPFIND");
+        assertThat(result.state().value()).isEqualTo("degraded");
+        assertThat(result.supportSafeCode()).isEqualTo("calendar-storage-rate-limited");
+        assertThat(result.retryAfter()).isEqualTo(Duration.ofSeconds(120));
+        assertThat(result.toString()).doesNotContain("backend:secret");
     }
 
     @Test

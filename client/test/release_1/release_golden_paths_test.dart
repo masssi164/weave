@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:weave/core/a11y/semantic_button.dart';
 import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
+import 'package:weave/core/persistence/flutter_secure_store.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/core/router/app_routes.dart';
@@ -83,6 +84,7 @@ void main() {
             preferencesStoreProvider.overrideWith(
               (ref) => InMemoryPreferencesStore(),
             ),
+            secureStoreProvider.overrideWithValue(InMemorySecureStore()),
             serverConfigurationRepositoryProvider.overrideWithValue(
               serverConfigurationRepository,
             ),
@@ -144,7 +146,6 @@ void main() {
           container.read(appBootstrapProvider).requireValue.phase,
           BootstrapPhase.ready,
         );
-        await _continueFirstRunIfPresent(tester);
         expect(find.text('Weave Home'), findsWidgets);
 
         await tester.tap(_navigationDestination('Chat'));
@@ -220,8 +221,6 @@ void main() {
 
         await tester.tap(find.widgetWithText(AccessibleButton, 'Sign In'));
         await tester.pumpAndSettle();
-        await _continueFirstRunIfPresent(tester);
-
         container.read(appRouterProvider).go(AppRoutes.workspaceHealth);
         await tester.pumpAndSettle();
         expect(_textFieldWithLabel('OIDC Issuer URL'), findsNothing);
@@ -255,8 +254,6 @@ Finder _textFieldWithLabel(String label) {
 Finder _navigationDestination(String label) {
   return find.widgetWithText(NavigationDestination, label);
 }
-
-Future<void> _continueFirstRunIfPresent(WidgetTester tester) async {}
 
 const _ownerProfile = UserProfile(
   userId: 'release-owner',

@@ -49,7 +49,11 @@ cd weave-workspace
 ./install.sh
 ```
 
-`install.sh` defaults to a shared-host-safe isolated port block, runs preflight checks, generates missing local secrets and TLS material, applies both OpenTofu stages, waits for backend readiness, and bootstraps the Nextcloud `user_oidc` app. Generated local inputs are persisted in `weave-workspace/.generated/bootstrap.env`; a no-secrets app summary is written to `weave-workspace/.generated/app-config.env`.
+`install.sh` defaults to a shared-host-safe port block, runs preflight checks, generates missing local secrets and TLS material, applies both OpenTofu stages, waits for backend readiness, and bootstraps the Nextcloud `user_oidc` app. Generated local inputs are persisted in `weave-workspace/.generated/bootstrap.env`; local dogfood also keeps a private mode-`0600` recovery copy under the operator state directory so a fresh checkout does not invent new provider credentials. A no-secrets app summary is written to `weave-workspace/.generated/app-config.env`.
+
+Nextcloud trusts only the exact Caddy address discovered on the active Docker network. `install.sh` pins `HTTP_X_FORWARDED_FOR`, keeps brute-force protection enabled, provisions calendars through local OCC, and then performs one bounded authenticated WebDAV check plus one CalDAV check. Backend readiness polling does not perform provider authentication, and a `429` stops without retrying.
+
+The backend's direct host port is loopback-bound. Caddy preserves public `/api/health/*` but rejects `/actuator` and `/actuator/*`; protected deployment automation may collect cached Micrometer evidence only through the host-local port.
 
 For TLS trust, port modes, smoke-test inputs, and native app contracts, see [Local bootstrap](docs/local-bootstrap.md).
 
@@ -95,7 +99,7 @@ Optional providers are fail-closed by default:
 - ONLYOFFICE/Collabora are optional office candidates behind backend-owned capabilities and launch checks.
 - The optional product DevOps facade represents GitLab only and stays disabled unless an explicit runtime contract configures it. Repository delivery and dogfood promotion are GitHub-only.
 - Missing provider credentials must produce support-safe unavailable/not-configured readiness, not insecure fallback behavior.
-- Support bundles redact tokens, cookies, app passwords, signing keys, provider URLs, raw provider errors, and generated secrets.
+- Support bundles redact tokens, cookies, app passwords, signing keys, provider URLs, raw provider errors, and generated secrets; raw service/provider logs are excluded because generic redaction cannot prove removal of actor/content identifiers.
 - Nextcloud Contacts/CardDAV and Forms seams are visible to the backend but stay disabled/fail-closed until the backend contracts are merged and live-validated.
 - Private personal calendar/addressbook access is blocked unless a later contract adds explicit sharing, provisioning, or delegated-token behavior.
 
@@ -117,6 +121,11 @@ Optional providers are fail-closed by default:
 - `weave-workspace/teardown.sh`: non-destructive cleanup by default; destructive volume reset requires explicit confirmation.
 - `weave-workspace/release-verify.sh`: public endpoint verification for non-local single-host installs.
 - `weave-workspace/operator-check.sh`: host-local container and health checks.
+- `weave-workspace/isolated-e2e-identities.sh`: run-scoped author/collaborator/outsider identity and real ReBAC startup inputs for disposable stacks only.
+- `weave-workspace/isolated-e2e-authorization-probes.sh`: isolated-only missing-capability, expired-token, and revoked-Matrix-session probes with strict restoration and support-safe evidence.
+- `weave-workspace/isolated-e2e-calendar-outage.sh`: isolated-only Calendar outage/recovery fixture that deletes only the backend actor's disposable `personal` calendar and proves cached domain-local degradation while Files stays available.
+- `weave-workspace/persistent-dogfood-observation.sh`: read-only before/after hashes and counts for non-destructive persistent dogfood deployment evidence.
+- `weave-workspace/nextcloud-auth-security-audit.sh`: support-safe classification of recent invalid-authentication/throttle sources without counter reset or raw addresses.
 - `weave-workspace/backup.sh`, `restore-smoke.sh`, `support-bundle.sh`: operator support and recovery helpers.
 - `weave-workspace/weave-mcp-tool-contract.json`: support-safe canonical domain contract and active Spring AI MCP runtime evidence.
 - `weave-workspace/01-infrastructure`: Docker runtime, generated config, and service modules.

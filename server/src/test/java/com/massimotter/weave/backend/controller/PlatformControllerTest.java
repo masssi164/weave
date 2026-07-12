@@ -8,7 +8,9 @@ import com.massimotter.weave.backend.config.PlatformContractProperties;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
+import com.massimotter.weave.backend.service.LocalDependencyReadinessService;
 import com.massimotter.weave.backend.service.PlatformContractService;
+import com.massimotter.weave.backend.service.ProviderCapabilityHealthService;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,12 +28,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @WebMvcTest(
         controllers = {PlatformController.class, HealthController.class},
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
 @Import({
         SecurityConfig.class,
+        LocalDependencyReadinessService.class,
         PlatformContractService.class,
         WorkspaceCapabilityService.class,
         ApiAuthenticationEntryPoint.class,
@@ -58,6 +62,9 @@ class PlatformControllerTest {
 
     @MockBean
     private JwtDecoder jwtDecoder;
+
+    @MockBean
+    private ProviderCapabilityHealthService providerCapabilityHealthService;
 
     @Test
     void exposesPublicPlatformConfig() throws Exception {
@@ -135,7 +142,14 @@ class PlatformControllerTest {
                 .andExpect(header().string("X-Request-Id", "ready-test-1"))
                 .andExpect(jsonPath("$.status").value("up"))
                 .andExpect(jsonPath("$.requestId").value("ready-test-1"))
-                .andExpect(jsonPath("$.checks[?(@.key == 'matrix')].readiness").value("ready"))
+                .andExpect(jsonPath("$.checks[?(@.key == 'auth')].readiness").value("ready"))
+                .andExpect(jsonPath("$.checks[?(@.key == 'matrix')]").isEmpty())
+                .andExpect(jsonPath("$.checks[?(@.key == 'files')]").isEmpty())
+                .andExpect(jsonPath("$.checks[?(@.key == 'persistence')]").isEmpty())
                 .andExpect(jsonPath("$.actions").isEmpty());
+
+        mockMvc.perform(get("/api/health/ready"))
+                .andExpect(status().isOk());
+        verifyNoInteractions(providerCapabilityHealthService);
     }
 }

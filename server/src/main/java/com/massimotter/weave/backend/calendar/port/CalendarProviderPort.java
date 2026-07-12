@@ -10,6 +10,7 @@ import com.massimotter.weave.backend.calendar.domain.CalendarDomain.EventId;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.EventVersion;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.FreeBusyWindow;
 import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
+import com.massimotter.weave.backend.portability.ProviderCapabilityProbeResult;
 import com.massimotter.weave.backend.portability.ProviderReadiness;
 import java.time.Instant;
 import java.util.List;
@@ -19,6 +20,13 @@ public interface CalendarProviderPort {
     boolean configured();
 
     ProviderReadiness readiness();
+
+    default ProviderCapabilityProbeResult healthProbe() {
+        ProviderReadiness readiness = readiness();
+        return readiness.available()
+                ? ProviderCapabilityProbeResult.available(readiness.supportSafeCode())
+                : ProviderCapabilityProbeResult.degraded(readiness.supportSafeCode());
+    }
 
     ProviderConformanceProfile conformanceProfile();
 

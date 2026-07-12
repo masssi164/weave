@@ -1,6 +1,6 @@
 # Enterprise release foundation
 
-Status: Sprint 6 enterprise foundation, source-backed release engineering contract.
+Status: active enterprise dogfood and human-testing release contract.
 
 This page defines the professional release spine for Weave. It deliberately separates product validation from admin/control-plane work: **Live Stack E2E is evidence**, not an Admin Portal feature. Admin/operator surfaces own setup, policy, readiness, and support-safe remediation; member journeys stay provider-neutral and are proved through the acceptance contract.
 
@@ -8,9 +8,9 @@ The machine-readable contract lives at `release/enterprise-release-gates.json` a
 
 ## Operating principles
 
-- `main` is protected and release-candidate source of truth; use short-lived PR branches only.
-- No v0.1 release-candidate promotion without green credentialed Live Stack E2E on the release-candidate head, or an explicit release-owner waiver.
-- A waiver is not a green build. It must name the exact blocker, commit, owner, expiry/next action, and compensating evidence.
+- Delivery is ordered `dev` → isolated candidate E2E → `dogfood` → protected iOS distribution → physical acceptance → `main`.
+- No main or `humanTestingReady=true` claim without an exact-candidate readiness manifest in state `ready`.
+- Current-surface collaboration, deployment, distribution, in-place session upgrade, and physical-iPhone VoiceOver gates are mandatory and cannot be waived into a ready state.
 - Provider-specific IDs, raw endpoints, SecretRefs, credential-bearing URLs, downstream bodies, and private live logs stay out of public/support artifacts.
 - Weaver remains governed, opt-in, capability-whitelisted, audited, and default-disabled; it must not be used to bypass release evidence.
 - The `weave-co-leader` orchestrates cross-domain delivery; specialist agents implement scoped slices, while release evidence remains deterministic and human-reviewable.
@@ -24,6 +24,7 @@ Purpose: fast deterministic confidence before merge.
 Required gates:
 
 - `gradle-ci` runs `./gradlew ci` and uploads sanitized `build/evidence/ci-summary.json` plus docs artifacts.
+- `spec-corpus-conformance` checks out and lints the exact commit pinned by `specs/weave-specs.lock.json`.
 - `release-notes-label-check` enforces exactly one release-notes label for PRs.
 
 This lane must stay PR-safe: no real provider credentials, no destructive live runner reset, no public release promotion, and no claim that runtime evidence was collected.
@@ -32,9 +33,11 @@ This lane must stay PR-safe: no real provider credentials, no destructive live r
 
 Purpose: prove the candidate on the dedicated self-hosted live runner with credentials and a real local stack.
 
-Required gate:
+Required gates:
 
 - `credentialed-live-stack-e2e` via `.github/workflows/live-stack-e2e.yml`.
+- `three-user-live-collaboration` runs twice with disposable author, collaborator, and outsider identities in a fully isolated namespace.
+- The same isolated lane runs real missing-capability, expired-token, and Matrix-session-revocation probes before the client suite. The client wrong-workspace assertions and the independent `isolated-authorization.json` artifact must agree before authorization can pass.
 
 Required artifacts:
 
@@ -42,6 +45,11 @@ Required artifacts:
 - `weave-live-stack-acceptance-evidence/scenario-mapping-results.json`
 - `weave-live-stack-acceptance-evidence/evidence-markers.json`
 - `weave-live-stack-acceptance-evidence/release-evidence-manifest.json`
+- `weave-live-stack-acceptance-evidence/human-testing-automated-evidence.json`
+- `weave-live-stack-acceptance-evidence/isolated-identities.json`
+- `weave-live-stack-acceptance-evidence/isolated-authorization.json`
+- `weave-live-stack-acceptance-evidence/isolated-calendar-outage.json`
+- `weave-live-stack-acceptance-evidence/isolated-cleanup.json`
 
 Failure-only support-safe diagnostics:
 
@@ -64,8 +72,29 @@ Required runtime markers for the v0.1 dogfood candidate:
 - `CALENDAR_RESULT`
 - `BOARDS_RESULT`
 - `PROVIDER_REALITY_RESULT`
+- `MULTI_USER_AUTH_SHELL_RESULT`
+- `MULTI_USER_HOME_RESULT`
+- `MULTI_USER_CHAT_RESULT`
+- `MULTI_USER_FILES_RESULT`
+- `MULTI_USER_CALENDAR_RESULT`
+- `MULTI_USER_SETTINGS_PROFILE_RESULT`
+- `MULTI_USER_FAILURE_CONTAINMENT_RESULT`
+- `MULTI_USER_AUTHORIZATION_RESULT`
+- `MULTI_USER_CLEANUP_RESULT`
 
 The live lane validates product flows. It must not become a junk drawer for admin/control-plane assertions. Admin/provider readiness can be part of the product evidence only when it is consumed through stable backend-owned facades and support-safe member/operator states.
+
+### `persistent-dogfood-verification`
+
+Purpose: run `persistent-dogfood-deployment` for the accepted candidate under the shared non-cancelling lock. The deployment runs twice, uses non-destructive operator checks rather than the static-user smoke suite, verifies OpenTofu/runtime idempotency, records cached provider health, and proves that the single persistent human member, captured Mailpit data, TLS identity, and existing session state were not reset. Persistent dogfood does not retain disposable automation identities.
+
+### `ios-dogfood-distribution`
+
+Purpose: run `ios-dogfood-distribution` only after the exact candidate's persistent deployment succeeds. `.github/workflows/ios-dogfood.yml` is triggered by that successful workflow result, verifies the earlier isolated E2E run for the same commit, builds immutable diagnostics, and uploads through the protected `ios-dogfood` environment. A waiting environment review is `blocked`, not success.
+
+### `physical-human-acceptance`
+
+Purpose: close `physical-iphone-voiceover` and `human-testing-readiness-manifest` after the candidate is installed in place. `.github/workflows/human-testing-readiness.yml` records support-safe physical-device evidence and validates `human-testing-readiness.json`. Simulator evidence is functional evidence only and cannot satisfy this lane.
 
 ### `release-promotion`
 
@@ -76,7 +105,7 @@ Required gates:
 - `release-draft-review` creates a draft release from generated release notes and review artifacts.
 - `release-owner-signoff` records the release owner decision with commit, artifact links, blocker/waiver if any, rollback note, and owner.
 
-Promotion must cite the live evidence run or the explicit waiver. A successful PR-safe CI run alone is not enough.
+Promotion must cite the exact-candidate ready manifest. A successful PR-safe CI, isolated E2E, deployment, or TestFlight upload alone is not enough.
 
 ## Evidence artifact contract
 
@@ -112,6 +141,7 @@ python3 tools/release_readiness_check.py \
   --ci-summary build/evidence/ci-summary.json \
   --live-evidence-dir weave-live-stack-acceptance-evidence \
   --blockers-json build/evidence/release-blockers.json \
+  --human-testing-readiness-manifest build/evidence/human-testing-readiness.json \
   --json
 ```
 
@@ -123,20 +153,20 @@ The command does not publish a release, create a tag, call providers, or read li
 - release lane and offline evidence pointers stay present;
 - Live Stack E2E `release-evidence-manifest.json` is credentialed runtime evidence for the same commit and contains all required markers;
 - `release-blocker` issue evidence is supplied and has no open blockers;
-- any waiver is an explicit release-owner marker with owner, reason, exact candidate commit/tag, expiry, scoped gate, and compensating evidence.
+- the exact-candidate human-testing readiness manifest evaluates to `ready` with no mandatory blocker.
 
-If the CI summary is absent, the tool writes a local pointer under `build/evidence/rc-readiness/` but still blocks readiness; generated pointers are not a substitute for green CI. If credentialed Live Stack E2E or release blockers are waived, the JSON and Markdown output mark the check as `waived` rather than pretending it passed.
+If the CI summary is absent, the tool writes a local pointer under `build/evidence/rc-readiness/` but still blocks readiness; generated pointers are not a substitute for green CI. Historical scoped waivers remain visibly `waived`, but they cannot replace the mandatory human-testing readiness manifest.
 
 ### RC promotion workflow
 
-1. Prepare the candidate on protected `main`; do not create the RC tag yet.
-2. Run `./gradlew ci` and keep the sanitized `build/evidence/ci-summary.json` artifact.
-3. Review release notes or generate a draft release artifact; the GitHub release remains a draft/prerelease until signoff.
-4. Dispatch `.github/workflows/live-stack-e2e.yml` on the candidate commit using the dedicated self-hosted runner and collect the `weave-live-stack-acceptance-evidence` artifact directory.
-5. Export a support-safe release-blocker summary, for example open GitHub issues labeled `release-blocker`, to `build/evidence/release-blockers.json`.
-6. Run `tools/release_readiness_check.py` with the exact candidate version, tag, commit, CI summary, Live Stack artifact, release notes, and blocker summary.
-7. Record the result in the signoff issue with artifact links, rollback note, and release-owner decision.
-8. Only after green or explicitly waived readiness should the release owner create the RC tag and publish the prerelease.
+1. Merge the candidate through `dev` CI with the pinned corpus and PR-safe checks green.
+2. Promote `dev` to `dogfood` only after the isolated three-user suite passes twice and cleans its namespace.
+3. Let `Test Stack Deploy` update and verify persistent dogfood twice without changing the human member.
+4. Let the successful deployment trigger the protected `iOS Dogfood` candidate build and TestFlight upload.
+5. Install the build in place and complete the protected physical-iPhone VoiceOver/session/navigation acceptance workflow.
+6. Export a support-safe release-blocker summary and the final `human-testing-readiness.json` artifact.
+7. Run `tools/release_readiness_check.py` for the exact candidate and record the result with rollback notes.
+8. Only a `ready` result may proceed to `main`, tagging, or a human-testing-ready claim.
 
 ## Product/context alignment
 

@@ -43,11 +43,6 @@ variable "public_port_suffix" {
   type        = string
 }
 
-variable "trusted_proxies" {
-  description = "Space-separated proxy IPs or CIDRs trusted by Nextcloud."
-  type        = string
-}
-
 variable "tls_ca_file" {
   description = "Path to the generated local TLS CA certificate trusted by Nextcloud outbound HTTPS calls."
   type        = string

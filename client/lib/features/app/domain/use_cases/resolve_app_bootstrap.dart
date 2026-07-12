@@ -1,6 +1,7 @@
 import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/app/domain/ports/app_auth_port.dart';
+import 'package:weave/features/app/domain/ports/client_upgrade_port.dart';
 import 'package:weave/features/app/domain/ports/server_configuration_port.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/domain/entities/auth_failure.dart';
@@ -10,11 +11,14 @@ class ResolveAppBootstrap {
   const ResolveAppBootstrap({
     required AppAuthPort authPort,
     required ServerConfigurationPort serverConfigurationPort,
+    ClientUpgradePort? clientUpgradePort,
   }) : _authPort = authPort,
-       _serverConfigurationPort = serverConfigurationPort;
+       _serverConfigurationPort = serverConfigurationPort,
+       _clientUpgradePort = clientUpgradePort;
 
   final AppAuthPort _authPort;
   final ServerConfigurationPort _serverConfigurationPort;
+  final ClientUpgradePort? _clientUpgradePort;
 
   Future<BootstrapState> call() async {
     try {
@@ -28,6 +32,7 @@ class ResolveAppBootstrap {
         _toAuthConfiguration(configuration),
       );
       if (authState.isAuthenticated) {
+        await _removeObsoleteAuthenticatedState();
         return const BootstrapState.ready();
       }
 
@@ -45,6 +50,15 @@ class ResolveAppBootstrap {
           cause: error,
         ),
       );
+    }
+  }
+
+  Future<void> _removeObsoleteAuthenticatedState() async {
+    try {
+      await _clientUpgradePort?.removeObsoleteAuthenticatedState();
+    } catch (_) {
+      // Upgrade cleanup cannot turn a valid authenticated launch into a global
+      // bootstrap failure. Current configuration and OIDC state stay primary.
     }
   }
 

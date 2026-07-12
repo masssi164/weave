@@ -15,6 +15,51 @@ variable "docker_host" {
   }
 }
 
+variable "isolated_e2e_enabled" {
+  description = "Enable run-scoped live-E2E authorization inputs. Must remain false for persistent dogfood and normal deployments."
+  type        = bool
+  default     = false
+}
+
+variable "create_test_user" {
+  description = "Mirror of the Keycloak-stage static integration-user toggle, used here only to prevent mixing it with isolated three-identity E2E."
+  type        = bool
+  default     = false
+}
+
+variable "isolated_e2e_namespace" {
+  description = "Run-unique weave-e2e-* namespace used only by a disposable isolated stack."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.isolated_e2e_namespace == "" || can(regex("^weave-e2e-[a-z0-9][a-z0-9-]{5,47}$", var.isolated_e2e_namespace))
+    error_message = "isolated_e2e_namespace must be empty or a bounded weave-e2e-* namespace."
+  }
+}
+
+variable "isolated_e2e_context_memberships" {
+  description = "Startup-only Context/ReBAC facts for a disposable isolated live-E2E stack. Persistent dogfood cannot consume this list."
+  type = list(object({
+    tenant_id     = string
+    context_id    = string
+    principal_ref = string
+    role          = string
+    source        = string
+  }))
+  default = []
+
+  validation {
+    condition = alltrue([
+      for membership in var.isolated_e2e_context_memberships :
+      can(regex("^user:weave-e2e-[a-z0-9-]+-(author|collaborator|outsider)$", membership.principal_ref)) &&
+      contains(["MEMBER", "GUEST"], membership.role) &&
+      membership.source == "isolated-live-e2e"
+    ])
+    error_message = "isolated E2E memberships must use run-scoped author/collaborator/outsider principals, bounded roles, and the isolated-live-e2e source."
+  }
+}
+
 variable "tenant_slug" {
   description = "Tenant identifier used for the Keycloak realm."
   type        = string
@@ -226,12 +271,6 @@ variable "weave_mcp_server_image" {
   description = "Docker image for the Spring AI Weave MCP server."
   type        = string
   default     = "weave-mcp-server:local"
-}
-
-variable "nextcloud_trusted_proxies" {
-  description = "Space-separated proxy IPs or CIDRs trusted by Nextcloud."
-  type        = string
-  default     = "172.16.0.0/12"
 }
 
 variable "proxy_image" {

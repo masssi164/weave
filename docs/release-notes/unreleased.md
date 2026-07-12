@@ -4,6 +4,7 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Added
 
+- Adds a versioned enterprise dogfood readiness manifest and ordered candidate chain covering exact-commit three-user collaboration, non-destructive persistent deployment, TestFlight distribution, and mandatory physical-iPhone VoiceOver signoff before any human-testing-ready or main-promotion claim.
 - Adds a client-owned Matrix E2EE release candidate through the Apache-2.0 Matrix Rust SDK and `flutter_rust_bridge`: encrypted room sync/send, encrypted SQLite state, stable device identity, cross-signing, accessible SAS verification, recovery, lost-device denial, opaque server persistence, and live E2E evidence gates.
 - Adds stable physical-iPhone session continuity for in-place TestFlight iterations. The saved organization profile, OIDC refresh session, Matrix device ID, Keychain-held crypto-store passphrase, and encrypted history survive ordinary close, relaunch, and app update; explicit account removal remains the destructive boundary.
 - Sprint 22 adds a CI-safe free provider lab gate, manifests, fixture evidence, and operator runbook for Keycloak, Authentik, Matrix/Synapse, Zulip, Nextcloud, MinIO, Radicale, OpenProject, and the Docker Runtime boundary without claiming provider interchangeability or release readiness.
@@ -17,12 +18,15 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Changed
 
+- Separates process liveness, local backend readiness, and cached provider capability health; provider probes are single-flight, rate-limit aware, support-safe, and no longer run on every readiness poll.
 - Normal member Files, Calendar, and Chat data planes are now documented coherently as OIDC-gated Weave WebDAV, CalDAV/iCalendar, and Matrix Client-Server facades over canonical domains; obsolete REST event/message data-plane access is not a compatibility target.
 - Public docs and README evidence pointers now identify `v0.1.0-rc.3` as the latest published prerelease and link the RC3 evidence audit.
 - Sprint 21 product-reality gates now require free/self-hosted provider proof, explicit reality levels, and automated claim blocking before any customer-ready, Weaver-available, provider-interchangeable, production-rollback, or release-ready wording.
 
 ## Fixed
 
+- Removes the obsolete first-run client path permanently, upgrades legacy stored state into the normal AppShell without discarding the current OIDC session, and exposes support-safe client build identity for in-place dogfood verification.
+- Makes Live Stack collaboration use three disposable identities, fresh encrypted Matrix rooms, real cross-user Files/Calendar/Home observations, isolated authorization probes, exact artifact cleanup, a real Calendar outage/recovery fixture, and a fresh per-run iPhone Simulator.
 - Preserves stable canonical context, channel, and meeting-thread identifiers across Calendar CalDAV query, read, sync, create, and update flows without leaking those northbound fields into southbound provider adapters.
 - Preserves the device-bound mobile profile and saved OIDC refresh session when relaunch refresh fails transiently; only an explicit rejected refresh grant clears the unusable local network session.
 - Allows ciphertext-only canonical Chat events to pass through the Rust Matrix `/sync` projection after encrypted sends, while plaintext message events still require a bounded non-empty body and supported Matrix message type.
@@ -34,14 +38,16 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Security
 
-- No post-`v0.1.0-rc.3` security release notes yet.
+- Preserves Nextcloud brute-force protection while correcting stable backend credentials and exact trusted-proxy forwarding, and records only sanitized cached provider-health, authorization, identity-hash, and security-audit evidence.
 
 ## Accessibility
 
+- Makes Home, Chat, Files, Calendar, Settings, Profile, session upgrade, and physical-device VoiceOver acceptance individually release-blocking for the enterprise dogfood candidate.
 - Accessibility and assistive-technology readiness remain evidence-gated per current milestone and release criteria; stale historical blocker wording has been removed from the release draft.
 
 ## Migration/Operator Notes
 
+- Persistent dogfood deployment now runs twice under a non-cancelling lock, verifies OpenTofu idempotency plus human-subject, Mailpit, TLS, and active-session invariants, and never creates or resets disposable automation identities in that environment.
 - No production provider cutover, migration apply, Terraform/live infrastructure change, or public production release has been performed after `v0.1.0-rc.3`.
 - Sprint 30 phone dogfood uses the same profile-driven setup pipeline across profiles. `local-lan-dogfood` may be used for the first real iPhone test over LAN, but phone handoff rejects localhost, `127.0.0.1`, and Mac-only `.local` assumptions.
 - Slack and Microsoft Teams remain commercial adapter readiness candidates only; adapter implementation, production migration, rollback, and customer-ready claims are blocked until future `implementation_allowed` and `release_ready` evidence exists.

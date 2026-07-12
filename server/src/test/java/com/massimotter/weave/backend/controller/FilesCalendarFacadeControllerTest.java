@@ -67,6 +67,7 @@ import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -802,6 +803,47 @@ class FilesCalendarFacadeControllerTest {
     }
 
     @Test
+    void memberJwtWithoutCalendarEditorCapabilityCannotWriteEvenWhenRebacWouldAllow() throws Exception {
+        mockMvc.perform(request(HttpMethod.valueOf("PUT"), "/caldav/workspace/missing-capability.ics")
+                        .with(workspaceJwtWithoutCalendarEditor())
+                        .header("If-None-Match", "*")
+                        .contentType("text/calendar")
+                        .content("""
+                                BEGIN:VCALENDAR
+                                VERSION:2.0
+                                BEGIN:VEVENT
+                                UID:missing-capability
+                                DTSTART:20260708T100000Z
+                                DTEND:20260708T110000Z
+                                SUMMARY:Capability gate
+                                END:VEVENT
+                                END:VCALENDAR
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(header().string("X-Weave-Error-Code", "capability-policy-blocked"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("user@example.com"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("Nextcloud"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("remote.php"))));
+
+        mockMvc.perform(post("/api/calendar/client-setup/credentials")
+                        .with(workspaceJwtWithoutCalendarEditor())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"label\":\"Denied calendar\",\"clientType\":\"caldav\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("capability-policy-blocked"))
+                .andExpect(jsonPath("$.details.module").value("calendar"))
+                .andExpect(jsonPath("$.details.operation").value("create-setup-credential"))
+                .andExpect(jsonPath("$.details.requiredCapability").value("calendar.manage_events"))
+                .andExpect(jsonPath("$.details.diagnosticsRedacted").value(true));
+
+        verify(contextAuthorizationPort, never()).check(any());
+        verify(calendarProviderPort, never()).write(any());
+    }
+
+    @Test
     void calDavEventReadPutCreateUpdateAndDeleteUseFacadeBackedIcalendar() throws Exception {
         // CALDAV_GET_PUT_DELETE_FACADE_MVP
         doReturn(calendarEvent("planning", "Planning", "\"etag-existing\"", CalendarScope.workspace()))
@@ -998,6 +1040,18 @@ class FilesCalendarFacadeControllerTest {
                 .claim("weave_tenant_id", "tenant-default")
                 .claim("resource_access", java.util.Map.of("weave-app", java.util.Map.of("roles", java.util.List.of("member"))))
                 .claim("groups", java.util.List.of("weave-calendar-editors", "weave-meeting-hosts")))
+                .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
+    }
+
+    private org.springframework.test.web.servlet.request.RequestPostProcessor workspaceJwtWithoutCalendarEditor() {
+        return jwt().jwt(jwt -> jwt
+                        .subject("user@example.com")
+                        .claim("iss", "https://auth.example.invalid/realms/acme")
+                        .claim("aud", java.util.List.of("weave-app"))
+                        .claim("weave_tenant_id", "tenant-default")
+                        .claim("resource_access", java.util.Map.of(
+                                "weave-app", java.util.Map.of("roles", java.util.List.of("member"))))
+                        .claim("groups", java.util.List.of("weave-meeting-hosts")))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 

@@ -54,6 +54,11 @@ ${weave_site_addresses} {
 		respond "Not Found" 404
 	}
 
+	@backend_actuator path /actuator /actuator/*
+	handle @backend_actuator {
+		respond "Not Found" 404
+	}
+
 	@product_api path /api/*
 	handle @product_api {
 		reverse_proxy ${api_upstream}
@@ -135,6 +140,11 @@ ${api_site_addresses} {
 	encode zstd gzip
 
 ${connector_provider_callbacks_guard}
+	@backend_actuator path /actuator /actuator/*
+	handle @backend_actuator {
+		respond "Not Found" 404
+	}
+
 	@internal_api path /api/internal/*
 	handle @internal_api {
 		respond "Not Found" 404
@@ -212,5 +222,11 @@ ${files_site_addresses} {
 	tls /certs/${tls_cert_filename} /certs/${tls_key_filename}
 	encode zstd gzip
 
-	reverse_proxy ${nextcloud_upstream}
+	reverse_proxy ${nextcloud_upstream} {
+		# Caddy is the only trusted public gateway. Replace, rather than append,
+		# client-controlled forwarding headers before Nextcloud evaluates them.
+		header_up X-Forwarded-For {http.request.remote.host}
+		header_up X-Forwarded-Host {host}
+		header_up X-Forwarded-Proto {scheme}
+	}
 }

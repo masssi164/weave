@@ -6304,6 +6304,261 @@
         "MATRIX_E2EE_CLIENT_FAILS_CLOSED"
       ],
       "evidenceMode": "offline-spec"
+    },
+    {
+      "tag": "@human-ready-auth-shell",
+      "scenario": "Disposable members restore independent authenticated shells",
+      "feature": "e2e/features/enterprise_human_testing_readiness.feature",
+      "executableTest": "client/integration_test/multi_user_collaboration_e2e_test.dart",
+      "evidenceMarkers": [
+        "MULTI_USER_AUTH_SHELL_RESULT"
+      ],
+      "evidenceMode": "live-runtime",
+      "runtimeSources": [
+        "live-stack-e2e"
+      ]
+    },
+    {
+      "tag": "@human-ready-home-collaboration",
+      "scenario": "Shared Home activity is visible only to authorized members",
+      "feature": "e2e/features/enterprise_human_testing_readiness.feature",
+      "executableTest": "client/integration_test/multi_user_collaboration_e2e_test.dart",
+      "evidenceMarkers": [
+        "MULTI_USER_HOME_RESULT"
+      ],
+      "evidenceMode": "live-runtime",
+      "runtimeSources": [
+        "live-stack-e2e"
+      ]
+    },
+    {
+      "tag": "@human-ready-chat-collaboration",
+      "scenario": "Chat collaboration crosses fresh authorized sessions",
+      "feature": "e2e/features/enterprise_human_testing_readiness.feature",
+      "executableTest": "client/integration_test/multi_user_collaboration_e2e_test.dart",
+      "evidenceMarkers": [
+        "MULTI_USER_CHAT_RESULT"
+      ],
+      "evidenceMode": "live-runtime",
+      "runtimeSources": [
+        "live-stack-e2e"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "client/integration_test/matrix_e2ee_live_e2e_test.dart",
+          "fragments": [
+            "MATRIX_E2EE_CIPHERTEXT_ONLY",
+            "MATRIX_E2EE_TWO_DEVICE_VERIFIED"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@human-ready-files-collaboration",
+      "scenario": "Files collaboration preserves content and authorization",
+      "feature": "e2e/features/enterprise_human_testing_readiness.feature",
+      "executableTest": "client/integration_test/multi_user_collaboration_e2e_test.dart",
+      "evidenceMarkers": [
+        "MULTI_USER_FILES_RESULT"
+      ],
+      "evidenceMode": "live-runtime",
+      "runtimeSources": [
+        "live-stack-e2e"
+      ]
+    },
+    {
+      "tag": "@human-ready-calendar-collaboration",
+      "scenario": "Calendar collaboration crosses fresh authorized sessions",
+      "feature": "e2e/features/enterprise_human_testing_readiness.feature",
+      "executableTest": "client/integration_test/multi_user_collaboration_e2e_test.dart",
+      "evidenceMarkers": [
+        "MULTI_USER_CALENDAR_RESULT"
+      ],
+      "evidenceMode": "live-runtime",
+      "runtimeSources": [
+        "live-stack-e2e"
+      ]
+    },
+    {
+      "tag": "@human-ready-settings-profile",
+      "scenario": "Settings and Profile remain independently durable",
+      "feature": "e2e/features/enterprise_human_testing_readiness.feature",
+      "executableTest": "client/integration_test/multi_user_collaboration_e2e_test.dart",
+      "evidenceMarkers": [
+        "MULTI_USER_SETTINGS_PROFILE_RESULT"
+      ],
+      "evidenceMode": "live-runtime",
+      "runtimeSources": [
+        "live-stack-e2e"
+      ]
+    },
+    {
+      "tag": "@human-ready-failure-containment",
+      "scenario": "Calendar failure remains local to Calendar",
+      "feature": "e2e/features/enterprise_human_testing_readiness.feature",
+      "executableTest": "client/integration_test/multi_user_collaboration_e2e_test.dart",
+      "evidenceMarkers": [
+        "MULTI_USER_FAILURE_CONTAINMENT_RESULT"
+      ],
+      "evidenceMode": "live-runtime",
+      "runtimeSources": [
+        "live-stack-e2e"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "infra/weave-workspace/isolated-e2e-calendar-outage.sh",
+          "fragments": [
+            "CALENDAR_OUTAGE_FIXTURE_RESULT",
+            "poll_cached_health 0",
+            "poll_cached_health 2",
+            "explicit isolated stack scope is required"
+          ]
+        },
+        {
+          "path": "tools/multi_user_e2e_evidence.py",
+          "fragments": [
+            "require_calendar_outage_recovery",
+            "artifact:isolated-calendar-outage.json"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@human-ready-authorization",
+      "scenario": "Representative collaboration operations fail closed",
+      "feature": "e2e/features/enterprise_human_testing_readiness.feature",
+      "executableTest": "client/integration_test/multi_user_collaboration_e2e_test.dart",
+      "evidenceMarkers": [
+        "MULTI_USER_AUTHORIZATION_RESULT"
+      ],
+      "evidenceMode": "live-runtime",
+      "runtimeSources": [
+        "live-stack-e2e"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "infra/weave-workspace/isolated-e2e-authorization-probes.sh",
+          "fragments": [
+            "weave.isolated-e2e-authorization.v1",
+            "MULTI_USER_AUTHORIZATION_FIXTURES_RESULT",
+            "capability-policy-blocked"
+          ]
+        },
+        {
+          "path": "tools/multi_user_e2e_evidence.py",
+          "fragments": [
+            "--authorization-evidence",
+            "require_authorization_evidence",
+            "artifact:isolated-authorization.json"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@human-ready-cleanup",
+      "scenario": "Disposable collaboration cleans only its own namespace",
+      "feature": "e2e/features/enterprise_human_testing_readiness.feature",
+      "executableTest": "infra/weave-workspace/isolated-e2e-identities.sh",
+      "evidenceMarkers": [
+        "MULTI_USER_CLEANUP_RESULT"
+      ],
+      "evidenceMode": "live-runtime",
+      "runtimeSources": [
+        "live-stack-e2e"
+      ]
+    },
+    {
+      "tag": "@human-ready-legacy-upgrade",
+      "scenario": "Legacy first-run state cannot return the obsolete screen",
+      "feature": "e2e/features/enterprise_human_testing_readiness.feature",
+      "executableTest": "client/test/core/router/app_router_test.dart",
+      "evidenceMarkers": [
+        "LEGACY_FIRST_RUN_UPGRADE_RESULT"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "client/test/architecture/obsolete_member_entry_contract_test.dart",
+          "fragments": [
+            "firstRunStatusProvider",
+            "FirstRunScreen",
+            "/api/onboarding/status",
+            "Erststart-Status"
+          ]
+        },
+        {
+          "path": "tools/obsolete_first_run_contract_check.py",
+          "fragments": [
+            "OBSOLETE_FIRST_RUN_CONTRACT_REMOVED",
+            "server/src/main",
+            "/api/onboarding/status"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@human-ready-dogfood-deployment",
+      "scenario": "Persistent dogfood deployment is non-destructive and idempotent",
+      "feature": "e2e/features/enterprise_human_testing_readiness.feature",
+      "executableTest": "tools/dogfood_deployment_evidence.py",
+      "evidenceMarkers": [
+        "DOGFOOD_DEPLOYMENT_RESULT",
+        "DOGFOOD_PROVIDER_HEALTH_RESULT"
+      ],
+      "evidenceMode": "live-runtime",
+      "runtimeSources": [
+        "dogfood-deployment"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "infra/weave-workspace/persistent-dogfood-observation.sh",
+          "fragments": [
+            "twoNonDestructiveInstallsPreservedState",
+            "activeSessions",
+            "mailpit",
+            "tls"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@human-ready-ios-distribution",
+      "scenario": "iOS distribution uses the verified dogfood candidate",
+      "feature": "e2e/features/enterprise_human_testing_readiness.feature",
+      "executableTest": ".github/workflows/ios-dogfood.yml",
+      "evidenceMarkers": [
+        "IOS_DOGFOOD_DISTRIBUTION_RESULT"
+      ],
+      "evidenceMode": "live-runtime",
+      "runtimeSources": [
+        "ios-dogfood"
+      ]
+    },
+    {
+      "tag": "@human-ready-physical-voiceover",
+      "scenario": "Physical iPhone VoiceOver acceptance closes the final gate",
+      "feature": "e2e/features/enterprise_human_testing_readiness.feature",
+      "executableTest": "tools/human_testing_readiness_assemble.py",
+      "evidenceMarkers": [
+        "PHYSICAL_IPHONE_VOICEOVER_RESULT"
+      ],
+      "evidenceMode": "live-runtime",
+      "runtimeSources": [
+        "physical-iphone-acceptance"
+      ]
+    },
+    {
+      "tag": "@human-ready-manifest",
+      "scenario": "One manifest controls the human-testing readiness claim",
+      "feature": "e2e/features/enterprise_human_testing_readiness.feature",
+      "executableTest": "tools/human_testing_readiness_assemble.py",
+      "evidenceMarkers": [
+        "HUMAN_TESTING_READINESS_RESULT"
+      ],
+      "evidenceMode": "live-runtime",
+      "runtimeSources": [
+        "physical-iphone-acceptance"
+      ]
     }
   ]
 }

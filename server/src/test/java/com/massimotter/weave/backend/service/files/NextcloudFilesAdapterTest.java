@@ -9,6 +9,7 @@ import com.massimotter.weave.backend.files.domain.FilesDomain.FileWrite;
 import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedListing;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Base64;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -54,6 +55,29 @@ class NextcloudFilesAdapterTest {
                 RestClient.builder());
 
         assertThat(unconfigured.configured()).isFalse();
+        assertThat(unconfigured.healthProbe().state().value()).isEqualTo("unavailable");
+    }
+
+    @Test
+    void healthProbeNormalizesRateLimitingAndHonorsRetryAfterWithoutLeakingTheResponse() {
+        server.expect(requestTo("https://files.example.test/remote.php/dav/files/weave-service/"))
+                .andExpect(method(HttpMethod.valueOf("PROPFIND")))
+                .andExpect(header(HttpHeaders.AUTHORIZATION, AUTH_HEADER))
+                .andExpect(header("Depth", "0"))
+                .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS)
+                        .header(HttpHeaders.RETRY_AFTER, "180")
+                        .body("blocked actor weave-service using app-password at https://files.example.test"));
+
+        var result = adapter.healthProbe();
+
+        assertThat(result.state().value()).isEqualTo("degraded");
+        assertThat(result.supportSafeCode()).isEqualTo("files-storage-rate-limited");
+        assertThat(result.retryAfter()).isEqualTo(Duration.ofSeconds(180));
+        assertThat(result.toString())
+                .doesNotContain("weave-service")
+                .doesNotContain("app-password")
+                .doesNotContain("files.example.test");
+        server.verify();
     }
 
     @Test

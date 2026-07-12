@@ -16,6 +16,11 @@ CLIENT_BRIDGE = (
     / "client/lib/integrations/rust_matrix_core/data/services/rust_matrix_core_bridge.dart"
 )
 CLIENT_MAKEFILE = ROOT / "client/Makefile"
+CLIENT_LIVE_TLS = ROOT / "client/integration_test/helpers/live_test_tls.dart"
+CLIENT_HTTP_OVERRIDES = (
+    ROOT / "client/integration_test/helpers/test_http_overrides.dart"
+)
+CLIENT_LIVE_OIDC = ROOT / "client/integration_test/helpers/live_oidc_test_driver.dart"
 
 
 def main() -> int:
@@ -25,15 +30,23 @@ def main() -> int:
     docs = DOCS.read_text(encoding="utf-8")
     client_bridge = CLIENT_BRIDGE.read_text(encoding="utf-8")
     client_makefile = CLIENT_MAKEFILE.read_text(encoding="utf-8")
+    client_live_tls = CLIENT_LIVE_TLS.read_text(encoding="utf-8")
+    client_http_overrides = CLIENT_HTTP_OVERRIDES.read_text(encoding="utf-8")
+    client_live_oidc = CLIENT_LIVE_OIDC.read_text(encoding="utf-8")
 
     ordered_steps = (
         "- name: Verify isolated disposable live runner",
         "- name: Remove stale runner-owned Weave outputs",
         "- name: Check out weave",
         "- name: Verify runner disk headroom",
+        "- name: Provision real Keycloak identities and verify runtime ReBAC",
+        "- name: Prove missing-capability expired-token and revoked-session denials",
         "- name: Expose generated local CA to Rust Matrix tests",
+        "- name: Boot an isolated iPhone Simulator and trust the local CA",
         "- name: Verify live test disk headroom and reserve recovery space",
         "- name: Run live stack integration tests",
+        "- name: Clean disposable identities and retain only hashed evidence",
+        "- name: Aggregate two-pass human-testing automation evidence",
         "- name: Generate live stack acceptance evidence",
         "- name: Generate support-safe failure diagnostics",
         "- name: Destroy stack and scrub stale resources",
@@ -98,6 +111,86 @@ def main() -> int:
         workflow.count('weave-live-stack-docker-config') >= 3,
         "workflow-owned Docker auth must be namespaced and cleaned before and after the run",
     )
+    require(
+        "isolated-e2e-identities.sh prepare" in workflow
+        and "isolated-e2e-identities.sh provision" in workflow
+        and "isolated-e2e-identities.sh cleanup" in workflow,
+        "live-stack E2E must own the full three-identity lifecycle",
+    )
+    require(
+        "integration-multi-user-e2e" in workflow
+        and "multi_user_e2e_evidence.py" in workflow
+        and "isolated-e2e-authorization-probes.sh" in workflow
+        and "--authorization-evidence" in workflow
+        and "isolated-authorization.json" in workflow
+        and "--require-passed" in workflow,
+        "live-stack E2E must run and fail closed on two-pass collaboration and real authorization evidence",
+    )
+    require(
+        "WEAVE_E2E_EXECUTION_MODE=collaboration" in workflow
+        and "isolated-e2e-calendar-outage.sh begin" in workflow
+        and "WEAVE_E2E_EXECUTION_MODE=calendar-failure-containment" in workflow
+        and "isolated-e2e-calendar-outage.sh restore" in workflow
+        and "--calendar-outage-evidence" in workflow
+        and "isolated-calendar-outage.json" in workflow,
+        "live-stack E2E must prove a real isolated Calendar outage and restored cached health",
+    )
+    calendar_begin = workflow.index("calendar_outage_begin_status=${PIPESTATUS[0]}")
+    calendar_containment = workflow.index(
+        "WEAVE_E2E_EXECUTION_MODE=calendar-failure-containment"
+    )
+    calendar_restore = workflow.index("if restore_calendar_outage; then")
+    identity_cleanup = workflow.index("- name: Clean disposable identities")
+    require(
+        calendar_begin < calendar_containment < calendar_restore < identity_cleanup,
+        "Calendar outage, containment, restoration, and identity cleanup are misordered",
+    )
+    identity_cleanup_section = workflow[
+        identity_cleanup : workflow.index(
+            "- name: Aggregate two-pass human-testing automation evidence"
+        )
+    ]
+    require(
+        identity_cleanup_section.index("isolated-e2e-calendar-outage.sh restore")
+        < identity_cleanup_section.index("isolated-e2e-identities.sh cleanup")
+        and '.state == "restored"' in identity_cleanup_section
+        and ".recoveryRequired == false" in identity_cleanup_section
+        and ".cachedHealth == {calendarStatus:2,filesStatus:2}"
+        in identity_cleanup_section,
+        "identity cleanup must fail closed until the isolated Calendar fixture is restored",
+    )
+    require(
+        'calendar_outage_state="${WEAVE_E2E_OUTPUT_ROOT:?}/${WEAVE_E2E_RUN_NAMESPACE:?}/calendar-outage-state.json"'
+        in workflow
+        and "trap finalize_tests EXIT" in workflow
+        and 'if [ "$calendar_outage_restored" != true ]' in workflow,
+        "Calendar recovery must remain namespace-scoped and run on interruption or failure",
+    )
+    require(
+        all(
+            f'echo "{name}=true"' in workflow
+            for name in (
+                "WEAVE_E2E_MISSING_CAPABILITY_VERIFIED",
+                "WEAVE_E2E_EXPIRED_TOKEN_VERIFIED",
+                "WEAVE_E2E_REVOKED_SESSION_VERIFIED",
+            )
+        ),
+        "client authorization flags must be set only after the real isolated probes pass",
+    )
+    require(
+        "xcrun simctl bootstatus" in workflow
+        and "xcrun simctl keychain" in workflow
+        and "WEAVE_MULTI_USER_TEST_DEVICE" in workflow,
+        "functional collaboration must run on a booted iPhone Simulator with the local CA",
+    )
+    require(
+        'xcrun simctl create "$simulator_name" "$device_type" "$runtime_id"'
+        in workflow
+        and 'echo "WEAVE_E2E_SIMULATOR_UDID=$simulator_udid"' in workflow
+        and 'xcrun simctl delete "$WEAVE_E2E_SIMULATOR_UDID"' in workflow
+        and "xcrun simctl list devices available" not in workflow,
+        "live collaboration must create and delete its own simulator instead of reusing app/Keychain state",
+    )
 
     finalizer = workflow[positions[-1] :]
     require("if: always()" in finalizer, "runner-output finalizer must run on failure")
@@ -145,22 +238,34 @@ def main() -> int:
         "sandboxed Matrix clients must not read runner paths at runtime",
     )
     require(
+        "SecurityContext(withTrustedRoots: true)" in client_live_tls
+        and "setTrustedCertificatesBytes" in client_live_tls
+        and "maximumLiveTestRootPemBytes = 64 * 1024" in client_live_tls,
+        "Dart live clients must add only the bounded generated CA while retaining platform roots",
+    )
+    require(
+        "badCertificateCallback" not in client_live_tls
+        and "badCertificateCallback" not in client_http_overrides
+        and "badCertificateCallback" not in client_live_oidc,
+        "live OIDC/HTTP helpers must preserve certificate-chain and hostname validation",
+    )
+    require(
         client_makefile.count(
             "--arg WEAVE_MATRIX_LIVE_TEST_EXTRA_ROOT_ENABLED"
         )
-        == 2,
-        "both live test define files must forward the compile-time root gate",
+        == 3,
+        "all live test define files must forward the compile-time root gate",
     )
     require(
-        client_makefile.count("WEAVE_MATRIX_LIVE_TEST_EXTRA_ROOT_BASE64") == 2,
-        "both live test define files must carry the sandbox-safe Matrix root",
+        client_makefile.count("WEAVE_MATRIX_LIVE_TEST_EXTRA_ROOT_BASE64") == 3,
+        "all live test define files must carry the sandbox-safe Matrix root",
     )
     require(
-        client_makefile.count("jq -n") == 2,
+        client_makefile.count("jq -n") == 3,
         "live test dart-define files must use structured JSON generation",
     )
     require(
-        client_makefile.count('base64 < "$$matrix_extra_root_path"') == 2,
+        client_makefile.count('base64 < "$$matrix_extra_root_path"') == 3,
         "live tests must encode the generated root without logging its contents",
     )
     require(
@@ -188,7 +293,6 @@ def main() -> int:
         "docker system prune",
         "docker volume prune",
         "docker builder prune",
-        "xcrun simctl delete",
         "rm -rf -- \"$HOME",
         "rm -rf -- /Users",
         "security add-trusted-cert",
@@ -206,7 +310,9 @@ def main() -> int:
         "1 GiB runner-owned emergency reserve",
         "explicit extra root",
         "after acceptance evidence upload",
-        "unrelated containers, volumes, signing identities, or physical-device data",
+        "unrelated simulators, containers, volumes, signing identities, or physical-device data",
+        "controlled Calendar outage",
+        "restored before disposable identity cleanup",
     ):
         require(phrase in docs, f"quality documentation is missing {phrase!r}")
 
