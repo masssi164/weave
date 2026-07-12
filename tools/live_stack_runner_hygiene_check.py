@@ -8,6 +8,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/live-stack-e2e.yml"
+DOGFOOD_DEPLOY_WORKFLOW = ROOT / ".github/workflows/test-stack-deploy.yml"
+DOGFOOD_MEMBER_WORKFLOW = ROOT / ".github/workflows/dogfood-member.yml"
 DOCS = ROOT / "docs/quality-and-evidence.md"
 CLIENT_BRIDGE = (
     ROOT
@@ -18,12 +20,14 @@ CLIENT_MAKEFILE = ROOT / "client/Makefile"
 
 def main() -> int:
     workflow = WORKFLOW.read_text(encoding="utf-8")
+    dogfood_deploy_workflow = DOGFOOD_DEPLOY_WORKFLOW.read_text(encoding="utf-8")
+    dogfood_member_workflow = DOGFOOD_MEMBER_WORKFLOW.read_text(encoding="utf-8")
     docs = DOCS.read_text(encoding="utf-8")
     client_bridge = CLIENT_BRIDGE.read_text(encoding="utf-8")
     client_makefile = CLIENT_MAKEFILE.read_text(encoding="utf-8")
 
     ordered_steps = (
-        "- name: Verify dedicated live runner",
+        "- name: Verify isolated disposable live runner",
         "- name: Remove stale runner-owned Weave outputs",
         "- name: Check out weave",
         "- name: Verify runner disk headroom",
@@ -38,6 +42,31 @@ def main() -> int:
     )
     positions = [workflow.index(step) for step in ordered_steps]
     require(positions == sorted(positions), "live-stack cleanup/evidence steps are misordered")
+    require(
+        "group: weave-persistent-dogfood" in dogfood_deploy_workflow
+        and "group: weave-persistent-dogfood" in dogfood_member_workflow,
+        "all persistent dogfood mutators must share the non-cancelling deployment lock",
+    )
+    require(
+        "cancel-in-progress: false" in dogfood_deploy_workflow
+        and "cancel-in-progress: false" in dogfood_member_workflow,
+        "persistent dogfood operations must never cancel one another",
+    )
+    require(
+        "- weave-disposable-live-stack" in workflow
+        and "needs: isolation-gate" in workflow
+        and "Fail closed without isolated runtime approval" in workflow,
+        "destructive live-stack E2E must fail closed and target only an isolated runner",
+    )
+    require(
+        "PERSISTENT_DOGFOOD_RUNNER_NAME: weave-live-mac-mini" in workflow
+        and '"${RUNNER_NAME}" == "${PERSISTENT_DOGFOOD_RUNNER_NAME}"' in workflow,
+        "destructive live-stack E2E must explicitly reject the persistent dogfood runner",
+    )
+    require(
+        "group: weave-persistent-dogfood" not in workflow,
+        "disposable E2E must not claim the persistent dogfood mutation lock",
+    )
     require(
         "minimum_kib=$((10 * 1024 * 1024))" in workflow,
         "live-stack preflight must require 10 GiB after stale-output cleanup",

@@ -482,6 +482,8 @@ module "mailpit" {
   network_name   = docker_network.weave_network.name
   container_name = local.service_names.mailpit
   image_name     = var.mailpit_image
+  volume_name    = var.mailpit_volume_name
+  max_messages   = var.mailpit_max_messages
   web_host_port  = var.mailpit_web_host_port
   depends_on     = [terraform_data.network_ready]
 }

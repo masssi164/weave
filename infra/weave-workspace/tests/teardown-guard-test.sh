@@ -71,6 +71,7 @@ main() {
   assert_contains "${output}" "DRY RUN: would remove container weave-mcp-server"
   assert_contains "${output}" "DRY RUN: would remove container weave-mailpit"
   assert_not_contains "${output}" "DRY RUN: would remove volume weave_synapse_data"
+  assert_not_contains "${output}" "DRY RUN: would remove volume weave_mailpit_data"
   rm -f "${output}"
 
   output="$(run_case "refuses missing confirmation" 2 WEAVE_REMOVE_VOLUMES=true)"
@@ -79,6 +80,7 @@ main() {
   assert_contains "${output}" "Keycloak identity/session data"
   assert_contains "${output}" "Matrix/Synapse database and media state"
   assert_contains "${output}" "Nextcloud database, files, and calendar data"
+  assert_contains "${output}" "Mailpit messages containing dogfood activation links"
   assert_contains "${output}" "WEAVE_CONFIRM_DESTRUCTIVE_RESET=weave"
   assert_not_contains "${output}" "DRY RUN: would remove volume weave_synapse_data"
   rm -f "${output}"
@@ -93,6 +95,7 @@ main() {
   assert_contains "${output}" "Destructive reset confirmed for tenant/workspace slug 'weave'."
   assert_contains "${output}" "DRY RUN: would remove volume weave_synapse_data"
   assert_contains "${output}" "DRY RUN: would remove volume weave_nextcloud_data"
+  assert_contains "${output}" "DRY RUN: would remove volume weave_mailpit_data"
   rm -f "${output}"
 
   printf 'teardown guard tests passed\n'

@@ -18,6 +18,8 @@ Keycloak owns invitation tokens, expiry, resend, revoke, registration, credentia
 
 Mailpit is deliberately unauthenticated and therefore private-LAN-only. SMTP is never published to the host or LAN. Before using Safari on a dogfood iPhone:
 
+Mailpit stores up to 500 recent messages in the `weave_mailpit_data` Docker volume. Ordinary container replacement and non-destructive teardown preserve this inbox. A confirmed destructive reset deletes it because captured activation links are sensitive runtime data; it is intentionally excluded from identity backup and support-bundle evidence.
+
 1. Configure the iPhone Wi-Fi network to resolve `mail.<tenant-domain>` to the dogfood host.
 2. Install the Weave local CA and enable full trust under **Settings → General → About → Certificate Trust Settings**.
 3. Run `./weave-workspace/iphone-mailpit-smoke.sh` on the host.

@@ -11,6 +11,11 @@ on:
       - ready_for_review
   workflow_dispatch:
     inputs:
+      enable_isolated_runner:
+        description: "Run only when a disposable runner with fully isolated Docker, state, ports, users, and cleanup is available"
+        required: true
+        default: false
+        type: boolean
       weave_backend_image:
         description: "Backend image to boot inside the infra stack; ghcr.io/* is pulled, other refs are built from CI-built server JAR artifacts"
         required: false
@@ -21,6 +26,10 @@ on:
         default: "weave-mcp-server:live-stack-ci"
   workflow_call:
     inputs:
+      enable_isolated_runner:
+        type: boolean
+        required: false
+        default: false
       weave_backend_image:
         type: string
         required: false
@@ -38,19 +47,35 @@ permissions:
   packages: read
 
 concurrency:
-  group: weave-live-stack-self-hosted
+  group: weave-disposable-live-stack-${{ github.run_id }}
   cancel-in-progress: false
 
 jobs:
+  isolation-gate:
+    name: Require isolated disposable runner
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail closed without isolated runtime approval
+        env:
+          ENABLE_ISOLATED_RUNNER: ${{ inputs.enable_isolated_runner || 'false' }}
+        run: |
+          set -euo pipefail
+          if [[ "$ENABLE_ISOLATED_RUNNER" != "true" ]]; then
+            echo "::error::Destructive Live Stack E2E is disabled until a disposable runner with isolated containers, networks, volumes, state, ports, users, and cleanup is available. It must never run on weave-live-mac-mini." >&2
+            exit 1
+          fi
+
   live-stack-e2e:
     name: Bootstrap Stack And Run App E2E
+    needs: isolation-gate
     runs-on:
       - self-hosted
       - macOS
       - ARM64
+      - weave-disposable-live-stack
     timeout-minutes: 75
     env:
-      EXPECTED_RUNNER_NAME: weave-live-mac-mini
+      PERSISTENT_DOGFOOD_RUNNER_NAME: weave-live-mac-mini
       WEAVE_BACKEND_IMAGE: ${{ inputs.weave_backend_image || github.event.inputs.weave_backend_image || 'weave-backend:live-stack-ci' }}
       WEAVE_MCP_SERVER_IMAGE: ${{ inputs.weave_mcp_server_image || github.event.inputs.weave_mcp_server_image || 'weave-mcp-server:live-stack-ci' }}
       WEAVE_TEST_PASSWORD: ${{ secrets.WEAVE_TEST_PASSWORD }}
@@ -91,12 +116,12 @@ jobs:
         shell: bash
 
     steps:
-      - name: Verify dedicated live runner
+      - name: Verify isolated disposable live runner
         run: |
           set -euo pipefail
           echo "runner=${RUNNER_NAME:-unknown}"
-          if [[ "${RUNNER_NAME:-}" != "${EXPECTED_RUNNER_NAME}" ]]; then
-            echo "::error::Live Stack E2E must run only on ${EXPECTED_RUNNER_NAME}; got ${RUNNER_NAME:-unknown}." >&2
+          if [[ -z "${RUNNER_NAME:-}" || "${RUNNER_NAME}" == "${PERSISTENT_DOGFOOD_RUNNER_NAME}" ]]; then
+            echo "::error::Destructive Live Stack E2E must run on an isolated disposable runner, never ${PERSISTENT_DOGFOOD_RUNNER_NAME}; got ${RUNNER_NAME:-unknown}." >&2
             exit 1
           fi
 

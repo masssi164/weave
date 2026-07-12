@@ -24,6 +24,11 @@ These child modules keep the root stage orchestration-only.
   - `main.tf`: Weave backend image, container, healthcheck, OIDC environment, and Docker network aliases.
   - `variables.tf`: image, port, hostname, and OIDC contract inputs.
   - `outputs.tf`: container identifier.
+- `mailpit/`
+  - `AGENTS.md`: module summary and ownership notes.
+  - `main.tf`: dogfood mail catcher, persistent SQLite volume, and bounded retention.
+  - `variables.tf`: image, network, volume, retention, and loopback port inputs.
+  - `outputs.tf`: container, volume, and SMTP/web endpoints.
 - `mcp/`
   - `AGENTS.md`: module summary and ownership notes.
   - `main.tf`: Spring AI MCP container, healthcheck, OIDC environment, and backend authority wiring.
