@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -22,6 +23,48 @@ MARKERS = (
 HASH_PATTERN = re.compile(r"^[0-9a-f]{16,64}$")
 MARKER_PATTERN = re.compile(
     rf"(?:^|\s)({'|'.join(MARKERS)})\s+(\{{.*\}})\s*$"
+)
+FAILURE_CATEGORIES = (
+    (
+        "compilation",
+        re.compile(
+            r"compilation failed|failed to build|target .* failed|\berror:\s",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "configuration",
+        re.compile(
+            r"missing .*dart-define|requires .*credential|invalid test configuration",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "authentication",
+        re.compile(
+            r"oidc|sign[ -]?in|authorization code|access token|login",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "timeout",
+        re.compile(r"timed? out|timeoutexception", re.IGNORECASE),
+    ),
+    (
+        "transport",
+        re.compile(
+            r"socketexception|handshakeexception|connection refused|failed host lookup",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "assertion",
+        re.compile(r"testfailure|expected:|actual:|test failed", re.IGNORECASE),
+    ),
+)
+SECRET_VALUE_PATTERN = re.compile(
+    r"(?i)(access[_-]?token|refresh[_-]?token|id[_-]?token|password|client[_-]?secret)"
+    r"(\s*[=:]\s*)([^\s,;&]+)"
 )
 
 
@@ -54,11 +97,41 @@ def _is_safe_payload(payload: object, run_index: int) -> bool:
     return True
 
 
+def _failure_diagnostic(raw_log: str) -> tuple[str, str]:
+    category = "unknown"
+    for candidate, pattern in FAILURE_CATEGORIES:
+        if pattern.search(raw_log):
+            category = candidate
+            break
+
+    normalized = SECRET_VALUE_PATTERN.sub(r"\1\2<redacted>", raw_log)
+    normalized = re.sub(r"https?://[^\s\"'<>]+", "<url>", normalized)
+    normalized = re.sub(
+        r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b",
+        "<email>",
+        normalized,
+        flags=re.IGNORECASE,
+    )
+    normalized = re.sub(
+        r"(?:/[A-Za-z0-9_.-]+){2,}",
+        "<path>",
+        normalized,
+    )
+    normalized = re.sub(r"\b[A-Za-z0-9_+/=-]{24,}\b", "<opaque>", normalized)
+    normalized = re.sub(r"\d+", "#", normalized)
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+    signature = hashlib.sha256(
+        f"{category}:{normalized}".encode("utf-8")
+    ).hexdigest()
+    return category, signature
+
+
 def main() -> int:
     args = _parse_args()
+    raw_log = args.input.read_text(encoding="utf-8", errors="replace")
     safe_markers: list[tuple[str, dict[str, object]]] = []
     invalid_marker_count = 0
-    for line in args.input.read_text(encoding="utf-8", errors="replace").splitlines():
+    for line in raw_log.splitlines():
         match = MARKER_PATTERN.search(line)
         if match is None:
             continue
@@ -76,6 +149,13 @@ def main() -> int:
         print(f"{marker} {json.dumps(payload, sort_keys=True, separators=(',', ':'))}")
 
     test_status = "passed" if args.test_exit_code == 0 else "failed"
+    if args.test_exit_code != 0:
+        category, signature = _failure_diagnostic(raw_log)
+        print(
+            "SANITIZED_MULTI_USER_FAILURE "
+            f"status=failed runIndex={args.run_index} category={category} "
+            f"signatureHash={signature} supportSafe=true"
+        )
     validation_status = "passed" if invalid_marker_count == 0 else "failed"
     print(
         "SANITIZED_MULTI_USER_TEST_RESULT "
