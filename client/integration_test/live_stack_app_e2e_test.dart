@@ -12,9 +12,9 @@ import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provid
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/core/persistence/flutter_secure_store.dart';
 import 'package:weave/core/persistence/secure_store.dart';
-import 'package:weave/features/auth/data/dtos/auth_session_dto.dart';
-import 'package:weave/features/auth/data/repositories/oidc_auth_session_repository.dart';
 import 'package:weave/features/auth/data/services/flutter_appauth_oidc_client.dart';
+import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
+import 'package:weave/features/auth/presentation/providers/auth_session_repository_provider.dart';
 import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
 import 'package:weave/features/calendar/domain/repositories/calendar_repository.dart';
 import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
@@ -39,7 +39,6 @@ import 'package:weave/integrations/rust_matrix_core/data/services/rust_matrix_co
 
 import 'package:weave/main.dart';
 
-import 'helpers/auth_helper.dart';
 import 'helpers/isolated_stack_scope.dart';
 import 'helpers/live_oidc_test_driver.dart';
 import 'helpers/matrix_live_room_driver.dart';
@@ -132,11 +131,18 @@ void main() {
         },
       );
 
-      final appSession = await AuthHelper().signInForAppSession(config);
-      await secureStore.write(
-        authSessionStorageKey,
-        AuthSessionDto.fromSession(appSession).encode(),
-      );
+      final authState = await container
+          .read(authSessionRepositoryProvider)
+          .signIn(
+            AuthConfiguration(
+              issuer: config.issuerUrl,
+              clientId: config.clientId,
+            ),
+          );
+      final appSession = authState.session;
+      if (appSession == null) {
+        fail('The live OIDC PKCE flow did not establish an app session.');
+      }
       await container.read(appBootstrapProvider.notifier).retry();
       _resetKeyboardTestState();
       await tester.pump();

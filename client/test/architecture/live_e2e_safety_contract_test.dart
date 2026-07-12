@@ -54,9 +54,9 @@ void main() {
   test('destructive live guards run before authentication', () {
     final guardedSources = <String, String>{
       'integration_test/matrix_e2ee_live_e2e_test.dart':
-          'authHelper.signIn(config)',
+          'liveAuth.accessToken(config)',
       'integration_test/live_stack_app_e2e_test.dart':
-          'AuthHelper().signInForAppSession(config)',
+          '.read(authSessionRepositoryProvider)',
       'integration_test/multi_user_collaboration_e2e_test.dart':
           '_provisionEncryptedSharedRoom(',
     };
@@ -74,6 +74,28 @@ void main() {
       makefile,
       contains('integration-app-e2e requires WEAVE_E2E_STACK_SCOPE=isolated'),
     );
+  });
+
+  test('live client authentication is authorization code with PKCE only', () {
+    final liveSources = Directory('integration_test')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((file) => file.path.endsWith('.dart'));
+    for (final file in liveSources) {
+      final source = file.readAsStringSync();
+      expect(
+        source,
+        isNot(contains("'grant_type': 'password'")),
+        reason: file.path,
+      );
+      expect(source, isNot(contains('grant_type=password')), reason: file.path);
+    }
+
+    final driver = File(
+      'integration_test/helpers/live_oidc_test_driver.dart',
+    ).readAsStringSync();
+    expect(driver, contains("'grant_type': 'authorization_code'"));
+    expect(driver, contains("'code_challenge_method': 'S256'"));
   });
 
   test('live Chat suites arrange and clean encrypted rooms explicitly', () {
