@@ -73,6 +73,24 @@ def main() -> int:
         "IOS_DEVELOPMENT_FALLBACK_RESULT",
     ):
         require(marker in development_fallback, f"development-signed fallback is missing {marker!r}")
+    for marker in (
+        "stable-signing-fallback:",
+        "inputs.upload_to_testflight == false",
+        "EXPECTED_RUNNER_NAME: weave-live-mac-mini",
+        "secrets.WEAVE_IOS_DEVICE_ID",
+        "tools/dogfood_ios_development_fallback.sh",
+        "ios-dogfood-distribution.json",
+        "protected-stable-signing-fallback",
+    ):
+        require(marker in workflow, f"protected fallback workflow is missing {marker!r}")
+    for marker in (
+        'schemaVersion: "weave.ios-dogfood-distribution.v2"',
+        'channel: "stable-signing-fallback"',
+        'result: "success"',
+        "credentialsIncluded: false",
+        "sessionContinuityClaimed: false",
+    ):
+        require(marker in development_fallback, f"fallback distribution evidence is missing {marker!r}")
 
     for phrase in (
         "TestFlight",
@@ -84,6 +102,7 @@ def main() -> int:
         "physical-iPhone VoiceOver acceptance",
         "Development-signed in-place fallback",
         "session continuity unclaimed",
+        "upload_to_testflight=false",
     ):
         require(phrase in docs, f"iOS dogfood documentation is missing {phrase!r}")
 

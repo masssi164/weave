@@ -101,6 +101,13 @@ def main() -> int:
     require('gh run download "$deployment_run_id" --name weave-test-stack-evidence' in ios, "iOS candidate is not read from deployment evidence")
     require("name: ios-dogfood" in ios and "cancel-in-progress: true" in ios, "iOS environment/supersession policy is incomplete")
     require("WEAVE_CANDIDATE_COMMIT=${CANDIDATE_SHA}" in ios, "iOS build does not embed its candidate")
+    require(
+        "stable-signing-fallback:" in ios
+        and "inputs.upload_to_testflight == false" in ios
+        and "tools/dogfood_ios_development_fallback.sh" in ios
+        and "ios-dogfood-distribution.json" in ios,
+        "documented stable-signing fallback does not emit protected canonical distribution evidence",
+    )
 
     for value in (
         "installed_commit:",

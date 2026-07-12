@@ -22,6 +22,7 @@ Superseded pending iOS candidates are cancelled through workflow concurrency whi
 - `APP_STORE_CONNECT_API_KEY_ID`
 - `APP_STORE_CONNECT_ISSUER_ID`
 - `APP_STORE_CONNECT_API_PRIVATE_KEY_BASE64`
+- `WEAVE_IOS_DEVICE_ID` for the protected development-signed fallback only
 
 Create the App Store Connect app record and TestFlight tester group once. Configure automatic distribution for the intended internal tester group, or complete Apple's beta review before using an external tester group. The workflow validates the archive bundle/build identity, uploads with Apple's command-line tooling, and emits support-safe evidence without certificate, profile, API key, or member credential material.
 
@@ -42,6 +43,17 @@ tools/dogfood_ios_development_fallback.sh
 ```
 
 The command compiles the exact diagnostic identity, signs with `RunnerDevelopment.entitlements`, verifies the signed bundle and Keychain group, installs over `com.massimotter.weave` without uninstall, launches the updated app, and writes `build/dogfood/ios-development-fallback/ios-development-fallback.json`. That artifact records the fallback channel but deliberately leaves session continuity unclaimed; run the session-continuity gate separately after the member reaches `workspace_ready`.
+
+For a deployed dogfood candidate, prefer recording this path through the protected workflow so the same canonical distribution artifact feeds the readiness manifest:
+
+```sh
+gh workflow run ios-dogfood.yml --ref dogfood \
+  -f candidate_sha=<full-candidate-sha> \
+  -f deployment_run_id=<successful-test-stack-run-id> \
+  -f upload_to_testflight=false
+```
+
+The `ios-dogfood` environment must hold `WEAVE_IOS_DEVICE_ID`, and the paired iPhone must be available to `weave-live-mac-mini`. The workflow runs the same fail-closed script, uploads `ios-dogfood-distribution.json` with channel `stable-signing-fallback`, and never converts installation alone into a session-continuity or VoiceOver pass.
 
 ## Session continuity gate
 

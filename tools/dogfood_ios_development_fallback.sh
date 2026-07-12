@@ -6,6 +6,7 @@ CLIENT_DIR="${ROOT_DIR}/client"
 DEVICE_ID="${WEAVE_IOS_DEVICE_ID:-}"
 CANDIDATE_COMMIT="${WEAVE_CANDIDATE_COMMIT:-}"
 CANDIDATE_EVIDENCE_REF="${WEAVE_CANDIDATE_EVIDENCE_REF:-}"
+DISTRIBUTION_RUN_URL="${WEAVE_DISTRIBUTION_RUN_URL:-${CANDIDATE_EVIDENCE_REF}}"
 BUILD_NUMBER="${WEAVE_BUILD_NUMBER:-}"
 TEAM_ID="${WEAVE_APPLE_TEAM_ID:-KNDHGC2KV6}"
 BUNDLE_ID="${WEAVE_BUNDLE_ID:-com.massimotter.weave}"
@@ -25,20 +26,24 @@ fail() {
 [[ "${BUNDLE_ID}" == "com.massimotter.weave" ]] || fail "the fallback cannot change the stable bundle identifier"
 [[ "${TEAM_ID}" == "KNDHGC2KV6" ]] || fail "the fallback cannot change the stable Apple team"
 
-python3 - "${CANDIDATE_EVIDENCE_REF}" <<'PY'
+python3 - "${CANDIDATE_EVIDENCE_REF}" "${DISTRIBUTION_RUN_URL}" <<'PY'
 import sys
 from urllib.parse import urlparse
 
-value = urlparse(sys.argv[1])
-if (
-    value.scheme != "https"
-    or not value.hostname
-    or value.username is not None
-    or value.password is not None
-    or value.query
-    or value.fragment
+for label, raw_value in (
+    ("WEAVE_CANDIDATE_EVIDENCE_REF", sys.argv[1]),
+    ("WEAVE_DISTRIBUTION_RUN_URL", sys.argv[2]),
 ):
-    raise SystemExit("WEAVE_CANDIDATE_EVIDENCE_REF must be an uncredentialed HTTPS URL without query or fragment")
+    value = urlparse(raw_value)
+    if (
+        value.scheme != "https"
+        or not value.hostname
+        or value.username is not None
+        or value.password is not None
+        or value.query
+        or value.fragment
+    ):
+        raise SystemExit(f"{label} must be an uncredentialed HTTPS URL without query or fragment")
 PY
 
 for command in flutter xcodebuild xcrun codesign jq shasum; do
@@ -125,25 +130,37 @@ xcrun devicectl device process launch \
 version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "${APP_PATH}/Info.plist")"
 device_ref_hash="$(printf '%s' "${DEVICE_ID}" | shasum -a 256 | awk '{print $1}')"
 jq -n \
-  --arg candidateCommit "${CANDIDATE_COMMIT}" \
+  --arg commit "${CANDIDATE_COMMIT}" \
   --arg evidenceReference "${CANDIDATE_EVIDENCE_REF}" \
+  --arg runUrl "${DISTRIBUTION_RUN_URL}" \
+  --arg githubRunId "${GITHUB_RUN_ID:-local}" \
+  --arg deploymentRunId "${WEAVE_DEPLOYMENT_RUN_ID:-local}" \
   --arg version "${version}" \
   --arg buildNumber "${BUILD_NUMBER}" \
-  --arg bundleIdentifier "${BUNDLE_ID}" \
+  --arg bundleId "${BUNDLE_ID}" \
   --arg deviceRefHash "${device_ref_hash}" \
   '{
-    schemaVersion: 1,
-    candidateCommit: $candidateCommit,
+    schemaVersion: "weave.ios-dogfood-distribution.v2",
+    commit: $commit,
+    candidateCommit: $commit,
     evidenceReference: $evidenceReference,
+    evidenceRefs: [$evidenceReference, $runUrl] | unique,
+    runUrl: $runUrl,
+    githubRunId: $githubRunId,
+    deploymentRunId: $deploymentRunId,
     channel: "stable-signing-fallback",
+    ref: "dogfood",
     version: $version,
     buildNumber: $buildNumber,
-    bundleIdentifier: $bundleIdentifier,
-    deviceRefHash: $deviceRefHash,
+    bundleId: $bundleId,
+    deviceRefHash: ("sha256:" + $deviceRefHash),
+    result: "success",
     inPlaceUpdate: true,
     keychainApplicationIdentifierPreserved: true,
     associatedDomainsOmittedForPersonalTeam: true,
     sessionContinuityClaimed: false,
+    credentialsIncluded: false,
+    blockers: [],
     supportSafe: true
   }' >"${EVIDENCE_DIR}/ios-development-fallback.json"
 

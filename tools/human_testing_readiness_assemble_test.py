@@ -119,6 +119,15 @@ class HumanTestingReadinessAssembleTest(unittest.TestCase):
         self.assertEqual(completed.returncode, 2)
         self.assertIn("distribution evidence targets", completed.stderr)
 
+    def test_stable_signing_fallback_assembles_ready_manifest(self) -> None:
+        documents = self.documents()
+        documents["distribution"]["channel"] = "stable-signing-fallback"
+        completed = self.run_assemble(documents)
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+        result = json.loads((self.root / "result.json").read_text(encoding="utf-8"))
+        self.assertTrue(result["humanTestingReady"])
+        self.assertEqual(result["distribution"]["channel"], "stable-signing-fallback")
+
     def test_non_physical_acceptance_stays_blocked(self) -> None:
         documents = self.documents()
         physical = copy.deepcopy(documents["physical"])

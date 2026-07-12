@@ -331,3 +331,87 @@ jobs:
             build/evidence/ios-dogfood.log
             build/evidence/acceptance-contract
           if-no-files-found: error
+
+  stable-signing-fallback:
+    name: Install verified development-signed fallback
+    needs: contract
+    if: github.event_name == 'workflow_dispatch' && inputs.upload_to_testflight == false
+    runs-on:
+      - self-hosted
+      - macOS
+      - ARM64
+    timeout-minutes: 60
+    environment:
+      name: ios-dogfood
+    env:
+      EXPECTED_RUNNER_NAME: weave-live-mac-mini
+      CANDIDATE_SHA: ${{ needs.contract.outputs.candidate_sha }}
+      DEPLOYMENT_RUN_ID: ${{ needs.contract.outputs.deployment_run_id }}
+      DEPLOYMENT_RUN_URL: ${{ needs.contract.outputs.deployment_run_url }}
+      WEAVE_IOS_DEVICE_ID: ${{ secrets.WEAVE_IOS_DEVICE_ID }}
+      WEAVE_CANDIDATE_COMMIT: ${{ needs.contract.outputs.candidate_sha }}
+      WEAVE_CANDIDATE_EVIDENCE_REF: ${{ needs.contract.outputs.deployment_run_url }}
+      WEAVE_DISTRIBUTION_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      WEAVE_DEPLOYMENT_RUN_ID: ${{ needs.contract.outputs.deployment_run_id }}
+      WEAVE_BUILD_NUMBER: ${{ github.run_number }}
+      WEAVE_DOGFOOD_EVIDENCE_DIR: ${{ github.workspace }}/build/evidence
+    steps:
+      - name: Verify dedicated physical-device runner
+        run: |
+          set -euo pipefail
+          [[ "${RUNNER_NAME:-}" == "$EXPECTED_RUNNER_NAME" ]] || {
+            echo "::error::The stable-signing fallback must run on ${EXPECTED_RUNNER_NAME}; got ${RUNNER_NAME:-unknown}." >&2
+            exit 1
+          }
+          [[ -n "$WEAVE_IOS_DEVICE_ID" ]] || {
+            echo "::error::The ios-dogfood environment is missing WEAVE_IOS_DEVICE_ID." >&2
+            exit 1
+          }
+
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.contract.outputs.candidate_sha }}
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.4'
+          channel: stable
+          cache: true
+
+      - name: Install the exact candidate in place
+        run: |
+          set -o pipefail
+          mkdir -p build/evidence
+          tools/dogfood_ios_development_fallback.sh 2>&1 | tee build/evidence/ios-dogfood.log
+          cp build/evidence/ios-development-fallback.json \
+            build/evidence/ios-dogfood-distribution.json
+
+      - name: Map fallback distribution runtime evidence
+        working-directory: client
+        run: |
+          set -euo pipefail
+          flutter pub get
+          dart run tool/acceptance_contract.dart guard \
+            --root .. \
+            --features e2e/features \
+            --mapping e2e/scenario_mappings.json \
+            --out ../build/evidence/acceptance-contract \
+            --test-log ../build/evidence/ios-dogfood.log \
+            --append-summary "$GITHUB_STEP_SUMMARY" \
+            --source ios-dogfood \
+            --lane protected-stable-signing-fallback \
+            --commit "$CANDIDATE_SHA" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --run-url "$WEAVE_DISTRIBUTION_RUN_URL"
+
+      - name: Upload support-safe fallback distribution evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-dogfood-distribution-${{ github.run_number }}
+          path: |
+            build/evidence/ios-dogfood-distribution.json
+            build/evidence/ios-development-fallback.json
+            build/evidence/ios-dogfood.log
+            build/evidence/acceptance-contract
+          if-no-files-found: error

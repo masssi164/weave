@@ -206,7 +206,7 @@ jobs:
             exit 1
           }
           [[ "$(jq -r '.buildNumber' "$distribution")" == "$INSTALLED_BUILD_NUMBER" ]] || {
-            echo "::error::Installed physical build number does not match TestFlight evidence." >&2
+            echo "::error::Installed physical build number does not match distribution evidence." >&2
             exit 1
           }
           [[ "$INSTALLED_COMMIT" == "$(jq -r '.commit' "$distribution")" ]] || {
