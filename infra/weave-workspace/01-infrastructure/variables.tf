@@ -115,6 +115,23 @@ variable "mailpit_enabled" {
   default     = true
 }
 
+variable "mailpit_volume_name" {
+  description = "Docker volume used for the persistent dogfood Mailpit SQLite database."
+  type        = string
+  default     = "weave_mailpit_data"
+}
+
+variable "mailpit_max_messages" {
+  description = "Maximum number of recent messages retained by the dogfood Mailpit inbox."
+  type        = number
+  default     = 500
+
+  validation {
+    condition     = var.mailpit_max_messages > 0
+    error_message = "mailpit_max_messages must be greater than zero."
+  }
+}
+
 variable "mailpit_web_host_port" {
   description = "Loopback-only host port for the Mailpit web/API inbox."
   type        = number

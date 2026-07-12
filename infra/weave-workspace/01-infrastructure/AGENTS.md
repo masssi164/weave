@@ -19,6 +19,7 @@ This stage owns Docker networking, generated runtime config files, local contain
 - `modules/reverse-proxy`: Caddy edge container with local TLS cert mounts.
 - `modules/keycloak`: Keycloak container and storage.
 - `modules/backend`: Weave backend container, OIDC environment, healthcheck, and Caddy routing.
+- `modules/mailpit`: dogfood mail catcher with a persistent SQLite volume and bounded retention.
 - `modules/matrix`: MAS and Synapse containers plus local CA trust for MAS.
 - `modules/nextcloud`: Nextcloud container and storage.
 

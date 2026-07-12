@@ -29,11 +29,13 @@ readonly WEAVE_VOLUMES=(
   weave_caddy_config
   weave_db_data
   weave_keycloak_data
+  weave_mailpit_data
   weave_nextcloud_data
   weave_synapse_data
 )
 readonly DESTRUCTIVE_DATA_DOMAINS=(
   "Keycloak identity/session data"
+  "Mailpit messages containing dogfood activation links"
   "Weave backend service data stored in Postgres"
   "Matrix/Synapse database and media state"
   "Nextcloud database, files, and calendar data"

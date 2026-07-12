@@ -826,11 +826,12 @@ ensure_existing_stack_terraform_state() {
   import_existing_docker_volume_state module.reverse_proxy.docker_volume.config weave_caddy_config
   import_existing_docker_volume_state module.keycloak.docker_volume.data weave_keycloak_data
   import_existing_docker_volume_state module.nextcloud.docker_volume.data weave_nextcloud_data
+  import_existing_docker_volume_state 'module.mailpit[0].docker_volume.data' "${TF_VAR_mailpit_volume_name:-weave_mailpit_data}"
 
   import_existing_docker_container_state module.postgres.docker_container.this weave-db
   import_existing_docker_container_state module.reverse_proxy.docker_container.this weave-proxy
   import_existing_docker_container_state module.keycloak.docker_container.this weave-keycloak
-  import_existing_docker_container_state module.mailpit.docker_container.this weave-mailpit
+  import_existing_docker_container_state 'module.mailpit[0].docker_container.this' weave-mailpit
   import_existing_docker_container_state module.backend.docker_container.this weave-backend
   import_existing_docker_container_state module.mcp.docker_container.this weave-mcp-server
   import_existing_docker_container_state module.matrix.docker_container.mas weave-mas

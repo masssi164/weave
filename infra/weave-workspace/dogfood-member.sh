@@ -13,6 +13,10 @@ LIFESPAN_SECONDS="${WEAVE_DOGFOOD_MEMBER_ACTIVATION_LIFESPAN_SECONDS:-86400}"
 CLIENT_ID="weave-app"
 REDIRECT_URI="com.massimotter.weave:/oauthredirect"
 EXPECTED_GROUPS="${WEAVE_DOGFOOD_MEMBER_GROUPS:-workspace-members,weave-board-editors,weave-calendar-editors}"
+MAILPIT_VERIFY_TIMEOUT_SECONDS="${WEAVE_DOGFOOD_MEMBER_MAILPIT_VERIFY_TIMEOUT_SECONDS:-60}"
+MAILPIT_EXPECTED_SUBJECT="${WEAVE_DOGFOOD_MEMBER_MAIL_SUBJECT:-Complete your Weave account setup}"
+MAIL_MESSAGE_ID_SHA256=""
+MAIL_VERIFIED_AT=""
 
 log() { printf '%s\n' "$*"; }
 fail() { printf 'DOGFOOD_MEMBER_ERROR %s\n' "$*" >&2; exit 1; }
@@ -77,6 +81,8 @@ validate_inputs() {
   [[ "${WEAVE_DOGFOOD_MEMBER_USERNAME}" != "test" ]] || fail "persistent human member must not use the disposable automation username 'test'"
   [[ "${LIFESPAN_SECONDS}" =~ ^[0-9]+$ ]] || fail "lifespan must be seconds"
   (( LIFESPAN_SECONDS >= 300 && LIFESPAN_SECONDS <= 86400 )) || fail "lifespan must be between 300 and 86400 seconds"
+  [[ "${MAILPIT_VERIFY_TIMEOUT_SECONDS}" =~ ^[0-9]+$ ]] || fail "Mailpit verification timeout must be seconds"
+  (( MAILPIT_VERIFY_TIMEOUT_SECONDS >= 1 && MAILPIT_VERIFY_TIMEOUT_SECONDS <= 300 )) || fail "Mailpit verification timeout must be between 1 and 300 seconds"
   [[ -n "${EXPECTED_GROUPS}" ]] || fail "expected groups must not be empty"
 }
 
@@ -87,6 +93,11 @@ public_port_suffix() {
 
 keycloak_url() {
   printf '%s://%s.%s%s' "${TF_VAR_public_scheme:-https}" "${TF_VAR_auth_subdomain:-auth}" \
+    "${TF_VAR_tenant_domain:-weave.test}" "$(public_port_suffix)"
+}
+
+mailpit_messages_url() {
+  printf '%s://mail.%s%s/api/v1/messages' "${TF_VAR_public_scheme:-https}" \
     "${TF_VAR_tenant_domain:-weave.test}" "$(public_port_suffix)"
 }
 
@@ -122,6 +133,44 @@ sha256() { printf '%s' "$1" | shasum -a 256 | awk '{print $1}'; }
 api_base() { printf '%s/admin/realms/%s' "$(keycloak_url)" "$(encode "${REALM}")"; }
 
 recorded_subject() { [[ -s "${SUBJECT_FILE}" ]] && tr -d '\r\n' <"${SUBJECT_FILE}" || true; }
+
+matching_mail_ids() {
+  local payload="$1" expected_hash address normalized_address
+  expected_hash="$(printf '%s' "${WEAVE_DOGFOOD_MEMBER_EMAIL}" | tr '[:upper:]' '[:lower:]' | shasum -a 256 | awk '{print $1}')"
+  jq -r --arg subject "${MAILPIT_EXPECTED_SUBJECT}" \
+    '.messages[]? | select((.Subject // .subject // "") == $subject) | [(.ID // .Id // .id // ""), ((.To // .to // []) | .. | objects | (.Address // .address // .Email // .email // empty))] | @tsv' \
+    <<<"${payload}" | while IFS=$'\t' read -r id address; do
+      [[ -n "${id}" && -n "${address}" ]] || continue
+      normalized_address="$(printf '%s' "${address}" | tr '[:upper:]' '[:lower:]')"
+      [[ "$(sha256 "${normalized_address}")" == "${expected_hash}" ]] && printf '%s\n' "${id}"
+    done
+}
+
+mailpit_snapshot() {
+  local payload
+  payload="$(request GET "$(mailpit_messages_url)")" || fail "Mailpit HTTPS API is not ready"
+  matching_mail_ids "${payload}"
+}
+
+verify_new_mail_visible() {
+  local before_ids="$1" deadline payload id
+  deadline=$((SECONDS + MAILPIT_VERIFY_TIMEOUT_SECONDS))
+  while (( SECONDS <= deadline )); do
+    payload="$(request GET "$(mailpit_messages_url)" 2>/dev/null || true)"
+    if [[ -n "${payload}" ]]; then
+      while IFS= read -r id; do
+        [[ -n "${id}" ]] || continue
+        if ! grep -Fxq -- "${id}" <<<"${before_ids}"; then
+          MAIL_MESSAGE_ID_SHA256="$(sha256 "${id}")"
+          MAIL_VERIFIED_AT="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+          return 0
+        fi
+      done < <(matching_mail_ids "${payload}")
+    fi
+    sleep 2
+  done
+  fail "activation mail was not visible through the Mailpit HTTPS API within ${MAILPIT_VERIFY_TIMEOUT_SECONDS}s"
+}
 
 record_subject_once() {
   local subject="$1" recorded
@@ -235,18 +284,22 @@ write_evidence() {
   jq -n --arg state "${state}" --arg action "${action}" --arg realm "${REALM}" \
     --arg usernameSha256 "$(sha256 "${WEAVE_DOGFOOD_MEMBER_USERNAME}")" --arg emailSha256 "$(sha256 "${WEAVE_DOGFOOD_MEMBER_EMAIL}")" \
     --arg subjectSha256 "$([[ -n "${subject}" ]] && sha256 "${subject}" || true)" \
+    --arg mailMessageIdSha256 "${MAIL_MESSAGE_ID_SHA256}" --arg mailVerifiedAt "${MAIL_VERIFIED_AT}" \
     --argjson mailSent "$([[ "${action}" == created_and_activation_sent || "${action}" == activation_resent ]] && printf true || printf false)" \
-    '{schemaVersion:"weave.dogfood.persistent-member.v1",realm:$realm,state:$state,action:$action,usernameSha256:$usernameSha256,emailSha256:$emailSha256,subjectSha256:$subjectSha256,activation:{mode:"keycloak-required-actions-email",requiredActions:["VERIFY_EMAIL","UPDATE_PASSWORD"],mailSent:$mailSent},qrOrDeeplinkCarriesSecret:false,appStoresActivationSecret:false,supportSafe:true}' >"${EVIDENCE_FILE}"
+    '{schemaVersion:"weave.dogfood.persistent-member.v1",realm:$realm,state:$state,action:$action,usernameSha256:$usernameSha256,emailSha256:$emailSha256,subjectSha256:$subjectSha256,activation:{mode:"keycloak-required-actions-email",requiredActions:["VERIFY_EMAIL","UPDATE_PASSWORD"],mailSent:$mailSent,mailVisible:($mailMessageIdSha256 != ""),messageIdSha256:$mailMessageIdSha256,verifiedAt:$mailVerifiedAt},qrOrDeeplinkCarriesSecret:false,appStoresActivationSecret:false,supportSafe:true}' >"${EVIDENCE_FILE}"
 }
 
 main() {
   load_environment; parse_args "$@"; validate_inputs
   command -v curl >/dev/null || fail "curl is required"; command -v jq >/dev/null || fail "jq is required"
   [[ -n "${TF_VAR_keycloak_admin_password:-}" ]] || fail "TF_VAR_keycloak_admin_password is required"
-  local token base user state subject="" action="none"
+  local token base user state subject="" action="none" mail_before=""
   token="$(admin_token)"; [[ -n "${token}" ]] || fail "Keycloak admin authentication failed"
   base="$(api_base)"; user="$(resolve_user "${base}" "${token}")"; verify_subject_invariant "${user}"
   state="$(state_for_user "${user}")"
+  if [[ "${OPERATION}:${state}" == ensure:missing || "${OPERATION}:${state}" == resend-activation:pending ]]; then
+    mail_before="$(mailpit_snapshot)"
+  fi
   case "${OPERATION}:${state}" in
     ensure:missing) create_once "${base}" "${token}"; user="$(resolve_user "${base}" "${token}")"; state="pending"; action="created_and_activation_sent" ;;
     ensure:pending|ensure:active) action="unchanged" ;;
@@ -257,6 +310,9 @@ main() {
     resend-activation:disabled) fail "identity is disabled" ;;
     status:*) action="observed" ;;
   esac
+  if [[ "${action}" == created_and_activation_sent || "${action}" == activation_resent ]]; then
+    verify_new_mail_visible "${mail_before}"
+  fi
   [[ -n "${user}" ]] && subject="$(jq -r '.id' <<<"${user}")"
   [[ -n "${subject}" ]] && record_subject_once "${subject}"
   [[ "${state}" == active ]] && verify_active_access "${base}" "${token}" "${subject}"

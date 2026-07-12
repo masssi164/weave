@@ -17,7 +17,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: weave-test-stack-lan
+  group: weave-persistent-dogfood
   cancel-in-progress: false
 
 jobs:
@@ -52,6 +52,16 @@ jobs:
       - name: Check out weave
         uses: actions/checkout@v5
 
+      - name: Require the deployed dogfood ref
+        env:
+          DISPATCH_REF: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          [[ "${DISPATCH_REF}" == dogfood ]] || {
+            echo "::error::Persistent member operations must be dispatched from the dogfood branch." >&2
+            exit 1
+          }
+
       - name: Validate protected member configuration
         run: |
           set -euo pipefail
@@ -72,11 +82,19 @@ jobs:
           export WEAVE_DOGFOOD_MEMBER_SUBJECT_FILE="$HOME/.weave/dogfood/persistent-member.subject"
           evidence="$RUNNER_TEMP/dogfood-member-evidence.json"
           ./dogfood-member.sh "${OPERATION}" --evidence-file "${evidence}"
+          mail_visible="$(jq -r '.activation.mailVisible // false' "${evidence}")"
+          if [[ "${OPERATION}" != status && "$(jq -r '.activation.mailSent' "${evidence}")" == true ]]; then
+            [[ "${mail_visible}" == true ]] || {
+              echo "::error::Keycloak accepted the operation but no new activation message became visible through the private HTTPS Mailpit API." >&2
+              exit 1
+            }
+          fi
           {
             echo "## Persistent dogfood member"
             echo
             echo "- Operation: \`${OPERATION}\`"
             echo "- Mail inbox: https://mail.weave.test:44443"
+            echo "- Activation mail visible through iPhone-facing HTTPS route: \`${mail_visible}\`"
             echo "- The activation link remains in Mailpit and is never copied into workflow output."
             echo
             echo '```json'

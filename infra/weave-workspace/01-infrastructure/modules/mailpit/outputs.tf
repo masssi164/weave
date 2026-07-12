@@ -3,6 +3,11 @@ output "container_name" {
   value       = docker_container.this.name
 }
 
+output "volume_name" {
+  description = "Docker volume containing the persistent Mailpit SQLite database."
+  value       = docker_volume.data.name
+}
+
 output "smtp_endpoint" {
   description = "Docker-network SMTP endpoint for dogfood services."
   value       = "${var.container_name}:1025"

@@ -35,6 +35,8 @@ Feature: Weave v0.1 dogfood production release
     And trust-preserving app-state reset plus manual sign-in from the saved organization configuration reaches the workspace
     And Mailpit is reachable on the iPhone through the private HTTPS dogfood URL and captures identity mail without external delivery
     And a routine repeated dogfood deployment preserves the same active Keycloak subject without re-inviting or mutating it
+    And ordinary Mailpit container replacement preserves captured dogfood mail
+    And disposable live-stack E2E cannot remove the persistent dogfood identity or inbox
     And dogfood trust evidence proves stable local TLS certificates, stable iOS signing/provisioning, and no repeated Developer App trust prompt after normal update or app-state reset
     And no member-visible state leaks raw provider errors, setup internals, tokens, credentials, or secret references
 
