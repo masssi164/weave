@@ -803,6 +803,32 @@ nextcloud_is_installed() {
     grep -Eq '"installed"[[:space:]]*:[[:space:]]*true([[:space:]]*[,}]|[[:space:]]*$)'
 }
 
+nextcloud_occ_command_is_available() {
+  local command_name="$1"
+  local commands
+
+  commands="$(occ list --raw 2>/dev/null)" || return 1
+  awk -v target="${command_name}" '$1 == target { found = 1 } END { exit !found }' <<<"${commands}"
+}
+
+wait_for_nextcloud_occ_command() {
+  local command_name="$1"
+  local attempts="${2:-60}"
+  local sleep_seconds="${3:-2}"
+  local i
+
+  for ((i = 1; i <= attempts; i++)); do
+    if nextcloud_occ_command_is_available "${command_name}"; then
+      return 0
+    fi
+    if ((sleep_seconds > 0)); then
+      sleep "${sleep_seconds}"
+    fi
+  done
+
+  fail "Nextcloud OCC command ${command_name} did not become available after its app was enabled."
+}
+
 terraform_apply() {
   local dir="$1"
   local refresh="${WEAVE_IAC_REFRESH:-true}"
@@ -1721,6 +1747,7 @@ configure_nextcloud_oidc() {
     occ app:install user_oidc
     occ app:enable user_oidc
   fi
+  wait_for_nextcloud_occ_command user_oidc:provider
 
   allow_insecure_http=0
   if [[ "${TF_VAR_public_scheme}" == "http" ]]; then

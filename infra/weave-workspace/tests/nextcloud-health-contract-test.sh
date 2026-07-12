@@ -88,6 +88,22 @@ export TF_VAR_nextcloud_admin_password='fixture-admin-password'
 ensure_nextcloud_installed >/dev/null
 [[ "$(cat "${install_race_state}")" == 2 ]] || fail "Nextcloud install convergence was not rechecked after a concurrent install"
 
+oidc_command_state="${TMP_DIR}/nextcloud-oidc-command-state"
+printf '0\n' >"${oidc_command_state}"
+occ() {
+  [[ "${1:-}" == list && "${2:-}" == --raw ]] || return 1
+  local list_calls
+  list_calls="$(cat "${oidc_command_state}")"
+  list_calls="$((list_calls + 1))"
+  printf '%s\n' "${list_calls}" >"${oidc_command_state}"
+  printf '%s\n' 'status' 'app:enable'
+  if ((list_calls > 1)); then
+    printf '%s\n' 'user_oidc:provider                      Create or update an OIDC provider'
+  fi
+}
+wait_for_nextcloud_occ_command user_oidc:provider 3 0
+[[ "$(cat "${oidc_command_state}")" == 2 ]] || fail "Nextcloud OIDC command readiness was not retried"
+
 export TF_VAR_docker_network_name="weave-e2e-fixture_network"
 export TF_VAR_nextcloud_backend_actor_username="fixture-actor"
 export TF_VAR_nextcloud_backend_actor_token="fixture-token"
