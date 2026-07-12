@@ -176,6 +176,22 @@ variable "context_authorization_principal_ref_prefix" {
   type        = string
 }
 
+variable "context_authorization_memberships" {
+  description = "Explicit Context/ReBAC membership facts selected by the root deployment profile."
+  type = list(object({
+    tenant_id     = string
+    context_id    = string
+    principal_ref = string
+    role          = string
+    source        = string
+  }))
+}
+
+variable "isolated_e2e_namespace" {
+  description = "Run-scoped marker exported only inside a disposable isolated live-E2E backend."
+  type        = string
+}
+
 variable "context_authorization_bootstrap_enabled" {
   description = "Enable deterministic local/dev Context/Space bootstrap membership. Keep false unless the stack intentionally seeds the matching identity."
   type        = bool

@@ -1626,6 +1626,59 @@
         },
         "type": "object"
       },
+      "CapabilityHealth": {
+        "properties": {
+          "backoffUntil": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "cachedAgeSeconds": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "capability": {
+            "type": "string"
+          },
+          "consecutiveFailures": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "correlationRef": {
+            "type": "string"
+          },
+          "nextProbeAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "observedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "probeLatencyMillis": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "readinessTransitions": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "stale": {
+            "type": "boolean"
+          },
+          "state": {
+            "enum": [
+              "available",
+              "degraded",
+              "unavailable"
+            ],
+            "type": "string"
+          },
+          "supportSafeCode": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "CapabilityState": {
         "properties": {
           "capability": {
@@ -5523,6 +5576,28 @@
         },
         "type": "object"
       },
+      "ProviderCapabilityHealthResponse": {
+        "description": "Role-gated, support-safe cached provider capability observations.",
+        "properties": {
+          "capabilities": {
+            "items": {
+              "$ref": "#/components/schemas/CapabilityHealth"
+            },
+            "type": "array"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "schemaVersion": {
+            "type": "string"
+          },
+          "supportSafe": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "ProviderCategoryContractResponse": {
         "description": "Provider-neutral capability contract for one admin Workspace Health category. Default and external adapters are implementations behind the contract, not member-facing product surfaces.",
         "properties": {
@@ -7947,6 +8022,49 @@
         },
         "type": "object"
       },
+      "WorkspaceHomeRecentActivityResponse": {
+        "description": "Context-authorized, support-safe recent activity shown on Weave Home.",
+        "properties": {
+          "action": {
+            "description": "Canonical completed Weave mutation action.",
+            "example": "files.webdav_write.completed",
+            "type": "string"
+          },
+          "activityRef": {
+            "description": "Stable opaque activity reference; never a provider or resource identifier.",
+            "type": "string"
+          },
+          "actorIsCurrentUser": {
+            "type": "boolean"
+          },
+          "actorRefHash": {
+            "description": "Tenant-scoped opaque SHA-256 actor reference.",
+            "type": "string"
+          },
+          "domain": {
+            "description": "Canonical Weave domain.",
+            "enum": [
+              "files"
+            ],
+            "type": "string"
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "supportSafe": {
+            "type": "boolean"
+          },
+          "visibility": {
+            "description": "Canonical visibility without a raw Context identifier.",
+            "enum": [
+              "workspace"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "WorkspaceHomeResponse": {
         "description": "Backend-owned Weave Home snapshot for the daily work loop.",
         "properties": {
@@ -7966,6 +8084,13 @@
               "unavailable"
             ],
             "type": "string"
+          },
+          "recentActivity": {
+            "description": "Newest completed support-safe activities the current member may view.",
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceHomeRecentActivityResponse"
+            },
+            "type": "array"
           },
           "sections": {
             "description": "Daily work sections shown by Weave Home.",
@@ -8984,6 +9109,52 @@
         "summary": "Simulate effective capability policy before provider/realm changes",
         "tags": [
           "Admin control plane"
+        ]
+      }
+    },
+    "/api/admin/provider-capability-health": {
+      "get": {
+        "operationId": "getProviderCapabilityHealth",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderCapabilityHealthResponse"
+                }
+              }
+            },
+            "description": "HTTP 200"
+          },
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 401"
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 403"
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Read cached support-safe provider capability health",
+        "tags": [
+          "Admin provider health"
         ]
       }
     },
@@ -12772,6 +12943,52 @@
         ]
       }
     },
+    "/api/v1/admin/provider-capability-health": {
+      "get": {
+        "operationId": "getProviderCapabilityHealthV1",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderCapabilityHealthResponse"
+                }
+              }
+            },
+            "description": "HTTP 200"
+          },
+          "401": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 401"
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 403"
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Read cached support-safe provider capability health",
+        "tags": [
+          "Admin provider health"
+        ]
+      }
+    },
     "/api/v1/admin/providers/readiness-tests": {
       "post": {
         "operationId": "testProviderReadinessV1",
@@ -14428,6 +14645,10 @@
     {
       "description": "Organization/Admin Console APIs for provider policy, readiness, SecretRefs, and audit.",
       "name": "Admin control plane"
+    },
+    {
+      "description": "Support-safe cached provider capability health for operators and support bundles.",
+      "name": "Admin provider health"
     },
     {
       "description": "Provider-neutral Boards/Tasks workspace facade backed by Context/Space authorization, support-safe errors, and user-write task actions.",

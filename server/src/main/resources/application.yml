@@ -24,7 +24,9 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        # Infra binds the backend management port to loopback and blocks /actuator/*
+        # at Caddy. Metrics remain a local operator surface, not a product endpoint.
+        include: health,info,metrics
   endpoint:
     health:
       probes:

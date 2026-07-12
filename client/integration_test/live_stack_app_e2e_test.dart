@@ -18,6 +18,7 @@ import 'package:weave/features/auth/data/services/flutter_appauth_oidc_client.da
 import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
 import 'package:weave/features/calendar/domain/repositories/calendar_repository.dart';
 import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
+import 'package:weave/features/chat/data/repositories/matrix_device_identity_repository.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/chat/domain/entities/chat_room_timeline.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
@@ -39,7 +40,9 @@ import 'package:weave/integrations/rust_matrix_core/data/services/rust_matrix_co
 import 'package:weave/main.dart';
 
 import 'helpers/auth_helper.dart';
+import 'helpers/isolated_stack_scope.dart';
 import 'helpers/live_oidc_test_driver.dart';
+import 'helpers/matrix_live_room_driver.dart';
 import 'helpers/test_config.dart';
 import 'helpers/test_http_overrides.dart';
 
@@ -74,6 +77,7 @@ void main() {
   testWidgets(
     'real live-stack sign-in, backend chat, profile, files, and calendar facades',
     (tester) async {
+      requireIsolatedStackScope();
       final serverConfig = ServerConfiguration(
         providerType: OidcProviderType.keycloak,
         oidcIssuerUrl: config.issuerUrl,
@@ -260,6 +264,45 @@ void main() {
       );
       profileRestored = true;
 
+      final matrixDeviceId = await MatrixDeviceIdentityRepository(
+        secureStore: secureStore,
+      ).loadOrCreate();
+      final matrixActor = MatrixLiveActorCredentials(
+        accessToken: appSession.accessToken,
+        deviceId: matrixDeviceId,
+      );
+      final matrixRoomDriver = MatrixLiveRoomDriver(
+        client: providerHttpClient,
+        homeserver: config.matrixHomeserverUrl,
+      );
+      await matrixRoomDriver.registerWhoami(matrixActor);
+      final preparedGeneralRoomId = await matrixRoomDriver.requireJoinedRoom(
+        actor: matrixActor,
+        conversationIdFragment: 'channel-general',
+      );
+      await matrixRoomDriver.enableEncryptionOnJoinedRoom(
+        actor: matrixActor,
+        roomId: preparedGeneralRoomId,
+      );
+      final liveChatEventIds = <String>{};
+      var liveStackAssertionsPassed = false;
+      addTearDown(() async {
+        if (liveChatEventIds.isEmpty) {
+          return;
+        }
+        final redactedCount = await matrixRoomDriver.redactEventsAndVerify(
+          actor: matrixActor,
+          roomId: preparedGeneralRoomId,
+          eventIds: liveChatEventIds,
+        );
+        if (redactedCount != liveChatEventIds.length ||
+            (liveStackAssertionsPassed && redactedCount != 2)) {
+          throw const MatrixLiveRoomDriverException(
+            'M_WEAVE_LIVE_MATRIX_CLEANUP_INCOMPLETE',
+          );
+        }
+      });
+
       final chatRepository = container.read(chatRepositoryProvider);
       var chatFacadeConnected = false;
       Object? chatConnectError;
@@ -311,6 +354,7 @@ void main() {
       final deliveredMessage = timeline.messages
           .where((message) => message.text == sentMessage)
           .toList(growable: false);
+      liveChatEventIds.addAll(deliveredMessage.map((message) => message.id));
       // ignore: avoid_print
       print(
         'MATRIX_FACADE_RESULT '
@@ -452,6 +496,9 @@ void main() {
           : workspaceLoopChatMessages.last;
       final workspaceLoopChatMessageId =
           workspaceLoopChatMessage?.id ?? 'matrix-message-missing';
+      if (workspaceLoopChatMessage != null) {
+        liveChatEventIds.add(workspaceLoopChatMessage.id);
+      }
       final workspaceLoopChatUsesCanonicalIds =
           workspaceLoopConversationId == 'channel-general' &&
           roomId.contains('channel-general') &&
@@ -1040,6 +1087,7 @@ void main() {
       expect(documentsAvailableOrHonestUnavailable, isTrue);
       expect(capabilityRealitySupportSafe, isTrue);
       expect(providerRealityStatesHonest, isTrue);
+      liveStackAssertionsPassed = true;
     },
     semanticsEnabled: false,
   );

@@ -59,6 +59,28 @@ void main() {
       expect(await store.getBool(legacySetupCompleteKey), isNull);
     });
 
+    test(
+      'removes the legacy setup key after validating saved config',
+      () async {
+        final store = InMemoryPreferencesStore({
+          ...buildStoredConfiguration(),
+          legacySetupCompleteKey: false,
+        });
+        final container = ProviderContainer.test(
+          overrides: [preferencesStoreProvider.overrideWith((ref) => store)],
+        );
+        addTearDown(container.dispose);
+        final repository = container.read(
+          serverConfigurationRepositoryProvider,
+        );
+
+        final loaded = await repository.loadConfiguration();
+
+        expect(loaded, isNotNull);
+        expect(await store.getBool(legacySetupCompleteKey), isNull);
+      },
+    );
+
     test('clears the stored configuration', () async {
       final store = InMemoryPreferencesStore(buildStoredConfiguration());
       final container = ProviderContainer.test(

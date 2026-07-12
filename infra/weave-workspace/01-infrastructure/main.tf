@@ -135,6 +135,24 @@ locals {
   # the backend container itself when used from inside the backend container.
   nextcloud_internal_base_url = "http://${local.service_names.nextcloud}"
 
+  legacy_context_authorization_memberships = concat(
+    var.context_authorization_bootstrap_enabled ? [{
+      tenant_id     = var.context_authorization_default_tenant_id
+      context_id    = var.context_authorization_bootstrap_context_id
+      principal_ref = var.context_authorization_bootstrap_principal_ref
+      role          = var.context_authorization_bootstrap_role
+      source        = "local-dev-bootstrap"
+    }] : [],
+    var.context_authorization_bootstrap_enabled && var.context_authorization_dogfood_principal_ref != "" ? [{
+      tenant_id     = var.context_authorization_default_tenant_id
+      context_id    = var.context_authorization_bootstrap_context_id
+      principal_ref = var.context_authorization_dogfood_principal_ref
+      role          = var.context_authorization_bootstrap_role
+      source        = "local-dogfood-bootstrap"
+    }] : [],
+  )
+  context_authorization_memberships = var.isolated_e2e_enabled ? var.isolated_e2e_context_memberships : local.legacy_context_authorization_memberships
+
   service_databases = {
     backend = {
       database_name        = "${var.db_name}_backend"
@@ -347,6 +365,29 @@ resource "docker_network" "weave_network" {
   name = var.docker_network_name
 }
 
+resource "terraform_data" "isolated_e2e_guard" {
+  input = var.isolated_e2e_namespace
+
+  lifecycle {
+    precondition {
+      condition     = var.isolated_e2e_enabled || (var.isolated_e2e_namespace == "" && length(var.isolated_e2e_context_memberships) == 0)
+      error_message = "isolated E2E namespace/memberships require isolated_e2e_enabled=true."
+    }
+    precondition {
+      condition = !var.isolated_e2e_enabled || (
+        startswith(var.isolated_e2e_namespace, "weave-e2e-") &&
+        var.docker_network_name == "${var.isolated_e2e_namespace}_network" &&
+        var.context_authorization_principal_claim == "preferred_username" &&
+        !var.context_authorization_bootstrap_enabled &&
+        var.context_authorization_dogfood_principal_ref == "" &&
+        !var.create_test_user &&
+        length(var.isolated_e2e_context_memberships) == 3
+      )
+      error_message = "isolated E2E authorization requires a weave-e2e-* namespace, its dedicated network, preferred_username, exactly three run-scoped memberships, and all persistent/static test-user inputs disabled."
+    }
+  }
+}
+
 resource "terraform_data" "network_ready" {
   triggers_replace = [docker_network.weave_network.id]
 
@@ -526,6 +567,8 @@ module "backend" {
   context_authorization_default_tenant_id          = var.context_authorization_default_tenant_id
   context_authorization_principal_claim            = var.context_authorization_principal_claim
   context_authorization_principal_ref_prefix       = var.context_authorization_principal_ref_prefix
+  context_authorization_memberships                = local.context_authorization_memberships
+  isolated_e2e_namespace                           = var.isolated_e2e_enabled ? var.isolated_e2e_namespace : ""
   context_authorization_bootstrap_enabled          = var.context_authorization_bootstrap_enabled
   context_authorization_bootstrap_context_id       = var.context_authorization_bootstrap_context_id
   context_authorization_bootstrap_principal_ref    = var.context_authorization_bootstrap_principal_ref
@@ -584,7 +627,7 @@ module "backend" {
   identity_events_hmac_secret                      = var.identity_events_hmac_secret
   mcp_boundary_token                               = var.mcp_boundary_token
   healthcheck_path                                 = "/api/health/ready"
-  depends_on                                       = [terraform_data.network_ready, terraform_data.postgres_bootstrap, module.keycloak, local_sensitive_file.generated]
+  depends_on                                       = [terraform_data.isolated_e2e_guard, terraform_data.network_ready, terraform_data.postgres_bootstrap, module.keycloak, local_sensitive_file.generated]
 }
 
 module "mcp" {
@@ -640,7 +683,6 @@ module "nextcloud" {
   public_url         = local.public_urls.files
   public_scheme      = var.public_scheme
   public_port_suffix = local.public_port_suffix
-  trusted_proxies    = var.nextcloud_trusted_proxies
   tls_ca_file        = local.caddy_tls_ca_file
   tls_ca_filename    = basename(local.caddy_tls_ca_file)
   db_host            = module.postgres.container_name

@@ -24,8 +24,11 @@ There are two supported local port modes:
 
 - canonical single-stack ports: `80`, `443`, `8080`, `8082`, `8008`, `8083`, `8084`
 - shared-host isolation block: `44080`, `44443`, `48080`, `48082`, `48008`, `48083`, `48084`
+- disposable live-E2E block: `54080`, `54443`, `58080`, `59000`, `58025`, `58082`, `58008`, `58083`, `58084`, `58085`
 
 Use canonical ports only when Weave owns the machine's standard local ports. On a shared Docker host or self-hosted runner, use the isolated block. `install.sh` defaults to the isolated block, and `.env.example` shows both modes explicitly.
+
+The disposable live-E2E block belongs only to a run-scoped runner and a Docker authority isolated from persistent dogfood. Its values cover HTTP, HTTPS, Keycloak application/management, Mailpit, MAS, Synapse, Nextcloud, backend, and MCP access respectively. Assigning the disposable-runner label to the persistent dogfood Docker authority is prohibited even when these host ports are free.
 
 If you need a clean non-destructive rerun on a shared host:
 
@@ -88,7 +91,24 @@ Caddy is managed by the OpenTofu infrastructure stage. `weave-workspace/docker-c
 - `weave-workspace/.generated/bootstrap.env`: private local bootstrap values and secrets. Use only for local backend/server-side runs that need those secrets.
 - `weave-workspace/.generated/app-config.env`: no-secrets app/runtime summary. It includes product gateway, backend API, auth issuer, the API-origin Matrix facade, Weave product files/calendar routes, and clearly labeled technical provider URLs for operator/admin use only.
 
+Local dogfood also copies `bootstrap.env` to `${XDG_STATE_HOME:-$HOME/.local/state}/weave/dogfood/bootstrap.env` with mode `0600`. This copy is credential continuity for a fresh checkout, not a support artifact. Set `WEAVE_LOCAL_CREDENTIAL_STATE_FILE=none` for disposable E2E and for non-local deployments whose private release env is the credential authority.
+
 Do not attach `bootstrap.env` to support issues or logs.
+
+## Disposable three-identity E2E
+
+`isolated-e2e-identities.sh prepare --run-id <unique-run>` creates a private credential env, a startup env, and a support-safe hashed manifest. Source the startup env before installing a fully isolated stack. It enables the documented live-E2E ReBAC seed path with `preferred_username`: author and collaborator share `workspace-default`, while outsider belongs only to a run-scoped outside context. The OpenTofu guard rejects these inputs unless the namespace and Docker network are run-scoped, the static `test` user is disabled, and persistent dogfood membership inputs are empty.
+
+After stack readiness, run `provision` with `WEAVE_E2E_STACK_SCOPE=isolated`; it creates only marker-owned Keycloak users/groups and verifies the isolated backend actually loaded all three ReBAC facts. Run `cleanup` after the two collaboration passes. Keycloak cleanup is idempotent, and provider/context data is removed by destruction of that isolated stack namespace. The helper refuses persistent dogfood scope.
+
+Before the collaboration passes, run `isolated-e2e-authorization-probes.sh --run-id <same-run>` with the integration variables printed by `prepare`. The helper proves a missing Calendar capability returns `403`, a genuinely expired Keycloak token returns `401` through Chat, Files, and Calendar, and Matrix logout immediately revokes the presented Chat token. It is isolated-only, verifies exact user and backend namespace markers, restores the Calendar group plus temporary realm/client settings with an exit trap, and writes only subject hashes, booleans, and status codes to `WEAVE_E2E_AUTHORIZATION_EVIDENCE_PATH`.
+
+The domain-local failure-containment fixture is also isolated-only. Run `isolated-e2e-calendar-outage.sh begin` before checking that Calendar alone becomes unavailable, then always run `isolated-e2e-calendar-outage.sh restore`. `begin` deletes only the backend actor's disposable `personal` calendar and waits for cached Calendar status `0` while cached Files remains `2`; `restore` recreates that exact calendar and waits for cached status `2`. A failed `begin` trap recreates the calendar automatically. The documented recovery command is safe to repeat:
+
+```bash
+WEAVE_E2E_STACK_SCOPE=isolated \
+  bash infra/weave-workspace/isolated-e2e-calendar-outage.sh restore
+```
 
 ## Integration tests
 

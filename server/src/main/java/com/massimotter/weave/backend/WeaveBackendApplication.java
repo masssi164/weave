@@ -11,14 +11,17 @@ import com.massimotter.weave.backend.config.MatrixChatProperties;
 import com.massimotter.weave.backend.config.MigrationToolkitProperties;
 import com.massimotter.weave.backend.config.NextcloudFilesProperties;
 import com.massimotter.weave.backend.config.PlatformContractProperties;
+import com.massimotter.weave.backend.config.ProviderHealthProperties;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WeaverRuntimeProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
+@EnableScheduling
 @EnableConfigurationProperties({
         CalendarCalDavProperties.class,
         ConnectorRuntimeProperties.class,
@@ -31,6 +34,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
         MigrationToolkitProperties.class,
         NextcloudFilesProperties.class,
         PlatformContractProperties.class,
+        ProviderHealthProperties.class,
         WeaveSecurityProperties.class,
         WeaverRuntimeProperties.class,
         WorkspaceCapabilityProperties.class

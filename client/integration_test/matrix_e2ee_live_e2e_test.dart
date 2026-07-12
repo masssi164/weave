@@ -7,6 +7,8 @@ import 'package:integration_test/integration_test.dart';
 import 'package:weave/integrations/rust_matrix_core/data/services/rust_matrix_core_bridge.dart';
 
 import 'helpers/auth_helper.dart';
+import 'helpers/isolated_stack_scope.dart';
+import 'helpers/matrix_live_room_driver.dart';
 import 'helpers/test_config.dart';
 import 'helpers/test_http_overrides.dart';
 
@@ -31,6 +33,7 @@ void main() {
   testWidgets(
     'two devices encrypt, verify, recover, relaunch, and revoke',
     (tester) async {
+      requireIsolatedStackScope();
       final httpClient = createTrustedTestHttpClient();
       final authHelper = AuthHelper(httpClient: httpClient);
       const bridge = RustMatrixCoreBridge();
@@ -41,28 +44,13 @@ void main() {
       final accessTokenB = await authHelper.signIn(config);
       final accessTokenC = await authHelper.signIn(config);
       final homeserver = config.matrixHomeserverUrl;
-      final userId = await _whoami(
-        httpClient,
-        homeserver,
-        accessTokenA,
-        _deviceA,
-      );
-      expect(
-        await _whoami(httpClient, homeserver, accessTokenB, _deviceB),
-        userId,
-      );
-      expect(
-        await _whoami(httpClient, homeserver, accessTokenC, _deviceC),
-        userId,
-      );
-      await _deleteCurrentRoomKeyBackup(
-        httpClient,
-        homeserver,
-        accessTokenA,
-        _deviceA,
-        strict: true,
-      );
       final initializedProfiles = <String>[];
+      final runEventIds = <String>{};
+      String? provisionedRoomId;
+      var scenarioPassed = false;
+      Object? chatCleanupError;
+      StackTrace? chatCleanupStackTrace;
+      late String userId;
 
       Future<void> initialize(
         String profile,
@@ -86,6 +74,36 @@ void main() {
       }
 
       try {
+        userId = await _whoami(httpClient, homeserver, accessTokenA, _deviceA);
+        expect(
+          await _whoami(httpClient, homeserver, accessTokenB, _deviceB),
+          userId,
+        );
+        expect(
+          await _whoami(httpClient, homeserver, accessTokenC, _deviceC),
+          userId,
+        );
+        provisionedRoomId =
+            (await MatrixLiveRoomDriver(
+                  client: httpClient,
+                  homeserver: homeserver,
+                ).createEncryptedRoom(
+                  author: MatrixLiveActorCredentials(
+                    accessToken: accessTokenA,
+                    deviceId: _deviceA,
+                  ),
+                  roomName:
+                      'Weave E2EE live '
+                      '${DateTime.now().toUtc().microsecondsSinceEpoch}',
+                ))
+                .roomId;
+        await _deleteCurrentRoomKeyBackup(
+          httpClient,
+          homeserver,
+          accessTokenA,
+          _deviceA,
+          strict: true,
+        );
         await initialize(
           _profileA,
           _deviceA,
@@ -98,17 +116,35 @@ void main() {
           'live-e2ee-store-passphrase-device-b-0002',
           accessTokenB,
         );
-        await bridge.syncClient(profileKey: _profileA);
-        final rooms = await bridge.loadEncryptedRooms(profileKey: _profileA);
-        expect(rooms, isNotEmpty, reason: 'Dogfood must pre-provision Chat.');
-        final room = rooms.firstWhere((value) => value.encrypted);
+        await _syncProfiles(bridge, <String>[_profileA, _profileB]);
+        final authorRooms = await bridge.loadEncryptedRooms(
+          profileKey: _profileA,
+        );
+        final collaboratorRooms = await bridge.loadEncryptedRooms(
+          profileKey: _profileB,
+        );
+        final room = authorRooms.firstWhere(
+          (value) => value.roomId == provisionedRoomId && value.encrypted,
+          orElse: () => throw TestFailure(
+            'The author device did not resolve its provisioned encrypted room.',
+          ),
+        );
+        expect(
+          collaboratorRooms.any(
+            (value) => value.roomId == room.roomId && value.encrypted,
+          ),
+          isTrue,
+          reason: 'The second device did not resolve the same encrypted room.',
+        );
         final message =
             'weave-e2ee-${DateTime.now().toUtc().microsecondsSinceEpoch}';
 
-        await bridge.sendEncryptedText(
-          profileKey: _profileA,
-          roomId: room.roomId,
-          body: message,
+        runEventIds.add(
+          await bridge.sendEncryptedText(
+            profileKey: _profileA,
+            roomId: room.roomId,
+            body: message,
+          ),
         );
         await _syncProfiles(bridge, <String>[_profileA, _profileB]);
         final decryptedByA = await _waitForMessage(
@@ -287,10 +323,12 @@ void main() {
         final postRevocationMessage =
             'weave-e2ee-after-revoke-'
             '${DateTime.now().toUtc().microsecondsSinceEpoch}';
-        await bridge.sendEncryptedText(
-          profileKey: _profileA,
-          roomId: room.roomId,
-          body: postRevocationMessage,
+        runEventIds.add(
+          await bridge.sendEncryptedText(
+            profileKey: _profileA,
+            roomId: room.roomId,
+            body: postRevocationMessage,
+          ),
         );
         expect(
           (await _waitForMessage(
@@ -307,7 +345,43 @@ void main() {
           'MATRIX_E2EE_LOST_DEVICE_REVOKED '
           'denied=true remainingEncryptedSend=true',
         );
+        scenarioPassed = true;
       } finally {
+        final roomId = provisionedRoomId;
+        if (roomId != null) {
+          final driver = MatrixLiveRoomDriver(
+            client: httpClient,
+            homeserver: homeserver,
+          );
+          final actor = MatrixLiveActorCredentials(
+            accessToken: accessTokenA,
+            deviceId: _deviceA,
+          );
+          try {
+            if (runEventIds.isNotEmpty) {
+              final redactedCount = await driver.redactEventsAndVerify(
+                actor: actor,
+                roomId: roomId,
+                eventIds: runEventIds,
+              );
+              if (redactedCount != runEventIds.length ||
+                  (scenarioPassed && redactedCount != 2)) {
+                throw const MatrixLiveRoomDriverException(
+                  'M_WEAVE_LIVE_MATRIX_CLEANUP_INCOMPLETE',
+                );
+              }
+            }
+          } catch (error, stackTrace) {
+            chatCleanupError = error;
+            chatCleanupStackTrace = stackTrace;
+          }
+          try {
+            await driver.leaveRoom(actor: actor, roomId: roomId);
+          } catch (error, stackTrace) {
+            chatCleanupError ??= error;
+            chatCleanupStackTrace ??= stackTrace;
+          }
+        }
         for (final profile in initializedProfiles.toSet()) {
           await bridge.disposeClient(profileKey: profile);
         }
@@ -321,6 +395,12 @@ void main() {
         httpClient.close();
         if (await root.exists()) {
           await root.delete(recursive: true);
+        }
+        if (scenarioPassed && chatCleanupError != null) {
+          Error.throwWithStackTrace(
+            chatCleanupError,
+            chatCleanupStackTrace ?? StackTrace.current,
+          );
         }
       }
     },

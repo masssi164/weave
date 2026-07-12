@@ -45,7 +45,6 @@ import com.massimotter.weave.backend.service.calendar.IcalendarMapper;
 import com.massimotter.weave.backend.security.device.DeviceCredential;
 import com.massimotter.weave.backend.security.device.DeviceCredentialException;
 import com.massimotter.weave.backend.security.device.DeviceCredentialService;
-import com.massimotter.weave.backend.security.device.InMemoryDeviceCredentialRepository;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -76,18 +75,11 @@ public class CalendarFacadeService {
     private final String calDavPublicBaseUrl;
     private final ContextAuthorizationPort contextAuthorizationPort;
     private final ContextAuthorizationProperties contextAuthorizationProperties;
+    private final WorkspaceCapabilityService workspaceCapabilityService;
     private final AppleMobileConfigProfileRenderer appleProfileRenderer;
     private final DeviceCredentialService deviceCredentialService;
     private final IcalendarMapper icalendarMapper = new IcalendarMapper();
     private final Map<String, CalendarSyncCursor> syncCursors = new ConcurrentHashMap<>();
-
-    public CalendarFacadeService(
-            ObjectProvider<CalendarProviderPort> calendarProviderPortProvider,
-            ContextAuthorizationPort contextAuthorizationPort) {
-        this(calendarProviderPortProvider, "https://calendar.weave.test", contextAuthorizationPort,
-                new ContextAuthorizationProperties(null, null, null, null, null, null, null, null),
-                new DeviceCredentialService(new InMemoryDeviceCredentialRepository()));
-    }
 
     @Autowired
     public CalendarFacadeService(
@@ -95,7 +87,8 @@ public class CalendarFacadeService {
             @Value("${weave.calendar.caldav.public-base-url:https://calendar.weave.test}") String calDavPublicBaseUrl,
             ContextAuthorizationPort contextAuthorizationPort,
             ContextAuthorizationProperties contextAuthorizationProperties,
-            DeviceCredentialService deviceCredentialService) {
+            DeviceCredentialService deviceCredentialService,
+            WorkspaceCapabilityService workspaceCapabilityService) {
         this.calendarProviderPortProvider = calendarProviderPortProvider;
         this.contextAuthorizationPort = contextAuthorizationPort;
         this.contextAuthorizationProperties = contextAuthorizationProperties == null
@@ -106,19 +99,7 @@ public class CalendarFacadeService {
                 : calDavPublicBaseUrl.trim();
         this.appleProfileRenderer = new AppleMobileConfigProfileRenderer(this.calDavPublicBaseUrl);
         this.deviceCredentialService = deviceCredentialService;
-    }
-
-    public CalendarFacadeService(
-            ObjectProvider<CalendarProviderPort> calendarProviderPortProvider,
-            String calDavPublicBaseUrl,
-            ContextAuthorizationPort contextAuthorizationPort,
-            ContextAuthorizationProperties contextAuthorizationProperties) {
-        this(
-                calendarProviderPortProvider,
-                calDavPublicBaseUrl,
-                contextAuthorizationPort,
-                contextAuthorizationProperties,
-                new DeviceCredentialService(new InMemoryDeviceCredentialRepository()));
+        this.workspaceCapabilityService = workspaceCapabilityService;
     }
 
     public CalendarScopesResponse scopes() {
@@ -1003,7 +984,7 @@ public class CalendarFacadeService {
                     "Authentication is required.",
                     Map.of("module", "calendar", "operation", operation));
         }
-        requireDeviceCapability(authentication, permission, operation);
+        requireCalendarCapability(authentication, permission, operation);
         PrincipalContext principalContext = principalContext(authentication);
         String contextId = contextId(scope);
         var decision = contextAuthorizationPort.check(new ContextAuthorizationRequest(
@@ -1025,29 +1006,17 @@ public class CalendarFacadeService {
         }
     }
 
-    private void requireDeviceCapability(
+    private void requireCalendarCapability(
             Authentication authentication,
             ContextPermission permission,
             String operation) {
-        if (!(authentication.getPrincipal() instanceof Jwt jwt)
-                || !"device_credential".equals(jwt.getClaimAsString("weave_auth_method"))) {
-            return;
+        if (!(authentication.getPrincipal() instanceof Jwt jwt)) {
+            throw invalidAuthentication("JWT principal is required");
         }
         String required = permission == ContextPermission.VIEW
                 ? "calendar.read"
                 : "calendar.manage_events";
-        List<String> capabilities = jwt.getClaimAsStringList("weave_capabilities");
-        if (capabilities == null || !capabilities.contains(required)) {
-            throw new ApiErrorException(
-                    HttpStatus.FORBIDDEN,
-                    "capability-policy-blocked",
-                    "This action is blocked by the device credential scope.",
-                    Map.of(
-                            "module", "calendar",
-                            "operation", operation,
-                            "requiredCapability", required,
-                            "diagnosticsRedacted", true));
-        }
+        workspaceCapabilityService.requireCapability(jwt, required, "calendar", operation);
     }
 
     private PrincipalContext principalContext(Authentication authentication) {

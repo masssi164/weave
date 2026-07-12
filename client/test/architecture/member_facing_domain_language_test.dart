@@ -59,7 +59,6 @@ void main() {
 
     test('does not use dogfood provider labels in member handbook copy', () {
       final memberCopyKeys = <String>[
-        'firstRunDescription',
         'filesProductBoundaryBody',
         'helpWhatIsWeaveBody',
         'helpSignInBody',

@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/app/domain/ports/app_auth_port.dart';
+import 'package:weave/features/app/domain/ports/client_upgrade_port.dart';
 import 'package:weave/features/app/domain/ports/server_configuration_port.dart';
 import 'package:weave/features/app/domain/use_cases/resolve_app_bootstrap.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
@@ -61,6 +62,20 @@ class _FakeServerConfigurationPort implements ServerConfigurationPort {
   }
 }
 
+class _FakeClientUpgradePort implements ClientUpgradePort {
+  Object? error;
+  var invocationCount = 0;
+
+  @override
+  Future<void> removeObsoleteAuthenticatedState() async {
+    invocationCount += 1;
+    final cleanupError = error;
+    if (cleanupError != null) {
+      throw cleanupError;
+    }
+  }
+}
+
 void main() {
   group('ResolveAppBootstrap', () {
     test('returns needsSetup when no configuration exists', () async {
@@ -96,16 +111,39 @@ void main() {
       final authPort = _FakeAppAuthPort()
         ..restoreSessionHandler = (_) async =>
             AuthState.authenticated(buildTestAuthSession());
+      final clientUpgradePort = _FakeClientUpgradePort();
       final useCase = ResolveAppBootstrap(
         authPort: authPort,
         serverConfigurationPort: _FakeServerConfigurationPort(
           configuration: buildTestConfiguration(),
         ),
+        clientUpgradePort: clientUpgradePort,
       );
 
       final state = await useCase.call();
 
       expect(state.phase, BootstrapPhase.ready);
+      expect(clientUpgradePort.invocationCount, 1);
+    });
+
+    test('does not block an authenticated launch when cleanup fails', () async {
+      final authPort = _FakeAppAuthPort()
+        ..restoreSessionHandler = (_) async =>
+            AuthState.authenticated(buildTestAuthSession());
+      final clientUpgradePort = _FakeClientUpgradePort()
+        ..error = StateError('Secure storage is temporarily unavailable.');
+      final useCase = ResolveAppBootstrap(
+        authPort: authPort,
+        serverConfigurationPort: _FakeServerConfigurationPort(
+          configuration: buildTestConfiguration(),
+        ),
+        clientUpgradePort: clientUpgradePort,
+      );
+
+      final state = await useCase.call();
+
+      expect(state.phase, BootstrapPhase.ready);
+      expect(clientUpgradePort.invocationCount, 1);
     });
 
     test('maps auth failures to bootstrap storage errors', () async {

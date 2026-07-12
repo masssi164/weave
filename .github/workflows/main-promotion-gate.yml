@@ -24,16 +24,46 @@ jobs:
   verify-dev-dogfood-promotion:
     name: Verify dev → dogfood evidence before main
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: weave
     steps:
-      - uses: actions/checkout@v5
+      - name: Check out Weave
+        uses: actions/checkout@v5
         with:
+          path: weave
           fetch-depth: 0
+
+      - name: Resolve pinned specification corpus
+        id: spec-corpus
+        run: echo "commit=$(jq -r '.specCorpus.gitCommit' specs/weave-specs.lock.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Check out pinned Weave Specification Corpus
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ github.repository_owner }}/weave-specs
+          ref: ${{ steps.spec-corpus.outputs.commit }}
+          path: weave-specs
+          ssh-key: ${{ secrets.WEAVE_SPECS_DEPLOY_KEY }}
+          persist-credentials: false
 
       - name: Resolve candidate
         id: candidate
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          DISPATCH_CANDIDATE: ${{ inputs.candidate_sha }}
+          PR_CANDIDATE: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          candidate="${{ github.event_name == 'workflow_dispatch' && inputs.candidate_sha || github.event.pull_request.head.sha }}"
+          if [[ "$EVENT_NAME" == workflow_dispatch ]]; then
+            candidate="$DISPATCH_CANDIDATE"
+          else
+            candidate="$PR_CANDIDATE"
+          fi
+          [[ "$candidate" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "::error::Main promotion requires a full lowercase candidate SHA." >&2
+            exit 1
+          }
           echo "sha=${candidate}" >> "$GITHUB_OUTPUT"
           echo "Candidate SHA: ${candidate}"
 
@@ -74,15 +104,88 @@ jobs:
         run: |
           set -euo pipefail
           candidate="${{ steps.candidate.outputs.sha }}"
-          runs_json="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/test-stack-deploy.yml/runs?branch=dogfood&head_sha=${candidate}&status=completed&per_page=10")"
-          count="$(python3 -c 'import json,sys; print(sum(1 for run in json.load(sys.stdin).get("workflow_runs", []) if run.get("conclusion") == "success"))' <<<"$runs_json")"
-          if [[ "$count" == "0" ]]; then
-            echo "::error::No successful Test Stack Deploy workflow run found for ${candidate} on branch dogfood." >&2
+          runs_json="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/test-stack-deploy.yml/runs?status=completed&per_page=30")"
+          found=false
+          while read -r run_id run_url; do
+            [[ -n "$run_id" ]] || continue
+            temp_dir="$(mktemp -d)"
+            if gh run download "$run_id" --name weave-test-stack-evidence --dir "$temp_dir" >/dev/null 2>&1 && \
+               [[ "$(jq -r '.candidateCommit // empty' "$temp_dir/dogfood-deployment-evidence.json" 2>/dev/null)" == "$candidate" ]] && \
+               [[ "$(jq -r '.deployment.stackStatus // empty' "$temp_dir/dogfood-deployment-evidence.json")" == passed ]]; then
+              echo "Successful exact-candidate test-stack evidence: ${run_url}"
+              found=true
+              rm -rf "$temp_dir"
+              break
+            fi
+            rm -rf "$temp_dir"
+          done < <(jq -r '.workflow_runs[] | select(.conclusion == "success") | [.id, .html_url] | @tsv' <<<"$runs_json")
+          if [[ "$found" != true ]]; then
+            echo "::error::No successful Test Stack Deploy artifact targets ${candidate}." >&2
             echo "Push/merge the candidate to dogfood and wait for the persistent LAN stack deployment to pass before opening/promoting to main." >&2
             exit 1
           fi
-          run_url="$(python3 -c 'import json,sys; runs=[run for run in json.load(sys.stdin).get("workflow_runs", []) if run.get("conclusion") == "success"]; print(runs[0].get("html_url", "") if runs else "")' <<<"$runs_json")"
-          echo "Successful test-stack evidence: ${run_url}"
+
+      - name: Require exact-candidate ready human-testing manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          candidate="${{ steps.candidate.outputs.sha }}"
+          artifact_name="human-testing-readiness-${candidate}"
+          runs="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/human-testing-readiness.yml/runs?status=completed&per_page=50")"
+          found=false
+          while read -r run_id run_url; do
+            [[ -n "$run_id" ]] || continue
+            artifacts="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts?per_page=100")"
+            artifact_id="$(jq -r --arg name "$artifact_name" '[.artifacts[] | select(.name == $name and .expired == false)][0].id // empty' <<<"$artifacts")"
+            [[ -n "$artifact_id" ]] || continue
+            temp_dir="$(mktemp -d)"
+            gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}/zip" > "$temp_dir/readiness.zip"
+            unzip -q "$temp_dir/readiness.zip" -d "$temp_dir/readiness"
+            manifest="$(find "$temp_dir/readiness" -name human-testing-readiness.json -type f -print -quit)"
+            if [[ -n "$manifest" ]] && \
+               [[ "$(jq -r '.candidateCommit' "$manifest")" == "$candidate" ]] && \
+               python3 tools/human_testing_readiness_manifest.py validate --manifest "$manifest" --require-ready; then
+              echo "Ready human-testing evidence: ${run_url}"
+              found=true
+              rm -rf "$temp_dir"
+              break
+            fi
+            rm -rf "$temp_dir"
+          done < <(jq -r '.workflow_runs[] | select(.conclusion == "success") | [.id, .html_url] | @tsv' <<<"$runs")
+          if [[ "$found" == "true" ]]; then
+            exit 0
+          fi
+
+          blocking_run_id=""
+          blocking_run_url=""
+          blocking_workflow=""
+          fallback_environment=""
+          fallback_approver=""
+          while IFS='|' read -r workflow environment approver; do
+            waiting="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/${workflow}/runs?per_page=50")"
+            blocking_run_id="$(jq -r --arg candidate "$candidate" '[.workflow_runs[] | select((.status == "waiting" or .status == "queued" or .status == "in_progress") and (.display_title | contains($candidate)))][0].id // empty' <<<"$waiting")"
+            if [[ -n "$blocking_run_id" ]]; then
+              blocking_run_url="$(jq -r --argjson id "$blocking_run_id" '.workflow_runs[] | select(.id == $id) | .html_url' <<<"$waiting")"
+              blocking_workflow="$workflow"
+              fallback_environment="$environment"
+              fallback_approver="$approver"
+              break
+            fi
+          done <<'EOF'
+          test-stack-deploy.yml|dogfood|Weave release owner or dogfood operator
+          ios-dogfood.yml|ios-dogfood|Weave release owner plus client/iOS release owner
+          human-testing-readiness.yml|ios-dogfood|Weave release owner plus client/iOS release owner
+          EOF
+          if [[ -n "$blocking_run_id" ]]; then
+            pending="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${blocking_run_id}/pending_deployments" 2>/dev/null || printf '[]')"
+            environment="$(jq -r --arg fallback "$fallback_environment" '.[0].environment.name // $fallback' <<<"$pending")"
+            approver="$(jq -r --arg fallback "$fallback_approver" '.[0].reviewers[0].reviewer.name // .[0].reviewers[0].reviewer.login // $fallback' <<<"$pending")"
+            echo "::error::human-testing readiness is blocked workflow=${blocking_workflow} environment=${environment} run=${blocking_run_url} commit=${candidate} requiredApprover=${approver}" >&2
+          else
+            echo "::error::human-testing readiness is blocked workflow=Human Testing Readiness environment=ios-dogfood run=not-started commit=${candidate} requiredApprover=Weave release owner plus client/iOS release owner reason=no-ready-manifest" >&2
+          fi
+          exit 1
 
       - name: Set up Java
         uses: actions/setup-java@v5

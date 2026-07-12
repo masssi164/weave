@@ -183,46 +183,41 @@ class AppLocalizationsDe extends AppLocalizations {
   String get shellRecentActivityTitle => 'Letzte Aktivität';
 
   @override
-  String get shellRecentActivityDescription =>
-      'Schnellzugriff auf aktuelle Räume und Dateiänderungen.';
-
-  @override
   String get shellRecentActivitySemanticLabel =>
-      'Schnellzugriffe für letzte Aktivität';
+      'Autorisierte letzte Workspace-Aktivität';
 
   @override
-  String get shellRecentRoomsTitle => 'Räume';
+  String get homeRecentActivityLoading =>
+      'Letzte Workspace-Aktivität wird geladen…';
 
   @override
-  String get shellRecentFilesTitle => 'Dateien';
+  String get homeRecentActivityUnavailable =>
+      'Letzte Workspace-Aktivität ist gerade nicht verfügbar.';
 
   @override
-  String get shellRecentRoomsLoading => 'Aktuelle Räume werden geladen…';
+  String get homeRecentActivityEmpty =>
+      'Noch ist keine abgeschlossene Workspace-Aktivität sichtbar.';
 
   @override
-  String get shellRecentRoomsEmpty => 'Noch keine aktuellen Räume.';
+  String get homeRecentActivityCurrentMemberFilesCompleted =>
+      'Du hast eine Dateiänderung abgeschlossen';
 
   @override
-  String get shellRecentRoomsUnavailable =>
-      'Aktuelle Räume sind verfügbar, sobald Chat verbunden ist.';
+  String get homeRecentActivityOtherMemberFilesCompleted =>
+      'Ein Workspace-Mitglied hat eine Dateiänderung abgeschlossen';
 
   @override
-  String get shellRecentFilesLoading =>
-      'Aktuelle Dateiänderungen werden geladen…';
+  String get homeRecentActivityWorkspaceVisibility =>
+      'Geteilte Workspace-Aktivität';
 
   @override
-  String get shellRecentFilesEmpty => 'Noch keine aktuellen Dateiänderungen.';
-
-  @override
-  String get shellRecentFilesError =>
-      'Aktuelle Dateiänderungen konnten nicht geladen werden.';
-
-  @override
-  String get shellRecentFilesUnavailable =>
-      'Aktuelle Dateien sind verfügbar, sobald Dateien verbunden sind.';
-
-  @override
-  String get shellRecentActivityUnknownRecency => 'aktuell';
+  String homeRecentActivityItemSemantic(
+    String activity,
+    String visibility,
+    String recency,
+  ) {
+    return '$activity. $visibility. $recency.';
+  }
 
   @override
   String get shellRecentActivityNow => 'jetzt';
@@ -237,31 +232,6 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get shellRecentActivityYesterday => 'gestern';
-
-  @override
-  String shellRecentRoomItemSemantic(
-    String roomName,
-    String preview,
-    String recency,
-  ) {
-    return 'Raum $roomName öffnen. Letzte Aktivität: $preview. $recency.';
-  }
-
-  @override
-  String shellRecentFileItemSemantic(
-    String itemType,
-    String itemName,
-    String path,
-    String recency,
-  ) {
-    return '$itemType $itemName in $path öffnen. Geändert $recency.';
-  }
-
-  @override
-  String get shellRecentFileFolderType => 'Ordner';
-
-  @override
-  String get shellRecentFileFileType => 'Datei';
 
   @override
   String get emptyStateLabel => 'Noch nichts hier';
@@ -1046,6 +1016,48 @@ class AppLocalizationsDe extends AppLocalizations {
       'Passe Weave für dieses Gerät an: Darstellung, Sprache, Profil, Modulansicht und sichere Abmeldung.';
 
   @override
+  String get settingsSupportDiagnosticsTitle => 'Support-Diagnosen';
+
+  @override
+  String get settingsSupportDiagnosticsDescription =>
+      'Mit diesen Werten kannst du prüfen, welcher Server und welcher unveränderliche App-Kandidat installiert sind. Sie enthalten keine Sitzungstokens oder Provider-Zugangsdaten.';
+
+  @override
+  String get settingsSupportServerLabel => 'Workspace-Server';
+
+  @override
+  String get settingsSupportCandidateCommitLabel => 'Kandidaten-Commit';
+
+  @override
+  String get settingsSupportVersionLabel => 'Version und Build';
+
+  @override
+  String get settingsSupportBundleIdentifierLabel => 'Anwendungskennung';
+
+  @override
+  String get settingsSupportEvidenceReferenceLabel => 'Evidenzreferenz';
+
+  @override
+  String get settingsSupportIdentityComplete =>
+      'Kandidatenidentität ist vollständig';
+
+  @override
+  String get settingsSupportIdentityIncomplete =>
+      'Die Kandidatenmetadaten sind unvollständig; dieser Build kann das Gate für den installierten Kandidaten nicht erfüllen.';
+
+  @override
+  String get settingsSupportValueLoading => 'Wird geladen…';
+
+  @override
+  String get settingsSupportValueUnavailable =>
+      'In diesem Build nicht eingebettet';
+
+  @override
+  String settingsSupportVersionValue(String version, String buildNumber) {
+    return '$version ($buildNumber)';
+  }
+
+  @override
   String get settingsThemeTitle => 'Darstellung';
 
   @override
@@ -1264,11 +1276,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get settingsShellRecentActivityToggleTitle =>
-      'Schnellzugriffe für letzte Aktivität';
+      'Letzte Workspace-Aktivität';
 
   @override
   String get settingsShellRecentActivityToggleDescription =>
-      'Zeigt aktuelle Räume und Dateiänderungen oberhalb der unteren Navigation an.';
+      'Zeigt allgemeine abgeschlossene Aktivität, die du mit deinen Workspace-Berechtigungen sehen darfst.';
 
   @override
   String get settingsShellModulesLoading =>

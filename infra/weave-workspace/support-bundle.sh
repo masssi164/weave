@@ -14,6 +14,8 @@ BUNDLE_BASENAME="weave-support-${CREATED_AT}"
 WORK_DIR=""
 NEGATIVE_REDACTION_FIXTURE_STATUS="not_run"
 
+# Also consumed by live-stack-failure-diagnostics.sh when this file is sourced.
+# shellcheck disable=SC2034
 readonly DEFAULT_CONTAINERS=(
   weave-proxy
   weave-keycloak
@@ -105,6 +107,14 @@ Environment:
   WEAVE_SUPPORT_BUNDLE_DIR         Output directory (default: .generated/support-bundles)
   WEAVE_SUPPORT_BUNDLE_LOG_LINES   Docker log tail per service (default: 200)
   WEAVE_SUPPORT_BUNDLE_RUN_CHECKS  true to run operator-check and release-verify (default: false)
+  WEAVE_PROVIDER_HEALTH_BEARER_TOKEN
+                                   Short-lived owner/admin/operator token used only
+                                   for the authenticated cached-health route.
+  WEAVE_PROVIDER_HEALTH_EVIDENCE_FILE
+                                   Previously captured provider-capability-health-v1
+                                   response or support-safe
+                                   weave.provider-health-metrics-summary.v1;
+                                   used when the workflow stages evidence.
 USAGE
 }
 
@@ -346,40 +356,324 @@ collect_adapter_readiness_evidence() {
   } >"${target}"
 }
 
+write_provider_health_collection_state() {
+  local target="$1"
+  local status="$2"
+  cat >"${target}" <<JSON
+{
+  "schemaVersion": "weave-support-provider-capability-health-evidence-v1",
+  "collectionStatus": "${status}",
+  "authenticatedRouteRequired": true,
+  "sourceSchemaRequired": "provider-capability-health-v1",
+  "stagedEvidenceSourceSchemasAccepted": [
+    "provider-capability-health-v1",
+    "weave.provider-health-metrics-summary.v1"
+  ],
+  "rawProviderPayloadIncluded": false,
+  "supportSafe": true
+}
+JSON
+}
+
+sanitize_provider_capability_health() {
+  local source_file="$1"
+  local target_file="$2"
+
+  python3 - "${source_file}" "${target_file}" <<'PY'
+import datetime as dt
+import json
+import re
+import sys
+from pathlib import Path
+
+source = Path(sys.argv[1])
+target = Path(sys.argv[2])
+top_keys = {"schemaVersion", "generatedAt", "supportSafe", "capabilities"}
+capability_keys = {
+    "capability", "state", "supportSafeCode", "correlationRef", "observedAt",
+    "nextProbeAt", "backoffUntil", "cachedAgeSeconds", "stale",
+    "consecutiveFailures", "probeLatencyMillis", "readinessTransitions",
+}
+safe_token = re.compile(r"^[A-Za-z0-9._:-]{1,160}$")
+
+def timestamp(value, nullable=False):
+    if value is None and nullable:
+        return None
+    if not isinstance(value, str) or len(value) > 40:
+        raise ValueError("invalid timestamp")
+    dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+    return value
+
+def nonnegative(value, nullable=False):
+    if value is None and nullable:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError("invalid nonnegative integer")
+    return value
+
+data = json.loads(source.read_text(encoding="utf-8"))
+if not isinstance(data, dict) or set(data) != top_keys:
+    raise ValueError("unexpected top-level fields")
+if data["schemaVersion"] != "provider-capability-health-v1" or data["supportSafe"] is not True:
+    raise ValueError("unsupported or unsafe source schema")
+if not isinstance(data["capabilities"], list):
+    raise ValueError("capabilities must be an array")
+
+capabilities = []
+seen = set()
+for item in data["capabilities"]:
+    if not isinstance(item, dict) or set(item) != capability_keys:
+        raise ValueError("unexpected capability fields")
+    capability = item["capability"]
+    if capability not in {"files", "calendar"} or capability in seen:
+        raise ValueError("unexpected or duplicate capability")
+    seen.add(capability)
+    if item["state"] not in {"available", "degraded", "unavailable"}:
+        raise ValueError("invalid canonical state")
+    for key in ("supportSafeCode", "correlationRef"):
+        if not isinstance(item[key], str) or not safe_token.fullmatch(item[key]):
+            raise ValueError("unsafe diagnostic reference")
+    if not isinstance(item["stale"], bool):
+        raise ValueError("stale must be boolean")
+    capabilities.append({
+        "capability": capability,
+        "state": item["state"],
+        "supportSafeCode": item["supportSafeCode"],
+        "correlationRef": item["correlationRef"],
+        "observedAt": timestamp(item["observedAt"], nullable=True),
+        "nextProbeAt": timestamp(item["nextProbeAt"]),
+        "backoffUntil": timestamp(item["backoffUntil"], nullable=True),
+        "cachedAgeSeconds": nonnegative(item["cachedAgeSeconds"], nullable=True),
+        "stale": item["stale"],
+        "consecutiveFailures": nonnegative(item["consecutiveFailures"]),
+        "probeLatencyMillis": nonnegative(item["probeLatencyMillis"]),
+        "readinessTransitions": nonnegative(item["readinessTransitions"]),
+    })
+
+output = {
+    "schemaVersion": "weave-support-provider-capability-health-evidence-v1",
+    "collectionStatus": "collected",
+    "authenticatedRouteRequired": True,
+    "sourceSchema": data["schemaVersion"],
+    "generatedAt": timestamp(data["generatedAt"]),
+    "capabilities": capabilities,
+    "rawProviderPayloadIncluded": False,
+    "supportSafe": True,
+}
+target.write_text(json.dumps(output, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+PY
+}
+
+sanitize_provider_health_metrics_summary() {
+  local source_file="$1"
+  local target_file="$2"
+
+  python3 - "${source_file}" "${target_file}" <<'PY'
+import datetime as dt
+import json
+import sys
+from pathlib import Path
+
+source = Path(sys.argv[1])
+target = Path(sys.argv[2])
+top_keys = {
+    "schemaVersion", "supportSafe", "source", "providerProbeTriggered",
+    "overall", "observedAtUtc", "cachedResultAgeSeconds", "capabilities",
+    "details", "rawMetricPayloadIncluded",
+}
+capability_keys = {"chat", "files", "calendar"}
+detail_keys = {"files", "calendar"}
+detail_value_keys = {
+    "cachedResultAgeSeconds", "consecutiveFailures",
+    "backoffUntilEpochSeconds", "readinessTransitions",
+}
+canonical_states = {"available", "degraded", "unavailable"}
+
+def timestamp(value):
+    if not isinstance(value, str) or len(value) > 40:
+        raise ValueError("invalid timestamp")
+    dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+    return value
+
+def nonnegative(value):
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError("invalid nonnegative integer")
+    return value
+
+data = json.loads(source.read_text(encoding="utf-8"))
+if not isinstance(data, dict) or set(data) != top_keys:
+    raise ValueError("unexpected top-level fields")
+if data["schemaVersion"] != "weave.provider-health-metrics-summary.v1":
+    raise ValueError("unsupported source schema")
+if data["supportSafe"] is not True:
+    raise ValueError("source is not support-safe")
+if data["source"] != "loopback-actuator-cached-metrics":
+    raise ValueError("unsupported metrics source")
+if data["providerProbeTriggered"] is not False:
+    raise ValueError("provider probe execution is not support-safe")
+if data["rawMetricPayloadIncluded"] is not False:
+    raise ValueError("raw metric payload is not support-safe")
+if data["overall"] not in canonical_states:
+    raise ValueError("invalid overall state")
+if not isinstance(data["capabilities"], dict) or set(data["capabilities"]) != capability_keys:
+    raise ValueError("unexpected capability fields")
+for state in data["capabilities"].values():
+    if state not in canonical_states:
+        raise ValueError("invalid capability state")
+if not isinstance(data["details"], dict) or set(data["details"]) != detail_keys:
+    raise ValueError("unexpected detail fields")
+
+details = {}
+for capability in sorted(detail_keys):
+    item = data["details"][capability]
+    if not isinstance(item, dict) or set(item) != detail_value_keys:
+        raise ValueError("unexpected metric detail fields")
+    details[capability] = {
+        "cachedResultAgeSeconds": nonnegative(item["cachedResultAgeSeconds"]),
+        "consecutiveFailures": nonnegative(item["consecutiveFailures"]),
+        "backoffUntilEpochSeconds": nonnegative(item["backoffUntilEpochSeconds"]),
+        "readinessTransitions": nonnegative(item["readinessTransitions"]),
+    }
+
+cached_age = nonnegative(data["cachedResultAgeSeconds"])
+if cached_age != max(item["cachedResultAgeSeconds"] for item in details.values()):
+    raise ValueError("summary cached age does not match capability details")
+states = set(data["capabilities"].values())
+expected_overall = (
+    "unavailable" if "unavailable" in states
+    else "degraded" if "degraded" in states
+    else "available"
+)
+if data["overall"] != expected_overall:
+    raise ValueError("overall state does not match capabilities")
+
+output = {
+    "schemaVersion": "weave-support-provider-health-metrics-summary-evidence-v1",
+    "collectionStatus": "collected",
+    "authenticatedRouteRequired": False,
+    "sourceSchema": data["schemaVersion"],
+    "source": data["source"],
+    "providerProbeTriggered": False,
+    "overall": data["overall"],
+    "observedAtUtc": timestamp(data["observedAtUtc"]),
+    "cachedResultAgeSeconds": cached_age,
+    "capabilities": data["capabilities"],
+    "details": details,
+    "rawMetricPayloadIncluded": False,
+    "supportSafe": True,
+}
+target.write_text(json.dumps(output, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+PY
+}
+
+collect_provider_capability_health() {
+  local target="${WORK_DIR}/checks/provider-capability-health.json"
+  local source_file=""
+  local fetched_file=""
+  local staged_evidence="false"
+  mkdir -p "$(dirname -- "${target}")"
+
+  if [[ -n "${WEAVE_PROVIDER_HEALTH_EVIDENCE_FILE:-}" && -f "${WEAVE_PROVIDER_HEALTH_EVIDENCE_FILE}" ]]; then
+    source_file="${WEAVE_PROVIDER_HEALTH_EVIDENCE_FILE}"
+    staged_evidence="true"
+  elif [[ -n "${WEAVE_PROVIDER_HEALTH_BEARER_TOKEN:-}" && -n "${WEAVE_BASE_URL:-}" ]]; then
+    fetched_file="$(mktemp)"
+    local -a curl_args=(
+      --silent --show-error --fail
+      --connect-timeout 5 --max-time 15
+      -H "Authorization: Bearer ${WEAVE_PROVIDER_HEALTH_BEARER_TOKEN}"
+    )
+    if [[ -n "${WEAVE_TLS_CA_FILE:-}" && -f "${WEAVE_TLS_CA_FILE}" ]]; then
+      curl_args+=(--cacert "${WEAVE_TLS_CA_FILE}")
+    fi
+    if curl "${curl_args[@]}" "${WEAVE_BASE_URL%/}/v1/admin/provider-capability-health" >"${fetched_file}"; then
+      source_file="${fetched_file}"
+    else
+      rm -f "${fetched_file}"
+      write_provider_health_collection_state "${target}" "authenticated_fetch_failed"
+      return
+    fi
+  else
+    write_provider_health_collection_state "${target}" "not_collected"
+    return
+  fi
+
+  if ! sanitize_provider_capability_health "${source_file}" "${target}" 2>/dev/null; then
+    if [[ "${staged_evidence}" != "true" ]] || \
+      ! sanitize_provider_health_metrics_summary "${source_file}" "${target}" 2>/dev/null; then
+      write_provider_health_collection_state "${target}" "rejected_unsafe_or_invalid_source"
+    fi
+  fi
+  [[ -z "${fetched_file}" ]] || rm -f "${fetched_file}"
+}
+
+collect_nextcloud_auth_security_audit() {
+  local target="${WORK_DIR}/checks/nextcloud-auth-security-audit.json"
+  local audit_script="${ROOT_DIR}/nextcloud-auth-security-audit.sh"
+  if [[ ! -f "${audit_script}" || ! -x "${audit_script}" || ! -x "$(command -v docker 2>/dev/null || true)" ]]; then
+    cat >"${target}" <<'JSON'
+{"schemaVersion":"weave-nextcloud-auth-security-audit-v1","collectionStatus":"not_available","requestClassifications":[],"backendActorAttribution":{"configured":false,"failureObserved":false,"failureEvents":0},"rawAddressesIncluded":false,"actorIdentifiersIncluded":false,"rawProviderPayloadIncluded":false,"supportSafe":true}
+JSON
+    return
+  fi
+  if ! bash "${audit_script}" --output "${target}" >/dev/null 2>&1; then
+    cat >"${target}" <<'JSON'
+{"schemaVersion":"weave-nextcloud-auth-security-audit-v1","collectionStatus":"collection_failed","requestClassifications":[],"backendActorAttribution":{"configured":false,"failureObserved":false,"failureEvents":0},"rawAddressesIncluded":false,"actorIdentifiersIncluded":false,"rawProviderPayloadIncluded":false,"supportSafe":true}
+JSON
+  fi
+}
+
 collect_recent_artifacts() {
   local target_dir="${WORK_DIR}/recent-artifacts"
   mkdir -p "${target_dir}"
 
   if [[ ! -d "${ROOT_DIR}/.generated" ]]; then
-    printf 'Skipped: no .generated directory exists.\n' >"${target_dir}/README.txt"
+    printf '{"schemaVersion":"weave-recent-diagnostic-artifact-summary-v1","artifactCount":0,"contentSetSha256":null,"rawContentsIncluded":false,"supportSafe":true}\n' >"${target_dir}/summary.json"
     return
   fi
 
+  local hashes_file count aggregate
+  hashes_file="$(mktemp)"
   find "${ROOT_DIR}/.generated" -maxdepth 2 -type f \
     \( -iname '*smoke*.log' -o -iname '*smoke*.txt' -o -iname '*operator*.log' -o -iname '*operator*.txt' -o -iname '*verify*.log' -o -iname '*verify*.txt' \) \
     -print0 | while IFS= read -r -d '' artifact; do
-      local name
-      name="$(basename -- "${artifact}")"
-      redact_stream <"${artifact}" >"${target_dir}/${name}"
-    done
-
-  if [[ -z "$(find "${target_dir}" -type f ! -name README.txt -print -quit)" ]]; then
-    printf 'No recent smoke/operator/release-verify text artifacts were found under .generated.\n' >"${target_dir}/README.txt"
+      shasum -a 256 "${artifact}" | awk '{print $1}'
+    done | sort >"${hashes_file}"
+  count="$(wc -l <"${hashes_file}" | tr -d '[:space:]')"
+  aggregate=""
+  if ((count > 0)); then
+    aggregate="$(shasum -a 256 "${hashes_file}" | awk '{print $1}')"
   fi
+  rm -f "${hashes_file}"
+
+  python3 - "${target_dir}/summary.json" "${count}" "${aggregate}" <<'PY'
+import json
+import sys
+from pathlib import Path
+target, count, aggregate = sys.argv[1:]
+Path(target).write_text(json.dumps({
+    "schemaVersion": "weave-recent-diagnostic-artifact-summary-v1",
+    "artifactCount": int(count),
+    "contentSetSha256": aggregate or None,
+    "rawContentsIncluded": False,
+    "supportSafe": True,
+}, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+PY
 }
 
 collect_logs() {
-  local container
   mkdir -p "${WORK_DIR}/logs"
+  cat >"${WORK_DIR}/logs/README.txt" <<MSG
+Raw service/provider logs are excluded from the shareable support bundle because
+generic redaction cannot prove removal of usernames, display names, filenames,
+room/event IDs, client addresses, or provider response content. The requested
+tail limit (${TAIL_LINES}) is retained as a compatibility input but is not used.
 
-  if ! command -v docker >/dev/null 2>&1; then
-    printf 'Skipped: missing command docker\n' >"${WORK_DIR}/logs/README.txt"
-    return
-  fi
-
-  for container in "${DEFAULT_CONTAINERS[@]}"; do
-    collect_command_output "logs/${container}.log" docker logs --tail "${TAIL_LINES}" "${container}"
-  done
+Use checks/provider-capability-health.json and
+checks/nextcloud-auth-security-audit.json for allowlisted cached health and
+authentication-source evidence. Operators may inspect raw logs locally, but
+must not attach them without a separate site-specific privacy review.
+MSG
 }
 
 collect_optional_checks() {
@@ -473,6 +767,8 @@ MSG
   collect_logs
   collect_optional_checks
   collect_adapter_readiness_evidence
+  collect_provider_capability_health
+  collect_nextcloud_auth_security_audit
   collect_recent_artifacts
   run_negative_redaction_fixture
   write_redaction_report

@@ -34,7 +34,10 @@ resource "docker_container" "this" {
     "OVERWRITEHOST=${var.public_host}${var.public_port_suffix}",
     "OVERWRITECLIURL=${var.public_url}",
     "OVERWRITEPROTOCOL=${var.public_scheme}",
-    "TRUSTED_PROXIES=${var.trusted_proxies}",
+    # install.sh resolves the exact Caddy address on the active Docker network
+    # after apply and persists it through occ. A static private-network CIDR is
+    # intentionally not accepted as a proxy trust boundary.
+    "FORWARDEDFORHEADERS=HTTP_X_FORWARDED_FOR",
   ]
 
   ports {

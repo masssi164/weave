@@ -14,7 +14,10 @@ import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
 import com.massimotter.weave.backend.config.CalendarCalDavProperties;
 import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
 import com.massimotter.weave.backend.portability.ProviderConformanceProfile.MappingClass;
+import com.massimotter.weave.backend.portability.ProviderCapabilityProbeResult;
+import com.massimotter.weave.backend.portability.ProviderCapabilityState;
 import com.massimotter.weave.backend.portability.ProviderReadiness;
+import com.massimotter.weave.backend.portability.RetryAfterParser;
 import java.io.IOException;
 import java.io.StringReader;
 import java.net.URI;
@@ -72,10 +75,50 @@ public class CalDavCalendarAdapter implements CalendarProviderPort {
 
     @Override
     public ProviderReadiness readiness() {
+        ProviderCapabilityProbeResult result = healthProbe();
+        return result.state() == ProviderCapabilityState.AVAILABLE
+                ? ProviderReadiness.ready(result.supportSafeCode())
+                : ProviderReadiness.degraded(result.supportSafeCode());
+    }
+
+    @Override
+    public ProviderCapabilityProbeResult healthProbe() {
         if (!configured()) {
-            return ProviderReadiness.degraded("calendar-storage-not-configured");
+            return ProviderCapabilityProbeResult.unavailable("calendar-storage-not-configured");
         }
-        return ProviderReadiness.ready("calendar-storage-ready");
+        try {
+            HttpRequest request = requestBuilder(calendarCollectionUri(
+                    new CalendarId("provider-health"),
+                    CalendarScope.workspace()))
+                    .method("PROPFIND", HttpRequest.BodyPublishers.noBody())
+                    .header("Depth", "0")
+                    .header("Accept", "application/xml, text/xml")
+                    .build();
+            HttpResponse<String> response = send(request, "probe-calendar-root");
+            if (response.statusCode() == HTTP_MULTI_STATUS || isSuccess(response.statusCode())) {
+                return ProviderCapabilityProbeResult.available("calendar-storage-ready");
+            }
+            if (response.statusCode() == 429) {
+                return ProviderCapabilityProbeResult.degraded(
+                        "calendar-storage-rate-limited",
+                        RetryAfterParser.parse(
+                                response.headers().firstValue("Retry-After").orElse(null),
+                                Instant.now()));
+            }
+            if (response.statusCode() == 401 || response.statusCode() == 403) {
+                return ProviderCapabilityProbeResult.unavailable("calendar-storage-auth-failed");
+            }
+            if (response.statusCode() == HTTP_NOT_FOUND) {
+                return ProviderCapabilityProbeResult.unavailable("calendar-storage-root-missing");
+            }
+            return ProviderCapabilityProbeResult.degraded("calendar-storage-unavailable");
+        } catch (CalendarAdapterException exception) {
+            return switch (exception.type()) {
+                case NOT_CONFIGURED, AUTH_FAILED ->
+                        ProviderCapabilityProbeResult.unavailable("calendar-storage-unavailable");
+                default -> ProviderCapabilityProbeResult.degraded("calendar-storage-unavailable");
+            };
+        }
     }
 
     @Override
