@@ -821,9 +821,7 @@ wait_for_nextcloud_occ_command() {
     if nextcloud_occ_command_is_available "${command_name}"; then
       return 0
     fi
-    if ((sleep_seconds > 0)); then
-      sleep "${sleep_seconds}"
-    fi
+    sleep "${sleep_seconds}"
   done
 
   fail "Nextcloud OCC command ${command_name} did not become available after its app was enabled."
