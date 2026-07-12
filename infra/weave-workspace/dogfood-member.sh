@@ -43,10 +43,14 @@ EOF
 }
 
 load_environment() {
+  local runtime_admin_username="${TF_VAR_keycloak_admin_username:-}"
+  local runtime_admin_password="${TF_VAR_keycloak_admin_password:-}"
   if [[ -f "${BOOTSTRAP_ENV_FILE}" ]]; then
     # shellcheck disable=SC1090
     source "${BOOTSTRAP_ENV_FILE}"
   fi
+  [[ -z "${runtime_admin_username}" ]] || TF_VAR_keycloak_admin_username="${runtime_admin_username}"
+  [[ -z "${runtime_admin_password}" ]] || TF_VAR_keycloak_admin_password="${runtime_admin_password}"
 }
 
 parse_args() {
