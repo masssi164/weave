@@ -188,12 +188,43 @@ jobs:
             echo "Persistent member pre-deploy observation skipped because Keycloak is not running; post-deploy verification remains mandatory."
           fi
 
+      - name: Restore persistent OpenTofu state
+        working-directory: infra/weave-workspace
+        run: |
+          set -euo pipefail
+          state_root="$HOME/.weave/dogfood/opentofu-state"
+          mkdir -p "$state_root"
+          chmod 700 "$HOME/.weave" "$HOME/.weave/dogfood" "$state_root"
+          for stage in 01-infrastructure 02-keycloak-setup; do
+            if [[ -s "$state_root/${stage}.tfstate" ]]; then
+              cp "$state_root/${stage}.tfstate" "$stage/terraform.tfstate"
+              chmod 600 "$stage/terraform.tfstate"
+            fi
+          done
+
       - name: Deploy or update persistent LAN test stack
         working-directory: infra/weave-workspace
         env:
           TF_VAR_weave_backend_image: ${{ env.WEAVE_BACKEND_IMAGE }}
           TF_VAR_weave_mcp_server_image: ${{ env.WEAVE_MCP_SERVER_IMAGE }}
         run: ./install.sh
+
+      - name: Persist OpenTofu state
+        if: ${{ always() }}
+        working-directory: infra/weave-workspace
+        run: |
+          set -euo pipefail
+          state_root="$HOME/.weave/dogfood/opentofu-state"
+          mkdir -p "$state_root"
+          chmod 700 "$HOME/.weave" "$HOME/.weave/dogfood" "$state_root"
+          for stage in 01-infrastructure 02-keycloak-setup; do
+            if [[ -s "$stage/terraform.tfstate" ]]; then
+              temporary="$state_root/${stage}.tfstate.tmp"
+              cp "$stage/terraform.tfstate" "$temporary"
+              chmod 600 "$temporary"
+              mv "$temporary" "$state_root/${stage}.tfstate"
+            fi
+          done
 
       - name: Verify persistent stack readiness
         working-directory: infra/weave-workspace
