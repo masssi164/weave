@@ -151,6 +151,17 @@ docker() {
   esac
 }
 
+export WEAVE_RUNNER_HYGIENE="true"
+export WEAVE_E2E_STACK_SCOPE="isolated"
+export TF_VAR_proxy_host_port="54443"
+configure_runner_public_route >/dev/null
+[[ "$(nextcloud_public_url)" == "https://files.weave.test:54443" ]] ||
+  fail "isolated E2E must verify DAV through its published proxy port"
+[[ "${LOOPBACK_RESOLVE_HOST}" == "127.0.0.1" ]] ||
+  fail "isolated E2E must retain the runner loopback route"
+unset WEAVE_RUNNER_HYGIENE WEAVE_E2E_STACK_SCOPE WEAVE_PUBLIC_PROXY_PORT PUBLIC_PROXY_PORT
+export TF_VAR_proxy_host_port="443"
+
 configure_nextcloud_reverse_proxy >/dev/null
 [[ "$(cat "${occ_state}/trusted_proxies.0")" == "172.31.20.2" ]] || fail "exact Caddy address was not configured"
 [[ ! -e "${occ_state}/trusted_proxies.1" ]] || fail "unexpected extra trusted proxy was configured"
