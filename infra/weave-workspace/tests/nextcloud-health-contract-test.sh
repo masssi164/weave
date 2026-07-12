@@ -90,7 +90,10 @@ ensure_nextcloud_installed >/dev/null
 
 oidc_command_state="${TMP_DIR}/nextcloud-oidc-command-state"
 printf '0\n' >"${oidc_command_state}"
-occ() {
+nextcloud_occ_with_timeout() {
+  local timeout_seconds="$1"
+  shift
+  [[ "${timeout_seconds}" == 1 ]] || return 1
   [[ "${1:-}" == list && "${2:-}" == --raw ]] || return 1
   local list_calls
   list_calls="$(cat "${oidc_command_state}")"
@@ -101,8 +104,12 @@ occ() {
     printf '%s\n' 'user_oidc:provider                      Create or update an OIDC provider'
   fi
 }
-wait_for_nextcloud_occ_command user_oidc:provider 3 0
+wait_for_nextcloud_occ_command user_oidc:provider 2 0 1
 [[ "$(cat "${oidc_command_state}")" == 2 ]] || fail "Nextcloud OIDC command readiness was not retried"
+
+timeout_status=0
+run_command_with_timeout 0.01 python3 -c 'import time; time.sleep(1)' || timeout_status=$?
+[[ "${timeout_status}" == 124 ]] || fail "command timeout did not fail with the bounded-timeout status"
 
 export TF_VAR_docker_network_name="weave-e2e-fixture_network"
 export TF_VAR_nextcloud_backend_actor_username="fixture-actor"
