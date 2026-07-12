@@ -106,19 +106,17 @@ resource "docker_container" "this" {
     "WEAVE_CONTEXT_AUTHORIZATION_DEFAULT_TENANT_ID=${var.context_authorization_default_tenant_id}",
     "WEAVE_CONTEXT_AUTHORIZATION_PRINCIPAL_CLAIM=${var.context_authorization_principal_claim}",
     "WEAVE_CONTEXT_AUTHORIZATION_PRINCIPAL_REF_PREFIX=${var.context_authorization_principal_ref_prefix}",
-    ], var.context_authorization_bootstrap_enabled ? [
-    "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_TENANT_ID=${var.context_authorization_default_tenant_id}",
-    "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_CONTEXT_ID=${var.context_authorization_bootstrap_context_id}",
-    "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_PRINCIPAL_REF=${var.context_authorization_bootstrap_principal_ref}",
-    "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_ROLE=${var.context_authorization_bootstrap_role}",
-    "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_SOURCE=local-dev-bootstrap",
-    ] : [], var.context_authorization_bootstrap_enabled && var.context_authorization_dogfood_principal_ref != "" ? [
-    "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_1_TENANT_ID=${var.context_authorization_default_tenant_id}",
-    "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_1_CONTEXT_ID=${var.context_authorization_bootstrap_context_id}",
-    "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_1_PRINCIPAL_REF=${var.context_authorization_dogfood_principal_ref}",
-    "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_1_ROLE=${var.context_authorization_bootstrap_role}",
-    "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_1_SOURCE=local-dogfood-bootstrap",
-    ] : [], var.context_authorization_bootstrap_enabled ? [
+    ], var.isolated_e2e_namespace != "" ? [
+    "WEAVE_ISOLATED_E2E_NAMESPACE=${var.isolated_e2e_namespace}",
+    ] : [], flatten([
+      for index, membership in var.context_authorization_memberships : [
+        "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_${index}_TENANT_ID=${membership.tenant_id}",
+        "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_${index}_CONTEXT_ID=${membership.context_id}",
+        "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_${index}_PRINCIPAL_REF=${membership.principal_ref}",
+        "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_${index}_ROLE=${membership.role}",
+        "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_${index}_SOURCE=${membership.source}",
+      ]
+    ]), var.context_authorization_bootstrap_enabled ? [
     # Project the deterministic workspace membership to the seeded team/channel
     # Contexts used by the live-stack Calendar facade E2E. This keeps the
     # product ReBAC path fail-closed unless the local/dev bootstrap is explicitly
@@ -137,6 +135,7 @@ resource "docker_container" "this" {
   ports {
     internal = var.container_port
     external = var.host_port
+    ip       = "127.0.0.1"
   }
 
   healthcheck {

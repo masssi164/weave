@@ -212,53 +212,48 @@
   "@shellRecentActivityTitle": {
     "description": "Title for the compact recent activity card in the app shell"
   },
-  "shellRecentActivityDescription": "Quick links to recent rooms and file changes.",
-  "@shellRecentActivityDescription": {
-    "description": "Description for the recent activity card in the app shell"
-  },
-  "shellRecentActivitySemanticLabel": "Recent activity quick links",
+  "shellRecentActivitySemanticLabel": "Authorized recent workspace activity",
   "@shellRecentActivitySemanticLabel": {
     "description": "Semantic label for the recent activity card"
   },
-  "shellRecentRoomsTitle": "Rooms",
-  "@shellRecentRoomsTitle": {
-    "description": "Section title for recent room quick links in the app shell"
+  "homeRecentActivityLoading": "Loading recent workspace activity…",
+  "@homeRecentActivityLoading": {
+    "description": "Loading state for the authorized Home recent-activity projection"
   },
-  "shellRecentFilesTitle": "Files",
-  "@shellRecentFilesTitle": {
-    "description": "Section title for recent file quick links in the app shell"
+  "homeRecentActivityUnavailable": "Recent workspace activity is unavailable right now.",
+  "@homeRecentActivityUnavailable": {
+    "description": "Support-safe unavailable state for Home recent activity"
   },
-  "shellRecentRoomsLoading": "Loading recent rooms…",
-  "@shellRecentRoomsLoading": {
-    "description": "Loading label for recent room quick links"
+  "homeRecentActivityEmpty": "No completed workspace activity is visible yet.",
+  "@homeRecentActivityEmpty": {
+    "description": "Empty state for the authorized Home recent-activity projection"
   },
-  "shellRecentRoomsEmpty": "No recent rooms yet.",
-  "@shellRecentRoomsEmpty": {
-    "description": "Empty state for recent room quick links"
+  "homeRecentActivityCurrentMemberFilesCompleted": "You completed a Files change",
+  "@homeRecentActivityCurrentMemberFilesCompleted": {
+    "description": "Generic Home activity label for the current member's completed Files mutation"
   },
-  "shellRecentRoomsUnavailable": "Recent rooms are unavailable until chat is connected.",
-  "@shellRecentRoomsUnavailable": {
-    "description": "Unavailable/error state for recent room quick links"
+  "homeRecentActivityOtherMemberFilesCompleted": "A workspace member completed a Files change",
+  "@homeRecentActivityOtherMemberFilesCompleted": {
+    "description": "Generic Home activity label for another authorized member's completed Files mutation"
   },
-  "shellRecentFilesLoading": "Loading recent file changes…",
-  "@shellRecentFilesLoading": {
-    "description": "Loading label for recent file quick links"
+  "homeRecentActivityWorkspaceVisibility": "Shared workspace activity",
+  "@homeRecentActivityWorkspaceVisibility": {
+    "description": "Generic visibility label that does not expose a Context identifier"
   },
-  "shellRecentFilesEmpty": "No recent file changes yet.",
-  "@shellRecentFilesEmpty": {
-    "description": "Empty state for recent file quick links"
-  },
-  "shellRecentFilesError": "Recent file changes could not be loaded.",
-  "@shellRecentFilesError": {
-    "description": "Error state for recent file quick links"
-  },
-  "shellRecentFilesUnavailable": "Recent files are unavailable until files are connected.",
-  "@shellRecentFilesUnavailable": {
-    "description": "Unavailable state for recent file quick links"
-  },
-  "shellRecentActivityUnknownRecency": "recent",
-  "@shellRecentActivityUnknownRecency": {
-    "description": "Fallback recency hint for activity items without a timestamp"
+  "homeRecentActivityItemSemantic": "{activity}. {visibility}. {recency}.",
+  "@homeRecentActivityItemSemantic": {
+    "description": "Screen-reader summary for one generic support-safe Home activity",
+    "placeholders": {
+      "activity": {
+        "type": "String"
+      },
+      "visibility": {
+        "type": "String"
+      },
+      "recency": {
+        "type": "String"
+      }
+    }
   },
   "shellRecentActivityNow": "now",
   "@shellRecentActivityNow": {
@@ -280,47 +275,6 @@
   "shellRecentActivityYesterday": "yesterday",
   "@shellRecentActivityYesterday": {
     "description": "Recency hint for activity from yesterday"
-  },
-  "shellRecentRoomItemSemantic": "Open room {roomName}. Latest activity: {preview}. {recency}.",
-  "@shellRecentRoomItemSemantic": {
-    "description": "Semantic label for a recent room quick link",
-    "placeholders": {
-      "roomName": {
-        "type": "String"
-      },
-      "preview": {
-        "type": "String"
-      },
-      "recency": {
-        "type": "String"
-      }
-    }
-  },
-  "shellRecentFileItemSemantic": "Open {itemType} {itemName} in {path}. Changed {recency}.",
-  "@shellRecentFileItemSemantic": {
-    "description": "Semantic label for a recent file quick link",
-    "placeholders": {
-      "itemType": {
-        "type": "String"
-      },
-      "itemName": {
-        "type": "String"
-      },
-      "path": {
-        "type": "String"
-      },
-      "recency": {
-        "type": "String"
-      }
-    }
-  },
-  "shellRecentFileFolderType": "folder",
-  "@shellRecentFileFolderType": {
-    "description": "File activity type label for folders"
-  },
-  "shellRecentFileFileType": "file",
-  "@shellRecentFileFileType": {
-    "description": "File activity type label for files"
   },
   "emptyStateLabel": "Nothing here yet",
   "@emptyStateLabel": {
@@ -1280,6 +1234,62 @@
   "@settingsBrandSectionDescription": {
     "description": "Subtle branded copy shown in the settings header card"
   },
+  "settingsSupportDiagnosticsTitle": "Support diagnostics",
+  "@settingsSupportDiagnosticsTitle": {
+    "description": "Settings section title for support-safe server and installed build identity"
+  },
+  "settingsSupportDiagnosticsDescription": "Use these values to confirm which server and immutable app candidate are installed. They contain no session tokens or provider credentials.",
+  "@settingsSupportDiagnosticsDescription": {
+    "description": "Description of the support-safe build diagnostics card"
+  },
+  "settingsSupportServerLabel": "Workspace server",
+  "@settingsSupportServerLabel": {
+    "description": "Label for the support-safe workspace server origin"
+  },
+  "settingsSupportCandidateCommitLabel": "Candidate commit",
+  "@settingsSupportCandidateCommitLabel": {
+    "description": "Label for the embedded candidate source commit"
+  },
+  "settingsSupportVersionLabel": "Version and build",
+  "@settingsSupportVersionLabel": {
+    "description": "Label for installed application version and build number"
+  },
+  "settingsSupportBundleIdentifierLabel": "Application identifier",
+  "@settingsSupportBundleIdentifierLabel": {
+    "description": "Label for the installed application bundle identifier"
+  },
+  "settingsSupportEvidenceReferenceLabel": "Evidence reference",
+  "@settingsSupportEvidenceReferenceLabel": {
+    "description": "Label for the embedded immutable candidate evidence reference"
+  },
+  "settingsSupportIdentityComplete": "Candidate identity is complete",
+  "@settingsSupportIdentityComplete": {
+    "description": "Status shown when all candidate identity fields are available"
+  },
+  "settingsSupportIdentityIncomplete": "Candidate metadata is incomplete; this build cannot satisfy the installed-candidate gate.",
+  "@settingsSupportIdentityIncomplete": {
+    "description": "Fail-closed status shown when candidate identity fields are absent"
+  },
+  "settingsSupportValueLoading": "Loading…",
+  "@settingsSupportValueLoading": {
+    "description": "Value shown while support diagnostics are loading"
+  },
+  "settingsSupportValueUnavailable": "Not embedded in this build",
+  "@settingsSupportValueUnavailable": {
+    "description": "Value shown when immutable candidate metadata is unavailable"
+  },
+  "settingsSupportVersionValue": "{version} ({buildNumber})",
+  "@settingsSupportVersionValue": {
+    "description": "Formatted installed version and build number",
+    "placeholders": {
+      "version": {
+        "type": "String"
+      },
+      "buildNumber": {
+        "type": "String"
+      }
+    }
+  },
   "settingsThemeTitle": "Appearance",
   "@settingsThemeTitle": {
     "description": "Settings section title for personal theme selection"
@@ -1536,11 +1546,11 @@
       }
     }
   },
-  "settingsShellRecentActivityToggleTitle": "Recent activity quick links",
+  "settingsShellRecentActivityToggleTitle": "Recent workspace activity",
   "@settingsShellRecentActivityToggleTitle": {
     "description": "Switch title for the recent activity shell module visibility preference"
   },
-  "settingsShellRecentActivityToggleDescription": "Show recent rooms and file changes above the bottom navigation.",
+  "settingsShellRecentActivityToggleDescription": "Show generic completed activity that your workspace permissions allow you to view.",
   "@settingsShellRecentActivityToggleDescription": {
     "description": "Switch description for the recent activity shell module visibility preference"
   },

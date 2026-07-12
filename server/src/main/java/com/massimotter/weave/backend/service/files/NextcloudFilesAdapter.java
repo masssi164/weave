@@ -16,7 +16,10 @@ import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedListing;
 import com.massimotter.weave.backend.files.port.FilesProviderPort;
 import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
 import com.massimotter.weave.backend.portability.ProviderConformanceProfile.MappingClass;
+import com.massimotter.weave.backend.portability.ProviderCapabilityProbeResult;
+import com.massimotter.weave.backend.portability.ProviderCapabilityState;
 import com.massimotter.weave.backend.portability.ProviderReadiness;
+import com.massimotter.weave.backend.portability.RetryAfterParser;
 import java.io.InputStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -88,14 +91,29 @@ public class NextcloudFilesAdapter implements FilesProviderPort {
 
     @Override
     public ProviderReadiness readiness() {
+        ProviderCapabilityProbeResult result = healthProbe();
+        return result.state() == ProviderCapabilityState.AVAILABLE
+                ? ProviderReadiness.ready(result.supportSafeCode())
+                : ProviderReadiness.degraded(result.supportSafeCode());
+    }
+
+    @Override
+    public ProviderCapabilityProbeResult healthProbe() {
         if (!configured()) {
-            return ProviderReadiness.degraded("files-storage-not-configured");
+            return ProviderCapabilityProbeResult.unavailable("files-storage-not-configured");
         }
         try {
-            probeRoot();
-            return ProviderReadiness.ready("files-storage-ready");
+            return probeRoot();
         } catch (ApiErrorException exception) {
-            return ProviderReadiness.degraded(readinessCode(exception.code()));
+            String code = readinessCode(exception.code());
+            return switch (exception.code()) {
+                case "nextcloud-adapter-not-configured",
+                        "nextcloud-auth-failed",
+                        "files-permission-denied",
+                        "file-not-found" ->
+                        ProviderCapabilityProbeResult.unavailable(code);
+                default -> ProviderCapabilityProbeResult.degraded(code);
+            };
         }
     }
 
@@ -588,6 +606,13 @@ public class NextcloudFilesAdapter implements FilesProviderPort {
                     "There is not enough storage available for this file operation.",
                     details(operation, path, value));
         }
+        if (value == 429) {
+            return new ApiErrorException(
+                    HttpStatus.BAD_GATEWAY,
+                    "nextcloud-rate-limited",
+                    "Files storage is temporarily rate limited.",
+                    details(operation, path, value));
+        }
         if (value >= 500) {
             return new ApiErrorException(
                     HttpStatus.SERVICE_UNAVAILABLE,
@@ -628,14 +653,15 @@ public class NextcloudFilesAdapter implements FilesProviderPort {
             case "nextcloud-auth-failed" -> "files-storage-auth-failed";
             case "nextcloud-response-invalid" -> "files-storage-response-invalid";
             case "nextcloud-unavailable" -> "files-storage-unavailable";
+            case "nextcloud-rate-limited" -> "files-storage-rate-limited";
             case "nextcloud-request-failed" -> "files-storage-request-failed";
             default -> "files-storage-degraded";
         };
     }
 
-    private void probeRoot() {
+    private ProviderCapabilityProbeResult probeRoot() {
         try {
-            restClient.method(PROPFIND)
+            return restClient.method(PROPFIND)
                     .uri(webdavUri("/", true))
                     .headers(this::applyActorHeaders)
                     .header("Depth", "0")
@@ -643,7 +669,14 @@ public class NextcloudFilesAdapter implements FilesProviderPort {
                     .body(PROPFIND_BODY)
                     .exchange((request, response) -> {
                         if (response.getStatusCode().value() == 207 || response.getStatusCode().is2xxSuccessful()) {
-                            return null;
+                            return ProviderCapabilityProbeResult.available("files-storage-ready");
+                        }
+                        if (response.getStatusCode().value() == 429) {
+                            return ProviderCapabilityProbeResult.degraded(
+                                    "files-storage-rate-limited",
+                                    RetryAfterParser.parse(
+                                            response.getHeaders().getFirst(HttpHeaders.RETRY_AFTER),
+                                            Instant.now()));
                         }
                         throw mapStatus(response.getStatusCode(), "probe-files-root", "/");
                     });

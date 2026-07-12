@@ -33,8 +33,24 @@ jobs:
     name: Gradle CI
     if: github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled')
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: weave
     steps:
-      - uses: actions/checkout@v5
+      - name: Check out Weave
+        uses: actions/checkout@v5
+        with:
+          path: weave
+      - name: Resolve pinned specification corpus
+        id: spec-corpus
+        run: echo "commit=$(jq -r '.specCorpus.gitCommit' specs/weave-specs.lock.json)" >> "$GITHUB_OUTPUT"
+      - name: Check out pinned Weave Specification Corpus
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ github.repository_owner }}/weave-specs
+          ref: ${{ steps.spec-corpus.outputs.commit }}
+          path: weave-specs
+          persist-credentials: false
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -47,12 +63,12 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-          cache-dependency-path: admin-console/package-lock.json
+          cache-dependency-path: weave/admin-console/package-lock.json
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
           cache: pip
-          cache-dependency-path: docs/requirements.txt
+          cache-dependency-path: weave/docs/requirements.txt
       - name: Set up OpenTofu
         uses: opentofu/setup-opentofu@v1
         with:
@@ -92,8 +108,8 @@ jobs:
         with:
           name: weave-ci-evidence
           path: |
-            build/evidence
-            build/docs
+            weave/build/evidence
+            weave/build/docs
           if-no-files-found: warn
       - name: Upload marketing screenshots
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.capture_marketing_screenshots == 'true' }}
@@ -101,8 +117,8 @@ jobs:
         with:
           name: weave-marketing-screenshots
           path: |
-            docs/assets/marketing
-            docs/assets/roadmap
+            weave/docs/assets/marketing
+            weave/docs/assets/roadmap
           if-no-files-found: error
 
   release-notes-label-check:

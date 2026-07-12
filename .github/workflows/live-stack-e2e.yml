@@ -1,6 +1,9 @@
 name: Live Stack E2E
 
 on:
+  push:
+    branches:
+      - dogfood
   pull_request:
     branches:
       - dogfood
@@ -38,9 +41,6 @@ on:
         type: string
         required: false
         default: "weave-mcp-server:live-stack-ci"
-    secrets:
-      WEAVE_TEST_PASSWORD:
-        required: true
 
 permissions:
   contents: read
@@ -57,7 +57,7 @@ jobs:
     steps:
       - name: Fail closed without isolated runtime approval
         env:
-          ENABLE_ISOLATED_RUNNER: ${{ inputs.enable_isolated_runner || 'false' }}
+          ENABLE_ISOLATED_RUNNER: ${{ github.event_name != 'workflow_dispatch' || inputs.enable_isolated_runner }}
         run: |
           set -euo pipefail
           if [[ "$ENABLE_ISOLATED_RUNNER" != "true" ]]; then
@@ -78,8 +78,6 @@ jobs:
       PERSISTENT_DOGFOOD_RUNNER_NAME: weave-live-mac-mini
       WEAVE_BACKEND_IMAGE: ${{ inputs.weave_backend_image || github.event.inputs.weave_backend_image || 'weave-backend:live-stack-ci' }}
       WEAVE_MCP_SERVER_IMAGE: ${{ inputs.weave_mcp_server_image || github.event.inputs.weave_mcp_server_image || 'weave-mcp-server:live-stack-ci' }}
-      WEAVE_TEST_PASSWORD: ${{ secrets.WEAVE_TEST_PASSWORD }}
-      TF_VAR_test_user_password: ${{ secrets.WEAVE_TEST_PASSWORD }}
       TF_VAR_db_admin_password: ci-db-admin-password
       TF_VAR_keycloak_admin_password: ci-keycloak-admin-password
       TF_VAR_keycloak_db_password: ci-keycloak-db-password
@@ -93,7 +91,7 @@ jobs:
       TF_VAR_synapse_registration_shared_secret: ci-synapse-registration-shared-secret
       TF_VAR_synapse_macaroon_secret_key: ci-synapse-macaroon-secret-key
       TF_VAR_synapse_form_secret: ci-synapse-form-secret
-      TF_VAR_create_test_user: 'true'
+      TF_VAR_create_test_user: 'false'
       TF_VAR_boards_runtime_enabled: 'true'
       TF_VAR_boards_provider: local-workspace
       TF_VAR_provider_stack_profile: local-live
@@ -109,7 +107,10 @@ jobs:
       WEAVE_RUNNER_HYGIENE: 'true'
       WEAVE_REMOVE_VOLUMES: 'true'
       WEAVE_CONFIRM_DESTRUCTIVE_RESET: weave
-      WEAVE_INTEGRATION_TEST_DEVICE: macos
+      WEAVE_E2E_STACK_SCOPE: isolated
+      WEAVE_E2E_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+      WEAVE_CANDIDATE_COMMIT: ${{ github.sha }}
+      WEAVE_CANDIDATE_EVIDENCE_REF: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
     defaults:
       run:
@@ -151,6 +152,7 @@ jobs:
             "$RUNNER_TEMP/weave-live-stack-acceptance-evidence" \
             "$RUNNER_TEMP/weave-live-stack-e2e.log" \
             "$RUNNER_TEMP/weave-live-stack-docker-config" \
+            "$RUNNER_TEMP/weave-live-stack-identities" \
             "$RUNNER_TEMP/weave-live-stack-emergency-reserve" \
             "$RUNNER_TEMP/weave-live-stack-emergency-reserve-released"; do
             remove_runner_output "$path"
@@ -183,6 +185,18 @@ jobs:
           : > "$test_log"
           echo "WEAVE_ACCEPTANCE_EVIDENCE_DIR=$evidence_dir" >> "$GITHUB_ENV"
           echo "WEAVE_ACCEPTANCE_TEST_LOG=$test_log" >> "$GITHUB_ENV"
+
+      - name: Prepare three disposable identity profiles
+        working-directory: weave/infra/weave-workspace
+        run: |
+          set -euo pipefail
+          integration_variables="$(
+            WEAVE_E2E_OUTPUT_ROOT="$RUNNER_TEMP/weave-live-stack-identities" \
+              ./isolated-e2e-identities.sh prepare --run-id "$WEAVE_E2E_RUN_ID"
+          )"
+          printf '%s\n' "$integration_variables" >> "$GITHUB_ENV"
+          printf '%s\n' "$integration_variables" | sed -E 's#=(.*credentials.*)$#=[private-runner-path]#' \
+            >> "$GITHUB_STEP_SUMMARY"
 
       - name: Configure Docker auth without macOS Keychain
         env:
@@ -278,7 +292,11 @@ jobs:
 
       - name: Clean up stale stack state before bootstrap
         working-directory: weave/infra/weave-workspace
-        run: bash ./teardown.sh
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC1090
+          source "$WEAVE_E2E_STARTUP_ENV_PATH"
+          bash ./teardown.sh
 
       - name: Prepare backend image
         run: |
@@ -310,7 +328,11 @@ jobs:
         env:
           TF_VAR_weave_backend_image: ${{ env.WEAVE_BACKEND_IMAGE }}
           TF_VAR_weave_mcp_server_image: ${{ env.WEAVE_MCP_SERVER_IMAGE }}
-        run: ./install.sh
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC1090
+          source "$WEAVE_E2E_STARTUP_ENV_PATH"
+          ./install.sh
 
       - name: Verify local test hostnames resolve on the runner
         run: |
@@ -324,7 +346,42 @@ jobs:
 
       - name: Verify stack readiness before Flutter work
         working-directory: weave/infra/weave-workspace
-        run: bash ./operator-check.sh
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC1090
+          source "$WEAVE_E2E_STARTUP_ENV_PATH"
+          bash ./operator-check.sh
+
+      - name: Provision real Keycloak identities and verify runtime ReBAC
+        working-directory: weave/infra/weave-workspace
+        run: |
+          set -euo pipefail
+          ./isolated-e2e-identities.sh provision --run-id "$WEAVE_E2E_RUN_ID" \
+            2>&1 | tee -a "$WEAVE_ACCEPTANCE_TEST_LOG"
+
+      - name: Prove missing-capability expired-token and revoked-session denials
+        working-directory: weave
+        env:
+          WEAVE_E2E_STACK_SCOPE: isolated
+        run: |
+          set -euo pipefail
+          infra/weave-workspace/isolated-e2e-authorization-probes.sh \
+            --run-id "$WEAVE_E2E_RUN_ID" \
+            --output-root "$WEAVE_E2E_OUTPUT_ROOT" \
+            --credentials-env "$WEAVE_E2E_CREDENTIAL_ENV_PATH" \
+            --startup-env "$WEAVE_E2E_STARTUP_ENV_PATH" \
+            --identity-manifest "$WEAVE_E2E_IDENTITY_MANIFEST_PATH" \
+            --stack-bootstrap-env "$WEAVE_E2E_STACK_BOOTSTRAP_ENV" \
+            --authorization-evidence "$WEAVE_E2E_AUTHORIZATION_EVIDENCE_PATH" \
+            2>&1 | tee -a "$WEAVE_ACCEPTANCE_TEST_LOG"
+          test -s "$WEAVE_E2E_AUTHORIZATION_EVIDENCE_PATH"
+          cp "$WEAVE_E2E_AUTHORIZATION_EVIDENCE_PATH" \
+            "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-authorization.json"
+          {
+            echo "WEAVE_E2E_MISSING_CAPABILITY_VERIFIED=true"
+            echo "WEAVE_E2E_EXPIRED_TOKEN_VERIFIED=true"
+            echo "WEAVE_E2E_REVOKED_SESSION_VERIFIED=true"
+          } >> "$GITHUB_ENV"
 
       - name: Expose generated local CA to Rust Matrix tests
         run: |
@@ -350,6 +407,42 @@ jobs:
       - name: Generate l10n
         working-directory: weave/client
         run: flutter gen-l10n
+
+      - name: Boot an isolated iPhone Simulator and trust the local CA
+        run: |
+          set -euo pipefail
+          runtime_id="$(
+            xcrun simctl list runtimes -j | jq -r '
+              [.runtimes[]
+                | select(.isAvailable == true and (.identifier | contains(".iOS-")))]
+              | sort_by(.version | split(".") | map(tonumber))
+              | last
+              | .identifier // empty'
+          )"
+          device_type="$(
+            xcrun simctl list devicetypes -j | jq -r '
+              [.devicetypes[] | select(.name | startswith("iPhone"))]
+              | first
+              | .identifier // empty'
+          )"
+          [[ -n "$runtime_id" && -n "$device_type" ]] || {
+            echo "::error::No available iOS runtime and iPhone device type are installed on the disposable runner." >&2
+            exit 1
+          }
+          simulator_name="Weave E2E ${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          simulator_udid="$(xcrun simctl create "$simulator_name" "$device_type" "$runtime_id")"
+          [[ "$simulator_udid" =~ ^[0-9A-Fa-f-]{36}$ ]] || {
+            echo "::error::The isolated iPhone Simulator could not be created." >&2
+            exit 1
+          }
+          echo "WEAVE_E2E_SIMULATOR_UDID=$simulator_udid" >> "$GITHUB_ENV"
+          xcrun simctl boot "$simulator_udid"
+          open -g -a Simulator --args -CurrentDeviceUDID "$simulator_udid"
+          xcrun simctl bootstatus "$simulator_udid" -b
+          xcrun simctl keychain "$simulator_udid" add-root-cert "$WEAVE_MATRIX_EXTRA_ROOT_CERTIFICATE_PATH"
+          echo "WEAVE_INTEGRATION_TEST_DEVICE=$simulator_udid" >> "$GITHUB_ENV"
+          echo "WEAVE_MULTI_USER_TEST_DEVICE=$simulator_udid" >> "$GITHUB_ENV"
+          echo "iPhone Simulator functional lane: ${simulator_udid}" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Verify live test disk headroom and reserve recovery space
         run: |
@@ -377,7 +470,9 @@ jobs:
           set -euo pipefail
           reserve="${WEAVE_RUNNER_EMERGENCY_RESERVE:?}"
           released_marker="${WEAVE_RUNNER_EMERGENCY_RESERVE_RELEASED:?}"
+          calendar_outage_state="${WEAVE_E2E_OUTPUT_ROOT:?}/${WEAVE_E2E_RUN_NAMESPACE:?}/calendar-outage-state.json"
           monitor_pid=""
+          calendar_outage_restored=false
           release_reserve() {
             if [ -n "$monitor_pid" ]; then
               kill "$monitor_pid" >/dev/null 2>&1 || true
@@ -385,7 +480,42 @@ jobs:
             fi
             rm -f "$reserve"
           }
-          trap release_reserve EXIT INT TERM
+          restore_calendar_outage() {
+            local command_status
+            if [ ! -s "$calendar_outage_state" ]; then
+              return 0
+            fi
+            set +e
+            WEAVE_E2E_CALENDAR_OUTAGE_STATE_FILE="$calendar_outage_state" \
+              ../infra/weave-workspace/isolated-e2e-calendar-outage.sh restore \
+                --state-file "$calendar_outage_state" \
+                --startup-env "$WEAVE_E2E_STARTUP_ENV_PATH" \
+                --stack-bootstrap-env "$WEAVE_E2E_STACK_BOOTSTRAP_ENV" \
+                2>&1 | tee -a "$WEAVE_ACCEPTANCE_TEST_LOG"
+            command_status=${PIPESTATUS[0]}
+            set -e
+            if [ "$command_status" -eq 0 ]; then
+              cp "$calendar_outage_state" \
+                "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-calendar-outage.json"
+              calendar_outage_restored=true
+            fi
+            return "$command_status"
+          }
+          finalize_tests() {
+            local original_status=$? restore_status=0
+            trap - EXIT INT TERM
+            if [ "$calendar_outage_restored" != true ] && [ -s "$calendar_outage_state" ]; then
+              restore_calendar_outage || restore_status=$?
+            fi
+            release_reserve
+            if [ "$original_status" -eq 0 ] && [ "$restore_status" -ne 0 ]; then
+              original_status=$restore_status
+            fi
+            exit "$original_status"
+          }
+          trap finalize_tests EXIT
+          trap 'exit 130' INT
+          trap 'exit 143' TERM
           (
             while [ -e "$reserve" ]; do
               available_kib="$(df -Pk "$RUNNER_TEMP" | awk 'NR == 2 { print $4 }')"
@@ -398,9 +528,117 @@ jobs:
             done
           ) &
           monitor_pid=$!
+          # shellcheck disable=SC1090
+          source "$WEAVE_E2E_CREDENTIAL_ENV_PATH"
+          export WEAVE_TEST_USERNAME="$WEAVE_E2E_AUTHOR_USERNAME"
+          export WEAVE_TEST_PASSWORD="$WEAVE_E2E_AUTHOR_PASSWORD"
+          set +e
           make integration-test 2>&1 | tee "$WEAVE_ACCEPTANCE_TEST_LOG"
+          single_user_status=${PIPESTATUS[0]}
+          WEAVE_E2E_EXECUTION_MODE=collaboration \
+            make integration-multi-user-e2e 2>&1 | tee -a "$WEAVE_ACCEPTANCE_TEST_LOG"
+          collaboration_status=${PIPESTATUS[0]}
+
+          WEAVE_E2E_CALENDAR_OUTAGE_STATE_FILE="$calendar_outage_state" \
+            ../infra/weave-workspace/isolated-e2e-calendar-outage.sh begin \
+              --state-file "$calendar_outage_state" \
+              --startup-env "$WEAVE_E2E_STARTUP_ENV_PATH" \
+              --stack-bootstrap-env "$WEAVE_E2E_STACK_BOOTSTRAP_ENV" \
+              2>&1 | tee -a "$WEAVE_ACCEPTANCE_TEST_LOG"
+          calendar_outage_begin_status=${PIPESTATUS[0]}
+
+          calendar_containment_status=1
+          if [ "$calendar_outage_begin_status" -eq 0 ]; then
+            WEAVE_E2E_EXECUTION_MODE=calendar-failure-containment \
+              make integration-multi-user-e2e 2>&1 | tee -a "$WEAVE_ACCEPTANCE_TEST_LOG"
+            calendar_containment_status=${PIPESTATUS[0]}
+          fi
+          set -e
+
+          calendar_outage_restore_status=0
+          if restore_calendar_outage; then
+            calendar_outage_restore_status=0
+          else
+            calendar_outage_restore_status=$?
+          fi
+
+          multi_user_status=0
+          for status in \
+            "$collaboration_status" \
+            "$calendar_outage_begin_status" \
+            "$calendar_containment_status" \
+            "$calendar_outage_restore_status"; do
+            if [ "$status" -ne 0 ]; then
+              multi_user_status=1
+            fi
+          done
+          echo "WEAVE_SINGLE_USER_TEST_STATUS=$single_user_status" >> "$GITHUB_ENV"
+          echo "WEAVE_MULTI_USER_TEST_STATUS=$multi_user_status" >> "$GITHUB_ENV"
           if [ -e "$released_marker" ]; then
             echo "::error::Live Stack E2E consumed its emergency disk reserve; increase durable runner headroom before retrying." >&2
+            exit 1
+          fi
+
+      - name: Clean disposable identities and retain only hashed evidence
+        if: always()
+        working-directory: weave/infra/weave-workspace
+        run: |
+          set -euo pipefail
+          calendar_outage_state="${WEAVE_E2E_OUTPUT_ROOT:?}/${WEAVE_E2E_RUN_NAMESPACE:?}/calendar-outage-state.json"
+          if [[ -s "$calendar_outage_state" ]]; then
+            if ! jq -e '
+              .state == "restored" and
+              .recoveryRequired == false and
+              .cachedHealth == {calendarStatus:2,filesStatus:2}
+            ' "$calendar_outage_state" >/dev/null; then
+              WEAVE_E2E_CALENDAR_OUTAGE_STATE_FILE="$calendar_outage_state" \
+                ./isolated-e2e-calendar-outage.sh restore \
+                  --state-file "$calendar_outage_state" \
+                  --startup-env "$WEAVE_E2E_STARTUP_ENV_PATH" \
+                  --stack-bootstrap-env "$WEAVE_E2E_STACK_BOOTSTRAP_ENV" \
+                  2>&1 | tee -a "$WEAVE_ACCEPTANCE_TEST_LOG"
+            fi
+            jq -e '
+              .state == "restored" and
+              .recoveryRequired == false and
+              .cachedHealth == {calendarStatus:2,filesStatus:2}
+            ' "$calendar_outage_state" >/dev/null
+            cp "$calendar_outage_state" \
+              "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-calendar-outage.json"
+          fi
+          if [[ -s "${WEAVE_E2E_CREDENTIAL_ENV_PATH:-}" && -s "${WEAVE_E2E_STARTUP_ENV_PATH:-}" ]]; then
+            ./isolated-e2e-identities.sh cleanup --run-id "$WEAVE_E2E_RUN_ID" \
+              2>&1 | tee -a "$WEAVE_ACCEPTANCE_TEST_LOG"
+          fi
+          [[ -s "${WEAVE_E2E_IDENTITY_MANIFEST_PATH:-}" ]] && \
+            cp "$WEAVE_E2E_IDENTITY_MANIFEST_PATH" "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-identities.json"
+          [[ -s "${WEAVE_E2E_CLEANUP_EVIDENCE_PATH:-}" ]] && \
+            cp "$WEAVE_E2E_CLEANUP_EVIDENCE_PATH" "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-cleanup.json"
+
+      - name: Aggregate two-pass human-testing automation evidence
+        if: always()
+        working-directory: weave
+        run: |
+          set -o pipefail
+          set +e
+          python3 tools/multi_user_e2e_evidence.py \
+            --candidate-commit "$GITHUB_SHA" \
+            --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --test-log "$WEAVE_ACCEPTANCE_TEST_LOG" \
+            --identity-evidence "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-identities.json" \
+            --authorization-evidence "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-authorization.json" \
+            --calendar-outage-evidence "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-calendar-outage.json" \
+            --cleanup-evidence "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-cleanup.json" \
+            --output "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/human-testing-automated-evidence.json" \
+            --require-passed 2>&1 | tee -a "$WEAVE_ACCEPTANCE_TEST_LOG"
+          aggregate_status=${PIPESTATUS[0]}
+          set -e
+          if [[ "${WEAVE_SINGLE_USER_TEST_STATUS:-1}" != 0 ]]; then
+            echo "::error::The existing live AppShell/provider suite failed." >&2
+            exit 1
+          fi
+          if [[ "${WEAVE_MULTI_USER_TEST_STATUS:-1}" != 0 || "$aggregate_status" != 0 ]]; then
+            echo "::error::Three-user collaboration is blocked or failed; inspect the support-safe evidence artifact." >&2
             exit 1
           fi
 
@@ -435,7 +673,13 @@ jobs:
       - name: Destroy stack and scrub stale resources
         if: always()
         working-directory: weave/infra/weave-workspace
-        run: bash ./teardown.sh
+        run: |
+          set -euo pipefail
+          if [[ -s "${WEAVE_E2E_STARTUP_ENV_PATH:-}" ]]; then
+            # shellcheck disable=SC1090
+            source "$WEAVE_E2E_STARTUP_ENV_PATH"
+          fi
+          bash ./teardown.sh
 
       - name: Upload live stack acceptance evidence
         if: always()
@@ -450,6 +694,16 @@ jobs:
         if: always()
         run: |
           set -euo pipefail
+          simulator_cleanup_status=0
+          if [[ -n "${WEAVE_E2E_SIMULATOR_UDID:-}" ]]; then
+            if [[ "$WEAVE_E2E_SIMULATOR_UDID" =~ ^[0-9A-Fa-f-]{36}$ ]]; then
+              xcrun simctl shutdown "$WEAVE_E2E_SIMULATOR_UDID" >/dev/null 2>&1 || true
+              xcrun simctl delete "$WEAVE_E2E_SIMULATOR_UDID" >/dev/null 2>&1 || simulator_cleanup_status=1
+            else
+              echo "::error::Refusing to delete an invalid simulator identifier." >&2
+              simulator_cleanup_status=1
+            fi
+          fi
           checkout_root="${GITHUB_WORKSPACE%/}/weave"
           remove_runner_output() {
             local path="$1"
@@ -473,6 +727,7 @@ jobs:
             "${WEAVE_ACCEPTANCE_EVIDENCE_DIR:-$RUNNER_TEMP/weave-live-stack-acceptance-evidence}" \
             "${WEAVE_ACCEPTANCE_TEST_LOG:-$RUNNER_TEMP/weave-live-stack-e2e.log}" \
             "${DOCKER_CONFIG:-$RUNNER_TEMP/weave-live-stack-docker-config}" \
+            "$RUNNER_TEMP/weave-live-stack-identities" \
             "${WEAVE_RUNNER_EMERGENCY_RESERVE:-$RUNNER_TEMP/weave-live-stack-emergency-reserve}" \
             "${WEAVE_RUNNER_EMERGENCY_RESERVE_RELEASED:-$RUNNER_TEMP/weave-live-stack-emergency-reserve-released}"; do
             remove_runner_output "$path"
@@ -483,3 +738,7 @@ jobs:
             fi
           done
           df -h "$RUNNER_TEMP"
+          if (( simulator_cleanup_status != 0 )); then
+            echo "::error::The runner-owned iPhone Simulator could not be deleted." >&2
+            exit "$simulator_cleanup_status"
+          fi

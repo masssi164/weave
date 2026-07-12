@@ -10,9 +10,8 @@ import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityStatusResponse;
 import com.massimotter.weave.backend.model.admin.EffectivePolicyDenyResponse;
 import com.massimotter.weave.backend.model.admin.EffectivePolicyResponse;
+import com.massimotter.weave.backend.model.admin.ProviderCapabilityHealthResponse;
 import com.massimotter.weave.backend.exception.ApiErrorException;
-import com.massimotter.weave.backend.files.port.FilesProviderPort;
-import com.massimotter.weave.backend.portability.ProviderReadiness;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -84,7 +83,7 @@ public class WorkspaceCapabilityService {
     private final WeaveSecurityProperties weaveSecurityProperties;
     private final WorkspaceCapabilityProperties workspaceCapabilityProperties;
     private final WeaverRuntimeProperties weaverRuntimeProperties;
-    private final FilesProviderPort filesProviderPort;
+    private final ProviderCapabilityHealthService providerHealthService;
 
     public WorkspaceCapabilityService(
             OAuth2ResourceServerProperties resourceServerProperties,
@@ -95,7 +94,7 @@ public class WorkspaceCapabilityService {
                 weaveSecurityProperties,
                 workspaceCapabilityProperties,
                 new WeaverRuntimeProperties(false, null, null, null, null, null, null, null, null, null, false, false, true, false),
-                (FilesProviderPort) null);
+                (ProviderCapabilityHealthService) null);
     }
 
     @Autowired
@@ -104,13 +103,13 @@ public class WorkspaceCapabilityService {
             WeaveSecurityProperties weaveSecurityProperties,
             WorkspaceCapabilityProperties workspaceCapabilityProperties,
             WeaverRuntimeProperties weaverRuntimeProperties,
-            ObjectProvider<FilesProviderPort> filesProviderPortProvider) {
+            ObjectProvider<ProviderCapabilityHealthService> providerHealthServiceProvider) {
         this(
                 resourceServerProperties,
                 weaveSecurityProperties,
                 workspaceCapabilityProperties,
                 weaverRuntimeProperties,
-                filesProviderPortProvider == null ? null : filesProviderPortProvider.getIfAvailable());
+                providerHealthServiceProvider == null ? null : providerHealthServiceProvider.getIfAvailable());
     }
 
     public WorkspaceCapabilityService(
@@ -123,33 +122,33 @@ public class WorkspaceCapabilityService {
                 weaveSecurityProperties,
                 workspaceCapabilityProperties,
                 weaverRuntimeProperties,
-                (FilesProviderPort) null);
-    }
-
-    public WorkspaceCapabilityService(
-            OAuth2ResourceServerProperties resourceServerProperties,
-            WeaveSecurityProperties weaveSecurityProperties,
-            WorkspaceCapabilityProperties workspaceCapabilityProperties,
-            WeaverRuntimeProperties weaverRuntimeProperties,
-            FilesProviderPort filesProviderPort) {
-        this.resourceServerProperties = resourceServerProperties;
-        this.weaveSecurityProperties = weaveSecurityProperties;
-        this.workspaceCapabilityProperties = workspaceCapabilityProperties;
-        this.weaverRuntimeProperties = weaverRuntimeProperties;
-        this.filesProviderPort = filesProviderPort;
+                (ProviderCapabilityHealthService) null);
     }
 
     WorkspaceCapabilityService(
             OAuth2ResourceServerProperties resourceServerProperties,
             WeaveSecurityProperties weaveSecurityProperties,
             WorkspaceCapabilityProperties workspaceCapabilityProperties,
-            FilesProviderPort filesProviderPort) {
+            WeaverRuntimeProperties weaverRuntimeProperties,
+            ProviderCapabilityHealthService providerHealthService) {
+        this.resourceServerProperties = resourceServerProperties;
+        this.weaveSecurityProperties = weaveSecurityProperties;
+        this.workspaceCapabilityProperties = workspaceCapabilityProperties;
+        this.weaverRuntimeProperties = weaverRuntimeProperties;
+        this.providerHealthService = providerHealthService;
+    }
+
+    WorkspaceCapabilityService(
+            OAuth2ResourceServerProperties resourceServerProperties,
+            WeaveSecurityProperties weaveSecurityProperties,
+            WorkspaceCapabilityProperties workspaceCapabilityProperties,
+            ProviderCapabilityHealthService providerHealthService) {
         this(
                 resourceServerProperties,
                 weaveSecurityProperties,
                 workspaceCapabilityProperties,
                 new WeaverRuntimeProperties(false, null, null, null, null, null, null, null, null, null, false, false, true, false),
-                filesProviderPort);
+                providerHealthService);
     }
 
     public WorkspaceCapabilitiesResponse snapshot() {
@@ -181,7 +180,7 @@ public class WorkspaceCapabilityService {
                         List.of("files.read", "files.upload"),
                         policy,
                         "Files are available through Weave."),
-                standaloneStatus(
+                providerBackedStatus(
                         workspaceCapabilityProperties.calendar(),
                         WorkspaceCapabilityReadiness.UNAVAILABLE,
                         "calendar",
@@ -353,33 +352,22 @@ public class WorkspaceCapabilityService {
         }
         if (hasText(capability.dependencyUrl())) {
             if ("files".equals(category)) {
-                ProviderReadiness filesReadiness = filesStorageReadiness();
-                if (!filesReadiness.available()) {
+                ProviderCapabilityHealthResponse.CapabilityHealth filesHealth = cachedProviderHealth("files");
+                if (filesHealth != null && !"available".equals(filesHealth.state())) {
                     return status(
                             capability,
-                            WorkspaceCapabilityReadiness.DEGRADED,
+                            providerReadiness(filesHealth.state()),
                             category,
                             requiredCapabilities,
                             policy,
                             "Files need admin attention before members can use them reliably. Ask an admin to inspect Workspace Health.",
-                            filesReadiness.supportSafeCode());
+                            filesHealth.supportSafeCode());
                 }
             }
             return status(capability, WorkspaceCapabilityReadiness.READY, category, requiredCapabilities, policy, readyImpact);
         }
         return status(capability, WorkspaceCapabilityReadiness.DEGRADED, category, requiredCapabilities, policy,
                 "This capability is degraded. Ask an admin to inspect Workspace Health.");
-    }
-
-    private ProviderReadiness filesStorageReadiness() {
-        if (filesProviderPort == null) {
-            return ProviderReadiness.ready("files-storage-ready");
-        }
-        try {
-            return filesProviderPort.readiness();
-        } catch (RuntimeException exception) {
-            return ProviderReadiness.degraded("files-storage-readiness-probe-failed");
-        }
     }
 
     private WorkspaceCapabilityStatusResponse standaloneStatus(
@@ -400,6 +388,61 @@ public class WorkspaceCapabilityService {
                 defaultReadiness == WorkspaceCapabilityReadiness.UNAVAILABLE
                         ? "This capability is not ready for members in this workspace. Ask an admin to review Workspace Health."
                         : readyImpact);
+    }
+
+    private WorkspaceCapabilityStatusResponse providerBackedStatus(
+            WorkspaceCapabilityProperties.Capability capability,
+            WorkspaceCapabilityReadiness defaultReadiness,
+            String category,
+            List<String> requiredCapabilities,
+            EffectivePolicy policy,
+            String readyImpact) {
+        if (!capability.enabled() || capability.readiness() != null) {
+            return standaloneStatus(
+                    capability,
+                    defaultReadiness,
+                    category,
+                    requiredCapabilities,
+                    policy,
+                    readyImpact);
+        }
+        ProviderCapabilityHealthResponse.CapabilityHealth providerHealth = cachedProviderHealth(category);
+        if (providerHealth == null) {
+            return standaloneStatus(
+                    capability,
+                    defaultReadiness,
+                    category,
+                    requiredCapabilities,
+                    policy,
+                    readyImpact);
+        }
+        WorkspaceCapabilityReadiness readiness = providerReadiness(providerHealth.state());
+        String memberImpact = readiness == WorkspaceCapabilityReadiness.READY
+                ? readyImpact
+                : "This capability needs admin attention. Other workspace areas remain available while it recovers.";
+        return status(
+                capability,
+                readiness,
+                category,
+                requiredCapabilities,
+                policy,
+                memberImpact,
+                providerHealth.supportSafeCode());
+    }
+
+    private ProviderCapabilityHealthResponse.CapabilityHealth cachedProviderHealth(String capability) {
+        if (providerHealthService == null) {
+            return null;
+        }
+        return providerHealthService.cached(capability).orElse(null);
+    }
+
+    private WorkspaceCapabilityReadiness providerReadiness(String state) {
+        return switch (state == null ? "" : state) {
+            case "available" -> WorkspaceCapabilityReadiness.READY;
+            case "unavailable" -> WorkspaceCapabilityReadiness.UNAVAILABLE;
+            default -> WorkspaceCapabilityReadiness.DEGRADED;
+        };
     }
 
     private WorkspaceCapabilityReadiness shellAccessReadiness() {

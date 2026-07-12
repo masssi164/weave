@@ -55,7 +55,12 @@ public class SecurityConfig {
                         .authenticationEntryPoint(authenticationEntryPoint)
                         .accessDeniedHandler(accessDeniedHandler))
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/actuator/health", "/actuator/info", "/error").permitAll()
+                        .requestMatchers(
+                                "/actuator/health",
+                                "/actuator/info",
+                                "/actuator/metrics",
+                                "/actuator/metrics/**",
+                                "/error").permitAll()
                         .requestMatchers("/api/health/**", "/api/platform/config", "/api/platform/status").permitAll()
                         .requestMatchers("/.well-known/matrix/client", "/.well-known/weave").permitAll()
                         .requestMatchers("/v3/api-docs", "/v3/api-docs/**").permitAll()

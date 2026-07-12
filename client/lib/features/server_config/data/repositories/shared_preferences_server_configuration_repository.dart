@@ -51,6 +51,12 @@ class SharedPreferencesServerConfigurationRepository
       // values from older on-device configuration without clearing the profile.
       final matrixUrl = _deriver.matrixFacadeFromBackendApi(backendApiUrl);
 
+      // Older clients wrote this completion flag before entering their global
+      // setup/readiness flow. It is not an application-entry contract. Remove
+      // it opportunistically after the durable organization configuration has
+      // been validated, without allowing cleanup failure to block sign-in.
+      await _removeObsoleteSetupFlag();
+
       return configuration.copyWith(
         oidcIssuerUrl: issuerUrl,
         oidcClientRegistration: configuration.oidcClientRegistration.copyWith(
@@ -112,5 +118,14 @@ class SharedPreferencesServerConfigurationRepository
   String _normalizedClientId(String clientId) {
     final trimmed = clientId.trim();
     return trimmed.isEmpty ? oidcDefaultClientId : trimmed;
+  }
+
+  Future<void> _removeObsoleteSetupFlag() async {
+    try {
+      await _store.remove(legacySetupCompleteKey);
+    } catch (_) {
+      // Obsolete preference cleanup is best effort. The validated current
+      // configuration remains authoritative for bootstrap.
+    }
   }
 }

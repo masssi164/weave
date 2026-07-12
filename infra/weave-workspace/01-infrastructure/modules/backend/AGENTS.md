@@ -4,8 +4,8 @@ This module owns the local Weave backend runtime consumed by the Caddy product g
 
 ## Files
 
-- `main.tf`: Weave backend image, container, healthcheck, OIDC environment, and Docker network aliases.
-- `variables.tf`: image, port, hostname, and OIDC contract inputs.
+- `main.tf`: Weave backend image, loopback-only host port, backend-only healthcheck, OIDC environment, selected Context/ReBAC facts, isolated-E2E runtime marker, and Docker network aliases.
+- `variables.tf`: image, port, hostname, OIDC contract, and explicitly selected Context/ReBAC inputs.
 - `outputs.tf`: exported backend container identifier.
 
 ## Global Weave agent baseline

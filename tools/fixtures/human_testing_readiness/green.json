@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 1,
+  "candidateCommit": "1111111111111111111111111111111111111111",
+  "specCorpusCommit": "f17dc9342e52339d650112e1bb1b1ed6e3aec81f",
+  "generatedAtUtc": "2026-07-12T12:00:00Z",
+  "state": "ready",
+  "humanTestingReady": true,
+  "builds": {
+    "backend": {
+      "commit": "1111111111111111111111111111111111111111",
+      "version": "0.1.0-rc.1",
+      "buildNumber": "101"
+    },
+    "client": {
+      "commit": "1111111111111111111111111111111111111111",
+      "version": "0.1.0-rc.1",
+      "buildNumber": "101",
+      "bundleId": "com.massimotter.weave"
+    }
+  },
+  "surfaces": {
+    "authenticationSession": {"status": "passed", "evidenceRefs": ["artifact:live/auth"]},
+    "home": {"status": "passed", "evidenceRefs": ["artifact:live/home"]},
+    "chat": {"status": "passed", "evidenceRefs": ["artifact:live/chat"]},
+    "files": {"status": "passed", "evidenceRefs": ["artifact:live/files"]},
+    "calendar": {"status": "passed", "evidenceRefs": ["artifact:live/calendar"]},
+    "settings": {"status": "passed", "evidenceRefs": ["artifact:live/settings"]},
+    "profile": {"status": "passed", "evidenceRefs": ["artifact:live/profile"]}
+  },
+  "collaboration": {
+    "status": "passed",
+    "identityRefHashes": {
+      "author": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "collaborator": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "outsider": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    },
+    "scenarioResults": {
+      "authenticationShell": "passed",
+      "home": "passed",
+      "chat": "passed",
+      "files": "passed",
+      "calendar": "passed",
+      "settingsProfile": "passed",
+      "failureContainment": "passed",
+      "authorization": "passed"
+    },
+    "cleanupStatus": "passed",
+    "repeatCount": 2
+  },
+  "deployment": {
+    "stackStatus": "passed",
+    "idempotencyStatus": "passed",
+    "persistentHumanUnchanged": true
+  },
+  "providerHealth": {
+    "overall": "available",
+    "observedAtUtc": "2026-07-12T11:59:00Z",
+    "cachedResultAgeSeconds": 60,
+    "capabilities": {
+      "chat": "available",
+      "files": "available",
+      "calendar": "available"
+    }
+  },
+  "distribution": {
+    "status": "passed",
+    "channel": "testflight",
+    "buildNumber": "101"
+  },
+  "physicalAcceptance": {
+    "status": "passed",
+    "physicalIPhone": true,
+    "voiceOver": "passed",
+    "sessionUpgrade": "passed",
+    "navigation": "passed",
+    "testerRefHash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+  },
+  "blockers": [],
+  "evidence": [
+    "artifact:live-stack/101",
+    "artifact:dogfood-deployment/101",
+    "artifact:ios-distribution/101",
+    "issue:physical-acceptance/101"
+  ]
+}

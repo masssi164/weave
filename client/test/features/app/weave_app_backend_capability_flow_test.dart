@@ -148,11 +148,12 @@ class _RecordingWeaveApiClient implements WeaveApiClient {
     required String accessToken,
   }) async {
     return const WorkspaceHomeSnapshot(
-      version: 1,
+      version: 2,
       readiness: WorkspaceCapabilityReadiness.ready,
       summary: 'Weave Home is ready for tests.',
       sections: [],
       actions: [],
+      recentActivity: [],
       supportSafe: true,
     );
   }
@@ -371,8 +372,6 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await _continueFirstRunIfPresent(tester);
-
       expect(find.byType(NavigationBar), findsOneWidget);
 
       await tester.tap(find.byIcon(Icons.settings_outlined));
@@ -414,16 +413,4 @@ void main() {
       );
     },
   );
-}
-
-Future<void> _continueFirstRunIfPresent(WidgetTester tester) async {
-  final continueButton = find.text('Continue to chat');
-  if (continueButton.evaluate().isEmpty) {
-    return;
-  }
-
-  await tester.ensureVisible(continueButton);
-  await tester.pumpAndSettle();
-  await tester.tap(continueButton);
-  await tester.pumpAndSettle();
 }

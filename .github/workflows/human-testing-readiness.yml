@@ -1,0 +1,306 @@
+name: Human Testing Readiness
+run-name: Human Testing Readiness ${{ inputs.candidate_sha }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_sha:
+        description: "Exact deployed and distributed dogfood commit"
+        required: true
+        type: string
+      live_e2e_run_id:
+        description: "Successful isolated three-user Live Stack E2E run ID"
+        required: true
+        type: string
+      deployment_run_id:
+        description: "Successful persistent Test Stack Deploy run ID"
+        required: true
+        type: string
+      ios_run_id:
+        description: "Successful iOS Dogfood/TestFlight run ID"
+        required: true
+        type: string
+      installed_build_number:
+        description: "Build number shown by support-safe Settings diagnostics on the physical iPhone"
+        required: true
+        type: string
+      installed_commit:
+        description: "Full candidate commit shown by support-safe Settings diagnostics on the physical iPhone"
+        required: true
+        type: string
+      physical_evidence_ref:
+        description: "Support-safe issue/checklist reference containing the completed physical test rows"
+        required: true
+        type: string
+      tester_opaque_reference:
+        description: "Non-personal opaque tester reference; only its SHA-256 is retained"
+        required: true
+        type: string
+      voiceover_passed:
+        description: "Physical-iPhone VoiceOver labels, headings, focus, errors, Dynamic Type, and touch targets passed"
+        required: true
+        default: false
+        type: boolean
+      session_upgrade_passed:
+        description: "In-place update, Keychain session continuity, force quit, and token refresh passed"
+        required: true
+        default: false
+        type: boolean
+      navigation_and_interactions_passed:
+        description: "Every current tab plus one real Chat, Files, and Calendar interaction passed"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: human-testing-readiness-${{ inputs.candidate_sha }}
+  cancel-in-progress: false
+
+jobs:
+  finalize-readiness:
+    name: Validate physical acceptance and finalize readiness
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: ios-dogfood
+    defaults:
+      run:
+        working-directory: weave
+    env:
+      CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+      LIVE_E2E_RUN_ID: ${{ inputs.live_e2e_run_id }}
+      DEPLOYMENT_RUN_ID: ${{ inputs.deployment_run_id }}
+      IOS_RUN_ID: ${{ inputs.ios_run_id }}
+      INSTALLED_BUILD_NUMBER: ${{ inputs.installed_build_number }}
+      INSTALLED_COMMIT: ${{ inputs.installed_commit }}
+      PHYSICAL_EVIDENCE_REF: ${{ inputs.physical_evidence_ref }}
+      TESTER_OPAQUE_REFERENCE: ${{ inputs.tester_opaque_reference }}
+      VOICEOVER_PASSED: ${{ inputs.voiceover_passed }}
+      SESSION_UPGRADE_PASSED: ${{ inputs.session_upgrade_passed }}
+      NAVIGATION_AND_INTERACTIONS_PASSED: ${{ inputs.navigation_and_interactions_passed }}
+    steps:
+      - name: Validate immutable input shapes
+        working-directory: .
+        run: |
+          set -euo pipefail
+          [[ "$CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "::error::candidate_sha must be a full lowercase commit SHA." >&2
+            exit 1
+          }
+          for value in "$LIVE_E2E_RUN_ID" "$DEPLOYMENT_RUN_ID" "$IOS_RUN_ID"; do
+            [[ "$value" =~ ^[0-9]+$ ]] || {
+              echo "::error::All workflow run IDs must be numeric." >&2
+              exit 1
+            }
+          done
+          [[ "$INSTALLED_BUILD_NUMBER" =~ ^[1-9][0-9]*$ ]] || {
+            echo "::error::installed_build_number must be a positive integer." >&2
+            exit 1
+          }
+          [[ -n "$PHYSICAL_EVIDENCE_REF" && -n "$TESTER_OPAQUE_REFERENCE" ]]
+          [[ "$INSTALLED_COMMIT" =~ ^[0-9a-f]{40}$ && "$INSTALLED_COMMIT" == "$CANDIDATE_SHA" ]] || {
+            echo "::error::The commit shown by physical Settings diagnostics must equal the candidate." >&2
+            exit 1
+          }
+          python3 - <<'PY'
+          import os
+          from urllib.parse import urlparse
+
+          value = urlparse(os.environ["PHYSICAL_EVIDENCE_REF"])
+          if (
+              value.scheme != "https"
+              or not value.hostname
+              or value.username is not None
+              or value.password is not None
+              or value.query
+              or value.fragment
+          ):
+              raise SystemExit(
+                  "physical_evidence_ref must be an uncredentialed HTTPS reference without query or fragment"
+              )
+          PY
+
+      - name: Check out exact Weave candidate
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.candidate_sha }}
+          path: weave
+          fetch-depth: 0
+
+      - name: Resolve pinned specification corpus
+        id: spec-corpus
+        run: echo "commit=$(jq -r '.specCorpus.gitCommit' specs/weave-specs.lock.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Check out pinned Weave Specification Corpus
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ github.repository_owner }}/weave-specs
+          ref: ${{ steps.spec-corpus.outputs.commit }}
+          path: weave-specs
+          persist-credentials: false
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.4'
+          channel: stable
+          cache: true
+
+      - name: Install acceptance-contract dependencies
+        working-directory: weave/client
+        run: flutter pub get
+
+      - name: Verify source workflow results and exact commits
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          verify_run() {
+            local run_id="$1"
+            local expected_name="$2"
+            local require_head_sha="$3"
+            local payload
+            payload="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}")"
+            [[ "$(jq -r '.name' <<<"$payload")" == "$expected_name" ]] || {
+              echo "::error::Run ${run_id} is not ${expected_name}." >&2
+              exit 1
+            }
+            [[ "$(jq -r '.conclusion' <<<"$payload")" == "success" ]] || {
+              echo "::error::Run ${run_id} (${expected_name}) is not successful." >&2
+              exit 1
+            }
+            if [[ "$require_head_sha" == "true" && "$(jq -r '.head_sha' <<<"$payload")" != "$CANDIDATE_SHA" ]]; then
+              echo "::error::Run ${run_id} (${expected_name}) does not target ${CANDIDATE_SHA}." >&2
+              exit 1
+            fi
+          }
+          verify_run "$LIVE_E2E_RUN_ID" "Live Stack E2E" true
+          verify_run "$DEPLOYMENT_RUN_ID" "Test Stack Deploy" false
+          verify_run "$IOS_RUN_ID" "iOS Dogfood" false
+
+      - name: Download ordered support-safe evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p build/evidence/live build/evidence/deployment build/evidence/ios build/evidence/physical
+          gh run download "$LIVE_E2E_RUN_ID" --name weave-live-stack-acceptance-evidence --dir build/evidence/live
+          gh run download "$DEPLOYMENT_RUN_ID" --name weave-test-stack-evidence --dir build/evidence/deployment
+          gh run download "$IOS_RUN_ID" --dir build/evidence/ios
+          test -s build/evidence/live/human-testing-automated-evidence.json
+          test -s build/evidence/deployment/dogfood-deployment-evidence.json
+          distribution="$(find build/evidence/ios -name ios-dogfood-distribution.json -type f -print -quit)"
+          test -n "$distribution"
+          cp "$distribution" build/evidence/ios-dogfood-distribution.json
+
+      - name: Verify installed physical build identity
+        run: |
+          set -euo pipefail
+          distribution="build/evidence/ios-dogfood-distribution.json"
+          [[ "$(jq -r '.commit' "$distribution")" == "$CANDIDATE_SHA" ]] || {
+            echo "::error::Distributed commit does not match candidate." >&2
+            exit 1
+          }
+          [[ "$(jq -r '.buildNumber' "$distribution")" == "$INSTALLED_BUILD_NUMBER" ]] || {
+            echo "::error::Installed physical build number does not match TestFlight evidence." >&2
+            exit 1
+          }
+          [[ "$INSTALLED_COMMIT" == "$(jq -r '.commit' "$distribution")" ]] || {
+            echo "::error::Installed physical commit does not match TestFlight evidence." >&2
+            exit 1
+          }
+
+      - name: Record support-safe physical acceptance input
+        run: |
+          set -euo pipefail
+          tester_hash="sha256:$(printf '%s' "$TESTER_OPAQUE_REFERENCE" | sha256sum | awk '{print $1}')"
+          status=passed
+          blockers='[]'
+          voiceover=passed
+          session_upgrade=passed
+          navigation=passed
+          if [[ "$VOICEOVER_PASSED" != "true" ]]; then
+            status=blocked
+            voiceover=not_run
+          fi
+          if [[ "$SESSION_UPGRADE_PASSED" != "true" ]]; then
+            status=blocked
+            session_upgrade=not_run
+          fi
+          if [[ "$NAVIGATION_AND_INTERACTIONS_PASSED" != "true" ]]; then
+            status=blocked
+            navigation=not_run
+          fi
+          if [[ "$status" != "passed" ]]; then
+            blockers="$(jq -n --arg commit "$CANDIDATE_SHA" '[{code:"physical-acceptance-incomplete",summary:"One or more mandatory physical-iPhone acceptance rows are incomplete.",candidateCommit:$commit}]')"
+          fi
+          jq -n \
+            --arg candidate "$CANDIDATE_SHA" \
+            --arg status "$status" \
+            --arg voiceover "$voiceover" \
+            --arg sessionUpgrade "$session_upgrade" \
+            --arg navigation "$navigation" \
+            --arg testerHash "$tester_hash" \
+            --arg evidenceRef "$PHYSICAL_EVIDENCE_REF" \
+            --argjson blockers "$blockers" \
+            '{schemaVersion:1,supportSafe:true,candidateCommit:$candidate,physicalAcceptance:{status:$status,physicalIPhone:true,voiceOver:$voiceover,sessionUpgrade:$sessionUpgrade,navigation:$navigation,testerRefHash:$testerHash},physicalEvidenceRef:$evidenceRef,blockers:$blockers}' \
+            > build/evidence/physical/physical-acceptance.json
+
+      - name: Assemble and require the final readiness manifest
+        id: readiness
+        run: |
+          set -o pipefail
+          python3 tools/human_testing_readiness_assemble.py \
+            --candidate-commit "$CANDIDATE_SHA" \
+            --automated-evidence build/evidence/live/human-testing-automated-evidence.json \
+            --deployment-evidence build/evidence/deployment/dogfood-deployment-evidence.json \
+            --distribution-evidence build/evidence/ios-dogfood-distribution.json \
+            --physical-evidence build/evidence/physical/physical-acceptance.json \
+            --output build/evidence/human-testing-readiness.json \
+            --require-ready 2>&1 | tee build/evidence/readiness-evaluation.log
+
+      - name: Validate the finalized manifest independently
+        if: always()
+        run: |
+          set -euo pipefail
+          if [[ -s build/evidence/human-testing-readiness.json ]]; then
+            python3 tools/human_testing_readiness_manifest.py validate \
+              --manifest build/evidence/human-testing-readiness.json \
+              ${{ steps.readiness.outcome == 'success' && '--require-ready' || '' }}
+          fi
+
+      - name: Map physical acceptance runtime evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          if [[ -s build/evidence/readiness-evaluation.log ]]; then
+            cd client
+            dart run tool/acceptance_contract.dart guard \
+              --root .. \
+              --features e2e/features \
+              --mapping e2e/scenario_mappings.json \
+              --out ../build/evidence/physical-acceptance-contract \
+              --test-log ../build/evidence/readiness-evaluation.log \
+              --source physical-iphone-acceptance \
+              --lane physical-human-acceptance \
+              --commit "$CANDIDATE_SHA" \
+              --run-id "$GITHUB_RUN_ID" \
+              --run-attempt "$GITHUB_RUN_ATTEMPT" \
+              --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          fi
+
+      - name: Upload readiness evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: human-testing-readiness-${{ inputs.candidate_sha }}
+          path: |
+            weave/build/evidence/human-testing-readiness.json
+            weave/build/evidence/readiness-evaluation.log
+            weave/build/evidence/physical/physical-acceptance.json
+            weave/build/evidence/physical-acceptance-contract
+          if-no-files-found: warn
+          retention-days: 90

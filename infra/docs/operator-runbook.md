@@ -48,9 +48,10 @@ Rotation guidance:
 
 1. update the private env file
 2. re-export the `TF_VAR_*` values
-3. run `bash weave-workspace/install.sh`
-4. run `bash weave-workspace/release-verify.sh`
-5. if the rotated secret affects sign-in, also test a fresh login manually
+3. for `TF_VAR_nextcloud_backend_actor_token`, set `WEAVE_NEXTCLOUD_ROTATE_BACKEND_ACTOR_CREDENTIAL=true` for this explicit rotation run; ordinary installs never reset that credential
+4. run `bash weave-workspace/install.sh`
+5. run `bash weave-workspace/release-verify.sh`
+6. if the rotated secret affects sign-in, also test a fresh login manually
 
 Treat `TF_VAR_mas_signing_key_pem` as a durable signing secret. Rotating it is possible, but it is a higher-risk maintenance event and should be paired with a recovery window and explicit client revalidation.
 
@@ -72,6 +73,9 @@ Notes:
 - keep `TF_VAR_create_test_user=false` for release environments
 - use pinned images, not `:latest`
 - after a backend image change, verify `/api/health/ready` and the backend-owned Nextcloud actor checks through both `release-verify.sh` and `operator-check.sh`
+- Nextcloud trusts only the exact Caddy container address resolved on the active Docker network. Do not configure a Docker-wide or private-LAN trusted-proxy CIDR, and do not disable brute-force protection.
+- install performs one bounded WebDAV and one CalDAV authentication check after provisioning. `429` is evidence of a credential/proxy/client fault; wait for the provider backoff window and fix the cause rather than resetting counters.
+- the direct backend host port is bound to `127.0.0.1`. Caddy returns `404` for public `/actuator` and `/actuator/*`; `/api/health/live` and `/api/health/ready` remain the public operational health contract.
 
 ## 4. Routine verification
 
@@ -190,7 +194,21 @@ For support requests, prefer a redacted support bundle over hand-copying raw log
 bash weave-workspace/support-bundle.sh
 ```
 
-Set `WEAVE_SUPPORT_BUNDLE_RUN_CHECKS=true` when you want the bundle to include fresh `operator-check.sh` and `release-verify.sh` output. The bundle includes public URL/config summaries, container status, recent service logs, disk/volume summaries, and recent smoke/operator/verify artifacts found under `.generated`. It is a diagnostics artifact only: it is **not** a backup and cannot restore Postgres databases, Matrix media, Nextcloud files/calendar data, Caddy ACME state, or generated secrets. Review the archive before sharing externally.
+To include the backend's cached provider capability health, pass a short-lived owner/admin/operator bearer token with `admin_control_plane.readiness_read`; the bundle calls only the authenticated `/api/v1/admin/provider-capability-health` route and strict-allowlists its support-safe schema. A workflow may instead stage either that exact response or the support-safe `weave.provider-health-metrics-summary.v1` emitted from loopback-only cached Actuator gauges in `WEAVE_PROVIDER_HEALTH_EVIDENCE_FILE`. The two schemas have independent exact-field allowlists; a raw Actuator response, unknown field, inconsistent overall state, probe-triggering source, or raw metric payload is rejected.
+
+When Nextcloud authentication throttling is suspected, run:
+
+```bash
+bash weave-workspace/nextcloud-auth-security-audit.sh --output /tmp/nextcloud-auth-audit.json
+```
+
+The audit is read-only. It groups recent invalid-authentication and throttle events by salted source hash, classifies known Caddy/backend container addresses, and reports only canonical method/route classes plus aggregate configured-backend-actor attribution. It never prints raw addresses, actors, URLs, messages, or provider payloads, and never changes protection or resets counters.
+
+Protected deployment automation may read cached Micrometer measurements directly from `http://127.0.0.1:${TF_VAR_backend_host_port}/actuator/metrics`. These host-local reads do not execute provider probes. Do not publish or proxy this endpoint; use the authenticated admin provider-capability-health facade for product/control-plane access.
+
+For the persistent dogfood candidate workflow, capture `persistent-dogfood-observation.sh capture` before the first install and after the second, then run `compare`. The helper requires `TF_VAR_create_test_user=false` and isolated E2E disabled. It compares only hashes/counts for the immutable human subject, Mailpit volume/message state, Mailpit database SHA-256 and size, TLS CA/leaf identity, and active session set. Database content is never copied into evidence.
+
+Set `WEAVE_SUPPORT_BUNDLE_RUN_CHECKS=true` when you want the bundle to include fresh `operator-check.sh` and `release-verify.sh` output. The bundle includes public URL/config summaries, container status, disk/volume summaries, strict cached provider-health evidence, the sanitized Nextcloud authentication-source audit, and only a count/content-set hash for recent smoke/operator/verify artifacts found under `.generated`. Raw service/provider logs and raw prior diagnostic artifacts are deliberately excluded because generic redaction cannot prove removal of actor/content identifiers. It is a diagnostics artifact only: it is **not** a backup and cannot restore Postgres databases, Matrix media, Nextcloud files/calendar data, Caddy ACME state, or generated secrets. Review the archive before sharing externally.
 
 Escalate quickly when any of these fail:
 

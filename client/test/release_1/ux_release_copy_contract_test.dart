@@ -124,7 +124,6 @@ const _releaseScopePrefixes = <String>[
   'setup',
   'nav',
   'shell',
-  'firstRun',
   'chatOverview',
   'chatFavorites',
   'chatPersonal',

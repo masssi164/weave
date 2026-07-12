@@ -24,6 +24,9 @@ const _sensitiveKeyNames = <String>{
   'providerurl',
   'provideruri',
   'providerhost',
+  'path',
+  'reference',
+  'ref',
   'rawerror',
   'providererror',
   'downstreamerror',
@@ -47,6 +50,8 @@ const _sensitiveKeySuffixes = <String>{
   'uri',
   'host',
   'endpoint',
+  'path',
+  'ref',
 };
 
 void main(List<String> args) {
@@ -591,7 +596,13 @@ Map<String, String> _sanitizeMarkerFields(String line) {
         lowerKey.endsWith('name')) {
       continue;
     }
-    if (value.length > 120 || value.contains('://')) {
+    final lowerValue = value.toLowerCase();
+    if (value.length > 120 ||
+        value.contains('://') ||
+        value.contains('@') ||
+        lowerValue.contains('bearer') ||
+        lowerValue.contains('password=') ||
+        lowerValue.contains('token=')) {
       continue;
     }
     fields[key] = value;

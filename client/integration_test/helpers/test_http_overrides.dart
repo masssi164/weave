@@ -3,33 +3,22 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
 
-class TestHttpOverrides extends HttpOverrides {
-  TestHttpOverrides();
+import 'live_test_tls.dart';
 
-  static bool isTrustedTestHost(String host) {
-    final normalized = host.toLowerCase();
-    return normalized == '127.0.0.1' ||
-        normalized == 'localhost' ||
-        normalized.endsWith('.localhost') ||
-        normalized.endsWith('.weave.test') ||
-        normalized == '127.0.0.1.sslip.io' ||
-        normalized.endsWith('.127.0.0.1.sslip.io');
-  }
+class TestHttpOverrides extends HttpOverrides {
+  TestHttpOverrides({LiveTestTlsTrust? trust})
+    : _trust = trust ?? compileTimeLiveTestTlsTrust;
+
+  final LiveTestTlsTrust _trust;
 
   @override
   HttpClient createHttpClient(SecurityContext? context) {
-    final client = super.createHttpClient(context);
-    client.badCertificateCallback = (cert, host, port) {
-      return isTrustedTestHost(host);
-    };
-    return client;
+    return super.createHttpClient(
+      _trust.createSecurityContext(baseContext: context),
+    );
   }
 }
 
-http.Client createTrustedTestHttpClient() {
-  final ioClient = HttpClient()
-    ..badCertificateCallback = (cert, host, port) {
-      return TestHttpOverrides.isTrustedTestHost(host);
-    };
-  return IOClient(ioClient);
+http.Client createTrustedTestHttpClient({LiveTestTlsTrust? trust}) {
+  return IOClient(createLiveTestHttpClient(trust: trust));
 }

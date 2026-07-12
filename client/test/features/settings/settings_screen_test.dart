@@ -920,7 +920,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Shell modules'), findsOneWidget);
-      final recentActivityToggle = find.text('Recent activity quick links');
+      final recentActivityToggle = find.text('Recent workspace activity');
       expect(recentActivityToggle, findsOneWidget);
 
       await tester.ensureVisible(recentActivityToggle);

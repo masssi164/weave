@@ -14,6 +14,7 @@ readonly KEYCLOAK_DIR="${ROOT_DIR}/02-keycloak-setup"
 readonly BOOTSTRAP_ENV_FILE="${ROOT_DIR}/.generated/bootstrap.env"
 readonly APP_CONFIG_ENV_FILE="${ROOT_DIR}/.generated/app-config.env"
 readonly RUNNER_BOOTSTRAP_ENV_FILE="/tmp/weave-infra/weave-workspace/.generated/bootstrap.env"
+readonly NEXTCLOUD_PROVISION_EVIDENCE_FILE="${WEAVE_NEXTCLOUD_PROVISION_EVIDENCE_FILE:-${ROOT_DIR}/.generated/nextcloud-post-provision-health.json}"
 readonly TEARDOWN_SCRIPT="${ROOT_DIR}/teardown.sh"
 readonly SYNAPSE_VOLUME_HELPER="${ROOT_DIR}/lib/synapse-volume.sh"
 readonly LOOPBACK_HOST="${WEAVE_LOOPBACK_HOST:-127.0.0.1}"
@@ -22,6 +23,9 @@ readonly TEST_USER_EMAIL="test@weave.test"
 readonly PERSISTED_TF_VARS=(
   TF_VAR_docker_host
   TF_VAR_docker_network_name
+  TF_VAR_isolated_e2e_enabled
+  TF_VAR_isolated_e2e_namespace
+  TF_VAR_isolated_e2e_context_memberships
   TF_VAR_tenant_slug
   TF_VAR_tenant_domain
   TF_VAR_local_lan_host
@@ -39,7 +43,6 @@ readonly PERSISTED_TF_VARS=(
   TF_VAR_mas_host_port
   TF_VAR_synapse_host_port
   TF_VAR_nextcloud_host_port
-  TF_VAR_nextcloud_trusted_proxies
   TF_VAR_caddy_tls_cert_file
   TF_VAR_caddy_tls_key_file
   TF_VAR_caddy_tls_ca_file
@@ -269,6 +272,8 @@ persist_default_local_tls_to_state() {
 }
 
 load_persisted_env() {
+  restore_persisted_bootstrap_from_state
+
   if [[ ! -f "${BOOTSTRAP_ENV_FILE}" ]]; then
     return
   fi
@@ -293,6 +298,44 @@ load_persisted_env() {
     export "${preset_names[$index]}=${preset_values[$index]}"
   done
 
+}
+
+local_credential_state_file() {
+  if [[ "${WEAVE_LOCAL_CREDENTIAL_STATE_FILE:-}" == "none" ]]; then
+    return 1
+  fi
+  if [[ -n "${WEAVE_LOCAL_CREDENTIAL_STATE_FILE:-}" ]]; then
+    printf '%s\n' "${WEAVE_LOCAL_CREDENTIAL_STATE_FILE}"
+    return 0
+  fi
+  if [[ "${TF_VAR_isolated_e2e_enabled:-false}" == "true" && -z "${WEAVE_LOCAL_CREDENTIAL_STATE_FILE:-}" ]]; then
+    return 1
+  fi
+  if [[ -n "${TF_VAR_tenant_domain:-}" && "${TF_VAR_tenant_domain}" != "weave.test" ]]; then
+    return 1
+  fi
+
+  printf '%s\n' "${XDG_STATE_HOME:-${HOME}/.local/state}/weave/dogfood/bootstrap.env"
+}
+
+restore_persisted_bootstrap_from_state() {
+  [[ ! -f "${BOOTSTRAP_ENV_FILE}" ]] || return 0
+
+  local state_file
+  state_file="$(local_credential_state_file)" || return 0
+  [[ -f "${state_file}" ]] || return 0
+
+  mkdir -p "$(dirname -- "${BOOTSTRAP_ENV_FILE}")"
+  install -m 0600 "${state_file}" "${BOOTSTRAP_ENV_FILE}"
+}
+
+persist_bootstrap_to_state() {
+  local state_file
+  state_file="$(local_credential_state_file)" || return 0
+
+  mkdir -p "$(dirname -- "${state_file}")"
+  chmod 700 "$(dirname -- "${state_file}")"
+  install -m 0600 "${BOOTSTRAP_ENV_FILE}" "${state_file}"
 }
 
 persist_bootstrap_env() {
@@ -400,6 +443,7 @@ persist_bootstrap_env() {
     } >> "${BOOTSTRAP_ENV_FILE}"
   fi
 
+  persist_bootstrap_to_state
   cp "${BOOTSTRAP_ENV_FILE}" "${RUNNER_BOOTSTRAP_ENV_FILE}"
   chmod 600 "${RUNNER_BOOTSTRAP_ENV_FILE}"
 
@@ -981,11 +1025,12 @@ host_port_from_url() {
   printf '%s\n' "${host_port}"
 }
 
-curl_nextcloud_actor_calendar_status() {
+curl_nextcloud_actor_dav_status() {
   local method="$1"
   local url="$2"
+  local response_headers="$3"
   local host_port
-  local -a args=(--silent --show-error)
+  local -a args=(--silent --show-error --connect-timeout 5 --max-time 15)
 
   host_port="$(host_port_from_url "${url}")"
   args+=(--resolve "${host_port}:${LOOPBACK_RESOLVE_HOST}")
@@ -997,6 +1042,7 @@ curl_nextcloud_actor_calendar_status() {
     --user "${TF_VAR_nextcloud_backend_actor_username}:${TF_VAR_nextcloud_backend_actor_token}" \
     --request "${method}" \
     --header 'Depth: 0' \
+    --dump-header "${response_headers}" \
     -o /dev/null \
     -w '%{http_code}' \
     "${url}"
@@ -1248,6 +1294,8 @@ cleanup_partial_weave_containers() {
 ensure_default_inputs() {
   local defaults=(
     "TF_VAR_docker_network_name=weave_network"
+    "TF_VAR_isolated_e2e_enabled=false"
+    "TF_VAR_isolated_e2e_namespace="
     "TF_VAR_tenant_slug=weave"
     "TF_VAR_tenant_domain=weave.test"
     "TF_VAR_local_lan_host="
@@ -1265,7 +1313,6 @@ ensure_default_inputs() {
     "TF_VAR_mas_host_port=48082"
     "TF_VAR_synapse_host_port=48008"
     "TF_VAR_nextcloud_host_port=48083"
-    "TF_VAR_nextcloud_trusted_proxies=172.16.0.0/12"
     "TF_VAR_backend_host_port=48084"
     "TF_VAR_backend_container_port=8080"
     "TF_VAR_weave_backend_image=weave-backend:local"
@@ -1340,6 +1387,11 @@ ensure_default_inputs() {
     set_default_var TF_VAR_context_authorization_bootstrap_enabled true
   else
     set_default_var TF_VAR_context_authorization_bootstrap_enabled false
+  fi
+
+  if [[ "${TF_VAR_isolated_e2e_enabled}" == "true" ]]; then
+    export TF_VAR_context_authorization_bootstrap_enabled=false
+    export TF_VAR_context_authorization_dogfood_principal_ref=""
   fi
 
   set_default_var TF_VAR_caddy_tls_cert_file "${INFRA_DIR}/.generated/caddy/certs/weave.test.pem"
@@ -1569,6 +1621,76 @@ configure_nextcloud_base_url() {
   occ config:system:set overwriteprotocol --value="${TF_VAR_public_scheme}"
 }
 
+docker_container_network_addresses() {
+  local container_name="$1"
+  local network_name="$2"
+
+  docker inspect --format '{{json .NetworkSettings.Networks}}' "${container_name}" |
+    python3 -c 'import ipaddress,json,sys
+network_name=sys.argv[1]
+try:
+    networks=json.load(sys.stdin)
+except Exception:
+    raise SystemExit(1)
+network=networks.get(network_name)
+if not isinstance(network, dict):
+    raise SystemExit(1)
+for key in ("IPAddress", "GlobalIPv6Address"):
+    value=str(network.get(key, "")).strip()
+    if not value:
+        continue
+    try:
+        print(ipaddress.ip_address(value))
+    except ValueError:
+        raise SystemExit(1)
+' "${network_name}"
+}
+
+configure_nextcloud_reverse_proxy() {
+  local address
+  local actual
+  local condition
+  local index=0
+  local -a proxy_addresses=()
+
+  while IFS= read -r address; do
+    [[ -n "${address}" ]] && proxy_addresses+=("${address}")
+  done < <(docker_container_network_addresses weave-proxy "${TF_VAR_docker_network_name}")
+
+  ((${#proxy_addresses[@]} > 0)) || fail "Nextcloud proxy trust could not resolve the Caddy address on the configured Docker network."
+  docker_container_network_addresses weave-nextcloud "${TF_VAR_docker_network_name}" >/dev/null ||
+    fail "Nextcloud and Caddy are not attached to the same configured Docker network."
+
+  occ config:system:delete trusted_proxies >/dev/null 2>&1 || true
+  for address in "${proxy_addresses[@]}"; do
+    [[ "${address}" != */* ]] || fail "Nextcloud proxy trust must contain exact Caddy addresses, not CIDRs."
+    occ config:system:set trusted_proxies "${index}" --value="${address}" >/dev/null
+    index=$((index + 1))
+  done
+
+  occ config:system:delete forwarded_for_headers >/dev/null 2>&1 || true
+  occ config:system:set forwarded_for_headers 0 --value="HTTP_X_FORWARDED_FOR" >/dev/null
+
+  condition="$(printf '%s\n' "${proxy_addresses[@]}" | python3 -c 'import re,sys
+addresses=[line.strip() for line in sys.stdin if line.strip()]
+print("^(?:" + "|".join(re.escape(value) for value in addresses) + ")$")
+')"
+  occ config:system:set overwritecondaddr --value="${condition}" >/dev/null
+
+  index=0
+  for address in "${proxy_addresses[@]}"; do
+    actual="$(occ config:system:get trusted_proxies "${index}")"
+    [[ "${actual}" == "${address}" ]] || fail "Nextcloud did not persist the exact Caddy proxy trust boundary."
+    index=$((index + 1))
+  done
+  actual="$(occ config:system:get trusted_proxies "${index}" 2>/dev/null || true)"
+  [[ -z "${actual}" ]] || fail "Nextcloud retained an unexpected additional trusted proxy entry."
+  actual="$(occ config:system:get forwarded_for_headers 0)"
+  [[ "${actual}" == "HTTP_X_FORWARDED_FOR" ]] || fail "Nextcloud forwarded-address handling is not pinned to X-Forwarded-For."
+
+  log "Verified Nextcloud trusts only the exact Caddy address on the active Docker network."
+}
+
 install_nextcloud_tls_ca() {
   local ca_filename
 
@@ -1641,10 +1763,7 @@ create_nextcloud_backend_actor() {
 
 ensure_nextcloud_backend_actor_calendar() {
   local calendar_id
-  local calendar_url
   local create_output
-  local create_status
-  local read_status
   local -a calendar_ids=(
     personal
     weave-team-engineering
@@ -1656,40 +1775,106 @@ ensure_nextcloud_backend_actor_calendar() {
     if printf '%s' "${create_output}" | grep -Eiq 'already exists|calendar.*exists|duplicate'; then
       continue
     fi
-    if ! printf '%s' "${create_output}" | grep -Eiq 'not defined|unknown command|namespace .* not found'; then
-      fail "Nextcloud backend actor calendar ${calendar_id} could not be created through occ: ${create_output}"
-    fi
-
-    calendar_url="$(nextcloud_public_url)/remote.php/dav/calendars/${TF_VAR_nextcloud_backend_actor_username}/${calendar_id}/"
-    read_status="$(curl_nextcloud_actor_calendar_status PROPFIND "${calendar_url}" || true)"
-    case "${read_status}" in
-      200 | 207) continue ;;
-      404) ;;
-      *) fail "Nextcloud backend actor calendar ${calendar_id} is not readable before creation, HTTP ${read_status}" ;;
-    esac
-
-    create_status="$(curl_nextcloud_actor_calendar_status MKCALENDAR "${calendar_url}" || true)"
-    case "${create_status}" in
-      200 | 201 | 204) ;;
-      *) fail "Nextcloud backend actor calendar ${calendar_id} could not be created through CalDAV, HTTP ${create_status}" ;;
-    esac
-
-    read_status="$(curl_nextcloud_actor_calendar_status PROPFIND "${calendar_url}" || true)"
-    case "${read_status}" in
-      200 | 207) ;;
-      *) fail "Nextcloud backend actor calendar ${calendar_id} is not readable after creation, HTTP ${read_status}" ;;
-    esac
+    fail "Nextcloud backend actor calendar ${calendar_id} could not be provisioned through the local OCC path."
   done
+}
+
+write_nextcloud_post_provision_evidence() {
+  local overall_status="$1"
+  local webdav_status="$2"
+  local caldav_status="$3"
+  local webdav_attempts="$4"
+  local caldav_attempts="$5"
+  local retry_after_observed="$6"
+  local completed_at
+
+  completed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  mkdir -p "$(dirname -- "${NEXTCLOUD_PROVISION_EVIDENCE_FILE}")"
+  cat >"${NEXTCLOUD_PROVISION_EVIDENCE_FILE}" <<JSON
+{
+  "schema": "weave-nextcloud-post-provision-health-v1",
+  "completedAt": "${completed_at}",
+  "status": "${overall_status}",
+  "mode": "single-bounded-authenticated-attempt-per-protocol",
+  "webdav": {"status": "${webdav_status}", "attempts": ${webdav_attempts}},
+  "caldav": {"status": "${caldav_status}", "attempts": ${caldav_attempts}},
+  "retryAfterObserved": ${retry_after_observed},
+  "readinessPollingPerformedProviderAuthentication": false,
+  "rawProviderPayloadIncluded": false,
+  "supportSafe": true
+}
+JSON
+}
+
+retry_after_present() {
+  local headers_file="$1"
+  grep -Eiq '^Retry-After:[[:space:]]*[^[:space:]][^\r\n]*' "${headers_file}"
+}
+
+verify_nextcloud_dav_post_provision() {
+  local webdav_headers
+  local caldav_headers
+  local webdav_status="not_run"
+  local caldav_status="not_run"
+  local webdav_attempts=0
+  local caldav_attempts=0
+  local retry_after_observed=false
+
+  webdav_headers="$(mktemp)"
+  caldav_headers="$(mktemp)"
+  trap 'rm -f -- "${webdav_headers:-}" "${caldav_headers:-}"' EXIT
+
+  webdav_attempts=1
+  webdav_status="$(curl_nextcloud_actor_dav_status \
+    PROPFIND \
+    "$(nextcloud_public_url)/remote.php/dav/files/${TF_VAR_nextcloud_backend_actor_username}/" \
+    "${webdav_headers}" || true)"
+  if [[ "${webdav_status}" == "429" ]]; then
+    retry_after_present "${webdav_headers}" && retry_after_observed=true
+    write_nextcloud_post_provision_evidence failed "${webdav_status}" "${caldav_status}" "${webdav_attempts}" "${caldav_attempts}" "${retry_after_observed}"
+    fail "Nextcloud post-provision WebDAV verification was throttled; no retry was attempted. Correct the credential/proxy cause and honor the provider backoff window before rerunning."
+  fi
+  case "${webdav_status}" in
+    200 | 207) ;;
+    *)
+      write_nextcloud_post_provision_evidence failed "${webdav_status:-000}" "${caldav_status}" "${webdav_attempts}" "${caldav_attempts}" false
+      fail "Nextcloud post-provision WebDAV verification failed with HTTP ${webdav_status:-000}; no retry was attempted."
+      ;;
+  esac
+
+  caldav_attempts=1
+  caldav_status="$(curl_nextcloud_actor_dav_status \
+    PROPFIND \
+    "$(nextcloud_public_url)/remote.php/dav/calendars/${TF_VAR_nextcloud_backend_actor_username}/personal/" \
+    "${caldav_headers}" || true)"
+  if [[ "${caldav_status}" == "429" ]]; then
+    retry_after_present "${caldav_headers}" && retry_after_observed=true
+    write_nextcloud_post_provision_evidence failed "${webdav_status}" "${caldav_status}" "${webdav_attempts}" "${caldav_attempts}" "${retry_after_observed}"
+    fail "Nextcloud post-provision CalDAV verification was throttled; no retry was attempted. Correct the credential/proxy cause and honor the provider backoff window before rerunning."
+  fi
+  case "${caldav_status}" in
+    200 | 207) ;;
+    *)
+      write_nextcloud_post_provision_evidence failed "${webdav_status}" "${caldav_status:-000}" "${webdav_attempts}" "${caldav_attempts}" false
+      fail "Nextcloud post-provision CalDAV verification failed with HTTP ${caldav_status:-000}; no retry was attempted."
+      ;;
+  esac
+
+  write_nextcloud_post_provision_evidence passed "${webdav_status}" "${caldav_status}" "${webdav_attempts}" "${caldav_attempts}" false
+  rm -f -- "${webdav_headers}" "${caldav_headers}"
+  trap - EXIT
+  log "Verified WebDAV and CalDAV once after provisioning; ordinary readiness polling remains unauthenticated to providers."
 }
 
 ensure_nextcloud_backend_actor() {
   [[ -n "${TF_VAR_nextcloud_backend_actor_username:-}" ]] || fail "TF_VAR_nextcloud_backend_actor_username must be set."
   [[ -n "${TF_VAR_nextcloud_backend_actor_token:-}" ]] || fail "TF_VAR_nextcloud_backend_actor_token must be set."
 
-  if nextcloud_backend_actor_exists; then
-    set_nextcloud_backend_actor_password
-  else
+  if ! nextcloud_backend_actor_exists; then
     create_nextcloud_backend_actor
+  elif [[ "${WEAVE_NEXTCLOUD_ROTATE_BACKEND_ACTOR_CREDENTIAL:-false}" == "true" ]]; then
+    set_nextcloud_backend_actor_password
+    log "Rotated the Nextcloud backend actor credential by explicit operator request."
   fi
 
   ensure_nextcloud_backend_actor_calendar
@@ -1818,12 +2003,16 @@ main() {
   ensure_nextcloud_installed
   install_nextcloud_tls_ca
   configure_nextcloud_base_url
+  configure_nextcloud_reverse_proxy
 
   log "Configuring Nextcloud OIDC provider..."
   configure_nextcloud_oidc
 
   log "Ensuring backend-owned Nextcloud actor for files/calendar facades..."
   ensure_nextcloud_backend_actor
+
+  log "Running the bounded post-provision DAV verification..."
+  verify_nextcloud_dav_post_provision
 
   print_summary
 }

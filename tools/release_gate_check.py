@@ -25,12 +25,21 @@ FORBIDDEN_FRAGMENTS = (
 REQUIRED_LANES = {
     "pr-safe-ci",
     "release-candidate-live-evidence",
+    "persistent-dogfood-verification",
+    "ios-dogfood-distribution",
+    "physical-human-acceptance",
     "release-promotion",
 }
 REQUIRED_GATES = {
     "gradle-ci",
+    "spec-corpus-conformance",
     "release-notes-label-check",
     "credentialed-live-stack-e2e",
+    "three-user-live-collaboration",
+    "persistent-dogfood-deployment",
+    "ios-dogfood-distribution",
+    "physical-iphone-voiceover",
+    "human-testing-readiness-manifest",
     "release-draft-review",
     "release-owner-signoff",
 }
@@ -51,6 +60,15 @@ REQUIRED_MARKERS = {
     "CALENDAR_RESULT",
     "BOARDS_RESULT",
     "PROVIDER_REALITY_RESULT",
+    "MULTI_USER_AUTH_SHELL_RESULT",
+    "MULTI_USER_HOME_RESULT",
+    "MULTI_USER_CHAT_RESULT",
+    "MULTI_USER_FILES_RESULT",
+    "MULTI_USER_CALENDAR_RESULT",
+    "MULTI_USER_SETTINGS_PROFILE_RESULT",
+    "MULTI_USER_FAILURE_CONTAINMENT_RESULT",
+    "MULTI_USER_AUTHORIZATION_RESULT",
+    "MULTI_USER_CLEANUP_RESULT",
 }
 
 
@@ -96,8 +114,10 @@ def check_contract(contract: dict[str, Any]) -> None:
     if not isinstance(promotion, dict):
         fail("promotionModel must be present")
     rule = str(promotion.get("promotionRule", ""))
-    if "green-credentialed-live-stack-e2e" not in rule or "waiver" not in rule:
-        fail("promotion rule must require green credentialed Live Stack E2E or waiver")
+    if "exact-candidate-human-testing-readiness-manifest-is-ready" not in rule:
+        fail("promotion rule must require the exact-candidate ready human-testing manifest")
+    if promotion.get("mandatoryGateWaiversAllowed") is not False:
+        fail("mandatory human-testing gates must not be waivable")
 
     lanes = contract["lanes"]
     lane_ids = {lane.get("id") for lane in lanes if isinstance(lane, dict)}
@@ -123,6 +143,8 @@ def check_contract(contract: dict[str, Any]) -> None:
     if REQUIRED_LIVE_ARTIFACTS - live_artifacts:
         fail("credentialed-live-stack-e2e is missing required support-safe artifacts")
     live_markers = set(live_gate.get("mustObserveMarkers", []))
+    collaboration_gate = next(gate for gate in gates if gate.get("id") == "three-user-live-collaboration")
+    live_markers.update(collaboration_gate.get("mustObserveMarkers", []))
     if REQUIRED_MARKERS - live_markers:
         fail("credentialed-live-stack-e2e is missing required runtime markers")
 

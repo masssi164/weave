@@ -6,7 +6,14 @@ Weave uses one stable iOS application identity for engineering builds, TestFligh
 
 TestFlight is the preferred physical-iPhone dogfood channel. Testers install through Apple instead of trusting an Apple Development certificate on the device, and subsequent builds retain the application and Keychain identity. The development-signed profile runner remains an engineering fallback for local deeplink and LAN diagnostics. If that fallback requests repeated Developer App trust after an ordinary update, use TestFlight instead of asking the tester to repeat the trust action.
 
-The GitHub `iOS Dogfood` workflow runs only for `dogfood` or an explicit manual dispatch. Its upload job uses the protected `ios-dogfood` environment. Configure required reviewers and these environment secrets:
+The GitHub `iOS Dogfood` workflow runs after a successful `Test Stack Deploy` for the exact `dogfood` commit, or by an explicit manual recovery dispatch that names the candidate and deployment run. It verifies the matching isolated Live Stack E2E result before archive work. Its upload job uses the protected `ios-dogfood` environment.
+
+Environment ownership is role-based and must be configured in GitHub:
+
+- `dogfood`: Weave release owner or dogfood operator; an approval request expires after 24 hours and is then reported as blocked or superseded.
+- `ios-dogfood`: Weave release owner plus the client/iOS release owner; an approval request expires after 24 hours and is then reported as blocked or superseded.
+
+Superseded pending iOS candidates are cancelled through workflow concurrency while the newest dogfood candidate is preserved. A waiting review is never distribution success; readiness evidence records the environment, workflow run URL, commit, and required approver role. Configure required reviewers and these environment secrets:
 
 - `APPLE_DISTRIBUTION_CERTIFICATE_P12_BASE64`
 - `APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD`
@@ -17,6 +24,8 @@ The GitHub `iOS Dogfood` workflow runs only for `dogfood` or an explicit manual 
 - `APP_STORE_CONNECT_API_PRIVATE_KEY_BASE64`
 
 Create the App Store Connect app record and TestFlight tester group once. Configure automatic distribution for the intended internal tester group, or complete Apple's beta review before using an external tester group. The workflow validates the archive bundle/build identity, uploads with Apple's command-line tooling, and emits support-safe evidence without certificate, profile, API key, or member credential material.
+
+The archive embeds and exposes the candidate commit, version, build number, bundle identifier, and workflow evidence reference in support-safe Settings diagnostics. The physical acceptance gate must verify that installed identity before testing. Simulator archive or smoke results do not substitute for physical-iPhone VoiceOver acceptance.
 
 The Flutter native-assets hook derives `IPHONEOS_DEPLOYMENT_TARGET` from the iOS target version supplied by Flutter and passes it explicitly to the Matrix Rust bridge build. Keep that value target-derived: Xcode build phases can otherwise replace the Cargo child process deployment target with an older default, producing Rust and C objects that cannot be linked into the app. Non-iOS bridge builds must not receive the iOS variable.
 

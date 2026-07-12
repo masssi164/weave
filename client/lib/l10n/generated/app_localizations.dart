@@ -404,77 +404,57 @@ abstract class AppLocalizations {
   /// **'Recent activity'**
   String get shellRecentActivityTitle;
 
-  /// Description for the recent activity card in the app shell
-  ///
-  /// In en, this message translates to:
-  /// **'Quick links to recent rooms and file changes.'**
-  String get shellRecentActivityDescription;
-
   /// Semantic label for the recent activity card
   ///
   /// In en, this message translates to:
-  /// **'Recent activity quick links'**
+  /// **'Authorized recent workspace activity'**
   String get shellRecentActivitySemanticLabel;
 
-  /// Section title for recent room quick links in the app shell
+  /// Loading state for the authorized Home recent-activity projection
   ///
   /// In en, this message translates to:
-  /// **'Rooms'**
-  String get shellRecentRoomsTitle;
+  /// **'Loading recent workspace activity…'**
+  String get homeRecentActivityLoading;
 
-  /// Section title for recent file quick links in the app shell
+  /// Support-safe unavailable state for Home recent activity
   ///
   /// In en, this message translates to:
-  /// **'Files'**
-  String get shellRecentFilesTitle;
+  /// **'Recent workspace activity is unavailable right now.'**
+  String get homeRecentActivityUnavailable;
 
-  /// Loading label for recent room quick links
+  /// Empty state for the authorized Home recent-activity projection
   ///
   /// In en, this message translates to:
-  /// **'Loading recent rooms…'**
-  String get shellRecentRoomsLoading;
+  /// **'No completed workspace activity is visible yet.'**
+  String get homeRecentActivityEmpty;
 
-  /// Empty state for recent room quick links
+  /// Generic Home activity label for the current member's completed Files mutation
   ///
   /// In en, this message translates to:
-  /// **'No recent rooms yet.'**
-  String get shellRecentRoomsEmpty;
+  /// **'You completed a Files change'**
+  String get homeRecentActivityCurrentMemberFilesCompleted;
 
-  /// Unavailable/error state for recent room quick links
+  /// Generic Home activity label for another authorized member's completed Files mutation
   ///
   /// In en, this message translates to:
-  /// **'Recent rooms are unavailable until chat is connected.'**
-  String get shellRecentRoomsUnavailable;
+  /// **'A workspace member completed a Files change'**
+  String get homeRecentActivityOtherMemberFilesCompleted;
 
-  /// Loading label for recent file quick links
+  /// Generic visibility label that does not expose a Context identifier
   ///
   /// In en, this message translates to:
-  /// **'Loading recent file changes…'**
-  String get shellRecentFilesLoading;
+  /// **'Shared workspace activity'**
+  String get homeRecentActivityWorkspaceVisibility;
 
-  /// Empty state for recent file quick links
+  /// Screen-reader summary for one generic support-safe Home activity
   ///
   /// In en, this message translates to:
-  /// **'No recent file changes yet.'**
-  String get shellRecentFilesEmpty;
-
-  /// Error state for recent file quick links
-  ///
-  /// In en, this message translates to:
-  /// **'Recent file changes could not be loaded.'**
-  String get shellRecentFilesError;
-
-  /// Unavailable state for recent file quick links
-  ///
-  /// In en, this message translates to:
-  /// **'Recent files are unavailable until files are connected.'**
-  String get shellRecentFilesUnavailable;
-
-  /// Fallback recency hint for activity items without a timestamp
-  ///
-  /// In en, this message translates to:
-  /// **'recent'**
-  String get shellRecentActivityUnknownRecency;
+  /// **'{activity}. {visibility}. {recency}.'**
+  String homeRecentActivityItemSemantic(
+    String activity,
+    String visibility,
+    String recency,
+  );
 
   /// Recency hint for activity that just happened
   ///
@@ -499,39 +479,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'yesterday'**
   String get shellRecentActivityYesterday;
-
-  /// Semantic label for a recent room quick link
-  ///
-  /// In en, this message translates to:
-  /// **'Open room {roomName}. Latest activity: {preview}. {recency}.'**
-  String shellRecentRoomItemSemantic(
-    String roomName,
-    String preview,
-    String recency,
-  );
-
-  /// Semantic label for a recent file quick link
-  ///
-  /// In en, this message translates to:
-  /// **'Open {itemType} {itemName} in {path}. Changed {recency}.'**
-  String shellRecentFileItemSemantic(
-    String itemType,
-    String itemName,
-    String path,
-    String recency,
-  );
-
-  /// File activity type label for folders
-  ///
-  /// In en, this message translates to:
-  /// **'folder'**
-  String get shellRecentFileFolderType;
-
-  /// File activity type label for files
-  ///
-  /// In en, this message translates to:
-  /// **'file'**
-  String get shellRecentFileFileType;
 
   /// Message shown when a list has no items
   ///
@@ -1727,6 +1674,78 @@ abstract class AppLocalizations {
   /// **'Tune Weave for this device: appearance, language, profile context, module visibility, and safe sign-out.'**
   String get settingsBrandSectionDescription;
 
+  /// Settings section title for support-safe server and installed build identity
+  ///
+  /// In en, this message translates to:
+  /// **'Support diagnostics'**
+  String get settingsSupportDiagnosticsTitle;
+
+  /// Description of the support-safe build diagnostics card
+  ///
+  /// In en, this message translates to:
+  /// **'Use these values to confirm which server and immutable app candidate are installed. They contain no session tokens or provider credentials.'**
+  String get settingsSupportDiagnosticsDescription;
+
+  /// Label for the support-safe workspace server origin
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace server'**
+  String get settingsSupportServerLabel;
+
+  /// Label for the embedded candidate source commit
+  ///
+  /// In en, this message translates to:
+  /// **'Candidate commit'**
+  String get settingsSupportCandidateCommitLabel;
+
+  /// Label for installed application version and build number
+  ///
+  /// In en, this message translates to:
+  /// **'Version and build'**
+  String get settingsSupportVersionLabel;
+
+  /// Label for the installed application bundle identifier
+  ///
+  /// In en, this message translates to:
+  /// **'Application identifier'**
+  String get settingsSupportBundleIdentifierLabel;
+
+  /// Label for the embedded immutable candidate evidence reference
+  ///
+  /// In en, this message translates to:
+  /// **'Evidence reference'**
+  String get settingsSupportEvidenceReferenceLabel;
+
+  /// Status shown when all candidate identity fields are available
+  ///
+  /// In en, this message translates to:
+  /// **'Candidate identity is complete'**
+  String get settingsSupportIdentityComplete;
+
+  /// Fail-closed status shown when candidate identity fields are absent
+  ///
+  /// In en, this message translates to:
+  /// **'Candidate metadata is incomplete; this build cannot satisfy the installed-candidate gate.'**
+  String get settingsSupportIdentityIncomplete;
+
+  /// Value shown while support diagnostics are loading
+  ///
+  /// In en, this message translates to:
+  /// **'Loading…'**
+  String get settingsSupportValueLoading;
+
+  /// Value shown when immutable candidate metadata is unavailable
+  ///
+  /// In en, this message translates to:
+  /// **'Not embedded in this build'**
+  String get settingsSupportValueUnavailable;
+
+  /// Formatted installed version and build number
+  ///
+  /// In en, this message translates to:
+  /// **'{version} ({buildNumber})'**
+  String settingsSupportVersionValue(String version, String buildNumber);
+
   /// Settings section title for personal theme selection
   ///
   /// In en, this message translates to:
@@ -2090,13 +2109,13 @@ abstract class AppLocalizations {
   /// Switch title for the recent activity shell module visibility preference
   ///
   /// In en, this message translates to:
-  /// **'Recent activity quick links'**
+  /// **'Recent workspace activity'**
   String get settingsShellRecentActivityToggleTitle;
 
   /// Switch description for the recent activity shell module visibility preference
   ///
   /// In en, this message translates to:
-  /// **'Show recent rooms and file changes above the bottom navigation.'**
+  /// **'Show generic completed activity that your workspace permissions allow you to view.'**
   String get settingsShellRecentActivityToggleDescription;
 
   /// Loading state for shell module visibility settings

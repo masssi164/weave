@@ -1922,6 +1922,67 @@ class CanonicalDomainRegistryResponse {
   };
 }
 
+class CapabilityHealth {
+  const CapabilityHealth({
+    this.backoffUntil,
+    this.cachedAgeSeconds,
+    this.capability,
+    this.consecutiveFailures,
+    this.correlationRef,
+    this.nextProbeAt,
+    this.observedAt,
+    this.probeLatencyMillis,
+    this.readinessTransitions,
+    this.stale,
+    this.state,
+    this.supportSafeCode,
+  });
+
+  factory CapabilityHealth.fromJson(Map<String, dynamic> json) =>
+      CapabilityHealth(
+        backoffUntil: json["backoffUntil"] as String?,
+        cachedAgeSeconds: (json["cachedAgeSeconds"] as num?)?.toInt(),
+        capability: json["capability"] as String?,
+        consecutiveFailures: (json["consecutiveFailures"] as num?)?.toInt(),
+        correlationRef: json["correlationRef"] as String?,
+        nextProbeAt: json["nextProbeAt"] as String?,
+        observedAt: json["observedAt"] as String?,
+        probeLatencyMillis: (json["probeLatencyMillis"] as num?)?.toInt(),
+        readinessTransitions: (json["readinessTransitions"] as num?)?.toInt(),
+        stale: json["stale"] as bool?,
+        state: json["state"] as String?,
+        supportSafeCode: json["supportSafeCode"] as String?,
+      );
+
+  final String? backoffUntil;
+  final int? cachedAgeSeconds;
+  final String? capability;
+  final int? consecutiveFailures;
+  final String? correlationRef;
+  final String? nextProbeAt;
+  final String? observedAt;
+  final int? probeLatencyMillis;
+  final int? readinessTransitions;
+  final bool? stale;
+  final String? state;
+  final String? supportSafeCode;
+
+  Map<String, dynamic> toJson() => {
+    "backoffUntil": _openApiJsonValue(backoffUntil),
+    "cachedAgeSeconds": _openApiJsonValue(cachedAgeSeconds),
+    "capability": _openApiJsonValue(capability),
+    "consecutiveFailures": _openApiJsonValue(consecutiveFailures),
+    "correlationRef": _openApiJsonValue(correlationRef),
+    "nextProbeAt": _openApiJsonValue(nextProbeAt),
+    "observedAt": _openApiJsonValue(observedAt),
+    "probeLatencyMillis": _openApiJsonValue(probeLatencyMillis),
+    "readinessTransitions": _openApiJsonValue(readinessTransitions),
+    "stale": _openApiJsonValue(stale),
+    "state": _openApiJsonValue(state),
+    "supportSafeCode": _openApiJsonValue(supportSafeCode),
+  };
+}
+
 class CapabilityState {
   const CapabilityState({
     this.capability,
@@ -6832,6 +6893,38 @@ class ProviderAdapterReadinessEvidenceResponse {
   };
 }
 
+class ProviderCapabilityHealthResponse {
+  const ProviderCapabilityHealthResponse({
+    this.capabilities,
+    this.generatedAt,
+    this.schemaVersion,
+    this.supportSafe,
+  });
+
+  factory ProviderCapabilityHealthResponse.fromJson(
+    Map<String, dynamic> json,
+  ) => ProviderCapabilityHealthResponse(
+    capabilities: (json["capabilities"] as List<dynamic>?)
+        ?.map((e) => CapabilityHealth.fromJson(e as Map<String, dynamic>))
+        .toList(),
+    generatedAt: json["generatedAt"] as String?,
+    schemaVersion: json["schemaVersion"] as String?,
+    supportSafe: json["supportSafe"] as bool?,
+  );
+
+  final List<CapabilityHealth>? capabilities;
+  final String? generatedAt;
+  final String? schemaVersion;
+  final bool? supportSafe;
+
+  Map<String, dynamic> toJson() => {
+    "capabilities": _openApiJsonValue(capabilities),
+    "generatedAt": _openApiJsonValue(generatedAt),
+    "schemaVersion": _openApiJsonValue(schemaVersion),
+    "supportSafe": _openApiJsonValue(supportSafe),
+  };
+}
+
 class ProviderCategoryContractResponse {
   const ProviderCategoryContractResponse({
     this.adapterModules,
@@ -9822,10 +9915,57 @@ class WorkspaceHomeActionResponse {
   };
 }
 
+class WorkspaceHomeRecentActivityResponse {
+  const WorkspaceHomeRecentActivityResponse({
+    this.action,
+    this.activityRef,
+    this.actorIsCurrentUser,
+    this.actorRefHash,
+    this.domain,
+    this.occurredAt,
+    this.supportSafe,
+    this.visibility,
+  });
+
+  factory WorkspaceHomeRecentActivityResponse.fromJson(
+    Map<String, dynamic> json,
+  ) => WorkspaceHomeRecentActivityResponse(
+    action: json["action"] as String?,
+    activityRef: json["activityRef"] as String?,
+    actorIsCurrentUser: json["actorIsCurrentUser"] as bool?,
+    actorRefHash: json["actorRefHash"] as String?,
+    domain: json["domain"] as String?,
+    occurredAt: json["occurredAt"] as String?,
+    supportSafe: json["supportSafe"] as bool?,
+    visibility: json["visibility"] as String?,
+  );
+
+  final String? action;
+  final String? activityRef;
+  final bool? actorIsCurrentUser;
+  final String? actorRefHash;
+  final String? domain;
+  final String? occurredAt;
+  final bool? supportSafe;
+  final String? visibility;
+
+  Map<String, dynamic> toJson() => {
+    "action": _openApiJsonValue(action),
+    "activityRef": _openApiJsonValue(activityRef),
+    "actorIsCurrentUser": _openApiJsonValue(actorIsCurrentUser),
+    "actorRefHash": _openApiJsonValue(actorRefHash),
+    "domain": _openApiJsonValue(domain),
+    "occurredAt": _openApiJsonValue(occurredAt),
+    "supportSafe": _openApiJsonValue(supportSafe),
+    "visibility": _openApiJsonValue(visibility),
+  };
+}
+
 class WorkspaceHomeResponse {
   const WorkspaceHomeResponse({
     this.actions,
     this.readiness,
+    this.recentActivity,
     this.sections,
     this.summary,
     this.supportSafe,
@@ -9842,6 +9982,13 @@ class WorkspaceHomeResponse {
         )
         .toList(),
     readiness: json["readiness"] as String?,
+    recentActivity: (json["recentActivity"] as List<dynamic>?)
+        ?.map(
+          (e) => WorkspaceHomeRecentActivityResponse.fromJson(
+            e as Map<String, dynamic>,
+          ),
+        )
+        .toList(),
     sections: (json["sections"] as List<dynamic>?)
         ?.map(
           (e) =>
@@ -9855,6 +10002,7 @@ class WorkspaceHomeResponse {
 
   final List<WorkspaceHomeActionResponse>? actions;
   final String? readiness;
+  final List<WorkspaceHomeRecentActivityResponse>? recentActivity;
   final List<WorkspaceHomeSectionResponse>? sections;
   final String? summary;
   final bool? supportSafe;
@@ -9863,6 +10011,7 @@ class WorkspaceHomeResponse {
   Map<String, dynamic> toJson() => {
     "actions": _openApiJsonValue(actions),
     "readiness": _openApiJsonValue(readiness),
+    "recentActivity": _openApiJsonValue(recentActivity),
     "sections": _openApiJsonValue(sections),
     "summary": _openApiJsonValue(summary),
     "supportSafe": _openApiJsonValue(supportSafe),

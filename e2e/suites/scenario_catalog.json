@@ -4789,6 +4789,118 @@
         "no plaintext compatibility room is created",
         "denial remains member-safe and support-safe"
       ]
+    },
+    {
+      "tag": "@human-ready-auth-shell",
+      "suiteId": "member-live-critical-path",
+      "personas": ["member"],
+      "domains": ["identity-idm", "spaces"],
+      "testLevel": "live-e2e",
+      "assertionFocus": ["three isolated identities", "independent PKCE sessions", "relaunch restoration", "all current routes"]
+    },
+    {
+      "tag": "@human-ready-home-collaboration",
+      "suiteId": "member-live-critical-path",
+      "personas": ["member"],
+      "domains": ["spaces", "admin-health-ops"],
+      "testLevel": "live-e2e",
+      "assertionFocus": ["shared recent activity", "private activity isolation", "fresh authenticated sessions"]
+    },
+    {
+      "tag": "@human-ready-chat-collaboration",
+      "suiteId": "member-live-critical-path",
+      "personas": ["member"],
+      "domains": ["chat", "identity-idm"],
+      "testLevel": "live-e2e",
+      "assertionFocus": ["cross-user encrypted messages", "ciphertext-only transport", "outsider denial"]
+    },
+    {
+      "tag": "@human-ready-files-collaboration",
+      "suiteId": "member-live-critical-path",
+      "personas": ["member"],
+      "domains": ["files", "identity-idm"],
+      "testLevel": "live-e2e",
+      "assertionFocus": ["cross-user checksum", "authorized update", "outsider denial", "artifact cleanup"]
+    },
+    {
+      "tag": "@human-ready-calendar-collaboration",
+      "suiteId": "member-live-critical-path",
+      "personas": ["member"],
+      "domains": ["calendar", "identity-idm"],
+      "testLevel": "live-e2e",
+      "assertionFocus": ["workspace event collaboration", "fresh-session observation", "outsider denial"]
+    },
+    {
+      "tag": "@human-ready-settings-profile",
+      "suiteId": "member-live-critical-path",
+      "personas": ["member"],
+      "domains": ["identity-idm", "admin-health-ops"],
+      "testLevel": "live-e2e",
+      "assertionFocus": ["profile isolation", "preference durability", "build identity", "independent logout"]
+    },
+    {
+      "tag": "@human-ready-failure-containment",
+      "suiteId": "member-live-critical-path",
+      "personas": ["member"],
+      "domains": ["calendar", "spaces", "admin-health-ops"],
+      "testLevel": "live-e2e",
+      "assertionFocus": ["domain-local degradation", "shell continuity", "accessible unavailable state"]
+    },
+    {
+      "tag": "@human-ready-authorization",
+      "suiteId": "member-live-critical-path",
+      "personas": ["member"],
+      "domains": ["identity-idm", "chat", "files", "calendar"],
+      "testLevel": "live-e2e",
+      "assertionFocus": ["missing capability", "wrong workspace", "expired token", "revoked session"]
+    },
+    {
+      "tag": "@human-ready-cleanup",
+      "suiteId": "member-live-critical-path",
+      "personas": ["operator", "member"],
+      "domains": ["identity-idm", "operator-release", "chat", "files", "calendar"],
+      "testLevel": "live-e2e",
+      "assertionFocus": ["namespace-scoped cleanup", "hashed evidence only", "persistent human unchanged"]
+    },
+    {
+      "tag": "@human-ready-legacy-upgrade",
+      "suiteId": "v0-1-dogfood-release-spine",
+      "personas": ["member"],
+      "domains": ["identity-idm", "spaces"],
+      "testLevel": "offline-contract",
+      "assertionFocus": ["legacy storage upgrade", "session preservation", "obsolete first-run architecture absent"]
+    },
+    {
+      "tag": "@human-ready-dogfood-deployment",
+      "suiteId": "member-live-critical-path",
+      "personas": ["operator"],
+      "domains": ["operator-release", "admin-health-ops", "identity-idm"],
+      "testLevel": "live-e2e",
+      "assertionFocus": ["two non-destructive installs", "OpenTofu idempotence", "cached provider health", "persistent state invariants"]
+    },
+    {
+      "tag": "@human-ready-ios-distribution",
+      "suiteId": "member-live-critical-path",
+      "personas": ["operator", "member"],
+      "domains": ["operator-release", "identity-idm"],
+      "testLevel": "live-e2e",
+      "assertionFocus": ["exact-candidate TestFlight build", "in-place upgrade", "protected approval", "blocked waiting state"]
+    },
+    {
+      "tag": "@human-ready-physical-voiceover",
+      "suiteId": "member-live-critical-path",
+      "personas": ["member"],
+      "domains": ["identity-idm", "spaces", "chat", "files", "calendar"],
+      "testLevel": "live-e2e",
+      "assertionFocus": ["physical iPhone", "VoiceOver", "Dynamic Type", "touch targets", "session upgrade"]
+    },
+    {
+      "tag": "@human-ready-manifest",
+      "suiteId": "member-live-critical-path",
+      "personas": ["operator"],
+      "domains": ["operator-release", "admin-health-ops"],
+      "testLevel": "live-e2e",
+      "assertionFocus": ["single fail-closed manifest", "exact candidate", "explicit blockers", "main promotion denial"]
     }
   ]
 }

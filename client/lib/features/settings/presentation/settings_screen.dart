@@ -34,6 +34,7 @@ import 'package:weave/features/profile/domain/entities/user_profile.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
 import 'package:weave/features/shell/domain/entities/shell_module.dart';
 import 'package:weave/features/shell/presentation/providers/shell_module_preferences_provider.dart';
+import 'package:weave/features/settings/presentation/widgets/support_diagnostics_card.dart';
 import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
@@ -60,6 +61,8 @@ class SettingsScreen extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const _SettingsBrandCard(),
+                const SizedBox(height: 32),
+                const SupportDiagnosticsCard(),
                 const SizedBox(height: 32),
                 const _ThemePreferenceSection(),
                 const SizedBox(height: 32),
