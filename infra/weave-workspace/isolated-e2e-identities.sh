@@ -309,14 +309,49 @@ find_exact_id() {
     '[.[] | select(.[$field] == $value)] | if length == 1 then .[0].id else empty end' <<<"${payload}"
 }
 
-marker_matches() {
+group_marker_matches() {
   local payload="$1"
   jq -e --arg marker "${NAMESPACE}" '(.attributes.weave_e2e_namespace // []) | index($marker) != null' <<<"${payload}" >/dev/null
+}
+
+user_role_from_username() {
+  local username="$1"
+  case "${username}" in
+    "${NAMESPACE}-author") printf 'author' ;;
+    "${NAMESPACE}-collaborator") printf 'collaborator' ;;
+    "${NAMESPACE}-outsider") printf 'outsider' ;;
+    *) fail "identity username is not owned by this E2E namespace" ;;
+  esac
+}
+
+user_marker_matches() {
+  local payload="$1" username="$2" role="$3"
+  jq -e \
+    --arg username "${username}" \
+    --arg email "${username}@example.invalid" \
+    --arg lastName "${NAMESPACE}:${role}" '
+      .username == $username and
+      .email == $email and
+      .enabled == true and
+      .emailVerified == true and
+      .firstName == "Weave E2E" and
+      .lastName == $lastName
+    ' <<<"${payload}" >/dev/null
 }
 
 resolve_user() {
   local base="$1" token="$2" username="$3"
   request GET "${base}/users?username=$(encode "${username}")&exact=true" "${token}"
+}
+
+resolve_user_by_id() {
+  local base="$1" token="$2" subject="$3"
+  request GET "${base}/users/${subject}" "${token}"
+}
+
+resolve_group() {
+  local base="$1" token="$2" group_id="$3"
+  request GET "${base}/groups/${group_id}" "${token}"
 }
 
 ensure_group() {
@@ -330,8 +365,8 @@ ensure_group() {
     group_id="$(find_exact_id "${groups}" name "${name}")"
   fi
   [[ -n "${group_id}" ]] || fail "run-scoped Keycloak group could not be resolved"
-  group="$(jq -c --arg id "${group_id}" '.[] | select(.id == $id)' <<<"${groups}")"
-  marker_matches "${group}" || fail "refusing to reuse an unmarked Keycloak group"
+  group="$(resolve_group "${base}" "${token}" "${group_id}")"
+  group_marker_matches "${group}" || fail "refusing to reuse an unmarked Keycloak group"
   printf '%s' "${group_id}"
 }
 
@@ -354,14 +389,13 @@ ensure_user() {
       --arg email "${username}@example.invalid" \
       --arg marker "${NAMESPACE}" \
       --arg role "${role}" \
-      --arg tenant "${TENANT_ID}" \
-      '{username:$username,email:$email,enabled:true,emailVerified:true,firstName:"E2E",lastName:$role,attributes:{weave_e2e_namespace:[$marker],weave_e2e_role:[$role],weave_tenant_id:[$tenant]}}')" >/dev/null
+      '{username:$username,email:$email,enabled:true,emailVerified:true,firstName:"Weave E2E",lastName:($marker + ":" + $role)}')" >/dev/null
     users="$(resolve_user "${base}" "${token}" "${username}")"
     subject="$(find_exact_id "${users}" username "${username}")"
   fi
   [[ -n "${subject}" ]] || fail "run-scoped Keycloak user could not be resolved"
-  user="$(jq -c --arg id "${subject}" '.[] | select(.id == $id)' <<<"${users}")"
-  marker_matches "${user}" || fail "refusing to reuse an unmarked Keycloak user"
+  user="$(resolve_user_by_id "${base}" "${token}" "${subject}")"
+  user_marker_matches "${user}" "${username}" "${role}" || fail "refusing to reuse an unmarked Keycloak user"
 
   request PUT "${base}/users/${subject}/reset-password" "${token}" "$(jq -cn --arg value "${password}" '{type:"password",value:$value,temporary:false}')" >/dev/null
   request PUT "${base}/users/${subject}/groups/${run_group_id}" "${token}" >/dev/null
@@ -461,12 +495,13 @@ provision() {
 
 delete_marked_user() {
   local base="$1" token="$2" username="$3"
-  local users subject user
+  local users subject user role
   users="$(resolve_user "${base}" "${token}" "${username}")"
   subject="$(find_exact_id "${users}" username "${username}")"
   [[ -n "${subject}" ]] || { printf '0'; return; }
-  user="$(jq -c --arg id "${subject}" '.[] | select(.id == $id)' <<<"${users}")"
-  marker_matches "${user}" || fail "refusing to delete an unmarked Keycloak user"
+  user="$(resolve_user_by_id "${base}" "${token}" "${subject}")"
+  role="$(user_role_from_username "${username}")"
+  user_marker_matches "${user}" "${username}" "${role}" || fail "refusing to delete an unmarked Keycloak user"
   request DELETE "${base}/users/${subject}" "${token}" >/dev/null
   printf '1'
 }
@@ -477,8 +512,8 @@ delete_marked_group() {
   groups="$(request GET "${base}/groups?search=$(encode "${name}")&exact=true" "${token}")"
   id="$(find_exact_id "${groups}" name "${name}")"
   [[ -n "${id}" ]] || { printf '0'; return; }
-  group="$(jq -c --arg id "${id}" '.[] | select(.id == $id)' <<<"${groups}")"
-  marker_matches "${group}" || fail "refusing to delete an unmarked Keycloak group"
+  group="$(resolve_group "${base}" "${token}" "${id}")"
+  group_marker_matches "${group}" || fail "refusing to delete an unmarked Keycloak group"
   request DELETE "${base}/groups/${id}" "${token}" >/dev/null
   printf '1'
 }

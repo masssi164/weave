@@ -45,9 +45,9 @@ outsider_subject="subject-outsider-fixture"
 persistent_subject="persistent-human-must-not-change"
 cat >"${MOCK_STATE}/users.json" <<JSON
 [
-  {"id":"${author_subject}","username":"${WEAVE_E2E_AUTHOR_USERNAME}","attributes":{"weave_e2e_namespace":["${WEAVE_E2E_RUN_NAMESPACE}"]}},
-  {"id":"${collaborator_subject}","username":"${WEAVE_E2E_COLLABORATOR_USERNAME}","attributes":{"weave_e2e_namespace":["${WEAVE_E2E_RUN_NAMESPACE}"]}},
-  {"id":"${outsider_subject}","username":"${WEAVE_E2E_OUTSIDER_USERNAME}","attributes":{"weave_e2e_namespace":["${WEAVE_E2E_RUN_NAMESPACE}"]}},
+  {"id":"${author_subject}","username":"${WEAVE_E2E_AUTHOR_USERNAME}","email":"${WEAVE_E2E_AUTHOR_USERNAME}@example.invalid","enabled":true,"emailVerified":true,"firstName":"Weave E2E","lastName":"${WEAVE_E2E_RUN_NAMESPACE}:author"},
+  {"id":"${collaborator_subject}","username":"${WEAVE_E2E_COLLABORATOR_USERNAME}","email":"${WEAVE_E2E_COLLABORATOR_USERNAME}@example.invalid","enabled":true,"emailVerified":true,"firstName":"Weave E2E","lastName":"${WEAVE_E2E_RUN_NAMESPACE}:collaborator"},
+  {"id":"${outsider_subject}","username":"${WEAVE_E2E_OUTSIDER_USERNAME}","email":"${WEAVE_E2E_OUTSIDER_USERNAME}@example.invalid","enabled":true,"emailVerified":true,"firstName":"Weave E2E","lastName":"${WEAVE_E2E_RUN_NAMESPACE}:outsider"},
   {"id":"${persistent_subject}","username":"massimo","attributes":{}}
 ]
 JSON
@@ -195,13 +195,16 @@ elif [[ "${url}" == */realms/weave/protocol/openid-connect/token ]]; then
   printf '%s' "${token}" >"${MOCK_STATE}/token-${count}"
   respond 200 "$(jq -cn --arg token "${token}" '{access_token:$token}')"
 elif [[ "${url}" == */admin/realms/weave/users\?* ]]; then
-  respond 200 "$(cat "${MOCK_STATE}/users.json")"
+  respond 200 "$(jq '[.[] | {id,username}]' "${MOCK_STATE}/users.json")"
 elif [[ "${url}" == */admin/realms/weave/users/*/groups\?* && "${method}" == GET ]]; then
   if [[ "$(cat "${MOCK_STATE}/collaborator-calendar-membership")" == true ]]; then
     respond 200 '[{"id":"calendar-group","name":"weave-calendar-editors"}]'
   else
     respond 200 '[]'
   fi
+elif [[ "${url}" =~ /admin/realms/weave/users/[^/]+$ && "${method}" == GET ]]; then
+  id="${url##*/}"
+  respond 200 "$(jq -c --arg id "${id}" '.[] | select(.id == $id)' "${MOCK_STATE}/users.json")"
 elif [[ "${url}" == */admin/realms/weave/users/*/groups/calendar-group && "${method}" == DELETE ]]; then
   printf 'false\n' >"${MOCK_STATE}/collaborator-calendar-membership"
   printf 'group:false\n' >>"${MOCK_STATE}/mutations.log"
@@ -320,6 +323,7 @@ fi
 realm_restore_line="$(grep -n '^realm:300$' "${MOCK_STATE}/mutations.log" | tail -1 | cut -d: -f1)"
 sleep_line="$(grep -n '^sleep:' "${MOCK_STATE}/mutations.log" | tail -1 | cut -d: -f1)"
 ((realm_restore_line < sleep_line)) || fail "realm lifespan was not restored before waiting for token expiry"
+grep -Fqx 'sleep:67' "${MOCK_STATE}/mutations.log" || fail "expiry probe did not exceed the Resource Server clock-skew window"
 
 persistent_after="$(jq -c --arg id "${persistent_subject}" '.[] | select(.id == $id)' "${MOCK_STATE}/users.json" | shasum -a 256 | awk '{print $1}')"
 [[ "${persistent_before}" == "${persistent_after}" ]] || fail "persistent identity fixture changed"

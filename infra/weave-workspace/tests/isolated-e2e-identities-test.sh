@@ -90,7 +90,10 @@ tmp="${MOCK_STATE}/tmp.json"
 if [[ "${url}" == */realms/master/protocol/openid-connect/token ]]; then
   printf '{"access_token":"fixture-admin-token"}\n'
 elif [[ "${method}:${url}" == GET:*/users\?* ]]; then
-  cat "${users}"
+  jq '[.[] | {id,username}]' "${users}"
+elif [[ "${method}:${url}" == GET:*/users/* ]]; then
+  id="${url##*/}"
+  jq -c --arg id "${id}" '.[] | select(.id == $id)' "${users}"
 elif [[ "${method}:${url}" == POST:*/users ]]; then
   username="$(jq -r '.username' <<<"${body}")"
   jq --arg id "user-$(printf '%s' "${username}" | cksum | awk '{print $1}')" --argjson item "${body}" '. + [$item + {id:$id}]' "${users}" >"${tmp}"
@@ -100,7 +103,10 @@ elif [[ "${method}:${url}" == DELETE:*/users/* ]]; then
   jq --arg id "${id}" '[.[] | select(.id != $id)]' "${users}" >"${tmp}"
   mv "${tmp}" "${users}"
 elif [[ "${method}:${url}" == GET:*/groups\?* ]]; then
-  cat "${groups}"
+  jq '[.[] | {id,name}]' "${groups}"
+elif [[ "${method}:${url}" == GET:*/groups/* ]]; then
+  id="${url##*/}"
+  jq -c --arg id "${id}" '.[] | select(.id == $id)' "${groups}"
 elif [[ "${method}:${url}" == POST:*/groups ]]; then
   name="$(jq -r '.name' <<<"${body}")"
   jq --arg id "group-$(printf '%s' "${name}" | cksum | awk '{print $1}')" --argjson item "${body}" '. + [$item + {id:$id}]' "${groups}" >"${tmp}"
@@ -173,6 +179,13 @@ done
 jq -e '.contextAuthorization.status == "active_runtime_verified" and .providerBindings.keycloak == "provisioned" and all(.actors[]; has("subjectSha256"))' \
   "${WEAVE_E2E_IDENTITY_MANIFEST_PATH}" >/dev/null
 [[ "$(jq 'length' "${MOCK_STATE}/users.json")" == 3 ]] || fail "provision should create exactly three run-scoped users"
+jq -e --arg namespace "${WEAVE_E2E_RUN_NAMESPACE}" '
+  all(.[];
+    .firstName == "Weave E2E" and
+    (.lastName | startswith($namespace + ":")) and
+    .email == (.username + "@example.invalid")
+  )
+' "${MOCK_STATE}/users.json" >/dev/null || fail "provisioned users are missing their standard-field run markers"
 [[ "$(jq '[.[] | select(.attributes.weave_e2e_namespace != null)] | length' "${MOCK_STATE}/groups.json")" == 2 ]] || fail "provision should create exactly two run-scoped groups"
 
 cleanup_output="$(PATH="${MOCK_BIN}:${PATH}" WEAVE_E2E_STACK_SCOPE=isolated \
