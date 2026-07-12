@@ -175,7 +175,18 @@ jobs:
       - name: Assert persistent human member before deploy
         if: ${{ env.WEAVE_DOGFOOD_MEMBER_USERNAME != '' }}
         working-directory: infra/weave-workspace
-        run: WEAVE_DOGFOOD_MEMBER_SUBJECT_FILE="$HOME/.weave/dogfood/persistent-member.subject" ./dogfood-member.sh status --evidence-file "$WEAVE_TEST_STACK_EVIDENCE_DIR/dogfood-member-before.json"
+        run: |
+          set -euo pipefail
+          evidence="$WEAVE_TEST_STACK_EVIDENCE_DIR/dogfood-member-before.json"
+          if curl --silent --fail --max-time 5 \
+              --cacert "01-infrastructure/.generated/caddy/certs/weave-local-ca.pem" \
+              "https://auth.weave.test:44443/realms/weave/.well-known/openid-configuration" >/dev/null 2>&1; then
+            WEAVE_DOGFOOD_MEMBER_SUBJECT_FILE="$HOME/.weave/dogfood/persistent-member.subject" \
+              ./dogfood-member.sh status --evidence-file "${evidence}"
+          else
+            jq -n '{schemaVersion:"weave.dogfood.persistent-member.v1",state:"stack_unavailable_before_deploy",action:"not_observed",subjectSha256:null,supportSafe:true}' >"${evidence}"
+            echo "Persistent member pre-deploy observation skipped because Keycloak is not running; post-deploy verification remains mandatory."
+          fi
 
       - name: Deploy or update persistent LAN test stack
         working-directory: infra/weave-workspace
