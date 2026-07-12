@@ -799,7 +799,8 @@ occ() {
 }
 
 nextcloud_is_installed() {
-  occ status --output=json 2>/dev/null | grep -q '"installed":true'
+  occ status --output=json 2>/dev/null |
+    grep -Eq '"installed"[[:space:]]*:[[:space:]]*true([[:space:]]*[,}]|[[:space:]]*$)'
 }
 
 terraform_apply() {
@@ -1595,14 +1596,20 @@ ensure_nextcloud_installed() {
 
   nextcloud_database_name="$(terraform_output_raw "${INFRA_DIR}" nextcloud_database_name)"
 
-  occ maintenance:install \
+  if ! occ maintenance:install \
     --database=pgsql \
     --database-host="weave-db" \
     --database-name="${nextcloud_database_name}" \
     --database-user="${TF_VAR_nextcloud_db_username}" \
     --database-pass="${TF_VAR_nextcloud_db_password}" \
     --admin-user="${TF_VAR_nextcloud_admin_username}" \
-    --admin-pass="${TF_VAR_nextcloud_admin_password}"
+    --admin-pass="${TF_VAR_nextcloud_admin_password}"; then
+    if nextcloud_is_installed; then
+      log "Nextcloud installation completed concurrently; continuing with configuration."
+      return
+    fi
+    fail "Nextcloud installation failed before the instance reported an installed state."
+  fi
 }
 
 configure_nextcloud_base_url() {
