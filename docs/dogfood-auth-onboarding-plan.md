@@ -17,6 +17,9 @@ Use Mailpit for dogfood-only mail capture. It belongs in `infra/weave-workspace`
 - SMTP remains private on the Docker network and is never routed through Caddy or exposed to the LAN.
 - No production mail path, no public Internet exposure, and no real external delivery.
 - Support-bundle redaction for message bodies unless a future evidence task explicitly stores sanitized fixtures.
+- A bounded SQLite database on `weave_mailpit_data`, retaining the latest 500 messages across ordinary container replacement and excluding that database from support bundles.
+
+Destructive live-stack E2E is not allowed to share the persistent dogfood runner or its Docker/OpenTofu resources. It requires a separately labelled disposable runner; until that runner exists, the destructive workflow fails closed instead of removing the human dogfood identity or inbox.
 
 This replaces ambiguous "mail catcher/mailkit-style" wording with one concrete local stack component.
 

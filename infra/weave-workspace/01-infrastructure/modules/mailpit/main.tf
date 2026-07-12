@@ -11,13 +11,28 @@ resource "docker_image" "this" {
   keep_locally = true
 }
 
+resource "docker_volume" "data" {
+  name = var.volume_name
+}
+
 resource "docker_container" "this" {
   name    = var.container_name
   image   = docker_image.this.image_id
   restart = "unless-stopped"
   depends_on = [
     docker_image.this,
+    docker_volume.data,
   ]
+
+  env = [
+    "MP_DATABASE=/data/mailpit.db",
+    "MP_MAX_MESSAGES=${var.max_messages}",
+  ]
+
+  volumes {
+    volume_name    = docker_volume.data.name
+    container_path = "/data"
+  }
 
   ports {
     internal = 8025

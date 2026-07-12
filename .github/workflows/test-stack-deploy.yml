@@ -34,7 +34,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: weave-test-stack-lan
+  group: weave-persistent-dogfood
   cancel-in-progress: false
 
 jobs:
