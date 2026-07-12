@@ -188,18 +188,23 @@ jobs:
             echo "Persistent member pre-deploy observation skipped because Keycloak is not running; post-deploy verification remains mandatory."
           fi
 
-      - name: Restore persistent OpenTofu state
+      - name: Restore persistent deployment workspace
         working-directory: infra/weave-workspace
         run: |
           set -euo pipefail
-          state_root="$HOME/.weave/dogfood/opentofu-state"
-          mkdir -p "$state_root"
-          chmod 700 "$HOME/.weave" "$HOME/.weave/dogfood" "$state_root"
+          dogfood_root="$HOME/.weave/dogfood"
+          state_root="$dogfood_root/opentofu-state"
+          generated_root="$dogfood_root/generated"
+          mkdir -p "$state_root" "$generated_root"
+          chmod 700 "$HOME/.weave" "$dogfood_root" "$state_root" "$generated_root"
           for stage in 01-infrastructure 02-keycloak-setup; do
             if [[ -s "$state_root/${stage}.tfstate" ]]; then
               cp "$state_root/${stage}.tfstate" "$stage/terraform.tfstate"
               chmod 600 "$stage/terraform.tfstate"
             fi
+            mkdir -p "$generated_root/$stage"
+            rm -rf "$stage/.generated"
+            ln -s "$generated_root/$stage" "$stage/.generated"
           done
 
       - name: Deploy or update persistent LAN test stack
