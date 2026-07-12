@@ -42,6 +42,52 @@ export WEAVE_NEXTCLOUD_PROVISION_EVIDENCE_FILE="${TMP_DIR}/nextcloud-evidence.js
 # shellcheck source=/dev/null
 source "${TMP_DIR}/workspace/install.sh"
 
+occ_status_json=''
+occ() {
+  [[ "${1:-}" == status && "${2:-}" == --output=json ]] || return 1
+  printf '%s\n' "${occ_status_json}"
+}
+
+occ_status_json='{"installed":true,"version":"fixture"}'
+nextcloud_is_installed || fail "compact Nextcloud status JSON was not recognized"
+occ_status_json=$'{\n  "installed": true,\n  "version": "fixture"\n}'
+nextcloud_is_installed || fail "pretty-printed Nextcloud status JSON was not recognized"
+occ_status_json='{"installed":false,"version":"fixture"}'
+if nextcloud_is_installed; then
+  fail "an uninstalled Nextcloud status was accepted"
+fi
+
+install_race_state="${TMP_DIR}/nextcloud-install-race-state"
+printf '0\n' >"${install_race_state}"
+occ() {
+  case "${1:-}" in
+    status)
+      local status_calls
+      status_calls="$(cat "${install_race_state}")"
+      status_calls="$((status_calls + 1))"
+      printf '%s\n' "${status_calls}" >"${install_race_state}"
+      if ((status_calls == 1)); then
+        printf '%s\n' '{"installed": false}'
+      else
+        printf '%s\n' '{"installed": true}'
+      fi
+      ;;
+    maintenance:install)
+      return 1
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+terraform_output_raw() { printf '%s\n' 'fixture-nextcloud'; }
+export TF_VAR_nextcloud_db_username='fixture-db-user'
+export TF_VAR_nextcloud_db_password='fixture-db-password'
+export TF_VAR_nextcloud_admin_username='fixture-admin'
+export TF_VAR_nextcloud_admin_password='fixture-admin-password'
+ensure_nextcloud_installed >/dev/null
+[[ "$(cat "${install_race_state}")" == 2 ]] || fail "Nextcloud install convergence was not rechecked after a concurrent install"
+
 export TF_VAR_docker_network_name="weave-e2e-fixture_network"
 export TF_VAR_nextcloud_backend_actor_username="fixture-actor"
 export TF_VAR_nextcloud_backend_actor_token="fixture-token"
