@@ -1,3 +1,4 @@
 self-hosted-runner:
   labels:
     - weave-disposable-live-stack
+    - weave-live

@@ -340,6 +340,7 @@ jobs:
       - self-hosted
       - macOS
       - ARM64
+      - weave-live
     timeout-minutes: 60
     environment:
       name: ios-dogfood

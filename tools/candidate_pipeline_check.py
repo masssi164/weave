@@ -76,6 +76,7 @@ def main() -> int:
         'git merge-base --is-ancestor "$CANDIDATE_SHA" origin/dogfood' in deployment,
         "manual persistent deployment can select a commit outside dogfood",
     )
+    require("- weave-live" in deployment, "persistent deployment is not pinned to the dedicated live runner label")
     require("TF_VAR_create_test_user: 'false'" in deployment, "persistent dogfood still creates an automation member")
     require("TF_VAR_test_user_password" not in deployment and "WEAVE_TEST_PASSWORD" not in deployment, "persistent dogfood carries obsolete test-user credentials")
     require(
@@ -108,6 +109,8 @@ def main() -> int:
         and "ios-dogfood-distribution.json" in ios,
         "documented stable-signing fallback does not emit protected canonical distribution evidence",
     )
+    fallback = ios.split("  stable-signing-fallback:", 1)[1]
+    require("- weave-live" in fallback, "physical fallback is not pinned to the dedicated live runner label")
 
     for value in (
         "installed_commit:",

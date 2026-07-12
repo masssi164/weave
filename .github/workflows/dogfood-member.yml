@@ -28,6 +28,7 @@ jobs:
       - self-hosted
       - macOS
       - ARM64
+      - weave-live
     timeout-minutes: 10
     env:
       EXPECTED_RUNNER_NAME: weave-live-mac-mini
