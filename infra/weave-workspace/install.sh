@@ -763,13 +763,22 @@ wait_for_nextcloud() {
   fail "Nextcloud did not finish bootstrapping in time."
 }
 
-maybe_use_reverse_proxy_container_route() {
+configure_runner_public_route() {
   local proxy_ip=""
 
   case "${WEAVE_RUNNER_HYGIENE:-false}" in
     true | TRUE | True | 1) ;;
     *) return 0 ;;
   esac
+
+  if [[ "${WEAVE_E2E_STACK_SCOPE:-}" == "isolated" ]]; then
+    LOOPBACK_RESOLVE_HOST="${WEAVE_LOOPBACK_RESOLVE_HOST:-${LOOPBACK_HOST}}"
+    PUBLIC_PROXY_PORT="${WEAVE_PUBLIC_PROXY_PORT:-${TF_VAR_proxy_host_port}}"
+    export WEAVE_LOOPBACK_RESOLVE_HOST="${LOOPBACK_RESOLVE_HOST}"
+    export WEAVE_PUBLIC_PROXY_PORT="${PUBLIC_PROXY_PORT}"
+    log "Using the isolated stack's published proxy port for local public Weave hostnames."
+    return 0
+  fi
 
   proxy_ip="$(docker inspect -f '{{json .NetworkSettings.Networks}}' weave-proxy 2>/dev/null | python3 -c 'import json,sys
 try:
@@ -2047,7 +2056,7 @@ main() {
 
   log "Applying infrastructure module..."
   terraform_apply "${INFRA_DIR}"
-  maybe_use_reverse_proxy_container_route
+  configure_runner_public_route
   synapse_repair_volume_permissions
   synapse_verify_volume_writable
   ensure_postgres_bootstrap_applied
