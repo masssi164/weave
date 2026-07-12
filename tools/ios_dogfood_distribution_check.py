@@ -13,6 +13,8 @@ def main() -> int:
     workflow = read(".github/workflows/ios-dogfood.yml")
     project = read("client/ios/Runner.xcodeproj/project.pbxproj")
     entitlements = read("client/ios/Runner/Runner.entitlements")
+    development_entitlements = read("client/ios/Runner/RunnerDevelopment.entitlements")
+    development_fallback = read("tools/dogfood_ios_development_fallback.sh")
     docs = read("docs/ios-dogfood-distribution.md")
 
     require("pull_request:" not in workflow, "TestFlight workflow must not run for pull requests")
@@ -57,6 +59,20 @@ def main() -> int:
     require(project.count("DEVELOPMENT_TEAM = KNDHGC2KV6;") == 3, "iOS Apple team identity is not stable in Debug/Profile/Release")
     require(project.count("CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;") == 3, "iOS entitlements are not applied in Debug/Profile/Release")
     require("$(AppIdentifierPrefix)com.massimotter.weave" in entitlements, "device-bound Keychain application identity is not explicit")
+    require("com.apple.developer.associated-domains" in entitlements, "production/TestFlight entitlements lost Associated Domains")
+    require("$(AppIdentifierPrefix)com.massimotter.weave" in development_entitlements, "development fallback lost the stable Keychain identity")
+    require("com.apple.developer.associated-domains" not in development_entitlements, "Personal Team fallback must omit Associated Domains")
+    for marker in (
+        "WEAVE_CANDIDATE_COMMIT",
+        "WEAVE_CANDIDATE_EVIDENCE_REF",
+        "WEAVE_BUILD_NUMBER",
+        "RunnerDevelopment.entitlements",
+        "device install app",
+        "inPlaceUpdate: true",
+        "sessionContinuityClaimed: false",
+        "IOS_DEVELOPMENT_FALLBACK_RESULT",
+    ):
+        require(marker in development_fallback, f"development-signed fallback is missing {marker!r}")
 
     for phrase in (
         "TestFlight",
@@ -66,6 +82,8 @@ def main() -> int:
         "destructive uninstall",
         "approval request expires after 24 hours",
         "physical-iPhone VoiceOver acceptance",
+        "Development-signed in-place fallback",
+        "session continuity unclaimed",
     ):
         require(phrase in docs, f"iOS dogfood documentation is missing {phrase!r}")
 

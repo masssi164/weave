@@ -97,13 +97,16 @@ jobs:
       TF_VAR_provider_stack_profile: local-live
       TF_VAR_provider_stack_readiness: ready
       TF_VAR_tenant_domain: weave.test
-      TF_VAR_proxy_http_host_port: '44080'
-      TF_VAR_proxy_host_port: '44443'
-      TF_VAR_keycloak_host_port: '48080'
-      TF_VAR_mas_host_port: '48082'
-      TF_VAR_synapse_host_port: '48008'
-      TF_VAR_nextcloud_host_port: '48083'
-      TF_VAR_backend_host_port: '48084'
+      TF_VAR_proxy_http_host_port: '54080'
+      TF_VAR_proxy_host_port: '54443'
+      TF_VAR_keycloak_host_port: '58080'
+      TF_VAR_keycloak_management_host_port: '59000'
+      TF_VAR_mailpit_web_host_port: '58025'
+      TF_VAR_mas_host_port: '58082'
+      TF_VAR_synapse_host_port: '58008'
+      TF_VAR_nextcloud_host_port: '58083'
+      TF_VAR_backend_host_port: '58084'
+      TF_VAR_mcp_host_port: '58085'
       WEAVE_RUNNER_HYGIENE: 'true'
       WEAVE_REMOVE_VOLUMES: 'true'
       WEAVE_CONFIRM_DESTRUCTIVE_RESET: weave

@@ -15,6 +15,15 @@ trap 'rm -rf "${TMP_DIR}"' EXIT
 
 fail() { printf '%s\n' "$*" >&2; exit 1; }
 
+file_mode() {
+  local path="$1"
+  if stat -c '%a' "${path}" >/dev/null 2>&1; then
+    stat -c '%a' "${path}"
+  else
+    stat -f '%Lp' "${path}"
+  fi
+}
+
 grep -Fq 'var.isolated_e2e_enabled || (var.isolated_e2e_namespace == "" && length(var.isolated_e2e_context_memberships) == 0)' "${INFRA_MAIN}"
 grep -Fq '!var.create_test_user' "${INFRA_MAIN}"
 grep -Fq 'var.context_authorization_dogfood_principal_ref == ""' "${INFRA_MAIN}"
@@ -44,7 +53,7 @@ source "${WEAVE_E2E_CREDENTIAL_ENV_PATH}"
 source "${WEAVE_E2E_STARTUP_ENV_PATH}"
 : "${TF_VAR_isolated_e2e_context_memberships:?startup membership list is required}"
 
-[[ "$(stat -f '%Lp' "${WEAVE_E2E_CREDENTIAL_ENV_PATH}" 2>/dev/null || stat -c '%a' "${WEAVE_E2E_CREDENTIAL_ENV_PATH}")" == 600 ]] || fail "credential env must be mode 0600"
+[[ "$(file_mode "${WEAVE_E2E_CREDENTIAL_ENV_PATH}")" == 600 ]] || fail "credential env must be mode 0600"
 jq -e 'length == 3 and .[0].context_id == .[1].context_id and .[2].context_id != .[0].context_id and all(.[]; .source == "isolated-live-e2e")' \
   <<<"${TF_VAR_isolated_e2e_context_memberships}" >/dev/null
 jq -e '.contextAuthorization.mode == "isolated-startup-real-rebac" and .contextAuthorization.persistentDogfoodEligible == false and (.actors | length == 3)' \

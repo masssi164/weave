@@ -24,8 +24,11 @@ There are two supported local port modes:
 
 - canonical single-stack ports: `80`, `443`, `8080`, `8082`, `8008`, `8083`, `8084`
 - shared-host isolation block: `44080`, `44443`, `48080`, `48082`, `48008`, `48083`, `48084`
+- disposable live-E2E block: `54080`, `54443`, `58080`, `59000`, `58025`, `58082`, `58008`, `58083`, `58084`, `58085`
 
 Use canonical ports only when Weave owns the machine's standard local ports. On a shared Docker host or self-hosted runner, use the isolated block. `install.sh` defaults to the isolated block, and `.env.example` shows both modes explicitly.
+
+The disposable live-E2E block belongs only to a run-scoped runner and a Docker authority isolated from persistent dogfood. Its values cover HTTP, HTTPS, Keycloak application/management, Mailpit, MAS, Synapse, Nextcloud, backend, and MCP access respectively. Assigning the disposable-runner label to the persistent dogfood Docker authority is prohibited even when these host ports are free.
 
 If you need a clean non-destructive rerun on a shared host:
 

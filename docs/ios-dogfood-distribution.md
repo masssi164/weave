@@ -29,6 +29,20 @@ The archive embeds and exposes the candidate commit, version, build number, bund
 
 The Flutter native-assets hook derives `IPHONEOS_DEPLOYMENT_TARGET` from the iOS target version supplied by Flutter and passes it explicitly to the Matrix Rust bridge build. Keep that value target-derived: Xcode build phases can otherwise replace the Cargo child process deployment target with an older default, producing Rust and C objects that cannot be linked into the app. Non-iOS bridge builds must not receive the iOS variable.
 
+### Development-signed in-place fallback
+
+When TestFlight credentials are unavailable but the stable Weave bundle is already installed on a paired physical iPhone, use the bounded fallback below. It refuses a first install, bundle/team changes, credential-bearing evidence URLs, and non-candidate build numbers. The fallback keeps the production Keychain access group but omits Associated Domains because Apple Personal Development Teams cannot provision that capability. Production and TestFlight builds continue to use `Runner.entitlements` with Associated Domains enabled.
+
+```sh
+WEAVE_IOS_DEVICE_ID=<paired-device-id> \
+WEAVE_CANDIDATE_COMMIT=<full-candidate-sha> \
+WEAVE_CANDIDATE_EVIDENCE_REF=https://github.com/<owner>/<repo>/pull/<number> \
+WEAVE_BUILD_NUMBER=<positive-unique-build-number> \
+tools/dogfood_ios_development_fallback.sh
+```
+
+The command compiles the exact diagnostic identity, signs with `RunnerDevelopment.entitlements`, verifies the signed bundle and Keychain group, installs over `com.massimotter.weave` without uninstall, launches the updated app, and writes `build/dogfood/ios-development-fallback/ios-development-fallback.json`. That artifact records the fallback channel but deliberately leaves session continuity unclaimed; run the session-continuity gate separately after the member reaches `workspace_ready`.
+
 ## Session continuity gate
 
 After the member has completed SSO and reached `workspace_ready`, run:

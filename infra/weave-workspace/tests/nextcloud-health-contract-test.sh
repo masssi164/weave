@@ -10,6 +10,15 @@ trap 'rm -rf "${TMP_DIR}"' EXIT
 
 fail() { printf '%s\n' "$*" >&2; exit 1; }
 
+file_mode() {
+  local path="$1"
+  if stat -c '%a' "${path}" >/dev/null 2>&1; then
+    stat -c '%a' "${path}"
+  else
+    stat -f '%Lp' "${path}"
+  fi
+}
+
 nextcloud_module="${ROOT_DIR}/01-infrastructure/modules/nextcloud/main.tf"
 variables="${ROOT_DIR}/01-infrastructure/variables.tf"
 install_script="${ROOT_DIR}/install.sh"
@@ -218,7 +227,7 @@ persist_bootstrap_to_state
 rm -f "${BOOTSTRAP_ENV_FILE}"
 restore_persisted_bootstrap_from_state
 grep -Fq 'stable-fixture-credential' "${BOOTSTRAP_ENV_FILE}" || fail "durable bootstrap credential state was not restored"
-[[ "$(stat -f '%Lp' "${credential_state}" 2>/dev/null || stat -c '%a' "${credential_state}")" == 600 ]] || fail "durable credential state must be mode 0600"
+[[ "$(file_mode "${credential_state}")" == 600 ]] || fail "durable credential state must be mode 0600"
 
 unset WEAVE_LOCAL_CREDENTIAL_STATE_FILE
 export TF_VAR_isolated_e2e_enabled=true
