@@ -494,10 +494,12 @@ def require_calendar_outage_recovery(
     evidence: dict[str, Any], namespace_hash: str
 ) -> None:
     require_support_safe_document(evidence, "Calendar outage evidence")
-    if evidence.get("schemaVersion") != "weave.isolated-calendar-outage-fixture.v1":
+    if evidence.get("schemaVersion") != "weave.isolated-calendar-outage-fixture.v2":
         raise EvidenceError("Calendar outage evidence schemaVersion is unsupported")
     for key, expected in (
         ("state", "restored"),
+        ("calendarCollectionKind", "dedicated-non-default"),
+        ("providerDefaultAutoProvisioningEligible", False),
         ("recoveryRequired", False),
         ("persistentDogfoodEligible", False),
         ("credentialsIncluded", False),

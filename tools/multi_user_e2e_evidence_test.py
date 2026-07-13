@@ -214,12 +214,14 @@ class MultiUserE2EEvidenceTest(unittest.TestCase):
         self.calendar_outage.write_text(
             json.dumps(
                 {
-                    "schemaVersion": "weave.isolated-calendar-outage-fixture.v1",
+                    "schemaVersion": "weave.isolated-calendar-outage-fixture.v2",
                     "state": "restored",
                     "observedAtUtc": "2026-07-12T12:00:00Z",
                     "namespaceSha256": "d" * 64,
                     "actorSha256": "e" * 64,
                     "calendarSha256": "f" * 64,
+                    "calendarCollectionKind": "dedicated-non-default",
+                    "providerDefaultAutoProvisioningEligible": False,
                     "cachedHealth": {"calendarStatus": 2, "filesStatus": 2},
                     "recoveryRequired": False,
                     "persistentDogfoodEligible": False,
@@ -322,6 +324,18 @@ class MultiUserE2EEvidenceTest(unittest.TestCase):
         completed = self.run_script()
         self.assertEqual(completed.returncode, 2)
         self.assertIn("not bound to the identity namespace", completed.stderr)
+
+    def test_calendar_outage_must_not_use_a_provider_default_collection(self) -> None:
+        data = json.loads(self.calendar_outage.read_text(encoding="utf-8"))
+        data["calendarCollectionKind"] = "provider-default"
+        data["providerDefaultAutoProvisioningEligible"] = True
+        self.calendar_outage.write_text(json.dumps(data), encoding="utf-8")
+        completed = self.run_script()
+        self.assertEqual(completed.returncode, 2)
+        self.assertIn(
+            "calendarCollectionKind must be dedicated-non-default",
+            completed.stderr,
+        )
 
     def test_raw_identity_field_is_rejected_even_when_safety_flag_is_true(self) -> None:
         data = json.loads(self.authorization.read_text(encoding="utf-8"))

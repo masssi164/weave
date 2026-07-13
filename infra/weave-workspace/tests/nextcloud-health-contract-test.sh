@@ -36,8 +36,9 @@ grep -Fq 'configure_nextcloud_reverse_proxy' "${install_script}"
 grep -Fq 'single-bounded-authenticated-attempt-per-protocol' "${install_script}"
 grep -Fq 'no retry was attempted' "${install_script}"
 
-mkdir -p "${TMP_DIR}/workspace"
+mkdir -p "${TMP_DIR}/workspace/lib"
 cp "${install_script}" "${TMP_DIR}/workspace/install.sh"
+cp "${ROOT_DIR}/lib/calendar-collection.sh" "${TMP_DIR}/workspace/lib/calendar-collection.sh"
 export WEAVE_NEXTCLOUD_PROVISION_EVIDENCE_FILE="${TMP_DIR}/nextcloud-evidence.json"
 # shellcheck source=/dev/null
 source "${TMP_DIR}/workspace/install.sh"

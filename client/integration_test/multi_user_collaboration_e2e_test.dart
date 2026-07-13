@@ -60,6 +60,18 @@ const _supportSafeProgressPhases = <String>{
   'author-calendar-scopes',
   'author-calendar-create',
   'collaborator-observe',
+  'collaborator-capabilities',
+  'collaborator-profile',
+  'collaborator-chat-connect',
+  'collaborator-chat-room',
+  'collaborator-chat-observe',
+  'collaborator-chat-send',
+  'collaborator-files-connect',
+  'collaborator-files-observe',
+  'collaborator-files-update',
+  'collaborator-calendar-scopes',
+  'collaborator-calendar-observe',
+  'collaborator-calendar-update',
   'outsider-authorization',
   'fresh-session-observation',
   'resource-cleanup',
@@ -256,7 +268,9 @@ void main() {
 
       _emitProgress(configuration, 'collaborator-observe');
       await _withSession(collaborator, (session) async {
+        _emitProgress(configuration, 'collaborator-capabilities');
         await _requireCurrentCapabilities(session);
+        _emitProgress(configuration, 'collaborator-profile');
         final original = await _requireProfile(session);
         cleanup.rememberProfile(CollaborationActorRole.collaborator, original);
         cleanup.rememberLocale(
@@ -272,10 +286,14 @@ void main() {
           localePreferences[CollaborationActorRole.collaborator]!,
         );
 
+        _emitProgress(configuration, 'collaborator-chat-connect');
         await session.chat.connect();
+        _emitProgress(configuration, 'collaborator-chat-room');
         await _requireEncryptedConversation(session, roomId);
+        _emitProgress(configuration, 'collaborator-chat-observe');
         await _waitForChatMessage(session, roomId, authorMessage);
         authorMessageObserved = true;
+        _emitProgress(configuration, 'collaborator-chat-send');
         await session.chat.sendMessage(
           roomId: roomId,
           message: collaboratorReply,
@@ -287,11 +305,14 @@ void main() {
         );
         cleanup.rememberChatEvents(roomId, <String>{sentCollaboratorReply.id});
 
+        _emitProgress(configuration, 'collaborator-files-connect');
         await session.files.connect();
+        _emitProgress(configuration, 'collaborator-files-observe');
         final sharedFile = await _waitForFile(session, fileName);
         final initialDownload = await _downloadFile(session.files, sharedFile);
         expect(_hashBytes(initialDownload), _hashBytes(initialFileBytes));
         collaboratorFileObserved = true;
+        _emitProgress(configuration, 'collaborator-files-update');
         await _deleteFile(session.files, sharedFile);
         await session.files.uploadFile(
           '/',
@@ -302,16 +323,19 @@ void main() {
           ),
         );
 
+        _emitProgress(configuration, 'collaborator-calendar-scopes');
         final collaboratorScope = _matchingScope(
           await session.calendar.loadScopes(),
           calendarScope,
         );
+        _emitProgress(configuration, 'collaborator-calendar-observe');
         final event = await _waitForCalendarEvent(
           session,
           collaboratorScope,
           title: initialEventTitle,
         );
         collaboratorEventObserved = true;
+        _emitProgress(configuration, 'collaborator-calendar-update');
         await session.calendar.updateEvent(
           event.id,
           CalendarEventDraft(

@@ -5,7 +5,11 @@ set -euo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly ROOT_DIR
-readonly CALENDAR_ID="personal"
+readonly CALENDAR_COLLECTION_HELPER="${ROOT_DIR}/lib/calendar-collection.sh"
+# shellcheck disable=SC1090,SC1091
+source "${CALENDAR_COLLECTION_HELPER}"
+CALENDAR_ID="$(weave_backend_actor_workspace_calendar_id isolated)"
+readonly CALENDAR_ID
 
 OPERATION=""
 STATE_FILE="${WEAVE_E2E_CALENDAR_OUTAGE_STATE_FILE:-}"
@@ -32,8 +36,9 @@ usage() {
   cat <<'EOF'
 Usage: isolated-e2e-calendar-outage.sh begin|restore [options]
 
-Temporarily removes only the disposable Nextcloud backend actor's `personal`
-calendar and proves cached Calendar degradation without affecting Files.
+Temporarily removes only the disposable Nextcloud backend actor's dedicated,
+non-default workspace calendar and proves cached Calendar degradation without
+affecting Files. The provider-default calendar is never used as the fault seam.
 
 Options:
   --state-file PATH          Private run state/evidence file.
@@ -159,7 +164,7 @@ assert_isolated_runtime() {
   jq -e \
     --arg namespace "WEAVE_ISOLATED_E2E_NAMESPACE=${NAMESPACE}" \
     --arg actor "WEAVE_NEXTCLOUD_FILES_ACTOR_USERNAME=${BACKEND_ACTOR}" \
-    --arg calendarPath "WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE=/remote.php/dav/calendars/${BACKEND_ACTOR}/personal/" '
+    --arg calendarPath "WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE=$(weave_backend_actor_workspace_calendar_path "${BACKEND_ACTOR}" "${NAMESPACE}")" '
       index($namespace) != null and index($actor) != null and index($calendarPath) != null
     ' <<<"${backend_env}" >/dev/null || fail "backend runtime is not bound to the isolated actor calendar"
   jq -e --arg network "${NETWORK}" 'has($network)' <<<"${backend_networks}" >/dev/null ||
@@ -178,7 +183,7 @@ validate_existing_state() {
     --arg namespaceSha256 "$(sha256 "${NAMESPACE}")" \
     --arg actorSha256 "$(sha256 "${BACKEND_ACTOR}")" \
     --arg calendarSha256 "$(sha256 "${CALENDAR_ID}")" '
-      .schemaVersion == "weave.isolated-calendar-outage-fixture.v1" and
+      .schemaVersion == "weave.isolated-calendar-outage-fixture.v2" and
       .namespaceSha256 == $namespaceSha256 and
       .actorSha256 == $actorSha256 and
       .calendarSha256 == $calendarSha256 and
@@ -202,12 +207,14 @@ write_state() {
     --argjson filesStatus "${files_status}" \
     --argjson recoveryRequired "${recovery_required}" '
       {
-        schemaVersion:"weave.isolated-calendar-outage-fixture.v1",
+        schemaVersion:"weave.isolated-calendar-outage-fixture.v2",
         state:$state,
         observedAtUtc:$observedAtUtc,
         namespaceSha256:$namespaceSha256,
         actorSha256:$actorSha256,
         calendarSha256:$calendarSha256,
+        calendarCollectionKind:"dedicated-non-default",
+        providerDefaultAutoProvisioningEligible:false,
         cachedHealth:{calendarStatus:$calendarStatus,filesStatus:$filesStatus},
         recoveryRequired:$recoveryRequired,
         persistentDogfoodEligible:false,
@@ -223,11 +230,11 @@ occ() {
   docker exec --user www-data "${NEXTCLOUD_CONTAINER}" php occ "$@"
 }
 
-delete_personal_calendar() {
+delete_workspace_calendar() {
   occ dav:delete-calendar --force "${BACKEND_ACTOR}" "${CALENDAR_ID}" >/dev/null 2>&1
 }
 
-create_personal_calendar() {
+create_workspace_calendar() {
   local output
   if output="$(occ dav:create-calendar "${BACKEND_ACTOR}" "${CALENDAR_ID}" 2>&1)"; then
     return 0
@@ -264,7 +271,7 @@ poll_cached_health() {
 }
 
 automatic_recovery() {
-  if create_personal_calendar; then
+  if create_workspace_calendar; then
     write_state recreated_after_failed_operation null null true
     printf 'CALENDAR_OUTAGE_FIXTURE_RECOVERY_RESULT status=calendar_recreated recoveryVerificationRequired=true supportSafe=true\n'
     return 0
@@ -297,7 +304,7 @@ begin_outage() {
     [[ "${initial_calendar}:${initial_files}" == 2:2 ]] ||
       fail "isolated Calendar/Files cached health must start available"
     AUTO_RESTORE_ON_FAILURE=true
-    delete_personal_calendar || fail "isolated personal calendar could not be removed"
+    delete_workspace_calendar || fail "isolated workspace calendar could not be removed"
     write_state outage_active null 2 true
   else
     AUTO_RESTORE_ON_FAILURE=true
@@ -316,7 +323,7 @@ restore_outage() {
   trap 'exit 130' INT
   trap 'exit 143' TERM
 
-  create_personal_calendar || fail "isolated personal calendar could not be recreated"
+  create_workspace_calendar || fail "isolated workspace calendar could not be recreated"
   observed="$(poll_cached_health 2)"
   read -r calendar_status files_status <<<"${observed}"
   write_state restored "${calendar_status}" "${files_status}" false
