@@ -17,9 +17,12 @@ readonly RUNNER_BOOTSTRAP_ENV_FILE="/tmp/weave-infra/weave-workspace/.generated/
 readonly NEXTCLOUD_PROVISION_EVIDENCE_FILE="${WEAVE_NEXTCLOUD_PROVISION_EVIDENCE_FILE:-${ROOT_DIR}/.generated/nextcloud-post-provision-health.json}"
 readonly TEARDOWN_SCRIPT="${ROOT_DIR}/teardown.sh"
 readonly SYNAPSE_VOLUME_HELPER="${ROOT_DIR}/lib/synapse-volume.sh"
+readonly CALENDAR_COLLECTION_HELPER="${ROOT_DIR}/lib/calendar-collection.sh"
 readonly LOOPBACK_HOST="${WEAVE_LOOPBACK_HOST:-127.0.0.1}"
 LOOPBACK_RESOLVE_HOST="${WEAVE_LOOPBACK_RESOLVE_HOST:-${LOOPBACK_HOST}}"
 readonly TEST_USER_EMAIL="test@weave.test"
+# shellcheck disable=SC1090,SC1091
+source "${CALENDAR_COLLECTION_HELPER}"
 readonly PERSISTED_TF_VARS=(
   TF_VAR_docker_host
   TF_VAR_docker_network_name
@@ -371,7 +374,10 @@ persist_bootstrap_env() {
     printf 'export WEAVE_NEXTCLOUD_FILES_ACTOR_TOKEN=%q\n' "${TF_VAR_nextcloud_backend_actor_token}"
     printf 'export WEAVE_NEXTCLOUD_FILES_WEBDAV_ROOT_PATH=%q\n' "/remote.php/dav/files"
     printf 'export WEAVE_CALDAV_BASE_URL=%q\n' "${TF_VAR_public_scheme}://$(public_host "${TF_VAR_nextcloud_subdomain}")$(public_port_suffix)"
-    printf 'export WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE=%q\n' "/remote.php/dav/calendars/${TF_VAR_nextcloud_backend_actor_username}/personal/"
+    printf 'export WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE=%q\n' \
+      "$(weave_backend_actor_workspace_calendar_path \
+        "${TF_VAR_nextcloud_backend_actor_username}" \
+        "${TF_VAR_isolated_e2e_namespace:-}")"
     printf 'export WEAVE_CALDAV_AUTH_MODE=%q\n' "BASIC"
     printf 'export WEAVE_CALDAV_BACKEND_USERNAME=%q\n' "${TF_VAR_nextcloud_backend_actor_username}"
     printf 'export WEAVE_CALDAV_BACKEND_TOKEN=%q\n' "${TF_VAR_nextcloud_backend_actor_token}"
@@ -1856,7 +1862,7 @@ ensure_nextcloud_backend_actor_calendar() {
   local calendar_id
   local create_output
   local -a calendar_ids=(
-    personal
+    "$(weave_backend_actor_workspace_calendar_id "${TF_VAR_isolated_e2e_namespace:-}")"
     weave-team-engineering
     weave-channel-engineering-general
   )
@@ -1936,7 +1942,9 @@ verify_nextcloud_dav_post_provision() {
   caldav_attempts=1
   caldav_status="$(curl_nextcloud_actor_dav_status \
     PROPFIND \
-    "$(nextcloud_public_url)/remote.php/dav/calendars/${TF_VAR_nextcloud_backend_actor_username}/personal/" \
+    "$(nextcloud_public_url)$(weave_backend_actor_workspace_calendar_path \
+      "${TF_VAR_nextcloud_backend_actor_username}" \
+      "${TF_VAR_isolated_e2e_namespace:-}")" \
     "${caldav_headers}" || true)"
   if [[ "${caldav_status}" == "429" ]]; then
     retry_after_present "${caldav_headers}" && retry_after_observed=true
