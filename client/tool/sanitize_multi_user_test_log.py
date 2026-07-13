@@ -24,6 +24,28 @@ HASH_PATTERN = re.compile(r"^[0-9a-f]{16,64}$")
 MARKER_PATTERN = re.compile(
     rf"(?:^|\s)({'|'.join(MARKERS)})\s+(\{{.*\}})\s*$"
 )
+PROGRESS_PHASES = (
+    "room-provision",
+    "home-baseline",
+    "author-write",
+    "collaborator-observe",
+    "outsider-authorization",
+    "fresh-session-observation",
+    "resource-cleanup",
+    "independent-logout",
+    "author-navigation",
+    "collaborator-navigation",
+    "collaboration-evidence",
+    "containment-session",
+    "containment-capability",
+    "containment-navigation",
+    "containment-calendar",
+    "containment-evidence",
+)
+PROGRESS_PATTERN = re.compile(
+    rf"(?:^|\s)MULTI_USER_PROGRESS "
+    rf"phase=({'|'.join(PROGRESS_PHASES)}) runIndex=(\d+)\s*$"
+)
 FAILURE_CATEGORIES = (
     (
         "compilation",
@@ -126,9 +148,19 @@ def _failure_diagnostic(raw_log: str) -> tuple[str, str]:
     return category, signature
 
 
+def _last_progress_phase(raw_log: str, run_index: int) -> str:
+    phase = "unknown"
+    for line in raw_log.splitlines():
+        match = PROGRESS_PATTERN.search(line)
+        if match is not None and int(match.group(2)) == run_index:
+            phase = match.group(1)
+    return phase
+
+
 def main() -> int:
     args = _parse_args()
     raw_log = args.input.read_text(encoding="utf-8", errors="replace")
+    progress_phase = _last_progress_phase(raw_log, args.run_index)
     safe_markers: list[tuple[str, dict[str, object]]] = []
     invalid_marker_count = 0
     for line in raw_log.splitlines():
@@ -154,7 +186,7 @@ def main() -> int:
         print(
             "SANITIZED_MULTI_USER_FAILURE "
             f"status=failed runIndex={args.run_index} category={category} "
-            f"signatureHash={signature} supportSafe=true"
+            f"phase={progress_phase} signatureHash={signature} supportSafe=true"
         )
     validation_status = "passed" if invalid_marker_count == 0 else "failed"
     print(
