@@ -6,6 +6,14 @@ terraform {
   }
 }
 
+locals {
+  # Both persistent bootstrap and disposable E2E explicitly seed principals in
+  # the canonical workspace. The Context Graph must project those memberships
+  # to the pre-provisioned team/channel structure in either mode. An isolated
+  # namespace is itself the fail-closed proof that this is not persistent data.
+  seeded_context_graph_enabled = var.context_authorization_bootstrap_enabled || var.isolated_e2e_namespace != ""
+}
+
 resource "docker_image" "this" {
   name         = var.image_name
   keep_locally = true
@@ -116,12 +124,10 @@ resource "docker_container" "this" {
         "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_${index}_ROLE=${membership.role}",
         "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_${index}_SOURCE=${membership.source}",
       ]
-    ]), var.context_authorization_bootstrap_enabled ? [
-    # Project the deterministic workspace membership to the seeded team/channel
-    # Contexts used by the live-stack Calendar facade E2E. This keeps the
-    # product ReBAC path fail-closed unless the local/dev bootstrap is explicitly
-    # enabled, while allowing channel-scoped calendar CRUD to prove the same
-    # authorization graph as production adapters will use.
+    ]), local.seeded_context_graph_enabled ? [
+    # Project explicitly seeded workspace memberships to the canonical
+    # team/channel Contexts. Membership facts still grant access; graph edges
+    # alone grant nothing, so non-seeded deployments remain fail-closed.
     "WEAVE_CONTEXT_AUTHORIZATION_GRAPH_EDGES_0_TENANT_ID=${var.context_authorization_default_tenant_id}",
     "WEAVE_CONTEXT_AUTHORIZATION_GRAPH_EDGES_0_FROM_CONTEXT_ID=${var.context_authorization_bootstrap_context_id}",
     "WEAVE_CONTEXT_AUTHORIZATION_GRAPH_EDGES_0_TO_CONTEXT_ID=team-engineering",
