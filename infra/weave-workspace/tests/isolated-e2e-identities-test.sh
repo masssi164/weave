@@ -34,9 +34,13 @@ printf '[]\n' >"${MOCK_STATE}/users.json"
 cat >"${MOCK_STATE}/groups.json" <<'JSON'
 [
   {"id":"global-members","name":"workspace-members","attributes":{}},
+  {"id":"global-boards","name":"weave-board-editors","attributes":{}},
   {"id":"global-calendar","name":"weave-calendar-editors","attributes":{}}
 ]
 JSON
+
+grep -Fq 'global_group_id "${base}" "${token}" weave-board-editors' "${SCRIPT}" ||
+  fail "disposable members must receive the existing Boards mutation capability"
 
 prepare_output="$(bash "${SCRIPT}" prepare --run-id "${RUN_ID}" --output-root "${OUTPUT_ROOT}")"
 grep -Fq 'WEAVE_E2E_RUN_NAMESPACE=' <<<"${prepare_output}"

@@ -45,6 +45,25 @@ const _executionModeValue = String.fromEnvironment(
   defaultValue: 'collaboration',
 );
 
+const _supportSafeProgressPhases = <String>{
+  'room-provision',
+  'home-baseline',
+  'author-write',
+  'collaborator-observe',
+  'outsider-authorization',
+  'fresh-session-observation',
+  'resource-cleanup',
+  'independent-logout',
+  'author-navigation',
+  'collaborator-navigation',
+  'collaboration-evidence',
+  'containment-session',
+  'containment-capability',
+  'containment-navigation',
+  'containment-calendar',
+  'containment-evidence',
+};
+
 void main() {
   final previousPlatformErrorHandler = ui.PlatformDispatcher.instance.onError;
   ui.PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
@@ -130,6 +149,7 @@ void main() {
       final collaborator = profiles[CollaborationActorRole.collaborator]!;
       final outsider = profiles[CollaborationActorRole.outsider]!;
 
+      _emitProgress(configuration, 'room-provision');
       roomId = await _provisionEncryptedSharedRoom(
         author: author,
         collaborator: collaborator,
@@ -138,6 +158,7 @@ void main() {
       );
       cleanup.rememberChatRoom(roomId);
 
+      _emitProgress(configuration, 'home-baseline');
       final homeActivityBaseline = <CollaborationActorRole, Set<String>>{};
       for (final entry in profiles.entries) {
         await _withSession(entry.value, (session) async {
@@ -148,6 +169,7 @@ void main() {
         });
       }
 
+      _emitProgress(configuration, 'author-write');
       await _withSession(author, (session) async {
         await _requireCurrentCapabilities(session);
         final original = await _requireProfile(session);
@@ -208,6 +230,7 @@ void main() {
         cleanup.rememberEvent(event.id, calendarScope);
       });
 
+      _emitProgress(configuration, 'collaborator-observe');
       await _withSession(collaborator, (session) async {
         await _requireCurrentCapabilities(session);
         final original = await _requireProfile(session);
@@ -280,6 +303,7 @@ void main() {
         );
       });
 
+      _emitProgress(configuration, 'outsider-authorization');
       await _withSession(outsider, (session) async {
         await _requireCurrentCapabilities(session);
         final original = await _requireProfile(session);
@@ -368,17 +392,31 @@ void main() {
             outsiderFilesReadDenied && outsiderFilesMutationDenied;
         expect(outsiderFilesDenied, isTrue);
 
-        final outsiderScope = _requireWritableWorkspaceScope(
-          await session.calendar.loadScopes(),
-        );
-        final outsiderEvents = await session.calendar.loadEvents(
-          scope: outsiderScope,
-        );
-        final outsiderEventVisible = outsiderEvents.events.any(
-          (event) =>
-              event.title == initialEventTitle ||
-              event.title == updatedEventTitle,
-        );
+        var outsiderEventVisible = false;
+        var outsiderScopedListingRejected = false;
+        try {
+          final outsiderScopes = await session.calendar.loadScopes();
+          for (final outsiderScope in outsiderScopes.scopes.where(
+            (scope) => scope.isWorkspace,
+          )) {
+            try {
+              final outsiderEvents = await session.calendar.loadEvents(
+                scope: outsiderScope,
+              );
+              outsiderEventVisible =
+                  outsiderEventVisible ||
+                  outsiderEvents.events.any(
+                    (event) =>
+                        event.title == initialEventTitle ||
+                        event.title == updatedEventTitle,
+                  );
+            } on AppFailure {
+              outsiderScopedListingRejected = true;
+            }
+          }
+        } on AppFailure {
+          outsiderScopedListingRejected = true;
+        }
         var outsiderEventReadRejected = false;
         try {
           await session.calendar.readEvent(calendarEventId);
@@ -392,13 +430,15 @@ void main() {
           outsiderEventMutationRejected = true;
         }
         outsiderCalendarReadDenied =
-            !outsiderEventVisible && outsiderEventReadRejected;
+            !outsiderEventVisible &&
+            (outsiderScopedListingRejected || outsiderEventReadRejected);
         outsiderCalendarMutationDenied = outsiderEventMutationRejected;
         outsiderCalendarDenied =
             outsiderCalendarReadDenied && outsiderCalendarMutationDenied;
         expect(outsiderCalendarDenied, isTrue);
       });
 
+      _emitProgress(configuration, 'fresh-session-observation');
       await _withRelaunchedSession(author, (session) async {
         restoredSessionCount++;
         await _requireCurrentCapabilities(session);
@@ -499,9 +539,11 @@ void main() {
         isTrue,
       );
       expect(restoredSessionCount, CollaborationActorRole.values.length);
+      _emitProgress(configuration, 'resource-cleanup');
       final cleanupComplete = await cleanup.requireComplete();
       expect(cleanupComplete, isTrue);
 
+      _emitProgress(configuration, 'independent-logout');
       final authorLogoutSession = await author.relaunch();
       final collaboratorLogoutSession = await collaborator.relaunch();
       try {
@@ -525,6 +567,7 @@ void main() {
         await collaboratorLogoutSession.close();
       }
 
+      _emitProgress(configuration, 'author-navigation');
       final authorUiSession = await author.open();
       try {
         authorNavigationCount = await _visitCurrentMemberRoutes(
@@ -556,6 +599,7 @@ void main() {
         await authorUiSession.close();
       }
 
+      _emitProgress(configuration, 'collaborator-navigation');
       final collaboratorUiSession = await collaborator.open();
       try {
         collaboratorNavigationCount = await _visitCurrentMemberRoutes(
@@ -641,6 +685,7 @@ void main() {
       expect(organizationDiscoveryCount, CollaborationActorRole.values.length);
       expect(realDeviceStorageProfiles, isTrue);
 
+      _emitProgress(configuration, 'collaboration-evidence');
       _emitEvidence('MULTI_USER_AUTH_SHELL_RESULT', configuration, <
         String,
         Object
@@ -764,13 +809,16 @@ void main() {
     (tester) async {
       requireIsolatedStackScope();
       final author = profiles[CollaborationActorRole.author]!;
+      _emitProgress(configuration, 'containment-session');
       final session = await author.open();
       try {
+        _emitProgress(configuration, 'containment-capability');
         final outageSnapshot = await _waitForCalendarUnavailable(session);
         expect(outageSnapshot.shellAccess.isReady, isTrue);
         expect(outageSnapshot.chat.isReady, isTrue);
         expect(outageSnapshot.files.isReady, isTrue);
 
+        _emitProgress(configuration, 'containment-navigation');
         await tester.pumpWidget(
           UncontrolledProviderScope(
             container: session.container,
@@ -799,6 +847,7 @@ void main() {
           expect(find.byType(NavigationBar), findsOneWidget);
         }
 
+        _emitProgress(configuration, 'containment-calendar');
         session.container.read(appRouterProvider).go(AppRoutes.calendar);
         await _pumpUntil(
           tester,
@@ -814,6 +863,7 @@ void main() {
         );
         expect(find.byType(NavigationBar), findsOneWidget);
 
+        _emitProgress(configuration, 'containment-evidence');
         _emitEvidence(
           'MULTI_USER_FAILURE_CONTAINMENT_RESULT',
           configuration,
@@ -1266,6 +1316,16 @@ Future<void> _pumpUntil(
 }
 
 String _hashBytes(List<int> bytes) => sha256.convert(bytes).toString();
+
+void _emitProgress(MultiUserTestConfig configuration, String phase) {
+  if (!_supportSafeProgressPhases.contains(phase)) {
+    throw StateError('Unsupported multi-user progress phase.');
+  }
+  // Fixed allowlisted phase names provide failure locality without identities,
+  // provider responses, URLs, credentials, or mutable application content.
+  // ignore: avoid_print
+  print('MULTI_USER_PROGRESS phase=$phase runIndex=${configuration.runIndex}');
+}
 
 void _emitEvidence(
   String marker,

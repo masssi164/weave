@@ -30,7 +30,8 @@ access_token=abcdefghijklmnopqrstuvwxyz0123456789
         self.assertRegex(
             result.stdout,
             r"SANITIZED_MULTI_USER_FAILURE status=failed runIndex=1 "
-            r"category=authentication signatureHash=[0-9a-f]{64} supportSafe=true",
+            r"category=authentication phase=unknown "
+            r"signatureHash=[0-9a-f]{64} supportSafe=true",
         )
         for secret in (
             "alice@example.org",
@@ -70,6 +71,23 @@ access_token=abcdefghijklmnopqrstuvwxyz0123456789
         self.assertIn("MULTI_USER_AUTH_SHELL_RESULT", result.stdout)
         self.assertIn("status=passed runIndex=1", result.stdout)
         self.assertNotIn("SANITIZED_MULTI_USER_FAILURE", result.stdout)
+
+    def test_failed_assertion_reports_only_allowlisted_last_phase(self) -> None:
+        raw = """
+00:00 +0: MULTI_USER_PROGRESS phase=author-write runIndex=1
+MULTI_USER_PROGRESS phase=outsider-authorization runIndex=1
+MULTI_USER_PROGRESS phase=containment-calendar runIndex=2
+TestFailure: Expected: true Actual: false
+"""
+
+        result = self.run_sanitizer(raw, exit_code=1)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "category=assertion phase=outsider-authorization",
+            result.stdout,
+        )
+        self.assertNotIn("containment-calendar", result.stdout)
 
     def run_sanitizer(
         self,

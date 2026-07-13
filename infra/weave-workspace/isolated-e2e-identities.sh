@@ -401,6 +401,7 @@ ensure_user() {
   request PUT "${base}/users/${subject}/groups/${run_group_id}" "${token}" >/dev/null
   for group_id in \
     "$(global_group_id "${base}" "${token}" workspace-members)" \
+    "$(global_group_id "${base}" "${token}" weave-board-editors)" \
     "$(global_group_id "${base}" "${token}" weave-calendar-editors)"; do
     request PUT "${base}/users/${subject}/groups/${group_id}" "${token}" >/dev/null
   done
