@@ -1078,6 +1078,9 @@ Future<WorkspaceCapabilitySnapshot> _requireCurrentCapabilities(
   expect(snapshot.chat.isReady, isTrue);
   expect(snapshot.files.isReady, isTrue);
   expect(snapshot.calendar.isReady, isTrue);
+  expect(snapshot.chat.grants('chat.send'), isTrue);
+  expect(snapshot.files.grants('files.upload'), isTrue);
+  expect(snapshot.calendar.grants('calendar.manage_events'), isTrue);
   return snapshot;
 }
 
@@ -1278,9 +1281,11 @@ Future<void> _deleteFile(FilesRepository repository, FileEntry entry) async {
 }
 
 CalendarScope _requireWritableWorkspaceScope(CalendarScopeList scopeList) {
+  const requiredScopeOperations = <String>{'read', 'create', 'edit', 'delete'};
   return scopeList.scopes.firstWhere(
     (scope) =>
-        scope.isWorkspace && scope.capabilities.contains('manage_events'),
+        scope.isWorkspace &&
+        requiredScopeOperations.every(scope.capabilities.contains),
     orElse: () => throw StateError(
       'The workspace Calendar capability does not allow live collaboration.',
     ),
