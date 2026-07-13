@@ -1131,7 +1131,18 @@ fn message_event(
     server_name: &OwnedServerName,
 ) -> Result<MatrixEvent, MatrixCoreError> {
     let (event_type, content) = if message.redacted {
-        ("m.room.message", json!({}))
+        // Matrix redaction strips event content but retains the event type.
+        // Keeping encrypted events typed as encrypted lets clients distinguish
+        // a deliberately redacted ciphertext event from a plaintext message.
+        let redacted_event_type =
+            if message.encrypted_content.is_some() || message.kind == "encrypted" {
+                "m.room.encrypted"
+            } else if message.kind == "reaction" {
+                "m.reaction"
+            } else {
+                "m.room.message"
+            };
+        (redacted_event_type, json!({}))
     } else if let Some(encrypted_content) = &message.encrypted_content {
         ("m.room.encrypted", encrypted_content.clone())
     } else if message.kind == "reaction" {
@@ -1845,6 +1856,20 @@ mod tests {
                     "body": "removed",
                     "redacted": true,
                     "deliveryState": "sent"
+                }, {
+                    "messageId": "redacted-encrypted-1",
+                    "senderRef": "user:alice",
+                    "sentAtEpochMillis": 3,
+                    "kind": "encrypted",
+                    "encryptedContent": {
+                        "algorithm": "m.megolm.v1.aes-sha2",
+                        "ciphertext": "removed-ciphertext",
+                        "sender_key": "curve25519:alice",
+                        "session_id": "removed-session",
+                        "device_id": "WEAVEDEVICEALICE"
+                    },
+                    "redacted": true,
+                    "deliveryState": "sent"
                 }]
             }]
         });
@@ -1862,7 +1887,10 @@ mod tests {
             events[0]["content"]["m.relates_to"]["event_id"],
             "$approval-event:matrix.weave.test"
         );
+        assert_eq!(events[1]["type"], "m.room.message");
         assert_eq!(events[1]["content"], json!({}));
+        assert_eq!(events[2]["type"], "m.room.encrypted");
+        assert_eq!(events[2]["content"], json!({}));
         assert_eq!(sync["account_data"]["events"][0]["type"], "m.direct");
         assert!(!sync.to_string().contains("providerSecret"));
     }
