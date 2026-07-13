@@ -168,6 +168,56 @@ class WorkspaceCapabilityServiceTest {
                 .doesNotContain("Nextcloud");
     }
 
+    @Test
+    void runtimeProviderHealthCanLowerAConfiguredReadyCapability() {
+        ProviderCapabilityHealthService providerHealth = mock(ProviderCapabilityHealthService.class);
+        when(providerHealth.cached("files")).thenReturn(Optional.of(observation(
+                "files", "degraded", "files-storage-backend-unavailable", false)));
+        when(providerHealth.cached("calendar")).thenReturn(Optional.of(observation(
+                "calendar", "unavailable", "calendar-storage-auth-failed", false)));
+        WorkspaceCapabilityService service = new WorkspaceCapabilityService(
+                resourceServerProperties("https://auth.weave.test/realms/weave"),
+                new WeaveSecurityProperties("weave-app", "weave-app"),
+                new WorkspaceCapabilityProperties(
+                        new WorkspaceCapabilityProperties.Capability(true, null, null),
+                        new WorkspaceCapabilityProperties.Capability(true, "https://matrix.weave.test", null),
+                        new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.test", WorkspaceCapabilityReadiness.READY),
+                        new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.test", WorkspaceCapabilityReadiness.READY),
+                        null,
+                        null),
+                providerHealth);
+
+        var snapshot = service.snapshot(jwt(List.of("member"), List.of("workspace-default")));
+
+        assertThat(snapshot.shellAccess().readiness()).isEqualTo(WorkspaceCapabilityReadiness.READY);
+        assertThat(snapshot.chat().readiness()).isEqualTo(WorkspaceCapabilityReadiness.READY);
+        assertThat(snapshot.files().readiness()).isEqualTo(WorkspaceCapabilityReadiness.DEGRADED);
+        assertThat(snapshot.calendar().readiness()).isEqualTo(WorkspaceCapabilityReadiness.UNAVAILABLE);
+        assertThat(snapshot.files().supportRef()).contains("files-storage-backend-unavailable");
+        assertThat(snapshot.calendar().supportRef()).contains("calendar-storage-auth-failed");
+    }
+
+    @Test
+    void runtimeProviderHealthDoesNotPromoteAnExplicitlyDegradedCapability() {
+        ProviderCapabilityHealthService providerHealth = mock(ProviderCapabilityHealthService.class);
+        when(providerHealth.cached("calendar")).thenReturn(Optional.of(observation(
+                "calendar", "available", "calendar-storage-ready", false)));
+        WorkspaceCapabilityService service = new WorkspaceCapabilityService(
+                resourceServerProperties("https://auth.weave.test/realms/weave"),
+                new WeaveSecurityProperties("weave-app", "weave-app"),
+                new WorkspaceCapabilityProperties(
+                        new WorkspaceCapabilityProperties.Capability(true, null, null),
+                        new WorkspaceCapabilityProperties.Capability(true, "https://matrix.weave.test", null),
+                        new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.test", null),
+                        new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.test", WorkspaceCapabilityReadiness.DEGRADED),
+                        null,
+                        null),
+                providerHealth);
+
+        var snapshot = service.snapshot(jwt(List.of("member"), List.of("workspace-default")));
+
+        assertThat(snapshot.calendar().readiness()).isEqualTo(WorkspaceCapabilityReadiness.DEGRADED);
+    }
 
     @Test
     void marksShellAccessUnavailableWhenTheCapabilityIsDisabled() {

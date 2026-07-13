@@ -49,6 +49,16 @@ const _supportSafeProgressPhases = <String>{
   'room-provision',
   'home-baseline',
   'author-write',
+  'author-capabilities',
+  'author-profile',
+  'author-chat-connect',
+  'author-chat-room',
+  'author-chat-send',
+  'author-chat-observe',
+  'author-files-connect',
+  'author-files-upload',
+  'author-calendar-scopes',
+  'author-calendar-create',
   'collaborator-observe',
   'outsider-authorization',
   'fresh-session-observation',
@@ -59,6 +69,10 @@ const _supportSafeProgressPhases = <String>{
   'collaboration-evidence',
   'containment-session',
   'containment-capability',
+  'containment-calendar-health',
+  'containment-shell-health',
+  'containment-chat-health',
+  'containment-files-health',
   'containment-navigation',
   'containment-calendar',
   'containment-evidence',
@@ -171,7 +185,9 @@ void main() {
 
       _emitProgress(configuration, 'author-write');
       await _withSession(author, (session) async {
+        _emitProgress(configuration, 'author-capabilities');
         await _requireCurrentCapabilities(session);
+        _emitProgress(configuration, 'author-profile');
         final original = await _requireProfile(session);
         cleanup.rememberProfile(CollaborationActorRole.author, original);
         cleanup.rememberLocale(
@@ -187,9 +203,13 @@ void main() {
           localePreferences[CollaborationActorRole.author]!,
         );
 
+        _emitProgress(configuration, 'author-chat-connect');
         await session.chat.connect();
+        _emitProgress(configuration, 'author-chat-room');
         await _requireEncryptedConversation(session, roomId);
+        _emitProgress(configuration, 'author-chat-send');
         await session.chat.sendMessage(roomId: roomId, message: authorMessage);
+        _emitProgress(configuration, 'author-chat-observe');
         final sentAuthorMessage = await _waitForChatMessage(
           session,
           roomId,
@@ -197,7 +217,9 @@ void main() {
         );
         cleanup.rememberChatEvents(roomId, <String>{sentAuthorMessage.id});
 
+        _emitProgress(configuration, 'author-files-connect');
         await session.files.connect();
+        _emitProgress(configuration, 'author-files-upload');
         final existing = (await session.files.listDirectory(
           '/',
         )).entries.where((entry) => entry.name == fileName).firstOrNull;
@@ -214,9 +236,11 @@ void main() {
         );
         cleanup.rememberFile(fileName);
 
+        _emitProgress(configuration, 'author-calendar-scopes');
         final scopes = await session.calendar.loadScopes();
         calendarScope = _requireWritableWorkspaceScope(scopes);
         final start = DateTime.now().toUtc().add(const Duration(days: 1));
+        _emitProgress(configuration, 'author-calendar-create');
         final event = await session.calendar.createEvent(
           CalendarEventDraft(
             title: initialEventTitle,
@@ -813,9 +837,13 @@ void main() {
       final session = await author.open();
       try {
         _emitProgress(configuration, 'containment-capability');
+        _emitProgress(configuration, 'containment-calendar-health');
         final outageSnapshot = await _waitForCalendarUnavailable(session);
+        _emitProgress(configuration, 'containment-shell-health');
         expect(outageSnapshot.shellAccess.isReady, isTrue);
+        _emitProgress(configuration, 'containment-chat-health');
         expect(outageSnapshot.chat.isReady, isTrue);
+        _emitProgress(configuration, 'containment-files-health');
         expect(outageSnapshot.files.isReady, isTrue);
 
         _emitProgress(configuration, 'containment-navigation');
@@ -920,6 +948,15 @@ Future<String> _provisionEncryptedSharedRoom({
         'The isolated Chat room did not bind two distinct live identities.',
       );
     }
+    // The room is arranged through the Matrix facade after both app-owned
+    // crypto clients have opened. Synchronize that committed provider state
+    // into each isolated device store before disposing the setup sessions so
+    // the subsequent fresh sessions exercise restoration, not a setup race.
+    await _requireEncryptedConversation(authorSession, provisioned.roomId);
+    await _requireEncryptedConversation(
+      collaboratorSession,
+      provisioned.roomId,
+    );
     return provisioned.roomId;
   } finally {
     client.close();

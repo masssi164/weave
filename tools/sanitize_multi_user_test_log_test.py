@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import re
+import runpy
 import subprocess
 import sys
 import tempfile
@@ -14,6 +15,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "client" / "tool" / "sanitize_multi_user_test_log.py"
+DART_TEST = (
+    ROOT
+    / "client"
+    / "integration_test"
+    / "multi_user_collaboration_e2e_test.dart"
+)
 
 
 class SanitizeMultiUserTestLogTest(unittest.TestCase):
@@ -75,6 +82,7 @@ access_token=abcdefghijklmnopqrstuvwxyz0123456789
     def test_failed_assertion_reports_only_allowlisted_last_phase(self) -> None:
         raw = """
 00:00 +0: MULTI_USER_PROGRESS phase=author-write runIndex=1
+MULTI_USER_PROGRESS phase=author-chat-room runIndex=1
 MULTI_USER_PROGRESS phase=outsider-authorization runIndex=1
 MULTI_USER_PROGRESS phase=containment-calendar runIndex=2
 TestFailure: Expected: true Actual: false
@@ -87,7 +95,33 @@ TestFailure: Expected: true Actual: false
             "category=assertion phase=outsider-authorization",
             result.stdout,
         )
+        self.assertNotIn("phase=author-chat-room", result.stdout)
         self.assertNotIn("containment-calendar", result.stdout)
+
+    def test_fine_grained_author_chat_phase_is_support_safe(self) -> None:
+        raw = """
+MULTI_USER_PROGRESS phase=author-write runIndex=1
+MULTI_USER_PROGRESS phase=author-chat-room runIndex=1
+TestFailure: Expected: true Actual: false
+"""
+
+        result = self.run_sanitizer(raw, exit_code=1)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("category=assertion phase=author-chat-room", result.stdout)
+
+    def test_dart_and_sanitizer_progress_phase_allowlists_match(self) -> None:
+        dart_source = DART_TEST.read_text(encoding="utf-8")
+        dart_block = re.search(
+            r"const _supportSafeProgressPhases = <String>\{(.*?)\n\};",
+            dart_source,
+            flags=re.DOTALL,
+        )
+        self.assertIsNotNone(dart_block)
+        dart_phases = set(re.findall(r"'([^']+)'", dart_block.group(1)))
+        sanitizer_phases = set(runpy.run_path(str(SCRIPT))["PROGRESS_PHASES"])
+
+        self.assertEqual(dart_phases, sanitizer_phases)
 
     def run_sanitizer(
         self,
