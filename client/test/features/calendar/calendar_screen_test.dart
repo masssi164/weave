@@ -20,6 +20,7 @@ class _FakeCalendarRepository implements CalendarRepository {
   final bool failCreates;
   final List<CalendarEventDraft> createdDrafts = <CalendarEventDraft>[];
   final List<String> deletedIds = <String>[];
+  final List<String?> updatedEtags = <String?>[];
 
   @override
   Future<CalendarScopeList> loadScopes() async {
@@ -86,7 +87,12 @@ class _FakeCalendarRepository implements CalendarRepository {
   }
 
   @override
-  Future<CalendarEvent> updateEvent(String id, CalendarEventDraft draft) async {
+  Future<CalendarEvent> updateEvent(
+    String id,
+    CalendarEventDraft draft, {
+    String? etag,
+  }) async {
+    updatedEtags.add(etag);
     final index = events.indexWhere((event) => event.id == id);
     final event = CalendarEvent(
       id: id,
@@ -97,6 +103,7 @@ class _FakeCalendarRepository implements CalendarRepository {
       timezone: draft.timezone,
       location: draft.location,
       allDay: draft.allDay,
+      etag: etag,
       scope: draft.scope,
     );
     events[index] = event;
@@ -220,6 +227,44 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(repository.deletedIds.single, 'created-1');
+    });
+
+    testWidgets('updates an event with its observed concurrency version', (
+      tester,
+    ) async {
+      final repository = _FakeCalendarRepository(
+        events: [
+          CalendarEvent(
+            id: 'event-1',
+            title: 'Design review',
+            startTime: DateTime(2026, 6, 27, 10),
+            endTime: DateTime(2026, 6, 27, 11),
+            etag: '"event-version-1"',
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        createTestApp(
+          const CalendarScreen(),
+          overrides: [
+            workspaceCapabilitySnapshotProvider.overrideWithValue(
+              const AsyncData(_readySnapshot),
+            ),
+            calendarRepositoryProvider.overrideWithValue(repository),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Edit Design review'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).first, 'Updated review');
+      await tester.tap(find.text('Save event'));
+      await tester.pumpAndSettle();
+
+      expect(repository.updatedEtags.single, '"event-version-1"');
+      expect(find.text('Updated review'), findsOneWidget);
     });
 
     testWidgets('keeps the calendar visible when saving an event fails', (

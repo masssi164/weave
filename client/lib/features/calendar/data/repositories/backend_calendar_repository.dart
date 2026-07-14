@@ -34,8 +34,15 @@ class BackendCalendarRepository implements CalendarRepository {
   }
 
   @override
-  Future<CalendarEvent> updateEvent(String id, CalendarEventDraft draft) {
-    return _client.updateEvent(id: id, patch: draft.toPatch());
+  Future<CalendarEvent> updateEvent(
+    String id,
+    CalendarEventDraft draft, {
+    String? etag,
+  }) {
+    return _client.updateEvent(
+      id: id,
+      patch: draft.toPatch(etag: etag),
+    );
   }
 
   @override

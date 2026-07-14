@@ -11,7 +11,11 @@ abstract interface class CalendarRepository {
 
   Future<CalendarEvent> createEvent(CalendarEventDraft draft);
 
-  Future<CalendarEvent> updateEvent(String id, CalendarEventDraft draft);
+  Future<CalendarEvent> updateEvent(
+    String id,
+    CalendarEventDraft draft, {
+    String? etag,
+  });
 
   Future<void> deleteEvent(String id);
 }

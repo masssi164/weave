@@ -581,6 +581,10 @@ jobs:
             echo "::error::Live Stack E2E consumed its emergency disk reserve; increase durable runner headroom before retrying." >&2
             exit 1
           fi
+          if [ "$single_user_status" -ne 0 ] || [ "$multi_user_status" -ne 0 ]; then
+            echo "::error::Live provider tests failed; cleanup and support-safe evidence collection will continue." >&2
+            exit 1
+          fi
 
       - name: Clean disposable identities and retain only hashed evidence
         if: always()

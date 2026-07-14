@@ -615,6 +615,7 @@ void main() {
             timezone: 'UTC',
             scope: channelScope,
           ),
+          etag: readCreatedEvent.etag,
         );
         final readUpdatedEvent = await calendarRepository.readEvent(
           createdEvent.id,

@@ -69,7 +69,11 @@ class _FakeCalendarRepository implements CalendarRepository {
   }
 
   @override
-  Future<CalendarEvent> updateEvent(String id, CalendarEventDraft draft) {
+  Future<CalendarEvent> updateEvent(
+    String id,
+    CalendarEventDraft draft, {
+    String? etag,
+  }) {
     throw UnimplementedError();
   }
 

@@ -115,7 +115,9 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
           _showSnackBar(context, l10n.calendarCreateSuccess);
         }
       } else {
-        await ref.read(calendarProvider.notifier).updateEvent(event.id, draft);
+        await ref
+            .read(calendarProvider.notifier)
+            .updateEvent(event.id, draft, etag: event.etag);
         if (context.mounted) {
           _showSnackBar(context, l10n.calendarUpdateSuccess);
         }
