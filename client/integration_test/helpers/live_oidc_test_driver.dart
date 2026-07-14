@@ -125,7 +125,7 @@ class LiveOidcTestDriver implements OidcClient {
       final request = await client.getUrl(uri);
       request.followRedirects = false;
       final response = await request.close();
-      await response.drain<List<int>>();
+      await response.drain<void>();
     } finally {
       client.close(force: true);
     }

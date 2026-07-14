@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 
 import '../../integration_test/helpers/live_oidc_test_driver.dart';
 import '../../integration_test/helpers/test_config.dart';
@@ -79,6 +80,61 @@ void main() {
       });
     },
   );
+
+  test('end session drains a non-empty logout response', () async {
+    Uri? logoutRequest;
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    final origin = Uri.parse('http://127.0.0.1:${server.port}');
+    final subscription = server.listen((request) async {
+      switch (request.uri.path) {
+        case '/.well-known/openid-configuration':
+          request.response.headers.contentType = ContentType.json;
+          request.response.write(
+            jsonEncode(<String, String>{
+              'end_session_endpoint': origin
+                  .replace(path: '/logout')
+                  .toString(),
+            }),
+          );
+          await request.response.close();
+        case '/logout':
+          logoutRequest = request.uri;
+          request.response.write('Signed out');
+          await request.response.close();
+        default:
+          request.response.statusCode = HttpStatus.notFound;
+          await request.response.close();
+      }
+    });
+    addTearDown(() async {
+      await subscription.cancel();
+      await server.close(force: true);
+    });
+    final driver = LiveOidcTestDriver(
+      config: TestConfig(
+        baseUrl: origin,
+        username: 'live-author',
+        password: 'live-password',
+        issuerUrl: origin,
+        clientId: 'weave-app',
+        matrixHomeserverUrl: origin,
+        nextcloudBaseUrl: origin,
+        backendApiBaseUrl: origin,
+        offlineContractOnly: false,
+      ),
+    );
+
+    await driver.endSession(
+      AuthConfiguration(issuer: origin, clientId: 'weave-app'),
+      idTokenHint: 'id-token-hint',
+    );
+
+    expect(logoutRequest?.queryParameters, <String, String>{
+      'client_id': 'weave-app',
+      'id_token_hint': 'id-token-hint',
+      'post_logout_redirect_uri': 'com.massimotter.weave:/logout',
+    });
+  });
 }
 
 Future<Map<String, String>> _readForm(HttpRequest request) async {

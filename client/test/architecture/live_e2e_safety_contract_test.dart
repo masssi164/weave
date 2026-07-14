@@ -141,6 +141,10 @@ void main() {
       matrixDriver,
       contains('M_WEAVE_LIVE_MATRIX_DEVICE_KEYS_NOT_CONVERGED'),
     );
+    expect(
+      matrixDriver,
+      contains('M_WEAVE_LIVE_MATRIX_KEY_MATERIAL_NOT_CONVERGED'),
+    );
     expect(roomCreation, contains('requireMutualDeviceKeys('));
     expect(roomCreation, contains("'createRoom'"));
     expect(

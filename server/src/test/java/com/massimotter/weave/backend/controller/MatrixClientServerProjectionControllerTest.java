@@ -412,6 +412,66 @@ class MatrixClientServerProjectionControllerTest {
     }
 
     @Test
+    void fallbackKeyBootstrapsOlmWhenOneTimeKeyPoolIsEmpty() throws Exception {
+        stubConversation();
+        String userId = "@user_example.com:api.weave.test";
+        String targetDevice = "WEAVEFALLBACKDEVICE";
+        String claimantDevice = "WEAVEFALLBACKCLAIMANT";
+
+        mockMvc.perform(post("/_matrix/client/v3/keys/upload")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, targetDevice)
+                        .with(workspaceJwt("fallback-target-session"))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "device_keys":{
+                                    "user_id":"%s",
+                                    "device_id":"%s",
+                                    "algorithms":["m.olm.v1.curve25519-aes-sha2"],
+                                    "keys":{"ed25519:%s":"fallback-signing-key"},
+                                    "signatures":{}
+                                  },
+                                  "fallback_keys":{
+                                    "signed_curve25519:FALLBACK":{
+                                      "key":"fallback-public-key",
+                                      "fallback":true,
+                                      "signatures":{}
+                                    }
+                                  }
+                                }
+                                """.formatted(userId, targetDevice, targetDevice)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.one_time_key_counts").isEmpty());
+
+        mockMvc.perform(get("/_matrix/client/v3/sync")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, targetDevice)
+                        .with(workspaceJwt("fallback-target-session")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.device_unused_fallback_key_types[0]")
+                        .value("signed_curve25519"));
+
+        for (int attempt = 0; attempt < 2; attempt++) {
+            mockMvc.perform(post("/_matrix/client/v3/keys/claim")
+                            .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, claimantDevice)
+                            .with(workspaceJwt("fallback-claimant-session"))
+                            .contentType("application/json")
+                            .content("""
+                                    {"one_time_keys":{"%s":{"%s":"signed_curve25519"}}}
+                                    """.formatted(userId, targetDevice)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.one_time_keys['%s'].%s['signed_curve25519:FALLBACK'].key"
+                                    .formatted(userId, targetDevice))
+                            .value("fallback-public-key"));
+        }
+
+        mockMvc.perform(get("/_matrix/client/v3/sync")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, targetDevice)
+                        .with(workspaceJwt("fallback-target-session")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.device_unused_fallback_key_types").isEmpty());
+    }
+
+    @Test
     void roomKeyBackupStoresOnlyOpaqueRecoveryPayloads() throws Exception {
         String deviceId = "WEAVEBACKUPDEVICE";
         String created = mockMvc.perform(post("/_matrix/client/v3/room_keys/version")

@@ -53,6 +53,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Bean;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -861,6 +862,7 @@ class FilesCalendarFacadeControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Type", "text/calendar;charset=UTF-8"))
                 .andExpect(header().string("Content-Disposition", "inline; filename=\"planning.ics\""))
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-transform"))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                         .string(org.hamcrest.Matchers.containsString("BEGIN:VCALENDAR")))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
@@ -875,6 +877,15 @@ class FilesCalendarFacadeControllerTest {
                         .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("Nextcloud"))))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                         .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("remote.php"))));
+
+        mockMvc.perform(request(HttpMethod.HEAD, "/caldav/workspace/planning.ics")
+                        .with(workspaceJwt()))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", "text/calendar;charset=UTF-8"))
+                .andExpect(header().string("ETag", "\"etag-existing\""))
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-transform"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .bytes(new byte[0]));
 
         mockMvc.perform(request(HttpMethod.valueOf("PUT"), "/caldav/workspace/planning-new.ics")
                         .with(workspaceJwt())

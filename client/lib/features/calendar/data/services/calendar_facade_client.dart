@@ -1,6 +1,8 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:timezone/data/latest.dart' as timezone_data;
+import 'package:timezone/timezone.dart' as timezone;
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/domain/repositories/auth_session_repository.dart';
@@ -10,6 +12,11 @@ import 'package:weave/features/server_config/domain/entities/server_configuratio
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 import 'package:weave/generated/openapi_models.dart' as openapi;
 import 'package:xml/xml.dart';
+
+final bool _calendarTimeZonesInitialized = (() {
+  timezone_data.initializeTimeZones();
+  return true;
+})();
 
 /// HTTP client for the Weave backend calendar product facade.
 ///
@@ -472,7 +479,7 @@ class CalendarFacadeClient {
     required String? etag,
     required CalendarScope scope,
   }) {
-    final fields = <String, String>{};
+    final fields = <String, _IcsProperty>{};
     final unfoldedLines = <String>[];
     for (final line
         in body.replaceAll('\r\n', '\n').replaceAll('\r', '\n').split('\n')) {
@@ -484,15 +491,26 @@ class CalendarFacadeClient {
       }
     }
     for (final line in unfoldedLines) {
-      final separator = line.indexOf(':');
-      if (separator <= 0) continue;
-      final key = line.substring(0, separator).split(';').first.toUpperCase();
-      fields[key] = line.substring(separator + 1);
+      final property = _IcsProperty.tryParse(line);
+      if (property != null) {
+        fields[property.name] = property;
+      }
     }
-    final start = _parseIcsDate(fields['DTSTART']);
-    final end = _parseIcsDate(fields['DTEND']);
-    final projectedContextId = _optionalIcsText(fields['X-WEAVE-CONTEXT-ID']);
-    final projectedChannelId = _optionalIcsText(fields['X-WEAVE-CHANNEL-ID']);
+    final startProperty = fields['DTSTART'];
+    final endProperty = fields['DTEND'];
+    final start = _parseIcsDate(startProperty, fieldName: 'DTSTART');
+    final end = _parseIcsDate(endProperty, fieldName: 'DTEND');
+    if (!end.isAfter(start)) {
+      throw const AppFailure.validation(
+        'The calendar event end must be after its start.',
+      );
+    }
+    final projectedContextId = _optionalIcsText(
+      fields['X-WEAVE-CONTEXT-ID']?.value,
+    );
+    final projectedChannelId = _optionalIcsText(
+      fields['X-WEAVE-CHANNEL-ID']?.value,
+    );
     if (projectedContextId != null && projectedContextId != scope.contextId) {
       throw const AppFailure.unknown(
         'The calendar facade returned an event for a different context.',
@@ -505,21 +523,27 @@ class CalendarFacadeClient {
     }
     return CalendarEvent(
       id: id,
-      title: _optionalIcsText(fields['SUMMARY']) ?? 'Calendar event',
-      description: _optionalIcsText(fields['DESCRIPTION']),
+      title: _optionalIcsText(fields['SUMMARY']?.value) ?? 'Calendar event',
+      description: _optionalIcsText(fields['DESCRIPTION']?.value),
       startTime: start,
-      endTime: end.isAfter(start) ? end : start.add(const Duration(hours: 1)),
-      timezone: 'UTC',
-      location: _optionalIcsText(fields['LOCATION']),
+      endTime: end,
+      timezone: _calendarTimeZone(startProperty),
+      location: _optionalIcsText(fields['LOCATION']?.value),
+      allDay: _isAllDay(startProperty),
       etag: etag,
       scope: scope,
       threadRef: CalendarThreadRef(
         contextId: projectedContextId ?? scope.contextId,
-        meetingThreadId: _optionalIcsText(fields['X-WEAVE-MEETING-THREAD-ID']),
+        meetingThreadId: _optionalIcsText(
+          fields['X-WEAVE-MEETING-THREAD-ID']?.value,
+        ),
         channelId:
             projectedChannelId ?? (scope.isChannel ? scope.channelId : null),
       ),
-      updatedAt: _parseOptionalIcsDate(fields['DTSTAMP']),
+      updatedAt: _parseOptionalIcsDate(
+        fields['LAST-MODIFIED'] ?? fields['DTSTAMP'],
+        fieldName: 'calendar timestamp',
+      ),
     );
   }
 
@@ -531,28 +555,146 @@ PRODID:-//Weave//Flutter CalDAV Facade//EN\r
 BEGIN:VEVENT\r
 UID:${_icsText(uid)}\r
 DTSTAMP:${_caldavTime(DateTime.now().toUtc())}\r
-DTSTART:${_caldavTime(draft.startTime)}\r
-DTEND:${_caldavTime(draft.endTime)}\r
+${_icsDateTimeProperty('DTSTART', draft.startTime, draft.timezone, draft.allDay)}\r
+${_icsDateTimeProperty('DTEND', draft.endTime, draft.timezone, draft.allDay)}\r
 SUMMARY:${_icsText(draft.title)}\r
 ${draft.description == null ? '' : 'DESCRIPTION:${_icsText(draft.description!)}\r\n'}${draft.location == null ? '' : 'LOCATION:${_icsText(draft.location!)}\r\n'}END:VEVENT\r
 END:VCALENDAR\r
 ''';
   }
 
-  DateTime _parseIcsDate(String? value) {
-    return _parseOptionalIcsDate(value) ?? DateTime.now().toUtc();
+  DateTime _parseIcsDate(_IcsProperty? property, {required String fieldName}) {
+    final parsed = _parseOptionalIcsDate(property, fieldName: fieldName);
+    if (parsed == null) {
+      throw AppFailure.validation(
+        'The calendar event is missing its required $fieldName value.',
+      );
+    }
+    return parsed;
   }
 
-  DateTime? _parseOptionalIcsDate(String? value) {
-    if (value == null || value.length < 16) return null;
-    final normalized = value.trim().toUpperCase();
-    final year = int.parse(normalized.substring(0, 4));
-    final month = int.parse(normalized.substring(4, 6));
-    final day = int.parse(normalized.substring(6, 8));
-    final hour = int.parse(normalized.substring(9, 11));
-    final minute = int.parse(normalized.substring(11, 13));
-    final second = int.parse(normalized.substring(13, 15));
-    return DateTime.utc(year, month, day, hour, minute, second);
+  DateTime? _parseOptionalIcsDate(
+    _IcsProperty? property, {
+    required String fieldName,
+  }) {
+    if (property == null || property.value.trim().isEmpty) {
+      return null;
+    }
+    try {
+      final value = property.value.trim().toUpperCase();
+      final dateOnly = _isAllDay(property);
+      final match =
+          (dateOnly
+                  ? RegExp(r'^(\d{4})(\d{2})(\d{2})$')
+                  : RegExp(
+                      r'^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(Z)?$',
+                    ))
+              .firstMatch(value);
+      if (match == null) {
+        throw const FormatException('Unsupported iCalendar date shape.');
+      }
+      final year = int.parse(match.group(1)!);
+      final month = int.parse(match.group(2)!);
+      final day = int.parse(match.group(3)!);
+      final hour = dateOnly ? 0 : int.parse(match.group(4)!);
+      final minute = dateOnly ? 0 : int.parse(match.group(5)!);
+      final second = dateOnly ? 0 : int.parse(match.group(6)!);
+      final isUtc = !dateOnly && match.group(7) != null;
+      final parsed = isUtc
+          ? DateTime.utc(year, month, day, hour, minute, second)
+          : timezone.TZDateTime(
+              _timeZoneLocation(_calendarTimeZone(property)),
+              year,
+              month,
+              day,
+              hour,
+              minute,
+              second,
+            ).toUtc();
+      final local = isUtc
+          ? parsed
+          : timezone.TZDateTime.from(
+              parsed,
+              _timeZoneLocation(_calendarTimeZone(property)),
+            );
+      if (local.year != year ||
+          local.month != month ||
+          local.day != day ||
+          local.hour != hour ||
+          local.minute != minute ||
+          local.second != second) {
+        throw const FormatException('Invalid iCalendar local date.');
+      }
+      return parsed;
+    } catch (error) {
+      throw AppFailure.validation(
+        'The calendar event contains an invalid $fieldName value.',
+        cause: error,
+      );
+    }
+  }
+
+  bool _isAllDay(_IcsProperty? property) =>
+      property?.parameters['VALUE']?.toUpperCase() == 'DATE';
+
+  String _calendarTimeZone(_IcsProperty? property) {
+    if (property == null || property.value.trim().toUpperCase().endsWith('Z')) {
+      return 'UTC';
+    }
+    final timeZoneId = property.parameters['TZID']?.trim();
+    return timeZoneId == null || timeZoneId.isEmpty ? 'UTC' : timeZoneId;
+  }
+
+  timezone.Location _timeZoneLocation(String timeZoneId) {
+    final normalized = timeZoneId.trim();
+    if (!RegExp(r'^[A-Za-z0-9_+./-]{1,128}$').hasMatch(normalized)) {
+      throw const AppFailure.validation(
+        'The calendar event timezone is invalid.',
+      );
+    }
+    if (<String>{
+      'UTC',
+      'ETC/UTC',
+      'GMT',
+      'Z',
+    }.contains(normalized.toUpperCase())) {
+      return timezone.UTC;
+    }
+    if (!_calendarTimeZonesInitialized) {
+      throw const AppFailure.validation(
+        'The calendar timezone database is unavailable.',
+      );
+    }
+    try {
+      return timezone.getLocation(normalized);
+    } on timezone.LocationNotFoundException catch (error) {
+      throw AppFailure.validation(
+        'The calendar event timezone is not supported.',
+        cause: error,
+      );
+    }
+  }
+
+  String _icsDateTimeProperty(
+    String name,
+    DateTime value,
+    String timeZoneId,
+    bool allDay,
+  ) {
+    final location = _timeZoneLocation(timeZoneId);
+    final local = timezone.TZDateTime.from(value.toUtc(), location);
+    String two(int number) => number.toString().padLeft(2, '0');
+    final date = '${local.year}${two(local.month)}${two(local.day)}';
+    if (allDay) {
+      return '$name;VALUE=DATE:$date';
+    }
+    if (identical(location, timezone.UTC)) {
+      return '$name:${_caldavTime(value)}';
+    }
+    final localTime =
+        '${date}T${two(local.hour)}${two(local.minute)}'
+        '${two(local.second)}';
+    return '$name;TZID=$timeZoneId:$localTime';
   }
 
   String _caldavTime(DateTime value) {
@@ -678,4 +820,48 @@ class _CalDavEventRef {
 
   final CalendarScope scope;
   final String uid;
+}
+
+class _IcsProperty {
+  const _IcsProperty({
+    required this.name,
+    required this.parameters,
+    required this.value,
+  });
+
+  static _IcsProperty? tryParse(String line) {
+    final separator = line.indexOf(':');
+    if (separator <= 0) {
+      return null;
+    }
+    final metadata = line.substring(0, separator).split(';');
+    final name = metadata.first.trim().toUpperCase();
+    if (name.isEmpty) {
+      return null;
+    }
+    final parameters = <String, String>{};
+    for (final component in metadata.skip(1)) {
+      final equals = component.indexOf('=');
+      if (equals <= 0 || equals == component.length - 1) {
+        continue;
+      }
+      final key = component.substring(0, equals).trim().toUpperCase();
+      var value = component.substring(equals + 1).trim();
+      if (value.length >= 2 && value.startsWith('"') && value.endsWith('"')) {
+        value = value.substring(1, value.length - 1);
+      }
+      if (key.isNotEmpty && value.isNotEmpty) {
+        parameters[key] = value;
+      }
+    }
+    return _IcsProperty(
+      name: name,
+      parameters: Map.unmodifiable(parameters),
+      value: line.substring(separator + 1),
+    );
+  }
+
+  final String name;
+  final Map<String, String> parameters;
+  final String value;
 }

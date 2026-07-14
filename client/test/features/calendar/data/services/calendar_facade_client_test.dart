@@ -227,6 +227,8 @@ END:VCALENDAR</c:calendar-data>
         'caldav:channel%3Aengineering-general:planning',
       );
       expect(events.events.single.title, 'Planning');
+      expect(events.events.single.startTime, DateTime.utc(2026, 4, 26, 9));
+      expect(events.events.single.endTime, DateTime.utc(2026, 4, 26, 10));
       expect(events.events.single.timezone, 'UTC');
       expect(events.events.single.etag, '"abc"');
       expect(events.events.single.scope.type, 'channel');
@@ -249,6 +251,91 @@ END:VCALENDAR</c:calendar-data>
       expect(events.events.single.providerRef, isNull);
       expect(events.events.single.updatedAt, DateTime.utc(2026, 4, 26, 8, 45));
     });
+
+    test('preserves IANA TZID instants across daylight-saving time', () async {
+      final facade = client(
+        MockClient(
+          (_) async => http.Response(
+            '''
+<?xml version="1.0" encoding="UTF-8"?>
+<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+  <d:response>
+    <d:href>/caldav/workspace/planning.ics</d:href>
+    <d:propstat>
+      <d:prop>
+        <d:getetag>"tz-etag"</d:getetag>
+        <c:calendar-data>BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+UID:planning
+DTSTART;TZID=Europe/Berlin:20260426T100000
+DTEND;TZID=Europe/Berlin:20260426T110000
+SUMMARY:Planning
+END:VEVENT
+END:VCALENDAR</c:calendar-data>
+      </d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+  </d:response>
+</d:multistatus>
+''',
+            207,
+            headers: {'content-type': 'application/xml'},
+          ),
+        ),
+      );
+
+      final event = (await facade.listEvents()).events.single;
+
+      expect(event.startTime, DateTime.utc(2026, 4, 26, 8));
+      expect(event.endTime, DateTime.utc(2026, 4, 26, 9));
+      expect(event.timezone, 'Europe/Berlin');
+    });
+
+    test(
+      'rejects a malformed CalDAV time range without inventing dates',
+      () async {
+        final facade = client(
+          MockClient(
+            (_) async => http.Response('''
+<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+  <d:response>
+    <d:href>/caldav/workspace/invalid.ics</d:href>
+    <d:propstat><d:prop>
+      <d:getetag>"invalid"</d:getetag>
+      <c:calendar-data>BEGIN:VCALENDAR
+BEGIN:VEVENT
+UID:invalid
+DTSTART;TZID=UTC:20260426T100000
+DTEND;TZID=UTC:20260426T100000
+SUMMARY:Invalid
+END:VEVENT
+END:VCALENDAR</c:calendar-data>
+    </d:prop></d:propstat>
+  </d:response>
+</d:multistatus>
+''', 207),
+          ),
+        );
+
+        await expectLater(
+          facade.listEvents(),
+          throwsA(
+            isA<AppFailure>()
+                .having(
+                  (failure) => failure.type,
+                  'type',
+                  AppFailureType.validation,
+                )
+                .having(
+                  (failure) => failure.message,
+                  'message',
+                  'The calendar event end must be after its start.',
+                ),
+          ),
+        );
+      },
+    );
 
     test(
       'defaults empty CalDAV multistatus payloads to workspace scope',
@@ -489,6 +576,14 @@ END:VCALENDAR
         );
         expect(requests[0].body, contains('BEGIN:VCALENDAR'));
         expect(requests[0].body, contains('SUMMARY:Planning'));
+        expect(
+          requests[0].body,
+          contains('DTSTART;TZID=Europe/Berlin:20260426T110000'),
+        );
+        expect(
+          requests[0].body,
+          contains('DTEND;TZID=Europe/Berlin:20260426T120000'),
+        );
         expect(
           requests[2].url.toString(),
           'https://api.home.internal/caldav/workspace/planning.ics',

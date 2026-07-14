@@ -49,6 +49,12 @@ const _supportSafeProgressPhases = <String>{
   'room-provision',
   'room-key-exchange-author',
   'room-key-exchange-collaborator',
+  'room-key-exchange-author-send',
+  'room-key-exchange-author-self-observe',
+  'room-key-exchange-collaborator-observe-author',
+  'room-key-exchange-collaborator-send',
+  'room-key-exchange-collaborator-self-observe',
+  'room-key-exchange-author-observe-collaborator',
   'home-baseline',
   'author-write',
   'author-capabilities',
@@ -407,10 +413,16 @@ void main() {
         expect(outsiderChatDenied, isTrue);
 
         await session.files.connect();
-        final outsiderListing = await session.files.listDirectory('/');
-        final outsiderFileVisible = outsiderListing.entries.any(
-          (entry) => entry.name == fileName,
-        );
+        var outsiderListingRejected = false;
+        var outsiderFileVisible = false;
+        try {
+          final outsiderListing = await session.files.listDirectory('/');
+          outsiderFileVisible = outsiderListing.entries.any(
+            (entry) => entry.name == fileName,
+          );
+        } on FilesFailure catch (failure) {
+          outsiderListingRejected = _isWorkspaceAccessDenied(failure);
+        }
         var outsiderDownloadRejected = false;
         try {
           await _downloadFile(
@@ -422,8 +434,8 @@ void main() {
               isDirectory: false,
             ),
           );
-        } on FilesFailure {
-          outsiderDownloadRejected = true;
+        } on FilesFailure catch (failure) {
+          outsiderDownloadRejected = _isWorkspaceAccessDenied(failure);
         }
         var outsiderDeleteRejected = false;
         try {
@@ -436,11 +448,12 @@ void main() {
               isDirectory: false,
             ),
           );
-        } on FilesFailure {
-          outsiderDeleteRejected = true;
+        } on FilesFailure catch (failure) {
+          outsiderDeleteRejected = _isWorkspaceAccessDenied(failure);
         }
         outsiderFilesReadDenied =
-            !outsiderFileVisible && outsiderDownloadRejected;
+            (outsiderListingRejected || !outsiderFileVisible) &&
+            outsiderDownloadRejected;
         outsiderFilesMutationDenied = outsiderDeleteRejected;
         outsiderFilesDenied =
             outsiderFilesReadDenied && outsiderFilesMutationDenied;
@@ -1058,6 +1071,7 @@ Future<void> _establishEncryptedDeviceExchange({
       await collaboratorSession.chat.connect();
 
       _emitProgress(configuration, 'room-key-exchange-author');
+      _emitProgress(configuration, 'room-key-exchange-author-send');
       final authorProbe =
           'weave-key-exchange-author-${configuration.runHash}-'
           '${configuration.runIndex}-$attempt';
@@ -1065,6 +1079,7 @@ Future<void> _establishEncryptedDeviceExchange({
         roomId: roomId,
         message: authorProbe,
       );
+      _emitProgress(configuration, 'room-key-exchange-author-self-observe');
       final authorEvent = await _waitForChatMessage(
         authorSession,
         roomId,
@@ -1072,6 +1087,10 @@ Future<void> _establishEncryptedDeviceExchange({
         timeout: observationTimeout,
       );
       eventIds.add(authorEvent.id);
+      _emitProgress(
+        configuration,
+        'room-key-exchange-collaborator-observe-author',
+      );
       final collaboratorObservation = await _waitForChatMessage(
         collaboratorSession,
         roomId,
@@ -1085,12 +1104,17 @@ Future<void> _establishEncryptedDeviceExchange({
       }
 
       _emitProgress(configuration, 'room-key-exchange-collaborator');
+      _emitProgress(configuration, 'room-key-exchange-collaborator-send');
       final collaboratorProbe =
           'weave-key-exchange-collaborator-${configuration.runHash}-'
           '${configuration.runIndex}-$attempt';
       await collaboratorSession.chat.sendMessage(
         roomId: roomId,
         message: collaboratorProbe,
+      );
+      _emitProgress(
+        configuration,
+        'room-key-exchange-collaborator-self-observe',
       );
       final collaboratorEvent = await _waitForChatMessage(
         collaboratorSession,
@@ -1099,6 +1123,10 @@ Future<void> _establishEncryptedDeviceExchange({
         timeout: observationTimeout,
       );
       eventIds.add(collaboratorEvent.id);
+      _emitProgress(
+        configuration,
+        'room-key-exchange-author-observe-collaborator',
+      );
       final authorObservation = await _waitForChatMessage(
         authorSession,
         roomId,
@@ -1172,6 +1200,11 @@ Future<T> _withSession<T>(
   } finally {
     await session.close();
   }
+}
+
+bool _isWorkspaceAccessDenied(FilesFailure failure) {
+  return failure.type == FilesFailureType.invalidCredentials &&
+      failure.cause == HttpStatus.forbidden;
 }
 
 Future<T> _withRelaunchedSession<T>(
