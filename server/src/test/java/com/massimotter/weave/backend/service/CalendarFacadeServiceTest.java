@@ -315,6 +315,37 @@ class CalendarFacadeServiceTest {
     }
 
     @Test
+    void calDavUpdateMapsInvalidTimeRangeToSupportSafeValidationError() {
+        authenticate();
+
+        assertThatThrownBy(() -> service(new StubCalendarProvider()).putCalDavEventIcs(
+                        "planning",
+                        """
+                                BEGIN:VCALENDAR
+                                VERSION:2.0
+                                BEGIN:VEVENT
+                                UID:planning
+                                DTSTART;TZID=UTC:20260708T120000
+                                DTEND;TZID=UTC:20260708T120000
+                                SUMMARY:Invalid planning
+                                END:VEVENT
+                                END:VCALENDAR
+                                """,
+                        null,
+                        null,
+                        CalendarScopeResponse.workspace()))
+                .isInstanceOfSatisfying(ApiErrorException.class, error -> {
+                    assertThat(error.status()).isEqualTo(org.springframework.http.HttpStatus.BAD_REQUEST);
+                    assertThat(error.code()).isEqualTo("calendar-ics-invalid");
+                    assertThat(error.getMessage()).isEqualTo("Calendar data is not a supported iCalendar VEVENT.");
+                    assertThat(error.details())
+                            .containsEntry("reason", "invalid-event-data")
+                            .containsEntry("supportSafe", true)
+                            .containsEntry("providerDataPlaneExposed", false);
+                });
+    }
+
+    @Test
     void listFailsClosedWhenContextAuthorizationDeniesScopeAccess() {
         authenticate();
 

@@ -78,6 +78,46 @@ class MatrixE2eeStateServicePersistenceTest {
                 Integer.class)).isEqualTo(1);
     }
 
+    @Test
+    void fallbackKeyClaimAndUsedStateSurviveRestartWithoutMutatingStatusQueries() {
+        DriverManagerDataSource dataSource = new DriverManagerDataSource();
+        dataSource.setDriverClassName("org.h2.Driver");
+        dataSource.setUrl("jdbc:h2:mem:matrix-e2ee-fallback;MODE=PostgreSQL;DB_CLOSE_DELAY=-1");
+        dataSource.setUsername("sa");
+        Flyway.configure().dataSource(dataSource).locations("classpath:db/migration").load().migrate();
+        JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
+        MatrixE2eeStateService service = service(snapshotStore(jdbcTemplate));
+        var target = identity("WEAVEFALLBACKTARGET");
+        var claimant = identity("WEAVEFALLBACKCLAIMANT");
+
+        service.uploadKeys(target, fallbackKeyUpload(target, "fallback-public-key"));
+        long sequenceAfterUpload = service.currentSequence();
+        Map<String, Object> status = service.uploadKeys(target, Map.of());
+
+        assertThat(service.currentSequence()).isEqualTo(sequenceAfterUpload);
+        assertThat(status).containsEntry("one_time_key_counts", Map.of());
+        assertThat(service.sync(target, 0).unusedFallbackKeyTypes())
+                .containsExactly("signed_curve25519");
+
+        Map<String, Object> claimed = service.claimKeys(claimant, Map.of(
+                "one_time_keys", Map.of(
+                        target.userId(), Map.of(target.deviceId(), "signed_curve25519"))));
+
+        assertThat(claimed.toString()).contains("fallback-public-key");
+        assertThat(service.sync(target, 0).unusedFallbackKeyTypes()).isEmpty();
+
+        MatrixE2eeStateService restarted = service(snapshotStore(jdbcTemplate));
+        assertThat(restarted.sync(target, 0).unusedFallbackKeyTypes()).isEmpty();
+        assertThat(restarted.claimKeys(claimant, Map.of(
+                "one_time_keys", Map.of(
+                        target.userId(), Map.of(target.deviceId(), "signed_curve25519")))).toString())
+                .contains("fallback-public-key");
+
+        restarted.uploadKeys(target, fallbackKeyUpload(target, "replacement-fallback-key"));
+        assertThat(restarted.sync(target, 0).unusedFallbackKeyTypes())
+                .containsExactly("signed_curve25519");
+    }
+
     private MatrixE2eeStateService service(MatrixE2eeSnapshotStore store) {
         StaticListableBeanFactory beans = new StaticListableBeanFactory();
         beans.addBean("matrixE2eeSnapshotStore", store);
@@ -114,5 +154,17 @@ class MatrixE2eeStateServicePersistenceTest {
                 "algorithms", List.of("m.megolm.v1.aes-sha2"),
                 "keys", Map.of("ed25519:" + identity.deviceId(), publicKey),
                 "signatures", Map.of()));
+    }
+
+    private Map<String, Object> fallbackKeyUpload(
+            MatrixFacadeClientStateService.MatrixIdentity identity,
+            String publicKey) {
+        return Map.of(
+                "device_keys", keyUpload(identity, publicKey).get("device_keys"),
+                "fallback_keys", Map.of(
+                        "signed_curve25519:FALLBACK", Map.of(
+                                "key", publicKey,
+                                "fallback", true,
+                                "signatures", Map.of())));
     }
 }

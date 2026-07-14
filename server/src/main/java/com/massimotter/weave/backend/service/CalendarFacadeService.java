@@ -841,6 +841,8 @@ public class CalendarFacadeService {
                         withDefaultDetails(Map.of("supportSafe", true), operation));
             }
             return event;
+        } catch (ApiErrorException exception) {
+            throw exception;
         } catch (CalendarAdapterException exception) {
             String code = "caldav-recurrence-unsupported".equals(exception.details().get("errorCode"))
                     ? "caldav-recurrence-unsupported"
@@ -850,6 +852,15 @@ public class CalendarFacadeService {
                     code,
                     "Calendar data is not a supported iCalendar VEVENT.",
                     withDefaultDetails(exception.details(), operation));
+        } catch (RuntimeException exception) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "calendar-ics-invalid",
+                    "Calendar data is not a supported iCalendar VEVENT.",
+                    withDefaultDetails(Map.of(
+                            "reason", "invalid-event-data",
+                            "supportSafe", true,
+                            "providerDataPlaneExposed", false), operation));
         }
     }
 

@@ -174,8 +174,9 @@ class MatrixLiveRoomDriver {
   }
 
   /// Waits until each established app-owned Matrix device can discover the
-  /// other device through the northbound Matrix facade. Encrypted room
-  /// creation must not race the SDK's initial device-key upload.
+  /// other device and has uploaded usable Olm session material through the
+  /// northbound Matrix facade. Encrypted room creation must not race either
+  /// half of the SDK's initial key upload.
   Future<void> requireMutualDeviceKeys({
     required MatrixLiveActorCredentials author,
     required String authorUserId,
@@ -192,6 +193,8 @@ class MatrixLiveRoomDriver {
       targetUserId: authorUserId,
       targetDeviceId: author.deviceId,
     );
+    await _requireOneTimeKeyMaterial(actor: author);
+    await _requireOneTimeKeyMaterial(actor: collaborator);
   }
 
   Future<void> _requireDeviceKey({
@@ -231,6 +234,39 @@ class MatrixLiveRoomDriver {
       if (!DateTime.now().isBefore(deadline)) {
         throw const MatrixLiveRoomDriverException(
           'M_WEAVE_LIVE_MATRIX_DEVICE_KEYS_NOT_CONVERGED',
+        );
+      }
+      await Future<void>.delayed(deviceKeyPollInterval);
+    }
+  }
+
+  Future<void> _requireOneTimeKeyMaterial({
+    required MatrixLiveActorCredentials actor,
+  }) async {
+    final deadline = DateTime.now().add(deviceKeyConvergenceTimeout);
+    while (true) {
+      // An empty upload is the Matrix status query for the authenticated
+      // device. It returns counts without claiming or exposing key material.
+      final response = await client.post(
+        _uri(<String>['_matrix', 'client', 'v3', 'keys', 'upload']),
+        headers: _jsonHeaders(actor),
+        body: '{}',
+      );
+      _requireSuccess(response, operation: 'query-one-time-key-counts');
+      final payload = _object(
+        response.body,
+        operation: 'query-one-time-key-counts',
+      );
+      final counts = payload['one_time_key_counts'];
+      final signedCurve25519 = counts is Map
+          ? counts['signed_curve25519']
+          : null;
+      if (signedCurve25519 is num && signedCurve25519.toInt() > 0) {
+        return;
+      }
+      if (!DateTime.now().isBefore(deadline)) {
+        throw const MatrixLiveRoomDriverException(
+          'M_WEAVE_LIVE_MATRIX_KEY_MATERIAL_NOT_CONVERGED',
         );
       }
       await Future<void>.delayed(deviceKeyPollInterval);

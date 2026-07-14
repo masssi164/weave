@@ -49,6 +49,12 @@ const _supportSafeProgressPhases = <String>{
   'room-provision',
   'room-key-exchange-author',
   'room-key-exchange-collaborator',
+  'room-key-exchange-author-send',
+  'room-key-exchange-author-self-observe',
+  'room-key-exchange-collaborator-observe-author',
+  'room-key-exchange-collaborator-send',
+  'room-key-exchange-collaborator-self-observe',
+  'room-key-exchange-author-observe-collaborator',
   'home-baseline',
   'author-write',
   'author-capabilities',
@@ -1058,6 +1064,7 @@ Future<void> _establishEncryptedDeviceExchange({
       await collaboratorSession.chat.connect();
 
       _emitProgress(configuration, 'room-key-exchange-author');
+      _emitProgress(configuration, 'room-key-exchange-author-send');
       final authorProbe =
           'weave-key-exchange-author-${configuration.runHash}-'
           '${configuration.runIndex}-$attempt';
@@ -1065,6 +1072,7 @@ Future<void> _establishEncryptedDeviceExchange({
         roomId: roomId,
         message: authorProbe,
       );
+      _emitProgress(configuration, 'room-key-exchange-author-self-observe');
       final authorEvent = await _waitForChatMessage(
         authorSession,
         roomId,
@@ -1072,6 +1080,10 @@ Future<void> _establishEncryptedDeviceExchange({
         timeout: observationTimeout,
       );
       eventIds.add(authorEvent.id);
+      _emitProgress(
+        configuration,
+        'room-key-exchange-collaborator-observe-author',
+      );
       final collaboratorObservation = await _waitForChatMessage(
         collaboratorSession,
         roomId,
@@ -1085,12 +1097,17 @@ Future<void> _establishEncryptedDeviceExchange({
       }
 
       _emitProgress(configuration, 'room-key-exchange-collaborator');
+      _emitProgress(configuration, 'room-key-exchange-collaborator-send');
       final collaboratorProbe =
           'weave-key-exchange-collaborator-${configuration.runHash}-'
           '${configuration.runIndex}-$attempt';
       await collaboratorSession.chat.sendMessage(
         roomId: roomId,
         message: collaboratorProbe,
+      );
+      _emitProgress(
+        configuration,
+        'room-key-exchange-collaborator-self-observe',
       );
       final collaboratorEvent = await _waitForChatMessage(
         collaboratorSession,
@@ -1099,6 +1116,10 @@ Future<void> _establishEncryptedDeviceExchange({
         timeout: observationTimeout,
       );
       eventIds.add(collaboratorEvent.id);
+      _emitProgress(
+        configuration,
+        'room-key-exchange-author-observe-collaborator',
+      );
       final authorObservation = await _waitForChatMessage(
         authorSession,
         roomId,

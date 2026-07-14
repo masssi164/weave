@@ -36,6 +36,8 @@ void main() {
         userId: '@author:api.weave.test',
         deviceId: _author.deviceId,
       ),
+      _oneTimeKeyCountResponse(),
+      _oneTimeKeyCountResponse(),
       _jsonResponse(<String, Object>{'room_id': _roomId}),
       _jsonResponse(<String, Object>{'event_id': r'$encryption'}),
       _jsonResponse(<String, Object>{'room_id': _roomId}),
@@ -66,6 +68,8 @@ void main() {
       'POST',
       'POST',
       'POST',
+      'POST',
+      'POST',
       'PUT',
       'POST',
       'GET',
@@ -82,22 +86,29 @@ void main() {
       requests[3].headers['X-Weave-Matrix-Device-Id'],
       _collaborator.deviceId,
     );
-    expect(requests[4].url.path, '/_matrix/client/v3/createRoom');
-    expect(jsonDecode(requests[4].body), <String, Object>{
+    expect(requests[4].url.path, '/_matrix/client/v3/keys/upload');
+    expect(requests[4].body, '{}');
+    expect(requests[5].url.path, '/_matrix/client/v3/keys/upload');
+    expect(
+      requests[5].headers['X-Weave-Matrix-Device-Id'],
+      _collaborator.deviceId,
+    );
+    expect(requests[6].url.path, '/_matrix/client/v3/createRoom');
+    expect(jsonDecode(requests[6].body), <String, Object>{
       'name': 'unique encrypted room',
       'preset': 'private_chat',
       'invite': <String>['@collaborator:api.weave.test'],
     });
     expect(
-      requests[5].url.path,
+      requests[7].url.path,
       '/_matrix/client/v3/rooms/!room-e2e:api.weave.test/state/m.room.encryption',
     );
     expect(
-      requests[6].url.path,
+      requests[8].url.path,
       '/_matrix/client/v3/join/!room-e2e:api.weave.test',
     );
     expect(
-      requests[6].headers['X-Weave-Matrix-Device-Id'],
+      requests[8].headers['X-Weave-Matrix-Device-Id'],
       _collaborator.deviceId,
     );
   });
@@ -109,6 +120,9 @@ void main() {
       var collaboratorQueries = 0;
       final client = MockClient((request) async {
         requests.add(request);
+        if (request.url.path.endsWith('/keys/upload')) {
+          return _oneTimeKeyCountResponse();
+        }
         final body = jsonDecode(request.body) as Map<String, dynamic>;
         final requested = body['device_keys'] as Map<String, dynamic>;
         final userId = requested.keys.single;
@@ -139,18 +153,70 @@ void main() {
         collaboratorUserId: '@collaborator:api.weave.test',
       );
 
-      expect(requests, hasLength(3));
-      expect(
-        requests.map((request) => request.url.path),
-        everyElement('/_matrix/client/v3/keys/query'),
-      );
+      expect(requests, hasLength(5));
+      expect(requests.map((request) => request.url.path), <String>[
+        '/_matrix/client/v3/keys/query',
+        '/_matrix/client/v3/keys/query',
+        '/_matrix/client/v3/keys/query',
+        '/_matrix/client/v3/keys/upload',
+        '/_matrix/client/v3/keys/upload',
+      ]);
       expect(
         requests.map((request) => request.headers['Authorization']),
         <String>[
           'Bearer ${_author.accessToken}',
           'Bearer ${_author.accessToken}',
           'Bearer ${_collaborator.accessToken}',
+          'Bearer ${_author.accessToken}',
+          'Bearer ${_collaborator.accessToken}',
         ],
+      );
+    },
+  );
+
+  test(
+    'waits for delayed one-time key material before room creation',
+    () async {
+      var authorKeyCountQueries = 0;
+      final requests = <http.Request>[];
+      final driver = MatrixLiveRoomDriver(
+        client: MockClient((request) async {
+          requests.add(request);
+          if (request.url.path.endsWith('/keys/query')) {
+            final body = jsonDecode(request.body) as Map<String, dynamic>;
+            final requested = body['device_keys'] as Map<String, dynamic>;
+            final userId = requested.keys.single;
+            return _deviceKeysResponse(
+              userId: userId,
+              deviceId: userId.startsWith('@author')
+                  ? _author.deviceId
+                  : _collaborator.deviceId,
+            );
+          }
+          if (request.headers['X-Weave-Matrix-Device-Id'] == _author.deviceId) {
+            authorKeyCountQueries += 1;
+            return _oneTimeKeyCountResponse(
+              count: authorKeyCountQueries == 1 ? 0 : 10,
+            );
+          }
+          return _oneTimeKeyCountResponse();
+        }),
+        homeserver: Uri.parse('https://api.weave.test'),
+        deviceKeyConvergenceTimeout: const Duration(seconds: 1),
+        deviceKeyPollInterval: Duration.zero,
+      );
+
+      await driver.requireMutualDeviceKeys(
+        author: _author,
+        authorUserId: '@author:api.weave.test',
+        collaborator: _collaborator,
+        collaboratorUserId: '@collaborator:api.weave.test',
+      );
+
+      expect(authorKeyCountQueries, 2);
+      expect(
+        requests.where((request) => request.url.path.endsWith('/keys/upload')),
+        hasLength(3),
       );
     },
   );
@@ -182,6 +248,54 @@ void main() {
               (error) => error.code,
               'code',
               'M_WEAVE_LIVE_MATRIX_DEVICE_KEYS_NOT_CONVERGED',
+            )
+            .having(
+              (error) => error.toString(),
+              'support-safe text',
+              isNot(contains(secretBody)),
+            ),
+      ),
+    );
+  });
+
+  test('key-material timeout exposes no provider payload', () {
+    const secretBody = 'raw-one-time-key-secret';
+    final driver = MatrixLiveRoomDriver(
+      client: MockClient((request) async {
+        if (request.url.path.endsWith('/keys/query')) {
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          final requested = body['device_keys'] as Map<String, dynamic>;
+          final userId = requested.keys.single;
+          return _deviceKeysResponse(
+            userId: userId,
+            deviceId: userId.startsWith('@author')
+                ? _author.deviceId
+                : _collaborator.deviceId,
+          );
+        }
+        return _jsonResponse(<String, Object>{
+          'one_time_key_counts': <String, int>{'signed_curve25519': 0},
+          'provider_debug': secretBody,
+        });
+      }),
+      homeserver: Uri.parse('https://api.weave.test'),
+      deviceKeyConvergenceTimeout: Duration.zero,
+      deviceKeyPollInterval: Duration.zero,
+    );
+
+    expect(
+      driver.requireMutualDeviceKeys(
+        author: _author,
+        authorUserId: '@author:api.weave.test',
+        collaborator: _collaborator,
+        collaboratorUserId: '@collaborator:api.weave.test',
+      ),
+      throwsA(
+        isA<MatrixLiveRoomDriverException>()
+            .having(
+              (error) => error.code,
+              'code',
+              'M_WEAVE_LIVE_MATRIX_KEY_MATERIAL_NOT_CONVERGED',
             )
             .having(
               (error) => error.toString(),
@@ -348,5 +462,11 @@ http.Response _deviceKeysResponse({
         },
       },
     },
+  });
+}
+
+http.Response _oneTimeKeyCountResponse({int count = 10}) {
+  return _jsonResponse(<String, Object>{
+    'one_time_key_counts': <String, int>{'signed_curve25519': count},
   });
 }

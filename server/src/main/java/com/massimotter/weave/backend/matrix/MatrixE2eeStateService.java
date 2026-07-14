@@ -49,23 +49,30 @@ public class MatrixE2eeStateService {
         prepare(identity);
         DeviceKey key = deviceKey(identity);
         DeviceState state = devices.computeIfAbsent(key, ignored -> new DeviceState());
+        boolean mutated = false;
         Map<String, Object> deviceKeys = objectMap(request.get("device_keys"));
         if (!deviceKeys.isEmpty()) {
             requireEquals(deviceKeys.get("user_id"), identity.userId(), "device key user");
             requireEquals(deviceKeys.get("device_id"), identity.deviceId(), "device key device");
             state.deviceKeys = immutableObject(deviceKeys);
+            mutated = true;
         }
         Map<String, Object> oneTimeKeys = objectMap(request.get("one_time_keys"));
         if (oneTimeKeys.size() > MAX_ONE_TIME_KEYS_PER_UPLOAD) {
             throw new MatrixProtocolException("M_LIMIT_EXCEEDED", "The Matrix one-time key upload limit was reached.");
         }
         oneTimeKeys.forEach((keyId, value) -> state.oneTimeKeys.put(requireKeyId(keyId), immutableValue(value)));
+        mutated = mutated || !oneTimeKeys.isEmpty();
         Map<String, Object> fallbackKeys = objectMap(request.get("fallback_keys"));
         if (!fallbackKeys.isEmpty()) {
             state.fallbackKeys = immutableObject(fallbackKeys);
+            state.usedFallbackAlgorithms.clear();
+            mutated = true;
         }
-        state.changedSequence = sequence.incrementAndGet();
-        persist(identity.tenantId());
+        if (mutated) {
+            state.changedSequence = sequence.incrementAndGet();
+            persist(identity.tenantId());
+        }
         return Map.of("one_time_key_counts", oneTimeKeyCounts(state));
     }
 
@@ -511,6 +518,7 @@ public class MatrixE2eeStateService {
                         entry.getValue().deviceKeys,
                         Map.copyOf(entry.getValue().oneTimeKeys),
                         entry.getValue().fallbackKeys,
+                        Set.copyOf(entry.getValue().usedFallbackAlgorithms),
                         entry.getValue().changedSequence,
                         entry.getValue().revoked))
                 .toList();
@@ -582,6 +590,7 @@ public class MatrixE2eeStateService {
                 state.deviceKeys = immutableObject(persisted.deviceKeys());
                 persisted.oneTimeKeys().forEach((key, value) -> state.oneTimeKeys.put(key, immutableValue(value)));
                 state.fallbackKeys = immutableObject(persisted.fallbackKeys());
+                state.usedFallbackAlgorithms.addAll(persisted.usedFallbackAlgorithms());
                 state.changedSequence = persisted.changedSequence();
                 state.revoked = persisted.revoked();
                 devices.put(new DeviceKey(tenantId, persisted.userId(), persisted.deviceId()), state);
@@ -683,16 +692,33 @@ public class MatrixE2eeStateService {
     }
 
     private List<String> fallbackAlgorithms(DeviceState state) {
-        return state.fallbackKeys.keySet().stream().map(this::algorithm).distinct().sorted().toList();
+        return state.fallbackKeys.keySet().stream()
+                .map(this::algorithm)
+                .filter(algorithm -> !state.usedFallbackAlgorithms.contains(algorithm))
+                .distinct()
+                .sorted()
+                .toList();
     }
 
     private synchronized Map<String, Object> claimOneTimeKey(DeviceState state, String algorithm) {
-        return state.oneTimeKeys.entrySet().stream()
+        Map<String, Object> oneTimeKey = state.oneTimeKeys.entrySet().stream()
                 .filter(entry -> algorithm(entry.getKey()).equals(algorithm))
                 .sorted(Map.Entry.comparingByKey())
                 .findFirst()
                 .map(entry -> {
                     state.oneTimeKeys.remove(entry.getKey());
+                    return Map.<String, Object>of(entry.getKey(), entry.getValue());
+                })
+                .orElse(Map.of());
+        if (!oneTimeKey.isEmpty()) {
+            return oneTimeKey;
+        }
+        return state.fallbackKeys.entrySet().stream()
+                .filter(entry -> algorithm(entry.getKey()).equals(algorithm))
+                .sorted(Map.Entry.comparingByKey())
+                .findFirst()
+                .map(entry -> {
+                    state.usedFallbackAlgorithms.add(algorithm);
                     return Map.<String, Object>of(entry.getKey(), entry.getValue());
                 })
                 .orElse(Map.of());
@@ -827,6 +853,7 @@ public class MatrixE2eeStateService {
         private volatile Map<String, Object> deviceKeys = Map.of();
         private final ConcurrentMap<String, Object> oneTimeKeys = new ConcurrentHashMap<>();
         private volatile Map<String, Object> fallbackKeys = Map.of();
+        private final Set<String> usedFallbackAlgorithms = ConcurrentHashMap.newKeySet();
         private volatile long changedSequence;
         private volatile boolean revoked;
     }
@@ -913,8 +940,14 @@ public class MatrixE2eeStateService {
             Map<String, Object> deviceKeys,
             Map<String, Object> oneTimeKeys,
             Map<String, Object> fallbackKeys,
+            Set<String> usedFallbackAlgorithms,
             long changedSequence,
             boolean revoked) {
+        private PersistedDevice {
+            usedFallbackAlgorithms = usedFallbackAlgorithms == null
+                    ? Set.of()
+                    : Set.copyOf(usedFallbackAlgorithms);
+        }
     }
 
     private record PersistedCrossSigning(
