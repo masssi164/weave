@@ -110,6 +110,21 @@ TestFailure: Expected: true Actual: false
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("category=assertion phase=author-chat-room", result.stdout)
 
+    def test_encrypted_device_exchange_phase_is_support_safe(self) -> None:
+        raw = """
+MULTI_USER_PROGRESS phase=room-provision runIndex=1
+MULTI_USER_PROGRESS phase=room-key-exchange-collaborator runIndex=1
+TestFailure: Expected: true Actual: false
+"""
+
+        result = self.run_sanitizer(raw, exit_code=1)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "category=assertion phase=room-key-exchange-collaborator",
+            result.stdout,
+        )
+
     def test_fine_grained_collaborator_domain_phase_is_support_safe(self) -> None:
         raw = """
 MULTI_USER_PROGRESS phase=collaborator-observe runIndex=1

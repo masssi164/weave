@@ -47,6 +47,8 @@ const _executionModeValue = String.fromEnvironment(
 
 const _supportSafeProgressPhases = <String>{
   'room-provision',
+  'room-key-exchange-author',
+  'room-key-exchange-collaborator',
   'home-baseline',
   'author-write',
   'author-capabilities',
@@ -177,12 +179,13 @@ void main() {
 
       _emitProgress(configuration, 'room-provision');
       roomId = await _provisionEncryptedSharedRoom(
+        configuration: configuration,
         author: author,
         collaborator: collaborator,
         homeserver: configuration.common.matrixHomeserverUrl,
         roomName: 'Weave encrypted collaboration $suffix',
+        cleanup: cleanup,
       );
-      cleanup.rememberChatRoom(roomId);
 
       _emitProgress(configuration, 'home-baseline');
       final homeActivityBaseline = <CollaborationActorRole, Set<String>>{};
@@ -336,9 +339,12 @@ void main() {
         );
         collaboratorEventObserved = true;
         _emitProgress(configuration, 'collaborator-calendar-update');
-        await session.calendar.updateEvent(
-          event.id,
-          CalendarEventDraft(
+        await _updateCalendarEventEventually(
+          session,
+          eventId: event.id,
+          scope: collaboratorScope,
+          expectedTitle: updatedEventTitle,
+          draft: CalendarEventDraft(
             title: updatedEventTitle,
             description: event.description,
             startTime: event.startTime,
@@ -938,10 +944,12 @@ void main() {
 }
 
 Future<String> _provisionEncryptedSharedRoom({
+  required MultiUserTestConfig configuration,
   required LiveActorProfile author,
   required LiveActorProfile collaborator,
   required Uri homeserver,
   required String roomName,
+  required _RunCleanup cleanup,
 }) async {
   LiveActorSession? authorSession;
   LiveActorSession? collaboratorSession;
@@ -966,6 +974,7 @@ Future<String> _provisionEncryptedSharedRoom({
       ),
       roomName: roomName,
     );
+    cleanup.rememberChatRoom(provisioned.roomId);
     if (provisioned.collaboratorUserId == null ||
         provisioned.collaboratorUserId == provisioned.authorUserId) {
       throw StateError(
@@ -981,12 +990,139 @@ Future<String> _provisionEncryptedSharedRoom({
       collaboratorSession,
       provisioned.roomId,
     );
+    final keyExchangeEventIds = <String>{};
+    try {
+      await _establishEncryptedDeviceExchange(
+        configuration: configuration,
+        authorSession: authorSession,
+        collaboratorSession: collaboratorSession,
+        roomId: provisioned.roomId,
+        eventIds: keyExchangeEventIds,
+      );
+      final redactedCount = await driver.redactEventsAndVerify(
+        actor: MatrixLiveActorCredentials(
+          accessToken: authorCredentials.accessToken,
+          deviceId: authorCredentials.deviceId,
+        ),
+        roomId: provisioned.roomId,
+        eventIds: keyExchangeEventIds,
+      );
+      if (redactedCount != keyExchangeEventIds.length) {
+        throw StateError(
+          'The encrypted device-key exchange was not cleaned completely.',
+        );
+      }
+    } catch (_) {
+      if (keyExchangeEventIds.isNotEmpty) {
+        try {
+          await driver.redactEventsAndVerify(
+            actor: MatrixLiveActorCredentials(
+              accessToken: authorCredentials.accessToken,
+              deviceId: authorCredentials.deviceId,
+            ),
+            roomId: provisioned.roomId,
+            eventIds: keyExchangeEventIds,
+          );
+        } catch (_) {
+          // The run-level cleanup still owns the room and will remove the
+          // isolated namespace even when best-effort probe redaction fails.
+        }
+      }
+      rethrow;
+    }
     return provisioned.roomId;
   } finally {
     client.close();
     await collaboratorSession?.close();
     await authorSession?.close();
   }
+}
+
+Future<void> _establishEncryptedDeviceExchange({
+  required MultiUserTestConfig configuration,
+  required LiveActorSession authorSession,
+  required LiveActorSession collaboratorSession,
+  required String roomId,
+  required Set<String> eventIds,
+}) async {
+  const maximumAttempts = 3;
+  const observationTimeout = Duration(seconds: 20);
+  Object? lastFailure;
+
+  for (var attempt = 1; attempt <= maximumAttempts; attempt++) {
+    try {
+      // Re-synchronize both established device stores before every bounded
+      // attempt. This exercises Matrix device-list and to-device key delivery
+      // instead of accepting room membership as proof of decryptability.
+      await authorSession.chat.connect();
+      await collaboratorSession.chat.connect();
+
+      _emitProgress(configuration, 'room-key-exchange-author');
+      final authorProbe =
+          'weave-key-exchange-author-${configuration.runHash}-'
+          '${configuration.runIndex}-$attempt';
+      await authorSession.chat.sendMessage(
+        roomId: roomId,
+        message: authorProbe,
+      );
+      final authorEvent = await _waitForChatMessage(
+        authorSession,
+        roomId,
+        authorProbe,
+        timeout: observationTimeout,
+      );
+      eventIds.add(authorEvent.id);
+      final collaboratorObservation = await _waitForChatMessage(
+        collaboratorSession,
+        roomId,
+        authorProbe,
+        timeout: observationTimeout,
+      );
+      if (collaboratorObservation.id != authorEvent.id) {
+        throw StateError(
+          'The collaborator resolved a different encrypted Chat event.',
+        );
+      }
+
+      _emitProgress(configuration, 'room-key-exchange-collaborator');
+      final collaboratorProbe =
+          'weave-key-exchange-collaborator-${configuration.runHash}-'
+          '${configuration.runIndex}-$attempt';
+      await collaboratorSession.chat.sendMessage(
+        roomId: roomId,
+        message: collaboratorProbe,
+      );
+      final collaboratorEvent = await _waitForChatMessage(
+        collaboratorSession,
+        roomId,
+        collaboratorProbe,
+        timeout: observationTimeout,
+      );
+      eventIds.add(collaboratorEvent.id);
+      final authorObservation = await _waitForChatMessage(
+        authorSession,
+        roomId,
+        collaboratorProbe,
+        timeout: observationTimeout,
+      );
+      if (authorObservation.id != collaboratorEvent.id) {
+        throw StateError(
+          'The author resolved a different encrypted Chat event.',
+        );
+      }
+      return;
+    } catch (error) {
+      lastFailure = error;
+      if (attempt < maximumAttempts) {
+        await Future<void>.delayed(const Duration(seconds: 1));
+      }
+    }
+  }
+
+  throw StateError(
+    'The two established Matrix devices could not exchange encrypted '
+    'messages. Last failure type: ${lastFailure?.runtimeType ?? 'none'}.',
+  );
 }
 
 Future<ChatConversation> _requireEncryptedConversation(
@@ -1181,13 +1317,15 @@ Future<void> _updateProfile(
 Future<ChatMessage> _waitForChatMessage(
   LiveActorSession session,
   String roomId,
-  String expectedText,
-) async {
+  String expectedText, {
+  Duration timeout = const Duration(seconds: 45),
+}) async {
   final timeline = await _eventually(
     () => session.chat.loadRoomTimeline(roomId),
     (timeline) =>
         timeline.messages.any((message) => message.text == expectedText),
     reason: 'A committed Chat message was not observed in a fresh session.',
+    timeout: timeout,
   );
   return timeline.messages.firstWhere(
     (message) => message.text == expectedText,
@@ -1339,6 +1477,30 @@ Future<CalendarEvent> _waitForCalendarEvent(
     reason: 'A committed Calendar event was not observed in a fresh session.',
   );
   return events.events.firstWhere((event) => event.title == title);
+}
+
+Future<CalendarEvent> _updateCalendarEventEventually(
+  LiveActorSession session, {
+  required String eventId,
+  required CalendarScope scope,
+  required String expectedTitle,
+  required CalendarEventDraft draft,
+}) {
+  return _eventually(
+    () async {
+      final current = await session.calendar.loadEvents(scope: scope);
+      final committed = current.events
+          .where((event) => event.id == eventId && event.title == expectedTitle)
+          .firstOrNull;
+      if (committed != null) {
+        return committed;
+      }
+      return session.calendar.updateEvent(eventId, draft);
+    },
+    (event) => event.id == eventId && event.title == expectedTitle,
+    reason: 'The collaborator Calendar update did not converge through CalDAV.',
+    timeout: const Duration(seconds: 60),
+  );
 }
 
 Future<T> _eventually<T>(
@@ -1572,7 +1734,7 @@ class _RunCleanup {
     try {
       if (!_messageCleanupComplete) {
         if (_chatEventIds.isEmpty) {
-          complete = false;
+          _messageCleanupComplete = true;
         } else {
           try {
             _redactedMessageCount = await driver.redactEventsAndVerify(
