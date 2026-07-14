@@ -413,10 +413,16 @@ void main() {
         expect(outsiderChatDenied, isTrue);
 
         await session.files.connect();
-        final outsiderListing = await session.files.listDirectory('/');
-        final outsiderFileVisible = outsiderListing.entries.any(
-          (entry) => entry.name == fileName,
-        );
+        var outsiderListingRejected = false;
+        var outsiderFileVisible = false;
+        try {
+          final outsiderListing = await session.files.listDirectory('/');
+          outsiderFileVisible = outsiderListing.entries.any(
+            (entry) => entry.name == fileName,
+          );
+        } on FilesFailure catch (failure) {
+          outsiderListingRejected = _isWorkspaceAccessDenied(failure);
+        }
         var outsiderDownloadRejected = false;
         try {
           await _downloadFile(
@@ -428,8 +434,8 @@ void main() {
               isDirectory: false,
             ),
           );
-        } on FilesFailure {
-          outsiderDownloadRejected = true;
+        } on FilesFailure catch (failure) {
+          outsiderDownloadRejected = _isWorkspaceAccessDenied(failure);
         }
         var outsiderDeleteRejected = false;
         try {
@@ -442,11 +448,12 @@ void main() {
               isDirectory: false,
             ),
           );
-        } on FilesFailure {
-          outsiderDeleteRejected = true;
+        } on FilesFailure catch (failure) {
+          outsiderDeleteRejected = _isWorkspaceAccessDenied(failure);
         }
         outsiderFilesReadDenied =
-            !outsiderFileVisible && outsiderDownloadRejected;
+            (outsiderListingRejected || !outsiderFileVisible) &&
+            outsiderDownloadRejected;
         outsiderFilesMutationDenied = outsiderDeleteRejected;
         outsiderFilesDenied =
             outsiderFilesReadDenied && outsiderFilesMutationDenied;
@@ -1193,6 +1200,11 @@ Future<T> _withSession<T>(
   } finally {
     await session.close();
   }
+}
+
+bool _isWorkspaceAccessDenied(FilesFailure failure) {
+  return failure.type == FilesFailureType.invalidCredentials &&
+      failure.cause == HttpStatus.forbidden;
 }
 
 Future<T> _withRelaunchedSession<T>(
