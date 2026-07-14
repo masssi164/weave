@@ -21,7 +21,7 @@ use matrix_sdk::{
         OwnedDeviceId, OwnedEventId, OwnedRoomId, OwnedUserId, UInt,
     },
     store::RoomLoadSettings,
-    Client, SessionMeta,
+    Client, Room, RoomMemberships, SessionMeta,
 };
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use serde_json::{json, Value};
@@ -367,11 +367,50 @@ async fn send_text_inner(profile_key: &str, room_id: &str, body: &str) -> Result
     {
         return Err("M_WEAVE_E2EE_REQUIRED".to_string());
     }
+    refresh_missing_active_member_device_keys(&client, &room).await?;
     let response = room
         .send(RoomMessageEventContent::text_plain(body))
         .await
         .map_err(|_| "M_WEAVE_E2EE_SEND".to_string())?;
     Ok(json!({ "eventId": response.response.event_id.to_string() }))
+}
+
+async fn refresh_missing_active_member_device_keys(
+    client: &Client,
+    room: &Room,
+) -> Result<(), String> {
+    let own_user_id = client
+        .user_id()
+        .ok_or_else(|| "M_WEAVE_E2EE_SESSION".to_string())?;
+    let members = room
+        .members(RoomMemberships::ACTIVE)
+        .await
+        .map_err(|_| "M_WEAVE_E2EE_ROOM_MEMBERS".to_string())?;
+    let encryption = client.encryption();
+
+    for member in members {
+        let user_id = member.user_id();
+        if user_id == own_user_id {
+            continue;
+        }
+        let devices = encryption
+            .get_user_devices(user_id)
+            .await
+            .map_err(|_| "M_WEAVE_E2EE_MEMBER_KEYS".to_string())?;
+        if devices.devices().next().is_some() {
+            continue;
+        }
+
+        // A first room sync can mark a member as tracked before their device
+        // list reaches the local crypto store. Force one current key query so
+        // the SDK cannot silently omit an already-registered recipient device.
+        encryption
+            .request_user_identity(user_id)
+            .await
+            .map_err(|_| "M_WEAVE_E2EE_MEMBER_KEYS".to_string())?;
+    }
+
+    Ok(())
 }
 
 pub async fn security_state(profile_key: String) -> String {
