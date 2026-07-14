@@ -868,7 +868,7 @@ void main() {
       try {
         _emitProgress(configuration, 'containment-capability');
         _emitProgress(configuration, 'containment-calendar-health');
-        final outageSnapshot = await _waitForCalendarUnavailable(session);
+        final outageSnapshot = await _waitForCalendarNotReady(session);
         _emitProgress(configuration, 'containment-shell-health');
         expect(outageSnapshot.shellAccess.isReady, isTrue);
         _emitProgress(configuration, 'containment-chat-health');
@@ -1142,7 +1142,7 @@ Future<ChatConversation> _requireEncryptedConversation(
   return conversation.firstWhere((candidate) => candidate.id == roomId);
 }
 
-Future<WorkspaceCapabilitySnapshot> _waitForCalendarUnavailable(
+Future<WorkspaceCapabilitySnapshot> _waitForCalendarNotReady(
   LiveActorSession session,
 ) async {
   final snapshot = await _eventually<WorkspaceCapabilitySnapshot?>(
@@ -1152,10 +1152,8 @@ Future<WorkspaceCapabilitySnapshot> _waitForCalendarUnavailable(
         weaveApiWorkspaceCapabilitySnapshotProvider.future,
       );
     },
-    (candidate) =>
-        candidate?.calendar.readiness ==
-        WorkspaceCapabilityReadiness.unavailable,
-    reason: 'The real backend did not report Calendar as unavailable.',
+    (candidate) => candidate != null && !candidate.calendar.isReady,
+    reason: 'The real backend did not report Calendar as non-ready.',
     timeout: const Duration(minutes: 2),
   );
   if (snapshot == null) {
@@ -1485,21 +1483,44 @@ Future<CalendarEvent> _updateCalendarEventEventually(
   required CalendarScope scope,
   required String expectedTitle,
   required CalendarEventDraft draft,
-}) {
-  return _eventually(
-    () async {
-      final current = await session.calendar.loadEvents(scope: scope);
-      final committed = current.events
+}) async {
+  final deadline = DateTime.now().add(const Duration(seconds: 60));
+  Object? lastFailure;
+  var mutationAccepted = false;
+
+  while (DateTime.now().isBefore(deadline)) {
+    try {
+      final listed = await session.calendar.loadEvents(scope: scope);
+      final listedUpdate = listed.events
           .where((event) => event.id == eventId && event.title == expectedTitle)
           .firstOrNull;
-      if (committed != null) {
-        return committed;
+      if (listedUpdate != null) {
+        return listedUpdate;
       }
-      return session.calendar.updateEvent(eventId, draft);
-    },
-    (event) => event.id == eventId && event.title == expectedTitle,
-    reason: 'The collaborator Calendar update did not converge through CalDAV.',
-    timeout: const Duration(seconds: 60),
+
+      final current = await session.calendar.readEvent(eventId);
+      if (current.id == eventId && current.title == expectedTitle) {
+        return current;
+      }
+      if (!mutationAccepted) {
+        final etag = current.etag;
+        if (etag == null || etag.isEmpty) {
+          throw StateError(
+            'The current Calendar event has no concurrency version.',
+          );
+        }
+        await session.calendar.updateEvent(eventId, draft, etag: etag);
+        mutationAccepted = true;
+      }
+    } catch (error) {
+      lastFailure = error;
+    }
+    await Future<void>.delayed(const Duration(seconds: 1));
+  }
+
+  throw StateError(
+    'The collaborator Calendar update did not converge through CalDAV. '
+    'Last failure type: ${lastFailure?.runtimeType ?? 'none'}.',
   );
 }
 

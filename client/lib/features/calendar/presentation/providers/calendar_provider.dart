@@ -80,12 +80,16 @@ class CalendarNotifier extends _$CalendarNotifier {
     }
   }
 
-  Future<void> updateEvent(String id, CalendarEventDraft draft) async {
+  Future<void> updateEvent(
+    String id,
+    CalendarEventDraft draft, {
+    String? etag,
+  }) async {
     final repository = ref.read(calendarRepositoryProvider);
     final previousState = state;
     state = const AsyncLoading<CalendarEventList>();
     try {
-      await repository.updateEvent(id, draft);
+      await repository.updateEvent(id, draft, etag: etag);
       state = AsyncData(
         await repository.loadEvents(
           scope: ref.read(selectedCalendarScopeProvider),

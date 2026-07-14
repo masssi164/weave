@@ -30,10 +30,17 @@ class MatrixLiveRoomProvisioning {
 /// Drives only real Matrix Client-Server facade routes used to arrange live
 /// encrypted-room preconditions and clean up run-created messages.
 class MatrixLiveRoomDriver {
-  MatrixLiveRoomDriver({required this.client, required this.homeserver});
+  MatrixLiveRoomDriver({
+    required this.client,
+    required this.homeserver,
+    this.deviceKeyConvergenceTimeout = const Duration(seconds: 45),
+    this.deviceKeyPollInterval = const Duration(seconds: 1),
+  });
 
   final http.Client client;
   final Uri homeserver;
+  final Duration deviceKeyConvergenceTimeout;
+  final Duration deviceKeyPollInterval;
 
   Future<String> registerWhoami(MatrixLiveActorCredentials actor) async {
     final response = await client.get(
@@ -65,6 +72,15 @@ class MatrixLiveRoomDriver {
     if (collaboratorUserId == authorUserId) {
       throw const MatrixLiveRoomDriverException(
         'M_WEAVE_LIVE_MATRIX_ACTORS_NOT_DISTINCT',
+      );
+    }
+
+    if (collaborator != null && collaboratorUserId != null) {
+      await requireMutualDeviceKeys(
+        author: author,
+        authorUserId: authorUserId,
+        collaborator: collaborator,
+        collaboratorUserId: collaboratorUserId,
       );
     }
 
@@ -155,6 +171,70 @@ class MatrixLiveRoomDriver {
   }) async {
     await _enableEncryption(actor: actor, roomId: roomId);
     await _requireEncryptedState(actor, roomId);
+  }
+
+  /// Waits until each established app-owned Matrix device can discover the
+  /// other device through the northbound Matrix facade. Encrypted room
+  /// creation must not race the SDK's initial device-key upload.
+  Future<void> requireMutualDeviceKeys({
+    required MatrixLiveActorCredentials author,
+    required String authorUserId,
+    required MatrixLiveActorCredentials collaborator,
+    required String collaboratorUserId,
+  }) async {
+    await _requireDeviceKey(
+      observer: author,
+      targetUserId: collaboratorUserId,
+      targetDeviceId: collaborator.deviceId,
+    );
+    await _requireDeviceKey(
+      observer: collaborator,
+      targetUserId: authorUserId,
+      targetDeviceId: author.deviceId,
+    );
+  }
+
+  Future<void> _requireDeviceKey({
+    required MatrixLiveActorCredentials observer,
+    required String targetUserId,
+    required String targetDeviceId,
+  }) async {
+    final deadline = DateTime.now().add(deviceKeyConvergenceTimeout);
+    while (true) {
+      final response = await client.post(
+        _uri(<String>['_matrix', 'client', 'v3', 'keys', 'query']),
+        headers: _jsonHeaders(observer),
+        body: jsonEncode(<String, Object>{
+          'device_keys': <String, List<String>>{
+            targetUserId: <String>[targetDeviceId],
+          },
+        }),
+      );
+      _requireSuccess(response, operation: 'query-device-keys');
+      final payload = _object(response.body, operation: 'query-device-keys');
+      final deviceKeys = payload['device_keys'];
+      if (deviceKeys is! Map) {
+        throw const MatrixLiveRoomDriverException(
+          'M_WEAVE_LIVE_MATRIX_DEVICE_KEYS_INVALID',
+        );
+      }
+      final userDevices = deviceKeys[targetUserId];
+      final device = userDevices is Map ? userDevices[targetDeviceId] : null;
+      final keys = device is Map ? device['keys'] : null;
+      if (device is Map &&
+          device['user_id'] == targetUserId &&
+          device['device_id'] == targetDeviceId &&
+          keys is Map &&
+          keys.isNotEmpty) {
+        return;
+      }
+      if (!DateTime.now().isBefore(deadline)) {
+        throw const MatrixLiveRoomDriverException(
+          'M_WEAVE_LIVE_MATRIX_DEVICE_KEYS_NOT_CONVERGED',
+        );
+      }
+      await Future<void>.delayed(deviceKeyPollInterval);
+    }
   }
 
   Future<void> _enableEncryption({

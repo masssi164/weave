@@ -121,6 +121,66 @@ void main() {
     expect(appSource, contains('redactEventsAndVerify('));
   });
 
+  test('live provider convergence is explicit and version-safe', () {
+    final matrixDriver = File(
+      'integration_test/helpers/matrix_live_room_driver.dart',
+    ).readAsStringSync();
+    final roomCreation = matrixDriver.substring(
+      matrixDriver.indexOf('Future<MatrixLiveRoomProvisioning>'),
+      matrixDriver.indexOf('Future<String> requireJoinedRoom'),
+    );
+    final calendarRepository = File(
+      'lib/features/calendar/data/repositories/backend_calendar_repository.dart',
+    ).readAsStringSync();
+    final multiUserSource = File(
+      'integration_test/multi_user_collaboration_e2e_test.dart',
+    ).readAsStringSync();
+
+    expect(matrixDriver, contains("'keys', 'query'"));
+    expect(
+      matrixDriver,
+      contains('M_WEAVE_LIVE_MATRIX_DEVICE_KEYS_NOT_CONVERGED'),
+    );
+    expect(roomCreation, contains('requireMutualDeviceKeys('));
+    expect(roomCreation, contains("'createRoom'"));
+    expect(
+      roomCreation.indexOf('requireMutualDeviceKeys('),
+      lessThan(roomCreation.indexOf("'createRoom'")),
+    );
+    expect(calendarRepository, contains('draft.toPatch(etag: etag)'));
+    expect(multiUserSource, contains('readEvent(eventId)'));
+    expect(
+      multiUserSource,
+      contains('updateEvent(eventId, draft, etag: etag)'),
+    );
+    expect(
+      multiUserSource,
+      isNot(contains('return session.calendar.updateEvent(eventId, draft);')),
+    );
+    expect(multiUserSource, contains('!candidate.calendar.isReady'));
+  });
+
+  test('live workflow reports provider test failure on its owning step', () {
+    final workflow = File(
+      '../.github/workflows/live-stack-e2e.yml',
+    ).readAsStringSync();
+
+    expect(
+      workflow,
+      contains(
+        r'if [ "$single_user_status" -ne 0 ] || '
+        r'[ "$multi_user_status" -ne 0 ]; then',
+      ),
+    );
+    expect(
+      workflow,
+      contains(
+        'Live provider tests failed; cleanup and support-safe evidence '
+        'collection will continue.',
+      ),
+    );
+  });
+
   test('live actor profiles use discovery and namespaced device storage', () {
     final source = File(
       'integration_test/helpers/live_actor_session.dart',
