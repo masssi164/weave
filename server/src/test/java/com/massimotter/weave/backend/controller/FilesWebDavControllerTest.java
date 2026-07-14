@@ -129,6 +129,7 @@ class FilesWebDavControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(content().contentType("text/markdown"))
                 .andExpect(header().string(HttpHeaders.ETAG, "\"etag-readme\""))
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-transform"))
                 .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"readme one.md\""))
                 .andExpect(content().bytes("hello".getBytes()));
 
@@ -138,6 +139,7 @@ class FilesWebDavControllerTest {
                 .andExpect(header().string(HttpHeaders.CONTENT_TYPE, "text/markdown"))
                 .andExpect(header().string(HttpHeaders.CONTENT_LENGTH, "5"))
                 .andExpect(header().string(HttpHeaders.ETAG, "\"etag-readme\""))
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-transform"))
                 .andExpect(content().bytes(new byte[0]));
     }
 

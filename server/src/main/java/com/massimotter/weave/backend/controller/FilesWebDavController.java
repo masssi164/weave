@@ -17,6 +17,7 @@ import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import java.util.Map;
+import org.springframework.http.CacheControl;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -103,6 +104,7 @@ public class FilesWebDavController {
                 .contentType(MediaType.parseMediaType(file.mimeType()))
                 .contentLength(file.content().length)
                 .eTag(etag)
+                .cacheControl(CacheControl.empty().noTransform())
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         ContentDisposition.inline().filename(file.filename()).build().toString());
         return builder.body(headOnly ? null : file.content());
