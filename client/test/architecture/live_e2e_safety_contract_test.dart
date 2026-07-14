@@ -110,6 +110,8 @@ void main() {
     ).readAsStringSync();
 
     expect(multiUserSource, contains('createEncryptedRoom('));
+    expect(multiUserSource, contains('_establishEncryptedDeviceExchange('));
+    expect(multiUserSource, contains('_updateCalendarEventEventually('));
     expect(multiUserSource, contains('redactEventsAndVerify('));
     expect(multiUserSource, contains('leaveRoom('));
     expect(e2eeSource, contains('createEncryptedRoom('));

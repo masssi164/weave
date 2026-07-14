@@ -26,6 +26,8 @@ MARKER_PATTERN = re.compile(
 )
 PROGRESS_PHASES = (
     "room-provision",
+    "room-key-exchange-author",
+    "room-key-exchange-collaborator",
     "home-baseline",
     "author-write",
     "author-capabilities",
