@@ -347,7 +347,7 @@ wait_for_mas_registration_device_sync() {
 register_matrix_user() {
   local localpart="$1"
   local admin_flag="$2"
-  local username response_file token user_existed
+  local username response_file token user_existed issue_attempt issue_attempts
   local -a register_args issue_args admin_args
 
   username="$(mas_cli_username "${localpart}")"
@@ -389,11 +389,23 @@ register_matrix_user() {
     wait_for_mas_registration_device_sync "${username}"
   fi
 
-  if ! mas_cli "${issue_args[@]}" >"${response_file}" 2>&1; then
-    fail "Matrix provisioning failed: could not issue a MAS compatibility token for '${username}'. Last MAS CLI output: $(safe_tail "${response_file}")"
-  fi
+  issue_attempts="${WEAVE_MATRIX_TOKEN_ISSUE_ATTEMPTS:-2}"
+  [[ "${issue_attempts}" =~ ^[0-9]+$ && "${issue_attempts}" -gt 0 ]] || fail "Matrix provisioning failed: WEAVE_MATRIX_TOKEN_ISSUE_ATTEMPTS must be a positive integer."
+  token=""
+  for ((issue_attempt = 1; issue_attempt <= issue_attempts; issue_attempt++)); do
+    if ! mas_cli "${issue_args[@]}" >"${response_file}" 2>&1; then
+      fail "Matrix provisioning failed: could not issue a MAS compatibility token for '${username}'. Last MAS CLI output: $(safe_tail "${response_file}")"
+    fi
 
-  token="$(extract_mas_compatibility_token <"${response_file}" || true)"
+    token="$(extract_mas_compatibility_token <"${response_file}" || true)"
+    if [[ -n "${token}" ]]; then
+      break
+    fi
+    if ((issue_attempt < issue_attempts)); then
+      log "MAS CLI returned no parseable compatibility token for '${username}'; retrying the bounded token issue operation..." >&2
+      sleep "${WEAVE_MATRIX_MAS_CLI_DELAY_SECONDS:-2}"
+    fi
+  done
   rm -f -- "${response_file}"
   [[ -n "${token}" ]] || fail "Matrix provisioning failed: MAS CLI did not return a compatibility token for '${username}'"
   printf '%s\n' "${token}"
