@@ -171,8 +171,34 @@ configure_nextcloud_reverse_proxy >/dev/null
 [[ "$(cat "${occ_state}/overwritecondaddr.value")" == '^(?:172\.31\.20\.2)$' ]] ||
   fail "overwrite condition was not scoped to the exact Caddy address"
 
+public_status_attempts="${TMP_DIR}/public-status-attempts"
+printf '0\n' >"${public_status_attempts}"
+# shellcheck disable=SC2329
+curl() {
+  local argument attempts
+  for argument in "$@"; do
+    [[ "${argument}" != --user && "${argument}" != Authorization:* ]] ||
+      fail "public convergence polling must not send provider credentials"
+  done
+  attempts="$(cat "${public_status_attempts}")"
+  attempts="$((attempts + 1))"
+  printf '%s\n' "${attempts}" >"${public_status_attempts}"
+  if ((attempts == 1)); then printf '503'; else printf '200'; fi
+}
+wait_for_public_http_200 "Nextcloud public status" "$(nextcloud_public_url)/status.php" 3 0
+unset -f curl
+[[ "$(cat "${public_status_attempts}")" == 2 ]] ||
+  fail "public convergence polling did not tolerate one transient unauthenticated 503"
+
 dav_calls="${TMP_DIR}/dav-calls"
+public_readiness_calls="${TMP_DIR}/public-readiness-calls"
 : >"${dav_calls}"
+: >"${public_readiness_calls}"
+# shellcheck disable=SC2329
+wait_for_public_http_200() {
+  local name="$1" url="$2"
+  printf '%s %s\n' "${name}" "${url}" >>"${public_readiness_calls}"
+}
 # shellcheck disable=SC2329
 curl_nextcloud_actor_dav_status() {
   local method="$1" url="$2" headers="$3"
@@ -181,6 +207,9 @@ curl_nextcloud_actor_dav_status() {
   printf '207'
 }
 verify_nextcloud_dav_post_provision >/dev/null
+[[ "$(wc -l <"${public_readiness_calls}" | tr -d ' ')" == 1 ]] ||
+  fail "post-provision verification must first converge one unauthenticated public readiness route"
+grep -Fq "Nextcloud public status $(nextcloud_public_url)/status.php" "${public_readiness_calls}"
 [[ "$(wc -l <"${dav_calls}" | tr -d ' ')" == 2 ]] || fail "post-provision verification must make exactly one WebDAV and one CalDAV request"
 jq -e '.status == "passed" and .webdav.attempts == 1 and .caldav.attempts == 1 and .readinessPollingPerformedProviderAuthentication == false' \
   "${WEAVE_NEXTCLOUD_PROVISION_EVIDENCE_FILE}" >/dev/null

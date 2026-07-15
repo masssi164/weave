@@ -2060,6 +2060,13 @@ verify_nextcloud_dav_post_provision() {
   local caldav_attempts=0
   local retry_after_observed=false
 
+  # Converge the Caddy-to-Nextcloud route without credentials so the single
+  # authenticated WebDAV/CalDAV verification is not consumed by a transient
+  # upstream 503 while Nextcloud reloads its post-provision configuration.
+  wait_for_public_http_200 \
+    "Nextcloud public status" \
+    "$(nextcloud_public_url)/status.php"
+
   webdav_headers="$(mktemp)"
   caldav_headers="$(mktemp)"
   trap 'rm -f -- "${webdav_headers:-}" "${caldav_headers:-}"' EXIT
