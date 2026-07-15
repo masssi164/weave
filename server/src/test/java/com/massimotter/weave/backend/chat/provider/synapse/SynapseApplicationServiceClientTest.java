@@ -234,7 +234,7 @@ class SynapseApplicationServiceClientTest {
         } else if (path.contains("/send/")) {
             response = "{\"event_id\":\"$opaque-event:matrix.internal\"}";
         } else if (path.endsWith("/joined_members")) {
-            response = "{\"joined\":{" 
+            response = "{\"joined\":{"
                     + "\"@_weave_opaqueauthor:matrix.internal\":{},"
                     + "\"@_weave_opaquecollaborator:matrix.internal\":{}}}";
         } else if (path.endsWith("/state/m.room.encryption/")) {

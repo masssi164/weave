@@ -288,7 +288,7 @@ jobs:
           set -euo pipefail
           # shellcheck disable=SC1090
           source "$WEAVE_E2E_STARTUP_ENV_PATH"
-          WEAVE_TEARDOWN_EVIDENCE_FILE= bash ./teardown.sh
+          WEAVE_TEARDOWN_EVIDENCE_FILE='' bash ./teardown.sh
 
       - name: Prepare backend image
         run: |

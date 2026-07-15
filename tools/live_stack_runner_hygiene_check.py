@@ -46,10 +46,10 @@ def main() -> int:
         "- name: Verify live test disk headroom and reserve recovery space",
         "- name: Run live stack integration tests",
         "- name: Clean disposable identities and retain only hashed evidence",
-        "- name: Aggregate two-pass human-testing automation evidence",
         "- name: Generate live stack acceptance evidence",
         "- name: Generate support-safe failure diagnostics",
         "- name: Destroy stack and scrub stale resources",
+        "- name: Aggregate two-pass human-testing automation evidence",
         "- name: Upload live stack acceptance evidence",
         "- name: Scrub current runner-owned Weave outputs",
     )
