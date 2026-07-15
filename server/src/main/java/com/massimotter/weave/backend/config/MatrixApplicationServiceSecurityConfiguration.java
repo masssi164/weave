@@ -3,6 +3,7 @@ package com.massimotter.weave.backend.config;
 import com.massimotter.weave.backend.chat.provider.synapse.MatrixApplicationServiceAuthenticationFilter;
 import com.massimotter.weave.backend.chat.provider.synapse.MatrixApplicationServiceSecrets;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -20,6 +21,18 @@ public class MatrixApplicationServiceSecurityConfiguration {
     MatrixApplicationServiceAuthenticationFilter matrixApplicationServiceAuthenticationFilter(
             MatrixApplicationServiceSecrets secrets) {
         return new MatrixApplicationServiceAuthenticationFilter(secrets);
+    }
+
+    @Bean
+    FilterRegistrationBean<MatrixApplicationServiceAuthenticationFilter> matrixApplicationServiceAuthenticationFilterRegistration(
+            MatrixApplicationServiceAuthenticationFilter authenticationFilter) {
+        FilterRegistrationBean<MatrixApplicationServiceAuthenticationFilter> registration =
+                new FilterRegistrationBean<>(authenticationFilter);
+        // Synapse callback authentication is owned by the path-scoped Spring
+        // Security chain below and must never intercept public health or member
+        // facade requests as a container-wide servlet filter.
+        registration.setEnabled(false);
+        return registration;
     }
 
     @Bean

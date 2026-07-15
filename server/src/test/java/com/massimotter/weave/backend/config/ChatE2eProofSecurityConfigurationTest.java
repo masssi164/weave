@@ -8,12 +8,42 @@ import java.time.Duration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ChatE2eProofSecurityConfigurationTest {
 
     @TempDir
     Path temporaryDirectory;
+
+    @Test
+    void proofAuthenticationFilterIsOwnedOnlyByItsSecurityChain() throws IOException {
+        ChatE2eProofSecurityConfiguration configuration = new ChatE2eProofSecurityConfiguration();
+        ChatE2eProofProperties proofProperties = new ChatE2eProofProperties(
+                true,
+                tokenFile("proof-registration", "proof-registration-token").toString(),
+                "isolated-run-1234",
+                "isolated");
+        MatrixApplicationServiceSecrets applicationServiceSecrets = new MatrixApplicationServiceSecrets(
+                new ChatRuntimeProperties.Matrix(
+                        "http://matrix.internal:8008",
+                        "matrix.internal",
+                        "weave-chat-synapse",
+                        "_weave_",
+                        tokenFile("as-registration", "application-service-registration-token").toString(),
+                        tokenFile("hs-registration", "homeserver-registration-token").toString(),
+                        Duration.ofSeconds(5),
+                        Duration.ofSeconds(10),
+                        Duration.ofSeconds(60),
+                        65_536,
+                        100));
+        var secrets = configuration.chatE2eProofSecrets(proofProperties, applicationServiceSecrets);
+        var filter = configuration.chatE2eProofAuthenticationFilter(secrets);
+        var registration = configuration.chatE2eProofAuthenticationFilterRegistration(filter);
+
+        assertThat(registration.isEnabled()).isFalse();
+        assertThat(registration.getFilter()).isSameAs(filter);
+    }
 
     @Test
     void proofTokenMustDifferFromApplicationServiceToken() throws IOException {

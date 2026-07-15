@@ -5,6 +5,7 @@ import com.massimotter.weave.backend.chat.e2e.ChatE2eProofSecrets;
 import com.massimotter.weave.backend.chat.provider.synapse.MatrixApplicationServiceSecrets;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -36,6 +37,18 @@ public class ChatE2eProofSecurityConfiguration {
     @Bean
     ChatE2eProofAuthenticationFilter chatE2eProofAuthenticationFilter(ChatE2eProofSecrets secrets) {
         return new ChatE2eProofAuthenticationFilter(secrets);
+    }
+
+    @Bean
+    FilterRegistrationBean<ChatE2eProofAuthenticationFilter> chatE2eProofAuthenticationFilterRegistration(
+            ChatE2eProofAuthenticationFilter authenticationFilter) {
+        FilterRegistrationBean<ChatE2eProofAuthenticationFilter> registration =
+                new FilterRegistrationBean<>(authenticationFilter);
+        // The isolated proof filter belongs exclusively to the path-scoped
+        // Spring Security chain below. Prevent Spring Boot from also installing
+        // the filter globally in the servlet container.
+        registration.setEnabled(false);
+        return registration;
     }
 
     @Bean
