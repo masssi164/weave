@@ -28,11 +28,14 @@ use serde_json::{json, Value};
 use std::{
     collections::HashMap,
     path::Path,
-    sync::{Mutex, OnceLock},
+    sync::{Arc, Mutex, OnceLock},
     time::Duration,
 };
+use tokio::{sync::Mutex as AsyncMutex, task::JoinHandle};
 
 const DEVICE_ID_HEADER: &str = "x-weave-matrix-device-id";
+const BACKGROUND_SYNC_POLL_INTERVAL: Duration = Duration::from_secs(1);
+const BACKGROUND_SYNC_MAX_BACKOFF: Duration = Duration::from_secs(30);
 
 struct ManagedClient {
     client: Client,
@@ -41,6 +44,8 @@ struct ManagedClient {
     device_id: String,
     access_token: String,
     active_room_members: HashMap<String, Vec<String>>,
+    sync_start_gate: Arc<AsyncMutex<()>>,
+    background_sync: Option<JoinHandle<()>>,
     verification_request: Option<VerificationRequest>,
     sas_verification: Option<SasVerification>,
 }
@@ -179,7 +184,7 @@ async fn initialize_inner(
         }
     });
 
-    clients()
+    let replaced = clients()
         .lock()
         .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
         .insert(
@@ -191,10 +196,15 @@ async fn initialize_inner(
                 device_id: device_id.clone(),
                 access_token,
                 active_room_members: HashMap::new(),
+                sync_start_gate: Arc::new(AsyncMutex::new(())),
+                background_sync: None,
                 verification_request: None,
                 sas_verification: None,
             },
         );
+    if let Some(mut replaced) = replaced {
+        abort_background_sync(&mut replaced);
+    }
 
     Ok(json!({
         "initialized": true,
@@ -228,6 +238,15 @@ pub async fn sync(profile_key: String) -> String {
 
 async fn sync_inner(profile_key: &str) -> Result<Value, String> {
     let client = client_for(profile_key)?;
+    let sync_start_gate = sync_start_gate_for(profile_key)?;
+    let _sync_start_guard = sync_start_gate.lock().await;
+    if background_sync_running(profile_key)? {
+        return Ok(json!({
+            "backgroundSync": "active",
+            "enabledRooms": 0,
+        }));
+    }
+
     let first = client
         .sync_once(SyncSettings::new().timeout(Duration::from_secs(0)))
         .await
@@ -269,11 +288,97 @@ async fn sync_inner(profile_key: &str) -> Result<Value, String> {
             refresh_active_member_device_keys(profile_key, &client, &room).await?;
         }
     }
+    start_background_sync(profile_key, &client)?;
 
     Ok(json!({
         "nextBatch": first.next_batch,
         "enabledRooms": enabled_rooms,
+        "backgroundSync": "started",
     }))
+}
+
+fn sync_start_gate_for(profile_key: &str) -> Result<Arc<AsyncMutex<()>>, String> {
+    clients()
+        .lock()
+        .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
+        .get(profile_key)
+        .map(|managed| managed.sync_start_gate.clone())
+        .ok_or_else(|| "M_WEAVE_E2EE_NOT_INITIALIZED".to_string())
+}
+
+fn background_sync_running(profile_key: &str) -> Result<bool, String> {
+    let mut guard = clients()
+        .lock()
+        .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?;
+    let managed = guard
+        .get_mut(profile_key)
+        .ok_or_else(|| "M_WEAVE_E2EE_NOT_INITIALIZED".to_string())?;
+    if managed
+        .background_sync
+        .as_ref()
+        .is_some_and(|task| !task.is_finished())
+    {
+        return Ok(true);
+    }
+    if let Some(task) = managed.background_sync.take() {
+        task.abort();
+    }
+    Ok(false)
+}
+
+fn start_background_sync(profile_key: &str, client: &Client) -> Result<(), String> {
+    let sync_client = client.clone();
+    let task = tokio::spawn(async move {
+        run_background_sync(sync_client).await;
+    });
+    let mut guard = clients()
+        .lock()
+        .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?;
+    let Some(managed) = guard.get_mut(profile_key) else {
+        task.abort();
+        return Err("M_WEAVE_E2EE_NOT_INITIALIZED".to_string());
+    };
+    if let Some(previous) = managed.background_sync.replace(task) {
+        previous.abort();
+    }
+    Ok(())
+}
+
+async fn run_background_sync(client: Client) {
+    let mut consecutive_failures = 0_u32;
+    loop {
+        let delay = match client
+            .sync_once(SyncSettings::new().timeout(Duration::from_secs(30)))
+            .await
+        {
+            Ok(_) => {
+                consecutive_failures = 0;
+                BACKGROUND_SYNC_POLL_INTERVAL
+            }
+            Err(error) => {
+                consecutive_failures = consecutive_failures.saturating_add(1);
+                let error_code = matrix_sdk_error_code(&error, "M_WEAVE_E2EE_BACKGROUND_SYNC");
+                tracing::warn!(
+                    error_code,
+                    consecutive_failures,
+                    "Matrix background sync will retry with bounded backoff"
+                );
+                background_sync_retry_delay(consecutive_failures)
+            }
+        };
+        tokio::time::sleep(delay).await;
+    }
+}
+
+fn background_sync_retry_delay(consecutive_failures: u32) -> Duration {
+    let exponent = consecutive_failures.clamp(1, 5);
+    Duration::from_secs((1_u64 << exponent).min(BACKGROUND_SYNC_MAX_BACKOFF.as_secs()))
+}
+
+fn abort_background_sync(managed: &mut ManagedClient) {
+    if let Some(task) = managed.background_sync.take() {
+        task.abort();
+    }
 }
 
 pub async fn rooms(profile_key: String) -> String {
@@ -700,7 +805,9 @@ pub fn dispose(profile_key: String) -> String {
         .lock()
         .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())
         .map(|mut guard| {
-            guard.remove(&profile_key);
+            if let Some(mut managed) = guard.remove(&profile_key) {
+                abort_background_sync(&mut managed);
+            }
             json!({ "disposed": true })
         });
     json_result(result)
@@ -940,5 +1047,14 @@ mod tests {
         assert!(requires_explicit_device_query(true, false));
         assert!(requires_explicit_device_query(false, false));
         assert!(!requires_explicit_device_query(false, true));
+    }
+
+    #[test]
+    fn background_sync_retry_backoff_is_exponential_and_bounded() {
+        assert_eq!(background_sync_retry_delay(1), Duration::from_secs(2));
+        assert_eq!(background_sync_retry_delay(2), Duration::from_secs(4));
+        assert_eq!(background_sync_retry_delay(4), Duration::from_secs(16));
+        assert_eq!(background_sync_retry_delay(5), BACKGROUND_SYNC_MAX_BACKOFF);
+        assert_eq!(background_sync_retry_delay(50), BACKGROUND_SYNC_MAX_BACKOFF);
     }
 }
