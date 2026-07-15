@@ -14,6 +14,13 @@ fail() { printf '%s\n' "$*" >&2; exit 1; }
 require_workflow() { grep -Fq -- "$1" "${WORKFLOW}" || fail "Recovery workflow is missing: $1"; }
 require_helper() { grep -Fq -- "$1" "${MEMBER_HELPER}" || fail "Member helper is missing: $1"; }
 require_runbook() { grep -Fq -- "$1" "${OPERATOR_RUNBOOK}" || fail "Operator runbook is missing: $1"; }
+assert_workflow_order() {
+  local first="$1" second="$2" first_line second_line
+  first_line="$(grep -nF -- "$first" "${WORKFLOW}" | head -1 | cut -d: -f1)"
+  second_line="$(grep -nF -- "$second" "${WORKFLOW}" | head -1 | cut -d: -f1)"
+  [[ -n "$first_line" && -n "$second_line" && "$first_line" -lt "$second_line" ]] ||
+    fail "Recovery workflow must place '$first' before '$second'"
+}
 
 [[ -f "${WORKFLOW}" ]] || fail "Pending identity recovery workflow is missing"
 [[ -f "${MEMBER_HELPER}" ]] || fail "Persistent member helper is missing"
@@ -37,6 +44,11 @@ require_workflow 'org.opencontainers.image.revision=$CANDIDATE_SHA'
 require_workflow './dogfood-member.sh recover-lost-pending'
 require_workflow './dogfood-member.sh retire-restored-bootstrap'
 require_workflow 'restored-bootstrap-retirement.json'
+require_workflow 'bootstrap-state-detachment.json'
+require_workflow 'module.tenant_identity.keycloak_user.test[0]'
+require_workflow 'tofu -chdir=02-keycloak-setup init -input=false'
+require_workflow 'tofu -chdir=02-keycloak-setup state rm "$address"'
+require_workflow 'providerMutationPerformed:false'
 require_workflow 'weave.dogfood.platform-private-restore.v1'
 require_workflow 'restored_volumes=('
 require_workflow 'weave_matrix_chat_appservice_runtime'
@@ -65,6 +77,8 @@ require_runbook 'not identity-restorable for that member'
 require_runbook 'humanTestingReady=false'
 require_runbook 'the human tester completes the Keycloak activation'
 require_runbook 'run the standard `Test Stack Deploy` workflow for the same candidate'
+assert_workflow_order 'tofu -chdir=02-keycloak-setup state rm "$address"' 'Bootstrap lost persistent runtime with the exact candidate'
+assert_workflow_order 'Bootstrap lost persistent runtime with the exact candidate' 'Retire the proven restored disposable bootstrap identity'
 
 upload_block="$(sed -n '/- name: Upload support-safe recovery evidence/,$p' "${WORKFLOW}")"
 if [[ "$(grep -Fc 'uses: actions/upload-artifact@' "${WORKFLOW}")" -ne 1 ]]; then

@@ -327,6 +327,31 @@ jobs:
             echo "TF_VAR_caddy_tls_ca_file=$cert_root/weave-local-ca.pem"
           } >>"$GITHUB_ENV"
 
+      - name: Detach the restored disposable bootstrap identity from stale state
+        working-directory: infra/weave-workspace
+        run: |
+          set -euo pipefail
+          address='module.tenant_identity.keycloak_user.test[0]'
+          tracked_before=false
+          tofu -chdir=02-keycloak-setup init -input=false >/dev/null
+          if tofu -chdir=02-keycloak-setup state show "$address" >/dev/null 2>&1; then
+            tracked_before=true
+            tofu -chdir=02-keycloak-setup state rm "$address" >/dev/null
+          fi
+          if tofu -chdir=02-keycloak-setup state show "$address" >/dev/null 2>&1; then
+            echo "::error::The restored disposable bootstrap identity remains managed by OpenTofu." >&2
+            exit 1
+          fi
+          jq -n --argjson trackedBefore "$tracked_before" '{
+            schemaVersion:"weave.dogfood.bootstrap-state-detachment.v1",
+            addressKind:"restored-disposable-bootstrap-identity",
+            trackedBefore:$trackedBefore,
+            trackedAfter:false,
+            providerMutationPerformed:false,
+            retirementBoundary:"keycloak-admin-api-exact-subject",
+            supportSafe:true
+          }' >"$WEAVE_RECOVERY_EVIDENCE_DIR/bootstrap-state-detachment.json"
+
       - name: Bootstrap lost persistent runtime with the exact candidate
         working-directory: infra/weave-workspace
         env:
