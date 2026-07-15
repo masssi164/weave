@@ -145,6 +145,20 @@ const _readySnapshot = WorkspaceCapabilitySnapshot(
   ),
 );
 
+WorkspaceCapabilitySnapshot _calendarUnavailableSnapshot() {
+  return WorkspaceCapabilitySnapshot(
+    shellAccess: _readySnapshot.shellAccess,
+    chat: _readySnapshot.chat,
+    files: _readySnapshot.files,
+    calendar: const WorkspaceCapabilityState(
+      capability: WorkspaceCapability.calendar,
+      readiness: WorkspaceCapabilityReadiness.unavailable,
+      policyState: WorkspaceCapabilityPolicyState.allowed,
+    ),
+    boards: _readySnapshot.boards,
+  );
+}
+
 void main() {
   group('CalendarScreen', () {
     testWidgets(
@@ -191,6 +205,41 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('Use Calendar in other apps'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'contains an unavailable Calendar locally and disables its create action',
+      (tester) async {
+        final repository = _FakeCalendarRepository(events: []);
+
+        await tester.pumpWidget(
+          createTestApp(
+            const CalendarScreen(),
+            overrides: [
+              workspaceCapabilitySnapshotProvider.overrideWithValue(
+                AsyncData(_calendarUnavailableSnapshot()),
+              ),
+              calendarRepositoryProvider.overrideWithValue(repository),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Calendar is unavailable'), findsOneWidget);
+        expect(
+          find.bySemanticsLabel(
+            RegExp(
+              'Calendar.*State: Unavailable.*This capability is not available',
+            ),
+          ),
+          findsOneWidget,
+        );
+        final createButton = tester.widget<IconButton>(
+          find.widgetWithIcon(IconButton, Icons.add),
+        );
+        expect(createButton.onPressed, isNull);
+        expect(repository.createdDrafts, isEmpty);
       },
     );
 

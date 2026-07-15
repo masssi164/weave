@@ -40,8 +40,16 @@ void main() {
       for (final obsoleteCopy in <String>[
         'First-run status',
         'first-run status',
+        'Checking your Weave workspace',
+        'Your Weave workspace is being prepared',
+        'Module readiness',
+        'Workspace setup needs admin attention before every capability is ready',
         'Erststart-Status',
         'Weave-Erststart-Status',
+        'Weave-Arbeitsbereich wird geprüft',
+        'Dein Weave-Arbeitsbereich wird vorbereitet',
+        'Modulbereitschaft',
+        'Die Einrichtung des Arbeitsbereichs benötigt Admin-Aufmerksamkeit',
       ]) {
         expect(
           userCopy,

@@ -73,7 +73,6 @@ WorkspaceMemberRecoveryState _unavailableRecoveryState(
   WorkspaceCapability capability,
 ) {
   return switch (capability) {
-    WorkspaceCapability.calendar ||
     WorkspaceCapability.boards ||
     WorkspaceCapability.meetingsCalls ||
     WorkspaceCapability.documentsCollaboration ||
@@ -85,6 +84,7 @@ WorkspaceMemberRecoveryState _unavailableRecoveryState(
     WorkspaceCapability.shellAccess ||
     WorkspaceCapability.chat ||
     WorkspaceCapability.files ||
+    WorkspaceCapability.calendar ||
     WorkspaceCapability.weaver => WorkspaceMemberRecoveryState.unavailable,
   };
 }
