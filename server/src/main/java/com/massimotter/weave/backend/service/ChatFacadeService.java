@@ -5,6 +5,8 @@ import com.massimotter.weave.backend.audit.AuditEvent;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.audit.AuditRedactionLevel;
 import com.massimotter.weave.backend.audit.AuditWriteGate;
+import com.massimotter.weave.backend.chat.ChatDomainFacadeService;
+import com.massimotter.weave.backend.chat.domain.ChatAccessDeniedException;
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
@@ -52,6 +54,7 @@ public class ChatFacadeService {
     private final WorkspaceCapabilityService workspaceCapabilityService;
     private final ContextAuthorizationPort contextAuthorizationPort;
     private final ContextAuthorizationProperties contextAuthorizationProperties;
+    private final ChatDomainFacadeService chatDomainFacadeService;
     private final AuditEventPublisher auditEventPublisher;
     private final ConcurrentMap<String, ChannelContextState> channelContexts = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, CopyOnWriteArrayList<DecisionLedgerRecordResponse>> decisions = new ConcurrentHashMap<>();
@@ -63,11 +66,13 @@ public class ChatFacadeService {
             WorkspaceCapabilityService workspaceCapabilityService,
             ContextAuthorizationPort contextAuthorizationPort,
             ContextAuthorizationProperties contextAuthorizationProperties,
+            ChatDomainFacadeService chatDomainFacadeService,
             AuditEventPublisher auditEventPublisher) {
         this.workspaceCapabilityProperties = workspaceCapabilityProperties;
         this.workspaceCapabilityService = workspaceCapabilityService;
         this.contextAuthorizationPort = contextAuthorizationPort;
         this.contextAuthorizationProperties = contextAuthorizationProperties;
+        this.chatDomainFacadeService = chatDomainFacadeService;
         this.auditEventPublisher = auditEventPublisher;
         seedChannelContexts();
     }
@@ -75,7 +80,7 @@ public class ChatFacadeService {
     public DecisionLedgerRecordsResponse decisions(Jwt jwt, String conversationId) {
         requireChatReady(jwt, "chat.read", "list_decisions");
         PrincipalContext principal = requireContextPermission(jwt, ContextPermission.VIEW);
-        ChannelContextState conversation = requireChannelContext(conversationId, principal.contextId());
+        ChannelContextState conversation = requireChannelContext(jwt, conversationId, principal);
         return new DecisionLedgerRecordsResponse(
                 conversation.id(),
                 conversation.contextId(),
@@ -93,7 +98,7 @@ public class ChatFacadeService {
     public DecisionLedgerRecordResponse createDecision(Jwt jwt, String conversationId, DecisionLedgerCreateRequest request) {
         requireChatReady(jwt, "chat.send", "create_decision");
         PrincipalContext principal = requireContextPermission(jwt, ContextPermission.EDIT);
-        ChannelContextState conversation = requireChannelContext(conversationId, principal.contextId());
+        ChannelContextState conversation = requireChannelContext(jwt, conversationId, principal);
         List<DecisionLedgerReferenceResponse> references = sanitizeDecisionReferences(request.references());
         if (references.isEmpty()) {
             throw new ApiErrorException(
@@ -129,7 +134,7 @@ public class ChatFacadeService {
     public MeetingCapsulesResponse meetingCapsules(Jwt jwt, String conversationId) {
         requireChatReady(jwt, "chat.read", "list_meeting_capsules");
         PrincipalContext principal = requireContextPermission(jwt, ContextPermission.VIEW);
-        ChannelContextState conversation = requireChannelContext(conversationId, principal.contextId());
+        ChannelContextState conversation = requireChannelContext(jwt, conversationId, principal);
         return new MeetingCapsulesResponse(
                 conversation.id(),
                 conversation.contextId(),
@@ -140,7 +145,7 @@ public class ChatFacadeService {
     public MeetingCapsuleResponse createMeetingCapsule(Jwt jwt, String conversationId, MeetingCapsuleCreateRequest request) {
         requireChatReady(jwt, "chat.send", "create_meeting_capsule");
         PrincipalContext principal = requireContextPermission(jwt, ContextPermission.EDIT);
-        ChannelContextState conversation = requireChannelContext(conversationId, principal.contextId());
+        ChannelContextState conversation = requireChannelContext(jwt, conversationId, principal);
         List<String> agendaItems = sanitizeTextList(request.agendaItems(), 160);
         if (agendaItems.isEmpty()) {
             throw new ApiErrorException(
@@ -179,7 +184,7 @@ public class ChatFacadeService {
     public WeaverScoutSummaryResponse weaverScoutSummary(Jwt jwt, String conversationId, WeaverScoutSummaryRequest request) {
         requireChatReady(jwt, "chat.read", "weaver_scout_summary");
         PrincipalContext principal = requireContextPermission(jwt, ContextPermission.VIEW);
-        ChannelContextState conversation = requireChannelContext(conversationId, principal.contextId());
+        ChannelContextState conversation = requireChannelContext(jwt, conversationId, principal);
         String question = sanitizeText(request.question(), "question", 240);
         List<WeaverScoutSourceResponse> sources = allowedWeaverSources(conversation);
         List<WeaverApprovalReceiptResponse> receipts = approvalReceiptsForScoutRequest(
@@ -365,19 +370,35 @@ public class ChatFacadeService {
         return value.trim();
     }
 
-    private ChannelContextState requireChannelContext(String conversationId, String contextId) {
+    private ChannelContextState requireChannelContext(
+            Jwt jwt,
+            String conversationId,
+            PrincipalContext principal) {
         ChannelContextState conversation = channelContexts.get(conversationId);
-        if (conversation == null || !conversation.contextId().equals(contextId)) {
-            throw new ApiErrorException(
-                    HttpStatus.NOT_FOUND,
-                    "chat-not_found",
-                    "Chat conversation was not found in this Context/Space.",
-                    Map.of(
-                            "module", DOMAIN,
-                            "resource", "conversation",
-                            "diagnosticsRedacted", true));
+        if (conversation != null && conversation.contextId().equals(principal.contextId())) {
+            return conversation;
         }
-        return conversation;
+
+        try {
+            var canonical = chatDomainFacadeService.conversation(conversationId, jwt);
+            return new ChannelContextState(
+                    canonical.conversationId(),
+                    principal.contextId(),
+                    canonical.title());
+        } catch (ChatAccessDeniedException | IllegalArgumentException ignored) {
+            // Deliberately collapse missing and unauthorized canonical Chat
+            // conversations so this cross-domain facade cannot enumerate
+            // room membership or provider mappings.
+        }
+
+        throw new ApiErrorException(
+                HttpStatus.NOT_FOUND,
+                "chat-not_found",
+                "Chat conversation was not found in this Context/Space.",
+                Map.of(
+                        "module", DOMAIN,
+                        "resource", "conversation",
+                        "diagnosticsRedacted", true));
     }
 
     private ApiErrorException chatUnavailable(String impactState, String message, String operation) {

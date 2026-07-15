@@ -1156,6 +1156,10 @@ Future<void> _establishEncryptedDeviceExchange({
   final supportCode = lastFailure is _ChatObservationFailure
       ? lastFailure.code
       : 'M_WEAVE_E2EE_DEVICE_EXCHANGE_FAILED';
+  debugPrint(
+    'MULTI_USER_E2EE_FAILURE Failure code: $supportCode '
+    'runIndex=${configuration.runIndex}',
+  );
   throw StateError(
     'The two established Matrix devices could not exchange encrypted '
     'messages. Failure code: $supportCode.',
