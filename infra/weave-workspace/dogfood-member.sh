@@ -12,6 +12,7 @@ EVIDENCE_FILE=""
 PRIOR_EVIDENCE_FILE=""
 RECOVERY_APPROVAL_REF=""
 RECOVERY_CONFIRMATION=""
+BOOTSTRAP_RETIREMENT_CONFIRMATION=""
 LIFESPAN_SECONDS="${WEAVE_DOGFOOD_MEMBER_ACTIVATION_LIFESPAN_SECONDS:-86400}"
 CLIENT_ID="weave-app"
 REDIRECT_URI="com.massimotter.weave:/oauthredirect"
@@ -21,13 +22,15 @@ MAILPIT_EXPECTED_SUBJECT="${WEAVE_DOGFOOD_MEMBER_MAIL_SUBJECT:-Complete your Wea
 MAIL_MESSAGE_ID_SHA256=""
 MAIL_VERIFIED_AT=""
 RECOVERY_CONFIRMATION_LITERAL="retire-lost-pending-identity"
+BOOTSTRAP_RETIREMENT_CONFIRMATION_LITERAL="retire-restored-test-bootstrap"
+RESTORED_BOOTSTRAP_USERNAME="test"
 
 log() { printf '%s\n' "$*"; }
 fail() { printf 'DOGFOOD_MEMBER_ERROR %s\n' "$*" >&2; exit 1; }
 
 usage() {
   cat <<'EOF'
-Usage: ./dogfood-member.sh status|ensure|resend-activation|recover-lost-pending [options]
+Usage: ./dogfood-member.sh status|ensure|resend-activation|recover-lost-pending|retire-restored-bootstrap [options]
 
 Manage the one persistent human dogfood member without overwriting it.
 
@@ -46,6 +49,8 @@ Options:
   --approval-ref URL     Protected GitHub Actions run URL (recovery only).
   --confirm-retirement VALUE
                          Must be 'retire-lost-pending-identity' (recovery only).
+  --confirm-bootstrap-retirement VALUE
+                         Must be 'retire-restored-test-bootstrap' (recovery only).
   -h, --help             Show this help.
 
 The helper creates and configures an absent identity exactly once. Existing
@@ -53,6 +58,8 @@ pending and active identities are never updated. resend-activation only sends
 mail for a pending identity. A recorded missing or changed subject fails closed.
 recover-lost-pending is an explicit disaster-recovery exception for a proven
 never-activated identity; it never applies to an active or ambiguous identity.
+retire-restored-bootstrap removes only the exact disposable 'test' identity
+from an older platform backup after proving no protected member is present.
 EOF
 }
 
@@ -70,7 +77,7 @@ load_environment() {
 parse_args() {
   [[ $# -gt 0 ]] || { usage >&2; exit 2; }
   OPERATION="$1"; shift
-  case "${OPERATION}" in status|ensure|resend-activation|recover-lost-pending) ;; *) fail "unknown operation '${OPERATION}'" ;; esac
+  case "${OPERATION}" in status|ensure|resend-activation|recover-lost-pending|retire-restored-bootstrap) ;; *) fail "unknown operation '${OPERATION}'" ;; esac
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --evidence-file) EVIDENCE_FILE="${2:-}"; shift 2 ;;
@@ -81,6 +88,7 @@ parse_args() {
       --prior-evidence) PRIOR_EVIDENCE_FILE="${2:-}"; shift 2 ;;
       --approval-ref) RECOVERY_APPROVAL_REF="${2:-}"; shift 2 ;;
       --confirm-retirement) RECOVERY_CONFIRMATION="${2:-}"; shift 2 ;;
+      --confirm-bootstrap-retirement) BOOTSTRAP_RETIREMENT_CONFIRMATION="${2:-}"; shift 2 ;;
       -h|--help) usage; exit 0 ;;
       *) fail "unknown argument '$1'" ;;
     esac
@@ -97,12 +105,18 @@ validate_inputs() {
   [[ "${MAILPIT_VERIFY_TIMEOUT_SECONDS}" =~ ^[0-9]+$ ]] || fail "Mailpit verification timeout must be seconds"
   (( MAILPIT_VERIFY_TIMEOUT_SECONDS >= 1 && MAILPIT_VERIFY_TIMEOUT_SECONDS <= 300 )) || fail "Mailpit verification timeout must be between 1 and 300 seconds"
   [[ -n "${EXPECTED_GROUPS}" ]] || fail "expected groups must not be empty"
-  if [[ "${OPERATION}" == recover-lost-pending ]]; then
-    [[ -n "${EVIDENCE_FILE}" ]] || fail "recover-lost-pending requires --evidence-file"
-    [[ -s "${PRIOR_EVIDENCE_FILE}" ]] || fail "recover-lost-pending requires existing --prior-evidence"
-    [[ "${RECOVERY_CONFIRMATION}" == "${RECOVERY_CONFIRMATION_LITERAL}" ]] || fail "recover-lost-pending requires the exact retirement confirmation"
+  if [[ "${OPERATION}" == recover-lost-pending || "${OPERATION}" == retire-restored-bootstrap ]]; then
+    [[ -n "${EVIDENCE_FILE}" ]] || fail "${OPERATION} requires --evidence-file"
+    [[ -s "${PRIOR_EVIDENCE_FILE}" ]] || fail "${OPERATION} requires existing --prior-evidence"
     [[ "${RECOVERY_APPROVAL_REF}" =~ ^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/actions/runs/[0-9]+$ ]] ||
-      fail "recover-lost-pending requires a support-safe protected GitHub Actions run URL"
+      fail "${OPERATION} requires a support-safe protected GitHub Actions run URL"
+  fi
+  if [[ "${OPERATION}" == recover-lost-pending ]]; then
+    [[ "${RECOVERY_CONFIRMATION}" == "${RECOVERY_CONFIRMATION_LITERAL}" ]] || fail "recover-lost-pending requires the exact retirement confirmation"
+  fi
+  if [[ "${OPERATION}" == retire-restored-bootstrap ]]; then
+    [[ "${BOOTSTRAP_RETIREMENT_CONFIRMATION}" == "${BOOTSTRAP_RETIREMENT_CONFIRMATION_LITERAL}" ]] ||
+      fail "retire-restored-bootstrap requires the exact bootstrap retirement confirmation"
   fi
 }
 
@@ -374,7 +388,7 @@ write_recovery_evidence() {
       realm:$realm,
       state:"pending",
       action:"lost_pending_identity_retired_and_recreated",
-      reason:"keycloak-runtime-lost-no-restorable-database-backup",
+      reason:"keycloak-runtime-lost-no-identity-restorable-database-backup",
       previousSubjectSha256:$previousSubjectSha256,
       subjectSha256:$subjectSha256,
       usernameSha256:$usernameSha256,
@@ -404,6 +418,86 @@ write_recovery_evidence() {
     rm -f -- "${output}" >/dev/null 2>&1 || true
     return 1
   fi
+}
+
+realm_human_users() {
+  local base="$1" token="$2" users
+  users="$(request GET "${base}/users?first=0&max=1000" "${token}")"
+  jq -c '[.[] | select((.serviceAccountClientId // "") == "")]' <<<"${users}"
+}
+
+write_bootstrap_retirement_evidence() {
+  local output="$1" recorded_subject="$2" bootstrap_subject="$3"
+  mkdir -p "$(dirname -- "${output}")" || return 1
+  if ! jq -n \
+    --arg realm "${REALM}" \
+    --arg recordedSubjectSha256 "$(sha256 "${recorded_subject}")" \
+    --arg retiredSubjectSha256 "$(sha256 "${bootstrap_subject}")" \
+    --arg retiredUsernameSha256 "$(sha256 "${RESTORED_BOOTSTRAP_USERNAME}")" \
+    --arg protectedUsernameSha256 "$(sha256 "${WEAVE_DOGFOOD_MEMBER_USERNAME}")" \
+    --arg approvalRef "${RECOVERY_APPROVAL_REF}" \
+    --arg retiredAt "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" '
+    {
+      schemaVersion:"weave.dogfood.restored-bootstrap-retirement.v1",
+      realm:$realm,
+      action:"restored_disposable_bootstrap_retired",
+      reason:"platform-backup-predates-recorded-protected-member",
+      recordedSubjectSha256:$recordedSubjectSha256,
+      retiredSubjectSha256:$retiredSubjectSha256,
+      retiredUsernameSha256:$retiredUsernameSha256,
+      protectedUsernameSha256:$protectedUsernameSha256,
+      protectedIdentityPresentBefore:false,
+      humanIdentityCountBefore:1,
+      humanIdentityCountAfter:0,
+      deletionBoundary:"keycloak-admin-api-exact-subject",
+      approvalRef:$approvalRef,
+      retiredAt:$retiredAt,
+      supportSafe:true
+    }
+  ' >"${output}"; then
+    rm -f -- "${output}" >/dev/null 2>&1 || true
+    return 1
+  fi
+  chmod 600 "${output}" || {
+    rm -f -- "${output}" >/dev/null 2>&1 || true
+    return 1
+  }
+}
+
+retire_restored_bootstrap() {
+  local base="$1" token="$2" current_user="$3" recorded humans bootstrap_user bootstrap_subject remaining
+  local evidence_temporary
+  recorded="$(recorded_subject)"
+  [[ -n "${recorded}" ]] || fail "retire-restored-bootstrap requires a recorded subject"
+  [[ -z "${current_user}" ]] || fail "retire-restored-bootstrap requires the configured identity to be absent"
+  validate_pending_recovery_evidence "${recorded}"
+  verify_recorded_subject_absent "${base}" "${token}" "${recorded}"
+
+  humans="$(realm_human_users "${base}" "${token}")"
+  [[ "$(jq 'length' <<<"${humans}")" -eq 1 ]] ||
+    fail "restored realm must contain exactly one non-service identity before bootstrap retirement"
+  bootstrap_user="$(jq -c --arg username "${RESTORED_BOOTSTRAP_USERNAME}" '[.[] | select(.username == $username)][0] // empty' <<<"${humans}")"
+  [[ -n "${bootstrap_user}" ]] || fail "the sole restored identity is not the disposable bootstrap user"
+  bootstrap_subject="$(jq -r '.id // empty' <<<"${bootstrap_user}")"
+  [[ -n "${bootstrap_subject}" && "${bootstrap_subject}" != "${recorded}" ]] ||
+    fail "restored bootstrap identity subject is missing or conflicts with the recorded member"
+
+  evidence_temporary="${EVIDENCE_FILE}.tmp.$$"
+  if ! (umask 077; write_bootstrap_retirement_evidence "${evidence_temporary}" "${recorded}" "${bootstrap_subject}"); then
+    rm -f -- "${evidence_temporary}" >/dev/null 2>&1 || true
+    fail "support-safe bootstrap retirement evidence could not be prepared"
+  fi
+  if ! request DELETE "${base}/users/${bootstrap_subject}" "${token}" >/dev/null; then
+    rm -f -- "${evidence_temporary}" >/dev/null 2>&1 || true
+    fail "restored bootstrap identity could not be retired through Keycloak"
+  fi
+  remaining="$(realm_human_users "${base}" "${token}")"
+  if [[ "$(jq 'length' <<<"${remaining}")" -ne 0 ]] || [[ -n "$(resolve_user "${base}" "${token}")" ]]; then
+    rm -f -- "${evidence_temporary}" >/dev/null 2>&1 || true
+    fail "restored realm identity cleanup did not reach the exact empty human boundary"
+  fi
+  mv "${evidence_temporary}" "${EVIDENCE_FILE}"
+  log "DOGFOOD_MEMBER_RECOVERY action=restored_disposable_bootstrap_retired retiredSubjectSha256=$(sha256 "${bootstrap_subject}") humanIdentityCountAfter=0 supportSafe=true"
 }
 
 archive_and_replace_subject() {
@@ -497,6 +591,10 @@ main() {
   local token base user state subject="" action="none" mail_before=""
   token="$(admin_token)"; [[ -n "${token}" ]] || fail "Keycloak admin authentication failed"
   base="$(api_base)"; user="$(resolve_user "${base}" "${token}")"
+  if [[ "${OPERATION}" == retire-restored-bootstrap ]]; then
+    retire_restored_bootstrap "${base}" "${token}" "${user}"
+    return
+  fi
   if [[ "${OPERATION}" == recover-lost-pending ]]; then
     recover_lost_pending "${base}" "${token}" "${user}"
     return

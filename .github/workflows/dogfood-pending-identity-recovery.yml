@@ -9,7 +9,11 @@ on:
         required: true
         type: string
       retirement_confirmation:
-        description: "After proving no Keycloak database backup is restorable, type retire-lost-pending-identity"
+        description: "After proving no backup is identity-restorable for the recorded subject, type retire-lost-pending-identity"
+        required: true
+        type: string
+      bootstrap_retirement_confirmation:
+        description: "After proving the restored realm contains only the obsolete disposable test identity, type retire-restored-test-bootstrap"
         required: true
         type: string
       weave_backend_image:
@@ -44,6 +48,7 @@ jobs:
       DISPATCH_REF: ${{ github.ref_name }}
       CANDIDATE_SHA: ${{ inputs.candidate_sha }}
       RETIREMENT_CONFIRMATION: ${{ inputs.retirement_confirmation }}
+      BOOTSTRAP_RETIREMENT_CONFIRMATION: ${{ inputs.bootstrap_retirement_confirmation }}
       WEAVE_BACKEND_IMAGE: ${{ inputs.weave_backend_image }}
       WEAVE_MCP_SERVER_IMAGE: ${{ inputs.weave_mcp_server_image }}
       TF_VAR_db_admin_password: ci-db-admin-password
@@ -102,6 +107,10 @@ jobs:
           }
           [[ "$RETIREMENT_CONFIRMATION" == retire-lost-pending-identity ]] || {
             echo "::error::The exact pending-identity retirement confirmation was not supplied." >&2
+            exit 1
+          }
+          [[ "$BOOTSTRAP_RETIREMENT_CONFIRMATION" == retire-restored-test-bootstrap ]] || {
+            echo "::error::The exact restored-bootstrap retirement confirmation was not supplied." >&2
             exit 1
           }
 
@@ -301,6 +310,18 @@ jobs:
         working-directory: infra/weave-workspace
         run: bash ./operator-check.sh
 
+      - name: Retire the proven restored disposable bootstrap identity
+        working-directory: infra/weave-workspace
+        run: |
+          set -euo pipefail
+          dogfood_root="$HOME/.weave/dogfood"
+          WEAVE_DOGFOOD_MEMBER_SUBJECT_FILE="$dogfood_root/persistent-member.subject" \
+            ./dogfood-member.sh retire-restored-bootstrap \
+              --prior-evidence "$dogfood_root/persistent-member-ensure.json" \
+              --evidence-file "$WEAVE_RECOVERY_EVIDENCE_DIR/restored-bootstrap-retirement.json" \
+              --approval-ref "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+              --confirm-bootstrap-retirement "$BOOTSTRAP_RETIREMENT_CONFIRMATION"
+
       - name: Retire the proven lost pending subject and create one replacement
         working-directory: infra/weave-workspace
         run: |
@@ -346,6 +367,15 @@ jobs:
             $status[0].subjectSha256 == .subjectSha256 and
             $status[0].supportSafe == true
           ' "$WEAVE_RECOVERY_EVIDENCE_DIR/pending-identity-transition.json" >/dev/null
+          jq -e '
+            .schemaVersion == "weave.dogfood.restored-bootstrap-retirement.v1" and
+            .action == "restored_disposable_bootstrap_retired" and
+            .protectedIdentityPresentBefore == false and
+            .humanIdentityCountBefore == 1 and
+            .humanIdentityCountAfter == 0 and
+            .deletionBoundary == "keycloak-admin-api-exact-subject" and
+            .supportSafe == true
+          ' "$WEAVE_RECOVERY_EVIDENCE_DIR/restored-bootstrap-retirement.json" >/dev/null
 
       - name: Create private post-recovery backup and run restore smoke
         working-directory: infra/weave-workspace
@@ -398,8 +428,14 @@ jobs:
         if: ${{ always() && env.WEAVE_RECOVERY_EVIDENCE_DIR != '' }}
         run: |
           set -euo pipefail
+          bootstrap_retirement_completed=false
           transition_completed=false
           backup_completed=false
+          if [[ -s "$WEAVE_RECOVERY_EVIDENCE_DIR/restored-bootstrap-retirement.json" ]] && \
+              jq -e '.action == "restored_disposable_bootstrap_retired" and .humanIdentityCountAfter == 0 and .supportSafe == true' \
+                "$WEAVE_RECOVERY_EVIDENCE_DIR/restored-bootstrap-retirement.json" >/dev/null; then
+            bootstrap_retirement_completed=true
+          fi
           if [[ -s "$WEAVE_RECOVERY_EVIDENCE_DIR/pending-identity-transition.json" ]] && \
               jq -e '.action == "lost_pending_identity_retired_and_recreated" and .supportSafe == true' \
                 "$WEAVE_RECOVERY_EVIDENCE_DIR/pending-identity-transition.json" >/dev/null; then
@@ -414,11 +450,11 @@ jobs:
           recovery_state=not-completed
           overall_state=failed
           blockers='["protected-recovery-incomplete"]'
-          if [[ "$transition_completed" == true && "$backup_completed" == true ]]; then
+          if [[ "$bootstrap_retirement_completed" == true && "$transition_completed" == true && "$backup_completed" == true ]]; then
             recovery_state=completed
             overall_state=blocked
             blockers='["human-activation-required","active-session-required","two-install-dogfood-deployment-required"]'
-          elif [[ "$transition_completed" == true ]]; then
+          elif [[ "$bootstrap_retirement_completed" == true && "$transition_completed" == true ]]; then
             recovery_state=transition-completed-backup-incomplete
             blockers='["private-backup-or-restore-smoke-failed","human-activation-required","active-session-required","two-install-dogfood-deployment-required"]'
           fi
@@ -428,6 +464,7 @@ jobs:
             --arg specCorpusCommit "$SPEC_CORPUS_COMMIT" \
             --arg isolatedE2ERunId "$ISOLATED_E2E_RUN_ID" \
             --arg runUrl "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --arg bootstrapRetirementStatus "$([[ "$bootstrap_retirement_completed" == true ]] && printf passed || printf failed)" \
             --arg recoveryState "$recovery_state" \
             --arg overallState "$overall_state" \
             --argjson blockers "$blockers" '
@@ -437,6 +474,7 @@ jobs:
               specCorpusCommit:$specCorpusCommit,
               isolatedE2ERunId:$isolatedE2ERunId,
               runUrl:$runUrl,
+              restoredBootstrapRetirementStatus:$bootstrapRetirementStatus,
               recoveryState:$recoveryState,
               overallState:$overallState,
               blockers:$blockers,

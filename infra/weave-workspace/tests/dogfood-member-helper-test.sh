@@ -40,9 +40,14 @@ if [[ "${url}" == *'/api/v1/messages' ]]; then
   else
     printf '{"messages":[]}'
   fi
+elif [[ "${url}" == *'/users?first=0&max=1000'* ]]; then
+  case "${state}" in
+    restored-bootstrap) printf '[{"id":"bootstrap-subject-1","username":"test","enabled":true,"emailVerified":true,"requiredActions":[]}]' ;;
+    *) printf '[]' ;;
+  esac
 elif [[ "${url}" == *'/users?'* ]]; then
   case "${state}" in
-    missing) printf '[]' ;;
+    missing|restored-bootstrap) printf '[]' ;;
     pending) printf '[{"id":"human-subject-1","username":"human","email":"human@example.test","enabled":true,"emailVerified":false,"requiredActions":["VERIFY_EMAIL","UPDATE_PASSWORD"]}]' ;;
     pending-replacement) printf '[{"id":"human-subject-2","username":"human","email":"human@example.test","enabled":true,"emailVerified":false,"requiredActions":["VERIFY_EMAIL","UPDATE_PASSWORD"]}]' ;;
     active) printf '[{"id":"human-subject-1","username":"human","email":"human@example.test","enabled":true,"emailVerified":true,"requiredActions":[]}]' ;;
@@ -57,6 +62,8 @@ elif [[ "${method}" == POST && "${url}" == */users ]]; then
     printf pending >"${FAKE_STATE}"
   fi
 elif [[ "${method}" == DELETE && "${url}" == */users/human-subject-2 ]]; then
+  printf missing >"${FAKE_STATE}"
+elif [[ "${method}" == DELETE && "${url}" == */users/bootstrap-subject-1 ]]; then
   printf missing >"${FAKE_STATE}"
 elif [[ "${url}" == *execute-actions-email* ]]; then
   [[ "${FAKE_DROP_MAIL:-false}" == true ]] || printf sent >"${FAKE_MAIL_SENT}"
@@ -165,6 +172,44 @@ if env FAKE_CREATE_REPLACEMENT=true FAKE_RECORDED_SUBJECT_PRESENT=true "${SCRIPT
 fi
 grep -Fq 'recorded pending subject still exists in Keycloak' "${TMP_DIR}/old-subject-present.out"
 [[ "$(grep -c 'POST .*\/users$' "${FAKE_CURL_LOG}" || true)" -eq 0 ]]
+
+bootstrap_retirement_evidence="${TMP_DIR}/bootstrap-retirement.json"
+printf restored-bootstrap >"${FAKE_STATE}"
+: >"${FAKE_CURL_LOG}"
+if "${SCRIPT}" retire-restored-bootstrap \
+  --subject-file "${subject_file}" \
+  --prior-evidence "${evidence_file}" \
+  --evidence-file "${bootstrap_retirement_evidence}" \
+  --approval-ref 'https://github.com/masssi164/weave/actions/runs/1234' \
+  --confirm-bootstrap-retirement wrong-confirmation >"${TMP_DIR}/wrong-bootstrap-confirmation.out" 2>&1; then
+  echo 'restored bootstrap retirement accepted the wrong confirmation' >&2; exit 1
+fi
+grep -Fq 'requires the exact bootstrap retirement confirmation' "${TMP_DIR}/wrong-bootstrap-confirmation.out"
+[[ "$(grep -c 'DELETE .*\/users\/bootstrap-subject-1' "${FAKE_CURL_LOG}" || true)" -eq 0 ]]
+
+: >"${FAKE_CURL_LOG}"
+output="$("${SCRIPT}" retire-restored-bootstrap \
+  --subject-file "${subject_file}" \
+  --prior-evidence "${evidence_file}" \
+  --evidence-file "${bootstrap_retirement_evidence}" \
+  --approval-ref 'https://github.com/masssi164/weave/actions/runs/1234' \
+  --confirm-bootstrap-retirement retire-restored-test-bootstrap)"
+grep -Fq 'action=restored_disposable_bootstrap_retired' <<<"${output}"
+[[ "$(cat "${FAKE_STATE}")" == missing ]]
+[[ "$(grep -c 'DELETE .*\/users\/bootstrap-subject-1' "${FAKE_CURL_LOG}")" -eq 1 ]]
+jq -e '
+  .schemaVersion == "weave.dogfood.restored-bootstrap-retirement.v1" and
+  .action == "restored_disposable_bootstrap_retired" and
+  .reason == "platform-backup-predates-recorded-protected-member" and
+  .protectedIdentityPresentBefore == false and
+  .humanIdentityCountBefore == 1 and
+  .humanIdentityCountAfter == 0 and
+  .deletionBoundary == "keycloak-admin-api-exact-subject" and
+  .supportSafe == true
+' "${bootstrap_retirement_evidence}" >/dev/null
+if grep -Eq 'bootstrap-subject-1|human-subject-1|human@example\.test|"test"' "${bootstrap_retirement_evidence}"; then
+  echo 'bootstrap retirement evidence leaked direct identity data' >&2; exit 1
+fi
 
 : >"${FAKE_CURL_LOG}"
 if env FAKE_CREATE_REPLACEMENT=true FAKE_FAIL_ACCESS=true "${SCRIPT}" recover-lost-pending \

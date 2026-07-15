@@ -538,6 +538,7 @@
           "path": "infra/weave-workspace/tests/dogfood-member-helper-test.sh",
           "fragments": [
             "recorded pending subject still exists in Keycloak",
+            "restored_disposable_bootstrap_retired",
             "lost_pending_identity_retired_and_recreated",
             "retired-pending-identities"
           ]
@@ -545,6 +546,7 @@
         {
           "path": ".github/workflows/dogfood-pending-identity-recovery.yml",
           "fragments": [
+            "retire-restored-test-bootstrap",
             "retire-lost-pending-identity",
             "humanTestingReady:false",
             "two-install-dogfood-deployment-required"

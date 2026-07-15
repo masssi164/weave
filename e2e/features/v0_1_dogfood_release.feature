@@ -42,7 +42,8 @@ Feature: Weave v0.1 dogfood production release
 
   @weave-v01-lost-pending-identity-retirement
   Scenario: Lost never-activated dogfood identity requires protected retirement
-    Given the persistent Keycloak database has no restorable backup
+    Given no integrity-checked database backup is identity-restorable for the recorded human subject
+    And any restored disposable bootstrap identity is uniquely proven and removed through Keycloak
     And the recorded human dogfood subject has accepted evidence only in the pending activation state
     And the current realm contains no matching or ambiguous identity
     When an operator explicitly approves retiring that lost pending identity

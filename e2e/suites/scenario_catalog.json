@@ -577,6 +577,8 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
+        "backup integrity and identity-restorability are proven separately",
+        "only the exact restored disposable bootstrap identity is removed through Keycloak",
         "only a proven never-activated lost subject is eligible",
         "explicit protected retirement approval",
         "private raw-subject archive and support-safe shared evidence",
