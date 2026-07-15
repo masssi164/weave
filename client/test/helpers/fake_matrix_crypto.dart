@@ -58,6 +58,7 @@ class FakeRustMatrixCoreBridge extends RustMatrixCoreBridge {
   final List<Map<String, String>> initializations = <Map<String, String>>[];
   final List<String> syncProfiles = <String>[];
   final List<Map<String, String>> sentMessages = <Map<String, String>>[];
+  final List<Map<String, String>> createdRooms = <Map<String, String>>[];
   final List<Map<String, String>> receipts = <Map<String, String>>[];
   final List<String> disposedProfiles = <String>[];
   String recoveryKey = 'recovery-key';
@@ -112,6 +113,23 @@ class FakeRustMatrixCoreBridge extends RustMatrixCoreBridge {
   Future<List<RustMatrixEncryptedRoom>> loadEncryptedRooms({
     required String profileKey,
   }) async => rooms;
+
+  @override
+  Future<RustMatrixEncryptedRoom> createEncryptedRoom({
+    required String profileKey,
+    required String title,
+  }) async {
+    createdRooms.add(<String, String>{
+      'profileKey': profileKey,
+      'title': title,
+    });
+    return RustMatrixEncryptedRoom(
+      roomId: '!created:api.weave.test',
+      title: title,
+      unreadCount: 0,
+      encrypted: true,
+    );
+  }
 
   @override
   Future<List<RustMatrixMessageProjection>> loadEncryptedRoomMessages({

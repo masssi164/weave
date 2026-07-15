@@ -1,6 +1,7 @@
 use matrix_sdk::{
     authentication::{matrix::MatrixSession, SessionTokens},
     config::SyncSettings,
+    deserialized_responses::{TimelineEvent, TimelineEventKind, UnableToDecryptReason},
     encryption::{
         recovery::{RecoveryError, RecoveryState},
         verification::{
@@ -10,13 +11,18 @@ use matrix_sdk::{
     },
     room::{MessagesOptions, RoomMember},
     ruma::{
-        api::client::receipt::create_receipt::v3::ReceiptType,
+        api::client::{
+            receipt::create_receipt::v3::ReceiptType,
+            room::create_room::v3::{Request as CreateRoomRequest, RoomPreset},
+        },
         api::error::ErrorKind,
         api::MatrixVersion,
         events::receipt::ReceiptThread,
         events::{
             key::verification::{request::ToDeviceKeyVerificationRequestEvent, VerificationMethod},
+            room::encryption::RoomEncryptionEventContent,
             room::message::RoomMessageEventContent,
+            InitialStateEvent,
         },
         OwnedDeviceId, OwnedEventId, OwnedRoomId, OwnedUserId, UInt,
     },
@@ -26,7 +32,7 @@ use matrix_sdk::{
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use serde_json::{json, Value};
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     path::Path,
     sync::{Arc, Mutex, OnceLock},
     time::Duration,
@@ -302,12 +308,13 @@ async fn sync_inner(profile_key: &str) -> Result<Value, String> {
         profile_key,
         &client,
         Duration::from_secs(0),
+        None,
         "M_WEAVE_E2EE_SYNC",
     )
     .await?;
     let progress = background_sync_progress_for(profile_key)?;
     publish_completed_sync(&progress, &completed);
-    start_background_sync(profile_key, &client)?;
+    start_background_sync(profile_key, &client, completed.next_batch.clone())?;
 
     Ok(json!({
         "nextBatch": completed.next_batch,
@@ -321,17 +328,23 @@ async fn complete_sync_cycle(
     profile_key: &str,
     client: &Client,
     timeout: Duration,
+    since: Option<&str>,
     error_code: &str,
 ) -> Result<CompletedSyncCycle, String> {
+    let settings = sync_settings(timeout, since);
     let mut response = client
-        .sync_once(SyncSettings::new().timeout(timeout))
+        .sync_once(settings)
         .await
         .map_err(|error| matrix_sdk_error_code(&error, error_code))?;
     let (mut enabled_rooms, mut converged_rooms) =
         converge_joined_room_security(profile_key, client).await?;
     if enabled_rooms > 0 {
+        let next_batch = response.next_batch.clone();
         response = client
-            .sync_once(SyncSettings::new().timeout(Duration::from_secs(0)))
+            .sync_once(sync_settings(
+                Duration::from_secs(0),
+                Some(next_batch.as_str()),
+            ))
             .await
             .map_err(|error| matrix_sdk_error_code(&error, error_code))?;
         let (newly_enabled_rooms, newly_converged_rooms) =
@@ -344,6 +357,14 @@ async fn complete_sync_cycle(
         enabled_rooms,
         converged_rooms,
     })
+}
+
+fn sync_settings(timeout: Duration, since: Option<&str>) -> SyncSettings {
+    let settings = SyncSettings::new().timeout(timeout);
+    match since.filter(|value| !value.is_empty()) {
+        Some(cursor) => settings.token(cursor.to_owned()),
+        None => settings,
+    }
 }
 
 async fn converge_joined_room_security(
@@ -473,14 +494,18 @@ fn publish_completed_sync(
     });
 }
 
-fn start_background_sync(profile_key: &str, client: &Client) -> Result<(), String> {
+fn start_background_sync(
+    profile_key: &str,
+    client: &Client,
+    initial_cursor: String,
+) -> Result<(), String> {
     let progress = background_sync_progress_for(profile_key)?;
     progress.send_modify(|state| state.terminal_error = None);
     let sync_client = client.clone();
     let sync_profile_key = profile_key.to_string();
     let sync_progress = progress.clone();
     let task = tokio::spawn(async move {
-        run_background_sync(sync_profile_key, sync_client, sync_progress).await;
+        run_background_sync(sync_profile_key, sync_client, sync_progress, initial_cursor).await;
     });
     let mut guard = clients()
         .lock()
@@ -499,19 +524,23 @@ async fn run_background_sync(
     profile_key: String,
     client: Client,
     progress: watch::Sender<BackgroundSyncProgress>,
+    initial_cursor: String,
 ) {
     let mut consecutive_failures = 0_u32;
+    let mut cursor = initial_cursor;
     loop {
         let delay = match complete_sync_cycle(
             &profile_key,
             &client,
             Duration::from_secs(30),
+            Some(cursor.as_str()),
             "M_WEAVE_E2EE_BACKGROUND_SYNC",
         )
         .await
         {
             Ok(completed) => {
                 consecutive_failures = 0;
+                cursor = completed.next_batch.clone();
                 publish_completed_sync(&progress, &completed);
                 BACKGROUND_SYNC_POLL_INTERVAL
             }
@@ -556,6 +585,41 @@ fn abort_background_sync(managed: &mut ManagedClient) {
 
 pub async fn rooms(profile_key: String) -> String {
     json_result(rooms_inner(&profile_key).await)
+}
+
+pub async fn create_encrypted_room(profile_key: String, title: String) -> String {
+    json_result(create_encrypted_room_inner(&profile_key, &title).await)
+}
+
+async fn create_encrypted_room_inner(profile_key: &str, title: &str) -> Result<Value, String> {
+    let title = title.trim();
+    if title.is_empty() || title.chars().count() > 200 {
+        return Err("M_INVALID_PARAM".to_string());
+    }
+    let client = client_for(profile_key)?;
+    let mut request = CreateRoomRequest::new();
+    request.name = Some(title.to_owned());
+    request.preset = Some(RoomPreset::PrivateChat);
+    request.initial_state = vec![InitialStateEvent::with_empty_state_key(
+        RoomEncryptionEventContent::with_recommended_defaults(),
+    )
+    .to_raw_any()];
+    let room = client
+        .create_room(request)
+        .await
+        .map_err(|error| matrix_sdk_error_code(&error, "M_WEAVE_E2EE_CREATE_ROOM"))?;
+
+    // The facade commits room creation before it appears in the client's
+    // joined-room cache. Cross the same single-owner sync barrier used by
+    // normal Chat refreshes so the returned conversation is immediately
+    // navigable and its encryption state is available before the first send.
+    sync_inner(profile_key).await?;
+
+    Ok(json!({
+        "roomId": room.room_id().to_string(),
+        "title": title,
+        "encrypted": true,
+    }))
 }
 
 async fn rooms_inner(profile_key: &str) -> Result<Value, String> {
@@ -612,6 +676,7 @@ async fn room_messages_inner(
         .messages(options)
         .await
         .map_err(|_| "M_WEAVE_E2EE_TIMELINE".to_string())?;
+    let decryption = decryption_diagnostics(&response.chunk);
     let mut messages = response
         .chunk
         .iter()
@@ -622,6 +687,7 @@ async fn room_messages_inner(
         "roomId": room_id.to_string(),
         "messages": messages,
         "end": response.end,
+        "decryption": decryption,
     }))
 }
 
@@ -1214,9 +1280,7 @@ fn verification_json(profile_key: &str) -> Result<Value, String> {
     Ok(json!({ "phase": "none" }))
 }
 
-fn project_timeline_event(
-    event: &matrix_sdk::deserialized_responses::TimelineEvent,
-) -> Option<Value> {
+fn project_timeline_event(event: &TimelineEvent) -> Option<Value> {
     if event.encryption_info().is_none() {
         return None;
     }
@@ -1232,6 +1296,47 @@ fn project_timeline_event(
         "body": body,
         "contentType": "encryptedText",
     }))
+}
+
+fn decryption_diagnostics(events: &[TimelineEvent]) -> Value {
+    let mut decrypted = 0_u64;
+    let mut unable_to_decrypt = 0_u64;
+    let mut plaintext = 0_u64;
+    let mut reasons = BTreeMap::<&'static str, u64>::new();
+
+    for event in events {
+        match &event.kind {
+            TimelineEventKind::Decrypted(_) => decrypted += 1,
+            TimelineEventKind::UnableToDecrypt { utd_info, .. } => {
+                unable_to_decrypt += 1;
+                *reasons
+                    .entry(unable_to_decrypt_reason(utd_info.reason.clone()))
+                    .or_default() += 1;
+            }
+            TimelineEventKind::PlainText { .. } => plaintext += 1,
+        }
+    }
+
+    json!({
+        "eventCount": events.len(),
+        "decryptedCount": decrypted,
+        "unableToDecryptCount": unable_to_decrypt,
+        "plaintextCount": plaintext,
+        "reasonCounts": reasons,
+    })
+}
+
+fn unable_to_decrypt_reason(reason: UnableToDecryptReason) -> &'static str {
+    match reason {
+        UnableToDecryptReason::MissingMegolmSession { .. } => "missingMegolmSession",
+        UnableToDecryptReason::MalformedEncryptedEvent => "malformedEncryptedEvent",
+        UnableToDecryptReason::UnknownMegolmMessageIndex => "unknownMegolmMessageIndex",
+        UnableToDecryptReason::MegolmDecryptionFailure => "megolmDecryptionFailure",
+        UnableToDecryptReason::PayloadDeserializationFailure => "payloadDeserializationFailure",
+        UnableToDecryptReason::MismatchedIdentityKeys => "mismatchedIdentityKeys",
+        UnableToDecryptReason::SenderIdentityNotTrusted(_) => "senderIdentityNotTrusted",
+        _ => "unknown",
+    }
 }
 
 fn recovery_state_name(state: RecoveryState) -> &'static str {
@@ -1422,6 +1527,24 @@ mod tests {
         assert_eq!(background_sync_retry_delay(4), Duration::from_secs(16));
         assert_eq!(background_sync_retry_delay(5), BACKGROUND_SYNC_MAX_BACKOFF);
         assert_eq!(background_sync_retry_delay(50), BACKGROUND_SYNC_MAX_BACKOFF);
+    }
+
+    #[test]
+    fn decryption_failure_reasons_are_support_safe_and_specific() {
+        assert_eq!(
+            unable_to_decrypt_reason(UnableToDecryptReason::MissingMegolmSession {
+                withheld_code: None,
+            }),
+            "missingMegolmSession"
+        );
+        assert_eq!(
+            unable_to_decrypt_reason(UnableToDecryptReason::MismatchedIdentityKeys),
+            "mismatchedIdentityKeys"
+        );
+        assert_eq!(
+            unable_to_decrypt_reason(UnableToDecryptReason::MalformedEncryptedEvent),
+            "malformedEncryptedEvent"
+        );
     }
 
     #[test]

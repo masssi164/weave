@@ -116,6 +116,24 @@ test-certificate
     );
   });
 
+  test('decryption diagnostics expose only support-safe reason counts', () {
+    final diagnostics = RustMatrixDecryptionDiagnostics.fromJson({
+      'eventCount': 3,
+      'decryptedCount': 1,
+      'unableToDecryptCount': 2,
+      'plaintextCount': 0,
+      'reasonCounts': {'missingMegolmSession': 2},
+      'session_id': 'must-not-be-projected',
+    });
+
+    expect(diagnostics.eventCount, 3);
+    expect(diagnostics.decryptedCount, 1);
+    expect(diagnostics.unableToDecryptCount, 2);
+    expect(diagnostics.reasonCounts, {'missingMegolmSession': 2});
+    expect(diagnostics.supportCode, 'M_WEAVE_E2EE_MISSING_MEGOLM_SESSION');
+    expect(diagnostics.reasonCounts.toString(), isNot(contains('session_id')));
+  });
+
   test('whoami identity is validated inside the Rust core', () async {
     const bridge = RustMatrixCoreBridge();
 

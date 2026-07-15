@@ -24,6 +24,7 @@ import 'package:weave/features/server_config/domain/entities/server_configuratio
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
 import 'package:weave/integrations/rust_matrix_core/presentation/providers/matrix_crypto_session_provider.dart';
+import 'package:weave/integrations/rust_matrix_core/data/services/rust_matrix_core_bridge.dart';
 
 import 'live_oidc_test_driver.dart';
 import 'multi_user_test_config.dart';
@@ -270,6 +271,18 @@ class LiveActorSession {
       );
     }
     return (accessToken: session.accessToken, deviceId: deviceId);
+  }
+
+  Future<RustMatrixDecryptionDiagnostics> chatDecryptionDiagnostics(
+    String roomId,
+  ) async {
+    final cryptoSession = await container
+        .read(matrixCryptoSessionCoordinatorProvider)
+        .open(synchronize: false);
+    return const RustMatrixCoreBridge().loadDecryptionDiagnostics(
+      profileKey: cryptoSession.profileKey,
+      roomId: roomId,
+    );
   }
 
   Future<void> close() async {

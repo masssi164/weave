@@ -75,6 +75,8 @@ assert_file_contains "${infra_main}" 'caldav_external_profile_password_mode     
 assert_file_contains "${infra_main}" 'caldav_external_private_user_calendars           = "disabled"'
 assert_file_contains "${install_script}" 'WEAVE_CALDAV_EXTERNAL_DISCOVERY_URL'
 assert_file_contains "${install_script}" 'WEAVE_CALDAV_EXTERNAL_PROFILE_PASSWORD_MODE'
+assert_file_contains "${install_script}" '  TF_VAR_mcp_boundary_token'
+assert_file_contains "${install_script}" 'set_default_secret TF_VAR_mcp_boundary_token'
 assert_file_contains "${release_env}" 'WEAVE_CALDAV_EXTERNAL_DISCOVERY_URL=https://files.weave.example/remote.php/dav'
 assert_file_contains "${caldav_doc}" 'CalDAV/CardDAV'
 assert_file_contains "${caldav_doc}" 'Forms are visible provider seams'

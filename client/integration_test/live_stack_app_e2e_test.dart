@@ -282,29 +282,37 @@ void main() {
         homeserver: config.matrixHomeserverUrl,
       );
       await matrixRoomDriver.registerWhoami(matrixActor);
-      final preparedGeneralRoomId = await matrixRoomDriver.requireJoinedRoom(
-        actor: matrixActor,
-        conversationIdFragment: 'channel-general',
+      final preparedConversation = await matrixRoomDriver.createEncryptedRoom(
+        author: matrixActor,
+        roomName:
+            'Weave live acceptance ${DateTime.now().millisecondsSinceEpoch}',
       );
-      await matrixRoomDriver.enableEncryptionOnJoinedRoom(
-        actor: matrixActor,
-        roomId: preparedGeneralRoomId,
+      final preparedRoomId = preparedConversation.roomId;
+      final workspaceLoopConversationId = _canonicalConversationId(
+        preparedRoomId,
+        expectedServerName: config.matrixHomeserverUrl.host,
       );
       final liveChatEventIds = <String>{};
       var liveStackAssertionsPassed = false;
       addTearDown(() async {
-        if (liveChatEventIds.isEmpty) {
-          return;
-        }
-        final redactedCount = await matrixRoomDriver.redactEventsAndVerify(
-          actor: matrixActor,
-          roomId: preparedGeneralRoomId,
-          eventIds: liveChatEventIds,
-        );
-        if (redactedCount != liveChatEventIds.length ||
-            (liveStackAssertionsPassed && redactedCount != 2)) {
-          throw const MatrixLiveRoomDriverException(
-            'M_WEAVE_LIVE_MATRIX_CLEANUP_INCOMPLETE',
+        try {
+          if (liveChatEventIds.isNotEmpty) {
+            final redactedCount = await matrixRoomDriver.redactEventsAndVerify(
+              actor: matrixActor,
+              roomId: preparedRoomId,
+              eventIds: liveChatEventIds,
+            );
+            if (redactedCount != liveChatEventIds.length ||
+                (liveStackAssertionsPassed && redactedCount != 2)) {
+              throw const MatrixLiveRoomDriverException(
+                'M_WEAVE_LIVE_MATRIX_CLEANUP_INCOMPLETE',
+              );
+            }
+          }
+        } finally {
+          await matrixRoomDriver.leaveRoom(
+            actor: matrixActor,
+            roomId: preparedRoomId,
           );
         }
       });
@@ -333,7 +341,7 @@ void main() {
       final conversations = await chatRepository.loadConversations();
       final roomId = conversations
           .map((conversation) => conversation.id)
-          .firstWhere((id) => id.contains('channel-general'), orElse: () => '');
+          .firstWhere((id) => id == preparedRoomId, orElse: () => '');
       if (roomId.isEmpty) {
         fail(
           'chat_facade_conversation_missing '
@@ -484,7 +492,6 @@ void main() {
       );
 
       final workspaceLoopFileRef = 'file:$seededFileName';
-      const workspaceLoopConversationId = 'channel-general';
       final workspaceLoopChatText =
           'Workspace loop evidence: file reference $workspaceLoopFileRef is ready for board, calendar, and decision follow-up.';
       await chatRepository.sendMessage(
@@ -506,8 +513,9 @@ void main() {
         liveChatEventIds.add(workspaceLoopChatMessage.id);
       }
       final workspaceLoopChatUsesCanonicalIds =
-          workspaceLoopConversationId == 'channel-general' &&
-          roomId.contains('channel-general') &&
+          workspaceLoopConversationId.startsWith('room-') &&
+          roomId ==
+              '!$workspaceLoopConversationId:${config.matrixHomeserverUrl.host}' &&
           workspaceLoopChatMessageId.startsWith(r'$') &&
           workspaceLoopChatMessageId.contains(
             ':${config.matrixHomeserverUrl.host}',
@@ -821,7 +829,9 @@ void main() {
           : 'calendar:policy-blocked';
       final createdDecision = _decodeHttpJson(
         await liveHttpClient.post(
-          config.apiUri('/api/chat/conversations/channel-general/decisions'),
+          config.apiUri(
+            '/api/chat/conversations/$workspaceLoopConversationId/decisions',
+          ),
           headers: <String, String>{
             'Accept': 'application/json',
             'Authorization': 'Bearer ${appSession.accessToken}',
@@ -872,7 +882,9 @@ void main() {
       );
       final decisionsSnapshot = _decodeHttpJson(
         await liveHttpClient.get(
-          config.apiUri('/api/chat/conversations/channel-general/decisions'),
+          config.apiUri(
+            '/api/chat/conversations/$workspaceLoopConversationId/decisions',
+          ),
           headers: <String, String>{
             'Accept': 'application/json',
             'Authorization': 'Bearer ${appSession.accessToken}',
@@ -903,7 +915,7 @@ void main() {
           });
       final workspaceLoopComplete =
           workspaceLoopDecisionContextId == 'workspace-default' &&
-          workspaceLoopConversationId == 'channel-general' &&
+          workspaceLoopConversationId.startsWith('room-') &&
           workspaceLoopChatUsesCanonicalIds &&
           matchedFiles.isNotEmpty &&
           boardsNonDragMutationWorked &&
@@ -1098,6 +1110,21 @@ void main() {
     },
     semanticsEnabled: false,
   );
+}
+
+String _canonicalConversationId(
+  String roomId, {
+  required String expectedServerName,
+}) {
+  final separator = roomId.lastIndexOf(':');
+  if (!roomId.startsWith('!') ||
+      separator <= 1 ||
+      roomId.substring(separator + 1) != expectedServerName) {
+    throw const MatrixLiveRoomDriverException(
+      'M_WEAVE_LIVE_MATRIX_ROOM_INVALID',
+    );
+  }
+  return roomId.substring(1, separator);
 }
 
 bool _channelMeetingThreadReady(CalendarEvent event, CalendarScope scope) {

@@ -331,6 +331,39 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatScreenTitle => 'Chat';
 
   @override
+  String get chatCreateConversationAction => 'Start conversation';
+
+  @override
+  String get chatCreateConversationTitle => 'Start an encrypted conversation';
+
+  @override
+  String get chatCreateConversationDescription =>
+      'Give this workspace conversation a clear name. Weave creates it through the organization Chat facade and enables encryption from the first event.';
+
+  @override
+  String get chatCreateConversationNameLabel => 'Conversation name';
+
+  @override
+  String get chatCreateConversationNameHint => 'For example, Release planning';
+
+  @override
+  String get chatCreateConversationNameRequired =>
+      'Enter a name between 1 and 200 characters.';
+
+  @override
+  String get chatCreateConversationCancel => 'Cancel';
+
+  @override
+  String get chatCreateConversationSubmit => 'Create conversation';
+
+  @override
+  String get chatCreateConversationSubmitting => 'Creating…';
+
+  @override
+  String get chatCreateConversationFailure =>
+      'The encrypted conversation could not be created. Your other Chat areas remain available; try again when the connection is back.';
+
+  @override
   String get chatOverviewTitle => 'Weave Home';
 
   @override

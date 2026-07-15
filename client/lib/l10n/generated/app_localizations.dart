@@ -654,6 +654,66 @@ abstract class AppLocalizations {
   /// **'Chat'**
   String get chatScreenTitle;
 
+  /// Accessible action for opening the encrypted conversation creation dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Start conversation'**
+  String get chatCreateConversationAction;
+
+  /// Title for the encrypted conversation creation dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Start an encrypted conversation'**
+  String get chatCreateConversationTitle;
+
+  /// Provider-neutral guidance in the encrypted conversation creation dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Give this workspace conversation a clear name. Weave creates it through the organization Chat facade and enables encryption from the first event.'**
+  String get chatCreateConversationDescription;
+
+  /// Label for the new conversation name field
+  ///
+  /// In en, this message translates to:
+  /// **'Conversation name'**
+  String get chatCreateConversationNameLabel;
+
+  /// Example hint for the new conversation name field
+  ///
+  /// In en, this message translates to:
+  /// **'For example, Release planning'**
+  String get chatCreateConversationNameHint;
+
+  /// Validation message for an empty or oversized conversation name
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a name between 1 and 200 characters.'**
+  String get chatCreateConversationNameRequired;
+
+  /// Cancel action in the encrypted conversation creation dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get chatCreateConversationCancel;
+
+  /// Submit action in the encrypted conversation creation dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Create conversation'**
+  String get chatCreateConversationSubmit;
+
+  /// Progress label while an encrypted conversation is being created
+  ///
+  /// In en, this message translates to:
+  /// **'Creating…'**
+  String get chatCreateConversationSubmitting;
+
+  /// Support-safe local error shown when conversation creation fails
+  ///
+  /// In en, this message translates to:
+  /// **'The encrypted conversation could not be created. Your other Chat areas remain available; try again when the connection is back.'**
+  String get chatCreateConversationFailure;
+
   /// Title for the chat overview/home surface
   ///
   /// In en, this message translates to:

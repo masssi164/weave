@@ -1153,9 +1153,12 @@ Future<void> _establishEncryptedDeviceExchange({
     }
   }
 
+  final supportCode = lastFailure is _ChatObservationFailure
+      ? lastFailure.code
+      : 'M_WEAVE_E2EE_DEVICE_EXCHANGE_FAILED';
   throw StateError(
     'The two established Matrix devices could not exchange encrypted '
-    'messages. Last failure type: ${lastFailure?.runtimeType ?? 'none'}.',
+    'messages. Failure code: $supportCode.',
   );
 }
 
@@ -1357,16 +1360,37 @@ Future<ChatMessage> _waitForChatMessage(
   String expectedText, {
   Duration timeout = const Duration(seconds: 45),
 }) async {
-  final timeline = await _eventually(
-    () => session.chat.loadRoomTimeline(roomId),
-    (timeline) =>
-        timeline.messages.any((message) => message.text == expectedText),
-    reason: 'A committed Chat message was not observed in a fresh session.',
-    timeout: timeout,
-  );
-  return timeline.messages.firstWhere(
-    (message) => message.text == expectedText,
-  );
+  try {
+    final timeline = await _eventually(
+      () => session.chat.loadRoomTimeline(roomId),
+      (timeline) =>
+          timeline.messages.any((message) => message.text == expectedText),
+      reason: 'A committed Chat message was not observed in a fresh session.',
+      timeout: timeout,
+    );
+    return timeline.messages.firstWhere(
+      (message) => message.text == expectedText,
+    );
+  } catch (_) {
+    var supportCode = 'M_WEAVE_E2EE_MESSAGE_NOT_OBSERVED';
+    try {
+      supportCode = (await session.chatDecryptionDiagnostics(
+        roomId,
+      )).supportCode;
+    } catch (_) {
+      // The generic code remains support-safe when diagnostics are unavailable.
+    }
+    throw _ChatObservationFailure(supportCode);
+  }
+}
+
+class _ChatObservationFailure implements Exception {
+  const _ChatObservationFailure(this.code);
+
+  final String code;
+
+  @override
+  String toString() => code;
 }
 
 Future<bool> _verifyCiphertextOnlyTransport(

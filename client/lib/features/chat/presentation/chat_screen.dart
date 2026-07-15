@@ -25,9 +25,54 @@ class ChatScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final state = ref.watch(chatProvider);
 
+    Future<void> openConversation(ChatConversation conversation) async {
+      final router = GoRouter.maybeOf(context);
+      if (router != null) {
+        await context.push(
+          AppRoutes.chatRoom(conversation.id),
+          extra: conversation,
+        );
+      } else {
+        await Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (context) => ChatRoomScreen(conversation: conversation),
+          ),
+        );
+      }
+      await ref.read(chatProvider.notifier).retry();
+    }
+
+    Future<void> createConversation() async {
+      final conversation = await showDialog<ChatConversation>(
+        context: context,
+        builder: (dialogContext) => _CreateConversationDialog(
+          onCreate: (title) =>
+              ref.read(chatProvider.notifier).createConversation(title: title),
+        ),
+      );
+      if (conversation == null || !context.mounted) {
+        return;
+      }
+      await openConversation(conversation);
+    }
+
+    final canCreateConversation =
+        state.phase == ChatViewPhase.content ||
+        state.phase == ChatViewPhase.empty;
+
     return CustomScrollView(
       slivers: [
-        SliverAppBar.large(title: Text(l10n.chatScreenTitle)),
+        SliverAppBar.large(
+          title: Text(l10n.chatScreenTitle),
+          actions: [
+            IconButton(
+              key: const Key('chat-create-conversation-button'),
+              tooltip: l10n.chatCreateConversationAction,
+              onPressed: canCreateConversation ? createConversation : null,
+              icon: const Icon(Icons.add_comment_outlined),
+            ),
+          ],
+        ),
         if (state.staleFailure != null)
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
@@ -85,25 +130,136 @@ class ChatScreen extends ConsumerWidget {
           ),
           ChatViewPhase.content => _ChatOverviewSliver(
             conversations: state.conversations,
-            onOpenConversation: (conversation) async {
-              final router = GoRouter.maybeOf(context);
-              if (router != null) {
-                await context.push(
-                  AppRoutes.chatRoom(conversation.id),
-                  extra: conversation,
-                );
-              } else {
-                await Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (context) =>
-                        ChatRoomScreen(conversation: conversation),
-                  ),
-                );
-              }
-              await ref.read(chatProvider.notifier).retry();
-            },
+            onOpenConversation: openConversation,
           ),
         },
+      ],
+    );
+  }
+}
+
+class _CreateConversationDialog extends StatefulWidget {
+  const _CreateConversationDialog({required this.onCreate});
+
+  final Future<ChatConversation> Function(String title) onCreate;
+
+  @override
+  State<_CreateConversationDialog> createState() =>
+      _CreateConversationDialogState();
+}
+
+class _CreateConversationDialogState extends State<_CreateConversationDialog> {
+  final _nameController = TextEditingController();
+  bool _submitting = false;
+  bool _nameInvalid = false;
+  bool _creationFailed = false;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_submitting) {
+      return;
+    }
+    final title = _nameController.text.trim();
+    if (title.isEmpty || title.runes.length > 200) {
+      setState(() {
+        _nameInvalid = true;
+        _creationFailed = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _submitting = true;
+      _nameInvalid = false;
+      _creationFailed = false;
+    });
+    try {
+      final conversation = await widget.onCreate(title);
+      if (mounted) {
+        Navigator.of(context).pop(conversation);
+      }
+    } on Object {
+      if (mounted) {
+        setState(() {
+          _submitting = false;
+          _creationFailed = true;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return AlertDialog(
+      title: Text(l10n.chatCreateConversationTitle),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(l10n.chatCreateConversationDescription),
+            const SizedBox(height: 16),
+            TextField(
+              key: const Key('chat-create-conversation-name-field'),
+              controller: _nameController,
+              enabled: !_submitting,
+              autofocus: true,
+              maxLength: 200,
+              textInputAction: TextInputAction.done,
+              decoration: InputDecoration(
+                labelText: l10n.chatCreateConversationNameLabel,
+                hintText: l10n.chatCreateConversationNameHint,
+                errorText: _nameInvalid
+                    ? l10n.chatCreateConversationNameRequired
+                    : null,
+              ),
+              onChanged: (_) {
+                if (_nameInvalid || _creationFailed) {
+                  setState(() {
+                    _nameInvalid = false;
+                    _creationFailed = false;
+                  });
+                }
+              },
+              onSubmitted: (_) => _submit(),
+            ),
+            if (_creationFailed)
+              Semantics(
+                container: true,
+                liveRegion: true,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    l10n.chatCreateConversationFailure,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _submitting ? null : () => Navigator.of(context).pop(),
+          child: Text(l10n.chatCreateConversationCancel),
+        ),
+        FilledButton(
+          key: const Key('chat-create-conversation-submit-button'),
+          onPressed: _submitting ? null : _submit,
+          child: Text(
+            _submitting
+                ? l10n.chatCreateConversationSubmitting
+                : l10n.chatCreateConversationSubmit,
+          ),
+        ),
       ],
     );
   }

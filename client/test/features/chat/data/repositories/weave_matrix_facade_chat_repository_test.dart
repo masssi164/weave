@@ -97,6 +97,16 @@ class _FailingTimelineBridge extends FakeRustMatrixCoreBridge {
   }
 }
 
+class _FailingCreateBridge extends FakeRustMatrixCoreBridge {
+  @override
+  Future<RustMatrixEncryptedRoom> createEncryptedRoom({
+    required String profileKey,
+    required String title,
+  }) {
+    throw const RustMatrixCoreBridgeException('M_WEAVE_E2EE_CREATE_ROOM');
+  }
+}
+
 void main() {
   late _FakeServerConfigurationRepository configurationRepository;
   late _FakeAuthSessionRepository authSessionRepository;
@@ -182,6 +192,61 @@ void main() {
     );
     expect(conversations.first.previewText, isNull);
     expect(conversations.first.unreadCount, 2);
+  });
+
+  test('creates an encrypted conversation through the Rust facade', () async {
+    final conversation = await repository().createConversation(
+      title: '  Release planning  ',
+    );
+
+    expect(cryptoSession.synchronizeValues, <bool>[false]);
+    expect(bridge.createdRooms.single, <String, String>{
+      'profileKey': 'profile-key',
+      'title': 'Release planning',
+    });
+    expect(conversation.id, '!created:api.weave.test');
+    expect(conversation.title, 'Release planning');
+    expect(conversation.previewType, ChatConversationPreviewType.encrypted);
+  });
+
+  test('conversation creation rejects empty names before transport', () async {
+    await expectLater(
+      repository().createConversation(title: '   '),
+      throwsA(
+        isA<ChatFailure>().having(
+          (failure) => failure.type,
+          'type',
+          ChatFailureType.configuration,
+        ),
+      ),
+    );
+
+    expect(bridge.createdRooms, isEmpty);
+  });
+
+  test('conversation creation keeps Rust failures support safe', () async {
+    await expectLater(
+      repository(
+        rustBridge: _FailingCreateBridge(),
+      ).createConversation(title: 'Release planning'),
+      throwsA(
+        isA<ChatFailure>()
+            .having(
+              (failure) => failure.message,
+              'message',
+              isNot(contains('M_WEAVE_E2EE_CREATE_ROOM')),
+            )
+            .having(
+              (failure) => failure.cause,
+              'cause',
+              isA<RustMatrixCoreBridgeException>().having(
+                (cause) => cause.code,
+                'code',
+                'M_WEAVE_E2EE_CREATE_ROOM',
+              ),
+            ),
+      ),
+    );
   });
 
   test('send, decrypt, and receipt stay inside the Rust Matrix core', () async {

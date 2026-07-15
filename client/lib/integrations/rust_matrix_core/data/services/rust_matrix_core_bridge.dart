@@ -175,6 +175,55 @@ class RustMatrixMessageProjection {
   final String contentType;
 }
 
+class RustMatrixDecryptionDiagnostics {
+  const RustMatrixDecryptionDiagnostics({
+    required this.eventCount,
+    required this.decryptedCount,
+    required this.unableToDecryptCount,
+    required this.plaintextCount,
+    required this.reasonCounts,
+  });
+
+  factory RustMatrixDecryptionDiagnostics.fromJson(Map<String, dynamic> json) {
+    final rawReasonCounts = json['reasonCounts'];
+    return RustMatrixDecryptionDiagnostics(
+      eventCount: _integer(json['eventCount']),
+      decryptedCount: _integer(json['decryptedCount']),
+      unableToDecryptCount: _integer(json['unableToDecryptCount']),
+      plaintextCount: _integer(json['plaintextCount']),
+      reasonCounts: rawReasonCounts is Map
+          ? Map<String, int>.unmodifiable(
+              rawReasonCounts.map(
+                (key, value) => MapEntry(key.toString(), _integer(value)),
+              ),
+            )
+          : const <String, int>{},
+    );
+  }
+
+  final int eventCount;
+  final int decryptedCount;
+  final int unableToDecryptCount;
+  final int plaintextCount;
+  final Map<String, int> reasonCounts;
+
+  String get supportCode {
+    if ((reasonCounts['missingMegolmSession'] ?? 0) > 0) {
+      return 'M_WEAVE_E2EE_MISSING_MEGOLM_SESSION';
+    }
+    if ((reasonCounts['mismatchedIdentityKeys'] ?? 0) > 0) {
+      return 'M_WEAVE_E2EE_MISMATCHED_IDENTITY_KEYS';
+    }
+    if ((reasonCounts['senderIdentityNotTrusted'] ?? 0) > 0) {
+      return 'M_WEAVE_E2EE_SENDER_NOT_TRUSTED';
+    }
+    if (unableToDecryptCount > 0) {
+      return 'M_WEAVE_E2EE_UNABLE_TO_DECRYPT';
+    }
+    return 'M_WEAVE_E2EE_MESSAGE_NOT_OBSERVED';
+  }
+}
+
 class RustMatrixEncryptedRoom {
   const RustMatrixEncryptedRoom({
     required this.roomId,
@@ -308,6 +357,17 @@ class RustMatrixCoreBridge {
     return _mapList(result['rooms'], RustMatrixEncryptedRoom.fromJson);
   }
 
+  Future<RustMatrixEncryptedRoom> createEncryptedRoom({
+    required String profileKey,
+    required String title,
+  }) async {
+    return RustMatrixEncryptedRoom.fromJson(
+      await _native(
+        () => matrixCreateEncryptedRoom(profileKey: profileKey, title: title),
+      ),
+    );
+  }
+
   Future<List<RustMatrixMessageProjection>> loadEncryptedRoomMessages({
     required String profileKey,
     required String roomId,
@@ -321,6 +381,26 @@ class RustMatrixCoreBridge {
       ),
     );
     return _mapList(result['messages'], RustMatrixMessageProjection.fromJson);
+  }
+
+  Future<RustMatrixDecryptionDiagnostics> loadDecryptionDiagnostics({
+    required String profileKey,
+    required String roomId,
+    int limit = 100,
+  }) async {
+    final result = await _native(
+      () => matrixRoomMessages(
+        profileKey: profileKey,
+        roomId: roomId,
+        limit: limit,
+      ),
+    );
+    final diagnostics = result['decryption'];
+    return RustMatrixDecryptionDiagnostics.fromJson(
+      diagnostics is Map
+          ? Map<String, dynamic>.from(diagnostics)
+          : const <String, dynamic>{},
+    );
   }
 
   Future<String> sendEncryptedText({

@@ -319,6 +319,11 @@ class _SessionAuthRepository implements AuthSessionRepository {
 
 class _EmptyChatRepository implements ChatRepository {
   @override
+  Future<ChatConversation> createConversation({required String title}) {
+    throw UnimplementedError();
+  }
+
+  @override
   Future<void> clearSession() async {}
 
   @override

@@ -4,6 +4,8 @@ import 'package:weave/features/chat/domain/entities/chat_room_timeline.dart';
 abstract interface class ChatRepository {
   Future<List<ChatConversation>> loadConversations();
 
+  Future<ChatConversation> createConversation({required String title});
+
   Future<ChatRoomTimeline> loadRoomTimeline(String roomId);
 
   Future<void> sendMessage({required String roomId, required String message});

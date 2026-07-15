@@ -99,6 +99,13 @@ class MatrixLiveRoomDriver {
         'name': roomName,
         'preset': 'private_chat',
         if (collaboratorUserId != null) 'invite': <String>[collaboratorUserId],
+        'initial_state': <Map<String, Object>>[
+          <String, Object>{
+            'type': 'm.room.encryption',
+            'state_key': '',
+            'content': <String, String>{'algorithm': matrixMegolmV1Algorithm},
+          },
+        ],
       }),
     );
     _requireSuccess(createResponse, operation: 'create-room');
@@ -111,8 +118,6 @@ class MatrixLiveRoomDriver {
         'M_WEAVE_LIVE_MATRIX_ROOM_INVALID',
       );
     }
-
-    await _enableEncryption(actor: author, roomId: roomId);
 
     if (collaborator != null) {
       final joinResponse = await client.post(

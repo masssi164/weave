@@ -335,6 +335,40 @@ class AppLocalizationsDe extends AppLocalizations {
   String get chatScreenTitle => 'Chat';
 
   @override
+  String get chatCreateConversationAction => 'Unterhaltung starten';
+
+  @override
+  String get chatCreateConversationTitle =>
+      'Verschlüsselte Unterhaltung starten';
+
+  @override
+  String get chatCreateConversationDescription =>
+      'Gib dieser Workspace-Unterhaltung einen eindeutigen Namen. Weave erstellt sie über die Chat-Fassade der Organisation und aktiviert die Verschlüsselung ab dem ersten Ereignis.';
+
+  @override
+  String get chatCreateConversationNameLabel => 'Name der Unterhaltung';
+
+  @override
+  String get chatCreateConversationNameHint => 'Zum Beispiel Release-Planung';
+
+  @override
+  String get chatCreateConversationNameRequired =>
+      'Gib einen Namen mit 1 bis 200 Zeichen ein.';
+
+  @override
+  String get chatCreateConversationCancel => 'Abbrechen';
+
+  @override
+  String get chatCreateConversationSubmit => 'Unterhaltung erstellen';
+
+  @override
+  String get chatCreateConversationSubmitting => 'Wird erstellt…';
+
+  @override
+  String get chatCreateConversationFailure =>
+      'Die verschlüsselte Unterhaltung konnte nicht erstellt werden. Deine anderen Chat-Bereiche bleiben verfügbar. Versuche es erneut, sobald die Verbindung zurück ist.';
+
+  @override
   String get chatOverviewTitle => 'Weave Home';
 
   @override

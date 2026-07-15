@@ -126,6 +126,7 @@ readonly PERSISTED_TF_VARS=(
   TF_VAR_db_admin_password
   TF_VAR_backend_db_username
   TF_VAR_backend_db_password
+  TF_VAR_mcp_boundary_token
   TF_VAR_keycloak_admin_username
   TF_VAR_keycloak_admin_password
   TF_VAR_keycloak_db_username

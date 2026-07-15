@@ -546,6 +546,11 @@ class _ScenarioChatRepository implements ChatRepository {
   Future<void> connect() async {}
 
   @override
+  Future<ChatConversation> createConversation({required String title}) {
+    throw UnimplementedError();
+  }
+
+  @override
   Future<List<ChatConversation>> loadConversations() async =>
       const <ChatConversation>[
         ChatConversation(
