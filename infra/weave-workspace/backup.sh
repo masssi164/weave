@@ -149,7 +149,26 @@ manifest = {
 }
 (backup_dir / "BackupManifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 PYJSON
+}
+
+finalize_text_manifest() {
   append_manifest "BackupManifest.json" "Machine-readable private backup manifest with artifact checksums and restore scope"
+
+  cat >>"${BACKUP_DIR}/MANIFEST.txt" <<'MSG'
+
+Notes:
+- This backup intentionally uses pg_dumpall for PostgreSQL-backed service data instead
+  of copying the live postgres data volume.
+- Matrix room/event state is in postgres.sql; Matrix media/local files are in
+  matrix-synapse-data.tgz.
+- Nextcloud metadata is in postgres.sql; file/calendar application data is in
+  nextcloud-data.tgz.
+- Caddy artifacts are included for ACME/TLS continuity when applicable.
+- Generated config/secrets are included because restore/reprovisioning may need them;
+  this includes the stable Synapse Application Service registration and its two
+  independent tokens. Disposable Chat E2E proof credentials are explicitly excluded
+  and cannot be restored. Keep this backup private.
+MSG
 }
 
 
@@ -219,23 +238,10 @@ create_backup() {
   done
 
   backup_generated_config
+  # Finalize MANIFEST.txt before hashing it into BackupManifest.json. Mutating the
+  # text manifest after this point would invalidate the recorded restore checksum.
+  finalize_text_manifest
   write_backup_manifest_json
-
-  cat >>"${BACKUP_DIR}/MANIFEST.txt" <<MSG
-
-Notes:
-- This backup intentionally uses pg_dumpall for PostgreSQL-backed service data instead
-  of copying the live postgres data volume.
-- Matrix room/event state is in postgres.sql; Matrix media/local files are in
-  matrix-synapse-data.tgz.
-- Nextcloud metadata is in postgres.sql; file/calendar application data is in
-  nextcloud-data.tgz.
-- Caddy artifacts are included for ACME/TLS continuity when applicable.
-- Generated config/secrets are included because restore/reprovisioning may need them;
-  this includes the stable Synapse Application Service registration and its two
-  independent tokens. Disposable Chat E2E proof credentials are explicitly excluded
-  and cannot be restored. Keep this backup private.
-MSG
 
   log "Backup written to ${BACKUP_DIR}"
 }
@@ -256,4 +262,6 @@ main() {
   create_backup "${output_dir}"
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi
