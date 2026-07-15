@@ -253,6 +253,23 @@ async fn sync_inner(profile_key: &str) -> Result<Value, String> {
             .map_err(|error| matrix_sdk_error_code(&error, "M_WEAVE_E2EE_SYNC"))?;
     }
 
+    // A room can become shared after both app-owned crypto clients have
+    // opened. Converge the active member and device lists on every fresh
+    // membership set before either participant needs to receive the first
+    // Olm-wrapped Megolm room key. A send-time check alone protects only the
+    // sender and leaves a cold collaborator unable to authenticate/decrypt
+    // the first to-device key delivery.
+    for room in client.joined_rooms() {
+        if room
+            .latest_encryption_state()
+            .await
+            .map_err(|_| "M_WEAVE_E2EE_ROOM_STATE".to_string())?
+            .is_encrypted()
+        {
+            refresh_active_member_device_keys(profile_key, &client, &room).await?;
+        }
+    }
+
     Ok(json!({
         "nextBatch": first.next_batch,
         "enabledRooms": enabled_rooms,
@@ -369,7 +386,7 @@ async fn send_text_inner(profile_key: &str, room_id: &str, body: &str) -> Result
     {
         return Err("M_WEAVE_E2EE_REQUIRED".to_string());
     }
-    refresh_missing_active_member_device_keys(profile_key, &client, &room).await?;
+    refresh_active_member_device_keys(profile_key, &client, &room).await?;
     let response = room
         .send(RoomMessageEventContent::text_plain(body))
         .await
@@ -377,7 +394,7 @@ async fn send_text_inner(profile_key: &str, room_id: &str, body: &str) -> Result
     Ok(json!({ "eventId": response.response.event_id.to_string() }))
 }
 
-async fn refresh_missing_active_member_device_keys(
+async fn refresh_active_member_device_keys(
     profile_key: &str,
     client: &Client,
     room: &Room,
