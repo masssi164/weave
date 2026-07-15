@@ -78,6 +78,7 @@ source "${WEAVE_E2E_CREDENTIAL_ENV_PATH}"
 # shellcheck disable=SC1090
 source "${WEAVE_E2E_STARTUP_ENV_PATH}"
 : "${TF_VAR_isolated_e2e_context_memberships:?startup membership list is required}"
+[[ "${TF_VAR_tenant_slug:-}" == weave ]] || fail "isolated startup must publish the disposable tenant slug"
 
 [[ "$(weave_container_name backend)" == "${WEAVE_E2E_RUN_NAMESPACE}-backend" ]] || fail "isolated backend container name is not run-scoped"
 [[ "$(weave_volume_name nextcloud_data)" == "${WEAVE_E2E_RUN_NAMESPACE//-/_}_nextcloud_data" ]] || fail "isolated Nextcloud volume name is not run-scoped"

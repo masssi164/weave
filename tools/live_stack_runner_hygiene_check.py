@@ -118,6 +118,21 @@ def main() -> int:
         "live-stack E2E must own the full three-identity lifecycle",
     )
     require(
+        "clean :server:bootJar :weave-mcp-server:bootJar" in workflow,
+        "live-stack Java runtime artifacts must be compiled from a clean tree",
+    )
+    require(
+        'docker container inspect "$keycloak_container"' in workflow
+        and "ISOLATED_E2E_IDENTITIES state=cleanup-not-required" in workflow,
+        "identity cleanup must tolerate a failure before provider runtime creation",
+    )
+    require(
+        'runtime_root="${WEAVE_E2E_OUTPUT_ROOT:?}/${TF_VAR_isolated_e2e_namespace}/runtime"'
+        in workflow
+        and "ISOLATED_STACK_TEARDOWN status=not-required" in workflow,
+        "stack teardown must tolerate a failure before OpenTofu runtime creation",
+    )
+    require(
         'export WEAVE_BOOTSTRAP_ENV="${WEAVE_E2E_STACK_BOOTSTRAP_ENV:?}"'
         in workflow
         and "/weave-workspace/.generated/bootstrap.env" not in workflow,

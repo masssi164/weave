@@ -249,7 +249,7 @@ jobs:
 
       - name: Build Java runtime artifacts
         working-directory: weave
-        run: ./gradlew --no-daemon --max-workers=1 :server:bootJar :weave-mcp-server:bootJar
+        run: ./gradlew --no-daemon --max-workers=1 clean :server:bootJar :weave-mcp-server:bootJar
 
       - name: Ensure local Weave hostnames resolve on the runner
         run: |
@@ -616,9 +616,16 @@ jobs:
             cp "$calendar_outage_state" \
               "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-calendar-outage.json"
           fi
-          if [[ -s "${WEAVE_E2E_CREDENTIAL_ENV_PATH:-}" && -s "${WEAVE_E2E_STARTUP_ENV_PATH:-}" ]]; then
+          keycloak_container="${WEAVE_E2E_RUN_NAMESPACE:?}-keycloak"
+          if [[ -s "${WEAVE_E2E_CREDENTIAL_ENV_PATH:-}" && \
+                -s "${WEAVE_E2E_STARTUP_ENV_PATH:-}" && \
+                -s "${WEAVE_E2E_STACK_BOOTSTRAP_ENV:-}" ]] && \
+              docker container inspect "$keycloak_container" >/dev/null 2>&1; then
             ./isolated-e2e-identities.sh cleanup --run-id "$WEAVE_E2E_RUN_ID" \
               2>&1 | tee -a "$WEAVE_ACCEPTANCE_TEST_LOG"
+          else
+            echo "ISOLATED_E2E_IDENTITIES state=cleanup-not-required providerRuntimeCreated=false supportSafe=true" \
+              | tee -a "$WEAVE_ACCEPTANCE_TEST_LOG"
           fi
           [[ -s "${WEAVE_E2E_IDENTITY_MANIFEST_PATH:-}" ]] && \
             cp "$WEAVE_E2E_IDENTITY_MANIFEST_PATH" "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-identities.json"
@@ -667,6 +674,11 @@ jobs:
           : "${TF_VAR_isolated_e2e_namespace:?missing isolated E2E namespace}"
           : "${TF_VAR_docker_network_name:?missing isolated Docker network}"
           : "${TF_VAR_tenant_slug:?missing disposable tenant slug}"
+          runtime_root="${WEAVE_E2E_OUTPUT_ROOT:?}/${TF_VAR_isolated_e2e_namespace}/runtime"
+          if [[ ! -d "$runtime_root" ]]; then
+            echo "ISOLATED_STACK_TEARDOWN status=not-required runtimeCreated=false supportSafe=true"
+            exit 0
+          fi
           WEAVE_TEARDOWN_EVIDENCE_FILE="$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-stack-teardown.json" \
             WEAVE_CANDIDATE_COMMIT="$GITHUB_SHA" \
             WEAVE_E2E_STACK_SCOPE=isolated \

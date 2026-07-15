@@ -318,6 +318,7 @@ prepare() {
     printf 'export TF_VAR_chat_e2e_proof_enabled=%q\n' true
     printf 'export TF_VAR_chat_e2e_proof_token_host_path=%q\n' "${CHAT_PROOF_TOKEN_PATH}"
     printf 'export TF_VAR_chat_e2e_proof_run_id=%q\n' "${RUN_ID}"
+    printf 'export TF_VAR_tenant_slug=%q\n' weave
     printf 'export TF_VAR_docker_network_name=%q\n' "${NAMESPACE}_network"
     printf 'export TF_VAR_proxy_http_host_port=%q\n' "$((port_base + 0))"
     printf 'export TF_VAR_proxy_host_port=%q\n' "$((port_base + 1))"
