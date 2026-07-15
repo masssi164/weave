@@ -302,12 +302,33 @@ public class MatrixProtocolCoreService {
             String title,
             long updatedAtEpochMillis,
             long unreadCount,
+            String encryptionAlgorithm,
             List<CanonicalMembership> memberships,
             List<CanonicalMessage> messages) {
 
         public CanonicalConversation {
             memberships = memberships == null ? List.of() : List.copyOf(memberships);
             messages = messages == null ? List.of() : List.copyOf(messages);
+            encryptionAlgorithm = encryptionAlgorithm == null || encryptionAlgorithm.isBlank()
+                    ? null
+                    : encryptionAlgorithm.trim();
+        }
+
+        public CanonicalConversation(
+                String conversationId,
+                String title,
+                long updatedAtEpochMillis,
+                long unreadCount,
+                List<CanonicalMembership> memberships,
+                List<CanonicalMessage> messages) {
+            this(
+                    conversationId,
+                    title,
+                    updatedAtEpochMillis,
+                    unreadCount,
+                    null,
+                    memberships,
+                    messages);
         }
 
         public CanonicalConversation(
@@ -316,7 +337,7 @@ public class MatrixProtocolCoreService {
                 long updatedAtEpochMillis,
                 long unreadCount,
                 List<CanonicalMessage> messages) {
-            this(conversationId, title, updatedAtEpochMillis, unreadCount, List.of(), messages);
+            this(conversationId, title, updatedAtEpochMillis, unreadCount, null, List.of(), messages);
         }
     }
 

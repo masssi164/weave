@@ -607,6 +607,9 @@ public class MatrixClientServerProjectionController {
                 conversation.title(),
                 conversation.updatedAt() == null ? 0 : conversation.updatedAt().toEpochMilli(),
                 0,
+                conversation.encryptionState().encrypted()
+                        ? conversation.encryptionState().mode()
+                        : null,
                 conversation.memberships().stream()
                         .map(membership -> new MatrixProtocolCoreService.CanonicalMembership(
                                 membership.memberRef(), membership.state()))

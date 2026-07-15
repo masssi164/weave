@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.chat.ChatDomainFacadeService;
 import com.massimotter.weave.backend.chat.domain.ChatConversation;
 import com.massimotter.weave.backend.chat.domain.ChatConversations;
+import com.massimotter.weave.backend.chat.domain.ChatEncryptedEnvelope;
 import com.massimotter.weave.backend.chat.domain.ChatEncryptionState;
 import com.massimotter.weave.backend.chat.domain.ChatEventContent;
 import com.massimotter.weave.backend.chat.domain.ChatEventKind;
@@ -179,6 +180,24 @@ class MatrixClientServerProjectionControllerTest {
                         .value(false))
                 .andExpect(content().string(not(containsString("providerAccessToken"))))
                 .andExpect(content().string(not(containsString("homeserver"))));
+    }
+
+    @Test
+    void syncProjectsCanonicalEncryptionStateForColdClients() throws Exception {
+        ChatConversations encrypted = conversations(ChatEncryptionState.matrixMegolm());
+        when(chatDomainFacadeService.conversations(any())).thenReturn(encrypted);
+        when(chatDomainFacadeService.timeline(eq("channel-general"), any(), anyInt()))
+                .thenReturn(timeline());
+        when(chatDomainFacadeService.syncCursor(any())).thenReturn("chat-revision-7");
+
+        mockMvc.perform(get("/_matrix/client/v3/sync").with(workspaceJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.rooms.join['!channel-general:api.weave.test'].state.events[1].type")
+                        .value("m.room.encryption"))
+                .andExpect(jsonPath("$.rooms.join['!channel-general:api.weave.test'].state.events[1].state_key")
+                        .value(""))
+                .andExpect(jsonPath("$.rooms.join['!channel-general:api.weave.test'].state.events[1].content.algorithm")
+                        .value(ChatEncryptedEnvelope.MEGOLM_V1));
     }
 
     @Test
@@ -716,6 +735,10 @@ class MatrixClientServerProjectionControllerTest {
     }
 
     private ChatConversations conversations() {
+        return conversations(ChatEncryptionState.unencrypted());
+    }
+
+    private ChatConversations conversations(ChatEncryptionState encryptionState) {
         return new ChatConversations(readiness(), List.of(new ChatConversation(
                 "channel-general",
                 "General",
@@ -723,7 +746,7 @@ class MatrixClientServerProjectionControllerTest {
                 ChatMemberState.READY,
                 "Chat is available.",
                 Instant.parse("2026-07-08T10:00:00Z"),
-                ChatEncryptionState.unencrypted(),
+                encryptionState,
                 historyPolicy(),
                 List.of(new ChatMembership(
                         "membership-channel-general-user-alice",
