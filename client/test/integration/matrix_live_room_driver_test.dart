@@ -184,6 +184,90 @@ void main() {
     );
   });
 
+  test(
+    'isolated setup revokes stale devices and preserves the current one',
+    () async {
+      const staleDeviceId = 'WEAVESTALEDEVICE';
+      final requests = <http.Request>[];
+      final responses = <http.Response>[
+        _jsonResponse(<String, Object>{
+          'device_keys': <String, Object>{
+            '@author:api.weave.test': <String, Object>{
+              _author.deviceId: _deviceKey(
+                userId: '@author:api.weave.test',
+                deviceId: _author.deviceId,
+              ),
+              staleDeviceId: _deviceKey(
+                userId: '@author:api.weave.test',
+                deviceId: staleDeviceId,
+              ),
+            },
+          },
+        }),
+        _jsonResponse(const <String, Object>{}),
+        _deviceKeysResponse(
+          userId: '@author:api.weave.test',
+          deviceId: _author.deviceId,
+        ),
+      ];
+      final driver = MatrixLiveRoomDriver(
+        client: MockClient((request) async {
+          requests.add(request);
+          return responses[requests.length - 1];
+        }),
+        homeserver: Uri.parse('https://api.weave.test'),
+      );
+
+      final removed = await driver.retainOnlyCurrentDevice(
+        actor: _author,
+        userId: '@author:api.weave.test',
+      );
+
+      expect(removed, 1);
+      expect(requests.map((request) => request.method), <String>[
+        'POST',
+        'DELETE',
+        'POST',
+      ]);
+      expect(requests[1].url.path, '/_matrix/client/v3/devices/$staleDeviceId');
+      expect(requests[1].body, '{}');
+      expect(requests[1].headers['X-Weave-Matrix-Device-Id'], _author.deviceId);
+    },
+  );
+
+  test(
+    'isolated setup refuses pruning when the current device is absent',
+    () async {
+      const staleDeviceId = 'WEAVESTALEDEVICE';
+      final requests = <http.Request>[];
+      final driver = MatrixLiveRoomDriver(
+        client: MockClient((request) async {
+          requests.add(request);
+          return _deviceKeysResponse(
+            userId: '@author:api.weave.test',
+            deviceId: staleDeviceId,
+          );
+        }),
+        homeserver: Uri.parse('https://api.weave.test'),
+      );
+
+      await expectLater(
+        driver.retainOnlyCurrentDevice(
+          actor: _author,
+          userId: '@author:api.weave.test',
+        ),
+        throwsA(
+          isA<MatrixLiveRoomDriverException>().having(
+            (error) => error.code,
+            'code',
+            'M_WEAVE_LIVE_MATRIX_CURRENT_DEVICE_MISSING',
+          ),
+        ),
+      );
+      expect(requests, hasLength(1));
+    },
+  );
+
   test('rejects an incomplete canonical member projection support-safely', () {
     const secretBody = 'provider-secret-member-payload';
     final driver = MatrixLiveRoomDriver(

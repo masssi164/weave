@@ -171,11 +171,17 @@ void main() {
       contains('M_WEAVE_LIVE_MATRIX_KEY_MATERIAL_NOT_CONVERGED'),
     );
     expect(roomCreation, contains('requireMutualDeviceKeys('));
+    expect(roomCreation, contains('retainOnlyCurrentDevice('));
     expect(roomCreation, contains("'createRoom'"));
     expect(
       roomCreation.indexOf('requireMutualDeviceKeys('),
       lessThan(roomCreation.indexOf("'createRoom'")),
     );
+    expect(
+      roomCreation.indexOf('retainOnlyCurrentDevice('),
+      lessThan(roomCreation.indexOf('requireMutualDeviceKeys(')),
+    );
+    expect(multiUserSource, contains('pruneStaleActorDevices: true'));
     expect(calendarRepository, contains('draft.toPatch(etag: etag)'));
     expect(multiUserSource, contains('readEvent(eventId)'));
     expect(

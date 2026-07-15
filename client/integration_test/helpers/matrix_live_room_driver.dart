@@ -65,6 +65,7 @@ class MatrixLiveRoomDriver {
     required String roomName,
     MatrixLiveActorCredentials? collaborator,
     bool requireColdCollaboratorDevice = false,
+    bool pruneStaleActorDevices = false,
   }) async {
     final authorUserId = await registerWhoami(author);
     final collaboratorUserId = collaborator == null
@@ -77,17 +78,31 @@ class MatrixLiveRoomDriver {
     }
 
     if (collaborator != null && collaboratorUserId != null) {
+      if (pruneStaleActorDevices) {
+        await retainOnlyCurrentDevice(actor: author, userId: authorUserId);
+        await retainOnlyCurrentDevice(
+          actor: collaborator,
+          userId: collaboratorUserId,
+        );
+      }
       await requireMutualDeviceKeys(
         author: author,
         authorUserId: authorUserId,
         collaborator: collaborator,
         collaboratorUserId: collaboratorUserId,
       );
-      if (requireColdCollaboratorDevice) {
+      if (requireColdCollaboratorDevice || pruneStaleActorDevices) {
         await requireExactCurrentDevices(
           observer: author,
           targetUserId: collaboratorUserId,
           expectedDeviceIds: <String>{collaborator.deviceId},
+        );
+      }
+      if (pruneStaleActorDevices) {
+        await requireExactCurrentDevices(
+          observer: collaborator,
+          targetUserId: authorUserId,
+          expectedDeviceIds: <String>{author.deviceId},
         );
       }
     }
@@ -236,6 +251,65 @@ class MatrixLiveRoomDriver {
     required String targetUserId,
     required Set<String> expectedDeviceIds,
   }) async {
+    final observedDeviceIds = await _currentDeviceIds(
+      observer: observer,
+      targetUserId: targetUserId,
+    );
+    if (observedDeviceIds.length != expectedDeviceIds.length ||
+        !observedDeviceIds.containsAll(expectedDeviceIds)) {
+      throw const MatrixLiveRoomDriverException(
+        'M_WEAVE_LIVE_MATRIX_COLLABORATOR_NOT_COLD',
+      );
+    }
+  }
+
+  /// Removes stale devices belonging to a disposable isolated-run actor while
+  /// preserving the device that owns the current authenticated app profile.
+  ///
+  /// This must only be called by isolated E2E setup. It prevents earlier test
+  /// processes for the same disposable identity from remaining eligible for a
+  /// Megolm room-key share and hiding whether the currently running peer
+  /// received its envelope.
+  Future<int> retainOnlyCurrentDevice({
+    required MatrixLiveActorCredentials actor,
+    required String userId,
+  }) async {
+    final deviceIds = await _currentDeviceIds(
+      observer: actor,
+      targetUserId: userId,
+    );
+    if (!deviceIds.contains(actor.deviceId)) {
+      throw const MatrixLiveRoomDriverException(
+        'M_WEAVE_LIVE_MATRIX_CURRENT_DEVICE_MISSING',
+      );
+    }
+
+    final staleDeviceIds =
+        deviceIds
+            .where((deviceId) => deviceId != actor.deviceId)
+            .toList(growable: false)
+          ..sort();
+    for (final deviceId in staleDeviceIds) {
+      final response = await client.delete(
+        _uri(<String>['_matrix', 'client', 'v3', 'devices', deviceId]),
+        headers: _jsonHeaders(actor),
+        body: '{}',
+      );
+      _requireSuccess(response, operation: 'revoke-stale-device');
+    }
+
+    await requireExactCurrentDevices(
+      observer: actor,
+      targetUserId: userId,
+      expectedDeviceIds: <String>{actor.deviceId},
+    );
+    return staleDeviceIds.length;
+  }
+
+  Future<Set<String>> _currentDeviceIds({
+    required MatrixLiveActorCredentials observer,
+    required String targetUserId,
+  }) async {
     final response = await client.post(
       _uri(<String>['_matrix', 'client', 'v3', 'keys', 'query']),
       headers: _jsonHeaders(observer),
@@ -255,7 +329,8 @@ class MatrixLiveRoomDriver {
         'M_WEAVE_LIVE_MATRIX_DEVICE_SET_INVALID',
       );
     }
-    final observedDeviceIds = <String>{};
+
+    final deviceIds = <String>{};
     for (final entry in userDevices.entries) {
       final device = entry.value;
       final keys = device is Map ? device['keys'] : null;
@@ -269,14 +344,9 @@ class MatrixLiveRoomDriver {
           'M_WEAVE_LIVE_MATRIX_DEVICE_SET_INVALID',
         );
       }
-      observedDeviceIds.add(entry.key as String);
+      deviceIds.add(entry.key as String);
     }
-    if (observedDeviceIds.length != expectedDeviceIds.length ||
-        !observedDeviceIds.containsAll(expectedDeviceIds)) {
-      throw const MatrixLiveRoomDriverException(
-        'M_WEAVE_LIVE_MATRIX_COLLABORATOR_NOT_COLD',
-      );
-    }
+    return deviceIds;
   }
 
   /// Proves that the canonical room-member projection is complete from the

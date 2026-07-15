@@ -992,6 +992,7 @@ Future<String> _provisionEncryptedSharedRoom({
       ),
       roomName: roomName,
       requireColdCollaboratorDevice: configuration.runIndex == 1,
+      pruneStaleActorDevices: true,
     );
     cleanup.rememberChatRoom(provisioned.roomId);
     if (provisioned.collaboratorUserId == null ||
