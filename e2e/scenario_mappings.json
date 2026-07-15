@@ -544,6 +544,14 @@
           ]
         },
         {
+          "path": "infra/weave-workspace/restore-private-backup.sh",
+          "fragments": [
+            "PRIVATE_DOGFOOD_RESTORE",
+            "identityRestorableForRecordedMember",
+            "soleRestoredDisposableBootstrapIdentity"
+          ]
+        },
+        {
           "path": ".github/workflows/dogfood-pending-identity-recovery.yml",
           "fragments": [
             "retire-restored-test-bootstrap",

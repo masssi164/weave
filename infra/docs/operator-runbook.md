@@ -139,6 +139,15 @@ For a host-level restore or failed upgrade rollback:
 5. run `bash weave-workspace/install.sh` to reconcile containers and generated config
 6. run `bash weave-workspace/restore-smoke.sh <backup-dir>`
 
+`restore-private-backup.sh` is the guarded persistent-dogfood restore path when the entire Weave runtime boundary is absent. Run its non-mutating preflight first:
+
+```bash
+WEAVE_RESTORE_PREFLIGHT_ONLY=true \
+  bash weave-workspace/restore-private-backup.sh <private-backup-dir>
+```
+
+Apply is allowed only with `WEAVE_DOGFOOD_DEPLOYMENT_SCOPE=persistent-dogfood` and the exact `WEAVE_RESTORE_CONFIRMATION=restore-private-dogfood-backup`. The helper rejects any existing persistent Weave container or volume, initializes PostgreSQL with the restored persistent administrator without introducing a second bootstrap authority, restores only the named PostgreSQL and provider volumes, transactionally restores the stable private bootstrap/TLS assets, rolls back only resources and generated state changed by a failed invocation, and writes support-safe identity-restorability evidence only after the restore commits. The restored credential state is authoritative for the restored databases and providers; a recovery workflow must never replace it with CI placeholder credentials. It explicitly records that Mailpit history is not restored because `backup.sh` does not archive that database. The historical July 2026 text-manifest ordering defect may be reconciled only with `WEAVE_RESTORE_ALLOW_LEGACY_MANIFEST_FINALIZATION_BUG=true`; every domain artifact must still match its recorded hash and the recorded text-manifest hash must match the exact pre-finalization prefix.
+
 `restore-smoke.sh` is safe to run after a restore or clean reprovisioning rehearsal. It never deletes volumes and does not perform the restore itself. When a backup directory is provided it first checks for the expected backup artifacts, then reuses `operator-check.sh` to verify backend readiness, Keycloak discovery, Matrix client versions and MAS discovery, default Matrix room aliases, and raw Nextcloud readiness. If the restored Matrix database is intentionally empty but generated Matrix bootstrap secrets are available, run:
 
 ```bash
@@ -164,7 +173,7 @@ Artifact-only mode validates the backup directory shape and then exits with an e
 
 ### Exceptional retirement of a lost pending dogfood identity
 
-Restoring the private Keycloak database is always the first recovery path. Verify required artifact hashes and replay PostgreSQL in a uniquely named disposable volume before mutating persistent dogfood. A backup that restores platform/provider data but predates the recorded protected subject is not identity-restorable for that member and must not be described as session preservation. Use the protected `Dogfood Pending Identity Recovery` workflow only when that replay proves no identity-restorable backup exists and the last accepted evidence proves that the persistent human identity never completed activation. The evidence must still describe the recorded subject as pending with `VERIFY_EMAIL` and `UPDATE_PASSWORD`, no later active evidence may exist, and neither the configured username/email nor the recorded subject may resolve in the current realm. An active, disabled, ambiguous, previously authenticated, or insufficiently evidenced identity must never be replaced.
+Restoring the private Keycloak database is always the first recovery path. Verify required artifact hashes and replay PostgreSQL through `restore-private-backup.sh` before starting the persistent runtime. A backup that restores platform/provider data but predates the recorded protected subject is not identity-restorable for that member and must not be described as session preservation. Use the protected `Dogfood Pending Identity Recovery` workflow only when the support-safe platform-restore evidence proves no identity-restorable backup exists and the last accepted evidence proves that the persistent human identity never completed activation. The evidence must still describe the recorded subject as pending with `VERIFY_EMAIL` and `UPDATE_PASSWORD`, no later active evidence may exist, and neither the configured username/email nor the recorded subject may resolve in the current realm. An active, disabled, ambiguous, previously authenticated, or insufficiently evidenced identity must never be replaced.
 
 If the replayed platform backup contains the historical disposable `test` bootstrap identity, the workflow additionally requires the typed confirmation `retire-restored-test-bootstrap`. It removes that exact subject through the Keycloak administration API only after proving the protected username and recorded subject are absent and `test` is the realm's sole non-service identity. It fails closed for any other, additional, or ambiguous human identity; direct database deletion and broad realm cleanup are forbidden.
 

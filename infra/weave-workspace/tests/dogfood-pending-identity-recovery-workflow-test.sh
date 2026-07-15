@@ -37,6 +37,13 @@ require_workflow 'org.opencontainers.image.revision=$CANDIDATE_SHA'
 require_workflow './dogfood-member.sh recover-lost-pending'
 require_workflow './dogfood-member.sh retire-restored-bootstrap'
 require_workflow 'restored-bootstrap-retirement.json'
+require_workflow 'weave.dogfood.platform-private-restore.v1'
+require_workflow 'restored_volumes=('
+require_workflow 'weave_matrix_chat_appservice_runtime'
+require_workflow '.postgresBootstrap.temporaryAdministratorCreated == false'
+require_workflow '.identity.identityRestorableForRecordedMember == false'
+require_workflow '.identity.soleRestoredDisposableBootstrapIdentity == true'
+require_workflow 'platformRestoreStatus:$platformRestoreStatus'
 require_workflow '--prior-evidence "$prior_evidence"'
 require_workflow '--approval-ref "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"'
 require_helper 'retired-pending-identities'
@@ -68,6 +75,9 @@ if grep -Eq 'backup_root|backup_dir|BackupManifest\.json|RestoreReceipt\.json' <
 fi
 if grep -Fq 'WEAVE_REMOVE_VOLUMES: '\''true'\''' "${WORKFLOW}"; then
   fail "Pending recovery must not permit destructive volume removal"
+fi
+if grep -Eq 'ci-(db|keycloak|mas|synapse|nextcloud|matrix)' "${WORKFLOW}"; then
+  fail "Pending recovery must use restored persistent credentials, not CI placeholder credentials"
 fi
 if grep -Fq 'mapfile' "${WORKFLOW}"; then
   fail "Pending recovery must remain compatible with the macOS system Bash"

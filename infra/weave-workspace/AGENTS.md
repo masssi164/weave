@@ -8,6 +8,7 @@
 - `provision-matrix-default-workspace.sh`: creates/reuses the default Matrix workspace space plus announcements, general, and help rooms.
 - `release-verify.sh`: checks the public URLs after a non-local install.
 - `backup.sh`: manually creates a private backup artifact set for operator-managed storage.
+- `restore-private-backup.sh`: fail-closed restore of one integrity-checked private backup into an absent persistent dogfood boundary.
 - `restore-smoke.sh`: verifies recovery readiness after a restore or clean reprovisioning rehearsal without deleting data.
 - `disposable-restore-proof.sh`: runs a support-safe disposable Backup -> Destroy -> Restore -> Validate proof using only uniquely named `weave_disposable_restore_*` Docker volumes.
 - `isolated-e2e-identities.sh`: prepares, provisions, verifies, and cleans run-scoped three-identity Keycloak/ReBAC inputs for an explicitly isolated live-E2E stack.
