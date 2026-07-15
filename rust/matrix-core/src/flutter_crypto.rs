@@ -240,46 +240,65 @@ async fn sync_inner(profile_key: &str) -> Result<Value, String> {
     let client = client_for(profile_key)?;
     let sync_start_gate = sync_start_gate_for(profile_key)?;
     let _sync_start_guard = sync_start_gate.lock().await;
-    if background_sync_running(profile_key)? {
-        // An explicit sync remains a readiness barrier even after the
-        // receiver loop has started. A newly joined encrypted room can become
-        // visible in the SDK store before its peer device keys have converged;
-        // returning at that point lets the first Olm-wrapped Megolm key arrive
-        // at a cold receiver. Converge the current room security projection
-        // before callers are allowed to render or read that room.
-        let (enabled_rooms, converged_rooms) =
-            converge_joined_room_security(profile_key, &client).await?;
-        return Ok(json!({
-            "backgroundSync": "active",
-            "enabledRooms": enabled_rooms,
-            "convergedRooms": converged_rooms,
-        }));
-    }
 
-    let first = client
-        .sync_once(SyncSettings::new().timeout(Duration::from_secs(0)))
-        .await
-        .map_err(|error| matrix_sdk_error_code(&error, "M_WEAVE_E2EE_SYNC"))?;
+    // An explicit sync is a network-backed readiness barrier, even after the
+    // long-polling receiver has started. Pause that receiver first so this
+    // zero-timeout sync deterministically consumes current membership and
+    // device revocation state instead of returning only the cached SDK store.
+    // This also prevents two concurrent `/sync` requests from racing the same
+    // persisted next-batch token.
+    let background_was_running = pause_background_sync(profile_key).await?;
 
-    let (mut enabled_rooms, mut converged_rooms) =
-        converge_joined_room_security(profile_key, &client).await?;
-    if enabled_rooms > 0 {
+    let first = preserve_background_after_explicit_failure(
         client
             .sync_once(SyncSettings::new().timeout(Duration::from_secs(0)))
             .await
-            .map_err(|error| matrix_sdk_error_code(&error, "M_WEAVE_E2EE_SYNC"))?;
+            .map_err(|error| matrix_sdk_error_code(&error, "M_WEAVE_E2EE_SYNC")),
+        profile_key,
+        &client,
+        background_was_running,
+    )?;
+
+    let (mut enabled_rooms, mut converged_rooms) = preserve_background_after_explicit_failure(
+        converge_joined_room_security(profile_key, &client).await,
+        profile_key,
+        &client,
+        background_was_running,
+    )?;
+    if enabled_rooms > 0 {
+        preserve_background_after_explicit_failure(
+            client
+                .sync_once(SyncSettings::new().timeout(Duration::from_secs(0)))
+                .await
+                .map(|_| ())
+                .map_err(|error| matrix_sdk_error_code(&error, "M_WEAVE_E2EE_SYNC")),
+            profile_key,
+            &client,
+            background_was_running,
+        )?;
         let (newly_enabled_rooms, newly_converged_rooms) =
-            converge_joined_room_security(profile_key, &client).await?;
+            preserve_background_after_explicit_failure(
+                converge_joined_room_security(profile_key, &client).await,
+                profile_key,
+                &client,
+                background_was_running,
+            )?;
         enabled_rooms = enabled_rooms.saturating_add(newly_enabled_rooms);
         converged_rooms = converged_rooms.max(newly_converged_rooms);
     }
     start_background_sync(profile_key, &client)?;
 
+    let background_sync_state = if background_was_running {
+        "restarted"
+    } else {
+        "started"
+    };
+
     Ok(json!({
         "nextBatch": first.next_batch,
         "enabledRooms": enabled_rooms,
         "convergedRooms": converged_rooms,
-        "backgroundSync": "started",
+        "backgroundSync": background_sync_state,
     }))
 }
 
@@ -323,24 +342,38 @@ fn sync_start_gate_for(profile_key: &str) -> Result<Arc<AsyncMutex<()>>, String>
         .ok_or_else(|| "M_WEAVE_E2EE_NOT_INITIALIZED".to_string())
 }
 
-fn background_sync_running(profile_key: &str) -> Result<bool, String> {
-    let mut guard = clients()
-        .lock()
-        .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?;
-    let managed = guard
-        .get_mut(profile_key)
-        .ok_or_else(|| "M_WEAVE_E2EE_NOT_INITIALIZED".to_string())?;
-    if managed
-        .background_sync
-        .as_ref()
-        .is_some_and(|task| !task.is_finished())
-    {
-        return Ok(true);
+async fn pause_background_sync(profile_key: &str) -> Result<bool, String> {
+    let task = {
+        let mut guard = clients()
+            .lock()
+            .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?;
+        guard
+            .get_mut(profile_key)
+            .ok_or_else(|| "M_WEAVE_E2EE_NOT_INITIALIZED".to_string())?
+            .background_sync
+            .take()
+    };
+    let Some(task) = task else {
+        return Ok(false);
+    };
+    let was_running = !task.is_finished();
+    task.abort();
+    let _ = task.await;
+    Ok(was_running)
+}
+
+fn preserve_background_after_explicit_failure<T>(
+    result: Result<T, String>,
+    profile_key: &str,
+    client: &Client,
+    background_was_running: bool,
+) -> Result<T, String> {
+    if let Err(error_code) = &result {
+        if background_was_running && !is_terminal_matrix_session_error(error_code) {
+            let _ = start_background_sync(profile_key, client);
+        }
     }
-    if let Some(task) = managed.background_sync.take() {
-        task.abort();
-    }
-    Ok(false)
+    result
 }
 
 fn start_background_sync(profile_key: &str, client: &Client) -> Result<(), String> {
@@ -387,6 +420,13 @@ async fn run_background_sync(profile_key: String, client: Client) {
             Err(error) => {
                 consecutive_failures = consecutive_failures.saturating_add(1);
                 let error_code = matrix_sdk_error_code(&error, "M_WEAVE_E2EE_BACKGROUND_SYNC");
+                if is_terminal_matrix_session_error(&error_code) {
+                    tracing::warn!(
+                        error_code,
+                        "Matrix background sync stopped after terminal session rejection"
+                    );
+                    return;
+                }
                 tracing::warn!(
                     error_code,
                     consecutive_failures,
@@ -402,6 +442,10 @@ async fn run_background_sync(profile_key: String, client: Client) {
 fn background_sync_retry_delay(consecutive_failures: u32) -> Duration {
     let exponent = consecutive_failures.clamp(1, 5);
     Duration::from_secs((1_u64 << exponent).min(BACKGROUND_SYNC_MAX_BACKOFF.as_secs()))
+}
+
+fn is_terminal_matrix_session_error(error_code: &str) -> bool {
+    matches!(error_code, "M_MISSING_TOKEN" | "M_UNKNOWN_TOKEN")
 }
 
 fn abort_background_sync(managed: &mut ManagedClient) {
@@ -1093,5 +1137,15 @@ mod tests {
         assert_eq!(background_sync_retry_delay(4), Duration::from_secs(16));
         assert_eq!(background_sync_retry_delay(5), BACKGROUND_SYNC_MAX_BACKOFF);
         assert_eq!(background_sync_retry_delay(50), BACKGROUND_SYNC_MAX_BACKOFF);
+    }
+
+    #[test]
+    fn terminal_session_rejections_stop_background_sync() {
+        assert!(is_terminal_matrix_session_error("M_MISSING_TOKEN"));
+        assert!(is_terminal_matrix_session_error("M_UNKNOWN_TOKEN"));
+        assert!(!is_terminal_matrix_session_error("M_LIMIT_EXCEEDED"));
+        assert!(!is_terminal_matrix_session_error(
+            "M_WEAVE_E2EE_BACKGROUND_SYNC"
+        ));
     }
 }
