@@ -8,7 +8,7 @@ use matrix_sdk::{
         },
         BackupDownloadStrategy, EncryptionSettings, VerificationState,
     },
-    room::MessagesOptions,
+    room::{MessagesOptions, RoomMember},
     ruma::{
         api::client::receipt::create_receipt::v3::ReceiptType,
         api::error::ErrorKind,
@@ -40,6 +40,7 @@ struct ManagedClient {
     user_id: String,
     device_id: String,
     access_token: String,
+    active_room_members: HashMap<String, Vec<String>>,
     verification_request: Option<VerificationRequest>,
     sas_verification: Option<SasVerification>,
 }
@@ -189,6 +190,7 @@ async fn initialize_inner(
                 user_id,
                 device_id: device_id.clone(),
                 access_token,
+                active_room_members: HashMap::new(),
                 verification_request: None,
                 sas_verification: None,
             },
@@ -367,7 +369,7 @@ async fn send_text_inner(profile_key: &str, room_id: &str, body: &str) -> Result
     {
         return Err("M_WEAVE_E2EE_REQUIRED".to_string());
     }
-    refresh_missing_active_member_device_keys(&client, &room).await?;
+    refresh_missing_active_member_device_keys(profile_key, &client, &room).await?;
     let response = room
         .send(RoomMessageEventContent::text_plain(body))
         .await
@@ -376,19 +378,37 @@ async fn send_text_inner(profile_key: &str, room_id: &str, body: &str) -> Result
 }
 
 async fn refresh_missing_active_member_device_keys(
+    profile_key: &str,
     client: &Client,
     room: &Room,
 ) -> Result<(), String> {
     let own_user_id = client
         .user_id()
         .ok_or_else(|| "M_WEAVE_E2EE_SESSION".to_string())?;
-    let members = room
-        .members(RoomMemberships::ACTIVE)
+
+    let mut members = room
+        .members_no_sync(RoomMemberships::ACTIVE)
         .await
         .map_err(|_| "M_WEAVE_E2EE_ROOM_MEMBERS".to_string())?;
+    let observed_member_ids = active_member_ids(&members);
+    let cached_member_ids = cached_active_member_ids(profile_key, room.room_id().as_str())?;
+
+    if active_member_set_changed(cached_member_ids.as_deref(), &observed_member_ids) {
+        // The canonical facade can create and join a room between two bounded
+        // syncs. Force the SDK to consume the facade's complete `/members`
+        // projection before it decides which devices receive the Megolm
+        // session. The per-session fingerprint avoids a full reload (and room
+        // key rotation) for every subsequent message when membership is
+        // unchanged.
+        room.mark_members_missing();
+        members = room
+            .members(RoomMemberships::ACTIVE)
+            .await
+            .map_err(|_| "M_WEAVE_E2EE_ROOM_MEMBERS".to_string())?;
+    }
     let encryption = client.encryption();
 
-    for member in members {
+    for member in &members {
         let user_id = member.user_id();
         if user_id == own_user_id {
             continue;
@@ -410,6 +430,53 @@ async fn refresh_missing_active_member_device_keys(
             .map_err(|_| "M_WEAVE_E2EE_MEMBER_KEYS".to_string())?;
     }
 
+    remember_active_member_ids(
+        profile_key,
+        room.room_id().as_str(),
+        active_member_ids(&members),
+    )?;
+
+    Ok(())
+}
+
+fn active_member_ids(members: &[RoomMember]) -> Vec<String> {
+    let mut member_ids = members
+        .iter()
+        .map(|member| member.user_id().to_string())
+        .collect::<Vec<_>>();
+    member_ids.sort_unstable();
+    member_ids.dedup();
+    member_ids
+}
+
+fn active_member_set_changed(cached: Option<&[String]>, observed: &[String]) -> bool {
+    cached != Some(observed)
+}
+
+fn cached_active_member_ids(
+    profile_key: &str,
+    room_id: &str,
+) -> Result<Option<Vec<String>>, String> {
+    clients()
+        .lock()
+        .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
+        .get(profile_key)
+        .map(|managed| managed.active_room_members.get(room_id).cloned())
+        .ok_or_else(|| "M_WEAVE_E2EE_NOT_INITIALIZED".to_string())
+}
+
+fn remember_active_member_ids(
+    profile_key: &str,
+    room_id: &str,
+    member_ids: Vec<String>,
+) -> Result<(), String> {
+    clients()
+        .lock()
+        .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
+        .get_mut(profile_key)
+        .ok_or_else(|| "M_WEAVE_E2EE_NOT_INITIALIZED".to_string())?
+        .active_room_members
+        .insert(room_id.to_string(), member_ids);
     Ok(())
 }
 
@@ -824,5 +891,18 @@ mod tests {
             matrix_error_kind_code(None, "M_WEAVE_E2EE_SYNC"),
             "M_WEAVE_E2EE_SYNC"
         );
+    }
+
+    #[test]
+    fn encrypted_send_refreshes_only_new_or_changed_member_sets() {
+        let initial = vec!["@author:api.weave.test".to_string()];
+        let shared = vec![
+            "@author:api.weave.test".to_string(),
+            "@collaborator:api.weave.test".to_string(),
+        ];
+
+        assert!(active_member_set_changed(None, &initial));
+        assert!(!active_member_set_changed(Some(&initial), &initial));
+        assert!(active_member_set_changed(Some(&initial), &shared));
     }
 }
