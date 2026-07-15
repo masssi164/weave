@@ -241,9 +241,18 @@ async fn sync_inner(profile_key: &str) -> Result<Value, String> {
     let sync_start_gate = sync_start_gate_for(profile_key)?;
     let _sync_start_guard = sync_start_gate.lock().await;
     if background_sync_running(profile_key)? {
+        // An explicit sync remains a readiness barrier even after the
+        // receiver loop has started. A newly joined encrypted room can become
+        // visible in the SDK store before its peer device keys have converged;
+        // returning at that point lets the first Olm-wrapped Megolm key arrive
+        // at a cold receiver. Converge the current room security projection
+        // before callers are allowed to render or read that room.
+        let (enabled_rooms, converged_rooms) =
+            converge_joined_room_security(profile_key, &client).await?;
         return Ok(json!({
             "backgroundSync": "active",
-            "enabledRooms": 0,
+            "enabledRooms": enabled_rooms,
+            "convergedRooms": converged_rooms,
         }));
     }
 
@@ -252,7 +261,34 @@ async fn sync_inner(profile_key: &str) -> Result<Value, String> {
         .await
         .map_err(|error| matrix_sdk_error_code(&error, "M_WEAVE_E2EE_SYNC"))?;
 
+    let (mut enabled_rooms, mut converged_rooms) =
+        converge_joined_room_security(profile_key, &client).await?;
+    if enabled_rooms > 0 {
+        client
+            .sync_once(SyncSettings::new().timeout(Duration::from_secs(0)))
+            .await
+            .map_err(|error| matrix_sdk_error_code(&error, "M_WEAVE_E2EE_SYNC"))?;
+        let (newly_enabled_rooms, newly_converged_rooms) =
+            converge_joined_room_security(profile_key, &client).await?;
+        enabled_rooms = enabled_rooms.saturating_add(newly_enabled_rooms);
+        converged_rooms = converged_rooms.max(newly_converged_rooms);
+    }
+    start_background_sync(profile_key, &client)?;
+
+    Ok(json!({
+        "nextBatch": first.next_batch,
+        "enabledRooms": enabled_rooms,
+        "convergedRooms": converged_rooms,
+        "backgroundSync": "started",
+    }))
+}
+
+async fn converge_joined_room_security(
+    profile_key: &str,
+    client: &Client,
+) -> Result<(u64, u64), String> {
     let mut enabled_rooms = 0_u64;
+    let mut converged_rooms = 0_u64;
     for room in client.joined_rooms() {
         let encryption = room
             .latest_encryption_state()
@@ -263,38 +299,19 @@ async fn sync_inner(profile_key: &str) -> Result<Value, String> {
                 .await
                 .map_err(|_| "M_WEAVE_E2EE_ENABLE_ROOM".to_string())?;
             enabled_rooms += 1;
+            continue;
         }
-    }
-    if enabled_rooms > 0 {
-        client
-            .sync_once(SyncSettings::new().timeout(Duration::from_secs(0)))
-            .await
-            .map_err(|error| matrix_sdk_error_code(&error, "M_WEAVE_E2EE_SYNC"))?;
-    }
 
-    // A room can become shared after both app-owned crypto clients have
-    // opened. Converge the active member and device lists on every fresh
-    // membership set before either participant needs to receive the first
-    // Olm-wrapped Megolm room key. A send-time check alone protects only the
-    // sender and leaves a cold collaborator unable to authenticate/decrypt
-    // the first to-device key delivery.
-    for room in client.joined_rooms() {
-        if room
-            .latest_encryption_state()
-            .await
-            .map_err(|_| "M_WEAVE_E2EE_ROOM_STATE".to_string())?
-            .is_encrypted()
-        {
-            refresh_active_member_device_keys(profile_key, &client, &room).await?;
-        }
+        // A room can become shared after both app-owned crypto clients have
+        // opened. Converge the active member and device lists on every fresh
+        // membership set before either participant needs to receive the first
+        // Olm-wrapped Megolm room key. A send-time check alone protects only
+        // the sender and leaves a cold collaborator unable to authenticate or
+        // decrypt the first to-device key delivery.
+        refresh_active_member_device_keys(profile_key, client, &room).await?;
+        converged_rooms += 1;
     }
-    start_background_sync(profile_key, &client)?;
-
-    Ok(json!({
-        "nextBatch": first.next_batch,
-        "enabledRooms": enabled_rooms,
-        "backgroundSync": "started",
-    }))
+    Ok((enabled_rooms, converged_rooms))
 }
 
 fn sync_start_gate_for(profile_key: &str) -> Result<Arc<AsyncMutex<()>>, String> {
@@ -328,8 +345,9 @@ fn background_sync_running(profile_key: &str) -> Result<bool, String> {
 
 fn start_background_sync(profile_key: &str, client: &Client) -> Result<(), String> {
     let sync_client = client.clone();
+    let sync_profile_key = profile_key.to_string();
     let task = tokio::spawn(async move {
-        run_background_sync(sync_client).await;
+        run_background_sync(sync_profile_key, sync_client).await;
     });
     let mut guard = clients()
         .lock()
@@ -344,17 +362,28 @@ fn start_background_sync(profile_key: &str, client: &Client) -> Result<(), Strin
     Ok(())
 }
 
-async fn run_background_sync(client: Client) {
+async fn run_background_sync(profile_key: String, client: Client) {
     let mut consecutive_failures = 0_u32;
     loop {
         let delay = match client
             .sync_once(SyncSettings::new().timeout(Duration::from_secs(30)))
             .await
         {
-            Ok(_) => {
-                consecutive_failures = 0;
-                BACKGROUND_SYNC_POLL_INTERVAL
-            }
+            Ok(_) => match converge_joined_room_security(&profile_key, &client).await {
+                Ok(_) => {
+                    consecutive_failures = 0;
+                    BACKGROUND_SYNC_POLL_INTERVAL
+                }
+                Err(error_code) => {
+                    consecutive_failures = consecutive_failures.saturating_add(1);
+                    tracing::warn!(
+                        error_code,
+                        consecutive_failures,
+                        "Matrix room security convergence will retry with bounded backoff"
+                    );
+                    background_sync_retry_delay(consecutive_failures)
+                }
+            },
             Err(error) => {
                 consecutive_failures = consecutive_failures.saturating_add(1);
                 let error_code = matrix_sdk_error_code(&error, "M_WEAVE_E2EE_BACKGROUND_SYNC");
@@ -701,8 +730,16 @@ pub async fn start_verification(profile_key: String) -> String {
         let own_device_id = client
             .device_id()
             .ok_or_else(|| "M_WEAVE_E2EE_SESSION".to_string())?;
-        let devices = client
-            .encryption()
+        let encryption = client.encryption();
+        // A second device can publish its keys after this client's latest
+        // sync response. Refresh the current user's device keys explicitly
+        // before selecting a verification target; get_user_devices() reads
+        // only the local crypto store and is not a network freshness barrier.
+        encryption
+            .request_user_identity(own_user_id)
+            .await
+            .map_err(|_| "M_WEAVE_E2EE_DEVICE".to_string())?;
+        let devices = encryption
             .get_user_devices(own_user_id)
             .await
             .map_err(|_| "M_WEAVE_E2EE_DEVICE".to_string())?;
