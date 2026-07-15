@@ -393,7 +393,9 @@ async fn refresh_missing_active_member_device_keys(
     let observed_member_ids = active_member_ids(&members);
     let cached_member_ids = cached_active_member_ids(profile_key, room.room_id().as_str())?;
 
-    if active_member_set_changed(cached_member_ids.as_deref(), &observed_member_ids) {
+    let member_set_changed =
+        active_member_set_changed(cached_member_ids.as_deref(), &observed_member_ids);
+    if member_set_changed {
         // The canonical facade can create and join a room between two bounded
         // syncs. Force the SDK to consume the facade's complete `/members`
         // projection before it decides which devices receive the Megolm
@@ -413,17 +415,22 @@ async fn refresh_missing_active_member_device_keys(
         if user_id == own_user_id {
             continue;
         }
-        let devices = encryption
+        let has_cached_device = encryption
             .get_user_devices(user_id)
             .await
-            .map_err(|_| "M_WEAVE_E2EE_MEMBER_KEYS".to_string())?;
-        if devices.devices().next().is_some() {
+            .map_err(|_| "M_WEAVE_E2EE_MEMBER_KEYS".to_string())?
+            .devices()
+            .next()
+            .is_some();
+        if !requires_explicit_device_query(member_set_changed, has_cached_device) {
             continue;
         }
 
-        // A first room sync can mark a member as tracked before their device
-        // list reaches the local crypto store. Force one current key query so
-        // the SDK cannot silently omit an already-registered recipient device.
+        // A first room sync can mark a member as tracked while the local crypto
+        // store still contains only an older device snapshot. A non-empty
+        // cache therefore does not prove that the member's current app device
+        // is known. Query every peer once for a new/changed membership set;
+        // unchanged sets only need a query when no device is cached at all.
         encryption
             .request_user_identity(user_id)
             .await
@@ -451,6 +458,10 @@ fn active_member_ids(members: &[RoomMember]) -> Vec<String> {
 
 fn active_member_set_changed(cached: Option<&[String]>, observed: &[String]) -> bool {
     cached != Some(observed)
+}
+
+fn requires_explicit_device_query(member_set_changed: bool, has_cached_device: bool) -> bool {
+    member_set_changed || !has_cached_device
 }
 
 fn cached_active_member_ids(
@@ -894,7 +905,7 @@ mod tests {
     }
 
     #[test]
-    fn encrypted_send_refreshes_only_new_or_changed_member_sets() {
+    fn encrypted_send_detects_new_or_changed_member_sets() {
         let initial = vec!["@author:api.weave.test".to_string()];
         let shared = vec![
             "@author:api.weave.test".to_string(),
@@ -904,5 +915,13 @@ mod tests {
         assert!(active_member_set_changed(None, &initial));
         assert!(!active_member_set_changed(Some(&initial), &initial));
         assert!(active_member_set_changed(Some(&initial), &shared));
+    }
+
+    #[test]
+    fn changed_membership_forces_a_current_query_despite_cached_devices() {
+        assert!(requires_explicit_device_query(true, true));
+        assert!(requires_explicit_device_query(true, false));
+        assert!(requires_explicit_device_query(false, false));
+        assert!(!requires_explicit_device_query(false, true));
     }
 }
