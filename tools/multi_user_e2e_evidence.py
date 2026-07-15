@@ -234,6 +234,12 @@ def require_passed_marker_facts(
                         "roomMembershipCleanupComplete": True,
                     },
                 )
+                if payload.get("runIndex") == 1:
+                    _require_exact_facts(
+                        marker,
+                        payload,
+                        {"coldCollaboratorDeviceSetVerified": True},
+                    )
             elif marker == "MULTI_USER_FILES_RESULT":
                 _require_exact_facts(
                     marker,

@@ -64,6 +64,7 @@ class MatrixLiveRoomDriver {
     required MatrixLiveActorCredentials author,
     required String roomName,
     MatrixLiveActorCredentials? collaborator,
+    bool requireColdCollaboratorDevice = false,
   }) async {
     final authorUserId = await registerWhoami(author);
     final collaboratorUserId = collaborator == null
@@ -82,6 +83,13 @@ class MatrixLiveRoomDriver {
         collaborator: collaborator,
         collaboratorUserId: collaboratorUserId,
       );
+      if (requireColdCollaboratorDevice) {
+        await requireExactCurrentDevices(
+          observer: author,
+          targetUserId: collaboratorUserId,
+          expectedDeviceIds: <String>{collaborator.deviceId},
+        );
+      }
     }
 
     final createResponse = await client.post(
@@ -212,6 +220,58 @@ class MatrixLiveRoomDriver {
     );
     await _requireOneTimeKeyMaterial(actor: author);
     await _requireOneTimeKeyMaterial(actor: collaborator);
+  }
+
+  /// Fails unless the current northbound device projection contains exactly
+  /// the expected app-owned devices. The first collaboration pass uses this
+  /// as a cold-identity precondition so a warmed second pass cannot conceal a
+  /// first-device room-key delivery defect.
+  Future<void> requireExactCurrentDevices({
+    required MatrixLiveActorCredentials observer,
+    required String targetUserId,
+    required Set<String> expectedDeviceIds,
+  }) async {
+    final response = await client.post(
+      _uri(<String>['_matrix', 'client', 'v3', 'keys', 'query']),
+      headers: _jsonHeaders(observer),
+      body: jsonEncode(<String, Object>{
+        'device_keys': <String, List<String>>{targetUserId: <String>[]},
+      }),
+    );
+    _requireSuccess(response, operation: 'query-current-device-set');
+    final payload = _object(
+      response.body,
+      operation: 'query-current-device-set',
+    );
+    final deviceKeys = payload['device_keys'];
+    final userDevices = deviceKeys is Map ? deviceKeys[targetUserId] : null;
+    if (userDevices is! Map) {
+      throw const MatrixLiveRoomDriverException(
+        'M_WEAVE_LIVE_MATRIX_DEVICE_SET_INVALID',
+      );
+    }
+    final observedDeviceIds = <String>{};
+    for (final entry in userDevices.entries) {
+      final device = entry.value;
+      final keys = device is Map ? device['keys'] : null;
+      if (entry.key is! String ||
+          device is! Map ||
+          device['user_id'] != targetUserId ||
+          device['device_id'] != entry.key ||
+          keys is! Map ||
+          keys.isEmpty) {
+        throw const MatrixLiveRoomDriverException(
+          'M_WEAVE_LIVE_MATRIX_DEVICE_SET_INVALID',
+        );
+      }
+      observedDeviceIds.add(entry.key as String);
+    }
+    if (observedDeviceIds.length != expectedDeviceIds.length ||
+        !observedDeviceIds.containsAll(expectedDeviceIds)) {
+      throw const MatrixLiveRoomDriverException(
+        'M_WEAVE_LIVE_MATRIX_COLLABORATOR_NOT_COLD',
+      );
+    }
   }
 
   /// Proves that the canonical room-member projection is complete from the

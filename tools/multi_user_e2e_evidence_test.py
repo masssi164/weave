@@ -131,6 +131,11 @@ class MultiUserE2EEvidenceTest(unittest.TestCase):
                             "runHash": "a" * 16,
                             "supportSafe": True,
                             **passed_facts[marker],
+                            **(
+                                {"coldCollaboratorDeviceSetVerified": True}
+                                if marker == "MULTI_USER_CHAT_RESULT" and run_index == 1
+                                else {}
+                            ),
                         }
                     )
                 )
@@ -400,6 +405,17 @@ class MultiUserE2EEvidenceTest(unittest.TestCase):
         completed = self.run_script()
         self.assertEqual(completed.returncode, 2)
         self.assertIn("ciphertextOnlyTransport=True", completed.stderr)
+
+    def test_warmed_second_pass_cannot_replace_cold_collaborator_proof(self) -> None:
+        content = self.log.read_text(encoding="utf-8").replace(
+            ', "coldCollaboratorDeviceSetVerified": true',
+            "",
+            1,
+        )
+        self.log.write_text(content, encoding="utf-8")
+        completed = self.run_script()
+        self.assertEqual(completed.returncode, 2)
+        self.assertIn("coldCollaboratorDeviceSetVerified=True", completed.stderr)
 
     def test_blocked_markers_produce_explicit_blocked_evidence(self) -> None:
         content = self.log.read_text(encoding="utf-8")

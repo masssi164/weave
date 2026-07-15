@@ -162,6 +162,7 @@ void main() {
       var authorMessageObserved = false;
       var collaboratorReplyObserved = false;
       var ciphertextOnlyTransport = false;
+      var coldCollaboratorDeviceSetVerified = false;
       var outsiderChatDenied = false;
       var outsiderFilesReadDenied = false;
       var outsiderFilesMutationDenied = false;
@@ -192,6 +193,7 @@ void main() {
         roomName: 'Weave encrypted collaboration $suffix',
         cleanup: cleanup,
       );
+      coldCollaboratorDeviceSetVerified = configuration.runIndex == 1;
 
       _emitProgress(configuration, 'home-baseline');
       final homeActivityBaseline = <CollaborationActorRole, Set<String>>{};
@@ -796,6 +798,9 @@ void main() {
         'authorMessageObserved': authorMessageObserved,
         'collaboratorReplyObserved': collaboratorReplyObserved,
         'ciphertextOnlyTransport': ciphertextOnlyTransport,
+        if (configuration.runIndex == 1)
+          'coldCollaboratorDeviceSetVerified':
+              coldCollaboratorDeviceSetVerified,
         'outsiderDenied': outsiderChatDenied,
         'messageCount': 2,
         'messageCleanupComplete': cleanup.messageCleanupComplete,
@@ -986,6 +991,7 @@ Future<String> _provisionEncryptedSharedRoom({
         deviceId: collaboratorCredentials.deviceId,
       ),
       roomName: roomName,
+      requireColdCollaboratorDevice: configuration.runIndex == 1,
     );
     cleanup.rememberChatRoom(provisioned.roomId);
     if (provisioned.collaboratorUserId == null ||

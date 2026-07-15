@@ -31,11 +31,15 @@ use std::{
     sync::{Arc, Mutex, OnceLock},
     time::Duration,
 };
-use tokio::{sync::Mutex as AsyncMutex, task::JoinHandle};
+use tokio::{
+    sync::{watch, Mutex as AsyncMutex},
+    task::JoinHandle,
+};
 
 const DEVICE_ID_HEADER: &str = "x-weave-matrix-device-id";
 const BACKGROUND_SYNC_POLL_INTERVAL: Duration = Duration::from_secs(1);
 const BACKGROUND_SYNC_MAX_BACKOFF: Duration = Duration::from_secs(30);
+const BACKGROUND_SYNC_BARRIER_TIMEOUT: Duration = Duration::from_secs(35);
 
 struct ManagedClient {
     client: Client,
@@ -47,6 +51,7 @@ struct ManagedClient {
     pre_send_security_fingerprints: HashMap<String, RoomSecurityFingerprint>,
     room_security_gate: Arc<AsyncMutex<()>>,
     sync_start_gate: Arc<AsyncMutex<()>>,
+    background_sync_progress: watch::Sender<BackgroundSyncProgress>,
     background_sync: Option<JoinHandle<()>>,
     verification_request: Option<VerificationRequest>,
     sas_verification: Option<SasVerification>,
@@ -62,6 +67,22 @@ struct RoomSecurityFingerprint {
 enum RoomSecurityRefresh {
     Background,
     PreSend,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+struct BackgroundSyncProgress {
+    generation: u64,
+    next_batch: String,
+    enabled_rooms: u64,
+    converged_rooms: u64,
+    terminal_error: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct CompletedSyncCycle {
+    next_batch: String,
+    enabled_rooms: u64,
+    converged_rooms: u64,
 }
 
 static CLIENTS: OnceLock<Mutex<HashMap<String, ManagedClient>>> = OnceLock::new();
@@ -198,6 +219,7 @@ async fn initialize_inner(
         }
     });
 
+    let (background_sync_progress, _) = watch::channel(BackgroundSyncProgress::default());
     let replaced = clients()
         .lock()
         .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
@@ -213,6 +235,7 @@ async fn initialize_inner(
                 pre_send_security_fingerprints: HashMap::new(),
                 room_security_gate: Arc::new(AsyncMutex::new(())),
                 sync_start_gate: Arc::new(AsyncMutex::new(())),
+                background_sync_progress,
                 background_sync: None,
                 verification_request: None,
                 sas_verification: None,
@@ -257,65 +280,70 @@ async fn sync_inner(profile_key: &str) -> Result<Value, String> {
     let sync_start_gate = sync_start_gate_for(profile_key)?;
     let _sync_start_guard = sync_start_gate.lock().await;
 
-    // An explicit sync is a network-backed readiness barrier, even after the
-    // long-polling receiver has started. Pause that receiver first so this
-    // zero-timeout sync deterministically consumes current membership and
-    // device revocation state instead of returning only the cached SDK store.
-    // This also prevents two concurrent `/sync` requests from racing the same
-    // persisted next-batch token.
-    let background_was_running = pause_background_sync(profile_key).await?;
+    // Once continuous sync owns the Matrix cursor, an explicit readiness call
+    // observes its latest fully processed cycle. Cancelling an in-flight sync
+    // after the facade has returned a to-device room key can advance the
+    // persisted cursor before the crypto store commits that key. That produces
+    // the exact cold-device failure where a later sync can no longer recover
+    // the first Megolm envelope. One owner processes the response atomically;
+    // foreground callers read its committed progress instead of racing it or
+    // waiting for an unrelated long-poll after the needed event already landed.
+    if let Some(progress) = running_background_sync_observer(profile_key)? {
+        let completed = observe_completed_background_sync(progress).await?;
+        return Ok(json!({
+            "nextBatch": completed.next_batch,
+            "enabledRooms": completed.enabled_rooms,
+            "convergedRooms": completed.converged_rooms,
+            "backgroundSync": "observed",
+        }));
+    }
 
-    let first = preserve_background_after_explicit_failure(
-        client
+    let completed = complete_sync_cycle(
+        profile_key,
+        &client,
+        Duration::from_secs(0),
+        "M_WEAVE_E2EE_SYNC",
+    )
+    .await?;
+    let progress = background_sync_progress_for(profile_key)?;
+    publish_completed_sync(&progress, &completed);
+    start_background_sync(profile_key, &client)?;
+
+    Ok(json!({
+        "nextBatch": completed.next_batch,
+        "enabledRooms": completed.enabled_rooms,
+        "convergedRooms": completed.converged_rooms,
+        "backgroundSync": "started",
+    }))
+}
+
+async fn complete_sync_cycle(
+    profile_key: &str,
+    client: &Client,
+    timeout: Duration,
+    error_code: &str,
+) -> Result<CompletedSyncCycle, String> {
+    let mut response = client
+        .sync_once(SyncSettings::new().timeout(timeout))
+        .await
+        .map_err(|error| matrix_sdk_error_code(&error, error_code))?;
+    let (mut enabled_rooms, mut converged_rooms) =
+        converge_joined_room_security(profile_key, client).await?;
+    if enabled_rooms > 0 {
+        response = client
             .sync_once(SyncSettings::new().timeout(Duration::from_secs(0)))
             .await
-            .map_err(|error| matrix_sdk_error_code(&error, "M_WEAVE_E2EE_SYNC")),
-        profile_key,
-        &client,
-        background_was_running,
-    )?;
-
-    let (mut enabled_rooms, mut converged_rooms) = preserve_background_after_explicit_failure(
-        converge_joined_room_security(profile_key, &client).await,
-        profile_key,
-        &client,
-        background_was_running,
-    )?;
-    if enabled_rooms > 0 {
-        preserve_background_after_explicit_failure(
-            client
-                .sync_once(SyncSettings::new().timeout(Duration::from_secs(0)))
-                .await
-                .map(|_| ())
-                .map_err(|error| matrix_sdk_error_code(&error, "M_WEAVE_E2EE_SYNC")),
-            profile_key,
-            &client,
-            background_was_running,
-        )?;
+            .map_err(|error| matrix_sdk_error_code(&error, error_code))?;
         let (newly_enabled_rooms, newly_converged_rooms) =
-            preserve_background_after_explicit_failure(
-                converge_joined_room_security(profile_key, &client).await,
-                profile_key,
-                &client,
-                background_was_running,
-            )?;
+            converge_joined_room_security(profile_key, client).await?;
         enabled_rooms = enabled_rooms.saturating_add(newly_enabled_rooms);
         converged_rooms = converged_rooms.max(newly_converged_rooms);
     }
-    start_background_sync(profile_key, &client)?;
-
-    let background_sync_state = if background_was_running {
-        "restarted"
-    } else {
-        "started"
-    };
-
-    Ok(json!({
-        "nextBatch": first.next_batch,
-        "enabledRooms": enabled_rooms,
-        "convergedRooms": converged_rooms,
-        "backgroundSync": background_sync_state,
-    }))
+    Ok(CompletedSyncCycle {
+        next_batch: response.next_batch,
+        enabled_rooms,
+        converged_rooms,
+    })
 }
 
 async fn converge_joined_room_security(
@@ -364,45 +392,88 @@ fn sync_start_gate_for(profile_key: &str) -> Result<Arc<AsyncMutex<()>>, String>
         .ok_or_else(|| "M_WEAVE_E2EE_NOT_INITIALIZED".to_string())
 }
 
-async fn pause_background_sync(profile_key: &str) -> Result<bool, String> {
-    let task = {
-        let mut guard = clients()
-            .lock()
-            .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?;
-        guard
-            .get_mut(profile_key)
-            .ok_or_else(|| "M_WEAVE_E2EE_NOT_INITIALIZED".to_string())?
-            .background_sync
-            .take()
+fn running_background_sync_observer(
+    profile_key: &str,
+) -> Result<Option<watch::Receiver<BackgroundSyncProgress>>, String> {
+    let mut guard = clients()
+        .lock()
+        .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?;
+    let managed = guard
+        .get_mut(profile_key)
+        .ok_or_else(|| "M_WEAVE_E2EE_NOT_INITIALIZED".to_string())?;
+    let Some(task) = managed.background_sync.as_ref() else {
+        return Ok(None);
     };
-    let Some(task) = task else {
-        return Ok(false);
-    };
-    let was_running = !task.is_finished();
-    task.abort();
-    let _ = task.await;
-    Ok(was_running)
+    if !task.is_finished() {
+        return Ok(Some(managed.background_sync_progress.subscribe()));
+    }
+
+    managed.background_sync.take();
+    if let Some(error_code) = managed
+        .background_sync_progress
+        .borrow()
+        .terminal_error
+        .clone()
+    {
+        return Err(error_code);
+    }
+    Err("M_WEAVE_E2EE_BACKGROUND_SYNC".to_string())
 }
 
-fn preserve_background_after_explicit_failure<T>(
-    result: Result<T, String>,
-    profile_key: &str,
-    client: &Client,
-    background_was_running: bool,
-) -> Result<T, String> {
-    if let Err(error_code) = &result {
-        if background_was_running && !is_terminal_matrix_session_error(error_code) {
-            let _ = start_background_sync(profile_key, client);
+async fn observe_completed_background_sync(
+    mut progress: watch::Receiver<BackgroundSyncProgress>,
+) -> Result<BackgroundSyncProgress, String> {
+    tokio::time::timeout(BACKGROUND_SYNC_BARRIER_TIMEOUT, async move {
+        loop {
+            let observed = progress.borrow().clone();
+            if let Some(error_code) = observed.terminal_error {
+                return Err(error_code);
+            }
+            if observed.generation > 0 {
+                return Ok(observed);
+            }
+            progress
+                .changed()
+                .await
+                .map_err(|_| "M_WEAVE_E2EE_BACKGROUND_SYNC".to_string())?;
         }
-    }
-    result
+    })
+    .await
+    .map_err(|_| "M_WEAVE_E2EE_SYNC_TIMEOUT".to_string())?
+}
+
+fn background_sync_progress_for(
+    profile_key: &str,
+) -> Result<watch::Sender<BackgroundSyncProgress>, String> {
+    clients()
+        .lock()
+        .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
+        .get(profile_key)
+        .map(|managed| managed.background_sync_progress.clone())
+        .ok_or_else(|| "M_WEAVE_E2EE_NOT_INITIALIZED".to_string())
+}
+
+fn publish_completed_sync(
+    progress: &watch::Sender<BackgroundSyncProgress>,
+    completed: &CompletedSyncCycle,
+) {
+    progress.send_modify(|state| {
+        state.generation = state.generation.saturating_add(1);
+        state.next_batch = completed.next_batch.clone();
+        state.enabled_rooms = completed.enabled_rooms;
+        state.converged_rooms = completed.converged_rooms;
+        state.terminal_error = None;
+    });
 }
 
 fn start_background_sync(profile_key: &str, client: &Client) -> Result<(), String> {
+    let progress = background_sync_progress_for(profile_key)?;
+    progress.send_modify(|state| state.terminal_error = None);
     let sync_client = client.clone();
     let sync_profile_key = profile_key.to_string();
+    let sync_progress = progress.clone();
     let task = tokio::spawn(async move {
-        run_background_sync(sync_profile_key, sync_client).await;
+        run_background_sync(sync_profile_key, sync_client, sync_progress).await;
     });
     let mut guard = clients()
         .lock()
@@ -417,32 +488,32 @@ fn start_background_sync(profile_key: &str, client: &Client) -> Result<(), Strin
     Ok(())
 }
 
-async fn run_background_sync(profile_key: String, client: Client) {
+async fn run_background_sync(
+    profile_key: String,
+    client: Client,
+    progress: watch::Sender<BackgroundSyncProgress>,
+) {
     let mut consecutive_failures = 0_u32;
     loop {
-        let delay = match client
-            .sync_once(SyncSettings::new().timeout(Duration::from_secs(30)))
-            .await
+        let delay = match complete_sync_cycle(
+            &profile_key,
+            &client,
+            Duration::from_secs(30),
+            "M_WEAVE_E2EE_BACKGROUND_SYNC",
+        )
+        .await
         {
-            Ok(_) => match converge_joined_room_security(&profile_key, &client).await {
-                Ok(_) => {
-                    consecutive_failures = 0;
-                    BACKGROUND_SYNC_POLL_INTERVAL
-                }
-                Err(error_code) => {
-                    consecutive_failures = consecutive_failures.saturating_add(1);
-                    tracing::warn!(
-                        error_code,
-                        consecutive_failures,
-                        "Matrix room security convergence will retry with bounded backoff"
-                    );
-                    background_sync_retry_delay(consecutive_failures)
-                }
-            },
-            Err(error) => {
+            Ok(completed) => {
+                consecutive_failures = 0;
+                publish_completed_sync(&progress, &completed);
+                BACKGROUND_SYNC_POLL_INTERVAL
+            }
+            Err(error_code) => {
                 consecutive_failures = consecutive_failures.saturating_add(1);
-                let error_code = matrix_sdk_error_code(&error, "M_WEAVE_E2EE_BACKGROUND_SYNC");
                 if is_terminal_matrix_session_error(&error_code) {
+                    progress.send_modify(|state| {
+                        state.terminal_error = Some(error_code.clone());
+                    });
                     tracing::warn!(
                         error_code,
                         "Matrix background sync stopped after terminal session rejection"
@@ -1344,6 +1415,75 @@ mod tests {
         assert_eq!(background_sync_retry_delay(4), Duration::from_secs(16));
         assert_eq!(background_sync_retry_delay(5), BACKGROUND_SYNC_MAX_BACKOFF);
         assert_eq!(background_sync_retry_delay(50), BACKGROUND_SYNC_MAX_BACKOFF);
+    }
+
+    #[test]
+    fn foreground_sync_waits_until_a_fully_processed_background_cycle_is_published() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .build()
+            .unwrap();
+        runtime.block_on(async {
+            let (progress, observer) = watch::channel(BackgroundSyncProgress::default());
+            let waiter = tokio::spawn(observe_completed_background_sync(observer));
+            tokio::task::yield_now().await;
+
+            progress.send_modify(|state| state.next_batch = "not-complete".to_string());
+            tokio::task::yield_now().await;
+            assert!(!waiter.is_finished());
+
+            progress.send_modify(|state| {
+                state.generation = 1;
+                state.next_batch = "complete".to_string();
+                state.converged_rooms = 1;
+            });
+            let observed = waiter.await.unwrap().unwrap();
+            assert_eq!(observed.generation, 1);
+            assert_eq!(observed.next_batch, "complete");
+            assert_eq!(observed.converged_rooms, 1);
+        });
+    }
+
+    #[test]
+    fn foreground_sync_reuses_the_latest_fully_processed_background_cycle() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .build()
+            .unwrap();
+        runtime.block_on(async {
+            let (progress, observer) = watch::channel(BackgroundSyncProgress::default());
+            publish_completed_sync(
+                &progress,
+                &CompletedSyncCycle {
+                    next_batch: "complete".to_string(),
+                    enabled_rooms: 0,
+                    converged_rooms: 1,
+                },
+            );
+
+            let observed = observe_completed_background_sync(observer).await.unwrap();
+            assert_eq!(observed.generation, 1);
+            assert_eq!(observed.next_batch, "complete");
+            assert_eq!(observed.converged_rooms, 1);
+        });
+    }
+
+    #[test]
+    fn foreground_sync_surfaces_a_terminal_background_session_rejection() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .build()
+            .unwrap();
+        runtime.block_on(async {
+            let (progress, observer) = watch::channel(BackgroundSyncProgress::default());
+            let waiter = tokio::spawn(observe_completed_background_sync(observer));
+            tokio::task::yield_now().await;
+
+            progress.send_modify(|state| {
+                state.terminal_error = Some("M_UNKNOWN_TOKEN".to_string());
+            });
+            assert_eq!(waiter.await.unwrap(), Err("M_UNKNOWN_TOKEN".to_string()));
+        });
     }
 
     #[test]

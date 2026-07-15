@@ -38,6 +38,10 @@ void main() {
       ),
       _oneTimeKeyCountResponse(),
       _oneTimeKeyCountResponse(),
+      _deviceKeysResponse(
+        userId: '@collaborator:api.weave.test',
+        deviceId: _collaborator.deviceId,
+      ),
       _jsonResponse(<String, Object>{'room_id': _roomId}),
       _jsonResponse(<String, Object>{'event_id': r'$encryption'}),
       _jsonResponse(<String, Object>{'room_id': _roomId}),
@@ -59,6 +63,7 @@ void main() {
           author: _author,
           collaborator: _collaborator,
           roomName: 'unique encrypted room',
+          requireColdCollaboratorDevice: true,
         );
 
     expect(provisioned.roomId, _roomId);
@@ -67,6 +72,7 @@ void main() {
     expect(requests.map((request) => request.method), <String>[
       'GET',
       'GET',
+      'POST',
       'POST',
       'POST',
       'POST',
@@ -97,28 +103,80 @@ void main() {
       requests[5].headers['X-Weave-Matrix-Device-Id'],
       _collaborator.deviceId,
     );
-    expect(requests[6].url.path, '/_matrix/client/v3/createRoom');
+    expect(requests[6].url.path, '/_matrix/client/v3/keys/query');
     expect(jsonDecode(requests[6].body), <String, Object>{
+      'device_keys': <String, List<String>>{
+        '@collaborator:api.weave.test': <String>[],
+      },
+    });
+    expect(requests[7].url.path, '/_matrix/client/v3/createRoom');
+    expect(jsonDecode(requests[7].body), <String, Object>{
       'name': 'unique encrypted room',
       'preset': 'private_chat',
       'invite': <String>['@collaborator:api.weave.test'],
     });
     expect(
-      requests[7].url.path,
+      requests[8].url.path,
       '/_matrix/client/v3/rooms/!room-e2e:api.weave.test/state/m.room.encryption',
     );
     expect(
-      requests[8].url.path,
+      requests[9].url.path,
       '/_matrix/client/v3/join/!room-e2e:api.weave.test',
     );
     expect(
-      requests[8].headers['X-Weave-Matrix-Device-Id'],
+      requests[9].headers['X-Weave-Matrix-Device-Id'],
       _collaborator.deviceId,
     );
-    expect(requests[9].url.path, _roomMembersPath);
+    expect(requests[10].url.path, _roomMembersPath);
     expect(
-      requests[10].headers['X-Weave-Matrix-Device-Id'],
+      requests[11].headers['X-Weave-Matrix-Device-Id'],
       _collaborator.deviceId,
+    );
+  });
+
+  test('rejects a warmed collaborator device set support-safely', () {
+    const oldDeviceId = 'WEAVEOLDDEVICE';
+    const secretBody = 'provider-secret-device-payload';
+    final driver = MatrixLiveRoomDriver(
+      client: MockClient(
+        (request) async => _jsonResponse(<String, Object>{
+          'device_keys': <String, Object>{
+            '@collaborator:api.weave.test': <String, Object>{
+              _collaborator.deviceId: _deviceKey(
+                userId: '@collaborator:api.weave.test',
+                deviceId: _collaborator.deviceId,
+              ),
+              oldDeviceId: _deviceKey(
+                userId: '@collaborator:api.weave.test',
+                deviceId: oldDeviceId,
+              ),
+            },
+          },
+          'provider_debug': secretBody,
+        }),
+      ),
+      homeserver: Uri.parse('https://api.weave.test'),
+    );
+
+    expect(
+      driver.requireExactCurrentDevices(
+        observer: _author,
+        targetUserId: '@collaborator:api.weave.test',
+        expectedDeviceIds: <String>{_collaborator.deviceId},
+      ),
+      throwsA(
+        isA<MatrixLiveRoomDriverException>()
+            .having(
+              (error) => error.code,
+              'code',
+              'M_WEAVE_LIVE_MATRIX_COLLABORATOR_NOT_COLD',
+            )
+            .having(
+              (error) => error.toString(),
+              'support-safe text',
+              isNot(contains(secretBody)),
+            ),
+      ),
     );
   });
 
@@ -503,15 +561,20 @@ http.Response _deviceKeysResponse({
   return _jsonResponse(<String, Object>{
     'device_keys': <String, Object>{
       userId: <String, Object>{
-        deviceId: <String, Object>{
-          'user_id': userId,
-          'device_id': deviceId,
-          'keys': <String, String>{'ed25519:$deviceId': 'public-key'},
-        },
+        deviceId: _deviceKey(userId: userId, deviceId: deviceId),
       },
     },
   });
 }
+
+Map<String, Object> _deviceKey({
+  required String userId,
+  required String deviceId,
+}) => <String, Object>{
+  'user_id': userId,
+  'device_id': deviceId,
+  'keys': <String, String>{'ed25519:$deviceId': 'public-key'},
+};
 
 http.Response _oneTimeKeyCountResponse({int count = 10}) {
   return _jsonResponse(<String, Object>{
