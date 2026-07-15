@@ -29,6 +29,9 @@ readonly PERSISTED_TF_VARS=(
   TF_VAR_isolated_e2e_enabled
   TF_VAR_isolated_e2e_namespace
   TF_VAR_isolated_e2e_context_memberships
+  TF_VAR_chat_e2e_proof_enabled
+  TF_VAR_chat_e2e_proof_token_host_path
+  TF_VAR_chat_e2e_proof_run_id
   TF_VAR_tenant_slug
   TF_VAR_tenant_domain
   TF_VAR_local_lan_host
@@ -125,6 +128,8 @@ readonly PERSISTED_TF_VARS=(
   TF_VAR_mas_encryption_secret
   TF_VAR_mas_signing_key_pem
   TF_VAR_mas_matrix_secret
+  TF_VAR_matrix_chat_appservice_as_token
+  TF_VAR_matrix_chat_appservice_hs_token
   TF_VAR_synapse_registration_shared_secret
   TF_VAR_synapse_macaroon_secret_key
   TF_VAR_synapse_form_secret
@@ -433,6 +438,9 @@ persist_bootstrap_env() {
     fi
     printf 'export WEAVE_MATRIX_HOMESERVER_URL=%q\n' "$(client_matrix_facade_url)"
     printf 'export WEAVE_MATRIX_PROVIDER_URL=%q\n' "$(matrix_provider_public_url)"
+    printf 'export WEAVE_CHAT_PROVIDER=%q\n' "matrix-synapse"
+    printf 'export WEAVE_CHAT_STORAGE_MODE=%q\n' "jdbc"
+    printf 'export WEAVE_CHAT_MATRIX_APPSERVICE_CONFIGURED=%q\n' "true"
     printf 'export WEAVE_OIDC_ISSUER_URL=%q\n' "$(integration_test_oidc_issuer_url)"
     printf 'export WEAVE_OIDC_CLIENT_ID=%q\n' "weave-app"
     printf 'export WEAVE_TARGET_MOBILE=%q\n' "true"
@@ -960,6 +968,7 @@ ensure_existing_stack_terraform_state() {
   import_existing_docker_volume_state module.reverse_proxy.docker_volume.config weave_caddy_config
   import_existing_docker_volume_state module.keycloak.docker_volume.data weave_keycloak_data
   import_existing_docker_volume_state module.nextcloud.docker_volume.data weave_nextcloud_data
+  import_existing_docker_volume_state module.matrix.docker_volume.appservice_runtime weave_matrix_chat_appservice_runtime
   import_existing_docker_volume_state 'module.mailpit[0].docker_volume.data' "${TF_VAR_mailpit_volume_name:-weave_mailpit_data}"
 
   import_existing_docker_container_state module.postgres.docker_container.this weave-db
@@ -1024,6 +1033,21 @@ refresh_runtime_containers_if_images_changed() {
     weave-mcp-server \
     "${TF_VAR_weave_mcp_server_image:-}" \
     "Weave MCP server"
+}
+
+restart_matrix_chat_appservice_consumers() {
+  local container_name
+  for container_name in weave-backend weave-synapse; do
+    docker container inspect "${container_name}" >/dev/null 2>&1 ||
+      fail "Matrix Chat Application Service consumer is missing after apply: ${container_name}"
+  done
+
+  # Synapse reads its Application Service registration only at startup. The
+  # backend reads both mounted token files at runtime. Restart both consumers
+  # after every apply so a coordinated token/config rotation cannot leave one
+  # side using stale material. Keycloak/MAS human sessions are untouched.
+  log "Restarting Matrix Chat Application Service consumers after private runtime staging..."
+  docker restart weave-backend weave-synapse >/dev/null
 }
 
 ensure_postgres_bootstrap_applied() {
@@ -1213,6 +1237,9 @@ write_app_config_summary() {
     printf 'export WEAVE_OIDC_ISSUER_URL=%q\n' "$(integration_test_oidc_issuer_url)"
     printf 'export WEAVE_OIDC_CLIENT_ID=%q\n' 'weave-app'
     printf 'export WEAVE_MATRIX_HOMESERVER_URL=%q\n' "${matrix_url}"
+    printf 'export WEAVE_CHAT_PROVIDER=%q\n' "matrix-synapse"
+    printf 'export WEAVE_CHAT_STORAGE_MODE=%q\n' "jdbc"
+    printf 'export WEAVE_CHAT_MATRIX_APPSERVICE_CONFIGURED=%q\n' "true"
     printf 'export WEAVE_FILES_PRODUCT_URL=%q\n' "${product_url}/files"
     printf 'export WEAVE_CALENDAR_PRODUCT_URL=%q\n' "${product_url}/calendar"
     printf 'export WEAVE_LOCAL_CA_URL=%q\n' "http://${TF_VAR_tenant_domain}:${TF_VAR_proxy_http_host_port}/weave-local-ca.pem"
@@ -1331,7 +1358,8 @@ ensure_generated_directories() {
     "${INFRA_DIR}/.generated/db" \
     "${INFRA_DIR}/.generated/caddy/certs" \
     "${INFRA_DIR}/.generated/mas" \
-    "${INFRA_DIR}/.generated/synapse"
+    "${INFRA_DIR}/.generated/synapse" \
+    "${INFRA_DIR}/.generated/synapse/appservices"
 }
 
 maybe_prepare_runner_hygiene() {
@@ -1386,6 +1414,9 @@ ensure_default_inputs() {
     "TF_VAR_docker_network_name=weave_network"
     "TF_VAR_isolated_e2e_enabled=false"
     "TF_VAR_isolated_e2e_namespace="
+    "TF_VAR_chat_e2e_proof_enabled=false"
+    "TF_VAR_chat_e2e_proof_token_host_path="
+    "TF_VAR_chat_e2e_proof_run_id="
     "TF_VAR_tenant_slug=weave"
     "TF_VAR_tenant_domain=weave.test"
     "TF_VAR_local_lan_host="
@@ -1518,14 +1549,94 @@ ensure_generated_secrets() {
   set_default_secret TF_VAR_identity_events_hmac_secret "$(random_base64 32)"
   set_default_secret TF_VAR_mas_encryption_secret "$(random_hex 32)"
   set_default_secret TF_VAR_mas_matrix_secret "$(random_base64 32)"
+  set_default_secret TF_VAR_matrix_chat_appservice_as_token "$(random_hex 32)"
+  set_default_secret TF_VAR_matrix_chat_appservice_hs_token "$(random_hex 32)"
   set_default_secret TF_VAR_synapse_registration_shared_secret "$(random_base64 32)"
   set_default_secret TF_VAR_synapse_macaroon_secret_key "$(random_base64 32)"
   set_default_secret TF_VAR_synapse_form_secret "$(random_base64 32)"
+
+  local protected_name
+  local -a protected_names=(
+    TF_VAR_db_admin_password
+    TF_VAR_backend_db_password
+    TF_VAR_mcp_boundary_token
+    TF_VAR_keycloak_admin_password
+    TF_VAR_keycloak_db_password
+    TF_VAR_matrix_mas_client_secret
+    TF_VAR_identity_admin_client_secret
+    TF_VAR_identity_events_hmac_secret
+    TF_VAR_mas_db_password
+    TF_VAR_mas_encryption_secret
+    TF_VAR_mas_matrix_secret
+    TF_VAR_synapse_db_password
+    TF_VAR_synapse_registration_shared_secret
+    TF_VAR_synapse_macaroon_secret_key
+    TF_VAR_synapse_form_secret
+    TF_VAR_nextcloud_db_password
+    TF_VAR_nextcloud_admin_password
+    TF_VAR_nextcloud_backend_actor_token
+    TF_VAR_devops_gitlab_api_token
+    TF_VAR_office_onlyoffice_jwt_secret
+    TF_VAR_livekit_api_key
+    TF_VAR_livekit_api_secret
+    TF_VAR_boards_openproject_api_token
+    TF_VAR_openproject_secret_key_base
+  )
+  [[ "${TF_VAR_matrix_chat_appservice_as_token}" != "${TF_VAR_matrix_chat_appservice_hs_token}" ]] ||
+    fail "Matrix Chat Application Service as_token and hs_token must be independently generated."
+  for protected_name in "${protected_names[@]}"; do
+    [[ "${TF_VAR_matrix_chat_appservice_as_token}" != "${!protected_name}" ]] ||
+      fail "Matrix Chat Application Service as_token must not reuse another platform credential."
+    [[ "${TF_VAR_matrix_chat_appservice_hs_token}" != "${!protected_name}" ]] ||
+      fail "Matrix Chat Application Service hs_token must not reuse another platform credential."
+  done
   if create_test_user_enabled; then
     set_default_secret TF_VAR_test_user_password "$(random_base64 16)"
   fi
   ensure_mas_signing_key
   export TF_VAR_mas_signing_key_pem
+}
+
+private_file_mode() {
+  local path="$1"
+  if stat -c '%a' "${path}" >/dev/null 2>&1; then
+    stat -c '%a' "${path}"
+  else
+    stat -f '%Lp' "${path}"
+  fi
+}
+
+assert_chat_e2e_proof_contract() {
+  if [[ "${TF_VAR_chat_e2e_proof_enabled}" != "true" ]]; then
+    [[ -z "${TF_VAR_chat_e2e_proof_token_host_path}" && -z "${TF_VAR_chat_e2e_proof_run_id}" ]] ||
+      fail "Persistent/default installation must not retain a Chat E2E proof credential path or run binding."
+    return
+  fi
+
+  [[ "${TF_VAR_isolated_e2e_enabled}" == "true" && "${WEAVE_E2E_STACK_SCOPE:-}" == "isolated" ]] ||
+    fail "Chat E2E proof can be enabled only for an explicitly isolated stack."
+  [[ "${TF_VAR_chat_e2e_proof_run_id}" =~ ^[A-Za-z0-9][A-Za-z0-9._:-]{7,159}$ ]] ||
+    fail "Chat E2E proof requires a bounded exact run ID."
+  local expected_namespace proof_path proof_token
+  expected_namespace="weave-e2e-$(printf '%s' "${TF_VAR_chat_e2e_proof_run_id}" | shasum -a 256 | awk '{print substr($1,1,16)}')"
+  [[ "${TF_VAR_isolated_e2e_namespace}" == "${expected_namespace}" ]] ||
+    fail "Chat E2E proof run binding does not own the isolated namespace."
+  proof_path="${TF_VAR_chat_e2e_proof_token_host_path}"
+  [[ "${proof_path}" == /* && "$(basename -- "${proof_path}")" == "chat-provider-proof.token" ]] ||
+    fail "Chat E2E proof credential path is not an absolute run-scoped token file."
+  [[ "$(basename -- "$(dirname -- "${proof_path}")")" == "${expected_namespace}" ]] ||
+    fail "Chat E2E proof credential path is outside the exact run namespace."
+  [[ -f "${proof_path}" && ! -L "${proof_path}" ]] ||
+    fail "Chat E2E proof credential must be a regular private file."
+  [[ "$(private_file_mode "${proof_path}")" == "600" ]] ||
+    fail "Chat E2E proof credential must be mode 0600."
+  proof_token="$(<"${proof_path}")"
+  [[ "${proof_token}" =~ ^[0-9a-f]{96}$ ]] ||
+    fail "Chat E2E proof credential must contain independently generated 384-bit hexadecimal material."
+  [[ "${proof_token}" != "${TF_VAR_matrix_chat_appservice_as_token}" &&
+     "${proof_token}" != "${TF_VAR_matrix_chat_appservice_hs_token}" ]] ||
+    fail "Chat E2E proof credential must be distinct from both Application Service credentials."
+  unset proof_token
 }
 
 certificate_alt_names() {
@@ -2054,6 +2165,7 @@ main() {
   cleanup_partial_weave_containers
   ensure_docker_provider_inputs
   ensure_generated_secrets
+  assert_chat_e2e_proof_contract
   ensure_local_tls_certificates
   persist_bootstrap_env
   # shellcheck disable=SC1090
@@ -2069,6 +2181,7 @@ main() {
   synapse_verify_volume_writable
   ensure_postgres_bootstrap_applied
   refresh_runtime_containers_if_images_changed
+  restart_matrix_chat_appservice_consumers
 
   log "Waiting for Keycloak management readiness..."
   wait_for_http_200 "Keycloak management" "http://${LOOPBACK_HOST}:${TF_VAR_keycloak_management_host_port}/health/ready"

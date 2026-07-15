@@ -116,6 +116,11 @@ The helper writes one timestamped directory and sets restrictive file permission
 
 Support bundles are **not** backups. `support-bundle.sh` deliberately excludes raw databases, Matrix media, Nextcloud files/calendar data, Caddy ACME state, and generated secrets.
 
+The generated-config archive also contains the private Synapse Chat Application
+Service registration and its independently generated `as_token`/`hs_token`
+files. Restore and rotate that pair only through the coordinated procedure in
+[Matrix/Synapse southbound Chat Application Service](matrix-synapse-chat-appservice.md).
+
 Minimum expectation before calling the stack release-ready:
 
 - backups run on a schedule owned by the operator

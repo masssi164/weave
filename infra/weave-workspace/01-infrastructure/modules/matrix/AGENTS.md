@@ -4,7 +4,7 @@ This module owns Matrix Authentication Service and Synapse. Public Matrix routin
 
 ## Files
 
-- `main.tf`: MAS and Synapse images, Synapse volume, generated config uploads, containers, and MAS local CA trust.
+- `main.tf`: MAS and Synapse images, Synapse data plus private Chat Application Service runtime volumes, generated config staging, containers, and MAS local CA trust.
 - `variables.tf`: ports, hostname, generated-file paths, TLS CA mount, and image inputs.
 - `outputs.tf`: exported MAS and Synapse container identifiers plus Synapse storage metadata.
 

@@ -299,7 +299,7 @@ jobs:
           set -euo pipefail
           # shellcheck disable=SC1090
           source "$WEAVE_E2E_STARTUP_ENV_PATH"
-          bash ./teardown.sh
+          WEAVE_CANDIDATE_COMMIT= WEAVE_TEARDOWN_EVIDENCE_FILE= bash ./teardown.sh
 
       - name: Prepare backend image
         run: |
@@ -586,6 +586,21 @@ jobs:
             exit 1
           fi
 
+      - name: Prove durable Matrix Synapse collaboration behind the Weave facade
+        working-directory: weave/infra/weave-workspace
+        run: |
+          set -euo pipefail
+          provider_evidence="$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-chat-provider.json"
+          ./isolated-e2e-chat-provider-proof.sh \
+            --run-id "$WEAVE_E2E_RUN_ID" \
+            --candidate-commit "$GITHUB_SHA" \
+            --credentials-env "$WEAVE_E2E_CREDENTIAL_ENV_PATH" \
+            --startup-env "$WEAVE_E2E_STARTUP_ENV_PATH" \
+            --identity-manifest "$WEAVE_E2E_IDENTITY_MANIFEST_PATH" \
+            --output "$provider_evidence" \
+            2>&1 | tee -a "$WEAVE_ACCEPTANCE_TEST_LOG"
+          test -s "$provider_evidence"
+
       - name: Clean disposable identities and retain only hashed evidence
         if: always()
         working-directory: weave/infra/weave-workspace
@@ -621,33 +636,6 @@ jobs:
             cp "$WEAVE_E2E_IDENTITY_MANIFEST_PATH" "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-identities.json"
           [[ -s "${WEAVE_E2E_CLEANUP_EVIDENCE_PATH:-}" ]] && \
             cp "$WEAVE_E2E_CLEANUP_EVIDENCE_PATH" "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-cleanup.json"
-
-      - name: Aggregate two-pass human-testing automation evidence
-        if: always()
-        working-directory: weave
-        run: |
-          set -o pipefail
-          set +e
-          python3 tools/multi_user_e2e_evidence.py \
-            --candidate-commit "$GITHUB_SHA" \
-            --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
-            --test-log "$WEAVE_ACCEPTANCE_TEST_LOG" \
-            --identity-evidence "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-identities.json" \
-            --authorization-evidence "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-authorization.json" \
-            --calendar-outage-evidence "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-calendar-outage.json" \
-            --cleanup-evidence "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-cleanup.json" \
-            --output "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/human-testing-automated-evidence.json" \
-            --require-passed 2>&1 | tee -a "$WEAVE_ACCEPTANCE_TEST_LOG"
-          aggregate_status=${PIPESTATUS[0]}
-          set -e
-          if [[ "${WEAVE_SINGLE_USER_TEST_STATUS:-1}" != 0 ]]; then
-            echo "::error::The existing live AppShell/provider suite failed." >&2
-            exit 1
-          fi
-          if [[ "${WEAVE_MULTI_USER_TEST_STATUS:-1}" != 0 || "$aggregate_status" != 0 ]]; then
-            echo "::error::Three-user collaboration is blocked or failed; inspect the support-safe evidence artifact." >&2
-            exit 1
-          fi
 
       - name: Generate live stack acceptance evidence
         if: always()
@@ -686,7 +674,48 @@ jobs:
             # shellcheck disable=SC1090
             source "$WEAVE_E2E_STARTUP_ENV_PATH"
           fi
-          bash ./teardown.sh
+          : "${TF_VAR_isolated_e2e_namespace:?missing isolated E2E namespace}"
+          : "${TF_VAR_docker_network_name:?missing isolated Docker network}"
+          : "${TF_VAR_tenant_slug:?missing disposable tenant slug}"
+          WEAVE_TEARDOWN_EVIDENCE_FILE="$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-stack-teardown.json" \
+            WEAVE_CANDIDATE_COMMIT="$GITHUB_SHA" \
+            WEAVE_E2E_STACK_SCOPE=isolated \
+            WEAVE_E2E_IDENTITY_MANIFEST_PATH="$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-identities.json" \
+            TF_VAR_isolated_e2e_enabled=true \
+            TF_VAR_isolated_e2e_namespace="$TF_VAR_isolated_e2e_namespace" \
+            TF_VAR_docker_network_name="$TF_VAR_docker_network_name" \
+            WEAVE_REMOVE_VOLUMES=true \
+            WEAVE_CONFIRM_DESTRUCTIVE_RESET="$TF_VAR_tenant_slug" \
+            bash ./teardown.sh
+
+      - name: Aggregate two-pass human-testing automation evidence
+        if: always()
+        working-directory: weave
+        run: |
+          set -o pipefail
+          set +e
+          python3 tools/multi_user_e2e_evidence.py \
+            --candidate-commit "$GITHUB_SHA" \
+            --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --test-log "$WEAVE_ACCEPTANCE_TEST_LOG" \
+            --identity-evidence "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-identities.json" \
+            --authorization-evidence "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-authorization.json" \
+            --calendar-outage-evidence "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-calendar-outage.json" \
+            --chat-provider-evidence "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-chat-provider.json" \
+            --cleanup-evidence "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-cleanup.json" \
+            --stack-teardown-evidence "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-stack-teardown.json" \
+            --output "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/human-testing-automated-evidence.json" \
+            --require-passed 2>&1 | tee -a "$WEAVE_ACCEPTANCE_TEST_LOG"
+          aggregate_status=${PIPESTATUS[0]}
+          set -e
+          if [[ "${WEAVE_SINGLE_USER_TEST_STATUS:-1}" != 0 ]]; then
+            echo "::error::The existing live AppShell/provider suite failed." >&2
+            exit 1
+          fi
+          if [[ "${WEAVE_MULTI_USER_TEST_STATUS:-1}" != 0 || "$aggregate_status" != 0 ]]; then
+            echo "::error::Three-user collaboration or provider persistence is blocked or failed; inspect the support-safe evidence artifact." >&2
+            exit 1
+          fi
 
       - name: Upload live stack acceptance evidence
         if: always()

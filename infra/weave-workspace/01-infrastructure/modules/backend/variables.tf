@@ -58,6 +58,80 @@ variable "matrix_facade_url" {
   type        = string
 }
 
+variable "chat_provider" {
+  description = "Selected southbound Chat provider adapter. Shipped and live-stack profiles use matrix-synapse."
+  type        = string
+}
+
+variable "chat_storage_mode" {
+  description = "Canonical Chat persistence mode. Shipped and live-stack profiles require jdbc."
+  type        = string
+}
+
+variable "matrix_internal_base_url" {
+  description = "Private Docker-network Synapse origin used only by the southbound Chat adapter."
+  type        = string
+}
+
+variable "matrix_server_name" {
+  description = "Matrix server name used to validate and create southbound provider identifiers."
+  type        = string
+}
+
+variable "matrix_appservice_id" {
+  description = "Stable Synapse Application Service registration identifier for the Chat adapter."
+  type        = string
+}
+
+variable "matrix_virtual_user_prefix" {
+  description = "Exclusive opaque localpart/alias prefix reserved for Weave Chat provider projections."
+  type        = string
+}
+
+variable "matrix_appservice_runtime_volume_name" {
+  description = "Private Docker volume containing the Application Service token files."
+  type        = string
+}
+
+variable "matrix_appservice_runtime_container_path" {
+  description = "Read-only container path containing the Application Service runtime files."
+  type        = string
+}
+
+variable "matrix_appservice_as_token_file" {
+  description = "Backend-readable mounted file containing the Application Service as_token; the value is never placed in the environment."
+  type        = string
+}
+
+variable "matrix_appservice_hs_token_file" {
+  description = "Backend-readable mounted file containing the Application Service hs_token; the value is never placed in the environment."
+  type        = string
+}
+
+variable "chat_e2e_proof_enabled" {
+  description = "Whether the private read-only Chat provider proof endpoint is enabled for this isolated backend."
+  type        = bool
+  default     = false
+}
+
+variable "chat_e2e_proof_token_host_path" {
+  description = "Host path to the run-scoped proof token bind-mounted read-only into the isolated backend."
+  type        = string
+  default     = ""
+}
+
+variable "chat_e2e_proof_token_container_path" {
+  description = "Backend-readable path for the isolated Chat provider proof credential."
+  type        = string
+  default     = "/run/weave-chat-e2e-proof/token"
+}
+
+variable "chat_e2e_proof_run_id" {
+  description = "Exact disposable run identifier accepted by the isolated proof endpoint."
+  type        = string
+  default     = ""
+}
+
 variable "files_product_url" {
   description = "Public Weave files product route."
   type        = string

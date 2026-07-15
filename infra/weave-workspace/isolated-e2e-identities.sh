@@ -14,6 +14,7 @@ STARTUP_ENV_PATH="${WEAVE_E2E_STARTUP_ENV_PATH:-}"
 IDENTITY_MANIFEST_PATH="${WEAVE_E2E_IDENTITY_MANIFEST_PATH:-}"
 CLEANUP_EVIDENCE_PATH="${WEAVE_E2E_CLEANUP_EVIDENCE_PATH:-}"
 AUTHORIZATION_EVIDENCE_PATH="${WEAVE_E2E_AUTHORIZATION_EVIDENCE_PATH:-}"
+CHAT_PROOF_TOKEN_PATH=""
 STACK_BOOTSTRAP_ENV="${WEAVE_E2E_STACK_BOOTSTRAP_ENV:-${ROOT_DIR}/.generated/bootstrap.env}"
 
 NAMESPACE=""
@@ -71,6 +72,10 @@ random_password() {
   openssl rand -base64 24 | tr -d '\n'
 }
 
+random_proof_token() {
+  openssl rand -hex 48
+}
+
 parse_args() {
   [[ $# -gt 0 ]] || { usage >&2; exit 2; }
   OPERATION="$1"
@@ -98,7 +103,9 @@ parse_args() {
 
 derive_paths_and_names() {
   [[ -n "${RUN_ID}" ]] || fail "--run-id is required"
-  [[ ${#RUN_ID} -le 200 ]] || fail "run ID is too long"
+  [[ ${#RUN_ID} -le 160 ]] || fail "run ID is too long"
+  [[ "${RUN_ID}" =~ ^[A-Za-z0-9][A-Za-z0-9._:-]{7,159}$ ]] ||
+    fail "run ID must use only bounded environment-safe characters"
 
   local run_hash
   run_hash="$(sha256 "${RUN_ID}")"
@@ -116,6 +123,7 @@ derive_paths_and_names() {
   IDENTITY_MANIFEST_PATH="${IDENTITY_MANIFEST_PATH:-${run_dir}/identity-manifest.json}"
   CLEANUP_EVIDENCE_PATH="${CLEANUP_EVIDENCE_PATH:-${run_dir}/cleanup-evidence.json}"
   AUTHORIZATION_EVIDENCE_PATH="${AUTHORIZATION_EVIDENCE_PATH:-${run_dir}/authorization-evidence.json}"
+  CHAT_PROOF_TOKEN_PATH="${CHAT_PROOF_TOKEN_PATH:-${run_dir}/chat-provider-proof.token}"
 }
 
 validate_private_path() {
@@ -129,6 +137,7 @@ validate_paths() {
   validate_private_path "${IDENTITY_MANIFEST_PATH}"
   validate_private_path "${CLEANUP_EVIDENCE_PATH}"
   validate_private_path "${AUTHORIZATION_EVIDENCE_PATH}"
+  validate_private_path "${CHAT_PROOF_TOKEN_PATH}"
 }
 
 print_integration_variables() {
@@ -207,6 +216,17 @@ prepare() {
     chmod 600 "${CREDENTIAL_ENV_PATH}"
   fi
 
+  if [[ -e "${CHAT_PROOF_TOKEN_PATH}" ]]; then
+    [[ -f "${CHAT_PROOF_TOKEN_PATH}" && ! -L "${CHAT_PROOF_TOKEN_PATH}" ]] ||
+      fail "existing Chat proof credential is not a regular private file"
+    [[ "$(<"${CHAT_PROOF_TOKEN_PATH}")" =~ ^[0-9a-f]{96}$ ]] ||
+      fail "existing Chat proof credential is invalid"
+  else
+    umask 077
+    random_proof_token >"${CHAT_PROOF_TOKEN_PATH}"
+  fi
+  chmod 600 "${CHAT_PROOF_TOKEN_PATH}"
+
   local memberships
   memberships="$(jq -cn \
     --arg tenant "${TENANT_ID}" \
@@ -225,6 +245,9 @@ prepare() {
     printf 'export TF_VAR_isolated_e2e_enabled=%q\n' true
     printf 'export TF_VAR_isolated_e2e_namespace=%q\n' "${NAMESPACE}"
     printf 'export TF_VAR_isolated_e2e_context_memberships=%q\n' "${memberships}"
+    printf 'export TF_VAR_chat_e2e_proof_enabled=%q\n' true
+    printf 'export TF_VAR_chat_e2e_proof_token_host_path=%q\n' "${CHAT_PROOF_TOKEN_PATH}"
+    printf 'export TF_VAR_chat_e2e_proof_run_id=%q\n' "${RUN_ID}"
     printf 'export TF_VAR_docker_network_name=%q\n' "${NAMESPACE}_network"
     printf 'export TF_VAR_create_test_user=%q\n' false
     printf 'export TF_VAR_context_authorization_bootstrap_enabled=%q\n' false

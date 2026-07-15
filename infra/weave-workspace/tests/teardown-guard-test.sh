@@ -96,6 +96,7 @@ main() {
   assert_contains "${output}" "DRY RUN: would remove volume weave_synapse_data"
   assert_contains "${output}" "DRY RUN: would remove volume weave_nextcloud_data"
   assert_contains "${output}" "DRY RUN: would remove volume weave_mailpit_data"
+  assert_contains "${output}" "DRY RUN: would remove volume weave_matrix_chat_appservice_runtime"
   rm -f "${output}"
 
   printf 'teardown guard tests passed\n'

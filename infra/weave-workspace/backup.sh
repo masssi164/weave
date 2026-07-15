@@ -194,8 +194,12 @@ backup_generated_config() {
   ((${#generated_paths[@]} > 0)) || fail "No generated config/secrets were found under weave-workspace/.generated or Terraform stage .generated directories."
 
   log "Archiving generated config/secrets metadata to generated-config-secrets.tgz"
-  tar -C "${ROOT_DIR}" -czf "${target}" "${generated_paths[@]}"
-  append_manifest "generated-config-secrets.tgz" "Generated bootstrap env, no-secret app config, TLS material, and generated Terraform service config needed for restore/reprovisioning"
+  tar -C "${ROOT_DIR}" -czf "${target}" \
+    --exclude='chat-provider-proof.token' \
+    --exclude='*/chat-provider-proof.token' \
+    --exclude='.generated/isolated-e2e' \
+    "${generated_paths[@]}"
+  append_manifest "generated-config-secrets.tgz" "Generated bootstrap env, no-secret app config, TLS material, Synapse Application Service registration/tokens, and generated Terraform service config needed for restore/reprovisioning; disposable Chat E2E proof credentials are excluded"
 }
 
 create_backup() {
@@ -228,7 +232,9 @@ Notes:
   nextcloud-data.tgz.
 - Caddy artifacts are included for ACME/TLS continuity when applicable.
 - Generated config/secrets are included because restore/reprovisioning may need them;
-  keep this backup private.
+  this includes the stable Synapse Application Service registration and its two
+  independent tokens. Disposable Chat E2E proof credentials are explicitly excluded
+  and cannot be restored. Keep this backup private.
 MSG
 
   log "Backup written to ${BACKUP_DIR}"
@@ -243,6 +249,8 @@ main() {
   require_command docker
   require_command tar
   load_bootstrap_env
+  [[ "${TF_VAR_chat_e2e_proof_enabled:-false}" != "true" ]] ||
+    fail "Backups are disabled for disposable Chat E2E proof namespaces; destroy the isolated namespace instead."
 
   local output_dir="${1:-${BACKUP_OUTPUT_DIR}}"
   create_backup "${output_dir}"

@@ -11,6 +11,7 @@ This stage owns Docker networking, generated runtime config files, local contain
 - `templates/Caddyfile.tpl`: Caddy reverse proxy and TLS routing template.
 - `templates/mas-config.yaml.tpl`: Matrix Authentication Service config template.
 - `templates/homeserver.yaml.tpl`: Synapse delegated-auth config template.
+- `templates/synapse-appservice.yaml.tpl`: private, exclusive Matrix Chat Application Service registration template.
 - `modules/AGENTS.md`: map of child modules and their responsibilities.
 
 ## Child Module Responsibilities

@@ -46,6 +46,11 @@ assert receipt['validationMode'] == 'artifacts_only'
 assert receipt['destroyStep']['performed'] is False
 assert receipt['provesRestoredDomainData'] is False
 assert receipt['releaseEligible'] is False
+assert any(
+    check['name'] == 'matrix_chat_appservice_registration_and_secret_mounts'
+    and check['status'] == 'archived_not_runtime_verified'
+    for check in receipt['checks']
+)
 PY
 
 rm "${backup_dir}/postgres.sql"

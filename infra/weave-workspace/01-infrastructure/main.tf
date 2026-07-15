@@ -81,6 +81,42 @@ locals {
 
   matrix_mas_upstream_id = "01JQ7N9R4QK6W3M5X8Y2ZC1DHF"
 
+  matrix_chat_appservice = {
+    id                  = "weave-chat-synapse"
+    sender_localpart    = "_weave_appservice"
+    virtual_user_prefix = "_weave_"
+    callback_url        = "http://${local.service_names.backend}:${var.backend_container_port}/api/internal/chat/matrix/appservice"
+    runtime_path        = "/run/weave-chat-appservice"
+    runtime_volume      = "weave_matrix_chat_appservice_runtime"
+  }
+  matrix_chat_appservice_forbidden_credentials = [
+    var.db_admin_password,
+    var.backend_db_password,
+    var.mcp_boundary_token,
+    var.keycloak_admin_password,
+    var.keycloak_db_password,
+    var.matrix_mas_client_secret,
+    var.identity_admin_client_secret,
+    var.identity_events_hmac_secret,
+    var.mas_db_password,
+    var.mas_encryption_secret,
+    var.mas_signing_key_pem,
+    var.mas_matrix_secret,
+    var.synapse_db_password,
+    var.synapse_registration_shared_secret,
+    var.synapse_macaroon_secret_key,
+    var.synapse_form_secret,
+    var.nextcloud_db_password,
+    var.nextcloud_admin_password,
+    var.nextcloud_backend_actor_token,
+    var.devops_gitlab_api_token,
+    var.office_onlyoffice_jwt_secret,
+    var.livekit_api_key,
+    var.livekit_api_secret,
+    var.boards_openproject_api_token,
+    var.openproject_secret_key_base,
+  ]
+
   # Caddy TLS (from #3)
   caddy_tls_cert_file = abspath(coalesce(var.caddy_tls_cert_file, "${path.module}/.generated/caddy/certs/weave.test.pem"))
   caddy_tls_key_file  = abspath(coalesce(var.caddy_tls_key_file, "${path.module}/.generated/caddy/certs/weave.test-key.pem"))
@@ -268,19 +304,40 @@ generated_files = {
   synapse_homeserver = {
     filename = "${path.module}/.generated/synapse/homeserver.yaml"
     content = templatefile("${path.module}/templates/homeserver.yaml.tpl", {
-      matrix_homeserver           = local.public_hosts.matrix
-      matrix_public_url           = local.matrix_provider_public_url
-      synapse_db_host             = local.service_names.db
-      synapse_db_port             = 5432
-      synapse_db_name             = local.service_databases.synapse.database_name
-      synapse_db_username         = var.synapse_db_username
-      synapse_db_password         = var.synapse_db_password
-      synapse_registration_secret = var.synapse_registration_shared_secret
-      synapse_macaroon_secret_key = var.synapse_macaroon_secret_key
-      synapse_form_secret         = var.synapse_form_secret
-      mas_internal_endpoint       = "http://${local.service_names.mas}:8080/"
-      mas_matrix_secret           = var.mas_matrix_secret
+      matrix_homeserver                        = local.public_hosts.matrix
+      matrix_public_url                        = local.matrix_provider_public_url
+      synapse_db_host                          = local.service_names.db
+      synapse_db_port                          = 5432
+      synapse_db_name                          = local.service_databases.synapse.database_name
+      synapse_db_username                      = var.synapse_db_username
+      synapse_db_password                      = var.synapse_db_password
+      synapse_registration_secret              = var.synapse_registration_shared_secret
+      synapse_macaroon_secret_key              = var.synapse_macaroon_secret_key
+      synapse_form_secret                      = var.synapse_form_secret
+      mas_internal_endpoint                    = "http://${local.service_names.mas}:8080/"
+      mas_matrix_secret                        = var.mas_matrix_secret
+      matrix_chat_appservice_registration_path = "${local.matrix_chat_appservice.runtime_path}/registration.yaml"
     })
+  }
+  matrix_chat_appservice_registration = {
+    filename = "${path.module}/.generated/synapse/appservices/weave-chat.yaml"
+    content = templatefile("${path.module}/templates/synapse-appservice.yaml.tpl", {
+      appservice_id               = local.matrix_chat_appservice.id
+      appservice_callback_url     = local.matrix_chat_appservice.callback_url
+      appservice_as_token         = var.matrix_chat_appservice_as_token
+      appservice_hs_token         = var.matrix_chat_appservice_hs_token
+      appservice_sender_localpart = local.matrix_chat_appservice.sender_localpart
+      virtual_user_prefix         = local.matrix_chat_appservice.virtual_user_prefix
+      matrix_homeserver_regex     = replace(local.public_hosts.matrix, ".", "\\.")
+    })
+  }
+  matrix_chat_appservice_as_token = {
+    filename = "${path.module}/.generated/synapse/appservices/as-token"
+    content  = "${var.matrix_chat_appservice_as_token}\n"
+  }
+  matrix_chat_appservice_hs_token = {
+    filename = "${path.module}/.generated/synapse/appservices/hs-token"
+    content  = "${var.matrix_chat_appservice_hs_token}\n"
   }
   provider_selections = {
     filename = "${path.module}/.generated/provider-selections.json"
@@ -385,6 +442,49 @@ resource "terraform_data" "isolated_e2e_guard" {
         length(var.isolated_e2e_context_memberships) == 3
       )
       error_message = "isolated E2E authorization requires a weave-e2e-* namespace, its dedicated network, preferred_username, exactly three run-scoped memberships, and all persistent/static test-user inputs disabled."
+    }
+    precondition {
+      condition = !var.chat_e2e_proof_enabled || (
+        var.isolated_e2e_enabled &&
+        var.chat_e2e_proof_run_id != "" &&
+        var.chat_e2e_proof_token_host_path != "" &&
+        var.isolated_e2e_namespace == "weave-e2e-${substr(sha256(var.chat_e2e_proof_run_id), 0, 16)}" &&
+        startswith(var.chat_e2e_proof_token_host_path, "/") &&
+        basename(var.chat_e2e_proof_token_host_path) == "chat-provider-proof.token" &&
+        basename(dirname(var.chat_e2e_proof_token_host_path)) == var.isolated_e2e_namespace &&
+        can(regex("/weave-e2e-[a-z0-9][a-z0-9-]{5,47}/chat-provider-proof[.]token$", var.chat_e2e_proof_token_host_path)) &&
+        fileexists(var.chat_e2e_proof_token_host_path)
+      )
+      error_message = "Chat provider proof requires an isolated namespace, exact run ID, and an existing run-scoped host credential file."
+    }
+    precondition {
+      condition = var.chat_e2e_proof_enabled || (
+        var.chat_e2e_proof_run_id == "" &&
+        var.chat_e2e_proof_token_host_path == ""
+      )
+      error_message = "Persistent/default deployments must not retain a Chat provider proof run binding or credential path."
+    }
+  }
+}
+
+resource "terraform_data" "matrix_chat_appservice_secret_guard" {
+  input = local.matrix_chat_appservice.id
+
+  lifecycle {
+    precondition {
+      condition = nonsensitive(
+        length(var.matrix_chat_appservice_as_token) >= 43 &&
+        length(var.matrix_chat_appservice_hs_token) >= 43
+      )
+      error_message = "Matrix Chat Application Service tokens must each contain at least 43 characters of private random material."
+    }
+    precondition {
+      condition = nonsensitive(
+        var.matrix_chat_appservice_as_token != var.matrix_chat_appservice_hs_token &&
+        !contains(local.matrix_chat_appservice_forbidden_credentials, var.matrix_chat_appservice_as_token) &&
+        !contains(local.matrix_chat_appservice_forbidden_credentials, var.matrix_chat_appservice_hs_token)
+      )
+      error_message = "Matrix Chat Application Service tokens must be independent from each other and every MAS, Synapse, and identity credential."
     }
   }
 }
@@ -545,6 +645,20 @@ module "backend" {
   auth_base_url                                    = local.client_auth_url
   matrix_base_url                                  = local.matrix_provider_public_url
   matrix_facade_url                                = local.client_matrix_facade_url
+  chat_provider                                    = "matrix-synapse"
+  chat_storage_mode                                = "jdbc"
+  matrix_internal_base_url                         = "http://${local.service_names.synapse}:8008"
+  matrix_server_name                               = local.public_hosts.matrix
+  matrix_appservice_id                             = local.matrix_chat_appservice.id
+  matrix_virtual_user_prefix                       = local.matrix_chat_appservice.virtual_user_prefix
+  matrix_appservice_runtime_volume_name            = module.matrix.appservice_runtime_volume_name
+  matrix_appservice_runtime_container_path         = local.matrix_chat_appservice.runtime_path
+  matrix_appservice_as_token_file                  = "${local.matrix_chat_appservice.runtime_path}/as-token"
+  matrix_appservice_hs_token_file                  = "${local.matrix_chat_appservice.runtime_path}/hs-token"
+  chat_e2e_proof_enabled                           = var.chat_e2e_proof_enabled
+  chat_e2e_proof_token_host_path                   = var.chat_e2e_proof_enabled ? var.chat_e2e_proof_token_host_path : ""
+  chat_e2e_proof_token_container_path              = "/run/weave-chat-e2e-proof/token"
+  chat_e2e_proof_run_id                            = var.chat_e2e_proof_enabled ? var.chat_e2e_proof_run_id : ""
   files_product_url                                = local.client_files_product_url
   calendar_product_url                             = local.client_calendar_product_url
   nextcloud_public_base_url                        = local.public_urls.files
@@ -628,7 +742,7 @@ module "backend" {
   identity_events_hmac_secret                      = var.identity_events_hmac_secret
   mcp_boundary_token                               = var.mcp_boundary_token
   healthcheck_path                                 = "/api/health/ready"
-  depends_on                                       = [terraform_data.isolated_e2e_guard, terraform_data.network_ready, terraform_data.postgres_bootstrap, module.keycloak, local_sensitive_file.generated]
+  depends_on                                       = [terraform_data.isolated_e2e_guard, terraform_data.matrix_chat_appservice_secret_guard, terraform_data.network_ready, terraform_data.postgres_bootstrap, module.keycloak, module.matrix, local_sensitive_file.generated]
 }
 
 module "mcp" {
@@ -650,26 +764,34 @@ module "mcp" {
 module "matrix" {
   source = "./modules/matrix"
 
-  network_name           = docker_network.weave_network.name
-  mas_container_name     = local.service_names.mas
-  synapse_container_name = local.service_names.synapse
-  mas_image_name         = var.mas_image
-  synapse_image_name     = var.synapse_image
-  synapse_volume_name    = "weave_synapse_data"
-  mas_host_port          = var.mas_host_port
-  synapse_host_port      = var.synapse_host_port
-  matrix_public_host     = local.public_hosts.matrix
-  mas_config_source      = local_sensitive_file.generated["mas_config"].filename
-  mas_config_hash        = sha256(local.generated_files["mas_config"].content)
-  mas_signing_key_source = local_sensitive_file.generated["mas_signing_key"].filename
-  mas_signing_key_hash   = sha256(local.generated_files["mas_signing_key"].content)
-  synapse_config_source  = local_sensitive_file.generated["synapse_homeserver"].filename
-  synapse_config_hash    = sha256(local.generated_files["synapse_homeserver"].content)
-  tls_ca_file            = local.caddy_tls_ca_file
-  tls_ca_filename        = basename(local.caddy_tls_ca_file)
-  synapse_uid            = var.synapse_uid
-  synapse_gid            = var.synapse_gid
-  depends_on             = [terraform_data.network_ready, terraform_data.postgres_bootstrap, module.keycloak]
+  network_name                      = docker_network.weave_network.name
+  mas_container_name                = local.service_names.mas
+  synapse_container_name            = local.service_names.synapse
+  mas_image_name                    = var.mas_image
+  synapse_image_name                = var.synapse_image
+  synapse_volume_name               = "weave_synapse_data"
+  appservice_runtime_volume_name    = local.matrix_chat_appservice.runtime_volume
+  appservice_runtime_container_path = local.matrix_chat_appservice.runtime_path
+  appservice_registration_source    = local_sensitive_file.generated["matrix_chat_appservice_registration"].filename
+  appservice_registration_hash      = sha256(local.generated_files["matrix_chat_appservice_registration"].content)
+  appservice_as_token_source        = local_sensitive_file.generated["matrix_chat_appservice_as_token"].filename
+  appservice_as_token_hash          = sha256(local.generated_files["matrix_chat_appservice_as_token"].content)
+  appservice_hs_token_source        = local_sensitive_file.generated["matrix_chat_appservice_hs_token"].filename
+  appservice_hs_token_hash          = sha256(local.generated_files["matrix_chat_appservice_hs_token"].content)
+  mas_host_port                     = var.mas_host_port
+  synapse_host_port                 = var.synapse_host_port
+  matrix_public_host                = local.public_hosts.matrix
+  mas_config_source                 = local_sensitive_file.generated["mas_config"].filename
+  mas_config_hash                   = sha256(local.generated_files["mas_config"].content)
+  mas_signing_key_source            = local_sensitive_file.generated["mas_signing_key"].filename
+  mas_signing_key_hash              = sha256(local.generated_files["mas_signing_key"].content)
+  synapse_config_source             = local_sensitive_file.generated["synapse_homeserver"].filename
+  synapse_config_hash               = sha256(local.generated_files["synapse_homeserver"].content)
+  tls_ca_file                       = local.caddy_tls_ca_file
+  tls_ca_filename                   = basename(local.caddy_tls_ca_file)
+  synapse_uid                       = var.synapse_uid
+  synapse_gid                       = var.synapse_gid
+  depends_on                        = [terraform_data.matrix_chat_appservice_secret_guard, terraform_data.network_ready, terraform_data.postgres_bootstrap, module.keycloak, local_sensitive_file.generated]
 }
 
 module "nextcloud" {

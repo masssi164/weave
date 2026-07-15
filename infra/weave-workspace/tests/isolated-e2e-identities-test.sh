@@ -48,6 +48,7 @@ grep -Fq 'WEAVE_E2E_CREDENTIAL_ENV_PATH=' <<<"${prepare_output}"
 grep -Fq 'WEAVE_E2E_STARTUP_ENV_PATH=' <<<"${prepare_output}"
 grep -Fq 'WEAVE_E2E_IDENTITY_MANIFEST_PATH=' <<<"${prepare_output}"
 grep -Fq 'WEAVE_E2E_CLEANUP_EVIDENCE_PATH=' <<<"${prepare_output}"
+! grep -Fq 'CHAT_PROOF_TOKEN' <<<"${prepare_output}" || fail "prepare output must not publish proof credential paths"
 
 eval "${prepare_output}"
 export WEAVE_E2E_RUN_NAMESPACE WEAVE_E2E_CREDENTIAL_ENV_PATH WEAVE_E2E_STARTUP_ENV_PATH WEAVE_E2E_IDENTITY_MANIFEST_PATH WEAVE_E2E_CLEANUP_EVIDENCE_PATH
@@ -58,6 +59,15 @@ source "${WEAVE_E2E_STARTUP_ENV_PATH}"
 : "${TF_VAR_isolated_e2e_context_memberships:?startup membership list is required}"
 
 [[ "$(file_mode "${WEAVE_E2E_CREDENTIAL_ENV_PATH}")" == 600 ]] || fail "credential env must be mode 0600"
+[[ "$(file_mode "${TF_VAR_chat_e2e_proof_token_host_path}")" == 600 ]] || fail "Chat provider proof credential must be mode 0600"
+[[ "$(<"${TF_VAR_chat_e2e_proof_token_host_path}")" =~ ^[0-9a-f]{96}$ ]] || fail "Chat provider proof credential must be independently random 384-bit hex"
+# Sourced from the generated startup environment above.
+# shellcheck disable=SC2154
+[[ "${TF_VAR_chat_e2e_proof_enabled}" == true ]] || fail "isolated startup must enable the private Chat proof boundary"
+# shellcheck disable=SC2154
+[[ "$(basename -- "${TF_VAR_chat_e2e_proof_token_host_path}")" == "chat-provider-proof.token" ]] || fail "proof credential path binding is inconsistent"
+# shellcheck disable=SC2154
+[[ "${TF_VAR_chat_e2e_proof_run_id}" == "${RUN_ID}" ]] || fail "proof run binding is not exact"
 jq -e 'length == 3 and .[0].context_id == .[1].context_id and .[2].context_id != .[0].context_id and all(.[]; .source == "isolated-live-e2e")' \
   <<<"${TF_VAR_isolated_e2e_context_memberships}" >/dev/null
 jq -e '.contextAuthorization.mode == "isolated-startup-real-rebac" and .contextAuthorization.persistentDogfoodEligible == false and (.actors | length == 3)' \
@@ -67,8 +77,10 @@ if grep -Fq "${WEAVE_E2E_AUTHOR_USERNAME}" "${WEAVE_E2E_IDENTITY_MANIFEST_PATH}"
   fail "support-safe identity manifest leaked an identity or credential"
 fi
 
+proof_token_before="$(<"${TF_VAR_chat_e2e_proof_token_host_path}")"
 second_prepare="$(bash "${SCRIPT}" prepare --run-id "${RUN_ID}" --output-root "${OUTPUT_ROOT}")"
 [[ "${second_prepare}" == "${prepare_output}" ]] || fail "prepare must be idempotent for the same run ID"
+[[ "$(<"${TF_VAR_chat_e2e_proof_token_host_path}")" == "${proof_token_before}" ]] || fail "prepare must preserve the run-scoped proof credential"
 
 cat >"${MOCK_BIN}/curl" <<'MOCK'
 #!/usr/bin/env bash

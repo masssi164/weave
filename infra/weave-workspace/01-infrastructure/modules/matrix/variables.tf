@@ -28,6 +28,52 @@ variable "synapse_volume_name" {
   type        = string
 }
 
+variable "appservice_runtime_volume_name" {
+  description = "Private Docker volume containing the generated Matrix Chat Application Service registration and token files."
+  type        = string
+}
+
+variable "appservice_runtime_container_path" {
+  description = "Read-only runtime path shared by Synapse and the Weave backend for Application Service files."
+  type        = string
+}
+
+variable "appservice_registration_source" {
+  description = "Host path to the private generated Synapse Application Service registration."
+  type        = string
+  sensitive   = true
+}
+
+variable "appservice_registration_hash" {
+  description = "Sensitive content hash used only to refresh the private Application Service runtime volume."
+  type        = string
+  sensitive   = true
+}
+
+variable "appservice_as_token_source" {
+  description = "Host path to the private generated Application Service as_token file."
+  type        = string
+  sensitive   = true
+}
+
+variable "appservice_as_token_hash" {
+  description = "Sensitive content hash used only to refresh the private as_token runtime file."
+  type        = string
+  sensitive   = true
+}
+
+variable "appservice_hs_token_source" {
+  description = "Host path to the private generated Application Service hs_token file."
+  type        = string
+  sensitive   = true
+}
+
+variable "appservice_hs_token_hash" {
+  description = "Sensitive content hash used only to refresh the private hs_token runtime file."
+  type        = string
+  sensitive   = true
+}
+
 variable "mas_host_port" {
   description = "Direct host port exposed by Matrix Authentication Service."
   type        = number

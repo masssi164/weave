@@ -21,6 +21,29 @@ variable "isolated_e2e_enabled" {
   default     = false
 }
 
+variable "chat_e2e_proof_enabled" {
+  description = "Enable the private read-only Chat provider proof boundary. Valid only for a disposable isolated E2E namespace."
+  type        = bool
+  default     = false
+}
+
+variable "chat_e2e_proof_token_host_path" {
+  description = "Absolute host path to the independently generated run-scoped Chat proof credential. The credential value never enters OpenTofu input or state."
+  type        = string
+  default     = ""
+}
+
+variable "chat_e2e_proof_run_id" {
+  description = "Exact disposable run identifier accepted by the private Chat provider proof boundary."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.chat_e2e_proof_run_id == "" || can(regex("^[A-Za-z0-9][A-Za-z0-9._:-]{7,159}$", var.chat_e2e_proof_run_id))
+    error_message = "chat_e2e_proof_run_id must be empty or a bounded environment-safe run identifier."
+  }
+}
+
 variable "create_test_user" {
   description = "Mirror of the Keycloak-stage static integration-user toggle, used here only to prevent mixing it with isolated three-identity E2E."
   type        = bool
@@ -843,6 +866,18 @@ variable "mas_signing_key_pem" {
 
 variable "mas_matrix_secret" {
   description = "Shared secret between MAS and Synapse."
+  type        = string
+  sensitive   = true
+}
+
+variable "matrix_chat_appservice_as_token" {
+  description = "Dedicated backend-to-Synapse Application Service credential. It must be independently random, stable across ordinary deploys, and supplied only through private operator inputs."
+  type        = string
+  sensitive   = true
+}
+
+variable "matrix_chat_appservice_hs_token" {
+  description = "Dedicated Synapse-to-backend Application Service callback credential. It must be independently random, stable across ordinary deploys, and supplied only through private operator inputs."
   type        = string
   sensitive   = true
 }
