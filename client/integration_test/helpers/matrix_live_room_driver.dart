@@ -124,6 +124,23 @@ class MatrixLiveRoomDriver {
       }
     }
 
+    final expectedJoinedUsers = <String>{
+      authorUserId,
+      if (collaboratorUserId != null) collaboratorUserId,
+    };
+    await requireExactJoinedMembers(
+      actor: author,
+      roomId: roomId,
+      expectedUserIds: expectedJoinedUsers,
+    );
+    if (collaborator != null) {
+      await requireExactJoinedMembers(
+        actor: collaborator,
+        roomId: roomId,
+        expectedUserIds: expectedJoinedUsers,
+      );
+    }
+
     await _requireEncryptedState(author, roomId);
     if (collaborator != null) {
       await _requireEncryptedState(collaborator, roomId);
@@ -195,6 +212,49 @@ class MatrixLiveRoomDriver {
     );
     await _requireOneTimeKeyMaterial(actor: author);
     await _requireOneTimeKeyMaterial(actor: collaborator);
+  }
+
+  /// Proves that the canonical room-member projection is complete from the
+  /// authenticated actor's perspective before native Megolm sharing begins.
+  /// Only identities and membership states are inspected; raw provider payloads
+  /// never enter support-safe failures.
+  Future<void> requireExactJoinedMembers({
+    required MatrixLiveActorCredentials actor,
+    required String roomId,
+    required Set<String> expectedUserIds,
+  }) async {
+    final response = await client.get(
+      _uri(<String>['_matrix', 'client', 'v3', 'rooms', roomId, 'members']),
+      headers: _headers(actor),
+    );
+    _requireSuccess(response, operation: 'room-members');
+    final chunk = _object(response.body, operation: 'room-members')['chunk'];
+    if (chunk is! List) {
+      throw const MatrixLiveRoomDriverException(
+        'M_WEAVE_LIVE_MATRIX_ROOM_MEMBERS_INVALID',
+      );
+    }
+    final joinedUserIds = <String>{};
+    for (final event in chunk) {
+      if (event is! Map ||
+          event['type'] != 'm.room.member' ||
+          event['state_key'] is! String ||
+          event['content'] is! Map) {
+        throw const MatrixLiveRoomDriverException(
+          'M_WEAVE_LIVE_MATRIX_ROOM_MEMBERS_INVALID',
+        );
+      }
+      final content = event['content'] as Map;
+      if (content['membership'] == 'join') {
+        joinedUserIds.add(event['state_key'] as String);
+      }
+    }
+    if (joinedUserIds.length != expectedUserIds.length ||
+        !joinedUserIds.containsAll(expectedUserIds)) {
+      throw const MatrixLiveRoomDriverException(
+        'M_WEAVE_LIVE_MATRIX_ROOM_MEMBERS_NOT_CONVERGED',
+      );
+    }
   }
 
   Future<void> _requireDeviceKey({

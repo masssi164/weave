@@ -44,6 +44,7 @@ struct ManagedClient {
     device_id: String,
     access_token: String,
     room_security_fingerprints: HashMap<String, RoomSecurityFingerprint>,
+    pre_send_security_fingerprints: HashMap<String, RoomSecurityFingerprint>,
     room_security_gate: Arc<AsyncMutex<()>>,
     sync_start_gate: Arc<AsyncMutex<()>>,
     background_sync: Option<JoinHandle<()>>,
@@ -55,6 +56,12 @@ struct ManagedClient {
 struct RoomSecurityFingerprint {
     member_ids: Vec<String>,
     member_device_ids: Vec<String>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum RoomSecurityRefresh {
+    Background,
+    PreSend,
 }
 
 static CLIENTS: OnceLock<Mutex<HashMap<String, ManagedClient>>> = OnceLock::new();
@@ -203,6 +210,7 @@ async fn initialize_inner(
                 device_id: device_id.clone(),
                 access_token,
                 room_security_fingerprints: HashMap::new(),
+                pre_send_security_fingerprints: HashMap::new(),
                 room_security_gate: Arc::new(AsyncMutex::new(())),
                 sync_start_gate: Arc::new(AsyncMutex::new(())),
                 background_sync: None,
@@ -335,7 +343,13 @@ async fn converge_joined_room_security(
         // Olm-wrapped Megolm room key. A send-time check alone protects only
         // the sender and leaves a cold collaborator unable to authenticate or
         // decrypt the first to-device key delivery.
-        refresh_active_member_device_keys(profile_key, client, &room).await?;
+        refresh_active_member_device_keys(
+            profile_key,
+            client,
+            &room,
+            RoomSecurityRefresh::Background,
+        )
+        .await?;
         converged_rooms += 1;
     }
     Ok((enabled_rooms, converged_rooms))
@@ -572,7 +586,8 @@ async fn send_text_inner(profile_key: &str, room_id: &str, body: &str) -> Result
     {
         return Err("M_WEAVE_E2EE_REQUIRED".to_string());
     }
-    refresh_active_member_device_keys(profile_key, &client, &room).await?;
+    refresh_active_member_device_keys(profile_key, &client, &room, RoomSecurityRefresh::PreSend)
+        .await?;
     let response = room
         .send(RoomMessageEventContent::text_plain(body))
         .await
@@ -584,6 +599,7 @@ async fn refresh_active_member_device_keys(
     profile_key: &str,
     client: &Client,
     room: &Room,
+    refresh: RoomSecurityRefresh,
 ) -> Result<(), String> {
     let security_gate = room_security_gate_for(profile_key)?;
     let _security_guard = security_gate.lock().await;
@@ -598,6 +614,8 @@ async fn refresh_active_member_device_keys(
     let observed_member_ids = active_member_ids(&members);
     let cached_fingerprint =
         cached_room_security_fingerprint(profile_key, room.room_id().as_str())?;
+    let cached_pre_send_fingerprint =
+        cached_pre_send_security_fingerprint(profile_key, room.room_id().as_str())?;
 
     let member_set_changed = active_member_set_changed(
         cached_fingerprint
@@ -605,13 +623,20 @@ async fn refresh_active_member_device_keys(
             .map(|fingerprint| fingerprint.member_ids.as_slice()),
         &observed_member_ids,
     );
-    if member_set_changed {
+    let pre_send_reload_required = requires_pre_send_member_reload(
+        refresh,
+        cached_pre_send_fingerprint.as_ref(),
+        cached_fingerprint.as_ref(),
+    );
+    let full_member_reload_required = member_set_changed || pre_send_reload_required;
+    if full_member_reload_required {
         // The canonical facade can create and join a room between two bounded
         // syncs. Force the SDK to consume the facade's complete `/members`
-        // projection before it decides which devices receive the Megolm
-        // session. The per-session fingerprint avoids a full reload (and room
-        // key rotation) for every subsequent message when membership is
-        // unchanged.
+        // projection before it decides which devices receive the Megolm session.
+        // Background convergence may warm an incomplete first-room snapshot, but
+        // it cannot satisfy the first security-sensitive send barrier. A separate
+        // pre-send fingerprint keeps subsequent sends fast until a later
+        // member/device change invalidates that barrier.
         room.mark_members_missing();
         members = room
             .members(RoomMemberships::ACTIVE)
@@ -632,15 +657,15 @@ async fn refresh_active_member_device_keys(
             .devices()
             .next()
             .is_some();
-        if !requires_explicit_device_query(member_set_changed, has_cached_device) {
+        if !requires_explicit_device_query(full_member_reload_required, has_cached_device) {
             continue;
         }
 
         // A first room sync can mark a member as tracked while the local crypto
         // store still contains only an older device snapshot. A non-empty
         // cache therefore does not prove that the member's current app device
-        // is known. Query every peer once for a new/changed membership set;
-        // unchanged sets only need a query when no device is cached at all.
+        // is known. Query every peer after a complete member reload; unchanged
+        // sets only need a query when no device is cached at all.
         encryption
             .request_user_identity(user_id)
             .await
@@ -682,7 +707,18 @@ async fn refresh_active_member_device_keys(
             .map_err(|_| "M_WEAVE_E2EE_ROOM_KEY_ROTATION".to_string())?;
     }
 
-    remember_room_security_fingerprint(profile_key, room.room_id().as_str(), observed_fingerprint)?;
+    remember_room_security_fingerprint(
+        profile_key,
+        room.room_id().as_str(),
+        observed_fingerprint.clone(),
+    )?;
+    if refresh == RoomSecurityRefresh::PreSend {
+        remember_pre_send_security_fingerprint(
+            profile_key,
+            room.room_id().as_str(),
+            observed_fingerprint,
+        )?;
+    }
 
     Ok(())
 }
@@ -712,6 +748,16 @@ fn requires_explicit_device_query(member_set_changed: bool, has_cached_device: b
     member_set_changed || !has_cached_device
 }
 
+fn requires_pre_send_member_reload(
+    refresh: RoomSecurityRefresh,
+    cached_pre_send_fingerprint: Option<&RoomSecurityFingerprint>,
+    cached_fingerprint: Option<&RoomSecurityFingerprint>,
+) -> bool {
+    refresh == RoomSecurityRefresh::PreSend
+        && (cached_pre_send_fingerprint.is_none()
+            || cached_pre_send_fingerprint != cached_fingerprint)
+}
+
 fn room_security_gate_for(profile_key: &str) -> Result<Arc<AsyncMutex<()>>, String> {
     clients()
         .lock()
@@ -733,7 +779,43 @@ fn cached_room_security_fingerprint(
         .ok_or_else(|| "M_WEAVE_E2EE_NOT_INITIALIZED".to_string())
 }
 
+fn cached_pre_send_security_fingerprint(
+    profile_key: &str,
+    room_id: &str,
+) -> Result<Option<RoomSecurityFingerprint>, String> {
+    clients()
+        .lock()
+        .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
+        .get(profile_key)
+        .map(|managed| managed.pre_send_security_fingerprints.get(room_id).cloned())
+        .ok_or_else(|| "M_WEAVE_E2EE_NOT_INITIALIZED".to_string())
+}
+
 fn remember_room_security_fingerprint(
+    profile_key: &str,
+    room_id: &str,
+    fingerprint: RoomSecurityFingerprint,
+) -> Result<(), String> {
+    let mut guard = clients()
+        .lock()
+        .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?;
+    let managed = guard
+        .get_mut(profile_key)
+        .ok_or_else(|| "M_WEAVE_E2EE_NOT_INITIALIZED".to_string())?;
+    let changed = managed
+        .room_security_fingerprints
+        .get(room_id)
+        .map_or(true, |cached| cached != &fingerprint);
+    managed
+        .room_security_fingerprints
+        .insert(room_id.to_string(), fingerprint);
+    if changed {
+        managed.pre_send_security_fingerprints.remove(room_id);
+    }
+    Ok(())
+}
+
+fn remember_pre_send_security_fingerprint(
     profile_key: &str,
     room_id: &str,
     fingerprint: RoomSecurityFingerprint,
@@ -743,7 +825,7 @@ fn remember_room_security_fingerprint(
         .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
         .get_mut(profile_key)
         .ok_or_else(|| "M_WEAVE_E2EE_NOT_INITIALIZED".to_string())?
-        .room_security_fingerprints
+        .pre_send_security_fingerprints
         .insert(room_id.to_string(), fingerprint);
     Ok(())
 }
@@ -1212,6 +1294,47 @@ mod tests {
         assert!(room_security_fingerprint_changed(None, &initial));
         assert!(!room_security_fingerprint_changed(Some(&initial), &initial));
         assert!(room_security_fingerprint_changed(Some(&initial), &expanded));
+    }
+
+    #[test]
+    fn background_cache_cannot_satisfy_the_first_encrypted_send_barrier() {
+        let warmed = RoomSecurityFingerprint {
+            member_ids: vec!["@author:api.weave.test".to_string()],
+            member_device_ids: Vec::new(),
+        };
+
+        assert!(!requires_pre_send_member_reload(
+            RoomSecurityRefresh::Background,
+            None,
+            None,
+        ));
+        assert!(requires_pre_send_member_reload(
+            RoomSecurityRefresh::PreSend,
+            None,
+            None,
+        ));
+        assert!(requires_pre_send_member_reload(
+            RoomSecurityRefresh::PreSend,
+            None,
+            Some(&warmed),
+        ));
+        assert!(!requires_pre_send_member_reload(
+            RoomSecurityRefresh::PreSend,
+            Some(&warmed),
+            Some(&warmed),
+        ));
+        let expanded = RoomSecurityFingerprint {
+            member_ids: vec![
+                "@author:api.weave.test".to_string(),
+                "@collaborator:api.weave.test".to_string(),
+            ],
+            member_device_ids: vec!["@collaborator:api.weave.test|DEVICE_A".to_string()],
+        };
+        assert!(requires_pre_send_member_reload(
+            RoomSecurityRefresh::PreSend,
+            Some(&warmed),
+            Some(&expanded),
+        ));
     }
 
     #[test]

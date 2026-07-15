@@ -41,6 +41,8 @@ void main() {
       _jsonResponse(<String, Object>{'room_id': _roomId}),
       _jsonResponse(<String, Object>{'event_id': r'$encryption'}),
       _jsonResponse(<String, Object>{'room_id': _roomId}),
+      _roomMembersResponse(),
+      _roomMembersResponse(),
       _jsonResponse(<String, Object>{'algorithm': matrixMegolmV1Algorithm}),
       _jsonResponse(<String, Object>{'algorithm': matrixMegolmV1Algorithm}),
     ];
@@ -72,6 +74,8 @@ void main() {
       'POST',
       'PUT',
       'POST',
+      'GET',
+      'GET',
       'GET',
       'GET',
     ]);
@@ -110,6 +114,50 @@ void main() {
     expect(
       requests[8].headers['X-Weave-Matrix-Device-Id'],
       _collaborator.deviceId,
+    );
+    expect(requests[9].url.path, _roomMembersPath);
+    expect(
+      requests[10].headers['X-Weave-Matrix-Device-Id'],
+      _collaborator.deviceId,
+    );
+  });
+
+  test('rejects an incomplete canonical member projection support-safely', () {
+    const secretBody = 'provider-secret-member-payload';
+    final driver = MatrixLiveRoomDriver(
+      client: MockClient(
+        (request) async => _jsonResponse(<String, Object>{
+          'chunk': <Map<String, Object>>[
+            _roomMemberEvent('@author:api.weave.test'),
+          ],
+          'provider_debug': secretBody,
+        }),
+      ),
+      homeserver: Uri.parse('https://api.weave.test'),
+    );
+
+    expect(
+      driver.requireExactJoinedMembers(
+        actor: _author,
+        roomId: _roomId,
+        expectedUserIds: const <String>{
+          '@author:api.weave.test',
+          '@collaborator:api.weave.test',
+        },
+      ),
+      throwsA(
+        isA<MatrixLiveRoomDriverException>()
+            .having(
+              (error) => error.code,
+              'code',
+              'M_WEAVE_LIVE_MATRIX_ROOM_MEMBERS_NOT_CONVERGED',
+            )
+            .having(
+              (error) => error.toString(),
+              'support-safe text',
+              isNot(contains(secretBody)),
+            ),
+      ),
     );
   });
 
@@ -470,3 +518,19 @@ http.Response _oneTimeKeyCountResponse({int count = 10}) {
     'one_time_key_counts': <String, int>{'signed_curve25519': count},
   });
 }
+
+const _roomMembersPath =
+    '/_matrix/client/v3/rooms/!room-e2e:api.weave.test/members';
+
+http.Response _roomMembersResponse() => _jsonResponse(<String, Object>{
+  'chunk': <Map<String, Object>>[
+    _roomMemberEvent('@author:api.weave.test'),
+    _roomMemberEvent('@collaborator:api.weave.test'),
+  ],
+});
+
+Map<String, Object> _roomMemberEvent(String userId) => <String, Object>{
+  'type': 'm.room.member',
+  'state_key': userId,
+  'content': <String, String>{'membership': 'join'},
+};
