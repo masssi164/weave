@@ -40,6 +40,18 @@ Feature: Weave v0.1 dogfood production release
     And dogfood trust evidence proves stable local TLS certificates, stable iOS signing/provisioning, and no repeated Developer App trust prompt after normal update or app-state reset
     And no member-visible state leaks raw provider errors, setup internals, tokens, credentials, or secret references
 
+  @weave-v01-lost-pending-identity-retirement
+  Scenario: Lost never-activated dogfood identity requires protected retirement
+    Given the persistent Keycloak database has no restorable backup
+    And the recorded human dogfood subject has accepted evidence only in the pending activation state
+    And the current realm contains no matching or ambiguous identity
+    When an operator explicitly approves retiring that lost pending identity
+    Then the previous raw subject is archived only in private operator recovery state
+    And one new pending identity is created through the Keycloak administration boundary
+    And shared evidence contains only the previous and replacement subject hashes and approval reference
+    And readiness remains blocked until backup restore smoke repeated deployment activation and member verification pass
+    But an active disabled ambiguous or insufficiently evidenced subject is never replaced
+
   @weave-v01-admin-provider-categories
   Scenario: Admin sees provider categories before member use
     Given an owner or admin opens Workspace Health before inviting members

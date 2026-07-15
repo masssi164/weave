@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# shellcheck shell=bash
+# Assertions in this file match literal GitHub workflow expressions.
+# shellcheck disable=SC2016
+
+set -euo pipefail
+
+ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd)"
+WORKFLOW="${ROOT_DIR}/.github/workflows/dogfood-pending-identity-recovery.yml"
+MEMBER_HELPER="${ROOT_DIR}/infra/weave-workspace/dogfood-member.sh"
+OPERATOR_RUNBOOK="${ROOT_DIR}/infra/docs/operator-runbook.md"
+
+fail() { printf '%s\n' "$*" >&2; exit 1; }
+require_workflow() { grep -Fq -- "$1" "${WORKFLOW}" || fail "Recovery workflow is missing: $1"; }
+require_helper() { grep -Fq -- "$1" "${MEMBER_HELPER}" || fail "Member helper is missing: $1"; }
+require_runbook() { grep -Fq -- "$1" "${OPERATOR_RUNBOOK}" || fail "Operator runbook is missing: $1"; }
+
+[[ -f "${WORKFLOW}" ]] || fail "Pending identity recovery workflow is missing"
+[[ -f "${MEMBER_HELPER}" ]] || fail "Persistent member helper is missing"
+[[ -f "${OPERATOR_RUNBOOK}" ]] || fail "Operator runbook is missing"
+require_workflow 'group: weave-persistent-dogfood'
+require_workflow 'cancel-in-progress: false'
+require_workflow 'environment: dogfood'
+require_workflow 'EXPECTED_RUNNER_NAME: weave-live-mac-mini'
+require_workflow 'DISPATCH_REF: ${{ github.ref_name }}'
+require_workflow '[[ "$DISPATCH_REF" == dogfood ]]'
+require_workflow 'retire-lost-pending-identity'
+require_workflow 'successful exact-candidate isolated E2E'
+require_workflow '[[ "$(git rev-parse HEAD)" == "$CANDIDATE_SHA" ]]'
+require_workflow 'git merge-base --is-ancestor "$CANDIDATE_SHA" origin/dogfood'
+require_workflow '.specCorpus.gitCommit'
+require_workflow 'TF_VAR_create_test_user: '\''false'\'''
+require_workflow 'TF_VAR_isolated_e2e_enabled: '\''false'\'''
+require_workflow 'WEAVE_REMOVE_VOLUMES: '\''false'\'''
+require_workflow 'org.opencontainers.image.revision=$CANDIDATE_SHA'
+require_workflow './dogfood-member.sh recover-lost-pending'
+require_workflow '--prior-evidence "$prior_evidence"'
+require_workflow '--approval-ref "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"'
+require_helper 'retired-pending-identities'
+require_helper 'verify_recorded_subject_absent'
+require_helper 'find "${evidence_dir}" -maxdepth 2'
+require_workflow 'bash ./backup.sh "$backup_root"'
+require_workflow 'bash ./restore-smoke.sh "$backup_dir"'
+require_workflow '.provesRestoredDomainData == false'
+require_workflow 'restoredDomainDataProven:false'
+require_workflow 'humanTestingReady:false'
+require_workflow 'two-install-dogfood-deployment-required'
+require_workflow 'protected-recovery-incomplete'
+require_workflow 'private-backup-or-restore-smoke-failed'
+require_workflow 'path: ${{ env.WEAVE_RECOVERY_EVIDENCE_DIR }}'
+require_runbook 'Restoring the private Keycloak database is always the first recovery path.'
+require_runbook 'humanTestingReady=false'
+require_runbook 'the human tester completes the Keycloak activation'
+require_runbook 'run the standard `Test Stack Deploy` workflow for the same candidate'
+
+upload_block="$(sed -n '/- name: Upload support-safe recovery evidence/,$p' "${WORKFLOW}")"
+if [[ "$(grep -Fc 'uses: actions/upload-artifact@' "${WORKFLOW}")" -ne 1 ]]; then
+  fail "Recovery workflow may upload only its one support-safe evidence directory"
+fi
+if grep -Eq 'backup_root|backup_dir|BackupManifest\.json|RestoreReceipt\.json' <<<"${upload_block}"; then
+  fail "Private backup artifacts must never be uploaded as support evidence"
+fi
+if grep -Fq 'WEAVE_REMOVE_VOLUMES: '\''true'\''' "${WORKFLOW}"; then
+  fail "Pending recovery must not permit destructive volume removal"
+fi
+if grep -Fq 'mapfile' "${WORKFLOW}"; then
+  fail "Pending recovery must remain compatible with the macOS system Bash"
+fi
+if grep -Fq 'teardown.sh' "${WORKFLOW}"; then
+  fail "Pending recovery must never tear down the persistent runtime"
+fi
+if [[ "$(grep -Fc "if: \${{ always() && env.WEAVE_RECOVERY_EVIDENCE_DIR != '' }}" "${WORKFLOW}")" -lt 2 ]]; then
+  fail "Recovery outcome and partial support-safe evidence must be retained on failure"
+fi
+
+printf 'DOGFOOD_PENDING_IDENTITY_RECOVERY_CONTRACT status=passed evidenceMode=offline-spec supportSafe=true\n'

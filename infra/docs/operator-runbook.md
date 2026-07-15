@@ -162,6 +162,20 @@ WEAVE_RESTORE_SMOKE_ARTIFACTS_ONLY=true bash weave-workspace/restore-smoke.sh <b
 
 Artifact-only mode validates the backup directory shape and then exits with an explicit note that service readiness was not checked.
 
+### Exceptional retirement of a lost pending dogfood identity
+
+Restoring the private Keycloak database is always the first recovery path. Use the protected `Dogfood Pending Identity Recovery` workflow only when the backup audit found no restorable Keycloak database and the last accepted evidence proves that the persistent human identity never completed activation. The evidence must still describe the recorded subject as pending with `VERIFY_EMAIL` and `UPDATE_PASSWORD`, no later active evidence may exist, and neither the configured username/email nor the recorded subject may resolve in the current realm. An active, disabled, ambiguous, previously authenticated, or insufficiently evidenced identity must never be replaced.
+
+The workflow requires an exact candidate already contained in `dogfood`, successful exact-commit isolated Live Stack E2E evidence, the protected `dogfood` environment, the shared non-cancelling persistent deployment lock, and the typed confirmation `retire-lost-pending-identity`. Do not call `dogfood-member.sh recover-lost-pending` from routine deployment or an unprotected operator shell. The protected operation keeps disposable identity inputs and destructive volume removal disabled, archives the previous raw subject only in mode-`0600` private operator state, creates one new pending Keycloak identity, verifies its activation mail, and creates a private post-recovery backup plus restore-smoke receipt. Raw subjects, mail, database dumps, and backup archives are never uploaded; shared evidence contains hashes and support-safe status only.
+
+Successful recovery is deliberately not human-testing readiness. Its manifest remains `overallState=blocked` and `humanTestingReady=false`. Continue in this order:
+
+1. the human tester completes the Keycloak activation from the private Mailpit message;
+2. the tester performs an explicit normal OIDC sign-in on the physical iPhone so an active Keycloak session exists; and
+3. run the standard `Test Stack Deploy` workflow for the same candidate; that workflow applies the persistent deployment twice, verifies the active immutable subject/session and idempotency, and remains the only path to green persistent dogfood deployment evidence.
+
+Only the normal readiness chain after those steps can advance toward iOS distribution and physical-device VoiceOver acceptance. The exceptional recovery workflow itself can never emit `humanTestingReady=true`.
+
 ## 7. Stop, clean rebuild, and destructive reset
 
 Use the least destructive action that solves the problem:

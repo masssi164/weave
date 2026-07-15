@@ -21,11 +21,12 @@ file_mode() {
 cat >"${TMP_DIR}/bin/curl" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-method=GET; url=""
+method=GET; url="" write_out=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -X) method="$2"; shift 2 ;;
-    --data|--data-urlencode|-H|--cacert) shift 2 ;;
+    --data|--data-urlencode|-H|--cacert|--output) shift 2 ;;
+    --write-out) write_out="$2"; shift 2 ;;
     http://*|https://*) url="$1"; shift ;;
     *) shift ;;
   esac
@@ -43,25 +44,36 @@ elif [[ "${url}" == *'/users?'* ]]; then
   case "${state}" in
     missing) printf '[]' ;;
     pending) printf '[{"id":"human-subject-1","username":"human","email":"human@example.test","enabled":true,"emailVerified":false,"requiredActions":["VERIFY_EMAIL","UPDATE_PASSWORD"]}]' ;;
+    pending-replacement) printf '[{"id":"human-subject-2","username":"human","email":"human@example.test","enabled":true,"emailVerified":false,"requiredActions":["VERIFY_EMAIL","UPDATE_PASSWORD"]}]' ;;
     active) printf '[{"id":"human-subject-1","username":"human","email":"human@example.test","enabled":true,"emailVerified":true,"requiredActions":[]}]' ;;
     replacement) printf '[{"id":"human-subject-2","username":"human","email":"human@example.test","enabled":true,"emailVerified":true,"requiredActions":[]}]' ;;
   esac
+elif [[ "${method}" == GET && "${url}" == */users/human-subject-1 && -n "${write_out}" ]]; then
+  if [[ "${FAKE_RECORDED_SUBJECT_PRESENT:-false}" == true ]]; then printf '200'; else printf '404'; fi
 elif [[ "${method}" == POST && "${url}" == */users ]]; then
-  printf pending >"${FAKE_STATE}"
+  if [[ "${FAKE_CREATE_REPLACEMENT:-false}" == true ]]; then
+    printf pending-replacement >"${FAKE_STATE}"
+  else
+    printf pending >"${FAKE_STATE}"
+  fi
+elif [[ "${method}" == DELETE && "${url}" == */users/human-subject-2 ]]; then
+  printf missing >"${FAKE_STATE}"
 elif [[ "${url}" == *execute-actions-email* ]]; then
   [[ "${FAKE_DROP_MAIL:-false}" == true ]] || printf sent >"${FAKE_MAIL_SENT}"
+elif [[ "${method}" == POST && "${url}" == */organizations/org-1/members ]]; then
+  [[ "${FAKE_FAIL_ACCESS:-false}" != true ]] || exit 22
 elif [[ "${url}" == *'/organizations?'* ]]; then printf '[{"id":"org-1","name":"weave","alias":"weave"}]'
 elif [[ "${url}" == *'/clients?clientId='* ]]; then printf '[{"id":"client-1","name":"weave-app","clientId":"weave-app"}]'
 elif [[ "${url}" == *'/clients/client-1/roles/member' ]]; then printf '{"id":"role-1","name":"member"}'
 elif [[ "${url}" == *'/role-mappings/clients/client-1' ]]; then printf '[{"id":"role-1","name":"member"}]'
-elif [[ "${url}" == *'/users/human-subject-1/groups' ]]; then printf '[{"id":"g1","name":"workspace-members"},{"id":"g2","name":"weave-board-editors"},{"id":"g3","name":"weave-calendar-editors"}]'
+elif [[ "${url}" == *'/users/human-subject-'*'/groups' ]]; then printf '[{"id":"g1","name":"workspace-members"},{"id":"g2","name":"weave-board-editors"},{"id":"g3","name":"weave-calendar-editors"}]'
 elif [[ "${url}" == *'/groups?search='* ]]; then
   case "${url}" in
     *workspace-members*) printf '[{"id":"g1","name":"workspace-members"}]' ;;
     *weave-board-editors*) printf '[{"id":"g2","name":"weave-board-editors"}]' ;;
     *weave-calendar-editors*) printf '[{"id":"g3","name":"weave-calendar-editors"}]' ;;
   esac
-elif [[ "${url}" == *'/organizations/org-1/members/human-subject-1' ]]; then printf '{"id":"human-subject-1"}'
+elif [[ "${url}" == *'/organizations/org-1/members/human-subject-'* ]]; then printf '{"id":"persistent-member"}'
 fi
 EOF
 chmod +x "${TMP_DIR}/bin/curl"
@@ -122,6 +134,112 @@ if ${SCRIPT} ensure --subject-file "${subject_file}" >"${TMP_DIR}/missing.out" 2
   echo 'missing recorded subject was recreated' >&2; exit 1
 fi
 grep -Fq identity_missing "${TMP_DIR}/missing.out"
+
+recovery_evidence="${TMP_DIR}/recovery.json"
+active_evidence="${TMP_DIR}/identity-recovery/active-evidence.json"
+mkdir -p "$(dirname -- "${active_evidence}")"
+subject_one_hash="$(printf human-subject-1 | shasum -a 256 | awk '{print $1}')"
+jq -n --arg subjectSha256 "${subject_one_hash}" \
+  '{schemaVersion:"weave.dogfood.persistent-member.v1",state:"active",subjectSha256:$subjectSha256,supportSafe:true}' >"${active_evidence}"
+: >"${FAKE_CURL_LOG}"
+if env FAKE_CREATE_REPLACEMENT=true "${SCRIPT}" recover-lost-pending \
+  --subject-file "${subject_file}" \
+  --prior-evidence "${evidence_file}" \
+  --evidence-file "${recovery_evidence}" \
+  --approval-ref 'https://github.com/masssi164/weave/actions/runs/1234' \
+  --confirm-retirement retire-lost-pending-identity >"${TMP_DIR}/active-recovery.out" 2>&1; then
+  echo 'pending recovery ignored later active evidence' >&2; exit 1
+fi
+grep -Fq 'active evidence exists for the recorded identity' "${TMP_DIR}/active-recovery.out"
+[[ "$(grep -c 'POST .*\/users$' "${FAKE_CURL_LOG}" || true)" -eq 0 ]]
+
+rm -f "${active_evidence}" "${FAKE_MAIL_SENT}"
+: >"${FAKE_CURL_LOG}"
+if env FAKE_CREATE_REPLACEMENT=true FAKE_RECORDED_SUBJECT_PRESENT=true "${SCRIPT}" recover-lost-pending \
+  --subject-file "${subject_file}" \
+  --prior-evidence "${evidence_file}" \
+  --evidence-file "${recovery_evidence}" \
+  --approval-ref 'https://github.com/masssi164/weave/actions/runs/1234' \
+  --confirm-retirement retire-lost-pending-identity >"${TMP_DIR}/old-subject-present.out" 2>&1; then
+  echo 'recovery retired a subject that still exists in Keycloak' >&2; exit 1
+fi
+grep -Fq 'recorded pending subject still exists in Keycloak' "${TMP_DIR}/old-subject-present.out"
+[[ "$(grep -c 'POST .*\/users$' "${FAKE_CURL_LOG}" || true)" -eq 0 ]]
+
+: >"${FAKE_CURL_LOG}"
+if env FAKE_CREATE_REPLACEMENT=true FAKE_FAIL_ACCESS=true "${SCRIPT}" recover-lost-pending \
+  --subject-file "${subject_file}" \
+  --prior-evidence "${evidence_file}" \
+  --evidence-file "${recovery_evidence}" \
+  --approval-ref 'https://github.com/masssi164/weave/actions/runs/1234' \
+  --confirm-retirement retire-lost-pending-identity >"${TMP_DIR}/failed-access-recovery.out" 2>&1; then
+  echo 'recovery accepted incomplete replacement access' >&2; exit 1
+fi
+grep -Fq 'replacement identity access provisioning failed' "${TMP_DIR}/failed-access-recovery.out"
+[[ "$(cat "${subject_file}")" == human-subject-1 ]]
+[[ "$(cat "${FAKE_STATE}")" == missing ]]
+[[ "$(grep -c 'DELETE .*\/users\/human-subject-2' "${FAKE_CURL_LOG}")" -eq 1 ]]
+[[ ! -e "${recovery_evidence}" ]]
+
+blocked_evidence_parent="${TMP_DIR}/blocked-evidence-parent"
+: >"${blocked_evidence_parent}"
+: >"${FAKE_CURL_LOG}"
+if failed_evidence_output="$(env FAKE_CREATE_REPLACEMENT=true "${SCRIPT}" recover-lost-pending \
+  --subject-file "${subject_file}" \
+  --prior-evidence "${evidence_file}" \
+  --evidence-file "${blocked_evidence_parent}/recovery.json" \
+  --approval-ref 'https://github.com/masssi164/weave/actions/runs/1234' \
+  --confirm-retirement retire-lost-pending-identity 2>&1)"; then
+  echo 'recovery accepted an unwritable evidence destination' >&2; exit 1
+fi
+grep -Fq 'support-safe replacement transition evidence could not be prepared' <<<"${failed_evidence_output}"
+[[ "$(cat "${subject_file}")" == human-subject-1 ]]
+[[ "$(cat "${FAKE_STATE}")" == missing ]]
+[[ "$(grep -c 'DELETE .*\/users\/human-subject-2' "${FAKE_CURL_LOG}")" -eq 1 ]]
+[[ -z "$(find "${TMP_DIR}/retired-pending-identities" -type f -name '*.subject' -print -quit 2>/dev/null || true)" ]]
+
+rm -f "${FAKE_MAIL_SENT}"
+: >"${FAKE_CURL_LOG}"
+output="$(env FAKE_CREATE_REPLACEMENT=true "${SCRIPT}" recover-lost-pending \
+  --subject-file "${subject_file}" \
+  --prior-evidence "${evidence_file}" \
+  --evidence-file "${recovery_evidence}" \
+  --approval-ref 'https://github.com/masssi164/weave/actions/runs/1234' \
+  --confirm-retirement retire-lost-pending-identity)"
+grep -Fq 'state=pending action=lost_pending_identity_retired_and_recreated' <<<"${output}"
+[[ "$(cat "${subject_file}")" == human-subject-2 ]]
+[[ "$(grep -c 'POST .*\/users$' "${FAKE_CURL_LOG}")" -eq 1 ]]
+retired_subject_file="$(find "${TMP_DIR}/retired-pending-identities" -type f -name '*.subject' -print -quit)"
+[[ -n "${retired_subject_file}" && "$(cat "${retired_subject_file}")" == human-subject-1 ]]
+[[ "$(file_mode "${retired_subject_file}")" == 600 ]]
+[[ "$(file_mode "$(dirname -- "${retired_subject_file}")")" == 700 ]]
+subject_two_hash="$(printf human-subject-2 | shasum -a 256 | awk '{print $1}')"
+jq -e --arg previous "${subject_one_hash}" --arg replacement "${subject_two_hash}" '
+  .schemaVersion == "weave.dogfood.persistent-member-recovery.v1" and
+  .state == "pending" and
+  .action == "lost_pending_identity_retired_and_recreated" and
+  .previousSubjectSha256 == $previous and
+  .subjectSha256 == $replacement and
+  .retiredSubjectArchivedPrivately == true and
+  .activation.mailSent == true and
+  .activation.mailVisible == true and
+  .readiness.blocked == true and
+  (.readiness.requiredGates | contains(["private-backup","restore-smoke","repeat-deployment","activation","member-verification"])) and
+  .supportSafe == true
+' "${recovery_evidence}" >/dev/null
+if grep -Eq 'human@example\.test|human-subject-[12]|mail-1' "${recovery_evidence}"; then
+  echo 'recovery evidence leaked direct identity or Mailpit data' >&2; exit 1
+fi
+
+if env FAKE_CREATE_REPLACEMENT=true "${SCRIPT}" recover-lost-pending \
+  --subject-file "${subject_file}" \
+  --prior-evidence "${evidence_file}" \
+  --evidence-file "${TMP_DIR}/repeat-recovery.json" \
+  --approval-ref 'https://github.com/masssi164/weave/actions/runs/1234' \
+  --confirm-retirement retire-lost-pending-identity >"${TMP_DIR}/repeat-recovery.out" 2>&1; then
+  echo 'recovery replaced an identity that was already present' >&2; exit 1
+fi
+grep -Fq 'requires the configured identity to be absent' "${TMP_DIR}/repeat-recovery.out"
 
 if env WEAVE_DOGFOOD_MEMBER_USERNAME=test "${SCRIPT}" status --subject-file "${TMP_DIR}/other.subject" >"${TMP_DIR}/test-user.out" 2>&1; then
   echo 'disposable automation username was accepted' >&2; exit 1

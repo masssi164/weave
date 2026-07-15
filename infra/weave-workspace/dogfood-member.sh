@@ -9,6 +9,9 @@ SUBJECT_FILE="${WEAVE_DOGFOOD_MEMBER_SUBJECT_FILE:-${ROOT_DIR}/.generated/dogfoo
 REALM="${TF_VAR_tenant_slug:-weave}"
 OPERATION=""
 EVIDENCE_FILE=""
+PRIOR_EVIDENCE_FILE=""
+RECOVERY_APPROVAL_REF=""
+RECOVERY_CONFIRMATION=""
 LIFESPAN_SECONDS="${WEAVE_DOGFOOD_MEMBER_ACTIVATION_LIFESPAN_SECONDS:-86400}"
 CLIENT_ID="weave-app"
 REDIRECT_URI="com.massimotter.weave:/oauthredirect"
@@ -17,13 +20,14 @@ MAILPIT_VERIFY_TIMEOUT_SECONDS="${WEAVE_DOGFOOD_MEMBER_MAILPIT_VERIFY_TIMEOUT_SE
 MAILPIT_EXPECTED_SUBJECT="${WEAVE_DOGFOOD_MEMBER_MAIL_SUBJECT:-Complete your Weave account setup}"
 MAIL_MESSAGE_ID_SHA256=""
 MAIL_VERIFIED_AT=""
+RECOVERY_CONFIRMATION_LITERAL="retire-lost-pending-identity"
 
 log() { printf '%s\n' "$*"; }
 fail() { printf 'DOGFOOD_MEMBER_ERROR %s\n' "$*" >&2; exit 1; }
 
 usage() {
   cat <<'EOF'
-Usage: ./dogfood-member.sh status|ensure|resend-activation [options]
+Usage: ./dogfood-member.sh status|ensure|resend-activation|recover-lost-pending [options]
 
 Manage the one persistent human dogfood member without overwriting it.
 
@@ -38,11 +42,17 @@ Options:
   --tenant-realm VALUE   Keycloak realm (default: TF_VAR_tenant_slug or weave).
   --groups CSV           Expected member/capability groups.
   --lifespan SECONDS     Initial/resend action-email lifetime (300..86400).
+  --prior-evidence PATH  Last accepted support-safe member evidence (recovery only).
+  --approval-ref URL     Protected GitHub Actions run URL (recovery only).
+  --confirm-retirement VALUE
+                         Must be 'retire-lost-pending-identity' (recovery only).
   -h, --help             Show this help.
 
 The helper creates and configures an absent identity exactly once. Existing
 pending and active identities are never updated. resend-activation only sends
 mail for a pending identity. A recorded missing or changed subject fails closed.
+recover-lost-pending is an explicit disaster-recovery exception for a proven
+never-activated identity; it never applies to an active or ambiguous identity.
 EOF
 }
 
@@ -60,7 +70,7 @@ load_environment() {
 parse_args() {
   [[ $# -gt 0 ]] || { usage >&2; exit 2; }
   OPERATION="$1"; shift
-  case "${OPERATION}" in status|ensure|resend-activation) ;; *) fail "unknown operation '${OPERATION}'" ;; esac
+  case "${OPERATION}" in status|ensure|resend-activation|recover-lost-pending) ;; *) fail "unknown operation '${OPERATION}'" ;; esac
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --evidence-file) EVIDENCE_FILE="${2:-}"; shift 2 ;;
@@ -68,6 +78,9 @@ parse_args() {
       --tenant-realm) REALM="${2:-}"; shift 2 ;;
       --groups) EXPECTED_GROUPS="${2:-}"; shift 2 ;;
       --lifespan) LIFESPAN_SECONDS="${2:-}"; shift 2 ;;
+      --prior-evidence) PRIOR_EVIDENCE_FILE="${2:-}"; shift 2 ;;
+      --approval-ref) RECOVERY_APPROVAL_REF="${2:-}"; shift 2 ;;
+      --confirm-retirement) RECOVERY_CONFIRMATION="${2:-}"; shift 2 ;;
       -h|--help) usage; exit 0 ;;
       *) fail "unknown argument '$1'" ;;
     esac
@@ -84,6 +97,13 @@ validate_inputs() {
   [[ "${MAILPIT_VERIFY_TIMEOUT_SECONDS}" =~ ^[0-9]+$ ]] || fail "Mailpit verification timeout must be seconds"
   (( MAILPIT_VERIFY_TIMEOUT_SECONDS >= 1 && MAILPIT_VERIFY_TIMEOUT_SECONDS <= 300 )) || fail "Mailpit verification timeout must be between 1 and 300 seconds"
   [[ -n "${EXPECTED_GROUPS}" ]] || fail "expected groups must not be empty"
+  if [[ "${OPERATION}" == recover-lost-pending ]]; then
+    [[ -n "${EVIDENCE_FILE}" ]] || fail "recover-lost-pending requires --evidence-file"
+    [[ -s "${PRIOR_EVIDENCE_FILE}" ]] || fail "recover-lost-pending requires existing --prior-evidence"
+    [[ "${RECOVERY_CONFIRMATION}" == "${RECOVERY_CONFIRMATION_LITERAL}" ]] || fail "recover-lost-pending requires the exact retirement confirmation"
+    [[ "${RECOVERY_APPROVAL_REF}" =~ ^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/actions/runs/[0-9]+$ ]] ||
+      fail "recover-lost-pending requires a support-safe protected GitHub Actions run URL"
+  fi
 }
 
 public_port_suffix() {
@@ -116,6 +136,19 @@ request() {
   [[ -n "${token}" ]] && args+=(-H "Authorization: Bearer ${token}")
   if [[ -n "${body}" ]]; then args+=(-H "Content-Type: ${content_type}" --data "${body}"); fi
   curl "${args[@]}" "${url}"
+}
+
+request_http_status() {
+  local method="$1" url="$2" token="${3:-}" http_status
+  local -a args=(--silent --show-error --output /dev/null --write-out '%{http_code}' -X "${method}")
+  if [[ -n "${WEAVE_TLS_CA_FILE:-}" ]]; then args+=(--cacert "${WEAVE_TLS_CA_FILE}")
+  elif [[ -n "${TF_VAR_caddy_tls_ca_file:-}" && -f "${TF_VAR_caddy_tls_ca_file}" ]]; then args+=(--cacert "${TF_VAR_caddy_tls_ca_file}"); fi
+  [[ -n "${token}" ]] && args+=(-H "Authorization: Bearer ${token}")
+  if ! http_status="$(curl "${args[@]}" "${url}")"; then
+    fail "Keycloak subject absence could not be verified"
+  fi
+  [[ "${http_status}" =~ ^[0-9]{3}$ ]] || fail "Keycloak returned an invalid HTTP status"
+  printf '%s' "${http_status}"
 }
 
 admin_token() {
@@ -169,7 +202,7 @@ verify_new_mail_visible() {
     fi
     sleep 2
   done
-  fail "activation mail was not visible through the Mailpit HTTPS API within ${MAILPIT_VERIFY_TIMEOUT_SECONDS}s"
+  return 1
 }
 
 record_subject_once() {
@@ -229,42 +262,48 @@ resolve_client_id() {
 
 add_initial_access() {
   local base="$1" token="$2" subject="$3" org_id client_uuid role group group_id groups
-  org_id="$(resolve_org_id "${base}" "${token}")"
-  request POST "${base}/organizations/${org_id}/members" "${token}" "$(jq -cn --arg id "${subject}" '$id')" >/dev/null
-  client_uuid="$(resolve_client_id "${base}" "${token}")"
-  role="$(request GET "${base}/clients/${client_uuid}/roles/member" "${token}")"
-  request POST "${base}/users/${subject}/role-mappings/clients/${client_uuid}" "${token}" "[$(jq -c . <<<"${role}")]" >/dev/null
+  org_id="$(resolve_org_id "${base}" "${token}")" || return 1
+  request POST "${base}/organizations/${org_id}/members" "${token}" "$(jq -cn --arg id "${subject}" '$id')" >/dev/null || return 1
+  client_uuid="$(resolve_client_id "${base}" "${token}")" || return 1
+  role="$(request GET "${base}/clients/${client_uuid}/roles/member" "${token}")" || return 1
+  request POST "${base}/users/${subject}/role-mappings/clients/${client_uuid}" "${token}" "[$(jq -c . <<<"${role}")]" >/dev/null || return 1
   IFS=',' read -r -a groups <<<"${EXPECTED_GROUPS}"
   for group in "${groups[@]}"; do
     group="${group#"${group%%[![:space:]]*}"}"; group="${group%"${group##*[![:space:]]}"}"
-    group_id="$(find_named_id "$(request GET "${base}/groups?search=$(encode "${group}")&exact=true" "${token}")" "${group}" group)"
-    request PUT "${base}/users/${subject}/groups/${group_id}" "${token}" >/dev/null
+    group_id="$(find_named_id "$(request GET "${base}/groups?search=$(encode "${group}")&exact=true" "${token}")" "${group}" group)" || return 1
+    request PUT "${base}/users/${subject}/groups/${group_id}" "${token}" >/dev/null || return 1
   done
 }
 
-verify_active_access() {
+verify_expected_access() {
   local base="$1" token="$2" subject="$3" org_id client_uuid roles memberships group expected groups
   org_id="$(resolve_org_id "${base}" "${token}")"
-  request GET "${base}/organizations/${org_id}/members/${subject}" "${token}" >/dev/null || fail "active member lacks organization membership"
+  request GET "${base}/organizations/${org_id}/members/${subject}" "${token}" >/dev/null || fail "persistent member lacks organization membership"
   client_uuid="$(resolve_client_id "${base}" "${token}")"
   roles="$(request GET "${base}/users/${subject}/role-mappings/clients/${client_uuid}" "${token}")"
-  jq -e 'any(.name == "member")' <<<"${roles}" >/dev/null || fail "active member lacks member role"
+  jq -e 'any(.name == "member")' <<<"${roles}" >/dev/null || fail "persistent member lacks member role"
   memberships="$(request GET "${base}/users/${subject}/groups" "${token}")"
   IFS=',' read -r -a groups <<<"${EXPECTED_GROUPS}"
   for expected in "${groups[@]}"; do
     expected="${expected#"${expected%%[![:space:]]*}"}"; expected="${expected%"${expected##*[![:space:]]}"}"
-    jq -e --arg name "${expected}" 'any(.name == $name)' <<<"${memberships}" >/dev/null || fail "active member lacks expected group '${expected}'"
+    jq -e --arg name "${expected}" 'any(.name == $name)' <<<"${memberships}" >/dev/null || fail "persistent member lacks expected group '${expected}'"
   done
 }
 
-create_once() {
-  local base="$1" token="$2" first last payload user subject
+create_pending_user() {
+  local base="$1" token="$2" first last payload user
   first="${WEAVE_DOGFOOD_MEMBER_DISPLAY_NAME%% *}"
   if [[ "${WEAVE_DOGFOOD_MEMBER_DISPLAY_NAME}" == *' '* ]]; then last="${WEAVE_DOGFOOD_MEMBER_DISPLAY_NAME#* }"; else last=""; fi
   payload="$(jq -n --arg username "${WEAVE_DOGFOOD_MEMBER_USERNAME}" --arg email "${WEAVE_DOGFOOD_MEMBER_EMAIL}" \
     --arg first "${first}" --arg last "${last}" '{username:$username,email:$email,firstName:$first,lastName:$last,enabled:true,emailVerified:false,requiredActions:["VERIFY_EMAIL","UPDATE_PASSWORD"]}')"
   request POST "${base}/users" "${token}" "${payload}" >/dev/null
   user="$(resolve_user "${base}" "${token}")"; [[ -n "${user}" ]] || fail "created identity could not be resolved"
+  printf '%s' "${user}"
+}
+
+create_once() {
+  local base="$1" token="$2" user subject
+  user="$(create_pending_user "${base}" "${token}")"
   subject="$(jq -r '.id' <<<"${user}")"
   record_subject_once "${subject}"
   add_initial_access "${base}" "${token}" "${subject}"
@@ -275,6 +314,168 @@ send_activation() {
   local base="$1" token="$2" subject="$3"
   request PUT "${base}/users/${subject}/execute-actions-email?lifespan=${LIFESPAN_SECONDS}&client_id=$(encode "${CLIENT_ID}")&redirect_uri=$(encode "${REDIRECT_URI}")" \
     "${token}" '["VERIFY_EMAIL","UPDATE_PASSWORD"]' >/dev/null
+}
+
+validate_pending_recovery_evidence() {
+  local recorded="$1" recorded_hash evidence_candidate evidence_dir
+  recorded_hash="$(sha256 "${recorded}")"
+  jq -e --arg subjectSha256 "${recorded_hash}" '
+    (.schemaVersion == "weave.dogfood.persistent-member.v1" or
+      .schemaVersion == "weave.dogfood.persistent-member-recovery.v1") and
+    .state == "pending" and
+    .subjectSha256 == $subjectSha256 and
+    .supportSafe == true and
+    .activation.mode == "keycloak-required-actions-email" and
+    .activation.mailSent == true and
+    .activation.mailVisible == true and
+    (.activation.requiredActions | index("VERIFY_EMAIL") != null) and
+    (.activation.requiredActions | index("UPDATE_PASSWORD") != null)
+  ' "${PRIOR_EVIDENCE_FILE}" >/dev/null || fail "prior evidence does not prove the recorded identity remained pending"
+
+  evidence_dir="$(dirname -- "${PRIOR_EVIDENCE_FILE}")"
+  while IFS= read -r evidence_candidate; do
+    if jq -e --arg subjectSha256 "${recorded_hash}" '
+      .supportSafe == true and .subjectSha256 == $subjectSha256 and .state == "active"
+    ' "${evidence_candidate}" >/dev/null 2>&1; then
+      fail "active evidence exists for the recorded identity"
+    fi
+  done < <(find "${evidence_dir}" -maxdepth 2 -type f -name '*.json' -print)
+}
+
+verify_recorded_subject_absent() {
+  local base="$1" token="$2" recorded="$3" http_status
+  http_status="$(request_http_status GET "${base}/users/${recorded}" "${token}")"
+  case "${http_status}" in
+    404) return 0 ;;
+    200) fail "recorded pending subject still exists in Keycloak" ;;
+    *) fail "recorded subject absence could not be proven (HTTP ${http_status})" ;;
+  esac
+}
+
+delete_recovery_user() {
+  local base="$1" token="$2" subject="$3"
+  request DELETE "${base}/users/${subject}" "${token}" >/dev/null 2>&1 || true
+}
+
+write_recovery_evidence() {
+  local output="$1" previous_subject="$2" replacement_subject="$3"
+  mkdir -p "$(dirname -- "${output}")" || return 1
+  if ! jq -n --arg realm "${REALM}" \
+    --arg previousSubjectSha256 "$(sha256 "${previous_subject}")" \
+    --arg subjectSha256 "$(sha256 "${replacement_subject}")" \
+    --arg usernameSha256 "$(sha256 "${WEAVE_DOGFOOD_MEMBER_USERNAME}")" \
+    --arg emailSha256 "$(sha256 "${WEAVE_DOGFOOD_MEMBER_EMAIL}")" \
+    --arg approvalRef "${RECOVERY_APPROVAL_REF}" \
+    --arg recoveredAt "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+    --arg mailMessageIdSha256 "${MAIL_MESSAGE_ID_SHA256}" \
+    --arg mailVerifiedAt "${MAIL_VERIFIED_AT}" '
+    {
+      schemaVersion:"weave.dogfood.persistent-member-recovery.v1",
+      realm:$realm,
+      state:"pending",
+      action:"lost_pending_identity_retired_and_recreated",
+      reason:"keycloak-runtime-lost-no-restorable-database-backup",
+      previousSubjectSha256:$previousSubjectSha256,
+      subjectSha256:$subjectSha256,
+      usernameSha256:$usernameSha256,
+      emailSha256:$emailSha256,
+      approvalRef:$approvalRef,
+      recoveredAt:$recoveredAt,
+      retiredSubjectArchivedPrivately:true,
+      activation:{
+        mode:"keycloak-required-actions-email",
+        requiredActions:["VERIFY_EMAIL","UPDATE_PASSWORD"],
+        mailSent:true,
+        mailVisible:($mailMessageIdSha256 != ""),
+        messageIdSha256:$mailMessageIdSha256,
+        verifiedAt:$mailVerifiedAt
+      },
+      readiness:{
+        blocked:true,
+        requiredGates:["private-backup","restore-smoke","repeat-deployment","activation","member-verification"]
+      },
+      supportSafe:true
+    }
+  ' >"${output}"; then
+    rm -f -- "${output}" >/dev/null 2>&1 || true
+    return 1
+  fi
+  if ! chmod 600 "${output}"; then
+    rm -f -- "${output}" >/dev/null 2>&1 || true
+    return 1
+  fi
+}
+
+archive_and_replace_subject() {
+  local previous_subject="$1" replacement_subject="$2" parent archive_dir timestamp archive_file temporary
+  parent="$(dirname -- "${SUBJECT_FILE}")"
+  archive_dir="${parent}/retired-pending-identities"
+  timestamp="$(date -u '+%Y%m%dT%H%M%SZ')"
+  archive_file="${archive_dir}/${timestamp}-$(sha256 "${previous_subject}").subject"
+  temporary="${SUBJECT_FILE}.tmp.$$"
+
+  mkdir -p "${parent}" "${archive_dir}" || return 1
+  chmod 700 "${parent}" "${archive_dir}" || return 1
+  [[ ! -e "${archive_file}" ]] || return 1
+  if ! (
+    umask 077
+    printf '%s\n' "${previous_subject}" >"${archive_file}"
+    printf '%s\n' "${replacement_subject}" >"${temporary}"
+  ); then
+    rm -f -- "${archive_file}" "${temporary}" >/dev/null 2>&1 || true
+    return 1
+  fi
+  if ! chmod 600 "${archive_file}" "${temporary}" ||
+    ! mv "${temporary}" "${SUBJECT_FILE}"; then
+    rm -f -- "${archive_file}" "${temporary}" >/dev/null 2>&1 || true
+    return 1
+  fi
+}
+
+recover_lost_pending() {
+  local base="$1" token="$2" current_user="$3" previous_subject replacement_user replacement_subject
+  local mail_before evidence_temporary
+  previous_subject="$(recorded_subject)"
+  [[ -n "${previous_subject}" ]] || fail "recover-lost-pending requires a recorded subject"
+  [[ -z "${current_user}" ]] || fail "recover-lost-pending requires the configured identity to be absent"
+  validate_pending_recovery_evidence "${previous_subject}"
+  verify_recorded_subject_absent "${base}" "${token}" "${previous_subject}"
+
+  mail_before="$(mailpit_snapshot)"
+  replacement_user="$(create_pending_user "${base}" "${token}")"
+  replacement_subject="$(jq -r '.id // empty' <<<"${replacement_user}")"
+  [[ -n "${replacement_subject}" && "${replacement_subject}" != "${previous_subject}" ]] || {
+    [[ -z "${replacement_subject}" ]] || delete_recovery_user "${base}" "${token}" "${replacement_subject}"
+    fail "replacement identity did not receive a distinct Keycloak subject"
+  }
+
+  if ! (add_initial_access "${base}" "${token}" "${replacement_subject}" &&
+    verify_expected_access "${base}" "${token}" "${replacement_subject}") >/dev/null 2>&1; then
+    delete_recovery_user "${base}" "${token}" "${replacement_subject}"
+    fail "replacement identity access provisioning failed"
+  fi
+  if ! send_activation "${base}" "${token}" "${replacement_subject}"; then
+    delete_recovery_user "${base}" "${token}" "${replacement_subject}"
+    fail "replacement identity activation request failed"
+  fi
+  if ! verify_new_mail_visible "${mail_before}"; then
+    delete_recovery_user "${base}" "${token}" "${replacement_subject}"
+    fail "activation mail was not visible through the Mailpit HTTPS API within ${MAILPIT_VERIFY_TIMEOUT_SECONDS}s"
+  fi
+
+  evidence_temporary="${EVIDENCE_FILE}.tmp.$$"
+  if ! (umask 077; write_recovery_evidence "${evidence_temporary}" "${previous_subject}" "${replacement_subject}"); then
+    rm -f -- "${evidence_temporary}" >/dev/null 2>&1 || true
+    delete_recovery_user "${base}" "${token}" "${replacement_subject}"
+    fail "support-safe replacement transition evidence could not be prepared"
+  fi
+  if ! archive_and_replace_subject "${previous_subject}" "${replacement_subject}"; then
+    rm -f -- "${evidence_temporary}" >/dev/null 2>&1 || true
+    delete_recovery_user "${base}" "${token}" "${replacement_subject}"
+    fail "private subject retirement archive could not be committed"
+  fi
+  mv "${evidence_temporary}" "${EVIDENCE_FILE}"
+  log "DOGFOOD_MEMBER_RECOVERY state=pending action=lost_pending_identity_retired_and_recreated previousSubjectSha256=$(sha256 "${previous_subject}") subjectSha256=$(sha256 "${replacement_subject}") readinessBlocked=true supportSafe=true"
 }
 
 write_evidence() {
@@ -295,7 +496,12 @@ main() {
   [[ -n "${TF_VAR_keycloak_admin_password:-}" ]] || fail "TF_VAR_keycloak_admin_password is required"
   local token base user state subject="" action="none" mail_before=""
   token="$(admin_token)"; [[ -n "${token}" ]] || fail "Keycloak admin authentication failed"
-  base="$(api_base)"; user="$(resolve_user "${base}" "${token}")"; verify_subject_invariant "${user}"
+  base="$(api_base)"; user="$(resolve_user "${base}" "${token}")"
+  if [[ "${OPERATION}" == recover-lost-pending ]]; then
+    recover_lost_pending "${base}" "${token}" "${user}"
+    return
+  fi
+  verify_subject_invariant "${user}"
   state="$(state_for_user "${user}")"
   if [[ "${OPERATION}:${state}" == ensure:missing || "${OPERATION}:${state}" == resend-activation:pending ]]; then
     mail_before="$(mailpit_snapshot)"
@@ -311,11 +517,12 @@ main() {
     status:*) action="observed" ;;
   esac
   if [[ "${action}" == created_and_activation_sent || "${action}" == activation_resent ]]; then
-    verify_new_mail_visible "${mail_before}"
+    verify_new_mail_visible "${mail_before}" ||
+      fail "activation mail was not visible through the Mailpit HTTPS API within ${MAILPIT_VERIFY_TIMEOUT_SECONDS}s"
   fi
   [[ -n "${user}" ]] && subject="$(jq -r '.id' <<<"${user}")"
   [[ -n "${subject}" ]] && record_subject_once "${subject}"
-  [[ "${state}" == active ]] && verify_active_access "${base}" "${token}" "${subject}"
+  [[ "${state}" == active ]] && verify_expected_access "${base}" "${token}" "${subject}"
   write_evidence "${state}" "${subject}" "${action}"
   log "DOGFOOD_MEMBER state=${state} action=${action} subjectSha256=$([[ -n "${subject}" ]] && sha256 "${subject}" || printf none) supportSafe=true"
 }

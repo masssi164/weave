@@ -525,6 +525,34 @@
       ]
     },
     {
+      "tag": "@weave-v01-lost-pending-identity-retirement",
+      "scenario": "Lost never-activated dogfood identity requires protected retirement",
+      "feature": "e2e/features/v0_1_dogfood_release.feature",
+      "executableTest": "infra/weave-workspace/tests/dogfood-pending-identity-recovery-workflow-test.sh",
+      "evidenceMarkers": [
+        "DOGFOOD_PENDING_IDENTITY_RECOVERY_CONTRACT"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "infra/weave-workspace/tests/dogfood-member-helper-test.sh",
+          "fragments": [
+            "recorded pending subject still exists in Keycloak",
+            "lost_pending_identity_retired_and_recreated",
+            "retired-pending-identities"
+          ]
+        },
+        {
+          "path": ".github/workflows/dogfood-pending-identity-recovery.yml",
+          "fragments": [
+            "retire-lost-pending-identity",
+            "humanTestingReady:false",
+            "two-install-dogfood-deployment-required"
+          ]
+        }
+      ]
+    },
+    {
       "tag": "@weave-v01-admin-provider-categories",
       "scenario": "Admin sees provider categories before member use",
       "feature": "e2e/features/v0_1_dogfood_release.feature",
