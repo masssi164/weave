@@ -152,6 +152,7 @@ class MatrixE2eeStateServicePersistenceTest {
                 new ChatActorRef("user:subject"),
                 deviceId,
                 "tenant-a",
+                "https://auth.example/realms/a",
                 oidcSessionHash);
     }
 

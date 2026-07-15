@@ -33,6 +33,31 @@ management:
         enabled: true
 
 weave:
+  chat:
+    # Live and shipped stacks select matrix-synapse plus JDBC. The memory path is
+    # deliberately limited to isolated server tests and local contract fixtures.
+    provider: ${WEAVE_CHAT_PROVIDER:in-memory-test}
+    storage:
+      mode: ${WEAVE_CHAT_STORAGE_MODE:memory}
+    e2e-proof:
+      # Isolated disposable stacks only. Persistent dogfood leaves this false and
+      # does not mount the independent proof token.
+      enabled: ${WEAVE_CHAT_E2E_PROOF_ENABLED:false}
+      token-file: ${WEAVE_CHAT_E2E_PROOF_TOKEN_FILE:}
+      run-id: ${WEAVE_CHAT_E2E_PROOF_RUN_ID:}
+      stack-scope: ${WEAVE_E2E_STACK_SCOPE:}
+    matrix:
+      internal-base-url: ${WEAVE_CHAT_MATRIX_INTERNAL_BASE_URL:}
+      server-name: ${WEAVE_CHAT_MATRIX_SERVER_NAME:}
+      appservice-id: ${WEAVE_CHAT_MATRIX_APPSERVICE_ID:weave-chat-synapse}
+      virtual-user-prefix: ${WEAVE_CHAT_MATRIX_VIRTUAL_USER_PREFIX:_weave_}
+      as-token-file: ${WEAVE_CHAT_MATRIX_APPSERVICE_AS_TOKEN_FILE:}
+      hs-token-file: ${WEAVE_CHAT_MATRIX_APPSERVICE_HS_TOKEN_FILE:}
+      connect-timeout: ${WEAVE_CHAT_MATRIX_CONNECT_TIMEOUT:5s}
+      request-timeout: ${WEAVE_CHAT_MATRIX_REQUEST_TIMEOUT:10s}
+      readiness-cache-ttl: ${WEAVE_CHAT_MATRIX_READINESS_CACHE_TTL:60s}
+      callback-max-bytes: ${WEAVE_CHAT_MATRIX_CALLBACK_MAX_BYTES:1048576}
+      callback-max-events: ${WEAVE_CHAT_MATRIX_CALLBACK_MAX_EVENTS:100}
   mcp:
     boundary-token: ${WEAVE_MCP_BOUNDARY_TOKEN:local-dev-mcp-boundary}
   platform:

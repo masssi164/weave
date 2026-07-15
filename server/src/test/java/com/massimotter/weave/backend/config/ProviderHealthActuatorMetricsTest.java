@@ -50,7 +50,7 @@ class ProviderHealthActuatorMetricsTest {
                 .andExpect(jsonPath("$.name").value("weave.provider.health.status"))
                 .andExpect(jsonPath("$.measurements[0].value").isNumber())
                 .andExpect(jsonPath("$.availableTags[?(@.tag == 'capability')].values",
-                        contains(hasItems("files", "calendar"))));
+                        contains(hasItems("files", "calendar", "chat"))));
 
         mockMvc.perform(get("/actuator/metrics/weave.provider.health.probe.latency"))
                 .andExpect(status().isOk())

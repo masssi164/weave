@@ -11,7 +11,9 @@ import com.massimotter.weave.backend.chat.domain.ChatEventKind;
 import com.massimotter.weave.backend.chat.domain.ChatHistoryPolicy;
 import com.massimotter.weave.backend.chat.domain.ChatMemberState;
 import com.massimotter.weave.backend.chat.domain.ChatMembership;
+import com.massimotter.weave.backend.chat.domain.ChatProviderUnavailableException;
 import com.massimotter.weave.backend.chat.domain.ChatReadiness;
+import com.massimotter.weave.backend.chat.domain.ChatRedactionReceipt;
 import com.massimotter.weave.backend.chat.domain.ChatRelation;
 import com.massimotter.weave.backend.chat.domain.ChatTimeline;
 import com.massimotter.weave.backend.chat.domain.ChatTimelineEvent;
@@ -277,6 +279,56 @@ class MatrixClientServerProjectionControllerTest {
                 content.capture(),
                 any());
         assertThat(content.getValue().body()).isEqualTo("Sent through Matrix");
+    }
+
+    @Test
+    void redactionProjectsItsOwnEventIdInsteadOfReusingTheTargetId() throws Exception {
+        when(chatDomainFacadeService.redactEvent(
+                eq("channel-general"),
+                eq("msg-target"),
+                eq("redaction-txn-1"),
+                any()))
+                .thenReturn(new ChatRedactionReceipt(
+                        "redaction-event-1",
+                        "msg-target",
+                        "channel-general",
+                        "user:member-1",
+                        Instant.parse("2026-07-15T10:00:00Z")));
+
+        mockMvc.perform(put("/_matrix/client/v3/rooms/!channel-general:api.weave.test/redact/"
+                        + "$msg-target:api.weave.test/redaction-txn-1")
+                        .with(workspaceJwt())
+                        .contentType("application/json")
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.event_id").value("$redaction-event-1:api.weave.test"))
+                .andExpect(content().string(not(containsString("$msg-target:api.weave.test"))));
+    }
+
+    @Test
+    void providerThrottleBecomesAStableMatrixRetryWithoutLeakingDownstreamDetails() throws Exception {
+        when(chatDomainFacadeService.sendEvent(
+                eq("channel-general"),
+                eq("txn-throttled"),
+                any(ChatEventContent.class),
+                any()))
+                .thenThrow(new ChatProviderUnavailableException(
+                        "chat-provider-throttled",
+                        Instant.now().plusSeconds(121)));
+
+        mockMvc.perform(put("/_matrix/client/v3/rooms/!channel-general:api.weave.test/send/m.room.message/txn-throttled")
+                        .with(workspaceJwt())
+                        .contentType("application/json")
+                        .content("""
+                                {"msgtype":"m.text","body":"never committed"}
+                                """))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(header().exists("Retry-After"))
+                .andExpect(jsonPath("$.errcode").value("M_LIMIT_EXCEEDED"))
+                .andExpect(jsonPath("$.retry_after_ms").isNumber())
+                .andExpect(content().string(not(containsString("chat-provider-throttled"))))
+                .andExpect(content().string(not(containsString("Synapse"))))
+                .andExpect(content().string(not(containsString("never committed"))));
     }
 
     @Test
@@ -674,7 +726,13 @@ class MatrixClientServerProjectionControllerTest {
     @Test
     void roomLifecycleStateAndProfileProjectCanonicalChat() throws Exception {
         stubConversation();
-        when(chatDomainFacadeService.createConversation(any(), eq("General"), eq("channel"), eq(List.of()), any()))
+        when(chatDomainFacadeService.createConversation(
+                any(),
+                eq("General"),
+                eq("channel"),
+                eq(List.of()),
+                eq(ChatEncryptionState.unencrypted()),
+                any()))
                 .thenReturn(conversations().conversations().getFirst());
 
         mockMvc.perform(post("/_matrix/client/v3/createRoom")
@@ -711,6 +769,43 @@ class MatrixClientServerProjectionControllerTest {
 
         verify(chatDomainFacadeService).joinConversation(eq("channel-general"), any());
         verify(chatDomainFacadeService).leaveConversation(eq("channel-general"), any());
+    }
+
+    @Test
+    void encryptedRoomCreationCarriesEncryptionAsAnInitialInvariant() throws Exception {
+        when(chatDomainFacadeService.createConversation(
+                any(),
+                eq("Encrypted"),
+                eq("channel"),
+                eq(List.of()),
+                eq(ChatEncryptionState.matrixMegolm()),
+                any()))
+                .thenReturn(encryptedConversation());
+
+        mockMvc.perform(post("/_matrix/client/v3/createRoom")
+                        .with(workspaceJwt())
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "name":"Encrypted",
+                                  "initial_state":[{
+                                    "type":"m.room.encryption",
+                                    "state_key":"",
+                                    "content":{"algorithm":"m.megolm.v1.aes-sha2"}
+                                  }]
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.room_id").value("!channel-general:api.weave.test"));
+
+        verify(chatDomainFacadeService).createConversation(
+                any(),
+                eq("Encrypted"),
+                eq("channel"),
+                eq(List.of()),
+                eq(ChatEncryptionState.matrixMegolm()),
+                any());
+        verify(chatDomainFacadeService, never()).enableEncryption(any(), any(), any());
     }
 
     @Test
