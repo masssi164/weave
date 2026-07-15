@@ -423,13 +423,20 @@ fn running_background_sync_observer(
 async fn observe_completed_background_sync(
     mut progress: watch::Receiver<BackgroundSyncProgress>,
 ) -> Result<BackgroundSyncProgress, String> {
+    let baseline_generation = progress.borrow().generation;
     tokio::time::timeout(BACKGROUND_SYNC_BARRIER_TIMEOUT, async move {
         loop {
             let observed = progress.borrow().clone();
             if let Some(error_code) = observed.terminal_error {
                 return Err(error_code);
             }
-            if observed.generation > 0 {
+            // A foreground refresh is a freshness barrier, not a cache read.
+            // Returning an older completed generation lets the caller fetch a
+            // newly encrypted timeline before the background owner has
+            // committed the matching to-device room key. Matrix to-device
+            // events are ephemeral, so wait for the single sync owner to
+            // publish a cycle newer than the one visible at subscription time.
+            if observed.generation > baseline_generation {
                 return Ok(observed);
             }
             progress
@@ -1445,7 +1452,7 @@ mod tests {
     }
 
     #[test]
-    fn foreground_sync_reuses_the_latest_fully_processed_background_cycle() {
+    fn foreground_sync_requires_a_new_fully_processed_background_cycle() {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_time()
             .build()
@@ -1461,10 +1468,23 @@ mod tests {
                 },
             );
 
-            let observed = observe_completed_background_sync(observer).await.unwrap();
-            assert_eq!(observed.generation, 1);
-            assert_eq!(observed.next_batch, "complete");
-            assert_eq!(observed.converged_rooms, 1);
+            let waiter = tokio::spawn(observe_completed_background_sync(observer));
+            tokio::task::yield_now().await;
+            assert!(!waiter.is_finished());
+
+            publish_completed_sync(
+                &progress,
+                &CompletedSyncCycle {
+                    next_batch: "fresh".to_string(),
+                    enabled_rooms: 0,
+                    converged_rooms: 2,
+                },
+            );
+
+            let observed = waiter.await.unwrap().unwrap();
+            assert_eq!(observed.generation, 2);
+            assert_eq!(observed.next_batch, "fresh");
+            assert_eq!(observed.converged_rooms, 2);
         });
     }
 

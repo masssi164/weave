@@ -133,6 +133,16 @@ def main() -> int:
         "stack teardown must tolerate a failure before OpenTofu runtime creation",
     )
     require(
+        'expected_bootstrap_env="$PWD/.generated/isolated/${TF_VAR_isolated_e2e_namespace}/bootstrap.env"'
+        in workflow
+        and 'source "$expected_bootstrap_env"' in workflow
+        and workflow.index('source "$expected_bootstrap_env"')
+        < workflow.index(
+            'WEAVE_TEARDOWN_EVIDENCE_FILE="$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-stack-teardown.json"'
+        ),
+        "OpenTofu destroy must reload the exact run-scoped variables generated during apply",
+    )
+    require(
         'export WEAVE_BOOTSTRAP_ENV="${WEAVE_E2E_STACK_BOOTSTRAP_ENV:?}"'
         in workflow
         and "/weave-workspace/.generated/bootstrap.env" not in workflow,

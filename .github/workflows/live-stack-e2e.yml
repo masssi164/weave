@@ -679,6 +679,22 @@ jobs:
             echo "ISOLATED_STACK_TEARDOWN status=not-required runtimeCreated=false supportSafe=true"
             exit 0
           fi
+          expected_bootstrap_env="$PWD/.generated/isolated/${TF_VAR_isolated_e2e_namespace}/bootstrap.env"
+          if [[ "${WEAVE_E2E_STACK_BOOTSTRAP_ENV:-}" != "$expected_bootstrap_env" || \
+                ! -f "$expected_bootstrap_env" || -L "$expected_bootstrap_env" ]]; then
+            echo "::error::The exact run-scoped isolated bootstrap environment is unavailable for OpenTofu destroy." >&2
+            exit 1
+          fi
+          # install.sh generates several OpenTofu-only secrets after the
+          # startup environment is prepared. Reload the exact namespace-owned
+          # bootstrap file so destroy receives the same complete variable set
+          # as apply, then reassert the immutable run bindings below.
+          # shellcheck disable=SC1090
+          source "$expected_bootstrap_env"
+          # shellcheck disable=SC1090
+          source "$WEAVE_E2E_STARTUP_ENV_PATH"
+          [[ "$TF_VAR_isolated_e2e_namespace" == "${WEAVE_E2E_RUN_NAMESPACE:?}" ]]
+          [[ "$TF_VAR_docker_network_name" == "${WEAVE_E2E_RUN_NAMESPACE}_network" ]]
           WEAVE_TEARDOWN_EVIDENCE_FILE="$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-stack-teardown.json" \
             WEAVE_CANDIDATE_COMMIT="$GITHUB_SHA" \
             WEAVE_E2E_STACK_SCOPE=isolated \

@@ -480,6 +480,12 @@ void main() {
       // ignore: avoid_print
       print('NO_PROVIDER_CREDENTIALS_RESULT exposed=false');
     },
+    // This live contract deliberately performs four adaptive credential-hash
+    // operations across two domains. Resource-constrained isolated runners can
+    // take longer than the package:test 30-second default without the backend
+    // being unavailable; keep the scenario bounded while allowing the real
+    // security work to complete.
+    timeout: const Timeout(Duration(minutes: 2)),
     skip: liveSkipReason,
   );
 
