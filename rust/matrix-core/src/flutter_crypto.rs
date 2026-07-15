@@ -43,11 +43,18 @@ struct ManagedClient {
     user_id: String,
     device_id: String,
     access_token: String,
-    active_room_members: HashMap<String, Vec<String>>,
+    room_security_fingerprints: HashMap<String, RoomSecurityFingerprint>,
+    room_security_gate: Arc<AsyncMutex<()>>,
     sync_start_gate: Arc<AsyncMutex<()>>,
     background_sync: Option<JoinHandle<()>>,
     verification_request: Option<VerificationRequest>,
     sas_verification: Option<SasVerification>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct RoomSecurityFingerprint {
+    member_ids: Vec<String>,
+    member_device_ids: Vec<String>,
 }
 
 static CLIENTS: OnceLock<Mutex<HashMap<String, ManagedClient>>> = OnceLock::new();
@@ -195,7 +202,8 @@ async fn initialize_inner(
                 user_id,
                 device_id: device_id.clone(),
                 access_token,
-                active_room_members: HashMap::new(),
+                room_security_fingerprints: HashMap::new(),
+                room_security_gate: Arc::new(AsyncMutex::new(())),
                 sync_start_gate: Arc::new(AsyncMutex::new(())),
                 background_sync: None,
                 verification_request: None,
@@ -577,6 +585,8 @@ async fn refresh_active_member_device_keys(
     client: &Client,
     room: &Room,
 ) -> Result<(), String> {
+    let security_gate = room_security_gate_for(profile_key)?;
+    let _security_guard = security_gate.lock().await;
     let own_user_id = client
         .user_id()
         .ok_or_else(|| "M_WEAVE_E2EE_SESSION".to_string())?;
@@ -586,10 +596,15 @@ async fn refresh_active_member_device_keys(
         .await
         .map_err(|_| "M_WEAVE_E2EE_ROOM_MEMBERS".to_string())?;
     let observed_member_ids = active_member_ids(&members);
-    let cached_member_ids = cached_active_member_ids(profile_key, room.room_id().as_str())?;
+    let cached_fingerprint =
+        cached_room_security_fingerprint(profile_key, room.room_id().as_str())?;
 
-    let member_set_changed =
-        active_member_set_changed(cached_member_ids.as_deref(), &observed_member_ids);
+    let member_set_changed = active_member_set_changed(
+        cached_fingerprint
+            .as_ref()
+            .map(|fingerprint| fingerprint.member_ids.as_slice()),
+        &observed_member_ids,
+    );
     if member_set_changed {
         // The canonical facade can create and join a room between two bounded
         // syncs. Force the SDK to consume the facade's complete `/members`
@@ -632,11 +647,42 @@ async fn refresh_active_member_device_keys(
             .map_err(|_| "M_WEAVE_E2EE_MEMBER_KEYS".to_string())?;
     }
 
-    remember_active_member_ids(
-        profile_key,
-        room.room_id().as_str(),
-        active_member_ids(&members),
-    )?;
+    let mut member_device_ids = Vec::new();
+    for member in &members {
+        let user_id = member.user_id();
+        if user_id == own_user_id {
+            continue;
+        }
+        let devices = encryption
+            .get_user_devices(user_id)
+            .await
+            .map_err(|_| "M_WEAVE_E2EE_MEMBER_KEYS".to_string())?;
+        member_device_ids.extend(
+            devices
+                .keys()
+                .map(|device_id| format!("{user_id}|{device_id}")),
+        );
+    }
+    member_device_ids.sort_unstable();
+    member_device_ids.dedup();
+
+    let observed_fingerprint = RoomSecurityFingerprint {
+        member_ids: active_member_ids(&members),
+        member_device_ids,
+    };
+    if room_security_fingerprint_changed(cached_fingerprint.as_ref(), &observed_fingerprint) {
+        // The canonical Matrix facade can expose a newly registered device for
+        // an unchanged room member between app sessions. A current `/keys/query`
+        // updates the SDK crypto store, but an already persisted outbound Megolm
+        // session may still exclude that device. Rotate only when the effective
+        // active member/device set changes so the next send shares a fresh room
+        // key with every active device without rotating on every message.
+        room.discard_room_key()
+            .await
+            .map_err(|_| "M_WEAVE_E2EE_ROOM_KEY_ROTATION".to_string())?;
+    }
+
+    remember_room_security_fingerprint(profile_key, room.room_id().as_str(), observed_fingerprint)?;
 
     Ok(())
 }
@@ -655,34 +701,50 @@ fn active_member_set_changed(cached: Option<&[String]>, observed: &[String]) -> 
     cached != Some(observed)
 }
 
+fn room_security_fingerprint_changed(
+    cached: Option<&RoomSecurityFingerprint>,
+    observed: &RoomSecurityFingerprint,
+) -> bool {
+    cached != Some(observed)
+}
+
 fn requires_explicit_device_query(member_set_changed: bool, has_cached_device: bool) -> bool {
     member_set_changed || !has_cached_device
 }
 
-fn cached_active_member_ids(
-    profile_key: &str,
-    room_id: &str,
-) -> Result<Option<Vec<String>>, String> {
+fn room_security_gate_for(profile_key: &str) -> Result<Arc<AsyncMutex<()>>, String> {
     clients()
         .lock()
         .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
         .get(profile_key)
-        .map(|managed| managed.active_room_members.get(room_id).cloned())
+        .map(|managed| managed.room_security_gate.clone())
         .ok_or_else(|| "M_WEAVE_E2EE_NOT_INITIALIZED".to_string())
 }
 
-fn remember_active_member_ids(
+fn cached_room_security_fingerprint(
     profile_key: &str,
     room_id: &str,
-    member_ids: Vec<String>,
+) -> Result<Option<RoomSecurityFingerprint>, String> {
+    clients()
+        .lock()
+        .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
+        .get(profile_key)
+        .map(|managed| managed.room_security_fingerprints.get(room_id).cloned())
+        .ok_or_else(|| "M_WEAVE_E2EE_NOT_INITIALIZED".to_string())
+}
+
+fn remember_room_security_fingerprint(
+    profile_key: &str,
+    room_id: &str,
+    fingerprint: RoomSecurityFingerprint,
 ) -> Result<(), String> {
     clients()
         .lock()
         .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
         .get_mut(profile_key)
         .ok_or_else(|| "M_WEAVE_E2EE_NOT_INITIALIZED".to_string())?
-        .active_room_members
-        .insert(room_id.to_string(), member_ids);
+        .room_security_fingerprints
+        .insert(room_id.to_string(), fingerprint);
     Ok(())
 }
 
@@ -1128,6 +1190,28 @@ mod tests {
         assert!(requires_explicit_device_query(true, false));
         assert!(requires_explicit_device_query(false, false));
         assert!(!requires_explicit_device_query(false, true));
+    }
+
+    #[test]
+    fn new_member_device_rotates_a_persisted_outbound_room_key_once() {
+        let initial = RoomSecurityFingerprint {
+            member_ids: vec![
+                "@author:api.weave.test".to_string(),
+                "@collaborator:api.weave.test".to_string(),
+            ],
+            member_device_ids: vec!["@collaborator:api.weave.test|DEVICE_A".to_string()],
+        };
+        let expanded = RoomSecurityFingerprint {
+            member_ids: initial.member_ids.clone(),
+            member_device_ids: vec![
+                "@collaborator:api.weave.test|DEVICE_A".to_string(),
+                "@collaborator:api.weave.test|DEVICE_B".to_string(),
+            ],
+        };
+
+        assert!(room_security_fingerprint_changed(None, &initial));
+        assert!(!room_security_fingerprint_changed(Some(&initial), &initial));
+        assert!(room_security_fingerprint_changed(Some(&initial), &expanded));
     }
 
     #[test]
