@@ -5,6 +5,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly ROOT_DIR
+# shellcheck source=infra/weave-workspace/lib/runtime-namespace.sh
+source "${ROOT_DIR}/lib/runtime-namespace.sh"
 
 OPERATION=""
 RUN_ID="${WEAVE_E2E_RUN_ID:-}"
@@ -15,7 +17,8 @@ IDENTITY_MANIFEST_PATH="${WEAVE_E2E_IDENTITY_MANIFEST_PATH:-}"
 CLEANUP_EVIDENCE_PATH="${WEAVE_E2E_CLEANUP_EVIDENCE_PATH:-}"
 AUTHORIZATION_EVIDENCE_PATH="${WEAVE_E2E_AUTHORIZATION_EVIDENCE_PATH:-}"
 CHAT_PROOF_TOKEN_PATH=""
-STACK_BOOTSTRAP_ENV="${WEAVE_E2E_STACK_BOOTSTRAP_ENV:-${ROOT_DIR}/.generated/bootstrap.env}"
+TEARDOWN_OWNERSHIP_FILE="${WEAVE_TEARDOWN_OWNERSHIP_FILE:-}"
+STACK_BOOTSTRAP_ENV="${WEAVE_E2E_STACK_BOOTSTRAP_ENV:-}"
 
 NAMESPACE=""
 REALM=""
@@ -56,6 +59,7 @@ prepare prints these stable integration variables:
   WEAVE_E2E_CLEANUP_EVIDENCE_PATH
   WEAVE_E2E_AUTHORIZATION_EVIDENCE_PATH
   WEAVE_E2E_STACK_BOOTSTRAP_ENV
+  WEAVE_TEARDOWN_OWNERSHIP_FILE
 
 provision and cleanup require WEAVE_E2E_STACK_SCOPE=isolated. They refuse
 persistent dogfood/default inputs and mutate only resources carrying the exact
@@ -124,6 +128,8 @@ derive_paths_and_names() {
   CLEANUP_EVIDENCE_PATH="${CLEANUP_EVIDENCE_PATH:-${run_dir}/cleanup-evidence.json}"
   AUTHORIZATION_EVIDENCE_PATH="${AUTHORIZATION_EVIDENCE_PATH:-${run_dir}/authorization-evidence.json}"
   CHAT_PROOF_TOKEN_PATH="${CHAT_PROOF_TOKEN_PATH:-${run_dir}/chat-provider-proof.token}"
+  TEARDOWN_OWNERSHIP_FILE="${TEARDOWN_OWNERSHIP_FILE:-${run_dir}/teardown-ownership.json}"
+  STACK_BOOTSTRAP_ENV="${STACK_BOOTSTRAP_ENV:-${ROOT_DIR}/.generated/isolated/${NAMESPACE}/bootstrap.env}"
 }
 
 validate_private_path() {
@@ -138,6 +144,7 @@ validate_paths() {
   validate_private_path "${CLEANUP_EVIDENCE_PATH}"
   validate_private_path "${AUTHORIZATION_EVIDENCE_PATH}"
   validate_private_path "${CHAT_PROOF_TOKEN_PATH}"
+  validate_private_path "${TEARDOWN_OWNERSHIP_FILE}"
 }
 
 print_integration_variables() {
@@ -149,6 +156,57 @@ print_integration_variables() {
   printf 'WEAVE_E2E_CLEANUP_EVIDENCE_PATH=%q\n' "${CLEANUP_EVIDENCE_PATH}"
   printf 'WEAVE_E2E_AUTHORIZATION_EVIDENCE_PATH=%q\n' "${AUTHORIZATION_EVIDENCE_PATH}"
   printf 'WEAVE_E2E_STACK_BOOTSTRAP_ENV=%q\n' "${STACK_BOOTSTRAP_ENV}"
+  printf 'WEAVE_TEARDOWN_OWNERSHIP_FILE=%q\n' "${TEARDOWN_OWNERSHIP_FILE}"
+}
+
+require_teardown_ownership_inputs() {
+  [[ "${WEAVE_E2E_STACK_SCOPE:-}" == "isolated" ]] ||
+    fail "prepare requires WEAVE_E2E_STACK_SCOPE=isolated"
+  [[ "${WEAVE_CANDIDATE_COMMIT:-}" =~ ^[0-9a-f]{40}$ ]] ||
+    fail "prepare requires a lowercase 40-character WEAVE_CANDIDATE_COMMIT"
+  weave_validate_support_safe_evidence_url "${WEAVE_CANDIDATE_EVIDENCE_REF:-}" ||
+    fail "prepare requires a support-safe HTTPS WEAVE_CANDIDATE_EVIDENCE_REF without credentials, query, or fragment"
+}
+
+write_or_validate_teardown_ownership() {
+  local expected_file="${OUTPUT_ROOT%/}/${NAMESPACE}/teardown-ownership.json"
+  [[ "${TEARDOWN_OWNERSHIP_FILE}" == "${expected_file}" ]] ||
+    fail "teardown ownership evidence must use the exact run-owned path"
+
+  if [[ -f "${TEARDOWN_OWNERSHIP_FILE}" ]]; then
+    jq -e \
+      --arg namespace "${NAMESPACE}" \
+      --arg runId "${RUN_ID}" \
+      --arg candidateCommit "${WEAVE_CANDIDATE_COMMIT}" \
+      --arg candidateEvidenceRef "${WEAVE_CANDIDATE_EVIDENCE_REF}" \
+      '.schemaVersion == "weave.isolated-e2e-teardown-ownership.v1" and
+       .scope == "isolated" and
+       .namespace == $namespace and
+       .runId == $runId and
+       .candidateCommit == $candidateCommit and
+       .candidateEvidenceRef == $candidateEvidenceRef and
+       .resourcePrefix == $namespace' \
+      "${TEARDOWN_OWNERSHIP_FILE}" >/dev/null ||
+      fail "existing teardown ownership evidence does not match this run and candidate"
+    chmod 600 "${TEARDOWN_OWNERSHIP_FILE}"
+    return
+  fi
+
+  jq -n \
+    --arg namespace "${NAMESPACE}" \
+    --arg runId "${RUN_ID}" \
+    --arg candidateCommit "${WEAVE_CANDIDATE_COMMIT}" \
+    --arg candidateEvidenceRef "${WEAVE_CANDIDATE_EVIDENCE_REF}" \
+    '{
+      schemaVersion:"weave.isolated-e2e-teardown-ownership.v1",
+      scope:"isolated",
+      namespace:$namespace,
+      runId:$runId,
+      candidateCommit:$candidateCommit,
+      candidateEvidenceRef:$candidateEvidenceRef,
+      resourcePrefix:$namespace
+    }' >"${TEARDOWN_OWNERSHIP_FILE}"
+  chmod 600 "${TEARDOWN_OWNERSHIP_FILE}"
 }
 
 write_prepare_manifest() {
@@ -185,8 +243,10 @@ write_prepare_manifest() {
 prepare() {
   command -v jq >/dev/null || fail "jq is required"
   command -v openssl >/dev/null || fail "openssl is required"
+  require_teardown_ownership_inputs
   mkdir -p "$(dirname -- "${CREDENTIAL_ENV_PATH}")"
   chmod 700 "$(dirname -- "${CREDENTIAL_ENV_PATH}")"
+  write_or_validate_teardown_ownership
 
   if [[ -f "${CREDENTIAL_ENV_PATH}" ]]; then
     # shellcheck disable=SC1090
@@ -227,7 +287,11 @@ prepare() {
   fi
   chmod 600 "${CHAT_PROOF_TOKEN_PATH}"
 
-  local memberships
+  local memberships run_hash
+  local port_seed port_base
+  run_hash="$(sha256 "${RUN_ID}")"
+  port_seed=$((16#${run_hash:0:4}))
+  port_base=$((32000 + (port_seed % 1800) * 16))
   memberships="$(jq -cn \
     --arg tenant "${TENANT_ID}" \
     --arg workspace "${WORKSPACE_CONTEXT}" \
@@ -242,6 +306,12 @@ prepare() {
     ]')"
   {
     printf 'export WEAVE_LOCAL_CREDENTIAL_STATE_FILE=%q\n' none
+    printf 'export WEAVE_LOCAL_TLS_STATE_DIR=%q\n' none
+    printf 'export WEAVE_E2E_OUTPUT_ROOT=%q\n' "${OUTPUT_ROOT}"
+    printf 'export WEAVE_E2E_RUN_ID=%q\n' "${RUN_ID}"
+    printf 'export WEAVE_CANDIDATE_COMMIT=%q\n' "${WEAVE_CANDIDATE_COMMIT}"
+    printf 'export WEAVE_CANDIDATE_EVIDENCE_REF=%q\n' "${WEAVE_CANDIDATE_EVIDENCE_REF}"
+    printf 'export WEAVE_TEARDOWN_OWNERSHIP_FILE=%q\n' "${TEARDOWN_OWNERSHIP_FILE}"
     printf 'export TF_VAR_isolated_e2e_enabled=%q\n' true
     printf 'export TF_VAR_isolated_e2e_namespace=%q\n' "${NAMESPACE}"
     printf 'export TF_VAR_isolated_e2e_context_memberships=%q\n' "${memberships}"
@@ -249,6 +319,17 @@ prepare() {
     printf 'export TF_VAR_chat_e2e_proof_token_host_path=%q\n' "${CHAT_PROOF_TOKEN_PATH}"
     printf 'export TF_VAR_chat_e2e_proof_run_id=%q\n' "${RUN_ID}"
     printf 'export TF_VAR_docker_network_name=%q\n' "${NAMESPACE}_network"
+    printf 'export TF_VAR_proxy_http_host_port=%q\n' "$((port_base + 0))"
+    printf 'export TF_VAR_proxy_host_port=%q\n' "$((port_base + 1))"
+    printf 'export TF_VAR_keycloak_host_port=%q\n' "$((port_base + 2))"
+    printf 'export TF_VAR_keycloak_management_host_port=%q\n' "$((port_base + 3))"
+    printf 'export TF_VAR_mailpit_web_host_port=%q\n' "$((port_base + 4))"
+    printf 'export TF_VAR_mas_host_port=%q\n' "$((port_base + 5))"
+    printf 'export TF_VAR_synapse_host_port=%q\n' "$((port_base + 6))"
+    printf 'export TF_VAR_nextcloud_host_port=%q\n' "$((port_base + 7))"
+    printf 'export TF_VAR_backend_host_port=%q\n' "$((port_base + 8))"
+    printf 'export TF_VAR_mcp_host_port=%q\n' "$((port_base + 9))"
+    printf 'export TF_VAR_keycloak_smtp_host=%q\n' "${NAMESPACE}-mailpit"
     printf 'export TF_VAR_create_test_user=%q\n' false
     printf 'export TF_VAR_context_authorization_bootstrap_enabled=%q\n' false
     printf 'export TF_VAR_context_authorization_dogfood_principal_ref=%q\n' ""
@@ -446,7 +527,7 @@ ensure_user() {
 }
 
 verify_backend_rebac_runtime() {
-  local backend_container="${WEAVE_E2E_BACKEND_CONTAINER:-weave-backend}"
+  local backend_container="${WEAVE_E2E_BACKEND_CONTAINER:-$(weave_container_name backend)}"
   local runtime_env
   runtime_env="$(docker inspect --format '{{json .Config.Env}}' "${backend_container}")"
 

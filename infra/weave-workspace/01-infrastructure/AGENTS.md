@@ -4,7 +4,7 @@ This stage owns Docker networking, generated runtime config files, local contain
 
 ## Files
 
-- `main.tf`: root orchestration, per-service database bootstrap, generated file creation, module composition, Weave backend wiring, and state-preserving `moved` blocks.
+- `main.tf`: root orchestration, persistent/disposable resource naming and ownership labels, per-service database bootstrap, generated file creation, module composition, Weave backend wiring, and state-preserving `moved` blocks.
 - `variables.tf`: public input contract for the infrastructure stage.
 - `outputs.tf`: exported service names, URLs, and hostnames.
 - `.tofu.lock.hcl`: pinned provider selections for reproducible init behavior.

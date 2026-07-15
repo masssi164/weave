@@ -4,9 +4,14 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-BOOTSTRAP_ENV_FILE="${ROOT_DIR}/.generated/bootstrap.env"
-APP_CONFIG_ENV_FILE="${ROOT_DIR}/.generated/app-config.env"
+# shellcheck source=infra/weave-workspace/lib/runtime-namespace.sh
+source "${ROOT_DIR}/lib/runtime-namespace.sh"
+BOOTSTRAP_ENV_FILE="$(weave_workspace_generated_dir "${ROOT_DIR}")/bootstrap.env"
+APP_CONFIG_ENV_FILE="$(weave_workspace_generated_dir "${ROOT_DIR}")/app-config.env"
 SYNAPSE_VOLUME_HELPER="${ROOT_DIR}/lib/synapse-volume.sh"
+BACKEND_CONTAINER="$(weave_container_name backend)"
+SYNAPSE_CONTAINER="$(weave_container_name synapse)"
+NEXTCLOUD_CONTAINER="$(weave_container_name nextcloud)"
 readonly LOOPBACK_HOST="${WEAVE_LOOPBACK_HOST:-127.0.0.1}"
 readonly LOOPBACK_RESOLVE_HOST="${WEAVE_LOOPBACK_RESOLVE_HOST:-${LOOPBACK_HOST}}"
 PUBLIC_PROXY_PORT="${WEAVE_PUBLIC_PROXY_PORT:-${TF_VAR_proxy_host_port:-}}"
@@ -252,6 +257,10 @@ container_env_value() {
   local container="$1"
   local name="$2"
 
+  if [[ "${container}" == "weave-backend" ]]; then
+    container="${BACKEND_CONTAINER}"
+  fi
+
   docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "${container}" 2>/dev/null |
     awk -v name="${name}" 'index($0, name "=") == 1 { print substr($0, length(name) + 2); found = 1 } END { if (!found) exit 1 }'
 }
@@ -259,6 +268,10 @@ container_env_value() {
 container_env_count() {
   local container="$1"
   local name="$2"
+
+  if [[ "${container}" == "weave-backend" ]]; then
+    container="${BACKEND_CONTAINER}"
+  fi
 
   docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "${container}" 2>/dev/null |
     awk -v name="${name}" 'index($0, name "=") == 1 { count += 1 } END { print count + 0 }'
@@ -404,7 +417,7 @@ assert_backend_matrix_chat_provider_config() {
     fail "Operator check failed: shipped Chat must select the matrix-synapse southbound adapter"
   [[ "$(container_env_value weave-backend WEAVE_CHAT_STORAGE_MODE)" == "jdbc" ]] ||
     fail "Operator check failed: shipped Chat canonical storage must be JDBC"
-  [[ "$(container_env_value weave-backend WEAVE_CHAT_MATRIX_INTERNAL_BASE_URL)" == "http://weave-synapse:8008" ]] ||
+  [[ "$(container_env_value weave-backend WEAVE_CHAT_MATRIX_INTERNAL_BASE_URL)" == "http://${SYNAPSE_CONTAINER}:8008" ]] ||
     fail "Operator check failed: Chat provider origin must remain on the private Synapse network endpoint"
   [[ "$(container_env_value weave-backend WEAVE_CHAT_MATRIX_APPSERVICE_AS_TOKEN_FILE)" == "/run/weave-chat-appservice/as-token" ]] ||
     fail "Operator check failed: backend as_token input must be a mounted file"
@@ -415,13 +428,13 @@ assert_backend_matrix_chat_provider_config() {
   [[ -z "$(container_env_value weave-backend WEAVE_CHAT_MATRIX_APPSERVICE_HS_TOKEN || true)" ]] ||
     fail "Operator check failed: raw Application Service hs_token must not be present in the backend environment"
 
-  for container_name in weave-backend weave-synapse; do
+  for container_name in "${BACKEND_CONTAINER}" "${SYNAPSE_CONTAINER}"; do
     mount_writable="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/run/weave-chat-appservice"}}{{.RW}}{{end}}{{end}}' "${container_name}" 2>/dev/null || true)"
     [[ "${mount_writable}" == "false" ]] ||
       fail "Operator check failed: ${container_name} Application Service runtime mount is missing or writable"
   done
 
-  docker exec weave-backend sh -c '
+  docker exec "${BACKEND_CONTAINER}" sh -c '
     as_token="$(cat /run/weave-chat-appservice/as-token)"
     hs_token="$(cat /run/weave-chat-appservice/hs-token)"
     test -n "${as_token}" && test -n "${hs_token}" && test "${as_token}" != "${hs_token}"
@@ -437,10 +450,10 @@ assert_backend_matrix_chat_provider_config() {
     [[ "$(container_env_value weave-backend WEAVE_CHAT_E2E_PROOF_RUN_ID)" == "${TF_VAR_chat_e2e_proof_run_id:-}" &&
        -n "${TF_VAR_chat_e2e_proof_run_id:-}" ]] ||
       fail "Operator check failed: Chat provider proof run binding is missing or inconsistent"
-    mount_writable="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/run/weave-chat-e2e-proof/token"}}{{.RW}}{{end}}{{end}}' weave-backend 2>/dev/null || true)"
+    mount_writable="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/run/weave-chat-e2e-proof/token"}}{{.RW}}{{end}}{{end}}' "${BACKEND_CONTAINER}" 2>/dev/null || true)"
     [[ "${mount_writable}" == "false" ]] ||
       fail "Operator check failed: isolated Chat provider proof credential mount is missing or writable"
-    [[ -z "$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/run/weave-chat-e2e-proof/token"}}{{.Destination}}{{end}}{{end}}' weave-synapse 2>/dev/null || true)" ]] ||
+    [[ -z "$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/run/weave-chat-e2e-proof/token"}}{{.Destination}}{{end}}{{end}}' "${SYNAPSE_CONTAINER}" 2>/dev/null || true)" ]] ||
       fail "Operator check failed: Chat provider proof credential must never be mounted into Synapse"
   else
     [[ -z "${proof_enabled}" || "${proof_enabled}" == "false" ]] ||
@@ -556,7 +569,7 @@ assert_backend_nextcloud_actor_config() {
   external_private_user_calendars="$(container_env_value weave-backend WEAVE_CALDAV_EXTERNAL_PRIVATE_USER_CALENDARS)"
   [[ "${external_private_user_calendars}" == "disabled" ]] || fail "Operator check failed: private personal CalDAV calendars must stay disabled until provisioning/sharing is tested"
 
-  docker exec --user www-data weave-nextcloud php occ user:info "${actor_username}" >/dev/null 2>&1 || \
+  docker exec --user www-data "${NEXTCLOUD_CONTAINER}" php occ user:info "${actor_username}" >/dev/null 2>&1 || \
     fail "Operator check failed: Nextcloud backend actor user is not provisioned"
 
   for calendar_id in "${workspace_calendar_id}" weave-team-engineering weave-channel-engineering-general; do
@@ -681,7 +694,15 @@ fi
 synapse_operator_diagnose_volume
 
 log "Checking core containers..."
-for container in weave-proxy weave-keycloak weave-backend weave-mcp-server weave-mas weave-synapse weave-nextcloud weave-db; do
+for container in \
+  "$(weave_container_name proxy)" \
+  "$(weave_container_name keycloak)" \
+  "${BACKEND_CONTAINER}" \
+  "$(weave_container_name mcp-server)" \
+  "$(weave_container_name mas)" \
+  "$(weave_container_name synapse)" \
+  "${NEXTCLOUD_CONTAINER}" \
+  "$(weave_container_name db)"; do
   assert_container_running "${container}"
 done
 
@@ -751,10 +772,10 @@ else
   log "Provider-stack endpoint fail-closed checks skipped; set WEAVE_PROVIDER_STACK_ENDPOINT_CHECKS=true when running a backend image with provider endpoints."
 fi
 
-nextcloud_bearer_validation="$(docker exec --user www-data weave-nextcloud php occ config:system:get user_oidc oidc_provider_bearer_validation 2>/dev/null || true)"
+nextcloud_bearer_validation="$(docker exec --user www-data "${NEXTCLOUD_CONTAINER}" php occ config:system:get user_oidc oidc_provider_bearer_validation 2>/dev/null || true)"
 [[ "${nextcloud_bearer_validation}" == "true" ]] || fail "Operator check failed: Nextcloud user_oidc bearer validation is not enabled"
 
-nextcloud_oidc_provider="$(docker exec --user www-data weave-nextcloud php occ user_oidc:provider --output=json keycloak)"
+nextcloud_oidc_provider="$(docker exec --user www-data "${NEXTCLOUD_CONTAINER}" php occ user_oidc:provider --output=json keycloak)"
 assert_json "${nextcloud_oidc_provider}" '.settings.checkBearer == true or .settings.checkBearer == "1" or .settings.checkBearer == 1' "Nextcloud OIDC provider should validate Bearer tokens"
 assert_json "${nextcloud_oidc_provider}" '.settings.bearerProvisioning == true or .settings.bearerProvisioning == "1" or .settings.bearerProvisioning == 1' "Nextcloud OIDC provider should provision Bearer-token users"
 

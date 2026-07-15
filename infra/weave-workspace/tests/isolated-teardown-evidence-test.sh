@@ -15,9 +15,13 @@ identity_manifest="${test_root}/identity-manifest.json"
 run_id="teardown-proof-fixture"
 namespace="weave-e2e-$(printf '%s' "${run_id}" | shasum -a 256 | awk '{print substr($1,1,16)}')"
 network_name="${namespace}_network"
-proof_token="${test_root}/${namespace}/chat-provider-proof.token"
+output_root="${test_root}/output"
+run_root="${output_root}/${namespace}"
+ownership_file="${run_root}/teardown-ownership.json"
+proof_token="${run_root}/chat-provider-proof.token"
 candidate_commit="0123456789abcdef0123456789abcdef01234567"
-mkdir -p "${mock_bin}" "${state_dir}/container" "${state_dir}/network" "${state_dir}/volume"
+candidate_evidence_ref="https://github.example.invalid/weave/actions/runs/86"
+mkdir -p "${mock_bin}" "${state_dir}/container" "${state_dir}/network" "${state_dir}/volume" "${run_root}"
 trap 'rm -rf "${test_root}"' EXIT
 
 cat >"${mock_bin}/docker" <<'MOCK'
@@ -37,7 +41,10 @@ action="${2:-}"
 name="${@: -1}"
 case "${kind}:${action}" in
   container:inspect|network:inspect|volume:inspect)
-    [[ -f "${state}/${kind}/${name}" ]]
+    [[ -f "${state}/${kind}/${name}" ]] || exit 1
+    if [[ "${3:-}" == --format ]]; then
+      printf 'isolated|%s\n' "${MOCK_NAMESPACE:?}"
+    fi
     ;;
   network:rm)
     rm -f "${state}/network/${name}"
@@ -68,13 +75,17 @@ MOCK
 chmod +x "${mock_bin}/tofu"
 
 containers=(
-  weave-proxy weave-keycloak weave-backend weave-mas weave-synapse
-  weave-nextcloud weave-db weave-mcp-server weave-mailpit
+  "${namespace}-proxy" "${namespace}-keycloak" "${namespace}-backend"
+  "${namespace}-mas" "${namespace}-synapse" "${namespace}-nextcloud"
+  "${namespace}-db" "${namespace}-mcp-server" "${namespace}-mailpit"
 )
+volume_prefix="${namespace//-/_}"
 volumes=(
-  weave_caddy_data weave_caddy_config weave_db_data weave_keycloak_data
-  weave_mailpit_data weave_nextcloud_data weave_synapse_data
-  weave_matrix_chat_appservice_runtime
+  "${volume_prefix}_caddy_data" "${volume_prefix}_caddy_config"
+  "${volume_prefix}_db_data" "${volume_prefix}_keycloak_data"
+  "${volume_prefix}_mailpit_data" "${volume_prefix}_nextcloud_data"
+  "${volume_prefix}_synapse_data"
+  "${volume_prefix}_matrix_chat_appservice_runtime"
 )
 
 seed_owned_resources() {
@@ -95,6 +106,14 @@ seed_owned_resources() {
 namespace_hash="$(printf '%s' "${namespace}" | shasum -a 256 | awk '{print $1}')"
 jq -n --arg namespaceSha256 "${namespace_hash}" \
   '{schemaVersion:"weave.isolated-e2e-identities.v1",namespaceSha256:$namespaceSha256}' >"${identity_manifest}"
+jq -n \
+  --arg namespace "${namespace}" \
+  --arg runId "${run_id}" \
+  --arg candidateCommit "${candidate_commit}" \
+  --arg candidateEvidenceRef "${candidate_evidence_ref}" \
+  '{schemaVersion:"weave.isolated-e2e-teardown-ownership.v1",scope:"isolated",namespace:$namespace,runId:$runId,candidateCommit:$candidateCommit,candidateEvidenceRef:$candidateEvidenceRef,resourcePrefix:$namespace}' \
+  >"${ownership_file}"
+chmod 600 "${ownership_file}"
 
 run_teardown() {
   env -i \
@@ -102,13 +121,17 @@ run_teardown() {
     HOME="${test_root}" \
     MOCK_DOCKER_STATE="${state_dir}" \
     MOCK_DOCKER_NETWORK="${network_name}" \
+    MOCK_NAMESPACE="${namespace}" \
     MOCK_PRESERVE_VOLUME="${MOCK_PRESERVE_VOLUME:-}" \
     WEAVE_IAC_BIN=tofu \
     WEAVE_E2E_STACK_SCOPE="${WEAVE_E2E_STACK_SCOPE:-isolated}" \
     WEAVE_E2E_RUN_ID="${run_id}" \
+    WEAVE_E2E_OUTPUT_ROOT="${output_root}" \
     WEAVE_E2E_IDENTITY_MANIFEST_PATH="${identity_manifest}" \
+    WEAVE_TEARDOWN_OWNERSHIP_FILE="${ownership_file}" \
     WEAVE_TEARDOWN_EVIDENCE_FILE="${evidence_file}" \
     WEAVE_CANDIDATE_COMMIT="${candidate_commit}" \
+    WEAVE_CANDIDATE_EVIDENCE_REF="${candidate_evidence_ref}" \
     WEAVE_REMOVE_VOLUMES=true \
     WEAVE_CONFIRM_DESTRUCTIVE_RESET="${namespace}" \
     TF_VAR_tenant_slug="${namespace}" \
@@ -167,15 +190,15 @@ fi
 
 rm -rf "${state_dir:?}"/*
 mkdir -p "${state_dir}/container" "${state_dir}/network" "${state_dir}/volume"
-: >"${state_dir}/volume/weave_matrix_chat_appservice_runtime"
-if MOCK_PRESERVE_VOLUME=weave_matrix_chat_appservice_runtime run_teardown >/dev/null 2>&1; then
+: >"${state_dir}/volume/${volume_prefix}_matrix_chat_appservice_runtime"
+if MOCK_PRESERVE_VOLUME="${volume_prefix}_matrix_chat_appservice_runtime" run_teardown >/dev/null 2>&1; then
   echo "teardown evidence accepted a surviving owned provider volume" >&2
   exit 1
 fi
-jq -e '
+jq -e --arg survivingVolume "${volume_prefix}_matrix_chat_appservice_runtime" '
   .providerNamespaceDestroyed == false and
   .postRemovalCounts.remainingOwnedResources == 1 and
-  .postRemovalCounts.volumes.weave_matrix_chat_appservice_runtime == 1
+  .postRemovalCounts.volumes[$survivingVolume] == 1
 ' "${evidence_file}" >/dev/null
 
 printf 'isolated teardown evidence tests passed\n'

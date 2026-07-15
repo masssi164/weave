@@ -6,11 +6,15 @@ set -euo pipefail
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 SCRIPT="${ROOT_DIR}/isolated-e2e-identities.sh"
 INFRA_MAIN="${ROOT_DIR}/01-infrastructure/main.tf"
+# shellcheck disable=SC1090,SC1091
+source "${ROOT_DIR}/lib/runtime-namespace.sh"
 TMP_DIR="$(mktemp -d)"
 MOCK_BIN="${TMP_DIR}/bin"
 MOCK_STATE="${TMP_DIR}/mock-state"
 OUTPUT_ROOT="${TMP_DIR}/output"
 RUN_ID="fixture-run-42"
+CANDIDATE_COMMIT="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+CANDIDATE_EVIDENCE_REF="https://github.example.invalid/weave/actions/runs/42"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
 fail() { printf '%s\n' "$*" >&2; exit 1; }
@@ -42,21 +46,45 @@ JSON
 grep -Fq 'global_group_id "${base}" "${token}" weave-board-editors' "${SCRIPT}" ||
   fail "disposable members must receive the existing Boards mutation capability"
 
-prepare_output="$(bash "${SCRIPT}" prepare --run-id "${RUN_ID}" --output-root "${OUTPUT_ROOT}")"
+for unsafe_evidence_ref in \
+  http://github.example.invalid/weave/actions/runs/42 \
+  https://token@github.example.invalid/weave/actions/runs/42; do
+  if WEAVE_E2E_STACK_SCOPE=isolated \
+    WEAVE_CANDIDATE_COMMIT="${CANDIDATE_COMMIT}" \
+    WEAVE_CANDIDATE_EVIDENCE_REF="${unsafe_evidence_ref}" \
+    bash "${SCRIPT}" prepare --run-id "${RUN_ID}-unsafe" --output-root "${OUTPUT_ROOT}" >/dev/null 2>&1; then
+    fail "prepare accepted an unsafe candidate evidence URL"
+  fi
+done
+
+prepare_output="$(
+  WEAVE_E2E_STACK_SCOPE=isolated \
+    WEAVE_CANDIDATE_COMMIT="${CANDIDATE_COMMIT}" \
+    WEAVE_CANDIDATE_EVIDENCE_REF="${CANDIDATE_EVIDENCE_REF}" \
+    bash "${SCRIPT}" prepare --run-id "${RUN_ID}" --output-root "${OUTPUT_ROOT}"
+)"
 grep -Fq 'WEAVE_E2E_RUN_NAMESPACE=' <<<"${prepare_output}"
 grep -Fq 'WEAVE_E2E_CREDENTIAL_ENV_PATH=' <<<"${prepare_output}"
 grep -Fq 'WEAVE_E2E_STARTUP_ENV_PATH=' <<<"${prepare_output}"
 grep -Fq 'WEAVE_E2E_IDENTITY_MANIFEST_PATH=' <<<"${prepare_output}"
 grep -Fq 'WEAVE_E2E_CLEANUP_EVIDENCE_PATH=' <<<"${prepare_output}"
 ! grep -Fq 'CHAT_PROOF_TOKEN' <<<"${prepare_output}" || fail "prepare output must not publish proof credential paths"
+grep -Fq 'WEAVE_TEARDOWN_OWNERSHIP_FILE=' <<<"${prepare_output}"
 
 eval "${prepare_output}"
-export WEAVE_E2E_RUN_NAMESPACE WEAVE_E2E_CREDENTIAL_ENV_PATH WEAVE_E2E_STARTUP_ENV_PATH WEAVE_E2E_IDENTITY_MANIFEST_PATH WEAVE_E2E_CLEANUP_EVIDENCE_PATH
+export WEAVE_E2E_RUN_NAMESPACE WEAVE_E2E_CREDENTIAL_ENV_PATH WEAVE_E2E_STARTUP_ENV_PATH WEAVE_E2E_IDENTITY_MANIFEST_PATH WEAVE_E2E_CLEANUP_EVIDENCE_PATH WEAVE_TEARDOWN_OWNERSHIP_FILE
 # shellcheck disable=SC1090
 source "${WEAVE_E2E_CREDENTIAL_ENV_PATH}"
 # shellcheck disable=SC1090
 source "${WEAVE_E2E_STARTUP_ENV_PATH}"
 : "${TF_VAR_isolated_e2e_context_memberships:?startup membership list is required}"
+
+[[ "$(weave_container_name backend)" == "${WEAVE_E2E_RUN_NAMESPACE}-backend" ]] || fail "isolated backend container name is not run-scoped"
+[[ "$(weave_volume_name nextcloud_data)" == "${WEAVE_E2E_RUN_NAMESPACE//-/_}_nextcloud_data" ]] || fail "isolated Nextcloud volume name is not run-scoped"
+[[ "$(weave_network_name)" == "${WEAVE_E2E_RUN_NAMESPACE}_network" ]] || fail "isolated network name is not run-scoped"
+[[ "$(weave_workspace_generated_dir "${ROOT_DIR}")" == "${ROOT_DIR}/.generated/isolated/${WEAVE_E2E_RUN_NAMESPACE}" ]] || fail "isolated generated assets are not run-scoped"
+[[ "$(weave_iac_state_file "${ROOT_DIR}/01-infrastructure")" == "${OUTPUT_ROOT}/${WEAVE_E2E_RUN_NAMESPACE}/runtime/opentofu/state/01-infrastructure.tfstate" ]] || fail "infrastructure state is not run-scoped"
+[[ "$(weave_iac_state_file "${ROOT_DIR}/02-keycloak-setup")" == "${OUTPUT_ROOT}/${WEAVE_E2E_RUN_NAMESPACE}/runtime/opentofu/state/02-keycloak-setup.tfstate" ]] || fail "Keycloak state is not run-scoped"
 
 [[ "$(file_mode "${WEAVE_E2E_CREDENTIAL_ENV_PATH}")" == 600 ]] || fail "credential env must be mode 0600"
 [[ "$(file_mode "${TF_VAR_chat_e2e_proof_token_host_path}")" == 600 ]] || fail "Chat provider proof credential must be mode 0600"
@@ -68,6 +96,17 @@ source "${WEAVE_E2E_STARTUP_ENV_PATH}"
 [[ "$(basename -- "${TF_VAR_chat_e2e_proof_token_host_path}")" == "chat-provider-proof.token" ]] || fail "proof credential path binding is inconsistent"
 # shellcheck disable=SC2154
 [[ "${TF_VAR_chat_e2e_proof_run_id}" == "${RUN_ID}" ]] || fail "proof run binding is not exact"
+[[ "$(file_mode "${WEAVE_TEARDOWN_OWNERSHIP_FILE}")" == 600 ]] || fail "teardown ownership evidence must be mode 0600"
+jq -e \
+  --arg namespace "${WEAVE_E2E_RUN_NAMESPACE}" \
+  --arg candidate "${CANDIDATE_COMMIT}" \
+  '.scope == "isolated" and .namespace == $namespace and .candidateCommit == $candidate and .resourcePrefix == $namespace' \
+  "${WEAVE_TEARDOWN_OWNERSHIP_FILE}" >/dev/null
+ports="$(
+  env | awk -F= '/^TF_VAR_(proxy_http|proxy|keycloak|keycloak_management|mailpit_web|mas|synapse|nextcloud|backend|mcp)_host_port=/{print $2}' | sort -n
+)"
+[[ "$(wc -l <<<"${ports}" | tr -d ' ')" == 10 ]] || fail "isolated startup must publish ten unique run-scoped ports"
+[[ "$(sort -u <<<"${ports}" | wc -l | tr -d ' ')" == 10 ]] || fail "isolated startup ports must be unique"
 jq -e 'length == 3 and .[0].context_id == .[1].context_id and .[2].context_id != .[0].context_id and all(.[]; .source == "isolated-live-e2e")' \
   <<<"${TF_VAR_isolated_e2e_context_memberships}" >/dev/null
 jq -e '.contextAuthorization.mode == "isolated-startup-real-rebac" and .contextAuthorization.persistentDogfoodEligible == false and (.actors | length == 3)' \
@@ -78,7 +117,12 @@ if grep -Fq "${WEAVE_E2E_AUTHOR_USERNAME}" "${WEAVE_E2E_IDENTITY_MANIFEST_PATH}"
 fi
 
 proof_token_before="$(<"${TF_VAR_chat_e2e_proof_token_host_path}")"
-second_prepare="$(bash "${SCRIPT}" prepare --run-id "${RUN_ID}" --output-root "${OUTPUT_ROOT}")"
+second_prepare="$(
+  WEAVE_E2E_STACK_SCOPE=isolated \
+    WEAVE_CANDIDATE_COMMIT="${CANDIDATE_COMMIT}" \
+    WEAVE_CANDIDATE_EVIDENCE_REF="${CANDIDATE_EVIDENCE_REF}" \
+    bash "${SCRIPT}" prepare --run-id "${RUN_ID}" --output-root "${OUTPUT_ROOT}"
+)"
 [[ "${second_prepare}" == "${prepare_output}" ]] || fail "prepare must be idempotent for the same run ID"
 [[ "$(<"${TF_VAR_chat_e2e_proof_token_host_path}")" == "${proof_token_before}" ]] || fail "prepare must preserve the run-scoped proof credential"
 

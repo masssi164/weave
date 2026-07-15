@@ -18,10 +18,26 @@ resource "docker_image" "synapse" {
 
 resource "docker_volume" "synapse_data" {
   name = var.synapse_volume_name
+
+  dynamic "labels" {
+    for_each = var.resource_labels
+    content {
+      label = labels.key
+      value = labels.value
+    }
+  }
 }
 
 resource "docker_volume" "appservice_runtime" {
   name = var.appservice_runtime_volume_name
+
+  dynamic "labels" {
+    for_each = var.resource_labels
+    content {
+      label = labels.key
+      value = labels.value
+    }
+  }
 }
 
 resource "terraform_data" "appservice_runtime" {
@@ -130,6 +146,14 @@ resource "docker_container" "mas" {
   name    = var.mas_container_name
   image   = docker_image.mas.image_id
   restart = "unless-stopped"
+
+  dynamic "labels" {
+    for_each = var.resource_labels
+    content {
+      label = labels.key
+      value = labels.value
+    }
+  }
   command = ["server", "-c", "/config/config.yaml"]
   depends_on = [
     docker_image.mas,
@@ -205,6 +229,14 @@ resource "docker_container" "synapse" {
   image   = docker_image.synapse.image_id
   restart = "unless-stopped"
   user    = "${var.synapse_uid}:${var.synapse_gid}"
+
+  dynamic "labels" {
+    for_each = var.resource_labels
+    content {
+      label = labels.key
+      value = labels.value
+    }
+  }
   env = [
     "SYNAPSE_CONFIG_PATH=/config/homeserver.yaml",
     "SYNAPSE_SERVER_NAME=${var.matrix_public_host}",

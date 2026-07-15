@@ -15,8 +15,8 @@ source "${SCRIPT_DIR}/isolated-e2e-identities.sh"
 CANDIDATE_COMMIT="${WEAVE_CANDIDATE_COMMIT:-}"
 OUTPUT_PATH=""
 BACKEND_ORIGIN="${WEAVE_E2E_BACKEND_ORIGIN:-}"
-BACKEND_CONTAINER="${WEAVE_E2E_BACKEND_CONTAINER:-weave-backend}"
-SYNAPSE_CONTAINER="${WEAVE_E2E_SYNAPSE_CONTAINER:-weave-synapse}"
+BACKEND_CONTAINER=""
+SYNAPSE_CONTAINER=""
 
 PRIVATE_STATE_DIR=""
 FINAL_TEMP_OUTPUT=""
@@ -104,10 +104,12 @@ verify_chat_runtime() {
   local runtime_env backend_mounts synapse_mounts
   runtime_env="$(docker inspect --format '{{json .Config.Env}}' "${BACKEND_CONTAINER}")" ||
     fail "backend-runtime-unavailable"
-  jq -e --arg runId "${RUN_ID}" '
+  jq -e \
+    --arg runId "${RUN_ID}" \
+    --arg matrixInternalBaseUrl "http://${SYNAPSE_CONTAINER}:8008" '
     index("WEAVE_CHAT_PROVIDER=matrix-synapse") != null and
     index("WEAVE_CHAT_STORAGE_MODE=jdbc") != null and
-    index("WEAVE_CHAT_MATRIX_INTERNAL_BASE_URL=http://weave-synapse:8008") != null and
+    index("WEAVE_CHAT_MATRIX_INTERNAL_BASE_URL=" + $matrixInternalBaseUrl) != null and
     index("WEAVE_CHAT_MATRIX_APPSERVICE_AS_TOKEN_FILE=/run/weave-chat-appservice/as-token") != null and
     index("WEAVE_CHAT_MATRIX_APPSERVICE_HS_TOKEN_FILE=/run/weave-chat-appservice/hs-token") != null and
     index("WEAVE_E2E_STACK_SCOPE=isolated") != null and
@@ -1186,6 +1188,8 @@ initialize_provider_proof() {
   [[ -f "${STARTUP_ENV_PATH}" ]] || fail "startup-env-missing"
   load_runtime_environment
   assert_isolated_runtime
+  BACKEND_CONTAINER="${WEAVE_E2E_BACKEND_CONTAINER:-$(weave_container_name backend)}"
+  SYNAPSE_CONTAINER="${WEAVE_E2E_SYNAPSE_CONTAINER:-$(weave_container_name synapse)}"
   verify_backend_rebac_runtime
   assert_provider_identity_manifest
   verify_chat_runtime

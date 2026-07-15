@@ -5,7 +5,9 @@ set -euo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly ROOT_DIR
-readonly BOOTSTRAP_ENV_FILE="${ROOT_DIR}/.generated/bootstrap.env"
+# shellcheck source=infra/weave-workspace/lib/runtime-namespace.sh
+source "${ROOT_DIR}/lib/runtime-namespace.sh"
+readonly BOOTSTRAP_ENV_FILE="$(weave_workspace_generated_dir "${ROOT_DIR}")/bootstrap.env"
 readonly LOOPBACK_HOST="${WEAVE_LOOPBACK_HOST:-127.0.0.1}"
 
 log() {
@@ -677,7 +679,7 @@ invite_and_join_member() {
 }
 
 write_app_config_defaults() {
-  local app_config_file="${ROOT_DIR}/.generated/app-config.env"
+  local app_config_file="$(weave_workspace_generated_dir "${ROOT_DIR}")/app-config.env"
 
   if [[ ! -f "${app_config_file}" ]]; then
     return 0
@@ -710,7 +712,7 @@ main() {
   set_default_var TF_VAR_proxy_host_port 44443
   set_default_var TF_VAR_synapse_host_port 48008
   set_default_var TF_VAR_keycloak_admin_username admin
-  set_default_var WEAVE_MATRIX_MAS_CONTAINER_NAME weave-mas
+  set_default_var WEAVE_MATRIX_MAS_CONTAINER_NAME "$(weave_container_name mas)"
 
   MATRIX_HOMESERVER_NAME="$(public_host "${TF_VAR_matrix_subdomain:-matrix}")"
   readonly MATRIX_HOMESERVER_NAME

@@ -94,6 +94,12 @@ variable "synapse_gid" {
   type        = number
 }
 
+variable "resource_labels" {
+  description = "Ownership labels applied to every managed Docker resource."
+  type        = map(string)
+  default     = {}
+}
+
 variable "matrix_public_host" {
   description = "Browser-facing hostname for the Matrix entrypoint."
   type        = string

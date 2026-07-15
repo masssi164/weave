@@ -118,6 +118,12 @@ def main() -> int:
         "live-stack E2E must own the full three-identity lifecycle",
     )
     require(
+        'export WEAVE_BOOTSTRAP_ENV="${WEAVE_E2E_STACK_BOOTSTRAP_ENV:?}"'
+        in workflow
+        and "/weave-workspace/.generated/bootstrap.env" not in workflow,
+        "live-stack clients must consume only the run-scoped isolated bootstrap env",
+    )
+    require(
         "integration-multi-user-e2e" in workflow
         and "multi_user_e2e_evidence.py" in workflow
         and "isolated-e2e-authorization-probes.sh" in workflow

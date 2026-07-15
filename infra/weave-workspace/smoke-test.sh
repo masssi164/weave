@@ -5,9 +5,13 @@ set -euo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 INFRA_DIR="${ROOT_DIR}/01-infrastructure"
-BOOTSTRAP_ENV_FILE="${ROOT_DIR}/.generated/bootstrap.env"
-DEFAULT_CADDY_TLS_CA_FILE="${ROOT_DIR}/01-infrastructure/.generated/caddy/certs/weave-local-ca.pem"
-NEXTCLOUD_CONTAINER_NAME="${NEXTCLOUD_CONTAINER_NAME:-weave-nextcloud}"
+# shellcheck source=infra/weave-workspace/lib/runtime-namespace.sh
+source "${ROOT_DIR}/lib/runtime-namespace.sh"
+BOOTSTRAP_ENV_FILE="$(weave_workspace_generated_dir "${ROOT_DIR}")/bootstrap.env"
+DEFAULT_CADDY_TLS_CA_FILE="$(weave_infra_generated_dir "${ROOT_DIR}")/caddy/certs/weave-local-ca.pem"
+NEXTCLOUD_CONTAINER_NAME="${NEXTCLOUD_CONTAINER_NAME:-$(weave_container_name nextcloud)}"
+BACKEND_CONTAINER_NAME="$(weave_container_name backend)"
+MAILPIT_CONTAINER_NAME="$(weave_container_name mailpit)"
 CADDY_TLS_CA_FILE=""
 # shellcheck disable=SC1090,SC1091
 source "${ROOT_DIR}/lib/calendar-collection.sh"
@@ -325,6 +329,10 @@ container_env_value() {
   local container="$1"
   local name="$2"
 
+  if [[ "${container}" == "weave-backend" ]]; then
+    container="${BACKEND_CONTAINER_NAME}"
+  fi
+
   docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "${container}" 2>/dev/null |
     awk -v name="${name}" 'index($0, name "=") == 1 { print substr($0, length(name) + 2); found = 1 } END { if (!found) exit 1 }'
 }
@@ -434,8 +442,10 @@ assert_backend_nextcloud_actor_config() {
     assert_nextcloud_backend_actor_calendar "${actor_username}" "${actor_token}" "${calendar_id}"
   done
 
-  if [[ -f "${ROOT_DIR}/.generated/app-config.env" ]]; then
-    ! grep -Eq 'WEAVE_NEXTCLOUD_FILES_ACTOR_TOKEN|WEAVE_CALDAV_BACKEND_TOKEN|TF_VAR_nextcloud_backend_actor_token' "${ROOT_DIR}/.generated/app-config.env" || \
+  local app_config_file
+  app_config_file="$(weave_workspace_generated_dir "${ROOT_DIR}")/app-config.env"
+  if [[ -f "${app_config_file}" ]]; then
+    ! grep -Eq 'WEAVE_NEXTCLOUD_FILES_ACTOR_TOKEN|WEAVE_CALDAV_BACKEND_TOKEN|TF_VAR_nextcloud_backend_actor_token' "${app_config_file}" || \
       fail "Smoke check failed: no-secret app config exposes backend Nextcloud actor secrets"
   fi
 }
@@ -510,7 +520,7 @@ mailpit_info="$(curl --silent --show-error --fail "http://127.0.0.1:${TF_VAR_mai
 assert_json "${mailpit_info}" 'type == "object"' "Mailpit loopback API should return its info document"
 mailpit_https_status="$(curl_status "${WEAVE_MAILPIT_URL}")"
 [[ "${mailpit_https_status}" == "200" ]] || fail "Smoke check failed: private-network Mailpit HTTPS inbox returned HTTP ${mailpit_https_status}"
-docker inspect --format '{{json .HostConfig.PortBindings}}' weave-mailpit |
+docker inspect --format '{{json .HostConfig.PortBindings}}' "${MAILPIT_CONTAINER_NAME}" |
   jq -e '."1025/tcp" == null' >/dev/null || fail "Smoke check failed: Mailpit SMTP port 1025 must not be published to the host"
 
 log "Checking Keycloak issuer discovery..."

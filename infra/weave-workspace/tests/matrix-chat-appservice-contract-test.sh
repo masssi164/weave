@@ -159,7 +159,7 @@ assert_contains "${support_bundle}" 'matrix_appservice_tokens_and_registration'
 assert_contains "${support_bundle}" 'chat_e2e_proof_token_and_run_binding'
 assert_absent "${support_bundle}" 'TF_VAR_matrix_chat_appservice_as_token'
 assert_absent "${support_bundle}" 'TF_VAR_matrix_chat_appservice_hs_token'
-assert_contains "${teardown_script}" 'weave_matrix_chat_appservice_runtime'
+assert_contains "${teardown_script}" 'weave_volume_name matrix_chat_appservice_runtime'
 assert_contains "${teardown_script}" 'remove_chat_e2e_proof_credential'
 assert_contains "${backup_script}" "--exclude='*/chat-provider-proof.token'"
 assert_contains "${backup_script}" 'Backups are disabled for disposable Chat E2E proof namespaces'

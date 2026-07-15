@@ -56,7 +56,7 @@ set -euo pipefail
 if [[ "${1:-}" == inspect ]]; then
   template="${3:-}"
   container="${4:-}"
-  if [[ "${template}" == '{{json .Config.Env}}' && "${container}" == weave-backend ]]; then
+  if [[ "${template}" == '{{json .Config.Env}}' && "${container}" == "${MOCK_BACKEND_CONTAINER}" ]]; then
     calendar_id="${MOCK_BACKEND_CALENDAR_ID:-${MOCK_CALENDAR_ID}}"
     jq -cn \
       --arg namespace "WEAVE_ISOLATED_E2E_NAMESPACE=${MOCK_NAMESPACE}" \
@@ -76,7 +76,7 @@ if [[ "${1:-}" != exec ]]; then
   exit 1
 fi
 printf '%s\n' "$*" >>"${MOCK_STATE}/commands.log"
-expected_prefix="exec --user www-data weave-nextcloud php occ"
+expected_prefix="exec --user www-data ${MOCK_NEXTCLOUD_CONTAINER} php occ"
 case "$*" in
   "${expected_prefix} dav:delete-calendar --force ${MOCK_ACTOR} ${MOCK_CALENDAR_ID}")
     if [[ "$(cat "${MOCK_STATE}/calendar-present")" != true ]]; then
@@ -131,6 +131,7 @@ MOCK
 chmod +x "${MOCK_BIN}/sleep"
 
 export MOCK_STATE MOCK_NAMESPACE="${NAMESPACE}" MOCK_NETWORK="${NETWORK}" MOCK_ACTOR="${ACTOR}" MOCK_CALENDAR_ID="${CALENDAR_ID}"
+export MOCK_BACKEND_CONTAINER="${NAMESPACE}-backend" MOCK_NEXTCLOUD_CONTAINER="${NAMESPACE}-nextcloud"
 common_env=(
   PATH="${MOCK_BIN}:${PATH}"
   WEAVE_E2E_STACK_SCOPE=isolated

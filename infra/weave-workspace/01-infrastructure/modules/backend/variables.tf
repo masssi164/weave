@@ -565,6 +565,12 @@ variable "healthcheck_path" {
   type        = string
 }
 
+variable "resource_labels" {
+  description = "Ownership labels applied to every managed Docker resource."
+  type        = map(string)
+  default     = {}
+}
+
 variable "mcp_boundary_token" {
   description = "Private credential accepted only from the Spring AI MCP service boundary."
   type        = string

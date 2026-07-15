@@ -5,7 +5,10 @@ set -euo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly ROOT_DIR
-DEFAULT_OUTPUT_DIR="${ROOT_DIR}/.generated/support-bundles"
+# shellcheck source=infra/weave-workspace/lib/runtime-namespace.sh
+source "${ROOT_DIR}/lib/runtime-namespace.sh"
+WORKSPACE_GENERATED_DIR="$(weave_workspace_generated_dir "${ROOT_DIR}")"
+DEFAULT_OUTPUT_DIR="${WORKSPACE_GENERATED_DIR}/support-bundles"
 SUPPORT_BUNDLE_OUTPUT_DIR="${WEAVE_SUPPORT_BUNDLE_DIR:-${DEFAULT_OUTPUT_DIR}}"
 TAIL_LINES="${WEAVE_SUPPORT_BUNDLE_LOG_LINES:-200}"
 RUN_CHECKS="${WEAVE_SUPPORT_BUNDLE_RUN_CHECKS:-false}"
@@ -17,14 +20,16 @@ NEGATIVE_REDACTION_FIXTURE_STATUS="not_run"
 # Also consumed by live-stack-failure-diagnostics.sh when this file is sourced.
 # shellcheck disable=SC2034
 readonly DEFAULT_CONTAINERS=(
-  weave-proxy
-  weave-keycloak
-  weave-backend
-  weave-mas
-  weave-synapse
-  weave-nextcloud
-  weave-livekit
-  weave-db
+  "$(weave_container_name proxy)"
+  "$(weave_container_name keycloak)"
+  "$(weave_container_name backend)"
+  "$(weave_container_name mcp-server)"
+  "$(weave_container_name mas)"
+  "$(weave_container_name synapse)"
+  "$(weave_container_name nextcloud)"
+  "$(weave_container_name mailpit)"
+  "$(weave_container_name livekit)"
+  "$(weave_container_name db)"
 )
 
 readonly PUBLIC_ENV_KEYS=(
@@ -252,8 +257,8 @@ collect_public_env() {
   mkdir -p "$(dirname -- "${target}")"
   : >"${target}"
 
-  collect_public_env_from_file "${ROOT_DIR}/.generated/bootstrap.env" "${target}"
-  collect_public_env_from_file "${ROOT_DIR}/.generated/app-config.env" "${target}"
+  collect_public_env_from_file "${WORKSPACE_GENERATED_DIR}/bootstrap.env" "${target}"
+  collect_public_env_from_file "${WORKSPACE_GENERATED_DIR}/app-config.env" "${target}"
 
   {
     printf '# current process public env\n'
@@ -281,8 +286,8 @@ bool_from_env_presence() {
 bool_from_env_files() {
   local key="$1"
   grep -hE "^(export[[:space:]]+)?${key}=.+" \
-    "${ROOT_DIR}/.generated/bootstrap.env" \
-    "${ROOT_DIR}/.generated/app-config.env" 2>/dev/null | grep -q .
+    "${WORKSPACE_GENERATED_DIR}/bootstrap.env" \
+    "${WORKSPACE_GENERATED_DIR}/app-config.env" 2>/dev/null | grep -q .
 }
 
 env_or_file_equals() {
@@ -294,8 +299,8 @@ env_or_file_equals() {
   fi
 
   grep -hE "^(export[[:space:]]+)?${key}=${expected}$" \
-    "${ROOT_DIR}/.generated/bootstrap.env" \
-    "${ROOT_DIR}/.generated/app-config.env" 2>/dev/null | grep -q .
+    "${WORKSPACE_GENERATED_DIR}/bootstrap.env" \
+    "${WORKSPACE_GENERATED_DIR}/app-config.env" 2>/dev/null | grep -q .
 }
 
 health_from_env() {
@@ -651,14 +656,14 @@ collect_recent_artifacts() {
   local target_dir="${WORK_DIR}/recent-artifacts"
   mkdir -p "${target_dir}"
 
-  if [[ ! -d "${ROOT_DIR}/.generated" ]]; then
+  if [[ ! -d "${WORKSPACE_GENERATED_DIR}" ]]; then
     printf '{"schemaVersion":"weave-recent-diagnostic-artifact-summary-v1","artifactCount":0,"contentSetSha256":null,"rawContentsIncluded":false,"supportSafe":true}\n' >"${target_dir}/summary.json"
     return
   fi
 
   local hashes_file count aggregate
   hashes_file="$(mktemp)"
-  find "${ROOT_DIR}/.generated" -maxdepth 2 -type f \
+  find "${WORKSPACE_GENERATED_DIR}" -maxdepth 2 -type f \
     \( -iname '*smoke*.log' -o -iname '*smoke*.txt' -o -iname '*operator*.log' -o -iname '*operator*.txt' -o -iname '*verify*.log' -o -iname '*verify*.txt' \) \
     -print0 | while IFS= read -r -d '' artifact; do
       shasum -a 256 "${artifact}" | awk '{print $1}'

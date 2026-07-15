@@ -19,7 +19,12 @@ sha256() { printf '%s' "$1" | shasum -a 256 | awk '{print $1}'; }
 assert_contains() { grep -Fq -- "$2" "$1" || fail "missing expected contract '$2'"; }
 
 mkdir -p "${MOCK_BIN}" "${MOCK_STATE}"
-prepare_output="$(bash "${IDENTITY_SCRIPT}" prepare --run-id "${RUN_ID}" --output-root "${OUTPUT_ROOT}")"
+prepare_output="$(
+  WEAVE_E2E_STACK_SCOPE=isolated \
+    WEAVE_CANDIDATE_COMMIT="${CANDIDATE}" \
+    WEAVE_CANDIDATE_EVIDENCE_REF=https://github.example.invalid/weave/actions/runs/85 \
+    bash "${IDENTITY_SCRIPT}" prepare --run-id "${RUN_ID}" --output-root "${OUTPUT_ROOT}"
+)"
 eval "${prepare_output}"
 export WEAVE_E2E_OUTPUT_ROOT WEAVE_E2E_RUN_NAMESPACE WEAVE_E2E_CREDENTIAL_ENV_PATH
 export WEAVE_E2E_STARTUP_ENV_PATH WEAVE_E2E_IDENTITY_MANIFEST_PATH
@@ -28,6 +33,8 @@ export WEAVE_E2E_STACK_BOOTSTRAP_ENV
 source "${WEAVE_E2E_CREDENTIAL_ENV_PATH}"
 # shellcheck disable=SC1090
 source "${WEAVE_E2E_STARTUP_ENV_PATH}"
+BACKEND_CONTAINER="${WEAVE_E2E_RUN_NAMESPACE}-backend"
+SYNAPSE_CONTAINER="${WEAVE_E2E_RUN_NAMESPACE}-synapse"
 
 author_subject="subject-author-provider-proof"
 collaborator_subject="subject-collaborator-provider-proof"
@@ -46,8 +53,8 @@ mv "${MOCK_STATE}/manifest.json" "${WEAVE_E2E_IDENTITY_MANIFEST_PATH}"
 
 printf '%s\n' '{"id":"weave-app-uuid","clientId":"weave-app","publicClient":true,"directAccessGrantsEnabled":false}' \
   >"${MOCK_STATE}/client.json"
-printf 'true\n' >"${MOCK_STATE}/weave-backend-running"
-printf 'true\n' >"${MOCK_STATE}/weave-synapse-running"
+printf 'true\n' >"${MOCK_STATE}/${BACKEND_CONTAINER}-running"
+printf 'true\n' >"${MOCK_STATE}/${SYNAPSE_CONTAINER}-running"
 printf '0\n' >"${MOCK_STATE}/token-counter"
 printf '20\n' >"${MOCK_STATE}/callback-count"
 printf '0\n' >"${MOCK_STATE}/callback-duplicate-count"
@@ -191,7 +198,7 @@ elif [[ "${url}" == */admin/realms/weave/clients/weave-app-uuid && "${method}" =
 elif [[ "${url}" == */api/health/live ]]; then
   respond 200 '{"status":"UP"}'
 elif [[ "${url}" == */api/platform/config ]]; then
-  if [[ "${MOCK_FAIL_AFTER_STOP:-false}" == true && "$(<"${MOCK_STATE}/weave-synapse-running")" == false ]]; then
+  if [[ "${MOCK_FAIL_AFTER_STOP:-false}" == true && "$(<"${MOCK_STATE}/${MOCK_SYNAPSE_CONTAINER}-running")" == false ]]; then
     respond 500 '{"code":"fixture-failure"}'
   else
     respond 200 '{"apiBaseUrl":"https://api.weave.test/api","supportSafe":true}'
@@ -234,7 +241,7 @@ elif [[ "${url}" == */send/m.room.encrypted/* ]]; then
     respond 403 '{"errcode":"M_FORBIDDEN","error":"Membership is required."}'
     exit 0
   fi
-  if [[ "$(<"${MOCK_STATE}/weave-synapse-running")" != true ]]; then
+  if [[ "$(<"${MOCK_STATE}/${MOCK_SYNAPSE_CONTAINER}-running")" != true ]]; then
     printf 'true\n' >"${MOCK_STATE}/failed-${pass_index}"
     respond 503 '{"errcode":"M_UNAVAILABLE","error":"Weave Chat is temporarily unavailable."}'
     exit 0
@@ -268,13 +275,13 @@ elif [[ "${url}" == */messages\?dir=b\&limit=* ]]; then
   if [[ "${role}" == outsider || \
     ( -f "${MOCK_STATE}/left-${pass_index}-${role}" && "$(<"${MOCK_STATE}/left-${pass_index}-${role}")" == true ) ]]; then
     respond 403 '{"errcode":"M_FORBIDDEN","error":"Membership is required."}'
-  elif [[ "$(<"${MOCK_STATE}/weave-synapse-running")" != true ]]; then
+  elif [[ "$(<"${MOCK_STATE}/${MOCK_SYNAPSE_CONTAINER}-running")" != true ]]; then
     respond 503 '{"errcode":"M_UNAVAILABLE","error":"Weave Chat is temporarily unavailable."}'
   else
     respond 200 "$(jq -c '{chunk:.,start:"fixture",end:"fixture"}' "${MOCK_STATE}/events-${pass_index}.json")"
   fi
 elif [[ "${url}" == */typing/* ]]; then
-  if [[ "$(<"${MOCK_STATE}/weave-synapse-running")" == true ]]; then
+  if [[ "$(<"${MOCK_STATE}/${MOCK_SYNAPSE_CONTAINER}-running")" == true ]]; then
     respond 200 '{}'
   else
     respond 503 '{"errcode":"M_UNAVAILABLE","error":"Weave Chat is temporarily unavailable."}'
@@ -425,14 +432,15 @@ case "${command}" in
         --arg collaboratorSource 'WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_1_SOURCE=isolated-live-e2e' \
         --arg outsider "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_2_PRINCIPAL_REF=user:${MOCK_OUTSIDER}" \
         --arg outsiderContext "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_2_CONTEXT_ID=${MOCK_OUTSIDE_CONTEXT}" \
-        --arg outsiderSource 'WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_2_SOURCE=isolated-live-e2e' '
+        --arg outsiderSource 'WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_2_SOURCE=isolated-live-e2e' \
+        --arg matrixInternalBaseUrl "WEAVE_CHAT_MATRIX_INTERNAL_BASE_URL=http://${MOCK_SYNAPSE_CONTAINER}:8008" '
           [
             $namespace,$author,$authorContext,$authorSource,
             $collaborator,$collaboratorContext,$collaboratorSource,
             $outsider,$outsiderContext,$outsiderSource,
             "WEAVE_CHAT_PROVIDER=matrix-synapse",
             "WEAVE_CHAT_STORAGE_MODE=jdbc",
-            "WEAVE_CHAT_MATRIX_INTERNAL_BASE_URL=http://weave-synapse:8008",
+            $matrixInternalBaseUrl,
             "WEAVE_CHAT_MATRIX_APPSERVICE_AS_TOKEN_FILE=/run/weave-chat-appservice/as-token",
             "WEAVE_CHAT_MATRIX_APPSERVICE_HS_TOKEN_FILE=/run/weave-chat-appservice/hs-token",
             "WEAVE_E2E_STACK_SCOPE=isolated",
@@ -442,7 +450,7 @@ case "${command}" in
           ]
         '
     elif [[ "${format}" == '{{json .Mounts}}' ]]; then
-      if [[ "${container}" == weave-backend ]]; then
+      if [[ "${container}" == "${MOCK_BACKEND_CONTAINER}" ]]; then
         printf '[{"Type":"bind","Destination":"/run/weave-chat-e2e-proof/token","RW":false}]\n'
       else
         printf '[]\n'
@@ -510,6 +518,8 @@ ENV
 
 export MOCK_STATE
 export MOCK_NAMESPACE="${WEAVE_E2E_RUN_NAMESPACE}"
+export MOCK_BACKEND_CONTAINER="${BACKEND_CONTAINER}"
+export MOCK_SYNAPSE_CONTAINER="${SYNAPSE_CONTAINER}"
 export MOCK_AUTHOR="${WEAVE_E2E_AUTHOR_USERNAME}"
 export MOCK_COLLABORATOR="${WEAVE_E2E_COLLABORATOR_USERNAME}"
 export MOCK_OUTSIDER="${WEAVE_E2E_OUTSIDER_USERNAME}"
@@ -552,7 +562,7 @@ if PATH="${MOCK_BIN}:${PATH}" WEAVE_E2E_STACK_SCOPE=isolated MOCK_FAIL_AFTER_STO
   >"${failure_log}" 2>&1; then
   fail "injected outage failure unexpectedly passed"
 fi
-[[ "$(<"${MOCK_STATE}/weave-synapse-running")" == true ]] ||
+[[ "$(<"${MOCK_STATE}/${SYNAPSE_CONTAINER}-running")" == true ]] ||
   fail "failure trap did not restart Synapse"
 jq -e '.directAccessGrantsEnabled == false' "${MOCK_STATE}/client.json" >/dev/null ||
   fail "failure trap did not restore the Keycloak client"
@@ -561,8 +571,8 @@ jq -e '.directAccessGrantsEnabled == false' "${MOCK_STATE}/client.json" >/dev/nu
   fail "failed proof emitted a green marker"
 
 # Reset only the fixture's isolated provider model for the successful proof.
-printf 'true\n' >"${MOCK_STATE}/weave-synapse-running"
-printf 'true\n' >"${MOCK_STATE}/weave-backend-running"
+printf 'true\n' >"${MOCK_STATE}/${SYNAPSE_CONTAINER}-running"
+printf 'true\n' >"${MOCK_STATE}/${BACKEND_CONTAINER}-running"
 printf '0\n' >"${MOCK_STATE}/token-counter"
 printf '20\n' >"${MOCK_STATE}/callback-count"
 printf '0\n' >"${MOCK_STATE}/callback-duplicate-count"
@@ -632,11 +642,11 @@ jq -e \
     )
   ' "${proof_output}" >/dev/null || fail "support-safe provider evidence is incomplete"
 
-[[ "$(grep -c '^stop:weave-synapse$' "${MOCK_STATE}/operations.log")" == 2 ]] ||
+[[ "$(grep -c "^stop:${SYNAPSE_CONTAINER}$" "${MOCK_STATE}/operations.log")" == 2 ]] ||
   fail "each independent pass must exercise a bounded Synapse outage"
-[[ "$(grep -c '^restart:weave-backend$' "${MOCK_STATE}/operations.log")" == 1 ]] ||
+[[ "$(grep -c "^restart:${BACKEND_CONTAINER}$" "${MOCK_STATE}/operations.log")" == 1 ]] ||
   fail "backend persistence restart proof must run exactly once"
-[[ "$(grep -c '^restart:weave-synapse$' "${MOCK_STATE}/operations.log")" == 1 ]] ||
+[[ "$(grep -c "^restart:${SYNAPSE_CONTAINER}$" "${MOCK_STATE}/operations.log")" == 1 ]] ||
   fail "Synapse persistence restart proof must run exactly once"
 [[ "$(grep -c '^proof:callback-replay$' "${MOCK_STATE}/operations.log")" == 1 ]] ||
   fail "the first real private callback transaction must be replayed exactly once"

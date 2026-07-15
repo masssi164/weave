@@ -14,6 +14,7 @@
 - `isolated-e2e-authorization-probes.sh`: runs isolated-only missing-capability, expired-token, and Matrix-revocation probes and trap-restores every temporary Keycloak setting.
 - `isolated-e2e-calendar-outage.sh`: removes/restores only the isolated backend actor's dedicated non-default workspace calendar and verifies cached Calendar outage containment without touching Files or persistent dogfood.
 - `persistent-dogfood-observation.sh`: captures and compares support-safe persistent dogfood identity, Mailpit, TLS, and active-session invariants around non-destructive installs.
+- `lib/runtime-namespace.sh`: derives stable persistent names and run-scoped disposable container, volume, network, generated-asset, and OpenTofu state paths.
 - `nextcloud-auth-security-audit.sh`: classifies recent Nextcloud invalid-authentication/throttle sources without exposing raw addresses or changing protection.
 - `release.env.example`: template for operator-managed single-host deployments.
 - `.env.example`: local hostname, port, and Caddy mount defaults.
