@@ -409,13 +409,16 @@ public class MatrixClientServerProjectionController {
                         conversation,
                         chatDomainFacadeService.timeline(conversation.conversationId(), jwt, 100)))
                 .toList();
+        MatrixProtocolCoreService.MatrixSyncCrypto crypto = matrixE2eeStateService.sync(identity, cryptoSequence);
         return matrixProtocolCoreService.sync(
                 jwt.getSubject(),
-                matrixE2eeStateService.combinedCursor(chatDomainFacadeService.syncCursor(jwt)),
+                matrixE2eeStateService.combinedCursor(
+                        chatDomainFacadeService.syncCursor(jwt),
+                        crypto.nextSequence()),
                 since,
                 projection,
                 matrixE2eeStateService.accountData(identity),
-                matrixE2eeStateService.sync(identity, cryptoSequence));
+                crypto);
     }
 
     private Map<String, Object> joinedRooms(Jwt jwt) {
