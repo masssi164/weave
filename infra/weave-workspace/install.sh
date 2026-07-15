@@ -364,6 +364,39 @@ persist_bootstrap_to_state() {
   install -m 0600 "${BOOTSTRAP_ENV_FILE}" "${state_file}"
 }
 
+write_context_authorization_membership() {
+  local index="$1" principal_ref="$2" source="$3"
+
+  printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_%s_TENANT_ID=%q\n' \
+    "${index}" "${TF_VAR_context_authorization_default_tenant_id}"
+  printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_%s_CONTEXT_ID=%q\n' \
+    "${index}" "${TF_VAR_context_authorization_bootstrap_context_id}"
+  printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_%s_PRINCIPAL_REF=%q\n' \
+    "${index}" "${principal_ref}"
+  printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_%s_ROLE=%q\n' \
+    "${index}" "${TF_VAR_context_authorization_bootstrap_role}"
+  printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_%s_SOURCE=%q\n' \
+    "${index}" "${source}"
+}
+
+write_context_authorization_memberships() {
+  local membership_index=0
+
+  if [[ "${TF_VAR_context_authorization_bootstrap_enabled}" == "true" ]]; then
+    write_context_authorization_membership \
+      "${membership_index}" \
+      "${TF_VAR_context_authorization_bootstrap_principal_ref}" \
+      "local-dev-bootstrap"
+    membership_index=$((membership_index + 1))
+  fi
+  if [[ -n "${TF_VAR_context_authorization_dogfood_principal_ref}" ]]; then
+    write_context_authorization_membership \
+      "${membership_index}" \
+      "${TF_VAR_context_authorization_dogfood_principal_ref}" \
+      "local-dogfood-bootstrap"
+  fi
+}
+
 persist_bootstrap_env() {
   local var
 
@@ -440,20 +473,7 @@ persist_bootstrap_env() {
     printf 'export WEAVE_CONTEXT_AUTHORIZATION_DEFAULT_TENANT_ID=%q\n' "${TF_VAR_context_authorization_default_tenant_id}"
     printf 'export WEAVE_CONTEXT_AUTHORIZATION_PRINCIPAL_CLAIM=%q\n' "${TF_VAR_context_authorization_principal_claim}"
     printf 'export WEAVE_CONTEXT_AUTHORIZATION_PRINCIPAL_REF_PREFIX=%q\n' "${TF_VAR_context_authorization_principal_ref_prefix}"
-    if [[ "${TF_VAR_context_authorization_bootstrap_enabled}" == "true" ]]; then
-      printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_TENANT_ID=%q\n' "${TF_VAR_context_authorization_default_tenant_id}"
-      printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_CONTEXT_ID=%q\n' "${TF_VAR_context_authorization_bootstrap_context_id}"
-      printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_PRINCIPAL_REF=%q\n' "${TF_VAR_context_authorization_bootstrap_principal_ref}"
-      printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_ROLE=%q\n' "${TF_VAR_context_authorization_bootstrap_role}"
-      printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_SOURCE=%q\n' "local-dev-bootstrap"
-      if [[ -n "${TF_VAR_context_authorization_dogfood_principal_ref}" ]]; then
-        printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_1_TENANT_ID=%q\n' "${TF_VAR_context_authorization_default_tenant_id}"
-        printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_1_CONTEXT_ID=%q\n' "${TF_VAR_context_authorization_bootstrap_context_id}"
-        printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_1_PRINCIPAL_REF=%q\n' "${TF_VAR_context_authorization_dogfood_principal_ref}"
-        printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_1_ROLE=%q\n' "${TF_VAR_context_authorization_bootstrap_role}"
-        printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_1_SOURCE=%q\n' "local-dogfood-bootstrap"
-      fi
-    fi
+    write_context_authorization_memberships
     printf 'export WEAVE_MATRIX_HOMESERVER_URL=%q\n' "$(client_matrix_facade_url)"
     printf 'export WEAVE_MATRIX_PROVIDER_URL=%q\n' "$(matrix_provider_public_url)"
     printf 'export WEAVE_CHAT_PROVIDER=%q\n' "matrix-synapse"
@@ -1224,6 +1244,19 @@ create_test_user_enabled() {
   esac
 }
 
+normalize_context_authorization_membership_mode() {
+  if create_test_user_enabled; then
+    set_default_var TF_VAR_context_authorization_bootstrap_enabled true
+  else
+    export TF_VAR_context_authorization_bootstrap_enabled=false
+  fi
+
+  if [[ "${TF_VAR_isolated_e2e_enabled}" == "true" ]]; then
+    export TF_VAR_context_authorization_bootstrap_enabled=false
+    export TF_VAR_context_authorization_dogfood_principal_ref=""
+  fi
+}
+
 integration_test_base_url() {
   printf '%s/api' "$(client_api_origin_url)"
 }
@@ -1536,16 +1569,7 @@ ensure_default_inputs() {
   # truth. Re-enable explicitly only if a future fallback profile is added.
   export TF_VAR_local_lan_host=""
 
-  if create_test_user_enabled; then
-    set_default_var TF_VAR_context_authorization_bootstrap_enabled true
-  else
-    set_default_var TF_VAR_context_authorization_bootstrap_enabled false
-  fi
-
-  if [[ "${TF_VAR_isolated_e2e_enabled}" == "true" ]]; then
-    export TF_VAR_context_authorization_bootstrap_enabled=false
-    export TF_VAR_context_authorization_dogfood_principal_ref=""
-  fi
+  normalize_context_authorization_membership_mode
 
   set_default_var TF_VAR_caddy_tls_cert_file "${INFRA_GENERATED_DIR}/caddy/certs/weave.test.pem"
   set_default_var TF_VAR_caddy_tls_key_file "${INFRA_GENERATED_DIR}/caddy/certs/weave.test-key.pem"

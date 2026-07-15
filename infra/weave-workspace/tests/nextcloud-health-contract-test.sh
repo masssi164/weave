@@ -346,4 +346,34 @@ if local_credential_state_file >/dev/null 2>&1; then
   fail "isolated E2E must not consume the persistent dogfood credential state"
 fi
 
+export TF_VAR_create_test_user=false
+export TF_VAR_isolated_e2e_enabled=false
+export TF_VAR_context_authorization_bootstrap_enabled=true
+export TF_VAR_context_authorization_default_tenant_id=weave
+export TF_VAR_context_authorization_bootstrap_context_id=workspace-default
+export TF_VAR_context_authorization_bootstrap_principal_ref=user:test
+export TF_VAR_context_authorization_dogfood_principal_ref=user:massimo
+export TF_VAR_context_authorization_bootstrap_role=MEMBER
+normalize_context_authorization_membership_mode
+[[ "${TF_VAR_context_authorization_bootstrap_enabled}" == false ]] ||
+  fail "persistent dogfood must disable the disposable context bootstrap"
+persistent_memberships="$(write_context_authorization_memberships)"
+grep -Fq 'WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_PRINCIPAL_REF=user:massimo' <<<"${persistent_memberships}" ||
+  fail "persistent dogfood must retain its human context membership at index zero"
+grep -Fq 'WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_SOURCE=local-dogfood-bootstrap' <<<"${persistent_memberships}" ||
+  fail "persistent dogfood membership must retain its support-safe source"
+if grep -Fq 'user:test' <<<"${persistent_memberships}" ||
+    grep -Fq 'WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_1_' <<<"${persistent_memberships}"; then
+  fail "persistent dogfood must not restore a disposable or sparse context membership"
+fi
+
+export TF_VAR_create_test_user=true
+export TF_VAR_context_authorization_bootstrap_enabled=true
+normalize_context_authorization_membership_mode
+development_memberships="$(write_context_authorization_memberships)"
+grep -Fq 'WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_PRINCIPAL_REF=user:test' <<<"${development_memberships}" ||
+  fail "local development must retain its explicit disposable bootstrap membership"
+grep -Fq 'WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_1_PRINCIPAL_REF=user:massimo' <<<"${development_memberships}" ||
+  fail "local development must keep contiguous dogfood membership ordering"
+
 printf 'nextcloud health/readiness contract tests passed\n'
