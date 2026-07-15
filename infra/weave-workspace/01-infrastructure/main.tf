@@ -443,6 +443,18 @@ generated_files = {
 }
 }
 
+locals {
+  matrix_chat_appservice_registration_contract = yamldecode(templatefile("${path.module}/templates/synapse-appservice.yaml.tpl", {
+    appservice_id               = "weave-chat-synapse"
+    appservice_callback_url     = "http://weave-backend:8080/api/internal/chat/matrix/appservice"
+    appservice_as_token         = "contract-as-token"
+    appservice_hs_token         = "contract-hs-token"
+    appservice_sender_localpart = "_weave_appservice"
+    virtual_user_prefix         = "_weave_"
+    matrix_homeserver_regex     = "matrix\\.weave\\.test"
+  }))
+}
+
 resource "docker_network" "weave_network" {
   name = var.docker_network_name
 
@@ -531,6 +543,19 @@ resource "terraform_data" "matrix_chat_appservice_secret_guard" {
         !contains(local.matrix_chat_appservice_forbidden_credentials, var.matrix_chat_appservice_hs_token)
       )
       error_message = "Matrix Chat Application Service tokens must be independent from each other and every MAS, Synapse, and identity credential."
+    }
+    precondition {
+      condition = try(
+        local.matrix_chat_appservice_registration_contract.rate_limited == true &&
+        local.matrix_chat_appservice_registration_contract.receive_ephemeral == false &&
+        local.matrix_chat_appservice_registration_contract.namespaces.users[0].exclusive == true &&
+        local.matrix_chat_appservice_registration_contract.namespaces.users[0].regex == "^@_weave_[a-z0-9]{26,64}:matrix\\.weave\\.test$" &&
+        local.matrix_chat_appservice_registration_contract.namespaces.aliases[0].exclusive == true &&
+        local.matrix_chat_appservice_registration_contract.namespaces.aliases[0].regex == "^#_weave_[a-z0-9]{26,64}:matrix\\.weave\\.test$" &&
+        length(local.matrix_chat_appservice_registration_contract.namespaces.rooms) == 0,
+        false,
+      )
+      error_message = "Matrix Chat Application Service registration must remain valid YAML with exact Weave virtual-user and alias namespaces."
     }
   }
 }

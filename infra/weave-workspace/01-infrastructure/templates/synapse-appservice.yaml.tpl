@@ -9,8 +9,8 @@ receive_ephemeral: false
 namespaces:
   users:
     - exclusive: true
-      regex: "^@${virtual_user_prefix}[a-z0-9]{26,64}:${matrix_homeserver_regex}$"
+      regex: '^@${virtual_user_prefix}[a-z0-9]{26,64}:${matrix_homeserver_regex}$'
   aliases:
     - exclusive: true
-      regex: "^#${virtual_user_prefix}[a-z0-9]{26,64}:${matrix_homeserver_regex}$"
+      regex: '^#${virtual_user_prefix}[a-z0-9]{26,64}:${matrix_homeserver_regex}$'
   rooms: []
