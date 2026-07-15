@@ -6306,6 +6306,51 @@
       "evidenceMode": "offline-spec"
     },
     {
+      "tag": "@matrix-synapse-durable-collaboration",
+      "scenario": "Encrypted collaboration is committed by the selected Chat provider",
+      "feature": "e2e/features/chat_matrix_e2ee.feature",
+      "executableTest": "infra/weave-workspace/isolated-e2e-chat-provider-proof.sh",
+      "evidenceMarkers": [
+        "MATRIX_SYNAPSE_PROVIDER_PERSISTENCE_RESULT"
+      ],
+      "evidenceMode": "live-runtime",
+      "runtimeSources": [
+        "live-stack-e2e"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "client/integration_test/multi_user_collaboration_e2e_test.dart",
+          "fragments": [
+            "MULTI_USER_CHAT_RESULT",
+            "ciphertextOnlyTransport"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@matrix-synapse-outage-idempotency",
+      "scenario": "A Chat provider outage cannot expose or duplicate a message",
+      "feature": "e2e/features/chat_matrix_e2ee.feature",
+      "executableTest": "infra/weave-workspace/isolated-e2e-chat-provider-proof.sh",
+      "evidenceMarkers": [
+        "MATRIX_SYNAPSE_PROVIDER_EXACTLY_ONCE_RESULT",
+        "MATRIX_SYNAPSE_PROVIDER_REPLAY_RESULT"
+      ],
+      "evidenceMode": "live-runtime",
+      "runtimeSources": [
+        "live-stack-e2e"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "tools/multi_user_e2e_evidence.py",
+          "fragments": [
+            "providerPersistence",
+            "southboundProviderAdapterVerified"
+          ]
+        }
+      ]
+    },
+    {
       "tag": "@human-ready-auth-shell",
       "scenario": "Disposable members restore independent authenticated shells",
       "feature": "e2e/features/enterprise_human_testing_readiness.feature",
