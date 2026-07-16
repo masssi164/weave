@@ -50,6 +50,14 @@ ${weave_site_addresses} {
 	}
 
 	@internal_product_api path /api/internal/*
+	@matrix_chat_appservice_callback path /api/internal/chat/matrix/appservice /api/internal/chat/matrix/appservice/*
+	@chat_e2e_provider_proof path /api/internal/e2e/chat/provider-proof /api/internal/e2e/chat/provider-proof/*
+	handle @chat_e2e_provider_proof {
+		respond "Not Found" 404
+	}
+	handle @matrix_chat_appservice_callback {
+		respond "Not Found" 404
+	}
 	handle @internal_product_api {
 		respond "Not Found" 404
 	}
@@ -140,6 +148,14 @@ ${api_site_addresses} {
 	encode zstd gzip
 
 ${connector_provider_callbacks_guard}
+	@chat_e2e_provider_proof path /api/internal/e2e/chat/provider-proof /api/internal/e2e/chat/provider-proof/*
+	handle @chat_e2e_provider_proof {
+		respond "Not Found" 404
+	}
+	@matrix_chat_appservice_callback path /api/internal/chat/matrix/appservice /api/internal/chat/matrix/appservice/*
+	handle @matrix_chat_appservice_callback {
+		respond "Not Found" 404
+	}
 	@backend_actuator path /actuator /actuator/*
 	handle @backend_actuator {
 		respond "Not Found" 404

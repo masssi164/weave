@@ -4,9 +4,14 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-BOOTSTRAP_ENV_FILE="${ROOT_DIR}/.generated/bootstrap.env"
-APP_CONFIG_ENV_FILE="${ROOT_DIR}/.generated/app-config.env"
+# shellcheck source=infra/weave-workspace/lib/runtime-namespace.sh
+source "${ROOT_DIR}/lib/runtime-namespace.sh"
+BOOTSTRAP_ENV_FILE="$(weave_workspace_generated_dir "${ROOT_DIR}")/bootstrap.env"
+APP_CONFIG_ENV_FILE="$(weave_workspace_generated_dir "${ROOT_DIR}")/app-config.env"
 SYNAPSE_VOLUME_HELPER="${ROOT_DIR}/lib/synapse-volume.sh"
+BACKEND_CONTAINER="$(weave_container_name backend)"
+SYNAPSE_CONTAINER="$(weave_container_name synapse)"
+NEXTCLOUD_CONTAINER="$(weave_container_name nextcloud)"
 readonly LOOPBACK_HOST="${WEAVE_LOOPBACK_HOST:-127.0.0.1}"
 readonly LOOPBACK_RESOLVE_HOST="${WEAVE_LOOPBACK_RESOLVE_HOST:-${LOOPBACK_HOST}}"
 PUBLIC_PROXY_PORT="${WEAVE_PUBLIC_PROXY_PORT:-${TF_VAR_proxy_host_port:-}}"
@@ -252,6 +257,10 @@ container_env_value() {
   local container="$1"
   local name="$2"
 
+  if [[ "${container}" == "weave-backend" ]]; then
+    container="${BACKEND_CONTAINER}"
+  fi
+
   docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "${container}" 2>/dev/null |
     awk -v name="${name}" 'index($0, name "=") == 1 { print substr($0, length(name) + 2); found = 1 } END { if (!found) exit 1 }'
 }
@@ -259,6 +268,10 @@ container_env_value() {
 container_env_count() {
   local container="$1"
   local name="$2"
+
+  if [[ "${container}" == "weave-backend" ]]; then
+    container="${BACKEND_CONTAINER}"
+  fi
 
   docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "${container}" 2>/dev/null |
     awk -v name="${name}" 'index($0, name "=") == 1 { count += 1 } END { print count + 0 }'
@@ -394,6 +407,64 @@ assert_backend_boards_openproject_config() {
   [[ -n "${api_token}" ]] || fail "Operator check failed: OpenProject workspace sync requires a backend-held API token"
 }
 
+assert_backend_matrix_chat_provider_config() {
+  local container_name
+  local mount_writable
+  local proof_enabled
+
+  log "Checking backend/Synapse Chat Application Service boundary..."
+  [[ "$(container_env_value weave-backend WEAVE_CHAT_PROVIDER)" == "matrix-synapse" ]] ||
+    fail "Operator check failed: shipped Chat must select the matrix-synapse southbound adapter"
+  [[ "$(container_env_value weave-backend WEAVE_CHAT_STORAGE_MODE)" == "jdbc" ]] ||
+    fail "Operator check failed: shipped Chat canonical storage must be JDBC"
+  [[ "$(container_env_value weave-backend WEAVE_CHAT_MATRIX_INTERNAL_BASE_URL)" == "http://${SYNAPSE_CONTAINER}:8008" ]] ||
+    fail "Operator check failed: Chat provider origin must remain on the private Synapse network endpoint"
+  [[ "$(container_env_value weave-backend WEAVE_CHAT_MATRIX_APPSERVICE_AS_TOKEN_FILE)" == "/run/weave-chat-appservice/as-token" ]] ||
+    fail "Operator check failed: backend as_token input must be a mounted file"
+  [[ "$(container_env_value weave-backend WEAVE_CHAT_MATRIX_APPSERVICE_HS_TOKEN_FILE)" == "/run/weave-chat-appservice/hs-token" ]] ||
+    fail "Operator check failed: backend hs_token input must be a mounted file"
+  [[ -z "$(container_env_value weave-backend WEAVE_CHAT_MATRIX_APPSERVICE_AS_TOKEN || true)" ]] ||
+    fail "Operator check failed: raw Application Service as_token must not be present in the backend environment"
+  [[ -z "$(container_env_value weave-backend WEAVE_CHAT_MATRIX_APPSERVICE_HS_TOKEN || true)" ]] ||
+    fail "Operator check failed: raw Application Service hs_token must not be present in the backend environment"
+
+  for container_name in "${BACKEND_CONTAINER}" "${SYNAPSE_CONTAINER}"; do
+    mount_writable="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/run/weave-chat-appservice"}}{{.RW}}{{end}}{{end}}' "${container_name}" 2>/dev/null || true)"
+    [[ "${mount_writable}" == "false" ]] ||
+      fail "Operator check failed: ${container_name} Application Service runtime mount is missing or writable"
+  done
+
+  docker exec "${BACKEND_CONTAINER}" sh -c '
+    as_token="$(cat /run/weave-chat-appservice/as-token)"
+    hs_token="$(cat /run/weave-chat-appservice/hs-token)"
+    test -n "${as_token}" && test -n "${hs_token}" && test "${as_token}" != "${hs_token}"
+  ' >/dev/null || fail "Operator check failed: mounted Application Service tokens are missing or reused"
+
+  proof_enabled="$(container_env_value weave-backend WEAVE_CHAT_E2E_PROOF_ENABLED || true)"
+  if [[ "${proof_enabled}" == "true" ]]; then
+    [[ "${TF_VAR_isolated_e2e_enabled:-false}" == "true" &&
+       "$(container_env_value weave-backend WEAVE_E2E_STACK_SCOPE)" == "isolated" ]] ||
+      fail "Operator check failed: Chat provider proof is enabled outside an isolated stack"
+    [[ "$(container_env_value weave-backend WEAVE_CHAT_E2E_PROOF_TOKEN_FILE)" == "/run/weave-chat-e2e-proof/token" ]] ||
+      fail "Operator check failed: Chat provider proof credential must use its dedicated mounted file"
+    [[ "$(container_env_value weave-backend WEAVE_CHAT_E2E_PROOF_RUN_ID)" == "${TF_VAR_chat_e2e_proof_run_id:-}" &&
+       -n "${TF_VAR_chat_e2e_proof_run_id:-}" ]] ||
+      fail "Operator check failed: Chat provider proof run binding is missing or inconsistent"
+    mount_writable="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/run/weave-chat-e2e-proof/token"}}{{.RW}}{{end}}{{end}}' "${BACKEND_CONTAINER}" 2>/dev/null || true)"
+    [[ "${mount_writable}" == "false" ]] ||
+      fail "Operator check failed: isolated Chat provider proof credential mount is missing or writable"
+    [[ -z "$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/run/weave-chat-e2e-proof/token"}}{{.Destination}}{{end}}{{end}}' "${SYNAPSE_CONTAINER}" 2>/dev/null || true)" ]] ||
+      fail "Operator check failed: Chat provider proof credential must never be mounted into Synapse"
+  else
+    [[ -z "${proof_enabled}" || "${proof_enabled}" == "false" ]] ||
+      fail "Operator check failed: invalid Chat provider proof enablement state"
+    [[ -z "$(container_env_value weave-backend WEAVE_CHAT_E2E_PROOF_TOKEN_FILE || true)" &&
+       -z "$(container_env_value weave-backend WEAVE_CHAT_E2E_PROOF_RUN_ID || true)" &&
+       -z "$(container_env_value weave-backend WEAVE_E2E_STACK_SCOPE || true)" ]] ||
+      fail "Operator check failed: persistent/default backend retained isolated Chat provider proof authority"
+  fi
+}
+
 assert_matrix_room_unencrypted_until_e2ee_promoted() {
   local room_name="$1"
   local room_id="$2"
@@ -498,7 +569,7 @@ assert_backend_nextcloud_actor_config() {
   external_private_user_calendars="$(container_env_value weave-backend WEAVE_CALDAV_EXTERNAL_PRIVATE_USER_CALENDARS)"
   [[ "${external_private_user_calendars}" == "disabled" ]] || fail "Operator check failed: private personal CalDAV calendars must stay disabled until provisioning/sharing is tested"
 
-  docker exec --user www-data weave-nextcloud php occ user:info "${actor_username}" >/dev/null 2>&1 || \
+  docker exec --user www-data "${NEXTCLOUD_CONTAINER}" php occ user:info "${actor_username}" >/dev/null 2>&1 || \
     fail "Operator check failed: Nextcloud backend actor user is not provisioned"
 
   for calendar_id in "${workspace_calendar_id}" weave-team-engineering weave-channel-engineering-general; do
@@ -623,7 +694,15 @@ fi
 synapse_operator_diagnose_volume
 
 log "Checking core containers..."
-for container in weave-proxy weave-keycloak weave-backend weave-mcp-server weave-mas weave-synapse weave-nextcloud weave-db; do
+for container in \
+  "$(weave_container_name proxy)" \
+  "$(weave_container_name keycloak)" \
+  "${BACKEND_CONTAINER}" \
+  "$(weave_container_name mcp-server)" \
+  "$(weave_container_name mas)" \
+  "$(weave_container_name synapse)" \
+  "${NEXTCLOUD_CONTAINER}" \
+  "$(weave_container_name db)"; do
   assert_container_running "${container}"
 done
 
@@ -647,7 +726,7 @@ grep -Fq 'passwords, tokens, client secrets, credential URLs, or activation acti
 [[ "${product_start_page}" != *"127.0.0.1"* && "${product_start_page}" != *"localhost"* && "${product_start_page}" != *"192.168."* ]] || \
   fail "Operator check failed: start page must not expose loopback, localhost, or LAN-IP local truth"
 product_platform_config="$(curl_json "${WEAVE_PUBLIC_BASE_URL}/api/platform/config")"
-assert_json "${product_platform_config}" ".publicBaseUrl == \"${WEAVE_PUBLIC_BASE_URL}\" and .apiBaseUrl == \"${WEAVE_BASE_URL}\"" "product gateway /api/platform/config should proxy app-start discovery"
+assert_json "${product_platform_config}" ".schemaVersion == 1 and .organizationOrigin == \"${WEAVE_PUBLIC_BASE_URL}\" and .controlPlaneBaseUrl == \"${WEAVE_BASE_URL}\"" "product gateway /api/platform/config should proxy OrgManifest v1"
 
 files_product_status="$(curl_status "${WEAVE_PUBLIC_BASE_URL}/files")"
 [[ "${files_product_status}" == "200" ]] || fail "Operator check failed: Weave product files route returned HTTP ${files_product_status} at ${WEAVE_PUBLIC_BASE_URL}/files"
@@ -661,8 +740,21 @@ assert_json "${issuer_config}" ".issuer == \"${WEAVE_OIDC_ISSUER_URL}\"" "public
 backend_health="$(curl_json "${WEAVE_BASE_URL}/health/ready")"
 assert_json "${backend_health}" '.status == "up"' "public backend readiness should report up"
 
-platform_config="$(curl_json "${WEAVE_BASE_URL}/platform/config")"
-assert_json "${platform_config}" '.features.chatE2ee == false and .features.matrixFederation == false' "platform config should not claim Matrix E2EE or federation readiness"
+appservice_callback_status="$(curl_status "${WEAVE_BASE_URL}/internal/chat/matrix/appservice/_matrix/app/v1/transactions/public-denial-proof")"
+[[ "${appservice_callback_status}" == "404" ]] ||
+  fail "Operator check failed: public API route exposed the private Matrix Chat Application Service callback (HTTP ${appservice_callback_status})"
+product_appservice_callback_status="$(curl_status "${WEAVE_PUBLIC_BASE_URL}/api/internal/chat/matrix/appservice/_matrix/app/v1/transactions/public-denial-proof")"
+[[ "${product_appservice_callback_status}" == "404" ]] ||
+  fail "Operator check failed: product gateway exposed the private Matrix Chat Application Service callback (HTTP ${product_appservice_callback_status})"
+chat_provider_proof_status="$(curl_status "${WEAVE_BASE_URL}/internal/e2e/chat/provider-proof")"
+[[ "${chat_provider_proof_status}" == "404" ]] ||
+  fail "Operator check failed: public API route exposed the isolated Chat provider proof boundary (HTTP ${chat_provider_proof_status})"
+product_chat_provider_proof_status="$(curl_status "${WEAVE_PUBLIC_BASE_URL}/api/internal/e2e/chat/provider-proof")"
+[[ "${product_chat_provider_proof_status}" == "404" ]] ||
+  fail "Operator check failed: product gateway exposed the isolated Chat provider proof boundary (HTTP ${product_chat_provider_proof_status})"
+
+platform_status="$(curl_json "${WEAVE_BASE_URL}/platform/status")"
+assert_json "${platform_status}" '.matrix.e2eeEnabled == false and .matrix.federationEnabled == false' "platform status should not claim Matrix E2EE or federation readiness"
 
 nextcloud_status="$(curl_json "${WEAVE_NEXTCLOUD_BASE_URL}/status.php")"
 assert_json "${nextcloud_status}" '.installed == true' "Nextcloud should be installed"
@@ -671,6 +763,7 @@ assert_backend_nextcloud_actor_config
 assert_backend_product_gate_config
 assert_backend_provider_stack_config
 assert_backend_boards_openproject_config
+assert_backend_matrix_chat_provider_config
 assert_authenticated_backend_facades_accept_test_user
 
 if [[ "${WEAVE_PROVIDER_STACK_ENDPOINT_CHECKS:-false}" == "true" ]]; then
@@ -679,10 +772,10 @@ else
   log "Provider-stack endpoint fail-closed checks skipped; set WEAVE_PROVIDER_STACK_ENDPOINT_CHECKS=true when running a backend image with provider endpoints."
 fi
 
-nextcloud_bearer_validation="$(docker exec --user www-data weave-nextcloud php occ config:system:get user_oidc oidc_provider_bearer_validation 2>/dev/null || true)"
+nextcloud_bearer_validation="$(docker exec --user www-data "${NEXTCLOUD_CONTAINER}" php occ config:system:get user_oidc oidc_provider_bearer_validation 2>/dev/null || true)"
 [[ "${nextcloud_bearer_validation}" == "true" ]] || fail "Operator check failed: Nextcloud user_oidc bearer validation is not enabled"
 
-nextcloud_oidc_provider="$(docker exec --user www-data weave-nextcloud php occ user_oidc:provider --output=json keycloak)"
+nextcloud_oidc_provider="$(docker exec --user www-data "${NEXTCLOUD_CONTAINER}" php occ user_oidc:provider --output=json keycloak)"
 assert_json "${nextcloud_oidc_provider}" '.settings.checkBearer == true or .settings.checkBearer == "1" or .settings.checkBearer == 1' "Nextcloud OIDC provider should validate Bearer tokens"
 assert_json "${nextcloud_oidc_provider}" '.settings.bearerProvisioning == true or .settings.bearerProvisioning == "1" or .settings.bearerProvisioning == 1' "Nextcloud OIDC provider should provision Bearer-token users"
 

@@ -39,6 +39,7 @@ grep -Fq 'no retry was attempted' "${install_script}"
 mkdir -p "${TMP_DIR}/workspace/lib"
 cp "${install_script}" "${TMP_DIR}/workspace/install.sh"
 cp "${ROOT_DIR}/lib/calendar-collection.sh" "${TMP_DIR}/workspace/lib/calendar-collection.sh"
+cp "${ROOT_DIR}/lib/runtime-namespace.sh" "${TMP_DIR}/workspace/lib/runtime-namespace.sh"
 export WEAVE_NEXTCLOUD_PROVISION_EVIDENCE_FILE="${TMP_DIR}/nextcloud-evidence.json"
 # shellcheck source=/dev/null
 source "${TMP_DIR}/workspace/install.sh"
@@ -170,8 +171,34 @@ configure_nextcloud_reverse_proxy >/dev/null
 [[ "$(cat "${occ_state}/overwritecondaddr.value")" == '^(?:172\.31\.20\.2)$' ]] ||
   fail "overwrite condition was not scoped to the exact Caddy address"
 
+public_status_attempts="${TMP_DIR}/public-status-attempts"
+printf '0\n' >"${public_status_attempts}"
+# shellcheck disable=SC2329
+curl() {
+  local argument attempts
+  for argument in "$@"; do
+    [[ "${argument}" != --user && "${argument}" != Authorization:* ]] ||
+      fail "public convergence polling must not send provider credentials"
+  done
+  attempts="$(cat "${public_status_attempts}")"
+  attempts="$((attempts + 1))"
+  printf '%s\n' "${attempts}" >"${public_status_attempts}"
+  if ((attempts == 1)); then printf '503'; else printf '200'; fi
+}
+wait_for_public_http_200 "Nextcloud public status" "$(nextcloud_public_url)/status.php" 3 0
+unset -f curl
+[[ "$(cat "${public_status_attempts}")" == 2 ]] ||
+  fail "public convergence polling did not tolerate one transient unauthenticated 503"
+
 dav_calls="${TMP_DIR}/dav-calls"
+public_readiness_calls="${TMP_DIR}/public-readiness-calls"
 : >"${dav_calls}"
+: >"${public_readiness_calls}"
+# shellcheck disable=SC2329
+wait_for_public_http_200() {
+  local name="$1" url="$2"
+  printf '%s %s\n' "${name}" "${url}" >>"${public_readiness_calls}"
+}
 # shellcheck disable=SC2329
 curl_nextcloud_actor_dav_status() {
   local method="$1" url="$2" headers="$3"
@@ -180,6 +207,9 @@ curl_nextcloud_actor_dav_status() {
   printf '207'
 }
 verify_nextcloud_dav_post_provision >/dev/null
+[[ "$(wc -l <"${public_readiness_calls}" | tr -d ' ')" == 1 ]] ||
+  fail "post-provision verification must first converge one unauthenticated public readiness route"
+grep -Fq "Nextcloud public status $(nextcloud_public_url)/status.php" "${public_readiness_calls}"
 [[ "$(wc -l <"${dav_calls}" | tr -d ' ')" == 2 ]] || fail "post-provision verification must make exactly one WebDAV and one CalDAV request"
 jq -e '.status == "passed" and .webdav.attempts == 1 and .caldav.attempts == 1 and .readinessPollingPerformedProviderAuthentication == false' \
   "${WEAVE_NEXTCLOUD_PROVISION_EVIDENCE_FILE}" >/dev/null
@@ -315,5 +345,35 @@ export TF_VAR_isolated_e2e_enabled=true
 if local_credential_state_file >/dev/null 2>&1; then
   fail "isolated E2E must not consume the persistent dogfood credential state"
 fi
+
+export TF_VAR_create_test_user=false
+export TF_VAR_isolated_e2e_enabled=false
+export TF_VAR_context_authorization_bootstrap_enabled=true
+export TF_VAR_context_authorization_default_tenant_id=weave
+export TF_VAR_context_authorization_bootstrap_context_id=workspace-default
+export TF_VAR_context_authorization_bootstrap_principal_ref=user:test
+export TF_VAR_context_authorization_dogfood_principal_ref=user:massimo
+export TF_VAR_context_authorization_bootstrap_role=MEMBER
+normalize_context_authorization_membership_mode
+[[ "${TF_VAR_context_authorization_bootstrap_enabled}" == false ]] ||
+  fail "persistent dogfood must disable the disposable context bootstrap"
+persistent_memberships="$(write_context_authorization_memberships)"
+grep -Fq 'WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_PRINCIPAL_REF=user:massimo' <<<"${persistent_memberships}" ||
+  fail "persistent dogfood must retain its human context membership at index zero"
+grep -Fq 'WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_SOURCE=local-dogfood-bootstrap' <<<"${persistent_memberships}" ||
+  fail "persistent dogfood membership must retain its support-safe source"
+if grep -Fq 'user:test' <<<"${persistent_memberships}" ||
+    grep -Fq 'WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_1_' <<<"${persistent_memberships}"; then
+  fail "persistent dogfood must not restore a disposable or sparse context membership"
+fi
+
+export TF_VAR_create_test_user=true
+export TF_VAR_context_authorization_bootstrap_enabled=true
+normalize_context_authorization_membership_mode
+development_memberships="$(write_context_authorization_memberships)"
+grep -Fq 'WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_PRINCIPAL_REF=user:test' <<<"${development_memberships}" ||
+  fail "local development must retain its explicit disposable bootstrap membership"
+grep -Fq 'WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_1_PRINCIPAL_REF=user:massimo' <<<"${development_memberships}" ||
+  fail "local development must keep contiguous dogfood membership ordering"
 
 printf 'nextcloud health/readiness contract tests passed\n'

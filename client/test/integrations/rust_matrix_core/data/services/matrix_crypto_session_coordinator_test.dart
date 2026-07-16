@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
@@ -55,6 +56,36 @@ class _AuthRepository implements AuthSessionRepository {
 
   @override
   Future<void> signOut(AuthConfiguration configuration) async {}
+}
+
+class _ControlledInitializationBridge extends FakeRustMatrixCoreBridge {
+  final initializationStarted = Completer<void>();
+  final allowInitialization = Completer<void>();
+
+  @override
+  Future<void> initializeClient({
+    required String profileKey,
+    required String homeserverUrl,
+    required String userId,
+    required String deviceId,
+    required String accessToken,
+    required String storePath,
+    required String storePassphrase,
+    String? extraRootCertificatePem,
+  }) async {
+    initializationStarted.complete();
+    await allowInitialization.future;
+    await super.initializeClient(
+      profileKey: profileKey,
+      homeserverUrl: homeserverUrl,
+      userId: userId,
+      deviceId: deviceId,
+      accessToken: accessToken,
+      storePath: storePath,
+      storePassphrase: storePassphrase,
+      extraRootCertificatePem: extraRootCertificatePem,
+    );
+  }
 }
 
 void main() {
@@ -170,6 +201,35 @@ void main() {
         bridge.initializations.map((value) => value['storePassphrase']).toSet(),
         hasLength(1),
       );
+    },
+  );
+
+  test(
+    'dispose waits for an in-flight owner startup before shutdown',
+    () async {
+      final controlledBridge = _ControlledInitializationBridge();
+      bridge = controlledBridge;
+      final coordinator = buildCoordinator(
+        httpClient: whoamiClient(),
+        randomSeed: 1,
+      );
+
+      final opening = coordinator.open(synchronize: false);
+      await controlledBridge.initializationStarted.future;
+      var disposed = false;
+      final disposing = coordinator.disposePreservingCryptoState().then((_) {
+        disposed = true;
+      });
+      await Future<void>.delayed(Duration.zero);
+
+      expect(disposed, isFalse);
+      expect(controlledBridge.disposedProfiles, isEmpty);
+
+      controlledBridge.allowInitialization.complete();
+      final session = await opening;
+      await disposing;
+
+      expect(controlledBridge.disposedProfiles, <String>[session.profileKey]);
     },
   );
 

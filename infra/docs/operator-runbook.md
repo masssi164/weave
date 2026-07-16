@@ -116,6 +116,11 @@ The helper writes one timestamped directory and sets restrictive file permission
 
 Support bundles are **not** backups. `support-bundle.sh` deliberately excludes raw databases, Matrix media, Nextcloud files/calendar data, Caddy ACME state, and generated secrets.
 
+The generated-config archive also contains the private Synapse Chat Application
+Service registration and its independently generated `as_token`/`hs_token`
+files. Restore and rotate that pair only through the coordinated procedure in
+[Matrix/Synapse southbound Chat Application Service](matrix-synapse-chat-appservice.md).
+
 Minimum expectation before calling the stack release-ready:
 
 - backups run on a schedule owned by the operator
@@ -133,6 +138,15 @@ For a host-level restore or failed upgrade rollback:
 4. restore `weave_nextcloud_data`, `weave_synapse_data`, Caddy volumes, and Keycloak runtime volume from their `.tgz` archives when those volumes are part of the deployment
 5. run `bash weave-workspace/install.sh` to reconcile containers and generated config
 6. run `bash weave-workspace/restore-smoke.sh <backup-dir>`
+
+`restore-private-backup.sh` is the guarded persistent-dogfood restore path when the entire Weave runtime boundary is absent. Run its non-mutating preflight first:
+
+```bash
+WEAVE_RESTORE_PREFLIGHT_ONLY=true \
+  bash weave-workspace/restore-private-backup.sh <private-backup-dir>
+```
+
+Apply is allowed only with `WEAVE_DOGFOOD_DEPLOYMENT_SCOPE=persistent-dogfood` and the exact `WEAVE_RESTORE_CONFIRMATION=restore-private-dogfood-backup`. The helper rejects any existing persistent Weave container or volume, initializes PostgreSQL with the restored persistent administrator without introducing a second bootstrap authority, restores only the named PostgreSQL and provider volumes, transactionally restores the stable private bootstrap/TLS assets, rolls back only resources and generated state changed by a failed invocation, and writes support-safe identity-restorability evidence only after the restore commits. The restored credential state is authoritative for the restored databases and providers; a recovery workflow must never replace it with CI placeholder credentials. It explicitly records that Mailpit history is not restored because `backup.sh` does not archive that database. The historical July 2026 text-manifest ordering defect may be reconciled only with `WEAVE_RESTORE_ALLOW_LEGACY_MANIFEST_FINALIZATION_BUG=true`; every domain artifact must still match its recorded hash and the recorded text-manifest hash must match the exact pre-finalization prefix.
 
 `restore-smoke.sh` is safe to run after a restore or clean reprovisioning rehearsal. It never deletes volumes and does not perform the restore itself. When a backup directory is provided it first checks for the expected backup artifacts, then reuses `operator-check.sh` to verify backend readiness, Keycloak discovery, Matrix client versions and MAS discovery, default Matrix room aliases, and raw Nextcloud readiness. If the restored Matrix database is intentionally empty but generated Matrix bootstrap secrets are available, run:
 
@@ -156,6 +170,22 @@ WEAVE_RESTORE_SMOKE_ARTIFACTS_ONLY=true bash weave-workspace/restore-smoke.sh <b
 ```
 
 Artifact-only mode validates the backup directory shape and then exits with an explicit note that service readiness was not checked.
+
+### Exceptional retirement of a lost pending dogfood identity
+
+Restoring the private Keycloak database is always the first recovery path. Verify required artifact hashes and replay PostgreSQL through `restore-private-backup.sh` before starting the persistent runtime. A backup that restores platform/provider data but predates the recorded protected subject is not identity-restorable for that member and must not be described as session preservation. Use the protected `Dogfood Pending Identity Recovery` workflow only when the support-safe platform-restore evidence proves no identity-restorable backup exists and the last accepted evidence proves that the persistent human identity never completed activation. The evidence must still describe the recorded subject as pending with `VERIFY_EMAIL` and `UPDATE_PASSWORD`, no later active evidence may exist, and neither the configured username/email nor the recorded subject may resolve in the current realm. An active, disabled, ambiguous, previously authenticated, or insufficiently evidenced identity must never be replaced.
+
+If the replayed platform backup contains the historical disposable `test` bootstrap identity, the workflow additionally requires the typed confirmation `retire-restored-test-bootstrap`. It removes that exact subject through the Keycloak administration API only after proving the protected username and recorded subject are absent and `test` is the realm's sole non-service identity. It fails closed for any other, additional, or ambiguous human identity; direct database deletion and broad realm cleanup are forbidden.
+
+The workflow requires an exact candidate already contained in `dogfood`, successful exact-commit isolated Live Stack E2E evidence, the protected `dogfood` environment, the shared non-cancelling persistent deployment lock, and the typed confirmation `retire-lost-pending-identity`. Do not call `dogfood-member.sh recover-lost-pending` or `retire-restored-bootstrap` from routine deployment or an unprotected operator shell. The protected operation keeps disposable identity inputs and destructive volume removal disabled, archives the previous raw subject only in mode-`0600` private operator state, creates one new pending Keycloak identity, verifies its activation mail, and creates a private post-recovery backup plus restore-smoke receipt. Raw subjects, mail, database dumps, and backup archives are never uploaded; shared evidence contains hashes and support-safe status only.
+
+Successful recovery is deliberately not human-testing readiness. Its manifest remains `overallState=blocked` and `humanTestingReady=false`. Continue in this order:
+
+1. the human tester completes the Keycloak activation from the private Mailpit message;
+2. the tester performs an explicit normal OIDC sign-in on the physical iPhone so an active Keycloak session exists; and
+3. run the standard `Test Stack Deploy` workflow for the same candidate; that workflow applies the persistent deployment twice, verifies the active immutable subject/session and idempotency, and remains the only path to green persistent dogfood deployment evidence.
+
+Only the normal readiness chain after those steps can advance toward iOS distribution and physical-device VoiceOver acceptance. The exceptional recovery workflow itself can never emit `humanTestingReady=true`.
 
 ## 7. Stop, clean rebuild, and destructive reset
 

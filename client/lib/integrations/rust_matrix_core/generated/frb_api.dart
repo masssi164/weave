@@ -42,6 +42,14 @@ Future<String> syncMatrixClient({required String profileKey}) =>
 Future<String> matrixRooms({required String profileKey}) =>
     RustLib.instance.api.crateFrbApiMatrixRooms(profileKey: profileKey);
 
+Future<String> matrixCreateEncryptedRoom({
+  required String profileKey,
+  required String title,
+}) => RustLib.instance.api.crateFrbApiMatrixCreateEncryptedRoom(
+  profileKey: profileKey,
+  title: title,
+);
+
 Future<String> matrixRoomMessages({
   required String profileKey,
   required String roomId,

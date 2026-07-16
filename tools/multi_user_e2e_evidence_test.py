@@ -24,7 +24,9 @@ class MultiUserE2EEvidenceTest(unittest.TestCase):
         self.identity = self.root / "identity.json"
         self.authorization = self.root / "authorization.json"
         self.calendar_outage = self.root / "calendar-outage.json"
+        self.chat_provider = self.root / "chat-provider.json"
         self.cleanup = self.root / "cleanup.json"
+        self.stack_teardown = self.root / "stack-teardown.json"
         self.output = self.root / "result.json"
         markers = (
             "MULTI_USER_AUTH_SHELL_RESULT",
@@ -131,6 +133,11 @@ class MultiUserE2EEvidenceTest(unittest.TestCase):
                             "runHash": "a" * 16,
                             "supportSafe": True,
                             **passed_facts[marker],
+                            **(
+                                {"coldCollaboratorDeviceSetVerified": True}
+                                if marker == "MULTI_USER_CHAT_RESULT" and run_index == 1
+                                else {}
+                            ),
                         }
                     )
                 )
@@ -233,6 +240,104 @@ class MultiUserE2EEvidenceTest(unittest.TestCase):
             ),
             encoding="utf-8",
         )
+        self.chat_provider.write_text(
+            json.dumps(
+                {
+                    "schemaVersion": "weave.isolated-e2e-chat-provider.v1",
+                    "candidateCommit": COMMIT,
+                    "namespaceSha256": "d" * 64,
+                    "supportSafe": True,
+                    "isolatedRuntimeVerified": True,
+                    "providerEvidenceEndpointReadOnly": True,
+                    "callbackReplayTriggerScoped": True,
+                    "southboundProviderAdapterVerified": True,
+                    "applicationServiceBoundaryVerified": True,
+                    "canonicalDurableStorageVerified": True,
+                    "persistentHumanIdentityChanged": False,
+                    "repeatCount": 2,
+                    "credentialsIncluded": False,
+                    "rawIdentityIncluded": False,
+                    "rawProviderReferenceIncluded": False,
+                    "rawProviderPayloadIncluded": False,
+                    "rawCiphertextIncluded": False,
+                    "rawContentIncluded": False,
+                    "passes": [self.provider_pass(1), self.provider_pass(2)],
+                }
+            ),
+            encoding="utf-8",
+        )
+        self.stack_teardown.write_text(
+            json.dumps(
+                {
+                    "schemaVersion": "weave.isolated-stack-teardown.v1",
+                    "candidateCommit": COMMIT,
+                    "namespaceSha256": "d" * 64,
+                    "isolatedRuntimeVerified": True,
+                    "providerNamespaceDestroyed": True,
+                    "postRemovalCounts": {
+                        "containers": {"weave-backend": 0, "weave-synapse": 0},
+                        "networks": {"weave-e2e-test-network": 0},
+                        "volumes": {
+                            "weave_matrix_chat_appservice_runtime": 0,
+                            "weave_synapse_data": 0,
+                        },
+                        "remainingOwnedResources": 0,
+                    },
+                    "persistentDogfoodTouched": False,
+                    "credentialsIncluded": False,
+                    "rawProviderPayloadIncluded": False,
+                    "supportSafe": True,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    @staticmethod
+    def provider_pass(run_index: int) -> dict[str, object]:
+        base = run_index * 4
+        return {
+            "runIndex": run_index,
+            "status": "passed",
+            "scenarioSha256": str(run_index) * 64,
+            "directProviderApiReadback": True,
+            "authenticatedProviderReadback": True,
+            "authorizedVirtualUserCount": 2,
+            "authorJoined": True,
+            "collaboratorJoined": True,
+            "outsiderRoomMembershipAbsent": True,
+            "outsiderReadDenied": True,
+            "outsiderWriteDenied": True,
+            "correlatedEncryptedEventCount": 3,
+            "correlatedPlaintextEventCount": 0,
+            "plaintextSentinelAbsent": True,
+            "canonicalCommittedEventCount": 3,
+            "providerAcknowledgedEventCount": 3,
+            "providerMembershipExact": True,
+            "providerEncryptionStateVerified": True,
+            "providerEventMappingExact": True,
+            "providerCiphertextCorrelationExact": True,
+            "correlationSha256": [
+                format(base + offset, "x") * 64 for offset in (0, 1, 2)
+            ],
+            "backendRestartContinuity": True,
+            "providerRestartContinuity": True,
+            "outageOperationInvisible": True,
+            "providerUnavailableSupportSafe": True,
+            "otherSurfacesReachableDuringOutage": True,
+            "sameTransactionRetry": True,
+            "retryCommittedExactlyOnce": True,
+            "pendingOperationCountAfterRecovery": 0,
+            "duplicateOperationCount": 0,
+            "callbackReplayDeduplicated": True,
+            "canonicalEventDeltaAfterReplay": 0,
+            "providerEventDeltaAfterReplay": 0,
+            "ledgerDeltaAfterReplay": 0,
+            "providerReadiness": "available",
+            "providerHealthCached": True,
+            "providerHealthObservationAgeSeconds": run_index,
+            "runResourcesCleanupComplete": True,
+            "supportSafe": True,
+        }
 
     def tearDown(self) -> None:
         self.temp.cleanup()
@@ -258,8 +363,12 @@ class MultiUserE2EEvidenceTest(unittest.TestCase):
                 str(self.authorization),
                 "--calendar-outage-evidence",
                 str(self.calendar_outage),
+                "--chat-provider-evidence",
+                str(self.chat_provider),
                 "--cleanup-evidence",
                 str(self.cleanup),
+                "--stack-teardown-evidence",
+                str(self.stack_teardown),
                 "--output",
                 str(self.output),
             ],
@@ -276,6 +385,16 @@ class MultiUserE2EEvidenceTest(unittest.TestCase):
         result = json.loads(self.output.read_text(encoding="utf-8"))
         self.assertEqual(result["collaboration"]["repeatCount"], 2)
         self.assertEqual(result["collaboration"]["cleanupStatus"], "passed")
+        self.assertTrue(
+            result["collaboration"]["providerPersistence"][
+                "southboundProviderAdapterVerified"
+            ]
+        )
+        self.assertTrue(
+            result["collaboration"]["providerPersistence"][
+                "directProviderApiReadback"
+            ]
+        )
 
     def test_missing_second_pass_is_rejected(self) -> None:
         lines = [line for line in self.log.read_text(encoding="utf-8").splitlines() if '"runIndex": 2' not in line]
@@ -334,6 +453,79 @@ class MultiUserE2EEvidenceTest(unittest.TestCase):
         self.assertEqual(completed.returncode, 2)
         self.assertIn(
             "calendarCollectionKind must be dedicated-non-default",
+            completed.stderr,
+        )
+
+    def test_chat_provider_requires_two_distinct_passes(self) -> None:
+        data = json.loads(self.chat_provider.read_text(encoding="utf-8"))
+        data["passes"] = data["passes"][:1]
+        self.chat_provider.write_text(json.dumps(data), encoding="utf-8")
+        completed = self.run_script()
+        self.assertEqual(completed.returncode, 2)
+        self.assertIn("exactly two passes", completed.stderr)
+
+    def test_chat_provider_false_exactly_once_claim_is_rejected(self) -> None:
+        data = json.loads(self.chat_provider.read_text(encoding="utf-8"))
+        data["passes"][1]["retryCommittedExactlyOnce"] = False
+        self.chat_provider.write_text(json.dumps(data), encoding="utf-8")
+        completed = self.run_script()
+        self.assertEqual(completed.returncode, 2)
+        self.assertIn("retryCommittedExactlyOnce must be True", completed.stderr)
+
+    def test_chat_provider_count_only_convergence_claim_is_rejected(self) -> None:
+        data = json.loads(self.chat_provider.read_text(encoding="utf-8"))
+        data["passes"][0]["providerEventMappingExact"] = False
+        self.chat_provider.write_text(json.dumps(data), encoding="utf-8")
+
+        completed = self.run_script()
+
+        self.assertEqual(completed.returncode, 2)
+        self.assertIn("providerEventMappingExact must be True", completed.stderr)
+
+    def test_chat_provider_raw_reference_is_rejected(self) -> None:
+        data = json.loads(self.chat_provider.read_text(encoding="utf-8"))
+        data["passes"][0]["providerRoomId"] = "!private:example.invalid"
+        self.chat_provider.write_text(json.dumps(data), encoding="utf-8")
+        completed = self.run_script()
+        self.assertEqual(completed.returncode, 2)
+        self.assertIn("forbidden sensitive field", completed.stderr)
+
+    def test_chat_provider_candidate_and_namespace_must_match(self) -> None:
+        data = json.loads(self.chat_provider.read_text(encoding="utf-8"))
+        data["candidateCommit"] = "2" * 40
+        self.chat_provider.write_text(json.dumps(data), encoding="utf-8")
+        completed = self.run_script()
+        self.assertEqual(completed.returncode, 2)
+        self.assertIn("candidateCommit", completed.stderr)
+
+        data["candidateCommit"] = COMMIT
+        data["namespaceSha256"] = "e" * 64
+        self.chat_provider.write_text(json.dumps(data), encoding="utf-8")
+        completed = self.run_script()
+        self.assertEqual(completed.returncode, 2)
+        self.assertIn("namespaceSha256", completed.stderr)
+
+    def test_teardown_must_prove_provider_namespace_destroyed(self) -> None:
+        data = json.loads(self.stack_teardown.read_text(encoding="utf-8"))
+        data["providerNamespaceDestroyed"] = False
+        data["postRemovalCounts"]["volumes"]["weave_synapse_data"] = 1
+        data["postRemovalCounts"]["remainingOwnedResources"] = 1
+        self.stack_teardown.write_text(json.dumps(data), encoding="utf-8")
+        completed = self.run_script()
+        self.assertEqual(completed.returncode, 2)
+        self.assertIn("providerNamespaceDestroyed must be True", completed.stderr)
+
+    def test_teardown_rejects_a_surviving_owned_resource(self) -> None:
+        data = json.loads(self.stack_teardown.read_text(encoding="utf-8"))
+        data["postRemovalCounts"]["containers"]["weave-backend"] = 1
+        data["postRemovalCounts"]["remainingOwnedResources"] = 1
+        self.stack_teardown.write_text(json.dumps(data), encoding="utf-8")
+
+        completed = self.run_script()
+
+        self.assertEqual(completed.returncode, 2)
+        self.assertIn(
+            "postRemovalCounts.containers must contain only zero counts",
             completed.stderr,
         )
 
@@ -400,6 +592,17 @@ class MultiUserE2EEvidenceTest(unittest.TestCase):
         completed = self.run_script()
         self.assertEqual(completed.returncode, 2)
         self.assertIn("ciphertextOnlyTransport=True", completed.stderr)
+
+    def test_warmed_second_pass_cannot_replace_cold_collaborator_proof(self) -> None:
+        content = self.log.read_text(encoding="utf-8").replace(
+            ', "coldCollaboratorDeviceSetVerified": true',
+            "",
+            1,
+        )
+        self.log.write_text(content, encoding="utf-8")
+        completed = self.run_script()
+        self.assertEqual(completed.returncode, 2)
+        self.assertIn("coldCollaboratorDeviceSetVerified=True", completed.stderr)
 
     def test_blocked_markers_produce_explicit_blocked_evidence(self) -> None:
         content = self.log.read_text(encoding="utf-8")

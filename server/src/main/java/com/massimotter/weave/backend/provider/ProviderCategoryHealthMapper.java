@@ -31,7 +31,7 @@ final class ProviderCategoryHealthMapper {
                         "identity/IDM",
                         capabilities.shellAccess(),
                         safeProviders,
-                        modules(ProviderModule.IDENTITY_REALM, ProviderModule.MATRIX_AUTH),
+                        modules(ProviderModule.IDENTITY_REALM),
                         selections,
                         evidenceTimestamp),
                 capabilityCategory(
@@ -141,9 +141,8 @@ final class ProviderCategoryHealthMapper {
             ProviderSelectionRepository selections,
             Instant evidenceTimestamp) {
         SelectionView selection = selectionView(category, selections);
-        ProviderCategoryReadiness readiness = selection.selectedByAdmin() || modules.isEmpty()
-                ? fromCapability(capability)
-                : ProviderCategoryReadiness.MISCONFIGURED;
+        ProviderCategoryReadiness readiness = effectiveCapabilityReadiness(
+                capability, providers, modules, selection.selectedByAdmin());
         ProviderRealityLevel realityLevel = categoryRealityLevel(category, providers, modules, selection);
         String memberState = memberCapabilityState(capability.policyState(), readiness, realityLevel, selection.selectedByAdmin() || modules.isEmpty());
         return new ProviderCategoryStatusResponse(
@@ -294,6 +293,21 @@ final class ProviderCategoryHealthMapper {
         };
     }
 
+    private static ProviderCategoryReadiness effectiveCapabilityReadiness(
+            WorkspaceCapabilityStatusResponse capability,
+            List<ProviderStatusResponse> providers,
+            Set<ProviderModule> modules,
+            boolean selectedByAdmin) {
+        ProviderCategoryReadiness capabilityReadiness = fromCapability(capability);
+        if (modules.isEmpty() || capabilityReadiness != ProviderCategoryReadiness.READY) {
+            return capabilityReadiness;
+        }
+        if (!selectedByAdmin) {
+            return ProviderCategoryReadiness.MISCONFIGURED;
+        }
+        return fromProviders(matching(providers, modules));
+    }
+
     private static ProviderCategoryReadiness fromProviders(List<ProviderStatusResponse> providers) {
         if (providers.isEmpty() || providers.stream().noneMatch(ProviderStatusResponse::enabled)) {
             return ProviderCategoryReadiness.DISABLED;
@@ -339,9 +353,7 @@ final class ProviderCategoryHealthMapper {
     private static boolean reachable(ProviderStatusResponse provider) {
         return provider.enabled()
                 && provider.configured()
-                && (provider.state() == ProviderState.READY
-                || provider.state() == ProviderState.CONFIGURED
-                || provider.state() == ProviderState.DEGRADED);
+                && provider.state() == ProviderState.READY;
     }
 
     private static Map<String, Object> providerEvidenceDiagnostics(

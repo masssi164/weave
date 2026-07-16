@@ -62,12 +62,19 @@ class MatrixE2eeStateServicePersistenceTest {
         Map<String, Object> accountData = restarted.accountData(
                 trusted,
                 "m.secret_storage.default_key");
+        long restoredSequence = sync.nextSequence();
+
+        restarted.sendToDevice(trusted, "m.room_key", "txn-persisted", Map.of(
+                "messages", Map.of(second.userId(), Map.of(
+                        second.deviceId(), Map.of("ciphertext", "must-not-be-published-twice")))));
 
         assertThat(queried.toString()).contains("trusted-public-key", "second-public-key");
         assertThat(sync.toDeviceEvents()).singleElement().satisfies(event ->
                 assertThat(event.toString()).contains("opaque-to-device"));
         assertThat(backup.toString()).contains("opaque-backup").doesNotContain("plaintext", "recoveryKey");
         assertThat(accountData).containsEntry("key", "weave-recovery-key-id");
+        assertThat(restarted.currentSequence()).isEqualTo(restoredSequence);
+        assertThat(restarted.sync(second, restoredSequence).toDeviceEvents()).isEmpty();
         assertThatThrownBy(() -> restarted.requireActive(identity(
                         "WEAVERENAMEDDEVICE",
                         "oidc-session-hash-a")))
@@ -76,6 +83,9 @@ class MatrixE2eeStateServicePersistenceTest {
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from weave_matrix_e2ee_snapshots",
                 Integer.class)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                "select sequence_value from weave_matrix_e2ee_snapshots where tenant_id = 'tenant-a'",
+                Long.class)).isEqualTo(restoredSequence);
     }
 
     @Test
@@ -142,6 +152,7 @@ class MatrixE2eeStateServicePersistenceTest {
                 new ChatActorRef("user:subject"),
                 deviceId,
                 "tenant-a",
+                "https://auth.example/realms/a",
                 oidcSessionHash);
     }
 

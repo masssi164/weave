@@ -90,8 +90,21 @@ class JdbcProviderSelectionRepositoryTest {
                         "WEAVE_MIGRATION_RUN_EVIDENCE",
                         "WEAVE_DEVICE_CREDENTIALS",
                         "WEAVE_MATRIX_E2EE_SNAPSHOTS",
+                        "WEAVE_MATRIX_REVOKED_SESSIONS",
+                        "WEAVE_MATRIX_IDENTITY_PROJECTION",
                         "WEAVE_IDENTITY_PROVISIONING_INTENTS",
-                        "WEAVE_KEYCLOAK_EVENT_RECEIPTS");
+                        "WEAVE_KEYCLOAK_EVENT_RECEIPTS",
+                        "WEAVE_CHAT_CONVERSATIONS",
+                        "WEAVE_CHAT_MEMBERSHIPS",
+                        "WEAVE_CHAT_EVENTS",
+                        "WEAVE_CHAT_OPERATIONS",
+                        "WEAVE_CHAT_OUTBOX",
+                        "WEAVE_CHAT_PROVIDER_MAPPINGS",
+                        "WEAVE_CHAT_BRIDGE_LEDGER",
+                        "WEAVE_CHAT_APPSERVICE_TRANSACTIONS",
+                        "WEAVE_CHAT_QUARANTINE",
+                        "WEAVE_CHAT_READ_RECEIPTS",
+                        "WEAVE_CHAT_CHANGES");
     }
 
     @Test

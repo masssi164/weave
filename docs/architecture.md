@@ -90,32 +90,11 @@ The server owns a Chat domain facade seam and an OIDC-gated Matrix Client-Server
 
 The remaining canonical server domain facades are represented by non-Chat skeleton contracts for Files/Documents, Calendar/Meetings, Boards/Tasks, and Identity/Admin/Policy. They are Weave product contracts, not provider proxies: each names canonical object kinds and adapter-boundary operations, evaluates capability policy before provider lookup, fails closed for unknown capabilities, returns empty Weave-domain collections until a promoted adapter exists, and exposes only support-safe admin mappings with SecretRef presence flags rather than secret material, raw provider URLs, downstream payloads, or provider errors.
 
-## Shared server configuration
-`features/server_config/` owns the shared configuration model used by both onboarding and settings.
+## Organization bootstrap configuration
 
-Persisted fields:
+`GET /api/platform/config` returns the strict provider-neutral `OrgManifest` v1 pinned by the canonical specification corpus. The member client resolves it from the organization origin and consumes only the OIDC contract plus Weave-owned Matrix Client-Server, WebDAV Files, and CalDAV Calendar facade bases. The manifest includes provider-neutral state for Identity, Chat, Files, Calendar, Boards, and Health; it contains no provider identifier, provider URL, provider reality level, or editable provider override.
 
-- `providerType`
-- `oidcIssuerUrl`
-- `matrixHomeserverUrl`
-- `nextcloudBaseUrl`
-- `backendApiBaseUrl`
-
-Derivation rule:
-
-- parse the issuer URL
-- use the issuer host
-- if the host has 3 or more labels, drop the first label
-- derive:
-  - `https://matrix.<base-domain>`
-  - `https://files.<base-domain>`
-  - `https://api.<base-domain>/api`
-
-Example:
-
-- `https://auth.home.internal` becomes `https://matrix.home.internal`, `https://files.home.internal`, and `https://api.home.internal/api`
-
-This is intentionally simple, explicit, and easy to change later. It is a convenience default, not a hard rule. Users can edit the derived values during setup and in Settings.
+`features/server_config/` persists the resolved OIDC and Weave facade configuration needed for session restore. When older preference data is loaded, stale Matrix or Files-provider endpoint values are discarded and reconstructed from the Weave control-plane base. Manual setup exposes the organization/identity and Weave API boundary only; provider endpoints are not member-editable settings.
 
 ## Persistence split
 Persistence is split by responsibility:

@@ -29,6 +29,10 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final capabilitySnapshot = ref.watch(workspaceCapabilitySnapshotProvider);
+    final canCreateEvent = capabilitySnapshot.maybeWhen(
+      data: (snapshot) => snapshot.calendar.isReady,
+      orElse: () => false,
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -36,7 +40,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
         actions: [
           IconButton(
             tooltip: l10n.calendarCreateButton,
-            onPressed: () => _showEventEditor(context),
+            onPressed: canCreateEvent ? () => _showEventEditor(context) : null,
             icon: const Icon(Icons.add),
           ),
         ],

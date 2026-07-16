@@ -3,6 +3,13 @@
 
 set -euo pipefail
 
+ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=infra/weave-workspace/lib/runtime-namespace.sh
+source "${ROOT_DIR}/lib/runtime-namespace.sh"
+NEXTCLOUD_CONTAINER="$(weave_container_name nextcloud)"
+BACKEND_CONTAINER="$(weave_container_name backend)"
+PROXY_CONTAINER="$(weave_container_name proxy)"
+
 LOG_FILE=""
 OUTPUT_FILE=""
 TAIL_LINES="${WEAVE_NEXTCLOUD_SECURITY_AUDIT_LINES:-2000}"
@@ -46,7 +53,7 @@ print(network.get("IPAddress", ""))
 }
 
 read_live_log() {
-  docker exec weave-nextcloud sh -c 'if [ -f /var/www/html/data/nextcloud.log ]; then tail -n "$1" /var/www/html/data/nextcloud.log; fi' sh "${TAIL_LINES}"
+  docker exec "${NEXTCLOUD_CONTAINER}" sh -c 'if [ -f /var/www/html/data/nextcloud.log ]; then tail -n "$1" /var/www/html/data/nextcloud.log; fi' sh "${TAIL_LINES}"
 }
 
 configured_backend_actor() {
@@ -58,7 +65,7 @@ configured_backend_actor() {
   # A live support-bundle invocation does not necessarily source bootstrap.env.
   # Read only the actor username from the isolated backend container config and
   # keep it internal to the classifier.
-  docker inspect --format '{{json .Config.Env}}' weave-backend 2>/dev/null |
+  docker inspect --format '{{json .Config.Env}}' "${BACKEND_CONTAINER}" 2>/dev/null |
     python3 -c 'import json,sys
 for value in json.load(sys.stdin):
     if value.startswith("WEAVE_NEXTCLOUD_FILES_ACTOR_USERNAME="):
@@ -84,9 +91,9 @@ main() {
   else
     command -v docker >/dev/null || fail "docker is required for live audit"
     read_live_log >"${raw_file}"
-    proxy_ip="$(container_ip weave-proxy)"
-    backend_ip="$(container_ip weave-backend)"
-    nextcloud_ip="$(container_ip weave-nextcloud)"
+    proxy_ip="$(container_ip "${PROXY_CONTAINER}")"
+    backend_ip="$(container_ip "${BACKEND_CONTAINER}")"
+    nextcloud_ip="$(container_ip "${NEXTCLOUD_CONTAINER}")"
   fi
   salt="${WEAVE_AUDIT_HASH_SALT:-$(openssl rand -hex 16)}"
   if [[ -n "${LOG_FILE}" ]]; then

@@ -122,6 +122,42 @@ SECRET_VALUE_PATTERN = re.compile(
     r"(?i)(access[_-]?token|refresh[_-]?token|id[_-]?token|password|client[_-]?secret)"
     r"(\s*[=:]\s*)([^\s,;&]+)"
 )
+SAFE_E2EE_SUPPORT_CODES = (
+    "M_WEAVE_E2EE_OLM_DECRYPTION_FAILURE",
+    "M_WEAVE_E2EE_OLM_SENDER_NOT_TRUSTED",
+    "M_WEAVE_E2EE_OLM_UNAVAILABLE",
+    "M_WEAVE_E2EE_TO_DEVICE_INVALID",
+    "M_WEAVE_E2EE_ROOM_KEY_NOT_RECEIVED",
+    "M_WEAVE_E2EE_ROOM_KEY_NOT_IMPORTED",
+    "M_WEAVE_E2EE_MISSING_MEGOLM_SESSION",
+    "M_WEAVE_E2EE_MISMATCHED_IDENTITY_KEYS",
+    "M_WEAVE_E2EE_SENDER_NOT_TRUSTED",
+    "M_WEAVE_E2EE_UNABLE_TO_DECRYPT",
+    "M_WEAVE_E2EE_MESSAGE_NOT_OBSERVED",
+    "M_WEAVE_E2EE_DEVICE_EXCHANGE_FAILED",
+)
+E2EE_SUPPORT_CODE_PATTERN = re.compile(
+    rf"Failure code:\s*({'|'.join(SAFE_E2EE_SUPPORT_CODES)})(?:\.|\s|$)"
+)
+E2EE_DIAGNOSTIC_FIELDS = (
+    "eventCount",
+    "decryptedCount",
+    "unableToDecryptCount",
+    "toDeviceDecryptedCount",
+    "toDeviceRoomKeyCount",
+    "toDeviceForwardedRoomKeyCount",
+    "toDeviceOtherCount",
+    "toDeviceUnknownTypeCount",
+    "toDeviceUnableToDecryptCount",
+    "toDevicePlaintextCount",
+    "toDeviceInvalidCount",
+)
+E2EE_DIAGNOSTIC_PATTERN = re.compile(
+    r"(?:^|\s)MULTI_USER_E2EE_DIAGNOSTIC "
+    r"role=(author|collaborator) runIndex=(\d+) available=([01]) "
+    + r" ".join(rf"{field}=(\d+)" for field in E2EE_DIAGNOSTIC_FIELDS)
+    + r"\s*$"
+)
 
 
 def _parse_args() -> argparse.Namespace:
@@ -191,6 +227,31 @@ def _last_progress_phase(raw_log: str, run_index: int) -> str:
     return phase
 
 
+def _e2ee_support_code(raw_log: str) -> str | None:
+    matches = E2EE_SUPPORT_CODE_PATTERN.findall(raw_log)
+    return matches[-1] if matches else None
+
+
+def _e2ee_diagnostics(raw_log: str, run_index: int) -> list[str]:
+    diagnostics: list[str] = []
+    for line in raw_log.splitlines():
+        match = E2EE_DIAGNOSTIC_PATTERN.search(line)
+        if match is None or int(match.group(2)) != run_index:
+            continue
+        role = match.group(1)
+        available = match.group(3)
+        counts = " ".join(
+            f"{field}={match.group(index + 4)}"
+            for index, field in enumerate(E2EE_DIAGNOSTIC_FIELDS)
+        )
+        diagnostics.append(
+            "SANITIZED_MULTI_USER_E2EE_DIAGNOSTIC "
+            f"role={role} runIndex={run_index} available={available} "
+            f"{counts} supportSafe=true"
+        )
+    return diagnostics[-2:]
+
+
 def main() -> int:
     args = _parse_args()
     raw_log = args.input.read_text(encoding="utf-8", errors="replace")
@@ -214,13 +275,19 @@ def main() -> int:
     for marker, payload in safe_markers:
         print(f"{marker} {json.dumps(payload, sort_keys=True, separators=(',', ':'))}")
 
+    for diagnostic in _e2ee_diagnostics(raw_log, args.run_index):
+        print(diagnostic)
+
     test_status = "passed" if args.test_exit_code == 0 else "failed"
     if args.test_exit_code != 0:
         category, signature = _failure_diagnostic(raw_log)
+        support_code = _e2ee_support_code(raw_log)
+        support_code_field = f" supportCode={support_code}" if support_code else ""
         print(
             "SANITIZED_MULTI_USER_FAILURE "
             f"status=failed runIndex={args.run_index} category={category} "
-            f"phase={progress_phase} signatureHash={signature} supportSafe=true"
+            f"phase={progress_phase} signatureHash={signature}"
+            f"{support_code_field} supportSafe=true"
         )
     validation_status = "passed" if invalid_marker_count == 0 else "failed"
     print(

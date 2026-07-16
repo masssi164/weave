@@ -39,10 +39,6 @@ class SharedPreferencesServerConfigurationRepository
       final normalizedClientId = _normalizedClientId(
         configuration.oidcClientRegistration.clientId,
       );
-      final nextcloudUrl = _deriver.parseServiceUrl(
-        configuration.serviceEndpoints.nextcloudBaseUrl.toString(),
-        fieldName: 'the Nextcloud URL',
-      );
       final backendApiUrl = _deriver.parseServiceUrl(
         configuration.serviceEndpoints.backendApiBaseUrl.toString(),
         fieldName: 'the backend API URL',
@@ -50,6 +46,7 @@ class SharedPreferencesServerConfigurationRepository
       // Matrix is a Weave API-origin projection. Ignore stale provider-shaped
       // values from older on-device configuration without clearing the profile.
       final matrixUrl = _deriver.matrixFacadeFromBackendApi(backendApiUrl);
+      final filesUrl = _deriver.filesFacadeFromBackendApi(backendApiUrl);
 
       // Older clients wrote this completion flag before entering their global
       // setup/readiness flow. It is not an application-entry contract. Remove
@@ -64,7 +61,7 @@ class SharedPreferencesServerConfigurationRepository
         ),
         serviceEndpoints: configuration.serviceEndpoints.copyWith(
           matrixHomeserverUrl: matrixUrl,
-          nextcloudBaseUrl: nextcloudUrl,
+          nextcloudBaseUrl: filesUrl,
           backendApiBaseUrl: backendApiUrl,
         ),
       );
@@ -85,6 +82,9 @@ class SharedPreferencesServerConfigurationRepository
       final normalized = configuration.copyWith(
         serviceEndpoints: endpoints.copyWith(
           matrixHomeserverUrl: _deriver.matrixFacadeFromBackendApi(
+            endpoints.backendApiBaseUrl,
+          ),
+          nextcloudBaseUrl: _deriver.filesFacadeFromBackendApi(
             endpoints.backendApiBaseUrl,
           ),
         ),

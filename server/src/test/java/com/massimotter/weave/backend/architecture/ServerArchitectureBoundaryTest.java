@@ -29,6 +29,7 @@ class ServerArchitectureBoundaryTest {
             BACKEND_PACKAGE + "calls.livekit.",
             BACKEND_PACKAGE + "identity.realm.");
     private static final List<String> PROVIDER_ADAPTER_IMPORT_PREFIXES = List.of(
+            BACKEND_PACKAGE + "chat.provider.",
             BACKEND_PACKAGE + "boards.openproject.",
             BACKEND_PACKAGE + "boards.vikunja.",
             BACKEND_PACKAGE + "boards.deck.",
@@ -130,7 +131,8 @@ class ServerArchitectureBoundaryTest {
                 .toList())
                 .anyMatch(path -> path.endsWith(Path.of("files", "port", "FilesProviderPort.java")))
                 .anyMatch(path -> path.endsWith(Path.of("calendar", "port", "CalendarProviderPort.java")))
-                .anyMatch(path -> path.endsWith(Path.of("chat", "port", "ChatProviderPort.java")));
+                .anyMatch(path -> path.endsWith(Path.of("chat", "port", "ChatProviderPort.java")))
+                .anyMatch(path -> path.endsWith(Path.of("boards", "port", "BoardsRepository.java")));
     }
 
     @Test
@@ -258,6 +260,21 @@ class ServerArchitectureBoundaryTest {
     }
 
     @Test
+    void boardsControllerRoutesThroughCanonicalFacadeRatherThanConcreteAdapters() throws IOException {
+        JavaSource boardsController = productionSources().stream()
+                .filter(source -> source.path().endsWith(Path.of("controller", "BoardsController.java")))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(boardsController.text())
+                .contains("BoardsFacadeService")
+                .doesNotContain("OpenProjectBoardsRepository")
+                .doesNotContain("LocalWorkspaceBoardsRepository")
+                .doesNotContain("VikunjaBoardsRepository")
+                .doesNotContain("NextcloudDeckBoardsRepository");
+    }
+
+    @Test
     void matrixClientServerProjectionUsesCanonicalChatAndNativeCoreNotRestDtos() throws IOException {
         JavaSource matrixProjection = productionSources().stream()
                 .filter(source -> source.path().endsWith(Path.of("controller", "MatrixClientServerProjectionController.java")))
@@ -281,6 +298,58 @@ class ServerArchitectureBoundaryTest {
                 .doesNotContain("BridgeAdapter")
                 .doesNotContain("providerAccessToken")
                 .doesNotContain("RestClient");
+    }
+
+    @Test
+    void synapseApplicationServiceRemainsASouthboundPrivateAdapter() throws IOException {
+        JavaSource runtimeConfiguration = sourceEndingWith(
+                Path.of("config", "ChatRuntimeConfiguration.java"));
+        JavaSource canonicalAdapter = sourceEndingWith(
+                Path.of("chat", "provider", "synapse", "SynapseBackedCanonicalChatAdapter.java"));
+        JavaSource southboundAdapter = sourceEndingWith(
+                Path.of("chat", "provider", "synapse", "MatrixSynapseChatSouthboundAdapter.java"));
+        JavaSource callbackController = sourceEndingWith(
+                Path.of("chat", "provider", "synapse", "MatrixApplicationServiceController.java"));
+        JavaSource callbackSecurity = sourceEndingWith(
+                Path.of("config", "MatrixApplicationServiceSecurityConfiguration.java"));
+        JavaSource secrets = sourceEndingWith(
+                Path.of("chat", "provider", "synapse", "MatrixApplicationServiceSecrets.java"));
+
+        assertThat(runtimeConfiguration.text())
+                .contains("CanonicalChatStore")
+                .contains("JdbcCanonicalChatStore")
+                .contains("MatrixSynapseChatSouthboundAdapter")
+                .contains("SynapseBackedCanonicalChatAdapter")
+                .contains("requireJdbc(properties)");
+        assertThat(canonicalAdapter.text())
+                .contains("CanonicalChatStore")
+                .contains("MatrixSynapseChatSouthboundAdapter")
+                .contains("store.prepareEvent(")
+                .contains("store.acknowledgeEvent(")
+                .doesNotContain("Jwt")
+                .doesNotContain("Keycloak")
+                .doesNotContain("accessToken");
+        assertThat(southboundAdapter.text())
+                .contains("implements ChatSouthboundProvider")
+                .contains("authenticatedReadiness")
+                .doesNotContain("Jwt")
+                .doesNotContain("Keycloak");
+        assertThat(callbackController.text())
+                .contains("/api/internal/chat/matrix/appservice")
+                .contains("beginCallback(")
+                .contains("completeCallback(")
+                .contains("boundedBody(request)")
+                .contains("@Hidden");
+        assertThat(callbackSecurity.text())
+                .contains("MatrixApplicationServiceAuthenticationFilter")
+                .contains(".securityMatcher(\"/api/internal/chat/matrix/appservice/**\")")
+                .contains("SessionCreationPolicy.STATELESS");
+        assertThat(secrets.text())
+                .contains("requiredAsTokenFile()")
+                .contains("requiredHsTokenFile()")
+                .contains("MessageDigest.isEqual")
+                .doesNotContain("System.getenv")
+                .doesNotContain("toString()");
     }
 
     @Test
@@ -331,6 +400,13 @@ class ServerArchitectureBoundaryTest {
         }
     }
 
+    private static JavaSource sourceEndingWith(Path suffix) throws IOException {
+        return productionSources().stream()
+                .filter(source -> source.path().endsWith(suffix))
+                .findFirst()
+                .orElseThrow();
+    }
+
     private static JavaSource readSource(Path path) {
         try {
             List<String> lines = Files.readAllLines(path);
@@ -377,6 +453,7 @@ class ServerArchitectureBoundaryTest {
         String className = source.path().getFileName().toString();
         return !source.packageName().equals(BACKEND_PACKAGE + "config")
                 && !source.packageName().startsWith(BACKEND_PACKAGE + "config.")
+                && !source.packageName().startsWith(BACKEND_PACKAGE + "chat.provider.")
                 && (source.packageName().equals(BACKEND_PACKAGE + "weaver")
                 || source.packageName().startsWith(BACKEND_PACKAGE + "weaver.")
                 || className.contains("Mcp")
@@ -429,7 +506,8 @@ class ServerArchitectureBoundaryTest {
         String packageName = source.packageName();
         return packageName.equals(BACKEND_PACKAGE + "files.port")
                 || packageName.equals(BACKEND_PACKAGE + "calendar.port")
-                || packageName.equals(BACKEND_PACKAGE + "chat.port");
+                || packageName.equals(BACKEND_PACKAGE + "chat.port")
+                || packageName.equals(BACKEND_PACKAGE + "boards.port");
     }
 
     private static String violation(JavaSource source, String importName) {

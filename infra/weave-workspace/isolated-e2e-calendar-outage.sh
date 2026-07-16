@@ -4,6 +4,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=infra/weave-workspace/lib/runtime-namespace.sh
+source "${ROOT_DIR}/lib/runtime-namespace.sh"
 readonly ROOT_DIR
 readonly CALENDAR_COLLECTION_HELPER="${ROOT_DIR}/lib/calendar-collection.sh"
 # shellcheck disable=SC1090,SC1091
@@ -16,8 +18,8 @@ STATE_FILE="${WEAVE_E2E_CALENDAR_OUTAGE_STATE_FILE:-}"
 STARTUP_ENV_FILE="${WEAVE_E2E_STARTUP_ENV_PATH:-}"
 STACK_BOOTSTRAP_ENV="${WEAVE_E2E_STACK_BOOTSTRAP_ENV:-${ROOT_DIR}/.generated/bootstrap.env}"
 OUTPUT_ROOT="${WEAVE_E2E_OUTPUT_ROOT:-${ROOT_DIR}/.generated/isolated-e2e}"
-NEXTCLOUD_CONTAINER="${WEAVE_E2E_NEXTCLOUD_CONTAINER:-weave-nextcloud}"
-BACKEND_CONTAINER="${WEAVE_E2E_BACKEND_CONTAINER:-weave-backend}"
+NEXTCLOUD_CONTAINER="${WEAVE_E2E_NEXTCLOUD_CONTAINER:-}"
+BACKEND_CONTAINER="${WEAVE_E2E_BACKEND_CONTAINER:-}"
 METRIC_TIMEOUT_SECONDS="${WEAVE_E2E_CALENDAR_OUTAGE_TIMEOUT_SECONDS:-240}"
 METRIC_POLL_SECONDS="${WEAVE_E2E_CALENDAR_OUTAGE_POLL_SECONDS:-5}"
 
@@ -100,6 +102,8 @@ load_environment() {
 
   NAMESPACE="${TF_VAR_isolated_e2e_namespace:-}"
   NETWORK="${TF_VAR_docker_network_name:-}"
+  NEXTCLOUD_CONTAINER="${NEXTCLOUD_CONTAINER:-$(weave_container_name nextcloud)}"
+  BACKEND_CONTAINER="${BACKEND_CONTAINER:-$(weave_container_name backend)}"
   BACKEND_ACTOR="${TF_VAR_nextcloud_backend_actor_username:-${WEAVE_NEXTCLOUD_FILES_ACTOR_USERNAME:-}}"
   METRICS_URL="${WEAVE_E2E_ACTUATOR_METRICS_URL:-http://127.0.0.1:${TF_VAR_backend_host_port:-48084}/actuator/metrics}"
   STATE_FILE="${STATE_FILE:-${OUTPUT_ROOT}/${NAMESPACE}/calendar-outage-state.json}"

@@ -64,6 +64,8 @@ class MatrixLiveRoomDriver {
     required MatrixLiveActorCredentials author,
     required String roomName,
     MatrixLiveActorCredentials? collaborator,
+    bool requireColdCollaboratorDevice = false,
+    bool pruneStaleActorDevices = false,
   }) async {
     final authorUserId = await registerWhoami(author);
     final collaboratorUserId = collaborator == null
@@ -76,12 +78,33 @@ class MatrixLiveRoomDriver {
     }
 
     if (collaborator != null && collaboratorUserId != null) {
+      if (pruneStaleActorDevices) {
+        await retainOnlyCurrentDevice(actor: author, userId: authorUserId);
+        await retainOnlyCurrentDevice(
+          actor: collaborator,
+          userId: collaboratorUserId,
+        );
+      }
       await requireMutualDeviceKeys(
         author: author,
         authorUserId: authorUserId,
         collaborator: collaborator,
         collaboratorUserId: collaboratorUserId,
       );
+      if (requireColdCollaboratorDevice || pruneStaleActorDevices) {
+        await requireExactCurrentDevices(
+          observer: author,
+          targetUserId: collaboratorUserId,
+          expectedDeviceIds: <String>{collaborator.deviceId},
+        );
+      }
+      if (pruneStaleActorDevices) {
+        await requireExactCurrentDevices(
+          observer: collaborator,
+          targetUserId: authorUserId,
+          expectedDeviceIds: <String>{author.deviceId},
+        );
+      }
     }
 
     final createResponse = await client.post(
@@ -91,6 +114,13 @@ class MatrixLiveRoomDriver {
         'name': roomName,
         'preset': 'private_chat',
         if (collaboratorUserId != null) 'invite': <String>[collaboratorUserId],
+        'initial_state': <Map<String, Object>>[
+          <String, Object>{
+            'type': 'm.room.encryption',
+            'state_key': '',
+            'content': <String, String>{'algorithm': matrixMegolmV1Algorithm},
+          },
+        ],
       }),
     );
     _requireSuccess(createResponse, operation: 'create-room');
@@ -103,8 +133,6 @@ class MatrixLiveRoomDriver {
         'M_WEAVE_LIVE_MATRIX_ROOM_INVALID',
       );
     }
-
-    await _enableEncryption(actor: author, roomId: roomId);
 
     if (collaborator != null) {
       final joinResponse = await client.post(
@@ -122,6 +150,23 @@ class MatrixLiveRoomDriver {
           'M_WEAVE_LIVE_MATRIX_JOIN_INVALID',
         );
       }
+    }
+
+    final expectedJoinedUsers = <String>{
+      authorUserId,
+      if (collaboratorUserId != null) collaboratorUserId,
+    };
+    await requireExactJoinedMembers(
+      actor: author,
+      roomId: roomId,
+      expectedUserIds: expectedJoinedUsers,
+    );
+    if (collaborator != null) {
+      await requireExactJoinedMembers(
+        actor: collaborator,
+        roomId: roomId,
+        expectedUserIds: expectedJoinedUsers,
+      );
     }
 
     await _requireEncryptedState(author, roomId);
@@ -195,6 +240,156 @@ class MatrixLiveRoomDriver {
     );
     await _requireOneTimeKeyMaterial(actor: author);
     await _requireOneTimeKeyMaterial(actor: collaborator);
+  }
+
+  /// Fails unless the current northbound device projection contains exactly
+  /// the expected app-owned devices. The first collaboration pass uses this
+  /// as a cold-identity precondition so a warmed second pass cannot conceal a
+  /// first-device room-key delivery defect.
+  Future<void> requireExactCurrentDevices({
+    required MatrixLiveActorCredentials observer,
+    required String targetUserId,
+    required Set<String> expectedDeviceIds,
+  }) async {
+    final observedDeviceIds = await _currentDeviceIds(
+      observer: observer,
+      targetUserId: targetUserId,
+    );
+    if (observedDeviceIds.length != expectedDeviceIds.length ||
+        !observedDeviceIds.containsAll(expectedDeviceIds)) {
+      throw const MatrixLiveRoomDriverException(
+        'M_WEAVE_LIVE_MATRIX_COLLABORATOR_NOT_COLD',
+      );
+    }
+  }
+
+  /// Removes stale devices belonging to a disposable isolated-run actor while
+  /// preserving the device that owns the current authenticated app profile.
+  ///
+  /// This must only be called by isolated E2E setup. It prevents earlier test
+  /// processes for the same disposable identity from remaining eligible for a
+  /// Megolm room-key share and hiding whether the currently running peer
+  /// received its envelope.
+  Future<int> retainOnlyCurrentDevice({
+    required MatrixLiveActorCredentials actor,
+    required String userId,
+  }) async {
+    final deviceIds = await _currentDeviceIds(
+      observer: actor,
+      targetUserId: userId,
+    );
+    if (!deviceIds.contains(actor.deviceId)) {
+      throw const MatrixLiveRoomDriverException(
+        'M_WEAVE_LIVE_MATRIX_CURRENT_DEVICE_MISSING',
+      );
+    }
+
+    final staleDeviceIds =
+        deviceIds
+            .where((deviceId) => deviceId != actor.deviceId)
+            .toList(growable: false)
+          ..sort();
+    for (final deviceId in staleDeviceIds) {
+      final response = await client.delete(
+        _uri(<String>['_matrix', 'client', 'v3', 'devices', deviceId]),
+        headers: _jsonHeaders(actor),
+        body: '{}',
+      );
+      _requireSuccess(response, operation: 'revoke-stale-device');
+    }
+
+    await requireExactCurrentDevices(
+      observer: actor,
+      targetUserId: userId,
+      expectedDeviceIds: <String>{actor.deviceId},
+    );
+    return staleDeviceIds.length;
+  }
+
+  Future<Set<String>> _currentDeviceIds({
+    required MatrixLiveActorCredentials observer,
+    required String targetUserId,
+  }) async {
+    final response = await client.post(
+      _uri(<String>['_matrix', 'client', 'v3', 'keys', 'query']),
+      headers: _jsonHeaders(observer),
+      body: jsonEncode(<String, Object>{
+        'device_keys': <String, List<String>>{targetUserId: <String>[]},
+      }),
+    );
+    _requireSuccess(response, operation: 'query-current-device-set');
+    final payload = _object(
+      response.body,
+      operation: 'query-current-device-set',
+    );
+    final deviceKeys = payload['device_keys'];
+    final userDevices = deviceKeys is Map ? deviceKeys[targetUserId] : null;
+    if (userDevices is! Map) {
+      throw const MatrixLiveRoomDriverException(
+        'M_WEAVE_LIVE_MATRIX_DEVICE_SET_INVALID',
+      );
+    }
+
+    final deviceIds = <String>{};
+    for (final entry in userDevices.entries) {
+      final device = entry.value;
+      final keys = device is Map ? device['keys'] : null;
+      if (entry.key is! String ||
+          device is! Map ||
+          device['user_id'] != targetUserId ||
+          device['device_id'] != entry.key ||
+          keys is! Map ||
+          keys.isEmpty) {
+        throw const MatrixLiveRoomDriverException(
+          'M_WEAVE_LIVE_MATRIX_DEVICE_SET_INVALID',
+        );
+      }
+      deviceIds.add(entry.key as String);
+    }
+    return deviceIds;
+  }
+
+  /// Proves that the canonical room-member projection is complete from the
+  /// authenticated actor's perspective before native Megolm sharing begins.
+  /// Only identities and membership states are inspected; raw provider payloads
+  /// never enter support-safe failures.
+  Future<void> requireExactJoinedMembers({
+    required MatrixLiveActorCredentials actor,
+    required String roomId,
+    required Set<String> expectedUserIds,
+  }) async {
+    final response = await client.get(
+      _uri(<String>['_matrix', 'client', 'v3', 'rooms', roomId, 'members']),
+      headers: _headers(actor),
+    );
+    _requireSuccess(response, operation: 'room-members');
+    final chunk = _object(response.body, operation: 'room-members')['chunk'];
+    if (chunk is! List) {
+      throw const MatrixLiveRoomDriverException(
+        'M_WEAVE_LIVE_MATRIX_ROOM_MEMBERS_INVALID',
+      );
+    }
+    final joinedUserIds = <String>{};
+    for (final event in chunk) {
+      if (event is! Map ||
+          event['type'] != 'm.room.member' ||
+          event['state_key'] is! String ||
+          event['content'] is! Map) {
+        throw const MatrixLiveRoomDriverException(
+          'M_WEAVE_LIVE_MATRIX_ROOM_MEMBERS_INVALID',
+        );
+      }
+      final content = event['content'] as Map;
+      if (content['membership'] == 'join') {
+        joinedUserIds.add(event['state_key'] as String);
+      }
+    }
+    if (joinedUserIds.length != expectedUserIds.length ||
+        !joinedUserIds.containsAll(expectedUserIds)) {
+      throw const MatrixLiveRoomDriverException(
+        'M_WEAVE_LIVE_MATRIX_ROOM_MEMBERS_NOT_CONVERGED',
+      );
+    }
   }
 
   Future<void> _requireDeviceKey({

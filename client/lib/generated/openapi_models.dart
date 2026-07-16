@@ -3741,6 +3741,37 @@ class DomainAdapterStatusResponse {
   };
 }
 
+class DomainCapability {
+  const DomainCapability({
+    this.capabilities,
+    this.domain,
+    this.state,
+    this.supportReference,
+  });
+
+  factory DomainCapability.fromJson(Map<String, dynamic> json) =>
+      DomainCapability(
+        capabilities: (json["capabilities"] as List<dynamic>?)
+            ?.map((e) => e as String)
+            .toList(),
+        domain: json["domain"] as String?,
+        state: json["state"] as String?,
+        supportReference: json["supportReference"] as String?,
+      );
+
+  final List<String>? capabilities;
+  final String? domain;
+  final String? state;
+  final String? supportReference;
+
+  Map<String, dynamic> toJson() => {
+    "capabilities": _openApiJsonValue(capabilities),
+    "domain": _openApiJsonValue(domain),
+    "state": _openApiJsonValue(state),
+    "supportReference": _openApiJsonValue(supportReference),
+  };
+}
+
 class DomainMappingEvidence {
   const DomainMappingEvidence({
     this.assumptions,
@@ -4123,38 +4154,6 @@ class FeatureMapping {
     "requiredGroups": _openApiJsonValue(requiredGroups),
     "requiredRoles": _openApiJsonValue(requiredRoles),
     "requiredScopes": _openApiJsonValue(requiredScopes),
-  };
-}
-
-class Features {
-  const Features({
-    this.calendar,
-    this.chat,
-    this.chatE2ee,
-    this.files,
-    this.matrixFederation,
-  });
-
-  factory Features.fromJson(Map<String, dynamic> json) => Features(
-    calendar: json["calendar"] as bool?,
-    chat: json["chat"] as bool?,
-    chatE2ee: json["chatE2ee"] as bool?,
-    files: json["files"] as bool?,
-    matrixFederation: json["matrixFederation"] as bool?,
-  );
-
-  final bool? calendar;
-  final bool? chat;
-  final bool? chatE2ee;
-  final bool? files;
-  final bool? matrixFederation;
-
-  Map<String, dynamic> toJson() => {
-    "calendar": _openApiJsonValue(calendar),
-    "chat": _openApiJsonValue(chat),
-    "chatE2ee": _openApiJsonValue(chatE2ee),
-    "files": _openApiJsonValue(files),
-    "matrixFederation": _openApiJsonValue(matrixFederation),
   };
 }
 
@@ -6341,6 +6340,23 @@ class OfficeProviderCandidateResponse {
   };
 }
 
+class Oidc {
+  const Oidc({this.clientId, this.issuer});
+
+  factory Oidc.fromJson(Map<String, dynamic> json) => Oidc(
+    clientId: json["clientId"] as String?,
+    issuer: json["issuer"] as String?,
+  );
+
+  final String? clientId;
+  final String? issuer;
+
+  Map<String, dynamic> toJson() => {
+    "clientId": _openApiJsonValue(clientId),
+    "issuer": _openApiJsonValue(issuer),
+  };
+}
+
 class Organization {
   const Organization({this.displayName, this.id});
 
@@ -6573,62 +6589,54 @@ class OrganizationManifestResponse {
 
 class PlatformConfigResponse {
   const PlatformConfigResponse({
-    this.apiBaseUrl,
-    this.authBaseUrl,
-    this.calendarProductUrl,
-    this.features,
-    this.filesProductUrl,
-    this.matrixHomeserverUrl,
-    this.nextcloudBaseUrl,
-    this.oidcClientId,
-    this.oidcIssuerUrl,
-    this.publicBaseUrl,
-    this.targets,
+    this.controlPlaneBaseUrl,
+    this.domains,
+    this.oidc,
+    this.organizationOrigin,
+    this.protocols,
+    this.recoveryActions,
+    this.releasePosture,
+    this.schemaVersion,
   });
 
   factory PlatformConfigResponse.fromJson(Map<String, dynamic> json) =>
       PlatformConfigResponse(
-        apiBaseUrl: json["apiBaseUrl"] as String?,
-        authBaseUrl: json["authBaseUrl"] as String?,
-        calendarProductUrl: json["calendarProductUrl"] as String?,
-        features: json["features"] == null
+        controlPlaneBaseUrl: json["controlPlaneBaseUrl"] as String?,
+        domains: (json["domains"] as List<dynamic>?)
+            ?.map((e) => DomainCapability.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        oidc: json["oidc"] == null
             ? null
-            : Features.fromJson(json["features"] as Map<String, dynamic>),
-        filesProductUrl: json["filesProductUrl"] as String?,
-        matrixHomeserverUrl: json["matrixHomeserverUrl"] as String?,
-        nextcloudBaseUrl: json["nextcloudBaseUrl"] as String?,
-        oidcClientId: json["oidcClientId"] as String?,
-        oidcIssuerUrl: json["oidcIssuerUrl"] as String?,
-        publicBaseUrl: json["publicBaseUrl"] as String?,
-        targets: json["targets"] == null
+            : Oidc.fromJson(json["oidc"] as Map<String, dynamic>),
+        organizationOrigin: json["organizationOrigin"] as String?,
+        protocols: json["protocols"] == null
             ? null
-            : Targets.fromJson(json["targets"] as Map<String, dynamic>),
+            : Protocols.fromJson(json["protocols"] as Map<String, dynamic>),
+        recoveryActions: (json["recoveryActions"] as List<dynamic>?)
+            ?.map((e) => RecoveryAction.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        releasePosture: json["releasePosture"] as String?,
+        schemaVersion: (json["schemaVersion"] as num?)?.toInt(),
       );
 
-  final String? apiBaseUrl;
-  final String? authBaseUrl;
-  final String? calendarProductUrl;
-  final Features? features;
-  final String? filesProductUrl;
-  final String? matrixHomeserverUrl;
-  final String? nextcloudBaseUrl;
-  final String? oidcClientId;
-  final String? oidcIssuerUrl;
-  final String? publicBaseUrl;
-  final Targets? targets;
+  final String? controlPlaneBaseUrl;
+  final List<DomainCapability>? domains;
+  final Oidc? oidc;
+  final String? organizationOrigin;
+  final Protocols? protocols;
+  final List<RecoveryAction>? recoveryActions;
+  final String? releasePosture;
+  final int? schemaVersion;
 
   Map<String, dynamic> toJson() => {
-    "apiBaseUrl": _openApiJsonValue(apiBaseUrl),
-    "authBaseUrl": _openApiJsonValue(authBaseUrl),
-    "calendarProductUrl": _openApiJsonValue(calendarProductUrl),
-    "features": _openApiJsonValue(features),
-    "filesProductUrl": _openApiJsonValue(filesProductUrl),
-    "matrixHomeserverUrl": _openApiJsonValue(matrixHomeserverUrl),
-    "nextcloudBaseUrl": _openApiJsonValue(nextcloudBaseUrl),
-    "oidcClientId": _openApiJsonValue(oidcClientId),
-    "oidcIssuerUrl": _openApiJsonValue(oidcIssuerUrl),
-    "publicBaseUrl": _openApiJsonValue(publicBaseUrl),
-    "targets": _openApiJsonValue(targets),
+    "controlPlaneBaseUrl": _openApiJsonValue(controlPlaneBaseUrl),
+    "domains": _openApiJsonValue(domains),
+    "oidc": _openApiJsonValue(oidc),
+    "organizationOrigin": _openApiJsonValue(organizationOrigin),
+    "protocols": _openApiJsonValue(protocols),
+    "recoveryActions": _openApiJsonValue(recoveryActions),
+    "releasePosture": _openApiJsonValue(releasePosture),
+    "schemaVersion": _openApiJsonValue(schemaVersion),
   };
 }
 
@@ -6838,6 +6846,30 @@ class ProfileReadinessResponse {
     "readiness": _openApiJsonValue(readiness),
     "supportSafe": _openApiJsonValue(supportSafe),
     "unsupportedOperations": _openApiJsonValue(unsupportedOperations),
+  };
+}
+
+class Protocols {
+  const Protocols({
+    this.calendarCalDavBaseUrl,
+    this.filesWebDavBaseUrl,
+    this.matrixClientServerBaseUrl,
+  });
+
+  factory Protocols.fromJson(Map<String, dynamic> json) => Protocols(
+    calendarCalDavBaseUrl: json["calendarCalDavBaseUrl"] as String?,
+    filesWebDavBaseUrl: json["filesWebDavBaseUrl"] as String?,
+    matrixClientServerBaseUrl: json["matrixClientServerBaseUrl"] as String?,
+  );
+
+  final String? calendarCalDavBaseUrl;
+  final String? filesWebDavBaseUrl;
+  final String? matrixClientServerBaseUrl;
+
+  Map<String, dynamic> toJson() => {
+    "calendarCalDavBaseUrl": _openApiJsonValue(calendarCalDavBaseUrl),
+    "filesWebDavBaseUrl": _openApiJsonValue(filesWebDavBaseUrl),
+    "matrixClientServerBaseUrl": _openApiJsonValue(matrixClientServerBaseUrl),
   };
 }
 
@@ -8026,6 +8058,26 @@ class RealmClient {
   };
 }
 
+class RecoveryAction {
+  const RecoveryAction({this.code, this.label, this.supportReference});
+
+  factory RecoveryAction.fromJson(Map<String, dynamic> json) => RecoveryAction(
+    code: json["code"] as String?,
+    label: json["label"] as String?,
+    supportReference: json["supportReference"] as String?,
+  );
+
+  final String? code;
+  final String? label;
+  final String? supportReference;
+
+  Map<String, dynamic> toJson() => {
+    "code": _openApiJsonValue(code),
+    "label": _openApiJsonValue(label),
+    "supportReference": _openApiJsonValue(supportReference),
+  };
+}
+
 class RecoveryIdentity {
   const RecoveryIdentity({
     this.breakGlass,
@@ -8549,26 +8601,6 @@ class SwitchPlan {
     "preflightRequired": _openApiJsonValue(preflightRequired),
     "recoveryActions": _openApiJsonValue(recoveryActions),
     "rollbackRequired": _openApiJsonValue(rollbackRequired),
-  };
-}
-
-class Targets {
-  const Targets({this.desktop, this.mobile, this.web});
-
-  factory Targets.fromJson(Map<String, dynamic> json) => Targets(
-    desktop: json["desktop"] as bool?,
-    mobile: json["mobile"] as bool?,
-    web: json["web"] as bool?,
-  );
-
-  final bool? desktop;
-  final bool? mobile;
-  final bool? web;
-
-  Map<String, dynamic> toJson() => {
-    "desktop": _openApiJsonValue(desktop),
-    "mobile": _openApiJsonValue(mobile),
-    "web": _openApiJsonValue(web),
   };
 }
 

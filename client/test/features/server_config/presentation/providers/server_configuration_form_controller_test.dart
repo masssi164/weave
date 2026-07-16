@@ -4,34 +4,34 @@ import 'package:weave/features/server_config/presentation/providers/server_confi
 
 void main() {
   group('ServerConfigurationFormController', () {
-    test(
-      'clears stale Matrix and Nextcloud errors when issuer derivation replaces them',
-      () {
-        final container = ProviderContainer.test();
-        addTearDown(container.dispose);
+    test('replaces stale provider endpoints with Weave facade endpoints', () {
+      final container = ProviderContainer.test();
+      addTearDown(container.dispose);
 
-        final controller = container.read(
-          serverConfigurationFormControllerProvider.notifier,
-        );
+      final controller = container.read(
+        serverConfigurationFormControllerProvider.notifier,
+      );
 
-        controller.state = controller.state.copyWith(
-          matrixHomeserverUrl: 'https://matrix.custom.example',
-          nextcloudBaseUrl: 'https://files.custom.example',
-          matrixError: 'matrix validation failed',
-          nextcloudError: 'nextcloud validation failed',
-        );
+      controller.state = controller.state.copyWith(
+        matrixHomeserverUrl: 'https://matrix.custom.example',
+        nextcloudBaseUrl: 'https://files.custom.example',
+        matrixError: 'matrix validation failed',
+        nextcloudError: 'nextcloud validation failed',
+      );
 
-        controller.updateIssuerUrl('https://auth.example.com');
+      controller.updateIssuerUrl('https://auth.example.com');
 
-        final state = container.read(serverConfigurationFormControllerProvider);
+      final state = container.read(serverConfigurationFormControllerProvider);
 
-        expect(state.derivedMatrixHomeserverUrl, 'https://api.example.com');
-        expect(state.derivedNextcloudBaseUrl, 'https://files.example.com');
-        expect(state.matrixHomeserverUrl, 'https://api.example.com');
-        expect(state.nextcloudBaseUrl, 'https://files.example.com');
-        expect(state.matrixError, isNull);
-        expect(state.nextcloudError, isNull);
-      },
-    );
+      expect(state.derivedMatrixHomeserverUrl, 'https://api.example.com');
+      expect(
+        state.derivedNextcloudBaseUrl,
+        'https://api.example.com/api/dav/files',
+      );
+      expect(state.matrixHomeserverUrl, 'https://api.example.com');
+      expect(state.nextcloudBaseUrl, 'https://api.example.com/api/dav/files');
+      expect(state.matrixError, isNull);
+      expect(state.nextcloudError, isNull);
+    });
   });
 }

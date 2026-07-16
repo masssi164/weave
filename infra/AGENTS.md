@@ -10,6 +10,7 @@ This repository contains one runnable workspace under `weave-workspace/`.
 - `KEYCLOAK_CONTRACT.md`: local realm, client, scope, claim, and audience contract.
 - `docs/single-host-operator-guide.md`: non-local single-host operator path target, required inputs, and operator runbook notes.
 - `docs/matrix-default-workspace.md`: Matrix default workspace aliases, access policy, and verification notes.
+- `docs/matrix-synapse-chat-appservice.md`: private southbound Synapse Application Service, credential, lifecycle, and proof contract.
 - `.github/AGENTS.md`: GitHub automation and workflow navigation notes.
 - `weave-workspace/.env.example`: local hostname, port, and Caddy mount defaults.
 - `weave-workspace/release.env.example`: single-host env template with explicit production-facing placeholders.

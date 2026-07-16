@@ -15,6 +15,14 @@ resource "docker_container" "this" {
   name    = var.container_name
   image   = docker_image.this.image_id
   restart = "unless-stopped"
+
+  dynamic "labels" {
+    for_each = var.resource_labels
+    content {
+      label = labels.key
+      value = labels.value
+    }
+  }
   depends_on = [
     docker_image.this,
   ]

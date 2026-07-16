@@ -98,7 +98,7 @@ class ProviderRegistryTest {
                 .filter(category -> category.category().equals("chat"))
                 .findFirst()
                 .orElseThrow();
-        assertThat(chat.readiness()).isEqualTo(ProviderCategoryReadiness.READY);
+        assertThat(chat.readiness()).isEqualTo(ProviderCategoryReadiness.MISCONFIGURED);
         assertThat(chat.providerRealityLevel()).isEqualTo(ProviderRealityLevel.CONTRACT_ONLY);
         assertThat(chat.memberCapabilityState()).isEqualTo("coming_later");
         assertThat(chat.realityLevelRemediation()).contains("Contract-only");
@@ -116,7 +116,7 @@ class ProviderRegistryTest {
     }
 
     @Test
-    void localLiveSelectionMarksRecommendedDogfoodAdapterConfigured() {
+    void localLiveSelectionDoesNotInventRuntimeConfigurationOrReachability() {
         InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
         selections.save(new ProviderSelection(
                 "chat",
@@ -139,16 +139,15 @@ class ProviderRegistryTest {
                         List.of("synapse", "slack", "microsoft-teams"),
                         Map.of())),
                 capabilityService(),
-                selections,
-                "local-live");
+                selections);
 
         ProviderRegistryResponse response = registry.status();
 
         ProviderStatusResponse provider = response.providers().get(0);
         assertThat(provider.enabled()).isTrue();
-        assertThat(provider.configured()).isTrue();
-        assertThat(provider.state()).isEqualTo(ProviderState.CONFIGURED);
-        assertThat(provider.readiness()).isEqualTo("configured");
+        assertThat(provider.configured()).isFalse();
+        assertThat(provider.state()).isEqualTo(ProviderState.NOT_CONFIGURED);
+        assertThat(provider.readiness()).isEqualTo("admin_selected_pending_backend_configuration");
         assertThat(provider.diagnostics())
                 .containsEntry("selectedByAdmin", true)
                 .containsEntry("choiceModel", "recommended_self_hosted_default")
@@ -157,11 +156,53 @@ class ProviderRegistryTest {
                 .filter(category -> category.category().equals("chat"))
                 .findFirst()
                 .orElseThrow();
-        assertThat(chat.readiness()).isEqualTo(ProviderCategoryReadiness.READY);
+        assertThat(chat.readiness()).isEqualTo(ProviderCategoryReadiness.MISCONFIGURED);
         assertThat(chat.adapterEvidence()).singleElement().satisfies(evidence -> {
+            assertThat(evidence.configured()).isFalse();
+            assertThat(evidence.reachable()).isFalse();
+            assertThat(evidence.health()).isEqualTo("admin_selected_pending_backend_configuration");
+        });
+    }
+
+    @Test
+    void configuredRuntimeBindingStillDefersReachabilityToCachedHealthEvidence() {
+        InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
+        selections.save(new ProviderSelection(
+                "boards-tasks",
+                "local-workspace",
+                "recommended_self_hosted_default",
+                null,
+                "actor:admin",
+                Instant.parse("2026-07-16T12:00:00Z"),
+                true,
+                true,
+                false,
+                List.of()));
+        ProviderPort boards = RuntimeProviderStatus.fixed(
+                ProviderModule.BOARDS,
+                "local-workspace",
+                true,
+                "Canonical Boards runtime binding.",
+                Set.of("task-create", "task-move"),
+                Set.of(),
+                List.of("local-workspace", "openproject-primary"),
+                ProviderRealityLevel.LIVE_WRITE,
+                Map.of());
+
+        ProviderCategoryStatusResponse category = new ProviderRegistry(
+                        List.of(boards), capabilityService(), selections)
+                .status()
+                .categories().stream()
+                .filter(value -> value.category().equals("boards-tasks"))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(category.readiness()).isEqualTo(ProviderCategoryReadiness.READY);
+        assertThat(category.providerRealityLevel()).isEqualTo(ProviderRealityLevel.LIVE_WRITE);
+        assertThat(category.adapterEvidence()).singleElement().satisfies(evidence -> {
             assertThat(evidence.configured()).isTrue();
-            assertThat(evidence.reachable()).isTrue();
-            assertThat(evidence.health()).isEqualTo("configured");
+            assertThat(evidence.reachable()).isFalse();
+            assertThat(evidence.health()).isEqualTo("configured_pending_cached_health");
         });
     }
 

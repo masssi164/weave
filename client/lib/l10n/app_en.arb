@@ -377,6 +377,46 @@
   "@chatScreenTitle": {
     "description": "Title for the chat screen app bar"
   },
+  "chatCreateConversationAction": "Start conversation",
+  "@chatCreateConversationAction": {
+    "description": "Accessible action for opening the encrypted conversation creation dialog"
+  },
+  "chatCreateConversationTitle": "Start an encrypted conversation",
+  "@chatCreateConversationTitle": {
+    "description": "Title for the encrypted conversation creation dialog"
+  },
+  "chatCreateConversationDescription": "Give this workspace conversation a clear name. Weave creates it through the organization Chat facade and enables encryption from the first event.",
+  "@chatCreateConversationDescription": {
+    "description": "Provider-neutral guidance in the encrypted conversation creation dialog"
+  },
+  "chatCreateConversationNameLabel": "Conversation name",
+  "@chatCreateConversationNameLabel": {
+    "description": "Label for the new conversation name field"
+  },
+  "chatCreateConversationNameHint": "For example, Release planning",
+  "@chatCreateConversationNameHint": {
+    "description": "Example hint for the new conversation name field"
+  },
+  "chatCreateConversationNameRequired": "Enter a name between 1 and 200 characters.",
+  "@chatCreateConversationNameRequired": {
+    "description": "Validation message for an empty or oversized conversation name"
+  },
+  "chatCreateConversationCancel": "Cancel",
+  "@chatCreateConversationCancel": {
+    "description": "Cancel action in the encrypted conversation creation dialog"
+  },
+  "chatCreateConversationSubmit": "Create conversation",
+  "@chatCreateConversationSubmit": {
+    "description": "Submit action in the encrypted conversation creation dialog"
+  },
+  "chatCreateConversationSubmitting": "Creating…",
+  "@chatCreateConversationSubmitting": {
+    "description": "Progress label while an encrypted conversation is being created"
+  },
+  "chatCreateConversationFailure": "The encrypted conversation could not be created. Your other Chat areas remain available; try again when the connection is back.",
+  "@chatCreateConversationFailure": {
+    "description": "Support-safe local error shown when conversation creation fails"
+  },
   "chatOverviewTitle": "Weave Home",
   "@chatOverviewTitle": {
     "description": "Title for the chat overview/home surface"
@@ -4014,7 +4054,7 @@
   "@boardsWorkspaceBackendFedChip": {
     "description": "Chip label indicating the workspace snapshot came from the backend facade"
   },
-  "boardsWorkspaceProviderBlockedChip": "Provider runtime blocked",
+  "boardsWorkspaceProviderBlockedChip": "Boards unavailable",
   "@boardsWorkspaceProviderBlockedChip": {
     "description": "Chip label indicating the backend provider runtime is blocked/unavailable"
   },

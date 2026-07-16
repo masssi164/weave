@@ -1,6 +1,7 @@
 package com.massimotter.weave.backend;
 
 import com.massimotter.weave.backend.config.CalendarCalDavProperties;
+import com.massimotter.weave.backend.config.ChatRuntimeProperties;
 import com.massimotter.weave.backend.config.ConnectorRuntimeProperties;
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.config.GuestAccessProperties;
@@ -24,6 +25,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableScheduling
 @EnableConfigurationProperties({
         CalendarCalDavProperties.class,
+        ChatRuntimeProperties.class,
         ConnectorRuntimeProperties.class,
         ContextAuthorizationProperties.class,
         GuestAccessProperties.class,

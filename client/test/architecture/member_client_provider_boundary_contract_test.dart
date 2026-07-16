@@ -175,4 +175,22 @@ void main() {
       }
     }
   });
+
+  test(
+    'member bootstrap and Boards surfaces do not expose provider controls',
+    () {
+      final serverForm = File(
+        'lib/features/server_config/presentation/widgets/server_configuration_form.dart',
+      ).readAsStringSync();
+      expect(serverForm, isNot(contains('serverConfigurationNextcloudLabel')));
+      expect(serverForm, isNot(contains('updateNextcloudBaseUrl')));
+
+      final boards = File(
+        'lib/features/boards/presentation/boards_workspace_screen.dart',
+      ).readAsStringSync();
+      expect(boards, isNot(contains('capabilities.provider')));
+      expect(boards, isNot(contains('supportSafeSummary')));
+      expect(boards, isNot(contains('_providerLabel')));
+    },
+  );
 }

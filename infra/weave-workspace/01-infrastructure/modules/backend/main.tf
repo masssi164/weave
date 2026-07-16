@@ -12,6 +12,14 @@ locals {
   # to the pre-provisioned team/channel structure in either mode. An isolated
   # namespace is itself the fail-closed proof that this is not persistent data.
   seeded_context_graph_enabled = var.context_authorization_bootstrap_enabled || var.isolated_e2e_namespace != ""
+  chat_e2e_proof_env = var.chat_e2e_proof_enabled ? [
+    "WEAVE_E2E_STACK_SCOPE=isolated",
+    "WEAVE_CHAT_E2E_PROOF_ENABLED=true",
+    "WEAVE_CHAT_E2E_PROOF_TOKEN_FILE=${var.chat_e2e_proof_token_container_path}",
+    "WEAVE_CHAT_E2E_PROOF_RUN_ID=${var.chat_e2e_proof_run_id}",
+    ] : [
+    "WEAVE_CHAT_E2E_PROOF_ENABLED=false",
+  ]
 }
 
 resource "docker_image" "this" {
@@ -23,6 +31,14 @@ resource "docker_container" "this" {
   name    = var.container_name
   image   = docker_image.this.image_id
   restart = "unless-stopped"
+
+  dynamic "labels" {
+    for_each = var.resource_labels
+    content {
+      label = labels.key
+      value = labels.value
+    }
+  }
   depends_on = [
     docker_image.this,
   ]
@@ -41,6 +57,7 @@ resource "docker_container" "this" {
     "WEAVE_PUBLIC_BASE_URL=${var.public_base_url}",
     "WEAVE_API_ORIGIN=${var.api_origin}",
     "WEAVE_API_BASE_URL=${var.api_base_url}",
+    "WEAVE_RELEASE_POSTURE=dogfood",
     "WEAVE_AUTH_BASE_URL=${var.auth_base_url}",
     "WEAVE_MATRIX_BASE_URL=${var.matrix_base_url}",
     "WEAVE_FILES_PRODUCT_URL=${var.files_product_url}",
@@ -48,6 +65,14 @@ resource "docker_container" "this" {
     "WEAVE_MATRIX_HOMESERVER_URL=${var.matrix_facade_url}",
     "WEAVE_MATRIX_FACADE_SERVER_NAME=${var.public_host}",
     "WEAVE_MATRIX_FACADE_BASE_URL=${var.matrix_facade_url}",
+    "WEAVE_CHAT_PROVIDER=${var.chat_provider}",
+    "WEAVE_CHAT_STORAGE_MODE=${var.chat_storage_mode}",
+    "WEAVE_CHAT_MATRIX_INTERNAL_BASE_URL=${var.matrix_internal_base_url}",
+    "WEAVE_CHAT_MATRIX_SERVER_NAME=${var.matrix_server_name}",
+    "WEAVE_CHAT_MATRIX_APPSERVICE_ID=${var.matrix_appservice_id}",
+    "WEAVE_CHAT_MATRIX_VIRTUAL_USER_PREFIX=${var.matrix_virtual_user_prefix}",
+    "WEAVE_CHAT_MATRIX_APPSERVICE_AS_TOKEN_FILE=${var.matrix_appservice_as_token_file}",
+    "WEAVE_CHAT_MATRIX_APPSERVICE_HS_TOKEN_FILE=${var.matrix_appservice_hs_token_file}",
     "WEAVE_NEXTCLOUD_PUBLIC_BASE_URL=${var.nextcloud_public_base_url}",
     "WEAVE_NEXTCLOUD_BASE_URL=${var.nextcloud_base_url}",
     "WEAVE_NEXTCLOUD_FILES_ACTOR_MODEL=${var.nextcloud_files_actor_model}",
@@ -114,7 +139,7 @@ resource "docker_container" "this" {
     "WEAVE_CONTEXT_AUTHORIZATION_DEFAULT_TENANT_ID=${var.context_authorization_default_tenant_id}",
     "WEAVE_CONTEXT_AUTHORIZATION_PRINCIPAL_CLAIM=${var.context_authorization_principal_claim}",
     "WEAVE_CONTEXT_AUTHORIZATION_PRINCIPAL_REF_PREFIX=${var.context_authorization_principal_ref_prefix}",
-    ], var.isolated_e2e_namespace != "" ? [
+    ], local.chat_e2e_proof_env, var.isolated_e2e_namespace != "" ? [
     "WEAVE_ISOLATED_E2E_NAMESPACE=${var.isolated_e2e_namespace}",
     ] : [], flatten([
       for index, membership in var.context_authorization_memberships : [
@@ -159,6 +184,22 @@ resource "docker_container" "this" {
     file        = var.provider_selections_storage_path
     source      = var.provider_selections_source
     source_hash = var.provider_selections_source_hash
+  }
+
+  volumes {
+    volume_name    = var.matrix_appservice_runtime_volume_name
+    container_path = var.matrix_appservice_runtime_container_path
+    read_only      = true
+  }
+
+  dynamic "volumes" {
+    for_each = var.chat_e2e_proof_enabled ? [var.chat_e2e_proof_token_host_path] : []
+
+    content {
+      host_path      = volumes.value
+      container_path = var.chat_e2e_proof_token_container_path
+      read_only      = true
+    }
   }
 
   networks_advanced {

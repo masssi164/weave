@@ -117,8 +117,33 @@ void main() {
     expect(e2eeSource, contains('createEncryptedRoom('));
     expect(e2eeSource, contains('redactEventsAndVerify('));
     expect(e2eeSource, contains('leaveRoom('));
-    expect(appSource, contains('enableEncryptionOnJoinedRoom('));
+    expect(appSource, contains('createEncryptedRoom('));
     expect(appSource, contains('redactEventsAndVerify('));
+    expect(appSource, contains('leaveRoom('));
+    expect(
+      appSource,
+      isNot(contains("conversationIdFragment: 'channel-general'")),
+    );
+  });
+
+  test('Matrix background sync advances the explicit processed cursor', () {
+    final source = File(
+      '../rust/matrix-core/src/flutter_crypto.rs',
+    ).readAsStringSync();
+    final backgroundLoop = source.substring(
+      source.indexOf('async fn run_background_sync('),
+      source.indexOf('fn background_sync_retry_delay('),
+    );
+
+    expect(source, contains('initial_cursor: String'));
+    expect(backgroundLoop, contains('Some(cursor.as_str())'));
+    expect(backgroundLoop, contains('cursor = completed.next_batch.clone()'));
+    expect(
+      backgroundLoop.indexOf('cursor = completed.next_batch.clone()'),
+      lessThan(
+        backgroundLoop.indexOf('publish_completed_sync(&progress, &completed)'),
+      ),
+    );
   });
 
   test('live provider convergence is explicit and version-safe', () {
@@ -146,11 +171,17 @@ void main() {
       contains('M_WEAVE_LIVE_MATRIX_KEY_MATERIAL_NOT_CONVERGED'),
     );
     expect(roomCreation, contains('requireMutualDeviceKeys('));
+    expect(roomCreation, contains('retainOnlyCurrentDevice('));
     expect(roomCreation, contains("'createRoom'"));
     expect(
       roomCreation.indexOf('requireMutualDeviceKeys('),
       lessThan(roomCreation.indexOf("'createRoom'")),
     );
+    expect(
+      roomCreation.indexOf('retainOnlyCurrentDevice('),
+      lessThan(roomCreation.indexOf('requireMutualDeviceKeys(')),
+    );
+    expect(multiUserSource, contains('pruneStaleActorDevices: true'));
     expect(calendarRepository, contains('draft.toPatch(etag: etag)'));
     expect(multiUserSource, contains('readEvent(eventId)'));
     expect(

@@ -346,7 +346,21 @@ void main() {
       );
       expect(platformResponse.statusCode, 200, reason: platformResponse.body);
       final platform = _decodeObject(platformResponse.body);
-      expect(platform['matrixHomeserverUrl'], apiOrigin.toString());
+      expect(platform['schemaVersion'], 1);
+      expect(
+        platform['controlPlaneBaseUrl'],
+        config.backendApiBaseUrl.toString(),
+      );
+      final protocols = platform['protocols'] as Map<String, dynamic>;
+      expect(protocols['matrixClientServerBaseUrl'], apiOrigin.toString());
+      expect(
+        protocols['filesWebDavBaseUrl'],
+        config.apiUri('/api/dav/files').toString(),
+      );
+      expect(
+        protocols['calendarCalDavBaseUrl'],
+        config.apiUri('/api/caldav').toString(),
+      );
       expect(config.matrixHomeserverUrl, apiOrigin);
 
       final files = await _sendRequest(
@@ -480,6 +494,12 @@ void main() {
       // ignore: avoid_print
       print('NO_PROVIDER_CREDENTIALS_RESULT exposed=false');
     },
+    // This live contract deliberately performs four adaptive credential-hash
+    // operations across two domains. Resource-constrained isolated runners can
+    // take longer than the package:test 30-second default without the backend
+    // being unavailable; keep the scenario bounded while allowing the real
+    // security work to complete.
+    timeout: const Timeout(Duration(minutes: 2)),
     skip: liveSkipReason,
   );
 
@@ -827,6 +847,11 @@ class _SessionAuthRepository implements AuthSessionRepository {
 }
 
 class _EmptyChatRepository implements ChatRepository {
+  @override
+  Future<ChatConversation> createConversation({required String title}) {
+    throw UnimplementedError();
+  }
+
   @override
   Future<void> clearSession() async {}
 

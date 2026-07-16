@@ -141,6 +141,48 @@ TestFailure: Expected: true Actual: false
             result.stdout,
         )
 
+    def test_allowlisted_e2ee_support_code_is_preserved(self) -> None:
+        raw = """
+MULTI_USER_PROGRESS phase=room-key-exchange-collaborator-observe-author runIndex=1
+The two established Matrix devices could not exchange encrypted messages.
+Failure code: M_WEAVE_E2EE_MISSING_MEGOLM_SESSION.
+"""
+
+        result = self.run_sanitizer(raw, exit_code=1)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "supportCode=M_WEAVE_E2EE_MISSING_MEGOLM_SESSION supportSafe=true",
+            result.stdout,
+        )
+
+    def test_allowlisted_olm_support_code_is_preserved(self) -> None:
+        raw = """
+MULTI_USER_PROGRESS phase=room-key-exchange-collaborator-observe-author runIndex=1
+The receiving Matrix device could not decrypt a to-device envelope.
+Failure code: M_WEAVE_E2EE_OLM_DECRYPTION_FAILURE.
+"""
+
+        result = self.run_sanitizer(raw, exit_code=1)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "supportCode=M_WEAVE_E2EE_OLM_DECRYPTION_FAILURE supportSafe=true",
+            result.stdout,
+        )
+
+    def test_unrecognized_support_code_is_not_preserved(self) -> None:
+        raw = """
+MULTI_USER_PROGRESS phase=room-key-exchange-author-observe-collaborator runIndex=1
+Failure code: M_WEAVE_E2EE_PROVIDER_PAYLOAD_PRIVATE.
+"""
+
+        result = self.run_sanitizer(raw, exit_code=1)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("supportCode=", result.stdout)
+        self.assertNotIn("PROVIDER_PAYLOAD_PRIVATE", result.stdout)
+
     def test_fine_grained_collaborator_domain_phase_is_support_safe(self) -> None:
         raw = """
 MULTI_USER_PROGRESS phase=collaborator-observe runIndex=1

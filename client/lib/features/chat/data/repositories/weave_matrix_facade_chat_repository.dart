@@ -66,6 +66,48 @@ class WeaveMatrixFacadeChatRepository implements ChatRepository {
   }
 
   @override
+  Future<ChatConversation> createConversation({required String title}) async {
+    final normalizedTitle = title.trim();
+    if (normalizedTitle.isEmpty || normalizedTitle.runes.length > 200) {
+      throw const ChatFailure.configuration(
+        'Give the encrypted conversation a name between 1 and 200 characters.',
+      );
+    }
+    try {
+      final session = await _matrixCryptoSessionCoordinator.open(
+        synchronize: false,
+      );
+      final room = await _rustMatrixCoreBridge.createEncryptedRoom(
+        profileKey: session.profileKey,
+        title: normalizedTitle,
+      );
+      if (room.roomId.isEmpty || !room.encrypted) {
+        throw const RustMatrixCoreBridgeException(
+          'M_WEAVE_E2EE_CREATE_ROOM_INVALID',
+        );
+      }
+      return ChatConversation(
+        id: room.roomId,
+        title: room.title.isEmpty ? normalizedTitle : room.title,
+        previewType: ChatConversationPreviewType.encrypted,
+        unreadCount: room.unreadCount,
+        isInvite: false,
+        isDirectMessage: false,
+      );
+    } on RustMatrixCoreBridgeException catch (error) {
+      if (error.code == 'M_INVALID_PARAM') {
+        throw const ChatFailure.configuration(
+          'Give the encrypted conversation a name between 1 and 200 characters.',
+        );
+      }
+      throw ChatFailure.protocol(
+        'Weave Chat could not create this encrypted conversation.',
+        cause: error,
+      );
+    }
+  }
+
+  @override
   Future<ChatRoomTimeline> loadRoomTimeline(String roomId) async {
     try {
       final session = await _matrixCryptoSessionCoordinator.open();
@@ -116,6 +158,12 @@ class WeaveMatrixFacadeChatRepository implements ChatRepository {
       if (error.code == 'M_INVALID_PARAM') {
         throw const ChatFailure.configuration(
           'Write a message before sending it through Weave Chat.',
+        );
+      }
+      if (error.code == 'M_WEAVE_E2EE_PEER_DEVICE_PENDING') {
+        throw ChatFailure.peerDevicePending(
+          'Waiting for a participant’s secure device. Try again shortly or contact support if this continues.',
+          cause: error,
         );
       }
       throw ChatFailure.protocol(

@@ -34,7 +34,7 @@ void main() {
         memberImpact: 'RAW BACKEND DEGRADED MESSAGE',
       ): WorkspaceMemberRecoveryState.degraded,
       const WorkspaceCapabilityState(
-        capability: WorkspaceCapability.chat,
+        capability: WorkspaceCapability.calendar,
         readiness: WorkspaceCapabilityReadiness.unavailable,
         policyState: WorkspaceCapabilityPolicyState.unavailable,
         memberImpact: 'RAW BACKEND UNAVAILABLE MESSAGE',

@@ -137,6 +137,8 @@ struct CanonicalConversationInput {
     #[serde(default)]
     unread_count: u64,
     #[serde(default)]
+    encryption_algorithm: Option<String>,
+    #[serde(default)]
     memberships: Vec<CanonicalMembershipInput>,
     #[serde(default)]
     messages: Vec<CanonicalMessageInput>,
@@ -1086,6 +1088,23 @@ fn room_state_events(
     server_name: &OwnedServerName,
 ) -> Result<Vec<MatrixEvent>, MatrixCoreError> {
     let mut events = vec![room_name_event(conversation, server_name)?];
+    if let Some(algorithm) = conversation.encryption_algorithm.as_deref() {
+        if algorithm != "m.megolm.v1.aes-sha2" {
+            return Err(MatrixCoreError::InvalidRequest);
+        }
+        events.push(MatrixEvent {
+            event_type: "m.room.encryption".to_string(),
+            sender: matrix_user_id("weave", server_name)?.to_string(),
+            event_id: matrix_event_id(
+                &format!("state-encryption-{}", conversation.conversation_id),
+                server_name,
+            )?
+            .to_string(),
+            origin_server_ts: conversation.updated_at_epoch_millis,
+            content: json!({ "algorithm": algorithm }),
+            state_key: Some(String::new()),
+        });
+    }
     events.extend(
         conversation
             .memberships
@@ -1435,6 +1454,11 @@ pub mod frb_api {
     }
 
     #[cfg(feature = "flutter")]
+    pub async fn matrix_create_encrypted_room(profile_key: String, title: String) -> String {
+        crate::flutter_crypto::create_encrypted_room(profile_key, title).await
+    }
+
+    #[cfg(feature = "flutter")]
     pub async fn matrix_room_messages(profile_key: String, room_id: String, limit: u32) -> String {
         crate::flutter_crypto::room_messages(profile_key, room_id, limit).await
     }
@@ -1499,8 +1523,8 @@ pub mod frb_api {
     }
 
     #[cfg(feature = "flutter")]
-    pub fn dispose_matrix_client(profile_key: String) -> String {
-        crate::flutter_crypto::dispose(profile_key)
+    pub async fn dispose_matrix_client(profile_key: String) -> String {
+        crate::flutter_crypto::dispose(profile_key).await
     }
 }
 
@@ -1554,6 +1578,7 @@ mod tests {
                 "title": "General",
                 "updatedAtEpochMillis": 1_720_432_800_000_i64,
                 "unreadCount": 2,
+                "encryptionAlgorithm": "m.megolm.v1.aes-sha2",
                 "memberships": [{
                     "memberRef": "user:alice",
                     "state": "joined"
@@ -1594,6 +1619,15 @@ mod tests {
         .unwrap();
         let parsed: Value = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed["next_batch"], encode_sync_token("revision-7"));
+        let state = parsed["rooms"]["join"]["!channel-general:matrix.weave.test"]["state"]
+            ["events"]
+            .as_array()
+            .unwrap();
+        assert!(state.iter().any(|event| {
+            event["type"] == "m.room.encryption"
+                && event["state_key"] == ""
+                && event["content"]["algorithm"] == "m.megolm.v1.aes-sha2"
+        }));
         assert_eq!(
             parsed["rooms"]["join"]["!channel-general:matrix.weave.test"]["timeline"]["events"][0]
                 ["content"]["body"],

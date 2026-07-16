@@ -79,8 +79,15 @@ TF_VAR_interop_slack_signing_secret=slack-signing-secret
 TF_VAR_boards_provider_api_token=boards-provider-secret
 TF_VAR_boards_openproject_api_token=openproject-super-secret
 TF_VAR_openproject_secret_key_base=openproject-secret-key-base
+TF_VAR_matrix_chat_appservice_as_token=matrix-as-token-super-secret
+TF_VAR_matrix_chat_appservice_hs_token=matrix-hs-token-super-secret
+WEAVE_CHAT_E2E_PROOF_TOKEN=chat-proof-token-super-secret
 WEAVE_API_BASE_URL=https://api.weave.test/api
 WEAVE_OIDC_ISSUER_URL=https://auth.weave.test/realms/weave
+WEAVE_MATRIX_PROVIDER_URL=https://matrix.weave.test
+WEAVE_CHAT_PROVIDER=matrix-synapse
+WEAVE_CHAT_STORAGE_MODE=jdbc
+WEAVE_CHAT_MATRIX_APPSERVICE_CONFIGURED=true
 ENV
 cat >"${app_config_env}" <<'ENV'
 WEAVE_PUBLIC_BASE_URL=https://weave.test
@@ -100,6 +107,20 @@ cat >"${provider_health_fixture}" <<'JSON'
   "generatedAt": "2026-07-12T10:00:00Z",
   "supportSafe": true,
   "capabilities": [
+    {
+      "capability": "chat",
+      "state": "available",
+      "supportSafeCode": "provider-available",
+      "correlationRef": "corr-chat-fixture",
+      "observedAt": "2026-07-12T09:59:45Z",
+      "nextProbeAt": "2026-07-12T10:01:45Z",
+      "backoffUntil": null,
+      "cachedAgeSeconds": 15,
+      "stale": false,
+      "consecutiveFailures": 0,
+      "probeLatencyMillis": 40,
+      "readinessTransitions": 0
+    },
     {
       "capability": "files",
       "state": "degraded",
@@ -186,15 +207,21 @@ grep -Fq 'TF_VAR_tenant_domain=weave.test' "${extracted}/config/public-env-summa
 grep -Fq 'WEAVE_API_BASE_URL=https://api.weave.test/api' "${extracted}/config/public-env-summary.env"
 grep -Fq 'WEAVE_NEXTCLOUD_BASE_URL_CONFIGURED=true' "${extracted}/config/public-env-summary.env"
 grep -Fq 'WEAVE_BOARDS_OPENPROJECT_BASE_URL_CONFIGURED=true' "${extracted}/config/public-env-summary.env"
+grep -Fq 'WEAVE_CHAT_PROVIDER=matrix-synapse' "${extracted}/config/public-env-summary.env"
+grep -Fq 'WEAVE_CHAT_STORAGE_MODE=jdbc' "${extracted}/config/public-env-summary.env"
+grep -Fq 'WEAVE_CHAT_MATRIX_APPSERVICE_CONFIGURED=true' "${extracted}/config/public-env-summary.env"
 grep -Fq '"schema": "weave-support-safe-adapter-readiness-v1"' "${extracted}/checks/adapter-readiness-summary.json"
 grep -Fq '"domain": "boards-tasks"' "${extracted}/checks/adapter-readiness-summary.json"
+grep -A6 -F '"domain": "chat"' "${extracted}/checks/adapter-readiness-summary.json" | grep -Fq '"configured": true'
 grep -Fq '"adapterKey": "openproject-primary"' "${extracted}/checks/adapter-readiness-summary.json"
 grep -Fq '"configured": true' "${extracted}/checks/adapter-readiness-summary.json"
 grep -Fq '"artifactKind": "weave-support-bundle-redaction-report-v1"' "${extracted}/checks/support-redaction-report.json"
 grep -Fq '"name": "negative_fixture_detects_unsafe_content"' "${extracted}/checks/support-redaction-report.json"
+grep -Fq '"name": "chat_e2e_proof_token_and_run_binding"' "${extracted}/checks/support-redaction-report.json"
 grep -Fq '"unsafeContentDetected": false' "${extracted}/checks/support-redaction-report.json"
 grep -Fq '"schemaVersion": "weave-support-provider-capability-health-evidence-v1"' "${extracted}/checks/provider-capability-health.json"
 grep -Fq '"collectionStatus": "collected"' "${extracted}/checks/provider-capability-health.json"
+grep -Fq '"capability": "chat"' "${extracted}/checks/provider-capability-health.json"
 grep -Fq '"capability": "files"' "${extracted}/checks/provider-capability-health.json"
 grep -Fq '"cachedAgeSeconds": 60' "${extracted}/checks/provider-capability-health.json"
 grep -Fq '"readinessTransitions": 1' "${extracted}/checks/provider-capability-health.json"
@@ -231,9 +258,9 @@ grep -Fq '"overall": "degraded"' "${metrics_evidence}"
 grep -Fq '"cachedResultAgeSeconds": 60' "${metrics_evidence}"
 grep -Fq '"readinessTransitions": 1' "${metrics_evidence}"
 
-if grep -R -Fq 'super-secret' "${extracted}" || grep -R -Fq 'calendar-token' "${extracted}" || grep -R -Fq 'slack-signing-secret' "${extracted}" || grep -R -Fq 'slack-client-secret-ref' "${extracted}" || grep -R -Fq 'openproject-super-secret' "${extracted}" || grep -R -Fq 'openproject-secret-key-base' "${extracted}" || grep -R -Fq 'openproject-app-token' "${extracted}" || grep -R -Fq 'boards-provider-secret' "${extracted}" || grep -R -Fq 'boards-runtime-token' "${extracted}" || grep -R -Fq 'weaver-short-lived-token' "${extracted}" || grep -R -Fq 'secretref://weave' "${extracted}" || grep -R -Fq 'openproject.example' "${extracted}" || grep -R -Fq 'files.weave.test' "${extracted}" || grep -R -Fq 'AKIAABCDEFGHIJKLMNOP' "${extracted}" || grep -R -Fq 'person@example.com' "${extracted}" || grep -R -Fq 'raw-private-key-material' "${extracted}"; then
+if grep -R -Fq 'super-secret' "${extracted}" || grep -R -Fq 'matrix-as-token' "${extracted}" || grep -R -Fq 'matrix-hs-token' "${extracted}" || grep -R -Fq 'chat-proof-token' "${extracted}" || grep -R -Fq 'calendar-token' "${extracted}" || grep -R -Fq 'slack-signing-secret' "${extracted}" || grep -R -Fq 'slack-client-secret-ref' "${extracted}" || grep -R -Fq 'openproject-super-secret' "${extracted}" || grep -R -Fq 'openproject-secret-key-base' "${extracted}" || grep -R -Fq 'openproject-app-token' "${extracted}" || grep -R -Fq 'boards-provider-secret' "${extracted}" || grep -R -Fq 'boards-runtime-token' "${extracted}" || grep -R -Fq 'weaver-short-lived-token' "${extracted}" || grep -R -Fq 'secretref://weave' "${extracted}" || grep -R -Fq 'openproject.example' "${extracted}" || grep -R -Fq 'files.weave.test' "${extracted}" || grep -R -Fq 'AKIAABCDEFGHIJKLMNOP' "${extracted}" || grep -R -Fq 'person@example.com' "${extracted}" || grep -R -Fq 'raw-private-key-material' "${extracted}"; then
   echo "support bundle leaked a test secret" >&2
-  grep -R -n -E 'super-secret|calendar-token|slack-signing-secret|slack-client-secret-ref|openproject-super-secret|openproject-secret-key-base|openproject-app-token|boards-provider-secret|boards-runtime-token|weaver-short-lived-token|secretref://weave|openproject\.example|files\.weave\.test|AKIAABCDEFGHIJKLMNOP|person@example\.com|raw-private-key-material' "${extracted}" >&2 || true
+  grep -R -n -E 'super-secret|matrix-as-token|matrix-hs-token|chat-proof-token|calendar-token|slack-signing-secret|slack-client-secret-ref|openproject-super-secret|openproject-secret-key-base|openproject-app-token|boards-provider-secret|boards-runtime-token|weaver-short-lived-token|secretref://weave|openproject\.example|files\.weave\.test|AKIAABCDEFGHIJKLMNOP|person@example\.com|raw-private-key-material' "${extracted}" >&2 || true
   exit 1
 fi
 

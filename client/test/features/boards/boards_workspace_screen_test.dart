@@ -29,11 +29,11 @@ void main() {
       expect(find.text('Provider-neutral model'), findsOneWidget);
       expect(find.text('No drag required'), findsOneWidget);
       expect(find.text('Static fixture workspace'), findsOneWidget);
-      expect(find.text('Vikunja adapter spike'), findsOneWidget);
+      expect(find.text('Adapter readiness check'), findsOneWidget);
       expect(find.text('Move menu instead of drag-only'), findsOneWidget);
     });
 
-    testWidgets('renders backend-fed snapshots and provider capability flags', (
+    testWidgets('renders backend-fed snapshots without provider identity', (
       tester,
     ) async {
       _setCompactWorkspaceSurface(tester);
@@ -63,7 +63,8 @@ void main() {
 
       expect(find.text('Launch board'), findsOneWidget);
       expect(find.text('Backend facade fed'), findsOneWidget);
-      expect(find.text('Provider: in-memory backend facade'), findsOneWidget);
+      expect(find.textContaining('Provider:'), findsNothing);
+      expect(find.textContaining('in-memory'), findsNothing);
       expect(find.text('Backend non-drag actions ready'), findsOneWidget);
       expect(find.text('Validate keyboard movement'), findsOneWidget);
       expect(
@@ -106,8 +107,8 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        expect(find.text('Provider runtime blocked'), findsOneWidget);
-        expect(find.text('Provider: backend unavailable'), findsOneWidget);
+        expect(find.text('Boards unavailable'), findsOneWidget);
+        expect(find.textContaining('Provider:'), findsNothing);
         expect(find.text('Backend non-drag actions blocked'), findsOneWidget);
         expect(
           find.bySemanticsLabel(
@@ -140,7 +141,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Provider runtime blocked'), findsOneWidget);
+      expect(find.text('Boards unavailable'), findsOneWidget);
       expect(find.text('Backend non-drag actions blocked'), findsOneWidget);
       expect(requests, isEmpty);
     });
@@ -166,7 +167,7 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        expect(find.text('Provider runtime blocked'), findsOneWidget);
+        expect(find.text('Boards unavailable'), findsOneWidget);
         expect(find.text('Backend non-drag actions blocked'), findsOneWidget);
         expect(requests, hasLength(1));
       },

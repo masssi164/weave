@@ -753,6 +753,7 @@ String _chatRoomLoadFailureMessage(AppLocalizations l10n, ChatFailure failure) {
     ChatFailureType.sessionRequired => l10n.chatErrorSessionRequiredGuidance,
     ChatFailureType.unsupportedPlatform =>
       l10n.chatErrorUnsupportedPlatformGuidance,
+    ChatFailureType.peerDevicePending => failure.message,
     ChatFailureType.cancelled ||
     ChatFailureType.protocol ||
     ChatFailureType.storage ||
@@ -767,6 +768,7 @@ String _chatRoomSendFailureMessage(AppLocalizations l10n, ChatFailure failure) {
     ChatFailureType.sessionRequired => l10n.chatErrorSessionRequiredGuidance,
     ChatFailureType.unsupportedPlatform =>
       l10n.chatErrorUnsupportedPlatformGuidance,
+    ChatFailureType.peerDevicePending => failure.message,
     ChatFailureType.cancelled ||
     ChatFailureType.protocol ||
     ChatFailureType.storage ||

@@ -79,6 +79,33 @@ def main() -> int:
     require("- weave-live" in deployment, "persistent deployment is not pinned to the dedicated live runner label")
     require("TF_VAR_create_test_user: 'false'" in deployment, "persistent dogfood still creates an automation member")
     require("TF_VAR_test_user_password" not in deployment and "WEAVE_TEST_PASSWORD" not in deployment, "persistent dogfood carries obsolete test-user credentials")
+    persistent_credential_names = (
+        "TF_VAR_db_admin_password",
+        "TF_VAR_backend_db_password",
+        "TF_VAR_mcp_boundary_token",
+        "TF_VAR_keycloak_admin_password",
+        "TF_VAR_keycloak_db_password",
+        "TF_VAR_mas_db_password",
+        "TF_VAR_synapse_db_password",
+        "TF_VAR_nextcloud_db_password",
+        "TF_VAR_nextcloud_admin_password",
+        "TF_VAR_nextcloud_backend_actor_token",
+        "TF_VAR_matrix_mas_client_secret",
+        "TF_VAR_identity_admin_client_secret",
+        "TF_VAR_identity_events_hmac_secret",
+        "TF_VAR_mas_encryption_secret",
+        "TF_VAR_mas_signing_key_pem",
+        "TF_VAR_mas_matrix_secret",
+        "TF_VAR_matrix_chat_appservice_as_token",
+        "TF_VAR_matrix_chat_appservice_hs_token",
+        "TF_VAR_synapse_registration_shared_secret",
+        "TF_VAR_synapse_macaroon_secret_key",
+        "TF_VAR_synapse_form_secret",
+    )
+    require(
+        all(f"{name}:" not in deployment for name in persistent_credential_names),
+        "routine persistent deployment overrides restored credential authority",
+    )
     require(
         "bash ./smoke-test.sh" not in deployment
         and deployment.count("bash ./operator-check.sh") == 2,

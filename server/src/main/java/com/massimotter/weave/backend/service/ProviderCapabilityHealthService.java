@@ -1,6 +1,7 @@
 package com.massimotter.weave.backend.service;
 
 import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
+import com.massimotter.weave.backend.chat.port.ChatSouthboundProvider;
 import com.massimotter.weave.backend.config.ProviderHealthProperties;
 import com.massimotter.weave.backend.files.port.FilesProviderPort;
 import com.massimotter.weave.backend.model.admin.ProviderCapabilityHealthResponse;
@@ -46,11 +47,13 @@ public class ProviderCapabilityHealthService {
     public ProviderCapabilityHealthService(
             ObjectProvider<FilesProviderPort> filesProvider,
             ObjectProvider<CalendarProviderPort> calendarProvider,
+            ObjectProvider<ChatSouthboundProvider> chatProvider,
             ProviderHealthProperties properties,
             MeterRegistry meterRegistry) {
         this(
                 filesProvider.getIfUnique(),
                 calendarProvider.getIfUnique(),
+                chatProvider.getIfUnique(),
                 properties,
                 meterRegistry,
                 Clock.systemUTC(),
@@ -60,6 +63,7 @@ public class ProviderCapabilityHealthService {
     ProviderCapabilityHealthService(
             FilesProviderPort filesProvider,
             CalendarProviderPort calendarProvider,
+            ChatSouthboundProvider chatProvider,
             ProviderHealthProperties properties,
             MeterRegistry meterRegistry,
             Clock clock,
@@ -79,6 +83,11 @@ public class ProviderCapabilityHealthService {
                 "calendar",
                 calendarProvider == null ? null : calendarProvider::healthProbe,
                 safelyConfigured(calendarProvider),
+                now));
+        configuredTargets.put("chat", target(
+                "chat",
+                chatProvider == null ? null : chatProvider::healthProbe,
+                safelyConfigured(chatProvider),
                 now));
         this.targets = Collections.unmodifiableMap(configuredTargets);
         this.targets.values().forEach(this::registerGauges);
@@ -341,6 +350,14 @@ public class ProviderCapabilityHealthService {
     }
 
     private boolean safelyConfigured(CalendarProviderPort provider) {
+        try {
+            return provider != null && provider.configured();
+        } catch (RuntimeException exception) {
+            return false;
+        }
+    }
+
+    private boolean safelyConfigured(ChatSouthboundProvider provider) {
         try {
             return provider != null && provider.configured();
         } catch (RuntimeException exception) {

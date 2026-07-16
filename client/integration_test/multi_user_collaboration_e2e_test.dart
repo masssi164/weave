@@ -162,6 +162,7 @@ void main() {
       var authorMessageObserved = false;
       var collaboratorReplyObserved = false;
       var ciphertextOnlyTransport = false;
+      var coldCollaboratorDeviceSetVerified = false;
       var outsiderChatDenied = false;
       var outsiderFilesReadDenied = false;
       var outsiderFilesMutationDenied = false;
@@ -192,6 +193,7 @@ void main() {
         roomName: 'Weave encrypted collaboration $suffix',
         cleanup: cleanup,
       );
+      coldCollaboratorDeviceSetVerified = configuration.runIndex == 1;
 
       _emitProgress(configuration, 'home-baseline');
       final homeActivityBaseline = <CollaborationActorRole, Set<String>>{};
@@ -796,6 +798,9 @@ void main() {
         'authorMessageObserved': authorMessageObserved,
         'collaboratorReplyObserved': collaboratorReplyObserved,
         'ciphertextOnlyTransport': ciphertextOnlyTransport,
+        if (configuration.runIndex == 1)
+          'coldCollaboratorDeviceSetVerified':
+              coldCollaboratorDeviceSetVerified,
         'outsiderDenied': outsiderChatDenied,
         'messageCount': 2,
         'messageCleanupComplete': cleanup.messageCleanupComplete,
@@ -986,6 +991,8 @@ Future<String> _provisionEncryptedSharedRoom({
         deviceId: collaboratorCredentials.deviceId,
       ),
       roomName: roomName,
+      requireColdCollaboratorDevice: configuration.runIndex == 1,
+      pruneStaleActorDevices: true,
     );
     cleanup.rememberChatRoom(provisioned.roomId);
     if (provisioned.collaboratorUserId == null ||
@@ -1147,9 +1154,31 @@ Future<void> _establishEncryptedDeviceExchange({
     }
   }
 
+  final supportCode = lastFailure is _ChatObservationFailure
+      ? lastFailure.code
+      : 'M_WEAVE_E2EE_DEVICE_EXCHANGE_FAILED';
+  await _emitE2eeDiagnostics(
+    configuration: configuration,
+    role: CollaborationActorRole.author,
+    session: authorSession,
+    roomId: roomId,
+  );
+  await _emitE2eeDiagnostics(
+    configuration: configuration,
+    role: CollaborationActorRole.collaborator,
+    session: collaboratorSession,
+    roomId: roomId,
+  );
+  // `print` is intentional: `debugPrint` can throttle or drop the last line of
+  // a failing native integration process before the sanitizer consumes it.
+  // ignore: avoid_print
+  print(
+    'MULTI_USER_E2EE_FAILURE Failure code: $supportCode '
+    'runIndex=${configuration.runIndex}',
+  );
   throw StateError(
     'The two established Matrix devices could not exchange encrypted '
-    'messages. Last failure type: ${lastFailure?.runtimeType ?? 'none'}.',
+    'messages. Failure code: $supportCode.',
   );
 }
 
@@ -1351,16 +1380,37 @@ Future<ChatMessage> _waitForChatMessage(
   String expectedText, {
   Duration timeout = const Duration(seconds: 45),
 }) async {
-  final timeline = await _eventually(
-    () => session.chat.loadRoomTimeline(roomId),
-    (timeline) =>
-        timeline.messages.any((message) => message.text == expectedText),
-    reason: 'A committed Chat message was not observed in a fresh session.',
-    timeout: timeout,
-  );
-  return timeline.messages.firstWhere(
-    (message) => message.text == expectedText,
-  );
+  try {
+    final timeline = await _eventually(
+      () => session.chat.loadRoomTimeline(roomId),
+      (timeline) =>
+          timeline.messages.any((message) => message.text == expectedText),
+      reason: 'A committed Chat message was not observed in a fresh session.',
+      timeout: timeout,
+    );
+    return timeline.messages.firstWhere(
+      (message) => message.text == expectedText,
+    );
+  } catch (_) {
+    var supportCode = 'M_WEAVE_E2EE_MESSAGE_NOT_OBSERVED';
+    try {
+      supportCode = (await session.chatDecryptionDiagnostics(
+        roomId,
+      )).supportCode;
+    } catch (_) {
+      // The generic code remains support-safe when diagnostics are unavailable.
+    }
+    throw _ChatObservationFailure(supportCode);
+  }
+}
+
+class _ChatObservationFailure implements Exception {
+  const _ChatObservationFailure(this.code);
+
+  final String code;
+
+  @override
+  String toString() => code;
 }
 
 Future<bool> _verifyCiphertextOnlyTransport(
@@ -1607,6 +1657,52 @@ void _emitProgress(MultiUserTestConfig configuration, String phase) {
   // provider responses, URLs, credentials, or mutable application content.
   // ignore: avoid_print
   print('MULTI_USER_PROGRESS phase=$phase runIndex=${configuration.runIndex}');
+}
+
+Future<void> _emitE2eeDiagnostics({
+  required MultiUserTestConfig configuration,
+  required CollaborationActorRole role,
+  required LiveActorSession session,
+  required String roomId,
+}) async {
+  try {
+    final diagnostics = await session.chatDecryptionDiagnostics(roomId);
+    // Only allowlisted roles and bounded integer counts cross into the
+    // shareable test log. No Matrix IDs, room/session IDs, device IDs, event
+    // content, key material, ciphertext, URLs, or provider payloads are used.
+    // ignore: avoid_print
+    print(
+      'MULTI_USER_E2EE_DIAGNOSTIC '
+      'role=${role.name} runIndex=${configuration.runIndex} available=1 '
+      'eventCount=${diagnostics.eventCount} '
+      'decryptedCount=${diagnostics.decryptedCount} '
+      'unableToDecryptCount=${diagnostics.unableToDecryptCount} '
+      'toDeviceDecryptedCount=${diagnostics.toDeviceDecryptedCount} '
+      'toDeviceRoomKeyCount=${diagnostics.toDeviceDecryptedRoomKeyCount} '
+      'toDeviceForwardedRoomKeyCount='
+      '${diagnostics.toDeviceDecryptedForwardedRoomKeyCount} '
+      'toDeviceOtherCount=${diagnostics.toDeviceDecryptedOtherCount} '
+      'toDeviceUnknownTypeCount='
+      '${diagnostics.toDeviceDecryptedUnknownTypeCount} '
+      'toDeviceUnableToDecryptCount='
+      '${diagnostics.toDeviceUnableToDecryptCount} '
+      'toDevicePlaintextCount=${diagnostics.toDevicePlaintextCount} '
+      'toDeviceInvalidCount=${diagnostics.toDeviceInvalidCount}',
+    );
+  } catch (_) {
+    // The unavailable marker remains support-safe and still distinguishes a
+    // diagnostics-path failure from a zero-count observation.
+    // ignore: avoid_print
+    print(
+      'MULTI_USER_E2EE_DIAGNOSTIC '
+      'role=${role.name} runIndex=${configuration.runIndex} available=0 '
+      'eventCount=0 decryptedCount=0 unableToDecryptCount=0 '
+      'toDeviceDecryptedCount=0 toDeviceRoomKeyCount=0 '
+      'toDeviceForwardedRoomKeyCount=0 toDeviceOtherCount=0 '
+      'toDeviceUnknownTypeCount=0 toDeviceUnableToDecryptCount=0 '
+      'toDevicePlaintextCount=0 toDeviceInvalidCount=0',
+    );
+  }
 }
 
 void _emitEvidence(

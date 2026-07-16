@@ -99,6 +99,7 @@ registerRootCommandTask('releaseReadinessFixtureTest', ['python3', 'tools/releas
 registerRootCommandTask('humanTestingReadinessManifestTest', ['bash', '-lc', 'python3 tools/human_testing_readiness_manifest_test.py && python3 tools/human_testing_readiness_assemble_test.py'], 'Validate assembly and fail-closed evaluation of the versioned support-safe human-testing readiness manifest.')
 registerRootCommandTask('multiUserE2EEvidenceTest', ['python3', 'tools/multi_user_e2e_evidence_test.py'], 'Validate two-pass three-user collaboration aggregation, hashed identity isolation, and scoped cleanup evidence.')
 registerRootCommandTask('multiUserLogSanitizerTest', ['python3', 'tools/sanitize_multi_user_test_log_test.py'], 'Validate support-safe multi-user Flutter failure categories and stable diagnostic signatures.')
+registerRootCommandTask('matrixToDeviceEvidenceValidatorTest', ['python3', 'tools/validate_matrix_to_device_evidence_test.py'], 'Validate fail-closed reconstruction of count-only Matrix to-device live evidence.')
 registerRootCommandTask('dogfoodDeploymentEvidenceTest', ['python3', 'tools/dogfood_deployment_evidence_test.py'], 'Validate loopback cached-provider metrics and non-destructive persistent dogfood deployment evidence.')
 registerRootCommandTask('candidatePipelineCheck', ['python3', 'tools/candidate_pipeline_check.py'], 'Validate the ordered exact-candidate isolated E2E, dogfood, TestFlight, physical acceptance, and promotion chain.')
 registerRootCommandTask('obsoleteFirstRunContractCheck', ['python3', 'tools/obsolete_first_run_contract_check.py'], 'Reject the obsolete first-run screen, provider, route, API, and member copy in client/server production sources.')
@@ -194,6 +195,7 @@ ext.ciEvidenceGates = [
     'humanTestingReadinessManifestTest',
     'multiUserE2EEvidenceTest',
     'multiUserLogSanitizerTest',
+    'matrixToDeviceEvidenceValidatorTest',
     'dogfoodDeploymentEvidenceTest',
     'candidatePipelineCheck',
     'obsoleteFirstRunContractCheck'
@@ -398,10 +400,10 @@ tasks.register('doctor') {
 tasks.register('ci') {
     group = 'verification'
     description = 'Run the canonical monorepo CI orchestration checks.'
-    dependsOn 'doctor', 'specCorpusConformance', 'acceptanceContract', 'specContract', 'specContractTest', 'domainRegistryCheck', 'portabilityContractCheck', 'productTrustClaimMatrixCheck', 'androidReleaseIdentityCheck', 'adminDependencyPolicyCheck', 'bootstrapFoundationCheck', 'humanTestingReadinessManifestTest', 'multiUserE2EEvidenceTest', 'multiUserLogSanitizerTest', 'clientCi', 'serverCi', 'mcpCi', 'infraStatic', 'adminCi', 'docsCheck', 'releaseNotesLabelCheck', 'releaseEvidenceCheck', 'liveStackRunnerHygieneCheck', 'projectReadinessEvidenceCheck'
+    dependsOn 'doctor', 'specCorpusConformance', 'acceptanceContract', 'specContract', 'specContractTest', 'domainRegistryCheck', 'portabilityContractCheck', 'productTrustClaimMatrixCheck', 'androidReleaseIdentityCheck', 'adminDependencyPolicyCheck', 'bootstrapFoundationCheck', 'humanTestingReadinessManifestTest', 'multiUserE2EEvidenceTest', 'multiUserLogSanitizerTest', 'matrixToDeviceEvidenceValidatorTest', 'matrixRustCoreTest', 'clientCi', 'serverCi', 'mcpCi', 'infraStatic', 'adminCi', 'docsCheck', 'releaseNotesLabelCheck', 'releaseEvidenceCheck', 'liveStackRunnerHygieneCheck', 'projectReadinessEvidenceCheck'
 }
 
-['specCorpusConformance', 'acceptanceContract', 'specContract', 'specContractTest', 'domainRegistryCheck', 'spaceAnchorCheck', 'portabilityContractCheck', 'productTrustClaimMatrixCheck', 'androidReleaseIdentityCheck', 'adminDependencyPolicyCheck', 'bootstrapFoundationCheck', 'humanTestingReadinessManifestTest', 'multiUserE2EEvidenceTest', 'multiUserLogSanitizerTest', 'clientCi', 'serverCi', 'mcpCi', 'infraStatic', 'adminCi', 'docsStructureCheck', 'docsBuild', 'releaseNotesLabelCheck', 'releaseEvidenceCheck', 'liveStackRunnerHygieneCheck', 'sprint30HotPhaseCheck', 'crossDomainProviderProofCheck', 'projectReadinessEvidenceCheck', 'enterpriseReleaseGateCheck', 'releaseReadinessFixtureTest', 'releaseReadinessCheck'].each { taskName ->
+['specCorpusConformance', 'acceptanceContract', 'specContract', 'specContractTest', 'domainRegistryCheck', 'spaceAnchorCheck', 'portabilityContractCheck', 'productTrustClaimMatrixCheck', 'androidReleaseIdentityCheck', 'adminDependencyPolicyCheck', 'bootstrapFoundationCheck', 'humanTestingReadinessManifestTest', 'multiUserE2EEvidenceTest', 'multiUserLogSanitizerTest', 'matrixToDeviceEvidenceValidatorTest', 'matrixRustCoreTest', 'clientCi', 'serverCi', 'mcpCi', 'infraStatic', 'adminCi', 'docsStructureCheck', 'docsBuild', 'releaseNotesLabelCheck', 'releaseEvidenceCheck', 'liveStackRunnerHygieneCheck', 'sprint30HotPhaseCheck', 'crossDomainProviderProofCheck', 'projectReadinessEvidenceCheck', 'enterpriseReleaseGateCheck', 'releaseReadinessFixtureTest', 'releaseReadinessCheck'].each { taskName ->
     tasks.named(taskName) {
         mustRunAfter tasks.named('doctor')
     }

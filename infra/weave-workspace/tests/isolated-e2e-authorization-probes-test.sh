@@ -17,7 +17,12 @@ fail() { printf '%s\n' "$*" >&2; exit 1; }
 sha256() { printf '%s' "$1" | shasum -a 256 | awk '{print $1}'; }
 
 mkdir -p "${MOCK_BIN}" "${MOCK_STATE}"
-prepare_output="$(bash "${IDENTITY_SCRIPT}" prepare --run-id "${RUN_ID}" --output-root "${OUTPUT_ROOT}")"
+prepare_output="$(
+  WEAVE_E2E_STACK_SCOPE=isolated \
+    WEAVE_CANDIDATE_COMMIT=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb \
+    WEAVE_CANDIDATE_EVIDENCE_REF=https://github.example.invalid/weave/actions/runs/84 \
+    bash "${IDENTITY_SCRIPT}" prepare --run-id "${RUN_ID}" --output-root "${OUTPUT_ROOT}"
+)"
 for variable in \
   WEAVE_E2E_OUTPUT_ROOT \
   WEAVE_E2E_RUN_NAMESPACE \

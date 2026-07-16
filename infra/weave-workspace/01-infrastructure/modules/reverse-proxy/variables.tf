@@ -67,3 +67,9 @@ variable "public_hosts" {
   description = "Public hostnames that should resolve to the reverse proxy on the Docker network."
   type        = map(string)
 }
+
+variable "resource_labels" {
+  description = "Ownership labels applied to every managed Docker resource."
+  type        = map(string)
+  default     = {}
+}

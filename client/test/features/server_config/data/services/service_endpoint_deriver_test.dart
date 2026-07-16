@@ -16,7 +16,7 @@ void main() {
       );
       expect(
         endpoints.nextcloudBaseUrl.toString(),
-        'https://files.home.internal',
+        'https://api.home.internal/api/dav/files',
       );
       expect(
         endpoints.backendApiBaseUrl.toString(),
@@ -34,7 +34,7 @@ void main() {
       );
       expect(
         endpoints.nextcloudBaseUrl.toString(),
-        'https://files.example.com',
+        'https://api.example.com/api/dav/files',
       );
       expect(
         endpoints.backendApiBaseUrl.toString(),
@@ -56,7 +56,7 @@ void main() {
         );
         expect(
           endpoints.nextcloudBaseUrl.toString(),
-          'https://files.workspace.example.com',
+          'https://api.workspace.example.com/api/dav/files',
         );
         expect(
           endpoints.backendApiBaseUrl.toString(),
@@ -75,7 +75,7 @@ void main() {
       );
       expect(
         endpoints.nextcloudBaseUrl.toString(),
-        'http://files.home.internal',
+        'http://api.home.internal/api/dav/files',
       );
       expect(
         endpoints.backendApiBaseUrl.toString(),

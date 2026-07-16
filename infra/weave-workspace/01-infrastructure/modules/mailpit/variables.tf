@@ -32,3 +32,9 @@ variable "web_host_port" {
   description = "Loopback-only host port for the Mailpit web/API inbox."
   type        = number
 }
+
+variable "resource_labels" {
+  description = "Ownership labels applied to every managed Docker resource."
+  type        = map(string)
+  default     = {}
+}

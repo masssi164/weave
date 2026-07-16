@@ -195,12 +195,6 @@ class _BoardSummaryCard extends StatelessWidget {
                     label: l10n.boardsWorkspaceNonDragMovement,
                   ),
                   _InfoChip(
-                    icon: Icons.extension_outlined,
-                    label: l10n.boardsWorkspaceProviderCapabilitySummary(
-                      _providerLabel(l10n, board.capabilities.provider),
-                    ),
-                  ),
-                  _InfoChip(
                     icon: board.canUseBackendNonDragActions
                         ? Icons.check_circle_outline
                         : Icons.block_outlined,
@@ -210,15 +204,6 @@ class _BoardSummaryCard extends StatelessWidget {
                   ),
                 ],
               ),
-              if (board.capabilities.supportSafeSummary.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Text(
-                  board.capabilities.supportSafeSummary,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
             ],
           ),
         ),
@@ -654,16 +639,4 @@ BoardColumnWorkspace? _columnForStatus(
     }
   }
   return null;
-}
-
-String _providerLabel(AppLocalizations l10n, String provider) {
-  return switch (provider) {
-    'in-memory' => l10n.boardsWorkspaceProviderInMemory,
-    'vikunja' => l10n.boardsWorkspaceProviderVikunja,
-    'openproject' => l10n.boardsWorkspaceProviderOpenProject,
-    'nextcloud-deck' => l10n.boardsWorkspaceProviderNextcloudDeck,
-    'none' => l10n.boardsWorkspaceProviderNone,
-    'unavailable' => l10n.boardsWorkspaceProviderUnavailable,
-    _ => l10n.boardsWorkspaceProviderUnknown,
-  };
 }

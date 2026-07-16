@@ -9,6 +9,7 @@ ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 PROVISIONER="${ROOT_DIR}/provision-matrix-default-workspace.sh"
 PROVISIONER_CODE="$(grep -v '^[[:space:]]*#' "${PROVISIONER}")"
 export WEAVE_MATRIX_MAS_REGISTRATION_SETTLE_SECONDS=0
+export WEAVE_MATRIX_MAS_CLI_DELAY_SECONDS=0
 
 fail() {
   printf '%s\n' "$*" >&2
@@ -66,7 +67,7 @@ run_register_flow() {
     case "$1 $2" in
       'manage register-user')
         case "${mode}" in
-          fresh)
+          fresh|missing-token-once)
             printf '%s\n' 'User registered'
             return 0
             ;;
@@ -85,6 +86,11 @@ run_register_flow() {
         return 0
         ;;
       'manage issue-compatibility-token')
+        if [[ "${mode}" == "missing-token-once" ]] &&
+          [[ "$(grep -c '^manage issue-compatibility-token ' "${calls_file}" | tr -d ' ')" == "1" ]]; then
+          printf '%s\n' 'Compatibility token created without a machine-usable log field'
+          return 0
+        fi
         printf 'Compatibility token issued: %s\n' "${expected_token}"
         return 0
         ;;
@@ -117,11 +123,17 @@ run_register_flow() {
     fail "Matrix provisioner should issue admin compatibility tokens without overriding MAS' device id."
   fi
 
+  if [[ "${mode}" == "missing-token-once" ]] &&
+    [[ "$(grep -c '^manage issue-compatibility-token ' "${calls_file}" | tr -d ' ')" != "2" ]]; then
+    fail "Matrix provisioner should retry a successful MAS CLI call that emitted no parseable compatibility token."
+  fi
+
   rm -f -- "${calls_file}"
 }
 
 run_register_flow fresh "${VALID_TOKEN_FRESH}"
 run_register_flow existing "${VALID_TOKEN_EXISTING}"
+run_register_flow missing-token-once "${VALID_TOKEN_FRESH}"
 
 run_token_validation_flow() {
   bash -c '

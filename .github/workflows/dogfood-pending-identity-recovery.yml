@@ -1,0 +1,572 @@
+name: Dogfood Pending Identity Recovery
+run-name: Dogfood Pending Identity Recovery ${{ inputs.candidate_sha }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_sha:
+        description: "Exact dogfood commit with successful isolated Live Stack E2E evidence"
+        required: true
+        type: string
+      retirement_confirmation:
+        description: "After proving no backup is identity-restorable for the recorded subject, type retire-lost-pending-identity"
+        required: true
+        type: string
+      bootstrap_retirement_confirmation:
+        description: "After proving the restored realm contains only the obsolete disposable test identity, type retire-restored-test-bootstrap"
+        required: true
+        type: string
+      weave_backend_image:
+        description: "Backend image; ghcr.io/* is pulled, other refs are built locally from the checked-out commit"
+        required: false
+        default: "weave-backend:pending-identity-recovery"
+      weave_mcp_server_image:
+        description: "MCP server image; ghcr.io/* is pulled, other refs are built locally from the checked-out commit"
+        required: false
+        default: "weave-mcp-server:pending-identity-recovery"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: weave-persistent-dogfood
+  cancel-in-progress: false
+
+jobs:
+  recover-pending-identity:
+    name: Recover Lost Pending Dogfood Identity
+    environment: dogfood
+    runs-on:
+      - self-hosted
+      - macOS
+      - ARM64
+      - weave-live
+    timeout-minutes: 90
+    env:
+      EXPECTED_RUNNER_NAME: weave-live-mac-mini
+      DISPATCH_REF: ${{ github.ref_name }}
+      CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+      RETIREMENT_CONFIRMATION: ${{ inputs.retirement_confirmation }}
+      BOOTSTRAP_RETIREMENT_CONFIRMATION: ${{ inputs.bootstrap_retirement_confirmation }}
+      WEAVE_BACKEND_IMAGE: ${{ inputs.weave_backend_image }}
+      WEAVE_MCP_SERVER_IMAGE: ${{ inputs.weave_mcp_server_image }}
+      TF_VAR_create_test_user: 'false'
+      TF_VAR_isolated_e2e_enabled: 'false'
+      TF_VAR_boards_runtime_enabled: 'true'
+      TF_VAR_boards_provider: local-workspace
+      TF_VAR_provider_stack_profile: local-live
+      TF_VAR_provider_stack_readiness: ready
+      TF_VAR_tenant_domain: weave.test
+      TF_VAR_proxy_http_host_port: '44080'
+      TF_VAR_proxy_host_port: '44443'
+      TF_VAR_keycloak_host_port: '48080'
+      TF_VAR_mas_host_port: '48082'
+      TF_VAR_synapse_host_port: '48008'
+      TF_VAR_nextcloud_host_port: '48083'
+      TF_VAR_backend_host_port: '48084'
+      WEAVE_RUNNER_HYGIENE: 'false'
+      WEAVE_REMOVE_VOLUMES: 'false'
+      WEAVE_DOGFOOD_DEPLOYMENT_SCOPE: persistent-dogfood
+      WEAVE_DOGFOOD_MEMBER_USERNAME: ${{ vars.WEAVE_DOGFOOD_MEMBER_USERNAME }}
+      WEAVE_DOGFOOD_MEMBER_EMAIL: ${{ secrets.WEAVE_DOGFOOD_MEMBER_EMAIL }}
+      WEAVE_DOGFOOD_MEMBER_DISPLAY_NAME: ${{ vars.WEAVE_DOGFOOD_MEMBER_DISPLAY_NAME }}
+      WEAVE_DOGFOOD_MEMBER_GROUPS: ${{ vars.WEAVE_DOGFOOD_MEMBER_GROUPS }}
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Verify protected recovery request
+        run: |
+          set -euo pipefail
+          [[ "${RUNNER_NAME:-}" == "${EXPECTED_RUNNER_NAME}" ]] || {
+            echo "::error::Pending identity recovery must run on ${EXPECTED_RUNNER_NAME}." >&2
+            exit 1
+          }
+          [[ "$DISPATCH_REF" == dogfood ]] || {
+            echo "::error::Pending identity recovery must be dispatched from the protected dogfood branch." >&2
+            exit 1
+          }
+          [[ "$CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "::error::Recovery requires an exact lowercase candidate SHA." >&2
+            exit 1
+          }
+          [[ "$RETIREMENT_CONFIRMATION" == retire-lost-pending-identity ]] || {
+            echo "::error::The exact pending-identity retirement confirmation was not supplied." >&2
+            exit 1
+          }
+          [[ "$BOOTSTRAP_RETIREMENT_CONFIRMATION" == retire-restored-test-bootstrap ]] || {
+            echo "::error::The exact restored-bootstrap retirement confirmation was not supplied." >&2
+            exit 1
+          }
+
+      - name: Check out exact candidate
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ env.CANDIDATE_SHA }}
+          fetch-depth: 0
+
+      - name: Verify successful exact-candidate isolated E2E and dogfood containment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$CANDIDATE_SHA" ]] || {
+            echo "::error::The checked-out commit does not match the requested recovery candidate." >&2
+            exit 1
+          }
+          spec_corpus_commit="$(jq -er '
+            .specCorpus.gitCommit |
+            select(type == "string" and test("^[0-9a-f]{40}$"))
+          ' specs/weave-specs.lock.json)"
+          runs="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/live-stack-e2e.yml/runs?head_sha=${CANDIDATE_SHA}&status=completed&per_page=30")"
+          isolated_e2e_run_id="$(jq -r '[.workflow_runs[] | select(.conclusion == "success")][0].id // empty' <<<"$runs")"
+          [[ -n "$isolated_e2e_run_id" ]] || {
+            echo "::error::No successful isolated Live Stack E2E run targets ${CANDIDATE_SHA}." >&2
+            exit 1
+          }
+          git fetch origin dogfood --prune
+          git merge-base --is-ancestor "$CANDIDATE_SHA" origin/dogfood || {
+            echo "::error::Recovery candidate is not contained in origin/dogfood." >&2
+            exit 1
+          }
+          echo "ISOLATED_E2E_RUN_ID=$isolated_e2e_run_id" >>"$GITHUB_ENV"
+          echo "SPEC_CORPUS_COMMIT=$spec_corpus_commit" >>"$GITHUB_ENV"
+
+      - name: Prepare support-safe recovery evidence
+        run: |
+          set -euo pipefail
+          evidence_dir="$RUNNER_TEMP/weave-pending-identity-recovery-evidence"
+          rm -rf -- "$evidence_dir"
+          mkdir -p "$evidence_dir"
+          chmod 700 "$evidence_dir"
+          echo "WEAVE_RECOVERY_EVIDENCE_DIR=$evidence_dir" >>"$GITHUB_ENV"
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Set up OpenTofu
+        uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: 1.10.6
+          tofu_wrapper: false
+
+      - name: Ensure persistent dogfood hostnames resolve
+        run: |
+          set -euo pipefail
+          hosts=(weave.test api.weave.test auth.weave.test files.weave.test matrix.weave.test admin.weave.test mail.weave.test)
+          missing=()
+          for hostname in "${hosts[@]}"; do
+            if ! dscacheutil -q host -a name "$hostname" | grep -q 'ip_address:'; then
+              missing+=("$hostname")
+            fi
+          done
+          (( ${#missing[@]} == 0 )) || {
+            echo "::error::Persistent dogfood DNS is missing: ${missing[*]}" >&2
+            exit 1
+          }
+
+      - name: Validate protected member configuration
+        run: |
+          set -euo pipefail
+          : "${WEAVE_DOGFOOD_MEMBER_USERNAME:?Configure the protected dogfood member username}"
+          : "${WEAVE_DOGFOOD_MEMBER_EMAIL:?Configure the protected dogfood member email}"
+          : "${WEAVE_DOGFOOD_MEMBER_DISPLAY_NAME:?Configure the protected dogfood member display name}"
+          [[ "$WEAVE_DOGFOOD_MEMBER_USERNAME" != test ]] || {
+            echo "::error::The persistent human member cannot reuse the disposable test identity." >&2
+            exit 1
+          }
+
+      - name: Build candidate runtime artifacts
+        run: ./gradlew --no-daemon --max-workers=1 :server:bootJar :weave-mcp-server:bootJar
+
+      - name: Prepare candidate images
+        run: |
+          set -euo pipefail
+          if [[ "$WEAVE_BACKEND_IMAGE" == ghcr.io/* ]]; then
+            docker pull "$WEAVE_BACKEND_IMAGE"
+          else
+            docker buildx build --load \
+              --label "org.opencontainers.image.revision=$CANDIDATE_SHA" \
+              -t "$WEAVE_BACKEND_IMAGE" -f server/Dockerfile .
+          fi
+          if [[ "$WEAVE_MCP_SERVER_IMAGE" == ghcr.io/* ]]; then
+            docker pull "$WEAVE_MCP_SERVER_IMAGE"
+          else
+            docker buildx build --load \
+              --label "org.opencontainers.image.revision=$CANDIDATE_SHA" \
+              -t "$WEAVE_MCP_SERVER_IMAGE" -f weave-mcp-server/Dockerfile .
+          fi
+          for image_ref in "$WEAVE_BACKEND_IMAGE" "$WEAVE_MCP_SERVER_IMAGE"; do
+            revision="$(docker image inspect \
+              --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' \
+              "$image_ref")"
+            [[ "$revision" == "$CANDIDATE_SHA" ]] || {
+              echo "::error::Runtime image does not identify the exact recovery candidate: $image_ref" >&2
+              exit 1
+            }
+          done
+
+      - name: Verify private pending-identity evidence before mutation
+        run: |
+          set -euo pipefail
+          dogfood_root="$HOME/.weave/dogfood"
+          subject_file="$dogfood_root/persistent-member.subject"
+          prior_evidence="$dogfood_root/persistent-member-ensure.json"
+          [[ -s "$subject_file" && -s "$prior_evidence" ]] || {
+            echo "::error::Private subject or prior pending evidence is unavailable." >&2
+            exit 1
+          }
+          subject_sha="$(tr -d '\r\n' <"$subject_file" | shasum -a 256 | awk '{print $1}')"
+          jq -e --arg subjectSha "$subject_sha" '
+            (.schemaVersion == "weave.dogfood.persistent-member.v1" or
+              .schemaVersion == "weave.dogfood.persistent-member-recovery.v1") and
+            .supportSafe == true and
+            .state == "pending" and
+            .subjectSha256 == $subjectSha and
+            .activation.mode == "keycloak-required-actions-email" and
+            .activation.mailSent == true and
+            .activation.mailVisible == true and
+            (.activation.requiredActions | index("VERIFY_EMAIL") != null) and
+            (.activation.requiredActions | index("UPDATE_PASSWORD") != null)
+          ' "$prior_evidence" >/dev/null || {
+            echo "::error::Accepted evidence does not prove the recorded subject was never activated." >&2
+            exit 1
+          }
+          jq -n --arg subjectSha256 "$subject_sha" \
+            '{schemaVersion:"weave.dogfood.pending-recovery-precondition.v1",state:"pending",subjectSha256:$subjectSha256,privateEvidencePresent:true,supportSafe:true}' \
+            >"$WEAVE_RECOVERY_EVIDENCE_DIR/precondition.json"
+
+      - name: Verify support-safe platform restore boundary
+        run: |
+          set -euo pipefail
+          restored_volumes=(
+            weave_db_data
+            weave_nextcloud_data
+            weave_synapse_data
+            weave_caddy_data
+            weave_caddy_config
+            weave_keycloak_data
+          )
+          for volume in "${restored_volumes[@]}"; do
+            docker volume inspect "$volume" >/dev/null 2>&1 || {
+              echo "::error::Guarded platform restore volume is unavailable." >&2
+              exit 1
+            }
+          done
+          for fresh_volume in weave_mailpit_data weave_matrix_chat_appservice_runtime; do
+            ! docker volume inspect "$fresh_volume" >/dev/null 2>&1 || {
+              echo "::error::A non-restorable persistent volume exists before candidate bootstrap." >&2
+              exit 1
+            }
+          done
+          persistent_containers=(
+            weave-db weave-proxy weave-keycloak weave-mailpit weave-backend
+            weave-mcp-server weave-mas weave-synapse weave-nextcloud
+          )
+          for container in "${persistent_containers[@]}"; do
+            ! docker container inspect "$container" >/dev/null 2>&1 || {
+              echo "::error::Persistent runtime started outside the protected recovery workflow." >&2
+              exit 1
+            }
+          done
+          source_evidence="$HOME/.weave/dogfood/identity-recovery/platform-restore.json"
+          [[ -s "$source_evidence" ]] || {
+            echo "::error::Guarded private platform restore evidence is unavailable." >&2
+            exit 1
+          }
+          jq -e '
+            .schemaVersion == "weave.dogfood.platform-private-restore.v1" and
+            .status == "passed" and
+            .integrity.allRequiredArtifactsVerified == true and
+            .platformData.status == "passed" and
+            .postgresBootstrap.restoredPersistentAdministrator == true and
+            .postgresBootstrap.temporaryAdministratorCreated == false and
+            .identity.identityRestorableForRecordedMember == false and
+            .identity.soleRestoredDisposableBootstrapIdentity == true and
+            .generatedRuntimeAssets.bootstrapCredentialsRestored == true and
+            .generatedRuntimeAssets.tlsIdentityRestored == true and
+            .mailpit.historyRestored == false and
+            .privateArtifactContentIncluded == false and
+            .supportSafe == true
+          ' "$source_evidence" >/dev/null || {
+            echo "::error::Platform restore evidence does not prove the exact pre-member backup boundary." >&2
+            exit 1
+          }
+          cp "$source_evidence" "$WEAVE_RECOVERY_EVIDENCE_DIR/platform-restore.json"
+
+      - name: Restore persistent OpenTofu and generated workspace
+        working-directory: infra/weave-workspace
+        run: |
+          set -euo pipefail
+          dogfood_root="$HOME/.weave/dogfood"
+          state_root="$dogfood_root/opentofu-state"
+          generated_root="$dogfood_root/generated"
+          cert_root="$generated_root/01-infrastructure/caddy/certs"
+          mkdir -p "$state_root" "$generated_root"
+          chmod 700 "$HOME/.weave" "$dogfood_root" "$state_root" "$generated_root"
+          for stage in 01-infrastructure 02-keycloak-setup; do
+            if [[ -s "$state_root/${stage}.tfstate" ]]; then
+              cp "$state_root/${stage}.tfstate" "$stage/terraform.tfstate"
+              chmod 600 "$stage/terraform.tfstate"
+            fi
+            mkdir -p "$generated_root/$stage"
+            rm -rf "$stage/.generated"
+            ln -s "$generated_root/$stage" "$stage/.generated"
+          done
+          {
+            echo "TF_VAR_caddy_tls_cert_file=$cert_root/weave.test.pem"
+            echo "TF_VAR_caddy_tls_key_file=$cert_root/weave.test-key.pem"
+            echo "TF_VAR_caddy_tls_ca_file=$cert_root/weave-local-ca.pem"
+          } >>"$GITHUB_ENV"
+
+      - name: Detach the restored disposable bootstrap identity from stale state
+        working-directory: infra/weave-workspace
+        run: |
+          set -euo pipefail
+          address='module.tenant_identity.keycloak_user.test[0]'
+          tracked_before=false
+          tofu -chdir=02-keycloak-setup init -input=false >/dev/null
+          if tofu -chdir=02-keycloak-setup state show "$address" >/dev/null 2>&1; then
+            tracked_before=true
+            tofu -chdir=02-keycloak-setup state rm "$address" >/dev/null
+          fi
+          if tofu -chdir=02-keycloak-setup state show "$address" >/dev/null 2>&1; then
+            echo "::error::The restored disposable bootstrap identity remains managed by OpenTofu." >&2
+            exit 1
+          fi
+          jq -n --argjson trackedBefore "$tracked_before" '{
+            schemaVersion:"weave.dogfood.bootstrap-state-detachment.v1",
+            addressKind:"restored-disposable-bootstrap-identity",
+            trackedBefore:$trackedBefore,
+            trackedAfter:false,
+            providerMutationPerformed:false,
+            retirementBoundary:"keycloak-admin-api-exact-subject",
+            supportSafe:true
+          }' >"$WEAVE_RECOVERY_EVIDENCE_DIR/bootstrap-state-detachment.json"
+
+      - name: Bootstrap lost persistent runtime with the exact candidate
+        working-directory: infra/weave-workspace
+        env:
+          TF_VAR_weave_backend_image: ${{ env.WEAVE_BACKEND_IMAGE }}
+          TF_VAR_weave_mcp_server_image: ${{ env.WEAVE_MCP_SERVER_IMAGE }}
+        run: ./install.sh
+
+      - name: Persist recovered OpenTofu state
+        if: ${{ always() }}
+        working-directory: infra/weave-workspace
+        run: |
+          set -euo pipefail
+          state_root="$HOME/.weave/dogfood/opentofu-state"
+          mkdir -p "$state_root"
+          chmod 700 "$HOME/.weave" "$HOME/.weave/dogfood" "$state_root"
+          for stage in 01-infrastructure 02-keycloak-setup; do
+            if [[ -s "$stage/terraform.tfstate" ]]; then
+              temporary="$state_root/${stage}.tfstate.tmp"
+              cp "$stage/terraform.tfstate" "$temporary"
+              chmod 600 "$temporary"
+              mv "$temporary" "$state_root/${stage}.tfstate"
+            fi
+          done
+
+      - name: Verify bootstrapped stack readiness
+        working-directory: infra/weave-workspace
+        run: bash ./operator-check.sh
+
+      - name: Retire the proven restored disposable bootstrap identity
+        working-directory: infra/weave-workspace
+        run: |
+          set -euo pipefail
+          dogfood_root="$HOME/.weave/dogfood"
+          WEAVE_DOGFOOD_MEMBER_SUBJECT_FILE="$dogfood_root/persistent-member.subject" \
+            ./dogfood-member.sh retire-restored-bootstrap \
+              --prior-evidence "$dogfood_root/persistent-member-ensure.json" \
+              --evidence-file "$WEAVE_RECOVERY_EVIDENCE_DIR/restored-bootstrap-retirement.json" \
+              --approval-ref "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+              --confirm-bootstrap-retirement "$BOOTSTRAP_RETIREMENT_CONFIRMATION"
+
+      - name: Retire the proven lost pending subject and create one replacement
+        working-directory: infra/weave-workspace
+        run: |
+          set -euo pipefail
+          dogfood_root="$HOME/.weave/dogfood"
+          subject_file="$dogfood_root/persistent-member.subject"
+          prior_evidence="$dogfood_root/persistent-member-ensure.json"
+          transition="$WEAVE_RECOVERY_EVIDENCE_DIR/pending-identity-transition.json"
+          WEAVE_DOGFOOD_MEMBER_SUBJECT_FILE="$subject_file" \
+            ./dogfood-member.sh recover-lost-pending \
+              --prior-evidence "$prior_evidence" \
+              --evidence-file "$transition" \
+              --approval-ref "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+              --confirm-retirement "$RETIREMENT_CONFIRMATION"
+
+          private_recovery_dir="$dogfood_root/identity-recovery"
+          mkdir -p "$private_recovery_dir"
+          chmod 700 "$private_recovery_dir"
+          cp "$prior_evidence" "$private_recovery_dir/${GITHUB_RUN_ID}-prior.json"
+          cp "$transition" "$private_recovery_dir/${GITHUB_RUN_ID}-transition.json"
+          cp "$transition" "$dogfood_root/persistent-member-ensure.json.tmp"
+          chmod 600 "$private_recovery_dir/${GITHUB_RUN_ID}-prior.json" \
+            "$private_recovery_dir/${GITHUB_RUN_ID}-transition.json" \
+            "$dogfood_root/persistent-member-ensure.json.tmp"
+          mv "$dogfood_root/persistent-member-ensure.json.tmp" "$dogfood_root/persistent-member-ensure.json"
+
+      - name: Verify replacement remains pending and transition is support-safe
+        working-directory: infra/weave-workspace
+        run: |
+          set -euo pipefail
+          status_evidence="$WEAVE_RECOVERY_EVIDENCE_DIR/pending-member-status.json"
+          WEAVE_DOGFOOD_MEMBER_SUBJECT_FILE="$HOME/.weave/dogfood/persistent-member.subject" \
+            ./dogfood-member.sh status --evidence-file "$status_evidence"
+          jq -e --slurpfile status "$status_evidence" '
+            .schemaVersion == "weave.dogfood.persistent-member-recovery.v1" and
+            .state == "pending" and
+            .action == "lost_pending_identity_retired_and_recreated" and
+            .previousSubjectSha256 != .subjectSha256 and
+            .retiredSubjectArchivedPrivately == true and
+            .readiness.blocked == true and
+            .supportSafe == true and
+            $status[0].state == "pending" and
+            $status[0].subjectSha256 == .subjectSha256 and
+            $status[0].supportSafe == true
+          ' "$WEAVE_RECOVERY_EVIDENCE_DIR/pending-identity-transition.json" >/dev/null
+          jq -e '
+            .schemaVersion == "weave.dogfood.restored-bootstrap-retirement.v1" and
+            .action == "restored_disposable_bootstrap_retired" and
+            .protectedIdentityPresentBefore == false and
+            .humanIdentityCountBefore == 1 and
+            .humanIdentityCountAfter == 0 and
+            .deletionBoundary == "keycloak-admin-api-exact-subject" and
+            .supportSafe == true
+          ' "$WEAVE_RECOVERY_EVIDENCE_DIR/restored-bootstrap-retirement.json" >/dev/null
+
+      - name: Create private post-recovery backup and run restore smoke
+        working-directory: infra/weave-workspace
+        run: |
+          set -euo pipefail
+          backup_root="$HOME/.weave/dogfood/backups"
+          marker="$RUNNER_TEMP/pending-identity-backup-start"
+          mkdir -p "$backup_root"
+          chmod 700 "$backup_root"
+          touch "$marker"
+          bash ./backup.sh "$backup_root"
+          new_backups=()
+          while IFS= read -r backup_candidate; do
+            [[ -n "$backup_candidate" ]] && new_backups+=("$backup_candidate")
+          done < <(find "$backup_root" -mindepth 1 -maxdepth 1 -type d -name 'weave-backup-*' -newer "$marker" -print | sort)
+          [[ ${#new_backups[@]} -eq 1 ]] || {
+            echo "::error::Recovery did not create exactly one private backup artifact set." >&2
+            exit 1
+          }
+          backup_dir="${new_backups[0]}"
+          WEAVE_RESTORE_RECEIPT_OUTPUT="$backup_dir/RestoreReceipt.json" \
+            bash ./restore-smoke.sh "$backup_dir"
+          manifest="$backup_dir/BackupManifest.json"
+          receipt="$backup_dir/RestoreReceipt.json"
+          jq -e '.supportSafe == false and (.artifacts | length) >= 8 and all(.artifacts[]; .bytes > 0)' "$manifest" >/dev/null
+          jq -e '
+            .supportSafe == true and
+            .validationMode == "post_restore_live" and
+            .status == "passed" and
+            .destroyStep.performed == false and
+            .provesRestoredDomainData == false and
+            .releaseEligible == false
+          ' "$receipt" >/dev/null
+          backup_id_sha="$(jq -r '.backupId' "$manifest" | shasum -a 256 | awk '{print $1}')"
+          artifact_count="$(jq '.artifacts | length' "$manifest")"
+          jq -n --arg backupIdSha256 "$backup_id_sha" --argjson artifactCount "$artifact_count" '
+            {
+              schemaVersion:"weave.dogfood.pending-recovery-backup.v1",
+              privateBackupCreated:true,
+              backupIdSha256:$backupIdSha256,
+              artifactCount:$artifactCount,
+              artifactPreflightPassed:true,
+              liveRestoreSmokePassed:true,
+              restoredDomainDataProven:false,
+              supportSafe:true
+            }
+          ' >"$WEAVE_RECOVERY_EVIDENCE_DIR/backup-restore-smoke.json"
+
+      - name: Record support-safe recovery outcome
+        if: ${{ always() && env.WEAVE_RECOVERY_EVIDENCE_DIR != '' }}
+        run: |
+          set -euo pipefail
+          platform_restore_completed=false
+          bootstrap_retirement_completed=false
+          transition_completed=false
+          backup_completed=false
+          if [[ -s "$WEAVE_RECOVERY_EVIDENCE_DIR/platform-restore.json" ]] && \
+              jq -e '.status == "passed" and .identity.identityRestorableForRecordedMember == false and .identity.soleRestoredDisposableBootstrapIdentity == true and .supportSafe == true' \
+                "$WEAVE_RECOVERY_EVIDENCE_DIR/platform-restore.json" >/dev/null; then
+            platform_restore_completed=true
+          fi
+          if [[ -s "$WEAVE_RECOVERY_EVIDENCE_DIR/restored-bootstrap-retirement.json" ]] && \
+              jq -e '.action == "restored_disposable_bootstrap_retired" and .humanIdentityCountAfter == 0 and .supportSafe == true' \
+                "$WEAVE_RECOVERY_EVIDENCE_DIR/restored-bootstrap-retirement.json" >/dev/null; then
+            bootstrap_retirement_completed=true
+          fi
+          if [[ -s "$WEAVE_RECOVERY_EVIDENCE_DIR/pending-identity-transition.json" ]] && \
+              jq -e '.action == "lost_pending_identity_retired_and_recreated" and .supportSafe == true' \
+                "$WEAVE_RECOVERY_EVIDENCE_DIR/pending-identity-transition.json" >/dev/null; then
+            transition_completed=true
+          fi
+          if [[ -s "$WEAVE_RECOVERY_EVIDENCE_DIR/backup-restore-smoke.json" ]] && \
+              jq -e '.privateBackupCreated == true and .artifactPreflightPassed == true and .liveRestoreSmokePassed == true' \
+                "$WEAVE_RECOVERY_EVIDENCE_DIR/backup-restore-smoke.json" >/dev/null; then
+            backup_completed=true
+          fi
+
+          recovery_state=not-completed
+          overall_state=failed
+          blockers='["protected-recovery-incomplete"]'
+          if [[ "$platform_restore_completed" == true && "$bootstrap_retirement_completed" == true && "$transition_completed" == true && "$backup_completed" == true ]]; then
+            recovery_state=completed
+            overall_state=blocked
+            blockers='["human-activation-required","active-session-required","two-install-dogfood-deployment-required"]'
+          elif [[ "$platform_restore_completed" == true && "$bootstrap_retirement_completed" == true && "$transition_completed" == true ]]; then
+            recovery_state=transition-completed-backup-incomplete
+            blockers='["private-backup-or-restore-smoke-failed","human-activation-required","active-session-required","two-install-dogfood-deployment-required"]'
+          fi
+
+          jq -n \
+            --arg candidateCommit "$CANDIDATE_SHA" \
+            --arg specCorpusCommit "$SPEC_CORPUS_COMMIT" \
+            --arg isolatedE2ERunId "$ISOLATED_E2E_RUN_ID" \
+            --arg runUrl "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --arg platformRestoreStatus "$([[ "$platform_restore_completed" == true ]] && printf passed || printf failed)" \
+            --arg bootstrapRetirementStatus "$([[ "$bootstrap_retirement_completed" == true ]] && printf passed || printf failed)" \
+            --arg recoveryState "$recovery_state" \
+            --arg overallState "$overall_state" \
+            --argjson blockers "$blockers" '
+            {
+              schemaVersion:"weave.dogfood.pending-identity-recovery-manifest.v1",
+              candidateCommit:$candidateCommit,
+              specCorpusCommit:$specCorpusCommit,
+              isolatedE2ERunId:$isolatedE2ERunId,
+              runUrl:$runUrl,
+              platformRestoreStatus:$platformRestoreStatus,
+              restoredBootstrapRetirementStatus:$bootstrapRetirementStatus,
+              recoveryState:$recoveryState,
+              overallState:$overallState,
+              blockers:$blockers,
+              humanTestingReady:false,
+              supportSafe:true
+            }
+          ' >"$WEAVE_RECOVERY_EVIDENCE_DIR/recovery-manifest.json"
+          cat "$WEAVE_RECOVERY_EVIDENCE_DIR/recovery-manifest.json" >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Upload support-safe recovery evidence
+        if: ${{ always() && env.WEAVE_RECOVERY_EVIDENCE_DIR != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: weave-pending-identity-recovery-evidence
+          path: ${{ env.WEAVE_RECOVERY_EVIDENCE_DIR }}
+          if-no-files-found: error
+          retention-days: 30

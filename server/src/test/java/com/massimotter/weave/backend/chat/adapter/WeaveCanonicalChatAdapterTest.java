@@ -1,6 +1,8 @@
 package com.massimotter.weave.backend.chat.adapter;
 
 import com.massimotter.weave.backend.chat.domain.ChatActorRef;
+import com.massimotter.weave.backend.chat.domain.ChatIdentityRef;
+import com.massimotter.weave.backend.chat.domain.ChatResolvedIdentity;
 import com.massimotter.weave.backend.chat.domain.ChatCursor;
 import com.massimotter.weave.backend.chat.domain.ChatEncryptedEnvelope;
 import com.massimotter.weave.backend.chat.domain.ChatEventContent;
@@ -142,5 +144,37 @@ class WeaveCanonicalChatAdapterTest {
         assertThat(typing.typing()).isTrue();
         assertThat(typing.expiresAt()).isAfter(Instant.now());
         assertThat(stopped.typing()).isFalse();
+    }
+
+    @Test
+    void inviteDoesNotBecomeJoinAndUnknownActorCannotJoinPrivateConversation() {
+        WeaveCanonicalChatAdapter adapter = new WeaveCanonicalChatAdapter();
+        ChatActorRef collaborator = new ChatActorRef("user:collaborator");
+        ChatActorRef outsider = new ChatActorRef("user:outsider");
+
+        var created = adapter.createConversation(
+                actor,
+                new ChatTransactionId("create-private"),
+                "Private",
+                "channel",
+                java.util.List.of(new ChatResolvedIdentity(
+                        new ChatIdentityRef(
+                                "tenant-isolated-test", "issuer-isolated-test", collaborator),
+                        collaborator.value())));
+
+        assertThat(created.memberships())
+                .filteredOn(membership -> membership.memberRef().equals(collaborator.value()))
+                .singleElement()
+                .satisfies(membership -> assertThat(membership.state()).isEqualTo("invited"));
+        assertThatThrownBy(() -> adapter.joinConversation(outsider, new ConversationId(created.conversationId())))
+                .isInstanceOf(com.massimotter.weave.backend.chat.domain.ChatAccessDeniedException.class);
+        assertThatThrownBy(() -> adapter.conversation(outsider, new ConversationId(created.conversationId())))
+                .isInstanceOf(com.massimotter.weave.backend.chat.domain.ChatAccessDeniedException.class);
+
+        var joined = adapter.joinConversation(collaborator, new ConversationId(created.conversationId()));
+        assertThat(joined.memberships())
+                .filteredOn(membership -> membership.memberRef().equals(collaborator.value()))
+                .singleElement()
+                .satisfies(membership -> assertThat(membership.state()).isEqualTo("joined"));
     }
 }

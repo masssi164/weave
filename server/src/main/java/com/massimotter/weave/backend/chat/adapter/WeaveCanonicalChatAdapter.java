@@ -3,6 +3,7 @@ package com.massimotter.weave.backend.chat.adapter;
 import com.massimotter.weave.backend.chat.domain.ChatConversation;
 import com.massimotter.weave.backend.chat.domain.ChatConversations;
 import com.massimotter.weave.backend.chat.domain.ChatActorRef;
+import com.massimotter.weave.backend.chat.domain.ChatAccessDeniedException;
 import com.massimotter.weave.backend.chat.domain.ChatChange;
 import com.massimotter.weave.backend.chat.domain.ChatChangeSet;
 import com.massimotter.weave.backend.chat.domain.ChatCursor;
@@ -11,11 +12,14 @@ import com.massimotter.weave.backend.chat.domain.ChatEncryptedEnvelope;
 import com.massimotter.weave.backend.chat.domain.ChatEventContent;
 import com.massimotter.weave.backend.chat.domain.ChatEventKind;
 import com.massimotter.weave.backend.chat.domain.ChatHistoryPolicy;
+import com.massimotter.weave.backend.chat.domain.ChatResolvedIdentity;
 import com.massimotter.weave.backend.chat.domain.ChatMemberState;
 import com.massimotter.weave.backend.chat.domain.ChatMembership;
 import com.massimotter.weave.backend.chat.domain.ChatMessage;
 import com.massimotter.weave.backend.chat.domain.ChatMessages;
 import com.massimotter.weave.backend.chat.domain.ChatReadReceipt;
+import com.massimotter.weave.backend.chat.domain.ChatRedactionReceipt;
+import com.massimotter.weave.backend.chat.domain.ChatRequestContext;
 import com.massimotter.weave.backend.chat.domain.ChatTimeline;
 import com.massimotter.weave.backend.chat.domain.ChatTimelineEvent;
 import com.massimotter.weave.backend.chat.domain.ChatTransactionId;
@@ -36,8 +40,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.stereotype.Component;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 @Component
+@ConditionalOnProperty(name = "weave.chat.provider", havingValue = "in-memory-test", matchIfMissing = true)
 public class WeaveCanonicalChatAdapter implements ChatProviderPort {
 
     private static final ChatHistoryPolicy HISTORY_POLICY = new ChatHistoryPolicy(
@@ -50,6 +56,7 @@ public class WeaveCanonicalChatAdapter implements ChatProviderPort {
     private final Map<String, ConversationState> conversations = new ConcurrentHashMap<>();
     private final Map<String, ChatEncryptionState> encryptionStates = new ConcurrentHashMap<>();
     private final Map<String, ChatTimelineEvent> transactions = new ConcurrentHashMap<>();
+    private final Map<String, ChatRedactionReceipt> redactionTransactions = new ConcurrentHashMap<>();
     private final Map<String, ChatConversation> conversationTransactions = new ConcurrentHashMap<>();
     private final Map<String, ChatReadReceipt> readReceipts = new ConcurrentHashMap<>();
     private final Map<String, ChatTypingIndicator> typingIndicators = new ConcurrentHashMap<>();
@@ -59,6 +66,7 @@ public class WeaveCanonicalChatAdapter implements ChatProviderPort {
     public WeaveCanonicalChatAdapter() {
         ConversationState general = new ConversationState(
                 "channel-general",
+                "context-isolated-test",
                 "General",
                 "channel",
                 true,
@@ -80,6 +88,11 @@ public class WeaveCanonicalChatAdapter implements ChatProviderPort {
                 new ConversationId(general.conversationId()),
                 "msg-1",
                 Instant.parse("2026-07-08T10:00:00Z")));
+    }
+
+    @Override
+    public String providerKey() {
+        return "in-memory-test";
     }
 
     @Override
@@ -127,8 +140,10 @@ public class WeaveCanonicalChatAdapter implements ChatProviderPort {
     }
 
     @Override
-    public ChatConversations joinedConversations(ChatActorRef actorRef) {
+    public ChatConversations joinedConversations(ChatRequestContext context) {
+        ChatActorRef actorRef = context.actorRef();
         List<ChatConversation> result = conversations.values().stream()
+                .filter(conversation -> conversation.contextId().equals(context.contextId()))
                 .filter(conversation -> conversation.openToWorkspace()
                         || "joined".equals(conversation.membershipStates().get(actorRef.value())))
                 .map(conversation -> conversation(conversation, actorRef))
@@ -138,17 +153,19 @@ public class WeaveCanonicalChatAdapter implements ChatProviderPort {
     }
 
     @Override
-    public ChatCursor currentCursor(ChatActorRef actorRef) {
+    public ChatCursor currentCursor(ChatRequestContext context) {
         return new ChatCursor("chat-revision-" + revision.get());
     }
 
     @Override
     public ChatMessages timeline(
-            ChatActorRef actorRef,
+            ChatRequestContext context,
             ConversationId conversationId,
             ChatCursor cursor,
             int limit) {
-        ConversationState conversation = requireConversation(conversationId.value());
+        ChatActorRef actorRef = context.actorRef();
+        ConversationState conversation = requireConversation(context, conversationId.value());
+        requireJoined(conversation, actorRef);
         int boundedLimit = Math.max(1, Math.min(limit, 100));
         List<ChatMessage> messages = conversation.events().stream()
                 .filter(event -> event.content().kind() == ChatEventKind.MESSAGE)
@@ -161,20 +178,21 @@ public class WeaveCanonicalChatAdapter implements ChatProviderPort {
 
     @Override
     public ChatMessage send(
-            ChatActorRef actorRef,
+            ChatRequestContext context,
             ConversationId conversationId,
             ChatTransactionId transactionId,
             String body) {
-        return message(sendEvent(actorRef, conversationId, transactionId, ChatEventContent.text(body)));
+        return message(sendEvent(context, conversationId, transactionId, ChatEventContent.text(body)));
     }
 
     @Override
     public ChatTimeline timelineEvents(
-            ChatActorRef actorRef,
+            ChatRequestContext context,
             ConversationId conversationId,
             ChatCursor cursor,
             int limit) {
-        ConversationState conversation = requireConversation(conversationId.value());
+        ChatActorRef actorRef = context.actorRef();
+        ConversationState conversation = requireConversation(context, conversationId.value());
         requireJoined(conversation, actorRef);
         int boundedLimit = Math.max(1, Math.min(limit, 100));
         List<ChatTimelineEvent> events = conversation.events().stream()
@@ -186,11 +204,12 @@ public class WeaveCanonicalChatAdapter implements ChatProviderPort {
 
     @Override
     public ChatTimelineEvent sendEvent(
-            ChatActorRef actorRef,
+            ChatRequestContext context,
             ConversationId conversationId,
             ChatTransactionId transactionId,
             ChatEventContent content) {
-        ConversationState conversation = requireConversation(conversationId.value());
+        ChatActorRef actorRef = context.actorRef();
+        ConversationState conversation = requireConversation(context, conversationId.value());
         requireJoined(conversation, actorRef);
         ChatEncryptionState encryptionState = encryptionState(conversation.conversationId());
         if (encryptionState.encrypted() && content.kind() != ChatEventKind.ENCRYPTED) {
@@ -219,22 +238,30 @@ public class WeaveCanonicalChatAdapter implements ChatProviderPort {
     }
 
     @Override
-    public ChatTimelineEvent redactEvent(
-            ChatActorRef actorRef,
+    public ChatRedactionReceipt redactEvent(
+            ChatRequestContext context,
             ConversationId conversationId,
             ChatTransactionId transactionId,
             String eventId) {
-        ConversationState conversation = requireConversation(conversationId.value());
+        ChatActorRef actorRef = context.actorRef();
+        ConversationState conversation = requireConversation(context, conversationId.value());
         requireJoined(conversation, actorRef);
         String transactionKey = conversationId.value() + ":redact:" + transactionId.value();
-        return transactions.computeIfAbsent(transactionKey, ignored -> {
+        return redactionTransactions.computeIfAbsent(transactionKey, ignored -> {
             for (int index = 0; index < conversation.events().size(); index++) {
                 ChatTimelineEvent existing = conversation.events().get(index);
                 if (existing.eventId().equals(eventId)) {
                     ChatTimelineEvent redacted = existing.redact();
                     conversation.events().set(index, redacted);
                     recordChange(conversationId, redacted, "event.redacted");
-                    return redacted;
+                    String redactionEventId = "redaction-" + UUID.nameUUIDFromBytes(
+                            (transactionKey + ":event").getBytes(StandardCharsets.UTF_8));
+                    return new ChatRedactionReceipt(
+                            redactionEventId,
+                            existing.eventId(),
+                            conversationId.value(),
+                            actorRef.value(),
+                            Instant.now());
                 }
             }
             throw new IllegalArgumentException("canonical chat event was not found");
@@ -243,60 +270,85 @@ public class WeaveCanonicalChatAdapter implements ChatProviderPort {
 
     @Override
     public ChatConversation createConversation(
-            ChatActorRef actorRef,
+            ChatRequestContext context,
             ChatTransactionId transactionId,
             String title,
             String kind,
-            List<ChatActorRef> invitedActors) {
-        String transactionKey = actorRef.value() + ":create:" + transactionId.value();
+            List<ChatResolvedIdentity> invitedIdentities,
+            ChatEncryptionState initialEncryption) {
+        ChatActorRef actorRef = context.actorRef();
+        String transactionKey = context.tenantId() + ":" + context.contextId() + ":"
+                + context.identityIssuer() + ":" + actorRef.value() + ":create:" + transactionId.value();
         return conversationTransactions.computeIfAbsent(transactionKey, ignored -> {
             String conversationId = "room-" + UUID.nameUUIDFromBytes(transactionKey.getBytes(StandardCharsets.UTF_8));
             Map<String, String> memberships = new ConcurrentHashMap<>();
             memberships.put(actorRef.value(), "joined");
-            for (ChatActorRef invited : invitedActors == null ? List.<ChatActorRef>of() : invitedActors) {
-                memberships.put(invited.value(), "joined");
+            for (ChatResolvedIdentity invited : invitedIdentities == null
+                    ? List.<ChatResolvedIdentity>of()
+                    : invitedIdentities) {
+                if (!context.tenantId().equals(invited.tenantId())) {
+                    throw new ChatAccessDeniedException();
+                }
+                memberships.put(invited.actorRef().value(), "invited");
             }
             ConversationState state = new ConversationState(
                     conversationId,
+                    context.contextId(),
                     requireText(title, "conversation title"),
                     requireText(kind, "conversation kind"),
                     false,
                     memberships,
                     new CopyOnWriteArrayList<>());
             conversations.put(conversationId, state);
-            encryptionStates.put(conversationId, ChatEncryptionState.unencrypted());
+            encryptionStates.put(
+                    conversationId,
+                    initialEncryption == null ? ChatEncryptionState.unencrypted() : initialEncryption);
             revision.incrementAndGet();
             return conversation(state, actorRef);
         });
     }
 
     @Override
-    public ChatConversation joinConversation(ChatActorRef actorRef, ConversationId conversationId) {
-        ConversationState conversation = requireConversation(conversationId.value());
+    public ChatConversation joinConversation(ChatRequestContext context, ConversationId conversationId) {
+        ChatActorRef actorRef = context.actorRef();
+        ConversationState conversation = requireConversation(context, conversationId.value());
+        String currentState = conversation.membershipStates().get(actorRef.value());
+        if (!conversation.openToWorkspace() && !"invited".equals(currentState)) {
+            throw new ChatAccessDeniedException();
+        }
         conversation.membershipStates().put(actorRef.value(), "joined");
         revision.incrementAndGet();
         return conversation(conversation, actorRef);
     }
 
     @Override
-    public ChatConversation leaveConversation(ChatActorRef actorRef, ConversationId conversationId) {
-        ConversationState conversation = requireConversation(conversationId.value());
+    public ChatConversation leaveConversation(ChatRequestContext context, ConversationId conversationId) {
+        ChatActorRef actorRef = context.actorRef();
+        ConversationState conversation = requireConversation(context, conversationId.value());
+        String currentState = conversation.membershipStates().get(actorRef.value());
+        if (!"joined".equals(currentState) && !"invited".equals(currentState)
+                && !conversation.openToWorkspace()) {
+            throw new ChatAccessDeniedException();
+        }
         conversation.membershipStates().put(actorRef.value(), "left");
         revision.incrementAndGet();
         return conversation(conversation, actorRef);
     }
 
     @Override
-    public ChatConversation conversation(ChatActorRef actorRef, ConversationId conversationId) {
-        return conversation(requireConversation(conversationId.value()), actorRef);
+    public ChatConversation conversation(ChatRequestContext context, ConversationId conversationId) {
+        ConversationState state = requireConversation(context, conversationId.value());
+        requireJoined(state, context.actorRef());
+        return conversation(state, context.actorRef());
     }
 
     @Override
     public ChatConversation enableEncryption(
-            ChatActorRef actorRef,
+            ChatRequestContext context,
             ConversationId conversationId,
             String algorithm) {
-        ConversationState conversation = requireConversation(conversationId.value());
+        ChatActorRef actorRef = context.actorRef();
+        ConversationState conversation = requireConversation(context, conversationId.value());
         requireJoined(conversation, actorRef);
         if (!ChatEncryptedEnvelope.MEGOLM_V1.equals(algorithm)) {
             throw new IllegalArgumentException("canonical Chat encryption algorithm is unsupported");
@@ -312,8 +364,9 @@ public class WeaveCanonicalChatAdapter implements ChatProviderPort {
     }
 
     @Override
-    public ChatReadReceipt markRead(ChatActorRef actorRef, ConversationId conversationId, String eventId) {
-        ConversationState conversation = requireConversation(conversationId.value());
+    public ChatReadReceipt markRead(ChatRequestContext context, ConversationId conversationId, String eventId) {
+        ChatActorRef actorRef = context.actorRef();
+        ConversationState conversation = requireConversation(context, conversationId.value());
         requireJoined(conversation, actorRef);
         if (conversation.events().stream().noneMatch(event -> event.eventId().equals(eventId))) {
             throw new IllegalArgumentException("canonical chat event was not found");
@@ -329,11 +382,12 @@ public class WeaveCanonicalChatAdapter implements ChatProviderPort {
 
     @Override
     public ChatTypingIndicator setTyping(
-            ChatActorRef actorRef,
+            ChatRequestContext context,
             ConversationId conversationId,
             boolean typing,
             int timeoutMilliseconds) {
-        ConversationState conversation = requireConversation(conversationId.value());
+        ChatActorRef actorRef = context.actorRef();
+        ConversationState conversation = requireConversation(context, conversationId.value());
         requireJoined(conversation, actorRef);
         int boundedTimeout = Math.max(0, Math.min(timeoutMilliseconds, 120_000));
         ChatTypingIndicator indicator = new ChatTypingIndicator(
@@ -351,11 +405,19 @@ public class WeaveCanonicalChatAdapter implements ChatProviderPort {
     }
 
     @Override
-    public ChatChangeSet changes(ChatActorRef actorRef, ChatCursor cursor, int limit) {
+    public ChatChangeSet changes(ChatRequestContext context, ChatCursor cursor, int limit) {
+        ChatActorRef actorRef = context.actorRef();
         long after = cursor == null ? 0 : cursorSequence(cursor);
         int boundedLimit = Math.max(1, Math.min(limit, 100));
         List<ChatChange> result = changes.stream()
                 .filter(change -> change.sequence() > after)
+                .filter(change -> {
+                    ConversationState conversation = conversations.get(change.conversationId().value());
+                    return conversation != null
+                            && conversation.contextId().equals(context.contextId())
+                            && (conversation.openToWorkspace()
+                            || "joined".equals(conversation.membershipStates().get(actorRef.value())));
+                })
                 .limit(boundedLimit)
                 .toList();
         return new ChatChangeSet(currentCursor(actorRef), result);
@@ -424,13 +486,13 @@ public class WeaveCanonicalChatAdapter implements ChatProviderPort {
     private void requireJoined(ConversationState conversation, ChatActorRef actorRef) {
         if (!conversation.openToWorkspace()
                 && !"joined".equals(conversation.membershipStates().get(actorRef.value()))) {
-            throw new IllegalArgumentException("chat actor is not joined to the conversation");
+            throw new ChatAccessDeniedException();
         }
     }
 
-    private ConversationState requireConversation(String conversationId) {
+    private ConversationState requireConversation(ChatRequestContext context, String conversationId) {
         ConversationState conversation = conversations.get(conversationId);
-        if (conversation == null) {
+        if (conversation == null || !conversation.contextId().equals(context.contextId())) {
             throw new IllegalArgumentException("canonical chat conversation was not found");
         }
         return conversation;
@@ -457,6 +519,7 @@ public class WeaveCanonicalChatAdapter implements ChatProviderPort {
 
     private record ConversationState(
             String conversationId,
+            String contextId,
             String title,
             String kind,
             boolean openToWorkspace,

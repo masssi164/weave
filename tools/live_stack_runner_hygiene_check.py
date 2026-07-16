@@ -46,10 +46,10 @@ def main() -> int:
         "- name: Verify live test disk headroom and reserve recovery space",
         "- name: Run live stack integration tests",
         "- name: Clean disposable identities and retain only hashed evidence",
-        "- name: Aggregate two-pass human-testing automation evidence",
         "- name: Generate live stack acceptance evidence",
         "- name: Generate support-safe failure diagnostics",
         "- name: Destroy stack and scrub stale resources",
+        "- name: Aggregate two-pass human-testing automation evidence",
         "- name: Upload live stack acceptance evidence",
         "- name: Scrub current runner-owned Weave outputs",
     )
@@ -118,6 +118,37 @@ def main() -> int:
         "live-stack E2E must own the full three-identity lifecycle",
     )
     require(
+        "clean :server:bootJar :weave-mcp-server:bootJar" in workflow,
+        "live-stack Java runtime artifacts must be compiled from a clean tree",
+    )
+    require(
+        'docker container inspect "$keycloak_container"' in workflow
+        and "ISOLATED_E2E_IDENTITIES state=cleanup-not-required" in workflow,
+        "identity cleanup must tolerate a failure before provider runtime creation",
+    )
+    require(
+        'runtime_root="${WEAVE_E2E_OUTPUT_ROOT:?}/${TF_VAR_isolated_e2e_namespace}/runtime"'
+        in workflow
+        and "ISOLATED_STACK_TEARDOWN status=not-required" in workflow,
+        "stack teardown must tolerate a failure before OpenTofu runtime creation",
+    )
+    require(
+        'expected_bootstrap_env="$PWD/.generated/isolated/${TF_VAR_isolated_e2e_namespace}/bootstrap.env"'
+        in workflow
+        and 'source "$expected_bootstrap_env"' in workflow
+        and workflow.index('source "$expected_bootstrap_env"')
+        < workflow.index(
+            'WEAVE_TEARDOWN_EVIDENCE_FILE="$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-stack-teardown.json"'
+        ),
+        "OpenTofu destroy must reload the exact run-scoped variables generated during apply",
+    )
+    require(
+        'export WEAVE_BOOTSTRAP_ENV="${WEAVE_E2E_STACK_BOOTSTRAP_ENV:?}"'
+        in workflow
+        and "/weave-workspace/.generated/bootstrap.env" not in workflow,
+        "live-stack clients must consume only the run-scoped isolated bootstrap env",
+    )
+    require(
         "integration-multi-user-e2e" in workflow
         and "multi_user_e2e_evidence.py" in workflow
         and "isolated-e2e-authorization-probes.sh" in workflow
@@ -125,6 +156,27 @@ def main() -> int:
         and "isolated-authorization.json" in workflow
         and "--require-passed" in workflow,
         "live-stack E2E must run and fail closed on two-pass collaboration and real authorization evidence",
+    )
+    require(
+        workflow.count("capture_matrix_to_device_snapshot") == 3
+        and "isolated-matrix-to-device-before-collaboration.json" in workflow
+        and "isolated-matrix-to-device-after-collaboration.json" in workflow
+        and "python3 ../tools/validate_matrix_to_device_evidence.py" in workflow
+        and '"$matrix_before_collaboration_status"' in workflow
+        and '"$matrix_after_collaboration_status"' in workflow,
+        "three-user Matrix diagnostics must use validated support-safe boundary snapshots and fail closed",
+    )
+    matrix_single_user = workflow.index("single_user_status=${PIPESTATUS[0]}")
+    matrix_before = workflow.index(
+        "isolated-matrix-to-device-before-collaboration.json"
+    )
+    matrix_collaboration = workflow.index("WEAVE_E2E_EXECUTION_MODE=collaboration")
+    matrix_after = workflow.index(
+        "isolated-matrix-to-device-after-collaboration.json"
+    )
+    require(
+        matrix_single_user < matrix_before < matrix_collaboration < matrix_after,
+        "Matrix to-device snapshots must bound only the three-user collaboration phase",
     )
     require(
         "WEAVE_E2E_EXECUTION_MODE=collaboration" in workflow

@@ -17,99 +17,293 @@ const _collaborator = MatrixLiveActorCredentials(
 const _roomId = '!room-e2e:api.weave.test';
 
 void main() {
-  test('registers actors, creates, encrypts, and joins in order', () async {
-    final requests = <http.Request>[];
-    final responses = <http.Response>[
-      _jsonResponse(<String, Object>{
-        'user_id': '@author:api.weave.test',
-        'device_id': _author.deviceId,
-      }),
-      _jsonResponse(<String, Object>{
-        'user_id': '@collaborator:api.weave.test',
-        'device_id': _collaborator.deviceId,
-      }),
-      _deviceKeysResponse(
-        userId: '@collaborator:api.weave.test',
-        deviceId: _collaborator.deviceId,
+  test(
+    'registers actors and creates an encrypted room before joining',
+    () async {
+      final requests = <http.Request>[];
+      final responses = <http.Response>[
+        _jsonResponse(<String, Object>{
+          'user_id': '@author:api.weave.test',
+          'device_id': _author.deviceId,
+        }),
+        _jsonResponse(<String, Object>{
+          'user_id': '@collaborator:api.weave.test',
+          'device_id': _collaborator.deviceId,
+        }),
+        _deviceKeysResponse(
+          userId: '@collaborator:api.weave.test',
+          deviceId: _collaborator.deviceId,
+        ),
+        _deviceKeysResponse(
+          userId: '@author:api.weave.test',
+          deviceId: _author.deviceId,
+        ),
+        _oneTimeKeyCountResponse(),
+        _oneTimeKeyCountResponse(),
+        _deviceKeysResponse(
+          userId: '@collaborator:api.weave.test',
+          deviceId: _collaborator.deviceId,
+        ),
+        _jsonResponse(<String, Object>{'room_id': _roomId}),
+        _jsonResponse(<String, Object>{'room_id': _roomId}),
+        _roomMembersResponse(),
+        _roomMembersResponse(),
+        _jsonResponse(<String, Object>{'algorithm': matrixMegolmV1Algorithm}),
+        _jsonResponse(<String, Object>{'algorithm': matrixMegolmV1Algorithm}),
+      ];
+      final client = MockClient((request) async {
+        requests.add(request);
+        return responses[requests.length - 1];
+      });
+
+      final provisioned =
+          await MatrixLiveRoomDriver(
+            client: client,
+            homeserver: Uri.parse('https://api.weave.test'),
+          ).createEncryptedRoom(
+            author: _author,
+            collaborator: _collaborator,
+            roomName: 'unique encrypted room',
+            requireColdCollaboratorDevice: true,
+          );
+
+      expect(provisioned.roomId, _roomId);
+      expect(provisioned.authorUserId, '@author:api.weave.test');
+      expect(provisioned.collaboratorUserId, '@collaborator:api.weave.test');
+      expect(requests.map((request) => request.method), <String>[
+        'GET',
+        'GET',
+        'POST',
+        'POST',
+        'POST',
+        'POST',
+        'POST',
+        'POST',
+        'POST',
+        'GET',
+        'GET',
+        'GET',
+        'GET',
+      ]);
+      expect(requests[2].url.path, '/_matrix/client/v3/keys/query');
+      expect(jsonDecode(requests[2].body), <String, Object>{
+        'device_keys': <String, List<String>>{
+          '@collaborator:api.weave.test': <String>[_collaborator.deviceId],
+        },
+      });
+      expect(requests[3].url.path, '/_matrix/client/v3/keys/query');
+      expect(
+        requests[3].headers['X-Weave-Matrix-Device-Id'],
+        _collaborator.deviceId,
+      );
+      expect(requests[4].url.path, '/_matrix/client/v3/keys/upload');
+      expect(requests[4].body, '{}');
+      expect(requests[5].url.path, '/_matrix/client/v3/keys/upload');
+      expect(
+        requests[5].headers['X-Weave-Matrix-Device-Id'],
+        _collaborator.deviceId,
+      );
+      expect(requests[6].url.path, '/_matrix/client/v3/keys/query');
+      expect(jsonDecode(requests[6].body), <String, Object>{
+        'device_keys': <String, List<String>>{
+          '@collaborator:api.weave.test': <String>[],
+        },
+      });
+      expect(requests[7].url.path, '/_matrix/client/v3/createRoom');
+      expect(jsonDecode(requests[7].body), <String, Object>{
+        'name': 'unique encrypted room',
+        'preset': 'private_chat',
+        'invite': <String>['@collaborator:api.weave.test'],
+        'initial_state': <Map<String, Object>>[
+          <String, Object>{
+            'type': 'm.room.encryption',
+            'state_key': '',
+            'content': <String, String>{'algorithm': matrixMegolmV1Algorithm},
+          },
+        ],
+      });
+      expect(
+        requests[8].url.path,
+        '/_matrix/client/v3/join/!room-e2e:api.weave.test',
+      );
+      expect(
+        requests[8].headers['X-Weave-Matrix-Device-Id'],
+        _collaborator.deviceId,
+      );
+      expect(requests[9].url.path, _roomMembersPath);
+      expect(
+        requests[10].headers['X-Weave-Matrix-Device-Id'],
+        _collaborator.deviceId,
+      );
+    },
+  );
+
+  test('rejects a warmed collaborator device set support-safely', () {
+    const oldDeviceId = 'WEAVEOLDDEVICE';
+    const secretBody = 'provider-secret-device-payload';
+    final driver = MatrixLiveRoomDriver(
+      client: MockClient(
+        (request) async => _jsonResponse(<String, Object>{
+          'device_keys': <String, Object>{
+            '@collaborator:api.weave.test': <String, Object>{
+              _collaborator.deviceId: _deviceKey(
+                userId: '@collaborator:api.weave.test',
+                deviceId: _collaborator.deviceId,
+              ),
+              oldDeviceId: _deviceKey(
+                userId: '@collaborator:api.weave.test',
+                deviceId: oldDeviceId,
+              ),
+            },
+          },
+          'provider_debug': secretBody,
+        }),
       ),
-      _deviceKeysResponse(
+      homeserver: Uri.parse('https://api.weave.test'),
+    );
+
+    expect(
+      driver.requireExactCurrentDevices(
+        observer: _author,
+        targetUserId: '@collaborator:api.weave.test',
+        expectedDeviceIds: <String>{_collaborator.deviceId},
+      ),
+      throwsA(
+        isA<MatrixLiveRoomDriverException>()
+            .having(
+              (error) => error.code,
+              'code',
+              'M_WEAVE_LIVE_MATRIX_COLLABORATOR_NOT_COLD',
+            )
+            .having(
+              (error) => error.toString(),
+              'support-safe text',
+              isNot(contains(secretBody)),
+            ),
+      ),
+    );
+  });
+
+  test(
+    'isolated setup revokes stale devices and preserves the current one',
+    () async {
+      const staleDeviceId = 'WEAVESTALEDEVICE';
+      final requests = <http.Request>[];
+      final responses = <http.Response>[
+        _jsonResponse(<String, Object>{
+          'device_keys': <String, Object>{
+            '@author:api.weave.test': <String, Object>{
+              _author.deviceId: _deviceKey(
+                userId: '@author:api.weave.test',
+                deviceId: _author.deviceId,
+              ),
+              staleDeviceId: _deviceKey(
+                userId: '@author:api.weave.test',
+                deviceId: staleDeviceId,
+              ),
+            },
+          },
+        }),
+        _jsonResponse(const <String, Object>{}),
+        _deviceKeysResponse(
+          userId: '@author:api.weave.test',
+          deviceId: _author.deviceId,
+        ),
+      ];
+      final driver = MatrixLiveRoomDriver(
+        client: MockClient((request) async {
+          requests.add(request);
+          return responses[requests.length - 1];
+        }),
+        homeserver: Uri.parse('https://api.weave.test'),
+      );
+
+      final removed = await driver.retainOnlyCurrentDevice(
+        actor: _author,
         userId: '@author:api.weave.test',
-        deviceId: _author.deviceId,
+      );
+
+      expect(removed, 1);
+      expect(requests.map((request) => request.method), <String>[
+        'POST',
+        'DELETE',
+        'POST',
+      ]);
+      expect(requests[1].url.path, '/_matrix/client/v3/devices/$staleDeviceId');
+      expect(requests[1].body, '{}');
+      expect(requests[1].headers['X-Weave-Matrix-Device-Id'], _author.deviceId);
+    },
+  );
+
+  test(
+    'isolated setup refuses pruning when the current device is absent',
+    () async {
+      const staleDeviceId = 'WEAVESTALEDEVICE';
+      final requests = <http.Request>[];
+      final driver = MatrixLiveRoomDriver(
+        client: MockClient((request) async {
+          requests.add(request);
+          return _deviceKeysResponse(
+            userId: '@author:api.weave.test',
+            deviceId: staleDeviceId,
+          );
+        }),
+        homeserver: Uri.parse('https://api.weave.test'),
+      );
+
+      await expectLater(
+        driver.retainOnlyCurrentDevice(
+          actor: _author,
+          userId: '@author:api.weave.test',
+        ),
+        throwsA(
+          isA<MatrixLiveRoomDriverException>().having(
+            (error) => error.code,
+            'code',
+            'M_WEAVE_LIVE_MATRIX_CURRENT_DEVICE_MISSING',
+          ),
+        ),
+      );
+      expect(requests, hasLength(1));
+    },
+  );
+
+  test('rejects an incomplete canonical member projection support-safely', () {
+    const secretBody = 'provider-secret-member-payload';
+    final driver = MatrixLiveRoomDriver(
+      client: MockClient(
+        (request) async => _jsonResponse(<String, Object>{
+          'chunk': <Map<String, Object>>[
+            _roomMemberEvent('@author:api.weave.test'),
+          ],
+          'provider_debug': secretBody,
+        }),
       ),
-      _oneTimeKeyCountResponse(),
-      _oneTimeKeyCountResponse(),
-      _jsonResponse(<String, Object>{'room_id': _roomId}),
-      _jsonResponse(<String, Object>{'event_id': r'$encryption'}),
-      _jsonResponse(<String, Object>{'room_id': _roomId}),
-      _jsonResponse(<String, Object>{'algorithm': matrixMegolmV1Algorithm}),
-      _jsonResponse(<String, Object>{'algorithm': matrixMegolmV1Algorithm}),
-    ];
-    final client = MockClient((request) async {
-      requests.add(request);
-      return responses[requests.length - 1];
-    });
+      homeserver: Uri.parse('https://api.weave.test'),
+    );
 
-    final provisioned =
-        await MatrixLiveRoomDriver(
-          client: client,
-          homeserver: Uri.parse('https://api.weave.test'),
-        ).createEncryptedRoom(
-          author: _author,
-          collaborator: _collaborator,
-          roomName: 'unique encrypted room',
-        );
-
-    expect(provisioned.roomId, _roomId);
-    expect(provisioned.authorUserId, '@author:api.weave.test');
-    expect(provisioned.collaboratorUserId, '@collaborator:api.weave.test');
-    expect(requests.map((request) => request.method), <String>[
-      'GET',
-      'GET',
-      'POST',
-      'POST',
-      'POST',
-      'POST',
-      'POST',
-      'PUT',
-      'POST',
-      'GET',
-      'GET',
-    ]);
-    expect(requests[2].url.path, '/_matrix/client/v3/keys/query');
-    expect(jsonDecode(requests[2].body), <String, Object>{
-      'device_keys': <String, List<String>>{
-        '@collaborator:api.weave.test': <String>[_collaborator.deviceId],
-      },
-    });
-    expect(requests[3].url.path, '/_matrix/client/v3/keys/query');
     expect(
-      requests[3].headers['X-Weave-Matrix-Device-Id'],
-      _collaborator.deviceId,
-    );
-    expect(requests[4].url.path, '/_matrix/client/v3/keys/upload');
-    expect(requests[4].body, '{}');
-    expect(requests[5].url.path, '/_matrix/client/v3/keys/upload');
-    expect(
-      requests[5].headers['X-Weave-Matrix-Device-Id'],
-      _collaborator.deviceId,
-    );
-    expect(requests[6].url.path, '/_matrix/client/v3/createRoom');
-    expect(jsonDecode(requests[6].body), <String, Object>{
-      'name': 'unique encrypted room',
-      'preset': 'private_chat',
-      'invite': <String>['@collaborator:api.weave.test'],
-    });
-    expect(
-      requests[7].url.path,
-      '/_matrix/client/v3/rooms/!room-e2e:api.weave.test/state/m.room.encryption',
-    );
-    expect(
-      requests[8].url.path,
-      '/_matrix/client/v3/join/!room-e2e:api.weave.test',
-    );
-    expect(
-      requests[8].headers['X-Weave-Matrix-Device-Id'],
-      _collaborator.deviceId,
+      driver.requireExactJoinedMembers(
+        actor: _author,
+        roomId: _roomId,
+        expectedUserIds: const <String>{
+          '@author:api.weave.test',
+          '@collaborator:api.weave.test',
+        },
+      ),
+      throwsA(
+        isA<MatrixLiveRoomDriverException>()
+            .having(
+              (error) => error.code,
+              'code',
+              'M_WEAVE_LIVE_MATRIX_ROOM_MEMBERS_NOT_CONVERGED',
+            )
+            .having(
+              (error) => error.toString(),
+              'support-safe text',
+              isNot(contains(secretBody)),
+            ),
+      ),
     );
   });
 
@@ -455,18 +649,39 @@ http.Response _deviceKeysResponse({
   return _jsonResponse(<String, Object>{
     'device_keys': <String, Object>{
       userId: <String, Object>{
-        deviceId: <String, Object>{
-          'user_id': userId,
-          'device_id': deviceId,
-          'keys': <String, String>{'ed25519:$deviceId': 'public-key'},
-        },
+        deviceId: _deviceKey(userId: userId, deviceId: deviceId),
       },
     },
   });
 }
+
+Map<String, Object> _deviceKey({
+  required String userId,
+  required String deviceId,
+}) => <String, Object>{
+  'user_id': userId,
+  'device_id': deviceId,
+  'keys': <String, String>{'ed25519:$deviceId': 'public-key'},
+};
 
 http.Response _oneTimeKeyCountResponse({int count = 10}) {
   return _jsonResponse(<String, Object>{
     'one_time_key_counts': <String, int>{'signed_curve25519': count},
   });
 }
+
+const _roomMembersPath =
+    '/_matrix/client/v3/rooms/!room-e2e:api.weave.test/members';
+
+http.Response _roomMembersResponse() => _jsonResponse(<String, Object>{
+  'chunk': <Map<String, Object>>[
+    _roomMemberEvent('@author:api.weave.test'),
+    _roomMemberEvent('@collaborator:api.weave.test'),
+  ],
+});
+
+Map<String, Object> _roomMemberEvent(String userId) => <String, Object>{
+  'type': 'm.room.member',
+  'state_key': userId,
+  'content': <String, String>{'membership': 'join'},
+};
