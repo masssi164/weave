@@ -158,6 +158,27 @@ def main() -> int:
         "live-stack E2E must run and fail closed on two-pass collaboration and real authorization evidence",
     )
     require(
+        workflow.count("capture_matrix_to_device_snapshot") == 3
+        and "isolated-matrix-to-device-before-collaboration.json" in workflow
+        and "isolated-matrix-to-device-after-collaboration.json" in workflow
+        and "python3 ../tools/validate_matrix_to_device_evidence.py" in workflow
+        and '"$matrix_before_collaboration_status"' in workflow
+        and '"$matrix_after_collaboration_status"' in workflow,
+        "three-user Matrix diagnostics must use validated support-safe boundary snapshots and fail closed",
+    )
+    matrix_single_user = workflow.index("single_user_status=${PIPESTATUS[0]}")
+    matrix_before = workflow.index(
+        "isolated-matrix-to-device-before-collaboration.json"
+    )
+    matrix_collaboration = workflow.index("WEAVE_E2E_EXECUTION_MODE=collaboration")
+    matrix_after = workflow.index(
+        "isolated-matrix-to-device-after-collaboration.json"
+    )
+    require(
+        matrix_single_user < matrix_before < matrix_collaboration < matrix_after,
+        "Matrix to-device snapshots must bound only the three-user collaboration phase",
+    )
+    require(
         "WEAVE_E2E_EXECUTION_MODE=collaboration" in workflow
         and "isolated-e2e-calendar-outage.sh begin" in workflow
         and "WEAVE_E2E_EXECUTION_MODE=calendar-failure-containment" in workflow
