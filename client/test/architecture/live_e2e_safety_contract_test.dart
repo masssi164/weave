@@ -231,6 +231,8 @@ void main() {
     expect(source, contains('FlutterSecureStore()'));
     expect(source, contains('SharedPreferencesStore()'));
     expect(source, contains('removeTouchedKeys'));
+    expect(source, contains("apiUri('/api/dav/files')"));
+    expect(source, isNot(contains('_expectedFilesProductUrl')));
     expect(source, isNot(contains('_FixedServerConfigurationRepository')));
     expect(source, isNot(contains('_IsolatedSecureStore')));
     expect(source, isNot(contains('_IsolatedPreferencesStore')));
