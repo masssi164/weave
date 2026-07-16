@@ -47,8 +47,11 @@ use tokio::{
 
 const DEVICE_ID_HEADER: &str = "x-weave-matrix-device-id";
 const BACKGROUND_SYNC_POLL_INTERVAL: Duration = Duration::from_secs(1);
+const BACKGROUND_SYNC_LONG_POLL_TIMEOUT: Duration = Duration::from_secs(10);
 const BACKGROUND_SYNC_MAX_BACKOFF: Duration = Duration::from_secs(30);
-const BACKGROUND_SYNC_BARRIER_TIMEOUT: Duration = Duration::from_secs(35);
+const BACKGROUND_SYNC_BARRIER_TIMEOUT: Duration = Duration::from_secs(15);
+const PRE_SEND_DEVICE_QUERY_ATTEMPTS: usize = 3;
+const PRE_SEND_DEVICE_QUERY_DELAY: Duration = Duration::from_millis(150);
 
 struct ManagedClient {
     client: Client,
@@ -58,9 +61,12 @@ struct ManagedClient {
     access_token: String,
     room_security_fingerprints: HashMap<String, RoomSecurityFingerprint>,
     pre_send_security_fingerprints: HashMap<String, RoomSecurityFingerprint>,
+    accepting_operations: bool,
+    matrix_io_gate: Arc<AsyncMutex<()>>,
     room_security_gate: Arc<AsyncMutex<()>>,
     sync_start_gate: Arc<AsyncMutex<()>>,
     background_sync_progress: watch::Sender<BackgroundSyncProgress>,
+    background_sync_stop: Option<watch::Sender<bool>>,
     background_sync: Option<JoinHandle<()>>,
     to_device_diagnostics: ToDeviceDiagnostics,
     verification_request: Option<VerificationRequest>,
@@ -184,9 +190,22 @@ impl ToDeviceDiagnostics {
 }
 
 static CLIENTS: OnceLock<Mutex<HashMap<String, ManagedClient>>> = OnceLock::new();
+static CLIENT_LIFECYCLE_GATES: OnceLock<Mutex<HashMap<String, Arc<AsyncMutex<()>>>>> =
+    OnceLock::new();
 
 fn clients() -> &'static Mutex<HashMap<String, ManagedClient>> {
     CLIENTS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn client_lifecycle_gate_for(profile_key: &str) -> Result<Arc<AsyncMutex<()>>, String> {
+    let mut gates = CLIENT_LIFECYCLE_GATES
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+        .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?;
+    Ok(gates
+        .entry(profile_key.to_string())
+        .or_insert_with(|| Arc::new(AsyncMutex::new(())))
+        .clone())
 }
 
 pub async fn initialize(
@@ -237,15 +256,18 @@ async fn initialize_inner(
     let matrix_device_id = OwnedDeviceId::from(device_id.as_str());
     validate_identifier(&device_id, "device")?;
 
-    {
-        let guard = clients()
+    let lifecycle_gate = client_lifecycle_gate_for(&profile_key)?;
+    let _lifecycle_guard = lifecycle_gate.lock().await;
+    let (matrix_io_gate, replacing_existing) = {
+        let mut guard = clients()
             .lock()
             .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?;
-        if let Some(existing) = guard.get(&profile_key) {
+        if let Some(existing) = guard.get_mut(&profile_key) {
             if existing.homeserver_url == homeserver_url
                 && existing.user_id == user_id
                 && existing.device_id == device_id
                 && existing.access_token == access_token
+                && existing.accepting_operations
             {
                 return Ok(json!({
                     "initialized": true,
@@ -253,7 +275,25 @@ async fn initialize_inner(
                     "deviceId": device_id,
                 }));
             }
+            // Token renewal cannot create a second Matrix SDK/store owner.
+            // Reject new operations, let the continuous-sync owner finish its
+            // current response, and reuse the same I/O gate for the replacement.
+            existing.accepting_operations = false;
+            (existing.matrix_io_gate.clone(), true)
+        } else {
+            (Arc::new(AsyncMutex::new(())), false)
         }
+    };
+    if replacing_existing {
+        stop_background_sync(&profile_key).await?;
+    }
+    let _matrix_io_guard = matrix_io_gate.lock().await;
+    if replacing_existing {
+        let replaced = clients()
+            .lock()
+            .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
+            .remove(&profile_key);
+        drop(replaced);
     }
 
     let mut default_headers = HeaderMap::new();
@@ -318,13 +358,6 @@ async fn initialize_inner(
     });
 
     let (background_sync_progress, _) = watch::channel(BackgroundSyncProgress::default());
-    let replaced = clients()
-        .lock()
-        .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
-        .remove(&profile_key);
-    if let Some(replaced) = replaced {
-        shutdown_background_sync(replaced).await;
-    }
 
     clients()
         .lock()
@@ -339,9 +372,12 @@ async fn initialize_inner(
                 access_token,
                 room_security_fingerprints: HashMap::new(),
                 pre_send_security_fingerprints: HashMap::new(),
+                accepting_operations: true,
+                matrix_io_gate: matrix_io_gate.clone(),
                 room_security_gate: Arc::new(AsyncMutex::new(())),
                 sync_start_gate: Arc::new(AsyncMutex::new(())),
                 background_sync_progress,
+                background_sync_stop: None,
                 background_sync: None,
                 to_device_diagnostics: ToDeviceDiagnostics::default(),
                 verification_request: None,
@@ -380,7 +416,6 @@ pub async fn sync(profile_key: String) -> String {
 }
 
 async fn sync_inner(profile_key: &str) -> Result<Value, String> {
-    let client = client_for(profile_key)?;
     let sync_start_gate = sync_start_gate_for(profile_key)?;
     let _sync_start_guard = sync_start_gate.lock().await;
 
@@ -404,7 +439,6 @@ async fn sync_inner(profile_key: &str) -> Result<Value, String> {
 
     let completed = complete_sync_cycle(
         profile_key,
-        &client,
         Duration::from_secs(0),
         None,
         "M_WEAVE_E2EE_SYNC",
@@ -412,7 +446,7 @@ async fn sync_inner(profile_key: &str) -> Result<Value, String> {
     .await?;
     let progress = background_sync_progress_for(profile_key)?;
     publish_completed_sync(&progress, &completed);
-    start_background_sync(profile_key, &client, completed.next_batch.clone()).await?;
+    start_background_sync(profile_key, completed.next_batch.clone()).await?;
 
     Ok(json!({
         "nextBatch": completed.next_batch,
@@ -424,11 +458,17 @@ async fn sync_inner(profile_key: &str) -> Result<Value, String> {
 
 async fn complete_sync_cycle(
     profile_key: &str,
-    client: &Client,
     timeout: Duration,
     since: Option<&str>,
     error_code: &str,
 ) -> Result<CompletedSyncCycle, String> {
+    // Sync processing, out-of-band device queries, and Megolm send setup all
+    // mutate one SDK crypto store. Keep the whole processed sync cycle under
+    // the same profile gate used by send so the pre-send recipient snapshot
+    // cannot race a device-list update or an ephemeral to-device delivery.
+    let matrix_io_gate = matrix_io_gate_for(profile_key)?;
+    let _matrix_io_guard = matrix_io_gate.lock().await;
+    let client = client_for(profile_key)?;
     let settings = sync_settings(timeout, since);
     let mut response = client
         .sync_once(settings)
@@ -436,7 +476,7 @@ async fn complete_sync_cycle(
         .map_err(|error| matrix_sdk_error_code(&error, error_code))?;
     record_to_device_diagnostics(profile_key, &response.to_device)?;
     let (mut enabled_rooms, mut converged_rooms) =
-        converge_joined_room_security(profile_key, client).await?;
+        converge_joined_room_security(profile_key, &client).await?;
     if enabled_rooms > 0 {
         let next_batch = response.next_batch.clone();
         response = client
@@ -448,7 +488,7 @@ async fn complete_sync_cycle(
             .map_err(|error| matrix_sdk_error_code(&error, error_code))?;
         record_to_device_diagnostics(profile_key, &response.to_device)?;
         let (newly_enabled_rooms, newly_converged_rooms) =
-            converge_joined_room_security(profile_key, client).await?;
+            converge_joined_room_security(profile_key, &client).await?;
         enabled_rooms = enabled_rooms.saturating_add(newly_enabled_rooms);
         converged_rooms = converged_rooms.max(newly_converged_rooms);
     }
@@ -532,7 +572,18 @@ fn sync_start_gate_for(profile_key: &str) -> Result<Arc<AsyncMutex<()>>, String>
         .lock()
         .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
         .get(profile_key)
+        .filter(|managed| managed.accepting_operations)
         .map(|managed| managed.sync_start_gate.clone())
+        .ok_or_else(|| "M_WEAVE_E2EE_NOT_INITIALIZED".to_string())
+}
+
+fn matrix_io_gate_for(profile_key: &str) -> Result<Arc<AsyncMutex<()>>, String> {
+    clients()
+        .lock()
+        .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
+        .get(profile_key)
+        .filter(|managed| managed.accepting_operations)
+        .map(|managed| managed.matrix_io_gate.clone())
         .ok_or_else(|| "M_WEAVE_E2EE_NOT_INITIALIZED".to_string())
 }
 
@@ -553,6 +604,7 @@ fn running_background_sync_observer(
     }
 
     managed.background_sync.take();
+    managed.background_sync_stop.take();
     if let Some(error_code) = managed
         .background_sync_progress
         .borrow()
@@ -617,47 +669,56 @@ fn publish_completed_sync(
     });
 }
 
-async fn start_background_sync(
-    profile_key: &str,
-    client: &Client,
-    initial_cursor: String,
-) -> Result<(), String> {
+async fn start_background_sync(profile_key: &str, initial_cursor: String) -> Result<(), String> {
     // Starting a cursor owner is a handoff, not a replacement. Always await
     // termination of the previous owner before the next task can issue /sync.
     stop_background_sync(profile_key).await?;
     let progress = background_sync_progress_for(profile_key)?;
     progress.send_modify(|state| state.terminal_error = None);
-    let sync_client = client.clone();
     let sync_profile_key = profile_key.to_string();
     let sync_progress = progress.clone();
-    let task = tokio::spawn(async move {
-        run_background_sync(sync_profile_key, sync_client, sync_progress, initial_cursor).await;
-    });
+    let (stop_sender, stop_receiver) = watch::channel(false);
     let mut guard = clients()
         .lock()
         .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?;
-    let Some(managed) = guard.get_mut(profile_key) else {
-        task.abort();
-        return Err("M_WEAVE_E2EE_NOT_INITIALIZED".to_string());
-    };
+    let managed = guard
+        .get_mut(profile_key)
+        .filter(|managed| managed.accepting_operations)
+        .ok_or_else(|| "M_WEAVE_E2EE_NOT_INITIALIZED".to_string())?;
     debug_assert!(managed.background_sync.is_none());
+    debug_assert!(managed.background_sync_stop.is_none());
+    // Publish the task and its cooperative stop handle while the client
+    // registry is locked. The spawned loop must read that registry before its
+    // first /sync, so lifecycle replacement can never observe an unowned task.
+    let task = tokio::spawn(async move {
+        run_background_sync(
+            sync_profile_key,
+            sync_progress,
+            stop_receiver,
+            initial_cursor,
+        )
+        .await;
+    });
+    managed.background_sync_stop = Some(stop_sender);
     managed.background_sync = Some(task);
     Ok(())
 }
 
 async fn run_background_sync(
     profile_key: String,
-    client: Client,
     progress: watch::Sender<BackgroundSyncProgress>,
+    mut stop: watch::Receiver<bool>,
     initial_cursor: String,
 ) {
     let mut consecutive_failures = 0_u32;
     let mut cursor = initial_cursor;
     loop {
+        if background_sync_stop_requested(&stop) {
+            return;
+        }
         let delay = match complete_sync_cycle(
             &profile_key,
-            &client,
-            Duration::from_secs(30),
+            BACKGROUND_SYNC_LONG_POLL_TIMEOUT,
             Some(cursor.as_str()),
             "M_WEAVE_E2EE_BACKGROUND_SYNC",
         )
@@ -689,7 +750,25 @@ async fn run_background_sync(
                 background_sync_retry_delay(consecutive_failures)
             }
         };
-        tokio::time::sleep(delay).await;
+        if background_sync_stop_requested(&stop)
+            || wait_for_background_sync_delay_or_stop(&mut stop, delay).await
+        {
+            return;
+        }
+    }
+}
+
+fn background_sync_stop_requested(stop: &watch::Receiver<bool>) -> bool {
+    *stop.borrow()
+}
+
+async fn wait_for_background_sync_delay_or_stop(
+    stop: &mut watch::Receiver<bool>,
+    delay: Duration,
+) -> bool {
+    tokio::select! {
+        _ = tokio::time::sleep(delay) => false,
+        changed = stop.changed() => changed.is_err() || background_sync_stop_requested(stop),
     }
 }
 
@@ -703,25 +782,27 @@ fn is_terminal_matrix_session_error(error_code: &str) -> bool {
 }
 
 async fn stop_background_sync(profile_key: &str) -> Result<(), String> {
-    let task = clients()
-        .lock()
-        .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
-        .get_mut(profile_key)
-        .ok_or_else(|| "M_WEAVE_E2EE_NOT_INITIALIZED".to_string())?
-        .background_sync
-        .take();
+    let (stop, task) = {
+        let mut guard = clients()
+            .lock()
+            .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?;
+        let managed = guard
+            .get_mut(profile_key)
+            .ok_or_else(|| "M_WEAVE_E2EE_NOT_INITIALIZED".to_string())?;
+        (
+            managed.background_sync_stop.take(),
+            managed.background_sync.take(),
+        )
+    };
+    if let Some(stop) = stop {
+        let _ = stop.send(true);
+    }
     if let Some(task) = task {
-        task.abort();
-        let _ = task.await;
+        if let Err(error) = task.await {
+            tracing::warn!(?error, "Matrix background sync task stopped unexpectedly");
+        }
     }
     Ok(())
-}
-
-async fn shutdown_background_sync(mut managed: ManagedClient) {
-    if let Some(task) = managed.background_sync.take() {
-        task.abort();
-        let _ = task.await;
-    }
 }
 
 pub async fn rooms(profile_key: String) -> String {
@@ -858,8 +939,10 @@ async fn send_text_inner(profile_key: &str, room_id: &str, body: &str) -> Result
     if body.trim().is_empty() || body.len() > 100_000 {
         return Err("M_INVALID_PARAM".to_string());
     }
-    let client = client_for(profile_key)?;
     let room_id = OwnedRoomId::try_from(room_id).map_err(|_| "M_INVALID_PARAM".to_string())?;
+    let matrix_io_gate = matrix_io_gate_for(profile_key)?;
+    let _matrix_io_guard = matrix_io_gate.lock().await;
+    let client = client_for(profile_key)?;
     let room = client
         .get_room(&room_id)
         .ok_or_else(|| "M_NOT_FOUND".to_string())?;
@@ -929,53 +1012,64 @@ async fn refresh_active_member_device_keys(
             .map_err(|_| "M_WEAVE_E2EE_ROOM_MEMBERS".to_string())?;
     }
     let encryption = client.encryption();
-
-    for member in &members {
-        let user_id = member.user_id();
-        if user_id == own_user_id {
-            continue;
-        }
-        let has_cached_device = encryption
-            .get_user_devices(user_id)
-            .await
-            .map_err(|_| "M_WEAVE_E2EE_MEMBER_KEYS".to_string())?
-            .devices()
-            .next()
-            .is_some();
-        if refresh != RoomSecurityRefresh::PreSend
-            && !requires_explicit_device_query(full_member_reload_required, has_cached_device)
-        {
-            continue;
-        }
-
-        // A first room sync can mark a member as tracked while the local crypto
-        // store still contains only an older device snapshot. A non-empty
-        // cache therefore does not prove that the member's current app device
-        // is known. Query every peer before a send; background convergence and
-        // cached keys are observations, not permission to cross the barrier.
-        encryption
-            .request_user_identity(user_id)
-            .await
-            .map_err(|_| "M_WEAVE_E2EE_MEMBER_KEYS".to_string())?;
-    }
-
     let mut member_device_ids = Vec::new();
+
     for member in &members {
         let user_id = member.user_id();
         if user_id == own_user_id {
             continue;
         }
-        let devices = encryption
+        let cached_devices = encryption
             .get_user_devices(user_id)
             .await
             .map_err(|_| "M_WEAVE_E2EE_MEMBER_KEYS".to_string())?;
-        let eligible_device_ids = devices
+        let has_cached_device = cached_devices.devices().next().is_some();
+        let query_required = refresh == RoomSecurityRefresh::PreSend
+            || requires_explicit_device_query(full_member_reload_required, has_cached_device);
+        let mut eligible_device_ids = cached_devices
             .devices()
             .filter(|device| {
                 is_eligible_peer_device(device.is_blacklisted(), device.curve25519_key().is_some())
             })
             .map(|device| format!("{user_id}|{}", device.device_id()))
             .collect::<Vec<_>>();
+
+        // A first room sync can mark a member as tracked while the local crypto
+        // store still contains only an older device snapshot. A non-empty
+        // cache therefore does not prove that the member's current app device
+        // is known. Query every peer before a send; background convergence and
+        // cached keys are observations, not permission to cross the barrier.
+        if query_required {
+            let attempts = if refresh == RoomSecurityRefresh::PreSend {
+                PRE_SEND_DEVICE_QUERY_ATTEMPTS
+            } else {
+                1
+            };
+            for attempt in 0..attempts {
+                encryption
+                    .request_user_identity(user_id)
+                    .await
+                    .map_err(|_| "M_WEAVE_E2EE_MEMBER_KEYS".to_string())?;
+                let refreshed_devices = encryption
+                    .get_user_devices(user_id)
+                    .await
+                    .map_err(|_| "M_WEAVE_E2EE_MEMBER_KEYS".to_string())?;
+                eligible_device_ids = refreshed_devices
+                    .devices()
+                    .filter(|device| {
+                        is_eligible_peer_device(
+                            device.is_blacklisted(),
+                            device.curve25519_key().is_some(),
+                        )
+                    })
+                    .map(|device| format!("{user_id}|{}", device.device_id()))
+                    .collect::<Vec<_>>();
+                if !should_retry_peer_device_query(refresh, attempt, &eligible_device_ids) {
+                    break;
+                }
+                tokio::time::sleep(PRE_SEND_DEVICE_QUERY_DELAY).await;
+            }
+        }
         if refresh == RoomSecurityRefresh::PreSend && eligible_device_ids.is_empty() {
             // An active peer with no usable device cannot receive the next
             // Megolm room key. Fail before the SDK timeline send so the event
@@ -1058,6 +1152,16 @@ fn requires_pre_send_member_reload(
 
 fn is_eligible_peer_device(is_blacklisted: bool, has_curve25519_key: bool) -> bool {
     !is_blacklisted && has_curve25519_key
+}
+
+fn should_retry_peer_device_query(
+    refresh: RoomSecurityRefresh,
+    attempt: usize,
+    eligible_device_ids: &[String],
+) -> bool {
+    refresh == RoomSecurityRefresh::PreSend
+        && eligible_device_ids.is_empty()
+        && attempt + 1 < PRE_SEND_DEVICE_QUERY_ATTEMPTS
 }
 
 fn room_security_gate_for(profile_key: &str) -> Result<Arc<AsyncMutex<()>>, String> {
@@ -1328,18 +1432,29 @@ pub fn dismiss_verification(profile_key: String) -> String {
 }
 
 pub async fn dispose(profile_key: String) -> String {
-    let result = match clients().lock() {
-        Ok(mut guard) => Ok(guard.remove(&profile_key)),
-        Err(_) => Err("M_WEAVE_E2EE_UNAVAILABLE".to_string()),
-    };
-    let result = match result {
-        Ok(Some(managed)) => {
-            shutdown_background_sync(managed).await;
-            Ok(json!({ "disposed": true }))
-        }
-        Ok(None) => Ok(json!({ "disposed": true })),
-        Err(error) => Err(error),
-    };
+    let result = async {
+        let lifecycle_gate = client_lifecycle_gate_for(&profile_key)?;
+        let _lifecycle_guard = lifecycle_gate.lock().await;
+        let matrix_io_gate = {
+            let mut guard = clients()
+                .lock()
+                .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?;
+            let Some(managed) = guard.get_mut(&profile_key) else {
+                return Ok(json!({ "disposed": true }));
+            };
+            managed.accepting_operations = false;
+            managed.matrix_io_gate.clone()
+        };
+        stop_background_sync(&profile_key).await?;
+        let _matrix_io_guard = matrix_io_gate.lock().await;
+        let removed = clients()
+            .lock()
+            .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
+            .remove(&profile_key);
+        drop(removed);
+        Ok(json!({ "disposed": true }))
+    }
+    .await;
     json_result(result)
 }
 
@@ -1348,6 +1463,7 @@ fn client_for(profile_key: &str) -> Result<Client, String> {
         .lock()
         .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
         .get(profile_key)
+        .filter(|managed| managed.accepting_operations)
         .map(|managed| managed.client.clone())
         .ok_or_else(|| "M_WEAVE_E2EE_NOT_INITIALIZED".to_string())
 }
@@ -1696,6 +1812,63 @@ mod tests {
         assert!(!is_eligible_peer_device(true, true));
         assert!(!is_eligible_peer_device(false, false));
         assert!(!is_eligible_peer_device(true, false));
+    }
+
+    #[test]
+    fn pre_send_device_query_retries_only_until_an_eligible_device_converges() {
+        let no_devices = Vec::<String>::new();
+        let eligible = vec!["@peer:api.weave.test|DEVICE_A".to_string()];
+
+        assert!(should_retry_peer_device_query(
+            RoomSecurityRefresh::PreSend,
+            0,
+            &no_devices,
+        ));
+        assert!(should_retry_peer_device_query(
+            RoomSecurityRefresh::PreSend,
+            1,
+            &no_devices,
+        ));
+        assert!(!should_retry_peer_device_query(
+            RoomSecurityRefresh::PreSend,
+            2,
+            &no_devices,
+        ));
+        assert!(!should_retry_peer_device_query(
+            RoomSecurityRefresh::PreSend,
+            0,
+            &eligible,
+        ));
+        assert!(!should_retry_peer_device_query(
+            RoomSecurityRefresh::Background,
+            0,
+            &no_devices,
+        ));
+    }
+
+    #[test]
+    fn graceful_background_stop_interrupts_only_the_inter_cycle_delay() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .build()
+            .unwrap();
+        runtime.block_on(async {
+            let (stop, mut observer) = watch::channel(false);
+            let waiter = tokio::spawn(async move {
+                wait_for_background_sync_delay_or_stop(&mut observer, BACKGROUND_SYNC_MAX_BACKOFF)
+                    .await
+            });
+            tokio::task::yield_now().await;
+            assert!(!waiter.is_finished());
+
+            stop.send(true).unwrap();
+            assert!(waiter.await.unwrap());
+        });
+    }
+
+    #[test]
+    fn foreground_barrier_outlives_the_background_long_poll() {
+        assert!(BACKGROUND_SYNC_BARRIER_TIMEOUT > BACKGROUND_SYNC_LONG_POLL_TIMEOUT);
     }
 
     #[test]

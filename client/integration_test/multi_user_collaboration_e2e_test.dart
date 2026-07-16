@@ -30,6 +30,7 @@ import 'package:weave/features/home/presentation/home_screen.dart';
 import 'package:weave/features/profile/domain/entities/user_profile.dart';
 import 'package:weave/features/profile/presentation/profile_screen.dart';
 import 'package:weave/features/settings/presentation/settings_screen.dart';
+import 'package:weave/integrations/rust_matrix_core/data/services/rust_matrix_core_bridge.dart';
 import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 import 'package:weave/main.dart';
@@ -1213,9 +1214,7 @@ Future<void> _establishEncryptedDeviceExchange({
     }
   }
 
-  final supportCode = lastFailure is _ChatObservationFailure
-      ? lastFailure.code
-      : 'M_WEAVE_E2EE_DEVICE_EXCHANGE_FAILED';
+  final supportCode = _encryptedDeviceExchangeSupportCode(lastFailure);
   await _emitE2eeDiagnostics(
     configuration: configuration,
     role: CollaborationActorRole.author,
@@ -1239,6 +1238,23 @@ Future<void> _establishEncryptedDeviceExchange({
     'The two established Matrix devices could not exchange encrypted '
     'messages. Failure code: $supportCode.',
   );
+}
+
+String _encryptedDeviceExchangeSupportCode(Object? failure) {
+  if (failure is _ChatObservationFailure) {
+    return failure.code;
+  }
+  if (failure is ChatFailure) {
+    if (failure.type == ChatFailureType.peerDevicePending) {
+      return 'M_WEAVE_E2EE_PEER_DEVICE_PENDING';
+    }
+    final cause = failure.cause;
+    if (cause is RustMatrixCoreBridgeException &&
+        RegExp(r'^M_[A-Z0-9_]+$').hasMatch(cause.code)) {
+      return cause.code;
+    }
+  }
+  return 'M_WEAVE_E2EE_DEVICE_EXCHANGE_FAILED';
 }
 
 Future<ChatConversation> _requireEncryptedConversation(
