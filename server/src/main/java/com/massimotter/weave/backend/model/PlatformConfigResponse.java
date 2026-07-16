@@ -1,29 +1,38 @@
 package com.massimotter.weave.backend.model;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.swagger.v3.oas.annotations.media.Schema;
+import java.util.List;
 
-@Schema(description = "Public platform configuration consumed by Weave clients.")
+@Schema(description = "Provider-neutral organization manifest consumed by Weave clients.")
 public record PlatformConfigResponse(
-        String publicBaseUrl,
-        String apiBaseUrl,
-        String authBaseUrl,
-        String oidcIssuerUrl,
-        String oidcClientId,
-        String matrixHomeserverUrl,
-        String filesProductUrl,
-        String calendarProductUrl,
-        String nextcloudBaseUrl,
-        Targets targets,
-        Features features) {
+        int schemaVersion,
+        String organizationOrigin,
+        String controlPlaneBaseUrl,
+        Oidc oidc,
+        Protocols protocols,
+        String releasePosture,
+        List<DomainCapability> domains,
+        List<RecoveryAction> recoveryActions) {
 
-    public record Targets(boolean mobile, boolean desktop, boolean web) {
+    public record Oidc(String issuer, String clientId) {
     }
 
-    public record Features(
-            boolean chat,
-            boolean chatE2ee,
-            boolean matrixFederation,
-            boolean files,
-            boolean calendar) {
+    public record Protocols(
+            String matrixClientServerBaseUrl,
+            String filesWebDavBaseUrl,
+            String calendarCalDavBaseUrl) {
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record DomainCapability(
+            String domain,
+            String state,
+            List<String> capabilities,
+            String supportReference) {
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record RecoveryAction(String code, String label, String supportReference) {
     }
 }

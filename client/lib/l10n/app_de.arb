@@ -1013,7 +1013,7 @@
   "boardsWorkspaceStatusDone": "Erledigt",
   "boardsWorkspaceStatusSemantic": "Status: {status}",
   "boardsWorkspaceBackendFedChip": "Aus Backend-Fassade",
-  "boardsWorkspaceProviderBlockedChip": "Provider-Laufzeit blockiert",
+  "boardsWorkspaceProviderBlockedChip": "Boards nicht verfügbar",
   "boardsWorkspaceStaticFixtureChip": "Statische Workspace-Fixture",
   "boardsWorkspaceProviderCapabilitySummary": "Provider: {provider}",
   "boardsWorkspaceCapabilityNonDragReady": "Backend-Aktionen ohne Ziehen bereit",

@@ -57,6 +57,7 @@ resource "docker_container" "this" {
     "WEAVE_PUBLIC_BASE_URL=${var.public_base_url}",
     "WEAVE_API_ORIGIN=${var.api_origin}",
     "WEAVE_API_BASE_URL=${var.api_base_url}",
+    "WEAVE_RELEASE_POSTURE=dogfood",
     "WEAVE_AUTH_BASE_URL=${var.auth_base_url}",
     "WEAVE_MATRIX_BASE_URL=${var.matrix_base_url}",
     "WEAVE_FILES_PRODUCT_URL=${var.files_product_url}",

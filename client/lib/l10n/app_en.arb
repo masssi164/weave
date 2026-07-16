@@ -4054,7 +4054,7 @@
   "@boardsWorkspaceBackendFedChip": {
     "description": "Chip label indicating the workspace snapshot came from the backend facade"
   },
-  "boardsWorkspaceProviderBlockedChip": "Provider runtime blocked",
+  "boardsWorkspaceProviderBlockedChip": "Boards unavailable",
   "@boardsWorkspaceProviderBlockedChip": {
     "description": "Chip label indicating the backend provider runtime is blocked/unavailable"
   },

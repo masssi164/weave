@@ -160,6 +160,12 @@ class WeaveMatrixFacadeChatRepository implements ChatRepository {
           'Write a message before sending it through Weave Chat.',
         );
       }
+      if (error.code == 'M_WEAVE_E2EE_PEER_DEVICE_PENDING') {
+        throw ChatFailure.peerDevicePending(
+          'Waiting for a participant’s secure device. Try again shortly or contact support if this continues.',
+          cause: error,
+        );
+      }
       throw ChatFailure.protocol(
         'Weave Chat could not send this encrypted message.',
         cause: error,

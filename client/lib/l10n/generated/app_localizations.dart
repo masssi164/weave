@@ -5479,7 +5479,7 @@ abstract class AppLocalizations {
   /// Chip label indicating the backend provider runtime is blocked/unavailable
   ///
   /// In en, this message translates to:
-  /// **'Provider runtime blocked'**
+  /// **'Boards unavailable'**
   String get boardsWorkspaceProviderBlockedChip;
 
   /// Chip label indicating the workspace is still using local fixtures

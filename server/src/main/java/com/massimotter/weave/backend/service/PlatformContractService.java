@@ -10,6 +10,7 @@ import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -20,6 +21,9 @@ public class PlatformContractService {
     private final MatrixChatProperties matrixProperties;
     private final WeaveSecurityProperties securityProperties;
     private final WorkspaceCapabilityProperties workspaceProperties;
+
+    @Value("${weave.platform.release-posture:dogfood}")
+    private String releasePosture = "dogfood";
 
     public PlatformContractService(
             OAuth2ResourceServerProperties resourceServerProperties,
@@ -36,25 +40,52 @@ public class PlatformContractService {
 
     public PlatformConfigResponse config() {
         return new PlatformConfigResponse(
+                1,
                 platformProperties.publicBaseUrl(),
                 platformProperties.apiBaseUrl(),
-                platformProperties.authBaseUrl(),
-                oidcIssuerUrl(),
-                securityProperties.clientId(),
-                platformProperties.matrixHomeserverUrl(),
-                platformProperties.filesProductUrl(),
-                platformProperties.calendarProductUrl(),
-                platformProperties.nextcloudBaseUrl(),
-                new PlatformConfigResponse.Targets(
-                        platformProperties.targets().mobile(),
-                        platformProperties.targets().desktop(),
-                        platformProperties.targets().web()),
-                new PlatformConfigResponse.Features(
-                        workspaceProperties.chat().enabled(),
-                        workspaceProperties.chat().enabled() && matrixProperties.e2ee().fullyValidated(),
-                        matrixProperties.federationEnabled(),
-                        workspaceProperties.files().enabled(),
-                        workspaceProperties.calendar().enabled()));
+                new PlatformConfigResponse.Oidc(oidcIssuerUrl(), securityProperties.clientId()),
+                new PlatformConfigResponse.Protocols(
+                        platformProperties.matrixHomeserverUrl(),
+                        joinUrlPath(platformProperties.apiBaseUrl(), "/dav/files"),
+                        joinUrlPath(platformProperties.apiBaseUrl(), "/caldav")),
+                releasePosture(),
+                List.of(
+                        domain("identity", true, List.of(
+                                "identity.sign_in", "identity.groups", "identity.roles",
+                                "policy.read", "policy.manage")),
+                        domain("chat", workspaceProperties.chat().enabled(), List.of(
+                                "chat.read", "chat.send", "chat.channels", "chat.moderate")),
+                        domain("files", workspaceProperties.files().enabled(), List.of(
+                                "files.read", "files.upload", "files.download", "files.delete", "files.share")),
+                        domain("calendar", workspaceProperties.calendar().enabled(), List.of(
+                                "calendar.read", "calendar.manage_events", "calendar.thread_refs")),
+                        domain("boards", workspaceProperties.boards().enabled(), List.of(
+                                "boards.read", "boards.update_task", "boards.sync_workspace", "boards.link_decision")),
+                        domain("health", true, List.of(
+                                "health.read", "health.run_diagnostic", "health.export_support_bundle",
+                                "backup.restore.verify"))),
+                List.of());
+    }
+
+    private String releasePosture() {
+        String normalized = releasePosture == null
+                ? "dogfood"
+                : releasePosture.trim().toLowerCase(java.util.Locale.ROOT);
+        return switch (normalized) {
+            case "development", "dogfood", "release_candidate", "stable" -> normalized;
+            default -> throw new IllegalStateException("Unsupported Weave release posture");
+        };
+    }
+
+    private PlatformConfigResponse.DomainCapability domain(
+            String domain,
+            boolean enabled,
+            List<String> capabilities) {
+        return new PlatformConfigResponse.DomainCapability(
+                domain,
+                enabled ? "available" : "not_configured",
+                enabled ? capabilities : List.of(),
+                null);
     }
 
     private String oidcIssuerUrl() {

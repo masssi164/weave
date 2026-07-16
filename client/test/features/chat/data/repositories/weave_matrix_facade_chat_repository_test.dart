@@ -86,6 +86,19 @@ class _FailingSendBridge extends FakeRustMatrixCoreBridge {
   }
 }
 
+class _PendingPeerDeviceBridge extends FakeRustMatrixCoreBridge {
+  @override
+  Future<String> sendEncryptedText({
+    required String profileKey,
+    required String roomId,
+    required String body,
+  }) {
+    throw const RustMatrixCoreBridgeException(
+      'M_WEAVE_E2EE_PEER_DEVICE_PENDING',
+    );
+  }
+}
+
 class _FailingTimelineBridge extends FakeRustMatrixCoreBridge {
   @override
   Future<List<RustMatrixMessageProjection>> loadEncryptedRoomMessages({
@@ -305,6 +318,40 @@ void main() {
                   (cause) => cause.code,
                   'code',
                   'M_WEAVE_E2EE_SEND_API',
+                ),
+              ),
+        ),
+      );
+    },
+  );
+
+  test(
+    'encrypted send exposes a typed retriable peer-device barrier',
+    () async {
+      await expectLater(
+        repository(rustBridge: _PendingPeerDeviceBridge()).sendMessage(
+          roomId: '!general:api.weave.test',
+          message: 'encrypted through Rust',
+        ),
+        throwsA(
+          isA<ChatFailure>()
+              .having(
+                (failure) => failure.type,
+                'type',
+                ChatFailureType.peerDevicePending,
+              )
+              .having(
+                (failure) => failure.message,
+                'message',
+                contains('Waiting for a participant’s secure device'),
+              )
+              .having(
+                (failure) => failure.cause,
+                'cause',
+                isA<RustMatrixCoreBridgeException>().having(
+                  (cause) => cause.code,
+                  'code',
+                  'M_WEAVE_E2EE_PEER_DEVICE_PENDING',
                 ),
               ),
         ),

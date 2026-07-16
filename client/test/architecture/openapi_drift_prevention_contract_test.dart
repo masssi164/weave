@@ -202,13 +202,6 @@ const _memberProviderGraphAllowlist = <LegacyFence>[
         'member Settings or primary Chat routes.',
   ),
   LegacyFence(
-    path: 'lib/features/boards/presentation/boards_workspace_screen.dart',
-    issue: '#903',
-    reason:
-        'Boards presentation still maps OpenProject adapter vocabulary until '
-        'the Boards OpenAPI adapter exposes provider-neutral domain state.',
-  ),
-  LegacyFence(
     path:
         'lib/features/server_config/presentation/providers/server_configuration_form_controller.dart',
     issue: '#908',

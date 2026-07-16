@@ -346,7 +346,21 @@ void main() {
       );
       expect(platformResponse.statusCode, 200, reason: platformResponse.body);
       final platform = _decodeObject(platformResponse.body);
-      expect(platform['matrixHomeserverUrl'], apiOrigin.toString());
+      expect(platform['schemaVersion'], 1);
+      expect(
+        platform['controlPlaneBaseUrl'],
+        config.backendApiBaseUrl.toString(),
+      );
+      final protocols = platform['protocols'] as Map<String, dynamic>;
+      expect(protocols['matrixClientServerBaseUrl'], apiOrigin.toString());
+      expect(
+        protocols['filesWebDavBaseUrl'],
+        config.apiUri('/api/dav/files').toString(),
+      );
+      expect(
+        protocols['calendarCalDavBaseUrl'],
+        config.apiUri('/api/caldav').toString(),
+      );
       expect(config.matrixHomeserverUrl, apiOrigin);
 
       final files = await _sendRequest(

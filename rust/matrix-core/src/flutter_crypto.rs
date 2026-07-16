@@ -321,6 +321,14 @@ async fn initialize_inner(
     let replaced = clients()
         .lock()
         .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
+        .remove(&profile_key);
+    if let Some(replaced) = replaced {
+        shutdown_background_sync(replaced).await;
+    }
+
+    clients()
+        .lock()
+        .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
         .insert(
             profile_key,
             ManagedClient {
@@ -340,9 +348,6 @@ async fn initialize_inner(
                 sas_verification: None,
             },
         );
-    if let Some(mut replaced) = replaced {
-        abort_background_sync(&mut replaced);
-    }
 
     Ok(json!({
         "initialized": true,
@@ -407,7 +412,7 @@ async fn sync_inner(profile_key: &str) -> Result<Value, String> {
     .await?;
     let progress = background_sync_progress_for(profile_key)?;
     publish_completed_sync(&progress, &completed);
-    start_background_sync(profile_key, &client, completed.next_batch.clone())?;
+    start_background_sync(profile_key, &client, completed.next_batch.clone()).await?;
 
     Ok(json!({
         "nextBatch": completed.next_batch,
@@ -612,11 +617,14 @@ fn publish_completed_sync(
     });
 }
 
-fn start_background_sync(
+async fn start_background_sync(
     profile_key: &str,
     client: &Client,
     initial_cursor: String,
 ) -> Result<(), String> {
+    // Starting a cursor owner is a handoff, not a replacement. Always await
+    // termination of the previous owner before the next task can issue /sync.
+    stop_background_sync(profile_key).await?;
     let progress = background_sync_progress_for(profile_key)?;
     progress.send_modify(|state| state.terminal_error = None);
     let sync_client = client.clone();
@@ -632,9 +640,8 @@ fn start_background_sync(
         task.abort();
         return Err("M_WEAVE_E2EE_NOT_INITIALIZED".to_string());
     };
-    if let Some(previous) = managed.background_sync.replace(task) {
-        previous.abort();
-    }
+    debug_assert!(managed.background_sync.is_none());
+    managed.background_sync = Some(task);
     Ok(())
 }
 
@@ -695,9 +702,25 @@ fn is_terminal_matrix_session_error(error_code: &str) -> bool {
     matches!(error_code, "M_MISSING_TOKEN" | "M_UNKNOWN_TOKEN")
 }
 
-fn abort_background_sync(managed: &mut ManagedClient) {
+async fn stop_background_sync(profile_key: &str) -> Result<(), String> {
+    let task = clients()
+        .lock()
+        .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
+        .get_mut(profile_key)
+        .ok_or_else(|| "M_WEAVE_E2EE_NOT_INITIALIZED".to_string())?
+        .background_sync
+        .take();
+    if let Some(task) = task {
+        task.abort();
+        let _ = task.await;
+    }
+    Ok(())
+}
+
+async fn shutdown_background_sync(mut managed: ManagedClient) {
     if let Some(task) = managed.background_sync.take() {
         task.abort();
+        let _ = task.await;
     }
 }
 
@@ -919,15 +942,17 @@ async fn refresh_active_member_device_keys(
             .devices()
             .next()
             .is_some();
-        if !requires_explicit_device_query(full_member_reload_required, has_cached_device) {
+        if refresh != RoomSecurityRefresh::PreSend
+            && !requires_explicit_device_query(full_member_reload_required, has_cached_device)
+        {
             continue;
         }
 
         // A first room sync can mark a member as tracked while the local crypto
         // store still contains only an older device snapshot. A non-empty
         // cache therefore does not prove that the member's current app device
-        // is known. Query every peer after a complete member reload; unchanged
-        // sets only need a query when no device is cached at all.
+        // is known. Query every peer before a send; background convergence and
+        // cached keys are observations, not permission to cross the barrier.
         encryption
             .request_user_identity(user_id)
             .await
@@ -944,11 +969,20 @@ async fn refresh_active_member_device_keys(
             .get_user_devices(user_id)
             .await
             .map_err(|_| "M_WEAVE_E2EE_MEMBER_KEYS".to_string())?;
-        member_device_ids.extend(
-            devices
-                .keys()
-                .map(|device_id| format!("{user_id}|{device_id}")),
-        );
+        let eligible_device_ids = devices
+            .devices()
+            .filter(|device| {
+                is_eligible_peer_device(device.is_blacklisted(), device.curve25519_key().is_some())
+            })
+            .map(|device| format!("{user_id}|{}", device.device_id()))
+            .collect::<Vec<_>>();
+        if refresh == RoomSecurityRefresh::PreSend && eligible_device_ids.is_empty() {
+            // An active peer with no usable device cannot receive the next
+            // Megolm room key. Fail before the SDK timeline send so the event
+            // is never committed with an incomplete recipient set.
+            return Err("M_WEAVE_E2EE_PEER_DEVICE_PENDING".to_string());
+        }
+        member_device_ids.extend(eligible_device_ids);
     }
     member_device_ids.sort_unstable();
     member_device_ids.dedup();
@@ -1012,12 +1046,18 @@ fn requires_explicit_device_query(member_set_changed: bool, has_cached_device: b
 
 fn requires_pre_send_member_reload(
     refresh: RoomSecurityRefresh,
-    cached_pre_send_fingerprint: Option<&RoomSecurityFingerprint>,
-    cached_fingerprint: Option<&RoomSecurityFingerprint>,
+    _cached_pre_send_fingerprint: Option<&RoomSecurityFingerprint>,
+    _cached_fingerprint: Option<&RoomSecurityFingerprint>,
 ) -> bool {
+    // Membership and key publication can change without a prior local sync.
+    // Every security-sensitive send therefore refreshes the authoritative
+    // active-members projection; the fingerprint still prevents needless key
+    // rotation when the effective eligible device set is unchanged.
     refresh == RoomSecurityRefresh::PreSend
-        && (cached_pre_send_fingerprint.is_none()
-            || cached_pre_send_fingerprint != cached_fingerprint)
+}
+
+fn is_eligible_peer_device(is_blacklisted: bool, has_curve25519_key: bool) -> bool {
+    !is_blacklisted && has_curve25519_key
 }
 
 fn room_security_gate_for(profile_key: &str) -> Result<Arc<AsyncMutex<()>>, String> {
@@ -1287,16 +1327,19 @@ pub fn dismiss_verification(profile_key: String) -> String {
     json_result(update_verification(&profile_key, None, None).map(|_| json!({ "dismissed": true })))
 }
 
-pub fn dispose(profile_key: String) -> String {
-    let result = clients()
-        .lock()
-        .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())
-        .map(|mut guard| {
-            if let Some(mut managed) = guard.remove(&profile_key) {
-                abort_background_sync(&mut managed);
-            }
-            json!({ "disposed": true })
-        });
+pub async fn dispose(profile_key: String) -> String {
+    let result = match clients().lock() {
+        Ok(mut guard) => Ok(guard.remove(&profile_key)),
+        Err(_) => Err("M_WEAVE_E2EE_UNAVAILABLE".to_string()),
+    };
+    let result = match result {
+        Ok(Some(managed)) => {
+            shutdown_background_sync(managed).await;
+            Ok(json!({ "disposed": true }))
+        }
+        Ok(None) => Ok(json!({ "disposed": true })),
+        Err(error) => Err(error),
+    };
     json_result(result)
 }
 
@@ -1628,7 +1671,7 @@ mod tests {
             None,
             Some(&warmed),
         ));
-        assert!(!requires_pre_send_member_reload(
+        assert!(requires_pre_send_member_reload(
             RoomSecurityRefresh::PreSend,
             Some(&warmed),
             Some(&warmed),
@@ -1645,6 +1688,14 @@ mod tests {
             Some(&warmed),
             Some(&expanded),
         ));
+    }
+
+    #[test]
+    fn encrypted_send_rejects_blacklisted_or_keyless_peer_devices() {
+        assert!(is_eligible_peer_device(false, true));
+        assert!(!is_eligible_peer_device(true, true));
+        assert!(!is_eligible_peer_device(false, false));
+        assert!(!is_eligible_peer_device(true, false));
     }
 
     #[test]

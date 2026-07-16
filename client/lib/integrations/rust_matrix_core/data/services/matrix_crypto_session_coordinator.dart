@@ -68,11 +68,16 @@ class MatrixCryptoSessionCoordinator implements MatrixCryptoSessionPort {
   final Random _random;
 
   Future<MatrixCryptoSession>? _opening;
+  Future<void>? _disposing;
   String? _activeFingerprint;
   MatrixCryptoSession? _activeSession;
 
   @override
   Future<MatrixCryptoSession> open({bool synchronize = true}) async {
+    final disposing = _disposing;
+    if (disposing != null) {
+      await disposing;
+    }
     final pending = _opening;
     if (pending != null) {
       final session = await pending;
@@ -95,6 +100,27 @@ class MatrixCryptoSessionCoordinator implements MatrixCryptoSessionPort {
 
   @override
   Future<void> disposePreservingCryptoState() async {
+    final pending = _disposing;
+    if (pending != null) {
+      return pending;
+    }
+    final disposing = _disposePreservingCryptoState();
+    _disposing = disposing;
+    try {
+      await disposing;
+    } finally {
+      if (identical(_disposing, disposing)) {
+        _disposing = null;
+      }
+    }
+  }
+
+  Future<void> _disposePreservingCryptoState() async {
+    try {
+      await _opening;
+    } on Object {
+      // A failed open did not acquire a native sync owner.
+    }
     final session = _activeSession;
     _activeSession = null;
     _activeFingerprint = null;

@@ -3379,8 +3379,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get boardsWorkspaceBackendFedChip => 'Aus Backend-Fassade';
 
   @override
-  String get boardsWorkspaceProviderBlockedChip =>
-      'Provider-Laufzeit blockiert';
+  String get boardsWorkspaceProviderBlockedChip => 'Boards nicht verfügbar';
 
   @override
   String get boardsWorkspaceStaticFixtureChip => 'Statische Workspace-Fixture';

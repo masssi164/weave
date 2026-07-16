@@ -19,7 +19,7 @@ Feature: Provider stack readiness is backend-owned and fail-closed
     And a mixed provider posture can keep self-hosted identity Teams chat SharePoint files and OpenProject tasks behind stable category contracts
     And member impact states are stable across provider adapters
     And meetings readiness uses LiveKit as the active provider and fails closed support-safely
-    And Identity Forms and Contacts readiness is mapped to dependent backend PRs
+    And Identity readiness is Keycloak-mediated while Forms and Contacts keep dependent seams
     And disabled or unconfigured optional providers fail closed
     And no provider secrets or raw provider errors are exposed
 

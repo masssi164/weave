@@ -726,7 +726,7 @@ grep -Fq 'passwords, tokens, client secrets, credential URLs, or activation acti
 [[ "${product_start_page}" != *"127.0.0.1"* && "${product_start_page}" != *"localhost"* && "${product_start_page}" != *"192.168."* ]] || \
   fail "Operator check failed: start page must not expose loopback, localhost, or LAN-IP local truth"
 product_platform_config="$(curl_json "${WEAVE_PUBLIC_BASE_URL}/api/platform/config")"
-assert_json "${product_platform_config}" ".publicBaseUrl == \"${WEAVE_PUBLIC_BASE_URL}\" and .apiBaseUrl == \"${WEAVE_BASE_URL}\"" "product gateway /api/platform/config should proxy app-start discovery"
+assert_json "${product_platform_config}" ".schemaVersion == 1 and .organizationOrigin == \"${WEAVE_PUBLIC_BASE_URL}\" and .controlPlaneBaseUrl == \"${WEAVE_BASE_URL}\"" "product gateway /api/platform/config should proxy OrgManifest v1"
 
 files_product_status="$(curl_status "${WEAVE_PUBLIC_BASE_URL}/files")"
 [[ "${files_product_status}" == "200" ]] || fail "Operator check failed: Weave product files route returned HTTP ${files_product_status} at ${WEAVE_PUBLIC_BASE_URL}/files"
@@ -753,8 +753,8 @@ product_chat_provider_proof_status="$(curl_status "${WEAVE_PUBLIC_BASE_URL}/api/
 [[ "${product_chat_provider_proof_status}" == "404" ]] ||
   fail "Operator check failed: product gateway exposed the isolated Chat provider proof boundary (HTTP ${product_chat_provider_proof_status})"
 
-platform_config="$(curl_json "${WEAVE_BASE_URL}/platform/config")"
-assert_json "${platform_config}" '.features.chatE2ee == false and .features.matrixFederation == false' "platform config should not claim Matrix E2EE or federation readiness"
+platform_status="$(curl_json "${WEAVE_BASE_URL}/platform/status")"
+assert_json "${platform_status}" '.matrix.e2eeEnabled == false and .matrix.federationEnabled == false' "platform status should not claim Matrix E2EE or federation readiness"
 
 nextcloud_status="$(curl_json "${WEAVE_NEXTCLOUD_BASE_URL}/status.php")"
 assert_json "${nextcloud_status}" '.installed == true' "Nextcloud should be installed"

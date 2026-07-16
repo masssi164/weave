@@ -131,7 +131,8 @@ class ServerArchitectureBoundaryTest {
                 .toList())
                 .anyMatch(path -> path.endsWith(Path.of("files", "port", "FilesProviderPort.java")))
                 .anyMatch(path -> path.endsWith(Path.of("calendar", "port", "CalendarProviderPort.java")))
-                .anyMatch(path -> path.endsWith(Path.of("chat", "port", "ChatProviderPort.java")));
+                .anyMatch(path -> path.endsWith(Path.of("chat", "port", "ChatProviderPort.java")))
+                .anyMatch(path -> path.endsWith(Path.of("boards", "port", "BoardsRepository.java")));
     }
 
     @Test
@@ -256,6 +257,21 @@ class ServerArchitectureBoundaryTest {
                 .doesNotContain("CalDavCalendarAdapter")
                 .doesNotContain("Nextcloud")
                 .doesNotContain("RestClient");
+    }
+
+    @Test
+    void boardsControllerRoutesThroughCanonicalFacadeRatherThanConcreteAdapters() throws IOException {
+        JavaSource boardsController = productionSources().stream()
+                .filter(source -> source.path().endsWith(Path.of("controller", "BoardsController.java")))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(boardsController.text())
+                .contains("BoardsFacadeService")
+                .doesNotContain("OpenProjectBoardsRepository")
+                .doesNotContain("LocalWorkspaceBoardsRepository")
+                .doesNotContain("VikunjaBoardsRepository")
+                .doesNotContain("NextcloudDeckBoardsRepository");
     }
 
     @Test
@@ -490,7 +506,8 @@ class ServerArchitectureBoundaryTest {
         String packageName = source.packageName();
         return packageName.equals(BACKEND_PACKAGE + "files.port")
                 || packageName.equals(BACKEND_PACKAGE + "calendar.port")
-                || packageName.equals(BACKEND_PACKAGE + "chat.port");
+                || packageName.equals(BACKEND_PACKAGE + "chat.port")
+                || packageName.equals(BACKEND_PACKAGE + "boards.port");
     }
 
     private static String violation(JavaSource source, String importName) {

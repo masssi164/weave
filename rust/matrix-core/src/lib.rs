@@ -1523,8 +1523,8 @@ pub mod frb_api {
     }
 
     #[cfg(feature = "flutter")]
-    pub fn dispose_matrix_client(profile_key: String) -> String {
-        crate::flutter_crypto::dispose(profile_key)
+    pub async fn dispose_matrix_client(profile_key: String) -> String {
+        crate::flutter_crypto::dispose(profile_key).await
     }
 }
 

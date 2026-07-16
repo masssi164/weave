@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -64,7 +65,37 @@ void main() {
           httpClient: MockClient((request) async {
             expect(request.url.path, '/api/platform/config');
             return http.Response(
-              '''{"oidcIssuerUrl":"https://auth.weave.test/realms/weave","oidcClientId":"weave-app","apiBaseUrl":"https://api.weave.test/api","matrixHomeserverUrl":"https://api.weave.test","filesProductUrl":"https://weave.test/files"}''',
+              jsonEncode({
+                'schemaVersion': 1,
+                'organizationOrigin': 'https://weave.test',
+                'controlPlaneBaseUrl': 'https://api.weave.test/api',
+                'oidc': {
+                  'issuer': 'https://auth.weave.test/realms/weave',
+                  'clientId': 'weave-app',
+                },
+                'protocols': {
+                  'matrixClientServerBaseUrl': 'https://api.weave.test',
+                  'filesWebDavBaseUrl': 'https://api.weave.test/api/dav/files',
+                  'calendarCalDavBaseUrl': 'https://api.weave.test/api/caldav',
+                },
+                'releasePosture': 'dogfood',
+                'domains': [
+                  for (final domain in [
+                    'identity',
+                    'chat',
+                    'files',
+                    'calendar',
+                    'boards',
+                    'health',
+                  ])
+                    {
+                      'domain': domain,
+                      'state': 'available',
+                      'capabilities': <String>[],
+                    },
+                ],
+                'recoveryActions': <Object>[],
+              }),
               200,
               headers: {'content-type': 'application/json'},
             );
@@ -232,7 +263,7 @@ void main() {
         expect(find.text('Connect Files'), findsWidgets);
         expect(
           filesRepository.lastConfiguredBaseUrl.toString(),
-          'https://weave.test/files',
+          'https://api.weave.test/api/dav/files',
         );
 
         await tester.tap(find.text('Connect Files').first);

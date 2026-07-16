@@ -3333,7 +3333,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get boardsWorkspaceBackendFedChip => 'Backend facade fed';
 
   @override
-  String get boardsWorkspaceProviderBlockedChip => 'Provider runtime blocked';
+  String get boardsWorkspaceProviderBlockedChip => 'Boards unavailable';
 
   @override
   String get boardsWorkspaceStaticFixtureChip => 'Static fixture workspace';

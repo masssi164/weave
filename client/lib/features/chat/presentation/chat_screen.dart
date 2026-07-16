@@ -371,6 +371,7 @@ class _ChatErrorState extends StatelessWidget {
       ChatFailureType.sessionRequired => l10n.chatErrorSessionRequiredGuidance,
       ChatFailureType.unsupportedPlatform =>
         l10n.chatErrorUnsupportedPlatformGuidance,
+      ChatFailureType.peerDevicePending ||
       ChatFailureType.protocol ||
       ChatFailureType.storage ||
       ChatFailureType.unknown => l10n.chatErrorRetryGuidance,
