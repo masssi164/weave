@@ -146,6 +146,51 @@ void main() {
     );
   });
 
+  test('Matrix crypto has one graceful sync/send/store owner', () {
+    final source = File(
+      '../rust/matrix-core/src/flutter_crypto.rs',
+    ).readAsStringSync();
+    final initialization = source.substring(
+      source.indexOf('async fn initialize_inner('),
+      source.indexOf('fn build_http_client('),
+    );
+    final syncCycle = source.substring(
+      source.indexOf('async fn complete_sync_cycle('),
+      source.indexOf('fn record_to_device_diagnostics('),
+    );
+    final send = source.substring(
+      source.indexOf('async fn send_text_inner('),
+      source.indexOf('async fn refresh_active_member_device_keys('),
+    );
+
+    expect(source, isNot(contains('task.abort()')));
+    expect(
+      source,
+      contains('background_sync_stop: Option<watch::Sender<bool>>'),
+    );
+    expect(
+      initialization.indexOf('stop_background_sync(&profile_key).await?'),
+      lessThan(initialization.indexOf('Client::builder()')),
+    );
+    expect(syncCycle, contains('matrix_io_gate_for(profile_key)?'));
+    expect(send, contains('matrix_io_gate_for(profile_key)?'));
+    expect(source, contains('PRE_SEND_DEVICE_QUERY_ATTEMPTS'));
+    expect(source, contains('M_WEAVE_E2EE_PEER_DEVICE_PENDING'));
+  });
+
+  test('collaboration failure evidence preserves safe Matrix errcodes', () {
+    final source = File(
+      'integration_test/multi_user_collaboration_e2e_test.dart',
+    ).readAsStringSync();
+
+    expect(
+      source,
+      contains('_encryptedDeviceExchangeSupportCode(lastFailure)'),
+    );
+    expect(source, contains('cause is RustMatrixCoreBridgeException'));
+    expect(source, contains("RegExp(r'^M_[A-Z0-9_]+\$')"));
+  });
+
   test('live provider convergence is explicit and version-safe', () {
     final matrixDriver = File(
       'integration_test/helpers/matrix_live_room_driver.dart',
