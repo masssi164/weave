@@ -614,20 +614,9 @@ jobs:
             ' > "$output"
             exit 0
           fi
-          jq -e '
-            (keys | sort) == ([
-              "activeDeviceCount", "contractVersion", "encryptedEventCount",
-              "olmExistingSessionEnvelopeCount", "olmPreKeyEnvelopeCount",
-              "plaintextRoomKeyEventCount", "projectedEventCount", "queuedEventCount",
-              "revokedDeviceCount", "sequenceHighWater", "supportSafe",
-              "syncResponseCount", "targetedDeviceCount", "transactionCount"
-            ] | sort) and
-            .contractVersion == "matrix-to-device-proof-v1" and
-            .supportSafe == true and
-            all(to_entries[] | select(.key | endswith("Count") or .key == "sequenceHighWater");
-              (.value | type == "number") and .value >= 0 and (.value | floor) == .value)
-          ' "$private_response" >/dev/null
-          jq -S . "$private_response" > "$output"
+          python3 ../../tools/validate_matrix_to_device_evidence.py \
+            --input "$private_response" \
+            --output "$output"
 
       - name: Prove durable Matrix Synapse collaboration behind the Weave facade
         working-directory: weave/infra/weave-workspace
