@@ -130,8 +130,27 @@ test-certificate
     expect(diagnostics.decryptedCount, 1);
     expect(diagnostics.unableToDecryptCount, 2);
     expect(diagnostics.reasonCounts, {'missingMegolmSession': 2});
-    expect(diagnostics.supportCode, 'M_WEAVE_E2EE_MISSING_MEGOLM_SESSION');
+    expect(diagnostics.supportCode, 'M_WEAVE_E2EE_ROOM_KEY_NOT_RECEIVED');
     expect(diagnostics.reasonCounts.toString(), isNot(contains('session_id')));
+  });
+
+  test('a decrypted room key distinguishes an import mismatch', () {
+    final diagnostics = RustMatrixDecryptionDiagnostics.fromJson({
+      'eventCount': 1,
+      'decryptedCount': 0,
+      'unableToDecryptCount': 1,
+      'plaintextCount': 0,
+      'reasonCounts': {'missingMegolmSession': 1},
+      'toDeviceDecryptedCount': 2,
+      'toDeviceDecryptedRoomKeyCount': 1,
+      'toDeviceDecryptedForwardedRoomKeyCount': 0,
+      'toDeviceDecryptedOtherCount': 1,
+      'toDeviceDecryptedUnknownTypeCount': 0,
+    });
+
+    expect(diagnostics.toDeviceDecryptedRoomKeyCount, 1);
+    expect(diagnostics.toDeviceDecryptedOtherCount, 1);
+    expect(diagnostics.supportCode, 'M_WEAVE_E2EE_ROOM_KEY_NOT_IMPORTED');
   });
 
   test(

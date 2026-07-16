@@ -127,6 +127,8 @@ SAFE_E2EE_SUPPORT_CODES = (
     "M_WEAVE_E2EE_OLM_SENDER_NOT_TRUSTED",
     "M_WEAVE_E2EE_OLM_UNAVAILABLE",
     "M_WEAVE_E2EE_TO_DEVICE_INVALID",
+    "M_WEAVE_E2EE_ROOM_KEY_NOT_RECEIVED",
+    "M_WEAVE_E2EE_ROOM_KEY_NOT_IMPORTED",
     "M_WEAVE_E2EE_MISSING_MEGOLM_SESSION",
     "M_WEAVE_E2EE_MISMATCHED_IDENTITY_KEYS",
     "M_WEAVE_E2EE_SENDER_NOT_TRUSTED",
@@ -136,6 +138,25 @@ SAFE_E2EE_SUPPORT_CODES = (
 )
 E2EE_SUPPORT_CODE_PATTERN = re.compile(
     rf"Failure code:\s*({'|'.join(SAFE_E2EE_SUPPORT_CODES)})(?:\.|\s|$)"
+)
+E2EE_DIAGNOSTIC_FIELDS = (
+    "eventCount",
+    "decryptedCount",
+    "unableToDecryptCount",
+    "toDeviceDecryptedCount",
+    "toDeviceRoomKeyCount",
+    "toDeviceForwardedRoomKeyCount",
+    "toDeviceOtherCount",
+    "toDeviceUnknownTypeCount",
+    "toDeviceUnableToDecryptCount",
+    "toDevicePlaintextCount",
+    "toDeviceInvalidCount",
+)
+E2EE_DIAGNOSTIC_PATTERN = re.compile(
+    r"(?:^|\s)MULTI_USER_E2EE_DIAGNOSTIC "
+    r"role=(author|collaborator) runIndex=(\d+) available=([01]) "
+    + r" ".join(rf"{field}=(\d+)" for field in E2EE_DIAGNOSTIC_FIELDS)
+    + r"\s*$"
 )
 
 
@@ -211,6 +232,26 @@ def _e2ee_support_code(raw_log: str) -> str | None:
     return matches[-1] if matches else None
 
 
+def _e2ee_diagnostics(raw_log: str, run_index: int) -> list[str]:
+    diagnostics: list[str] = []
+    for line in raw_log.splitlines():
+        match = E2EE_DIAGNOSTIC_PATTERN.search(line)
+        if match is None or int(match.group(2)) != run_index:
+            continue
+        role = match.group(1)
+        available = match.group(3)
+        counts = " ".join(
+            f"{field}={match.group(index + 4)}"
+            for index, field in enumerate(E2EE_DIAGNOSTIC_FIELDS)
+        )
+        diagnostics.append(
+            "SANITIZED_MULTI_USER_E2EE_DIAGNOSTIC "
+            f"role={role} runIndex={run_index} available={available} "
+            f"{counts} supportSafe=true"
+        )
+    return diagnostics[-2:]
+
+
 def main() -> int:
     args = _parse_args()
     raw_log = args.input.read_text(encoding="utf-8", errors="replace")
@@ -233,6 +274,9 @@ def main() -> int:
 
     for marker, payload in safe_markers:
         print(f"{marker} {json.dumps(payload, sort_keys=True, separators=(',', ':'))}")
+
+    for diagnostic in _e2ee_diagnostics(raw_log, args.run_index):
+        print(diagnostic)
 
     test_status = "passed" if args.test_exit_code == 0 else "failed"
     if args.test_exit_code != 0:

@@ -1157,7 +1157,22 @@ Future<void> _establishEncryptedDeviceExchange({
   final supportCode = lastFailure is _ChatObservationFailure
       ? lastFailure.code
       : 'M_WEAVE_E2EE_DEVICE_EXCHANGE_FAILED';
-  debugPrint(
+  await _emitE2eeDiagnostics(
+    configuration: configuration,
+    role: CollaborationActorRole.author,
+    session: authorSession,
+    roomId: roomId,
+  );
+  await _emitE2eeDiagnostics(
+    configuration: configuration,
+    role: CollaborationActorRole.collaborator,
+    session: collaboratorSession,
+    roomId: roomId,
+  );
+  // `print` is intentional: `debugPrint` can throttle or drop the last line of
+  // a failing native integration process before the sanitizer consumes it.
+  // ignore: avoid_print
+  print(
     'MULTI_USER_E2EE_FAILURE Failure code: $supportCode '
     'runIndex=${configuration.runIndex}',
   );
@@ -1642,6 +1657,52 @@ void _emitProgress(MultiUserTestConfig configuration, String phase) {
   // provider responses, URLs, credentials, or mutable application content.
   // ignore: avoid_print
   print('MULTI_USER_PROGRESS phase=$phase runIndex=${configuration.runIndex}');
+}
+
+Future<void> _emitE2eeDiagnostics({
+  required MultiUserTestConfig configuration,
+  required CollaborationActorRole role,
+  required LiveActorSession session,
+  required String roomId,
+}) async {
+  try {
+    final diagnostics = await session.chatDecryptionDiagnostics(roomId);
+    // Only allowlisted roles and bounded integer counts cross into the
+    // shareable test log. No Matrix IDs, room/session IDs, device IDs, event
+    // content, key material, ciphertext, URLs, or provider payloads are used.
+    // ignore: avoid_print
+    print(
+      'MULTI_USER_E2EE_DIAGNOSTIC '
+      'role=${role.name} runIndex=${configuration.runIndex} available=1 '
+      'eventCount=${diagnostics.eventCount} '
+      'decryptedCount=${diagnostics.decryptedCount} '
+      'unableToDecryptCount=${diagnostics.unableToDecryptCount} '
+      'toDeviceDecryptedCount=${diagnostics.toDeviceDecryptedCount} '
+      'toDeviceRoomKeyCount=${diagnostics.toDeviceDecryptedRoomKeyCount} '
+      'toDeviceForwardedRoomKeyCount='
+      '${diagnostics.toDeviceDecryptedForwardedRoomKeyCount} '
+      'toDeviceOtherCount=${diagnostics.toDeviceDecryptedOtherCount} '
+      'toDeviceUnknownTypeCount='
+      '${diagnostics.toDeviceDecryptedUnknownTypeCount} '
+      'toDeviceUnableToDecryptCount='
+      '${diagnostics.toDeviceUnableToDecryptCount} '
+      'toDevicePlaintextCount=${diagnostics.toDevicePlaintextCount} '
+      'toDeviceInvalidCount=${diagnostics.toDeviceInvalidCount}',
+    );
+  } catch (_) {
+    // The unavailable marker remains support-safe and still distinguishes a
+    // diagnostics-path failure from a zero-count observation.
+    // ignore: avoid_print
+    print(
+      'MULTI_USER_E2EE_DIAGNOSTIC '
+      'role=${role.name} runIndex=${configuration.runIndex} available=0 '
+      'eventCount=0 decryptedCount=0 unableToDecryptCount=0 '
+      'toDeviceDecryptedCount=0 toDeviceRoomKeyCount=0 '
+      'toDeviceForwardedRoomKeyCount=0 toDeviceOtherCount=0 '
+      'toDeviceUnknownTypeCount=0 toDeviceUnableToDecryptCount=0 '
+      'toDevicePlaintextCount=0 toDeviceInvalidCount=0',
+    );
+  }
 }
 
 void _emitEvidence(

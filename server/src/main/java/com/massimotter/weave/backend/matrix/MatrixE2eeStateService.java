@@ -34,6 +34,8 @@ public class MatrixE2eeStateService {
     private final ConcurrentMap<OidcSessionKey, String> devicesByOidcSession = new ConcurrentHashMap<>();
     private final ConcurrentMap<DeviceKey, ConcurrentMap<String, SharedUserState>> sharedUsersByDevice =
             new ConcurrentHashMap<>();
+    private final AtomicLong projectedToDeviceEventCount = new AtomicLong();
+    private final AtomicLong syncResponsesWithToDeviceEvents = new AtomicLong();
     private final MatrixE2eeSequenceJournal sequenceJournal = new MatrixE2eeSequenceJournal();
     private final Set<String> loadedTenants = ConcurrentHashMap.newKeySet();
     private final ObjectMapper objectMapper;
@@ -284,6 +286,10 @@ public class MatrixE2eeStateService {
                                     "type", event.eventType(),
                                     "content", event.content()))
                             .toList();
+                    if (!events.isEmpty()) {
+                        projectedToDeviceEventCount.addAndGet(events.size());
+                        syncResponsesWithToDeviceEvents.incrementAndGet();
+                    }
                     Set<String> changed = new HashSet<>();
                     devices.entrySet().stream()
                             .filter(entry -> entry.getKey().tenantId().equals(identity.tenantId()))
@@ -321,6 +327,65 @@ public class MatrixE2eeStateService {
                             snapshotSequence);
                 });
         return snapshot.value();
+    }
+
+    /**
+     * Returns aggregate, isolated-E2E-only evidence for the northbound Matrix
+     * to-device path. The caller is a separately authenticated, run-scoped
+     * proof endpoint; no tenant, user, device, room, session, key, ciphertext,
+     * transaction, URL, or provider reference is included.
+     */
+    public SupportSafeToDeviceEvidence supportSafeToDeviceEvidence() {
+        long encryptedEventCount = toDeviceEvents.stream()
+                .filter(event -> "m.room.encrypted".equals(event.eventType()))
+                .count();
+        long plaintextRoomKeyEventCount = toDeviceEvents.stream()
+                .filter(event -> "m.room_key".equals(event.eventType())
+                        || "m.forwarded_room_key".equals(event.eventType()))
+                .count();
+        long olmPreKeyEnvelopeCount = toDeviceEvents.stream()
+                .filter(event -> containsOlmMessageType(event.content(), 0))
+                .count();
+        long olmExistingSessionEnvelopeCount = toDeviceEvents.stream()
+                .filter(event -> containsOlmMessageType(event.content(), 1))
+                .count();
+        long activeDeviceCount = devices.values().stream()
+                .filter(device -> !device.revoked)
+                .count();
+        long revokedDeviceCount = devices.values().stream()
+                .filter(device -> device.revoked)
+                .count();
+        long targetedDeviceCount = toDeviceEvents.stream()
+                .map(event -> event.tenantId() + "\u0000" + event.targetUserId() + "\u0000" + event.targetDeviceId())
+                .distinct()
+                .count();
+        return new SupportSafeToDeviceEvidence(
+                "matrix-to-device-proof-v1",
+                activeDeviceCount,
+                revokedDeviceCount,
+                toDeviceEvents.size(),
+                encryptedEventCount,
+                plaintextRoomKeyEventCount,
+                olmPreKeyEnvelopeCount,
+                olmExistingSessionEnvelopeCount,
+                targetedDeviceCount,
+                toDeviceTransactions.size(),
+                projectedToDeviceEventCount.get(),
+                syncResponsesWithToDeviceEvents.get(),
+                sequenceJournal.current(),
+                true);
+    }
+
+    private boolean containsOlmMessageType(Map<String, Object> content, int expectedType) {
+        Object rawCiphertext = content.get("ciphertext");
+        if (!(rawCiphertext instanceof Map<?, ?> ciphertext)) {
+            return false;
+        }
+        return ciphertext.values().stream()
+                .filter(Map.class::isInstance)
+                .map(Map.class::cast)
+                .map(value -> value.get("type"))
+                .anyMatch(value -> value instanceof Number number && number.intValue() == expectedType);
     }
 
     private synchronized boolean reconcileSharedUsers(
@@ -989,6 +1054,23 @@ public class MatrixE2eeStateService {
     private static final class SharedUserState {
         private volatile long changedSequence;
         private volatile boolean shared;
+    }
+
+    public record SupportSafeToDeviceEvidence(
+            String contractVersion,
+            long activeDeviceCount,
+            long revokedDeviceCount,
+            long queuedEventCount,
+            long encryptedEventCount,
+            long plaintextRoomKeyEventCount,
+            long olmPreKeyEnvelopeCount,
+            long olmExistingSessionEnvelopeCount,
+            long targetedDeviceCount,
+            long transactionCount,
+            long projectedEventCount,
+            long syncResponseCount,
+            long sequenceHighWater,
+            boolean supportSafe) {
     }
 
     private static final class CrossSigningState {

@@ -574,6 +574,61 @@ jobs:
             exit 1
           fi
 
+      - name: Capture support-safe Matrix to-device path evidence
+        if: always()
+        working-directory: weave/infra/weave-workspace
+        run: |
+          set -euo pipefail
+          output="$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-matrix-to-device.json"
+          private_response="$RUNNER_TEMP/weave-matrix-to-device-private-response.json"
+          trap 'rm -f -- "$private_response"' EXIT
+          if [[ ! -s "${WEAVE_E2E_STARTUP_ENV_PATH:-}" ]]; then
+            jq -n '{contractVersion:"matrix-to-device-proof-v1",status:"unavailable",supportSafe:true}' > "$output"
+            exit 0
+          fi
+          # shellcheck disable=SC1090
+          source "$WEAVE_E2E_STARTUP_ENV_PATH"
+          proof_token_path="${TF_VAR_chat_e2e_proof_token_host_path:-}"
+          if [[ "${TF_VAR_chat_e2e_proof_enabled:-false}" != "true" || \
+                ! -f "$proof_token_path" || -L "$proof_token_path" ]]; then
+            jq -n '{contractVersion:"matrix-to-device-proof-v1",status:"unavailable",supportSafe:true}' > "$output"
+            exit 0
+          fi
+          proof_token="$(<"$proof_token_path")"
+          status="$(curl --silent --show-error \
+            --output "$private_response" --write-out '%{http_code}' \
+            --connect-timeout 3 --max-time 10 \
+            --header "Authorization: Bearer $proof_token" \
+            "http://127.0.0.1:${TF_VAR_backend_host_port:-48084}/api/internal/e2e/chat/provider-proof/matrix-e2ee" \
+            2>/dev/null || true)"
+          unset proof_token
+          if [[ "$status" != "200" ]]; then
+            rm -f -- "$private_response"
+            jq -n --arg status "$status" '
+              {
+                contractVersion:"matrix-to-device-proof-v1",
+                status:"unavailable",
+                httpStatus: (if ($status | test("^[0-9]{3}$")) then ($status | tonumber) else 0 end),
+                supportSafe:true
+              }
+            ' > "$output"
+            exit 0
+          fi
+          jq -e '
+            (keys | sort) == ([
+              "activeDeviceCount", "contractVersion", "encryptedEventCount",
+              "olmExistingSessionEnvelopeCount", "olmPreKeyEnvelopeCount",
+              "plaintextRoomKeyEventCount", "projectedEventCount", "queuedEventCount",
+              "revokedDeviceCount", "sequenceHighWater", "supportSafe",
+              "syncResponseCount", "targetedDeviceCount", "transactionCount"
+            ] | sort) and
+            .contractVersion == "matrix-to-device-proof-v1" and
+            .supportSafe == true and
+            all(to_entries[] | select(.key | endswith("Count") or .key == "sequenceHighWater");
+              (.value | type == "number") and .value >= 0 and (.value | floor) == .value)
+          ' "$private_response" >/dev/null
+          jq -S . "$private_response" > "$output"
+
       - name: Prove durable Matrix Synapse collaboration behind the Weave facade
         working-directory: weave/infra/weave-workspace
         run: |

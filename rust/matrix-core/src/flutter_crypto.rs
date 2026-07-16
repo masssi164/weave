@@ -98,6 +98,10 @@ struct CompletedSyncCycle {
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 struct ToDeviceDiagnostics {
     decrypted: u64,
+    decrypted_room_key: u64,
+    decrypted_forwarded_room_key: u64,
+    decrypted_other: u64,
+    decrypted_unknown_type: u64,
     decryption_failure: u64,
     unverified_sender_device: u64,
     no_olm_machine: u64,
@@ -110,8 +114,24 @@ impl ToDeviceDiagnostics {
     fn record(&mut self, events: &[ProcessedToDeviceEvent]) {
         for event in events {
             match event {
-                ProcessedToDeviceEvent::Decrypted { .. } => {
+                ProcessedToDeviceEvent::Decrypted { raw, .. } => {
                     self.decrypted = self.decrypted.saturating_add(1);
+                    match raw.get_field::<String>("type").ok().flatten().as_deref() {
+                        Some("m.room_key") => {
+                            self.decrypted_room_key = self.decrypted_room_key.saturating_add(1);
+                        }
+                        Some("m.forwarded_room_key") => {
+                            self.decrypted_forwarded_room_key =
+                                self.decrypted_forwarded_room_key.saturating_add(1);
+                        }
+                        Some(_) => {
+                            self.decrypted_other = self.decrypted_other.saturating_add(1);
+                        }
+                        None => {
+                            self.decrypted_unknown_type =
+                                self.decrypted_unknown_type.saturating_add(1);
+                        }
+                    }
                 }
                 ProcessedToDeviceEvent::UnableToDecrypt { utd_info, .. } => {
                     match &utd_info.reason {
@@ -1422,6 +1442,10 @@ fn decryption_diagnostics(events: &[TimelineEvent], to_device: &ToDeviceDiagnost
         "plaintextCount": plaintext,
         "reasonCounts": reasons,
         "toDeviceDecryptedCount": to_device.decrypted,
+        "toDeviceDecryptedRoomKeyCount": to_device.decrypted_room_key,
+        "toDeviceDecryptedForwardedRoomKeyCount": to_device.decrypted_forwarded_room_key,
+        "toDeviceDecryptedOtherCount": to_device.decrypted_other,
+        "toDeviceDecryptedUnknownTypeCount": to_device.decrypted_unknown_type,
         "toDeviceUnableToDecryptCount": to_device.unable_to_decrypt_count(),
         "toDevicePlaintextCount": to_device.plaintext,
         "toDeviceInvalidCount": to_device.invalid,
@@ -1654,6 +1678,10 @@ mod tests {
     fn to_device_diagnostics_expose_only_bounded_reason_counts() {
         let diagnostics = ToDeviceDiagnostics {
             decrypted: 2,
+            decrypted_room_key: 1,
+            decrypted_forwarded_room_key: 0,
+            decrypted_other: 1,
+            decrypted_unknown_type: 0,
             decryption_failure: 1,
             unverified_sender_device: 1,
             no_olm_machine: 0,
@@ -1663,6 +1691,13 @@ mod tests {
         };
 
         assert_eq!(diagnostics.unable_to_decrypt_count(), 2);
+        assert_eq!(
+            diagnostics.decrypted_room_key
+                + diagnostics.decrypted_forwarded_room_key
+                + diagnostics.decrypted_other
+                + diagnostics.decrypted_unknown_type,
+            diagnostics.decrypted
+        );
         assert_eq!(
             diagnostics.reason_counts(),
             BTreeMap::from([("decryptionFailure", 1), ("unverifiedSenderDevice", 1),])

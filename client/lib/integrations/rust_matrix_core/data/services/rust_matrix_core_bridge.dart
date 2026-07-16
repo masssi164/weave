@@ -183,6 +183,10 @@ class RustMatrixDecryptionDiagnostics {
     required this.plaintextCount,
     required this.reasonCounts,
     this.toDeviceDecryptedCount = 0,
+    this.toDeviceDecryptedRoomKeyCount = 0,
+    this.toDeviceDecryptedForwardedRoomKeyCount = 0,
+    this.toDeviceDecryptedOtherCount = 0,
+    this.toDeviceDecryptedUnknownTypeCount = 0,
     this.toDeviceUnableToDecryptCount = 0,
     this.toDevicePlaintextCount = 0,
     this.toDeviceInvalidCount = 0,
@@ -204,6 +208,18 @@ class RustMatrixDecryptionDiagnostics {
             )
           : const <String, int>{},
       toDeviceDecryptedCount: _integer(json['toDeviceDecryptedCount']),
+      toDeviceDecryptedRoomKeyCount: _integer(
+        json['toDeviceDecryptedRoomKeyCount'],
+      ),
+      toDeviceDecryptedForwardedRoomKeyCount: _integer(
+        json['toDeviceDecryptedForwardedRoomKeyCount'],
+      ),
+      toDeviceDecryptedOtherCount: _integer(
+        json['toDeviceDecryptedOtherCount'],
+      ),
+      toDeviceDecryptedUnknownTypeCount: _integer(
+        json['toDeviceDecryptedUnknownTypeCount'],
+      ),
       toDeviceUnableToDecryptCount: _integer(
         json['toDeviceUnableToDecryptCount'],
       ),
@@ -225,6 +241,10 @@ class RustMatrixDecryptionDiagnostics {
   final int plaintextCount;
   final Map<String, int> reasonCounts;
   final int toDeviceDecryptedCount;
+  final int toDeviceDecryptedRoomKeyCount;
+  final int toDeviceDecryptedForwardedRoomKeyCount;
+  final int toDeviceDecryptedOtherCount;
+  final int toDeviceDecryptedUnknownTypeCount;
   final int toDeviceUnableToDecryptCount;
   final int toDevicePlaintextCount;
   final int toDeviceInvalidCount;
@@ -245,7 +265,11 @@ class RustMatrixDecryptionDiagnostics {
       return 'M_WEAVE_E2EE_TO_DEVICE_INVALID';
     }
     if ((reasonCounts['missingMegolmSession'] ?? 0) > 0) {
-      return 'M_WEAVE_E2EE_MISSING_MEGOLM_SESSION';
+      if (toDeviceDecryptedRoomKeyCount > 0 ||
+          toDeviceDecryptedForwardedRoomKeyCount > 0) {
+        return 'M_WEAVE_E2EE_ROOM_KEY_NOT_IMPORTED';
+      }
+      return 'M_WEAVE_E2EE_ROOM_KEY_NOT_RECEIVED';
     }
     if ((reasonCounts['mismatchedIdentityKeys'] ?? 0) > 0) {
       return 'M_WEAVE_E2EE_MISMATCHED_IDENTITY_KEYS';

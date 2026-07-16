@@ -19,6 +19,40 @@ import org.springframework.beans.factory.support.StaticListableBeanFactory;
 class MatrixE2eeStateServiceSyncSnapshotTest {
 
     @Test
+    void supportSafeEvidenceDistinguishesQueuedAndProjectedOlmEnvelopes() {
+        MatrixE2eeStateService service = service();
+        var sender = identity("@sender:api.weave.test", "WEAVESENDERDEVICE");
+        var target = identity("@target:api.weave.test", "WEAVETARGETDEVICE");
+        Map<String, Object> olmEnvelope = Map.of("body", "opaque", "type", 0);
+        Map<String, Object> encryptedContent = Map.of(
+                "algorithm", "m.olm.v1.curve25519-aes-sha2",
+                "ciphertext", Map.of("opaque-recipient-key", olmEnvelope));
+        Map<String, Object> request = Map.of(
+                "messages", Map.of(target.userId(), Map.of(target.deviceId(), encryptedContent)));
+        service.sendToDevice(
+                sender,
+                "m.room.encrypted",
+                "txn-room-key",
+                request);
+
+        var queued = service.supportSafeToDeviceEvidence();
+        assertThat(queued.contractVersion()).isEqualTo("matrix-to-device-proof-v1");
+        assertThat(queued.queuedEventCount()).isEqualTo(1);
+        assertThat(queued.encryptedEventCount()).isEqualTo(1);
+        assertThat(queued.plaintextRoomKeyEventCount()).isZero();
+        assertThat(queued.olmPreKeyEnvelopeCount()).isEqualTo(1);
+        assertThat(queued.olmExistingSessionEnvelopeCount()).isZero();
+        assertThat(queued.targetedDeviceCount()).isEqualTo(1);
+        assertThat(queued.projectedEventCount()).isZero();
+        assertThat(queued.supportSafe()).isTrue();
+
+        assertThat(service.sync(target, 0).toDeviceEvents()).hasSize(1);
+        var projected = service.supportSafeToDeviceEvidence();
+        assertThat(projected.projectedEventCount()).isEqualTo(1);
+        assertThat(projected.syncResponseCount()).isEqualTo(1);
+    }
+
+    @Test
     @Timeout(10)
     void syncCursorNeverAdvancesPastAnUnpublishedToDeviceEvent() throws Exception {
         MatrixE2eeStateService service = service();
