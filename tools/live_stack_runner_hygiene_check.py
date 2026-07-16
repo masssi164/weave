@@ -21,6 +21,8 @@ CLIENT_HTTP_OVERRIDES = (
     ROOT / "client/integration_test/helpers/test_http_overrides.dart"
 )
 CLIENT_LIVE_OIDC = ROOT / "client/integration_test/helpers/live_oidc_test_driver.dart"
+IOS_SIMULATOR_XCRUN = ROOT / "tools/ios_simulator_xcrun.py"
+IOS_SIMULATOR_XCRUN_SHIM = ROOT / "tools/ios-simulator-xcrun/xcrun"
 
 
 def main() -> int:
@@ -33,6 +35,8 @@ def main() -> int:
     client_live_tls = CLIENT_LIVE_TLS.read_text(encoding="utf-8")
     client_http_overrides = CLIENT_HTTP_OVERRIDES.read_text(encoding="utf-8")
     client_live_oidc = CLIENT_LIVE_OIDC.read_text(encoding="utf-8")
+    ios_simulator_xcrun = IOS_SIMULATOR_XCRUN.read_text(encoding="utf-8")
+    ios_simulator_xcrun_shim = IOS_SIMULATOR_XCRUN_SHIM.read_text(encoding="utf-8")
 
     ordered_steps = (
         "- name: Verify isolated disposable live runner",
@@ -43,6 +47,7 @@ def main() -> int:
         "- name: Prove missing-capability expired-token and revoked-session denials",
         "- name: Expose generated local CA to Rust Matrix tests",
         "- name: Boot an isolated iPhone Simulator and trust the local CA",
+        "- name: Enable bounded iOS Simulator VM-service discovery",
         "- name: Verify live test disk headroom and reserve recovery space",
         "- name: Run live stack integration tests",
         "- name: Clean disposable identities and retain only hashed evidence",
@@ -243,6 +248,40 @@ def main() -> int:
         and "xcrun simctl list devices available" not in workflow,
         "live collaboration must create and delete its own simulator instead of reusing app/Keychain state",
     )
+    require(
+        'vm_service_shim="$GITHUB_WORKSPACE/weave/tools/ios-simulator-xcrun"'
+        in workflow
+        and 'test -x "$vm_service_shim/xcrun"' in workflow
+        and 'echo "$vm_service_shim" >> "$GITHUB_PATH"' in workflow,
+        "live collaboration must install the bounded xcrun compatibility shim only after simulator setup",
+    )
+    require(
+        IOS_SIMULATOR_XCRUN_SHIM.stat().st_mode & 0o111 != 0
+        and "ios_simulator_xcrun.py" in ios_simulator_xcrun_shim,
+        "the xcrun compatibility entrypoint must be executable and delegate to the reviewed helper",
+    )
+    for marker in (
+        "processIdentifier == {process_id}",
+        'parsed.hostname != "127.0.0.1"',
+        '"--start"',
+        "simulator_runner_pids(snapshot(), simulator_udid)",
+        "WEAVE_IOS_VM_SERVICE_DISCOVERY_ERROR",
+        "supportSafe=true",
+    ):
+        require(
+            marker in ios_simulator_xcrun,
+            f"bounded simulator VM-service replay is missing {marker!r}",
+        )
+    for forbidden in (
+        "write_text(",
+        "write_bytes(",
+        "mkstemp(",
+        "NamedTemporaryFile(",
+    ):
+        require(
+            forbidden not in ios_simulator_xcrun,
+            "simulator VM-service replay must not persist the private service URI",
+        )
 
     finalizer = workflow[positions[-1] :]
     require("if: always()" in finalizer, "runner-output finalizer must run on failure")
@@ -365,6 +404,8 @@ def main() -> int:
         "unrelated simulators, containers, volumes, signing identities, or physical-device data",
         "controlled Calendar outage",
         "restored before disposable identity cleanup",
+        "Flutter VM-service discovery is bounded",
+        "URI remains in memory",
     ):
         require(phrase in docs, f"quality documentation is missing {phrase!r}")
 

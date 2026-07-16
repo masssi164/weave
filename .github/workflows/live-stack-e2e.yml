@@ -436,6 +436,13 @@ jobs:
           echo "WEAVE_MULTI_USER_TEST_DEVICE=$simulator_udid" >> "$GITHUB_ENV"
           echo "iPhone Simulator functional lane: ${simulator_udid}" >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Enable bounded iOS Simulator VM-service discovery
+        run: |
+          set -euo pipefail
+          vm_service_shim="$GITHUB_WORKSPACE/weave/tools/ios-simulator-xcrun"
+          test -x "$vm_service_shim/xcrun"
+          echo "$vm_service_shim" >> "$GITHUB_PATH"
+
       - name: Verify live test disk headroom and reserve recovery space
         run: |
           set -euo pipefail
