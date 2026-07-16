@@ -78,6 +78,17 @@ class MatrixLiveRoomDriver {
     }
 
     if (collaborator != null && collaboratorUserId != null) {
+      // A newly opened Rust crypto profile can authenticate before its device
+      // keys and one-time key material have converged through the northbound
+      // facade. Prove both current devices first; otherwise stale-device
+      // pruning can mistake that transient empty projection for a missing
+      // authenticated device and fail before the bounded convergence wait.
+      await requireMutualDeviceKeys(
+        author: author,
+        authorUserId: authorUserId,
+        collaborator: collaborator,
+        collaboratorUserId: collaboratorUserId,
+      );
       if (pruneStaleActorDevices) {
         await retainOnlyCurrentDevice(actor: author, userId: authorUserId);
         await retainOnlyCurrentDevice(
@@ -85,12 +96,6 @@ class MatrixLiveRoomDriver {
           userId: collaboratorUserId,
         );
       }
-      await requireMutualDeviceKeys(
-        author: author,
-        authorUserId: authorUserId,
-        collaborator: collaborator,
-        collaboratorUserId: collaboratorUserId,
-      );
       if (requireColdCollaboratorDevice || pruneStaleActorDevices) {
         await requireExactCurrentDevices(
           observer: author,

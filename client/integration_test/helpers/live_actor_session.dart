@@ -32,6 +32,11 @@ import 'namespaced_test_storage.dart';
 import 'test_config.dart';
 import 'test_http_overrides.dart';
 
+/// Fixed, identity-free stages exposed only to support-safe live-test progress
+/// reporting. No URL, credential, provider response, or actor identifier is
+/// carried by this callback.
+enum LiveActorOpenPhase { organizationDiscovery, oidcSignIn, appBootstrap }
+
 /// One isolated app-data profile reused across process-like session contexts.
 ///
 /// Each role owns a distinct secure store and preferences store. Opening a new
@@ -84,10 +89,13 @@ class LiveActorProfile {
 
   Future<LiveActorSession> open({
     List<Override> additionalOverrides = const <Override>[],
+    void Function(LiveActorOpenPhase phase)? onPhase,
   }) async {
+    onPhase?.call(LiveActorOpenPhase.organizationDiscovery);
     await _ensureOrganizationDiscovered();
     final container = _createContainer(additionalOverrides);
     try {
+      onPhase?.call(LiveActorOpenPhase.oidcSignIn);
       final authState = await container
           .read(authSessionRepositoryProvider)
           .signIn(
@@ -99,6 +107,7 @@ class LiveActorProfile {
       if (!authState.isAuthenticated) {
         throw StateError('${role.name} did not establish an OIDC session.');
       }
+      onPhase?.call(LiveActorOpenPhase.appBootstrap);
       await _requireReadyBootstrap(container);
       return LiveActorSession(
         container: container,

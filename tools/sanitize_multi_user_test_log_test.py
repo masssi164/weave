@@ -125,6 +125,27 @@ TestFailure: Expected: true Actual: false
             result.stdout,
         )
 
+    def test_actor_bootstrap_subphases_are_support_safe(self) -> None:
+        raw = """
+MULTI_USER_PROGRESS phase=room-author-bootstrap runIndex=1
+MULTI_USER_PROGRESS phase=containment-session-exchange runIndex=2
+TestFailure: Expected: true Actual: false
+"""
+
+        first = self.run_sanitizer(raw, exit_code=1)
+        second = self.run_sanitizer(raw, exit_code=1, run_index=2)
+
+        self.assertEqual(first.returncode, 0, first.stderr)
+        self.assertEqual(second.returncode, 0, second.stderr)
+        self.assertIn(
+            "category=assertion phase=room-author-bootstrap",
+            first.stdout,
+        )
+        self.assertIn(
+            "category=assertion phase=containment-session-exchange",
+            second.stdout,
+        )
+
     def test_encrypted_peer_decryption_subphase_is_support_safe(self) -> None:
         raw = """
 MULTI_USER_PROGRESS phase=room-key-exchange-author-send runIndex=1
@@ -216,6 +237,7 @@ TestFailure: Expected: true Actual: false
         raw_log: str,
         *,
         exit_code: int,
+        run_index: int = 1,
     ) -> subprocess.CompletedProcess[str]:
         with tempfile.TemporaryDirectory() as temporary_directory:
             log_path = Path(temporary_directory) / "raw.log"
@@ -227,7 +249,7 @@ TestFailure: Expected: true Actual: false
                     "--input",
                     str(log_path),
                     "--run-index",
-                    "1",
+                    str(run_index),
                     "--test-exit-code",
                     str(exit_code),
                 ],
