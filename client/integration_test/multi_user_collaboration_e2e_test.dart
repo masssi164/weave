@@ -47,6 +47,17 @@ const _executionModeValue = String.fromEnvironment(
 
 const _supportSafeProgressPhases = <String>{
   'room-provision',
+  'room-author-discovery',
+  'room-author-session-exchange',
+  'room-author-bootstrap',
+  'room-collaborator-discovery',
+  'room-collaborator-session-exchange',
+  'room-collaborator-bootstrap',
+  'room-author-chat-connect',
+  'room-collaborator-chat-connect',
+  'room-transport-credentials',
+  'room-device-provision',
+  'room-conversation-sync',
   'room-key-exchange-author',
   'room-key-exchange-collaborator',
   'room-key-exchange-author-send',
@@ -88,6 +99,9 @@ const _supportSafeProgressPhases = <String>{
   'collaborator-navigation',
   'collaboration-evidence',
   'containment-session',
+  'containment-discovery',
+  'containment-session-exchange',
+  'containment-bootstrap',
   'containment-capability',
   'containment-calendar-health',
   'containment-shell-health',
@@ -882,7 +896,12 @@ void main() {
       requireIsolatedStackScope();
       final author = profiles[CollaborationActorRole.author]!;
       _emitProgress(configuration, 'containment-session');
-      final session = await author.open();
+      final session = await author.open(
+        onPhase: (phase) => _emitProgress(
+          configuration,
+          _actorOpenProgressPhase(_ActorOpenContext.containment, phase),
+        ),
+      );
       try {
         _emitProgress(configuration, 'containment-capability');
         _emitProgress(configuration, 'containment-calendar-health');
@@ -973,14 +992,28 @@ Future<String> _provisionEncryptedSharedRoom({
   LiveActorSession? collaboratorSession;
   final client = createTrustedTestHttpClient();
   try {
-    authorSession = await author.open();
-    collaboratorSession = await collaborator.open();
+    authorSession = await author.open(
+      onPhase: (phase) => _emitProgress(
+        configuration,
+        _actorOpenProgressPhase(_ActorOpenContext.roomAuthor, phase),
+      ),
+    );
+    collaboratorSession = await collaborator.open(
+      onPhase: (phase) => _emitProgress(
+        configuration,
+        _actorOpenProgressPhase(_ActorOpenContext.roomCollaborator, phase),
+      ),
+    );
+    _emitProgress(configuration, 'room-author-chat-connect');
     await authorSession.chat.connect();
+    _emitProgress(configuration, 'room-collaborator-chat-connect');
     await collaboratorSession.chat.connect();
+    _emitProgress(configuration, 'room-transport-credentials');
     final authorCredentials = await authorSession.matrixTransportCredentials();
     final collaboratorCredentials = await collaboratorSession
         .matrixTransportCredentials();
     final driver = MatrixLiveRoomDriver(client: client, homeserver: homeserver);
+    _emitProgress(configuration, 'room-device-provision');
     final provisioned = await driver.createEncryptedRoom(
       author: MatrixLiveActorCredentials(
         accessToken: authorCredentials.accessToken,
@@ -1005,6 +1038,7 @@ Future<String> _provisionEncryptedSharedRoom({
     // crypto clients have opened. Synchronize that committed provider state
     // into each isolated device store before disposing the setup sessions so
     // the subsequent fresh sessions exercise restoration, not a setup race.
+    _emitProgress(configuration, 'room-conversation-sync');
     await _requireEncryptedConversation(authorSession, provisioned.roomId);
     await _requireEncryptedConversation(
       collaboratorSession,
@@ -1056,6 +1090,31 @@ Future<String> _provisionEncryptedSharedRoom({
     await collaboratorSession?.close();
     await authorSession?.close();
   }
+}
+
+enum _ActorOpenContext { roomAuthor, roomCollaborator, containment }
+
+String _actorOpenProgressPhase(
+  _ActorOpenContext context,
+  LiveActorOpenPhase phase,
+) {
+  return switch (context) {
+    _ActorOpenContext.roomAuthor => switch (phase) {
+      LiveActorOpenPhase.organizationDiscovery => 'room-author-discovery',
+      LiveActorOpenPhase.oidcSignIn => 'room-author-session-exchange',
+      LiveActorOpenPhase.appBootstrap => 'room-author-bootstrap',
+    },
+    _ActorOpenContext.roomCollaborator => switch (phase) {
+      LiveActorOpenPhase.organizationDiscovery => 'room-collaborator-discovery',
+      LiveActorOpenPhase.oidcSignIn => 'room-collaborator-session-exchange',
+      LiveActorOpenPhase.appBootstrap => 'room-collaborator-bootstrap',
+    },
+    _ActorOpenContext.containment => switch (phase) {
+      LiveActorOpenPhase.organizationDiscovery => 'containment-discovery',
+      LiveActorOpenPhase.oidcSignIn => 'containment-session-exchange',
+      LiveActorOpenPhase.appBootstrap => 'containment-bootstrap',
+    },
+  };
 }
 
 Future<void> _establishEncryptedDeviceExchange({

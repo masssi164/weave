@@ -236,6 +236,116 @@ void main() {
   );
 
   test(
+    'waits for fresh device convergence before pruning stale devices',
+    () async {
+      const staleAuthorDeviceId = 'WEAVESTALEAUTHOR';
+      const staleCollaboratorDeviceId = 'WEAVESTALECOLLABORATOR';
+      final requests = <http.Request>[];
+      final responses = <http.Response>[
+        _jsonResponse(<String, Object>{
+          'user_id': '@author:api.weave.test',
+          'device_id': _author.deviceId,
+        }),
+        _jsonResponse(<String, Object>{
+          'user_id': '@collaborator:api.weave.test',
+          'device_id': _collaborator.deviceId,
+        }),
+        _jsonResponse(<String, Object>{'device_keys': <String, Object>{}}),
+        _deviceKeysResponse(
+          userId: '@collaborator:api.weave.test',
+          deviceId: _collaborator.deviceId,
+        ),
+        _deviceKeysResponse(
+          userId: '@author:api.weave.test',
+          deviceId: _author.deviceId,
+        ),
+        _oneTimeKeyCountResponse(),
+        _oneTimeKeyCountResponse(),
+        _deviceSetResponse(
+          userId: '@author:api.weave.test',
+          deviceIds: <String>{_author.deviceId, staleAuthorDeviceId},
+        ),
+        _jsonResponse(const <String, Object>{}),
+        _deviceKeysResponse(
+          userId: '@author:api.weave.test',
+          deviceId: _author.deviceId,
+        ),
+        _deviceSetResponse(
+          userId: '@collaborator:api.weave.test',
+          deviceIds: <String>{
+            _collaborator.deviceId,
+            staleCollaboratorDeviceId,
+          },
+        ),
+        _jsonResponse(const <String, Object>{}),
+        _deviceKeysResponse(
+          userId: '@collaborator:api.weave.test',
+          deviceId: _collaborator.deviceId,
+        ),
+        _deviceKeysResponse(
+          userId: '@collaborator:api.weave.test',
+          deviceId: _collaborator.deviceId,
+        ),
+        _deviceKeysResponse(
+          userId: '@author:api.weave.test',
+          deviceId: _author.deviceId,
+        ),
+        _jsonResponse(<String, Object>{'room_id': _roomId}),
+        _jsonResponse(<String, Object>{'room_id': _roomId}),
+        _roomMembersResponse(),
+        _roomMembersResponse(),
+        _jsonResponse(<String, Object>{'algorithm': matrixMegolmV1Algorithm}),
+        _jsonResponse(<String, Object>{'algorithm': matrixMegolmV1Algorithm}),
+      ];
+      final client = MockClient((request) async {
+        requests.add(request);
+        return responses[requests.length - 1];
+      });
+
+      await MatrixLiveRoomDriver(
+        client: client,
+        homeserver: Uri.parse('https://api.weave.test'),
+        deviceKeyConvergenceTimeout: const Duration(seconds: 1),
+        deviceKeyPollInterval: Duration.zero,
+      ).createEncryptedRoom(
+        author: _author,
+        collaborator: _collaborator,
+        roomName: 'fresh-device convergence room',
+        requireColdCollaboratorDevice: true,
+        pruneStaleActorDevices: true,
+      );
+
+      expect(requests, hasLength(responses.length));
+      expect(requests.take(7).map((request) => request.method), <String>[
+        'GET',
+        'GET',
+        'POST',
+        'POST',
+        'POST',
+        'POST',
+        'POST',
+      ]);
+      expect(
+        requests.take(7).where((request) => request.method == 'DELETE'),
+        isEmpty,
+      );
+      expect(requests[2].url.path, '/_matrix/client/v3/keys/query');
+      expect(requests[3].url.path, '/_matrix/client/v3/keys/query');
+      expect(requests[5].url.path, '/_matrix/client/v3/keys/upload');
+      expect(requests[6].url.path, '/_matrix/client/v3/keys/upload');
+      expect(
+        requests[8].url.path,
+        '/_matrix/client/v3/devices/$staleAuthorDeviceId',
+      );
+      expect(
+        requests[11].url.path,
+        '/_matrix/client/v3/devices/$staleCollaboratorDeviceId',
+      );
+      expect(requests[15].url.path, '/_matrix/client/v3/createRoom');
+    },
+  );
+
+  test(
     'isolated setup refuses pruning when the current device is absent',
     () async {
       const staleDeviceId = 'WEAVESTALEDEVICE';
@@ -645,11 +755,17 @@ http.Response _jsonResponse(Map<String, Object> body) {
 http.Response _deviceKeysResponse({
   required String userId,
   required String deviceId,
+}) => _deviceSetResponse(userId: userId, deviceIds: <String>{deviceId});
+
+http.Response _deviceSetResponse({
+  required String userId,
+  required Set<String> deviceIds,
 }) {
   return _jsonResponse(<String, Object>{
     'device_keys': <String, Object>{
       userId: <String, Object>{
-        deviceId: _deviceKey(userId: userId, deviceId: deviceId),
+        for (final deviceId in deviceIds)
+          deviceId: _deviceKey(userId: userId, deviceId: deviceId),
       },
     },
   });

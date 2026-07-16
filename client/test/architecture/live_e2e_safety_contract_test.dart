@@ -178,8 +178,12 @@ void main() {
       lessThan(roomCreation.indexOf("'createRoom'")),
     );
     expect(
+      roomCreation.indexOf('requireMutualDeviceKeys('),
+      lessThan(roomCreation.indexOf('retainOnlyCurrentDevice(')),
+    );
+    expect(
       roomCreation.indexOf('retainOnlyCurrentDevice('),
-      lessThan(roomCreation.indexOf('requireMutualDeviceKeys(')),
+      lessThan(roomCreation.indexOf("'createRoom'")),
     );
     expect(multiUserSource, contains('pruneStaleActorDevices: true'));
     expect(calendarRepository, contains('draft.toPatch(etag: etag)'));
