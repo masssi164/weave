@@ -223,7 +223,7 @@ class LiveActorProfile {
         discovered.serviceEndpoints.matrixHomeserverUrl ==
             _actorConfig.matrixHomeserverUrl &&
         discovered.serviceEndpoints.nextcloudBaseUrl ==
-            _expectedFilesProductUrl(_actorConfig.backendApiBaseUrl);
+            _actorConfig.apiUri('/api/dav/files');
   }
 
   Future<void> _requireReadyBootstrap(ProviderContainer container) async {
@@ -320,6 +320,3 @@ Uri _productOrigin(Uri backendApiBaseUrl) {
     port: backendApiBaseUrl.hasPort ? backendApiBaseUrl.port : null,
   );
 }
-
-Uri _expectedFilesProductUrl(Uri backendApiBaseUrl) =>
-    _productOrigin(backendApiBaseUrl).replace(path: '/files');
