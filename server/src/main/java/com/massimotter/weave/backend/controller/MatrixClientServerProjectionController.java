@@ -29,8 +29,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -424,7 +426,10 @@ public class MatrixClientServerProjectionController {
                         conversation,
                         chatDomainFacadeService.timeline(conversation.conversationId(), jwt, 100)))
                 .toList();
-        MatrixProtocolCoreService.MatrixSyncCrypto crypto = matrixE2eeStateService.sync(identity, cryptoSequence);
+        MatrixProtocolCoreService.MatrixSyncCrypto crypto = matrixE2eeStateService.sync(
+                identity,
+                cryptoSequence,
+                sharedEncryptedRoomUsers(identity, projection));
         return matrixProtocolCoreService.sync(
                 jwt.getSubject(),
                 matrixE2eeStateService.combinedCursor(
@@ -434,6 +439,18 @@ public class MatrixClientServerProjectionController {
                 projection,
                 matrixE2eeStateService.accountData(identity),
                 crypto);
+    }
+
+    private Set<String> sharedEncryptedRoomUsers(
+            MatrixFacadeClientStateService.MatrixIdentity identity,
+            List<MatrixProtocolCoreService.CanonicalConversation> conversations) {
+        return conversations.stream()
+                .filter(conversation -> conversation.encryptionAlgorithm() != null)
+                .flatMap(conversation -> conversation.memberships().stream())
+                .filter(membership -> "join".equals(matrixMembershipState(membership.state())))
+                .map(membership -> matrixProtocolCoreService.userId(membership.memberRef()))
+                .filter(userId -> !userId.equals(identity.userId()))
+                .collect(Collectors.toUnmodifiableSet());
     }
 
     private Map<String, Object> joinedRooms(Jwt jwt) {

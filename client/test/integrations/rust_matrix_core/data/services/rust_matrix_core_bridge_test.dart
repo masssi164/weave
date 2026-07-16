@@ -134,6 +134,33 @@ test-certificate
     expect(diagnostics.reasonCounts.toString(), isNot(contains('session_id')));
   });
 
+  test(
+    'Olm delivery failures take precedence over derived Megolm failures',
+    () {
+      final diagnostics = RustMatrixDecryptionDiagnostics.fromJson({
+        'eventCount': 1,
+        'decryptedCount': 0,
+        'unableToDecryptCount': 1,
+        'plaintextCount': 0,
+        'reasonCounts': {'missingMegolmSession': 1},
+        'toDeviceDecryptedCount': 0,
+        'toDeviceUnableToDecryptCount': 1,
+        'toDevicePlaintextCount': 0,
+        'toDeviceInvalidCount': 0,
+        'toDeviceReasonCounts': {'decryptionFailure': 1},
+        'sender_key': 'must-not-be-projected',
+      });
+
+      expect(diagnostics.toDeviceUnableToDecryptCount, 1);
+      expect(diagnostics.toDeviceReasonCounts, {'decryptionFailure': 1});
+      expect(diagnostics.supportCode, 'M_WEAVE_E2EE_OLM_DECRYPTION_FAILURE');
+      expect(
+        diagnostics.toDeviceReasonCounts.toString(),
+        isNot(contains('sender_key')),
+      );
+    },
+  );
+
   test('whoami identity is validated inside the Rust core', () async {
     const bridge = RustMatrixCoreBridge();
 

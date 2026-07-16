@@ -182,6 +182,11 @@ class RustMatrixDecryptionDiagnostics {
     required this.unableToDecryptCount,
     required this.plaintextCount,
     required this.reasonCounts,
+    this.toDeviceDecryptedCount = 0,
+    this.toDeviceUnableToDecryptCount = 0,
+    this.toDevicePlaintextCount = 0,
+    this.toDeviceInvalidCount = 0,
+    this.toDeviceReasonCounts = const <String, int>{},
   });
 
   factory RustMatrixDecryptionDiagnostics.fromJson(Map<String, dynamic> json) {
@@ -198,6 +203,19 @@ class RustMatrixDecryptionDiagnostics {
               ),
             )
           : const <String, int>{},
+      toDeviceDecryptedCount: _integer(json['toDeviceDecryptedCount']),
+      toDeviceUnableToDecryptCount: _integer(
+        json['toDeviceUnableToDecryptCount'],
+      ),
+      toDevicePlaintextCount: _integer(json['toDevicePlaintextCount']),
+      toDeviceInvalidCount: _integer(json['toDeviceInvalidCount']),
+      toDeviceReasonCounts: json['toDeviceReasonCounts'] is Map
+          ? Map<String, int>.unmodifiable(
+              (json['toDeviceReasonCounts'] as Map).map(
+                (key, value) => MapEntry(key.toString(), _integer(value)),
+              ),
+            )
+          : const <String, int>{},
     );
   }
 
@@ -206,8 +224,26 @@ class RustMatrixDecryptionDiagnostics {
   final int unableToDecryptCount;
   final int plaintextCount;
   final Map<String, int> reasonCounts;
+  final int toDeviceDecryptedCount;
+  final int toDeviceUnableToDecryptCount;
+  final int toDevicePlaintextCount;
+  final int toDeviceInvalidCount;
+  final Map<String, int> toDeviceReasonCounts;
 
   String get supportCode {
+    if ((toDeviceReasonCounts['decryptionFailure'] ?? 0) > 0) {
+      return 'M_WEAVE_E2EE_OLM_DECRYPTION_FAILURE';
+    }
+    if ((toDeviceReasonCounts['unverifiedSenderDevice'] ?? 0) > 0) {
+      return 'M_WEAVE_E2EE_OLM_SENDER_NOT_TRUSTED';
+    }
+    if ((toDeviceReasonCounts['noOlmMachine'] ?? 0) > 0 ||
+        (toDeviceReasonCounts['encryptionDisabled'] ?? 0) > 0) {
+      return 'M_WEAVE_E2EE_OLM_UNAVAILABLE';
+    }
+    if (toDeviceInvalidCount > 0) {
+      return 'M_WEAVE_E2EE_TO_DEVICE_INVALID';
+    }
     if ((reasonCounts['missingMegolmSession'] ?? 0) > 0) {
       return 'M_WEAVE_E2EE_MISSING_MEGOLM_SESSION';
     }

@@ -1,7 +1,10 @@
 use matrix_sdk::{
     authentication::{matrix::MatrixSession, SessionTokens},
     config::SyncSettings,
-    deserialized_responses::{TimelineEvent, TimelineEventKind, UnableToDecryptReason},
+    deserialized_responses::{
+        ProcessedToDeviceEvent, TimelineEvent, TimelineEventKind, ToDeviceUnableToDecryptReason,
+        UnableToDecryptReason,
+    },
     encryption::{
         recovery::{RecoveryError, RecoveryState},
         verification::{
@@ -59,6 +62,7 @@ struct ManagedClient {
     sync_start_gate: Arc<AsyncMutex<()>>,
     background_sync_progress: watch::Sender<BackgroundSyncProgress>,
     background_sync: Option<JoinHandle<()>>,
+    to_device_diagnostics: ToDeviceDiagnostics,
     verification_request: Option<VerificationRequest>,
     sas_verification: Option<SasVerification>,
 }
@@ -89,6 +93,74 @@ struct CompletedSyncCycle {
     next_batch: String,
     enabled_rooms: u64,
     converged_rooms: u64,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+struct ToDeviceDiagnostics {
+    decrypted: u64,
+    decryption_failure: u64,
+    unverified_sender_device: u64,
+    no_olm_machine: u64,
+    encryption_disabled: u64,
+    plaintext: u64,
+    invalid: u64,
+}
+
+impl ToDeviceDiagnostics {
+    fn record(&mut self, events: &[ProcessedToDeviceEvent]) {
+        for event in events {
+            match event {
+                ProcessedToDeviceEvent::Decrypted { .. } => {
+                    self.decrypted = self.decrypted.saturating_add(1);
+                }
+                ProcessedToDeviceEvent::UnableToDecrypt { utd_info, .. } => {
+                    match &utd_info.reason {
+                        ToDeviceUnableToDecryptReason::DecryptionFailure => {
+                            self.decryption_failure = self.decryption_failure.saturating_add(1);
+                        }
+                        ToDeviceUnableToDecryptReason::UnverifiedSenderDevice => {
+                            self.unverified_sender_device =
+                                self.unverified_sender_device.saturating_add(1);
+                        }
+                        ToDeviceUnableToDecryptReason::NoOlmMachine => {
+                            self.no_olm_machine = self.no_olm_machine.saturating_add(1);
+                        }
+                        ToDeviceUnableToDecryptReason::EncryptionIsDisabled => {
+                            self.encryption_disabled = self.encryption_disabled.saturating_add(1);
+                        }
+                    }
+                }
+                ProcessedToDeviceEvent::PlainText(_) => {
+                    self.plaintext = self.plaintext.saturating_add(1);
+                }
+                ProcessedToDeviceEvent::Invalid(_) => {
+                    self.invalid = self.invalid.saturating_add(1);
+                }
+            }
+        }
+    }
+
+    fn unable_to_decrypt_count(&self) -> u64 {
+        self.decryption_failure
+            .saturating_add(self.unverified_sender_device)
+            .saturating_add(self.no_olm_machine)
+            .saturating_add(self.encryption_disabled)
+    }
+
+    fn reason_counts(&self) -> BTreeMap<&'static str, u64> {
+        let mut reasons = BTreeMap::new();
+        for (reason, count) in [
+            ("decryptionFailure", self.decryption_failure),
+            ("unverifiedSenderDevice", self.unverified_sender_device),
+            ("noOlmMachine", self.no_olm_machine),
+            ("encryptionDisabled", self.encryption_disabled),
+        ] {
+            if count > 0 {
+                reasons.insert(reason, count);
+            }
+        }
+        reasons
+    }
 }
 
 static CLIENTS: OnceLock<Mutex<HashMap<String, ManagedClient>>> = OnceLock::new();
@@ -243,6 +315,7 @@ async fn initialize_inner(
                 sync_start_gate: Arc::new(AsyncMutex::new(())),
                 background_sync_progress,
                 background_sync: None,
+                to_device_diagnostics: ToDeviceDiagnostics::default(),
                 verification_request: None,
                 sas_verification: None,
             },
@@ -336,6 +409,7 @@ async fn complete_sync_cycle(
         .sync_once(settings)
         .await
         .map_err(|error| matrix_sdk_error_code(&error, error_code))?;
+    record_to_device_diagnostics(profile_key, &response.to_device)?;
     let (mut enabled_rooms, mut converged_rooms) =
         converge_joined_room_security(profile_key, client).await?;
     if enabled_rooms > 0 {
@@ -347,6 +421,7 @@ async fn complete_sync_cycle(
             ))
             .await
             .map_err(|error| matrix_sdk_error_code(&error, error_code))?;
+        record_to_device_diagnostics(profile_key, &response.to_device)?;
         let (newly_enabled_rooms, newly_converged_rooms) =
             converge_joined_room_security(profile_key, client).await?;
         enabled_rooms = enabled_rooms.saturating_add(newly_enabled_rooms);
@@ -357,6 +432,29 @@ async fn complete_sync_cycle(
         enabled_rooms,
         converged_rooms,
     })
+}
+
+fn record_to_device_diagnostics(
+    profile_key: &str,
+    events: &[ProcessedToDeviceEvent],
+) -> Result<(), String> {
+    clients()
+        .lock()
+        .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
+        .get_mut(profile_key)
+        .ok_or_else(|| "M_WEAVE_E2EE_NOT_INITIALIZED".to_string())?
+        .to_device_diagnostics
+        .record(events);
+    Ok(())
+}
+
+fn to_device_diagnostics(profile_key: &str) -> Result<ToDeviceDiagnostics, String> {
+    clients()
+        .lock()
+        .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
+        .get(profile_key)
+        .map(|managed| managed.to_device_diagnostics.clone())
+        .ok_or_else(|| "M_WEAVE_E2EE_NOT_INITIALIZED".to_string())
 }
 
 fn sync_settings(timeout: Duration, since: Option<&str>) -> SyncSettings {
@@ -676,7 +774,7 @@ async fn room_messages_inner(
         .messages(options)
         .await
         .map_err(|_| "M_WEAVE_E2EE_TIMELINE".to_string())?;
-    let decryption = decryption_diagnostics(&response.chunk);
+    let decryption = decryption_diagnostics(&response.chunk, &to_device_diagnostics(profile_key)?);
     let mut messages = response
         .chunk
         .iter()
@@ -1298,7 +1396,7 @@ fn project_timeline_event(event: &TimelineEvent) -> Option<Value> {
     }))
 }
 
-fn decryption_diagnostics(events: &[TimelineEvent]) -> Value {
+fn decryption_diagnostics(events: &[TimelineEvent], to_device: &ToDeviceDiagnostics) -> Value {
     let mut decrypted = 0_u64;
     let mut unable_to_decrypt = 0_u64;
     let mut plaintext = 0_u64;
@@ -1323,6 +1421,11 @@ fn decryption_diagnostics(events: &[TimelineEvent]) -> Value {
         "unableToDecryptCount": unable_to_decrypt,
         "plaintextCount": plaintext,
         "reasonCounts": reasons,
+        "toDeviceDecryptedCount": to_device.decrypted,
+        "toDeviceUnableToDecryptCount": to_device.unable_to_decrypt_count(),
+        "toDevicePlaintextCount": to_device.plaintext,
+        "toDeviceInvalidCount": to_device.invalid,
+        "toDeviceReasonCounts": to_device.reason_counts(),
     })
 }
 
@@ -1544,6 +1647,25 @@ mod tests {
         assert_eq!(
             unable_to_decrypt_reason(UnableToDecryptReason::MalformedEncryptedEvent),
             "malformedEncryptedEvent"
+        );
+    }
+
+    #[test]
+    fn to_device_diagnostics_expose_only_bounded_reason_counts() {
+        let diagnostics = ToDeviceDiagnostics {
+            decrypted: 2,
+            decryption_failure: 1,
+            unverified_sender_device: 1,
+            no_olm_machine: 0,
+            encryption_disabled: 0,
+            plaintext: 3,
+            invalid: 0,
+        };
+
+        assert_eq!(diagnostics.unable_to_decrypt_count(), 2);
+        assert_eq!(
+            diagnostics.reason_counts(),
+            BTreeMap::from([("decryptionFailure", 1), ("unverifiedSenderDevice", 1),])
         );
     }
 

@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +32,8 @@ public class MatrixE2eeStateService {
     private final ConcurrentMap<UserKey, ConcurrentMap<String, Map<String, Object>>> accountData =
             new ConcurrentHashMap<>();
     private final ConcurrentMap<OidcSessionKey, String> devicesByOidcSession = new ConcurrentHashMap<>();
+    private final ConcurrentMap<DeviceKey, ConcurrentMap<String, SharedUserState>> sharedUsersByDevice =
+            new ConcurrentHashMap<>();
     private final MatrixE2eeSequenceJournal sequenceJournal = new MatrixE2eeSequenceJournal();
     private final Set<String> loadedTenants = ConcurrentHashMap.newKeySet();
     private final ObjectMapper objectMapper;
@@ -246,8 +249,28 @@ public class MatrixE2eeStateService {
     public MatrixProtocolCoreService.MatrixSyncCrypto sync(
             MatrixFacadeClientStateService.MatrixIdentity identity,
             long afterSequence) {
+        return sync(identity, afterSequence, null);
+    }
+
+    public MatrixProtocolCoreService.MatrixSyncCrypto sync(
+            MatrixFacadeClientStateService.MatrixIdentity identity,
+            long afterSequence,
+            Collection<String> currentlySharedUserIds) {
         prepare(identity);
         requireActive(identity);
+        Set<String> sharedUserIds = currentlySharedUserIds == null
+                ? null
+                : Set.copyOf(currentlySharedUserIds.stream()
+                        .filter(userId -> userId != null && !userId.isBlank())
+                        .filter(userId -> !userId.equals(identity.userId()))
+                        .toList());
+        if (sharedUserIds != null && reconcileSharedUsers(identity, sharedUserIds)) {
+            // The in-memory projection is intentionally rebuilt after a server
+            // restart. Persisting the advanced high-water mark makes the
+            // resulting notification cursor durable while avoiding a second
+            // source of truth for canonical Chat membership.
+            persist(identity.tenantId());
+        }
         MatrixE2eeSequenceJournal.Snapshot<MatrixProtocolCoreService.MatrixSyncCrypto> snapshot =
                 sequenceJournal.snapshot(snapshotSequence -> {
                     List<Map<String, Object>> events = toDeviceEvents.stream()
@@ -261,24 +284,72 @@ public class MatrixE2eeStateService {
                                     "type", event.eventType(),
                                     "content", event.content()))
                             .toList();
-                    List<String> changed = devices.entrySet().stream()
+                    Set<String> changed = new HashSet<>();
+                    devices.entrySet().stream()
                             .filter(entry -> entry.getKey().tenantId().equals(identity.tenantId()))
+                            .filter(entry -> sharedUserIds == null
+                                    || entry.getKey().userId().equals(identity.userId())
+                                    || sharedUserIds.contains(entry.getKey().userId()))
                             .filter(entry -> entry.getValue().changedSequence > afterSequence)
                             .filter(entry -> entry.getValue().changedSequence <= snapshotSequence)
                             .map(entry -> entry.getKey().userId())
-                            .distinct()
-                            .sorted()
-                            .toList();
+                            .forEach(changed::add);
+                    List<String> left = new ArrayList<>();
+                    if (sharedUserIds != null) {
+                        sharedUsersByDevice
+                                .getOrDefault(deviceKey(identity), new ConcurrentHashMap<>())
+                                .forEach((userId, state) -> {
+                                    if (state.changedSequence > afterSequence
+                                            && state.changedSequence <= snapshotSequence) {
+                                        if (state.shared) {
+                                            changed.add(userId);
+                                        } else {
+                                            left.add(userId);
+                                        }
+                                    }
+                                });
+                    }
+                    List<String> sortedChanged = changed.stream().sorted().toList();
+                    List<String> sortedLeft = left.stream().distinct().sorted().toList();
                     DeviceState ownDevice = devices.get(deviceKey(identity));
                     return new MatrixProtocolCoreService.MatrixSyncCrypto(
                             events,
-                            changed,
-                            List.of(),
+                            sortedChanged,
+                            sortedLeft,
                             ownDevice == null ? Map.of() : oneTimeKeyCounts(ownDevice),
                             ownDevice == null ? List.of() : fallbackAlgorithms(ownDevice),
                             snapshotSequence);
                 });
         return snapshot.value();
+    }
+
+    private synchronized boolean reconcileSharedUsers(
+            MatrixFacadeClientStateService.MatrixIdentity identity,
+            Set<String> currentlySharedUserIds) {
+        ConcurrentMap<String, SharedUserState> known = sharedUsersByDevice.computeIfAbsent(
+                deviceKey(identity), ignored -> new ConcurrentHashMap<>());
+        boolean mutated = false;
+        for (String userId : currentlySharedUserIds) {
+            SharedUserState state = known.computeIfAbsent(userId, ignored -> new SharedUserState());
+            if (!state.shared) {
+                sequenceJournal.publish(value -> {
+                    state.shared = true;
+                    state.changedSequence = value;
+                });
+                mutated = true;
+            }
+        }
+        for (Map.Entry<String, SharedUserState> entry : known.entrySet()) {
+            SharedUserState state = entry.getValue();
+            if (state.shared && !currentlySharedUserIds.contains(entry.getKey())) {
+                sequenceJournal.publish(value -> {
+                    state.shared = false;
+                    state.changedSequence = value;
+                });
+                mutated = true;
+            }
+        }
+        return mutated;
     }
 
     public Map<String, Object> keyChanges(
@@ -337,6 +408,7 @@ public class MatrixE2eeStateService {
             state.fallbackKeys = Map.of();
             state.changedSequence = value;
         });
+        sharedUsersByDevice.remove(new DeviceKey(identity.tenantId(), identity.userId(), deviceId));
         persist(identity.tenantId());
     }
 
@@ -912,6 +984,11 @@ public class MatrixE2eeStateService {
         private final Set<String> usedFallbackAlgorithms = ConcurrentHashMap.newKeySet();
         private volatile long changedSequence;
         private volatile boolean revoked;
+    }
+
+    private static final class SharedUserState {
+        private volatile long changedSequence;
+        private volatile boolean shared;
     }
 
     private static final class CrossSigningState {
