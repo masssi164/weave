@@ -1244,6 +1244,10 @@ String _encryptedDeviceExchangeSupportCode(Object? failure) {
   if (failure is _ChatObservationFailure) {
     return failure.code;
   }
+  return _matrixSupportCode(failure) ?? 'M_WEAVE_E2EE_DEVICE_EXCHANGE_FAILED';
+}
+
+String? _matrixSupportCode(Object? failure) {
   if (failure is ChatFailure) {
     if (failure.type == ChatFailureType.peerDevicePending) {
       return 'M_WEAVE_E2EE_PEER_DEVICE_PENDING';
@@ -1254,7 +1258,11 @@ String _encryptedDeviceExchangeSupportCode(Object? failure) {
       return cause.code;
     }
   }
-  return 'M_WEAVE_E2EE_DEVICE_EXCHANGE_FAILED';
+  if (failure is RustMatrixCoreBridgeException &&
+      RegExp(r'^M_[A-Z0-9_]+$').hasMatch(failure.code)) {
+    return failure.code;
+  }
+  return null;
 }
 
 Future<ChatConversation> _requireEncryptedConversation(
@@ -1455,6 +1463,7 @@ Future<ChatMessage> _waitForChatMessage(
   String expectedText, {
   Duration timeout = const Duration(seconds: 45),
 }) async {
+  Object? lastFailure;
   try {
     final timeline = await _eventually(
       () => session.chat.loadRoomTimeline(roomId),
@@ -1462,20 +1471,26 @@ Future<ChatMessage> _waitForChatMessage(
           timeline.messages.any((message) => message.text == expectedText),
       reason: 'A committed Chat message was not observed in a fresh session.',
       timeout: timeout,
+      onError: (error) => lastFailure = error,
     );
     return timeline.messages.firstWhere(
       (message) => message.text == expectedText,
     );
-  } catch (_) {
-    var supportCode = 'M_WEAVE_E2EE_MESSAGE_NOT_OBSERVED';
-    try {
-      supportCode = (await session.chatDecryptionDiagnostics(
-        roomId,
-      )).supportCode;
-    } catch (_) {
-      // The generic code remains support-safe when diagnostics are unavailable.
+  } catch (error) {
+    lastFailure ??= error;
+    var supportCode = _matrixSupportCode(lastFailure);
+    if (supportCode == null) {
+      try {
+        supportCode = (await session.chatDecryptionDiagnostics(
+          roomId,
+        )).supportCode;
+      } catch (_) {
+        // The generic code remains support-safe when diagnostics are unavailable.
+      }
     }
-    throw _ChatObservationFailure(supportCode);
+    throw _ChatObservationFailure(
+      supportCode ?? 'M_WEAVE_E2EE_MESSAGE_NOT_OBSERVED',
+    );
   }
 }
 
@@ -1687,6 +1702,7 @@ Future<T> _eventually<T>(
   bool Function(T value) predicate, {
   required String reason,
   Duration timeout = const Duration(seconds: 45),
+  void Function(Object error)? onError,
 }) async {
   final deadline = DateTime.now().add(timeout);
   Object? lastError;
@@ -1698,6 +1714,7 @@ Future<T> _eventually<T>(
       }
     } catch (error) {
       lastError = error;
+      onError?.call(error);
     }
     await Future<void>.delayed(const Duration(seconds: 1));
   }
