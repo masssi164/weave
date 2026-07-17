@@ -182,10 +182,11 @@ public class MatrixE2eeStateService {
         prepare(identity);
         request.forEach((userId, rawSignedObjects) -> objectMap(rawSignedObjects).forEach((keyId, rawSignedObject) -> {
             Map<String, Object> signedObject = immutableObject(objectMap(rawSignedObject));
+            Map<String, Object> uploadedSignatures = immutableObject(objectMap(signedObject.get("signatures")));
             DeviceState device = devices.get(new DeviceKey(identity.tenantId(), userId, keyId));
-            if (device != null) {
+            if (device != null && !device.deviceKeys.isEmpty()) {
                 sequenceJournal.publish(value -> {
-                    device.deviceKeys = signedObject;
+                    device.deviceKeys = mergeSignedObjectSignatures(device.deviceKeys, uploadedSignatures);
                     device.changedSequence = value;
                 });
                 return;
@@ -193,7 +194,7 @@ public class MatrixE2eeStateService {
             CrossSigningState signing = crossSigning.get(new UserKey(identity.tenantId(), userId));
             if (signing != null) {
                 sequenceJournal.publish(ignored -> {
-                    signing.replaceMatchingKey(keyId, signedObject);
+                    signing.mergeMatchingKeySignatures(keyId, uploadedSignatures);
                 });
             }
         }));
@@ -1011,6 +1012,24 @@ public class MatrixE2eeStateService {
         return Map.copyOf(result);
     }
 
+    private Map<String, Object> mergeSignedObjectSignatures(
+            Map<String, Object> storedObject,
+            Map<String, Object> uploadedSignatures) {
+        if (storedObject.isEmpty() || uploadedSignatures.isEmpty()) {
+            return storedObject;
+        }
+        Map<String, Object> mergedSignatures = new LinkedHashMap<>(objectMap(storedObject.get("signatures")));
+        uploadedSignatures.forEach((signerUserId, rawSignatures) -> {
+            Map<String, Object> signerSignatures = new LinkedHashMap<>(
+                    objectMap(mergedSignatures.get(signerUserId)));
+            signerSignatures.putAll(objectMap(rawSignatures));
+            mergedSignatures.put(signerUserId, immutableObject(signerSignatures));
+        });
+        Map<String, Object> mergedObject = new LinkedHashMap<>(storedObject);
+        mergedObject.put("signatures", immutableObject(mergedSignatures));
+        return immutableObject(mergedObject);
+    }
+
     private record DeviceKey(String tenantId, String userId, String deviceId) {
     }
 
@@ -1073,24 +1092,29 @@ public class MatrixE2eeStateService {
             boolean supportSafe) {
     }
 
-    private static final class CrossSigningState {
+    private final class CrossSigningState {
         private volatile Map<String, Object> masterKey = Map.of();
         private volatile Map<String, Object> selfSigningKey = Map.of();
         private volatile Map<String, Object> userSigningKey = Map.of();
 
-        private void replaceMatchingKey(String keyId, Map<String, Object> signedObject) {
+        private void mergeMatchingKeySignatures(String keyId, Map<String, Object> uploadedSignatures) {
             if (containsKeyId(masterKey, keyId)) {
-                masterKey = signedObject;
+                masterKey = mergeSignedObjectSignatures(masterKey, uploadedSignatures);
             } else if (containsKeyId(selfSigningKey, keyId)) {
-                selfSigningKey = signedObject;
+                selfSigningKey = mergeSignedObjectSignatures(selfSigningKey, uploadedSignatures);
             } else if (containsKeyId(userSigningKey, keyId)) {
-                userSigningKey = signedObject;
+                userSigningKey = mergeSignedObjectSignatures(userSigningKey, uploadedSignatures);
             }
         }
 
         private boolean containsKeyId(Map<String, Object> key, String keyId) {
             Object rawKeys = key.get("keys");
-            return rawKeys instanceof Map<?, ?> keys && keys.containsKey(keyId);
+            return rawKeys instanceof Map<?, ?> keys
+                    && (keys.containsKey(keyId)
+                            || keys.keySet().stream()
+                                    .filter(String.class::isInstance)
+                                    .map(String.class::cast)
+                                    .anyMatch(storedKeyId -> storedKeyId.endsWith(":" + keyId)));
         }
     }
 

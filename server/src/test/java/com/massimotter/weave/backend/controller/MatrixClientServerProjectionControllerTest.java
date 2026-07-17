@@ -483,6 +483,94 @@ class MatrixClientServerProjectionControllerTest {
     }
 
     @Test
+    void signatureUploadPreservesDeviceSelfSignatureAndIdentityKeys() throws Exception {
+        String userId = "@user_example.com:api.weave.test";
+        String deviceId = "WEAVESIGNEDDEVICE";
+        String sessionId = "signed-device-session";
+
+        mockMvc.perform(post("/_matrix/client/v3/keys/upload")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceId)
+                        .with(workspaceJwt(sessionId))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "device_keys":{
+                                    "user_id":"%s",
+                                    "device_id":"%s",
+                                    "algorithms":[
+                                      "m.olm.v1.curve25519-aes-sha2",
+                                      "m.megolm.v1.aes-sha2"
+                                    ],
+                                    "keys":{
+                                      "curve25519:%s":"curve25519-public-key",
+                                      "ed25519:%s":"ed25519-public-key"
+                                    },
+                                    "signatures":{
+                                      "%s":{"ed25519:%s":"device-self-signature"}
+                                    }
+                                  }
+                                }
+                                """.formatted(userId, deviceId, deviceId, deviceId, userId, deviceId)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/_matrix/client/v3/keys/signatures/upload")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceId)
+                        .with(workspaceJwt(sessionId))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "%s":{
+                                    "%s":{
+                                      "user_id":"%s",
+                                      "device_id":"%s",
+                                      "algorithms":[
+                                        "m.olm.v1.curve25519-aes-sha2",
+                                        "m.megolm.v1.aes-sha2"
+                                      ],
+                                      "keys":{
+                                        "curve25519:%s":"curve25519-public-key",
+                                        "ed25519:%s":"ed25519-public-key"
+                                      },
+                                      "signatures":{
+                                        "%s":{"ed25519:self-signing-public-key":"cross-signing-signature"}
+                                      }
+                                    }
+                                  }
+                                }
+                                """.formatted(
+                                        userId,
+                                        deviceId,
+                                        userId,
+                                        deviceId,
+                                        deviceId,
+                                        deviceId,
+                                        userId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.failures").isEmpty());
+
+        mockMvc.perform(post("/_matrix/client/v3/keys/query")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceId)
+                        .with(workspaceJwt(sessionId))
+                        .contentType("application/json")
+                        .content("""
+                                {"device_keys":{"%s":[]}}
+                                """.formatted(userId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.device_keys['%s'].%s.keys['curve25519:%s']"
+                                .formatted(userId, deviceId, deviceId))
+                        .value("curve25519-public-key"))
+                .andExpect(jsonPath("$.device_keys['%s'].%s.keys['ed25519:%s']"
+                                .formatted(userId, deviceId, deviceId))
+                        .value("ed25519-public-key"))
+                .andExpect(jsonPath("$.device_keys['%s'].%s.signatures['%s']['ed25519:%s']"
+                                .formatted(userId, deviceId, userId, deviceId))
+                        .value("device-self-signature"))
+                .andExpect(jsonPath("$.device_keys['%s'].%s.signatures['%s']['ed25519:self-signing-public-key']"
+                                .formatted(userId, deviceId, userId))
+                        .value("cross-signing-signature"));
+    }
+
+    @Test
     void fallbackKeyBootstrapsOlmWhenOneTimeKeyPoolIsEmpty() throws Exception {
         stubConversation();
         String userId = "@user_example.com:api.weave.test";
