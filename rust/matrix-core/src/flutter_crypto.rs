@@ -2,8 +2,8 @@ use matrix_sdk::{
     authentication::{matrix::MatrixSession, SessionTokens},
     config::SyncSettings,
     deserialized_responses::{
-        ProcessedToDeviceEvent, TimelineEvent, TimelineEventKind, ToDeviceUnableToDecryptInfo,
-        ToDeviceUnableToDecryptReason, UnableToDecryptReason,
+        ProcessedToDeviceEvent, TimelineEvent, TimelineEventKind, ToDeviceUnableToDecryptReason,
+        UnableToDecryptReason,
     },
     encryption::{
         identities::UserDevices,
@@ -2213,7 +2213,7 @@ mod tests {
         .expect("encrypted event should be valid raw JSON");
         let failed = ProcessedToDeviceEvent::UnableToDecrypt {
             encrypted_event: encrypted,
-            utd_info: ToDeviceUnableToDecryptInfo {
+            utd_info: matrix_sdk::deserialized_responses::ToDeviceUnableToDecryptInfo {
                 reason: ToDeviceUnableToDecryptReason::DecryptionFailure,
             },
         };
