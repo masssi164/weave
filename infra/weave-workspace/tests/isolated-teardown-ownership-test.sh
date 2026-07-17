@@ -34,6 +34,28 @@ chmod 600 "${OWNERSHIP_FILE}"
 cat >"${MOCK_BIN}/tofu" <<'MOCK'
 #!/usr/bin/env bash
 printf 'tofu %s\n' "$*" >>"${MOCK_COMMAND_LOG}"
+
+if [[ "${MOCK_TOFU_MODE:-always-fail}" == "transient-destroy" ]]; then
+  if [[ "$*" != *" destroy "* ]]; then
+    exit 0
+  fi
+  stage="unknown"
+  if [[ "$*" == *"02-keycloak-setup"* ]]; then
+    stage="keycloak"
+  elif [[ "$*" == *"01-infrastructure"* ]]; then
+    stage="infrastructure"
+  fi
+  attempts_file="${MOCK_STATE}/tofu-${stage}-destroy-attempts"
+  attempts=0
+  if [[ -f "${attempts_file}" ]]; then
+    attempts="$(<"${attempts_file}")"
+  fi
+  attempts=$((attempts + 1))
+  printf '%s\n' "${attempts}" >"${attempts_file}"
+  ((attempts >= 2))
+  exit
+fi
+
 exit 1
 MOCK
 chmod +x "${MOCK_BIN}/tofu"
@@ -126,6 +148,24 @@ mkdir -p "${state_root}"
 : >"${state_root}/02-keycloak-setup.tfstate"
 : >"${COMMAND_LOG}"
 : >"${MOCK_STATE}/backend-present"
+rm -f "${MOCK_STATE}"/tofu-*-destroy-attempts
+env "${common_env[@]}" MOCK_RESOURCE_LABELS="isolated|${NAMESPACE}" \
+  MOCK_TOFU_MODE=transient-destroy \
+  bash "${TEARDOWN}" >"${TMP_DIR}/destroy-recovered.out" 2>&1
+grep -Fq 'OpenTofu destroy attempt 1/3 did not complete' "${TMP_DIR}/destroy-recovered.out" ||
+  fail "transient OpenTofu destroy failure was not retried"
+grep -Fq 'OpenTofu destroy recovered' "${TMP_DIR}/destroy-recovered.out" ||
+  fail "transient OpenTofu destroy recovery was not reported"
+[[ "$(<"${MOCK_STATE}/tofu-keycloak-destroy-attempts")" == 2 ]] ||
+  fail "Keycloak destroy did not stop after its successful retry"
+[[ "$(<"${MOCK_STATE}/tofu-infrastructure-destroy-attempts")" == 2 ]] ||
+  fail "infrastructure destroy did not stop after its successful retry"
+
+mkdir -p "${state_root}"
+: >"${state_root}/01-infrastructure.tfstate"
+: >"${state_root}/02-keycloak-setup.tfstate"
+: >"${COMMAND_LOG}"
+: >"${MOCK_STATE}/backend-present"
 set +e
 env "${common_env[@]}" MOCK_RESOURCE_LABELS="isolated|${NAMESPACE}" \
   bash "${TEARDOWN}" >"${TMP_DIR}/destroy-failed.out" 2>&1
@@ -134,6 +174,8 @@ set -e
 [[ "${destroy_failed_status}" == 1 ]] || fail "failed OpenTofu destroy must fail the isolated teardown"
 grep -Fq 'run-owned state was retained for diagnosis' "${TMP_DIR}/destroy-failed.out" ||
   fail "failed OpenTofu destroy did not explain state retention"
+[[ "$(grep -c '^tofu .* init ' "${COMMAND_LOG}")" == 6 ]] ||
+  fail "exhausted destroy retried each run-owned state exactly three times"
 [[ -f "${state_root}/01-infrastructure.tfstate" && -f "${state_root}/02-keycloak-setup.tfstate" ]] ||
   fail "failed OpenTofu destroy removed run-owned diagnostic state"
 if grep -Fq ' state rm ' "${COMMAND_LOG}"; then

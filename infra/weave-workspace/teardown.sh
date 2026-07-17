@@ -26,6 +26,8 @@ readonly DESTRUCTIVE_DATA_DOMAINS=(
 )
 readonly BACKUP_GUIDANCE="docs/operator-runbook.md#5-backup-expectations"
 readonly LEGACY_CONFIRMATION="weave-delete-local-data"
+readonly IAC_DESTROY_MAX_ATTEMPTS=3
+readonly IAC_DESTROY_RETRY_DELAY_SECONDS=2
 CHAT_E2E_PROOF_CLEANUP_ARMED=false
 IAC_DESTROY_FAILED=false
 
@@ -219,11 +221,24 @@ iac_destroy() {
     return
   fi
 
-  if ! weave_iac_init "${dir}" -input=false >/dev/null 2>&1 ||
-    ! weave_iac "${dir}" destroy -refresh=false -input=false -auto-approve; then
-    IAC_DESTROY_FAILED=true
-    log "OpenTofu destroy did not complete for ${dir}; exact-name owned-resource cleanup will continue and state will be retained for diagnosis."
-  fi
+  local attempt
+  for ((attempt = 1; attempt <= IAC_DESTROY_MAX_ATTEMPTS; attempt++)); do
+    if weave_iac_init "${dir}" -input=false >/dev/null 2>&1 &&
+      weave_iac "${dir}" destroy -refresh=false -input=false -auto-approve; then
+      if ((attempt > 1)); then
+        log "OpenTofu destroy recovered for ${dir} on attempt ${attempt}/${IAC_DESTROY_MAX_ATTEMPTS}."
+      fi
+      return
+    fi
+
+    if ((attempt < IAC_DESTROY_MAX_ATTEMPTS)); then
+      log "OpenTofu destroy attempt ${attempt}/${IAC_DESTROY_MAX_ATTEMPTS} did not complete for ${dir}; retrying the idempotent destroy."
+      sleep "${IAC_DESTROY_RETRY_DELAY_SECONDS}"
+    fi
+  done
+
+  IAC_DESTROY_FAILED=true
+  log "OpenTofu destroy did not complete for ${dir} after ${IAC_DESTROY_MAX_ATTEMPTS} attempts; exact-name owned-resource cleanup will continue and state will be retained for diagnosis."
 }
 
 remove_container() {
