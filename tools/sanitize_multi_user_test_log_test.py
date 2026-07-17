@@ -249,9 +249,16 @@ Failure code: M_WEAVE_E2EE_PROVIDER_PAYLOAD_PRIVATE.
         self.assertIn("supportSafe=true", result.stdout)
 
     def test_compact_crypto_diagnostics_preserve_only_allowlisted_receive_state(self) -> None:
-        raw = """
-MULTI_USER_E2EE_CRYPTO_DIAGNOSTIC role=author runIndex=1 available=1 supportCode=M_WEAVE_E2EE_ROOM_KEY_NOT_IMPORTED eventCount=4 decryptedCount=3 unableToDecryptCount=1 toDeviceDecryptedCount=2 toDeviceRoomKeyCount=1 toDeviceUnableToDecryptCount=0
-"""
+        fields = runpy.run_path(str(SCRIPT))["E2EE_CRYPTO_DIAGNOSTIC_FIELDS"]
+        values = {
+            field: index for index, field in enumerate(fields, start=1)
+        }
+        counts = " ".join(f"{field}={values[field]}" for field in fields)
+        raw = (
+            "MULTI_USER_E2EE_CRYPTO_DIAGNOSTIC role=author runIndex=1 "
+            "available=1 supportCode=M_WEAVE_E2EE_OLM_DECRYPTION_FAILURE "
+            f"{counts}\n"
+        )
 
         result = self.run_sanitizer(raw, exit_code=1)
 
@@ -259,26 +266,50 @@ MULTI_USER_E2EE_CRYPTO_DIAGNOSTIC role=author runIndex=1 available=1 supportCode
         self.assertIn(
             "SANITIZED_MULTI_USER_E2EE_CRYPTO_DIAGNOSTIC "
             "role=author runIndex=1 available=1 "
-            "supportCode=M_WEAVE_E2EE_ROOM_KEY_NOT_IMPORTED",
+            "supportCode=M_WEAVE_E2EE_OLM_DECRYPTION_FAILURE",
             result.stdout,
         )
         self.assertIn(
-            "eventCount=4 decryptedCount=3 unableToDecryptCount=1 "
-            "toDeviceDecryptedCount=2 toDeviceRoomKeyCount=1 "
-            "toDeviceUnableToDecryptCount=0 supportSafe=true",
+            "toDeviceUnableToDecryptCount=6 "
+            "toDeviceDecryptionFailureCount=7 "
+            "toDeviceUnverifiedSenderCount=8 "
+            "toDeviceNoOlmMachineCount=9 "
+            "toDeviceEncryptionDisabledCount=10 supportSafe=true",
             result.stdout,
         )
 
     def test_unrecognized_compact_crypto_diagnostic_code_is_dropped(self) -> None:
-        raw = """
-MULTI_USER_E2EE_CRYPTO_DIAGNOSTIC role=author runIndex=1 available=1 supportCode=M_PRIVATE_PROVIDER_ERROR eventCount=4 decryptedCount=3 unableToDecryptCount=1 toDeviceDecryptedCount=2 toDeviceRoomKeyCount=1 toDeviceUnableToDecryptCount=0
-"""
+        fields = runpy.run_path(str(SCRIPT))["E2EE_CRYPTO_DIAGNOSTIC_FIELDS"]
+        counts = " ".join(f"{field}=0" for field in fields)
+        raw = (
+            "MULTI_USER_E2EE_CRYPTO_DIAGNOSTIC role=author runIndex=1 "
+            f"available=1 supportCode=M_PRIVATE_PROVIDER_ERROR {counts}\n"
+        )
 
         result = self.run_sanitizer(raw, exit_code=1)
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertNotIn("SANITIZED_MULTI_USER_E2EE_CRYPTO_DIAGNOSTIC", result.stdout)
         self.assertNotIn("M_PRIVATE_PROVIDER_ERROR", result.stdout)
+
+    def test_unavailable_compact_crypto_diagnostic_has_a_safe_zero_shape(self) -> None:
+        fields = runpy.run_path(str(SCRIPT))["E2EE_CRYPTO_DIAGNOSTIC_FIELDS"]
+        counts = " ".join(f"{field}=0" for field in fields)
+        raw = (
+            "MULTI_USER_E2EE_CRYPTO_DIAGNOSTIC role=collaborator "
+            "runIndex=1 available=0 "
+            f"supportCode=M_WEAVE_E2EE_DIAGNOSTICS_UNAVAILABLE {counts}\n"
+        )
+
+        result = self.run_sanitizer(raw, exit_code=1)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "role=collaborator runIndex=1 available=0 "
+            "supportCode=M_WEAVE_E2EE_DIAGNOSTICS_UNAVAILABLE",
+            result.stdout,
+        )
+        self.assertIn("toDeviceEncryptionDisabledCount=0 supportSafe=true", result.stdout)
 
     def test_fine_grained_collaborator_domain_phase_is_support_safe(self) -> None:
         raw = """

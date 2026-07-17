@@ -522,6 +522,20 @@ class RustMatrixCoreBridge {
     );
   }
 
+  Future<RustMatrixDecryptionDiagnostics> loadReceiveDiagnostics({
+    required String profileKey,
+  }) async {
+    final result = await _native(
+      () => matrixSecurityState(profileKey: profileKey),
+    );
+    final diagnostics = result['receiveDiagnostics'];
+    return RustMatrixDecryptionDiagnostics.fromJson(
+      diagnostics is Map
+          ? Map<String, dynamic>.from(diagnostics)
+          : const <String, dynamic>{},
+    );
+  }
+
   Future<String> sendEncryptedText({
     required String profileKey,
     required String roomId,
