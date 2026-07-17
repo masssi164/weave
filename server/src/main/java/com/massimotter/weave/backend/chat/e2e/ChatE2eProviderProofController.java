@@ -220,8 +220,9 @@ public final class ChatE2eProviderProofController {
         return new ProofIdentity(issuer, actor);
     }
 
-    private List<String> requireCorrelationHashes(List<String> hashes) {
-        if (hashes == null || hashes.size() != 3 || hashes.stream().distinct().count() != hashes.size()
+    static List<String> requireCorrelationHashes(List<String> hashes) {
+        if (hashes == null || hashes.size() < 2 || hashes.size() > 3
+                || hashes.stream().distinct().count() != hashes.size()
                 || hashes.stream().anyMatch(value -> value == null || !value.matches("[0-9a-f]{64}"))) {
             throw new IllegalArgumentException("proof event correlations are invalid");
         }

@@ -328,7 +328,7 @@ elif [[ "${url}" == */api/internal/e2e/chat/provider-proof ]]; then
     exit 0
   }
   jq -e '
-    (.eventCorrelationSha256 | length) == 3 and
+    ((.eventCorrelationSha256 | length) == 2 or (.eventCorrelationSha256 | length) == 3) and
     all(.eventCorrelationSha256[]; test("^[0-9a-f]{64}$"))
   ' "${body_file}" >/dev/null || {
     respond 400 '{"code":"chat-e2e-proof-correlation-invalid","supportSafe":true}'
@@ -336,6 +336,13 @@ elif [[ "${url}" == */api/internal/e2e/chat/provider-proof ]]; then
   }
   pass_index="$(jq -r '.conversationId | capture("room-pass-(?<value>[12])").value' "${body_file}")"
   event_count="$(jq 'length' "${MOCK_STATE}/events-${pass_index}.json")"
+  requested_correlation_count="$(jq '.eventCorrelationSha256 | length' "${body_file}")"
+  printf 'proof:correlations:%s:%s:%s\n' \
+    "${pass_index}" "${requested_correlation_count}" "${event_count}" >>"${MOCK_STATE}/operations.log"
+  if [[ "${requested_correlation_count}" != "${event_count}" ]]; then
+    respond 400 '{"code":"chat-e2e-proof-correlation-count-mismatch","supportSafe":true}'
+    exit 0
+  fi
   failed_count=0
   [[ "$(<"${MOCK_STATE}/failed-${pass_index}")" != true ]] || failed_count=1
   total_events=$(( $(jq 'length' "${MOCK_STATE}/events-1.json") + $(jq 'length' "${MOCK_STATE}/events-2.json") ))
@@ -596,8 +603,12 @@ done
 
 proof_output="${TMP_DIR}/provider-evidence.json"
 proof_log="${TMP_DIR}/proof.log"
-PATH="${MOCK_BIN}:${PATH}" WEAVE_E2E_STACK_SCOPE=isolated \
-  bash "${PROOF_SCRIPT}" "${common_args[@]}" --output "${proof_output}" >"${proof_log}" 2>&1
+if ! PATH="${MOCK_BIN}:${PATH}" WEAVE_E2E_STACK_SCOPE=isolated \
+  bash "${PROOF_SCRIPT}" "${common_args[@]}" --output "${proof_output}" >"${proof_log}" 2>&1; then
+  grep '^MATRIX_SYNAPSE_PROVIDER_PROOF_ERROR code=' "${proof_log}" >&2 || true
+  grep '^proof:correlations:' "${MOCK_STATE}/operations.log" >&2 || true
+  fail "successful provider proof fixture failed"
+fi
 
 for marker in \
   MATRIX_SYNAPSE_PROVIDER_PERSISTENCE_RESULT \
@@ -660,6 +671,17 @@ jq -e \
   fail "each Synapse recovery must prove listener readiness before provider recovery"
 [[ "$(grep -c '^proof:callback-replay$' "${MOCK_STATE}/operations.log")" == 1 ]] ||
   fail "the first real private callback transaction must be replayed exactly once"
+awk -F: '
+  $1 == "proof" && $2 == "correlations" && $4 != $5 { mismatch = 1 }
+  END { exit mismatch }
+' "${MOCK_STATE}/operations.log" ||
+  fail "provider evidence must request exactly the correlations committed in each phase"
+for pass_index in 1 2; do
+  [[ "$(grep -c "^proof:correlations:${pass_index}:2:2$" "${MOCK_STATE}/operations.log")" == 1 ]] ||
+    fail "pass ${pass_index} must prove exactly two committed correlations before retry"
+  [[ "$(grep -c "^proof:correlations:${pass_index}:3:3$" "${MOCK_STATE}/operations.log")" -ge 3 ]] ||
+    fail "pass ${pass_index} must prove all three correlations after retry and restart"
+done
 for pass_index in 1 2; do
   author_registration_line="$(grep -n "^register:author:${pass_index}$" "${MOCK_STATE}/operations.log" | head -1 | cut -d: -f1)"
   collaborator_registration_line="$(grep -n "^register:collaborator:${pass_index}$" "${MOCK_STATE}/operations.log" | head -1 | cut -d: -f1)"

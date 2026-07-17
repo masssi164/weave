@@ -608,8 +608,9 @@ assert_outsider_denied() {
 }
 
 build_evidence_request() {
-  local pass_index="$1" directory tenant conversation author_issuer collaborator_issuer outsider_issuer
+  local pass_index="$1" expected_events="$2" directory tenant conversation author_issuer collaborator_issuer outsider_issuer
   local author_subject collaborator_subject outsider_subject correlation1 correlation2 correlation3
+  [[ "${expected_events}" =~ ^[23]$ ]] || fail "private-provider-evidence-expected-count-invalid"
   directory="$(pass_dir "${pass_index}")"
   tenant="$(jq -r '.tenant' "${directory}/author-facts.json")"
   conversation="$(<"${directory}/conversation-id")"
@@ -634,7 +635,8 @@ build_evidence_request() {
     --arg outsiderRef "user:${outsider_subject}" \
     --arg correlation1 "${correlation1}" \
     --arg correlation2 "${correlation2}" \
-    --arg correlation3 "${correlation3}" '
+    --arg correlation3 "${correlation3}" \
+    --argjson expectedEvents "${expected_events}" '
       {
         runId:$runId,
         tenantId:$tenant,
@@ -642,7 +644,7 @@ build_evidence_request() {
         author:{identityIssuer:$authorIssuer,actorRef:$authorRef},
         collaborator:{identityIssuer:$collaboratorIssuer,actorRef:$collaboratorRef},
         outsider:{identityIssuer:$outsiderIssuer,actorRef:$outsiderRef},
-        eventCorrelationSha256:[$correlation1,$correlation2,$correlation3]
+        eventCorrelationSha256:([$correlation1,$correlation2,$correlation3][0:$expectedEvents])
       }
     ' >"${directory}/private-evidence-request.json"
   unset tenant conversation author_issuer collaborator_issuer outsider_issuer
@@ -651,8 +653,9 @@ build_evidence_request() {
 }
 
 capture_private_evidence() {
-  local pass_index="$1" output="$2" directory status
+  local pass_index="$1" output="$2" expected_events="$3" directory status
   directory="$(pass_dir "${pass_index}")"
+  build_evidence_request "${pass_index}" "${expected_events}"
   status="$(curl --silent --connect-timeout 3 --max-time 20 \
     --output "${output}" --write-out '%{http_code}' \
     --request POST \
@@ -808,7 +811,7 @@ run_outage_retry() {
   assert_outage_operation_invisible "${pass_index}"
   start_synapse_after_outage
   wait_for_provider_operation "${pass_index}" || fail "provider-recovery-timeout"
-  capture_private_evidence "${pass_index}" "${directory}/outage-before-retry-evidence.json"
+  capture_private_evidence "${pass_index}" "${directory}/outage-before-retry-evidence.json" 2
   assert_provider_evidence_counts "${directory}/outage-before-retry-evidence.json" 2 1
 
   retry_response="${directory}/outage-retry-response.json"
@@ -829,7 +832,7 @@ run_outage_retry() {
   [[ "${retry_event}" == "${repeat_event}" ]] || fail "outage-repeat-event-mismatch"
   rm -f -- "${retry_response}" "${response}"
 
-  capture_private_evidence "${pass_index}" "${directory}/outage-after-retry-evidence.json"
+  capture_private_evidence "${pass_index}" "${directory}/outage-after-retry-evidence.json" 3
   assert_provider_evidence_counts "${directory}/outage-after-retry-evidence.json" 3 0
   verify_event_observed_once "${pass_index}" collaborator 3
   unset room_id opaque retry_event repeat_event
@@ -851,8 +854,6 @@ run_collaboration_pass() {
   printf '%s' "${tx1}" >"${directory}/event-1-transaction"
   printf '%s' "${tx2}" >"${directory}/event-2-transaction"
   printf '%s' "${tx3}" >"${directory}/event-3-transaction"
-  build_evidence_request "${pass_index}"
-
   send_encrypted_event "${pass_index}" 1 author "${tx1}" "${directory}/event-1-id"
   verify_event_observed_once "${pass_index}" collaborator 1
   send_encrypted_event "${pass_index}" 2 collaborator "${tx2}" "${directory}/event-2-id"
@@ -901,7 +902,7 @@ prove_restart_continuity() {
   for pass_index in 1 2; do
     verify_complete_room_readback "${pass_index}" author
     verify_complete_room_readback "${pass_index}" collaborator
-    capture_private_evidence "${pass_index}" "$(pass_dir "${pass_index}")/restart-evidence.json"
+    capture_private_evidence "${pass_index}" "$(pass_dir "${pass_index}")/restart-evidence.json" 3
     assert_provider_evidence_counts "$(pass_dir "${pass_index}")/restart-evidence.json" 3 0
   done
 }
@@ -924,7 +925,7 @@ wait_for_evidence_stability() {
   directory="$(pass_dir "${pass_index}")"
   for attempt in 1 2 3 4 5 6; do
     snapshot="${directory}/stability-${attempt}.json"
-    capture_private_evidence "${pass_index}" "${snapshot}"
+    capture_private_evidence "${pass_index}" "${snapshot}" 3
     current="$(evidence_stability_tuple "${snapshot}")"
     if [[ -n "${previous}" && "${current}" == "${previous}" ]]; then
       mv "${snapshot}" "${output}"
@@ -974,7 +975,7 @@ prove_callback_replay() {
   for pass_index in 1 2; do
     before="$(pass_dir "${pass_index}")/replay-before.json"
     after="$(pass_dir "${pass_index}")/replay-after.json"
-    capture_private_evidence "${pass_index}" "${after}"
+    capture_private_evidence "${pass_index}" "${after}" 3
     assert_provider_evidence_counts "${after}" 3 0
     jq -e --slurpfile before "${before}" '
       .canonicalCommittedEventCount == $before[0].canonicalCommittedEventCount and

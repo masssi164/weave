@@ -165,6 +165,12 @@ URLs, raw callback bodies, encrypted envelopes, or member content. The
 `hs_token` remains directional: it authenticates simulated Synapse callback
 replay only and grants no provider-proof access.
 
+Correlation evidence is phase-aware: the outage snapshot names only the two
+events committed before retry, while post-retry and restart snapshots name all
+three. A proof request whose expected correlation count differs from the
+canonical committed-event count fails closed instead of manufacturing an
+"exact" result.
+
 Isolated cleanup removes the run-scoped proof token and private provider runtime
 together with the rest of the isolated namespace. The token is explicitly
 excluded from private backup archives and support bundles; cleanup evidence
