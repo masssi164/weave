@@ -35,7 +35,10 @@ use crate::{
     DeviceData,
     error::OlmResult,
     gossiping::GossipMachine,
-    store::{Result as StoreResult, Store, types::Changes},
+    store::{
+        Result as StoreResult, Store,
+        types::{Changes, DeviceChanges},
+    },
     types::{
         EventEncryptionAlgorithm,
         events::EventType,
@@ -106,20 +109,31 @@ impl SessionManager {
         sender: &UserId,
         curve_key: Curve25519PublicKey,
     ) -> OlmResult<()> {
-        if let Some(device) = self.store.get_device_from_curve_key(sender, curve_key).await?
-            && let Some(session) = device.get_most_recent_session().await?
-        {
-            info!(sender_key = ?curve_key, "Marking session to be unwedged");
-
-            let creation_time = Duration::from_secs(session.creation_time.get().into());
-            let now = Duration::from_secs(SecondsSinceUnixEpoch::now().get().into());
-
-            let should_unwedge = now
-                .checked_sub(creation_time)
-                .map(|elapsed| elapsed > Self::UNWEDGING_INTERVAL)
+        if let Some(device) = self.store.get_device_from_curve_key(sender, curve_key).await? {
+            let now = SecondsSinceUnixEpoch::now();
+            let should_unwedge = device
+                .inner
+                .last_unwedge_attempt
+                .map(|last_attempt| {
+                    let now = Duration::from_secs(now.get().into());
+                    let last_attempt = Duration::from_secs(last_attempt.get().into());
+                    now.checked_sub(last_attempt)
+                        .is_some_and(|elapsed| elapsed > Self::UNWEDGING_INTERVAL)
+                })
                 .unwrap_or(true);
 
             if should_unwedge {
+                info!(sender_key = ?curve_key, "Marking session to be unwedged");
+
+                let mut device_data = device.inner.clone();
+                device_data.last_unwedge_attempt = Some(now);
+                self.store
+                    .save_changes(Changes {
+                        devices: DeviceChanges { changed: vec![device_data], ..Default::default() },
+                        ..Default::default()
+                    })
+                    .await?;
+
                 self.users_for_key_claim
                     .write()
                     .entry(device.user_id().to_owned())
@@ -818,17 +832,12 @@ mod tests {
         assert!(result.is_none(), "get_missing_sessions returned Some(...)");
     }
 
-    // This test doesn't run on macos because we're modifying the session
-    // creation time so we can get around the UNWEDGING_INTERVAL.
     #[async_test]
-    #[cfg(target_os = "linux")]
     async fn test_session_unwedging() {
-        use ruma::{SecondsSinceUnixEpoch, time::SystemTime};
-
         let (manager, _identity_manager) = session_manager_test_helper().await;
         let mut bob = bob_account();
 
-        let (_, mut session) = manager
+        let (_, session) = manager
             .store
             .with_transaction(async |tr| {
                 let manager_account = tr.account().await.unwrap();
@@ -839,9 +848,6 @@ mod tests {
             .unwrap();
 
         let bob_device = DeviceData::from_account(&bob);
-        let time = SystemTime::now() - Duration::from_secs(3601);
-        session.creation_time = SecondsSinceUnixEpoch::from_system_time(time).unwrap();
-
         let devices = std::slice::from_ref(&bob_device);
         manager.store.save_device_data(devices).await.unwrap();
         manager.store.save_sessions(&[session]).await.unwrap();
@@ -880,7 +886,14 @@ mod tests {
 
         assert!(!manager.is_device_wedged(&bob_device));
         assert!(manager.get_missing_sessions(iter::once(bob.user_id())).await.unwrap().is_none());
-        assert!(!manager.outgoing_to_device_requests.read().is_empty())
+        assert!(!manager.outgoing_to_device_requests.read().is_empty());
+
+        // A second failure inside the cooldown must not start another key
+        // claim. The attempt timestamp is read back from persisted device
+        // data instead of relying on the in-memory wedged-device set.
+        manager.mark_device_as_wedged(bob_device.user_id(), curve_key).await.unwrap();
+        assert!(!manager.is_device_wedged(&bob_device));
+        assert!(manager.get_missing_sessions(iter::once(bob.user_id())).await.unwrap().is_none());
     }
 
     #[async_test]

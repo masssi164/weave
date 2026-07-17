@@ -24,7 +24,7 @@ use std::{
 use matrix_sdk_common::locks::RwLock;
 use ruma::{
     DeviceId, DeviceKeyAlgorithm, DeviceKeyId, MilliSecondsSinceUnixEpoch, OwnedDeviceId,
-    OwnedDeviceKeyId, UInt, UserId,
+    OwnedDeviceKeyId, SecondsSinceUnixEpoch, UInt, UserId,
     api::client::keys::upload_signatures::v3::Request as SignatureUploadRequest,
     events::{AnyToDeviceEventContent, key::verification::VerificationMethod},
     serde::Raw,
@@ -99,6 +99,11 @@ pub struct DeviceData {
     /// us.
     #[serde(default)]
     pub(crate) olm_wedging_index: SequenceNumber,
+    /// Last time we attempted to replace a wedged Olm session for this
+    /// device. This local timestamp prevents repeated key claims while still
+    /// allowing the first observed wedging failure to recover immediately.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) last_unwedge_attempt: Option<SecondsSinceUnixEpoch>,
 }
 
 fn default_timestamp() -> MilliSecondsSinceUnixEpoch {
@@ -341,6 +346,7 @@ impl Device {
     }
 
     /// Get the most recently used session that belongs to this device.
+    #[allow(dead_code)]
     pub(crate) async fn get_most_recent_session(&self) -> OlmResult<Option<Session>> {
         self.inner.get_most_recent_session(self.verification_machine.store.inner()).await
     }
@@ -612,6 +618,7 @@ impl DeviceData {
             withheld_code_sent: Arc::new(AtomicBool::new(false)),
             first_time_seen_ts: MilliSecondsSinceUnixEpoch::now(),
             olm_wedging_index: Default::default(),
+            last_unwedge_attempt: None,
         }
     }
 
@@ -1011,6 +1018,7 @@ impl TryFrom<&DeviceKeys> for DeviceData {
             withheld_code_sent: Arc::new(AtomicBool::new(false)),
             first_time_seen_ts: MilliSecondsSinceUnixEpoch::now(),
             olm_wedging_index: Default::default(),
+            last_unwedge_attempt: None,
         })
     }
 }

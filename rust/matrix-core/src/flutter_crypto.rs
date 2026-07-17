@@ -24,9 +24,8 @@ use matrix_sdk::{
         api::MatrixVersion,
         events::receipt::ReceiptThread,
         events::{
-            dummy::ToDeviceDummyEventContent, key::verification::VerificationMethod,
-            room::encryption::RoomEncryptionEventContent, room::message::RoomMessageEventContent,
-            AnyToDeviceEvent, AnyToDeviceEventContent, InitialStateEvent,
+            key::verification::VerificationMethod, room::encryption::RoomEncryptionEventContent,
+            room::message::RoomMessageEventContent, AnyToDeviceEvent, InitialStateEvent,
         },
         serde::Raw,
         OwnedDeviceId, OwnedEventId, OwnedRoomId, OwnedUserId, UInt,
@@ -34,7 +33,6 @@ use matrix_sdk::{
     store::RoomLoadSettings,
     Client, Room, RoomMemberships, SessionMeta,
 };
-use matrix_sdk_base::crypto::CollectStrategy;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use serde_json::{json, Value};
 use std::{
@@ -615,7 +613,6 @@ async fn complete_sync_cycle_under_gate(
         .map_err(|error| matrix_sdk_error_code(&error, error_code))?;
     record_to_device_diagnostics(profile_key, &response.to_device)?;
     remember_olm_recovery_rotation(&client, &response.to_device).await?;
-    send_olm_session_activity_probes(&client, &response.to_device).await?;
     reconcile_verification_requests(profile_key, &client, &response.to_device).await?;
     let (mut enabled_rooms, mut converged_rooms) =
         converge_joined_room_security(profile_key, &client).await?;
@@ -630,7 +627,6 @@ async fn complete_sync_cycle_under_gate(
             .map_err(|error| matrix_sdk_error_code(&error, error_code))?;
         record_to_device_diagnostics(profile_key, &response.to_device)?;
         remember_olm_recovery_rotation(&client, &response.to_device).await?;
-        send_olm_session_activity_probes(&client, &response.to_device).await?;
         reconcile_verification_requests(profile_key, &client, &response.to_device).await?;
         let (newly_enabled_rooms, newly_converged_rooms) =
             converge_joined_room_security(profile_key, &client).await?;
@@ -738,87 +734,6 @@ fn contains_olm_recovery_signal(events: &[ProcessedToDeviceEvent]) -> bool {
         }
         ProcessedToDeviceEvent::PlainText(_) | ProcessedToDeviceEvent::Invalid(_) => false,
     })
-}
-
-fn olm_decryption_failure_target(event: &ProcessedToDeviceEvent) -> Option<(OwnedUserId, String)> {
-    let ProcessedToDeviceEvent::UnableToDecrypt {
-        encrypted_event,
-        utd_info,
-    } = event
-    else {
-        return None;
-    };
-    if !matches!(
-        utd_info.reason,
-        ToDeviceUnableToDecryptReason::DecryptionFailure
-    ) {
-        return None;
-    }
-
-    let sender = encrypted_event
-        .get_field::<OwnedUserId>("sender")
-        .ok()
-        .flatten()?;
-    let content = encrypted_event
-        .get_field::<Value>("content")
-        .ok()
-        .flatten()?;
-    let sender_key = content
-        .get("sender_key")
-        .and_then(Value::as_str)
-        .filter(|value| !value.is_empty())?
-        .to_owned();
-    Some((sender, sender_key))
-}
-
-async fn send_olm_session_activity_probes(
-    client: &Client,
-    events: &[ProcessedToDeviceEvent],
-) -> Result<(), String> {
-    let targets = events
-        .iter()
-        .filter_map(olm_decryption_failure_target)
-        .collect::<BTreeSet<_>>();
-    if targets.is_empty() {
-        return Ok(());
-    }
-
-    for (sender, sender_key) in targets {
-        let devices = client
-            .encryption()
-            .get_user_devices(&sender)
-            .await
-            .map_err(|_| "M_WEAVE_E2EE_DEVICE_QUERY".to_string())?;
-        let Some(device) = devices.devices().find(|candidate| {
-            candidate
-                .curve25519_key()
-                .is_some_and(|key| key.to_base64() == sender_key)
-        }) else {
-            // The sender may already have rotated or revoked this device. A
-            // later keys query/sync can converge without sending to a stale
-            // Curve25519 identity.
-            continue;
-        };
-        let content = Raw::new(&AnyToDeviceEventContent::Dummy(
-            ToDeviceDummyEventContent::new(),
-        ))
-        .map_err(|_| "M_WEAVE_E2EE_SERIALIZATION".to_string())?;
-        let failures = client
-            .encryption()
-            .encrypt_and_send_raw_to_device(
-                vec![&device],
-                "m.dummy",
-                content,
-                CollectStrategy::AllDevices,
-            )
-            .await
-            .map_err(|_| "M_WEAVE_E2EE_OLM_RECOVERY".to_string())?;
-        if !failures.is_empty() {
-            return Err("M_WEAVE_E2EE_OLM_RECOVERY".to_string());
-        }
-    }
-
-    Ok(())
 }
 
 async fn remember_olm_recovery_rotation(
@@ -2384,13 +2299,6 @@ mod tests {
 
         assert!(is_decrypted_olm_dummy(&dummy));
         assert!(!is_decrypted_olm_dummy(&room_key));
-        assert_eq!(
-            olm_decryption_failure_target(&failed),
-            Some((
-                OwnedUserId::try_from("@member:api.weave.test").expect("user id should be valid"),
-                "curve25519-public-key".to_string(),
-            ))
-        );
         assert!(contains_olm_recovery_signal(&[failed]));
         assert!(!olm_recovery_rotation_is_pending(None));
         assert!(!olm_recovery_rotation_is_pending(Some(&[])));

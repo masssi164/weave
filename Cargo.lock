@@ -4055,7 +4055,6 @@ dependencies = [
  "flutter_rust_bridge",
  "jni",
  "matrix-sdk",
- "matrix-sdk-base",
  "reqwest",
  "ruma",
  "serde",
