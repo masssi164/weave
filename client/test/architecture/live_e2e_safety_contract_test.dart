@@ -182,7 +182,13 @@ void main() {
     expect(timeline, contains('matrix_io_gate_for(profile_key)?'));
     expect(source, contains('PRE_SEND_DEVICE_QUERY_ATTEMPTS'));
     expect(source, contains('Duration::from_millis(500)'));
+    expect(source, contains('RoomMemberships::JOIN'));
+    expect(source, isNot(contains('RoomMemberships::ACTIVE')));
+    expect(source, contains('authoritative_peer_device_ids'));
     expect(source, contains('M_WEAVE_E2EE_PEER_DEVICE_PENDING'));
+    expect(source, contains('M_WEAVE_E2EE_PEER_DEVICE_REJECTED'));
+    expect(source, contains('M_WEAVE_E2EE_PEER_DEVICE_BLOCKED'));
+    expect(source, contains('M_WEAVE_E2EE_PEER_DEVICE_INVALID'));
   });
 
   test('collaboration failure evidence preserves safe Matrix errcodes', () {
@@ -203,6 +209,7 @@ void main() {
       'tool/sanitize_multi_user_test_log.py',
     ).readAsStringSync();
     expect(sanitizer, contains('M_WEAVE_E2EE_PEER_DEVICE_PENDING'));
+    expect(sanitizer, contains('M_WEAVE_E2EE_PEER_DEVICE_REJECTED'));
     expect(sanitizer, contains('M_UNKNOWN_TOKEN'));
   });
 

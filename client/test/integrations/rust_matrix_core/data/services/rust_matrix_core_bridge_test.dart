@@ -153,6 +153,40 @@ test-certificate
     expect(diagnostics.supportCode, 'M_WEAVE_E2EE_ROOM_KEY_NOT_IMPORTED');
   });
 
+  test('peer device convergence exposes only bounded aggregate counts', () {
+    final diagnostics = RustMatrixDecryptionDiagnostics.fromJson({
+      'eventCount': 0,
+      'decryptedCount': 0,
+      'unableToDecryptCount': 0,
+      'plaintextCount': 0,
+      'reasonCounts': <String, int>{},
+      'joinedPeerCount': 1,
+      'authoritativeDeviceCount': 1,
+      'sdkDeviceCount': 0,
+      'sdkUsableDeviceCount': 0,
+      'sdkDeletedDeviceCount': 0,
+      'sdkBlacklistedDeviceCount': 0,
+      'sdkMissingCurve25519Count': 0,
+      'sdkMissingAuthoritativeDeviceCount': 1,
+      'sdkUnexpectedDeviceCount': 0,
+      'deviceQueryAttemptCount': 10,
+      'convergedPeerCount': 0,
+      'pendingPeerCount': 0,
+      'rejectedPeerCount': 1,
+      'blockedPeerCount': 0,
+      'invalidPeerCount': 0,
+      'device_id': 'must-not-be-projected',
+    });
+
+    expect(diagnostics.joinedPeerCount, 1);
+    expect(diagnostics.authoritativeDeviceCount, 1);
+    expect(diagnostics.sdkDeviceCount, 0);
+    expect(diagnostics.sdkDeletedDeviceCount, 0);
+    expect(diagnostics.sdkMissingAuthoritativeDeviceCount, 1);
+    expect(diagnostics.deviceQueryAttemptCount, 10);
+    expect(diagnostics.supportCode, 'M_WEAVE_E2EE_PEER_DEVICE_REJECTED');
+  });
+
   test(
     'Olm delivery failures take precedence over derived Megolm failures',
     () {
