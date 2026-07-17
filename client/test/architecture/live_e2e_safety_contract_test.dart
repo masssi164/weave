@@ -140,9 +140,14 @@ void main() {
     expect(source, isNot(contains('background_sync')));
     expect(syncCycle, contains('client_and_sync_cursor(profile_key)?'));
     expect(syncCycle, contains('record_to_device_diagnostics'));
+    expect(syncCycle, contains('reconcile_verification_requests'));
     expect(syncCycle, contains('remember_sync_cursor('));
     expect(
       syncCycle.lastIndexOf('record_to_device_diagnostics'),
+      lessThan(syncCycle.indexOf('remember_sync_cursor(')),
+    );
+    expect(
+      syncCycle.indexOf('reconcile_verification_requests'),
       lessThan(syncCycle.indexOf('remember_sync_cursor(')),
     );
   });
@@ -180,6 +185,7 @@ void main() {
     expect(syncCycle, contains('matrix_io_gate_for(profile_key)?'));
     expect(send, contains('matrix_io_gate_for(profile_key)?'));
     expect(timeline, contains('matrix_io_gate_for(profile_key)?'));
+    expect(timeline, contains('complete_sync_cycle_under_gate('));
     expect(source, contains('PRE_SEND_DEVICE_QUERY_ATTEMPTS'));
     expect(source, contains('Duration::from_millis(500)'));
     expect(source, contains('MATRIX_CONNECT_TIMEOUT'));
