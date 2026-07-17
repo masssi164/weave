@@ -55,6 +55,7 @@ printf '%s\n' '{"id":"weave-app-uuid","clientId":"weave-app","publicClient":true
   >"${MOCK_STATE}/client.json"
 printf 'true\n' >"${MOCK_STATE}/${BACKEND_CONTAINER}-running"
 printf 'true\n' >"${MOCK_STATE}/${SYNAPSE_CONTAINER}-running"
+printf '0\n' >"${MOCK_STATE}/synapse-health-failures"
 printf '0\n' >"${MOCK_STATE}/token-counter"
 printf '20\n' >"${MOCK_STATE}/callback-count"
 printf '0\n' >"${MOCK_STATE}/callback-duplicate-count"
@@ -196,6 +197,18 @@ elif [[ "${url}" == */admin/realms/weave/clients/weave-app-uuid && "${method}" =
   respond 204
 elif [[ "${url}" == */api/health/live ]]; then
   respond 200 '{"status":"UP"}'
+elif [[ "${url}" == http://127.0.0.1:*/health ]]; then
+  if [[ "$(<"${MOCK_STATE}/${MOCK_SYNAPSE_CONTAINER}-running")" != true ]]; then
+    respond 503 'NOT_READY'
+  elif (( $(<"${MOCK_STATE}/synapse-health-failures") > 0 )); then
+    printf '%s\n' "$(( $(<"${MOCK_STATE}/synapse-health-failures") - 1 ))" \
+      >"${MOCK_STATE}/synapse-health-failures"
+    printf 'synapse-health:503\n' >>"${MOCK_STATE}/operations.log"
+    respond 503 'NOT_READY'
+  else
+    printf 'synapse-health:200\n' >>"${MOCK_STATE}/operations.log"
+    respond 200 'OK'
+  fi
 elif [[ "${url}" == */api/platform/config ]]; then
   if [[ "${MOCK_FAIL_AFTER_STOP:-false}" == true && "$(<"${MOCK_STATE}/${MOCK_SYNAPSE_CONTAINER}-running")" == false ]]; then
     respond 500 '{"code":"fixture-failure"}'
@@ -458,12 +471,16 @@ case "${command}" in
   start)
     container="$1"
     printf 'true\n' >"${MOCK_STATE}/${container}-running"
+    [[ "${container}" != "${MOCK_SYNAPSE_CONTAINER}" ]] || \
+      printf '1\n' >"${MOCK_STATE}/synapse-health-failures"
     printf 'start:%s\n' "${container}" >>"${MOCK_STATE}/operations.log"
     printf '%s\n' "${container}"
     ;;
   restart)
     container="$1"
     printf 'true\n' >"${MOCK_STATE}/${container}-running"
+    [[ "${container}" != "${MOCK_SYNAPSE_CONTAINER}" ]] || \
+      printf '1\n' >"${MOCK_STATE}/synapse-health-failures"
     printf 'restart:%s\n' "${container}" >>"${MOCK_STATE}/operations.log"
     printf '%s\n' "${container}"
     ;;
@@ -562,6 +579,7 @@ jq -e '.directAccessGrantsEnabled == false' "${MOCK_STATE}/client.json" >/dev/nu
 # Reset only the fixture's isolated provider model for the successful proof.
 printf 'true\n' >"${MOCK_STATE}/${SYNAPSE_CONTAINER}-running"
 printf 'true\n' >"${MOCK_STATE}/${BACKEND_CONTAINER}-running"
+printf '0\n' >"${MOCK_STATE}/synapse-health-failures"
 printf '0\n' >"${MOCK_STATE}/token-counter"
 printf '20\n' >"${MOCK_STATE}/callback-count"
 printf '0\n' >"${MOCK_STATE}/callback-duplicate-count"
@@ -636,6 +654,10 @@ jq -e \
   fail "backend persistence restart proof must run exactly once"
 [[ "$(grep -c "^restart:${SYNAPSE_CONTAINER}$" "${MOCK_STATE}/operations.log")" == 1 ]] ||
   fail "Synapse persistence restart proof must run exactly once"
+[[ "$(grep -c '^synapse-health:503$' "${MOCK_STATE}/operations.log")" == 3 ]] ||
+  fail "each Synapse recovery must observe listener startup before readiness"
+[[ "$(grep -c '^synapse-health:200$' "${MOCK_STATE}/operations.log")" == 3 ]] ||
+  fail "each Synapse recovery must prove listener readiness before provider recovery"
 [[ "$(grep -c '^proof:callback-replay$' "${MOCK_STATE}/operations.log")" == 1 ]] ||
   fail "the first real private callback transaction must be replayed exactly once"
 for pass_index in 1 2; do
@@ -682,6 +704,8 @@ assert_contains "${PROOF_SCRIPT}" '/api/internal/e2e/chat/provider-proof/callbac
 ! grep -Fq 'docker exec -i "${BACKEND_CONTAINER}"' "${PROOF_SCRIPT}" ||
   fail "callback replay must not export raw provider payload through docker exec"
 assert_contains "${PROOF_SCRIPT}" 'SYNAPSE_RESTORE_REQUIRED="true"'
+assert_contains "${PROOF_SCRIPT}" '/health'
+assert_contains "${PROOF_SCRIPT}" 'PROVIDER_OPERATION_RECOVERY_TIMEOUT_SECONDS=90'
 assert_contains "${PROOF_SCRIPT}" 'MATRIX_SYNAPSE_PROVIDER_PERSISTENCE_RESULT'
 assert_contains "${PROOF_SCRIPT}" 'MATRIX_SYNAPSE_PROVIDER_EXACTLY_ONCE_RESULT'
 assert_contains "${PROOF_SCRIPT}" 'MATRIX_SYNAPSE_PROVIDER_REPLAY_RESULT'

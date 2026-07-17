@@ -136,7 +136,11 @@ docker restart weave-synapse
 ```
 
 A bounded provider-outage test arms recovery first, stops only Synapse, observes
-the canonical pending/invisible operation, and always restores Synapse:
+the canonical pending/invisible operation, and always restores Synapse. A
+running container is not treated as provider readiness: recovery first waits
+for Synapse's listener health endpoint and then proves the authenticated
+Application Service path through the Weave facade within a bounded window.
+The backend's fail-closed exponential backoff remains active:
 
 ```sh
 trap 'docker start weave-synapse >/dev/null 2>&1 || true' EXIT
@@ -149,11 +153,10 @@ trap - EXIT
 A runner-private proof caller authenticates only to
 `POST /api/internal/e2e/chat/provider-proof` through the loopback backend port.
 The JSON request includes the exact run ID and pre-existing canonical
-conversation and actor references. Before target-room denial is measured, the
-outsider performs a normal northbound create/leave lifecycle in its independent
-outside-workspace fixture. That action preprojects the outsider provider actor;
-the proof endpoint remains read-only and cannot manufacture an actor, room,
-membership, event, or credential.
+conversation and actor references. The outsider remains outside the authorized
+workspace and has no provider mapping or membership. The proof verifies that
+absence directly; it does not manufacture an outsider actor, room, membership,
+event, or credential just to simplify a denial assertion.
 
 Direct provider readback returns only support-safe hashes, counts, bounded
 status values, timestamps, ages, and correlation references. It never returns

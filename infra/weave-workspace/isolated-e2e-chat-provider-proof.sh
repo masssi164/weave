@@ -29,6 +29,9 @@ CLIENT_RESTORE_PENDING="false"
 BACKEND_RESTORE_REQUIRED="false"
 SYNAPSE_RESTORE_REQUIRED="false"
 
+readonly SYNAPSE_LISTENER_READY_TIMEOUT_SECONDS=60
+readonly PROVIDER_OPERATION_RECOVERY_TIMEOUT_SECONDS=90
+
 fail() {
   printf 'MATRIX_SYNAPSE_PROVIDER_PROOF_ERROR code=%s\n' "$*" >&2
   exit 1
@@ -227,11 +230,26 @@ wait_container_running() {
   done
 }
 
+wait_synapse_listener_ready() {
+  local deadline status
+  deadline=$(( $(date +%s) + SYNAPSE_LISTENER_READY_TIMEOUT_SECONDS ))
+  while :; do
+    status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
+      --connect-timeout 2 --max-time 5 \
+      "http://127.0.0.1:${TF_VAR_synapse_host_port:-48008}/health" \
+      2>/dev/null || true)"
+    [[ "${status}" == "200" ]] && return 0
+    (( $(date +%s) < deadline )) || return 1
+    sleep 2
+  done
+}
+
 restore_runtime_containers() {
   local failed=0
   if [[ "${SYNAPSE_RESTORE_REQUIRED}" == "true" ]]; then
     docker start "${SYNAPSE_CONTAINER}" >/dev/null 2>&1 || failed=1
     wait_container_running "${SYNAPSE_CONTAINER}" || failed=1
+    [[ "${failed}" -ne 0 ]] || wait_synapse_listener_ready || failed=1
     [[ "${failed}" -ne 0 ]] || SYNAPSE_RESTORE_REQUIRED="false"
   fi
   if [[ "${BACKEND_RESTORE_REQUIRED}" == "true" ]]; then
@@ -704,6 +722,7 @@ stop_synapse_for_outage() {
 start_synapse_after_outage() {
   docker start "${SYNAPSE_CONTAINER}" >/dev/null || fail "synapse-start-failed"
   wait_container_running "${SYNAPSE_CONTAINER}" || fail "synapse-start-timeout"
+  wait_synapse_listener_ready || fail "synapse-listener-readiness-timeout"
   SYNAPSE_RESTORE_REQUIRED="false"
 }
 
@@ -716,7 +735,11 @@ wait_for_provider_operation() {
   encoded_user="$(uri_encode "${author_user}")"
   printf '%s' '{"typing":false,"timeout":0}' >"${directory}/typing-request.json"
   response="${directory}/typing-response.json"
-  deadline=$(( $(date +%s) + 30 ))
+  # Container process state is not provider readiness. The listener gate
+  # avoids manufacturing backoff while Synapse starts; this wider bounded
+  # window then proves that the authenticated Application Service path also
+  # recovers without weakening the backend's fail-closed retry policy.
+  deadline=$(( $(date +%s) + PROVIDER_OPERATION_RECOVERY_TIMEOUT_SECONDS ))
   while :; do
     status="$(northbound_request PUT \
       "/_matrix/client/v3/rooms/${encoded_room}/typing/${encoded_user}" \
@@ -872,6 +895,7 @@ prove_restart_continuity() {
   SYNAPSE_RESTORE_REQUIRED="true"
   docker restart "${SYNAPSE_CONTAINER}" >/dev/null || fail "synapse-restart-failed"
   wait_container_running "${SYNAPSE_CONTAINER}" || fail "synapse-restart-timeout"
+  wait_synapse_listener_ready || fail "synapse-restart-listener-readiness-timeout"
   SYNAPSE_RESTORE_REQUIRED="false"
   wait_for_provider_operation 1 || fail "synapse-restart-provider-timeout"
   for pass_index in 1 2; do
