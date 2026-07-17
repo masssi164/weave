@@ -206,16 +206,11 @@ E2EE_DIAGNOSTIC_PATTERN = re.compile(
     + r"\s*$"
 )
 E2EE_CRYPTO_DIAGNOSTIC_FIELDS = (
-    "eventCount",
-    "decryptedCount",
-    "unableToDecryptCount",
-    "toDeviceDecryptedCount",
-    "toDeviceRoomKeyCount",
-    "toDeviceUnableToDecryptCount",
-    "toDeviceDecryptionFailureCount",
-    "toDeviceUnverifiedSenderCount",
-    "toDeviceNoOlmMachineCount",
-    "toDeviceEncryptionDisabledCount",
+    "tdDec",
+    "tdKey",
+    "tdUtd",
+    "tdFail",
+    "tdUnverified",
 )
 E2EE_CRYPTO_DIAGNOSTIC_PATTERN = re.compile(
     r"(?:^|\s)MULTI_USER_E2EE_CRYPTO_DIAGNOSTIC "

@@ -1792,20 +1792,11 @@ Future<void> _emitE2eeDiagnostics({
       'MULTI_USER_E2EE_CRYPTO_DIAGNOSTIC '
       'role=${role.name} runIndex=${configuration.runIndex} available=1 '
       'supportCode=${diagnostics.supportCode} '
-      'eventCount=${diagnostics.eventCount} '
-      'decryptedCount=${diagnostics.decryptedCount} '
-      'unableToDecryptCount=${diagnostics.unableToDecryptCount} '
-      'toDeviceDecryptedCount=${diagnostics.toDeviceDecryptedCount} '
-      'toDeviceRoomKeyCount=${diagnostics.toDeviceDecryptedRoomKeyCount} '
-      'toDeviceUnableToDecryptCount='
-      '${diagnostics.toDeviceUnableToDecryptCount} '
-      'toDeviceDecryptionFailureCount='
-      '${toDeviceReasons['decryptionFailure'] ?? 0} '
-      'toDeviceUnverifiedSenderCount='
-      '${toDeviceReasons['unverifiedSenderDevice'] ?? 0} '
-      'toDeviceNoOlmMachineCount=${toDeviceReasons['noOlmMachine'] ?? 0} '
-      'toDeviceEncryptionDisabledCount='
-      '${toDeviceReasons['encryptionDisabled'] ?? 0}',
+      'tdDec=${diagnostics.toDeviceDecryptedCount} '
+      'tdKey=${diagnostics.toDeviceDecryptedRoomKeyCount} '
+      'tdUtd=${diagnostics.toDeviceUnableToDecryptCount} '
+      'tdFail=${toDeviceReasons['decryptionFailure'] ?? 0} '
+      'tdUnverified=${toDeviceReasons['unverifiedSenderDevice'] ?? 0}',
     );
     // Only allowlisted roles and bounded integer counts cross into the
     // shareable test log. No Matrix IDs, room/session IDs, device IDs, event
@@ -1853,11 +1844,7 @@ Future<void> _emitE2eeDiagnostics({
       'MULTI_USER_E2EE_CRYPTO_DIAGNOSTIC '
       'role=${role.name} runIndex=${configuration.runIndex} available=0 '
       'supportCode=M_WEAVE_E2EE_DIAGNOSTICS_UNAVAILABLE '
-      'eventCount=0 decryptedCount=0 unableToDecryptCount=0 '
-      'toDeviceDecryptedCount=0 toDeviceRoomKeyCount=0 '
-      'toDeviceUnableToDecryptCount=0 toDeviceDecryptionFailureCount=0 '
-      'toDeviceUnverifiedSenderCount=0 toDeviceNoOlmMachineCount=0 '
-      'toDeviceEncryptionDisabledCount=0',
+      'tdDec=0 tdKey=0 tdUtd=0 tdFail=0 tdUnverified=0',
     );
     // ignore: avoid_print
     print(

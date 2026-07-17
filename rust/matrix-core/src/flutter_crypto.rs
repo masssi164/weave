@@ -35,6 +35,7 @@ use matrix_sdk::{
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use serde_json::{json, Value};
 use std::{
+    cmp::Ordering,
     collections::{BTreeMap, BTreeSet, HashMap},
     path::Path,
     sync::{Arc, Mutex, OnceLock},
@@ -1371,27 +1372,47 @@ pub async fn start_verification(profile_key: String) -> String {
             .ok_or_else(|| "M_WEAVE_E2EE_SESSION".to_string())?;
         let encryption = client.encryption();
         // A second device can publish its keys after this client's latest
-        // sync response. Refresh and retain the current user's identity, then
-        // let the SDK address the request to every eligible sibling device.
-        // Picking the first device from UserDevices is not a stable target and
-        // can route a valid request to an older sibling instead of the active
-        // dogfood device.
-        let own_identity = encryption
+        // sync response. Refresh the current user's device data before
+        // selecting a concrete sibling verification target.
+        encryption
             .request_user_identity(own_user_id)
             .await
-            .map_err(|_| "M_WEAVE_E2EE_DEVICE".to_string())?
-            .ok_or_else(|| "M_WEAVE_E2EE_NO_OTHER_DEVICE".to_string())?;
+            .map_err(|_| "M_WEAVE_E2EE_DEVICE".to_string())?;
         let devices = encryption
             .get_user_devices(own_user_id)
             .await
             .map_err(|_| "M_WEAVE_E2EE_DEVICE".to_string())?;
-        if !devices
+        let mut candidates = devices
             .devices()
-            .any(|device| device.device_id() != own_device_id && !device.is_blacklisted())
-        {
-            return Err("M_WEAVE_E2EE_NO_OTHER_DEVICE".to_string());
-        }
-        let request = own_identity
+            .filter(|device| {
+                device.device_id() != own_device_id
+                    && !device.is_deleted()
+                    && !device.is_blacklisted()
+                    && device.curve25519_key().is_some()
+            })
+            .collect::<Vec<_>>();
+        // UserDevices is backed by a hash map, so iterator order is not a
+        // product decision. Prefer the newest unverified sibling: that is the
+        // device the user has just added and needs to approve. A stable ID
+        // tie-breaker keeps retries on the same target. Do not use
+        // OwnUserIdentity::request_verification here: matrix-sdk deliberately
+        // filters unsigned new devices from that broadcast and can therefore
+        // route the request only to an older, already-signed sibling.
+        candidates.sort_by(|left, right| {
+            verification_target_order(
+                left.is_verified(),
+                left.first_time_seen_ts().get().into(),
+                left.device_id().as_str(),
+                right.is_verified(),
+                right.first_time_seen_ts().get().into(),
+                right.device_id().as_str(),
+            )
+        });
+        let target = candidates
+            .into_iter()
+            .next()
+            .ok_or_else(|| "M_WEAVE_E2EE_NO_OTHER_DEVICE".to_string())?;
+        let request = target
             .request_verification_with_methods(vec![VerificationMethod::SasV1])
             .await
             .map_err(|_| "M_WEAVE_E2EE_VERIFICATION".to_string())?;
@@ -1400,6 +1421,20 @@ pub async fn start_verification(profile_key: String) -> String {
     }
     .await;
     json_result(result)
+}
+
+fn verification_target_order(
+    left_verified: bool,
+    left_first_seen_ms: u64,
+    left_device_id: &str,
+    right_verified: bool,
+    right_first_seen_ms: u64,
+    right_device_id: &str,
+) -> Ordering {
+    left_verified
+        .cmp(&right_verified)
+        .then_with(|| right_first_seen_ms.cmp(&left_first_seen_ms))
+        .then_with(|| left_device_id.cmp(right_device_id))
 }
 
 pub async fn accept_verification(profile_key: String) -> String {
@@ -1761,6 +1796,22 @@ mod tests {
     fn matrix_request_deadlines_are_shorter_than_the_foreground_retry_window() {
         assert!(MATRIX_CONNECT_TIMEOUT < MATRIX_REQUEST_TIMEOUT);
         assert!(MATRIX_REQUEST_TIMEOUT <= Duration::from_secs(15));
+    }
+
+    #[test]
+    fn verification_target_prefers_newest_unverified_sibling_stably() {
+        assert_eq!(
+            verification_target_order(false, 2, "DEVICE_B", false, 1, "DEVICE_A"),
+            Ordering::Less
+        );
+        assert_eq!(
+            verification_target_order(false, 1, "DEVICE_A", true, 2, "DEVICE_B"),
+            Ordering::Less
+        );
+        assert_eq!(
+            verification_target_order(false, 2, "DEVICE_A", false, 2, "DEVICE_B"),
+            Ordering::Less
+        );
     }
 
     #[test]

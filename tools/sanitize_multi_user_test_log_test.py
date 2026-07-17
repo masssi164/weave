@@ -270,11 +270,8 @@ Failure code: M_WEAVE_E2EE_PROVIDER_PAYLOAD_PRIVATE.
             result.stdout,
         )
         self.assertIn(
-            "toDeviceUnableToDecryptCount=6 "
-            "toDeviceDecryptionFailureCount=7 "
-            "toDeviceUnverifiedSenderCount=8 "
-            "toDeviceNoOlmMachineCount=9 "
-            "toDeviceEncryptionDisabledCount=10 supportSafe=true",
+            "tdDec=1 tdKey=2 tdUtd=3 tdFail=4 "
+            "tdUnverified=5 supportSafe=true",
             result.stdout,
         )
 
@@ -309,7 +306,7 @@ Failure code: M_WEAVE_E2EE_PROVIDER_PAYLOAD_PRIVATE.
             "supportCode=M_WEAVE_E2EE_DIAGNOSTICS_UNAVAILABLE",
             result.stdout,
         )
-        self.assertIn("toDeviceEncryptionDisabledCount=0 supportSafe=true", result.stdout)
+        self.assertIn("tdUnverified=0 supportSafe=true", result.stdout)
 
     def test_fine_grained_collaborator_domain_phase_is_support_safe(self) -> None:
         raw = """
