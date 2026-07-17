@@ -44,6 +44,29 @@ class ChatE2eCallbackReplayControllerTest {
     }
 
     @Test
+    void exposesOnlySupportSafeCaptureReadiness() {
+        ChatE2eProofProperties properties = properties();
+        ChatE2eCallbackReplayTap tap = new ChatE2eCallbackReplayTap(properties);
+        MatrixApplicationServiceController applicationService = mock(MatrixApplicationServiceController.class);
+        ChatE2eCallbackReplayController controller = new ChatE2eCallbackReplayController(
+                tap, applicationService, properties, new ObjectMapper());
+
+        assertThat(controller.readiness().getBody())
+                .containsEntry("contractVersion", "chat-provider-callback-replay-readiness-v1")
+                .containsEntry("callbackReplayReady", false)
+                .containsEntry("code", "chat-provider-callback-not-captured")
+                .containsEntry("supportSafe", true);
+
+        tap.captureFirst("private-homeserver-transaction", "private-payload".getBytes(StandardCharsets.UTF_8));
+
+        assertThat(controller.readiness().getBody())
+                .containsEntry("callbackReplayReady", true)
+                .containsEntry("code", "chat-provider-callback-captured")
+                .doesNotContainValue("private-homeserver-transaction")
+                .doesNotContainValue("private-payload");
+    }
+
+    @Test
     void rejectsWrongRunAndMissingCaptureWithSupportSafeResponses() {
         ChatE2eProofProperties properties = properties();
         ChatE2eCallbackReplayTap tap = new ChatE2eCallbackReplayTap(properties);

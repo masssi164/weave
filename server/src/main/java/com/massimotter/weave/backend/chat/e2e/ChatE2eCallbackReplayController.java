@@ -18,6 +18,7 @@ import java.util.Set;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -44,6 +45,16 @@ public final class ChatE2eCallbackReplayController {
         this.applicationServiceController = applicationServiceController;
         this.properties = properties;
         this.objectMapper = objectMapper;
+    }
+
+    @GetMapping(PATH + "/readiness")
+    public ResponseEntity<Map<String, Object>> readiness() {
+        boolean ready = callbackReplayTap.captured().isPresent();
+        return ResponseEntity.ok(Map.of(
+                "contractVersion", "chat-provider-callback-replay-readiness-v1",
+                "callbackReplayReady", ready,
+                "code", ready ? "chat-provider-callback-captured" : "chat-provider-callback-not-captured",
+                "supportSafe", true));
     }
 
     @PostMapping(PATH)

@@ -150,8 +150,14 @@ docker start weave-synapse
 trap - EXIT
 ```
 
-A runner-private proof caller authenticates only to
-`POST /api/internal/e2e/chat/provider-proof` through the loopback backend port.
+A runner-private proof caller authenticates only to the isolated proof surface
+through the loopback backend port. Before replay it polls the read-only
+`GET /api/internal/e2e/chat/provider-proof/callback-replay/readiness` contract
+for at most 90 seconds. Readiness exposes only a boolean, stable code, contract
+version, and `supportSafe: true`; it never returns the captured transaction ID
+or payload. The caller then uses
+`POST /api/internal/e2e/chat/provider-proof` for provider evidence and invokes
+the replay trigger exactly once after a genuine encrypted callback is captured.
 The JSON request includes the exact run ID and pre-existing canonical
 conversation and actor references. The outsider remains outside the authorized
 workspace and has no provider mapping or membership. The proof verifies that

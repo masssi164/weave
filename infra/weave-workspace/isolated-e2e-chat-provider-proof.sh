@@ -939,6 +939,51 @@ wait_for_evidence_stability() {
   return 1
 }
 
+private_callback_replay_readiness() {
+  local response_path="$1" status
+  status="$(curl --silent --connect-timeout 3 --max-time 20 \
+    --output "${response_path}" --write-out '%{http_code}' \
+    --request GET \
+    --header @"${PROOF_AUTH_HEADER_FILE}" \
+    "${BACKEND_ORIGIN}/api/internal/e2e/chat/provider-proof/callback-replay/readiness" 2>/dev/null || true)"
+  if [[ "${status}" != "200" ]]; then
+    CALLBACK_CAPTURE_WAIT_CODE="callback-readiness-status-${status:-000}"
+    return 2
+  fi
+  if ! jq -e '
+    .contractVersion == "chat-provider-callback-replay-readiness-v1" and
+    (.callbackReplayReady | type) == "boolean" and
+    (.code == "chat-provider-callback-captured" or .code == "chat-provider-callback-not-captured") and
+    .supportSafe == true
+  ' "${response_path}" >/dev/null 2>&1; then
+    CALLBACK_CAPTURE_WAIT_CODE="callback-readiness-response-invalid"
+    return 2
+  fi
+  jq -e '.callbackReplayReady == true and .code == "chat-provider-callback-captured"' \
+    "${response_path}" >/dev/null 2>&1
+}
+
+wait_for_callback_capture() {
+  local response attempt result
+  response="${PRIVATE_STATE_DIR}/callback-replay-readiness.json"
+  CALLBACK_CAPTURE_WAIT_CODE="callback-capture-timeout"
+  for attempt in {1..45}; do
+    if private_callback_replay_readiness "${response}"; then
+      rm -f -- "${response}"
+      return 0
+    else
+      result=$?
+    fi
+    if [[ "${result}" == "2" ]]; then
+      rm -f -- "${response}"
+      return 1
+    fi
+    sleep 2
+  done
+  rm -f -- "${response}"
+  return 1
+}
+
 private_callback_replay() {
   local request_path="$1" response_path="$2" status
   jq -cn --arg runId "${RUN_ID}" '{runId:$runId}' >"${request_path}"
@@ -950,16 +995,29 @@ private_callback_replay() {
     --data-binary @"${request_path}" \
     "${BACKEND_ORIGIN}/api/internal/e2e/chat/provider-proof/callback-replay" 2>/dev/null || true)"
   rm -f -- "${request_path}"
-  [[ "${status}" == "200" ]] || return 1
-  jq -e '
+  if [[ "${status}" != "200" ]]; then
+    case "$(jq -r 'if .supportSafe == true then .code // empty else empty end' "${response_path}" 2>/dev/null || true)" in
+      chat-provider-callback-not-captured) CALLBACK_REPLAY_CODE="callback-not-captured" ;;
+      chat-provider-callback-replay-failed) CALLBACK_REPLAY_CODE="callback-processing-unavailable" ;;
+      chat-provider-callback-replay-request-invalid) CALLBACK_REPLAY_CODE="callback-replay-request-invalid" ;;
+      *) CALLBACK_REPLAY_CODE="callback-replay-status-${status:-000}" ;;
+    esac
+    return 1
+  fi
+  if ! jq -e '
     .contractVersion == "chat-provider-callback-replay-v1" and
     .replayed == true and .supportSafe == true and
     (.callbackCorrelationHash | test("^[0-9a-f]{64}$"))
-  ' "${response_path}" >/dev/null 2>&1
+  ' "${response_path}" >/dev/null 2>&1; then
+    CALLBACK_REPLAY_CODE="callback-replay-response-invalid"
+    return 1
+  fi
+  return 0
 }
 
 prove_callback_replay() {
   local pass_index request response before after
+  wait_for_callback_capture || fail "${CALLBACK_CAPTURE_WAIT_CODE}"
   for pass_index in 1 2; do
     wait_for_evidence_stability "${pass_index}" "$(pass_dir "${pass_index}")/replay-before.json" ||
       fail "provider-evidence-not-stable"
@@ -969,7 +1027,8 @@ prove_callback_replay() {
   # The backend captured the first successfully processed, non-empty encrypted
   # Synapse callback. This trigger re-enters that exact transaction and body;
   # neither provider references nor the raw payload leave the backend process.
-  private_callback_replay "${request}" "${response}" || fail "callback-replay-failed"
+  CALLBACK_REPLAY_CODE="callback-replay-failed"
+  private_callback_replay "${request}" "${response}" || fail "${CALLBACK_REPLAY_CODE}"
   rm -f -- "${response}"
 
   for pass_index in 1 2; do

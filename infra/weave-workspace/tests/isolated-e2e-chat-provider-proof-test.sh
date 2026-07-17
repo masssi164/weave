@@ -60,6 +60,7 @@ printf '0\n' >"${MOCK_STATE}/token-counter"
 printf '20\n' >"${MOCK_STATE}/callback-count"
 printf '0\n' >"${MOCK_STATE}/callback-duplicate-count"
 printf 'false\n' >"${MOCK_STATE}/callback-replay-seen"
+printf '0\n' >"${MOCK_STATE}/callback-readiness-checks"
 : >"${MOCK_STATE}/tokens.tsv"
 : >"${MOCK_STATE}/operations.log"
 for pass_index in 1 2; do
@@ -291,6 +292,18 @@ elif [[ "${url}" == */typing/* ]]; then
     respond 200 '{}'
   else
     respond 503 '{"errcode":"M_UNAVAILABLE","error":"Weave Chat is temporarily unavailable."}'
+  fi
+elif [[ "${url}" == */api/internal/e2e/chat/provider-proof/callback-replay/readiness ]]; then
+  [[ "${method}" == GET && "${authorization}" == "${MOCK_PROOF_TOKEN}" ]] || {
+    respond 401 '{"code":"chat-e2e-proof-unauthorized","supportSafe":true}'
+    exit 0
+  }
+  readiness_checks="$(( $(<"${MOCK_STATE}/callback-readiness-checks") + 1 ))"
+  printf '%s\n' "${readiness_checks}" >"${MOCK_STATE}/callback-readiness-checks"
+  if (( readiness_checks < 3 )); then
+    respond 200 '{"contractVersion":"chat-provider-callback-replay-readiness-v1","callbackReplayReady":false,"code":"chat-provider-callback-not-captured","supportSafe":true}'
+  else
+    respond 200 '{"contractVersion":"chat-provider-callback-replay-readiness-v1","callbackReplayReady":true,"code":"chat-provider-callback-captured","supportSafe":true}'
   fi
 elif [[ "${url}" == */api/internal/e2e/chat/provider-proof/callback-replay ]]; then
   [[ "${method}" == POST && "${authorization}" == "${MOCK_PROOF_TOKEN}" ]] || {
@@ -591,6 +604,7 @@ printf '0\n' >"${MOCK_STATE}/token-counter"
 printf '20\n' >"${MOCK_STATE}/callback-count"
 printf '0\n' >"${MOCK_STATE}/callback-duplicate-count"
 printf 'false\n' >"${MOCK_STATE}/callback-replay-seen"
+printf '0\n' >"${MOCK_STATE}/callback-readiness-checks"
 : >"${MOCK_STATE}/tokens.tsv"
 : >"${MOCK_STATE}/operations.log"
 for pass_index in 1 2; do
@@ -671,6 +685,8 @@ jq -e \
   fail "each Synapse recovery must prove listener readiness before provider recovery"
 [[ "$(grep -c '^proof:callback-replay$' "${MOCK_STATE}/operations.log")" == 1 ]] ||
   fail "the first real private callback transaction must be replayed exactly once"
+[[ "$(<"${MOCK_STATE}/callback-readiness-checks")" == 3 ]] ||
+  fail "provider proof must wait for genuine callback capture readiness"
 awk -F: '
   $1 == "proof" && $2 == "correlations" && $4 != $5 { mismatch = 1 }
   END { exit mismatch }
@@ -723,6 +739,7 @@ assert_contains "${PROOF_SCRIPT}" 'runId:$runId'
 # replay is triggered only by the independent, exact-run proof bearer.
 assert_contains "${PROOF_SCRIPT}" 'WEAVE_CHAT_MATRIX_APPSERVICE_HS_TOKEN_FILE'
 assert_contains "${PROOF_SCRIPT}" '/api/internal/e2e/chat/provider-proof/callback-replay'
+assert_contains "${PROOF_SCRIPT}" '/api/internal/e2e/chat/provider-proof/callback-replay/readiness'
 ! grep -Fq 'docker exec -i "${BACKEND_CONTAINER}"' "${PROOF_SCRIPT}" ||
   fail "callback replay must not export raw provider payload through docker exec"
 assert_contains "${PROOF_SCRIPT}" 'SYNAPSE_RESTORE_REQUIRED="true"'
