@@ -1,3 +1,11 @@
 [workspace]
 members = ["rust/matrix-core"]
+exclude = ["rust/vendor/matrix-sdk-crypto"]
 resolver = "2"
+
+[patch.crates-io]
+# matrix-sdk-crypto 0.18.0 chooses an Olm session by creation time. That can
+# keep selecting a newly-created but unusable session after another session
+# has just decrypted traffic successfully. Keep the dependency version pinned
+# and carry the narrow recency fix locally until the upstream fix is released.
+matrix-sdk-crypto = { path = "rust/vendor/matrix-sdk-crypto" }
