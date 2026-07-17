@@ -2,8 +2,8 @@ use matrix_sdk::{
     authentication::{matrix::MatrixSession, SessionTokens},
     config::SyncSettings,
     deserialized_responses::{
-        ProcessedToDeviceEvent, TimelineEvent, TimelineEventKind, ToDeviceUnableToDecryptReason,
-        UnableToDecryptReason,
+        ProcessedToDeviceEvent, TimelineEvent, TimelineEventKind, ToDeviceUnableToDecryptInfo,
+        ToDeviceUnableToDecryptReason, UnableToDecryptReason,
     },
     encryption::{
         identities::UserDevices,
@@ -49,7 +49,7 @@ const PRE_SEND_DEVICE_QUERY_ATTEMPTS: usize = 10;
 const PRE_SEND_DEVICE_QUERY_DELAY: Duration = Duration::from_millis(500);
 const MATRIX_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const MATRIX_REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
-const OLM_UNWEDGE_ROTATION_PENDING_KEY: &[u8] = b"weave.olm-unwedge-rotation-pending.v1";
+const OLM_RECOVERY_ROTATION_PENDING_KEY: &[u8] = b"weave.olm-recovery-room-key-rotation-pending.v1";
 
 struct ManagedClient {
     client: Client,
@@ -572,7 +572,7 @@ async fn complete_sync_cycle_under_gate(
         .await
         .map_err(|error| matrix_sdk_error_code(&error, error_code))?;
     record_to_device_diagnostics(profile_key, &response.to_device)?;
-    remember_olm_unwedge_rotation(&client, &response.to_device).await?;
+    remember_olm_recovery_rotation(&client, &response.to_device).await?;
     reconcile_verification_requests(profile_key, &client, &response.to_device).await?;
     let (mut enabled_rooms, mut converged_rooms) =
         converge_joined_room_security(profile_key, &client).await?;
@@ -586,7 +586,7 @@ async fn complete_sync_cycle_under_gate(
             .await
             .map_err(|error| matrix_sdk_error_code(&error, error_code))?;
         record_to_device_diagnostics(profile_key, &response.to_device)?;
-        remember_olm_unwedge_rotation(&client, &response.to_device).await?;
+        remember_olm_recovery_rotation(&client, &response.to_device).await?;
         reconcile_verification_requests(profile_key, &client, &response.to_device).await?;
         let (newly_enabled_rooms, newly_converged_rooms) =
             converge_joined_room_security(profile_key, &client).await?;
@@ -683,52 +683,58 @@ fn is_decrypted_olm_dummy(raw: &Raw<AnyToDeviceEvent>) -> bool {
     raw.get_field::<String>("type").ok().flatten().as_deref() == Some("m.dummy")
 }
 
-fn contains_decrypted_olm_dummy(events: &[ProcessedToDeviceEvent]) -> bool {
-    events.iter().any(|event| {
-        matches!(
-            event,
-            ProcessedToDeviceEvent::Decrypted { raw, .. } if is_decrypted_olm_dummy(raw)
-        )
+fn contains_olm_recovery_signal(events: &[ProcessedToDeviceEvent]) -> bool {
+    events.iter().any(|event| match event {
+        ProcessedToDeviceEvent::Decrypted { raw, .. } => is_decrypted_olm_dummy(raw),
+        ProcessedToDeviceEvent::UnableToDecrypt { utd_info, .. } => {
+            matches!(
+                utd_info.reason,
+                ToDeviceUnableToDecryptReason::DecryptionFailure
+            )
+        }
+        ProcessedToDeviceEvent::PlainText(_) | ProcessedToDeviceEvent::Invalid(_) => false,
     })
 }
 
-async fn remember_olm_unwedge_rotation(
+async fn remember_olm_recovery_rotation(
     client: &Client,
     events: &[ProcessedToDeviceEvent],
 ) -> Result<(), String> {
-    if contains_decrypted_olm_dummy(events) {
-        // matrix-sdk sends an encrypted `m.dummy` after it detects a wedged
-        // Olm session. Receiving that event proves the peer has established a
-        // fresh Olm channel, but an existing outbound Megolm session can still
-        // remember that the old channel already received its room key. Persist
-        // a one-shot rotation latch so the next encrypted send re-shares the
-        // room key even when the app is relaunched between sync and send.
+    if contains_olm_recovery_signal(events) {
+        // A failed Olm envelope can occur before matrix-sdk's standard
+        // hour-old-session unwedge window. A later decrypted `m.dummy` proves
+        // the SDK has completed that standard unwedge. In both cases, an
+        // existing outbound Megolm session can still remember that the peer
+        // already received its room key. Persist a one-shot latch so the next
+        // encrypted send re-shares a fresh room key over the working Olm
+        // direction and advances the bidirectional channel before the peer's
+        // next reply, even across an app relaunch.
         client
             .state_store()
-            .set_custom_value(OLM_UNWEDGE_ROTATION_PENDING_KEY, vec![1])
+            .set_custom_value(OLM_RECOVERY_ROTATION_PENDING_KEY, vec![1])
             .await
             .map_err(|_| "M_WEAVE_E2EE_STORE".to_string())?;
     }
     Ok(())
 }
 
-fn olm_unwedge_rotation_is_pending(value: Option<&[u8]>) -> bool {
+fn olm_recovery_rotation_is_pending(value: Option<&[u8]>) -> bool {
     !matches!(value, None | Some([]) | Some([0]))
 }
 
-async fn olm_unwedge_rotation_pending(client: &Client) -> Result<bool, String> {
+async fn olm_recovery_rotation_pending(client: &Client) -> Result<bool, String> {
     let value = client
         .state_store()
-        .get_custom_value(OLM_UNWEDGE_ROTATION_PENDING_KEY)
+        .get_custom_value(OLM_RECOVERY_ROTATION_PENDING_KEY)
         .await
         .map_err(|_| "M_WEAVE_E2EE_STORE".to_string())?;
-    Ok(olm_unwedge_rotation_is_pending(value.as_deref()))
+    Ok(olm_recovery_rotation_is_pending(value.as_deref()))
 }
 
-async fn clear_olm_unwedge_rotation(client: &Client) -> Result<(), String> {
+async fn clear_olm_recovery_rotation(client: &Client) -> Result<(), String> {
     client
         .state_store()
-        .set_custom_value(OLM_UNWEDGE_ROTATION_PENDING_KEY, vec![0])
+        .set_custom_value(OLM_RECOVERY_ROTATION_PENDING_KEY, vec![0])
         .await
         .map_err(|_| "M_WEAVE_E2EE_STORE".to_string())?;
     Ok(())
@@ -989,13 +995,13 @@ async fn send_text_inner(profile_key: &str, room_id: &str, body: &str) -> Result
     }
     refresh_active_member_device_keys(profile_key, &client, &room, RoomSecurityRefresh::PreSend)
         .await?;
-    let rotate_after_olm_unwedge = olm_unwedge_rotation_pending(&client).await?;
-    if rotate_after_olm_unwedge {
+    let rotate_after_olm_recovery = olm_recovery_rotation_pending(&client).await?;
+    if rotate_after_olm_recovery {
         // A newly-established Olm channel does not invalidate the SDK's
         // existing outbound Megolm sharing record. Rotate exactly once after
-        // the unwedge signal so the next message distributes a fresh room key
-        // over the repaired channel instead of committing another event that
-        // the peer cannot decrypt.
+        // the recovery signal so the next message distributes a fresh room
+        // key over the repaired or still-working direction instead of
+        // committing another event that the peer cannot decrypt.
         room.discard_room_key()
             .await
             .map_err(|_| "M_WEAVE_E2EE_ROOM_KEY_ROTATION".to_string())?;
@@ -1005,7 +1011,7 @@ async fn send_text_inner(profile_key: &str, room_id: &str, body: &str) -> Result
         // has already accepted it. If the later send fails, the next send must
         // still create or reuse the replacement outbound session and share its
         // key before committing.
-        clear_olm_unwedge_rotation(&client).await?;
+        clear_olm_recovery_rotation(&client).await?;
     }
     let response = room
         .send(RoomMessageEventContent::text_plain(body))
@@ -2186,7 +2192,7 @@ mod tests {
     }
 
     #[test]
-    fn olm_unwedge_dummy_arms_a_single_fail_closed_rotation_latch() {
+    fn olm_failure_or_unwedge_arms_a_single_fail_closed_rotation_latch() {
         let dummy: Raw<AnyToDeviceEvent> = serde_json::from_value(json!({
             "sender": "@member:api.weave.test",
             "type": "m.dummy",
@@ -2199,16 +2205,29 @@ mod tests {
             "content": {},
         }))
         .expect("room key should be valid raw JSON");
+        let encrypted: Raw<AnyToDeviceEvent> = serde_json::from_value(json!({
+            "sender": "@member:api.weave.test",
+            "type": "m.room.encrypted",
+            "content": {},
+        }))
+        .expect("encrypted event should be valid raw JSON");
+        let failed = ProcessedToDeviceEvent::UnableToDecrypt {
+            encrypted_event: encrypted,
+            utd_info: ToDeviceUnableToDecryptInfo {
+                reason: ToDeviceUnableToDecryptReason::DecryptionFailure,
+            },
+        };
 
         assert!(is_decrypted_olm_dummy(&dummy));
         assert!(!is_decrypted_olm_dummy(&room_key));
-        assert!(!olm_unwedge_rotation_is_pending(None));
-        assert!(!olm_unwedge_rotation_is_pending(Some(&[])));
-        assert!(!olm_unwedge_rotation_is_pending(Some(&[0])));
-        assert!(olm_unwedge_rotation_is_pending(Some(&[1])));
+        assert!(contains_olm_recovery_signal(&[failed]));
+        assert!(!olm_recovery_rotation_is_pending(None));
+        assert!(!olm_recovery_rotation_is_pending(Some(&[])));
+        assert!(!olm_recovery_rotation_is_pending(Some(&[0])));
+        assert!(olm_recovery_rotation_is_pending(Some(&[1])));
         // Unknown persisted values rotate once instead of silently accepting
         // a potentially stale Megolm sharing record.
-        assert!(olm_unwedge_rotation_is_pending(Some(&[2, 3])));
+        assert!(olm_recovery_rotation_is_pending(Some(&[2, 3])));
     }
 
     #[test]
