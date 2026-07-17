@@ -1151,6 +1151,7 @@ Future<void> _establishEncryptedDeviceExchange({
         authorSession,
         roomId,
         authorProbe,
+        diagnosticRole: CollaborationActorRole.author,
         timeout: observationTimeout,
       );
       eventIds.add(authorEvent.id);
@@ -1162,6 +1163,7 @@ Future<void> _establishEncryptedDeviceExchange({
         collaboratorSession,
         roomId,
         authorProbe,
+        diagnosticRole: CollaborationActorRole.collaborator,
         timeout: observationTimeout,
       );
       if (collaboratorObservation.id != authorEvent.id) {
@@ -1187,6 +1189,7 @@ Future<void> _establishEncryptedDeviceExchange({
         collaboratorSession,
         roomId,
         collaboratorProbe,
+        diagnosticRole: CollaborationActorRole.collaborator,
         timeout: observationTimeout,
       );
       eventIds.add(collaboratorEvent.id);
@@ -1198,6 +1201,7 @@ Future<void> _establishEncryptedDeviceExchange({
         authorSession,
         roomId,
         collaboratorProbe,
+        diagnosticRole: CollaborationActorRole.author,
         timeout: observationTimeout,
       );
       if (authorObservation.id != collaboratorEvent.id) {
@@ -1208,6 +1212,28 @@ Future<void> _establishEncryptedDeviceExchange({
       return;
     } catch (error) {
       lastFailure = error;
+      if (error case _ChatObservationFailure(
+        :final diagnosticRole,
+        :final diagnostics,
+      )) {
+        final supportCode = error.code;
+        // Emit the support code before any further native operation. The
+        // failed timeline request has already captured this bounded snapshot,
+        // so a later best-effort diagnostic cannot hide the original failure
+        // behind a native timeout or store lock.
+        // ignore: avoid_print
+        print(
+          'MULTI_USER_E2EE_FAILURE Failure code: $supportCode '
+          'runIndex=${configuration.runIndex}',
+        );
+        if (diagnosticRole != null && diagnostics != null) {
+          _emitRecordedE2eeDiagnostics(
+            configuration: configuration,
+            role: diagnosticRole,
+            diagnostics: diagnostics,
+          );
+        }
+      }
       // Preserve the receive-path evidence while both native clients are
       // still alive. Waiting until every retry is exhausted can let the outer
       // live-test deadline terminate the process before diagnostics run.
@@ -1466,6 +1492,7 @@ Future<ChatMessage> _waitForChatMessage(
   LiveActorSession session,
   String roomId,
   String expectedText, {
+  CollaborationActorRole? diagnosticRole,
   Duration timeout = const Duration(seconds: 45),
 }) async {
   Object? lastFailure;
@@ -1484,25 +1511,33 @@ Future<ChatMessage> _waitForChatMessage(
   } catch (error) {
     lastFailure ??= error;
     var supportCode = _matrixSupportCode(lastFailure);
-    if (supportCode == null) {
-      try {
-        supportCode = (await session.chatReceiveDiagnostics().timeout(
-          const Duration(seconds: 2),
-        )).supportCode;
-      } catch (_) {
-        // The generic code remains support-safe when diagnostics are unavailable.
-      }
+    RustMatrixDecryptionDiagnostics? diagnostics;
+    try {
+      diagnostics = await session.chatReceiveDiagnostics().timeout(
+        const Duration(seconds: 2),
+      );
+      supportCode ??= diagnostics.supportCode;
+    } catch (_) {
+      // The generic code remains support-safe when diagnostics are unavailable.
     }
     throw _ChatObservationFailure(
       supportCode ?? 'M_WEAVE_E2EE_MESSAGE_NOT_OBSERVED',
+      diagnosticRole: diagnosticRole,
+      diagnostics: diagnostics,
     );
   }
 }
 
 class _ChatObservationFailure implements Exception {
-  const _ChatObservationFailure(this.code);
+  const _ChatObservationFailure(
+    this.code, {
+    this.diagnosticRole,
+    this.diagnostics,
+  });
 
   final String code;
+  final CollaborationActorRole? diagnosticRole;
+  final RustMatrixDecryptionDiagnostics? diagnostics;
 
   @override
   String toString() => code;
@@ -1782,20 +1817,6 @@ Future<void> _emitE2eeDiagnostics({
       receiveDiagnostics = null;
     }
     final recorded = receiveDiagnostics;
-    final toDeviceReasons = recorded?.toDeviceReasonCounts;
-    // ignore: avoid_print
-    print(
-      'MULTI_USER_E2EE_CRYPTO_DIAGNOSTIC '
-      'role=${role.name} runIndex=${configuration.runIndex} '
-      'available=${recorded == null ? 0 : 1} '
-      'supportCode=${recorded?.supportCode ?? 'M_WEAVE_E2EE_DIAGNOSTICS_UNAVAILABLE'} '
-      'tdDec=${recorded?.toDeviceDecryptedCount ?? 0} '
-      'tdKey=${recorded?.toDeviceDecryptedRoomKeyCount ?? 0} '
-      'tdUtd=${recorded?.toDeviceUnableToDecryptCount ?? 0} '
-      'tdFail=${toDeviceReasons?['decryptionFailure'] ?? 0} '
-      'tdUnverified=${toDeviceReasons?['unverifiedSenderDevice'] ?? 0}',
-    );
-
     late final RustMatrixDecryptionDiagnostics diagnostics;
     try {
       diagnostics = await session
@@ -1807,43 +1828,10 @@ Future<void> _emitE2eeDiagnostics({
       }
       diagnostics = recorded;
     }
-    // Only allowlisted roles and bounded integer counts cross into the
-    // shareable test log. No Matrix IDs, room/session IDs, device IDs, event
-    // content, key material, ciphertext, URLs, or provider payloads are used.
-    // ignore: avoid_print
-    print(
-      'MULTI_USER_E2EE_DIAGNOSTIC '
-      'role=${role.name} runIndex=${configuration.runIndex} available=1 '
-      'eventCount=${diagnostics.eventCount} '
-      'decryptedCount=${diagnostics.decryptedCount} '
-      'unableToDecryptCount=${diagnostics.unableToDecryptCount} '
-      'toDeviceDecryptedCount=${diagnostics.toDeviceDecryptedCount} '
-      'toDeviceRoomKeyCount=${diagnostics.toDeviceDecryptedRoomKeyCount} '
-      'toDeviceForwardedRoomKeyCount='
-      '${diagnostics.toDeviceDecryptedForwardedRoomKeyCount} '
-      'toDeviceOtherCount=${diagnostics.toDeviceDecryptedOtherCount} '
-      'toDeviceUnknownTypeCount='
-      '${diagnostics.toDeviceDecryptedUnknownTypeCount} '
-      'toDeviceUnableToDecryptCount='
-      '${diagnostics.toDeviceUnableToDecryptCount} '
-      'toDevicePlaintextCount=${diagnostics.toDevicePlaintextCount} '
-      'toDeviceInvalidCount=${diagnostics.toDeviceInvalidCount} '
-      'joinedPeerCount=${diagnostics.joinedPeerCount} '
-      'authoritativeDeviceCount=${diagnostics.authoritativeDeviceCount} '
-      'sdkDeviceCount=${diagnostics.sdkDeviceCount} '
-      'sdkUsableDeviceCount=${diagnostics.sdkUsableDeviceCount} '
-      'sdkDeletedDeviceCount=${diagnostics.sdkDeletedDeviceCount} '
-      'sdkBlacklistedDeviceCount=${diagnostics.sdkBlacklistedDeviceCount} '
-      'sdkMissingCurve25519Count=${diagnostics.sdkMissingCurve25519Count} '
-      'sdkMissingAuthoritativeDeviceCount='
-      '${diagnostics.sdkMissingAuthoritativeDeviceCount} '
-      'sdkUnexpectedDeviceCount=${diagnostics.sdkUnexpectedDeviceCount} '
-      'deviceQueryAttemptCount=${diagnostics.deviceQueryAttemptCount} '
-      'convergedPeerCount=${diagnostics.convergedPeerCount} '
-      'pendingPeerCount=${diagnostics.pendingPeerCount} '
-      'rejectedPeerCount=${diagnostics.rejectedPeerCount} '
-      'blockedPeerCount=${diagnostics.blockedPeerCount} '
-      'invalidPeerCount=${diagnostics.invalidPeerCount}',
+    _emitRecordedE2eeDiagnostics(
+      configuration: configuration,
+      role: role,
+      diagnostics: diagnostics,
     );
   } catch (_) {
     // The unavailable marker remains support-safe and still distinguishes a
@@ -1873,6 +1861,64 @@ Future<void> _emitE2eeDiagnostics({
       'blockedPeerCount=0 invalidPeerCount=0',
     );
   }
+}
+
+void _emitRecordedE2eeDiagnostics({
+  required MultiUserTestConfig configuration,
+  required CollaborationActorRole role,
+  required RustMatrixDecryptionDiagnostics diagnostics,
+}) {
+  final toDeviceReasons = diagnostics.toDeviceReasonCounts;
+  // Only allowlisted roles, support codes, and bounded integer counts cross
+  // into the shareable test log. No Matrix IDs, room/session IDs, device IDs,
+  // event content, key material, ciphertext, URLs, or provider payloads are
+  // used.
+  // ignore: avoid_print
+  print(
+    'MULTI_USER_E2EE_CRYPTO_DIAGNOSTIC '
+    'role=${role.name} runIndex=${configuration.runIndex} available=1 '
+    'supportCode=${diagnostics.supportCode} '
+    'tdDec=${diagnostics.toDeviceDecryptedCount} '
+    'tdKey=${diagnostics.toDeviceDecryptedRoomKeyCount} '
+    'tdUtd=${diagnostics.toDeviceUnableToDecryptCount} '
+    'tdFail=${toDeviceReasons['decryptionFailure'] ?? 0} '
+    'tdUnverified=${toDeviceReasons['unverifiedSenderDevice'] ?? 0}',
+  );
+  // ignore: avoid_print
+  print(
+    'MULTI_USER_E2EE_DIAGNOSTIC '
+    'role=${role.name} runIndex=${configuration.runIndex} available=1 '
+    'eventCount=${diagnostics.eventCount} '
+    'decryptedCount=${diagnostics.decryptedCount} '
+    'unableToDecryptCount=${diagnostics.unableToDecryptCount} '
+    'toDeviceDecryptedCount=${diagnostics.toDeviceDecryptedCount} '
+    'toDeviceRoomKeyCount=${diagnostics.toDeviceDecryptedRoomKeyCount} '
+    'toDeviceForwardedRoomKeyCount='
+    '${diagnostics.toDeviceDecryptedForwardedRoomKeyCount} '
+    'toDeviceOtherCount=${diagnostics.toDeviceDecryptedOtherCount} '
+    'toDeviceUnknownTypeCount='
+    '${diagnostics.toDeviceDecryptedUnknownTypeCount} '
+    'toDeviceUnableToDecryptCount='
+    '${diagnostics.toDeviceUnableToDecryptCount} '
+    'toDevicePlaintextCount=${diagnostics.toDevicePlaintextCount} '
+    'toDeviceInvalidCount=${diagnostics.toDeviceInvalidCount} '
+    'joinedPeerCount=${diagnostics.joinedPeerCount} '
+    'authoritativeDeviceCount=${diagnostics.authoritativeDeviceCount} '
+    'sdkDeviceCount=${diagnostics.sdkDeviceCount} '
+    'sdkUsableDeviceCount=${diagnostics.sdkUsableDeviceCount} '
+    'sdkDeletedDeviceCount=${diagnostics.sdkDeletedDeviceCount} '
+    'sdkBlacklistedDeviceCount=${diagnostics.sdkBlacklistedDeviceCount} '
+    'sdkMissingCurve25519Count=${diagnostics.sdkMissingCurve25519Count} '
+    'sdkMissingAuthoritativeDeviceCount='
+    '${diagnostics.sdkMissingAuthoritativeDeviceCount} '
+    'sdkUnexpectedDeviceCount=${diagnostics.sdkUnexpectedDeviceCount} '
+    'deviceQueryAttemptCount=${diagnostics.deviceQueryAttemptCount} '
+    'convergedPeerCount=${diagnostics.convergedPeerCount} '
+    'pendingPeerCount=${diagnostics.pendingPeerCount} '
+    'rejectedPeerCount=${diagnostics.rejectedPeerCount} '
+    'blockedPeerCount=${diagnostics.blockedPeerCount} '
+    'invalidPeerCount=${diagnostics.invalidPeerCount}',
+  );
 }
 
 void _emitEvidence(
