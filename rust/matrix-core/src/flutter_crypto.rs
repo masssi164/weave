@@ -25,8 +25,9 @@ use matrix_sdk::{
         events::receipt::ReceiptThread,
         events::{
             key::verification::VerificationMethod, room::encryption::RoomEncryptionEventContent,
-            room::message::RoomMessageEventContent, InitialStateEvent,
+            room::message::RoomMessageEventContent, AnyToDeviceEvent, InitialStateEvent,
         },
+        serde::Raw,
         OwnedDeviceId, OwnedEventId, OwnedRoomId, OwnedUserId, UInt,
     },
     store::RoomLoadSettings,
@@ -48,6 +49,7 @@ const PRE_SEND_DEVICE_QUERY_ATTEMPTS: usize = 10;
 const PRE_SEND_DEVICE_QUERY_DELAY: Duration = Duration::from_millis(500);
 const MATRIX_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const MATRIX_REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
+const OLM_UNWEDGE_ROTATION_PENDING_KEY: &[u8] = b"weave.olm-unwedge-rotation-pending.v1";
 
 struct ManagedClient {
     client: Client,
@@ -570,6 +572,7 @@ async fn complete_sync_cycle_under_gate(
         .await
         .map_err(|error| matrix_sdk_error_code(&error, error_code))?;
     record_to_device_diagnostics(profile_key, &response.to_device)?;
+    remember_olm_unwedge_rotation(&client, &response.to_device).await?;
     reconcile_verification_requests(profile_key, &client, &response.to_device).await?;
     let (mut enabled_rooms, mut converged_rooms) =
         converge_joined_room_security(profile_key, &client).await?;
@@ -583,6 +586,7 @@ async fn complete_sync_cycle_under_gate(
             .await
             .map_err(|error| matrix_sdk_error_code(&error, error_code))?;
         record_to_device_diagnostics(profile_key, &response.to_device)?;
+        remember_olm_unwedge_rotation(&client, &response.to_device).await?;
         reconcile_verification_requests(profile_key, &client, &response.to_device).await?;
         let (newly_enabled_rooms, newly_converged_rooms) =
             converge_joined_room_security(profile_key, &client).await?;
@@ -672,6 +676,61 @@ fn record_to_device_diagnostics(
         .ok_or_else(|| "M_WEAVE_E2EE_NOT_INITIALIZED".to_string())?
         .to_device_diagnostics
         .record(events);
+    Ok(())
+}
+
+fn is_decrypted_olm_dummy(raw: &Raw<AnyToDeviceEvent>) -> bool {
+    raw.get_field::<String>("type").ok().flatten().as_deref() == Some("m.dummy")
+}
+
+fn contains_decrypted_olm_dummy(events: &[ProcessedToDeviceEvent]) -> bool {
+    events.iter().any(|event| {
+        matches!(
+            event,
+            ProcessedToDeviceEvent::Decrypted { raw, .. } if is_decrypted_olm_dummy(raw)
+        )
+    })
+}
+
+async fn remember_olm_unwedge_rotation(
+    client: &Client,
+    events: &[ProcessedToDeviceEvent],
+) -> Result<(), String> {
+    if contains_decrypted_olm_dummy(events) {
+        // matrix-sdk sends an encrypted `m.dummy` after it detects a wedged
+        // Olm session. Receiving that event proves the peer has established a
+        // fresh Olm channel, but an existing outbound Megolm session can still
+        // remember that the old channel already received its room key. Persist
+        // a one-shot rotation latch so the next encrypted send re-shares the
+        // room key even when the app is relaunched between sync and send.
+        client
+            .state_store()
+            .set_custom_value(OLM_UNWEDGE_ROTATION_PENDING_KEY, vec![1])
+            .await
+            .map_err(|_| "M_WEAVE_E2EE_STORE".to_string())?;
+    }
+    Ok(())
+}
+
+fn olm_unwedge_rotation_is_pending(value: Option<&[u8]>) -> bool {
+    !matches!(value, None | Some([]) | Some([0]))
+}
+
+async fn olm_unwedge_rotation_pending(client: &Client) -> Result<bool, String> {
+    let value = client
+        .state_store()
+        .get_custom_value(OLM_UNWEDGE_ROTATION_PENDING_KEY)
+        .await
+        .map_err(|_| "M_WEAVE_E2EE_STORE".to_string())?;
+    Ok(olm_unwedge_rotation_is_pending(value.as_deref()))
+}
+
+async fn clear_olm_unwedge_rotation(client: &Client) -> Result<(), String> {
+    client
+        .state_store()
+        .set_custom_value(OLM_UNWEDGE_ROTATION_PENDING_KEY, vec![0])
+        .await
+        .map_err(|_| "M_WEAVE_E2EE_STORE".to_string())?;
     Ok(())
 }
 
@@ -930,6 +989,24 @@ async fn send_text_inner(profile_key: &str, room_id: &str, body: &str) -> Result
     }
     refresh_active_member_device_keys(profile_key, &client, &room, RoomSecurityRefresh::PreSend)
         .await?;
+    let rotate_after_olm_unwedge = olm_unwedge_rotation_pending(&client).await?;
+    if rotate_after_olm_unwedge {
+        // A newly-established Olm channel does not invalidate the SDK's
+        // existing outbound Megolm sharing record. Rotate exactly once after
+        // the unwedge signal so the next message distributes a fresh room key
+        // over the repaired channel instead of committing another event that
+        // the peer cannot decrypt.
+        room.discard_room_key()
+            .await
+            .map_err(|_| "M_WEAVE_E2EE_ROOM_KEY_ROTATION".to_string())?;
+        // The discarded outbound Megolm state is itself the durable repair.
+        // Clear the auxiliary latch before committing the timeline event so a
+        // local store failure can never report a failed send after the server
+        // has already accepted it. If the later send fails, the next send must
+        // still create or reuse the replacement outbound session and share its
+        // key before committing.
+        clear_olm_unwedge_rotation(&client).await?;
+    }
     let response = room
         .send(RoomMessageEventContent::text_plain(body))
         .await
@@ -2106,6 +2183,32 @@ mod tests {
         assert_eq!(sender.as_str(), "@member:api.weave.test");
         assert_eq!(transaction_id, "verification-transaction");
         assert!(verification_request_identity(&unrelated).is_none());
+    }
+
+    #[test]
+    fn olm_unwedge_dummy_arms_a_single_fail_closed_rotation_latch() {
+        let dummy: Raw<AnyToDeviceEvent> = serde_json::from_value(json!({
+            "sender": "@member:api.weave.test",
+            "type": "m.dummy",
+            "content": {},
+        }))
+        .expect("dummy event should be valid raw JSON");
+        let room_key: Raw<AnyToDeviceEvent> = serde_json::from_value(json!({
+            "sender": "@member:api.weave.test",
+            "type": "m.room_key",
+            "content": {},
+        }))
+        .expect("room key should be valid raw JSON");
+
+        assert!(is_decrypted_olm_dummy(&dummy));
+        assert!(!is_decrypted_olm_dummy(&room_key));
+        assert!(!olm_unwedge_rotation_is_pending(None));
+        assert!(!olm_unwedge_rotation_is_pending(Some(&[])));
+        assert!(!olm_unwedge_rotation_is_pending(Some(&[0])));
+        assert!(olm_unwedge_rotation_is_pending(Some(&[1])));
+        // Unknown persisted values rotate once instead of silently accepting
+        // a potentially stale Megolm sharing record.
+        assert!(olm_unwedge_rotation_is_pending(Some(&[2, 3])));
     }
 
     #[test]
