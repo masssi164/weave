@@ -192,6 +192,27 @@ Failure code: M_WEAVE_E2EE_OLM_DECRYPTION_FAILURE.
             result.stdout,
         )
 
+    def test_send_and_session_support_codes_are_preserved(self) -> None:
+        for support_code in (
+            "M_WEAVE_E2EE_PEER_DEVICE_PENDING",
+            "M_WEAVE_E2EE_MEMBER_KEYS",
+            "M_WEAVE_E2EE_SEND",
+            "M_UNKNOWN_TOKEN",
+        ):
+            with self.subTest(support_code=support_code):
+                raw = f"""
+MULTI_USER_PROGRESS phase=room-key-exchange-author-send runIndex=1
+Failure code: {support_code}.
+"""
+
+                result = self.run_sanitizer(raw, exit_code=1)
+
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn(
+                    f"supportCode={support_code} supportSafe=true",
+                    result.stdout,
+                )
+
     def test_unrecognized_support_code_is_not_preserved(self) -> None:
         raw = """
 MULTI_USER_PROGRESS phase=room-key-exchange-author-observe-collaborator runIndex=1

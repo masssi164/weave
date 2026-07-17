@@ -126,27 +126,28 @@ void main() {
     );
   });
 
-  test('Matrix background sync advances the explicit processed cursor', () {
+  test('Matrix sync advances one explicit processed cursor', () {
     final source = File(
       '../rust/matrix-core/src/flutter_crypto.rs',
     ).readAsStringSync();
-    final backgroundLoop = source.substring(
-      source.indexOf('async fn run_background_sync('),
-      source.indexOf('fn background_sync_retry_delay('),
+    final syncCycle = source.substring(
+      source.indexOf('async fn complete_sync_cycle('),
+      source.indexOf('fn client_and_sync_cursor('),
     );
 
-    expect(source, contains('initial_cursor: String'));
-    expect(backgroundLoop, contains('Some(cursor.as_str())'));
-    expect(backgroundLoop, contains('cursor = completed.next_batch.clone()'));
+    expect(source, contains('sync_cursor: Option<String>'));
+    expect(source, isNot(contains('run_background_sync')));
+    expect(source, isNot(contains('background_sync')));
+    expect(syncCycle, contains('client_and_sync_cursor(profile_key)?'));
+    expect(syncCycle, contains('record_to_device_diagnostics'));
+    expect(syncCycle, contains('remember_sync_cursor('));
     expect(
-      backgroundLoop.indexOf('cursor = completed.next_batch.clone()'),
-      lessThan(
-        backgroundLoop.indexOf('publish_completed_sync(&progress, &completed)'),
-      ),
+      syncCycle.lastIndexOf('record_to_device_diagnostics'),
+      lessThan(syncCycle.indexOf('remember_sync_cursor(')),
     );
   });
 
-  test('Matrix crypto has one graceful sync/send/store owner', () {
+  test('Matrix crypto has one explicit sync/send/store owner', () {
     final source = File(
       '../rust/matrix-core/src/flutter_crypto.rs',
     ).readAsStringSync();
@@ -162,19 +163,25 @@ void main() {
       source.indexOf('async fn send_text_inner('),
       source.indexOf('async fn refresh_active_member_device_keys('),
     );
+    final timeline = source.substring(
+      source.indexOf('async fn room_messages_inner('),
+      source.indexOf('pub async fn send_text('),
+    );
 
     expect(source, isNot(contains('task.abort()')));
+    expect(source, isNot(contains('tokio::spawn')));
+    expect(source, isNot(contains('watch::')));
+    expect(initialization, contains('sync_cursor: replaced.sync_cursor'));
+    expect(initialization, contains('.remove(&profile_key)'));
     expect(
-      source,
-      contains('background_sync_stop: Option<watch::Sender<bool>>'),
-    );
-    expect(
-      initialization.indexOf('stop_background_sync(&profile_key).await?'),
+      initialization.indexOf('.remove(&profile_key)'),
       lessThan(initialization.indexOf('Client::builder()')),
     );
     expect(syncCycle, contains('matrix_io_gate_for(profile_key)?'));
     expect(send, contains('matrix_io_gate_for(profile_key)?'));
+    expect(timeline, contains('matrix_io_gate_for(profile_key)?'));
     expect(source, contains('PRE_SEND_DEVICE_QUERY_ATTEMPTS'));
+    expect(source, contains('Duration::from_millis(500)'));
     expect(source, contains('M_WEAVE_E2EE_PEER_DEVICE_PENDING'));
   });
 
@@ -187,8 +194,16 @@ void main() {
       source,
       contains('_encryptedDeviceExchangeSupportCode(lastFailure)'),
     );
+    expect(source, contains('_matrixSupportCode(lastFailure)'));
     expect(source, contains('cause is RustMatrixCoreBridgeException'));
     expect(source, contains("RegExp(r'^M_[A-Z0-9_]+\$')"));
+    expect(source, contains('onError: (error) => lastFailure = error'));
+
+    final sanitizer = File(
+      'tool/sanitize_multi_user_test_log.py',
+    ).readAsStringSync();
+    expect(sanitizer, contains('M_WEAVE_E2EE_PEER_DEVICE_PENDING'));
+    expect(sanitizer, contains('M_UNKNOWN_TOKEN'));
   });
 
   test('live provider convergence is explicit and version-safe', () {
