@@ -294,6 +294,15 @@ class LiveActorSession {
     );
   }
 
+  Future<RustMatrixDecryptionDiagnostics> chatReceiveDiagnostics() async {
+    final cryptoSession = await container
+        .read(matrixCryptoSessionCoordinatorProvider)
+        .open(synchronize: false);
+    return const RustMatrixCoreBridge().loadReceiveDiagnostics(
+      profileKey: cryptoSession.profileKey,
+    );
+  }
+
   Future<void> close() async {
     await container
         .read(matrixCryptoSessionCoordinatorProvider)

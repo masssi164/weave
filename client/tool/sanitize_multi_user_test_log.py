@@ -212,6 +212,10 @@ E2EE_CRYPTO_DIAGNOSTIC_FIELDS = (
     "toDeviceDecryptedCount",
     "toDeviceRoomKeyCount",
     "toDeviceUnableToDecryptCount",
+    "toDeviceDecryptionFailureCount",
+    "toDeviceUnverifiedSenderCount",
+    "toDeviceNoOlmMachineCount",
+    "toDeviceEncryptionDisabledCount",
 )
 E2EE_CRYPTO_DIAGNOSTIC_PATTERN = re.compile(
     r"(?:^|\s)MULTI_USER_E2EE_CRYPTO_DIAGNOSTIC "

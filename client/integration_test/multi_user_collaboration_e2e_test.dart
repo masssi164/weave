@@ -1486,8 +1486,8 @@ Future<ChatMessage> _waitForChatMessage(
     var supportCode = _matrixSupportCode(lastFailure);
     if (supportCode == null) {
       try {
-        supportCode = (await session.chatDecryptionDiagnostics(
-          roomId,
+        supportCode = (await session.chatReceiveDiagnostics().timeout(
+          const Duration(seconds: 2),
         )).supportCode;
       } catch (_) {
         // The generic code remains support-safe when diagnostics are unavailable.
@@ -1770,9 +1770,20 @@ Future<void> _emitE2eeDiagnostics({
   required String roomId,
 }) async {
   try {
-    final diagnostics = await session
-        .chatDecryptionDiagnostics(roomId)
-        .timeout(const Duration(seconds: 4));
+    late final RustMatrixDecryptionDiagnostics diagnostics;
+    try {
+      diagnostics = await session
+          .chatDecryptionDiagnostics(roomId)
+          .timeout(const Duration(seconds: 4));
+    } catch (_) {
+      // The full timeline diagnostic can legitimately be blocked by the same
+      // network failure under investigation. Fall back to the native client's
+      // read-only aggregate; it neither syncs nor advances the Matrix cursor.
+      diagnostics = await session.chatReceiveDiagnostics().timeout(
+        const Duration(seconds: 2),
+      );
+    }
+    final toDeviceReasons = diagnostics.toDeviceReasonCounts;
     // Keep the decisive receive-path counters on a short line. Flutter test
     // output can split the complete convergence diagnostic, while this marker
     // remains small enough for the support-safe sanitizer to preserve.
@@ -1787,7 +1798,14 @@ Future<void> _emitE2eeDiagnostics({
       'toDeviceDecryptedCount=${diagnostics.toDeviceDecryptedCount} '
       'toDeviceRoomKeyCount=${diagnostics.toDeviceDecryptedRoomKeyCount} '
       'toDeviceUnableToDecryptCount='
-      '${diagnostics.toDeviceUnableToDecryptCount}',
+      '${diagnostics.toDeviceUnableToDecryptCount} '
+      'toDeviceDecryptionFailureCount='
+      '${toDeviceReasons['decryptionFailure'] ?? 0} '
+      'toDeviceUnverifiedSenderCount='
+      '${toDeviceReasons['unverifiedSenderDevice'] ?? 0} '
+      'toDeviceNoOlmMachineCount=${toDeviceReasons['noOlmMachine'] ?? 0} '
+      'toDeviceEncryptionDisabledCount='
+      '${toDeviceReasons['encryptionDisabled'] ?? 0}',
     );
     // Only allowlisted roles and bounded integer counts cross into the
     // shareable test log. No Matrix IDs, room/session IDs, device IDs, event
@@ -1837,7 +1855,9 @@ Future<void> _emitE2eeDiagnostics({
       'supportCode=M_WEAVE_E2EE_DIAGNOSTICS_UNAVAILABLE '
       'eventCount=0 decryptedCount=0 unableToDecryptCount=0 '
       'toDeviceDecryptedCount=0 toDeviceRoomKeyCount=0 '
-      'toDeviceUnableToDecryptCount=0',
+      'toDeviceUnableToDecryptCount=0 toDeviceDecryptionFailureCount=0 '
+      'toDeviceUnverifiedSenderCount=0 toDeviceNoOlmMachineCount=0 '
+      'toDeviceEncryptionDisabledCount=0',
     );
     // ignore: avoid_print
     print(

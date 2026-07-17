@@ -1291,6 +1291,15 @@ async fn security_state_inner(profile_key: &str) -> Result<Value, String> {
         .filter(|room| room.encryption_state().is_encrypted())
         .count();
     let verification = verification_json(profile_key)?;
+    // Expose the already-recorded receive state without issuing another
+    // `/sync` or `/messages` request. Failure diagnostics must not become a
+    // second cursor owner or obscure the original receive-path failure behind
+    // a network timeout.
+    let receive_diagnostics = decryption_diagnostics(
+        &[],
+        &to_device_diagnostics(profile_key)?,
+        &peer_device_diagnostics(profile_key)?,
+    );
 
     Ok(json!({
         "signedIn": client.matrix_auth().logged_in(),
@@ -1300,6 +1309,7 @@ async fn security_state_inner(profile_key: &str) -> Result<Value, String> {
         "accountVerified": matches!(verification_state, VerificationState::Verified),
         "encryptedRoomCount": encrypted_rooms,
         "verification": verification,
+        "receiveDiagnostics": receive_diagnostics,
     }))
 }
 
@@ -1361,22 +1371,27 @@ pub async fn start_verification(profile_key: String) -> String {
             .ok_or_else(|| "M_WEAVE_E2EE_SESSION".to_string())?;
         let encryption = client.encryption();
         // A second device can publish its keys after this client's latest
-        // sync response. Refresh the current user's device keys explicitly
-        // before selecting a verification target; get_user_devices() reads
-        // only the local crypto store and is not a network freshness barrier.
-        encryption
+        // sync response. Refresh and retain the current user's identity, then
+        // let the SDK address the request to every eligible sibling device.
+        // Picking the first device from UserDevices is not a stable target and
+        // can route a valid request to an older sibling instead of the active
+        // dogfood device.
+        let own_identity = encryption
             .request_user_identity(own_user_id)
             .await
-            .map_err(|_| "M_WEAVE_E2EE_DEVICE".to_string())?;
+            .map_err(|_| "M_WEAVE_E2EE_DEVICE".to_string())?
+            .ok_or_else(|| "M_WEAVE_E2EE_NO_OTHER_DEVICE".to_string())?;
         let devices = encryption
             .get_user_devices(own_user_id)
             .await
             .map_err(|_| "M_WEAVE_E2EE_DEVICE".to_string())?;
-        let other_device = devices
+        if !devices
             .devices()
-            .find(|device| device.device_id() != own_device_id && !device.is_blacklisted())
-            .ok_or_else(|| "M_WEAVE_E2EE_NO_OTHER_DEVICE".to_string())?;
-        let request = other_device
+            .any(|device| device.device_id() != own_device_id && !device.is_blacklisted())
+        {
+            return Err("M_WEAVE_E2EE_NO_OTHER_DEVICE".to_string());
+        }
+        let request = own_identity
             .request_verification_with_methods(vec![VerificationMethod::SasV1])
             .await
             .map_err(|_| "M_WEAVE_E2EE_VERIFICATION".to_string())?;
