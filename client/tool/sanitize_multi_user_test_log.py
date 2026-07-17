@@ -75,6 +75,9 @@ PROGRESS_PHASES = (
     "collaborator-calendar-observe",
     "collaborator-calendar-update",
     "outsider-authorization",
+    "outsider-chat-authorization",
+    "outsider-files-authorization",
+    "outsider-calendar-authorization",
     "fresh-session-observation",
     "resource-cleanup",
     "independent-logout",
@@ -330,7 +333,7 @@ def _failure_diagnostic(raw_log: str, progress_phase: str) -> tuple[str, str]:
             "M_WEAVE_E2EE_UNABLE_TO_DECRYPT",
         }
         category = "decrypt" if support_code in decrypt_codes else "receive"
-    elif progress_phase == "outsider-authorization" or support_code == "M_FORBIDDEN":
+    elif progress_phase.startswith("outsider-") or support_code == "M_FORBIDDEN":
         category = "authorization"
     else:
         for candidate, pattern in FAILURE_CATEGORIES:

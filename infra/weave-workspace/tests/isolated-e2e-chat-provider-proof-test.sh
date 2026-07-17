@@ -217,9 +217,14 @@ elif [[ "${url}" == */_matrix/client/v3/createRoom ]]; then
   role_pass="$(role_and_pass)"
   role="${role_pass%%:*}"
   if jq -e '.name | contains("-outside-pass-")' "${body_file}" >/dev/null; then
-    [[ "${role}" == outsider ]] || { respond 403 '{"errcode":"M_FORBIDDEN"}'; exit 0; }
+    expected_outsider="@outsider_${pass_index}:api.weave.test"
+    if [[ "${role}" != author ]] ||
+      ! jq -e --arg expected "${expected_outsider}" '.invite == [$expected]' "${body_file}" >/dev/null; then
+      respond 403 '{"errcode":"M_FORBIDDEN"}'
+      exit 0
+    fi
     printf 'true\n' >"${MOCK_STATE}/outside-projected-${pass_index}"
-    printf 'project:outsider:%s\n' "${pass_index}" >>"${MOCK_STATE}/operations.log"
+    printf 'project:outsider-by-author:%s\n' "${pass_index}" >>"${MOCK_STATE}/operations.log"
     respond 200 "$(jq -cn --arg room "!outside-pass-${pass_index}:api.weave.test" '{room_id:$room}')"
   else
     expected_collaborator="@collaborator_${pass_index}:api.weave.test"
@@ -622,7 +627,7 @@ jq -e \
       .status == "passed" and .directProviderApiReadback == true and
       .authenticatedProviderReadback == true and .authorizedVirtualUserCount == 2 and
       .authorJoined == true and .collaboratorJoined == true and
-      .outsiderPreprojectedOutsideWorkspace == true and
+      .outsiderPreprojectedByAuthorizedInvitation == true and
       .outsiderRoomMembershipAbsent == true and .outsiderReadDenied == true and
       .outsiderWriteDenied == true and .correlatedEncryptedEventCount == 3 and
       .correlatedPlaintextEventCount == 0 and .canonicalCommittedEventCount == 3 and
@@ -658,10 +663,10 @@ for pass_index in 1 2; do
     "${author_registration_line}" -lt "${create_line}" &&
     "${collaborator_registration_line}" -lt "${create_line}" ]] ||
     fail "author and collaborator pass ${pass_index} must register authenticated facades before the invite"
-  project_line="$(grep -n "^project:outsider:${pass_index}$" "${MOCK_STATE}/operations.log" | head -1 | cut -d: -f1)"
+  project_line="$(grep -n "^project:outsider-by-author:${pass_index}$" "${MOCK_STATE}/operations.log" | head -1 | cut -d: -f1)"
   proof_line="$(grep -n "^proof:evidence:${pass_index}$" "${MOCK_STATE}/operations.log" | head -1 | cut -d: -f1)"
   [[ -n "${project_line}" && -n "${proof_line}" && "${project_line}" -lt "${proof_line}" ]] ||
-    fail "outsider pass ${pass_index} must be projected through its own fixture before read-only provider proof"
+    fail "outsider pass ${pass_index} must be projected through an authorized invitation fixture before read-only provider proof"
 done
 jq -e '.directAccessGrantsEnabled == false' "${MOCK_STATE}/client.json" >/dev/null ||
   fail "successful proof did not restore the Keycloak client"

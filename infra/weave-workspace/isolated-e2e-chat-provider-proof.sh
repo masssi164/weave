@@ -415,14 +415,16 @@ register_pass_sessions() {
 }
 
 preproject_outsider_fixture() {
-  local pass_index="$1" directory response status room_id
+  local pass_index="$1" directory response status room_id outsider_user
   directory="$(pass_dir "${pass_index}")"
+  outsider_user="$(<"${directory}/outsider-matrix-user")"
   jq -n \
-    --arg name "isolated-${NAMESPACE}-outside-pass-${pass_index}" '
+    --arg name "isolated-${NAMESPACE}-outside-pass-${pass_index}" \
+    --arg outsider "${outsider_user}" '
       {
         name:$name,
         is_direct:false,
-        invite:[],
+        invite:[$outsider],
         initial_state:[{
           type:"m.room.encryption",
           state_key:"",
@@ -432,13 +434,13 @@ preproject_outsider_fixture() {
     ' >"${directory}/outside-create-room-request.json"
   response="${directory}/outside-create-room-response.json"
   status="$(northbound_request POST '/_matrix/client/v3/createRoom' \
-    "${directory}/outsider-headers" "${directory}/outside-create-room-request.json" "${response}")"
+    "${directory}/author-headers" "${directory}/outside-create-room-request.json" "${response}")"
   [[ "${status}" == "200" ]] || fail "outsider-fixture-create-status-${status}"
   room_id="$(jq -r '.room_id // empty' "${response}")"
   rm -f -- "${response}" "${directory}/outside-create-room-request.json"
   [[ "${room_id}" == '!'*:* ]] || fail "outsider-fixture-projection-invalid"
   printf '%s' "${room_id}" >"${directory}/outside-room-id"
-  unset room_id
+  unset room_id outsider_user
 }
 
 create_encrypted_body() {
@@ -844,9 +846,10 @@ run_collaboration_pass() {
   directory="$(pass_dir "${pass_index}")"
   namespace_short="$(sha256 "${NAMESPACE}" | cut -c1-16)"
   register_pass_sessions "${pass_index}"
-  # Establish the outsider's provider mapping through its own independent
-  # outside-workspace fixture. The read-only proof endpoint may resolve this
-  # mapping later, but must never create it to make a denial assertion pass.
+  # Establish the outsider's provider mapping through an authorized author's
+  # isolated invitation fixture. The outsider is never joined to the target
+  # collaboration, and the read-only proof endpoint must not create mappings
+  # merely to make its denial assertion pass.
   preproject_outsider_fixture "${pass_index}"
   create_encrypted_room "${pass_index}"
   join_collaborator "${pass_index}"
@@ -1035,13 +1038,13 @@ leave_outsider_fixture() {
   encoded="$(uri_encode "${room_id}")"
   response="${directory}/cleanup-outside-leave.json"
   status="$(northbound_request POST "/_matrix/client/v3/rooms/${encoded}/leave" \
-    "${directory}/outsider-headers" - "${response}")"
+    "${directory}/author-headers" - "${response}")"
   rm -f -- "${response}"
   [[ "${status}" == "200" ]] || fail "cleanup-outside-leave-status-${status}"
   response="${directory}/cleanup-outside-membership.json"
   read_status="$(northbound_request GET \
     "/_matrix/client/v3/rooms/${encoded}/messages?dir=b&limit=1" \
-    "${directory}/outsider-headers" - "${response}")"
+    "${directory}/author-headers" - "${response}")"
   rm -f -- "${response}"
   [[ "${read_status}" == "403" ]] || fail "cleanup-outside-membership-status-${read_status}"
 }
@@ -1092,7 +1095,7 @@ write_pass_evidence() {
         authorizedVirtualUserCount:2,
         authorJoined:true,
         collaboratorJoined:true,
-        outsiderPreprojectedOutsideWorkspace:true,
+        outsiderPreprojectedByAuthorizedInvitation:true,
         outsiderRoomMembershipAbsent:true,
         outsiderReadDenied:true,
         outsiderWriteDenied:true,

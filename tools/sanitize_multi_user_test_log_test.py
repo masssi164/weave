@@ -83,7 +83,7 @@ access_token=abcdefghijklmnopqrstuvwxyz0123456789
         raw = """
 00:00 +0: MULTI_USER_PROGRESS phase=author-write runIndex=1
 MULTI_USER_PROGRESS phase=author-chat-room runIndex=1
-MULTI_USER_PROGRESS phase=outsider-authorization runIndex=1
+MULTI_USER_PROGRESS phase=outsider-files-authorization runIndex=1
 MULTI_USER_PROGRESS phase=containment-calendar runIndex=2
 TestFailure: Expected: true Actual: false
 """
@@ -92,7 +92,7 @@ TestFailure: Expected: true Actual: false
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn(
-            "category=authorization phase=outsider-authorization",
+            "category=authorization phase=outsider-files-authorization",
             result.stdout,
         )
         self.assertNotIn("phase=author-chat-room", result.stdout)

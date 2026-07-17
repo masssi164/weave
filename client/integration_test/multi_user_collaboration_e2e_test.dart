@@ -37,6 +37,7 @@ import 'package:weave/main.dart';
 
 import 'helpers/isolated_stack_scope.dart';
 import 'helpers/live_actor_session.dart';
+import 'helpers/live_files_access_evidence.dart';
 import 'helpers/matrix_live_room_driver.dart';
 import 'helpers/multi_user_test_config.dart';
 import 'helpers/test_http_overrides.dart';
@@ -97,6 +98,9 @@ const _supportSafeProgressPhases = <String>{
   'collaborator-calendar-observe',
   'collaborator-calendar-update',
   'outsider-authorization',
+  'outsider-chat-authorization',
+  'outsider-files-authorization',
+  'outsider-calendar-authorization',
   'fresh-session-observation',
   'resource-cleanup',
   'independent-logout',
@@ -411,6 +415,7 @@ void main() {
           localePreferences[CollaborationActorRole.outsider]!,
         );
 
+        _emitProgress(configuration, 'outsider-chat-authorization');
         await session.chat.connect();
         final outsiderConversations = await session.chat.loadConversations();
         final targetMembershipVisible = outsiderConversations.any(
@@ -442,6 +447,7 @@ void main() {
             outsiderSendRejected;
         expect(outsiderChatDenied, isTrue);
 
+        _emitProgress(configuration, 'outsider-files-authorization');
         await session.files.connect();
         var outsiderListingRejected = false;
         var outsiderFileVisible = false;
@@ -451,7 +457,9 @@ void main() {
             (entry) => entry.name == fileName,
           );
         } on FilesFailure catch (failure) {
-          outsiderListingRejected = _isWorkspaceAccessDenied(failure);
+          outsiderListingRejected = isWorkspaceResourceDeniedForEvidence(
+            failure,
+          );
         }
         var outsiderDownloadRejected = false;
         try {
@@ -465,7 +473,9 @@ void main() {
             ),
           );
         } on FilesFailure catch (failure) {
-          outsiderDownloadRejected = _isWorkspaceAccessDenied(failure);
+          outsiderDownloadRejected = isWorkspaceResourceDeniedForEvidence(
+            failure,
+          );
         }
         var outsiderDeleteRejected = false;
         try {
@@ -479,7 +489,9 @@ void main() {
             ),
           );
         } on FilesFailure catch (failure) {
-          outsiderDeleteRejected = _isWorkspaceAccessDenied(failure);
+          outsiderDeleteRejected = isWorkspaceResourceDeniedForEvidence(
+            failure,
+          );
         }
         outsiderFilesReadDenied =
             (outsiderListingRejected || !outsiderFileVisible) &&
@@ -489,6 +501,7 @@ void main() {
             outsiderFilesReadDenied && outsiderFilesMutationDenied;
         expect(outsiderFilesDenied, isTrue);
 
+        _emitProgress(configuration, 'outsider-calendar-authorization');
         var outsiderEventVisible = false;
         var outsiderScopedListingRejected = false;
         try {
@@ -1440,11 +1453,6 @@ Future<T> _withSession<T>(
   } finally {
     await session.close();
   }
-}
-
-bool _isWorkspaceAccessDenied(FilesFailure failure) {
-  return failure.type == FilesFailureType.invalidCredentials &&
-      failure.cause == HttpStatus.forbidden;
 }
 
 Future<T> _withRelaunchedSession<T>(
