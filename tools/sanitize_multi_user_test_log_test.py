@@ -248,6 +248,38 @@ Failure code: M_WEAVE_E2EE_PROVIDER_PAYLOAD_PRIVATE.
         self.assertIn("rejectedPeerCount=23", result.stdout)
         self.assertIn("supportSafe=true", result.stdout)
 
+    def test_compact_crypto_diagnostics_preserve_only_allowlisted_receive_state(self) -> None:
+        raw = """
+MULTI_USER_E2EE_CRYPTO_DIAGNOSTIC role=author runIndex=1 available=1 supportCode=M_WEAVE_E2EE_ROOM_KEY_NOT_IMPORTED eventCount=4 decryptedCount=3 unableToDecryptCount=1 toDeviceDecryptedCount=2 toDeviceRoomKeyCount=1 toDeviceUnableToDecryptCount=0
+"""
+
+        result = self.run_sanitizer(raw, exit_code=1)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "SANITIZED_MULTI_USER_E2EE_CRYPTO_DIAGNOSTIC "
+            "role=author runIndex=1 available=1 "
+            "supportCode=M_WEAVE_E2EE_ROOM_KEY_NOT_IMPORTED",
+            result.stdout,
+        )
+        self.assertIn(
+            "eventCount=4 decryptedCount=3 unableToDecryptCount=1 "
+            "toDeviceDecryptedCount=2 toDeviceRoomKeyCount=1 "
+            "toDeviceUnableToDecryptCount=0 supportSafe=true",
+            result.stdout,
+        )
+
+    def test_unrecognized_compact_crypto_diagnostic_code_is_dropped(self) -> None:
+        raw = """
+MULTI_USER_E2EE_CRYPTO_DIAGNOSTIC role=author runIndex=1 available=1 supportCode=M_PRIVATE_PROVIDER_ERROR eventCount=4 decryptedCount=3 unableToDecryptCount=1 toDeviceDecryptedCount=2 toDeviceRoomKeyCount=1 toDeviceUnableToDecryptCount=0
+"""
+
+        result = self.run_sanitizer(raw, exit_code=1)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("SANITIZED_MULTI_USER_E2EE_CRYPTO_DIAGNOSTIC", result.stdout)
+        self.assertNotIn("M_PRIVATE_PROVIDER_ERROR", result.stdout)
+
     def test_fine_grained_collaborator_domain_phase_is_support_safe(self) -> None:
         raw = """
 MULTI_USER_PROGRESS phase=collaborator-observe runIndex=1
