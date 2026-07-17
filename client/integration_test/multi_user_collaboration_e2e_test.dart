@@ -69,6 +69,8 @@ const _supportSafeProgressPhases = <String>{
   'room-key-exchange-collaborator-self-observe',
   'room-key-exchange-author-observe-collaborator',
   'room-key-exchange-author-observed-collaborator',
+  'room-key-exchange-redaction',
+  'room-key-exchange-redacted',
   'home-baseline',
   'author-write',
   'author-capabilities',
@@ -150,6 +152,7 @@ void main() {
       final cleanup = _RunCleanup(
         profiles: profiles,
         matrixHomeserver: configuration.common.matrixHomeserverUrl,
+        runIndex: configuration.runIndex,
       );
       addTearDown(cleanup.bestEffort);
       final suffix = '${configuration.runHash}-${configuration.runIndex}';
@@ -255,7 +258,11 @@ void main() {
           roomId,
           authorMessage,
         );
-        cleanup.rememberChatEvents(roomId, <String>{sentAuthorMessage.id});
+        cleanup.rememberChatEvents(
+          roomId,
+          CollaborationActorRole.author,
+          <String>{sentAuthorMessage.id},
+        );
 
         _emitProgress(configuration, 'author-files-connect');
         await session.files.connect();
@@ -331,7 +338,11 @@ void main() {
           roomId,
           collaboratorReply,
         );
-        cleanup.rememberChatEvents(roomId, <String>{sentCollaboratorReply.id});
+        cleanup.rememberChatEvents(
+          roomId,
+          CollaborationActorRole.collaborator,
+          <String>{sentCollaboratorReply.id},
+        );
 
         _emitProgress(configuration, 'collaborator-files-connect');
         await session.files.connect();
@@ -548,10 +559,16 @@ void main() {
         final observedAuthorMessage = authorTimeline.messages.firstWhere(
           (message) => message.text == authorMessage,
         );
-        cleanup.rememberChatEvents(roomId, <String>{
-          observedAuthorMessage.id,
-          observedReply.id,
-        });
+        cleanup.rememberChatEvents(
+          roomId,
+          CollaborationActorRole.author,
+          <String>{observedAuthorMessage.id},
+        );
+        cleanup.rememberChatEvents(
+          roomId,
+          CollaborationActorRole.collaborator,
+          <String>{observedReply.id},
+        );
         ciphertextOnlyTransport = await _verifyCiphertextOnlyTransport(
           session,
           configuration.common.matrixHomeserverUrl,
@@ -1047,38 +1064,86 @@ Future<String> _provisionEncryptedSharedRoom({
       collaboratorSession,
       provisioned.roomId,
     );
-    final keyExchangeEventIds = <String>{};
+    final keyExchangeEventIds = <CollaborationActorRole, Set<String>>{
+      CollaborationActorRole.author: <String>{},
+      CollaborationActorRole.collaborator: <String>{},
+    };
+    final redactedKeyExchangeEventIds = <CollaborationActorRole, Set<String>>{
+      CollaborationActorRole.author: <String>{},
+      CollaborationActorRole.collaborator: <String>{},
+    };
+    final keyExchangeActors =
+        <CollaborationActorRole, MatrixLiveActorCredentials>{
+          CollaborationActorRole.author: MatrixLiveActorCredentials(
+            accessToken: authorCredentials.accessToken,
+            deviceId: authorCredentials.deviceId,
+          ),
+          CollaborationActorRole.collaborator: MatrixLiveActorCredentials(
+            accessToken: collaboratorCredentials.accessToken,
+            deviceId: collaboratorCredentials.deviceId,
+          ),
+        };
+    List<MatrixLiveOwnedEventBatch> remainingKeyExchangeBatches() {
+      return <CollaborationActorRole>[
+            CollaborationActorRole.author,
+            CollaborationActorRole.collaborator,
+          ]
+          .map((role) {
+            return MatrixLiveOwnedEventBatch(
+              owner: role,
+              actor: keyExchangeActors[role]!,
+              eventIds: keyExchangeEventIds[role]!.difference(
+                redactedKeyExchangeEventIds[role]!,
+              ),
+            );
+          })
+          .toList(growable: false);
+    }
+
+    void rememberRedactedKeyExchangeBatch(MatrixLiveOwnedEventBatch batch) {
+      redactedKeyExchangeEventIds[batch.owner]!.addAll(batch.eventIds);
+    }
+
     try {
       await _establishEncryptedDeviceExchange(
         configuration: configuration,
         authorSession: authorSession,
         collaboratorSession: collaboratorSession,
         roomId: provisioned.roomId,
-        eventIds: keyExchangeEventIds,
+        eventIdsByOwner: keyExchangeEventIds,
       );
-      final redactedCount = await driver.redactEventsAndVerify(
-        actor: MatrixLiveActorCredentials(
-          accessToken: authorCredentials.accessToken,
-          deviceId: authorCredentials.deviceId,
-        ),
+      _emitProgress(configuration, 'room-key-exchange-redaction');
+      final redactedCount = await driver.redactOwnedEventsAndVerify(
         roomId: provisioned.roomId,
-        eventIds: keyExchangeEventIds,
+        batches: remainingKeyExchangeBatches(),
+        onBatchRedacted: rememberRedactedKeyExchangeBatch,
       );
-      if (redactedCount != keyExchangeEventIds.length) {
+      final expectedRedactionCount = keyExchangeEventIds.values.fold<int>(
+        0,
+        (count, eventIds) => count + eventIds.length,
+      );
+      if (redactedCount != expectedRedactionCount) {
         throw StateError(
           'The encrypted device-key exchange was not cleaned completely.',
         );
       }
-    } catch (_) {
-      if (keyExchangeEventIds.isNotEmpty) {
+      _emitProgress(configuration, 'room-key-exchange-redacted');
+    } catch (error) {
+      if (error is MatrixLiveRoomDriverException) {
+        // Emit the bounded Matrix code before best-effort cleanup. A cleanup
+        // request must not hide the operation that originally failed.
+        // ignore: avoid_print
+        print(
+          'MULTI_USER_MATRIX_FAILURE Failure code: ${error.code} '
+          'runIndex=${configuration.runIndex}',
+        );
+      }
+      if (keyExchangeEventIds.values.any((eventIds) => eventIds.isNotEmpty)) {
         try {
-          await driver.redactEventsAndVerify(
-            actor: MatrixLiveActorCredentials(
-              accessToken: authorCredentials.accessToken,
-              deviceId: authorCredentials.deviceId,
-            ),
+          await driver.redactOwnedEventsAndVerify(
             roomId: provisioned.roomId,
-            eventIds: keyExchangeEventIds,
+            batches: remainingKeyExchangeBatches(),
+            onBatchRedacted: rememberRedactedKeyExchangeBatch,
           );
         } catch (_) {
           // The run-level cleanup still owns the room and will remove the
@@ -1125,7 +1190,7 @@ Future<void> _establishEncryptedDeviceExchange({
   required LiveActorSession authorSession,
   required LiveActorSession collaboratorSession,
   required String roomId,
-  required Set<String> eventIds,
+  required Map<CollaborationActorRole, Set<String>> eventIdsByOwner,
 }) async {
   const maximumAttempts = 2;
   const observationTimeout = Duration(seconds: 16);
@@ -1156,7 +1221,7 @@ Future<void> _establishEncryptedDeviceExchange({
         diagnosticRole: CollaborationActorRole.author,
         timeout: observationTimeout,
       );
-      eventIds.add(authorEvent.id);
+      eventIdsByOwner[CollaborationActorRole.author]!.add(authorEvent.id);
       _emitProgress(
         configuration,
         'room-key-exchange-collaborator-observe-author',
@@ -1208,7 +1273,9 @@ Future<void> _establishEncryptedDeviceExchange({
         diagnosticRole: CollaborationActorRole.collaborator,
         timeout: observationTimeout,
       );
-      eventIds.add(collaboratorEvent.id);
+      eventIdsByOwner[CollaborationActorRole.collaborator]!.add(
+        collaboratorEvent.id,
+      );
       _emitProgress(
         configuration,
         'room-key-exchange-author-observe-collaborator',
@@ -1587,6 +1654,16 @@ Future<void> _emitChatEventIdMismatch({
       direction != 'collaborator-to-author') {
     throw StateError('Unsupported encrypted Chat observation direction.');
   }
+  final expectedHash = _hashBytes(utf8.encode(expected.id)).substring(0, 16);
+  final observedHash = _hashBytes(utf8.encode(observed.id)).substring(0, 16);
+  // Emit the detection marker before optional transport diagnostics. A hung
+  // native store or network request must not erase the original mismatch.
+  // ignore: avoid_print
+  print(
+    'MULTI_USER_E2EE_EVENT_ID_MISMATCH_DETECTED direction=$direction '
+    'runIndex=${configuration.runIndex} expectedHash=$expectedHash '
+    'observedHash=$observedHash',
+  );
   final visibility = await _inspectChatEventIdVisibility(
     homeserver: homeserver,
     roomId: roomId,
@@ -1595,8 +1672,6 @@ Future<void> _emitChatEventIdMismatch({
     expectedId: expected.id,
     observedId: observed.id,
   );
-  final expectedHash = _hashBytes(utf8.encode(expected.id)).substring(0, 16);
-  final observedHash = _hashBytes(utf8.encode(observed.id)).substring(0, 16);
   final sameTimestamp = expected.sentAt.isAtSameMomentAs(observed.sentAt);
   // The sanitizer accepts only these fixed labels, hashes, booleans, and
   // counts. No identifier, actor, URL, ciphertext, or message body leaves the
@@ -2122,10 +2197,15 @@ void _emitEvidence(
 }
 
 class _RunCleanup {
-  _RunCleanup({required this.profiles, required this.matrixHomeserver});
+  _RunCleanup({
+    required this.profiles,
+    required this.matrixHomeserver,
+    required this.runIndex,
+  });
 
   final Map<CollaborationActorRole, LiveActorProfile> profiles;
   final Uri matrixHomeserver;
+  final int runIndex;
   final Map<CollaborationActorRole, UserProfile> _originalProfiles =
       <CollaborationActorRole, UserProfile>{};
   final Map<CollaborationActorRole, AppLocalePreference?> _originalLocales =
@@ -2134,7 +2214,10 @@ class _RunCleanup {
   String? _eventId;
   CalendarScope? _eventScope;
   String? _chatRoomId;
-  Set<String> _chatEventIds = const <String>{};
+  final Map<CollaborationActorRole, Set<String>> _chatEventIdsByOwner =
+      <CollaborationActorRole, Set<String>>{};
+  final Map<CollaborationActorRole, Set<String>> _redactedChatEventIdsByOwner =
+      <CollaborationActorRole, Set<String>>{};
   bool _messageCleanupComplete = false;
   int _redactedMessageCount = 0;
   bool _collaboratorMembershipLeft = false;
@@ -2170,12 +2253,17 @@ class _RunCleanup {
     _chatRoomId = roomId;
   }
 
-  void rememberChatEvents(String roomId, Set<String> eventIds) {
+  void rememberChatEvents(
+    String roomId,
+    CollaborationActorRole owner,
+    Set<String> eventIds,
+  ) {
     rememberChatRoom(roomId);
-    _chatEventIds = Set<String>.unmodifiable(<String>{
-      ..._chatEventIds,
-      ...eventIds,
-    });
+    _chatEventIdsByOwner.update(
+      owner,
+      (remembered) => <String>{...remembered, ...eventIds},
+      ifAbsent: () => <String>{...eventIds},
+    );
   }
 
   Future<bool> requireComplete() async {
@@ -2264,24 +2352,93 @@ class _RunCleanup {
     );
     try {
       if (!_messageCleanupComplete) {
-        if (_chatEventIds.isEmpty) {
+        if (_chatEventIdsByOwner.values.every((eventIds) => eventIds.isEmpty)) {
           _messageCleanupComplete = true;
         } else {
-          try {
-            _redactedMessageCount = await driver.redactEventsAndVerify(
-              actor: authorActor,
-              roomId: chatRoomId,
-              eventIds: _chatEventIds,
-            );
-            _messageCleanupComplete =
-                _redactedMessageCount == _chatEventIds.length;
-          } catch (_) {
-            complete = false;
+          final seenEventIds = <String>{};
+          for (final ownedEventIds in _chatEventIdsByOwner.values) {
+            if (ownedEventIds.any(seenEventIds.contains)) {
+              // Reject ambiguous ownership before issuing any Matrix request.
+              // ignore: avoid_print
+              print(
+                'MULTI_USER_MATRIX_FAILURE Failure code: '
+                'M_WEAVE_LIVE_MATRIX_EVENT_OWNER_DUPLICATED '
+                'runIndex=$runIndex',
+              );
+              return false;
+            }
+            seenEventIds.addAll(ownedEventIds);
           }
+          for (final role in <CollaborationActorRole>[
+            CollaborationActorRole.author,
+            CollaborationActorRole.collaborator,
+          ]) {
+            final ownedEventIds =
+                _chatEventIdsByOwner[role] ?? const <String>{};
+            final redactedEventIds = _redactedChatEventIdsByOwner.putIfAbsent(
+              role,
+              () => <String>{},
+            );
+            final remainingEventIds = ownedEventIds.difference(
+              redactedEventIds,
+            );
+            if (remainingEventIds.isEmpty) {
+              continue;
+            }
+            try {
+              final actor = role == CollaborationActorRole.author
+                  ? authorActor
+                  : await _withSession(profiles[role]!, (session) async {
+                      await session.chat.connect();
+                      final credentials = await session
+                          .matrixTransportCredentials();
+                      return MatrixLiveActorCredentials(
+                        accessToken: credentials.accessToken,
+                        deviceId: credentials.deviceId,
+                      );
+                    });
+              final redactedCount = await driver.redactEventsAndVerify(
+                actor: actor,
+                roomId: chatRoomId,
+                eventIds: remainingEventIds,
+              );
+              if (redactedCount != remainingEventIds.length) {
+                throw StateError(
+                  'Disposable Chat event cleanup did not complete.',
+                );
+              }
+              redactedEventIds.addAll(remainingEventIds);
+            } catch (error) {
+              if (error is MatrixLiveRoomDriverException) {
+                // ignore: avoid_print
+                print(
+                  'MULTI_USER_MATRIX_FAILURE Failure code: ${error.code} '
+                  'runIndex=$runIndex',
+                );
+              }
+              complete = false;
+            }
+          }
+          _redactedMessageCount = _redactedChatEventIdsByOwner.values.fold<int>(
+            0,
+            (count, eventIds) => count + eventIds.length,
+          );
+          _messageCleanupComplete = _chatEventIdsByOwner.entries.every(
+            (entry) =>
+                (_redactedChatEventIdsByOwner[entry.key] ?? const <String>{})
+                    .containsAll(entry.value),
+          );
         }
       }
 
-      if (!_collaboratorMembershipLeft) {
+      final collaboratorEvents =
+          _chatEventIdsByOwner[CollaborationActorRole.collaborator] ??
+          const <String>{};
+      final collaboratorEventsClean =
+          (_redactedChatEventIdsByOwner[CollaborationActorRole.collaborator] ??
+                  const <String>{})
+              .containsAll(collaboratorEvents);
+      if (collaboratorEventsClean && !_collaboratorMembershipLeft) {
         complete =
             await _attempt(() async {
               final collaboratorProfile =
@@ -2306,7 +2463,8 @@ class _RunCleanup {
       }
 
       final safeToLeaveAuthor =
-          _messageCleanupComplete || _chatEventIds.isEmpty;
+          _messageCleanupComplete ||
+          _chatEventIdsByOwner.values.every((eventIds) => eventIds.isEmpty);
       if (safeToLeaveAuthor && !_authorMembershipLeft) {
         complete =
             await _attempt(() async {

@@ -92,7 +92,7 @@ TestFailure: Expected: true Actual: false
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn(
-            "category=assertion phase=outsider-authorization",
+            "category=authorization phase=outsider-authorization",
             result.stdout,
         )
         self.assertNotIn("phase=author-chat-room", result.stdout)
@@ -157,8 +157,72 @@ TestFailure: Expected: true Actual: false
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn(
-            "category=assertion "
+            "category=receive "
             "phase=room-key-exchange-collaborator-observe-author",
+            result.stdout,
+        )
+
+    def test_encrypted_send_failure_is_classified_at_the_send_boundary(self) -> None:
+        raw = """
+MULTI_USER_PROGRESS phase=room-key-exchange-author-send runIndex=1
+Failure code: M_WEAVE_E2EE_PEER_DEVICE_PENDING.
+"""
+
+        result = self.run_sanitizer(raw, exit_code=1)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "category=send phase=room-key-exchange-author-send",
+            result.stdout,
+        )
+
+    def test_decryption_support_code_refines_the_receive_boundary(self) -> None:
+        raw = """
+MULTI_USER_PROGRESS phase=room-key-exchange-author-observe-collaborator runIndex=1
+Failure code: M_WEAVE_E2EE_MISSING_MEGOLM_SESSION.
+"""
+
+        result = self.run_sanitizer(raw, exit_code=1)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "category=decrypt "
+            "phase=room-key-exchange-author-observe-collaborator",
+            result.stdout,
+        )
+
+    def test_sender_owned_redaction_failure_is_classified_as_cleanup(self) -> None:
+        raw = """
+MULTI_USER_PROGRESS phase=room-key-exchange-redaction runIndex=1
+MULTI_USER_MATRIX_FAILURE Failure code: M_WEAVE_LIVE_MATRIX_REDACT_EVENT_HTTP_403 runIndex=1
+"""
+
+        result = self.run_sanitizer(raw, exit_code=1)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "category=cleanup phase=room-key-exchange-redaction",
+            result.stdout,
+        )
+        self.assertIn(
+            "supportCode=M_WEAVE_LIVE_MATRIX_REDACT_EVENT_HTTP_403",
+            result.stdout,
+        )
+
+    def test_event_id_mismatch_detection_survives_optional_diagnostics(self) -> None:
+        raw = """
+MULTI_USER_PROGRESS phase=room-key-exchange-author-observe-collaborator runIndex=1
+MULTI_USER_E2EE_EVENT_ID_MISMATCH_DETECTED direction=collaborator-to-author runIndex=1 expectedHash=aaaaaaaaaaaaaaaa observedHash=bbbbbbbbbbbbbbbb
+TimeoutException after 0:00:04
+"""
+
+        result = self.run_sanitizer(raw, exit_code=1)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "SANITIZED_MULTI_USER_E2EE_EVENT_ID_MISMATCH_DETECTED "
+            "direction=collaborator-to-author runIndex=1 "
+            "expectedHash=aaaaaaaaaaaaaaaa observedHash=bbbbbbbbbbbbbbbb",
             result.stdout,
         )
 

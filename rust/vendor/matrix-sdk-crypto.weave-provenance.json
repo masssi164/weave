@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "crate": "matrix-sdk-crypto",
+  "version": "0.18.0",
+  "releaseUrl": "https://github.com/matrix-org/matrix-rust-sdk/releases/tag/matrix-sdk-0.18.0",
+  "upstreamCommit": "1c44fb66214667c6d00acaf72ab592493653708b",
+  "archiveSha256": "c54afd2a326f51c13a6ad44ec86315a688fffeb3f1e287fb343e0e1836a3bdaf",
+  "downloadUrl": "https://crates.io/api/v1/crates/matrix-sdk-crypto/0.18.0/download",
+  "allowedDifferences": [
+    ".cargo-ok",
+    "LICENSE",
+    "src/identities/device.rs",
+    "src/olm/session.rs",
+    "src/session_manager/sessions.rs"
+  ],
+  "upstreamIssues": [
+    "https://github.com/matrix-org/matrix-rust-sdk/issues/3356",
+    "https://github.com/matrix-org/matrix-rust-sdk/issues/3427"
+  ]
+}

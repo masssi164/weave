@@ -50,10 +50,12 @@ def main() -> int:
         "- name: Enable bounded iOS Simulator VM-service discovery",
         "- name: Verify live test disk headroom and reserve recovery space",
         "- name: Run live stack integration tests",
+        "- name: Prove durable Matrix Synapse collaboration behind the Weave facade",
         "- name: Clean disposable identities and retain only hashed evidence",
         "- name: Generate live stack acceptance evidence",
         "- name: Generate support-safe failure diagnostics",
         "- name: Destroy stack and scrub stale resources",
+        "- name: Record independent live phase outcomes",
         "- name: Aggregate two-pass human-testing automation evidence",
         "- name: Upload live stack acceptance evidence",
         "- name: Scrub current runner-owned Weave outputs",
@@ -161,6 +163,25 @@ def main() -> int:
         and "isolated-authorization.json" in workflow
         and "--require-passed" in workflow,
         "live-stack E2E must run and fail closed on two-pass collaboration and real authorization evidence",
+    )
+    provider_proof_step = workflow[
+        workflow.index(
+            "- name: Prove durable Matrix Synapse collaboration behind the Weave facade"
+        ) : workflow.index("- name: Clean disposable identities")
+    ]
+    require(
+        "if: always()" in provider_proof_step
+        and "WEAVE_CHAT_PROVIDER_PROOF_STATUS" in provider_proof_step
+        and 'status:"unavailable"' in provider_proof_step
+        and 'status:"failed"' in provider_proof_step,
+        "Matrix/Synapse provider proof must run independently and retain support-safe failure evidence",
+    )
+    require(
+        "live-phase-outcomes-v1" in workflow
+        and "WEAVE_COLLABORATION_TEST_STATUS" in workflow
+        and "WEAVE_CALENDAR_CONTAINMENT_STATUS" in workflow
+        and "WEAVE_STACK_TEARDOWN_STEP_OUTCOME" in workflow,
+        "live-stack evidence must record independent functional, provider, recovery, cleanup, and teardown outcomes",
     )
     require(
         workflow.count("capture_matrix_to_device_snapshot") == 3

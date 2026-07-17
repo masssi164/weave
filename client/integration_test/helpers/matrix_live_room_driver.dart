@@ -3,6 +3,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import 'multi_user_test_config.dart';
+
 const matrixMegolmV1Algorithm = 'm.megolm.v1.aes-sha2';
 
 class MatrixLiveActorCredentials {
@@ -25,6 +27,18 @@ class MatrixLiveRoomProvisioning {
   final String roomId;
   final String authorUserId;
   final String? collaboratorUserId;
+}
+
+class MatrixLiveOwnedEventBatch {
+  const MatrixLiveOwnedEventBatch({
+    required this.owner,
+    required this.actor,
+    required this.eventIds,
+  });
+
+  final CollaborationActorRole owner;
+  final MatrixLiveActorCredentials actor;
+  final Set<String> eventIds;
 }
 
 /// Drives only real Matrix Client-Server facade routes used to arrange live
@@ -532,6 +546,40 @@ class MatrixLiveRoomDriver {
     throw const MatrixLiveRoomDriverException(
       'M_WEAVE_LIVE_MATRIX_REDACTION_NOT_OBSERVED',
     );
+  }
+
+  Future<int> redactOwnedEventsAndVerify({
+    required String roomId,
+    required Iterable<MatrixLiveOwnedEventBatch> batches,
+    void Function(MatrixLiveOwnedEventBatch batch)? onBatchRedacted,
+  }) async {
+    final ownedBatches = batches.toList(growable: false);
+    final seenEventIds = <String>{};
+    for (final batch in ownedBatches) {
+      if (batch.eventIds.any(seenEventIds.contains)) {
+        throw const MatrixLiveRoomDriverException(
+          'M_WEAVE_LIVE_MATRIX_EVENT_OWNER_DUPLICATED',
+        );
+      }
+      seenEventIds.addAll(batch.eventIds);
+    }
+
+    var redactedCount = 0;
+    for (final batch in ownedBatches) {
+      final batchCount = await redactEventsAndVerify(
+        actor: batch.actor,
+        roomId: roomId,
+        eventIds: batch.eventIds,
+      );
+      if (batchCount != batch.eventIds.length) {
+        throw const MatrixLiveRoomDriverException(
+          'M_WEAVE_LIVE_MATRIX_REDACTION_COUNT_INVALID',
+        );
+      }
+      redactedCount += batchCount;
+      onBatchRedacted?.call(batch);
+    }
+    return redactedCount;
   }
 
   Future<void> leaveRoom({

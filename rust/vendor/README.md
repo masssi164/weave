@@ -22,3 +22,10 @@ valid traffic, and avoids waiting an hour before the first evidence-triggered
 repair. Remove the `[patch.crates-io]` override after an upstream release
 contains the equivalent fixes and the two-pass Live Stack E2E gate passes
 against that release.
+
+`matrix-sdk-crypto.weave-provenance.json` pins the Cargo.lock version, official
+release, published crate archive checksum, and the complete allowlist of
+intentional differences. Run
+`./gradlew matrixSdkVendorProvenanceCheck` to compare the vendor tree with the
+Cargo cache or the checksum-verified crates.io archive. Any new or stale
+difference fails closed and must be reviewed explicitly.
