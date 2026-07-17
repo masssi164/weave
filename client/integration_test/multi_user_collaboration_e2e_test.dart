@@ -1769,35 +1769,44 @@ Future<void> _emitE2eeDiagnostics({
   required LiveActorSession session,
   required String roomId,
 }) async {
+  RustMatrixDecryptionDiagnostics? receiveDiagnostics;
   try {
+    try {
+      // Read the already-recorded receive state first. It neither syncs nor
+      // advances the Matrix cursor, so this compact marker cannot be hidden by
+      // a second timeline request waiting behind the failure under diagnosis.
+      receiveDiagnostics = await session.chatReceiveDiagnostics().timeout(
+        const Duration(seconds: 2),
+      );
+    } catch (_) {
+      receiveDiagnostics = null;
+    }
+    final recorded = receiveDiagnostics;
+    final toDeviceReasons = recorded?.toDeviceReasonCounts;
+    // ignore: avoid_print
+    print(
+      'MULTI_USER_E2EE_CRYPTO_DIAGNOSTIC '
+      'role=${role.name} runIndex=${configuration.runIndex} '
+      'available=${recorded == null ? 0 : 1} '
+      'supportCode=${recorded?.supportCode ?? 'M_WEAVE_E2EE_DIAGNOSTICS_UNAVAILABLE'} '
+      'tdDec=${recorded?.toDeviceDecryptedCount ?? 0} '
+      'tdKey=${recorded?.toDeviceDecryptedRoomKeyCount ?? 0} '
+      'tdUtd=${recorded?.toDeviceUnableToDecryptCount ?? 0} '
+      'tdFail=${toDeviceReasons?['decryptionFailure'] ?? 0} '
+      'tdUnverified=${toDeviceReasons?['unverifiedSenderDevice'] ?? 0}',
+    );
+
     late final RustMatrixDecryptionDiagnostics diagnostics;
     try {
       diagnostics = await session
           .chatDecryptionDiagnostics(roomId)
           .timeout(const Duration(seconds: 4));
     } catch (_) {
-      // The full timeline diagnostic can legitimately be blocked by the same
-      // network failure under investigation. Fall back to the native client's
-      // read-only aggregate; it neither syncs nor advances the Matrix cursor.
-      diagnostics = await session.chatReceiveDiagnostics().timeout(
-        const Duration(seconds: 2),
-      );
+      if (recorded == null) {
+        rethrow;
+      }
+      diagnostics = recorded;
     }
-    final toDeviceReasons = diagnostics.toDeviceReasonCounts;
-    // Keep the decisive receive-path counters on a short line. Flutter test
-    // output can split the complete convergence diagnostic, while this marker
-    // remains small enough for the support-safe sanitizer to preserve.
-    // ignore: avoid_print
-    print(
-      'MULTI_USER_E2EE_CRYPTO_DIAGNOSTIC '
-      'role=${role.name} runIndex=${configuration.runIndex} available=1 '
-      'supportCode=${diagnostics.supportCode} '
-      'tdDec=${diagnostics.toDeviceDecryptedCount} '
-      'tdKey=${diagnostics.toDeviceDecryptedRoomKeyCount} '
-      'tdUtd=${diagnostics.toDeviceUnableToDecryptCount} '
-      'tdFail=${toDeviceReasons['decryptionFailure'] ?? 0} '
-      'tdUnverified=${toDeviceReasons['unverifiedSenderDevice'] ?? 0}',
-    );
     // Only allowlisted roles and bounded integer counts cross into the
     // shareable test log. No Matrix IDs, room/session IDs, device IDs, event
     // content, key material, ciphertext, URLs, or provider payloads are used.

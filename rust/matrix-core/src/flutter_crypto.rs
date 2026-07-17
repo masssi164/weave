@@ -64,6 +64,7 @@ struct ManagedClient {
     room_security_gate: Arc<AsyncMutex<()>>,
     sync_cursor: Option<String>,
     to_device_diagnostics: ToDeviceDiagnostics,
+    timeline_decryption_diagnostics: TimelineDecryptionDiagnostics,
     peer_device_diagnostics: PeerDeviceConvergenceDiagnostics,
     verification_request: Option<VerificationRequest>,
     sas_verification: Option<SasVerification>,
@@ -94,6 +95,7 @@ struct ClientContinuityState {
     pre_send_security_fingerprints: HashMap<String, RoomSecurityFingerprint>,
     sync_cursor: Option<String>,
     to_device_diagnostics: ToDeviceDiagnostics,
+    timeline_decryption_diagnostics: TimelineDecryptionDiagnostics,
     peer_device_diagnostics: PeerDeviceConvergenceDiagnostics,
 }
 
@@ -110,6 +112,15 @@ struct ToDeviceDiagnostics {
     encryption_disabled: u64,
     plaintext: u64,
     invalid: u64,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+struct TimelineDecryptionDiagnostics {
+    event_count: u64,
+    decrypted: u64,
+    unable_to_decrypt: u64,
+    plaintext: u64,
+    reasons: BTreeMap<&'static str, u64>,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -315,6 +326,33 @@ impl ToDeviceDiagnostics {
     }
 }
 
+impl TimelineDecryptionDiagnostics {
+    fn from_events(events: &[TimelineEvent]) -> Self {
+        let mut diagnostics = Self {
+            event_count: events.len() as u64,
+            ..Self::default()
+        };
+        for event in events {
+            match &event.kind {
+                TimelineEventKind::Decrypted(_) => {
+                    diagnostics.decrypted = diagnostics.decrypted.saturating_add(1);
+                }
+                TimelineEventKind::UnableToDecrypt { utd_info, .. } => {
+                    diagnostics.unable_to_decrypt = diagnostics.unable_to_decrypt.saturating_add(1);
+                    *diagnostics
+                        .reasons
+                        .entry(unable_to_decrypt_reason(utd_info.reason.clone()))
+                        .or_default() += 1;
+                }
+                TimelineEventKind::PlainText { .. } => {
+                    diagnostics.plaintext = diagnostics.plaintext.saturating_add(1);
+                }
+            }
+        }
+        diagnostics
+    }
+}
+
 static CLIENTS: OnceLock<Mutex<HashMap<String, ManagedClient>>> = OnceLock::new();
 static CLIENT_LIFECYCLE_GATES: OnceLock<Mutex<HashMap<String, Arc<AsyncMutex<()>>>>> =
     OnceLock::new();
@@ -421,6 +459,7 @@ async fn initialize_inner(
                 pre_send_security_fingerprints: replaced.pre_send_security_fingerprints,
                 sync_cursor: replaced.sync_cursor,
                 to_device_diagnostics: replaced.to_device_diagnostics,
+                timeline_decryption_diagnostics: replaced.timeline_decryption_diagnostics,
                 peer_device_diagnostics: replaced.peer_device_diagnostics,
             })
             .unwrap_or_default()
@@ -491,6 +530,7 @@ async fn initialize_inner(
                 room_security_gate: Arc::new(AsyncMutex::new(())),
                 sync_cursor: continuity.sync_cursor,
                 to_device_diagnostics: continuity.to_device_diagnostics,
+                timeline_decryption_diagnostics: continuity.timeline_decryption_diagnostics,
                 peer_device_diagnostics: continuity.peer_device_diagnostics,
                 verification_request: None,
                 sas_verification: None,
@@ -749,6 +789,31 @@ fn to_device_diagnostics(profile_key: &str) -> Result<ToDeviceDiagnostics, Strin
         .ok_or_else(|| "M_WEAVE_E2EE_NOT_INITIALIZED".to_string())
 }
 
+fn remember_timeline_decryption_diagnostics(
+    profile_key: &str,
+    diagnostics: TimelineDecryptionDiagnostics,
+) -> Result<(), String> {
+    clients()
+        .lock()
+        .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
+        .get_mut(profile_key)
+        .filter(|managed| managed.accepting_operations)
+        .ok_or_else(|| "M_WEAVE_E2EE_NOT_INITIALIZED".to_string())?
+        .timeline_decryption_diagnostics = diagnostics;
+    Ok(())
+}
+
+fn timeline_decryption_diagnostics(
+    profile_key: &str,
+) -> Result<TimelineDecryptionDiagnostics, String> {
+    clients()
+        .lock()
+        .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
+        .get(profile_key)
+        .map(|managed| managed.timeline_decryption_diagnostics.clone())
+        .ok_or_else(|| "M_WEAVE_E2EE_NOT_INITIALIZED".to_string())
+}
+
 fn remember_peer_device_diagnostics(
     profile_key: &str,
     diagnostics: PeerDeviceConvergenceDiagnostics,
@@ -931,8 +996,10 @@ async fn room_messages_inner(
         .messages(options)
         .await
         .map_err(|_| "M_WEAVE_E2EE_TIMELINE".to_string())?;
+    let timeline_diagnostics = TimelineDecryptionDiagnostics::from_events(&response.chunk);
+    remember_timeline_decryption_diagnostics(profile_key, timeline_diagnostics.clone())?;
     let decryption = decryption_diagnostics(
-        &response.chunk,
+        &timeline_diagnostics,
         &to_device_diagnostics(profile_key)?,
         &peer_device_diagnostics(profile_key)?,
     );
@@ -1380,7 +1447,7 @@ async fn security_state_inner(profile_key: &str) -> Result<Value, String> {
     // second cursor owner or obscure the original receive-path failure behind
     // a network timeout.
     let receive_diagnostics = decryption_diagnostics(
-        &[],
+        &timeline_decryption_diagnostics(profile_key)?,
         &to_device_diagnostics(profile_key)?,
         &peer_device_diagnostics(profile_key)?,
     );
@@ -1743,34 +1810,16 @@ fn project_timeline_event(event: &TimelineEvent) -> Option<Value> {
 }
 
 fn decryption_diagnostics(
-    events: &[TimelineEvent],
+    timeline: &TimelineDecryptionDiagnostics,
     to_device: &ToDeviceDiagnostics,
     peer_device: &PeerDeviceConvergenceDiagnostics,
 ) -> Value {
-    let mut decrypted = 0_u64;
-    let mut unable_to_decrypt = 0_u64;
-    let mut plaintext = 0_u64;
-    let mut reasons = BTreeMap::<&'static str, u64>::new();
-
-    for event in events {
-        match &event.kind {
-            TimelineEventKind::Decrypted(_) => decrypted += 1,
-            TimelineEventKind::UnableToDecrypt { utd_info, .. } => {
-                unable_to_decrypt += 1;
-                *reasons
-                    .entry(unable_to_decrypt_reason(utd_info.reason.clone()))
-                    .or_default() += 1;
-            }
-            TimelineEventKind::PlainText { .. } => plaintext += 1,
-        }
-    }
-
     json!({
-        "eventCount": events.len(),
-        "decryptedCount": decrypted,
-        "unableToDecryptCount": unable_to_decrypt,
-        "plaintextCount": plaintext,
-        "reasonCounts": reasons,
+        "eventCount": timeline.event_count,
+        "decryptedCount": timeline.decrypted,
+        "unableToDecryptCount": timeline.unable_to_decrypt,
+        "plaintextCount": timeline.plaintext,
+        "reasonCounts": timeline.reasons,
         "toDeviceDecryptedCount": to_device.decrypted,
         "toDeviceDecryptedRoomKeyCount": to_device.decrypted_room_key,
         "toDeviceDecryptedForwardedRoomKeyCount": to_device.decrypted_forwarded_room_key,
@@ -2158,6 +2207,32 @@ mod tests {
             unable_to_decrypt_reason(UnableToDecryptReason::MalformedEncryptedEvent),
             "malformedEncryptedEvent"
         );
+    }
+
+    #[test]
+    fn cached_receive_diagnostics_preserve_the_last_timeline_failure() {
+        let timeline = TimelineDecryptionDiagnostics {
+            event_count: 3,
+            decrypted: 2,
+            unable_to_decrypt: 1,
+            plaintext: 0,
+            reasons: BTreeMap::from([("missingMegolmSession", 1)]),
+        };
+        let projected = decryption_diagnostics(
+            &timeline,
+            &ToDeviceDiagnostics {
+                decrypted: 1,
+                decrypted_room_key: 1,
+                ..ToDeviceDiagnostics::default()
+            },
+            &PeerDeviceConvergenceDiagnostics::default(),
+        );
+
+        assert_eq!(projected["eventCount"], 3);
+        assert_eq!(projected["decryptedCount"], 2);
+        assert_eq!(projected["unableToDecryptCount"], 1);
+        assert_eq!(projected["reasonCounts"]["missingMegolmSession"], 1);
+        assert_eq!(projected["toDeviceDecryptedRoomKeyCount"], 1);
     }
 
     #[test]
