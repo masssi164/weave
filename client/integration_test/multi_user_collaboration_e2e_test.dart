@@ -1779,7 +1779,23 @@ Future<void> _emitE2eeDiagnostics({
       'toDeviceUnableToDecryptCount='
       '${diagnostics.toDeviceUnableToDecryptCount} '
       'toDevicePlaintextCount=${diagnostics.toDevicePlaintextCount} '
-      'toDeviceInvalidCount=${diagnostics.toDeviceInvalidCount}',
+      'toDeviceInvalidCount=${diagnostics.toDeviceInvalidCount} '
+      'joinedPeerCount=${diagnostics.joinedPeerCount} '
+      'authoritativeDeviceCount=${diagnostics.authoritativeDeviceCount} '
+      'sdkDeviceCount=${diagnostics.sdkDeviceCount} '
+      'sdkUsableDeviceCount=${diagnostics.sdkUsableDeviceCount} '
+      'sdkDeletedDeviceCount=${diagnostics.sdkDeletedDeviceCount} '
+      'sdkBlacklistedDeviceCount=${diagnostics.sdkBlacklistedDeviceCount} '
+      'sdkMissingCurve25519Count=${diagnostics.sdkMissingCurve25519Count} '
+      'sdkMissingAuthoritativeDeviceCount='
+      '${diagnostics.sdkMissingAuthoritativeDeviceCount} '
+      'sdkUnexpectedDeviceCount=${diagnostics.sdkUnexpectedDeviceCount} '
+      'deviceQueryAttemptCount=${diagnostics.deviceQueryAttemptCount} '
+      'convergedPeerCount=${diagnostics.convergedPeerCount} '
+      'pendingPeerCount=${diagnostics.pendingPeerCount} '
+      'rejectedPeerCount=${diagnostics.rejectedPeerCount} '
+      'blockedPeerCount=${diagnostics.blockedPeerCount} '
+      'invalidPeerCount=${diagnostics.invalidPeerCount}',
     );
   } catch (_) {
     // The unavailable marker remains support-safe and still distinguishes a
@@ -1792,7 +1808,14 @@ Future<void> _emitE2eeDiagnostics({
       'toDeviceDecryptedCount=0 toDeviceRoomKeyCount=0 '
       'toDeviceForwardedRoomKeyCount=0 toDeviceOtherCount=0 '
       'toDeviceUnknownTypeCount=0 toDeviceUnableToDecryptCount=0 '
-      'toDevicePlaintextCount=0 toDeviceInvalidCount=0',
+      'toDevicePlaintextCount=0 toDeviceInvalidCount=0 '
+      'joinedPeerCount=0 authoritativeDeviceCount=0 sdkDeviceCount=0 '
+      'sdkUsableDeviceCount=0 sdkDeletedDeviceCount=0 '
+      'sdkBlacklistedDeviceCount=0 '
+      'sdkMissingCurve25519Count=0 sdkMissingAuthoritativeDeviceCount=0 '
+      'sdkUnexpectedDeviceCount=0 deviceQueryAttemptCount=0 '
+      'convergedPeerCount=0 pendingPeerCount=0 rejectedPeerCount=0 '
+      'blockedPeerCount=0 invalidPeerCount=0',
     );
   }
 }

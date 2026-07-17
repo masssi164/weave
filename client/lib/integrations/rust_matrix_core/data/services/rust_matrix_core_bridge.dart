@@ -191,6 +191,21 @@ class RustMatrixDecryptionDiagnostics {
     this.toDevicePlaintextCount = 0,
     this.toDeviceInvalidCount = 0,
     this.toDeviceReasonCounts = const <String, int>{},
+    this.joinedPeerCount = 0,
+    this.authoritativeDeviceCount = 0,
+    this.sdkDeviceCount = 0,
+    this.sdkUsableDeviceCount = 0,
+    this.sdkDeletedDeviceCount = 0,
+    this.sdkBlacklistedDeviceCount = 0,
+    this.sdkMissingCurve25519Count = 0,
+    this.sdkMissingAuthoritativeDeviceCount = 0,
+    this.sdkUnexpectedDeviceCount = 0,
+    this.deviceQueryAttemptCount = 0,
+    this.convergedPeerCount = 0,
+    this.pendingPeerCount = 0,
+    this.rejectedPeerCount = 0,
+    this.blockedPeerCount = 0,
+    this.invalidPeerCount = 0,
   });
 
   factory RustMatrixDecryptionDiagnostics.fromJson(Map<String, dynamic> json) {
@@ -232,6 +247,23 @@ class RustMatrixDecryptionDiagnostics {
               ),
             )
           : const <String, int>{},
+      joinedPeerCount: _integer(json['joinedPeerCount']),
+      authoritativeDeviceCount: _integer(json['authoritativeDeviceCount']),
+      sdkDeviceCount: _integer(json['sdkDeviceCount']),
+      sdkUsableDeviceCount: _integer(json['sdkUsableDeviceCount']),
+      sdkDeletedDeviceCount: _integer(json['sdkDeletedDeviceCount']),
+      sdkBlacklistedDeviceCount: _integer(json['sdkBlacklistedDeviceCount']),
+      sdkMissingCurve25519Count: _integer(json['sdkMissingCurve25519Count']),
+      sdkMissingAuthoritativeDeviceCount: _integer(
+        json['sdkMissingAuthoritativeDeviceCount'],
+      ),
+      sdkUnexpectedDeviceCount: _integer(json['sdkUnexpectedDeviceCount']),
+      deviceQueryAttemptCount: _integer(json['deviceQueryAttemptCount']),
+      convergedPeerCount: _integer(json['convergedPeerCount']),
+      pendingPeerCount: _integer(json['pendingPeerCount']),
+      rejectedPeerCount: _integer(json['rejectedPeerCount']),
+      blockedPeerCount: _integer(json['blockedPeerCount']),
+      invalidPeerCount: _integer(json['invalidPeerCount']),
     );
   }
 
@@ -249,6 +281,21 @@ class RustMatrixDecryptionDiagnostics {
   final int toDevicePlaintextCount;
   final int toDeviceInvalidCount;
   final Map<String, int> toDeviceReasonCounts;
+  final int joinedPeerCount;
+  final int authoritativeDeviceCount;
+  final int sdkDeviceCount;
+  final int sdkUsableDeviceCount;
+  final int sdkDeletedDeviceCount;
+  final int sdkBlacklistedDeviceCount;
+  final int sdkMissingCurve25519Count;
+  final int sdkMissingAuthoritativeDeviceCount;
+  final int sdkUnexpectedDeviceCount;
+  final int deviceQueryAttemptCount;
+  final int convergedPeerCount;
+  final int pendingPeerCount;
+  final int rejectedPeerCount;
+  final int blockedPeerCount;
+  final int invalidPeerCount;
 
   String get supportCode {
     if ((toDeviceReasonCounts['decryptionFailure'] ?? 0) > 0) {
@@ -263,6 +310,18 @@ class RustMatrixDecryptionDiagnostics {
     }
     if (toDeviceInvalidCount > 0) {
       return 'M_WEAVE_E2EE_TO_DEVICE_INVALID';
+    }
+    if (rejectedPeerCount > 0) {
+      return 'M_WEAVE_E2EE_PEER_DEVICE_REJECTED';
+    }
+    if (blockedPeerCount > 0) {
+      return 'M_WEAVE_E2EE_PEER_DEVICE_BLOCKED';
+    }
+    if (invalidPeerCount > 0) {
+      return 'M_WEAVE_E2EE_PEER_DEVICE_INVALID';
+    }
+    if (pendingPeerCount > 0) {
+      return 'M_WEAVE_E2EE_PEER_DEVICE_PENDING';
     }
     if ((reasonCounts['missingMegolmSession'] ?? 0) > 0) {
       if (toDeviceDecryptedRoomKeyCount > 0 ||

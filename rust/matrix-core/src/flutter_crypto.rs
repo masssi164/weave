@@ -6,6 +6,7 @@ use matrix_sdk::{
         UnableToDecryptReason,
     },
     encryption::{
+        identities::UserDevices,
         recovery::{RecoveryError, RecoveryState},
         verification::{
             SasVerification, Verification, VerificationRequest, VerificationRequestState,
@@ -15,6 +16,7 @@ use matrix_sdk::{
     room::{MessagesOptions, RoomMember},
     ruma::{
         api::client::{
+            keys::get_keys::v3 as get_keys,
             receipt::create_receipt::v3::ReceiptType,
             room::create_room::v3::{Request as CreateRoomRequest, RoomPreset},
         },
@@ -35,7 +37,7 @@ use matrix_sdk::{
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use serde_json::{json, Value};
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap},
     path::Path,
     sync::{Arc, Mutex, OnceLock},
     time::Duration,
@@ -59,6 +61,7 @@ struct ManagedClient {
     room_security_gate: Arc<AsyncMutex<()>>,
     sync_cursor: Option<String>,
     to_device_diagnostics: ToDeviceDiagnostics,
+    peer_device_diagnostics: PeerDeviceConvergenceDiagnostics,
     verification_request: Option<VerificationRequest>,
     sas_verification: Option<SasVerification>,
 }
@@ -88,6 +91,7 @@ struct ClientContinuityState {
     pre_send_security_fingerprints: HashMap<String, RoomSecurityFingerprint>,
     sync_cursor: Option<String>,
     to_device_diagnostics: ToDeviceDiagnostics,
+    peer_device_diagnostics: PeerDeviceConvergenceDiagnostics,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -103,6 +107,136 @@ struct ToDeviceDiagnostics {
     encryption_disabled: u64,
     plaintext: u64,
     invalid: u64,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+enum PeerDeviceConvergenceState {
+    #[default]
+    NotObserved,
+    Converged,
+    Pending,
+    Rejected,
+    Blocked,
+    Invalid,
+}
+
+impl PeerDeviceConvergenceState {
+    fn errcode(self) -> Option<&'static str> {
+        match self {
+            Self::NotObserved | Self::Converged => None,
+            Self::Pending => Some("M_WEAVE_E2EE_PEER_DEVICE_PENDING"),
+            Self::Rejected => Some("M_WEAVE_E2EE_PEER_DEVICE_REJECTED"),
+            Self::Blocked => Some("M_WEAVE_E2EE_PEER_DEVICE_BLOCKED"),
+            Self::Invalid => Some("M_WEAVE_E2EE_PEER_DEVICE_INVALID"),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+struct PeerDeviceConvergenceDiagnostics {
+    joined_peer_count: u64,
+    authoritative_device_count: u64,
+    sdk_device_count: u64,
+    sdk_usable_device_count: u64,
+    sdk_deleted_device_count: u64,
+    sdk_blacklisted_device_count: u64,
+    sdk_missing_curve25519_count: u64,
+    sdk_missing_authoritative_device_count: u64,
+    sdk_unexpected_device_count: u64,
+    query_attempt_count: u64,
+    converged_peer_count: u64,
+    pending_peer_count: u64,
+    rejected_peer_count: u64,
+    blocked_peer_count: u64,
+    invalid_peer_count: u64,
+}
+
+impl PeerDeviceConvergenceDiagnostics {
+    fn record(
+        &mut self,
+        authoritative_device_ids: &BTreeSet<String>,
+        sdk_devices: &PeerSdkDeviceSet,
+        state: PeerDeviceConvergenceState,
+    ) {
+        self.authoritative_device_count = self
+            .authoritative_device_count
+            .saturating_add(authoritative_device_ids.len() as u64);
+        self.sdk_device_count = self
+            .sdk_device_count
+            .saturating_add(sdk_devices.all.len() as u64);
+        self.sdk_usable_device_count = self
+            .sdk_usable_device_count
+            .saturating_add(sdk_devices.usable.len() as u64);
+        self.sdk_deleted_device_count = self
+            .sdk_deleted_device_count
+            .saturating_add(sdk_devices.deleted.len() as u64);
+        self.sdk_blacklisted_device_count = self
+            .sdk_blacklisted_device_count
+            .saturating_add(sdk_devices.blacklisted.len() as u64);
+        self.sdk_missing_curve25519_count = self
+            .sdk_missing_curve25519_count
+            .saturating_add(sdk_devices.missing_curve25519.len() as u64);
+        self.sdk_missing_authoritative_device_count =
+            self.sdk_missing_authoritative_device_count.saturating_add(
+                authoritative_device_ids
+                    .difference(&sdk_devices.all)
+                    .count() as u64,
+            );
+        self.sdk_unexpected_device_count = self
+            .sdk_unexpected_device_count
+            .saturating_add(sdk_devices.all.difference(authoritative_device_ids).count() as u64);
+        match state {
+            PeerDeviceConvergenceState::NotObserved => {}
+            PeerDeviceConvergenceState::Converged => {
+                self.converged_peer_count = self.converged_peer_count.saturating_add(1);
+            }
+            PeerDeviceConvergenceState::Pending => {
+                self.pending_peer_count = self.pending_peer_count.saturating_add(1);
+            }
+            PeerDeviceConvergenceState::Rejected => {
+                self.rejected_peer_count = self.rejected_peer_count.saturating_add(1);
+            }
+            PeerDeviceConvergenceState::Blocked => {
+                self.blocked_peer_count = self.blocked_peer_count.saturating_add(1);
+            }
+            PeerDeviceConvergenceState::Invalid => {
+                self.invalid_peer_count = self.invalid_peer_count.saturating_add(1);
+            }
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+struct PeerSdkDeviceSet {
+    all: BTreeSet<String>,
+    usable: BTreeSet<String>,
+    deleted: BTreeSet<String>,
+    blacklisted: BTreeSet<String>,
+    missing_curve25519: BTreeSet<String>,
+}
+
+impl PeerSdkDeviceSet {
+    fn from_user_devices(devices: &UserDevices) -> Self {
+        let mut observed = Self::default();
+        for device in devices.devices() {
+            let device_id = device.device_id().to_string();
+            if device.is_deleted() {
+                observed.deleted.insert(device_id);
+                continue;
+            }
+            observed.all.insert(device_id.clone());
+            if device.is_blacklisted() {
+                observed.blacklisted.insert(device_id.clone());
+            }
+            if device.curve25519_key().is_none() {
+                observed.missing_curve25519.insert(device_id.clone());
+            }
+            if is_eligible_peer_device(device.is_blacklisted(), device.curve25519_key().is_some()) {
+                observed.usable.insert(device_id);
+            }
+        }
+        observed
+    }
 }
 
 impl ToDeviceDiagnostics {
@@ -284,6 +418,7 @@ async fn initialize_inner(
                 pre_send_security_fingerprints: replaced.pre_send_security_fingerprints,
                 sync_cursor: replaced.sync_cursor,
                 to_device_diagnostics: replaced.to_device_diagnostics,
+                peer_device_diagnostics: replaced.peer_device_diagnostics,
             })
             .unwrap_or_default()
     } else {
@@ -369,6 +504,7 @@ async fn initialize_inner(
                 room_security_gate: Arc::new(AsyncMutex::new(())),
                 sync_cursor: continuity.sync_cursor,
                 to_device_diagnostics: continuity.to_device_diagnostics,
+                peer_device_diagnostics: continuity.peer_device_diagnostics,
                 verification_request: None,
                 sas_verification: None,
             },
@@ -501,6 +637,29 @@ fn to_device_diagnostics(profile_key: &str) -> Result<ToDeviceDiagnostics, Strin
         .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
         .get(profile_key)
         .map(|managed| managed.to_device_diagnostics.clone())
+        .ok_or_else(|| "M_WEAVE_E2EE_NOT_INITIALIZED".to_string())
+}
+
+fn remember_peer_device_diagnostics(
+    profile_key: &str,
+    diagnostics: PeerDeviceConvergenceDiagnostics,
+) -> Result<(), String> {
+    clients()
+        .lock()
+        .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
+        .get_mut(profile_key)
+        .filter(|managed| managed.accepting_operations)
+        .ok_or_else(|| "M_WEAVE_E2EE_NOT_INITIALIZED".to_string())?
+        .peer_device_diagnostics = diagnostics;
+    Ok(())
+}
+
+fn peer_device_diagnostics(profile_key: &str) -> Result<PeerDeviceConvergenceDiagnostics, String> {
+    clients()
+        .lock()
+        .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
+        .get(profile_key)
+        .map(|managed| managed.peer_device_diagnostics.clone())
         .ok_or_else(|| "M_WEAVE_E2EE_NOT_INITIALIZED".to_string())
 }
 
@@ -657,7 +816,11 @@ async fn room_messages_inner(
         .messages(options)
         .await
         .map_err(|_| "M_WEAVE_E2EE_TIMELINE".to_string())?;
-    let decryption = decryption_diagnostics(&response.chunk, &to_device_diagnostics(profile_key)?);
+    let decryption = decryption_diagnostics(
+        &response.chunk,
+        &to_device_diagnostics(profile_key)?,
+        &peer_device_diagnostics(profile_key)?,
+    );
     let mut messages = response
         .chunk
         .iter()
@@ -737,16 +900,16 @@ async fn refresh_active_member_device_keys(
         .ok_or_else(|| "M_WEAVE_E2EE_SESSION".to_string())?;
 
     let mut members = room
-        .members_no_sync(RoomMemberships::ACTIVE)
+        .members_no_sync(RoomMemberships::JOIN)
         .await
         .map_err(|_| "M_WEAVE_E2EE_ROOM_MEMBERS".to_string())?;
-    let observed_member_ids = active_member_ids(&members);
+    let observed_member_ids = joined_member_ids(&members);
     let cached_fingerprint =
         cached_room_security_fingerprint(profile_key, room.room_id().as_str())?;
     let cached_pre_send_fingerprint =
         cached_pre_send_security_fingerprint(profile_key, room.room_id().as_str())?;
 
-    let member_set_changed = active_member_set_changed(
+    let member_set_changed = joined_member_set_changed(
         cached_fingerprint
             .as_ref()
             .map(|fingerprint| fingerprint.member_ids.as_slice()),
@@ -761,19 +924,29 @@ async fn refresh_active_member_device_keys(
     if full_member_reload_required {
         // The canonical facade can create and join a room between two bounded
         // syncs. Force the SDK to consume the facade's complete `/members`
-        // projection before it decides which devices receive the Megolm session.
+        // joined projection before it decides which devices receive the Megolm
+        // session. Invited users are not yet active recipients and must not turn
+        // the sender's fail-closed barrier into a publication wait.
         // Sync convergence may warm an incomplete first-room snapshot, but
         // it cannot satisfy the first security-sensitive send barrier. A separate
         // pre-send fingerprint keeps subsequent sends fast until a later
         // member/device change invalidates that barrier.
         room.mark_members_missing();
         members = room
-            .members(RoomMemberships::ACTIVE)
+            .members(RoomMemberships::JOIN)
             .await
             .map_err(|_| "M_WEAVE_E2EE_ROOM_MEMBERS".to_string())?;
     }
     let encryption = client.encryption();
     let mut member_device_ids = Vec::new();
+    let mut convergence_diagnostics = PeerDeviceConvergenceDiagnostics {
+        joined_peer_count: members
+            .iter()
+            .filter(|member| member.user_id() != own_user_id)
+            .count() as u64,
+        ..Default::default()
+    };
+    let mut convergence_observed = false;
 
     for member in &members {
         let user_id = member.user_id();
@@ -787,26 +960,28 @@ async fn refresh_active_member_device_keys(
         let has_cached_device = cached_devices.devices().next().is_some();
         let query_required = refresh == RoomSecurityRefresh::PreSend
             || requires_explicit_device_query(full_member_reload_required, has_cached_device);
-        let mut eligible_device_ids = cached_devices
-            .devices()
-            .filter(|device| {
-                is_eligible_peer_device(device.is_blacklisted(), device.curve25519_key().is_some())
-            })
-            .map(|device| format!("{user_id}|{}", device.device_id()))
-            .collect::<Vec<_>>();
+        let mut sdk_devices = PeerSdkDeviceSet::from_user_devices(&cached_devices);
+        let mut convergence_state = PeerDeviceConvergenceState::NotObserved;
 
         // A first room sync can mark a member as tracked while the local crypto
-        // store still contains only an older device snapshot. A non-empty
-        // cache therefore does not prove that the member's current app device
-        // is known. Query every peer before a send; sync convergence and
-        // cached keys are observations, not permission to cross the barrier.
+        // store still contains only an older device snapshot. Compare a standard
+        // `/keys/query` projection with the SDK's validated device store on every
+        // security-sensitive send. The raw response is evidence only: it never
+        // becomes a recipient until the SDK has accepted its self-signature and
+        // exposed a usable Curve25519 key.
         if query_required {
+            convergence_observed = true;
             let attempts = if refresh == RoomSecurityRefresh::PreSend {
                 PRE_SEND_DEVICE_QUERY_ATTEMPTS
             } else {
                 1
             };
             for attempt in 0..attempts {
+                convergence_diagnostics.query_attempt_count = convergence_diagnostics
+                    .query_attempt_count
+                    .saturating_add(1);
+                let authoritative_device_ids =
+                    authoritative_peer_device_ids(client, user_id).await?;
                 encryption
                     .request_user_identity(user_id)
                     .await
@@ -815,35 +990,44 @@ async fn refresh_active_member_device_keys(
                     .get_user_devices(user_id)
                     .await
                     .map_err(|_| "M_WEAVE_E2EE_MEMBER_KEYS".to_string())?;
-                eligible_device_ids = refreshed_devices
-                    .devices()
-                    .filter(|device| {
-                        is_eligible_peer_device(
-                            device.is_blacklisted(),
-                            device.curve25519_key().is_some(),
-                        )
-                    })
-                    .map(|device| format!("{user_id}|{}", device.device_id()))
-                    .collect::<Vec<_>>();
-                if !should_retry_peer_device_query(refresh, attempt, &eligible_device_ids) {
+                sdk_devices = PeerSdkDeviceSet::from_user_devices(&refreshed_devices);
+                convergence_state =
+                    classify_peer_device_convergence(&authoritative_device_ids, &sdk_devices);
+                if !should_retry_peer_device_query(refresh, attempt, convergence_state) {
+                    convergence_diagnostics.record(
+                        &authoritative_device_ids,
+                        &sdk_devices,
+                        convergence_state,
+                    );
                     break;
                 }
                 tokio::time::sleep(PRE_SEND_DEVICE_QUERY_DELAY).await;
             }
         }
-        if refresh == RoomSecurityRefresh::PreSend && eligible_device_ids.is_empty() {
-            // An active peer with no usable device cannot receive the next
-            // Megolm room key. Fail before the SDK timeline send so the event
-            // is never committed with an incomplete recipient set.
-            return Err("M_WEAVE_E2EE_PEER_DEVICE_PENDING".to_string());
+        if refresh == RoomSecurityRefresh::PreSend {
+            remember_peer_device_diagnostics(profile_key, convergence_diagnostics.clone())?;
+            if let Some(errcode) = convergence_state.errcode() {
+                // A joined peer whose authoritative device set has not become
+                // the SDK's exact usable set cannot receive the next Megolm
+                // room key reliably. Fail before the timeline event is committed.
+                return Err(errcode.to_string());
+            }
         }
-        member_device_ids.extend(eligible_device_ids);
+        member_device_ids.extend(
+            sdk_devices
+                .usable
+                .iter()
+                .map(|device_id| format!("{user_id}|{device_id}")),
+        );
+    }
+    if convergence_observed {
+        remember_peer_device_diagnostics(profile_key, convergence_diagnostics)?;
     }
     member_device_ids.sort_unstable();
     member_device_ids.dedup();
 
     let observed_fingerprint = RoomSecurityFingerprint {
-        member_ids: active_member_ids(&members),
+        member_ids: joined_member_ids(&members),
         member_device_ids,
     };
     if room_security_fingerprint_changed(cached_fingerprint.as_ref(), &observed_fingerprint) {
@@ -851,8 +1035,8 @@ async fn refresh_active_member_device_keys(
         // an unchanged room member between app sessions. A current `/keys/query`
         // updates the SDK crypto store, but an already persisted outbound Megolm
         // session may still exclude that device. Rotate only when the effective
-        // active member/device set changes so the next send shares a fresh room
-        // key with every active device without rotating on every message.
+        // joined member/device set changes so the next send shares a fresh room
+        // key with every joined device without rotating on every message.
         room.discard_room_key()
             .await
             .map_err(|_| "M_WEAVE_E2EE_ROOM_KEY_ROTATION".to_string())?;
@@ -874,7 +1058,48 @@ async fn refresh_active_member_device_keys(
     Ok(())
 }
 
-fn active_member_ids(members: &[RoomMember]) -> Vec<String> {
+async fn authoritative_peer_device_ids(
+    client: &Client,
+    user_id: &matrix_sdk::ruma::UserId,
+) -> Result<BTreeSet<String>, String> {
+    let mut request = get_keys::Request::new();
+    request
+        .device_keys
+        .insert(user_id.to_owned(), Vec::<OwnedDeviceId>::new());
+    let response = client.send(request).await.map_err(|error| {
+        matrix_error_kind_code(error.client_api_error_kind(), "M_WEAVE_E2EE_MEMBER_KEYS")
+    })?;
+    Ok(response
+        .device_keys
+        .get(user_id)
+        .map(|devices| devices.keys().map(ToString::to_string).collect())
+        .unwrap_or_default())
+}
+
+fn classify_peer_device_convergence(
+    authoritative_device_ids: &BTreeSet<String>,
+    sdk_devices: &PeerSdkDeviceSet,
+) -> PeerDeviceConvergenceState {
+    if authoritative_device_ids.is_empty() {
+        return PeerDeviceConvergenceState::Pending;
+    }
+    if sdk_devices.all != *authoritative_device_ids {
+        return PeerDeviceConvergenceState::Rejected;
+    }
+    if !sdk_devices.blacklisted.is_empty() {
+        return PeerDeviceConvergenceState::Blocked;
+    }
+    if !sdk_devices.missing_curve25519.is_empty() {
+        return PeerDeviceConvergenceState::Invalid;
+    }
+    if sdk_devices.usable == *authoritative_device_ids {
+        PeerDeviceConvergenceState::Converged
+    } else {
+        PeerDeviceConvergenceState::Rejected
+    }
+}
+
+fn joined_member_ids(members: &[RoomMember]) -> Vec<String> {
     let mut member_ids = members
         .iter()
         .map(|member| member.user_id().to_string())
@@ -884,7 +1109,7 @@ fn active_member_ids(members: &[RoomMember]) -> Vec<String> {
     member_ids
 }
 
-fn active_member_set_changed(cached: Option<&[String]>, observed: &[String]) -> bool {
+fn joined_member_set_changed(cached: Option<&[String]>, observed: &[String]) -> bool {
     cached != Some(observed)
 }
 
@@ -918,10 +1143,10 @@ fn is_eligible_peer_device(is_blacklisted: bool, has_curve25519_key: bool) -> bo
 fn should_retry_peer_device_query(
     refresh: RoomSecurityRefresh,
     attempt: usize,
-    eligible_device_ids: &[String],
+    state: PeerDeviceConvergenceState,
 ) -> bool {
     refresh == RoomSecurityRefresh::PreSend
-        && eligible_device_ids.is_empty()
+        && state != PeerDeviceConvergenceState::Converged
         && attempt + 1 < PRE_SEND_DEVICE_QUERY_ATTEMPTS
 }
 
@@ -1335,7 +1560,11 @@ fn project_timeline_event(event: &TimelineEvent) -> Option<Value> {
     }))
 }
 
-fn decryption_diagnostics(events: &[TimelineEvent], to_device: &ToDeviceDiagnostics) -> Value {
+fn decryption_diagnostics(
+    events: &[TimelineEvent],
+    to_device: &ToDeviceDiagnostics,
+    peer_device: &PeerDeviceConvergenceDiagnostics,
+) -> Value {
     let mut decrypted = 0_u64;
     let mut unable_to_decrypt = 0_u64;
     let mut plaintext = 0_u64;
@@ -1369,6 +1598,21 @@ fn decryption_diagnostics(events: &[TimelineEvent], to_device: &ToDeviceDiagnost
         "toDevicePlaintextCount": to_device.plaintext,
         "toDeviceInvalidCount": to_device.invalid,
         "toDeviceReasonCounts": to_device.reason_counts(),
+        "joinedPeerCount": peer_device.joined_peer_count,
+        "authoritativeDeviceCount": peer_device.authoritative_device_count,
+        "sdkDeviceCount": peer_device.sdk_device_count,
+        "sdkUsableDeviceCount": peer_device.sdk_usable_device_count,
+        "sdkDeletedDeviceCount": peer_device.sdk_deleted_device_count,
+        "sdkBlacklistedDeviceCount": peer_device.sdk_blacklisted_device_count,
+        "sdkMissingCurve25519Count": peer_device.sdk_missing_curve25519_count,
+        "sdkMissingAuthoritativeDeviceCount": peer_device.sdk_missing_authoritative_device_count,
+        "sdkUnexpectedDeviceCount": peer_device.sdk_unexpected_device_count,
+        "deviceQueryAttemptCount": peer_device.query_attempt_count,
+        "convergedPeerCount": peer_device.converged_peer_count,
+        "pendingPeerCount": peer_device.pending_peer_count,
+        "rejectedPeerCount": peer_device.rejected_peer_count,
+        "blockedPeerCount": peer_device.blocked_peer_count,
+        "invalidPeerCount": peer_device.invalid_peer_count,
     })
 }
 
@@ -1490,9 +1734,9 @@ mod tests {
             "@collaborator:api.weave.test".to_string(),
         ];
 
-        assert!(active_member_set_changed(None, &initial));
-        assert!(!active_member_set_changed(Some(&initial), &initial));
-        assert!(active_member_set_changed(Some(&initial), &shared));
+        assert!(joined_member_set_changed(None, &initial));
+        assert!(!joined_member_set_changed(Some(&initial), &initial));
+        assert!(joined_member_set_changed(Some(&initial), &shared));
     }
 
     #[test]
@@ -1575,35 +1819,114 @@ mod tests {
     }
 
     #[test]
-    fn pre_send_device_query_retries_only_until_an_eligible_device_converges() {
-        let no_devices = Vec::<String>::new();
-        let eligible = vec!["@peer:api.weave.test|DEVICE_A".to_string()];
-
+    fn pre_send_device_query_retries_only_until_the_exact_device_set_converges() {
         assert!(should_retry_peer_device_query(
             RoomSecurityRefresh::PreSend,
             0,
-            &no_devices,
+            PeerDeviceConvergenceState::Pending,
         ));
         assert!(should_retry_peer_device_query(
             RoomSecurityRefresh::PreSend,
             PRE_SEND_DEVICE_QUERY_ATTEMPTS - 2,
-            &no_devices,
+            PeerDeviceConvergenceState::Rejected,
         ));
         assert!(!should_retry_peer_device_query(
             RoomSecurityRefresh::PreSend,
             PRE_SEND_DEVICE_QUERY_ATTEMPTS - 1,
-            &no_devices,
+            PeerDeviceConvergenceState::Invalid,
         ));
         assert!(!should_retry_peer_device_query(
             RoomSecurityRefresh::PreSend,
             0,
-            &eligible,
+            PeerDeviceConvergenceState::Converged,
         ));
         assert!(!should_retry_peer_device_query(
             RoomSecurityRefresh::Sync,
             0,
-            &no_devices,
+            PeerDeviceConvergenceState::Pending,
         ));
+    }
+
+    #[test]
+    fn peer_device_convergence_distinguishes_publication_validation_and_policy() {
+        let current = BTreeSet::from(["DEVICE_A".to_string()]);
+        let accepted = PeerSdkDeviceSet {
+            all: current.clone(),
+            usable: current.clone(),
+            ..Default::default()
+        };
+        assert_eq!(
+            classify_peer_device_convergence(&current, &accepted),
+            PeerDeviceConvergenceState::Converged
+        );
+        assert_eq!(
+            classify_peer_device_convergence(&BTreeSet::new(), &accepted),
+            PeerDeviceConvergenceState::Pending
+        );
+        assert_eq!(
+            classify_peer_device_convergence(&current, &PeerSdkDeviceSet::default()),
+            PeerDeviceConvergenceState::Rejected
+        );
+        assert_eq!(
+            classify_peer_device_convergence(
+                &current,
+                &PeerSdkDeviceSet {
+                    deleted: current.clone(),
+                    ..Default::default()
+                },
+            ),
+            PeerDeviceConvergenceState::Rejected
+        );
+        assert_eq!(
+            classify_peer_device_convergence(
+                &current,
+                &PeerSdkDeviceSet {
+                    all: current.clone(),
+                    blacklisted: current.clone(),
+                    ..Default::default()
+                },
+            ),
+            PeerDeviceConvergenceState::Blocked
+        );
+        assert_eq!(
+            classify_peer_device_convergence(
+                &current,
+                &PeerSdkDeviceSet {
+                    all: current.clone(),
+                    missing_curve25519: current.clone(),
+                    ..Default::default()
+                },
+            ),
+            PeerDeviceConvergenceState::Invalid
+        );
+    }
+
+    #[test]
+    fn peer_device_diagnostics_expose_counts_without_identifiers() {
+        let authoritative = BTreeSet::from(["DEVICE_A".to_string(), "DEVICE_B".to_string()]);
+        let sdk_devices = PeerSdkDeviceSet {
+            all: BTreeSet::from(["DEVICE_A".to_string(), "STALE".to_string()]),
+            usable: BTreeSet::from(["DEVICE_A".to_string()]),
+            blacklisted: BTreeSet::from(["STALE".to_string()]),
+            ..Default::default()
+        };
+        let mut diagnostics = PeerDeviceConvergenceDiagnostics {
+            joined_peer_count: 1,
+            query_attempt_count: 3,
+            ..Default::default()
+        };
+        diagnostics.record(
+            &authoritative,
+            &sdk_devices,
+            PeerDeviceConvergenceState::Rejected,
+        );
+
+        assert_eq!(diagnostics.authoritative_device_count, 2);
+        assert_eq!(diagnostics.sdk_device_count, 2);
+        assert_eq!(diagnostics.sdk_usable_device_count, 1);
+        assert_eq!(diagnostics.sdk_missing_authoritative_device_count, 1);
+        assert_eq!(diagnostics.sdk_unexpected_device_count, 1);
+        assert_eq!(diagnostics.rejected_peer_count, 1);
     }
 
     #[test]

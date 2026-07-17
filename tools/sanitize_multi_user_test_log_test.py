@@ -194,7 +194,10 @@ Failure code: M_WEAVE_E2EE_OLM_DECRYPTION_FAILURE.
 
     def test_send_and_session_support_codes_are_preserved(self) -> None:
         for support_code in (
+            "M_WEAVE_E2EE_PEER_DEVICE_BLOCKED",
+            "M_WEAVE_E2EE_PEER_DEVICE_INVALID",
             "M_WEAVE_E2EE_PEER_DEVICE_PENDING",
+            "M_WEAVE_E2EE_PEER_DEVICE_REJECTED",
             "M_WEAVE_E2EE_MEMBER_KEYS",
             "M_WEAVE_E2EE_SEND",
             "M_UNKNOWN_TOKEN",
@@ -224,6 +227,26 @@ Failure code: M_WEAVE_E2EE_PROVIDER_PAYLOAD_PRIVATE.
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertNotIn("supportCode=", result.stdout)
         self.assertNotIn("PROVIDER_PAYLOAD_PRIVATE", result.stdout)
+
+    def test_peer_device_convergence_counts_are_preserved_support_safely(self) -> None:
+        fields = runpy.run_path(str(SCRIPT))["E2EE_DIAGNOSTIC_FIELDS"]
+        counts = " ".join(f"{field}={index}" for index, field in enumerate(fields))
+        raw = (
+            "MULTI_USER_E2EE_DIAGNOSTIC role=author runIndex=1 available=1 "
+            f"{counts}\n"
+        )
+
+        result = self.run_sanitizer(raw, exit_code=1)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "authoritativeDeviceCount=12 sdkDeviceCount=13 "
+            "sdkUsableDeviceCount=14",
+            result.stdout,
+        )
+        self.assertIn("sdkDeletedDeviceCount=15", result.stdout)
+        self.assertIn("rejectedPeerCount=23", result.stdout)
+        self.assertIn("supportSafe=true", result.stdout)
 
     def test_fine_grained_collaborator_domain_phase_is_support_safe(self) -> None:
         raw = """
