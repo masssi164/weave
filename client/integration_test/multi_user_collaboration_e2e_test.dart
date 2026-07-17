@@ -1125,8 +1125,8 @@ Future<void> _establishEncryptedDeviceExchange({
   required String roomId,
   required Set<String> eventIds,
 }) async {
-  const maximumAttempts = 3;
-  const observationTimeout = Duration(seconds: 20);
+  const maximumAttempts = 2;
+  const observationTimeout = Duration(seconds: 16);
   Object? lastFailure;
 
   for (var attempt = 1; attempt <= maximumAttempts; attempt++) {
@@ -1208,6 +1208,23 @@ Future<void> _establishEncryptedDeviceExchange({
       return;
     } catch (error) {
       lastFailure = error;
+      // Preserve the receive-path evidence while both native clients are
+      // still alive. Waiting until every retry is exhausted can let the outer
+      // live-test deadline terminate the process before diagnostics run.
+      await Future.wait(<Future<void>>[
+        _emitE2eeDiagnostics(
+          configuration: configuration,
+          role: CollaborationActorRole.author,
+          session: authorSession,
+          roomId: roomId,
+        ),
+        _emitE2eeDiagnostics(
+          configuration: configuration,
+          role: CollaborationActorRole.collaborator,
+          session: collaboratorSession,
+          roomId: roomId,
+        ),
+      ]);
       if (attempt < maximumAttempts) {
         await Future<void>.delayed(const Duration(seconds: 1));
       }
@@ -1215,18 +1232,6 @@ Future<void> _establishEncryptedDeviceExchange({
   }
 
   final supportCode = _encryptedDeviceExchangeSupportCode(lastFailure);
-  await _emitE2eeDiagnostics(
-    configuration: configuration,
-    role: CollaborationActorRole.author,
-    session: authorSession,
-    roomId: roomId,
-  );
-  await _emitE2eeDiagnostics(
-    configuration: configuration,
-    role: CollaborationActorRole.collaborator,
-    session: collaboratorSession,
-    roomId: roomId,
-  );
   // `print` is intentional: `debugPrint` can throttle or drop the last line of
   // a failing native integration process before the sanitizer consumes it.
   // ignore: avoid_print
@@ -1767,7 +1772,7 @@ Future<void> _emitE2eeDiagnostics({
   try {
     final diagnostics = await session
         .chatDecryptionDiagnostics(roomId)
-        .timeout(const Duration(seconds: 17));
+        .timeout(const Duration(seconds: 4));
     // Keep the decisive receive-path counters on a short line. Flutter test
     // output can split the complete convergence diagnostic, while this marker
     // remains small enough for the support-safe sanitizer to preserve.

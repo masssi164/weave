@@ -110,7 +110,11 @@ class WeaveMatrixFacadeChatRepository implements ChatRepository {
   @override
   Future<ChatRoomTimeline> loadRoomTimeline(String roomId) async {
     try {
-      final session = await _matrixCryptoSessionCoordinator.open();
+      // The native timeline read owns sync, to-device processing, cursor
+      // acknowledgement, and message decryption as one receive transaction.
+      final session = await _matrixCryptoSessionCoordinator.open(
+        synchronize: false,
+      );
       final projection = await _rustMatrixCoreBridge.loadEncryptedRoomMessages(
         profileKey: session.profileKey,
         roomId: roomId,

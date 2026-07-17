@@ -289,6 +289,7 @@ void main() {
     expect(timeline.messages.single.contentType, ChatMessageContentType.text);
     expect(timeline.messages.single.text, 'decrypted only in Rust');
     expect(timeline.messages.single.isMine, isTrue);
+    expect(cryptoSession.synchronizeValues, <bool>[false, false, false]);
   });
 
   test(

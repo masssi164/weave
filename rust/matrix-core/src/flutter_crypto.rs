@@ -24,10 +24,8 @@ use matrix_sdk::{
         api::MatrixVersion,
         events::receipt::ReceiptThread,
         events::{
-            key::verification::{request::ToDeviceKeyVerificationRequestEvent, VerificationMethod},
-            room::encryption::RoomEncryptionEventContent,
-            room::message::RoomMessageEventContent,
-            InitialStateEvent,
+            key::verification::VerificationMethod, room::encryption::RoomEncryptionEventContent,
+            room::message::RoomMessageEventContent, InitialStateEvent,
         },
         OwnedDeviceId, OwnedEventId, OwnedRoomId, OwnedUserId, UInt,
     },
@@ -472,22 +470,6 @@ async fn initialize_inner(
         .wait_for_e2ee_initialization_tasks()
         .await;
 
-    let handler_client = client.clone();
-    let handler_profile_key = profile_key.clone();
-    client.add_event_handler(move |event: ToDeviceKeyVerificationRequestEvent| {
-        let client = handler_client.clone();
-        let profile_key = handler_profile_key.clone();
-        async move {
-            if let Some(request) = client
-                .encryption()
-                .get_verification_request(&event.sender, event.content.transaction_id.as_str())
-                .await
-            {
-                let _ = update_verification(&profile_key, Some(request), None);
-            }
-        }
-    });
-
     clients()
         .lock()
         .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
@@ -572,6 +554,14 @@ async fn complete_sync_cycle(
     // encrypted send. There is deliberately no second background cursor owner.
     let matrix_io_gate = matrix_io_gate_for(profile_key)?;
     let _matrix_io_guard = matrix_io_gate.lock().await;
+    complete_sync_cycle_under_gate(profile_key, timeout, error_code).await
+}
+
+async fn complete_sync_cycle_under_gate(
+    profile_key: &str,
+    timeout: Duration,
+    error_code: &str,
+) -> Result<CompletedSyncCycle, String> {
     let (client, since) = client_and_sync_cursor(profile_key)?;
     let settings = sync_settings(timeout, since.as_deref());
     let mut response = client
@@ -579,6 +569,7 @@ async fn complete_sync_cycle(
         .await
         .map_err(|error| matrix_sdk_error_code(&error, error_code))?;
     record_to_device_diagnostics(profile_key, &response.to_device)?;
+    reconcile_verification_requests(profile_key, &client, &response.to_device).await?;
     let (mut enabled_rooms, mut converged_rooms) =
         converge_joined_room_security(profile_key, &client).await?;
     if enabled_rooms > 0 {
@@ -591,6 +582,7 @@ async fn complete_sync_cycle(
             .await
             .map_err(|error| matrix_sdk_error_code(&error, error_code))?;
         record_to_device_diagnostics(profile_key, &response.to_device)?;
+        reconcile_verification_requests(profile_key, &client, &response.to_device).await?;
         let (newly_enabled_rooms, newly_converged_rooms) =
             converge_joined_room_security(profile_key, &client).await?;
         enabled_rooms = enabled_rooms.saturating_add(newly_enabled_rooms);
@@ -603,6 +595,48 @@ async fn complete_sync_cycle(
     };
     remember_sync_cursor(profile_key, completed.next_batch.clone())?;
     Ok(completed)
+}
+
+async fn reconcile_verification_requests(
+    profile_key: &str,
+    client: &Client,
+    events: &[ProcessedToDeviceEvent],
+) -> Result<(), String> {
+    // Verification requests are ephemeral to-device events. Reconcile the
+    // SDK-owned request into the app projection from the processed response
+    // before its cursor is acknowledged. This keeps verification state in the
+    // same transaction as the crypto-store mutation instead of relying on a
+    // separate event-handler side effect.
+    for event in events {
+        let Some((sender, transaction_id)) = verification_request_identity(event) else {
+            continue;
+        };
+        if let Some(request) = client
+            .encryption()
+            .get_verification_request(&sender, &transaction_id)
+            .await
+        {
+            update_verification(profile_key, Some(request), None)?;
+        }
+    }
+    Ok(())
+}
+
+fn verification_request_identity(event: &ProcessedToDeviceEvent) -> Option<(OwnedUserId, String)> {
+    let raw = event.as_raw();
+    if raw.get_field::<String>("type").ok().flatten().as_deref()
+        != Some("m.key.verification.request")
+    {
+        return None;
+    }
+    let sender = raw.get_field::<OwnedUserId>("sender").ok().flatten()?;
+    let content = raw.get_field::<Value>("content").ok().flatten()?;
+    let transaction_id = content
+        .get("transaction_id")
+        .and_then(Value::as_str)
+        .filter(|value| !value.is_empty())?
+        .to_owned();
+    Some((sender, transaction_id))
 }
 
 fn client_and_sync_cursor(profile_key: &str) -> Result<(Client, Option<String>), String> {
@@ -804,6 +838,12 @@ async fn room_messages_inner(
 ) -> Result<Value, String> {
     let matrix_io_gate = matrix_io_gate_for(profile_key)?;
     let _matrix_io_guard = matrix_io_gate.lock().await;
+    // Treat to-device key consumption, cursor acknowledgement, and timeline
+    // decryption as one native receive transaction. No foreground/background
+    // handoff can interleave a second cursor owner between the room key and the
+    // message that depends on it.
+    complete_sync_cycle_under_gate(profile_key, Duration::from_secs(0), "M_WEAVE_E2EE_SYNC")
+        .await?;
     let client = client_for(profile_key)?;
     let room_id = OwnedRoomId::try_from(room_id).map_err(|_| "M_INVALID_PARAM".to_string())?;
     let room = client
@@ -1969,6 +2009,37 @@ mod tests {
             unable_to_decrypt_reason(UnableToDecryptReason::MalformedEncryptedEvent),
             "malformedEncryptedEvent"
         );
+    }
+
+    #[test]
+    fn verification_request_identity_is_taken_from_the_processed_event() {
+        let request = ProcessedToDeviceEvent::PlainText(
+            serde_json::from_value(json!({
+                "sender": "@member:api.weave.test",
+                "type": "m.key.verification.request",
+                "content": {
+                    "transaction_id": "verification-transaction",
+                    "from_device": "WEAVE_DEVICE",
+                    "methods": ["m.sas.v1"],
+                    "timestamp": 1,
+                },
+            }))
+            .expect("verification request should be valid raw JSON"),
+        );
+        let unrelated = ProcessedToDeviceEvent::PlainText(
+            serde_json::from_value(json!({
+                "sender": "@member:api.weave.test",
+                "type": "m.room_key",
+                "content": { "transaction_id": "not-verification" },
+            }))
+            .expect("room key should be valid raw JSON"),
+        );
+
+        let (sender, transaction_id) =
+            verification_request_identity(&request).expect("request identity should be found");
+        assert_eq!(sender.as_str(), "@member:api.weave.test");
+        assert_eq!(transaction_id, "verification-transaction");
+        assert!(verification_request_identity(&unrelated).is_none());
     }
 
     #[test]
