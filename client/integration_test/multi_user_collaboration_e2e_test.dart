@@ -1167,6 +1167,16 @@ Future<void> _establishEncryptedDeviceExchange({
         timeout: observationTimeout,
       );
       if (collaboratorObservation.id != authorEvent.id) {
+        await _emitChatEventIdMismatch(
+          configuration: configuration,
+          direction: 'author-to-collaborator',
+          homeserver: configuration.common.matrixHomeserverUrl,
+          roomId: roomId,
+          authorSession: authorSession,
+          collaboratorSession: collaboratorSession,
+          expected: authorEvent,
+          observed: collaboratorObservation,
+        );
         throw StateError(
           'The collaborator resolved a different encrypted Chat event.',
         );
@@ -1205,6 +1215,16 @@ Future<void> _establishEncryptedDeviceExchange({
         timeout: observationTimeout,
       );
       if (authorObservation.id != collaboratorEvent.id) {
+        await _emitChatEventIdMismatch(
+          configuration: configuration,
+          direction: 'collaborator-to-author',
+          homeserver: configuration.common.matrixHomeserverUrl,
+          roomId: roomId,
+          authorSession: authorSession,
+          collaboratorSession: collaboratorSession,
+          expected: collaboratorEvent,
+          observed: authorObservation,
+        );
         throw StateError(
           'The author resolved a different encrypted Chat event.',
         );
@@ -1541,6 +1561,141 @@ class _ChatObservationFailure implements Exception {
 
   @override
   String toString() => code;
+}
+
+Future<void> _emitChatEventIdMismatch({
+  required MultiUserTestConfig configuration,
+  required String direction,
+  required Uri homeserver,
+  required String roomId,
+  required LiveActorSession authorSession,
+  required LiveActorSession collaboratorSession,
+  required ChatMessage expected,
+  required ChatMessage observed,
+}) async {
+  if (direction != 'author-to-collaborator' &&
+      direction != 'collaborator-to-author') {
+    throw StateError('Unsupported encrypted Chat observation direction.');
+  }
+  final visibility = await _inspectChatEventIdVisibility(
+    homeserver: homeserver,
+    roomId: roomId,
+    authorSession: authorSession,
+    collaboratorSession: collaboratorSession,
+    expectedId: expected.id,
+    observedId: observed.id,
+  );
+  final expectedHash = _hashBytes(utf8.encode(expected.id)).substring(0, 16);
+  final observedHash = _hashBytes(utf8.encode(observed.id)).substring(0, 16);
+  final sameTimestamp = expected.sentAt.isAtSameMomentAs(observed.sentAt);
+  // The sanitizer accepts only these fixed labels, hashes, booleans, and
+  // counts. No identifier, actor, URL, ciphertext, or message body leaves the
+  // private integration-test process.
+  // ignore: avoid_print
+  print(
+    'MULTI_USER_E2EE_EVENT_ID_MISMATCH direction=$direction '
+    'runIndex=${configuration.runIndex} expectedHash=$expectedHash '
+    'observedHash=$observedHash sameSender=${expected.senderId == observed.senderId ? 1 : 0} '
+    'sameTimestamp=${sameTimestamp ? 1 : 0} expectedLength=${expected.id.length} '
+    'observedLength=${observed.id.length} transportAvailable=${visibility.available ? 1 : 0} '
+    'authorHasExpected=${visibility.authorHasExpected ? 1 : 0} '
+    'authorHasObserved=${visibility.authorHasObserved ? 1 : 0} '
+    'collaboratorHasExpected=${visibility.collaboratorHasExpected ? 1 : 0} '
+    'collaboratorHasObserved=${visibility.collaboratorHasObserved ? 1 : 0}',
+  );
+}
+
+Future<_ChatEventIdVisibility> _inspectChatEventIdVisibility({
+  required Uri homeserver,
+  required String roomId,
+  required LiveActorSession authorSession,
+  required LiveActorSession collaboratorSession,
+  required String expectedId,
+  required String observedId,
+}) async {
+  try {
+    final timelines = await Future.wait(<Future<Set<String>>>[
+      _rawChatEventIds(authorSession, homeserver, roomId),
+      _rawChatEventIds(collaboratorSession, homeserver, roomId),
+    ]).timeout(const Duration(seconds: 4));
+    final authorIds = timelines[0];
+    final collaboratorIds = timelines[1];
+    return _ChatEventIdVisibility(
+      available: true,
+      authorHasExpected: authorIds.contains(expectedId),
+      authorHasObserved: authorIds.contains(observedId),
+      collaboratorHasExpected: collaboratorIds.contains(expectedId),
+      collaboratorHasObserved: collaboratorIds.contains(observedId),
+    );
+  } catch (_) {
+    return const _ChatEventIdVisibility.unavailable();
+  }
+}
+
+Future<Set<String>> _rawChatEventIds(
+  LiveActorSession session,
+  Uri homeserver,
+  String roomId,
+) async {
+  final credentials = await session.matrixTransportCredentials();
+  final client = createTrustedTestHttpClient();
+  try {
+    final response = await client.get(
+      homeserver.replace(
+        pathSegments: <String>[
+          '_matrix',
+          'client',
+          'v3',
+          'rooms',
+          roomId,
+          'messages',
+        ],
+        queryParameters: const <String, String>{'dir': 'b', 'limit': '100'},
+      ),
+      headers: <String, String>{
+        'Authorization': 'Bearer ${credentials.accessToken}',
+        'X-Weave-Matrix-Device-Id': credentials.deviceId,
+        'Accept': 'application/json',
+      },
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw StateError('The raw Chat transport was unavailable.');
+    }
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map || decoded['chunk'] is! List) {
+      throw StateError('The raw Chat transport returned an invalid timeline.');
+    }
+    return <String>{
+      for (final event in decoded['chunk'] as List)
+        if (event is Map && event['event_id'] is String)
+          event['event_id'] as String,
+    };
+  } finally {
+    client.close();
+  }
+}
+
+class _ChatEventIdVisibility {
+  const _ChatEventIdVisibility({
+    required this.available,
+    required this.authorHasExpected,
+    required this.authorHasObserved,
+    required this.collaboratorHasExpected,
+    required this.collaboratorHasObserved,
+  });
+
+  const _ChatEventIdVisibility.unavailable()
+    : available = false,
+      authorHasExpected = false,
+      authorHasObserved = false,
+      collaboratorHasExpected = false,
+      collaboratorHasObserved = false;
+
+  final bool available;
+  final bool authorHasExpected;
+  final bool authorHasObserved;
+  final bool collaboratorHasExpected;
+  final bool collaboratorHasObserved;
 }
 
 Future<bool> _verifyCiphertextOnlyTransport(

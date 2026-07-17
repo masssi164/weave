@@ -219,6 +219,24 @@ E2EE_CRYPTO_DIAGNOSTIC_PATTERN = re.compile(
     + r" ".join(rf"{field}=(\d+)" for field in E2EE_CRYPTO_DIAGNOSTIC_FIELDS)
     + r"\s*$"
 )
+E2EE_EVENT_ID_MISMATCH_FIELDS = (
+    "sameSender",
+    "sameTimestamp",
+    "expectedLength",
+    "observedLength",
+    "transportAvailable",
+    "authorHasExpected",
+    "authorHasObserved",
+    "collaboratorHasExpected",
+    "collaboratorHasObserved",
+)
+E2EE_EVENT_ID_MISMATCH_PATTERN = re.compile(
+    r"(?:^|\s)MULTI_USER_E2EE_EVENT_ID_MISMATCH "
+    r"direction=(author-to-collaborator|collaborator-to-author) "
+    r"runIndex=(\d+) expectedHash=([0-9a-f]{16}) observedHash=([0-9a-f]{16}) "
+    + r" ".join(rf"{field}=(\d+)" for field in E2EE_EVENT_ID_MISMATCH_FIELDS)
+    + r"\s*$"
+)
 
 
 def _parse_args() -> argparse.Namespace:
@@ -332,6 +350,25 @@ def _e2ee_crypto_diagnostics(raw_log: str, run_index: int) -> list[str]:
     return diagnostics[-2:]
 
 
+def _e2ee_event_id_mismatches(raw_log: str, run_index: int) -> list[str]:
+    diagnostics: list[str] = []
+    for line in raw_log.splitlines():
+        match = E2EE_EVENT_ID_MISMATCH_PATTERN.search(line)
+        if match is None or int(match.group(2)) != run_index:
+            continue
+        counts = " ".join(
+            f"{field}={match.group(index + 5)}"
+            for index, field in enumerate(E2EE_EVENT_ID_MISMATCH_FIELDS)
+        )
+        diagnostics.append(
+            "SANITIZED_MULTI_USER_E2EE_EVENT_ID_MISMATCH "
+            f"direction={match.group(1)} runIndex={run_index} "
+            f"expectedHash={match.group(3)} observedHash={match.group(4)} "
+            f"{counts} supportSafe=true"
+        )
+    return diagnostics[-2:]
+
+
 def main() -> int:
     args = _parse_args()
     raw_log = args.input.read_text(encoding="utf-8", errors="replace")
@@ -359,6 +396,9 @@ def main() -> int:
         print(diagnostic)
 
     for diagnostic in _e2ee_diagnostics(raw_log, args.run_index):
+        print(diagnostic)
+
+    for diagnostic in _e2ee_event_id_mismatches(raw_log, args.run_index):
         print(diagnostic)
 
     test_status = "passed" if args.test_exit_code == 0 else "failed"
