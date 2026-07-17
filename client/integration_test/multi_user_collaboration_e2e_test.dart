@@ -64,9 +64,11 @@ const _supportSafeProgressPhases = <String>{
   'room-key-exchange-author-send',
   'room-key-exchange-author-self-observe',
   'room-key-exchange-collaborator-observe-author',
+  'room-key-exchange-collaborator-observed-author',
   'room-key-exchange-collaborator-send',
   'room-key-exchange-collaborator-self-observe',
   'room-key-exchange-author-observe-collaborator',
+  'room-key-exchange-author-observed-collaborator',
   'home-baseline',
   'author-write',
   'author-capabilities',
@@ -1166,6 +1168,10 @@ Future<void> _establishEncryptedDeviceExchange({
         diagnosticRole: CollaborationActorRole.collaborator,
         timeout: observationTimeout,
       );
+      _emitProgress(
+        configuration,
+        'room-key-exchange-collaborator-observed-author',
+      );
       if (collaboratorObservation.id != authorEvent.id) {
         await _emitChatEventIdMismatch(
           configuration: configuration,
@@ -1213,6 +1219,10 @@ Future<void> _establishEncryptedDeviceExchange({
         collaboratorProbe,
         diagnosticRole: CollaborationActorRole.author,
         timeout: observationTimeout,
+      );
+      _emitProgress(
+        configuration,
+        'room-key-exchange-author-observed-collaborator',
       );
       if (authorObservation.id != collaboratorEvent.id) {
         await _emitChatEventIdMismatch(

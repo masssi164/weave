@@ -42,9 +42,11 @@ PROGRESS_PHASES = (
     "room-key-exchange-author-send",
     "room-key-exchange-author-self-observe",
     "room-key-exchange-collaborator-observe-author",
+    "room-key-exchange-collaborator-observed-author",
     "room-key-exchange-collaborator-send",
     "room-key-exchange-collaborator-self-observe",
     "room-key-exchange-author-observe-collaborator",
+    "room-key-exchange-author-observed-collaborator",
     "home-baseline",
     "author-write",
     "author-capabilities",
@@ -95,6 +97,35 @@ PROGRESS_PATTERN = re.compile(
     rf"phase=({'|'.join(PROGRESS_PHASES)}) runIndex=(\d+)\s*$"
 )
 FAILURE_CATEGORIES = (
+    (
+        "event-id-mismatch",
+        re.compile(
+            r"resolved a different encrypted Chat event",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "message-not-observed",
+        re.compile(
+            r"committed Chat message was not observed|M_WEAVE_E2EE_MESSAGE_NOT_OBSERVED",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "native-process",
+        re.compile(
+            r"lost connection to device|service protocol connection closed|"
+            r"process.*(?:sigabrt|sigsegv)|rust panicked|fatal signal",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "test-timeout",
+        re.compile(
+            r"test timed out after|TimeoutException after",
+            re.IGNORECASE,
+        ),
+    ),
     (
         "compilation",
         re.compile(
