@@ -1707,8 +1707,15 @@ Future<T> _eventually<T>(
   final deadline = DateTime.now().add(timeout);
   Object? lastError;
   while (DateTime.now().isBefore(deadline)) {
+    final remaining = deadline.difference(DateTime.now());
+    if (remaining <= Duration.zero) {
+      break;
+    }
     try {
-      final value = await operation();
+      // The retry deadline must also bound each awaited operation. Native
+      // Matrix transport has its own shorter request timeout, so timing out
+      // here does not leave the sole native crypto-store owner stuck forever.
+      final value = await operation().timeout(remaining);
       if (predicate(value)) {
         return value;
       }
@@ -1758,7 +1765,25 @@ Future<void> _emitE2eeDiagnostics({
   required String roomId,
 }) async {
   try {
-    final diagnostics = await session.chatDecryptionDiagnostics(roomId);
+    final diagnostics = await session
+        .chatDecryptionDiagnostics(roomId)
+        .timeout(const Duration(seconds: 17));
+    // Keep the decisive receive-path counters on a short line. Flutter test
+    // output can split the complete convergence diagnostic, while this marker
+    // remains small enough for the support-safe sanitizer to preserve.
+    // ignore: avoid_print
+    print(
+      'MULTI_USER_E2EE_CRYPTO_DIAGNOSTIC '
+      'role=${role.name} runIndex=${configuration.runIndex} available=1 '
+      'supportCode=${diagnostics.supportCode} '
+      'eventCount=${diagnostics.eventCount} '
+      'decryptedCount=${diagnostics.decryptedCount} '
+      'unableToDecryptCount=${diagnostics.unableToDecryptCount} '
+      'toDeviceDecryptedCount=${diagnostics.toDeviceDecryptedCount} '
+      'toDeviceRoomKeyCount=${diagnostics.toDeviceDecryptedRoomKeyCount} '
+      'toDeviceUnableToDecryptCount='
+      '${diagnostics.toDeviceUnableToDecryptCount}',
+    );
     // Only allowlisted roles and bounded integer counts cross into the
     // shareable test log. No Matrix IDs, room/session IDs, device IDs, event
     // content, key material, ciphertext, URLs, or provider payloads are used.
@@ -1800,6 +1825,15 @@ Future<void> _emitE2eeDiagnostics({
   } catch (_) {
     // The unavailable marker remains support-safe and still distinguishes a
     // diagnostics-path failure from a zero-count observation.
+    // ignore: avoid_print
+    print(
+      'MULTI_USER_E2EE_CRYPTO_DIAGNOSTIC '
+      'role=${role.name} runIndex=${configuration.runIndex} available=0 '
+      'supportCode=M_WEAVE_E2EE_DIAGNOSTICS_UNAVAILABLE '
+      'eventCount=0 decryptedCount=0 unableToDecryptCount=0 '
+      'toDeviceDecryptedCount=0 toDeviceRoomKeyCount=0 '
+      'toDeviceUnableToDecryptCount=0',
+    );
     // ignore: avoid_print
     print(
       'MULTI_USER_E2EE_DIAGNOSTIC '

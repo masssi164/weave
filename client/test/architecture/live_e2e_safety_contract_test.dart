@@ -182,6 +182,10 @@ void main() {
     expect(timeline, contains('matrix_io_gate_for(profile_key)?'));
     expect(source, contains('PRE_SEND_DEVICE_QUERY_ATTEMPTS'));
     expect(source, contains('Duration::from_millis(500)'));
+    expect(source, contains('MATRIX_CONNECT_TIMEOUT'));
+    expect(source, contains('MATRIX_REQUEST_TIMEOUT'));
+    expect(source, contains('.connect_timeout(MATRIX_CONNECT_TIMEOUT)'));
+    expect(source, contains('.timeout(MATRIX_REQUEST_TIMEOUT)'));
     expect(source, contains('RoomMemberships::JOIN'));
     expect(source, isNot(contains('RoomMemberships::ACTIVE')));
     expect(source, contains('authoritative_peer_device_ids'));

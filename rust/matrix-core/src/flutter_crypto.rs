@@ -47,6 +47,8 @@ use tokio::sync::Mutex as AsyncMutex;
 const DEVICE_ID_HEADER: &str = "x-weave-matrix-device-id";
 const PRE_SEND_DEVICE_QUERY_ATTEMPTS: usize = 10;
 const PRE_SEND_DEVICE_QUERY_DELAY: Duration = Duration::from_millis(500);
+const MATRIX_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
+const MATRIX_REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
 
 struct ManagedClient {
     client: Client,
@@ -521,7 +523,14 @@ fn build_http_client(
     default_headers: HeaderMap,
     extra_root_certificate_pem: &str,
 ) -> Result<reqwest::Client, String> {
-    let mut builder = reqwest::Client::builder().default_headers(default_headers);
+    // A stalled Matrix request otherwise retains the single explicit
+    // sync/send/store gate forever. Bound both connection establishment and
+    // the complete request so foreground retry, sign-out, and token renewal
+    // can always regain the sole crypto-store owner.
+    let mut builder = reqwest::Client::builder()
+        .default_headers(default_headers)
+        .connect_timeout(MATRIX_CONNECT_TIMEOUT)
+        .timeout(MATRIX_REQUEST_TIMEOUT);
     if !extra_root_certificate_pem.trim().is_empty() {
         let certificates =
             reqwest::Certificate::from_pem_bundle(extra_root_certificate_pem.as_bytes())
@@ -1691,6 +1700,12 @@ mod tests {
     #[test]
     fn platform_roots_remain_the_default() {
         assert!(build_http_client(HeaderMap::new(), "").is_ok());
+    }
+
+    #[test]
+    fn matrix_request_deadlines_are_shorter_than_the_foreground_retry_window() {
+        assert!(MATRIX_CONNECT_TIMEOUT < MATRIX_REQUEST_TIMEOUT);
+        assert!(MATRIX_REQUEST_TIMEOUT <= Duration::from_secs(15));
     }
 
     #[test]
