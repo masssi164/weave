@@ -376,8 +376,12 @@ public final class SynapseBackedCanonicalChatAdapter implements ChatProviderPort
     }
 
     public CanonicalChatStore.ProviderMapping actorMapping(ChatRequestContext context) {
-        return store.mapping(context.tenantId(), provider.providerKey(), "actor", actorCanonicalId(context))
+        return actorMappingIfPresent(context)
                 .orElseThrow(() -> new IllegalArgumentException("canonical Chat actor mapping was not found"));
+    }
+
+    public java.util.Optional<CanonicalChatStore.ProviderMapping> actorMappingIfPresent(ChatRequestContext context) {
+        return store.mapping(context.tenantId(), provider.providerKey(), "actor", actorCanonicalId(context));
     }
 
     public CanonicalChatStore canonicalStore() {

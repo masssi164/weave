@@ -414,35 +414,6 @@ register_pass_sessions() {
   done
 }
 
-preproject_outsider_fixture() {
-  local pass_index="$1" directory response status room_id outsider_user
-  directory="$(pass_dir "${pass_index}")"
-  outsider_user="$(<"${directory}/outsider-matrix-user")"
-  jq -n \
-    --arg name "isolated-${NAMESPACE}-outside-pass-${pass_index}" \
-    --arg outsider "${outsider_user}" '
-      {
-        name:$name,
-        is_direct:false,
-        invite:[$outsider],
-        initial_state:[{
-          type:"m.room.encryption",
-          state_key:"",
-          content:{algorithm:"m.megolm.v1.aes-sha2"}
-        }]
-      }
-    ' >"${directory}/outside-create-room-request.json"
-  response="${directory}/outside-create-room-response.json"
-  status="$(northbound_request POST '/_matrix/client/v3/createRoom' \
-    "${directory}/author-headers" "${directory}/outside-create-room-request.json" "${response}")"
-  [[ "${status}" == "200" ]] || fail "outsider-fixture-create-status-${status}"
-  room_id="$(jq -r '.room_id // empty' "${response}")"
-  rm -f -- "${response}" "${directory}/outside-create-room-request.json"
-  [[ "${room_id}" == '!'*:* ]] || fail "outsider-fixture-projection-invalid"
-  printf '%s' "${room_id}" >"${directory}/outside-room-id"
-  unset room_id outsider_user
-}
-
 create_encrypted_body() {
   local pass_index="$1" event_index="$2"
   local directory opaque sender_key session_id device_id
@@ -718,7 +689,7 @@ assert_provider_evidence_counts() {
         .providerJoined == true and .providerReadDenied == false
       )] | length) == 2 and
       ([.identities[] | select(
-        .role == "outsider" and .providerMapped == true and
+        .role == "outsider" and .providerMapped == false and
         .canonicalJoined == false and .providerJoined == false and .providerReadDenied == true
       )] | length) == 1
     ' "${evidence}" >/dev/null || fail "provider-evidence-counts-invalid"
@@ -846,11 +817,6 @@ run_collaboration_pass() {
   directory="$(pass_dir "${pass_index}")"
   namespace_short="$(sha256 "${NAMESPACE}" | cut -c1-16)"
   register_pass_sessions "${pass_index}"
-  # Establish the outsider's provider mapping through an authorized author's
-  # isolated invitation fixture. The outsider is never joined to the target
-  # collaboration, and the read-only proof endpoint must not create mappings
-  # merely to make its denial assertion pass.
-  preproject_outsider_fixture "${pass_index}"
   create_encrypted_room "${pass_index}"
   join_collaborator "${pass_index}"
   create_encrypted_body "${pass_index}" 1
@@ -1031,24 +997,6 @@ leave_room() {
   [[ "${status}" == "200" ]] || fail "cleanup-leave-${role}-status-${status}"
 }
 
-leave_outsider_fixture() {
-  local pass_index="$1" directory room_id encoded response status read_status
-  directory="$(pass_dir "${pass_index}")"
-  room_id="$(<"${directory}/outside-room-id")"
-  encoded="$(uri_encode "${room_id}")"
-  response="${directory}/cleanup-outside-leave.json"
-  status="$(northbound_request POST "/_matrix/client/v3/rooms/${encoded}/leave" \
-    "${directory}/author-headers" - "${response}")"
-  rm -f -- "${response}"
-  [[ "${status}" == "200" ]] || fail "cleanup-outside-leave-status-${status}"
-  response="${directory}/cleanup-outside-membership.json"
-  read_status="$(northbound_request GET \
-    "/_matrix/client/v3/rooms/${encoded}/messages?dir=b&limit=1" \
-    "${directory}/author-headers" - "${response}")"
-  rm -f -- "${response}"
-  [[ "${read_status}" == "403" ]] || fail "cleanup-outside-membership-status-${read_status}"
-}
-
 cleanup_run_resources() {
   local pass_index directory response author_status collaborator_status
   for pass_index in 1 2; do
@@ -1057,7 +1005,6 @@ cleanup_run_resources() {
     redact_event "${pass_index}" 3 author
     leave_room "${pass_index}" collaborator
     leave_room "${pass_index}" author
-    leave_outsider_fixture "${pass_index}"
     directory="$(pass_dir "${pass_index}")"
     response="${directory}/cleanup-author-membership.json"
     author_status="$(room_messages "${pass_index}" author "${response}")"
@@ -1095,7 +1042,7 @@ write_pass_evidence() {
         authorizedVirtualUserCount:2,
         authorJoined:true,
         collaboratorJoined:true,
-        outsiderPreprojectedByAuthorizedInvitation:true,
+        outsiderProviderMappingAbsent:true,
         outsiderRoomMembershipAbsent:true,
         outsiderReadDenied:true,
         outsiderWriteDenied:true,

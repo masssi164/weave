@@ -37,6 +37,7 @@ import 'package:weave/main.dart';
 
 import 'helpers/isolated_stack_scope.dart';
 import 'helpers/live_actor_session.dart';
+import 'helpers/live_chat_access_evidence.dart';
 import 'helpers/live_files_access_evidence.dart';
 import 'helpers/matrix_live_room_driver.dart';
 import 'helpers/multi_user_test_config.dart';
@@ -416,35 +417,53 @@ void main() {
         );
 
         _emitProgress(configuration, 'outsider-chat-authorization');
-        await session.chat.connect();
-        final outsiderConversations = await session.chat.loadConversations();
-        final targetMembershipVisible = outsiderConversations.any(
-          (conversation) => conversation.id == roomId,
-        );
-        var targetMessageVisible = false;
+        var chatModuleDenied = false;
+        var targetMembershipVisible = false;
         try {
-          final timeline = await session.chat.loadRoomTimeline(roomId);
-          targetMessageVisible = timeline.messages.any(
-            (message) =>
-                message.text == authorMessage ||
-                message.text == collaboratorReply,
+          await session.chat.connect();
+          final outsiderConversations = await session.chat.loadConversations();
+          targetMembershipVisible = outsiderConversations.any(
+            (conversation) => conversation.id == roomId,
           );
-        } on ChatFailure {
-          targetMessageVisible = false;
+        } on ChatFailure catch (failure) {
+          chatModuleDenied = isWorkspaceChatDeniedForEvidence(failure);
+          if (!chatModuleDenied) {
+            rethrow;
+          }
         }
-        var outsiderSendRejected = false;
-        try {
-          await session.chat.sendMessage(
-            roomId: roomId,
-            message: 'weave-outsider-denied-$suffix',
-          );
-        } on ChatFailure {
-          outsiderSendRejected = true;
+        if (chatModuleDenied) {
+          outsiderChatDenied = true;
+        } else {
+          var targetMessageVisible = false;
+          try {
+            final timeline = await session.chat.loadRoomTimeline(roomId);
+            targetMessageVisible = timeline.messages.any(
+              (message) =>
+                  message.text == authorMessage ||
+                  message.text == collaboratorReply,
+            );
+          } on ChatFailure catch (failure) {
+            if (!isWorkspaceChatDeniedForEvidence(failure)) {
+              rethrow;
+            }
+          }
+          var outsiderSendRejected = false;
+          try {
+            await session.chat.sendMessage(
+              roomId: roomId,
+              message: 'weave-outsider-denied-$suffix',
+            );
+          } on ChatFailure catch (failure) {
+            outsiderSendRejected = isWorkspaceChatDeniedForEvidence(failure);
+            if (!outsiderSendRejected) {
+              rethrow;
+            }
+          }
+          outsiderChatDenied =
+              !targetMembershipVisible &&
+              !targetMessageVisible &&
+              outsiderSendRejected;
         }
-        outsiderChatDenied =
-            !targetMembershipVisible &&
-            !targetMessageVisible &&
-            outsiderSendRejected;
         expect(outsiderChatDenied, isTrue);
 
         _emitProgress(configuration, 'outsider-files-authorization');

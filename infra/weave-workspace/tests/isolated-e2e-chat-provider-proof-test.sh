@@ -67,7 +67,6 @@ for pass_index in 1 2; do
   printf 'false\n' >"${MOCK_STATE}/failed-${pass_index}"
   printf 'false\n' >"${MOCK_STATE}/left-${pass_index}-author"
   printf 'false\n' >"${MOCK_STATE}/left-${pass_index}-collaborator"
-  printf 'false\n' >"${MOCK_STATE}/outside-projected-${pass_index}"
 done
 
 cat >"${MOCK_BIN}/sleep" <<'MOCK'
@@ -216,25 +215,14 @@ elif [[ "${url}" == */_matrix/client/v3/createRoom ]]; then
   pass_index="$(jq -r '.name | capture("pass-(?<value>[12])").value' "${body_file}")"
   role_pass="$(role_and_pass)"
   role="${role_pass%%:*}"
-  if jq -e '.name | contains("-outside-pass-")' "${body_file}" >/dev/null; then
-    expected_outsider="@outsider_${pass_index}:api.weave.test"
-    if [[ "${role}" != author ]] ||
-      ! jq -e --arg expected "${expected_outsider}" '.invite == [$expected]' "${body_file}" >/dev/null; then
-      respond 403 '{"errcode":"M_FORBIDDEN"}'
-      exit 0
-    fi
-    printf 'true\n' >"${MOCK_STATE}/outside-projected-${pass_index}"
-    printf 'project:outsider-by-author:%s\n' "${pass_index}" >>"${MOCK_STATE}/operations.log"
-    respond 200 "$(jq -cn --arg room "!outside-pass-${pass_index}:api.weave.test" '{room_id:$room}')"
-  else
-    expected_collaborator="@collaborator_${pass_index}:api.weave.test"
-    if ! jq -e --arg expected "${expected_collaborator}" '.invite == [$expected]' "${body_file}" >/dev/null; then
-      respond 400 '{"errcode":"M_BAD_JSON","error":"fixture invite mismatch"}'
-      exit 0
-    fi
-    printf 'create:target:%s\n' "${pass_index}" >>"${MOCK_STATE}/operations.log"
-    respond 200 "$(jq -cn --arg room "!room-pass-${pass_index}:api.weave.test" '{room_id:$room}')"
+  expected_collaborator="@collaborator_${pass_index}:api.weave.test"
+  if [[ "${role}" != author ]] ||
+    ! jq -e --arg expected "${expected_collaborator}" '.invite == [$expected]' "${body_file}" >/dev/null; then
+    respond 400 '{"errcode":"M_BAD_JSON","error":"fixture invite mismatch"}'
+    exit 0
   fi
+  printf 'create:target:%s\n' "${pass_index}" >>"${MOCK_STATE}/operations.log"
+  respond 200 "$(jq -cn --arg room "!room-pass-${pass_index}:api.weave.test" '{room_id:$room}')"
 elif [[ "${url}" == */_matrix/client/v3/join/* ]]; then
   respond 200 '{}'
 elif [[ "${url}" == */send/m.room.encrypted/* ]]; then
@@ -334,10 +322,6 @@ elif [[ "${url}" == */api/internal/e2e/chat/provider-proof ]]; then
     exit 0
   }
   pass_index="$(jq -r '.conversationId | capture("room-pass-(?<value>[12])").value' "${body_file}")"
-  [[ "$(<"${MOCK_STATE}/outside-projected-${pass_index}")" == true ]] || {
-    respond 503 '{"code":"chat-e2e-proof-mapping-unavailable","supportSafe":true}'
-    exit 0
-  }
   event_count="$(jq 'length' "${MOCK_STATE}/events-${pass_index}.json")"
   failed_count=0
   [[ "$(<"${MOCK_STATE}/failed-${pass_index}")" != true ]] || failed_count=1
@@ -365,7 +349,7 @@ elif [[ "${url}" == */api/internal/e2e/chat/provider-proof ]]; then
         identities:[
           {role:"author",identityHash:("a"*64),providerMapped:true,canonicalJoined:true,providerJoined:true,providerReadDenied:false},
           {role:"collaborator",identityHash:("b"*64),providerMapped:true,canonicalJoined:true,providerJoined:true,providerReadDenied:false},
-          {role:"outsider",identityHash:("c"*64),providerMapped:true,canonicalJoined:false,providerJoined:false,providerReadDenied:true}
+          {role:"outsider",identityHash:("c"*64),providerMapped:false,canonicalJoined:false,providerJoined:false,providerReadDenied:true}
         ],
         providerMembershipExact:true,
         outsiderAbsent:true,
@@ -590,7 +574,6 @@ for pass_index in 1 2; do
   printf 'false\n' >"${MOCK_STATE}/failed-${pass_index}"
   printf 'false\n' >"${MOCK_STATE}/left-${pass_index}-author"
   printf 'false\n' >"${MOCK_STATE}/left-${pass_index}-collaborator"
-  printf 'false\n' >"${MOCK_STATE}/outside-projected-${pass_index}"
 done
 
 proof_output="${TMP_DIR}/provider-evidence.json"
@@ -627,7 +610,7 @@ jq -e \
       .status == "passed" and .directProviderApiReadback == true and
       .authenticatedProviderReadback == true and .authorizedVirtualUserCount == 2 and
       .authorJoined == true and .collaboratorJoined == true and
-      .outsiderPreprojectedByAuthorizedInvitation == true and
+      .outsiderProviderMappingAbsent == true and
       .outsiderRoomMembershipAbsent == true and .outsiderReadDenied == true and
       .outsiderWriteDenied == true and .correlatedEncryptedEventCount == 3 and
       .correlatedPlaintextEventCount == 0 and .canonicalCommittedEventCount == 3 and
@@ -663,10 +646,9 @@ for pass_index in 1 2; do
     "${author_registration_line}" -lt "${create_line}" &&
     "${collaborator_registration_line}" -lt "${create_line}" ]] ||
     fail "author and collaborator pass ${pass_index} must register authenticated facades before the invite"
-  project_line="$(grep -n "^project:outsider-by-author:${pass_index}$" "${MOCK_STATE}/operations.log" | head -1 | cut -d: -f1)"
   proof_line="$(grep -n "^proof:evidence:${pass_index}$" "${MOCK_STATE}/operations.log" | head -1 | cut -d: -f1)"
-  [[ -n "${project_line}" && -n "${proof_line}" && "${project_line}" -lt "${proof_line}" ]] ||
-    fail "outsider pass ${pass_index} must be projected through an authorized invitation fixture before read-only provider proof"
+  [[ -n "${proof_line}" && "${create_line}" -lt "${proof_line}" ]] ||
+    fail "pass ${pass_index} must prove the target only after its authorized collaboration"
 done
 jq -e '.directAccessGrantsEnabled == false' "${MOCK_STATE}/client.json" >/dev/null ||
   fail "successful proof did not restore the Keycloak client"
@@ -689,7 +671,8 @@ assert_contains "${PROOF_SCRIPT}" 'WEAVE_E2E_STACK_SCOPE'
 assert_contains "${PROOF_SCRIPT}" '/api/internal/e2e/chat/provider-proof'
 ! grep -Fq '/api/internal/chat/matrix/appservice/evidence' "${PROOF_SCRIPT}" || fail "obsolete hs-token evidence endpoint must be absent"
 assert_contains "${PROOF_SCRIPT}" 'TF_VAR_chat_e2e_proof_token_host_path'
-assert_contains "${PROOF_SCRIPT}" 'preproject_outsider_fixture'
+! grep -Fq 'preproject_outsider_fixture' "${PROOF_SCRIPT}" ||
+  fail "provider proof must not create an outsider mapping fixture"
 # shellcheck disable=SC2016
 assert_contains "${PROOF_SCRIPT}" 'runId:$runId'
 # The proof verifies the Application Service runtime boundary but callback
