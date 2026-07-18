@@ -101,6 +101,8 @@ export TF_VAR_keycloak_admin_password=fixture-persisted-password
 export TF_VAR_caddy_tls_ca_file=/persisted/ca.pem
 export TF_VAR_caddy_tls_cert_file=/persisted/cert.pem
 export TF_VAR_caddy_tls_key_file=/persisted/key.pem
+export TF_VAR_isolated_e2e_namespace=stale-isolated-run
+export TF_VAR_isolated_e2e_context_memberships='[{"stale":true}]'
 ENV
 (
   export WEAVE_DOGFOOD_BOOTSTRAP_ENV="${bootstrap_env}"
@@ -114,7 +116,23 @@ ENV
   [[ "${TF_VAR_caddy_tls_ca_file}" == /current/ca.pem ]]
   [[ "${TF_VAR_caddy_tls_cert_file}" == /current/cert.pem ]]
   [[ "${TF_VAR_caddy_tls_key_file}" == /current/key.pem ]]
+  [[ -z "${TF_VAR_isolated_e2e_namespace:-}" ]]
+  [[ -z "${TF_VAR_isolated_e2e_context_memberships:-}" ]]
 ) || fail "persistent bootstrap credentials or current TLS path overrides were not restored"
+
+if (
+  export WEAVE_DOGFOOD_BOOTSTRAP_ENV="${bootstrap_env}"
+  export WEAVE_DOGFOOD_DEPLOYMENT_SCOPE=persistent-dogfood
+  export TF_VAR_create_test_user=false
+  export TF_VAR_isolated_e2e_enabled=false
+  export TF_VAR_isolated_e2e_namespace=caller-supplied-isolated-run
+  # shellcheck source=infra/weave-workspace/persistent-dogfood-observation.sh
+  source "${SCRIPT}"
+  load_environment
+  assert_persistent_scope
+) >/dev/null 2>&1; then
+  fail "persistent scope accepted caller-supplied isolated E2E contamination"
+fi
 
 capture_bin="${TMP_DIR}/capture-bin"
 mkdir -p "${capture_bin}"
