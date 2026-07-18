@@ -36,7 +36,18 @@ env \
   TF_VAR_isolated_e2e_namespace= \
   TF_VAR_isolated_e2e_context_memberships='[]' \
   bash "${SCRIPT}" compare --before "${before}" --after "${after}" --output "${comparison}" >/dev/null
-jq -e '.status == "passed" and .twoNonDestructiveInstallsPreservedState == true and all(.gates[]; .passed)' "${comparison}" >/dev/null
+jq -e '.status == "passed" and .baselineSource == "pre-deploy" and .preExistingRuntimeObserved == true and .twoNonDestructiveInstallsPreservedState == true and all(.gates[]; .passed)' "${comparison}" >/dev/null
+
+env \
+  WEAVE_DOGFOOD_BOOTSTRAP_ENV="${TMP_DIR}/missing-bootstrap.env" \
+  WEAVE_DOGFOOD_DEPLOYMENT_SCOPE=persistent-dogfood \
+  WEAVE_PERSISTENT_BASELINE_SOURCE=first-install \
+  TF_VAR_create_test_user=false \
+  TF_VAR_isolated_e2e_enabled=false \
+  TF_VAR_isolated_e2e_namespace= \
+  TF_VAR_isolated_e2e_context_memberships='[]' \
+  bash "${SCRIPT}" compare --before "${before}" --after "${after}" --output "${comparison}" >/dev/null
+jq -e '.status == "passed" and .baselineSource == "first-install" and .preExistingRuntimeObserved == false and .twoNonDestructiveInstallsPreservedState == true' "${comparison}" >/dev/null
 
 jq '.tls.leafSha256 = "changed-leaf"' "${before}" >"${after}"
 if env \
