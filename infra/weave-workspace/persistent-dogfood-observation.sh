@@ -207,6 +207,9 @@ capture() {
 
 compare() {
   [[ -f "${BEFORE_FILE}" && -f "${AFTER_FILE}" ]] || fail "before/after observation is missing"
+  local baseline_source="${WEAVE_PERSISTENT_BASELINE_SOURCE:-pre-deploy}"
+  [[ "${baseline_source}" == pre-deploy || "${baseline_source}" == first-install ]] ||
+    fail "baseline source must be pre-deploy or first-install"
   jq -e '
     .schemaVersion == "weave.persistent-dogfood-observation.v1" and
     .supportSafe == true and
@@ -221,6 +224,8 @@ compare() {
   mkdir -p "$(dirname -- "${OUTPUT_FILE}")"
   result="$(jq -n \
     --arg comparedAt "${compared_at}" \
+    --arg baselineSource "${baseline_source}" \
+    --argjson preExistingRuntimeObserved "$([[ "${baseline_source}" == pre-deploy ]] && printf true || printf false)" \
     --slurpfile before "${BEFORE_FILE}" \
     --slurpfile after "${AFTER_FILE}" \
     'def same($path): ($before[0] | getpath($path)) == ($after[0] | getpath($path));
@@ -239,6 +244,8 @@ compare() {
      | {
          schemaVersion:"weave.persistent-dogfood-comparison.v1",
          comparedAt:$comparedAt,
+         baselineSource:$baselineSource,
+         preExistingRuntimeObserved:$preExistingRuntimeObserved,
          status:(if all($gates[]; .passed) then "passed" else "failed" end),
          gates:$gates,
          twoNonDestructiveInstallsPreservedState:all($gates[]; .passed),
