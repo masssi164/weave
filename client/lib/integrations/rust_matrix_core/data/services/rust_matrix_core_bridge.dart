@@ -175,6 +175,174 @@ class RustMatrixMessageProjection {
   final String contentType;
 }
 
+class RustMatrixDecryptionDiagnostics {
+  const RustMatrixDecryptionDiagnostics({
+    required this.eventCount,
+    required this.decryptedCount,
+    required this.unableToDecryptCount,
+    required this.plaintextCount,
+    required this.reasonCounts,
+    this.toDeviceDecryptedCount = 0,
+    this.toDeviceDecryptedRoomKeyCount = 0,
+    this.toDeviceDecryptedForwardedRoomKeyCount = 0,
+    this.toDeviceDecryptedOtherCount = 0,
+    this.toDeviceDecryptedUnknownTypeCount = 0,
+    this.toDeviceUnableToDecryptCount = 0,
+    this.toDevicePlaintextCount = 0,
+    this.toDeviceInvalidCount = 0,
+    this.toDeviceReasonCounts = const <String, int>{},
+    this.joinedPeerCount = 0,
+    this.authoritativeDeviceCount = 0,
+    this.sdkDeviceCount = 0,
+    this.sdkUsableDeviceCount = 0,
+    this.sdkDeletedDeviceCount = 0,
+    this.sdkBlacklistedDeviceCount = 0,
+    this.sdkMissingCurve25519Count = 0,
+    this.sdkMissingAuthoritativeDeviceCount = 0,
+    this.sdkUnexpectedDeviceCount = 0,
+    this.deviceQueryAttemptCount = 0,
+    this.convergedPeerCount = 0,
+    this.pendingPeerCount = 0,
+    this.rejectedPeerCount = 0,
+    this.blockedPeerCount = 0,
+    this.invalidPeerCount = 0,
+  });
+
+  factory RustMatrixDecryptionDiagnostics.fromJson(Map<String, dynamic> json) {
+    final rawReasonCounts = json['reasonCounts'];
+    return RustMatrixDecryptionDiagnostics(
+      eventCount: _integer(json['eventCount']),
+      decryptedCount: _integer(json['decryptedCount']),
+      unableToDecryptCount: _integer(json['unableToDecryptCount']),
+      plaintextCount: _integer(json['plaintextCount']),
+      reasonCounts: rawReasonCounts is Map
+          ? Map<String, int>.unmodifiable(
+              rawReasonCounts.map(
+                (key, value) => MapEntry(key.toString(), _integer(value)),
+              ),
+            )
+          : const <String, int>{},
+      toDeviceDecryptedCount: _integer(json['toDeviceDecryptedCount']),
+      toDeviceDecryptedRoomKeyCount: _integer(
+        json['toDeviceDecryptedRoomKeyCount'],
+      ),
+      toDeviceDecryptedForwardedRoomKeyCount: _integer(
+        json['toDeviceDecryptedForwardedRoomKeyCount'],
+      ),
+      toDeviceDecryptedOtherCount: _integer(
+        json['toDeviceDecryptedOtherCount'],
+      ),
+      toDeviceDecryptedUnknownTypeCount: _integer(
+        json['toDeviceDecryptedUnknownTypeCount'],
+      ),
+      toDeviceUnableToDecryptCount: _integer(
+        json['toDeviceUnableToDecryptCount'],
+      ),
+      toDevicePlaintextCount: _integer(json['toDevicePlaintextCount']),
+      toDeviceInvalidCount: _integer(json['toDeviceInvalidCount']),
+      toDeviceReasonCounts: json['toDeviceReasonCounts'] is Map
+          ? Map<String, int>.unmodifiable(
+              (json['toDeviceReasonCounts'] as Map).map(
+                (key, value) => MapEntry(key.toString(), _integer(value)),
+              ),
+            )
+          : const <String, int>{},
+      joinedPeerCount: _integer(json['joinedPeerCount']),
+      authoritativeDeviceCount: _integer(json['authoritativeDeviceCount']),
+      sdkDeviceCount: _integer(json['sdkDeviceCount']),
+      sdkUsableDeviceCount: _integer(json['sdkUsableDeviceCount']),
+      sdkDeletedDeviceCount: _integer(json['sdkDeletedDeviceCount']),
+      sdkBlacklistedDeviceCount: _integer(json['sdkBlacklistedDeviceCount']),
+      sdkMissingCurve25519Count: _integer(json['sdkMissingCurve25519Count']),
+      sdkMissingAuthoritativeDeviceCount: _integer(
+        json['sdkMissingAuthoritativeDeviceCount'],
+      ),
+      sdkUnexpectedDeviceCount: _integer(json['sdkUnexpectedDeviceCount']),
+      deviceQueryAttemptCount: _integer(json['deviceQueryAttemptCount']),
+      convergedPeerCount: _integer(json['convergedPeerCount']),
+      pendingPeerCount: _integer(json['pendingPeerCount']),
+      rejectedPeerCount: _integer(json['rejectedPeerCount']),
+      blockedPeerCount: _integer(json['blockedPeerCount']),
+      invalidPeerCount: _integer(json['invalidPeerCount']),
+    );
+  }
+
+  final int eventCount;
+  final int decryptedCount;
+  final int unableToDecryptCount;
+  final int plaintextCount;
+  final Map<String, int> reasonCounts;
+  final int toDeviceDecryptedCount;
+  final int toDeviceDecryptedRoomKeyCount;
+  final int toDeviceDecryptedForwardedRoomKeyCount;
+  final int toDeviceDecryptedOtherCount;
+  final int toDeviceDecryptedUnknownTypeCount;
+  final int toDeviceUnableToDecryptCount;
+  final int toDevicePlaintextCount;
+  final int toDeviceInvalidCount;
+  final Map<String, int> toDeviceReasonCounts;
+  final int joinedPeerCount;
+  final int authoritativeDeviceCount;
+  final int sdkDeviceCount;
+  final int sdkUsableDeviceCount;
+  final int sdkDeletedDeviceCount;
+  final int sdkBlacklistedDeviceCount;
+  final int sdkMissingCurve25519Count;
+  final int sdkMissingAuthoritativeDeviceCount;
+  final int sdkUnexpectedDeviceCount;
+  final int deviceQueryAttemptCount;
+  final int convergedPeerCount;
+  final int pendingPeerCount;
+  final int rejectedPeerCount;
+  final int blockedPeerCount;
+  final int invalidPeerCount;
+
+  String get supportCode {
+    if ((toDeviceReasonCounts['decryptionFailure'] ?? 0) > 0) {
+      return 'M_WEAVE_E2EE_OLM_DECRYPTION_FAILURE';
+    }
+    if ((toDeviceReasonCounts['unverifiedSenderDevice'] ?? 0) > 0) {
+      return 'M_WEAVE_E2EE_OLM_SENDER_NOT_TRUSTED';
+    }
+    if ((toDeviceReasonCounts['noOlmMachine'] ?? 0) > 0 ||
+        (toDeviceReasonCounts['encryptionDisabled'] ?? 0) > 0) {
+      return 'M_WEAVE_E2EE_OLM_UNAVAILABLE';
+    }
+    if (toDeviceInvalidCount > 0) {
+      return 'M_WEAVE_E2EE_TO_DEVICE_INVALID';
+    }
+    if (rejectedPeerCount > 0) {
+      return 'M_WEAVE_E2EE_PEER_DEVICE_REJECTED';
+    }
+    if (blockedPeerCount > 0) {
+      return 'M_WEAVE_E2EE_PEER_DEVICE_BLOCKED';
+    }
+    if (invalidPeerCount > 0) {
+      return 'M_WEAVE_E2EE_PEER_DEVICE_INVALID';
+    }
+    if (pendingPeerCount > 0) {
+      return 'M_WEAVE_E2EE_PEER_DEVICE_PENDING';
+    }
+    if ((reasonCounts['missingMegolmSession'] ?? 0) > 0) {
+      if (toDeviceDecryptedRoomKeyCount > 0 ||
+          toDeviceDecryptedForwardedRoomKeyCount > 0) {
+        return 'M_WEAVE_E2EE_ROOM_KEY_NOT_IMPORTED';
+      }
+      return 'M_WEAVE_E2EE_ROOM_KEY_NOT_RECEIVED';
+    }
+    if ((reasonCounts['mismatchedIdentityKeys'] ?? 0) > 0) {
+      return 'M_WEAVE_E2EE_MISMATCHED_IDENTITY_KEYS';
+    }
+    if ((reasonCounts['senderIdentityNotTrusted'] ?? 0) > 0) {
+      return 'M_WEAVE_E2EE_SENDER_NOT_TRUSTED';
+    }
+    if (unableToDecryptCount > 0) {
+      return 'M_WEAVE_E2EE_UNABLE_TO_DECRYPT';
+    }
+    return 'M_WEAVE_E2EE_MESSAGE_NOT_OBSERVED';
+  }
+}
+
 class RustMatrixEncryptedRoom {
   const RustMatrixEncryptedRoom({
     required this.roomId,
@@ -308,6 +476,17 @@ class RustMatrixCoreBridge {
     return _mapList(result['rooms'], RustMatrixEncryptedRoom.fromJson);
   }
 
+  Future<RustMatrixEncryptedRoom> createEncryptedRoom({
+    required String profileKey,
+    required String title,
+  }) async {
+    return RustMatrixEncryptedRoom.fromJson(
+      await _native(
+        () => matrixCreateEncryptedRoom(profileKey: profileKey, title: title),
+      ),
+    );
+  }
+
   Future<List<RustMatrixMessageProjection>> loadEncryptedRoomMessages({
     required String profileKey,
     required String roomId,
@@ -321,6 +500,40 @@ class RustMatrixCoreBridge {
       ),
     );
     return _mapList(result['messages'], RustMatrixMessageProjection.fromJson);
+  }
+
+  Future<RustMatrixDecryptionDiagnostics> loadDecryptionDiagnostics({
+    required String profileKey,
+    required String roomId,
+    int limit = 100,
+  }) async {
+    final result = await _native(
+      () => matrixRoomMessages(
+        profileKey: profileKey,
+        roomId: roomId,
+        limit: limit,
+      ),
+    );
+    final diagnostics = result['decryption'];
+    return RustMatrixDecryptionDiagnostics.fromJson(
+      diagnostics is Map
+          ? Map<String, dynamic>.from(diagnostics)
+          : const <String, dynamic>{},
+    );
+  }
+
+  Future<RustMatrixDecryptionDiagnostics> loadReceiveDiagnostics({
+    required String profileKey,
+  }) async {
+    final result = await _native(
+      () => matrixSecurityState(profileKey: profileKey),
+    );
+    final diagnostics = result['receiveDiagnostics'];
+    return RustMatrixDecryptionDiagnostics.fromJson(
+      diagnostics is Map
+          ? Map<String, dynamic>.from(diagnostics)
+          : const <String, dynamic>{},
+    );
   }
 
   Future<String> sendEncryptedText({

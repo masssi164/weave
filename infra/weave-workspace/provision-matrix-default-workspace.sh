@@ -5,7 +5,9 @@ set -euo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly ROOT_DIR
-readonly BOOTSTRAP_ENV_FILE="${ROOT_DIR}/.generated/bootstrap.env"
+# shellcheck source=infra/weave-workspace/lib/runtime-namespace.sh
+source "${ROOT_DIR}/lib/runtime-namespace.sh"
+readonly BOOTSTRAP_ENV_FILE="$(weave_workspace_generated_dir "${ROOT_DIR}")/bootstrap.env"
 readonly LOOPBACK_HOST="${WEAVE_LOOPBACK_HOST:-127.0.0.1}"
 
 log() {
@@ -347,7 +349,7 @@ wait_for_mas_registration_device_sync() {
 register_matrix_user() {
   local localpart="$1"
   local admin_flag="$2"
-  local username response_file token user_existed
+  local username response_file token user_existed issue_attempt issue_attempts
   local -a register_args issue_args admin_args
 
   username="$(mas_cli_username "${localpart}")"
@@ -389,11 +391,23 @@ register_matrix_user() {
     wait_for_mas_registration_device_sync "${username}"
   fi
 
-  if ! mas_cli "${issue_args[@]}" >"${response_file}" 2>&1; then
-    fail "Matrix provisioning failed: could not issue a MAS compatibility token for '${username}'. Last MAS CLI output: $(safe_tail "${response_file}")"
-  fi
+  issue_attempts="${WEAVE_MATRIX_TOKEN_ISSUE_ATTEMPTS:-2}"
+  [[ "${issue_attempts}" =~ ^[0-9]+$ && "${issue_attempts}" -gt 0 ]] || fail "Matrix provisioning failed: WEAVE_MATRIX_TOKEN_ISSUE_ATTEMPTS must be a positive integer."
+  token=""
+  for ((issue_attempt = 1; issue_attempt <= issue_attempts; issue_attempt++)); do
+    if ! mas_cli "${issue_args[@]}" >"${response_file}" 2>&1; then
+      fail "Matrix provisioning failed: could not issue a MAS compatibility token for '${username}'. Last MAS CLI output: $(safe_tail "${response_file}")"
+    fi
 
-  token="$(extract_mas_compatibility_token <"${response_file}" || true)"
+    token="$(extract_mas_compatibility_token <"${response_file}" || true)"
+    if [[ -n "${token}" ]]; then
+      break
+    fi
+    if ((issue_attempt < issue_attempts)); then
+      log "MAS CLI returned no parseable compatibility token for '${username}'; retrying the bounded token issue operation..." >&2
+      sleep "${WEAVE_MATRIX_MAS_CLI_DELAY_SECONDS:-2}"
+    fi
+  done
   rm -f -- "${response_file}"
   [[ -n "${token}" ]] || fail "Matrix provisioning failed: MAS CLI did not return a compatibility token for '${username}'"
   printf '%s\n' "${token}"
@@ -665,7 +679,7 @@ invite_and_join_member() {
 }
 
 write_app_config_defaults() {
-  local app_config_file="${ROOT_DIR}/.generated/app-config.env"
+  local app_config_file="$(weave_workspace_generated_dir "${ROOT_DIR}")/app-config.env"
 
   if [[ ! -f "${app_config_file}" ]]; then
     return 0
@@ -698,7 +712,7 @@ main() {
   set_default_var TF_VAR_proxy_host_port 44443
   set_default_var TF_VAR_synapse_host_port 48008
   set_default_var TF_VAR_keycloak_admin_username admin
-  set_default_var WEAVE_MATRIX_MAS_CONTAINER_NAME weave-mas
+  set_default_var WEAVE_MATRIX_MAS_CONTAINER_NAME "$(weave_container_name mas)"
 
   MATRIX_HOMESERVER_NAME="$(public_host "${TF_VAR_matrix_subdomain:-matrix}")"
   readonly MATRIX_HOMESERVER_NAME

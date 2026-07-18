@@ -2,6 +2,8 @@ package com.massimotter.weave.backend.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.massimotter.weave.backend.boards.local.LocalWorkspaceBoardsRepository;
+import com.massimotter.weave.backend.provider.ProviderRealityLevel;
 import com.massimotter.weave.backend.provider.ProviderState;
 import com.massimotter.weave.backend.provider.ProviderStatusResponse;
 import org.junit.jupiter.api.Test;
@@ -9,6 +11,25 @@ import org.junit.jupiter.api.Test;
 class ProviderCoreConfigurationTest {
 
     private final ProviderCoreConfiguration configuration = new ProviderCoreConfiguration();
+
+    @Test
+    void boardsRegistryReportsTheActuallyBoundLocalWorkspaceAdapter() {
+        ProviderStatusResponse status = configuration
+                .boardsProviderRegistrySeamFor(new LocalWorkspaceBoardsRepository())
+                .status();
+
+        assertThat(status.providerKey()).isEqualTo("local-workspace");
+        assertThat(status.state()).isEqualTo(ProviderState.CONFIGURED);
+        assertThat(status.configured()).isTrue();
+        assertThat(status.providerRealityLevel()).isEqualTo(ProviderRealityLevel.CONFIGURED);
+        assertThat(status.candidates()).contains("openproject-primary", "local-workspace");
+        assertThat(status.diagnostics())
+                .containsEntry("runtimeBindingObserved", true)
+                .containsEntry("runtimeAdapterKind", "local-workspace")
+                .containsEntry("secretsReturned", false)
+                .containsEntry("rawProviderErrorsReturned", false);
+        assertThat(status.summary()).doesNotContain("primary workspace-sync provider");
+    }
 
     @Test
     void liveKitMeetingsProviderReportsDirectCredentialModeSupportSafely() {

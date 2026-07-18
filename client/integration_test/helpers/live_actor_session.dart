@@ -24,12 +24,18 @@ import 'package:weave/features/server_config/domain/entities/server_configuratio
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
 import 'package:weave/integrations/rust_matrix_core/presentation/providers/matrix_crypto_session_provider.dart';
+import 'package:weave/integrations/rust_matrix_core/data/services/rust_matrix_core_bridge.dart';
 
 import 'live_oidc_test_driver.dart';
 import 'multi_user_test_config.dart';
 import 'namespaced_test_storage.dart';
 import 'test_config.dart';
 import 'test_http_overrides.dart';
+
+/// Fixed, identity-free stages exposed only to support-safe live-test progress
+/// reporting. No URL, credential, provider response, or actor identifier is
+/// carried by this callback.
+enum LiveActorOpenPhase { organizationDiscovery, oidcSignIn, appBootstrap }
 
 /// One isolated app-data profile reused across process-like session contexts.
 ///
@@ -83,10 +89,13 @@ class LiveActorProfile {
 
   Future<LiveActorSession> open({
     List<Override> additionalOverrides = const <Override>[],
+    void Function(LiveActorOpenPhase phase)? onPhase,
   }) async {
+    onPhase?.call(LiveActorOpenPhase.organizationDiscovery);
     await _ensureOrganizationDiscovered();
     final container = _createContainer(additionalOverrides);
     try {
+      onPhase?.call(LiveActorOpenPhase.oidcSignIn);
       final authState = await container
           .read(authSessionRepositoryProvider)
           .signIn(
@@ -98,6 +107,7 @@ class LiveActorProfile {
       if (!authState.isAuthenticated) {
         throw StateError('${role.name} did not establish an OIDC session.');
       }
+      onPhase?.call(LiveActorOpenPhase.appBootstrap);
       await _requireReadyBootstrap(container);
       return LiveActorSession(
         container: container,
@@ -213,7 +223,7 @@ class LiveActorProfile {
         discovered.serviceEndpoints.matrixHomeserverUrl ==
             _actorConfig.matrixHomeserverUrl &&
         discovered.serviceEndpoints.nextcloudBaseUrl ==
-            _expectedFilesProductUrl(_actorConfig.backendApiBaseUrl);
+            _actorConfig.apiUri('/api/dav/files');
   }
 
   Future<void> _requireReadyBootstrap(ProviderContainer container) async {
@@ -272,6 +282,27 @@ class LiveActorSession {
     return (accessToken: session.accessToken, deviceId: deviceId);
   }
 
+  Future<RustMatrixDecryptionDiagnostics> chatDecryptionDiagnostics(
+    String roomId,
+  ) async {
+    final cryptoSession = await container
+        .read(matrixCryptoSessionCoordinatorProvider)
+        .open(synchronize: false);
+    return const RustMatrixCoreBridge().loadDecryptionDiagnostics(
+      profileKey: cryptoSession.profileKey,
+      roomId: roomId,
+    );
+  }
+
+  Future<RustMatrixDecryptionDiagnostics> chatReceiveDiagnostics() async {
+    final cryptoSession = await container
+        .read(matrixCryptoSessionCoordinatorProvider)
+        .open(synchronize: false);
+    return const RustMatrixCoreBridge().loadReceiveDiagnostics(
+      profileKey: cryptoSession.profileKey,
+    );
+  }
+
   Future<void> close() async {
     await container
         .read(matrixCryptoSessionCoordinatorProvider)
@@ -298,6 +329,3 @@ Uri _productOrigin(Uri backendApiBaseUrl) {
     port: backendApiBaseUrl.hasPort ? backendApiBaseUrl.port : null,
   );
 }
-
-Uri _expectedFilesProductUrl(Uri backendApiBaseUrl) =>
-    _productOrigin(backendApiBaseUrl).replace(path: '/files');

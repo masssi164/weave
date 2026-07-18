@@ -5,6 +5,7 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:weave/core/theme/app_theme.dart';
 import 'package:weave/features/agents/domain/entities/agent_capability_policy.dart';
 import 'package:weave/features/agents/presentation/providers/agent_capability_policy_provider.dart';
@@ -12,6 +13,7 @@ import 'package:weave/features/app/domain/entities/integration_invalidation.dart
 import 'package:weave/features/app/presentation/providers/workspace_invalidation_provider.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
+import 'package:weave/features/chat/domain/entities/chat_room_timeline.dart';
 import 'package:weave/features/chat/domain/entities/chat_security_state.dart';
 import 'package:weave/features/chat/presentation/chat_screen.dart';
 import 'package:weave/features/chat/presentation/providers/chat_provider.dart';
@@ -349,6 +351,127 @@ void main() {
       expect(find.text('Recovered room'), findsOneWidget);
       expect(find.text('No conversations yet'), findsNothing);
       semantics.dispose();
+    });
+
+    testWidgets(
+      'creates an encrypted conversation from the empty state accessibly',
+      (tester) async {
+        final semantics = tester.ensureSemantics();
+        final repository = FakeChatRepository(
+          loadConversationsHandler: () async => const <ChatConversation>[],
+          createConversationHandler: ({required title}) async =>
+              ChatConversation(
+                id: '!created:home.internal',
+                title: title,
+                previewType: ChatConversationPreviewType.encrypted,
+                unreadCount: 0,
+                isInvite: false,
+                isDirectMessage: false,
+              ),
+          loadRoomTimelineHandler: (roomId) async => ChatRoomTimeline(
+            roomId: roomId,
+            roomTitle: 'Release planning',
+            isInvite: false,
+            canSendMessages: true,
+            messages: const [],
+          ),
+        );
+        final securityRepository = buildSecurityRepository();
+        final router = GoRouter(
+          initialLocation: '/chat',
+          routes: [
+            GoRoute(
+              path: '/chat',
+              builder: (context, state) => const Scaffold(body: ChatScreen()),
+              routes: [
+                GoRoute(
+                  path: 'rooms/:roomId',
+                  builder: (context, state) =>
+                      const Scaffold(body: Text('Created encrypted room')),
+                ),
+              ],
+            ),
+          ],
+        );
+        addTearDown(router.dispose);
+
+        await tester.pumpWidget(
+          createTestRouterApp(
+            router,
+            overrides: [
+              chatRepositoryProvider.overrideWithValue(repository),
+              chatSecurityRepositoryProvider.overrideWithValue(
+                securityRepository,
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.byTooltip('Start conversation'), findsOneWidget);
+        await tester.tap(find.byTooltip('Start conversation'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Start an encrypted conversation'), findsOneWidget);
+        expect(find.text('Conversation name'), findsOneWidget);
+
+        await tester.tap(find.text('Create conversation'));
+        await tester.pump();
+        expect(
+          find.text('Enter a name between 1 and 200 characters.'),
+          findsOneWidget,
+        );
+
+        await tester.enterText(
+          find.byKey(const Key('chat-create-conversation-name-field')),
+          'Release planning',
+        );
+        await tester.tap(find.text('Create conversation'));
+        await tester.pumpAndSettle();
+
+        expect(repository.createConversationCalls, 1);
+        expect(find.text('Start an encrypted conversation'), findsNothing);
+        expect(find.text('Created encrypted room'), findsOneWidget);
+        semantics.dispose();
+      },
+    );
+
+    testWidgets('keeps conversation creation failures domain local', (
+      tester,
+    ) async {
+      const rawFailure = 'M_WEAVE_E2EE_CREATE_ROOM raw-provider-payload';
+      final repository = FakeChatRepository(
+        loadConversationsHandler: () async => const <ChatConversation>[],
+        createConversationHandler: ({required title}) async {
+          throw const ChatFailure.protocol(rawFailure);
+        },
+      );
+      final securityRepository = buildSecurityRepository();
+
+      await tester.pumpWidget(
+        createTestApp(
+          const ChatScreen(),
+          overrides: [
+            chatRepositoryProvider.overrideWithValue(repository),
+            chatSecurityRepositoryProvider.overrideWithValue(
+              securityRepository,
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Start conversation'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('chat-create-conversation-name-field')),
+        'Release planning',
+      );
+      await tester.tap(find.text('Create conversation'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('could not be created'), findsOneWidget);
+      expect(find.textContaining(rawFailure), findsNothing);
+      expect(find.text('No conversations yet'), findsOneWidget);
     });
 
     testWidgets(

@@ -5,6 +5,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly ROOT_DIR
+# shellcheck source=infra/weave-workspace/lib/runtime-namespace.sh
+source "${ROOT_DIR}/lib/runtime-namespace.sh"
 
 OPERATION=""
 RUN_ID="${WEAVE_E2E_RUN_ID:-}"
@@ -14,7 +16,9 @@ STARTUP_ENV_PATH="${WEAVE_E2E_STARTUP_ENV_PATH:-}"
 IDENTITY_MANIFEST_PATH="${WEAVE_E2E_IDENTITY_MANIFEST_PATH:-}"
 CLEANUP_EVIDENCE_PATH="${WEAVE_E2E_CLEANUP_EVIDENCE_PATH:-}"
 AUTHORIZATION_EVIDENCE_PATH="${WEAVE_E2E_AUTHORIZATION_EVIDENCE_PATH:-}"
-STACK_BOOTSTRAP_ENV="${WEAVE_E2E_STACK_BOOTSTRAP_ENV:-${ROOT_DIR}/.generated/bootstrap.env}"
+CHAT_PROOF_TOKEN_PATH=""
+TEARDOWN_OWNERSHIP_FILE="${WEAVE_TEARDOWN_OWNERSHIP_FILE:-}"
+STACK_BOOTSTRAP_ENV="${WEAVE_E2E_STACK_BOOTSTRAP_ENV:-}"
 
 NAMESPACE=""
 REALM=""
@@ -55,6 +59,7 @@ prepare prints these stable integration variables:
   WEAVE_E2E_CLEANUP_EVIDENCE_PATH
   WEAVE_E2E_AUTHORIZATION_EVIDENCE_PATH
   WEAVE_E2E_STACK_BOOTSTRAP_ENV
+  WEAVE_TEARDOWN_OWNERSHIP_FILE
 
 provision and cleanup require WEAVE_E2E_STACK_SCOPE=isolated. They refuse
 persistent dogfood/default inputs and mutate only resources carrying the exact
@@ -69,6 +74,10 @@ sha256() {
 
 random_password() {
   openssl rand -base64 24 | tr -d '\n'
+}
+
+random_proof_token() {
+  openssl rand -hex 48
 }
 
 parse_args() {
@@ -98,7 +107,9 @@ parse_args() {
 
 derive_paths_and_names() {
   [[ -n "${RUN_ID}" ]] || fail "--run-id is required"
-  [[ ${#RUN_ID} -le 200 ]] || fail "run ID is too long"
+  [[ ${#RUN_ID} -le 160 ]] || fail "run ID is too long"
+  [[ "${RUN_ID}" =~ ^[A-Za-z0-9][A-Za-z0-9._:-]{7,159}$ ]] ||
+    fail "run ID must use only bounded environment-safe characters"
 
   local run_hash
   run_hash="$(sha256 "${RUN_ID}")"
@@ -116,6 +127,9 @@ derive_paths_and_names() {
   IDENTITY_MANIFEST_PATH="${IDENTITY_MANIFEST_PATH:-${run_dir}/identity-manifest.json}"
   CLEANUP_EVIDENCE_PATH="${CLEANUP_EVIDENCE_PATH:-${run_dir}/cleanup-evidence.json}"
   AUTHORIZATION_EVIDENCE_PATH="${AUTHORIZATION_EVIDENCE_PATH:-${run_dir}/authorization-evidence.json}"
+  CHAT_PROOF_TOKEN_PATH="${CHAT_PROOF_TOKEN_PATH:-${run_dir}/chat-provider-proof.token}"
+  TEARDOWN_OWNERSHIP_FILE="${TEARDOWN_OWNERSHIP_FILE:-${run_dir}/teardown-ownership.json}"
+  STACK_BOOTSTRAP_ENV="${STACK_BOOTSTRAP_ENV:-${ROOT_DIR}/.generated/isolated/${NAMESPACE}/bootstrap.env}"
 }
 
 validate_private_path() {
@@ -129,6 +143,8 @@ validate_paths() {
   validate_private_path "${IDENTITY_MANIFEST_PATH}"
   validate_private_path "${CLEANUP_EVIDENCE_PATH}"
   validate_private_path "${AUTHORIZATION_EVIDENCE_PATH}"
+  validate_private_path "${CHAT_PROOF_TOKEN_PATH}"
+  validate_private_path "${TEARDOWN_OWNERSHIP_FILE}"
 }
 
 print_integration_variables() {
@@ -140,6 +156,57 @@ print_integration_variables() {
   printf 'WEAVE_E2E_CLEANUP_EVIDENCE_PATH=%q\n' "${CLEANUP_EVIDENCE_PATH}"
   printf 'WEAVE_E2E_AUTHORIZATION_EVIDENCE_PATH=%q\n' "${AUTHORIZATION_EVIDENCE_PATH}"
   printf 'WEAVE_E2E_STACK_BOOTSTRAP_ENV=%q\n' "${STACK_BOOTSTRAP_ENV}"
+  printf 'WEAVE_TEARDOWN_OWNERSHIP_FILE=%q\n' "${TEARDOWN_OWNERSHIP_FILE}"
+}
+
+require_teardown_ownership_inputs() {
+  [[ "${WEAVE_E2E_STACK_SCOPE:-}" == "isolated" ]] ||
+    fail "prepare requires WEAVE_E2E_STACK_SCOPE=isolated"
+  [[ "${WEAVE_CANDIDATE_COMMIT:-}" =~ ^[0-9a-f]{40}$ ]] ||
+    fail "prepare requires a lowercase 40-character WEAVE_CANDIDATE_COMMIT"
+  weave_validate_support_safe_evidence_url "${WEAVE_CANDIDATE_EVIDENCE_REF:-}" ||
+    fail "prepare requires a support-safe HTTPS WEAVE_CANDIDATE_EVIDENCE_REF without credentials, query, or fragment"
+}
+
+write_or_validate_teardown_ownership() {
+  local expected_file="${OUTPUT_ROOT%/}/${NAMESPACE}/teardown-ownership.json"
+  [[ "${TEARDOWN_OWNERSHIP_FILE}" == "${expected_file}" ]] ||
+    fail "teardown ownership evidence must use the exact run-owned path"
+
+  if [[ -f "${TEARDOWN_OWNERSHIP_FILE}" ]]; then
+    jq -e \
+      --arg namespace "${NAMESPACE}" \
+      --arg runId "${RUN_ID}" \
+      --arg candidateCommit "${WEAVE_CANDIDATE_COMMIT}" \
+      --arg candidateEvidenceRef "${WEAVE_CANDIDATE_EVIDENCE_REF}" \
+      '.schemaVersion == "weave.isolated-e2e-teardown-ownership.v1" and
+       .scope == "isolated" and
+       .namespace == $namespace and
+       .runId == $runId and
+       .candidateCommit == $candidateCommit and
+       .candidateEvidenceRef == $candidateEvidenceRef and
+       .resourcePrefix == $namespace' \
+      "${TEARDOWN_OWNERSHIP_FILE}" >/dev/null ||
+      fail "existing teardown ownership evidence does not match this run and candidate"
+    chmod 600 "${TEARDOWN_OWNERSHIP_FILE}"
+    return
+  fi
+
+  jq -n \
+    --arg namespace "${NAMESPACE}" \
+    --arg runId "${RUN_ID}" \
+    --arg candidateCommit "${WEAVE_CANDIDATE_COMMIT}" \
+    --arg candidateEvidenceRef "${WEAVE_CANDIDATE_EVIDENCE_REF}" \
+    '{
+      schemaVersion:"weave.isolated-e2e-teardown-ownership.v1",
+      scope:"isolated",
+      namespace:$namespace,
+      runId:$runId,
+      candidateCommit:$candidateCommit,
+      candidateEvidenceRef:$candidateEvidenceRef,
+      resourcePrefix:$namespace
+    }' >"${TEARDOWN_OWNERSHIP_FILE}"
+  chmod 600 "${TEARDOWN_OWNERSHIP_FILE}"
 }
 
 write_prepare_manifest() {
@@ -176,8 +243,10 @@ write_prepare_manifest() {
 prepare() {
   command -v jq >/dev/null || fail "jq is required"
   command -v openssl >/dev/null || fail "openssl is required"
+  require_teardown_ownership_inputs
   mkdir -p "$(dirname -- "${CREDENTIAL_ENV_PATH}")"
   chmod 700 "$(dirname -- "${CREDENTIAL_ENV_PATH}")"
+  write_or_validate_teardown_ownership
 
   if [[ -f "${CREDENTIAL_ENV_PATH}" ]]; then
     # shellcheck disable=SC1090
@@ -207,7 +276,22 @@ prepare() {
     chmod 600 "${CREDENTIAL_ENV_PATH}"
   fi
 
-  local memberships
+  if [[ -e "${CHAT_PROOF_TOKEN_PATH}" ]]; then
+    [[ -f "${CHAT_PROOF_TOKEN_PATH}" && ! -L "${CHAT_PROOF_TOKEN_PATH}" ]] ||
+      fail "existing Chat proof credential is not a regular private file"
+    [[ "$(<"${CHAT_PROOF_TOKEN_PATH}")" =~ ^[0-9a-f]{96}$ ]] ||
+      fail "existing Chat proof credential is invalid"
+  else
+    umask 077
+    random_proof_token >"${CHAT_PROOF_TOKEN_PATH}"
+  fi
+  chmod 600 "${CHAT_PROOF_TOKEN_PATH}"
+
+  local memberships run_hash
+  local port_seed port_base
+  run_hash="$(sha256 "${RUN_ID}")"
+  port_seed=$((16#${run_hash:0:4}))
+  port_base=$((32000 + (port_seed % 1800) * 16))
   memberships="$(jq -cn \
     --arg tenant "${TENANT_ID}" \
     --arg workspace "${WORKSPACE_CONTEXT}" \
@@ -222,10 +306,31 @@ prepare() {
     ]')"
   {
     printf 'export WEAVE_LOCAL_CREDENTIAL_STATE_FILE=%q\n' none
+    printf 'export WEAVE_LOCAL_TLS_STATE_DIR=%q\n' none
+    printf 'export WEAVE_E2E_OUTPUT_ROOT=%q\n' "${OUTPUT_ROOT}"
+    printf 'export WEAVE_E2E_RUN_ID=%q\n' "${RUN_ID}"
+    printf 'export WEAVE_CANDIDATE_COMMIT=%q\n' "${WEAVE_CANDIDATE_COMMIT}"
+    printf 'export WEAVE_CANDIDATE_EVIDENCE_REF=%q\n' "${WEAVE_CANDIDATE_EVIDENCE_REF}"
+    printf 'export WEAVE_TEARDOWN_OWNERSHIP_FILE=%q\n' "${TEARDOWN_OWNERSHIP_FILE}"
     printf 'export TF_VAR_isolated_e2e_enabled=%q\n' true
     printf 'export TF_VAR_isolated_e2e_namespace=%q\n' "${NAMESPACE}"
     printf 'export TF_VAR_isolated_e2e_context_memberships=%q\n' "${memberships}"
+    printf 'export TF_VAR_chat_e2e_proof_enabled=%q\n' true
+    printf 'export TF_VAR_chat_e2e_proof_token_host_path=%q\n' "${CHAT_PROOF_TOKEN_PATH}"
+    printf 'export TF_VAR_chat_e2e_proof_run_id=%q\n' "${RUN_ID}"
+    printf 'export TF_VAR_tenant_slug=%q\n' weave
     printf 'export TF_VAR_docker_network_name=%q\n' "${NAMESPACE}_network"
+    printf 'export TF_VAR_proxy_http_host_port=%q\n' "$((port_base + 0))"
+    printf 'export TF_VAR_proxy_host_port=%q\n' "$((port_base + 1))"
+    printf 'export TF_VAR_keycloak_host_port=%q\n' "$((port_base + 2))"
+    printf 'export TF_VAR_keycloak_management_host_port=%q\n' "$((port_base + 3))"
+    printf 'export TF_VAR_mailpit_web_host_port=%q\n' "$((port_base + 4))"
+    printf 'export TF_VAR_mas_host_port=%q\n' "$((port_base + 5))"
+    printf 'export TF_VAR_synapse_host_port=%q\n' "$((port_base + 6))"
+    printf 'export TF_VAR_nextcloud_host_port=%q\n' "$((port_base + 7))"
+    printf 'export TF_VAR_backend_host_port=%q\n' "$((port_base + 8))"
+    printf 'export TF_VAR_mcp_host_port=%q\n' "$((port_base + 9))"
+    printf 'export TF_VAR_keycloak_smtp_host=%q\n' "${NAMESPACE}-mailpit"
     printf 'export TF_VAR_create_test_user=%q\n' false
     printf 'export TF_VAR_context_authorization_bootstrap_enabled=%q\n' false
     printf 'export TF_VAR_context_authorization_dogfood_principal_ref=%q\n' ""
@@ -309,14 +414,49 @@ find_exact_id() {
     '[.[] | select(.[$field] == $value)] | if length == 1 then .[0].id else empty end' <<<"${payload}"
 }
 
-marker_matches() {
+group_marker_matches() {
   local payload="$1"
   jq -e --arg marker "${NAMESPACE}" '(.attributes.weave_e2e_namespace // []) | index($marker) != null' <<<"${payload}" >/dev/null
+}
+
+user_role_from_username() {
+  local username="$1"
+  case "${username}" in
+    "${NAMESPACE}-author") printf 'author' ;;
+    "${NAMESPACE}-collaborator") printf 'collaborator' ;;
+    "${NAMESPACE}-outsider") printf 'outsider' ;;
+    *) fail "identity username is not owned by this E2E namespace" ;;
+  esac
+}
+
+user_marker_matches() {
+  local payload="$1" username="$2" role="$3"
+  jq -e \
+    --arg username "${username}" \
+    --arg email "${username}@example.invalid" \
+    --arg lastName "${NAMESPACE}:${role}" '
+      .username == $username and
+      .email == $email and
+      .enabled == true and
+      .emailVerified == true and
+      .firstName == "Weave E2E" and
+      .lastName == $lastName
+    ' <<<"${payload}" >/dev/null
 }
 
 resolve_user() {
   local base="$1" token="$2" username="$3"
   request GET "${base}/users?username=$(encode "${username}")&exact=true" "${token}"
+}
+
+resolve_user_by_id() {
+  local base="$1" token="$2" subject="$3"
+  request GET "${base}/users/${subject}" "${token}"
+}
+
+resolve_group() {
+  local base="$1" token="$2" group_id="$3"
+  request GET "${base}/groups/${group_id}" "${token}"
 }
 
 ensure_group() {
@@ -330,8 +470,8 @@ ensure_group() {
     group_id="$(find_exact_id "${groups}" name "${name}")"
   fi
   [[ -n "${group_id}" ]] || fail "run-scoped Keycloak group could not be resolved"
-  group="$(jq -c --arg id "${group_id}" '.[] | select(.id == $id)' <<<"${groups}")"
-  marker_matches "${group}" || fail "refusing to reuse an unmarked Keycloak group"
+  group="$(resolve_group "${base}" "${token}" "${group_id}")"
+  group_marker_matches "${group}" || fail "refusing to reuse an unmarked Keycloak group"
   printf '%s' "${group_id}"
 }
 
@@ -354,19 +494,19 @@ ensure_user() {
       --arg email "${username}@example.invalid" \
       --arg marker "${NAMESPACE}" \
       --arg role "${role}" \
-      --arg tenant "${TENANT_ID}" \
-      '{username:$username,email:$email,enabled:true,emailVerified:true,firstName:"E2E",lastName:$role,attributes:{weave_e2e_namespace:[$marker],weave_e2e_role:[$role],weave_tenant_id:[$tenant]}}')" >/dev/null
+      '{username:$username,email:$email,enabled:true,emailVerified:true,firstName:"Weave E2E",lastName:($marker + ":" + $role)}')" >/dev/null
     users="$(resolve_user "${base}" "${token}" "${username}")"
     subject="$(find_exact_id "${users}" username "${username}")"
   fi
   [[ -n "${subject}" ]] || fail "run-scoped Keycloak user could not be resolved"
-  user="$(jq -c --arg id "${subject}" '.[] | select(.id == $id)' <<<"${users}")"
-  marker_matches "${user}" || fail "refusing to reuse an unmarked Keycloak user"
+  user="$(resolve_user_by_id "${base}" "${token}" "${subject}")"
+  user_marker_matches "${user}" "${username}" "${role}" || fail "refusing to reuse an unmarked Keycloak user"
 
   request PUT "${base}/users/${subject}/reset-password" "${token}" "$(jq -cn --arg value "${password}" '{type:"password",value:$value,temporary:false}')" >/dev/null
   request PUT "${base}/users/${subject}/groups/${run_group_id}" "${token}" >/dev/null
   for group_id in \
     "$(global_group_id "${base}" "${token}" workspace-members)" \
+    "$(global_group_id "${base}" "${token}" weave-board-editors)" \
     "$(global_group_id "${base}" "${token}" weave-calendar-editors)"; do
     request PUT "${base}/users/${subject}/groups/${group_id}" "${token}" >/dev/null
   done
@@ -388,7 +528,7 @@ ensure_user() {
 }
 
 verify_backend_rebac_runtime() {
-  local backend_container="${WEAVE_E2E_BACKEND_CONTAINER:-weave-backend}"
+  local backend_container="${WEAVE_E2E_BACKEND_CONTAINER:-$(weave_container_name backend)}"
   local runtime_env
   runtime_env="$(docker inspect --format '{{json .Config.Env}}' "${backend_container}")"
 
@@ -461,12 +601,13 @@ provision() {
 
 delete_marked_user() {
   local base="$1" token="$2" username="$3"
-  local users subject user
+  local users subject user role
   users="$(resolve_user "${base}" "${token}" "${username}")"
   subject="$(find_exact_id "${users}" username "${username}")"
   [[ -n "${subject}" ]] || { printf '0'; return; }
-  user="$(jq -c --arg id "${subject}" '.[] | select(.id == $id)' <<<"${users}")"
-  marker_matches "${user}" || fail "refusing to delete an unmarked Keycloak user"
+  user="$(resolve_user_by_id "${base}" "${token}" "${subject}")"
+  role="$(user_role_from_username "${username}")"
+  user_marker_matches "${user}" "${username}" "${role}" || fail "refusing to delete an unmarked Keycloak user"
   request DELETE "${base}/users/${subject}" "${token}" >/dev/null
   printf '1'
 }
@@ -477,8 +618,8 @@ delete_marked_group() {
   groups="$(request GET "${base}/groups?search=$(encode "${name}")&exact=true" "${token}")"
   id="$(find_exact_id "${groups}" name "${name}")"
   [[ -n "${id}" ]] || { printf '0'; return; }
-  group="$(jq -c --arg id "${id}" '.[] | select(.id == $id)' <<<"${groups}")"
-  marker_matches "${group}" || fail "refusing to delete an unmarked Keycloak group"
+  group="$(resolve_group "${base}" "${token}" "${id}")"
+  group_marker_matches "${group}" || fail "refusing to delete an unmarked Keycloak group"
   request DELETE "${base}/groups/${id}" "${token}" >/dev/null
   printf '1'
 }

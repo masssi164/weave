@@ -137,6 +137,8 @@ struct CanonicalConversationInput {
     #[serde(default)]
     unread_count: u64,
     #[serde(default)]
+    encryption_algorithm: Option<String>,
+    #[serde(default)]
     memberships: Vec<CanonicalMembershipInput>,
     #[serde(default)]
     messages: Vec<CanonicalMessageInput>,
@@ -665,15 +667,22 @@ fn parse_encrypted_content(content: &Value) -> Result<Value, MatrixCoreError> {
     if object.get("algorithm").and_then(Value::as_str) != Some("m.megolm.v1.aes-sha2") {
         return Err(MatrixCoreError::UnsupportedMessageType);
     }
-    for (field, max_length) in [
-        ("ciphertext", 262_144),
-        ("sender_key", 512),
-        ("session_id", 512),
-        ("device_id", 128),
-    ] {
+    for (field, max_length) in [("ciphertext", 262_144), ("session_id", 512)] {
         let value = object
             .get(field)
             .and_then(Value::as_str)
+            .filter(|value| !value.is_empty() && value.len() <= max_length)
+            .ok_or(MatrixCoreError::InvalidRequest)?;
+        if value.chars().any(char::is_control) {
+            return Err(MatrixCoreError::InvalidRequest);
+        }
+    }
+    for (field, max_length) in [("sender_key", 512), ("device_id", 128)] {
+        let Some(raw) = object.get(field) else {
+            continue;
+        };
+        let value = raw
+            .as_str()
             .filter(|value| !value.is_empty() && value.len() <= max_length)
             .ok_or(MatrixCoreError::InvalidRequest)?;
         if value.chars().any(char::is_control) {
@@ -1086,6 +1095,23 @@ fn room_state_events(
     server_name: &OwnedServerName,
 ) -> Result<Vec<MatrixEvent>, MatrixCoreError> {
     let mut events = vec![room_name_event(conversation, server_name)?];
+    if let Some(algorithm) = conversation.encryption_algorithm.as_deref() {
+        if algorithm != "m.megolm.v1.aes-sha2" {
+            return Err(MatrixCoreError::InvalidRequest);
+        }
+        events.push(MatrixEvent {
+            event_type: "m.room.encryption".to_string(),
+            sender: matrix_user_id("weave", server_name)?.to_string(),
+            event_id: matrix_event_id(
+                &format!("state-encryption-{}", conversation.conversation_id),
+                server_name,
+            )?
+            .to_string(),
+            origin_server_ts: conversation.updated_at_epoch_millis,
+            content: json!({ "algorithm": algorithm }),
+            state_key: Some(String::new()),
+        });
+    }
     events.extend(
         conversation
             .memberships
@@ -1131,7 +1157,18 @@ fn message_event(
     server_name: &OwnedServerName,
 ) -> Result<MatrixEvent, MatrixCoreError> {
     let (event_type, content) = if message.redacted {
-        ("m.room.message", json!({}))
+        // Matrix redaction strips event content but retains the event type.
+        // Keeping encrypted events typed as encrypted lets clients distinguish
+        // a deliberately redacted ciphertext event from a plaintext message.
+        let redacted_event_type =
+            if message.encrypted_content.is_some() || message.kind == "encrypted" {
+                "m.room.encrypted"
+            } else if message.kind == "reaction" {
+                "m.reaction"
+            } else {
+                "m.room.message"
+            };
+        (redacted_event_type, json!({}))
     } else if let Some(encrypted_content) = &message.encrypted_content {
         ("m.room.encrypted", encrypted_content.clone())
     } else if message.kind == "reaction" {
@@ -1424,6 +1461,11 @@ pub mod frb_api {
     }
 
     #[cfg(feature = "flutter")]
+    pub async fn matrix_create_encrypted_room(profile_key: String, title: String) -> String {
+        crate::flutter_crypto::create_encrypted_room(profile_key, title).await
+    }
+
+    #[cfg(feature = "flutter")]
     pub async fn matrix_room_messages(profile_key: String, room_id: String, limit: u32) -> String {
         crate::flutter_crypto::room_messages(profile_key, room_id, limit).await
     }
@@ -1488,8 +1530,8 @@ pub mod frb_api {
     }
 
     #[cfg(feature = "flutter")]
-    pub fn dispose_matrix_client(profile_key: String) -> String {
-        crate::flutter_crypto::dispose(profile_key)
+    pub async fn dispose_matrix_client(profile_key: String) -> String {
+        crate::flutter_crypto::dispose(profile_key).await
     }
 }
 
@@ -1543,6 +1585,7 @@ mod tests {
                 "title": "General",
                 "updatedAtEpochMillis": 1_720_432_800_000_i64,
                 "unreadCount": 2,
+                "encryptionAlgorithm": "m.megolm.v1.aes-sha2",
                 "memberships": [{
                     "memberRef": "user:alice",
                     "state": "joined"
@@ -1583,6 +1626,15 @@ mod tests {
         .unwrap();
         let parsed: Value = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed["next_batch"], encode_sync_token("revision-7"));
+        let state = parsed["rooms"]["join"]["!channel-general:matrix.weave.test"]["state"]
+            ["events"]
+            .as_array()
+            .unwrap();
+        assert!(state.iter().any(|event| {
+            event["type"] == "m.room.encryption"
+                && event["state_key"] == ""
+                && event["content"]["algorithm"] == "m.megolm.v1.aes-sha2"
+        }));
         assert_eq!(
             parsed["rooms"]["join"]["!channel-general:matrix.weave.test"]["timeline"]["events"][0]
                 ["content"]["body"],
@@ -1845,6 +1897,20 @@ mod tests {
                     "body": "removed",
                     "redacted": true,
                     "deliveryState": "sent"
+                }, {
+                    "messageId": "redacted-encrypted-1",
+                    "senderRef": "user:alice",
+                    "sentAtEpochMillis": 3,
+                    "kind": "encrypted",
+                    "encryptedContent": {
+                        "algorithm": "m.megolm.v1.aes-sha2",
+                        "ciphertext": "removed-ciphertext",
+                        "sender_key": "curve25519:alice",
+                        "session_id": "removed-session",
+                        "device_id": "WEAVEDEVICEALICE"
+                    },
+                    "redacted": true,
+                    "deliveryState": "sent"
                 }]
             }]
         });
@@ -1862,7 +1928,10 @@ mod tests {
             events[0]["content"]["m.relates_to"]["event_id"],
             "$approval-event:matrix.weave.test"
         );
+        assert_eq!(events[1]["type"], "m.room.message");
         assert_eq!(events[1]["content"], json!({}));
+        assert_eq!(events[2]["type"], "m.room.encrypted");
+        assert_eq!(events[2]["content"], json!({}));
         assert_eq!(sync["account_data"]["events"][0]["type"], "m.direct");
         assert!(!sync.to_string().contains("providerSecret"));
     }
@@ -1908,9 +1977,7 @@ mod tests {
         let encrypted_content = json!({
             "algorithm": "m.megolm.v1.aes-sha2",
             "ciphertext": "opaque-ciphertext",
-            "sender_key": "curve25519:alice",
             "session_id": "megolm-session-1",
-            "device_id": "WEAVEDEVICEALICE",
         });
         let parsed = project_json(
             "parse-event".to_string(),

@@ -785,26 +785,22 @@ describe("Admin Console MVP", () => {
     expect(
       screen.getByLabelText(/weaver chat-domain provider/i),
     ).toHaveTextContent(/synapse-homeserver/i);
-    await user.clear(screen.getByLabelText(/default model alias/i));
-    await user.type(
-      screen.getByLabelText(/default model alias/i),
-      "sovereign-local",
-    );
-    await user.clear(screen.getByLabelText(/allowed weaver tools/i));
-    await user.type(
-      screen.getByLabelText(/allowed weaver tools/i),
-      "chat.search_messages\nnotifications.create_action_request",
-    );
-    await user.clear(screen.getByLabelText(/allowed weaver skills/i));
-    await user.type(
-      screen.getByLabelText(/allowed weaver skills/i),
-      "weave-user-help\nweave-release-evidence",
-    );
-    await user.clear(screen.getByLabelText(/allowed mcp servers/i));
-    await user.type(
-      screen.getByLabelText(/allowed mcp servers/i),
-      "weave-facade-mcp=chat.search_messages approval-required",
-    );
+    fireEvent.change(screen.getByLabelText(/default model alias/i), {
+      target: { value: "sovereign-local" },
+    });
+    fireEvent.change(screen.getByLabelText(/allowed weaver tools/i), {
+      target: {
+        value: "chat.search_messages\nnotifications.create_action_request",
+      },
+    });
+    fireEvent.change(screen.getByLabelText(/allowed weaver skills/i), {
+      target: { value: "weave-user-help\nweave-release-evidence" },
+    });
+    fireEvent.change(screen.getByLabelText(/allowed mcp servers/i), {
+      target: {
+        value: "weave-facade-mcp=chat.search_messages approval-required",
+      },
+    });
 
     expect(
       screen.getByRole("button", { name: /save weaver distribution policy/i }),
@@ -841,7 +837,7 @@ describe("Admin Console MVP", () => {
     expect(await screen.findByRole("status")).toHaveTextContent(
       /weaver distribution policy saved/i,
     );
-  }, 30000);
+  });
 
   it("surfaces RuntimeProfile revocation and audit affordances", async () => {
     const api = mockApi();

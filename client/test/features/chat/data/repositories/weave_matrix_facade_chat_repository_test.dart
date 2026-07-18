@@ -86,6 +86,19 @@ class _FailingSendBridge extends FakeRustMatrixCoreBridge {
   }
 }
 
+class _PendingPeerDeviceBridge extends FakeRustMatrixCoreBridge {
+  @override
+  Future<String> sendEncryptedText({
+    required String profileKey,
+    required String roomId,
+    required String body,
+  }) {
+    throw const RustMatrixCoreBridgeException(
+      'M_WEAVE_E2EE_PEER_DEVICE_PENDING',
+    );
+  }
+}
+
 class _FailingTimelineBridge extends FakeRustMatrixCoreBridge {
   @override
   Future<List<RustMatrixMessageProjection>> loadEncryptedRoomMessages({
@@ -94,6 +107,16 @@ class _FailingTimelineBridge extends FakeRustMatrixCoreBridge {
     int limit = 100,
   }) {
     throw const RustMatrixCoreBridgeException('M_WEAVE_E2EE_TIMELINE');
+  }
+}
+
+class _FailingCreateBridge extends FakeRustMatrixCoreBridge {
+  @override
+  Future<RustMatrixEncryptedRoom> createEncryptedRoom({
+    required String profileKey,
+    required String title,
+  }) {
+    throw const RustMatrixCoreBridgeException('M_WEAVE_E2EE_CREATE_ROOM');
   }
 }
 
@@ -184,6 +207,61 @@ void main() {
     expect(conversations.first.unreadCount, 2);
   });
 
+  test('creates an encrypted conversation through the Rust facade', () async {
+    final conversation = await repository().createConversation(
+      title: '  Release planning  ',
+    );
+
+    expect(cryptoSession.synchronizeValues, <bool>[false]);
+    expect(bridge.createdRooms.single, <String, String>{
+      'profileKey': 'profile-key',
+      'title': 'Release planning',
+    });
+    expect(conversation.id, '!created:api.weave.test');
+    expect(conversation.title, 'Release planning');
+    expect(conversation.previewType, ChatConversationPreviewType.encrypted);
+  });
+
+  test('conversation creation rejects empty names before transport', () async {
+    await expectLater(
+      repository().createConversation(title: '   '),
+      throwsA(
+        isA<ChatFailure>().having(
+          (failure) => failure.type,
+          'type',
+          ChatFailureType.configuration,
+        ),
+      ),
+    );
+
+    expect(bridge.createdRooms, isEmpty);
+  });
+
+  test('conversation creation keeps Rust failures support safe', () async {
+    await expectLater(
+      repository(
+        rustBridge: _FailingCreateBridge(),
+      ).createConversation(title: 'Release planning'),
+      throwsA(
+        isA<ChatFailure>()
+            .having(
+              (failure) => failure.message,
+              'message',
+              isNot(contains('M_WEAVE_E2EE_CREATE_ROOM')),
+            )
+            .having(
+              (failure) => failure.cause,
+              'cause',
+              isA<RustMatrixCoreBridgeException>().having(
+                (cause) => cause.code,
+                'code',
+                'M_WEAVE_E2EE_CREATE_ROOM',
+              ),
+            ),
+      ),
+    );
+  });
+
   test('send, decrypt, and receipt stay inside the Rust Matrix core', () async {
     // MATRIX_MESSAGE_CONTRACT
     const roomId = '!general:api.weave.test';
@@ -211,6 +289,7 @@ void main() {
     expect(timeline.messages.single.contentType, ChatMessageContentType.text);
     expect(timeline.messages.single.text, 'decrypted only in Rust');
     expect(timeline.messages.single.isMine, isTrue);
+    expect(cryptoSession.synchronizeValues, <bool>[false, false, false]);
   });
 
   test(
@@ -240,6 +319,40 @@ void main() {
                   (cause) => cause.code,
                   'code',
                   'M_WEAVE_E2EE_SEND_API',
+                ),
+              ),
+        ),
+      );
+    },
+  );
+
+  test(
+    'encrypted send exposes a typed retriable peer-device barrier',
+    () async {
+      await expectLater(
+        repository(rustBridge: _PendingPeerDeviceBridge()).sendMessage(
+          roomId: '!general:api.weave.test',
+          message: 'encrypted through Rust',
+        ),
+        throwsA(
+          isA<ChatFailure>()
+              .having(
+                (failure) => failure.type,
+                'type',
+                ChatFailureType.peerDevicePending,
+              )
+              .having(
+                (failure) => failure.message,
+                'message',
+                contains('Waiting for a participant’s secure device'),
+              )
+              .having(
+                (failure) => failure.cause,
+                'cause',
+                isA<RustMatrixCoreBridgeException>().having(
+                  (cause) => cause.code,
+                  'code',
+                  'M_WEAVE_E2EE_PEER_DEVICE_PENDING',
                 ),
               ),
         ),

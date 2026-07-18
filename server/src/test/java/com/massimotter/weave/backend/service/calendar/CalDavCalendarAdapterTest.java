@@ -180,34 +180,48 @@ class CalDavCalendarAdapterTest {
     }
 
     @Test
-    void createsBackendActorCalendarWhenCreateFindsMissingCollection() throws Exception {
+    void failsClosedWithoutProvisioningWhenCreateFindsMissingCollection() throws Exception {
         List<String> methods = new ArrayList<>();
         List<String> paths = new ArrayList<>();
         server = server(exchange -> {
             methods.add(exchange.getRequestMethod());
             paths.add(exchange.getRequestURI().getRawPath());
-            if ("PUT".equals(exchange.getRequestMethod()) && methods.size() == 1) {
-                respond(exchange, 404, "", null);
-            } else if ("MKCALENDAR".equals(exchange.getRequestMethod())) {
-                respond(exchange, 201, "", null);
-            } else if ("PUT".equals(exchange.getRequestMethod())) {
-                respond(exchange, 201, "", "\"etag-new\"");
-            } else {
-                respond(exchange, 405, "", null);
-            }
+            respond(exchange, 404, "", null);
         });
 
-        CalendarEvent created = adapter().write(new CalendarWrite(
-                event("event-1", "Planning", CalendarScope.workspace(), EventVersion.unknown()),
-                WriteIntent.CREATE,
-                EventVersion.unknown()));
+        assertThatThrownBy(() -> adapter().write(new CalendarWrite(
+                        event("event-1", "Planning", CalendarScope.workspace(), EventVersion.unknown()),
+                        WriteIntent.CREATE,
+                        EventVersion.unknown())))
+                .isInstanceOfSatisfying(CalendarAdapterException.class, exception ->
+                        assertThat(exception.type()).isEqualTo(CalendarAdapterException.Type.NOT_FOUND));
 
-        assertThat(methods).containsExactly("PUT", "MKCALENDAR", "PUT");
+        assertThat(methods).containsExactly("PUT");
         assertThat(paths).containsExactly(
-                "/remote.php/dav/calendars/weave-backend/personal/event-1.ics",
-                "/remote.php/dav/calendars/weave-backend/personal/",
                 "/remote.php/dav/calendars/weave-backend/personal/event-1.ics");
-        assertThat(created.version().value()).isEqualTo("\"etag-new\"");
+    }
+
+    @Test
+    void failsClosedWithoutProvisioningWhenQueryFindsMissingCollection() throws Exception {
+        List<String> methods = new ArrayList<>();
+        List<String> paths = new ArrayList<>();
+        server = server(exchange -> {
+            methods.add(exchange.getRequestMethod());
+            paths.add(exchange.getRequestURI().getRawPath());
+            respond(exchange, 404, "", null);
+        });
+
+        assertThatThrownBy(() -> adapter().query(
+                        calendarId(),
+                        CalendarScope.workspace(),
+                        null,
+                        null))
+                .isInstanceOfSatisfying(CalendarAdapterException.class, exception ->
+                        assertThat(exception.type()).isEqualTo(CalendarAdapterException.Type.NOT_FOUND));
+
+        assertThat(methods).containsExactly("REPORT");
+        assertThat(paths).containsExactly(
+                "/remote.php/dav/calendars/weave-backend/personal/");
     }
 
     @Test

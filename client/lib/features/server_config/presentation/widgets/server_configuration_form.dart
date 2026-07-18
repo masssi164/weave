@@ -35,7 +35,6 @@ class _ServerConfigurationFormState
     extends ConsumerState<ServerConfigurationForm> {
   late final TextEditingController _issuerController;
   late final TextEditingController _clientIdController;
-  late final TextEditingController _nextcloudController;
   late final TextEditingController _backendApiController;
 
   @override
@@ -43,7 +42,6 @@ class _ServerConfigurationFormState
     super.initState();
     _issuerController = TextEditingController();
     _clientIdController = TextEditingController();
-    _nextcloudController = TextEditingController();
     _backendApiController = TextEditingController();
   }
 
@@ -51,7 +49,6 @@ class _ServerConfigurationFormState
   void dispose() {
     _issuerController.dispose();
     _clientIdController.dispose();
-    _nextcloudController.dispose();
     _backendApiController.dispose();
     super.dispose();
   }
@@ -73,7 +70,6 @@ class _ServerConfigurationFormState
 
     _syncController(_issuerController, formState.issuerUrl);
     _syncController(_clientIdController, formState.clientId);
-    _syncController(_nextcloudController, formState.nextcloudBaseUrl);
     _syncController(_backendApiController, formState.backendApiBaseUrl);
 
     return Column(
@@ -197,27 +193,6 @@ class _ServerConfigurationFormState
           ),
         ),
         const SizedBox(height: 16),
-        if (widget.layout == ServerConfigurationFormLayout.full) ...[
-          TextField(
-            controller: _nextcloudController,
-            keyboardType: TextInputType.url,
-            textInputAction: TextInputAction.next,
-            decoration: InputDecoration(
-              labelText: l10n.serverConfigurationNextcloudLabel,
-              hintText: 'https://files.home.internal',
-              helperText: formState.derivedNextcloudBaseUrl.isEmpty
-                  ? null
-                  : l10n.serverConfigurationDerivedHint(
-                      formState.derivedNextcloudBaseUrl,
-                    ),
-              errorText: formState.nextcloudError,
-            ),
-            onChanged: ref
-                .read(serverConfigurationFormControllerProvider.notifier)
-                .updateNextcloudBaseUrl,
-          ),
-          const SizedBox(height: 16),
-        ],
         TextField(
           controller: _backendApiController,
           keyboardType: TextInputType.url,

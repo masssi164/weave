@@ -278,7 +278,8 @@ public class MatrixProtocolCoreService {
             List<String> deviceListsChanged,
             List<String> deviceListsLeft,
             Map<String, Long> oneTimeKeyCounts,
-            List<String> unusedFallbackKeyTypes) {
+            List<String> unusedFallbackKeyTypes,
+            long nextSequence) {
 
         public MatrixSyncCrypto {
             toDeviceEvents = toDeviceEvents == null ? List.of() : List.copyOf(toDeviceEvents);
@@ -286,10 +287,13 @@ public class MatrixProtocolCoreService {
             deviceListsLeft = deviceListsLeft == null ? List.of() : List.copyOf(deviceListsLeft);
             oneTimeKeyCounts = oneTimeKeyCounts == null ? Map.of() : Map.copyOf(oneTimeKeyCounts);
             unusedFallbackKeyTypes = unusedFallbackKeyTypes == null ? List.of() : List.copyOf(unusedFallbackKeyTypes);
+            if (nextSequence < 0) {
+                throw new IllegalArgumentException("Matrix E2EE sequence must not be negative.");
+            }
         }
 
         public static MatrixSyncCrypto empty() {
-            return new MatrixSyncCrypto(List.of(), List.of(), List.of(), Map.of(), List.of());
+            return new MatrixSyncCrypto(List.of(), List.of(), List.of(), Map.of(), List.of(), 0);
         }
     }
 
@@ -298,12 +302,33 @@ public class MatrixProtocolCoreService {
             String title,
             long updatedAtEpochMillis,
             long unreadCount,
+            String encryptionAlgorithm,
             List<CanonicalMembership> memberships,
             List<CanonicalMessage> messages) {
 
         public CanonicalConversation {
             memberships = memberships == null ? List.of() : List.copyOf(memberships);
             messages = messages == null ? List.of() : List.copyOf(messages);
+            encryptionAlgorithm = encryptionAlgorithm == null || encryptionAlgorithm.isBlank()
+                    ? null
+                    : encryptionAlgorithm.trim();
+        }
+
+        public CanonicalConversation(
+                String conversationId,
+                String title,
+                long updatedAtEpochMillis,
+                long unreadCount,
+                List<CanonicalMembership> memberships,
+                List<CanonicalMessage> messages) {
+            this(
+                    conversationId,
+                    title,
+                    updatedAtEpochMillis,
+                    unreadCount,
+                    null,
+                    memberships,
+                    messages);
         }
 
         public CanonicalConversation(
@@ -312,7 +337,7 @@ public class MatrixProtocolCoreService {
                 long updatedAtEpochMillis,
                 long unreadCount,
                 List<CanonicalMessage> messages) {
-            this(conversationId, title, updatedAtEpochMillis, unreadCount, List.of(), messages);
+            this(conversationId, title, updatedAtEpochMillis, unreadCount, null, List.of(), messages);
         }
     }
 

@@ -2,6 +2,11 @@ package com.massimotter.weave.backend.service;
 
 import com.massimotter.weave.backend.audit.AuditRequiredException;
 import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
+import com.massimotter.weave.backend.chat.ChatDomainFacadeService;
+import com.massimotter.weave.backend.chat.domain.ChatConversation;
+import com.massimotter.weave.backend.chat.domain.ChatEncryptionState;
+import com.massimotter.weave.backend.chat.domain.ChatHistoryPolicy;
+import com.massimotter.weave.backend.chat.domain.ChatMemberState;
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WeaverRuntimeProperties;
@@ -20,6 +25,10 @@ import org.springframework.security.oauth2.jwt.Jwt;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class ChatFacadeServiceTest {
 
@@ -67,6 +76,32 @@ class ChatFacadeServiceTest {
         assertThat(service.meetingCapsules(jwt(), "channel-general").capsules()).isEmpty();
     }
 
+    @Test
+    void decisionsResolveEveryDynamicConversationThroughTheCanonicalChatFacade() {
+        Jwt principal = jwt();
+        ChatDomainFacadeService canonicalChat = mock(ChatDomainFacadeService.class);
+        when(canonicalChat.conversation("room-dynamic", principal)).thenReturn(new ChatConversation(
+                "room-dynamic",
+                "Dynamic encrypted conversation",
+                "channel",
+                ChatMemberState.READY,
+                null,
+                Instant.parse("2026-05-25T12:00:00Z"),
+                ChatEncryptionState.matrixMegolm(),
+                new ChatHistoryPolicy("conversation_members", "organization_default_retention", false, true, List.of()),
+                List.of(),
+                List.of()));
+        ChatFacadeService service = service(new InMemoryAuditEventPublisher(), canonicalChat);
+
+        var created = service.createDecision(principal, "room-dynamic", decisionRequest());
+        var snapshot = service.decisions(principal, "room-dynamic");
+
+        assertThat(created.conversationId()).isEqualTo("room-dynamic");
+        assertThat(created.contextId()).isEqualTo("workspace-default");
+        assertThat(snapshot.records()).extracting(record -> record.id()).containsExactly(created.id());
+        verify(canonicalChat, times(2)).conversation("room-dynamic", principal);
+    }
+
     private ChatFacadeService serviceWithMissingAuditPublisher() {
         WorkspaceCapabilityProperties properties = workspaceCapabilityProperties();
         return new ChatFacadeService(
@@ -74,16 +109,24 @@ class ChatFacadeServiceTest {
                 workspaceCapabilityService(properties, weaverRuntimeProperties(true)),
                 request -> ContextAuthorizationDecision.allow("test allow"),
                 new ContextAuthorizationProperties(null, null, null, null, null, null, null, null),
+                mock(ChatDomainFacadeService.class),
                 null);
     }
 
     private ChatFacadeService service(InMemoryAuditEventPublisher auditPublisher) {
+        return service(auditPublisher, mock(ChatDomainFacadeService.class));
+    }
+
+    private ChatFacadeService service(
+            InMemoryAuditEventPublisher auditPublisher,
+            ChatDomainFacadeService chatDomainFacadeService) {
         WorkspaceCapabilityProperties properties = workspaceCapabilityProperties();
         return new ChatFacadeService(
                 properties,
                 workspaceCapabilityService(properties, weaverRuntimeProperties(true)),
                 request -> ContextAuthorizationDecision.allow("test allow"),
                 new ContextAuthorizationProperties(null, null, null, null, null, null, null, null),
+                chatDomainFacadeService,
                 auditPublisher);
     }
 

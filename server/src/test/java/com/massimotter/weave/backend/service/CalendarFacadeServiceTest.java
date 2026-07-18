@@ -251,6 +251,101 @@ class CalendarFacadeServiceTest {
     }
 
     @Test
+    void calDavUpdateValidatesNorthboundEtagAndUsesExactProviderVersion() {
+        AtomicReference<EventVersion> capturedVersion = new AtomicReference<>();
+        EventVersion providerVersion = new EventVersion("\"provider-current\"");
+        CalendarProviderPort adapter = new StubCalendarProvider() {
+            @Override
+            public CalendarEvent read(CalendarId calendarId, CalendarScope scope, EventId id) {
+                return event(id.value(), scope, providerVersion);
+            }
+
+            @Override
+            public CalendarEvent write(CalendarWrite write) {
+                capturedVersion.set(write.expectedVersion());
+                return event(write.event().id().value(), write.event().scope(), new EventVersion("\"provider-next\""));
+            }
+        };
+        authenticate();
+
+        var response = service(adapter).putCalDavEventIcs(
+                "planning",
+                calendarData("planning", "Updated planning"),
+                "W/\"provider-current\"",
+                null,
+                CalendarScopeResponse.workspace());
+
+        assertThat(capturedVersion.get()).isSameAs(providerVersion);
+        assertThat(response.etag()).isEqualTo("\"provider-next\"");
+    }
+
+    @Test
+    void calDavUpdateRejectsStaleNorthboundEtagBeforeProviderWrite() {
+        AtomicBoolean providerWriteCalled = new AtomicBoolean();
+        CalendarProviderPort adapter = new StubCalendarProvider() {
+            @Override
+            public CalendarEvent read(CalendarId calendarId, CalendarScope scope, EventId id) {
+                return event(id.value(), scope, new EventVersion("\"provider-current\""));
+            }
+
+            @Override
+            public CalendarEvent write(CalendarWrite write) {
+                providerWriteCalled.set(true);
+                return write.event();
+            }
+        };
+        authenticate();
+
+        assertThatThrownBy(() -> service(adapter).putCalDavEventIcs(
+                        "planning",
+                        calendarData("planning", "Updated planning"),
+                        "\"provider-stale\"",
+                        null,
+                        CalendarScopeResponse.workspace()))
+                .isInstanceOfSatisfying(ApiErrorException.class, error -> {
+                    assertThat(error.status()).isEqualTo(org.springframework.http.HttpStatus.PRECONDITION_FAILED);
+                    assertThat(error.code()).isEqualTo("caldav-precondition-failed");
+                    assertThat(error.getMessage()).doesNotContain("provider-current");
+                    assertThat(error.details())
+                            .containsEntry("supportSafe", true)
+                            .containsEntry("providerDataPlaneExposed", false)
+                            .containsEntry("diagnosticsRedacted", true);
+                });
+        assertThat(providerWriteCalled).isFalse();
+    }
+
+    @Test
+    void calDavUpdateMapsInvalidTimeRangeToSupportSafeValidationError() {
+        authenticate();
+
+        assertThatThrownBy(() -> service(new StubCalendarProvider()).putCalDavEventIcs(
+                        "planning",
+                        """
+                                BEGIN:VCALENDAR
+                                VERSION:2.0
+                                BEGIN:VEVENT
+                                UID:planning
+                                DTSTART;TZID=UTC:20260708T120000
+                                DTEND;TZID=UTC:20260708T120000
+                                SUMMARY:Invalid planning
+                                END:VEVENT
+                                END:VCALENDAR
+                                """,
+                        null,
+                        null,
+                        CalendarScopeResponse.workspace()))
+                .isInstanceOfSatisfying(ApiErrorException.class, error -> {
+                    assertThat(error.status()).isEqualTo(org.springframework.http.HttpStatus.BAD_REQUEST);
+                    assertThat(error.code()).isEqualTo("calendar-ics-invalid");
+                    assertThat(error.getMessage()).isEqualTo("Calendar data is not a supported iCalendar VEVENT.");
+                    assertThat(error.details())
+                            .containsEntry("reason", "invalid-event-data")
+                            .containsEntry("supportSafe", true)
+                            .containsEntry("providerDataPlaneExposed", false);
+                });
+    }
+
+    @Test
     void listFailsClosedWhenContextAuthorizationDeniesScopeAccess() {
         authenticate();
 
@@ -401,6 +496,10 @@ class CalendarFacadeServiceTest {
     }
 
     private CalendarEvent event(String id, CalendarScope scope) {
+        return event(id, scope, new EventVersion("\"etag\""));
+    }
+
+    private CalendarEvent event(String id, CalendarScope scope, EventVersion version) {
         return new CalendarEvent(
                 new CalendarId("massimo"),
                 new EventId(id),
@@ -414,8 +513,22 @@ class CalendarFacadeServiceTest {
                 null,
                 List.of(),
                 null,
-                new EventVersion("\"etag\""),
+                version,
                 null);
+    }
+
+    private String calendarData(String id, String title) {
+        return """
+                BEGIN:VCALENDAR
+                VERSION:2.0
+                BEGIN:VEVENT
+                UID:%s
+                DTSTART:20260708T120000Z
+                DTEND:20260708T130000Z
+                SUMMARY:%s
+                END:VEVENT
+                END:VCALENDAR
+                """.formatted(id, title);
     }
 
     private ContextAuthorizationProperties contextAuthorizationProperties() {

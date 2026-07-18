@@ -54,9 +54,9 @@ void main() {
   test('destructive live guards run before authentication', () {
     final guardedSources = <String, String>{
       'integration_test/matrix_e2ee_live_e2e_test.dart':
-          'authHelper.signIn(config)',
+          'liveAuth.accessToken(config)',
       'integration_test/live_stack_app_e2e_test.dart':
-          'AuthHelper().signInForAppSession(config)',
+          '.read(authSessionRepositoryProvider)',
       'integration_test/multi_user_collaboration_e2e_test.dart':
           '_provisionEncryptedSharedRoom(',
     };
@@ -76,6 +76,28 @@ void main() {
     );
   });
 
+  test('live client authentication is authorization code with PKCE only', () {
+    final liveSources = Directory('integration_test')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((file) => file.path.endsWith('.dart'));
+    for (final file in liveSources) {
+      final source = file.readAsStringSync();
+      expect(
+        source,
+        isNot(contains("'grant_type': 'password'")),
+        reason: file.path,
+      );
+      expect(source, isNot(contains('grant_type=password')), reason: file.path);
+    }
+
+    final driver = File(
+      'integration_test/helpers/live_oidc_test_driver.dart',
+    ).readAsStringSync();
+    expect(driver, contains("'grant_type': 'authorization_code'"));
+    expect(driver, contains("'code_challenge_method': 'S256'"));
+  });
+
   test('live Chat suites arrange and clean encrypted rooms explicitly', () {
     final multiUserSource = File(
       'integration_test/multi_user_collaboration_e2e_test.dart',
@@ -88,13 +110,212 @@ void main() {
     ).readAsStringSync();
 
     expect(multiUserSource, contains('createEncryptedRoom('));
+    expect(multiUserSource, contains('_establishEncryptedDeviceExchange('));
+    expect(multiUserSource, contains('_updateCalendarEventEventually('));
+    expect(multiUserSource, contains('redactOwnedEventsAndVerify('));
     expect(multiUserSource, contains('redactEventsAndVerify('));
     expect(multiUserSource, contains('leaveRoom('));
     expect(e2eeSource, contains('createEncryptedRoom('));
     expect(e2eeSource, contains('redactEventsAndVerify('));
     expect(e2eeSource, contains('leaveRoom('));
-    expect(appSource, contains('enableEncryptionOnJoinedRoom('));
+    expect(appSource, contains('createEncryptedRoom('));
     expect(appSource, contains('redactEventsAndVerify('));
+    expect(appSource, contains('leaveRoom('));
+    expect(
+      appSource,
+      isNot(contains("conversationIdFragment: 'channel-general'")),
+    );
+  });
+
+  test('multi-user cleanup preserves sender ownership before room leave', () {
+    final source = File(
+      'integration_test/multi_user_collaboration_e2e_test.dart',
+    ).readAsStringSync();
+    final cleanup = source.substring(source.indexOf('class _RunCleanup'));
+
+    expect(cleanup, contains('_chatEventIdsByOwner'));
+    expect(cleanup, contains('_redactedChatEventIdsByOwner'));
+    expect(cleanup, contains('collaboratorEventsClean'));
+    expect(cleanup, contains('safeToLeaveAuthor'));
+    expect(
+      cleanup.indexOf('if (collaboratorEventsClean'),
+      lessThan(cleanup.indexOf('_collaboratorMembershipLeft = true')),
+    );
+    expect(
+      cleanup.indexOf('if (safeToLeaveAuthor'),
+      lessThan(cleanup.indexOf('_authorMembershipLeft = true')),
+    );
+  });
+
+  test('Matrix sync advances one explicit processed cursor', () {
+    final source = File(
+      '../rust/matrix-core/src/flutter_crypto.rs',
+    ).readAsStringSync();
+    final syncCycle = source.substring(
+      source.indexOf('async fn complete_sync_cycle('),
+      source.indexOf('fn client_and_sync_cursor('),
+    );
+
+    expect(source, contains('sync_cursor: Option<String>'));
+    expect(source, isNot(contains('run_background_sync')));
+    expect(source, isNot(contains('background_sync')));
+    expect(syncCycle, contains('client_and_sync_cursor(profile_key)?'));
+    expect(syncCycle, contains('record_to_device_diagnostics'));
+    expect(syncCycle, contains('reconcile_verification_requests'));
+    expect(syncCycle, contains('remember_sync_cursor('));
+    expect(
+      syncCycle.lastIndexOf('record_to_device_diagnostics'),
+      lessThan(syncCycle.indexOf('remember_sync_cursor(')),
+    );
+    expect(
+      syncCycle.indexOf('reconcile_verification_requests'),
+      lessThan(syncCycle.indexOf('remember_sync_cursor(')),
+    );
+  });
+
+  test('Matrix crypto has one explicit sync/send/store owner', () {
+    final source = File(
+      '../rust/matrix-core/src/flutter_crypto.rs',
+    ).readAsStringSync();
+    final initialization = source.substring(
+      source.indexOf('async fn initialize_inner('),
+      source.indexOf('fn build_http_client('),
+    );
+    final syncCycle = source.substring(
+      source.indexOf('async fn complete_sync_cycle('),
+      source.indexOf('fn record_to_device_diagnostics('),
+    );
+    final send = source.substring(
+      source.indexOf('async fn send_text_inner('),
+      source.indexOf('async fn refresh_active_member_device_keys('),
+    );
+    final timeline = source.substring(
+      source.indexOf('async fn room_messages_inner('),
+      source.indexOf('pub async fn send_text('),
+    );
+
+    expect(source, isNot(contains('task.abort()')));
+    expect(source, isNot(contains('tokio::spawn')));
+    expect(source, isNot(contains('watch::')));
+    expect(initialization, contains('sync_cursor: replaced.sync_cursor'));
+    expect(initialization, contains('.remove(&profile_key)'));
+    expect(
+      initialization.indexOf('.remove(&profile_key)'),
+      lessThan(initialization.indexOf('Client::builder()')),
+    );
+    expect(syncCycle, contains('matrix_io_gate_for(profile_key)?'));
+    expect(send, contains('matrix_io_gate_for(profile_key)?'));
+    expect(timeline, contains('matrix_io_gate_for(profile_key)?'));
+    expect(timeline, contains('complete_sync_cycle_under_gate('));
+    expect(source, contains('PRE_SEND_DEVICE_QUERY_ATTEMPTS'));
+    expect(source, contains('Duration::from_millis(500)'));
+    expect(source, contains('MATRIX_CONNECT_TIMEOUT'));
+    expect(source, contains('MATRIX_REQUEST_TIMEOUT'));
+    expect(source, contains('.connect_timeout(MATRIX_CONNECT_TIMEOUT)'));
+    expect(source, contains('.timeout(MATRIX_REQUEST_TIMEOUT)'));
+    expect(source, contains('RoomMemberships::JOIN'));
+    expect(source, isNot(contains('RoomMemberships::ACTIVE')));
+    expect(source, contains('authoritative_peer_device_ids'));
+    expect(source, contains('M_WEAVE_E2EE_PEER_DEVICE_PENDING'));
+    expect(source, contains('M_WEAVE_E2EE_PEER_DEVICE_REJECTED'));
+    expect(source, contains('M_WEAVE_E2EE_PEER_DEVICE_BLOCKED'));
+    expect(source, contains('M_WEAVE_E2EE_PEER_DEVICE_INVALID'));
+  });
+
+  test('collaboration failure evidence preserves safe Matrix errcodes', () {
+    final source = File(
+      'integration_test/multi_user_collaboration_e2e_test.dart',
+    ).readAsStringSync();
+
+    expect(
+      source,
+      contains('_encryptedDeviceExchangeSupportCode(lastFailure)'),
+    );
+    expect(source, contains('_matrixSupportCode(lastFailure)'));
+    expect(source, contains('cause is RustMatrixCoreBridgeException'));
+    expect(source, contains("RegExp(r'^M_[A-Z0-9_]+\$')"));
+    expect(source, contains('onError: (error) => lastFailure = error'));
+
+    final sanitizer = File(
+      'tool/sanitize_multi_user_test_log.py',
+    ).readAsStringSync();
+    expect(sanitizer, contains('M_WEAVE_E2EE_PEER_DEVICE_PENDING'));
+    expect(sanitizer, contains('M_WEAVE_E2EE_PEER_DEVICE_REJECTED'));
+    expect(sanitizer, contains('M_UNKNOWN_TOKEN'));
+  });
+
+  test('live provider convergence is explicit and version-safe', () {
+    final matrixDriver = File(
+      'integration_test/helpers/matrix_live_room_driver.dart',
+    ).readAsStringSync();
+    final roomCreation = matrixDriver.substring(
+      matrixDriver.indexOf('Future<MatrixLiveRoomProvisioning>'),
+      matrixDriver.indexOf('Future<String> requireJoinedRoom'),
+    );
+    final calendarRepository = File(
+      'lib/features/calendar/data/repositories/backend_calendar_repository.dart',
+    ).readAsStringSync();
+    final multiUserSource = File(
+      'integration_test/multi_user_collaboration_e2e_test.dart',
+    ).readAsStringSync();
+
+    expect(matrixDriver, contains("'keys', 'query'"));
+    expect(
+      matrixDriver,
+      contains('M_WEAVE_LIVE_MATRIX_DEVICE_KEYS_NOT_CONVERGED'),
+    );
+    expect(
+      matrixDriver,
+      contains('M_WEAVE_LIVE_MATRIX_KEY_MATERIAL_NOT_CONVERGED'),
+    );
+    expect(roomCreation, contains('requireMutualDeviceKeys('));
+    expect(roomCreation, contains('retainOnlyCurrentDevice('));
+    expect(roomCreation, contains("'createRoom'"));
+    expect(
+      roomCreation.indexOf('requireMutualDeviceKeys('),
+      lessThan(roomCreation.indexOf("'createRoom'")),
+    );
+    expect(
+      roomCreation.indexOf('requireMutualDeviceKeys('),
+      lessThan(roomCreation.indexOf('retainOnlyCurrentDevice(')),
+    );
+    expect(
+      roomCreation.indexOf('retainOnlyCurrentDevice('),
+      lessThan(roomCreation.indexOf("'createRoom'")),
+    );
+    expect(multiUserSource, contains('pruneStaleActorDevices: true'));
+    expect(calendarRepository, contains('draft.toPatch(etag: etag)'));
+    expect(multiUserSource, contains('readEvent(eventId)'));
+    expect(
+      multiUserSource,
+      contains('updateEvent(eventId, draft, etag: etag)'),
+    );
+    expect(
+      multiUserSource,
+      isNot(contains('return session.calendar.updateEvent(eventId, draft);')),
+    );
+    expect(multiUserSource, contains('!candidate.calendar.isReady'));
+  });
+
+  test('live workflow reports provider test failure on its owning step', () {
+    final workflow = File(
+      '../.github/workflows/live-stack-e2e.yml',
+    ).readAsStringSync();
+
+    expect(
+      workflow,
+      contains(
+        r'if [ "$single_user_status" -ne 0 ] || '
+        r'[ "$multi_user_status" -ne 0 ]; then',
+      ),
+    );
+    expect(
+      workflow,
+      contains(
+        'Live provider tests failed; cleanup and support-safe evidence '
+        'collection will continue.',
+      ),
+    );
   });
 
   test('live actor profiles use discovery and namespaced device storage', () {
@@ -108,6 +329,8 @@ void main() {
     expect(source, contains('FlutterSecureStore()'));
     expect(source, contains('SharedPreferencesStore()'));
     expect(source, contains('removeTouchedKeys'));
+    expect(source, contains("apiUri('/api/dav/files')"));
+    expect(source, isNot(contains('_expectedFilesProductUrl')));
     expect(source, isNot(contains('_FixedServerConfigurationRepository')));
     expect(source, isNot(contains('_IsolatedSecureStore')));
     expect(source, isNot(contains('_IsolatedPreferencesStore')));

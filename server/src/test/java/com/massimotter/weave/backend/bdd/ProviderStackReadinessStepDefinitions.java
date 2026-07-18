@@ -266,9 +266,14 @@ public class ProviderStackReadinessStepDefinitions {
         assertThat(provider.toString()).doesNotContain("matrix-meetings");
     }
 
-    @Then("Identity Forms and Contacts readiness is mapped to dependent backend PRs")
-    public void identityFormsAndContactsReadinessIsMappedToDependentBackendPrs() {
-        assertProviderDependencyReference("identity-realm");
+    @Then("Identity readiness is Keycloak-mediated while Forms and Contacts keep dependent seams")
+    public void identityReadinessIsKeycloakMediatedWhileOptionalSeamsRemainDependent() {
+        JsonNode identity = providerByModule("identity-realm");
+        assertThat(identity).as("identity provider status").isNotNull();
+        assertThat(identity.path("providerKey").asText()).isEqualTo("keycloak-realm");
+        assertThat(identity.at("/diagnostics/identityGateway").asText()).isEqualTo("keycloak");
+        assertThat(identity.at("/diagnostics/ldapAdBoundary").asText()).isEqualTo("keycloak-user-federation");
+        assertThat(identity.at("/diagnostics/oidcSamlBoundary").asText()).isEqualTo("keycloak-identity-brokering");
         assertProviderDependencyReference("forms");
         assertProviderDependencyReference("contacts");
     }

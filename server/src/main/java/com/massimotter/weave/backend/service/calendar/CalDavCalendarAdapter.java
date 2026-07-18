@@ -48,7 +48,6 @@ public class CalDavCalendarAdapter implements CalendarProviderPort {
 
     private static final int HTTP_MULTI_STATUS = 207;
     private static final int HTTP_NOT_FOUND = 404;
-    private static final int HTTP_METHOD_NOT_ALLOWED = 405;
     private static final DateTimeFormatter CALDAV_TIME_RANGE_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'")
             .withZone(ZoneOffset.UTC);
 
@@ -157,10 +156,6 @@ public class CalDavCalendarAdapter implements CalendarProviderPort {
                 .header("Accept", "application/xml, text/xml")
                 .build();
         HttpResponse<String> response = send(request, "list-events");
-        if (response.statusCode() == HTTP_NOT_FOUND) {
-            ensureCalendarCollection(calendarId, resolvedScope);
-            response = send(request, "list-events");
-        }
         if (response.statusCode() != HTTP_MULTI_STATUS && !isSuccess(response.statusCode())) {
             throw mapStatus(response.statusCode(), "list-events", null);
         }
@@ -184,10 +179,6 @@ public class CalDavCalendarAdapter implements CalendarProviderPort {
             request.header("If-Match", write.expectedVersion().value());
         }
         HttpResponse<String> response = send(request.build(), operation);
-        if (response.statusCode() == HTTP_NOT_FOUND && write.intent() == WriteIntent.CREATE) {
-            ensureCalendarCollection(event.calendarId(), scope);
-            response = send(request.build(), operation);
-        }
         if (!isSuccess(response.statusCode())) {
             throw mapStatus(response.statusCode(), operation, href);
         }
@@ -371,22 +362,6 @@ public class CalDavCalendarAdapter implements CalendarProviderPort {
                 """.formatted(token);
     }
 
-    private String mkCalendarBody() {
-        return """
-                <?xml version="1.0" encoding="utf-8" ?>
-                <c:mkcalendar xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
-                  <d:set>
-                    <d:prop>
-                      <d:displayname>Weave workspace calendar</d:displayname>
-                      <c:supported-calendar-component-set>
-                        <c:comp name="VEVENT" />
-                      </c:supported-calendar-component-set>
-                    </d:prop>
-                  </d:set>
-                </c:mkcalendar>
-                """;
-    }
-
     private HttpRequest.Builder requestBuilder(URI uri) {
         HttpRequest.Builder builder = HttpRequest.newBuilder(uri)
                 .timeout(Duration.ofSeconds(properties.requestTimeoutSeconds()))
@@ -429,21 +404,6 @@ public class CalDavCalendarAdapter implements CalendarProviderPort {
                     Map.of("module", "calendar", "operation", operation),
                     exception);
         }
-    }
-
-    private void ensureCalendarCollection(CalendarId calendarId, CalendarScope scope) {
-        URI calendarUri = calendarCollectionUri(calendarId, scope);
-        HttpRequest request = requestBuilder(calendarUri)
-                .method("MKCALENDAR", HttpRequest.BodyPublishers.ofString(mkCalendarBody()))
-                .header("Content-Type", "application/xml; charset=utf-8")
-                .build();
-        HttpResponse<String> response = send(request, "ensure-calendar-collection");
-        if (isSuccess(response.statusCode())
-                || response.statusCode() == HTTP_MULTI_STATUS
-                || response.statusCode() == HTTP_METHOD_NOT_ALLOWED) {
-            return;
-        }
-        throw mapStatus(response.statusCode(), "ensure-calendar-collection", calendarHref(calendarId, scope, ""));
     }
 
     private CalendarAdapterException mapStatus(int status, String operation, String href) {

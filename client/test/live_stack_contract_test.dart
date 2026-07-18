@@ -36,7 +36,7 @@ import 'package:weave/features/server_config/domain/repositories/server_configur
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
 import 'package:weave/integrations/weave_api/data/services/weave_api_client.dart';
 
-import '../integration_test/helpers/auth_helper.dart';
+import '../integration_test/helpers/live_oidc_auth_helper.dart';
 import '../integration_test/helpers/test_config.dart';
 import '../integration_test/helpers/test_http_overrides.dart';
 
@@ -54,12 +54,11 @@ void main() {
 
   late TestConfig config;
   late http.Client httpClient;
-  late AuthHelper authHelper;
+  const liveAuth = LiveOidcAuthHelper();
 
   setUp(() {
     config = liveConfig;
     httpClient = createTrustedTestHttpClient();
-    authHelper = AuthHelper(httpClient: httpClient);
   });
 
   tearDown(() {
@@ -241,7 +240,7 @@ void main() {
   });
 
   test('setup -> sign-in -> shell ready', () async {
-    final session = await authHelper.signInForAppSession(config);
+    final session = await liveAuth.signIn(config);
     final container = _createAppContainer(config: config, session: session);
     addTearDown(container.dispose);
 
@@ -252,7 +251,7 @@ void main() {
   }, skip: liveSkipReason);
 
   test('settings/config change -> targeted invalidation fires', () async {
-    final session = await authHelper.signInForAppSession(config);
+    final session = await liveAuth.signIn(config);
     final container = _createAppContainer(config: config, session: session);
     addTearDown(container.dispose);
 
@@ -309,7 +308,7 @@ void main() {
   }, skip: liveSkipReason);
 
   test('authenticated GET /api/me returns expected identity', () async {
-    final accessToken = await authHelper.signIn(config);
+    final accessToken = await liveAuth.accessToken(config);
 
     final response = await httpClient.get(
       config.apiUri('/api/me'),
@@ -332,7 +331,7 @@ void main() {
   test(
     'OIDC bearer reaches every Weave-owned collaboration protocol facade',
     () async {
-      final accessToken = await authHelper.signIn(config);
+      final accessToken = await liveAuth.accessToken(config);
       final apiOrigin = _apiOrigin(config.backendApiBaseUrl);
       final authorization = <String, String>{
         'Authorization': 'Bearer $accessToken',
@@ -347,7 +346,21 @@ void main() {
       );
       expect(platformResponse.statusCode, 200, reason: platformResponse.body);
       final platform = _decodeObject(platformResponse.body);
-      expect(platform['matrixHomeserverUrl'], apiOrigin.toString());
+      expect(platform['schemaVersion'], 1);
+      expect(
+        platform['controlPlaneBaseUrl'],
+        config.backendApiBaseUrl.toString(),
+      );
+      final protocols = platform['protocols'] as Map<String, dynamic>;
+      expect(protocols['matrixClientServerBaseUrl'], apiOrigin.toString());
+      expect(
+        protocols['filesWebDavBaseUrl'],
+        config.apiUri('/api/dav/files').toString(),
+      );
+      expect(
+        protocols['calendarCalDavBaseUrl'],
+        config.apiUri('/api/caldav').toString(),
+      );
       expect(config.matrixHomeserverUrl, apiOrigin);
 
       final files = await _sendRequest(
@@ -447,7 +460,7 @@ void main() {
   test(
     'DAV device credentials are one-time, scoped, and revocable',
     () async {
-      final accessToken = await authHelper.signIn(config);
+      final accessToken = await liveAuth.accessToken(config);
       final files = await _exerciseDeviceCredential(
         client: httpClient,
         backendApiBaseUrl: config.backendApiBaseUrl,
@@ -481,12 +494,18 @@ void main() {
       // ignore: avoid_print
       print('NO_PROVIDER_CREDENTIALS_RESULT exposed=false');
     },
+    // This live contract deliberately performs four adaptive credential-hash
+    // operations across two domains. Resource-constrained isolated runners can
+    // take longer than the package:test 30-second default without the backend
+    // being unavailable; keep the scenario bounded while allowing the real
+    // security work to complete.
+    timeout: const Timeout(Duration(minutes: 2)),
     skip: liveSkipReason,
   );
 
   test('authenticated GET /api/v1/workspace/capabilities returns expected '
       'structure', () async {
-    final accessToken = await authHelper.signIn(config);
+    final accessToken = await liveAuth.accessToken(config);
 
     final response = await httpClient.get(
       config.apiUri('/api/v1/workspace/capabilities'),
@@ -518,7 +537,7 @@ void main() {
   test(
     'backend unavailable -> backend client surfaces unreachable failure',
     () async {
-      final accessToken = await authHelper.signIn(config);
+      final accessToken = await liveAuth.accessToken(config);
       final unreachableConfig = config.copyWith(
         backendApiBaseUrl: config.unreachableBackendApiBaseUrl(),
       );
@@ -828,6 +847,11 @@ class _SessionAuthRepository implements AuthSessionRepository {
 }
 
 class _EmptyChatRepository implements ChatRepository {
+  @override
+  Future<ChatConversation> createConversation({required String title}) {
+    throw UnimplementedError();
+  }
+
   @override
   Future<void> clearSession() async {}
 

@@ -5,10 +5,16 @@ set -euo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 INFRA_DIR="${ROOT_DIR}/01-infrastructure"
-BOOTSTRAP_ENV_FILE="${ROOT_DIR}/.generated/bootstrap.env"
-DEFAULT_CADDY_TLS_CA_FILE="${ROOT_DIR}/01-infrastructure/.generated/caddy/certs/weave-local-ca.pem"
-NEXTCLOUD_CONTAINER_NAME="${NEXTCLOUD_CONTAINER_NAME:-weave-nextcloud}"
+# shellcheck source=infra/weave-workspace/lib/runtime-namespace.sh
+source "${ROOT_DIR}/lib/runtime-namespace.sh"
+BOOTSTRAP_ENV_FILE="$(weave_workspace_generated_dir "${ROOT_DIR}")/bootstrap.env"
+DEFAULT_CADDY_TLS_CA_FILE="$(weave_infra_generated_dir "${ROOT_DIR}")/caddy/certs/weave-local-ca.pem"
+NEXTCLOUD_CONTAINER_NAME="${NEXTCLOUD_CONTAINER_NAME:-$(weave_container_name nextcloud)}"
+BACKEND_CONTAINER_NAME="$(weave_container_name backend)"
+MAILPIT_CONTAINER_NAME="$(weave_container_name mailpit)"
 CADDY_TLS_CA_FILE=""
+# shellcheck disable=SC1090,SC1091
+source "${ROOT_DIR}/lib/calendar-collection.sh"
 
 log() {
   printf '%s\n' "$*"
@@ -323,6 +329,10 @@ container_env_value() {
   local container="$1"
   local name="$2"
 
+  if [[ "${container}" == "weave-backend" ]]; then
+    container="${BACKEND_CONTAINER_NAME}"
+  fi
+
   docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "${container}" 2>/dev/null |
     awk -v name="${name}" 'index($0, name "=") == 1 { print substr($0, length(name) + 2); found = 1 } END { if (!found) exit 1 }'
 }
@@ -360,6 +370,8 @@ assert_backend_nextcloud_actor_config() {
   local caldav_template
   local caldav_auth_mode
   local caldav_username
+  local isolated_namespace
+  local workspace_calendar_id
   local name
 
   for name in \
@@ -397,8 +409,10 @@ assert_backend_nextcloud_actor_config() {
   [[ "${caldav_base_url}" == "${backend_nextcloud_base_url}" ]] || fail "Smoke check failed: CalDAV base URL should match the backend Nextcloud adapter base URL"
 
   caldav_template="$(container_env_value weave-backend WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE)"
+  isolated_namespace="$(container_env_value weave-backend WEAVE_ISOLATED_E2E_NAMESPACE)"
+  workspace_calendar_id="$(weave_backend_actor_workspace_calendar_id "${isolated_namespace}")"
   [[ "${caldav_template}" != *"{user}"* ]] || fail "Smoke check failed: CalDAV calendar path template must target the backend actor workspace calendar while team/channel scopes are implemented, not unresolved private personal calendars"
-  [[ "${caldav_template}" == "/remote.php/dav/calendars/${actor_username}/personal/" ]] || fail "Smoke check failed: CalDAV calendar path template must target the backend actor workspace calendar while team/channel scopes are implemented"
+  [[ "${caldav_template}" == "$(weave_backend_actor_workspace_calendar_path "${actor_username}" "${isolated_namespace}")" ]] || fail "Smoke check failed: CalDAV calendar path template must target the backend actor workspace calendar while team/channel scopes are implemented"
 
   caldav_auth_mode="$(container_env_value weave-backend WEAVE_CALDAV_AUTH_MODE)"
   [[ "${caldav_auth_mode}" == "BASIC" || "${caldav_auth_mode}" == "BEARER" ]] || fail "Smoke check failed: unsupported CalDAV auth mode ${caldav_auth_mode}"
@@ -424,12 +438,14 @@ assert_backend_nextcloud_actor_config() {
   docker exec --user www-data "${NEXTCLOUD_CONTAINER_NAME}" php occ user:info "${actor_username}" >/dev/null 2>&1 || \
     fail "Smoke check failed: Nextcloud backend actor user is not provisioned"
 
-  for calendar_id in personal weave-team-engineering weave-channel-engineering-general; do
+  for calendar_id in "${workspace_calendar_id}" weave-team-engineering weave-channel-engineering-general; do
     assert_nextcloud_backend_actor_calendar "${actor_username}" "${actor_token}" "${calendar_id}"
   done
 
-  if [[ -f "${ROOT_DIR}/.generated/app-config.env" ]]; then
-    ! grep -Eq 'WEAVE_NEXTCLOUD_FILES_ACTOR_TOKEN|WEAVE_CALDAV_BACKEND_TOKEN|TF_VAR_nextcloud_backend_actor_token' "${ROOT_DIR}/.generated/app-config.env" || \
+  local app_config_file
+  app_config_file="$(weave_workspace_generated_dir "${ROOT_DIR}")/app-config.env"
+  if [[ -f "${app_config_file}" ]]; then
+    ! grep -Eq 'WEAVE_NEXTCLOUD_FILES_ACTOR_TOKEN|WEAVE_CALDAV_BACKEND_TOKEN|TF_VAR_nextcloud_backend_actor_token' "${app_config_file}" || \
       fail "Smoke check failed: no-secret app config exposes backend Nextcloud actor secrets"
   fi
 }
@@ -504,7 +520,7 @@ mailpit_info="$(curl --silent --show-error --fail "http://127.0.0.1:${TF_VAR_mai
 assert_json "${mailpit_info}" 'type == "object"' "Mailpit loopback API should return its info document"
 mailpit_https_status="$(curl_status "${WEAVE_MAILPIT_URL}")"
 [[ "${mailpit_https_status}" == "200" ]] || fail "Smoke check failed: private-network Mailpit HTTPS inbox returned HTTP ${mailpit_https_status}"
-docker inspect --format '{{json .HostConfig.PortBindings}}' weave-mailpit |
+docker inspect --format '{{json .HostConfig.PortBindings}}' "${MAILPIT_CONTAINER_NAME}" |
   jq -e '."1025/tcp" == null' >/dev/null || fail "Smoke check failed: Mailpit SMTP port 1025 must not be published to the host"
 
 log "Checking Keycloak issuer discovery..."
@@ -540,7 +556,7 @@ grep -Fq 'Account activation uses the identity-provider required-action flow' <<
 [[ "${product_start_page}" != *"127.0.0.1"* && "${product_start_page}" != *"localhost"* && "${product_start_page}" != *"192.168."* ]] || \
   fail "Smoke check failed: Product start page must not expose LAN IP, loopback, or localhost URLs"
 product_platform_config="$(curl_json "${WEAVE_PUBLIC_BASE_URL}/api/platform/config")"
-assert_json "${product_platform_config}" ".publicBaseUrl == \"${WEAVE_PUBLIC_BASE_URL}\" and .apiBaseUrl == \"${WEAVE_BASE_URL}\"" "Product gateway /api/platform/config should proxy the app-start discovery contract"
+assert_json "${product_platform_config}" ".schemaVersion == 1 and .organizationOrigin == \"${WEAVE_PUBLIC_BASE_URL}\" and .controlPlaneBaseUrl == \"${WEAVE_BASE_URL}\"" "Product gateway /api/platform/config should proxy OrgManifest v1"
 files_product_status="$(curl_status "${WEAVE_PUBLIC_BASE_URL}/files")"
 [[ "${files_product_status}" == "200" ]] || fail "Smoke check failed: Weave files product route should return 200, got ${files_product_status}"
 calendar_product_status="$(curl_status "${WEAVE_PUBLIC_BASE_URL}/calendar")"
@@ -568,15 +584,12 @@ qr_status="$(curl_status "${qr_payload}")"
 
 log "Checking public platform config..."
 platform_config="$(curl_json "${WEAVE_BASE_URL}/platform/config")"
-assert_json "${platform_config}" ".publicBaseUrl == \"${WEAVE_PUBLIC_BASE_URL}\"" "Platform config should expose the canonical DNS-first product route"
-assert_json "${platform_config}" ".apiBaseUrl == \"${WEAVE_BASE_URL}\"" "Platform config should expose the canonical DNS-first API route"
-assert_json "${platform_config}" ".authBaseUrl == \"${WEAVE_AUTH_BASE_URL}\"" "Platform config should expose the canonical DNS-first auth route"
-assert_json "${platform_config}" ".oidcIssuerUrl == \"${WEAVE_OIDC_ISSUER_URL}\"" "Platform config should expose the canonical DNS-first OIDC issuer"
-assert_json "${platform_config}" ".matrixHomeserverUrl == \"${WEAVE_MATRIX_HOMESERVER_URL}\"" "Platform config should expose the canonical DNS-first Matrix route"
-assert_json "${platform_config}" ".filesProductUrl == \"${WEAVE_PUBLIC_BASE_URL}/files\"" "Platform config should expose the product files route, not raw provider internals"
-assert_json "${platform_config}" ".calendarProductUrl == \"${WEAVE_PUBLIC_BASE_URL}/calendar\"" "Platform config should expose the product calendar route"
-assert_json "${platform_config}" ".nextcloudBaseUrl == \"${WEAVE_NEXTCLOUD_BASE_URL}\"" "Platform config should expose only the support-safe public Nextcloud fallback URL"
-assert_json "${platform_config}" '.features.chatE2ee == false and .features.matrixFederation == false' "MVP chat security flags should be honest"
+assert_json "${platform_config}" ".schemaVersion == 1 and .organizationOrigin == \"${WEAVE_PUBLIC_BASE_URL}\" and .controlPlaneBaseUrl == \"${WEAVE_BASE_URL}\"" "Platform config should expose canonical Weave organization and control-plane routes"
+assert_json "${platform_config}" ".oidc.issuer == \"${WEAVE_OIDC_ISSUER_URL}\" and .oidc.clientId != \"\"" "Platform config should expose the mandatory OIDC contract"
+assert_json "${platform_config}" ".protocols.matrixClientServerBaseUrl == \"${WEAVE_MATRIX_HOMESERVER_URL}\"" "Platform config should expose the Weave Matrix Client-Server facade"
+assert_json "${platform_config}" ".protocols.filesWebDavBaseUrl == \"${WEAVE_BASE_URL}/dav/files\" and .protocols.calendarCalDavBaseUrl == \"${WEAVE_BASE_URL}/caldav\"" "Platform config should expose separate Weave WebDAV and CalDAV facades"
+assert_json "${platform_config}" '([.domains[].domain] | sort) == (["boards","calendar","chat","files","health","identity"] | sort)' "Platform config should include every active dogfood domain"
+assert_json "${platform_config}" '((has("publicBaseUrl") | not) and (has("apiBaseUrl") | not) and (has("matrixHomeserverUrl") | not) and (has("nextcloudBaseUrl") | not) and (has("targets") | not) and (has("features") | not))' "Platform config must not expose provider-shaped legacy fields"
 assert_no_legacy_local_truth "${platform_config}" "Platform config"
 
 platform_status="$(curl_json "${WEAVE_BASE_URL}/platform/status")"

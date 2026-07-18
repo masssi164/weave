@@ -35,6 +35,17 @@ FORBIDDEN_EVIDENCE_KEYS = {
     "filename",
     "rawresponse",
     "rawproviderresponse",
+    "provideruserid",
+    "providerroomid",
+    "providereventid",
+    "canonicalconversationid",
+    "canonicaleventid",
+    "ciphertext",
+    "plaintext",
+    "messagebody",
+    "callbackbody",
+    "astoken",
+    "hstoken",
 }
 MARKERS = {
     "MULTI_USER_AUTH_SHELL_RESULT": "authenticationShell",
@@ -234,6 +245,12 @@ def require_passed_marker_facts(
                         "roomMembershipCleanupComplete": True,
                     },
                 )
+                if payload.get("runIndex") == 1:
+                    _require_exact_facts(
+                        marker,
+                        payload,
+                        {"coldCollaboratorDeviceSetVerified": True},
+                    )
             elif marker == "MULTI_USER_FILES_RESULT":
                 _require_exact_facts(
                     marker,
@@ -494,10 +511,12 @@ def require_calendar_outage_recovery(
     evidence: dict[str, Any], namespace_hash: str
 ) -> None:
     require_support_safe_document(evidence, "Calendar outage evidence")
-    if evidence.get("schemaVersion") != "weave.isolated-calendar-outage-fixture.v1":
+    if evidence.get("schemaVersion") != "weave.isolated-calendar-outage-fixture.v2":
         raise EvidenceError("Calendar outage evidence schemaVersion is unsupported")
     for key, expected in (
         ("state", "restored"),
+        ("calendarCollectionKind", "dedicated-non-default"),
+        ("providerDefaultAutoProvisioningEligible", False),
         ("recoveryRequired", False),
         ("persistentDogfoodEligible", False),
         ("credentialsIncluded", False),
@@ -520,6 +539,170 @@ def require_calendar_outage_recovery(
     }:
         raise EvidenceError(
             "Calendar outage recovery must finish with Calendar and Files available"
+        )
+
+
+def _require_false_flags(evidence: dict[str, Any], label: str) -> None:
+    for key in (
+        "credentialsIncluded",
+        "rawIdentityIncluded",
+        "rawProviderReferenceIncluded",
+        "rawProviderPayloadIncluded",
+        "rawCiphertextIncluded",
+        "rawContentIncluded",
+    ):
+        if evidence.get(key) is not False:
+            raise EvidenceError(f"{label} {key} must be false")
+
+
+def require_chat_provider_evidence(
+    evidence: dict[str, Any], candidate: str, namespace_hash: str
+) -> None:
+    """Require two real Synapse passes rather than Matrix-shaped facade evidence."""
+
+    require_support_safe_document(evidence, "Chat provider evidence")
+    if evidence.get("schemaVersion") != "weave.isolated-e2e-chat-provider.v1":
+        raise EvidenceError("Chat provider evidence schemaVersion is unsupported")
+    for key, expected in (
+        ("candidateCommit", candidate),
+        ("namespaceSha256", namespace_hash),
+        ("supportSafe", True),
+        ("isolatedRuntimeVerified", True),
+        ("providerEvidenceEndpointReadOnly", True),
+        ("callbackReplayTriggerScoped", True),
+        ("southboundProviderAdapterVerified", True),
+        ("applicationServiceBoundaryVerified", True),
+        ("canonicalDurableStorageVerified", True),
+        ("persistentHumanIdentityChanged", False),
+        ("repeatCount", 2),
+    ):
+        if evidence.get(key) != expected:
+            raise EvidenceError(f"Chat provider evidence {key} must be {expected!r}")
+    _require_false_flags(evidence, "Chat provider evidence")
+
+    passes = evidence.get("passes")
+    if not isinstance(passes, list) or len(passes) != 2:
+        raise EvidenceError("Chat provider evidence must contain exactly two passes")
+    if {value.get("runIndex") for value in passes if isinstance(value, dict)} != {1, 2}:
+        raise EvidenceError("Chat provider evidence passes must contain runIndex 1 and 2")
+
+    scenario_hashes: set[str] = set()
+    for index, value in enumerate(passes):
+        if not isinstance(value, dict):
+            raise EvidenceError(f"Chat provider pass {index + 1} must be an object")
+        label = f"Chat provider pass {value.get('runIndex', index + 1)}"
+        for key, expected in (
+            ("status", "passed"),
+            ("directProviderApiReadback", True),
+            ("authenticatedProviderReadback", True),
+            ("authorizedVirtualUserCount", 2),
+            ("authorJoined", True),
+            ("collaboratorJoined", True),
+            ("outsiderRoomMembershipAbsent", True),
+            ("outsiderReadDenied", True),
+            ("outsiderWriteDenied", True),
+            ("correlatedEncryptedEventCount", 3),
+            ("correlatedPlaintextEventCount", 0),
+            ("plaintextSentinelAbsent", True),
+            ("canonicalCommittedEventCount", 3),
+            ("providerAcknowledgedEventCount", 3),
+            ("providerMembershipExact", True),
+            ("providerEncryptionStateVerified", True),
+            ("providerEventMappingExact", True),
+            ("providerCiphertextCorrelationExact", True),
+            ("backendRestartContinuity", True),
+            ("providerRestartContinuity", True),
+            ("outageOperationInvisible", True),
+            ("providerUnavailableSupportSafe", True),
+            ("otherSurfacesReachableDuringOutage", True),
+            ("sameTransactionRetry", True),
+            ("retryCommittedExactlyOnce", True),
+            ("pendingOperationCountAfterRecovery", 0),
+            ("duplicateOperationCount", 0),
+            ("callbackReplayDeduplicated", True),
+            ("canonicalEventDeltaAfterReplay", 0),
+            ("providerEventDeltaAfterReplay", 0),
+            ("ledgerDeltaAfterReplay", 0),
+            ("providerReadiness", "available"),
+            ("providerHealthCached", True),
+            ("runResourcesCleanupComplete", True),
+            ("supportSafe", True),
+        ):
+            if value.get(key) != expected:
+                raise EvidenceError(f"{label} {key} must be {expected!r}")
+
+        age = value.get("providerHealthObservationAgeSeconds")
+        if not isinstance(age, int) or isinstance(age, bool) or not 0 <= age <= 120:
+            raise EvidenceError(
+                f"{label} providerHealthObservationAgeSeconds must be between 0 and 120"
+            )
+        scenario_hash = value.get("scenarioSha256")
+        if not isinstance(scenario_hash, str) or not HASH_PATTERN.fullmatch(
+            scenario_hash
+        ):
+            raise EvidenceError(f"{label} scenarioSha256 must be a SHA-256 hash")
+        scenario_hashes.add(scenario_hash)
+        correlations = value.get("correlationSha256")
+        if (
+            not isinstance(correlations, list)
+            or len(correlations) != 3
+            or any(
+                not isinstance(correlation, str)
+                or not HASH_PATTERN.fullmatch(correlation)
+                for correlation in correlations
+            )
+            or len(set(correlations)) != 3
+        ):
+            raise EvidenceError(
+                f"{label} correlationSha256 must contain three distinct SHA-256 hashes"
+            )
+    if len(scenario_hashes) != 2:
+        raise EvidenceError("Chat provider passes must use distinct run-scoped scenarios")
+
+
+def require_stack_teardown_evidence(
+    evidence: dict[str, Any], candidate: str, namespace_hash: str
+) -> None:
+    require_support_safe_document(evidence, "isolated stack teardown evidence")
+    if evidence.get("schema") != "weave.isolated-stack-teardown.v1":
+        raise EvidenceError("isolated stack teardown schema is unsupported")
+    for key, expected in (
+        ("candidateCommit", candidate),
+        ("namespaceSha256", namespace_hash),
+        ("isolatedRuntimeVerified", True),
+        ("providerNamespaceDestroyed", True),
+        ("persistentDogfoodTouched", False),
+        ("credentialsIncluded", False),
+        ("rawProviderPayloadIncluded", False),
+        ("supportSafe", True),
+    ):
+        if evidence.get(key) != expected:
+            raise EvidenceError(
+                f"isolated stack teardown evidence {key} must be {expected!r}"
+            )
+    post_removal = evidence.get("postRemovalCounts")
+    if not isinstance(post_removal, dict):
+        raise EvidenceError(
+            "isolated stack teardown evidence postRemovalCounts must be an object"
+        )
+    for resource_kind in ("containers", "networks", "volumes"):
+        counts = post_removal.get(resource_kind)
+        if not isinstance(counts, dict) or not counts:
+            raise EvidenceError(
+                "isolated stack teardown evidence "
+                f"postRemovalCounts.{resource_kind} must be a non-empty object"
+            )
+        if any(
+            not isinstance(count, int) or isinstance(count, bool) or count != 0
+            for count in counts.values()
+        ):
+            raise EvidenceError(
+                "isolated stack teardown evidence "
+                f"postRemovalCounts.{resource_kind} must contain only zero counts"
+            )
+    if post_removal.get("remainingOwnedResources") != 0:
+        raise EvidenceError(
+            "isolated stack teardown evidence remainingOwnedResources must be 0"
         )
 
 
@@ -548,6 +731,12 @@ def build_evidence(
         scenario: marker_statuses[marker]
         for marker, scenario in MARKERS.items()
     }
+    scenario_results.update(
+        {
+            "chatProviderPersistence": "passed",
+            "chatProviderOutageIdempotency": "passed",
+        }
+    )
     observed_statuses = set(scenario_results.values())
     overall = (
         "failed"
@@ -577,13 +766,31 @@ def build_evidence(
             "scenarioResults": scenario_results,
             "cleanupStatus": "passed",
             "repeatCount": 2,
+            "providerPersistence": {
+                "status": "passed",
+                "southboundProviderAdapterVerified": True,
+                "applicationServiceBoundaryVerified": True,
+                "canonicalDurableStorageVerified": True,
+                "directProviderApiReadback": True,
+                "providerMembershipExact": True,
+                "providerEncryptionStateVerified": True,
+                "providerEventMappingExact": True,
+                "providerCiphertextCorrelationExact": True,
+                "backendRestartContinuity": True,
+                "providerRestartContinuity": True,
+                "outageRetryCommittedExactlyOnce": True,
+                "callbackReplayDeduplicated": True,
+                "repeatCount": 2,
+            },
         },
         "evidenceRefs": [
             f"{ref}#multi-user-two-pass",
             "artifact:isolated-identities.json",
             "artifact:isolated-authorization.json",
             "artifact:isolated-calendar-outage.json",
+            "artifact:isolated-chat-provider.json",
             "artifact:isolated-cleanup.json",
+            "artifact:isolated-stack-teardown.json",
         ],
         "blockers": blockers,
     }
@@ -597,7 +804,9 @@ def parser() -> argparse.ArgumentParser:
     value.add_argument("--identity-evidence", type=Path, required=True)
     value.add_argument("--authorization-evidence", type=Path, required=True)
     value.add_argument("--calendar-outage-evidence", type=Path, required=True)
+    value.add_argument("--chat-provider-evidence", type=Path, required=True)
     value.add_argument("--cleanup-evidence", type=Path, required=True)
+    value.add_argument("--stack-teardown-evidence", type=Path, required=True)
     value.add_argument("--output", type=Path, required=True)
     value.add_argument("--require-passed", action="store_true")
     return value
@@ -626,8 +835,18 @@ def main(argv: list[str] | None = None) -> int:
             load_object(args.calendar_outage_evidence, "Calendar outage evidence"),
             namespace_hash,
         )
+        require_chat_provider_evidence(
+            load_object(args.chat_provider_evidence, "Chat provider evidence"),
+            candidate,
+            namespace_hash,
+        )
         require_cleanup(
             load_object(args.cleanup_evidence, "cleanup evidence"), namespace_hash
+        )
+        require_stack_teardown_evidence(
+            load_object(args.stack_teardown_evidence, "isolated stack teardown evidence"),
+            candidate,
+            namespace_hash,
         )
         evidence = build_evidence(
             candidate=candidate,

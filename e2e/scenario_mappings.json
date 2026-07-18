@@ -525,6 +525,44 @@
       ]
     },
     {
+      "tag": "@weave-v01-lost-pending-identity-retirement",
+      "scenario": "Lost never-activated dogfood identity requires protected retirement",
+      "feature": "e2e/features/v0_1_dogfood_release.feature",
+      "executableTest": "infra/weave-workspace/tests/dogfood-pending-identity-recovery-workflow-test.sh",
+      "evidenceMarkers": [
+        "DOGFOOD_PENDING_IDENTITY_RECOVERY_CONTRACT"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "infra/weave-workspace/tests/dogfood-member-helper-test.sh",
+          "fragments": [
+            "recorded pending subject still exists in Keycloak",
+            "restored_disposable_bootstrap_retired",
+            "lost_pending_identity_retired_and_recreated",
+            "retired-pending-identities"
+          ]
+        },
+        {
+          "path": "infra/weave-workspace/restore-private-backup.sh",
+          "fragments": [
+            "PRIVATE_DOGFOOD_RESTORE",
+            "identityRestorableForRecordedMember",
+            "soleRestoredDisposableBootstrapIdentity"
+          ]
+        },
+        {
+          "path": ".github/workflows/dogfood-pending-identity-recovery.yml",
+          "fragments": [
+            "retire-restored-test-bootstrap",
+            "retire-lost-pending-identity",
+            "humanTestingReady:false",
+            "two-install-dogfood-deployment-required"
+          ]
+        }
+      ]
+    },
+    {
       "tag": "@weave-v01-admin-provider-categories",
       "scenario": "Admin sees provider categories before member use",
       "feature": "e2e/features/v0_1_dogfood_release.feature",
@@ -6304,6 +6342,51 @@
         "MATRIX_E2EE_CLIENT_FAILS_CLOSED"
       ],
       "evidenceMode": "offline-spec"
+    },
+    {
+      "tag": "@matrix-synapse-durable-collaboration",
+      "scenario": "Encrypted collaboration is committed by the selected Chat provider",
+      "feature": "e2e/features/chat_matrix_e2ee.feature",
+      "executableTest": "infra/weave-workspace/isolated-e2e-chat-provider-proof.sh",
+      "evidenceMarkers": [
+        "MATRIX_SYNAPSE_PROVIDER_PERSISTENCE_RESULT"
+      ],
+      "evidenceMode": "live-runtime",
+      "runtimeSources": [
+        "live-stack-e2e"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "client/integration_test/multi_user_collaboration_e2e_test.dart",
+          "fragments": [
+            "MULTI_USER_CHAT_RESULT",
+            "ciphertextOnlyTransport"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@matrix-synapse-outage-idempotency",
+      "scenario": "A Chat provider outage cannot expose or duplicate a message",
+      "feature": "e2e/features/chat_matrix_e2ee.feature",
+      "executableTest": "infra/weave-workspace/isolated-e2e-chat-provider-proof.sh",
+      "evidenceMarkers": [
+        "MATRIX_SYNAPSE_PROVIDER_EXACTLY_ONCE_RESULT",
+        "MATRIX_SYNAPSE_PROVIDER_REPLAY_RESULT"
+      ],
+      "evidenceMode": "live-runtime",
+      "runtimeSources": [
+        "live-stack-e2e"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "tools/multi_user_e2e_evidence.py",
+          "fragments": [
+            "providerPersistence",
+            "southboundProviderAdapterVerified"
+          ]
+        }
+      ]
     },
     {
       "tag": "@human-ready-auth-shell",

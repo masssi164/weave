@@ -8,12 +8,14 @@
 - `provision-matrix-default-workspace.sh`: creates/reuses the default Matrix workspace space plus announcements, general, and help rooms.
 - `release-verify.sh`: checks the public URLs after a non-local install.
 - `backup.sh`: manually creates a private backup artifact set for operator-managed storage.
+- `restore-private-backup.sh`: fail-closed restore of one integrity-checked private backup into an absent persistent dogfood boundary.
 - `restore-smoke.sh`: verifies recovery readiness after a restore or clean reprovisioning rehearsal without deleting data.
 - `disposable-restore-proof.sh`: runs a support-safe disposable Backup -> Destroy -> Restore -> Validate proof using only uniquely named `weave_disposable_restore_*` Docker volumes.
 - `isolated-e2e-identities.sh`: prepares, provisions, verifies, and cleans run-scoped three-identity Keycloak/ReBAC inputs for an explicitly isolated live-E2E stack.
 - `isolated-e2e-authorization-probes.sh`: runs isolated-only missing-capability, expired-token, and Matrix-revocation probes and trap-restores every temporary Keycloak setting.
-- `isolated-e2e-calendar-outage.sh`: removes/restores only the isolated backend actor's `personal` calendar and verifies cached Calendar outage containment without touching Files or persistent dogfood.
+- `isolated-e2e-calendar-outage.sh`: removes/restores only the isolated backend actor's dedicated non-default workspace calendar and verifies cached Calendar outage containment without touching Files or persistent dogfood.
 - `persistent-dogfood-observation.sh`: captures and compares support-safe persistent dogfood identity, Mailpit, TLS, and active-session invariants around non-destructive installs.
+- `lib/runtime-namespace.sh`: derives stable persistent names and run-scoped disposable container, volume, network, generated-asset, and OpenTofu state paths.
 - `nextcloud-auth-security-audit.sh`: classifies recent Nextcloud invalid-authentication/throttle sources without exposing raw addresses or changing protection.
 - `release.env.example`: template for operator-managed single-host deployments.
 - `.env.example`: local hostname, port, and Caddy mount defaults.

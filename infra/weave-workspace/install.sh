@@ -11,21 +11,40 @@ ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly ROOT_DIR
 readonly INFRA_DIR="${ROOT_DIR}/01-infrastructure"
 readonly KEYCLOAK_DIR="${ROOT_DIR}/02-keycloak-setup"
-readonly BOOTSTRAP_ENV_FILE="${ROOT_DIR}/.generated/bootstrap.env"
-readonly APP_CONFIG_ENV_FILE="${ROOT_DIR}/.generated/app-config.env"
+# shellcheck source=infra/weave-workspace/lib/runtime-namespace.sh
+source "${ROOT_DIR}/lib/runtime-namespace.sh"
+readonly WORKSPACE_GENERATED_DIR="$(weave_workspace_generated_dir "${ROOT_DIR}")"
+readonly INFRA_GENERATED_DIR="$(weave_infra_generated_dir "${ROOT_DIR}")"
+readonly BOOTSTRAP_ENV_FILE="${WORKSPACE_GENERATED_DIR}/bootstrap.env"
+readonly APP_CONFIG_ENV_FILE="${WORKSPACE_GENERATED_DIR}/app-config.env"
 readonly RUNNER_BOOTSTRAP_ENV_FILE="/tmp/weave-infra/weave-workspace/.generated/bootstrap.env"
-readonly NEXTCLOUD_PROVISION_EVIDENCE_FILE="${WEAVE_NEXTCLOUD_PROVISION_EVIDENCE_FILE:-${ROOT_DIR}/.generated/nextcloud-post-provision-health.json}"
+readonly NEXTCLOUD_PROVISION_EVIDENCE_FILE="${WEAVE_NEXTCLOUD_PROVISION_EVIDENCE_FILE:-${WORKSPACE_GENERATED_DIR}/nextcloud-post-provision-health.json}"
 readonly TEARDOWN_SCRIPT="${ROOT_DIR}/teardown.sh"
 readonly SYNAPSE_VOLUME_HELPER="${ROOT_DIR}/lib/synapse-volume.sh"
+readonly CALENDAR_COLLECTION_HELPER="${ROOT_DIR}/lib/calendar-collection.sh"
+readonly DB_CONTAINER="$(weave_container_name db)"
+readonly PROXY_CONTAINER="$(weave_container_name proxy)"
+readonly KEYCLOAK_CONTAINER="$(weave_container_name keycloak)"
+readonly MAILPIT_CONTAINER="$(weave_container_name mailpit)"
+readonly BACKEND_CONTAINER="$(weave_container_name backend)"
+readonly MCP_CONTAINER="$(weave_container_name mcp-server)"
+readonly MAS_CONTAINER="$(weave_container_name mas)"
+readonly SYNAPSE_CONTAINER="$(weave_container_name synapse)"
+readonly NEXTCLOUD_CONTAINER="$(weave_container_name nextcloud)"
 readonly LOOPBACK_HOST="${WEAVE_LOOPBACK_HOST:-127.0.0.1}"
 LOOPBACK_RESOLVE_HOST="${WEAVE_LOOPBACK_RESOLVE_HOST:-${LOOPBACK_HOST}}"
 readonly TEST_USER_EMAIL="test@weave.test"
+# shellcheck disable=SC1090,SC1091
+source "${CALENDAR_COLLECTION_HELPER}"
 readonly PERSISTED_TF_VARS=(
   TF_VAR_docker_host
   TF_VAR_docker_network_name
   TF_VAR_isolated_e2e_enabled
   TF_VAR_isolated_e2e_namespace
   TF_VAR_isolated_e2e_context_memberships
+  TF_VAR_chat_e2e_proof_enabled
+  TF_VAR_chat_e2e_proof_token_host_path
+  TF_VAR_chat_e2e_proof_run_id
   TF_VAR_tenant_slug
   TF_VAR_tenant_domain
   TF_VAR_local_lan_host
@@ -40,6 +59,11 @@ readonly PERSISTED_TF_VARS=(
   TF_VAR_proxy_http_host_port
   TF_VAR_keycloak_host_port
   TF_VAR_keycloak_management_host_port
+  TF_VAR_keycloak_smtp_host
+  TF_VAR_mailpit_enabled
+  TF_VAR_mailpit_volume_name
+  TF_VAR_mailpit_max_messages
+  TF_VAR_mailpit_web_host_port
   TF_VAR_mas_host_port
   TF_VAR_synapse_host_port
   TF_VAR_nextcloud_host_port
@@ -102,6 +126,7 @@ readonly PERSISTED_TF_VARS=(
   TF_VAR_db_admin_password
   TF_VAR_backend_db_username
   TF_VAR_backend_db_password
+  TF_VAR_mcp_boundary_token
   TF_VAR_keycloak_admin_username
   TF_VAR_keycloak_admin_password
   TF_VAR_keycloak_db_username
@@ -122,6 +147,8 @@ readonly PERSISTED_TF_VARS=(
   TF_VAR_mas_encryption_secret
   TF_VAR_mas_signing_key_pem
   TF_VAR_mas_matrix_secret
+  TF_VAR_matrix_chat_appservice_as_token
+  TF_VAR_matrix_chat_appservice_hs_token
   TF_VAR_synapse_registration_shared_secret
   TF_VAR_synapse_macaroon_secret_key
   TF_VAR_synapse_form_secret
@@ -195,13 +222,13 @@ random_hex() {
 normalize_repo_local_cert_path_var() {
   local name="$1"
   local value="${!name:-}"
-  local repo_generated_suffix="/weave-workspace/01-infrastructure/.generated/caddy/certs/"
+  local repo_generated_marker="/weave-workspace/01-infrastructure/.generated/"
 
-  if [[ -z "${value}" || "${value}" != *"${repo_generated_suffix}"* ]]; then
+  if [[ -z "${value}" || "${value}" != *"${repo_generated_marker}"*"/caddy/certs/"* ]]; then
     return
   fi
 
-  export "${name}=${INFRA_DIR}/.generated/caddy/certs/$(basename -- "${value}")"
+  export "${name}=${INFRA_GENERATED_DIR}/caddy/certs/$(basename -- "${value}")"
 }
 
 normalize_repo_local_paths() {
@@ -219,7 +246,7 @@ local_tls_state_dir() {
 }
 
 using_default_local_tls_paths() {
-  local generated_dir="${INFRA_DIR}/.generated/caddy/certs"
+  local generated_dir="${INFRA_GENERATED_DIR}/caddy/certs"
 
   [[ "${TF_VAR_caddy_tls_cert_file}" == "${generated_dir}/weave.test.pem" ]] &&
     [[ "${TF_VAR_caddy_tls_key_file}" == "${generated_dir}/weave.test-key.pem" ]] &&
@@ -240,9 +267,9 @@ restore_default_local_tls_from_state() {
     weave-local-ca.pem \
     weave-local-ca-key.pem \
     weave-local-ca.srl; do
-    if [[ -f "${state_dir}/${file}" && ! -f "${INFRA_DIR}/.generated/caddy/certs/${file}" ]]; then
-      mkdir -p "${INFRA_DIR}/.generated/caddy/certs"
-      cp "${state_dir}/${file}" "${INFRA_DIR}/.generated/caddy/certs/${file}"
+    if [[ -f "${state_dir}/${file}" && ! -f "${INFRA_GENERATED_DIR}/caddy/certs/${file}" ]]; then
+      mkdir -p "${INFRA_GENERATED_DIR}/caddy/certs"
+      cp "${state_dir}/${file}" "${INFRA_GENERATED_DIR}/caddy/certs/${file}"
     fi
   done
 }
@@ -262,8 +289,8 @@ persist_default_local_tls_to_state() {
     weave-local-ca.pem \
     weave-local-ca-key.pem \
     weave-local-ca.srl; do
-    if [[ -f "${INFRA_DIR}/.generated/caddy/certs/${file}" ]]; then
-      cp "${INFRA_DIR}/.generated/caddy/certs/${file}" "${state_dir}/${file}"
+    if [[ -f "${INFRA_GENERATED_DIR}/caddy/certs/${file}" ]]; then
+      cp "${INFRA_GENERATED_DIR}/caddy/certs/${file}" "${state_dir}/${file}"
     fi
   done
 
@@ -338,10 +365,43 @@ persist_bootstrap_to_state() {
   install -m 0600 "${BOOTSTRAP_ENV_FILE}" "${state_file}"
 }
 
+write_context_authorization_membership() {
+  local index="$1" principal_ref="$2" source="$3"
+
+  printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_%s_TENANT_ID=%q\n' \
+    "${index}" "${TF_VAR_context_authorization_default_tenant_id}"
+  printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_%s_CONTEXT_ID=%q\n' \
+    "${index}" "${TF_VAR_context_authorization_bootstrap_context_id}"
+  printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_%s_PRINCIPAL_REF=%q\n' \
+    "${index}" "${principal_ref}"
+  printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_%s_ROLE=%q\n' \
+    "${index}" "${TF_VAR_context_authorization_bootstrap_role}"
+  printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_%s_SOURCE=%q\n' \
+    "${index}" "${source}"
+}
+
+write_context_authorization_memberships() {
+  local membership_index=0
+
+  if [[ "${TF_VAR_context_authorization_bootstrap_enabled}" == "true" ]]; then
+    write_context_authorization_membership \
+      "${membership_index}" \
+      "${TF_VAR_context_authorization_bootstrap_principal_ref}" \
+      "local-dev-bootstrap"
+    membership_index=$((membership_index + 1))
+  fi
+  if [[ -n "${TF_VAR_context_authorization_dogfood_principal_ref}" ]]; then
+    write_context_authorization_membership \
+      "${membership_index}" \
+      "${TF_VAR_context_authorization_dogfood_principal_ref}" \
+      "local-dogfood-bootstrap"
+  fi
+}
+
 persist_bootstrap_env() {
   local var
 
-  mkdir -p "$(dirname -- "${BOOTSTRAP_ENV_FILE}")" "$(dirname -- "${RUNNER_BOOTSTRAP_ENV_FILE}")"
+  mkdir -p "$(dirname -- "${BOOTSTRAP_ENV_FILE}")"
   : > "${BOOTSTRAP_ENV_FILE}"
   chmod 600 "${BOOTSTRAP_ENV_FILE}"
 
@@ -371,7 +431,10 @@ persist_bootstrap_env() {
     printf 'export WEAVE_NEXTCLOUD_FILES_ACTOR_TOKEN=%q\n' "${TF_VAR_nextcloud_backend_actor_token}"
     printf 'export WEAVE_NEXTCLOUD_FILES_WEBDAV_ROOT_PATH=%q\n' "/remote.php/dav/files"
     printf 'export WEAVE_CALDAV_BASE_URL=%q\n' "${TF_VAR_public_scheme}://$(public_host "${TF_VAR_nextcloud_subdomain}")$(public_port_suffix)"
-    printf 'export WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE=%q\n' "/remote.php/dav/calendars/${TF_VAR_nextcloud_backend_actor_username}/personal/"
+    printf 'export WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE=%q\n' \
+      "$(weave_backend_actor_workspace_calendar_path \
+        "${TF_VAR_nextcloud_backend_actor_username}" \
+        "${TF_VAR_isolated_e2e_namespace:-}")"
     printf 'export WEAVE_CALDAV_AUTH_MODE=%q\n' "BASIC"
     printf 'export WEAVE_CALDAV_BACKEND_USERNAME=%q\n' "${TF_VAR_nextcloud_backend_actor_username}"
     printf 'export WEAVE_CALDAV_BACKEND_TOKEN=%q\n' "${TF_VAR_nextcloud_backend_actor_token}"
@@ -411,22 +474,12 @@ persist_bootstrap_env() {
     printf 'export WEAVE_CONTEXT_AUTHORIZATION_DEFAULT_TENANT_ID=%q\n' "${TF_VAR_context_authorization_default_tenant_id}"
     printf 'export WEAVE_CONTEXT_AUTHORIZATION_PRINCIPAL_CLAIM=%q\n' "${TF_VAR_context_authorization_principal_claim}"
     printf 'export WEAVE_CONTEXT_AUTHORIZATION_PRINCIPAL_REF_PREFIX=%q\n' "${TF_VAR_context_authorization_principal_ref_prefix}"
-    if [[ "${TF_VAR_context_authorization_bootstrap_enabled}" == "true" ]]; then
-      printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_TENANT_ID=%q\n' "${TF_VAR_context_authorization_default_tenant_id}"
-      printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_CONTEXT_ID=%q\n' "${TF_VAR_context_authorization_bootstrap_context_id}"
-      printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_PRINCIPAL_REF=%q\n' "${TF_VAR_context_authorization_bootstrap_principal_ref}"
-      printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_ROLE=%q\n' "${TF_VAR_context_authorization_bootstrap_role}"
-      printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_SOURCE=%q\n' "local-dev-bootstrap"
-      if [[ -n "${TF_VAR_context_authorization_dogfood_principal_ref}" ]]; then
-        printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_1_TENANT_ID=%q\n' "${TF_VAR_context_authorization_default_tenant_id}"
-        printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_1_CONTEXT_ID=%q\n' "${TF_VAR_context_authorization_bootstrap_context_id}"
-        printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_1_PRINCIPAL_REF=%q\n' "${TF_VAR_context_authorization_dogfood_principal_ref}"
-        printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_1_ROLE=%q\n' "${TF_VAR_context_authorization_bootstrap_role}"
-        printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_1_SOURCE=%q\n' "local-dogfood-bootstrap"
-      fi
-    fi
+    write_context_authorization_memberships
     printf 'export WEAVE_MATRIX_HOMESERVER_URL=%q\n' "$(client_matrix_facade_url)"
     printf 'export WEAVE_MATRIX_PROVIDER_URL=%q\n' "$(matrix_provider_public_url)"
+    printf 'export WEAVE_CHAT_PROVIDER=%q\n' "matrix-synapse"
+    printf 'export WEAVE_CHAT_STORAGE_MODE=%q\n' "jdbc"
+    printf 'export WEAVE_CHAT_MATRIX_APPSERVICE_CONFIGURED=%q\n' "true"
     printf 'export WEAVE_OIDC_ISSUER_URL=%q\n' "$(integration_test_oidc_issuer_url)"
     printf 'export WEAVE_OIDC_CLIENT_ID=%q\n' "weave-app"
     printf 'export WEAVE_TARGET_MOBILE=%q\n' "true"
@@ -444,8 +497,11 @@ persist_bootstrap_env() {
   fi
 
   persist_bootstrap_to_state
-  cp "${BOOTSTRAP_ENV_FILE}" "${RUNNER_BOOTSTRAP_ENV_FILE}"
-  chmod 600 "${RUNNER_BOOTSTRAP_ENV_FILE}"
+  if ! weave_isolated_e2e_enabled; then
+    mkdir -p "$(dirname -- "${RUNNER_BOOTSTRAP_ENV_FILE}")"
+    cp "${BOOTSTRAP_ENV_FILE}" "${RUNNER_BOOTSTRAP_ENV_FILE}"
+    chmod 600 "${RUNNER_BOOTSTRAP_ENV_FILE}"
+  fi
 
   write_app_config_summary
 }
@@ -523,7 +579,7 @@ keycloak_admin_token() {
 keycloak_state_has() {
   local address="$1"
 
-  "${WEAVE_IAC_BIN}" -chdir="${KEYCLOAK_DIR}" state show "${address}" >/dev/null 2>&1
+  weave_iac "${KEYCLOAK_DIR}" state show "${address}" >/dev/null 2>&1
 }
 
 keycloak_import_if_missing() {
@@ -539,7 +595,7 @@ keycloak_import_if_missing() {
   fi
 
   log "Importing existing Keycloak resource ${address} into OpenTofu state..."
-  "${WEAVE_IAC_BIN}" -chdir="${KEYCLOAK_DIR}" import -input=false "${address}" "${import_id}"
+  weave_iac "${KEYCLOAK_DIR}" import -input=false "${address}" "${import_id}"
 }
 
 keycloak_admin_get() {
@@ -658,10 +714,10 @@ ensure_existing_keycloak_terraform_state() {
   local mapper_id=""
   local uuid=""
 
-  "${WEAVE_IAC_BIN}" -chdir="${KEYCLOAK_DIR}" init -input=false
+  weave_iac_init "${KEYCLOAK_DIR}" -input=false
 
-  if "${WEAVE_IAC_BIN}" -chdir="${KEYCLOAK_DIR}" providers 2>/dev/null | grep -q 'provider\[registry.opentofu.org/mrparkers/keycloak\]'; then
-    "${WEAVE_IAC_BIN}" -chdir="${KEYCLOAK_DIR}" state replace-provider -auto-approve \
+  if weave_iac "${KEYCLOAK_DIR}" providers 2>/dev/null | grep -q 'provider\[registry.opentofu.org/mrparkers/keycloak\]'; then
+    weave_iac "${KEYCLOAK_DIR}" state replace-provider -auto-approve \
       registry.opentofu.org/mrparkers/keycloak \
       registry.opentofu.org/keycloak/keycloak
   fi
@@ -754,7 +810,7 @@ wait_for_nextcloud() {
   local sleep_seconds="${2:-5}"
 
   for ((i = 1; i <= attempts; i++)); do
-    if docker exec --user www-data weave-nextcloud php occ status --output=json >/dev/null 2>&1; then
+    if docker exec --user www-data "${NEXTCLOUD_CONTAINER}" php occ status --output=json >/dev/null 2>&1; then
       return 0
     fi
     sleep "${sleep_seconds}"
@@ -780,7 +836,7 @@ configure_runner_public_route() {
     return 0
   fi
 
-  proxy_ip="$(docker inspect -f '{{json .NetworkSettings.Networks}}' weave-proxy 2>/dev/null | python3 -c 'import json,sys
+  proxy_ip="$(docker inspect -f '{{json .NetworkSettings.Networks}}' "${PROXY_CONTAINER}" 2>/dev/null | python3 -c 'import json,sys
 try:
     networks=json.load(sys.stdin)
 except Exception:
@@ -792,7 +848,7 @@ for network in networks.values():
         break
 ' || true)"
   if [[ -z "${proxy_ip}" ]]; then
-    log "Reverse proxy route diagnostics: containers=$(docker ps --format '{{.Names}}' 2>/dev/null | grep '^weave-' | paste -sd, - || true) networks=$(docker network ls --format '{{.Name}}' 2>/dev/null | grep '^weave' | paste -sd, - || true) proxy_networks=$(docker inspect -f '{{json .NetworkSettings.Networks}}' weave-proxy 2>/dev/null || true)"
+    log "Reverse proxy route diagnostics: containers=$(docker ps --format '{{.Names}}' 2>/dev/null | grep "^$(weave_resource_prefix)-" | paste -sd, - || true) networks=$(docker network ls --format '{{.Name}}' 2>/dev/null | grep "^$(weave_resource_prefix)" | paste -sd, - || true) proxy_networks=$(docker inspect -f '{{json .NetworkSettings.Networks}}' "${PROXY_CONTAINER}" 2>/dev/null || true)"
     fail "Reverse proxy container IP could not be resolved for local public Weave hostnames."
   fi
 
@@ -804,7 +860,7 @@ for network in networks.values():
 }
 
 occ() {
-  docker exec --user www-data weave-nextcloud php occ "$@"
+  docker exec --user www-data "${NEXTCLOUD_CONTAINER}" php occ "$@"
 }
 
 run_command_with_timeout() {
@@ -832,7 +888,7 @@ nextcloud_occ_with_timeout() {
   shift
 
   run_command_with_timeout "${timeout_seconds}" \
-    docker exec --user www-data weave-nextcloud php occ "$@"
+    docker exec --user www-data "${NEXTCLOUD_CONTAINER}" php occ "$@"
 }
 
 nextcloud_is_installed() {
@@ -890,30 +946,30 @@ terraform_apply() {
   local dir="$1"
   local refresh="${WEAVE_IAC_REFRESH:-true}"
 
-  "${WEAVE_IAC_BIN}" -chdir="${dir}" init -input=false
-  "${WEAVE_IAC_BIN}" -chdir="${dir}" apply -refresh="${refresh}" -input=false -auto-approve
+  weave_iac_init "${dir}" -input=false
+  weave_iac "${dir}" apply -refresh="${refresh}" -input=false -auto-approve
 }
 
 ensure_terraform_network_state() {
   local existing_network_id=""
 
-  "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" init -input=false
+  weave_iac_init "${INFRA_DIR}" -input=false
 
-  if "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" state show docker_network.weave_network >/dev/null 2>&1; then
+  if weave_iac "${INFRA_DIR}" state show docker_network.weave_network >/dev/null 2>&1; then
     return
   fi
 
   if docker network inspect "${TF_VAR_docker_network_name}" >/dev/null 2>&1; then
     existing_network_id="$(docker network inspect --format '{{.ID}}' "${TF_VAR_docker_network_name}")"
     log "Importing existing Docker network ${TF_VAR_docker_network_name} into Terraform state..."
-    "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" import -input=false docker_network.weave_network "${existing_network_id}"
+    weave_iac "${INFRA_DIR}" import -input=false docker_network.weave_network "${existing_network_id}"
   fi
 }
 
 terraform_state_has() {
   local address="$1"
 
-  "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" state show "${address}" >/dev/null 2>&1
+  weave_iac "${INFRA_DIR}" state show "${address}" >/dev/null 2>&1
 }
 
 import_existing_docker_volume_state() {
@@ -926,7 +982,7 @@ import_existing_docker_volume_state() {
 
   if docker volume inspect "${name}" >/dev/null 2>&1; then
     log "Importing existing Docker volume ${name} into OpenTofu state..."
-    "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" import -input=false "${address}" "${name}"
+    weave_iac "${INFRA_DIR}" import -input=false "${address}" "${name}"
   fi
 }
 
@@ -942,36 +998,41 @@ import_existing_docker_container_state() {
   if docker container inspect "${name}" >/dev/null 2>&1; then
     container_id="$(docker container inspect --format '{{.ID}}' "${name}")"
     log "Importing existing Docker container ${name} into OpenTofu state..."
-    "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" import -input=false "${address}" "${container_id}"
+    weave_iac "${INFRA_DIR}" import -input=false "${address}" "${container_id}"
   fi
 }
 
 ensure_existing_stack_terraform_state() {
-  "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" init -input=false
+  weave_iac_init "${INFRA_DIR}" -input=false
 
-  import_existing_docker_volume_state module.postgres.docker_volume.data weave_db_data
-  import_existing_docker_volume_state module.reverse_proxy.docker_volume.data weave_caddy_data
-  import_existing_docker_volume_state module.reverse_proxy.docker_volume.config weave_caddy_config
-  import_existing_docker_volume_state module.keycloak.docker_volume.data weave_keycloak_data
-  import_existing_docker_volume_state module.nextcloud.docker_volume.data weave_nextcloud_data
-  import_existing_docker_volume_state 'module.mailpit[0].docker_volume.data' "${TF_VAR_mailpit_volume_name:-weave_mailpit_data}"
+  import_existing_docker_volume_state module.postgres.docker_volume.data "$(weave_volume_name db_data)"
+  import_existing_docker_volume_state module.reverse_proxy.docker_volume.data "$(weave_volume_name caddy_data)"
+  import_existing_docker_volume_state module.reverse_proxy.docker_volume.config "$(weave_volume_name caddy_config)"
+  import_existing_docker_volume_state module.keycloak.docker_volume.data "$(weave_volume_name keycloak_data)"
+  import_existing_docker_volume_state module.nextcloud.docker_volume.data "$(weave_volume_name nextcloud_data)"
+  import_existing_docker_volume_state module.matrix.docker_volume.appservice_runtime "$(weave_volume_name matrix_chat_appservice_runtime)"
+  if weave_isolated_e2e_enabled; then
+    import_existing_docker_volume_state 'module.mailpit[0].docker_volume.data' "$(weave_volume_name mailpit_data)"
+  else
+    import_existing_docker_volume_state 'module.mailpit[0].docker_volume.data' "${TF_VAR_mailpit_volume_name:-weave_mailpit_data}"
+  fi
 
-  import_existing_docker_container_state module.postgres.docker_container.this weave-db
-  import_existing_docker_container_state module.reverse_proxy.docker_container.this weave-proxy
-  import_existing_docker_container_state module.keycloak.docker_container.this weave-keycloak
-  import_existing_docker_container_state 'module.mailpit[0].docker_container.this' weave-mailpit
-  import_existing_docker_container_state module.backend.docker_container.this weave-backend
-  import_existing_docker_container_state module.mcp.docker_container.this weave-mcp-server
-  import_existing_docker_container_state module.matrix.docker_container.mas weave-mas
-  import_existing_docker_container_state module.matrix.docker_container.synapse weave-synapse
-  import_existing_docker_container_state module.nextcloud.docker_container.this weave-nextcloud
+  import_existing_docker_container_state module.postgres.docker_container.this "${DB_CONTAINER}"
+  import_existing_docker_container_state module.reverse_proxy.docker_container.this "${PROXY_CONTAINER}"
+  import_existing_docker_container_state module.keycloak.docker_container.this "${KEYCLOAK_CONTAINER}"
+  import_existing_docker_container_state 'module.mailpit[0].docker_container.this' "${MAILPIT_CONTAINER}"
+  import_existing_docker_container_state module.backend.docker_container.this "${BACKEND_CONTAINER}"
+  import_existing_docker_container_state module.mcp.docker_container.this "${MCP_CONTAINER}"
+  import_existing_docker_container_state module.matrix.docker_container.mas "${MAS_CONTAINER}"
+  import_existing_docker_container_state module.matrix.docker_container.synapse "${SYNAPSE_CONTAINER}"
+  import_existing_docker_container_state module.nextcloud.docker_container.this "${NEXTCLOUD_CONTAINER}"
 }
 
 terraform_output_raw() {
   local dir="$1"
   local name="$2"
 
-  "${WEAVE_IAC_BIN}" -chdir="${dir}" output -raw "${name}"
+  weave_iac "${dir}" output -raw "${name}"
 }
 
 refresh_runtime_container_if_image_changed() {
@@ -991,8 +1052,8 @@ refresh_runtime_container_if_image_changed() {
 
   if ! docker container inspect "${container_name}" >/dev/null 2>&1; then
     log "Recreating missing ${runtime_label} container for image ${desired_image}..."
-    "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" init -input=false
-    "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" apply -input=false -auto-approve
+    weave_iac_init "${INFRA_DIR}" -input=false
+    weave_iac "${INFRA_DIR}" apply -input=false -auto-approve
     return
   fi
 
@@ -1005,29 +1066,44 @@ refresh_runtime_container_if_image_changed() {
 
   log "Refreshing ${runtime_label} container to match image ${desired_image}..."
   docker rm -f "${container_name}" >/dev/null
-  "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" init -input=false
-  "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" apply -input=false -auto-approve
+  weave_iac_init "${INFRA_DIR}" -input=false
+  weave_iac "${INFRA_DIR}" apply -input=false -auto-approve
 }
 
 refresh_runtime_containers_if_images_changed() {
   refresh_runtime_container_if_image_changed \
-    weave-backend \
+    "${BACKEND_CONTAINER}" \
     "${TF_VAR_weave_backend_image:-}" \
     "Weave backend"
   refresh_runtime_container_if_image_changed \
-    weave-mcp-server \
+    "${MCP_CONTAINER}" \
     "${TF_VAR_weave_mcp_server_image:-}" \
     "Weave MCP server"
 }
 
+restart_matrix_chat_appservice_consumers() {
+  local container_name
+  for container_name in "${BACKEND_CONTAINER}" "${SYNAPSE_CONTAINER}"; do
+    docker container inspect "${container_name}" >/dev/null 2>&1 ||
+      fail "Matrix Chat Application Service consumer is missing after apply: ${container_name}"
+  done
+
+  # Synapse reads its Application Service registration only at startup. The
+  # backend reads both mounted token files at runtime. Restart both consumers
+  # after every apply so a coordinated token/config rotation cannot leave one
+  # side using stale material. Keycloak/MAS human sessions are untouched.
+  log "Restarting Matrix Chat Application Service consumers after private runtime staging..."
+  docker restart "${BACKEND_CONTAINER}" "${SYNAPSE_CONTAINER}" >/dev/null
+}
+
 ensure_postgres_bootstrap_applied() {
-  local sql_file="${INFRA_DIR}/.generated/db/001-init.sql"
+  local sql_file="${INFRA_GENERATED_DIR}/db/001-init.sql"
 
   log "Ensuring PostgreSQL bootstrap state is applied..."
 
   for _attempt in $(seq 1 30); do
-    if docker exec weave-db pg_isready -U "${TF_VAR_db_admin_username}" -d postgres >/dev/null 2>&1; then
-      docker exec -e PGPASSWORD="${TF_VAR_db_admin_password}" -i weave-db \
+    if docker exec "${DB_CONTAINER}" pg_isready -U "${TF_VAR_db_admin_username}" -d postgres >/dev/null 2>&1; then
+      docker exec -e PGPASSWORD="${TF_VAR_db_admin_password}" -i "${DB_CONTAINER}" \
         psql -v ON_ERROR_STOP=1 -U "${TF_VAR_db_admin_username}" -d postgres < "${sql_file}"
       return 0
     fi
@@ -1169,6 +1245,19 @@ create_test_user_enabled() {
   esac
 }
 
+normalize_context_authorization_membership_mode() {
+  if create_test_user_enabled; then
+    set_default_var TF_VAR_context_authorization_bootstrap_enabled true
+  else
+    export TF_VAR_context_authorization_bootstrap_enabled=false
+  fi
+
+  if [[ "${TF_VAR_isolated_e2e_enabled}" == "true" ]]; then
+    export TF_VAR_context_authorization_bootstrap_enabled=false
+    export TF_VAR_context_authorization_dogfood_principal_ref=""
+  fi
+}
+
 integration_test_base_url() {
   printf '%s/api' "$(client_api_origin_url)"
 }
@@ -1207,6 +1296,9 @@ write_app_config_summary() {
     printf 'export WEAVE_OIDC_ISSUER_URL=%q\n' "$(integration_test_oidc_issuer_url)"
     printf 'export WEAVE_OIDC_CLIENT_ID=%q\n' 'weave-app'
     printf 'export WEAVE_MATRIX_HOMESERVER_URL=%q\n' "${matrix_url}"
+    printf 'export WEAVE_CHAT_PROVIDER=%q\n' "matrix-synapse"
+    printf 'export WEAVE_CHAT_STORAGE_MODE=%q\n' "jdbc"
+    printf 'export WEAVE_CHAT_MATRIX_APPSERVICE_CONFIGURED=%q\n' "true"
     printf 'export WEAVE_FILES_PRODUCT_URL=%q\n' "${product_url}/files"
     printf 'export WEAVE_CALENDAR_PRODUCT_URL=%q\n' "${product_url}/calendar"
     printf 'export WEAVE_LOCAL_CA_URL=%q\n' "http://${TF_VAR_tenant_domain}:${TF_VAR_proxy_http_host_port}/weave-local-ca.pem"
@@ -1301,10 +1393,12 @@ preflight_checks() {
       "${TF_VAR_proxy_host_port}"
       "${TF_VAR_keycloak_host_port}"
       "${TF_VAR_keycloak_management_host_port}"
+      "${TF_VAR_mailpit_web_host_port}"
       "${TF_VAR_mas_host_port}"
       "${TF_VAR_synapse_host_port}"
       "${TF_VAR_nextcloud_host_port}"
       "${TF_VAR_backend_host_port}"
+      "${TF_VAR_mcp_host_port}"
     )
 
     for port in "${ports[@]}"; do
@@ -1321,11 +1415,12 @@ preflight_checks() {
 
 ensure_generated_directories() {
   mkdir -p \
-    "${ROOT_DIR}/.generated" \
-    "${INFRA_DIR}/.generated/db" \
-    "${INFRA_DIR}/.generated/caddy/certs" \
-    "${INFRA_DIR}/.generated/mas" \
-    "${INFRA_DIR}/.generated/synapse"
+    "${WORKSPACE_GENERATED_DIR}" \
+    "${INFRA_GENERATED_DIR}/db" \
+    "${INFRA_GENERATED_DIR}/caddy/certs" \
+    "${INFRA_GENERATED_DIR}/mas" \
+    "${INFRA_GENERATED_DIR}/synapse" \
+    "${INFRA_GENERATED_DIR}/synapse/appservices"
 }
 
 maybe_prepare_runner_hygiene() {
@@ -1346,13 +1441,13 @@ cleanup_partial_weave_containers() {
   local state
   local removed_any=false
   local containers=(
-    weave-proxy
-    weave-db
-    weave-keycloak
-    weave-backend
-    weave-mas
-    weave-synapse
-    weave-nextcloud
+    "${PROXY_CONTAINER}"
+    "${DB_CONTAINER}"
+    "${KEYCLOAK_CONTAINER}"
+    "${BACKEND_CONTAINER}"
+    "${MAS_CONTAINER}"
+    "${SYNAPSE_CONTAINER}"
+    "${NEXTCLOUD_CONTAINER}"
   )
 
   for name in "${containers[@]}"; do
@@ -1380,6 +1475,9 @@ ensure_default_inputs() {
     "TF_VAR_docker_network_name=weave_network"
     "TF_VAR_isolated_e2e_enabled=false"
     "TF_VAR_isolated_e2e_namespace="
+    "TF_VAR_chat_e2e_proof_enabled=false"
+    "TF_VAR_chat_e2e_proof_token_host_path="
+    "TF_VAR_chat_e2e_proof_run_id="
     "TF_VAR_tenant_slug=weave"
     "TF_VAR_tenant_domain=weave.test"
     "TF_VAR_local_lan_host="
@@ -1394,6 +1492,11 @@ ensure_default_inputs() {
     "TF_VAR_keycloak_host_port=48080"
     "TF_VAR_keycloak_admin_host=${LOOPBACK_HOST}"
     "TF_VAR_keycloak_management_host_port=49000"
+    "TF_VAR_keycloak_smtp_host=${MAILPIT_CONTAINER}"
+    "TF_VAR_mailpit_enabled=true"
+    "TF_VAR_mailpit_volume_name=weave_mailpit_data"
+    "TF_VAR_mailpit_max_messages=500"
+    "TF_VAR_mailpit_web_host_port=8025"
     "TF_VAR_mas_host_port=48082"
     "TF_VAR_synapse_host_port=48008"
     "TF_VAR_nextcloud_host_port=48083"
@@ -1467,20 +1570,11 @@ ensure_default_inputs() {
   # truth. Re-enable explicitly only if a future fallback profile is added.
   export TF_VAR_local_lan_host=""
 
-  if create_test_user_enabled; then
-    set_default_var TF_VAR_context_authorization_bootstrap_enabled true
-  else
-    set_default_var TF_VAR_context_authorization_bootstrap_enabled false
-  fi
+  normalize_context_authorization_membership_mode
 
-  if [[ "${TF_VAR_isolated_e2e_enabled}" == "true" ]]; then
-    export TF_VAR_context_authorization_bootstrap_enabled=false
-    export TF_VAR_context_authorization_dogfood_principal_ref=""
-  fi
-
-  set_default_var TF_VAR_caddy_tls_cert_file "${INFRA_DIR}/.generated/caddy/certs/weave.test.pem"
-  set_default_var TF_VAR_caddy_tls_key_file "${INFRA_DIR}/.generated/caddy/certs/weave.test-key.pem"
-  set_default_var TF_VAR_caddy_tls_ca_file "${INFRA_DIR}/.generated/caddy/certs/weave-local-ca.pem"
+  set_default_var TF_VAR_caddy_tls_cert_file "${INFRA_GENERATED_DIR}/caddy/certs/weave.test.pem"
+  set_default_var TF_VAR_caddy_tls_key_file "${INFRA_GENERATED_DIR}/caddy/certs/weave.test-key.pem"
+  set_default_var TF_VAR_caddy_tls_ca_file "${INFRA_GENERATED_DIR}/caddy/certs/weave-local-ca.pem"
 }
 
 ensure_docker_provider_inputs() {
@@ -1512,14 +1606,94 @@ ensure_generated_secrets() {
   set_default_secret TF_VAR_identity_events_hmac_secret "$(random_base64 32)"
   set_default_secret TF_VAR_mas_encryption_secret "$(random_hex 32)"
   set_default_secret TF_VAR_mas_matrix_secret "$(random_base64 32)"
+  set_default_secret TF_VAR_matrix_chat_appservice_as_token "$(random_hex 32)"
+  set_default_secret TF_VAR_matrix_chat_appservice_hs_token "$(random_hex 32)"
   set_default_secret TF_VAR_synapse_registration_shared_secret "$(random_base64 32)"
   set_default_secret TF_VAR_synapse_macaroon_secret_key "$(random_base64 32)"
   set_default_secret TF_VAR_synapse_form_secret "$(random_base64 32)"
+
+  local protected_name
+  local -a protected_names=(
+    TF_VAR_db_admin_password
+    TF_VAR_backend_db_password
+    TF_VAR_mcp_boundary_token
+    TF_VAR_keycloak_admin_password
+    TF_VAR_keycloak_db_password
+    TF_VAR_matrix_mas_client_secret
+    TF_VAR_identity_admin_client_secret
+    TF_VAR_identity_events_hmac_secret
+    TF_VAR_mas_db_password
+    TF_VAR_mas_encryption_secret
+    TF_VAR_mas_matrix_secret
+    TF_VAR_synapse_db_password
+    TF_VAR_synapse_registration_shared_secret
+    TF_VAR_synapse_macaroon_secret_key
+    TF_VAR_synapse_form_secret
+    TF_VAR_nextcloud_db_password
+    TF_VAR_nextcloud_admin_password
+    TF_VAR_nextcloud_backend_actor_token
+    TF_VAR_devops_gitlab_api_token
+    TF_VAR_office_onlyoffice_jwt_secret
+    TF_VAR_livekit_api_key
+    TF_VAR_livekit_api_secret
+    TF_VAR_boards_openproject_api_token
+    TF_VAR_openproject_secret_key_base
+  )
+  [[ "${TF_VAR_matrix_chat_appservice_as_token}" != "${TF_VAR_matrix_chat_appservice_hs_token}" ]] ||
+    fail "Matrix Chat Application Service as_token and hs_token must be independently generated."
+  for protected_name in "${protected_names[@]}"; do
+    [[ "${TF_VAR_matrix_chat_appservice_as_token}" != "${!protected_name}" ]] ||
+      fail "Matrix Chat Application Service as_token must not reuse another platform credential."
+    [[ "${TF_VAR_matrix_chat_appservice_hs_token}" != "${!protected_name}" ]] ||
+      fail "Matrix Chat Application Service hs_token must not reuse another platform credential."
+  done
   if create_test_user_enabled; then
     set_default_secret TF_VAR_test_user_password "$(random_base64 16)"
   fi
   ensure_mas_signing_key
   export TF_VAR_mas_signing_key_pem
+}
+
+private_file_mode() {
+  local path="$1"
+  if stat -c '%a' "${path}" >/dev/null 2>&1; then
+    stat -c '%a' "${path}"
+  else
+    stat -f '%Lp' "${path}"
+  fi
+}
+
+assert_chat_e2e_proof_contract() {
+  if [[ "${TF_VAR_chat_e2e_proof_enabled}" != "true" ]]; then
+    [[ -z "${TF_VAR_chat_e2e_proof_token_host_path}" && -z "${TF_VAR_chat_e2e_proof_run_id}" ]] ||
+      fail "Persistent/default installation must not retain a Chat E2E proof credential path or run binding."
+    return
+  fi
+
+  [[ "${TF_VAR_isolated_e2e_enabled}" == "true" && "${WEAVE_E2E_STACK_SCOPE:-}" == "isolated" ]] ||
+    fail "Chat E2E proof can be enabled only for an explicitly isolated stack."
+  [[ "${TF_VAR_chat_e2e_proof_run_id}" =~ ^[A-Za-z0-9][A-Za-z0-9._:-]{7,159}$ ]] ||
+    fail "Chat E2E proof requires a bounded exact run ID."
+  local expected_namespace proof_path proof_token
+  expected_namespace="weave-e2e-$(printf '%s' "${TF_VAR_chat_e2e_proof_run_id}" | shasum -a 256 | awk '{print substr($1,1,16)}')"
+  [[ "${TF_VAR_isolated_e2e_namespace}" == "${expected_namespace}" ]] ||
+    fail "Chat E2E proof run binding does not own the isolated namespace."
+  proof_path="${TF_VAR_chat_e2e_proof_token_host_path}"
+  [[ "${proof_path}" == /* && "$(basename -- "${proof_path}")" == "chat-provider-proof.token" ]] ||
+    fail "Chat E2E proof credential path is not an absolute run-scoped token file."
+  [[ "$(basename -- "$(dirname -- "${proof_path}")")" == "${expected_namespace}" ]] ||
+    fail "Chat E2E proof credential path is outside the exact run namespace."
+  [[ -f "${proof_path}" && ! -L "${proof_path}" ]] ||
+    fail "Chat E2E proof credential must be a regular private file."
+  [[ "$(private_file_mode "${proof_path}")" == "600" ]] ||
+    fail "Chat E2E proof credential must be mode 0600."
+  proof_token="$(<"${proof_path}")"
+  [[ "${proof_token}" =~ ^[0-9a-f]{96}$ ]] ||
+    fail "Chat E2E proof credential must contain independently generated 384-bit hexadecimal material."
+  [[ "${proof_token}" != "${TF_VAR_matrix_chat_appservice_as_token}" &&
+     "${proof_token}" != "${TF_VAR_matrix_chat_appservice_hs_token}" ]] ||
+    fail "Chat E2E proof credential must be distinct from both Application Service credentials."
+  unset proof_token
 }
 
 certificate_alt_names() {
@@ -1681,7 +1855,7 @@ ensure_nextcloud_installed() {
 
   if ! occ maintenance:install \
     --database=pgsql \
-    --database-host="weave-db" \
+    --database-host="${DB_CONTAINER}" \
     --database-name="${nextcloud_database_name}" \
     --database-user="${TF_VAR_nextcloud_db_username}" \
     --database-pass="${TF_VAR_nextcloud_db_password}" \
@@ -1745,10 +1919,10 @@ configure_nextcloud_reverse_proxy() {
 
   while IFS= read -r address; do
     [[ -n "${address}" ]] && proxy_addresses+=("${address}")
-  done < <(docker_container_network_addresses weave-proxy "${TF_VAR_docker_network_name}")
+  done < <(docker_container_network_addresses "${PROXY_CONTAINER}" "${TF_VAR_docker_network_name}")
 
   ((${#proxy_addresses[@]} > 0)) || fail "Nextcloud proxy trust could not resolve the Caddy address on the configured Docker network."
-  docker_container_network_addresses weave-nextcloud "${TF_VAR_docker_network_name}" >/dev/null ||
+  docker_container_network_addresses "${NEXTCLOUD_CONTAINER}" "${TF_VAR_docker_network_name}" >/dev/null ||
     fail "Nextcloud and Caddy are not attached to the same configured Docker network."
 
   occ config:system:delete trusted_proxies >/dev/null 2>&1 || true
@@ -1785,9 +1959,9 @@ install_nextcloud_tls_ca() {
   local ca_filename
 
   ca_filename="$(basename -- "${TF_VAR_caddy_tls_ca_file}")"
-  docker exec --user 0 weave-nextcloud \
+  docker exec --user 0 "${NEXTCLOUD_CONTAINER}" \
     install -m 0644 "/certs/${ca_filename}" "/usr/local/share/ca-certificates/weave-local-ca.crt"
-  docker exec --user 0 weave-nextcloud update-ca-certificates
+  docker exec --user 0 "${NEXTCLOUD_CONTAINER}" update-ca-certificates
 }
 
 configure_nextcloud_oidc() {
@@ -1837,7 +2011,7 @@ set_nextcloud_backend_actor_password() {
   docker exec \
     --user www-data \
     -e OC_PASS="${TF_VAR_nextcloud_backend_actor_token}" \
-    weave-nextcloud \
+    "${NEXTCLOUD_CONTAINER}" \
     php occ user:resetpassword --password-from-env "${TF_VAR_nextcloud_backend_actor_username}" >/dev/null
 }
 
@@ -1845,7 +2019,7 @@ create_nextcloud_backend_actor() {
   docker exec \
     --user www-data \
     -e OC_PASS="${TF_VAR_nextcloud_backend_actor_token}" \
-    weave-nextcloud \
+    "${NEXTCLOUD_CONTAINER}" \
     php occ user:add \
       --password-from-env \
       --display-name="Weave Backend Service Account" \
@@ -1856,7 +2030,7 @@ ensure_nextcloud_backend_actor_calendar() {
   local calendar_id
   local create_output
   local -a calendar_ids=(
-    personal
+    "$(weave_backend_actor_workspace_calendar_id "${TF_VAR_isolated_e2e_namespace:-}")"
     weave-team-engineering
     weave-channel-engineering-general
   )
@@ -1911,6 +2085,13 @@ verify_nextcloud_dav_post_provision() {
   local caldav_attempts=0
   local retry_after_observed=false
 
+  # Converge the Caddy-to-Nextcloud route without credentials so the single
+  # authenticated WebDAV/CalDAV verification is not consumed by a transient
+  # upstream 503 while Nextcloud reloads its post-provision configuration.
+  wait_for_public_http_200 \
+    "Nextcloud public status" \
+    "$(nextcloud_public_url)/status.php"
+
   webdav_headers="$(mktemp)"
   caldav_headers="$(mktemp)"
   trap 'rm -f -- "${webdav_headers:-}" "${caldav_headers:-}"' EXIT
@@ -1936,7 +2117,9 @@ verify_nextcloud_dav_post_provision() {
   caldav_attempts=1
   caldav_status="$(curl_nextcloud_actor_dav_status \
     PROPFIND \
-    "$(nextcloud_public_url)/remote.php/dav/calendars/${TF_VAR_nextcloud_backend_actor_username}/personal/" \
+    "$(nextcloud_public_url)$(weave_backend_actor_workspace_calendar_path \
+      "${TF_VAR_nextcloud_backend_actor_username}" \
+      "${TF_VAR_isolated_e2e_namespace:-}")" \
     "${caldav_headers}" || true)"
   if [[ "${caldav_status}" == "429" ]]; then
     retry_after_present "${caldav_headers}" && retry_after_observed=true
@@ -2046,6 +2229,7 @@ main() {
   cleanup_partial_weave_containers
   ensure_docker_provider_inputs
   ensure_generated_secrets
+  assert_chat_e2e_proof_contract
   ensure_local_tls_certificates
   persist_bootstrap_env
   # shellcheck disable=SC1090
@@ -2061,6 +2245,7 @@ main() {
   synapse_verify_volume_writable
   ensure_postgres_bootstrap_applied
   refresh_runtime_containers_if_images_changed
+  restart_matrix_chat_appservice_consumers
 
   log "Waiting for Keycloak management readiness..."
   wait_for_http_200 "Keycloak management" "http://${LOOPBACK_HOST}:${TF_VAR_keycloak_management_host_port}/health/ready"

@@ -18,6 +18,71 @@ resource "docker_image" "synapse" {
 
 resource "docker_volume" "synapse_data" {
   name = var.synapse_volume_name
+
+  dynamic "labels" {
+    for_each = var.resource_labels
+    content {
+      label = labels.key
+      value = labels.value
+    }
+  }
+}
+
+resource "docker_volume" "appservice_runtime" {
+  name = var.appservice_runtime_volume_name
+
+  dynamic "labels" {
+    for_each = var.resource_labels
+    content {
+      label = labels.key
+      value = labels.value
+    }
+  }
+}
+
+resource "terraform_data" "appservice_runtime" {
+  triggers_replace = [
+    var.appservice_registration_hash,
+    var.appservice_as_token_hash,
+    var.appservice_hs_token_hash,
+    docker_volume.appservice_runtime.name,
+  ]
+
+  provisioner "local-exec" {
+    interpreter = ["/bin/bash", "-c"]
+    environment = {
+      APPSERVICE_AS_TOKEN_SOURCE     = var.appservice_as_token_source
+      APPSERVICE_HS_TOKEN_SOURCE     = var.appservice_hs_token_source
+      APPSERVICE_REGISTRATION_SOURCE = var.appservice_registration_source
+      APPSERVICE_RUNTIME_VOLUME      = docker_volume.appservice_runtime.name
+    }
+    command = <<-EOT
+      set -euo pipefail
+
+      docker run --rm -u 0:0 \
+        -v "$${APPSERVICE_REGISTRATION_SOURCE}:/source/registration.yaml:ro" \
+        -v "$${APPSERVICE_AS_TOKEN_SOURCE}:/source/as-token:ro" \
+        -v "$${APPSERVICE_HS_TOKEN_SOURCE}:/source/hs-token:ro" \
+        -v "$${APPSERVICE_RUNTIME_VOLUME}:/target" \
+        --entrypoint /bin/sh \
+        "${var.synapse_image_name}" \
+        -c 'set -eu
+            install -d -m 0700 /target
+            install -m 0444 /source/registration.yaml /target/registration.yaml
+            install -m 0444 /source/as-token /target/as-token
+            install -m 0444 /source/hs-token /target/hs-token
+            chmod 0555 /target
+            test -s /target/registration.yaml
+            test -s /target/as-token
+            test -s /target/hs-token
+            ! cmp -s /target/as-token /target/hs-token'
+    EOT
+  }
+
+  depends_on = [
+    docker_image.synapse,
+    docker_volume.appservice_runtime,
+  ]
 }
 
 resource "terraform_data" "synapse_volume_permissions" {
@@ -81,6 +146,14 @@ resource "docker_container" "mas" {
   name    = var.mas_container_name
   image   = docker_image.mas.image_id
   restart = "unless-stopped"
+
+  dynamic "labels" {
+    for_each = var.resource_labels
+    content {
+      label = labels.key
+      value = labels.value
+    }
+  }
   command = ["server", "-c", "/config/config.yaml"]
   depends_on = [
     docker_image.mas,
@@ -156,6 +229,14 @@ resource "docker_container" "synapse" {
   image   = docker_image.synapse.image_id
   restart = "unless-stopped"
   user    = "${var.synapse_uid}:${var.synapse_gid}"
+
+  dynamic "labels" {
+    for_each = var.resource_labels
+    content {
+      label = labels.key
+      value = labels.value
+    }
+  }
   env = [
     "SYNAPSE_CONFIG_PATH=/config/homeserver.yaml",
     "SYNAPSE_SERVER_NAME=${var.matrix_public_host}",
@@ -181,6 +262,12 @@ resource "docker_container" "synapse" {
     container_path = "/data"
   }
 
+  volumes {
+    volume_name    = docker_volume.appservice_runtime.name
+    container_path = var.appservice_runtime_container_path
+    read_only      = true
+  }
+
   upload {
     file        = "/certs/${var.tls_ca_filename}"
     source      = var.tls_ca_file
@@ -192,7 +279,10 @@ resource "docker_container" "synapse" {
     aliases = [var.synapse_container_name]
   }
 
-  depends_on = [terraform_data.synapse_volume_permissions]
+  depends_on = [
+    terraform_data.appservice_runtime,
+    terraform_data.synapse_volume_permissions,
+  ]
 
   lifecycle {
     ignore_changes = [

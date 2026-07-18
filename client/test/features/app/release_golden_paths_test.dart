@@ -174,6 +174,11 @@ class _MutableChatRepository implements ChatRepository {
   }
 
   @override
+  Future<ChatConversation> createConversation({required String title}) {
+    throw UnimplementedError();
+  }
+
+  @override
   Future<List<ChatConversation>> loadConversations() async {
     loadCalls++;
     if (!isConnected) {

@@ -38,7 +38,7 @@ void main() {
       );
       expect(
         loaded?.serviceEndpoints.nextcloudBaseUrl.toString(),
-        configuration.serviceEndpoints.nextcloudBaseUrl.toString(),
+        'https://api.home.internal/api/dav/files',
       );
       expect(
         loaded?.serviceEndpoints.backendApiBaseUrl.toString(),

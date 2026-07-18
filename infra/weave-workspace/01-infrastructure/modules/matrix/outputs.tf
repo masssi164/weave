@@ -12,3 +12,8 @@ output "synapse_volume_name" {
   description = "Volume name backing Synapse data."
   value       = docker_volume.synapse_data.name
 }
+
+output "appservice_runtime_volume_name" {
+  description = "Private runtime volume mounted read-only into Synapse and the Weave backend."
+  value       = docker_volume.appservice_runtime.name
+}

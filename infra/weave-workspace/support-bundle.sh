@@ -5,7 +5,10 @@ set -euo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly ROOT_DIR
-DEFAULT_OUTPUT_DIR="${ROOT_DIR}/.generated/support-bundles"
+# shellcheck source=infra/weave-workspace/lib/runtime-namespace.sh
+source "${ROOT_DIR}/lib/runtime-namespace.sh"
+WORKSPACE_GENERATED_DIR="$(weave_workspace_generated_dir "${ROOT_DIR}")"
+DEFAULT_OUTPUT_DIR="${WORKSPACE_GENERATED_DIR}/support-bundles"
 SUPPORT_BUNDLE_OUTPUT_DIR="${WEAVE_SUPPORT_BUNDLE_DIR:-${DEFAULT_OUTPUT_DIR}}"
 TAIL_LINES="${WEAVE_SUPPORT_BUNDLE_LOG_LINES:-200}"
 RUN_CHECKS="${WEAVE_SUPPORT_BUNDLE_RUN_CHECKS:-false}"
@@ -17,14 +20,16 @@ NEGATIVE_REDACTION_FIXTURE_STATUS="not_run"
 # Also consumed by live-stack-failure-diagnostics.sh when this file is sourced.
 # shellcheck disable=SC2034
 readonly DEFAULT_CONTAINERS=(
-  weave-proxy
-  weave-keycloak
-  weave-backend
-  weave-mas
-  weave-synapse
-  weave-nextcloud
-  weave-livekit
-  weave-db
+  "$(weave_container_name proxy)"
+  "$(weave_container_name keycloak)"
+  "$(weave_container_name backend)"
+  "$(weave_container_name mcp-server)"
+  "$(weave_container_name mas)"
+  "$(weave_container_name synapse)"
+  "$(weave_container_name nextcloud)"
+  "$(weave_container_name mailpit)"
+  "$(weave_container_name livekit)"
+  "$(weave_container_name db)"
 )
 
 readonly PUBLIC_ENV_KEYS=(
@@ -82,6 +87,9 @@ readonly PUBLIC_ENV_KEYS=(
   WEAVE_BOARDS_OPENPROJECT_AUTH_MODE
   WEAVE_BOARDS_OPENPROJECT_BASE_URL
   WEAVE_CHAT_E2EE
+  WEAVE_CHAT_PROVIDER
+  WEAVE_CHAT_STORAGE_MODE
+  WEAVE_CHAT_MATRIX_APPSERVICE_CONFIGURED
   WEAVE_MATRIX_HOMESERVER_URL
   WEAVE_MATRIX_PROVIDER_URL
   WEAVE_TLS_CA_FILE
@@ -249,8 +257,8 @@ collect_public_env() {
   mkdir -p "$(dirname -- "${target}")"
   : >"${target}"
 
-  collect_public_env_from_file "${ROOT_DIR}/.generated/bootstrap.env" "${target}"
-  collect_public_env_from_file "${ROOT_DIR}/.generated/app-config.env" "${target}"
+  collect_public_env_from_file "${WORKSPACE_GENERATED_DIR}/bootstrap.env" "${target}"
+  collect_public_env_from_file "${WORKSPACE_GENERATED_DIR}/app-config.env" "${target}"
 
   {
     printf '# current process public env\n'
@@ -278,8 +286,21 @@ bool_from_env_presence() {
 bool_from_env_files() {
   local key="$1"
   grep -hE "^(export[[:space:]]+)?${key}=.+" \
-    "${ROOT_DIR}/.generated/bootstrap.env" \
-    "${ROOT_DIR}/.generated/app-config.env" 2>/dev/null | grep -q .
+    "${WORKSPACE_GENERATED_DIR}/bootstrap.env" \
+    "${WORKSPACE_GENERATED_DIR}/app-config.env" 2>/dev/null | grep -q .
+}
+
+env_or_file_equals() {
+  local key="$1"
+  local expected="$2"
+
+  if [[ "${!key:-}" == "${expected}" ]]; then
+    return 0
+  fi
+
+  grep -hE "^(export[[:space:]]+)?${key}=${expected}$" \
+    "${WORKSPACE_GENERATED_DIR}/bootstrap.env" \
+    "${WORKSPACE_GENERATED_DIR}/app-config.env" 2>/dev/null | grep -q .
 }
 
 health_from_env() {
@@ -337,7 +358,12 @@ collect_adapter_readiness_evidence() {
   local identity_configured="false" chat_configured="false" files_configured="false" calendar_configured="false" boards_configured="false" meetings_configured="false"
 
   (bool_from_env_presence WEAVE_OIDC_ISSUER_URL || bool_from_env_files WEAVE_OIDC_ISSUER_URL) && identity_configured="true"
-  (bool_from_env_presence WEAVE_MATRIX_PROVIDER_URL || bool_from_env_files WEAVE_MATRIX_PROVIDER_URL) && chat_configured="true"
+  if (bool_from_env_presence WEAVE_MATRIX_PROVIDER_URL || bool_from_env_files WEAVE_MATRIX_PROVIDER_URL) &&
+    env_or_file_equals WEAVE_CHAT_PROVIDER matrix-synapse &&
+    env_or_file_equals WEAVE_CHAT_STORAGE_MODE jdbc &&
+    env_or_file_equals WEAVE_CHAT_MATRIX_APPSERVICE_CONFIGURED true; then
+    chat_configured="true"
+  fi
   (bool_from_env_presence WEAVE_NEXTCLOUD_BASE_URL || bool_from_env_files WEAVE_NEXTCLOUD_BASE_URL) && files_configured="true" && calendar_configured="true"
   (bool_from_env_presence WEAVE_BOARDS_OPENPROJECT_BASE_URL || bool_from_env_files WEAVE_BOARDS_OPENPROJECT_BASE_URL) && boards_configured="true"
   if [[ "${WEAVE_LIVEKIT_ENABLED:-false}" == "true" || "${WEAVE_LIVEKIT_TOKEN_ENDPOINT_CONFIGURED:-false}" == "true" ]]; then
@@ -425,7 +451,7 @@ for item in data["capabilities"]:
     if not isinstance(item, dict) or set(item) != capability_keys:
         raise ValueError("unexpected capability fields")
     capability = item["capability"]
-    if capability not in {"files", "calendar"} or capability in seen:
+    if capability not in {"chat", "files", "calendar"} or capability in seen:
         raise ValueError("unexpected or duplicate capability")
     seen.add(capability)
     if item["state"] not in {"available", "degraded", "unavailable"}:
@@ -449,6 +475,9 @@ for item in data["capabilities"]:
         "probeLatencyMillis": nonnegative(item["probeLatencyMillis"]),
         "readinessTransitions": nonnegative(item["readinessTransitions"]),
     })
+
+if seen != {"chat", "files", "calendar"}:
+    raise ValueError("cached health evidence must cover every release-blocking provider capability")
 
 output = {
     "schemaVersion": "weave-support-provider-capability-health-evidence-v1",
@@ -627,14 +656,14 @@ collect_recent_artifacts() {
   local target_dir="${WORK_DIR}/recent-artifacts"
   mkdir -p "${target_dir}"
 
-  if [[ ! -d "${ROOT_DIR}/.generated" ]]; then
+  if [[ ! -d "${WORKSPACE_GENERATED_DIR}" ]]; then
     printf '{"schemaVersion":"weave-recent-diagnostic-artifact-summary-v1","artifactCount":0,"contentSetSha256":null,"rawContentsIncluded":false,"supportSafe":true}\n' >"${target_dir}/summary.json"
     return
   fi
 
   local hashes_file count aggregate
   hashes_file="$(mktemp)"
-  find "${ROOT_DIR}/.generated" -maxdepth 2 -type f \
+  find "${WORKSPACE_GENERATED_DIR}" -maxdepth 2 -type f \
     \( -iname '*smoke*.log' -o -iname '*smoke*.txt' -o -iname '*operator*.log' -o -iname '*operator*.txt' -o -iname '*verify*.log' -o -iname '*verify*.txt' \) \
     -print0 | while IFS= read -r -d '' artifact; do
       shasum -a 256 "${artifact}" | awk '{print $1}'
@@ -725,6 +754,8 @@ write_redaction_report() {
     {"name": "cookies", "status": "passed"},
     {"name": "private_keys", "status": "passed"},
     {"name": "secret_refs", "status": "passed"},
+    {"name": "matrix_appservice_tokens_and_registration", "status": "excluded_by_bundle_scope"},
+    {"name": "chat_e2e_proof_token_and_run_binding", "status": "excluded_by_bundle_scope"},
     {"name": "provider_urls", "status": "passed"},
     {"name": "private_messages_file_contents_weaver_memory", "status": "excluded_by_bundle_scope"},
     {"name": "negative_fixture_detects_unsafe_content", "status": "${NEGATIVE_REDACTION_FIXTURE_STATUS}"}

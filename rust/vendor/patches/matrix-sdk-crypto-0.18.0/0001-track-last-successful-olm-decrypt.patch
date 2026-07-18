@@ -1,0 +1,67 @@
+diff --git a/src/olm/session.rs b/src/olm/session.rs
+index b97e3ed..8beb846 100644
+--- a/src/olm/session.rs
++++ b/src/olm/session.rs
+@@ -55,7 +55,8 @@ pub struct Session {
+     pub created_using_fallback_key: bool,
+     /// When the session was created
+     pub creation_time: SecondsSinceUnixEpoch,
+-    /// When the session was last used
++    /// When the session last received and successfully decrypted a message.
++    /// A session that has not received a message keeps its creation time.
+     pub last_use_time: SecondsSinceUnixEpoch,
+ }
+ 
+@@ -127,7 +128,6 @@ impl Session {
+         let mut session = self.inner.lock().await;
+         let message = session.encrypt(plaintext)?;
+ 
+-        self.last_use_time = SecondsSinceUnixEpoch::now();
+         debug!(?session, "Successfully encrypted an event");
+ 
+         Ok(message)
+@@ -336,15 +336,18 @@ pub struct PickledSession {
+     pub created_using_fallback_key: bool,
+     /// The Unix timestamp when the session was created.
+     pub creation_time: SecondsSinceUnixEpoch,
+-    /// The Unix timestamp when the session was last used.
++    /// The Unix timestamp when the session last received and successfully
++    /// decrypted a message, or its creation time if it never received one.
+     pub last_use_time: SecondsSinceUnixEpoch,
+ }
+ 
+ #[cfg(test)]
+ mod tests {
++    use std::time::{Duration, SystemTime};
++
+     use assert_matches2::assert_let;
+     use matrix_sdk_test::async_test;
+-    use ruma::{device_id, user_id};
++    use ruma::{SecondsSinceUnixEpoch, device_id, user_id};
+     use serde_json::{self, Value};
+     use vodozemac::olm::{OlmMessage, SessionConfig};
+ 
+@@ -388,6 +391,15 @@ mod tests {
+ 
+         let alice_device = DeviceData::from_account(&alice);
+ 
++        // Outbound activity must not outrank a session that received and
++        // decrypted traffic more recently. Matrix session selection is based
++        // on successful receive activity, not on the latest local send.
++        let last_received = SecondsSinceUnixEpoch::from_system_time(
++            SystemTime::UNIX_EPOCH + Duration::from_secs(1),
++        )
++        .unwrap();
++        alice_session.last_use_time = last_received;
++
+         // and encrypts a message
+         let message = alice_session
+             .encrypt(&alice_device, "m.dummy", ToDeviceDummyEventContent::new(), None)
+@@ -395,6 +407,7 @@ mod tests {
+             .unwrap()
+             .deserialize()
+             .unwrap();
++        assert_eq!(alice_session.last_use_time, last_received);
+ 
+         #[cfg(feature = "experimental-algorithms")]
+         assert_let!(ToDeviceEncryptedEventContent::OlmV2Curve25519AesSha2(content) = message);

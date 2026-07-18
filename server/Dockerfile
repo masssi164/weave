@@ -3,6 +3,7 @@ WORKDIR /source
 COPY Cargo.toml Cargo.lock ./
 COPY rust/matrix-core/Cargo.toml rust/matrix-core/Cargo.toml
 COPY rust/matrix-core/src rust/matrix-core/src
+COPY rust/vendor rust/vendor
 RUN cargo build --release -p weave-matrix-core --features jni
 
 FROM eclipse-temurin:21-jre-noble

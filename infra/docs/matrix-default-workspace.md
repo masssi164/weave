@@ -34,7 +34,7 @@ By default the MAS container is `weave-mas`. Override `WEAVE_MATRIX_MAS_CONTAINE
 
 ## E2EE posture in this slice
 
-Matrix E2EE is active architecture scope but not complete. The current default workspace rooms remain unencrypted, and backend platform config must keep `features.chatE2ee=false` until encrypted-room, device-verification, and key-backup/recovery validation exists. `operator-check.sh` and `smoke-test.sh` use the private Matrix provisioner token to verify that default rooms do not carry `m.room.encryption` state. They also collect the provisioner-account key-backup response as a diagnostic only; that account state is not a global E2EE recovery-readiness claim.
+Matrix E2EE is active architecture scope but not complete. The current default workspace rooms remain unencrypted, and backend platform status must keep `matrix.e2eeEnabled=false` until encrypted-room, device-verification, and key-backup/recovery validation exists. `operator-check.sh` and `smoke-test.sh` use the private Matrix provisioner token to verify that default rooms do not carry `m.room.encryption` state. They also collect the provisioner-account key-backup response as a diagnostic only; that account state is not a global E2EE recovery-readiness claim.
 
 See `docs/matrix-e2ee-posture.md` for the promotion gates, support-safe metadata boundary, and bot/assistant/connector fail-closed policy for encrypted rooms.
 

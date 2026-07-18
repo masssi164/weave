@@ -692,6 +692,54 @@ void main() {
     );
   });
 
+  testWidgets('announces a pending secure peer device with retry', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final repository = FakeChatRepository(
+      loadRoomTimelineHandler: (_) async => buildTimeline(),
+      sendMessageHandler: ({required roomId, required message}) async {
+        throw const ChatFailure.peerDevicePending(
+          'Waiting for a participant’s secure device. Try again shortly or contact support if this continues.',
+        );
+      },
+    );
+
+    await tester.pumpWidget(
+      createTestApp(
+        const ChatRoomScreen(conversation: conversation),
+        overrides: overridesFor(repository),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), 'Wait for secure device');
+    await tester.tap(find.text('Send'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'Waiting for a participant’s secure device. Try again shortly or contact support if this continues.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Retry send'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Semantics &&
+            widget.properties.liveRegion == true &&
+            widget.child is Text &&
+            ((widget.child! as Text).data?.startsWith(
+                  'Waiting for a participant’s secure device',
+                ) ??
+                false),
+      ),
+      findsOneWidget,
+    );
+    semantics.dispose();
+  });
+
   testWidgets('disables the composer for invite-only rooms', (tester) async {
     final repository = FakeChatRepository(
       loadRoomTimelineHandler: (_) async =>

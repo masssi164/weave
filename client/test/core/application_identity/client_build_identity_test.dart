@@ -31,5 +31,28 @@ void main() {
       expect(identity.buildNumber, ClientBuildIdentity.unavailableValue);
       expect(identity.evidenceReference, ClientBuildIdentity.unavailableValue);
     });
+
+    test('requires the exact lowercase candidate commit identity', () {
+      for (final candidateCommit in <String>[
+        '1111111',
+        '111111111111111111111111111111111111111A',
+        '11111111111111111111111111111111111111111',
+      ]) {
+        final identity = ClientBuildIdentity.supportSafe(
+          candidateCommit: candidateCommit,
+          version: '0.1.0',
+          buildNumber: '1042',
+          bundleIdentifier: 'com.massimotter.weave',
+          evidenceReference: 'dogfood/1042/manifest-v1',
+        );
+
+        expect(
+          identity.candidateCommit,
+          ClientBuildIdentity.unavailableValue,
+          reason: '$candidateCommit is not an immutable full commit identity.',
+        );
+        expect(identity.isCandidateTraceable, isFalse);
+      }
+    });
   });
 }

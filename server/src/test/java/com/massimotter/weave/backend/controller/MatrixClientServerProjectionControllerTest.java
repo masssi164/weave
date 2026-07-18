@@ -4,13 +4,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.chat.ChatDomainFacadeService;
 import com.massimotter.weave.backend.chat.domain.ChatConversation;
 import com.massimotter.weave.backend.chat.domain.ChatConversations;
+import com.massimotter.weave.backend.chat.domain.ChatEncryptedEnvelope;
 import com.massimotter.weave.backend.chat.domain.ChatEncryptionState;
 import com.massimotter.weave.backend.chat.domain.ChatEventContent;
 import com.massimotter.weave.backend.chat.domain.ChatEventKind;
 import com.massimotter.weave.backend.chat.domain.ChatHistoryPolicy;
 import com.massimotter.weave.backend.chat.domain.ChatMemberState;
 import com.massimotter.weave.backend.chat.domain.ChatMembership;
+import com.massimotter.weave.backend.chat.domain.ChatProviderUnavailableException;
 import com.massimotter.weave.backend.chat.domain.ChatReadiness;
+import com.massimotter.weave.backend.chat.domain.ChatRedactionReceipt;
 import com.massimotter.weave.backend.chat.domain.ChatRelation;
 import com.massimotter.weave.backend.chat.domain.ChatTimeline;
 import com.massimotter.weave.backend.chat.domain.ChatTimelineEvent;
@@ -182,6 +185,24 @@ class MatrixClientServerProjectionControllerTest {
     }
 
     @Test
+    void syncProjectsCanonicalEncryptionStateForColdClients() throws Exception {
+        ChatConversations encrypted = conversations(ChatEncryptionState.matrixMegolm());
+        when(chatDomainFacadeService.conversations(any())).thenReturn(encrypted);
+        when(chatDomainFacadeService.timeline(eq("channel-general"), any(), anyInt()))
+                .thenReturn(timeline());
+        when(chatDomainFacadeService.syncCursor(any())).thenReturn("chat-revision-7");
+
+        mockMvc.perform(get("/_matrix/client/v3/sync").with(workspaceJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.rooms.join['!channel-general:api.weave.test'].state.events[1].type")
+                        .value("m.room.encryption"))
+                .andExpect(jsonPath("$.rooms.join['!channel-general:api.weave.test'].state.events[1].state_key")
+                        .value(""))
+                .andExpect(jsonPath("$.rooms.join['!channel-general:api.weave.test'].state.events[1].content.algorithm")
+                        .value(ChatEncryptedEnvelope.MEGOLM_V1));
+    }
+
+    @Test
     void openClawStartupCanLoadPushRulesCreateAFilterAndSyncAccountData() throws Exception {
         stubConversation();
 
@@ -258,6 +279,56 @@ class MatrixClientServerProjectionControllerTest {
                 content.capture(),
                 any());
         assertThat(content.getValue().body()).isEqualTo("Sent through Matrix");
+    }
+
+    @Test
+    void redactionProjectsItsOwnEventIdInsteadOfReusingTheTargetId() throws Exception {
+        when(chatDomainFacadeService.redactEvent(
+                eq("channel-general"),
+                eq("msg-target"),
+                eq("redaction-txn-1"),
+                any()))
+                .thenReturn(new ChatRedactionReceipt(
+                        "redaction-event-1",
+                        "msg-target",
+                        "channel-general",
+                        "user:member-1",
+                        Instant.parse("2026-07-15T10:00:00Z")));
+
+        mockMvc.perform(put("/_matrix/client/v3/rooms/!channel-general:api.weave.test/redact/"
+                        + "$msg-target:api.weave.test/redaction-txn-1")
+                        .with(workspaceJwt())
+                        .contentType("application/json")
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.event_id").value("$redaction-event-1:api.weave.test"))
+                .andExpect(content().string(not(containsString("$msg-target:api.weave.test"))));
+    }
+
+    @Test
+    void providerThrottleBecomesAStableMatrixRetryWithoutLeakingDownstreamDetails() throws Exception {
+        when(chatDomainFacadeService.sendEvent(
+                eq("channel-general"),
+                eq("txn-throttled"),
+                any(ChatEventContent.class),
+                any()))
+                .thenThrow(new ChatProviderUnavailableException(
+                        "chat-provider-throttled",
+                        Instant.now().plusSeconds(121)));
+
+        mockMvc.perform(put("/_matrix/client/v3/rooms/!channel-general:api.weave.test/send/m.room.message/txn-throttled")
+                        .with(workspaceJwt())
+                        .contentType("application/json")
+                        .content("""
+                                {"msgtype":"m.text","body":"never committed"}
+                                """))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(header().exists("Retry-After"))
+                .andExpect(jsonPath("$.errcode").value("M_LIMIT_EXCEEDED"))
+                .andExpect(jsonPath("$.retry_after_ms").isNumber())
+                .andExpect(content().string(not(containsString("chat-provider-throttled"))))
+                .andExpect(content().string(not(containsString("Synapse"))))
+                .andExpect(content().string(not(containsString("never committed"))));
     }
 
     @Test
@@ -409,6 +480,154 @@ class MatrixClientServerProjectionControllerTest {
                         .with(workspaceJwt("second-session")))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.errcode").value("M_UNKNOWN_TOKEN"));
+    }
+
+    @Test
+    void signatureUploadPreservesDeviceSelfSignatureAndIdentityKeys() throws Exception {
+        String userId = "@user_example.com:api.weave.test";
+        String deviceId = "WEAVESIGNEDDEVICE";
+        String sessionId = "signed-device-session";
+
+        mockMvc.perform(post("/_matrix/client/v3/keys/upload")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceId)
+                        .with(workspaceJwt(sessionId))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "device_keys":{
+                                    "user_id":"%s",
+                                    "device_id":"%s",
+                                    "algorithms":[
+                                      "m.olm.v1.curve25519-aes-sha2",
+                                      "m.megolm.v1.aes-sha2"
+                                    ],
+                                    "keys":{
+                                      "curve25519:%s":"curve25519-public-key",
+                                      "ed25519:%s":"ed25519-public-key"
+                                    },
+                                    "signatures":{
+                                      "%s":{"ed25519:%s":"device-self-signature"}
+                                    }
+                                  }
+                                }
+                                """.formatted(userId, deviceId, deviceId, deviceId, userId, deviceId)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/_matrix/client/v3/keys/signatures/upload")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceId)
+                        .with(workspaceJwt(sessionId))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "%s":{
+                                    "%s":{
+                                      "user_id":"%s",
+                                      "device_id":"%s",
+                                      "algorithms":[
+                                        "m.olm.v1.curve25519-aes-sha2",
+                                        "m.megolm.v1.aes-sha2"
+                                      ],
+                                      "keys":{
+                                        "curve25519:%s":"curve25519-public-key",
+                                        "ed25519:%s":"ed25519-public-key"
+                                      },
+                                      "signatures":{
+                                        "%s":{"ed25519:self-signing-public-key":"cross-signing-signature"}
+                                      }
+                                    }
+                                  }
+                                }
+                                """.formatted(
+                                        userId,
+                                        deviceId,
+                                        userId,
+                                        deviceId,
+                                        deviceId,
+                                        deviceId,
+                                        userId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.failures").isEmpty());
+
+        mockMvc.perform(post("/_matrix/client/v3/keys/query")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, deviceId)
+                        .with(workspaceJwt(sessionId))
+                        .contentType("application/json")
+                        .content("""
+                                {"device_keys":{"%s":[]}}
+                                """.formatted(userId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.device_keys['%s'].%s.keys['curve25519:%s']"
+                                .formatted(userId, deviceId, deviceId))
+                        .value("curve25519-public-key"))
+                .andExpect(jsonPath("$.device_keys['%s'].%s.keys['ed25519:%s']"
+                                .formatted(userId, deviceId, deviceId))
+                        .value("ed25519-public-key"))
+                .andExpect(jsonPath("$.device_keys['%s'].%s.signatures['%s']['ed25519:%s']"
+                                .formatted(userId, deviceId, userId, deviceId))
+                        .value("device-self-signature"))
+                .andExpect(jsonPath("$.device_keys['%s'].%s.signatures['%s']['ed25519:self-signing-public-key']"
+                                .formatted(userId, deviceId, userId))
+                        .value("cross-signing-signature"));
+    }
+
+    @Test
+    void fallbackKeyBootstrapsOlmWhenOneTimeKeyPoolIsEmpty() throws Exception {
+        stubConversation();
+        String userId = "@user_example.com:api.weave.test";
+        String targetDevice = "WEAVEFALLBACKDEVICE";
+        String claimantDevice = "WEAVEFALLBACKCLAIMANT";
+
+        mockMvc.perform(post("/_matrix/client/v3/keys/upload")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, targetDevice)
+                        .with(workspaceJwt("fallback-target-session"))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "device_keys":{
+                                    "user_id":"%s",
+                                    "device_id":"%s",
+                                    "algorithms":["m.olm.v1.curve25519-aes-sha2"],
+                                    "keys":{"ed25519:%s":"fallback-signing-key"},
+                                    "signatures":{}
+                                  },
+                                  "fallback_keys":{
+                                    "signed_curve25519:FALLBACK":{
+                                      "key":"fallback-public-key",
+                                      "fallback":true,
+                                      "signatures":{}
+                                    }
+                                  }
+                                }
+                                """.formatted(userId, targetDevice, targetDevice)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.one_time_key_counts").isEmpty());
+
+        mockMvc.perform(get("/_matrix/client/v3/sync")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, targetDevice)
+                        .with(workspaceJwt("fallback-target-session")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.device_unused_fallback_key_types[0]")
+                        .value("signed_curve25519"));
+
+        for (int attempt = 0; attempt < 2; attempt++) {
+            mockMvc.perform(post("/_matrix/client/v3/keys/claim")
+                            .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, claimantDevice)
+                            .with(workspaceJwt("fallback-claimant-session"))
+                            .contentType("application/json")
+                            .content("""
+                                    {"one_time_keys":{"%s":{"%s":"signed_curve25519"}}}
+                                    """.formatted(userId, targetDevice)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.one_time_keys['%s'].%s['signed_curve25519:FALLBACK'].key"
+                                    .formatted(userId, targetDevice))
+                            .value("fallback-public-key"));
+        }
+
+        mockMvc.perform(get("/_matrix/client/v3/sync")
+                        .header(MatrixFacadeClientStateService.DEVICE_ID_HEADER, targetDevice)
+                        .with(workspaceJwt("fallback-target-session")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.device_unused_fallback_key_types").isEmpty());
     }
 
     @Test
@@ -566,6 +785,21 @@ class MatrixClientServerProjectionControllerTest {
     }
 
     @Test
+    void degradedRoomMemberPreflightExposesOnlyStableQuarantineReason() throws Exception {
+        when(chatDomainFacadeService.conversation(eq("channel-general"), any()))
+                .thenThrow(new ChatProviderUnavailableException(
+                        "chat-conversation-mapping-degraded-provider-redaction-echo-mismatch"));
+
+        mockMvc.perform(get("/_matrix/client/v3/rooms/!channel-general:api.weave.test/members")
+                        .with(workspaceJwt()))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.errcode")
+                        .value("M_WEAVE_CHAT_DEGRADED_PROVIDER_REDACTION_ECHO_MISMATCH"))
+                .andExpect(content().string(not(containsString("chat-conversation-mapping"))))
+                .andExpect(content().string(not(containsString("Synapse"))));
+    }
+
+    @Test
     void stockOpenClawMemberReceiptAndTypingCallsStayOnCanonicalChat() throws Exception {
         stubConversation();
 
@@ -595,7 +829,13 @@ class MatrixClientServerProjectionControllerTest {
     @Test
     void roomLifecycleStateAndProfileProjectCanonicalChat() throws Exception {
         stubConversation();
-        when(chatDomainFacadeService.createConversation(any(), eq("General"), eq("channel"), eq(List.of()), any()))
+        when(chatDomainFacadeService.createConversation(
+                any(),
+                eq("General"),
+                eq("channel"),
+                eq(List.of()),
+                eq(ChatEncryptionState.unencrypted()),
+                any()))
                 .thenReturn(conversations().conversations().getFirst());
 
         mockMvc.perform(post("/_matrix/client/v3/createRoom")
@@ -635,6 +875,43 @@ class MatrixClientServerProjectionControllerTest {
     }
 
     @Test
+    void encryptedRoomCreationCarriesEncryptionAsAnInitialInvariant() throws Exception {
+        when(chatDomainFacadeService.createConversation(
+                any(),
+                eq("Encrypted"),
+                eq("channel"),
+                eq(List.of()),
+                eq(ChatEncryptionState.matrixMegolm()),
+                any()))
+                .thenReturn(encryptedConversation());
+
+        mockMvc.perform(post("/_matrix/client/v3/createRoom")
+                        .with(workspaceJwt())
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "name":"Encrypted",
+                                  "initial_state":[{
+                                    "type":"m.room.encryption",
+                                    "state_key":"",
+                                    "content":{"algorithm":"m.megolm.v1.aes-sha2"}
+                                  }]
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.room_id").value("!channel-general:api.weave.test"));
+
+        verify(chatDomainFacadeService).createConversation(
+                any(),
+                eq("Encrypted"),
+                eq("channel"),
+                eq(List.of()),
+                eq(ChatEncryptionState.matrixMegolm()),
+                any());
+        verify(chatDomainFacadeService, never()).enableEncryption(any(), any(), any());
+    }
+
+    @Test
     void logoutRevokesThePresentedMatrixToken() throws Exception {
         // MATRIX_TOKEN_REVOCATION_FACADE
         var token = workspaceJwt("runtime-token-to-revoke");
@@ -656,6 +933,10 @@ class MatrixClientServerProjectionControllerTest {
     }
 
     private ChatConversations conversations() {
+        return conversations(ChatEncryptionState.unencrypted());
+    }
+
+    private ChatConversations conversations(ChatEncryptionState encryptionState) {
         return new ChatConversations(readiness(), List.of(new ChatConversation(
                 "channel-general",
                 "General",
@@ -663,7 +944,7 @@ class MatrixClientServerProjectionControllerTest {
                 ChatMemberState.READY,
                 "Chat is available.",
                 Instant.parse("2026-07-08T10:00:00Z"),
-                ChatEncryptionState.unencrypted(),
+                encryptionState,
                 historyPolicy(),
                 List.of(new ChatMembership(
                         "membership-channel-general-user-alice",

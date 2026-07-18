@@ -50,9 +50,9 @@ class ConsumeMemberHandoff {
             clientId: appStart.oidcClientId,
           ),
           serviceEndpoints: ServiceEndpoints(
-            matrixHomeserverUrl: appStart.matrixHomeserverUrl,
-            nextcloudBaseUrl: appStart.nextcloudBaseUrl,
-            backendApiBaseUrl: appStart.backendApiBaseUrl,
+            matrixHomeserverUrl: appStart.matrixClientServerBaseUrl,
+            nextcloudBaseUrl: appStart.filesWebDavBaseUrl,
+            backendApiBaseUrl: appStart.controlPlaneBaseUrl,
           ),
         ),
       );
@@ -174,16 +174,18 @@ class AppStartConfiguration {
   const AppStartConfiguration({
     required this.oidcIssuerUrl,
     required this.oidcClientId,
-    required this.backendApiBaseUrl,
-    required this.matrixHomeserverUrl,
-    required this.nextcloudBaseUrl,
+    required this.controlPlaneBaseUrl,
+    required this.matrixClientServerBaseUrl,
+    required this.filesWebDavBaseUrl,
+    required this.calendarCalDavBaseUrl,
   });
 
   final Uri oidcIssuerUrl;
   final String oidcClientId;
-  final Uri backendApiBaseUrl;
-  final Uri matrixHomeserverUrl;
-  final Uri nextcloudBaseUrl;
+  final Uri controlPlaneBaseUrl;
+  final Uri matrixClientServerBaseUrl;
+  final Uri filesWebDavBaseUrl;
+  final Uri calendarCalDavBaseUrl;
 }
 
 class AppStartDiscoveryClient {
@@ -226,7 +228,7 @@ class AppStartDiscoveryClient {
     }
 
     final payload = _decodeJsonObject(response.body);
-    return _configurationFromJson(payload);
+    return _configurationFromJson(payload, handoff);
   }
 
   Map<String, String> _headers(MemberHandoff handoff) => {
@@ -302,44 +304,189 @@ class AppStartDiscoveryClient {
     );
   }
 
-  AppStartConfiguration _configurationFromJson(Map<String, dynamic> json) {
-    final oidcIssuerUrl = _uri(
-      json['oidcIssuerUrl'],
-      fieldName: 'oidcIssuerUrl',
-    );
-    final oidcClientId = _clientId(json['oidcClientId']);
-    final backendApiBaseUrl = _uri(json['apiBaseUrl'], fieldName: 'apiBaseUrl');
-    final advertisedMatrixFacade = json['matrixHomeserverUrl'];
-    if (advertisedMatrixFacade is! String ||
-        advertisedMatrixFacade.trim().isEmpty) {
+  AppStartConfiguration _configurationFromJson(
+    Map<String, dynamic> json,
+    MemberHandoff handoff,
+  ) {
+    _requireExactKeys(json, const {
+      'schemaVersion',
+      'organizationOrigin',
+      'controlPlaneBaseUrl',
+      'oidc',
+      'protocols',
+      'releasePosture',
+      'domains',
+      'recoveryActions',
+    });
+    if (json['schemaVersion'] != 1) {
       throw const AppFailure.validation(
-        'WEAVE-APP-START-DISCOVERY-INVALID: matrixHomeserverUrl is required.',
+        'WEAVE-APP-START-DISCOVERY-INVALID: schemaVersion must be 1.',
       );
     }
-    final matrixHomeserverUrl = _uri(
-      advertisedMatrixFacade,
-      fieldName: 'matrixHomeserverUrl',
+    const releasePostures = {
+      'development',
+      'dogfood',
+      'release_candidate',
+      'stable',
+    };
+    if (!releasePostures.contains(json['releasePosture'])) {
+      throw const AppFailure.validation(
+        'WEAVE-APP-START-DISCOVERY-INVALID: releasePosture is not supported.',
+      );
+    }
+    if (json.containsKey('recoveryActions') &&
+        json['recoveryActions'] is! List) {
+      throw const AppFailure.validation(
+        'WEAVE-APP-START-DISCOVERY-INVALID: recoveryActions must be an array.',
+      );
+    }
+    final organizationOrigin = _uri(
+      json['organizationOrigin'],
+      fieldName: 'organizationOrigin',
     );
-    final expectedMatrixFacadeUrl = _apiOrigin(backendApiBaseUrl);
-    final matrixPath = matrixHomeserverUrl.path;
-    if (_apiOrigin(matrixHomeserverUrl) != expectedMatrixFacadeUrl ||
+    if (_apiOrigin(organizationOrigin) != _apiOrigin(handoff.productBaseUrl)) {
+      throw const AppFailure.validation(
+        'WEAVE-APP-START-DISCOVERY-INVALID: organizationOrigin must match the handoff origin.',
+      );
+    }
+    final oidc = _object(json['oidc'], fieldName: 'oidc');
+    _requireExactKeys(oidc, const {'issuer', 'clientId'});
+    final protocols = _object(json['protocols'], fieldName: 'protocols');
+    _requireExactKeys(protocols, const {
+      'matrixClientServerBaseUrl',
+      'filesWebDavBaseUrl',
+      'calendarCalDavBaseUrl',
+    });
+    final oidcIssuerUrl = _uri(oidc['issuer'], fieldName: 'oidc.issuer');
+    final oidcClientId = _clientId(oidc['clientId']);
+    final controlPlaneBaseUrl = _uri(
+      json['controlPlaneBaseUrl'],
+      fieldName: 'controlPlaneBaseUrl',
+    );
+    final matrixClientServerBaseUrl = _uri(
+      protocols['matrixClientServerBaseUrl'],
+      fieldName: 'protocols.matrixClientServerBaseUrl',
+    );
+    final expectedMatrixFacadeUrl = _apiOrigin(controlPlaneBaseUrl);
+    final matrixPath = matrixClientServerBaseUrl.path;
+    if (_apiOrigin(matrixClientServerBaseUrl) != expectedMatrixFacadeUrl ||
         (matrixPath.isNotEmpty && matrixPath != '/')) {
       throw const AppFailure.validation(
-        'WEAVE-APP-START-DISCOVERY-INVALID: matrixHomeserverUrl must be the Weave API origin.',
+        'WEAVE-APP-START-DISCOVERY-INVALID: protocols.matrixClientServerBaseUrl must be the Weave API origin.',
       );
     }
-    final nextcloudBaseUrl = _uri(
-      json['filesProductUrl'],
-      fieldName: 'filesProductUrl',
+    final filesWebDavBaseUrl = _uri(
+      protocols['filesWebDavBaseUrl'],
+      fieldName: 'protocols.filesWebDavBaseUrl',
     );
+    final calendarCalDavBaseUrl = _uri(
+      protocols['calendarCalDavBaseUrl'],
+      fieldName: 'protocols.calendarCalDavBaseUrl',
+    );
+    _requireFacadePath(filesWebDavBaseUrl, '/dav/files', 'filesWebDavBaseUrl');
+    _requireFacadePath(
+      calendarCalDavBaseUrl,
+      '/caldav',
+      'calendarCalDavBaseUrl',
+    );
+    _validateDomains(json['domains']);
 
     return AppStartConfiguration(
       oidcIssuerUrl: oidcIssuerUrl,
       oidcClientId: oidcClientId,
-      backendApiBaseUrl: backendApiBaseUrl,
-      matrixHomeserverUrl: expectedMatrixFacadeUrl,
-      nextcloudBaseUrl: nextcloudBaseUrl,
+      controlPlaneBaseUrl: controlPlaneBaseUrl,
+      matrixClientServerBaseUrl: expectedMatrixFacadeUrl,
+      filesWebDavBaseUrl: filesWebDavBaseUrl,
+      calendarCalDavBaseUrl: calendarCalDavBaseUrl,
     );
+  }
+
+  Map<String, dynamic> _object(Object? value, {required String fieldName}) {
+    if (value is Map<String, dynamic>) {
+      return value;
+    }
+    throw AppFailure.validation(
+      'WEAVE-APP-START-DISCOVERY-INVALID: $fieldName must be an object.',
+    );
+  }
+
+  void _requireExactKeys(Map<String, dynamic> value, Set<String> allowed) {
+    final unexpected = value.keys.where((key) => !allowed.contains(key));
+    if (unexpected.isNotEmpty) {
+      throw const AppFailure.validation(
+        'WEAVE-APP-START-DISCOVERY-INVALID: The organization manifest contains unsupported fields.',
+      );
+    }
+  }
+
+  void _requireFacadePath(Uri uri, String suffix, String fieldName) {
+    if (!uri.path.endsWith(suffix) && !uri.path.contains('$suffix/')) {
+      throw AppFailure.validation(
+        'WEAVE-APP-START-DISCOVERY-INVALID: protocols.$fieldName must use the Weave $suffix facade.',
+      );
+    }
+  }
+
+  void _validateDomains(Object? value) {
+    if (value is! List) {
+      throw const AppFailure.validation(
+        'WEAVE-APP-START-DISCOVERY-INVALID: domains must be an array.',
+      );
+    }
+    const requiredDomains = {
+      'identity',
+      'chat',
+      'files',
+      'calendar',
+      'boards',
+      'health',
+    };
+    const allowedStates = {
+      'available',
+      'degraded',
+      'unavailable',
+      'disabled_by_policy',
+      'not_configured',
+    };
+    final observed = <String>{};
+    for (final item in value) {
+      final domain = _object(item, fieldName: 'domains[]');
+      _requireExactKeys(domain, const {
+        'domain',
+        'state',
+        'capabilities',
+        'supportReference',
+      });
+      if (domain['domain'] case final String name
+          when requiredDomains.contains(name)) {
+        if (!observed.add(name)) {
+          throw const AppFailure.validation(
+            'WEAVE-APP-START-DISCOVERY-INVALID: domains must be unique.',
+          );
+        }
+      } else {
+        throw const AppFailure.validation(
+          'WEAVE-APP-START-DISCOVERY-INVALID: domains contains an unsupported domain.',
+        );
+      }
+      final state = domain['state'];
+      final capabilities = domain['capabilities'];
+      if (state is! String ||
+          !allowedStates.contains(state) ||
+          capabilities is! List ||
+          capabilities.any(
+            (capability) => capability is! String || capability.trim().isEmpty,
+          )) {
+        throw const AppFailure.validation(
+          'WEAVE-APP-START-DISCOVERY-INVALID: domains entries are incomplete.',
+        );
+      }
+    }
+    if (!observed.containsAll(requiredDomains)) {
+      throw const AppFailure.validation(
+        'WEAVE-APP-START-DISCOVERY-INVALID: domains must include every active dogfood domain.',
+      );
+    }
   }
 
   Uri _apiOrigin(Uri backendApiBaseUrl) => Uri(
@@ -365,9 +512,9 @@ class AppStartDiscoveryClient {
         'WEAVE-APP-START-DISCOVERY-INVALID: $fieldName must be an absolute URL.',
       );
     }
-    if (uri.scheme != 'http' && uri.scheme != 'https') {
+    if (uri.scheme != 'https') {
       throw AppFailure.validation(
-        'WEAVE-APP-START-DISCOVERY-INVALID: $fieldName must use HTTP or HTTPS.',
+        'WEAVE-APP-START-DISCOVERY-INVALID: $fieldName must use HTTPS.',
       );
     }
     if (uri.userInfo.isNotEmpty) {
@@ -386,13 +533,13 @@ class AppStartDiscoveryClient {
   String _clientId(Object? rawValue) {
     if (rawValue is! String || rawValue.trim().isEmpty) {
       throw const AppFailure.validation(
-        'WEAVE-APP-START-DISCOVERY-INVALID: oidcClientId is required.',
+        'WEAVE-APP-START-DISCOVERY-INVALID: oidc.clientId is required.',
       );
     }
     final value = rawValue.trim();
     if (!RegExp(r'^[A-Za-z0-9._:-]{3,80}$').hasMatch(value)) {
       throw const AppFailure.validation(
-        'WEAVE-APP-START-DISCOVERY-INVALID: oidcClientId is not support-safe.',
+        'WEAVE-APP-START-DISCOVERY-INVALID: oidc.clientId is not support-safe.',
       );
     }
     return value;

@@ -353,15 +353,12 @@ class ServerConfigurationFormController
     try {
       final issuerUrl = deriver.parseIssuerUrl(state.issuerUrl);
       final clientId = _validateClientId(state.clientId);
-      final nextcloudUrl = deriver.parseServiceUrl(
-        state.nextcloudBaseUrl,
-        fieldName: 'the Nextcloud URL',
-      );
       final backendApiUrl = deriver.parseServiceUrl(
         state.backendApiBaseUrl,
         fieldName: 'the backend API URL',
       );
       final matrixUrl = deriver.matrixFacadeFromBackendApi(backendApiUrl);
+      final nextcloudUrl = deriver.filesFacadeFromBackendApi(backendApiUrl);
 
       state = state.copyWith(
         isSaving: true,

@@ -26,6 +26,7 @@ public class WeavePersistenceConfiguration {
             + "|| '${weave.security.device-credentials.storage.mode:memory}' == 'jdbc' "
             + "|| '${weave.migration.evidence.storage.mode:file}' == 'jdbc' "
             + "|| '${weave.matrix.e2ee.storage.mode:memory}' == 'jdbc' "
+            + "|| '${weave.chat.storage.mode:memory}' == 'jdbc' "
             + "|| '${weave.identity.invitations.storage-mode:memory}' == 'jdbc'")
     DataSource weaveDataSource(WeavePersistenceProperties properties) {
         DriverManagerDataSource dataSource = new DriverManagerDataSource();
@@ -45,6 +46,7 @@ public class WeavePersistenceConfiguration {
             + "|| '${weave.security.device-credentials.storage.mode:memory}' == 'jdbc' "
             + "|| '${weave.migration.evidence.storage.mode:file}' == 'jdbc' "
             + "|| '${weave.matrix.e2ee.storage.mode:memory}' == 'jdbc' "
+            + "|| '${weave.chat.storage.mode:memory}' == 'jdbc' "
             + "|| '${weave.identity.invitations.storage-mode:memory}' == 'jdbc'")
     Flyway weaveFlyway(DataSource weaveDataSource) {
         return Flyway.configure()
@@ -60,6 +62,7 @@ public class WeavePersistenceConfiguration {
             + "|| '${weave.security.device-credentials.storage.mode:memory}' == 'jdbc' "
             + "|| '${weave.migration.evidence.storage.mode:file}' == 'jdbc' "
             + "|| '${weave.matrix.e2ee.storage.mode:memory}' == 'jdbc' "
+            + "|| '${weave.chat.storage.mode:memory}' == 'jdbc' "
             + "|| '${weave.identity.invitations.storage-mode:memory}' == 'jdbc'")
     JdbcTemplate weaveJdbcTemplate(DataSource weaveDataSource, Flyway weaveFlyway) {
         return new JdbcTemplate(weaveDataSource);

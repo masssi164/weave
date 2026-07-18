@@ -14,6 +14,8 @@ import 'live_test_tls.dart';
 class LiveOidcTestDriver implements OidcClient {
   LiveOidcTestDriver({required TestConfig config}) : _config = config;
 
+  static const _maximumCredentialSteps = 4;
+
   final TestConfig _config;
 
   @override
@@ -123,7 +125,7 @@ class LiveOidcTestDriver implements OidcClient {
       final request = await client.getUrl(uri);
       request.followRedirects = false;
       final response = await request.close();
-      await response.drain<List<int>>();
+      await response.drain<void>();
     } finally {
       client.close(force: true);
     }
@@ -168,6 +170,7 @@ class LiveOidcTestDriver implements OidcClient {
       Uri? previousUri;
       var madeProgress = false;
       var nextUri = startUri;
+      browserFlow:
       while (true) {
         final response = await _open(client, nextUri, cookieJar);
         final location = response.headers.value(HttpHeaders.locationHeader);
@@ -185,90 +188,102 @@ class LiveOidcTestDriver implements OidcClient {
           continue;
         }
 
-        final loginForm = _tryParseLoginForm(body, nextUri);
-        if (loginForm != null) {
+        final credentialForm = _tryParseCredentialForm(body, nextUri);
+        if (credentialForm != null) {
           madeProgress = true;
-          final postResponse = await _postForm(
-            client,
-            loginForm.action,
-            <String, String>{
-              ...loginForm.fields,
-              'username': _config.username,
-              'password': _config.password,
-              'credentialId': '',
-              'login': 'Sign In',
-            },
-            cookieJar,
-            referer: previousUri ?? nextUri,
-          );
-          final postLocation = postResponse.headers.value(
-            HttpHeaders.locationHeader,
-          );
-          final postBody = await utf8.decodeStream(postResponse);
-
-          if (_isRedirect(postResponse.statusCode) && postLocation != null) {
-            madeProgress = true;
-            previousUri = loginForm.action;
-            final redirected = loginForm.action.resolve(postLocation);
-            if (redirectUri != null &&
-                _matchesRedirect(redirected, redirectUri)) {
-              return redirected;
+          var currentForm = credentialForm;
+          var formReferer = previousUri ?? nextUri;
+          var credentialStepCount = 0;
+          while (true) {
+            credentialStepCount += 1;
+            if (credentialStepCount > _maximumCredentialSteps) {
+              throw const AuthFailure.protocol(
+                'OIDC sign-in exceeded the supported credential steps.',
+              );
             }
-            nextUri = redirected;
-            continue;
-          }
-
-          if (postBody.contains('Invalid username or password') ||
-              postBody.contains('Sign in to your account')) {
-            throw StateError(
-              'Live browser login did not complete successfully.',
-            );
-          }
-
-          final followUpForm = _tryParseAutoSubmitForm(
-            postBody,
-            loginForm.action,
-          );
-          if (followUpForm != null) {
-            nextUri = followUpForm.action;
-            final followUpResponse = await _postForm(
+            final postResponse = await _postForm(
               client,
-              followUpForm.action,
-              followUpForm.fields,
+              currentForm.action,
+              _credentialSubmissionFields(currentForm),
               cookieJar,
-              referer: loginForm.action,
+              referer: formReferer,
             );
-            final followUpLocation = followUpResponse.headers.value(
+            final postLocation = postResponse.headers.value(
               HttpHeaders.locationHeader,
             );
-            await utf8.decodeStream(followUpResponse);
-            if (_isRedirect(followUpResponse.statusCode) &&
-                followUpLocation != null) {
+            final postBody = await utf8.decodeStream(postResponse);
+
+            if (_isRedirect(postResponse.statusCode) && postLocation != null) {
               madeProgress = true;
-              previousUri = followUpForm.action;
-              final redirected = followUpForm.action.resolve(followUpLocation);
+              previousUri = currentForm.action;
+              final redirected = currentForm.action.resolve(postLocation);
               if (redirectUri != null &&
                   _matchesRedirect(redirected, redirectUri)) {
                 return redirected;
               }
               nextUri = redirected;
+              continue browserFlow;
+            }
+
+            if (_containsCredentialFailure(postBody)) {
+              throw const AuthFailure.protocol(
+                'OIDC sign-in did not accept the configured credentials.',
+              );
+            }
+
+            final nextCredentialForm = _tryParseCredentialForm(
+              postBody,
+              currentForm.action,
+            );
+            if (nextCredentialForm != null) {
+              formReferer = currentForm.action;
+              currentForm = nextCredentialForm;
               continue;
             }
+
+            final followUpForm = _tryParseAutoSubmitForm(
+              postBody,
+              currentForm.action,
+            );
+            if (followUpForm != null) {
+              final followUpResponse = await _postForm(
+                client,
+                followUpForm.action,
+                followUpForm.fields,
+                cookieJar,
+                referer: currentForm.action,
+              );
+              final followUpLocation = followUpResponse.headers.value(
+                HttpHeaders.locationHeader,
+              );
+              await utf8.decodeStream(followUpResponse);
+              if (_isRedirect(followUpResponse.statusCode) &&
+                  followUpLocation != null) {
+                madeProgress = true;
+                previousUri = followUpForm.action;
+                final redirected = followUpForm.action.resolve(
+                  followUpLocation,
+                );
+                if (redirectUri != null &&
+                    _matchesRedirect(redirected, redirectUri)) {
+                  return redirected;
+                }
+                nextUri = redirected;
+                continue browserFlow;
+              }
+              if (redirectUri == null) {
+                return null;
+              }
+            }
+
             if (redirectUri == null) {
               return null;
             }
-          }
 
-          if (redirectUri == null) {
-            return null;
+            throw const AuthFailure.protocol(
+              'OIDC sign-in requires an unsupported browser interaction.',
+            );
           }
-
-          final snippet = postBody.replaceAll(RegExp(r'\s+'), ' ');
-          throw StateError(
-            'Unexpected response after submitting the login form '
-            'to ${loginForm.action}. Status=${postResponse.statusCode} '
-            'Body=${snippet.substring(0, snippet.length > 300 ? 300 : snippet.length)}',
-          );
         }
 
         final followUpForm = _tryParseAutoSubmitForm(body, nextUri);
@@ -489,27 +504,26 @@ class LiveOidcTestDriver implements OidcClient {
     return oidcDefaultScopes;
   }
 
-  _ParsedLoginForm? _tryParseLoginForm(String html, Uri baseUri) {
-    final formMatch = RegExp(
+  _ParsedForm? _tryParseCredentialForm(String html, Uri baseUri) {
+    final formMatches = RegExp(
       r'<form([^>]*)>([\s\S]*?)</form>',
       caseSensitive: false,
-    ).firstMatch(html);
-    if (formMatch == null) {
-      return null;
+    ).allMatches(html);
+    for (final match in formMatches) {
+      final formAttributes = match.group(1) ?? '';
+      final fields = _parseFormFields(match.group(0)!);
+      if (!fields.containsKey('username') && !fields.containsKey('password')) {
+        continue;
+      }
+      return _ParsedForm(
+        action: _resolveFormAction(formAttributes, baseUri),
+        fields: fields,
+      );
     }
-    final formAttributes = formMatch.group(1) ?? '';
-    final formHtml = formMatch.group(0)!;
-    if (!formHtml.contains('name="username"') ||
-        !formHtml.contains('name="password"')) {
-      return null;
-    }
-    return _ParsedLoginForm(
-      action: _resolveFormAction(formAttributes, baseUri),
-      fields: _parseFormFields(formHtml),
-    );
+    return null;
   }
 
-  _ParsedLoginForm? _tryParseAutoSubmitForm(String html, Uri baseUri) {
+  _ParsedForm? _tryParseAutoSubmitForm(String html, Uri baseUri) {
     final formMatches = RegExp(
       r'<form([^>]*)>([\s\S]*?)</form>',
       caseSensitive: false,
@@ -517,11 +531,10 @@ class LiveOidcTestDriver implements OidcClient {
     for (final match in formMatches) {
       final formAttributes = match.group(1) ?? '';
       final formHtml = match.group(0)!;
-      if (formHtml.contains('name="username"') &&
-          formHtml.contains('name="password"')) {
+      final fields = _parseFormFields(formHtml);
+      if (fields.containsKey('username') || fields.containsKey('password')) {
         continue;
       }
-      final fields = _parseFormFields(formHtml);
       if (fields.isEmpty) {
         continue;
       }
@@ -532,12 +545,34 @@ class LiveOidcTestDriver implements OidcClient {
           !formHtml.contains('Authorize')) {
         continue;
       }
-      return _ParsedLoginForm(
+      return _ParsedForm(
         action: _resolveFormAction(formAttributes, baseUri),
         fields: fields,
       );
     }
     return null;
+  }
+
+  Map<String, String> _credentialSubmissionFields(_ParsedForm form) {
+    final fields = <String, String>{...form.fields};
+    if (fields.containsKey('username')) {
+      fields['username'] = _config.username;
+    }
+    if (fields.containsKey('password')) {
+      fields['password'] = _config.password;
+    }
+    fields.putIfAbsent('login', () => 'Sign In');
+    return fields;
+  }
+
+  bool _containsCredentialFailure(String html) {
+    final normalized = html.toLowerCase();
+    return normalized.contains('invalid username or password') ||
+        normalized.contains('invalid user credentials') ||
+        normalized.contains('invalid username') ||
+        normalized.contains('invalid password') ||
+        normalized.contains('ungültiger benutzername') ||
+        normalized.contains('ungültiges passwort');
   }
 
   Uri _resolveFormAction(String formAttributes, Uri baseUri) {
@@ -622,8 +657,8 @@ class LiveOidcTestDriver implements OidcClient {
   }
 }
 
-class _ParsedLoginForm {
-  const _ParsedLoginForm({required this.action, required this.fields});
+class _ParsedForm {
+  const _ParsedForm({required this.action, required this.fields});
 
   final Uri action;
   final Map<String, String> fields;

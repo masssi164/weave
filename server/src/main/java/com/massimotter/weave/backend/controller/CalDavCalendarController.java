@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -172,6 +173,7 @@ public class CalDavCalendarController {
                 .contentType(CALENDAR)
                 .contentLength(body.length)
                 .eTag(event.etag())
+                .cacheControl(CacheControl.empty().noTransform())
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + safeFilename(eventUid) + ".ics\"");
         return builder.body(headOnly ? null : body);
     }

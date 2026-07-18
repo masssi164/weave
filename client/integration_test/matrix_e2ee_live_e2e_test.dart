@@ -6,8 +6,8 @@ import 'package:http/http.dart' as http;
 import 'package:integration_test/integration_test.dart';
 import 'package:weave/integrations/rust_matrix_core/data/services/rust_matrix_core_bridge.dart';
 
-import 'helpers/auth_helper.dart';
 import 'helpers/isolated_stack_scope.dart';
+import 'helpers/live_oidc_auth_helper.dart';
 import 'helpers/matrix_live_room_driver.dart';
 import 'helpers/test_config.dart';
 import 'helpers/test_http_overrides.dart';
@@ -35,14 +35,14 @@ void main() {
     (tester) async {
       requireIsolatedStackScope();
       final httpClient = createTrustedTestHttpClient();
-      final authHelper = AuthHelper(httpClient: httpClient);
+      const liveAuth = LiveOidcAuthHelper();
       const bridge = RustMatrixCoreBridge();
       final root = await Directory.systemTemp.createTemp(
         'weave-live-matrix-e2ee-',
       );
-      final accessTokenA = await authHelper.signIn(config);
-      final accessTokenB = await authHelper.signIn(config);
-      final accessTokenC = await authHelper.signIn(config);
+      final accessTokenA = await liveAuth.accessToken(config);
+      final accessTokenB = await liveAuth.accessToken(config);
+      final accessTokenC = await liveAuth.accessToken(config);
       final homeserver = config.matrixHomeserverUrl;
       final initializedProfiles = <String>[];
       final runEventIds = <String>{};

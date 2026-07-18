@@ -25,6 +25,7 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Fixed
 
+- Bounds iPhone Simulator VM-service discovery and replays only the exact same-process launch event when Xcode 26.5 live unified logging misses it, preventing Live Stack E2E from hanging before application assertions without persisting the service URI or weakening product checks.
 - Removes the obsolete first-run client path permanently, upgrades legacy stored state into the normal AppShell without discarding the current OIDC session, and exposes support-safe client build identity for in-place dogfood verification.
 - Makes Live Stack collaboration use three disposable identities, fresh encrypted Matrix rooms, real cross-user Files/Calendar/Home observations, isolated authorization probes, exact artifact cleanup, a real Calendar outage/recovery fixture, and a fresh per-run iPhone Simulator.
 - Preserves stable canonical context, channel, and meeting-thread identifiers across Calendar CalDAV query, read, sync, create, and update flows without leaking those northbound fields into southbound provider adapters.

@@ -37,7 +37,7 @@ import 'package:weave/features/server_config/domain/repositories/server_configur
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
 import 'package:weave/integrations/weave_api/data/services/weave_api_client.dart';
 
-import 'helpers/auth_helper.dart';
+import 'helpers/live_oidc_auth_helper.dart';
 import 'helpers/test_config.dart';
 import 'helpers/test_http_overrides.dart';
 
@@ -47,12 +47,11 @@ void main() {
 
   late TestConfig config;
   late http.Client httpClient;
-  late AuthHelper authHelper;
+  const liveAuth = LiveOidcAuthHelper();
 
   setUp(() {
     config = TestConfig.fromEnvironment();
     httpClient = createTrustedTestHttpClient();
-    authHelper = AuthHelper(httpClient: httpClient);
   });
 
   tearDown(() {
@@ -60,7 +59,7 @@ void main() {
   });
 
   test('setup -> sign-in -> shell ready', () async {
-    final session = await authHelper.signInForAppSession(config);
+    final session = await liveAuth.signIn(config);
     final container = _createAppContainer(config: config, session: session);
     addTearDown(container.dispose);
 
@@ -71,7 +70,7 @@ void main() {
   });
 
   test('settings/config change -> targeted invalidation fires', () async {
-    final session = await authHelper.signInForAppSession(config);
+    final session = await liveAuth.signIn(config);
     final container = _createAppContainer(config: config, session: session);
     addTearDown(container.dispose);
 
@@ -128,7 +127,7 @@ void main() {
   });
 
   test('authenticated GET /api/me returns expected identity', () async {
-    final accessToken = await authHelper.signIn(config);
+    final accessToken = await liveAuth.accessToken(config);
 
     final response = await httpClient.get(
       config.apiUri('/api/me'),
@@ -150,7 +149,7 @@ void main() {
 
   test('authenticated GET /api/v1/workspace/capabilities returns expected '
       'structure', () async {
-    final accessToken = await authHelper.signIn(config);
+    final accessToken = await liveAuth.accessToken(config);
 
     final response = await httpClient.get(
       config.apiUri('/api/v1/workspace/capabilities'),
@@ -182,7 +181,7 @@ void main() {
   test(
     'backend unavailable -> backend client surfaces unreachable failure',
     () async {
-      final accessToken = await authHelper.signIn(config);
+      final accessToken = await liveAuth.accessToken(config);
       final unreachableConfig = config.copyWith(
         backendApiBaseUrl: config.unreachableBackendApiBaseUrl(),
       );
@@ -319,6 +318,11 @@ class _SessionAuthRepository implements AuthSessionRepository {
 }
 
 class _EmptyChatRepository implements ChatRepository {
+  @override
+  Future<ChatConversation> createConversation({required String title}) {
+    throw UnimplementedError();
+  }
+
   @override
   Future<void> clearSession() async {}
 

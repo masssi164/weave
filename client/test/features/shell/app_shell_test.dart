@@ -215,6 +215,58 @@ void main() {
       );
     });
 
+    testWidgets(
+      'keeps every current destination labeled and at least 48 by 48',
+      (tester) async {
+        final semantics = tester.ensureSemantics();
+        await pumpReadyShell(tester);
+
+        const destinationLabels = [
+          'Home',
+          'Chat',
+          'Files',
+          'Calendar',
+          'Settings',
+        ];
+        expect(
+          find.byType(NavigationDestination),
+          findsNWidgets(destinationLabels.length),
+        );
+        for (var index = 0; index < destinationLabels.length; index++) {
+          final destination = find.byType(NavigationDestination).at(index);
+          final size = tester.getSize(destination);
+          expect(size.width, greaterThanOrEqualTo(48));
+          expect(size.height, greaterThanOrEqualTo(48));
+          expect(
+            find.bySemanticsLabel(RegExp(destinationLabels[index])),
+            findsWidgets,
+          );
+        }
+        semantics.dispose();
+      },
+    );
+
+    testWidgets('keeps the current shell usable at large Dynamic Type', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+      await pumpReadyShell(tester);
+
+      expect(find.byType(NavigationBar), findsOneWidget);
+      expect(find.text('Home'), findsOneWidget);
+      expect(find.text('Chat'), findsOneWidget);
+      expect(find.text('Files'), findsOneWidget);
+      expect(find.text('Calendar'), findsOneWidget);
+      expect(find.text('Settings'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('applies the persisted personal theme across the shell', (
       tester,
     ) async {
@@ -387,7 +439,7 @@ void main() {
       expect(find.text('RAW SHELL BACKEND MEMBER IMPACT'), findsNothing);
       expect(find.widgetWithText(Chip, 'Chat: Limited'), findsOneWidget);
       expect(
-        find.widgetWithText(Chip, 'Calendar: Coming later'),
+        find.widgetWithText(Chip, 'Calendar: Unavailable'),
         findsOneWidget,
       );
       expect(

@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,7 +32,11 @@ public class MatrixE2eeStateService {
     private final ConcurrentMap<UserKey, ConcurrentMap<String, Map<String, Object>>> accountData =
             new ConcurrentHashMap<>();
     private final ConcurrentMap<OidcSessionKey, String> devicesByOidcSession = new ConcurrentHashMap<>();
-    private final AtomicLong sequence = new AtomicLong();
+    private final ConcurrentMap<DeviceKey, ConcurrentMap<String, SharedUserState>> sharedUsersByDevice =
+            new ConcurrentHashMap<>();
+    private final AtomicLong projectedToDeviceEventCount = new AtomicLong();
+    private final AtomicLong syncResponsesWithToDeviceEvents = new AtomicLong();
+    private final MatrixE2eeSequenceJournal sequenceJournal = new MatrixE2eeSequenceJournal();
     private final Set<String> loadedTenants = ConcurrentHashMap.newKeySet();
     private final ObjectMapper objectMapper;
     private final MatrixE2eeSnapshotStore snapshotStore;
@@ -49,23 +54,39 @@ public class MatrixE2eeStateService {
         prepare(identity);
         DeviceKey key = deviceKey(identity);
         DeviceState state = devices.computeIfAbsent(key, ignored -> new DeviceState());
+        boolean mutated = false;
         Map<String, Object> deviceKeys = objectMap(request.get("device_keys"));
         if (!deviceKeys.isEmpty()) {
             requireEquals(deviceKeys.get("user_id"), identity.userId(), "device key user");
             requireEquals(deviceKeys.get("device_id"), identity.deviceId(), "device key device");
-            state.deviceKeys = immutableObject(deviceKeys);
+            mutated = true;
         }
         Map<String, Object> oneTimeKeys = objectMap(request.get("one_time_keys"));
         if (oneTimeKeys.size() > MAX_ONE_TIME_KEYS_PER_UPLOAD) {
             throw new MatrixProtocolException("M_LIMIT_EXCEEDED", "The Matrix one-time key upload limit was reached.");
         }
-        oneTimeKeys.forEach((keyId, value) -> state.oneTimeKeys.put(requireKeyId(keyId), immutableValue(value)));
+        Map<String, Object> validatedOneTimeKeys = new LinkedHashMap<>();
+        oneTimeKeys.forEach((keyId, value) ->
+                validatedOneTimeKeys.put(requireKeyId(keyId), immutableValue(value)));
+        mutated = mutated || !oneTimeKeys.isEmpty();
         Map<String, Object> fallbackKeys = objectMap(request.get("fallback_keys"));
-        if (!fallbackKeys.isEmpty()) {
-            state.fallbackKeys = immutableObject(fallbackKeys);
+        Map<String, Object> validatedDeviceKeys = immutableObject(deviceKeys);
+        Map<String, Object> validatedFallbackKeys = immutableObject(fallbackKeys);
+        mutated = mutated || !fallbackKeys.isEmpty();
+        if (mutated) {
+            sequenceJournal.publish(value -> {
+                if (!validatedDeviceKeys.isEmpty()) {
+                    state.deviceKeys = validatedDeviceKeys;
+                }
+                validatedOneTimeKeys.forEach(state.oneTimeKeys::put);
+                if (!validatedFallbackKeys.isEmpty()) {
+                    state.fallbackKeys = validatedFallbackKeys;
+                    state.usedFallbackAlgorithms.clear();
+                }
+                state.changedSequence = value;
+            });
+            persist(identity.tenantId());
         }
-        state.changedSequence = sequence.incrementAndGet();
-        persist(identity.tenantId());
         return Map.of("one_time_key_counts", oneTimeKeyCounts(state));
     }
 
@@ -141,11 +162,17 @@ public class MatrixE2eeStateService {
             Map<String, Object> request) {
         prepare(identity);
         UserKey key = new UserKey(identity.tenantId(), identity.userId());
-        CrossSigningState state = crossSigning.computeIfAbsent(key, ignored -> new CrossSigningState());
-        state.masterKey = validatedSigningKey(request.get("master_key"), identity.userId(), "master");
-        state.selfSigningKey = validatedSigningKey(request.get("self_signing_key"), identity.userId(), "self_signing");
-        state.userSigningKey = validatedSigningKey(request.get("user_signing_key"), identity.userId(), "user_signing");
-        sequence.incrementAndGet();
+        Map<String, Object> masterKey = validatedSigningKey(request.get("master_key"), identity.userId(), "master");
+        Map<String, Object> selfSigningKey =
+                validatedSigningKey(request.get("self_signing_key"), identity.userId(), "self_signing");
+        Map<String, Object> userSigningKey =
+                validatedSigningKey(request.get("user_signing_key"), identity.userId(), "user_signing");
+        sequenceJournal.publish(ignored -> {
+            CrossSigningState state = crossSigning.computeIfAbsent(key, unused -> new CrossSigningState());
+            state.masterKey = masterKey;
+            state.selfSigningKey = selfSigningKey;
+            state.userSigningKey = userSigningKey;
+        });
         persist(identity.tenantId());
     }
 
@@ -155,16 +182,20 @@ public class MatrixE2eeStateService {
         prepare(identity);
         request.forEach((userId, rawSignedObjects) -> objectMap(rawSignedObjects).forEach((keyId, rawSignedObject) -> {
             Map<String, Object> signedObject = immutableObject(objectMap(rawSignedObject));
+            Map<String, Object> uploadedSignatures = immutableObject(objectMap(signedObject.get("signatures")));
             DeviceState device = devices.get(new DeviceKey(identity.tenantId(), userId, keyId));
-            if (device != null) {
-                device.deviceKeys = signedObject;
-                device.changedSequence = sequence.incrementAndGet();
+            if (device != null && !device.deviceKeys.isEmpty()) {
+                sequenceJournal.publish(value -> {
+                    device.deviceKeys = mergeSignedObjectSignatures(device.deviceKeys, uploadedSignatures);
+                    device.changedSequence = value;
+                });
                 return;
             }
             CrossSigningState signing = crossSigning.get(new UserKey(identity.tenantId(), userId));
             if (signing != null) {
-                signing.replaceMatchingKey(keyId, signedObject);
-                sequence.incrementAndGet();
+                sequenceJournal.publish(ignored -> {
+                    signing.mergeMatchingKeySignatures(keyId, uploadedSignatures);
+                });
             }
         }));
         persist(identity.tenantId());
@@ -178,10 +209,11 @@ public class MatrixE2eeStateService {
             Map<String, Object> request) {
         prepare(identity);
         TransactionKey transaction = new TransactionKey(identity.tenantId(), identity.userId(), transactionId);
-        if (!toDeviceTransactions.add(transaction)) {
+        if (toDeviceTransactions.contains(transaction)) {
             return;
         }
         int targetCount = 0;
+        List<PendingToDeviceEvent> pendingEvents = new ArrayList<>();
         for (Map.Entry<String, Object> userEntry : objectMap(request.get("messages")).entrySet()) {
             for (Map.Entry<String, Object> deviceEntry : objectMap(userEntry.getValue()).entrySet()) {
                 Collection<String> targetDevices = "*".equals(deviceEntry.getKey())
@@ -189,18 +221,30 @@ public class MatrixE2eeStateService {
                         : List.of(deviceEntry.getKey());
                 for (String targetDevice : targetDevices) {
                     if (++targetCount > MAX_TO_DEVICE_TARGETS) {
-                        throw new MatrixProtocolException("M_LIMIT_EXCEEDED", "The Matrix to-device target limit was reached.");
+                        throw new MatrixProtocolException(
+                                "M_LIMIT_EXCEEDED",
+                                "The Matrix to-device target limit was reached.");
                     }
-                    toDeviceEvents.add(new ToDeviceEvent(
-                            sequence.incrementAndGet(),
-                            identity.tenantId(),
+                    pendingEvents.add(new PendingToDeviceEvent(
                             userEntry.getKey(),
                             targetDevice,
-                            identity.userId(),
-                            eventType,
                             immutableObject(objectMap(deviceEntry.getValue()))));
                 }
             }
+        }
+        boolean published = sequenceJournal.publishAllIf(
+                () -> toDeviceTransactions.add(transaction),
+                pendingEvents,
+                (event, value) -> toDeviceEvents.add(new ToDeviceEvent(
+                        value,
+                        identity.tenantId(),
+                        event.targetUserId(),
+                        event.targetDeviceId(),
+                        identity.userId(),
+                        eventType,
+                        event.content())));
+        if (!published) {
+            return;
         }
         persist(identity.tenantId());
     }
@@ -208,54 +252,197 @@ public class MatrixE2eeStateService {
     public MatrixProtocolCoreService.MatrixSyncCrypto sync(
             MatrixFacadeClientStateService.MatrixIdentity identity,
             long afterSequence) {
+        return sync(identity, afterSequence, null);
+    }
+
+    public MatrixProtocolCoreService.MatrixSyncCrypto sync(
+            MatrixFacadeClientStateService.MatrixIdentity identity,
+            long afterSequence,
+            Collection<String> currentlySharedUserIds) {
         prepare(identity);
         requireActive(identity);
-        List<Map<String, Object>> events = toDeviceEvents.stream()
-                .filter(event -> event.sequence() > afterSequence)
-                .filter(event -> event.tenantId().equals(identity.tenantId()))
-                .filter(event -> event.targetUserId().equals(identity.userId()))
-                .filter(event -> event.targetDeviceId().equals(identity.deviceId()))
-                .map(event -> Map.<String, Object>of(
-                        "sender", event.senderUserId(),
-                        "type", event.eventType(),
-                        "content", event.content()))
-                .toList();
-        List<String> changed = devices.entrySet().stream()
-                .filter(entry -> entry.getKey().tenantId().equals(identity.tenantId()))
-                .filter(entry -> entry.getValue().changedSequence > afterSequence)
-                .map(entry -> entry.getKey().userId())
+        Set<String> sharedUserIds = currentlySharedUserIds == null
+                ? null
+                : Set.copyOf(currentlySharedUserIds.stream()
+                        .filter(userId -> userId != null && !userId.isBlank())
+                        .filter(userId -> !userId.equals(identity.userId()))
+                        .toList());
+        if (sharedUserIds != null && reconcileSharedUsers(identity, sharedUserIds)) {
+            // The in-memory projection is intentionally rebuilt after a server
+            // restart. Persisting the advanced high-water mark makes the
+            // resulting notification cursor durable while avoiding a second
+            // source of truth for canonical Chat membership.
+            persist(identity.tenantId());
+        }
+        MatrixE2eeSequenceJournal.Snapshot<MatrixProtocolCoreService.MatrixSyncCrypto> snapshot =
+                sequenceJournal.snapshot(snapshotSequence -> {
+                    List<Map<String, Object>> events = toDeviceEvents.stream()
+                            .filter(event -> event.sequence() > afterSequence)
+                            .filter(event -> event.sequence() <= snapshotSequence)
+                            .filter(event -> event.tenantId().equals(identity.tenantId()))
+                            .filter(event -> event.targetUserId().equals(identity.userId()))
+                            .filter(event -> event.targetDeviceId().equals(identity.deviceId()))
+                            .map(event -> Map.<String, Object>of(
+                                    "sender", event.senderUserId(),
+                                    "type", event.eventType(),
+                                    "content", event.content()))
+                            .toList();
+                    if (!events.isEmpty()) {
+                        projectedToDeviceEventCount.addAndGet(events.size());
+                        syncResponsesWithToDeviceEvents.incrementAndGet();
+                    }
+                    Set<String> changed = new HashSet<>();
+                    devices.entrySet().stream()
+                            .filter(entry -> entry.getKey().tenantId().equals(identity.tenantId()))
+                            .filter(entry -> sharedUserIds == null
+                                    || entry.getKey().userId().equals(identity.userId())
+                                    || sharedUserIds.contains(entry.getKey().userId()))
+                            .filter(entry -> entry.getValue().changedSequence > afterSequence)
+                            .filter(entry -> entry.getValue().changedSequence <= snapshotSequence)
+                            .map(entry -> entry.getKey().userId())
+                            .forEach(changed::add);
+                    List<String> left = new ArrayList<>();
+                    if (sharedUserIds != null) {
+                        sharedUsersByDevice
+                                .getOrDefault(deviceKey(identity), new ConcurrentHashMap<>())
+                                .forEach((userId, state) -> {
+                                    if (state.changedSequence > afterSequence
+                                            && state.changedSequence <= snapshotSequence) {
+                                        if (state.shared) {
+                                            changed.add(userId);
+                                        } else {
+                                            left.add(userId);
+                                        }
+                                    }
+                                });
+                    }
+                    List<String> sortedChanged = changed.stream().sorted().toList();
+                    List<String> sortedLeft = left.stream().distinct().sorted().toList();
+                    DeviceState ownDevice = devices.get(deviceKey(identity));
+                    return new MatrixProtocolCoreService.MatrixSyncCrypto(
+                            events,
+                            sortedChanged,
+                            sortedLeft,
+                            ownDevice == null ? Map.of() : oneTimeKeyCounts(ownDevice),
+                            ownDevice == null ? List.of() : fallbackAlgorithms(ownDevice),
+                            snapshotSequence);
+                });
+        return snapshot.value();
+    }
+
+    /**
+     * Returns aggregate, isolated-E2E-only evidence for the northbound Matrix
+     * to-device path. The caller is a separately authenticated, run-scoped
+     * proof endpoint; no tenant, user, device, room, session, key, ciphertext,
+     * transaction, URL, or provider reference is included.
+     */
+    public SupportSafeToDeviceEvidence supportSafeToDeviceEvidence() {
+        long encryptedEventCount = toDeviceEvents.stream()
+                .filter(event -> "m.room.encrypted".equals(event.eventType()))
+                .count();
+        long plaintextRoomKeyEventCount = toDeviceEvents.stream()
+                .filter(event -> "m.room_key".equals(event.eventType())
+                        || "m.forwarded_room_key".equals(event.eventType()))
+                .count();
+        long olmPreKeyEnvelopeCount = toDeviceEvents.stream()
+                .filter(event -> containsOlmMessageType(event.content(), 0))
+                .count();
+        long olmExistingSessionEnvelopeCount = toDeviceEvents.stream()
+                .filter(event -> containsOlmMessageType(event.content(), 1))
+                .count();
+        long activeDeviceCount = devices.values().stream()
+                .filter(device -> !device.revoked)
+                .count();
+        long revokedDeviceCount = devices.values().stream()
+                .filter(device -> device.revoked)
+                .count();
+        long targetedDeviceCount = toDeviceEvents.stream()
+                .map(event -> event.tenantId() + "\u0000" + event.targetUserId() + "\u0000" + event.targetDeviceId())
                 .distinct()
-                .sorted()
-                .toList();
-        DeviceState ownDevice = devices.get(deviceKey(identity));
-        return new MatrixProtocolCoreService.MatrixSyncCrypto(
-                events,
-                changed,
-                List.of(),
-                ownDevice == null ? Map.of() : oneTimeKeyCounts(ownDevice),
-                ownDevice == null ? List.of() : fallbackAlgorithms(ownDevice));
+                .count();
+        return new SupportSafeToDeviceEvidence(
+                "matrix-to-device-proof-v1",
+                activeDeviceCount,
+                revokedDeviceCount,
+                toDeviceEvents.size(),
+                encryptedEventCount,
+                plaintextRoomKeyEventCount,
+                olmPreKeyEnvelopeCount,
+                olmExistingSessionEnvelopeCount,
+                targetedDeviceCount,
+                toDeviceTransactions.size(),
+                projectedToDeviceEventCount.get(),
+                syncResponsesWithToDeviceEvents.get(),
+                sequenceJournal.current(),
+                true);
+    }
+
+    private boolean containsOlmMessageType(Map<String, Object> content, int expectedType) {
+        Object rawCiphertext = content.get("ciphertext");
+        if (!(rawCiphertext instanceof Map<?, ?> ciphertext)) {
+            return false;
+        }
+        return ciphertext.values().stream()
+                .filter(Map.class::isInstance)
+                .map(Map.class::cast)
+                .map(value -> value.get("type"))
+                .anyMatch(value -> value instanceof Number number && number.intValue() == expectedType);
+    }
+
+    private synchronized boolean reconcileSharedUsers(
+            MatrixFacadeClientStateService.MatrixIdentity identity,
+            Set<String> currentlySharedUserIds) {
+        ConcurrentMap<String, SharedUserState> known = sharedUsersByDevice.computeIfAbsent(
+                deviceKey(identity), ignored -> new ConcurrentHashMap<>());
+        boolean mutated = false;
+        for (String userId : currentlySharedUserIds) {
+            SharedUserState state = known.computeIfAbsent(userId, ignored -> new SharedUserState());
+            if (!state.shared) {
+                sequenceJournal.publish(value -> {
+                    state.shared = true;
+                    state.changedSequence = value;
+                });
+                mutated = true;
+            }
+        }
+        for (Map.Entry<String, SharedUserState> entry : known.entrySet()) {
+            SharedUserState state = entry.getValue();
+            if (state.shared && !currentlySharedUserIds.contains(entry.getKey())) {
+                sequenceJournal.publish(value -> {
+                    state.shared = false;
+                    state.changedSequence = value;
+                });
+                mutated = true;
+            }
+        }
+        return mutated;
     }
 
     public Map<String, Object> keyChanges(
             MatrixFacadeClientStateService.MatrixIdentity identity,
             long afterSequence) {
         prepare(identity);
-        List<String> changed = devices.entrySet().stream()
-                .filter(entry -> entry.getKey().tenantId().equals(identity.tenantId()))
-                .filter(entry -> entry.getValue().changedSequence > afterSequence)
-                .map(entry -> entry.getKey().userId())
-                .distinct()
-                .sorted()
-                .toList();
+        List<String> changed = sequenceJournal.snapshot(snapshotSequence -> devices.entrySet().stream()
+                        .filter(entry -> entry.getKey().tenantId().equals(identity.tenantId()))
+                        .filter(entry -> entry.getValue().changedSequence > afterSequence)
+                        .filter(entry -> entry.getValue().changedSequence <= snapshotSequence)
+                        .map(entry -> entry.getKey().userId())
+                        .distinct()
+                        .sorted()
+                        .toList())
+                .value();
         return Map.of("changed", changed, "left", List.of());
     }
 
     public long currentSequence() {
-        return sequence.get();
+        return sequenceJournal.current();
     }
 
-    public String combinedCursor(String chatCursor) {
-        return chatCursor + "|e2ee:" + currentSequence();
+    public String combinedCursor(String chatCursor, long cryptoSequence) {
+        if (cryptoSequence < 0) {
+            throw new MatrixProtocolException("M_BAD_JSON", "The Matrix E2EE sync cursor is invalid.");
+        }
+        return chatCursor + "|e2ee:" + cryptoSequence;
     }
 
     public long cryptoSequence(String decodedCursor) {
@@ -281,10 +468,13 @@ public class MatrixE2eeStateService {
         if (state == null) {
             throw new MatrixProtocolException("M_NOT_FOUND", "The Matrix device was not found.");
         }
-        state.revoked = true;
-        state.oneTimeKeys.clear();
-        state.fallbackKeys = Map.of();
-        state.changedSequence = sequence.incrementAndGet();
+        sequenceJournal.publish(value -> {
+            state.revoked = true;
+            state.oneTimeKeys.clear();
+            state.fallbackKeys = Map.of();
+            state.changedSequence = value;
+        });
+        sharedUsersByDevice.remove(new DeviceKey(identity.tenantId(), identity.userId(), deviceId));
         persist(identity.tenantId());
     }
 
@@ -426,11 +616,12 @@ public class MatrixE2eeStateService {
             Map<String, Object> content) {
         prepare(identity);
         String validatedEventType = requiredText(eventType, "account-data event type", 255);
-        accountData.computeIfAbsent(
-                        new UserKey(identity.tenantId(), identity.userId()),
-                        ignored -> new ConcurrentHashMap<>())
-                .put(validatedEventType, immutableObject(content));
-        sequence.incrementAndGet();
+        sequenceJournal.publish(unusedSequence -> {
+            accountData.computeIfAbsent(
+                            new UserKey(identity.tenantId(), identity.userId()),
+                            ignored -> new ConcurrentHashMap<>())
+                    .put(validatedEventType, immutableObject(content));
+        });
         persist(identity.tenantId());
     }
 
@@ -493,10 +684,12 @@ public class MatrixE2eeStateService {
             return;
         }
         try {
+            MatrixE2eeSequenceJournal.Snapshot<PersistedSnapshot> captured =
+                    sequenceJournal.snapshot(ignored -> snapshot(tenantId));
             snapshotStore.save(
                     tenantId,
-                    sequence.get(),
-                    objectMapper.writeValueAsString(snapshot(tenantId)));
+                    captured.highWater(),
+                    objectMapper.writeValueAsString(captured.value()));
         } catch (JsonProcessingException | RuntimeException exception) {
             throw new MatrixProtocolException("M_UNAVAILABLE", "Matrix E2EE state could not be persisted.");
         }
@@ -511,6 +704,7 @@ public class MatrixE2eeStateService {
                         entry.getValue().deviceKeys,
                         Map.copyOf(entry.getValue().oneTimeKeys),
                         entry.getValue().fallbackKeys,
+                        Set.copyOf(entry.getValue().usedFallbackAlgorithms),
                         entry.getValue().changedSequence,
                         entry.getValue().revoked))
                 .toList();
@@ -577,49 +771,52 @@ public class MatrixE2eeStateService {
     private void restoreSnapshot(String tenantId, long persistedSequence, String payloadJson) {
         try {
             PersistedSnapshot snapshot = objectMapper.readValue(payloadJson, PersistedSnapshot.class);
-            for (PersistedDevice persisted : snapshot.devices()) {
-                DeviceState state = new DeviceState();
-                state.deviceKeys = immutableObject(persisted.deviceKeys());
-                persisted.oneTimeKeys().forEach((key, value) -> state.oneTimeKeys.put(key, immutableValue(value)));
-                state.fallbackKeys = immutableObject(persisted.fallbackKeys());
-                state.changedSequence = persisted.changedSequence();
-                state.revoked = persisted.revoked();
-                devices.put(new DeviceKey(tenantId, persisted.userId(), persisted.deviceId()), state);
-            }
-            for (PersistedCrossSigning persisted : snapshot.crossSigning()) {
-                CrossSigningState state = new CrossSigningState();
-                state.masterKey = immutableObject(persisted.masterKey());
-                state.selfSigningKey = immutableObject(persisted.selfSigningKey());
-                state.userSigningKey = immutableObject(persisted.userSigningKey());
-                crossSigning.put(new UserKey(tenantId, persisted.userId()), state);
-            }
-            toDeviceEvents.addAll(snapshot.toDeviceEvents());
-            toDeviceTransactions.addAll(snapshot.toDeviceTransactions());
-            for (PersistedBackup persisted : snapshot.backups()) {
-                BackupVersion backup = new BackupVersion(
-                        persisted.version(),
-                        persisted.algorithm(),
-                        immutableObject(persisted.authData()),
-                        persisted.current(),
-                        persisted.revision());
-                persisted.sessions().forEach(session -> backup.sessions.put(
-                        new BackupSessionKey(session.roomId(), session.sessionId()),
-                        immutableObject(session.payload())));
-                backups.computeIfAbsent(
-                                new UserKey(tenantId, persisted.userId()),
-                                ignored -> new ConcurrentHashMap<>())
-                        .put(persisted.version(), backup);
-            }
-            snapshot.backupVersionSequences().forEach((userId, value) -> backupVersionSequences.put(
-                    new UserKey(tenantId, userId),
-                    new AtomicLong(value)));
-            snapshot.accountData().forEach((userId, events) -> accountData.put(
-                    new UserKey(tenantId, userId),
-                    new ConcurrentHashMap<>(events)));
-            snapshot.oidcSessionBindings().forEach(binding -> devicesByOidcSession.put(
-                    new OidcSessionKey(tenantId, binding.userId(), binding.sessionHash()),
-                    binding.deviceId()));
-            sequence.accumulateAndGet(persistedSequence, Math::max);
+            sequenceJournal.restore(persistedSequence, () -> {
+                for (PersistedDevice persisted : snapshot.devices()) {
+                    DeviceState state = new DeviceState();
+                    state.deviceKeys = immutableObject(persisted.deviceKeys());
+                    persisted.oneTimeKeys().forEach(
+                            (key, value) -> state.oneTimeKeys.put(key, immutableValue(value)));
+                    state.fallbackKeys = immutableObject(persisted.fallbackKeys());
+                    state.usedFallbackAlgorithms.addAll(persisted.usedFallbackAlgorithms());
+                    state.changedSequence = persisted.changedSequence();
+                    state.revoked = persisted.revoked();
+                    devices.put(new DeviceKey(tenantId, persisted.userId(), persisted.deviceId()), state);
+                }
+                for (PersistedCrossSigning persisted : snapshot.crossSigning()) {
+                    CrossSigningState state = new CrossSigningState();
+                    state.masterKey = immutableObject(persisted.masterKey());
+                    state.selfSigningKey = immutableObject(persisted.selfSigningKey());
+                    state.userSigningKey = immutableObject(persisted.userSigningKey());
+                    crossSigning.put(new UserKey(tenantId, persisted.userId()), state);
+                }
+                toDeviceEvents.addAll(snapshot.toDeviceEvents());
+                toDeviceTransactions.addAll(snapshot.toDeviceTransactions());
+                for (PersistedBackup persisted : snapshot.backups()) {
+                    BackupVersion backup = new BackupVersion(
+                            persisted.version(),
+                            persisted.algorithm(),
+                            immutableObject(persisted.authData()),
+                            persisted.current(),
+                            persisted.revision());
+                    persisted.sessions().forEach(session -> backup.sessions.put(
+                            new BackupSessionKey(session.roomId(), session.sessionId()),
+                            immutableObject(session.payload())));
+                    backups.computeIfAbsent(
+                                    new UserKey(tenantId, persisted.userId()),
+                                    ignored -> new ConcurrentHashMap<>())
+                            .put(persisted.version(), backup);
+                }
+                snapshot.backupVersionSequences().forEach((userId, value) -> backupVersionSequences.put(
+                        new UserKey(tenantId, userId),
+                        new AtomicLong(value)));
+                snapshot.accountData().forEach((userId, events) -> accountData.put(
+                        new UserKey(tenantId, userId),
+                        new ConcurrentHashMap<>(events)));
+                snapshot.oidcSessionBindings().forEach(binding -> devicesByOidcSession.put(
+                        new OidcSessionKey(tenantId, binding.userId(), binding.sessionHash()),
+                        binding.deviceId()));
+            });
         } catch (JsonProcessingException exception) {
             throw new MatrixProtocolException("M_UNAVAILABLE", "Matrix E2EE state snapshot is invalid.");
         }
@@ -683,16 +880,33 @@ public class MatrixE2eeStateService {
     }
 
     private List<String> fallbackAlgorithms(DeviceState state) {
-        return state.fallbackKeys.keySet().stream().map(this::algorithm).distinct().sorted().toList();
+        return state.fallbackKeys.keySet().stream()
+                .map(this::algorithm)
+                .filter(algorithm -> !state.usedFallbackAlgorithms.contains(algorithm))
+                .distinct()
+                .sorted()
+                .toList();
     }
 
     private synchronized Map<String, Object> claimOneTimeKey(DeviceState state, String algorithm) {
-        return state.oneTimeKeys.entrySet().stream()
+        Map<String, Object> oneTimeKey = state.oneTimeKeys.entrySet().stream()
                 .filter(entry -> algorithm(entry.getKey()).equals(algorithm))
                 .sorted(Map.Entry.comparingByKey())
                 .findFirst()
                 .map(entry -> {
                     state.oneTimeKeys.remove(entry.getKey());
+                    return Map.<String, Object>of(entry.getKey(), entry.getValue());
+                })
+                .orElse(Map.of());
+        if (!oneTimeKey.isEmpty()) {
+            return oneTimeKey;
+        }
+        return state.fallbackKeys.entrySet().stream()
+                .filter(entry -> algorithm(entry.getKey()).equals(algorithm))
+                .sorted(Map.Entry.comparingByKey())
+                .findFirst()
+                .map(entry -> {
+                    state.usedFallbackAlgorithms.add(algorithm);
                     return Map.<String, Object>of(entry.getKey(), entry.getValue());
                 })
                 .orElse(Map.of());
@@ -798,6 +1012,24 @@ public class MatrixE2eeStateService {
         return Map.copyOf(result);
     }
 
+    private Map<String, Object> mergeSignedObjectSignatures(
+            Map<String, Object> storedObject,
+            Map<String, Object> uploadedSignatures) {
+        if (storedObject.isEmpty() || uploadedSignatures.isEmpty()) {
+            return storedObject;
+        }
+        Map<String, Object> mergedSignatures = new LinkedHashMap<>(objectMap(storedObject.get("signatures")));
+        uploadedSignatures.forEach((signerUserId, rawSignatures) -> {
+            Map<String, Object> signerSignatures = new LinkedHashMap<>(
+                    objectMap(mergedSignatures.get(signerUserId)));
+            signerSignatures.putAll(objectMap(rawSignatures));
+            mergedSignatures.put(signerUserId, immutableObject(signerSignatures));
+        });
+        Map<String, Object> mergedObject = new LinkedHashMap<>(storedObject);
+        mergedObject.put("signatures", immutableObject(mergedSignatures));
+        return immutableObject(mergedObject);
+    }
+
     private record DeviceKey(String tenantId, String userId, String deviceId) {
     }
 
@@ -811,6 +1043,12 @@ public class MatrixE2eeStateService {
     }
 
     private record BackupSessionKey(String roomId, String sessionId) {
+    }
+
+    private record PendingToDeviceEvent(
+            String targetUserId,
+            String targetDeviceId,
+            Map<String, Object> content) {
     }
 
     private record ToDeviceEvent(
@@ -827,28 +1065,56 @@ public class MatrixE2eeStateService {
         private volatile Map<String, Object> deviceKeys = Map.of();
         private final ConcurrentMap<String, Object> oneTimeKeys = new ConcurrentHashMap<>();
         private volatile Map<String, Object> fallbackKeys = Map.of();
+        private final Set<String> usedFallbackAlgorithms = ConcurrentHashMap.newKeySet();
         private volatile long changedSequence;
         private volatile boolean revoked;
     }
 
-    private static final class CrossSigningState {
+    private static final class SharedUserState {
+        private volatile long changedSequence;
+        private volatile boolean shared;
+    }
+
+    public record SupportSafeToDeviceEvidence(
+            String contractVersion,
+            long activeDeviceCount,
+            long revokedDeviceCount,
+            long queuedEventCount,
+            long encryptedEventCount,
+            long plaintextRoomKeyEventCount,
+            long olmPreKeyEnvelopeCount,
+            long olmExistingSessionEnvelopeCount,
+            long targetedDeviceCount,
+            long transactionCount,
+            long projectedEventCount,
+            long syncResponseCount,
+            long sequenceHighWater,
+            boolean supportSafe) {
+    }
+
+    private final class CrossSigningState {
         private volatile Map<String, Object> masterKey = Map.of();
         private volatile Map<String, Object> selfSigningKey = Map.of();
         private volatile Map<String, Object> userSigningKey = Map.of();
 
-        private void replaceMatchingKey(String keyId, Map<String, Object> signedObject) {
+        private void mergeMatchingKeySignatures(String keyId, Map<String, Object> uploadedSignatures) {
             if (containsKeyId(masterKey, keyId)) {
-                masterKey = signedObject;
+                masterKey = mergeSignedObjectSignatures(masterKey, uploadedSignatures);
             } else if (containsKeyId(selfSigningKey, keyId)) {
-                selfSigningKey = signedObject;
+                selfSigningKey = mergeSignedObjectSignatures(selfSigningKey, uploadedSignatures);
             } else if (containsKeyId(userSigningKey, keyId)) {
-                userSigningKey = signedObject;
+                userSigningKey = mergeSignedObjectSignatures(userSigningKey, uploadedSignatures);
             }
         }
 
         private boolean containsKeyId(Map<String, Object> key, String keyId) {
             Object rawKeys = key.get("keys");
-            return rawKeys instanceof Map<?, ?> keys && keys.containsKey(keyId);
+            return rawKeys instanceof Map<?, ?> keys
+                    && (keys.containsKey(keyId)
+                            || keys.keySet().stream()
+                                    .filter(String.class::isInstance)
+                                    .map(String.class::cast)
+                                    .anyMatch(storedKeyId -> storedKeyId.endsWith(":" + keyId)));
         }
     }
 
@@ -913,8 +1179,14 @@ public class MatrixE2eeStateService {
             Map<String, Object> deviceKeys,
             Map<String, Object> oneTimeKeys,
             Map<String, Object> fallbackKeys,
+            Set<String> usedFallbackAlgorithms,
             long changedSequence,
             boolean revoked) {
+        private PersistedDevice {
+            usedFallbackAlgorithms = usedFallbackAlgorithms == null
+                    ? Set.of()
+                    : Set.copyOf(usedFallbackAlgorithms);
+        }
     }
 
     private record PersistedCrossSigning(

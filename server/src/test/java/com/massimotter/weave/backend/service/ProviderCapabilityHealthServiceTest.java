@@ -183,6 +183,7 @@ class ProviderCapabilityHealthServiceTest {
         return new ProviderCapabilityHealthService(
                 files,
                 null,
+                null,
                 new ProviderHealthProperties(
                         Duration.ofSeconds(60),
                         Duration.ZERO,

@@ -6,6 +6,7 @@ class FakeChatRepository implements ChatRepository {
   FakeChatRepository({
     this.loadConversationsHandler,
     this.loadRoomTimelineHandler,
+    this.createConversationHandler,
     this.sendMessageHandler,
     this.markRoomReadHandler,
     this.connectHandler,
@@ -15,6 +16,8 @@ class FakeChatRepository implements ChatRepository {
 
   Future<List<ChatConversation>> Function()? loadConversationsHandler;
   Future<ChatRoomTimeline> Function(String roomId)? loadRoomTimelineHandler;
+  Future<ChatConversation> Function({required String title})?
+  createConversationHandler;
   Future<void> Function({required String roomId, required String message})?
   sendMessageHandler;
   Future<void> Function(String roomId)? markRoomReadHandler;
@@ -24,6 +27,7 @@ class FakeChatRepository implements ChatRepository {
 
   int loadConversationsCalls = 0;
   int loadRoomTimelineCalls = 0;
+  int createConversationCalls = 0;
   int sendMessageCalls = 0;
   int markRoomReadCalls = 0;
   int connectCalls = 0;
@@ -34,6 +38,16 @@ class FakeChatRepository implements ChatRepository {
   Future<List<ChatConversation>> loadConversations() async {
     loadConversationsCalls++;
     return loadConversationsHandler?.call() ?? const <ChatConversation>[];
+  }
+
+  @override
+  Future<ChatConversation> createConversation({required String title}) async {
+    createConversationCalls++;
+    final handler = createConversationHandler;
+    if (handler == null) {
+      throw UnimplementedError('createConversationHandler was not provided.');
+    }
+    return handler(title: title);
   }
 
   @override

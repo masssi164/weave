@@ -565,6 +565,28 @@
       ]
     },
     {
+      "tag": "@weave-v01-lost-pending-identity-retirement",
+      "suiteId": "v0-1-dogfood-release-spine",
+      "personas": [
+        "operator"
+      ],
+      "domains": [
+        "identity-idm",
+        "admin-health-ops",
+        "operator-release"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "backup integrity and identity-restorability are proven separately",
+        "only the exact restored disposable bootstrap identity is removed through Keycloak",
+        "only a proven never-activated lost subject is eligible",
+        "explicit protected retirement approval",
+        "private raw-subject archive and support-safe shared evidence",
+        "new pending identity through the Keycloak administration boundary",
+        "readiness remains blocked for activation and live verification"
+      ]
+    },
+    {
       "tag": "@weave-v01-admin-provider-categories",
       "suiteId": "v0-1-dogfood-release-spine",
       "personas": [
@@ -4789,6 +4811,22 @@
         "no plaintext compatibility room is created",
         "denial remains member-safe and support-safe"
       ]
+    },
+    {
+      "tag": "@matrix-synapse-durable-collaboration",
+      "suiteId": "member-live-critical-path",
+      "personas": ["member", "operator"],
+      "domains": ["chat", "identity-idm", "operator-release"],
+      "testLevel": "live-e2e",
+      "assertionFocus": ["direct provider acknowledgement", "opaque encrypted events", "backend restart", "provider restart", "outsider denial"]
+    },
+    {
+      "tag": "@matrix-synapse-outage-idempotency",
+      "suiteId": "member-live-critical-path",
+      "personas": ["member", "operator"],
+      "domains": ["chat", "admin-health-ops", "operator-release"],
+      "testLevel": "live-e2e",
+      "assertionFocus": ["provider outage containment", "invisible pending event", "exactly-once retry", "provider callback replay"]
     },
     {
       "tag": "@human-ready-auth-shell",

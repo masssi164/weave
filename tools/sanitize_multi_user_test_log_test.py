@@ -1,0 +1,469 @@
+#!/usr/bin/env python3
+"""Fixture tests for support-safe multi-user Flutter failure diagnostics."""
+
+from __future__ import annotations
+
+import json
+import re
+import runpy
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+SCRIPT = ROOT / "client" / "tool" / "sanitize_multi_user_test_log.py"
+DART_TEST = (
+    ROOT
+    / "client"
+    / "integration_test"
+    / "multi_user_collaboration_e2e_test.dart"
+)
+
+
+class SanitizeMultiUserTestLogTest(unittest.TestCase):
+    def test_failed_auth_is_categorized_without_leaking_input(self) -> None:
+        raw = """
+AuthFailure: OIDC sign-in failed for alice@example.org
+password=correct-horse-battery-staple
+access_token=abcdefghijklmnopqrstuvwxyz0123456789
+/Users/example/private/integration_test.dart:42
+"""
+        result = self.run_sanitizer(raw, exit_code=1)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertRegex(
+            result.stdout,
+            r"SANITIZED_MULTI_USER_FAILURE status=failed runIndex=1 "
+            r"category=authentication phase=unknown "
+            r"signatureHash=[0-9a-f]{64} supportSafe=true",
+        )
+        for secret in (
+            "alice@example.org",
+            "correct-horse-battery-staple",
+            "abcdefghijklmnopqrstuvwxyz0123456789",
+            "/Users/example/private",
+        ):
+            self.assertNotIn(secret, result.stdout)
+
+    def test_compile_failure_has_stable_support_safe_shape(self) -> None:
+        raw = "Error: Compilation failed for /private/tmp/runner/test.dart:17"
+
+        first = self.run_sanitizer(raw, exit_code=1)
+        second = self.run_sanitizer(raw, exit_code=1)
+
+        self.assertEqual(first.returncode, 0, first.stderr)
+        self.assertIn("category=compilation", first.stdout)
+        first_hash = re.search(r"signatureHash=([0-9a-f]{64})", first.stdout)
+        second_hash = re.search(r"signatureHash=([0-9a-f]{64})", second.stdout)
+        self.assertIsNotNone(first_hash)
+        self.assertIsNotNone(second_hash)
+        self.assertEqual(first_hash.group(1), second_hash.group(1))
+        self.assertNotIn("/private/tmp", first.stdout)
+
+    def test_passed_marker_is_preserved_without_failure_diagnostic(self) -> None:
+        payload = {
+            "status": "passed",
+            "runIndex": 1,
+            "supportSafe": True,
+            "authorHash": "a" * 16,
+        }
+        raw = "MULTI_USER_AUTH_SHELL_RESULT " + json.dumps(payload)
+
+        result = self.run_sanitizer(raw, exit_code=0)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("MULTI_USER_AUTH_SHELL_RESULT", result.stdout)
+        self.assertIn("status=passed runIndex=1", result.stdout)
+        self.assertNotIn("SANITIZED_MULTI_USER_FAILURE", result.stdout)
+
+    def test_failed_assertion_reports_only_allowlisted_last_phase(self) -> None:
+        raw = """
+00:00 +0: MULTI_USER_PROGRESS phase=author-write runIndex=1
+MULTI_USER_PROGRESS phase=author-chat-room runIndex=1
+MULTI_USER_PROGRESS phase=outsider-files-authorization runIndex=1
+MULTI_USER_PROGRESS phase=containment-calendar runIndex=2
+TestFailure: Expected: true Actual: false
+"""
+
+        result = self.run_sanitizer(raw, exit_code=1)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "category=authorization phase=outsider-files-authorization",
+            result.stdout,
+        )
+        self.assertNotIn("phase=author-chat-room", result.stdout)
+        self.assertNotIn("containment-calendar", result.stdout)
+
+    def test_fine_grained_author_chat_phase_is_support_safe(self) -> None:
+        raw = """
+MULTI_USER_PROGRESS phase=author-write runIndex=1
+MULTI_USER_PROGRESS phase=author-chat-room runIndex=1
+TestFailure: Expected: true Actual: false
+"""
+
+        result = self.run_sanitizer(raw, exit_code=1)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("category=assertion phase=author-chat-room", result.stdout)
+
+    def test_chat_connect_diagnostic_exposes_only_stable_failure_shape(self) -> None:
+        raw = """
+MULTI_USER_PROGRESS phase=author-chat-connect runIndex=1
+MULTI_USER_CHAT_CONNECT_DIAGNOSTIC role=author runIndex=1 failureType=configuration supportCode=M_WEAVE_E2EE_SYNC supportSafe=true
+ChatFailure with private provider response and access_token=secret
+"""
+
+        result = self.run_sanitizer(raw, exit_code=1)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "SANITIZED_MULTI_USER_CHAT_CONNECT_DIAGNOSTIC role=author "
+            "runIndex=1 failureType=configuration supportCode=M_WEAVE_E2EE_SYNC "
+            "supportSafe=true",
+            result.stdout,
+        )
+        self.assertNotIn("private provider response", result.stdout)
+        self.assertNotIn("secret", result.stdout)
+
+    def test_chat_send_diagnostic_exposes_only_stable_failure_shape(self) -> None:
+        raw = """
+MULTI_USER_PROGRESS phase=author-chat-send runIndex=1
+MULTI_USER_CHAT_SEND_DIAGNOSTIC role=author runIndex=1 failureType=peerDevicePending supportCode=M_WEAVE_E2EE_PEER_DEVICES supportSafe=true
+ChatFailure with private room id and ciphertext
+"""
+
+        result = self.run_sanitizer(raw, exit_code=1)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "SANITIZED_MULTI_USER_CHAT_SEND_DIAGNOSTIC role=author "
+            "runIndex=1 failureType=peerDevicePending "
+            "supportCode=M_WEAVE_E2EE_PEER_DEVICES supportSafe=true",
+            result.stdout,
+        )
+        self.assertNotIn("private room id", result.stdout)
+        self.assertNotIn("ciphertext", result.stdout)
+
+    def test_encrypted_device_exchange_phase_is_support_safe(self) -> None:
+        raw = """
+MULTI_USER_PROGRESS phase=room-provision runIndex=1
+MULTI_USER_PROGRESS phase=room-key-exchange-collaborator runIndex=1
+TestFailure: Expected: true Actual: false
+"""
+
+        result = self.run_sanitizer(raw, exit_code=1)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "category=assertion phase=room-key-exchange-collaborator",
+            result.stdout,
+        )
+
+    def test_actor_bootstrap_subphases_are_support_safe(self) -> None:
+        raw = """
+MULTI_USER_PROGRESS phase=room-author-bootstrap runIndex=1
+MULTI_USER_PROGRESS phase=containment-session-exchange runIndex=2
+TestFailure: Expected: true Actual: false
+"""
+
+        first = self.run_sanitizer(raw, exit_code=1)
+        second = self.run_sanitizer(raw, exit_code=1, run_index=2)
+
+        self.assertEqual(first.returncode, 0, first.stderr)
+        self.assertEqual(second.returncode, 0, second.stderr)
+        self.assertIn(
+            "category=assertion phase=room-author-bootstrap",
+            first.stdout,
+        )
+        self.assertIn(
+            "category=assertion phase=containment-session-exchange",
+            second.stdout,
+        )
+
+    def test_encrypted_peer_decryption_subphase_is_support_safe(self) -> None:
+        raw = """
+MULTI_USER_PROGRESS phase=room-key-exchange-author-send runIndex=1
+MULTI_USER_PROGRESS phase=room-key-exchange-collaborator-observe-author runIndex=1
+TestFailure: Expected: true Actual: false
+"""
+
+        result = self.run_sanitizer(raw, exit_code=1)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "category=receive "
+            "phase=room-key-exchange-collaborator-observe-author",
+            result.stdout,
+        )
+
+    def test_encrypted_send_failure_is_classified_at_the_send_boundary(self) -> None:
+        raw = """
+MULTI_USER_PROGRESS phase=room-key-exchange-author-send runIndex=1
+Failure code: M_WEAVE_E2EE_PEER_DEVICE_PENDING.
+"""
+
+        result = self.run_sanitizer(raw, exit_code=1)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "category=send phase=room-key-exchange-author-send",
+            result.stdout,
+        )
+
+    def test_decryption_support_code_refines_the_receive_boundary(self) -> None:
+        raw = """
+MULTI_USER_PROGRESS phase=room-key-exchange-author-observe-collaborator runIndex=1
+Failure code: M_WEAVE_E2EE_MISSING_MEGOLM_SESSION.
+"""
+
+        result = self.run_sanitizer(raw, exit_code=1)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "category=decrypt "
+            "phase=room-key-exchange-author-observe-collaborator",
+            result.stdout,
+        )
+
+    def test_sender_owned_redaction_failure_is_classified_as_cleanup(self) -> None:
+        raw = """
+MULTI_USER_PROGRESS phase=room-key-exchange-redaction runIndex=1
+MULTI_USER_MATRIX_FAILURE Failure code: M_WEAVE_LIVE_MATRIX_REDACT_EVENT_HTTP_403 runIndex=1
+"""
+
+        result = self.run_sanitizer(raw, exit_code=1)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "category=cleanup phase=room-key-exchange-redaction",
+            result.stdout,
+        )
+        self.assertIn(
+            "supportCode=M_WEAVE_LIVE_MATRIX_REDACT_EVENT_HTTP_403",
+            result.stdout,
+        )
+
+    def test_event_id_mismatch_detection_survives_optional_diagnostics(self) -> None:
+        raw = """
+MULTI_USER_PROGRESS phase=room-key-exchange-author-observe-collaborator runIndex=1
+MULTI_USER_E2EE_EVENT_ID_MISMATCH_DETECTED direction=collaborator-to-author runIndex=1 expectedHash=aaaaaaaaaaaaaaaa observedHash=bbbbbbbbbbbbbbbb
+TimeoutException after 0:00:04
+"""
+
+        result = self.run_sanitizer(raw, exit_code=1)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "SANITIZED_MULTI_USER_E2EE_EVENT_ID_MISMATCH_DETECTED "
+            "direction=collaborator-to-author runIndex=1 "
+            "expectedHash=aaaaaaaaaaaaaaaa observedHash=bbbbbbbbbbbbbbbb",
+            result.stdout,
+        )
+
+    def test_allowlisted_e2ee_support_code_is_preserved(self) -> None:
+        raw = """
+MULTI_USER_PROGRESS phase=room-key-exchange-collaborator-observe-author runIndex=1
+The two established Matrix devices could not exchange encrypted messages.
+Failure code: M_WEAVE_E2EE_MISSING_MEGOLM_SESSION.
+"""
+
+        result = self.run_sanitizer(raw, exit_code=1)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "supportCode=M_WEAVE_E2EE_MISSING_MEGOLM_SESSION supportSafe=true",
+            result.stdout,
+        )
+
+    def test_allowlisted_olm_support_code_is_preserved(self) -> None:
+        raw = """
+MULTI_USER_PROGRESS phase=room-key-exchange-collaborator-observe-author runIndex=1
+The receiving Matrix device could not decrypt a to-device envelope.
+Failure code: M_WEAVE_E2EE_OLM_DECRYPTION_FAILURE.
+"""
+
+        result = self.run_sanitizer(raw, exit_code=1)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "supportCode=M_WEAVE_E2EE_OLM_DECRYPTION_FAILURE supportSafe=true",
+            result.stdout,
+        )
+
+    def test_send_and_session_support_codes_are_preserved(self) -> None:
+        for support_code in (
+            "M_WEAVE_E2EE_PEER_DEVICE_BLOCKED",
+            "M_WEAVE_E2EE_PEER_DEVICE_INVALID",
+            "M_WEAVE_E2EE_PEER_DEVICE_PENDING",
+            "M_WEAVE_E2EE_PEER_DEVICE_REJECTED",
+            "M_WEAVE_E2EE_MEMBER_KEYS",
+            "M_WEAVE_E2EE_SEND",
+            "M_UNKNOWN_TOKEN",
+        ):
+            with self.subTest(support_code=support_code):
+                raw = f"""
+MULTI_USER_PROGRESS phase=room-key-exchange-author-send runIndex=1
+Failure code: {support_code}.
+"""
+
+                result = self.run_sanitizer(raw, exit_code=1)
+
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn(
+                    f"supportCode={support_code} supportSafe=true",
+                    result.stdout,
+                )
+
+    def test_unrecognized_support_code_is_not_preserved(self) -> None:
+        raw = """
+MULTI_USER_PROGRESS phase=room-key-exchange-author-observe-collaborator runIndex=1
+Failure code: M_WEAVE_E2EE_PROVIDER_PAYLOAD_PRIVATE.
+"""
+
+        result = self.run_sanitizer(raw, exit_code=1)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("supportCode=", result.stdout)
+        self.assertNotIn("PROVIDER_PAYLOAD_PRIVATE", result.stdout)
+
+    def test_peer_device_convergence_counts_are_preserved_support_safely(self) -> None:
+        fields = runpy.run_path(str(SCRIPT))["E2EE_DIAGNOSTIC_FIELDS"]
+        counts = " ".join(f"{field}={index}" for index, field in enumerate(fields))
+        raw = (
+            "MULTI_USER_E2EE_DIAGNOSTIC role=author runIndex=1 available=1 "
+            f"{counts}\n"
+        )
+
+        result = self.run_sanitizer(raw, exit_code=1)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "authoritativeDeviceCount=12 sdkDeviceCount=13 "
+            "sdkUsableDeviceCount=14",
+            result.stdout,
+        )
+        self.assertIn("sdkDeletedDeviceCount=15", result.stdout)
+        self.assertIn("rejectedPeerCount=23", result.stdout)
+        self.assertIn("supportSafe=true", result.stdout)
+
+    def test_compact_crypto_diagnostics_preserve_only_allowlisted_receive_state(self) -> None:
+        fields = runpy.run_path(str(SCRIPT))["E2EE_CRYPTO_DIAGNOSTIC_FIELDS"]
+        values = {
+            field: index for index, field in enumerate(fields, start=1)
+        }
+        counts = " ".join(f"{field}={values[field]}" for field in fields)
+        raw = (
+            "MULTI_USER_E2EE_CRYPTO_DIAGNOSTIC role=author runIndex=1 "
+            "available=1 supportCode=M_WEAVE_E2EE_OLM_DECRYPTION_FAILURE "
+            f"{counts}\n"
+        )
+
+        result = self.run_sanitizer(raw, exit_code=1)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "SANITIZED_MULTI_USER_E2EE_CRYPTO_DIAGNOSTIC "
+            "role=author runIndex=1 available=1 "
+            "supportCode=M_WEAVE_E2EE_OLM_DECRYPTION_FAILURE",
+            result.stdout,
+        )
+        self.assertIn(
+            "tdDec=1 tdKey=2 tdUtd=3 tdFail=4 "
+            "tdUnverified=5 supportSafe=true",
+            result.stdout,
+        )
+
+    def test_unrecognized_compact_crypto_diagnostic_code_is_dropped(self) -> None:
+        fields = runpy.run_path(str(SCRIPT))["E2EE_CRYPTO_DIAGNOSTIC_FIELDS"]
+        counts = " ".join(f"{field}=0" for field in fields)
+        raw = (
+            "MULTI_USER_E2EE_CRYPTO_DIAGNOSTIC role=author runIndex=1 "
+            f"available=1 supportCode=M_PRIVATE_PROVIDER_ERROR {counts}\n"
+        )
+
+        result = self.run_sanitizer(raw, exit_code=1)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("SANITIZED_MULTI_USER_E2EE_CRYPTO_DIAGNOSTIC", result.stdout)
+        self.assertNotIn("M_PRIVATE_PROVIDER_ERROR", result.stdout)
+
+    def test_unavailable_compact_crypto_diagnostic_has_a_safe_zero_shape(self) -> None:
+        fields = runpy.run_path(str(SCRIPT))["E2EE_CRYPTO_DIAGNOSTIC_FIELDS"]
+        counts = " ".join(f"{field}=0" for field in fields)
+        raw = (
+            "MULTI_USER_E2EE_CRYPTO_DIAGNOSTIC role=collaborator "
+            "runIndex=1 available=0 "
+            f"supportCode=M_WEAVE_E2EE_DIAGNOSTICS_UNAVAILABLE {counts}\n"
+        )
+
+        result = self.run_sanitizer(raw, exit_code=1)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "role=collaborator runIndex=1 available=0 "
+            "supportCode=M_WEAVE_E2EE_DIAGNOSTICS_UNAVAILABLE",
+            result.stdout,
+        )
+        self.assertIn("tdUnverified=0 supportSafe=true", result.stdout)
+
+    def test_fine_grained_collaborator_domain_phase_is_support_safe(self) -> None:
+        raw = """
+MULTI_USER_PROGRESS phase=collaborator-observe runIndex=1
+MULTI_USER_PROGRESS phase=collaborator-files-observe runIndex=1
+TestFailure: Expected: true Actual: false
+"""
+
+        result = self.run_sanitizer(raw, exit_code=1)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "category=assertion phase=collaborator-files-observe",
+            result.stdout,
+        )
+
+    def test_dart_and_sanitizer_progress_phase_allowlists_match(self) -> None:
+        dart_source = DART_TEST.read_text(encoding="utf-8")
+        dart_block = re.search(
+            r"const _supportSafeProgressPhases = <String>\{(.*?)\n\};",
+            dart_source,
+            flags=re.DOTALL,
+        )
+        self.assertIsNotNone(dart_block)
+        dart_phases = set(re.findall(r"'([^']+)'", dart_block.group(1)))
+        sanitizer_phases = set(runpy.run_path(str(SCRIPT))["PROGRESS_PHASES"])
+
+        self.assertEqual(dart_phases, sanitizer_phases)
+
+    def run_sanitizer(
+        self,
+        raw_log: str,
+        *,
+        exit_code: int,
+        run_index: int = 1,
+    ) -> subprocess.CompletedProcess[str]:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            log_path = Path(temporary_directory) / "raw.log"
+            log_path.write_text(raw_log, encoding="utf-8")
+            return subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT),
+                    "--input",
+                    str(log_path),
+                    "--run-index",
+                    str(run_index),
+                    "--test-exit-code",
+                    str(exit_code),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+
+if __name__ == "__main__":
+    unittest.main()

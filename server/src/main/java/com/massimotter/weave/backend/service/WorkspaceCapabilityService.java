@@ -347,23 +347,29 @@ public class WorkspaceCapabilityService {
             return status(capability, WorkspaceCapabilityReadiness.BLOCKED, category, requiredCapabilities, policy,
                     "Sign-in or workspace SSO must be ready before this capability can be used.");
         }
+        if ("files".equals(category)) {
+            ProviderCapabilityHealthResponse.CapabilityHealth filesHealth = cachedProviderHealth("files");
+            if (filesHealth != null) {
+                WorkspaceCapabilityReadiness readiness = effectiveProviderReadiness(
+                        capability.readiness(),
+                        providerReadiness(filesHealth.state()));
+                String memberImpact = readiness == WorkspaceCapabilityReadiness.READY
+                        ? readyImpact
+                        : "Files need admin attention before members can use them reliably. Ask an admin to inspect Workspace Health.";
+                return status(
+                        capability,
+                        readiness,
+                        category,
+                        requiredCapabilities,
+                        policy,
+                        memberImpact,
+                        filesHealth.supportSafeCode());
+            }
+        }
         if (capability.readiness() != null) {
             return status(capability, capability.readiness(), category, requiredCapabilities, policy, readyImpact);
         }
         if (hasText(capability.dependencyUrl())) {
-            if ("files".equals(category)) {
-                ProviderCapabilityHealthResponse.CapabilityHealth filesHealth = cachedProviderHealth("files");
-                if (filesHealth != null && !"available".equals(filesHealth.state())) {
-                    return status(
-                            capability,
-                            providerReadiness(filesHealth.state()),
-                            category,
-                            requiredCapabilities,
-                            policy,
-                            "Files need admin attention before members can use them reliably. Ask an admin to inspect Workspace Health.",
-                            filesHealth.supportSafeCode());
-                }
-            }
             return status(capability, WorkspaceCapabilityReadiness.READY, category, requiredCapabilities, policy, readyImpact);
         }
         return status(capability, WorkspaceCapabilityReadiness.DEGRADED, category, requiredCapabilities, policy,
@@ -397,7 +403,7 @@ public class WorkspaceCapabilityService {
             List<String> requiredCapabilities,
             EffectivePolicy policy,
             String readyImpact) {
-        if (!capability.enabled() || capability.readiness() != null) {
+        if (!capability.enabled()) {
             return standaloneStatus(
                     capability,
                     defaultReadiness,
@@ -416,7 +422,9 @@ public class WorkspaceCapabilityService {
                     policy,
                     readyImpact);
         }
-        WorkspaceCapabilityReadiness readiness = providerReadiness(providerHealth.state());
+        WorkspaceCapabilityReadiness readiness = effectiveProviderReadiness(
+                capability.readiness(),
+                providerReadiness(providerHealth.state()));
         String memberImpact = readiness == WorkspaceCapabilityReadiness.READY
                 ? readyImpact
                 : "This capability needs admin attention. Other workspace areas remain available while it recovers.";
@@ -428,6 +436,21 @@ public class WorkspaceCapabilityService {
                 policy,
                 memberImpact,
                 providerHealth.supportSafeCode());
+    }
+
+    private WorkspaceCapabilityReadiness effectiveProviderReadiness(
+            WorkspaceCapabilityReadiness configuredReadiness,
+            WorkspaceCapabilityReadiness providerReadiness) {
+        if (configuredReadiness == WorkspaceCapabilityReadiness.BLOCKED
+                || configuredReadiness == WorkspaceCapabilityReadiness.UNAVAILABLE) {
+            return configuredReadiness;
+        }
+        if (configuredReadiness == WorkspaceCapabilityReadiness.DEGRADED) {
+            return providerReadiness == WorkspaceCapabilityReadiness.UNAVAILABLE
+                    ? WorkspaceCapabilityReadiness.UNAVAILABLE
+                    : WorkspaceCapabilityReadiness.DEGRADED;
+        }
+        return providerReadiness;
     }
 
     private ProviderCapabilityHealthResponse.CapabilityHealth cachedProviderHealth(String capability) {

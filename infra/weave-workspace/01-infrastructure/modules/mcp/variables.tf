@@ -48,3 +48,9 @@ variable "mcp_boundary_token" {
   type        = string
   sensitive   = true
 }
+
+variable "resource_labels" {
+  description = "Ownership labels applied to every managed Docker resource."
+  type        = map(string)
+  default     = {}
+}

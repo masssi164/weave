@@ -322,10 +322,19 @@ public class CalendarFacadeService {
         }
         requireContextPermission(normalizedScope, ContextPermission.EDIT, "update-event");
         try {
-            return toResponse(adapter("update-event").write(new CalendarWrite(
+            CalendarProviderPort provider = adapter("update-event");
+            EventVersion expectedVersion = EventVersion.unknown();
+            if (ifMatch != null && !ifMatch.isBlank()) {
+                CalendarEvent current = provider.read(
+                        calendarId(),
+                        toDomainScope(normalizedScope),
+                        new EventId(eventUid));
+                expectedVersion = providerVersionFor(ifMatch, current.version());
+            }
+            return toResponse(provider.write(new CalendarWrite(
                     parsed,
                     WriteIntent.UPDATE,
-                    new EventVersion(ifMatch))), normalizedScope, false);
+                    expectedVersion)), normalizedScope, false);
         } catch (CalendarAdapterException exception) {
             throw apiError(exception, "update-event");
         }
@@ -832,6 +841,8 @@ public class CalendarFacadeService {
                         withDefaultDetails(Map.of("supportSafe", true), operation));
             }
             return event;
+        } catch (ApiErrorException exception) {
+            throw exception;
         } catch (CalendarAdapterException exception) {
             String code = "caldav-recurrence-unsupported".equals(exception.details().get("errorCode"))
                     ? "caldav-recurrence-unsupported"
@@ -841,6 +852,15 @@ public class CalendarFacadeService {
                     code,
                     "Calendar data is not a supported iCalendar VEVENT.",
                     withDefaultDetails(exception.details(), operation));
+        } catch (RuntimeException exception) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "calendar-ics-invalid",
+                    "Calendar data is not a supported iCalendar VEVENT.",
+                    withDefaultDetails(Map.of(
+                            "reason", "invalid-event-data",
+                            "supportSafe", true,
+                            "providerDataPlaneExposed", false), operation));
         }
     }
 
@@ -1137,6 +1157,50 @@ public class CalendarFacadeService {
                     "Calendar storage is currently unavailable.",
                     details);
         };
+    }
+
+    private EventVersion providerVersionFor(String candidateHeader, EventVersion currentVersion) {
+        String current = currentVersion == null ? null : currentVersion.value();
+        if (!etagMatches(current, candidateHeader)) {
+            throw new ApiErrorException(
+                    HttpStatus.PRECONDITION_FAILED,
+                    "caldav-precondition-failed",
+                    "If-Match did not match the current calendar event state.",
+                    Map.of(
+                            "module", "calendar",
+                            "operation", "update-event",
+                            "supportSafe", true,
+                            "providerDataPlaneExposed", false,
+                            "diagnosticsRedacted", true));
+        }
+        // The northbound ETag may have been normalized by an HTTP client or
+        // proxy. Preserve optimistic concurrency by validating that token at
+        // the facade, then send the provider's exact current token southbound.
+        return currentVersion;
+    }
+
+    private boolean etagMatches(String currentEtag, String candidateHeader) {
+        if (currentEtag == null || candidateHeader == null || candidateHeader.isBlank()) {
+            return false;
+        }
+        String current = normalizeEtag(currentEtag);
+        for (String candidate : candidateHeader.split(",")) {
+            if ("*".equals(candidate.trim()) || current.equals(normalizeEtag(candidate))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String normalizeEtag(String value) {
+        String normalized = value == null ? "" : value.trim();
+        if (normalized.startsWith("W/")) {
+            normalized = normalized.substring(2).trim();
+        }
+        if (normalized.length() >= 2 && normalized.startsWith("\"") && normalized.endsWith("\"")) {
+            normalized = normalized.substring(1, normalized.length() - 1);
+        }
+        return normalized;
     }
 
     private ApiErrorException adapterNotConfigured(String operation) {

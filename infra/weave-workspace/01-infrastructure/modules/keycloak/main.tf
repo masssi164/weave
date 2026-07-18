@@ -20,6 +20,14 @@ resource "docker_image" "this" {
 
 resource "docker_volume" "data" {
   name = var.volume_name
+
+  dynamic "labels" {
+    for_each = var.resource_labels
+    content {
+      label = labels.key
+      value = labels.value
+    }
+  }
 }
 
 resource "docker_container" "this" {
@@ -27,6 +35,14 @@ resource "docker_container" "this" {
   image   = docker_image.this.image_id
   command = ["start-dev"]
   restart = "unless-stopped"
+
+  dynamic "labels" {
+    for_each = var.resource_labels
+    content {
+      label = labels.key
+      value = labels.value
+    }
+  }
   depends_on = [
     docker_image.this,
     docker_volume.data,

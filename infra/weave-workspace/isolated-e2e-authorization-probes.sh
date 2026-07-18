@@ -13,7 +13,7 @@ source "${SCRIPT_DIR}/isolated-e2e-identities.sh"
 AUTHORIZATION_EVIDENCE_PATH="${WEAVE_E2E_AUTHORIZATION_EVIDENCE_PATH:-}"
 BACKEND_ORIGIN="${WEAVE_E2E_BACKEND_ORIGIN:-}"
 SHORT_TOKEN_LIFESPAN_SECONDS="${WEAVE_E2E_SHORT_TOKEN_LIFESPAN_SECONDS:-2}"
-TOKEN_EXPIRY_GRACE_SECONDS="${WEAVE_E2E_TOKEN_EXPIRY_GRACE_SECONDS:-2}"
+TOKEN_EXPIRY_GRACE_SECONDS="${WEAVE_E2E_TOKEN_EXPIRY_GRACE_SECONDS:-65}"
 
 PRIVATE_STATE_DIR=""
 ADMIN_ACCESS_TOKEN=""
@@ -55,7 +55,9 @@ Environment:
   WEAVE_E2E_BACKEND_ORIGIN                       Backend origin; defaults to
                                                  the loopback backend port.
   WEAVE_E2E_SHORT_TOKEN_LIFESPAN_SECONDS         2..5; defaults to 2.
-  WEAVE_E2E_TOKEN_EXPIRY_GRACE_SECONDS           1..5; defaults to 2.
+  WEAVE_E2E_TOKEN_EXPIRY_GRACE_SECONDS           60..90; defaults to 65 so the
+                                                  probe exceeds Resource Server
+                                                  clock-skew tolerance.
 EOF
 }
 
@@ -118,12 +120,14 @@ assert_subject_hash_bindings() {
 }
 
 resolve_marked_subject() {
-  local username="$1" users subject user
+  local username="$1" users subject user role
   users="$(resolve_user "${KEYCLOAK_API_BASE}" "${ADMIN_ACCESS_TOKEN}" "${username}")"
   subject="$(find_exact_id "${users}" username "${username}")"
   [[ -n "${subject}" ]] || fail "run-scoped identity is unavailable"
-  user="$(jq -c --arg id "${subject}" '.[] | select(.id == $id)' <<<"${users}")"
-  marker_matches "${user}" || fail "refusing to mutate an identity without this run's exact marker"
+  user="$(resolve_user_by_id "${KEYCLOAK_API_BASE}" "${ADMIN_ACCESS_TOKEN}" "${subject}")"
+  role="$(user_role_from_username "${username}")"
+  user_marker_matches "${user}" "${username}" "${role}" ||
+    fail "refusing to mutate an identity without this run's exact marker"
   printf '%s' "${subject}"
 }
 
@@ -460,7 +464,7 @@ run_authorization_probes() {
   command -v jq >/dev/null || fail "jq is required"
   command -v python3 >/dev/null || fail "python3 is required"
   require_bounded_integer WEAVE_E2E_SHORT_TOKEN_LIFESPAN_SECONDS "${SHORT_TOKEN_LIFESPAN_SECONDS}" 2 5
-  require_bounded_integer WEAVE_E2E_TOKEN_EXPIRY_GRACE_SECONDS "${TOKEN_EXPIRY_GRACE_SECONDS}" 1 5
+  require_bounded_integer WEAVE_E2E_TOKEN_EXPIRY_GRACE_SECONDS "${TOKEN_EXPIRY_GRACE_SECONDS}" 60 90
 
   load_runtime_environment
   assert_isolated_runtime
@@ -492,6 +496,9 @@ run_authorization_probes() {
   enable_direct_grants_for_token_minting
 
   local revoked_token missing_token expired_token
+  # Spring Resource Server intentionally tolerates clock skew after exp. Wait
+  # past both the bounded token lifetime and that tolerance before asserting
+  # rejection, while retaining a hard upper bound through input validation.
   local expiry_wait=$((SHORT_TOKEN_LIFESPAN_SECONDS + TOKEN_EXPIRY_GRACE_SECONDS))
   revoked_token="$(mint_user_token "${AUTHOR_USERNAME}" "${AUTHOR_PASSWORD}")"
   validate_workspace_token "${revoked_token}" "${AUTHOR_USERNAME}"

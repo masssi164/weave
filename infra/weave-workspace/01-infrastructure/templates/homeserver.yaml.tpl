@@ -30,6 +30,9 @@ macaroon_secret_key: "${synapse_macaroon_secret_key}"
 form_secret: "${synapse_form_secret}"
 signing_key_path: "/data/${matrix_homeserver}.signing.key"
 
+app_service_config_files:
+  - "${matrix_chat_appservice_registration_path}"
+
 trusted_key_servers:
   - server_name: "matrix.org"
 

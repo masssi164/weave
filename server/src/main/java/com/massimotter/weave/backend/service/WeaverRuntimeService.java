@@ -566,7 +566,7 @@ public class WeaverRuntimeService {
                 Instant.now(),
                 "weaver-runtime:" + decision.userRef(),
                 AuditRedactionLevel.SUPPORT_SAFE,
-                Map.ofEntries(
+                Map.<String, Object>ofEntries(
                         Map.entry("user", decision.userRef()),
                         Map.entry("desiredState", decision.desiredState()),
                         Map.entry("actualState", decision.actualState()),

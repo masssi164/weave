@@ -3,8 +3,8 @@
 
 # Shared guardrails for the local/dev Synapse data volume. These helpers are
 # sourced by install.sh and operator-check.sh; they intentionally scope all
-# checks to the Weave-local `weave-synapse` container and `weave_synapse_data`
-# volume, never to any unrelated homelab Synapse instance.
+# checks to the selected Weave namespace, never to any unrelated homelab
+# Synapse instance.
 
 : "${WEAVE_IAC_BIN:=tofu}"
 export WEAVE_IAC_BIN
@@ -26,11 +26,21 @@ synapse_volume_fail() {
 }
 
 synapse_volume_name() {
-  printf '%s\n' "${TF_VAR_synapse_volume_name:-weave_synapse_data}"
+  if declare -F weave_volume_name >/dev/null 2>&1; then
+    weave_volume_name synapse_data
+    printf '\n'
+    return
+  fi
+  printf 'weave_synapse_data\n'
 }
 
 synapse_container_name() {
-  printf '%s\n' "${TF_VAR_synapse_container_name:-weave-synapse}"
+  if declare -F weave_container_name >/dev/null 2>&1; then
+    weave_container_name synapse
+    printf '\n'
+    return
+  fi
+  printf 'weave-synapse\n'
 }
 
 synapse_image_name() {
@@ -59,6 +69,10 @@ synapse_docker_volume_exists() {
 
 synapse_terraform_state_has() {
   local address="$1"
+  if declare -F weave_iac >/dev/null 2>&1; then
+    weave_iac "${INFRA_DIR}" state show "${address}" >/dev/null 2>&1
+    return
+  fi
   "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" state show "${address}" >/dev/null 2>&1
 }
 
@@ -66,7 +80,11 @@ synapse_terraform_state_rm_if_present() {
   local address="$1"
 
   if synapse_terraform_state_has "${address}"; then
-    "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" state rm "${address}" >/dev/null
+    if declare -F weave_iac >/dev/null 2>&1; then
+      weave_iac "${INFRA_DIR}" state rm "${address}" >/dev/null
+    else
+      "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" state rm "${address}" >/dev/null
+    fi
   fi
 }
 
@@ -79,7 +97,11 @@ synapse_reconcile_terraform_state() {
   if synapse_docker_volume_exists; then
     if ! synapse_terraform_state_has module.matrix.docker_volume.synapse_data; then
       synapse_volume_log "Importing existing Docker volume ${volume} into OpenTofu state before bootstrap..."
-      "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" import -input=false module.matrix.docker_volume.synapse_data "${volume}"
+      if declare -F weave_iac >/dev/null 2>&1; then
+        weave_iac "${INFRA_DIR}" import -input=false module.matrix.docker_volume.synapse_data "${volume}"
+      else
+        "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" import -input=false module.matrix.docker_volume.synapse_data "${volume}"
+      fi
       # The existing volume may have been Docker-created outside Terraform. Force
       # the permission provisioner to run on the next apply instead of trusting
       # any stale provisioner state.

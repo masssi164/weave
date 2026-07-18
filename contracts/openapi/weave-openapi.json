@@ -3104,6 +3104,26 @@
         },
         "type": "object"
       },
+      "DomainCapability": {
+        "properties": {
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "supportReference": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "DomainMappingEvidence": {
         "properties": {
           "assumptions": {
@@ -3422,26 +3442,6 @@
               "type": "string"
             },
             "type": "array"
-          }
-        },
-        "type": "object"
-      },
-      "Features": {
-        "properties": {
-          "calendar": {
-            "type": "boolean"
-          },
-          "chat": {
-            "type": "boolean"
-          },
-          "chatE2ee": {
-            "type": "boolean"
-          },
-          "files": {
-            "type": "boolean"
-          },
-          "matrixFederation": {
-            "type": "boolean"
           }
         },
         "type": "object"
@@ -5119,6 +5119,17 @@
         },
         "type": "object"
       },
+      "Oidc": {
+        "properties": {
+          "clientId": {
+            "type": "string"
+          },
+          "issuer": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "Organization": {
         "properties": {
           "displayName": {
@@ -5325,40 +5336,38 @@
         "type": "object"
       },
       "PlatformConfigResponse": {
-        "description": "Public platform configuration consumed by Weave clients.",
+        "description": "Provider-neutral organization manifest consumed by Weave clients.",
         "properties": {
-          "apiBaseUrl": {
+          "controlPlaneBaseUrl": {
             "type": "string"
           },
-          "authBaseUrl": {
+          "domains": {
+            "items": {
+              "$ref": "#/components/schemas/DomainCapability"
+            },
+            "type": "array"
+          },
+          "oidc": {
+            "$ref": "#/components/schemas/Oidc"
+          },
+          "organizationOrigin": {
             "type": "string"
           },
-          "calendarProductUrl": {
+          "protocols": {
+            "$ref": "#/components/schemas/Protocols"
+          },
+          "recoveryActions": {
+            "items": {
+              "$ref": "#/components/schemas/RecoveryAction"
+            },
+            "type": "array"
+          },
+          "releasePosture": {
             "type": "string"
           },
-          "features": {
-            "$ref": "#/components/schemas/Features"
-          },
-          "filesProductUrl": {
-            "type": "string"
-          },
-          "matrixHomeserverUrl": {
-            "type": "string"
-          },
-          "nextcloudBaseUrl": {
-            "type": "string"
-          },
-          "oidcClientId": {
-            "type": "string"
-          },
-          "oidcIssuerUrl": {
-            "type": "string"
-          },
-          "publicBaseUrl": {
-            "type": "string"
-          },
-          "targets": {
-            "$ref": "#/components/schemas/Targets"
+          "schemaVersion": {
+            "format": "int32",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -5515,6 +5524,20 @@
               "type": "string"
             },
             "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "Protocols": {
+        "properties": {
+          "calendarCalDavBaseUrl": {
+            "type": "string"
+          },
+          "filesWebDavBaseUrl": {
+            "type": "string"
+          },
+          "matrixClientServerBaseUrl": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -6487,6 +6510,20 @@
         },
         "type": "object"
       },
+      "RecoveryAction": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "supportReference": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "RecoveryIdentity": {
         "properties": {
           "breakGlass": {
@@ -6873,20 +6910,6 @@
             "type": "array"
           },
           "rollbackRequired": {
-            "type": "boolean"
-          }
-        },
-        "type": "object"
-      },
-      "Targets": {
-        "properties": {
-          "desktop": {
-            "type": "boolean"
-          },
-          "mobile": {
-            "type": "boolean"
-          },
-          "web": {
             "type": "boolean"
           }
         },

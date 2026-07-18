@@ -16,8 +16,8 @@ void main() {
     final container = ProviderContainer.test(
       overrides: [
         clientBuildIdentityProvider.overrideWith(
-          (ref) async => const ClientBuildIdentity(
-            candidateCommit: 'abc1234def5678',
+          (ref) async => ClientBuildIdentity.supportSafe(
+            candidateCommit: 'abc1234def5678abc1234def5678abc1234def56',
             version: '0.1.0',
             buildNumber: '1042',
             bundleIdentifier: 'com.massimotter.weave',
@@ -48,7 +48,10 @@ void main() {
 
     expect(find.text('Support diagnostics'), findsOneWidget);
     expect(find.text('https://api.home.internal'), findsOneWidget);
-    expect(find.text('abc1234def5678'), findsOneWidget);
+    expect(
+      find.text('abc1234def5678abc1234def5678abc1234def56'),
+      findsOneWidget,
+    );
     expect(find.text('0.1.0 (1042)'), findsOneWidget);
     expect(find.text('com.massimotter.weave'), findsOneWidget);
     expect(find.text('dogfood/1042/manifest-v1'), findsOneWidget);
@@ -56,7 +59,7 @@ void main() {
     expect(find.textContaining('unsafe'), findsNothing);
     expect(
       find.bySemanticsLabel(
-        'Candidate commit: abc1234def5678',
+        'Candidate commit: abc1234def5678abc1234def5678abc1234def56',
         skipOffstage: false,
       ),
       findsOneWidget,

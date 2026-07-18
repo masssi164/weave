@@ -61,15 +61,14 @@ void main() {
       expect(request.headers['X-Weave-Handoff-Ref'], 'invite-abc123');
       expect(request.headers['X-Weave-Handoff-Run-Id'], 's32-check');
       return http.Response(
-        jsonEncode({
-          'publicBaseUrl': 'https://weave.test:44443',
-          'apiBaseUrl': 'https://api.weave.test:44443/api',
-          'authBaseUrl': 'https://auth.weave.test:44443',
-          'oidcIssuerUrl': 'https://auth.weave.test:44443/realms/weave',
-          'oidcClientId': 'weave-app',
-          'matrixHomeserverUrl': 'https://api.weave.test:44443/',
-          'filesProductUrl': 'https://weave.test:44443/files',
-        }),
+        jsonEncode(
+          _manifest(
+            organizationOrigin: 'https://weave.test:44443',
+            controlPlaneBaseUrl: 'https://api.weave.test:44443/api',
+            issuer: 'https://auth.weave.test:44443/realms/weave',
+            matrixClientServerBaseUrl: 'https://api.weave.test:44443/',
+          ),
+        ),
         200,
         headers: {'content-type': 'application/json'},
       );
@@ -101,7 +100,7 @@ void main() {
     );
     expect(
       saved.serviceEndpoints.nextcloudBaseUrl.toString(),
-      'https://weave.test:44443/files',
+      'https://api.weave.test:44443/api/dav/files',
     );
     final evidence =
         jsonDecode(evidenceStore.strings[lastHandoffConsumedStorageKey]!)
@@ -145,15 +144,14 @@ void main() {
           'https://weave.test:44443/api/platform/config',
         );
         return http.Response(
-          jsonEncode({
-            'publicBaseUrl': 'https://weave.test:44443',
-            'apiBaseUrl': 'https://api.weave.test:44443/api',
-            'authBaseUrl': 'https://auth.weave.test:44443',
-            'oidcIssuerUrl': 'https://auth.weave.test:44443/realms/weave',
-            'oidcClientId': 'weave-app',
-            'matrixHomeserverUrl': 'https://api.weave.test:44443',
-            'filesProductUrl': 'https://weave.test:44443/files',
-          }),
+          jsonEncode(
+            _manifest(
+              organizationOrigin: 'https://weave.test:44443',
+              controlPlaneBaseUrl: 'https://api.weave.test:44443/api',
+              issuer: 'https://auth.weave.test:44443/realms/weave',
+              matrixClientServerBaseUrl: 'https://api.weave.test:44443',
+            ),
+          ),
           200,
           headers: {'content-type': 'application/json'},
         );
@@ -234,16 +232,14 @@ void main() {
         'https://join.weave.example/api/platform/config',
       );
       return http.Response(
-        jsonEncode({
-          'publicBaseUrl': 'https://join.weave.example',
-          'apiBaseUrl': 'https://api.weave.example/api',
-          'authBaseUrl': 'https://auth.weave.example',
-          'oidcIssuerUrl': 'https://auth.weave.example/realms/weave',
-          'oidcClientId': 'weave-app',
-          'matrixHomeserverUrl': 'https://api.weave.example',
-          'filesProductUrl': 'https://weave.weave.example/files',
-          'nextcloudBaseUrl': 'http://weave-nextcloud',
-        }),
+        jsonEncode(
+          _manifest(
+            organizationOrigin: 'https://join.weave.example',
+            controlPlaneBaseUrl: 'https://api.weave.example/api',
+            issuer: 'https://auth.weave.example/realms/weave',
+            matrixClientServerBaseUrl: 'https://api.weave.example',
+          ),
+        ),
         200,
         headers: {'content-type': 'application/json'},
       );
@@ -275,7 +271,7 @@ void main() {
     );
     expect(
       saved.serviceEndpoints.nextcloudBaseUrl.toString(),
-      'https://weave.weave.example/files',
+      'https://api.weave.example/api/dav/files',
     );
   });
 
@@ -283,13 +279,14 @@ void main() {
     final repository = _RecordingServerConfigurationRepository();
     final httpClient = MockClient((request) async {
       return http.Response(
-        jsonEncode({
-          'apiBaseUrl': 'https://api.weave.example/api',
-          'oidcIssuerUrl': 'https://auth.weave.example/realms/weave',
-          'oidcClientId': 'weave-app',
-          'matrixHomeserverUrl': 'https://matrix.weave.example',
-          'filesProductUrl': 'https://weave.example/files',
-        }),
+        jsonEncode(
+          _manifest(
+            organizationOrigin: 'https://join.weave.example',
+            controlPlaneBaseUrl: 'https://api.weave.example/api',
+            issuer: 'https://auth.weave.example/realms/weave',
+            matrixClientServerBaseUrl: 'https://matrix.weave.example',
+          ),
+        ),
         200,
       );
     });
@@ -307,7 +304,7 @@ void main() {
         isA<AppFailure>().having(
           (failure) => failure.message,
           'message',
-          contains('matrixHomeserverUrl must be the Weave API origin'),
+          contains('matrixClientServerBaseUrl must be the Weave API origin'),
         ),
       ),
     );
@@ -318,13 +315,14 @@ void main() {
     final repository = _RecordingServerConfigurationRepository();
     final httpClient = MockClient((request) async {
       return http.Response(
-        jsonEncode({
-          'apiBaseUrl': 'https://api.weave.example/api',
-          'authBaseUrl': 'https://auth.weave.example',
-          'oidcIssuerUrl': 'https://user:pass@auth.weave.example/realms/weave',
-          'matrixHomeserverUrl': 'https://api.weave.example',
-          'filesProductUrl': 'https://files.weave.example',
-        }),
+        jsonEncode(
+          _manifest(
+            organizationOrigin: 'https://join.weave.example',
+            controlPlaneBaseUrl: 'https://api.weave.example/api',
+            issuer: 'https://user:pass@auth.weave.example/realms/weave',
+            matrixClientServerBaseUrl: 'https://api.weave.example',
+          ),
+        ),
         200,
       );
     });
@@ -343,7 +341,7 @@ void main() {
     expect(repository.saved, isNull);
   });
 
-  test('rejects obsolete authBaseUrl-only platform configuration', () async {
+  test('rejects obsolete provider-shaped platform configuration', () async {
     final repository = _RecordingServerConfigurationRepository();
     final httpClient = MockClient((request) async {
       return http.Response(
@@ -371,10 +369,44 @@ void main() {
         isA<AppFailure>().having(
           (failure) => failure.message,
           'message',
-          contains('oidcIssuerUrl is required'),
+          contains('unsupported fields'),
         ),
       ),
     );
     expect(repository.saved, isNull);
   });
 }
+
+Map<String, Object> _manifest({
+  required String organizationOrigin,
+  required String controlPlaneBaseUrl,
+  required String issuer,
+  required String matrixClientServerBaseUrl,
+}) => <String, Object>{
+  'schemaVersion': 1,
+  'organizationOrigin': organizationOrigin,
+  'controlPlaneBaseUrl': controlPlaneBaseUrl,
+  'oidc': <String, Object>{'issuer': issuer, 'clientId': 'weave-app'},
+  'protocols': <String, Object>{
+    'matrixClientServerBaseUrl': matrixClientServerBaseUrl,
+    'filesWebDavBaseUrl': '$controlPlaneBaseUrl/dav/files',
+    'calendarCalDavBaseUrl': '$controlPlaneBaseUrl/caldav',
+  },
+  'releasePosture': 'dogfood',
+  'domains': <Map<String, Object>>[
+    for (final domain in <String>[
+      'identity',
+      'chat',
+      'files',
+      'calendar',
+      'boards',
+      'health',
+    ])
+      <String, Object>{
+        'domain': domain,
+        'state': 'available',
+        'capabilities': <String>[],
+      },
+  ],
+  'recoveryActions': <Object>[],
+};

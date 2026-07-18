@@ -22,6 +22,7 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.web.access.expression.WebExpressionAuthorizationManager;
 import org.springframework.security.web.firewall.HttpFirewall;
 import org.springframework.security.web.firewall.StrictHttpFirewall;
@@ -47,6 +48,7 @@ public class SecurityConfig {
     }
 
     @Bean
+    @Order(3)
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
@@ -63,6 +65,7 @@ public class SecurityConfig {
                                 "/error").permitAll()
                         .requestMatchers("/api/health/**", "/api/platform/config", "/api/platform/status").permitAll()
                         .requestMatchers("/.well-known/matrix/client", "/.well-known/weave").permitAll()
+                        .requestMatchers(ChatE2eProofSecurityConfiguration.PATH).permitAll()
                         .requestMatchers("/v3/api-docs", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/api/internal/keycloak/events").permitAll()
                         .requestMatchers("/api/migration/**").access(MIGRATION_CONTROL_PLANE_ACCESS)
