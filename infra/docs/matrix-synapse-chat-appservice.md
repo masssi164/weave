@@ -171,6 +171,14 @@ URLs, raw callback bodies, encrypted envelopes, or member content. The
 `hs_token` remains directional: it authenticates simulated Synapse callback
 replay only and grants no provider-proof access.
 
+Application Service retry identity is keyed by the homeserver-generated
+transaction ID plus a canonical semantic digest. Synapse reconstructs queued
+transactions and recalculates the presentation-only `unsigned.age` field on
+each delivery attempt, so that one field is excluded from the digest and JSON
+object keys are ordered canonically. Event arrays, IDs, types, senders, room
+references, content, state keys, and every other unsigned field remain covered;
+semantic drift for the same transaction ID still fails closed.
+
 Correlation evidence is phase-aware: the outage snapshot names only the two
 events committed before retry, while post-retry and restart snapshots name all
 three. A proof request whose expected correlation count differs from the

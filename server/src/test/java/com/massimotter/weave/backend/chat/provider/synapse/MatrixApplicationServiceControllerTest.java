@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.chat.provider.synapse;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.chat.e2e.ChatE2eCallbackReplayTap;
 import com.massimotter.weave.backend.chat.port.CanonicalChatStore;
@@ -80,6 +81,34 @@ class MatrixApplicationServiceControllerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         verify(store, never()).recordCallbackEvent(anyString(), any());
         verify(store, never()).completeCallback(anyString(), anyString(), anyInt());
+    }
+
+    @Test
+    void callbackRetryDigestIgnoresOnlyRecomputedUnsignedAgeAndJsonObjectOrder() throws Exception {
+        JsonNode first = objectMapper.readTree("""
+                {"events":[{
+                  "event_id":"$state:matrix.internal",
+                  "type":"m.room.create",
+                  "content":{"creator":"@_weave_sender:matrix.internal"},
+                  "unsigned":{"age":12,"stable":"kept"}
+                }]}
+                """);
+        JsonNode retried = objectMapper.readTree("""
+                {"events":[{
+                  "unsigned":{"stable":"kept","age":98765},
+                  "content":{"creator":"@_weave_sender:matrix.internal"},
+                  "type":"m.room.create",
+                  "event_id":"$state:matrix.internal"
+                }]}
+                """);
+        JsonNode changed = retried.deepCopy();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) changed.path("events").get(0).path("content"))
+                .put("creator", "@_weave_other:matrix.internal");
+
+        assertThat(MatrixApplicationServiceController.semanticPayloadDigest(first))
+                .isEqualTo(MatrixApplicationServiceController.semanticPayloadDigest(retried))
+                .isNotEqualTo(MatrixApplicationServiceController.semanticPayloadDigest(changed));
+        assertThat(first.path("events").get(0).path("unsigned").path("age").asInt()).isEqualTo(12);
     }
 
     @Test

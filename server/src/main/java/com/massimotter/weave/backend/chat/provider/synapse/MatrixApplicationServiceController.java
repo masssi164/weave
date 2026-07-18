@@ -3,6 +3,8 @@ package com.massimotter.weave.backend.chat.provider.synapse;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.TextNode;
 import com.massimotter.weave.backend.chat.port.CanonicalChatStore;
 import com.massimotter.weave.backend.chat.e2e.ChatE2eCallbackReplayTap;
 import com.massimotter.weave.backend.config.ChatRuntimeProperties;
@@ -13,6 +15,8 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HexFormat;
 import java.util.Map;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -106,7 +110,7 @@ public final class MatrixApplicationServiceController {
                 return matrixError(HttpStatus.PAYLOAD_TOO_LARGE, "M_TOO_LARGE", "Application Service transaction is too large.");
             }
             CanonicalChatStore.CallbackStart start = store.beginCallback(
-                    provider.providerKey(), safeTransactionId, sha256(payload), events.size());
+                    provider.providerKey(), safeTransactionId, semanticPayloadDigest(root), events.size());
             if (start == CanonicalChatStore.CallbackStart.DUPLICATE) {
                 return ResponseEntity.ok(Map.of());
             }
@@ -236,12 +240,72 @@ public final class MatrixApplicationServiceController {
         return stateKey.textValue();
     }
 
-    private String sha256(byte[] value) {
+    private static String sha256(byte[] value) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value));
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("SHA-256 is unavailable", exception);
         }
+    }
+
+    /**
+     * Synapse reconstructs a queued Application Service transaction on every
+     * delivery attempt. Its serializer recalculates {@code unsigned.age}, so
+     * byte-for-byte payload hashing would reject a legitimate retry even though
+     * the homeserver transaction and persistent event data are unchanged.
+     */
+    static String semanticPayloadDigest(JsonNode root) {
+        JsonNode normalized = root.deepCopy();
+        JsonNode events = normalized.path("events");
+        if (events.isArray()) {
+            events.forEach(MatrixApplicationServiceController::removeVolatileEventAge);
+        }
+        StringBuilder canonical = new StringBuilder();
+        appendCanonicalJson(normalized, canonical);
+        return sha256(canonical.toString().getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static void removeVolatileEventAge(JsonNode event) {
+        if (!(event instanceof ObjectNode eventObject)) {
+            return;
+        }
+        JsonNode unsigned = eventObject.get("unsigned");
+        if (!(unsigned instanceof ObjectNode unsignedObject)) {
+            return;
+        }
+        unsignedObject.remove("age");
+        removeVolatileEventAge(unsignedObject.get("redacted_because"));
+    }
+
+    private static void appendCanonicalJson(JsonNode value, StringBuilder target) {
+        if (value.isObject()) {
+            ArrayList<String> fields = new ArrayList<>();
+            value.fieldNames().forEachRemaining(fields::add);
+            Collections.sort(fields);
+            target.append('{');
+            for (int index = 0; index < fields.size(); index++) {
+                if (index > 0) {
+                    target.append(',');
+                }
+                String field = fields.get(index);
+                target.append(TextNode.valueOf(field)).append(':');
+                appendCanonicalJson(value.get(field), target);
+            }
+            target.append('}');
+            return;
+        }
+        if (value.isArray()) {
+            target.append('[');
+            for (int index = 0; index < value.size(); index++) {
+                if (index > 0) {
+                    target.append(',');
+                }
+                appendCanonicalJson(value.get(index), target);
+            }
+            target.append(']');
+            return;
+        }
+        target.append(value);
     }
 
     private ResponseEntity<Map<String, Object>> matrixError(HttpStatus status, String code, String message) {
