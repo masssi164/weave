@@ -25,6 +25,8 @@ class DogfoodDeploymentEvidenceTest(unittest.TestCase):
         return {
             "schemaVersion": "weave.persistent-dogfood-comparison.v1",
             "status": "passed" if passed else "failed",
+            "baselineSource": "pre-deploy",
+            "preExistingRuntimeObserved": True,
             "twoNonDestructiveInstallsPreservedState": passed,
             "supportSafe": True,
         }
@@ -56,11 +58,22 @@ class DogfoodDeploymentEvidenceTest(unittest.TestCase):
         evidence = self.assemble()
         self.assertEqual(evidence["deployment"]["stackStatus"], "passed")
         self.assertTrue(evidence["deployment"]["persistentHumanUnchanged"])
+        self.assertEqual(evidence["deployment"]["baselineSource"], "pre-deploy")
+        self.assertTrue(evidence["deployment"]["preExistingRuntimeObserved"])
         self.assertEqual(evidence["providerHealth"]["capabilities"]["files"], "available")
         self.assertEqual(evidence["blockers"], [])
         serialized = json.dumps(evidence).lower()
         self.assertNotIn("password", serialized)
         self.assertNotIn("token", serialized)
+
+    def test_cold_start_baseline_is_green_but_does_not_claim_preexisting_runtime(self):
+        comparison = self.comparison()
+        comparison["baselineSource"] = "first-install"
+        comparison["preExistingRuntimeObserved"] = False
+        evidence = self.assemble(comparison=comparison)
+        self.assertEqual(evidence["deployment"]["stackStatus"], "passed")
+        self.assertEqual(evidence["deployment"]["baselineSource"], "first-install")
+        self.assertFalse(evidence["deployment"]["preExistingRuntimeObserved"])
 
     def test_degraded_provider_is_explicitly_blocked(self):
         evidence = self.assemble(health=self.health("degraded"))

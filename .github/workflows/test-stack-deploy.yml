@@ -248,9 +248,18 @@ jobs:
         working-directory: infra/weave-workspace
         run: |
           set -euo pipefail
-          WEAVE_DOGFOOD_MEMBER_SUBJECT_FILE="$HOME/.weave/dogfood/persistent-member.subject" \
-            ./persistent-dogfood-observation.sh capture \
-            --output "$WEAVE_TEST_STACK_EVIDENCE_DIR/persistent-dogfood-before.json"
+          baseline_source=first-install
+          if curl --silent --fail --max-time 5 \
+              --cacert "$TF_VAR_caddy_tls_ca_file" \
+              "https://auth.weave.test:${TF_VAR_proxy_host_port}/realms/weave/.well-known/openid-configuration" >/dev/null 2>&1; then
+            WEAVE_DOGFOOD_MEMBER_SUBJECT_FILE="$HOME/.weave/dogfood/persistent-member.subject" \
+              ./persistent-dogfood-observation.sh capture \
+              --output "$WEAVE_TEST_STACK_EVIDENCE_DIR/persistent-dogfood-before.json"
+            baseline_source=pre-deploy
+          else
+            echo "Persistent runtime is stopped; the first exact-candidate install will establish the support-safe baseline."
+          fi
+          echo "WEAVE_PERSISTENT_BASELINE_SOURCE=$baseline_source" >> "$GITHUB_ENV"
 
       - name: Deploy or update persistent LAN test stack
         working-directory: infra/weave-workspace
@@ -312,6 +321,17 @@ jobs:
             echo "::error::Persistent dogfood member subject changed across deployment." >&2
             exit 1
           }
+
+      - name: Establish persistent baseline after first cold-start install
+        working-directory: infra/weave-workspace
+        run: |
+          set -euo pipefail
+          if [[ "$WEAVE_PERSISTENT_BASELINE_SOURCE" == first-install ]]; then
+            WEAVE_DOGFOOD_MEMBER_SUBJECT_FILE="$HOME/.weave/dogfood/persistent-member.subject" \
+              ./persistent-dogfood-observation.sh capture \
+              --output "$WEAVE_TEST_STACK_EVIDENCE_DIR/persistent-dogfood-before.json"
+          fi
+          test -s "$WEAVE_TEST_STACK_EVIDENCE_DIR/persistent-dogfood-before.json"
 
       - name: Apply the same candidate a second time non-destructively
         working-directory: infra/weave-workspace

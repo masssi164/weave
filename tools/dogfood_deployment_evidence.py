@@ -199,6 +199,13 @@ def assemble_deployment(
         raise EvidenceError("persistent comparison schemaVersion is unsupported")
     if comparison.get("supportSafe") is not True:
         raise EvidenceError("persistent comparison is not support-safe")
+    baseline_source = comparison.get("baselineSource")
+    pre_existing_runtime_observed = comparison.get("preExistingRuntimeObserved")
+    if (
+        baseline_source not in {"pre-deploy", "first-install"}
+        or pre_existing_runtime_observed is not (baseline_source == "pre-deploy")
+    ):
+        raise EvidenceError("persistent comparison baseline source is malformed")
     persistent_unchanged = (
         comparison.get("status") == "passed"
         and comparison.get("twoNonDestructiveInstallsPreservedState") is True
@@ -261,6 +268,8 @@ def assemble_deployment(
             "stackStatus": "passed" if deployment_passed else "blocked",
             "idempotencyStatus": "passed" if idempotency_passed else "failed",
             "persistentHumanUnchanged": persistent_unchanged,
+            "baselineSource": baseline_source,
+            "preExistingRuntimeObserved": pre_existing_runtime_observed,
         },
         "providerHealth": {
             "overall": provider_overall,
