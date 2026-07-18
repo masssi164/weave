@@ -129,6 +129,25 @@ ChatFailure with private provider response and access_token=secret
         self.assertNotIn("private provider response", result.stdout)
         self.assertNotIn("secret", result.stdout)
 
+    def test_chat_send_diagnostic_exposes_only_stable_failure_shape(self) -> None:
+        raw = """
+MULTI_USER_PROGRESS phase=author-chat-send runIndex=1
+MULTI_USER_CHAT_SEND_DIAGNOSTIC role=author runIndex=1 failureType=peerDevicePending supportCode=M_WEAVE_E2EE_PEER_DEVICES supportSafe=true
+ChatFailure with private room id and ciphertext
+"""
+
+        result = self.run_sanitizer(raw, exit_code=1)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "SANITIZED_MULTI_USER_CHAT_SEND_DIAGNOSTIC role=author "
+            "runIndex=1 failureType=peerDevicePending "
+            "supportCode=M_WEAVE_E2EE_PEER_DEVICES supportSafe=true",
+            result.stdout,
+        )
+        self.assertNotIn("private room id", result.stdout)
+        self.assertNotIn("ciphertext", result.stdout)
+
     def test_encrypted_device_exchange_phase_is_support_safe(self) -> None:
         raw = """
 MULTI_USER_PROGRESS phase=room-provision runIndex=1

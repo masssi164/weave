@@ -260,7 +260,13 @@ void main() {
         _emitProgress(configuration, 'author-chat-room');
         await _requireEncryptedConversation(session, roomId);
         _emitProgress(configuration, 'author-chat-send');
-        await session.chat.sendMessage(roomId: roomId, message: authorMessage);
+        await _sendChatWithSupportSafeFailure(
+          configuration: configuration,
+          role: CollaborationActorRole.author,
+          session: session,
+          roomId: roomId,
+          message: authorMessage,
+        );
         _emitProgress(configuration, 'author-chat-observe');
         final sentAuthorMessage = await _waitForChatMessage(
           session,
@@ -338,7 +344,10 @@ void main() {
         await _waitForChatMessage(session, roomId, authorMessage);
         authorMessageObserved = true;
         _emitProgress(configuration, 'collaborator-chat-send');
-        await session.chat.sendMessage(
+        await _sendChatWithSupportSafeFailure(
+          configuration: configuration,
+          role: CollaborationActorRole.collaborator,
+          session: session,
           roomId: roomId,
           message: collaboratorReply,
         );
@@ -2089,6 +2098,36 @@ Future<void> _connectChatWithSupportSafeFailure({
     // ignore: avoid_print
     print(
       'MULTI_USER_CHAT_CONNECT_DIAGNOSTIC '
+      'role=${role.name} runIndex=${configuration.runIndex} '
+      'failureType=${failure.type.name} supportCode=$supportCode '
+      'supportSafe=true',
+    );
+    rethrow;
+  }
+}
+
+Future<void> _sendChatWithSupportSafeFailure({
+  required MultiUserTestConfig configuration,
+  required CollaborationActorRole role,
+  required LiveActorSession session,
+  required String roomId,
+  required String message,
+}) async {
+  try {
+    await session.chat.sendMessage(roomId: roomId, message: message);
+  } on ChatFailure catch (failure) {
+    final cause = failure.cause;
+    final rawCode = cause is RustMatrixCoreBridgeException
+        ? cause.code
+        : 'none';
+    final supportCode = RegExp(r'^M_[A-Z0-9_]{2,80}$').hasMatch(rawCode)
+        ? rawCode
+        : 'none';
+    // This deliberately mirrors the connect diagnostic: the mutable message,
+    // room identifier, exception text, and provider response remain private.
+    // ignore: avoid_print
+    print(
+      'MULTI_USER_CHAT_SEND_DIAGNOSTIC '
       'role=${role.name} runIndex=${configuration.runIndex} '
       'failureType=${failure.type.name} supportCode=$supportCode '
       'supportSafe=true',
