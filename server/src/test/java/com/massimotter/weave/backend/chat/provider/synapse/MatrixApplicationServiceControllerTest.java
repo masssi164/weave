@@ -84,9 +84,27 @@ class MatrixApplicationServiceControllerTest {
     }
 
     @Test
+    void callbackSemanticDisagreementFailsClosedWithoutProcessingEvents() {
+        when(provider.providerKey()).thenReturn("matrix-synapse");
+        when(resolver.synapseAdapter()).thenReturn(adapter);
+        when(store.beginCallback(anyString(), anyString(), anyString(), anyInt()))
+                .thenReturn(CanonicalChatStore.CallbackStart.SEMANTIC_MISMATCH);
+        MatrixApplicationServiceController controller = controller(65_536);
+
+        var response = controller.transaction("hs-transaction-mismatch", request("{\"events\":[]}"));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        assertThat(response.getBody())
+                .containsEntry("errcode", "M_UNAVAILABLE")
+                .doesNotContainValue("hs-transaction-mismatch");
+        verify(store, never()).recordCallbackEvent(anyString(), any());
+        verify(store, never()).completeCallback(anyString(), anyString(), anyInt());
+    }
+
+    @Test
     void firstDeliverySemanticDigestIsStableAcrossSynapsePresentationAgeDrift() throws Exception {
         JsonNode first = objectMapper.readTree("""
-                {"events":[{
+                {"presentation":"first-delivery","events":[{
                   "event_id":"$state:matrix.internal",
                   "type":"m.room.create",
                   "content":{"creator":"@_weave_sender:matrix.internal"},
@@ -96,7 +114,7 @@ class MatrixApplicationServiceControllerTest {
                 }]}
                 """);
         JsonNode retried = objectMapper.readTree("""
-                {"events":[{
+                {"presentation":"retry-delivery","events":[{
                   "unsigned":{"stable":"kept","age":98765,"redacted_because":{"unsigned":{"age":87654},"age":87654,"event_id":"$redaction:matrix.internal"}},
                   "age":98765,
                   "redacted_because":{"unsigned":{"age":87654},"age":87654,"event_id":"$redaction:matrix.internal"},

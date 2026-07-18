@@ -80,10 +80,14 @@ public final class SynapseBackedCanonicalChatAdapter implements ChatProviderPort
         if (!configured()) {
             return ProviderReadiness.degraded("chat-provider-or-canonical-storage-not-configured");
         }
-        if (store.degradedMappingCount(provider.providerKey()) > 0) {
-            return ProviderReadiness.degraded("chat-provider-mapping-degraded");
+        ProviderReadiness providerReadiness = provider.readiness();
+        if (!providerReadiness.available()) {
+            return providerReadiness;
         }
-        return provider.readiness();
+        if (store.systemicCallbackIntegrityFailureCount(provider.providerKey()) > 0) {
+            return ProviderReadiness.degraded("chat-provider-ledger-semantic-mismatch");
+        }
+        return providerReadiness;
     }
 
     @Override

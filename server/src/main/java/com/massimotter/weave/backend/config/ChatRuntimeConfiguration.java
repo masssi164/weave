@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.chat.port.CanonicalChatStore;
 import com.massimotter.weave.backend.chat.port.ChatProviderPort;
 import com.massimotter.weave.backend.chat.provider.synapse.MatrixApplicationServiceSecrets;
+import com.massimotter.weave.backend.chat.provider.synapse.MatrixSynapseCompatibilityProfile;
 import com.massimotter.weave.backend.chat.provider.synapse.MatrixSynapseChatSouthboundAdapter;
 import com.massimotter.weave.backend.chat.provider.synapse.SynapseBackedCanonicalChatAdapter;
 import com.massimotter.weave.backend.chat.store.JdbcCanonicalChatStore;
@@ -31,7 +32,11 @@ public class ChatRuntimeConfiguration {
             JdbcTemplate weaveJdbcTemplate,
             ObjectMapper objectMapper) {
         requireJdbc(properties);
-        return new JdbcCanonicalChatStore(weaveJdbcTemplate, objectMapper, Clock.systemUTC());
+        return new JdbcCanonicalChatStore(
+                weaveJdbcTemplate,
+                objectMapper,
+                Clock.systemUTC(),
+                MatrixSynapseCompatibilityProfile.pinned());
     }
 
     @Bean

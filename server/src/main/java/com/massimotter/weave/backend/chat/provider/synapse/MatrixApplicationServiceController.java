@@ -111,6 +111,12 @@ public final class MatrixApplicationServiceController {
             }
             CanonicalChatStore.CallbackStart start = store.beginCallback(
                     provider.providerKey(), safeTransactionId, semanticPayloadDigest(root), events.size());
+            if (start == CanonicalChatStore.CallbackStart.SEMANTIC_MISMATCH) {
+                return matrixError(
+                        HttpStatus.SERVICE_UNAVAILABLE,
+                        "M_UNAVAILABLE",
+                        "Application Service transaction semantics are inconsistent.");
+            }
             if (start == CanonicalChatStore.CallbackStart.DUPLICATE) {
                 return ResponseEntity.ok(Map.of());
             }
@@ -165,7 +171,7 @@ public final class MatrixApplicationServiceController {
     @GetMapping({"/rooms/{roomAlias:.+}", "/_matrix/app/v1/rooms/{roomAlias:.+}"})
     public ResponseEntity<Map<String, Object>> roomExists(@PathVariable String roomAlias) {
         boolean exists = store.mappingByIntent(provider.providerKey(), "conversation", required(roomAlias, 768))
-                .filter(mapping -> "acknowledged".equals(mapping.state()))
+                .filter(mapping -> "acknowledged".equals(mapping.state()) || "degraded".equals(mapping.state()))
                 .filter(mapping -> mapping.providerRef() != null && !mapping.providerRef().isBlank())
                 .isPresent();
         return exists ? ResponseEntity.ok(Map.of()) : ResponseEntity.notFound().build();
@@ -256,13 +262,12 @@ public final class MatrixApplicationServiceController {
      * the homeserver transaction and persistent event data are unchanged.
      */
     static String semanticPayloadDigest(JsonNode root) {
-        JsonNode normalized = root.deepCopy();
-        JsonNode events = normalized.path("events");
+        JsonNode events = root.path("events").deepCopy();
         if (events.isArray()) {
             events.forEach(MatrixApplicationServiceController::removeVolatileEventAge);
         }
         StringBuilder canonical = new StringBuilder();
-        appendCanonicalJson(normalized, canonical);
+        appendCanonicalJson(events, canonical);
         return sha256(canonical.toString().getBytes(StandardCharsets.UTF_8));
     }
 
