@@ -349,7 +349,7 @@ class JdbcCanonicalChatStoreTest {
     }
 
     @Test
-    void newRoomStateCallbackRacingCreateAckRequestsRetryWithoutQuarantine() {
+    void newRoomStateCallbacksRetryUntilAckAndIgnoreTheProviderCanonicalAlias() {
         JdbcCanonicalChatStore store = store(dataSource());
         ChatRequestContext author = context("create-race");
         acknowledgeActor(store, author, "@_weave_create_race:matrix.internal");
@@ -382,6 +382,19 @@ class JdbcCanonicalChatStoreTest {
         store.acknowledgeConversation(
                 author, room, PROVIDER, "!create-race-room:matrix.internal", "room-v1");
         assertThat(store.recordCallbackEvent(PROVIDER, callback).state()).isEqualTo("ignored");
+        CanonicalChatStore.ProviderCallbackEvent canonicalAliasCallback =
+                new CanonicalChatStore.ProviderCallbackEvent(
+                        "hs-create-race-alias",
+                        room.providerTransactionId(),
+                        "$create-alias:matrix.internal",
+                        "!create-race-room:matrix.internal",
+                        "@_weave_create_race:matrix.internal",
+                        "m.room.canonical_alias",
+                        "",
+                        null,
+                        Map.of("alias", "#_weave_create_race:matrix.internal"),
+                        "state-v2");
+        assertThat(store.recordCallbackEvent(PROVIDER, canonicalAliasCallback).state()).isEqualTo("ignored");
         CanonicalChatStore.EvidenceSnapshot evidence = store.evidence(
                 author.tenantId(), room.conversationId(), PROVIDER);
         assertThat(evidence.quarantineCount()).isZero();

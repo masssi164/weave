@@ -181,6 +181,11 @@ redaction metadata. Rejecting those changes blocks Synapse's ordered
 Application Service queue. Completed transaction IDs are acknowledged without
 reprocessing, while interrupted transactions resume through the existing
 per-event identifier, mapping, authorization, content, and quarantine checks.
+Synapse also emits the expected `m.room.canonical_alias` state event when the
+provider-neutral create operation supplies its reserved alias intent. That
+state event is ledgered and ignored like the other supported room-creation
+state; it must not quarantine or degrade an otherwise acknowledged room
+mapping. Unknown state types continue to fail closed.
 
 Correlation evidence is phase-aware: the outage snapshot names only the two
 events committed before retry, while post-retry and restart snapshots name all

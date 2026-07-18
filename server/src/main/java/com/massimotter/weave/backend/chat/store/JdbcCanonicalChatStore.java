@@ -61,6 +61,7 @@ public final class JdbcCanonicalChatStore implements CanonicalChatStore {
             "m.room.create",
             "m.room.member",
             "m.room.name",
+            "m.room.canonical_alias",
             "m.room.encryption",
             "m.room.power_levels",
             "m.room.join_rules",
