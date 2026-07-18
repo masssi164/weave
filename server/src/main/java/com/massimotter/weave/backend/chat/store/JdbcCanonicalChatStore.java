@@ -759,15 +759,11 @@ public final class JdbcCanonicalChatStore implements CanonicalChatStore {
     public CallbackStart beginCallback(String providerKey, String transactionId, String payloadDigest, int eventCount) {
         return transactions.execute(status -> {
             List<CallbackRow> existing = jdbc.query(
-                    "select payload_digest, transaction_state from weave_chat_appservice_transactions "
+                    "select transaction_state from weave_chat_appservice_transactions "
                             + "where provider_key = ? and homeserver_transaction_id = ?",
-                    (rs, row) -> new CallbackRow(rs.getString("payload_digest"), rs.getString("transaction_state")),
+                    (rs, row) -> new CallbackRow(rs.getString("transaction_state")),
                     providerKey, transactionId);
             if (!existing.isEmpty()) {
-                if (!MessageDigest.isEqual(existing.getFirst().payloadDigest().getBytes(StandardCharsets.UTF_8),
-                        payloadDigest.getBytes(StandardCharsets.UTF_8))) {
-                    throw new IllegalArgumentException("Application Service transaction digest is inconsistent.");
-                }
                 if ("completed".equals(existing.getFirst().state())) {
                     jdbc.update("update weave_chat_appservice_transactions set duplicate_count = duplicate_count + 1 "
                                     + "where provider_key = ? and homeserver_transaction_id = ?",
@@ -1833,7 +1829,7 @@ public final class JdbcCanonicalChatStore implements CanonicalChatStore {
     private record MembershipRow(String state) {
     }
 
-    private record CallbackRow(String payloadDigest, String state) {
+    private record CallbackRow(String state) {
     }
 
     private record ProviderOperationEcho(

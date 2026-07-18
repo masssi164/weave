@@ -171,15 +171,16 @@ URLs, raw callback bodies, encrypted envelopes, or member content. The
 `hs_token` remains directional: it authenticates simulated Synapse callback
 replay only and grants no provider-proof access.
 
-Application Service retry identity is keyed by the homeserver-generated
-transaction ID plus a canonical semantic digest. Synapse reconstructs queued
-transactions and recalculates the presentation-only `unsigned.age` field on
-each delivery attempt. Its client-v1 formatter also copies that value to the
-top-level `age` presentation field. Those two age representations, including
-inside redaction metadata, are excluded from the digest and JSON object keys
-are ordered canonically. Event arrays, IDs, types, senders, room references,
-content, state keys, and every other unsigned field remain covered; semantic
-drift for the same transaction ID still fails closed.
+Application Service retry identity is the authenticated, homeserver-generated
+transaction ID, as required by the Matrix Application Service API. The first
+delivery retains a canonical semantic digest as provenance. A retry does not
+compare its freshly serialized body with that digest: Synapse reconstructs
+queued transactions and can recalculate presentation fields such as
+`unsigned.age` and the client-v1 top-level `age` copy, including inside
+redaction metadata. Rejecting those changes blocks Synapse's ordered
+Application Service queue. Completed transaction IDs are acknowledged without
+reprocessing, while interrupted transactions resume through the existing
+per-event identifier, mapping, authorization, content, and quarantine checks.
 
 Correlation evidence is phase-aware: the outage snapshot names only the two
 events committed before retry, while post-retry and restart snapshots name all

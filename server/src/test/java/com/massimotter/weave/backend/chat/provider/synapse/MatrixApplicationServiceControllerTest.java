@@ -84,7 +84,7 @@ class MatrixApplicationServiceControllerTest {
     }
 
     @Test
-    void callbackRetryDigestIgnoresOnlyRecomputedUnsignedAgeAndJsonObjectOrder() throws Exception {
+    void firstDeliverySemanticDigestIsStableAcrossSynapsePresentationAgeDrift() throws Exception {
         JsonNode first = objectMapper.readTree("""
                 {"events":[{
                   "event_id":"$state:matrix.internal",

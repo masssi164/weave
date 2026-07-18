@@ -137,6 +137,9 @@ class JdbcCanonicalChatStoreTest {
 
         assertThat(restarted.beginCallback(PROVIDER, "hs-txn-1", "a".repeat(64), 1))
                 .isEqualTo(CanonicalChatStore.CallbackStart.NEW);
+        assertThat(restarted.beginCallback(PROVIDER, "hs-txn-1", "b".repeat(64), 1))
+                .as("a reconstructed homeserver retry resumes by transaction ID")
+                .isEqualTo(CanonicalChatStore.CallbackStart.RESUME);
         CanonicalChatStore.CallbackEventResult callback = restarted.recordCallbackEvent(
                 PROVIDER,
                 new CanonicalChatStore.ProviderCallbackEvent(
@@ -149,7 +152,8 @@ class JdbcCanonicalChatStoreTest {
                         envelope,
                         "event-v1"));
         restarted.completeCallback(PROVIDER, "hs-txn-1", callback.state().contains("duplicate") ? 1 : 0);
-        assertThat(restarted.beginCallback(PROVIDER, "hs-txn-1", "a".repeat(64), 1))
+        assertThat(restarted.beginCallback(PROVIDER, "hs-txn-1", "c".repeat(64), 1))
+                .as("a completed homeserver transaction is acknowledged idempotently by transaction ID")
                 .isEqualTo(CanonicalChatStore.CallbackStart.DUPLICATE);
 
         CanonicalChatStore.EvidenceSnapshot evidence = restarted.evidence(
