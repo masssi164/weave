@@ -409,7 +409,7 @@ assert_backend_nextcloud_actor_config() {
   [[ "${caldav_base_url}" == "${backend_nextcloud_base_url}" ]] || fail "Smoke check failed: CalDAV base URL should match the backend Nextcloud adapter base URL"
 
   caldav_template="$(container_env_value weave-backend WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE)"
-  isolated_namespace="$(container_env_value weave-backend WEAVE_ISOLATED_E2E_NAMESPACE)"
+  isolated_namespace="$(container_env_value weave-backend WEAVE_ISOLATED_E2E_NAMESPACE || true)"
   workspace_calendar_id="$(weave_backend_actor_workspace_calendar_id "${isolated_namespace}")"
   [[ "${caldav_template}" != *"{user}"* ]] || fail "Smoke check failed: CalDAV calendar path template must target the backend actor workspace calendar while team/channel scopes are implemented, not unresolved private personal calendars"
   [[ "${caldav_template}" == "$(weave_backend_actor_workspace_calendar_path "${actor_username}" "${isolated_namespace}")" ]] || fail "Smoke check failed: CalDAV calendar path template must target the backend actor workspace calendar while team/channel scopes are implemented"
