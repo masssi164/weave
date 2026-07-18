@@ -57,6 +57,9 @@ load_environment() {
   local requested_scope="${WEAVE_DOGFOOD_DEPLOYMENT_SCOPE:-}"
   local requested_create_test_user="${TF_VAR_create_test_user:-}"
   local requested_isolated="${TF_VAR_isolated_e2e_enabled:-}"
+  local requested_caddy_ca="${TF_VAR_caddy_tls_ca_file:-}"
+  local requested_caddy_cert="${TF_VAR_caddy_tls_cert_file:-}"
+  local requested_caddy_key="${TF_VAR_caddy_tls_key_file:-}"
   if [[ -f "${BOOTSTRAP_ENV_FILE}" ]]; then
     # shellcheck disable=SC1090
     source "${BOOTSTRAP_ENV_FILE}"
@@ -64,6 +67,9 @@ load_environment() {
   [[ -z "${requested_scope}" ]] || WEAVE_DOGFOOD_DEPLOYMENT_SCOPE="${requested_scope}"
   [[ -z "${requested_create_test_user}" ]] || TF_VAR_create_test_user="${requested_create_test_user}"
   [[ -z "${requested_isolated}" ]] || TF_VAR_isolated_e2e_enabled="${requested_isolated}"
+  [[ -z "${requested_caddy_ca}" ]] || TF_VAR_caddy_tls_ca_file="${requested_caddy_ca}"
+  [[ -z "${requested_caddy_cert}" ]] || TF_VAR_caddy_tls_cert_file="${requested_caddy_cert}"
+  [[ -z "${requested_caddy_key}" ]] || TF_VAR_caddy_tls_key_file="${requested_caddy_key}"
 }
 
 assert_persistent_scope() {
