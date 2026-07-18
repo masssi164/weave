@@ -182,6 +182,29 @@ class JdbcCanonicalChatStoreTest {
         assertThat(restarted.acknowledgedProviderEventRefs(
                 author.tenantId(), room.conversationId(), PROVIDER))
                 .containsExactly("$opaque-event:matrix.internal");
+
+        CanonicalChatStore.ProviderCallbackEvent redactedProjection =
+                new CanonicalChatStore.ProviderCallbackEvent(
+                        "hs-txn-redacted",
+                        null,
+                        "$opaque-event:matrix.internal",
+                        "!durable-room:matrix.internal",
+                        "@_weave_sender:matrix.internal",
+                        "m.room.encrypted",
+                        null,
+                        null,
+                        Map.of(),
+                        "event-v2",
+                        true);
+        assertThat(restarted.recordCallbackEvent(PROVIDER, redactedProjection).state())
+                .isEqualTo("acknowledged-redacted-projection");
+        assertThat(restarted.recordCallbackEvent(PROVIDER, redactedProjection).state())
+                .isEqualTo("deduplicated-redacted-projection");
+        assertThat(restarted.timelineEvents(author, room.conversationId(), null, 100).events())
+                .singleElement()
+                .satisfies(event -> assertThat(event.redacted()).isTrue());
+        assertThat(restarted.evidence(author.tenantId(), room.conversationId(), PROVIDER).degradedMappingCount())
+                .isZero();
     }
 
     @Test

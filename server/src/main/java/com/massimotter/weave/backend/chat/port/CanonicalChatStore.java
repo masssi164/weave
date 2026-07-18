@@ -259,9 +259,25 @@ public interface CanonicalChatStore {
             String stateKey,
             String providerRedactsRef,
             Map<String, Object> content,
-            String providerSourceVersion) {
+            String providerSourceVersion,
+            boolean providerRedacted) {
         public ProviderCallbackEvent {
             content = content == null ? Map.of() : Map.copyOf(content);
+        }
+
+        public ProviderCallbackEvent(
+                String homeserverTransactionId,
+                String providerTransactionId,
+                String providerEventRef,
+                String providerRoomRef,
+                String providerSenderRef,
+                String eventType,
+                String stateKey,
+                String providerRedactsRef,
+                Map<String, Object> content,
+                String providerSourceVersion) {
+            this(homeserverTransactionId, providerTransactionId, providerEventRef, providerRoomRef,
+                    providerSenderRef, eventType, stateKey, providerRedactsRef, content, providerSourceVersion, false);
         }
 
         public ProviderCallbackEvent(
@@ -274,7 +290,7 @@ public interface CanonicalChatStore {
                 Map<String, Object> content,
                 String providerSourceVersion) {
             this(homeserverTransactionId, providerTransactionId, providerEventRef, providerRoomRef,
-                    providerSenderRef, eventType, null, null, content, providerSourceVersion);
+                    providerSenderRef, eventType, null, null, content, providerSourceVersion, false);
         }
     }
 

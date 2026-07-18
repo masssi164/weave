@@ -207,7 +207,8 @@ public final class MatrixApplicationServiceController {
                 optionalStateKey(value),
                 topLevelRedacts == null ? contentRedacts : topLevelRedacts,
                 content,
-                Long.toString(value.path("origin_server_ts").asLong(0)));
+                Long.toString(value.path("origin_server_ts").asLong(0)),
+                value.path("unsigned").path("redacted_because").isObject());
     }
 
     private byte[] boundedBody(HttpServletRequest request) throws IOException {
@@ -274,6 +275,9 @@ public final class MatrixApplicationServiceController {
             copySemanticField(event, semanticEvent, "state_key");
             copySemanticField(event, semanticEvent, "content");
             copySemanticField(event, semanticEvent, "redacts");
+            if (event.path("unsigned").path("redacted_because").isObject()) {
+                semanticEvent.put("provider_redacted", true);
+            }
             StringBuilder canonicalEvent = new StringBuilder();
             appendCanonicalJson(semanticEvent, canonicalEvent);
             semanticEvents.add(canonicalEvent.toString());

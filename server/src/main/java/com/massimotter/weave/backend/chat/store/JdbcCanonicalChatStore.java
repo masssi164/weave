@@ -957,6 +957,9 @@ public final class JdbcCanonicalChatStore implements CanonicalChatStore {
             return quarantine("unknown-private", providerKey, event, "provider-room-unmapped");
         }
         ProviderMapping room = roomMapping.get();
+        if (event.providerRedacted()) {
+            return recordRedactedProviderProjection(providerKey, event, room);
+        }
         Optional<ProviderMapping> actorMapping = mappingByProviderRef(providerKey, "actor", event.providerSenderRef());
         if (actorMapping.isEmpty()
                 || !"acknowledged".equals(actorMapping.get().state())
@@ -1066,6 +1069,49 @@ public final class JdbcCanonicalChatStore implements CanonicalChatStore {
         return new CallbackEventResult(
                 inserted == 0 ? "deduplicated" : "accepted",
                 sha256(room.tenantId() + ":" + canonicalEventId));
+    }
+
+    private CallbackEventResult recordRedactedProviderProjection(
+            String providerKey,
+            ProviderCallbackEvent event,
+            ProviderMapping room) {
+        if (!"m.room.encrypted".equals(event.eventType())
+                || event.stateKey() != null
+                || !event.content().isEmpty()) {
+            return quarantineMappedConversation(
+                    room.tenantId(), room.canonicalObjectId(), providerKey, event,
+                    "provider-redacted-projection-invalid");
+        }
+        Optional<ProviderMapping> existingEvent = mappingByProviderRef(
+                providerKey, "event", event.providerEventRef());
+        if (existingEvent.isEmpty()) {
+            throw new ChatCallbackRetryRequiredException();
+        }
+        ProviderMapping mapping = existingEvent.get();
+        Optional<String> existingConversation = callbackEventConversation(
+                room.tenantId(), mapping.canonicalObjectId());
+        if (!"acknowledged".equals(mapping.state())
+                || !room.tenantId().equals(mapping.tenantId())
+                || existingConversation.isEmpty()
+                || !room.canonicalObjectId().equals(existingConversation.get())) {
+            return quarantineMappedConversation(
+                    room.tenantId(), room.canonicalObjectId(), providerKey, event,
+                    "provider-redacted-projection-mismatch");
+        }
+        int updated = jdbc.update("update weave_chat_events set redacted = true where tenant_id = ? "
+                        + "and conversation_id = ? and event_id = ? and redacted = false",
+                room.tenantId(), room.canonicalObjectId(), mapping.canonicalObjectId());
+        recordLedger(room.tenantId(), providerKey, "inbound", event.providerTransactionId(),
+                event.providerEventRef(), mapping.canonicalObjectId(), event.providerSourceVersion(),
+                "acknowledged-redacted-projection");
+        if (updated == 1) {
+            recordCallbackChangeIfAbsent(
+                    room.tenantId(), new ConversationId(room.canonicalObjectId()), "event.redacted",
+                    mapping.canonicalObjectId(), providerKey, event.providerEventRef(), clock.instant());
+        }
+        return new CallbackEventResult(
+                updated == 1 ? "acknowledged-redacted-projection" : "deduplicated-redacted-projection",
+                sha256(room.tenantId() + ":" + mapping.canonicalObjectId()));
     }
 
     private CallbackEventResult recordRedactionEcho(

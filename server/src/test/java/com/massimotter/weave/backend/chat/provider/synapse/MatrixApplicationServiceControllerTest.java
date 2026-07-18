@@ -235,6 +235,35 @@ class MatrixApplicationServiceControllerTest {
     }
 
     @Test
+    void callbackMarksHomeserverRedactedEncryptedProjectionWithoutCopyingRedactionBody() {
+        when(provider.providerKey()).thenReturn("matrix-synapse");
+        when(store.beginCallback(anyString(), anyString(), anyString(), anyInt()))
+                .thenReturn(CanonicalChatStore.CallbackStart.NEW);
+        when(store.recordCallbackEvent(anyString(), any()))
+                .thenReturn(new CanonicalChatStore.CallbackEventResult("acknowledged-redacted-projection", "hash"));
+        MatrixApplicationServiceController controller = controller(65_536);
+
+        var response = controller.transaction("hs-redacted-encrypted", request("""
+                {"events":[{
+                  "event_id":"$encrypted:matrix.internal",
+                  "room_id":"!room:matrix.internal",
+                  "sender":"@_weave_sender:matrix.internal",
+                  "type":"m.room.encrypted",
+                  "origin_server_ts":1,
+                  "unsigned":{"redacted_because":{"type":"m.room.redaction","content":{"reason":"private"}}},
+                  "content":{}
+                }]}
+                """));
+
+        ArgumentCaptor<CanonicalChatStore.ProviderCallbackEvent> event =
+                ArgumentCaptor.forClass(CanonicalChatStore.ProviderCallbackEvent.class);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        verify(store).recordCallbackEvent(anyString(), event.capture());
+        assertThat(event.getValue().providerRedacted()).isTrue();
+        assertThat(event.getValue().content()).isEmpty();
+    }
+
+    @Test
     void callbackNormalizesRoomV11ContentRedactionTarget() {
         when(provider.providerKey()).thenReturn("matrix-synapse");
         when(store.beginCallback(anyString(), anyString(), anyString(), anyInt()))
