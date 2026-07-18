@@ -90,12 +90,16 @@ class MatrixApplicationServiceControllerTest {
                   "event_id":"$state:matrix.internal",
                   "type":"m.room.create",
                   "content":{"creator":"@_weave_sender:matrix.internal"},
-                  "unsigned":{"age":12,"stable":"kept"}
+                  "age":12,
+                  "redacted_because":{"event_id":"$redaction:matrix.internal","age":7,"unsigned":{"age":7}},
+                  "unsigned":{"age":12,"stable":"kept","redacted_because":{"event_id":"$redaction:matrix.internal","age":7,"unsigned":{"age":7}}}
                 }]}
                 """);
         JsonNode retried = objectMapper.readTree("""
                 {"events":[{
-                  "unsigned":{"stable":"kept","age":98765},
+                  "unsigned":{"stable":"kept","age":98765,"redacted_because":{"unsigned":{"age":87654},"age":87654,"event_id":"$redaction:matrix.internal"}},
+                  "age":98765,
+                  "redacted_because":{"unsigned":{"age":87654},"age":87654,"event_id":"$redaction:matrix.internal"},
                   "content":{"creator":"@_weave_sender:matrix.internal"},
                   "type":"m.room.create",
                   "event_id":"$state:matrix.internal"
@@ -108,6 +112,7 @@ class MatrixApplicationServiceControllerTest {
         assertThat(MatrixApplicationServiceController.semanticPayloadDigest(first))
                 .isEqualTo(MatrixApplicationServiceController.semanticPayloadDigest(retried))
                 .isNotEqualTo(MatrixApplicationServiceController.semanticPayloadDigest(changed));
+        assertThat(first.path("events").get(0).path("age").asInt()).isEqualTo(12);
         assertThat(first.path("events").get(0).path("unsigned").path("age").asInt()).isEqualTo(12);
     }
 

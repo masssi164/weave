@@ -250,7 +250,8 @@ public final class MatrixApplicationServiceController {
 
     /**
      * Synapse reconstructs a queued Application Service transaction on every
-     * delivery attempt. Its serializer recalculates {@code unsigned.age}, so
+     * delivery attempt. Its serializer recalculates {@code unsigned.age}, then
+     * its client-v1 formatter copies that value to top-level {@code age}, so
      * byte-for-byte payload hashing would reject a legitimate retry even though
      * the homeserver transaction and persistent event data are unchanged.
      */
@@ -269,6 +270,10 @@ public final class MatrixApplicationServiceController {
         if (!(event instanceof ObjectNode eventObject)) {
             return;
         }
+        // Synapse's client-v1 event formatter copies unsigned.age to the
+        // top-level presentation envelope after recalculating it.
+        eventObject.remove("age");
+        removeVolatileEventAge(eventObject.get("redacted_because"));
         JsonNode unsigned = eventObject.get("unsigned");
         if (!(unsigned instanceof ObjectNode unsignedObject)) {
             return;

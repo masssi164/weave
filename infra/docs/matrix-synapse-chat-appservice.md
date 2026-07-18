@@ -174,10 +174,12 @@ replay only and grants no provider-proof access.
 Application Service retry identity is keyed by the homeserver-generated
 transaction ID plus a canonical semantic digest. Synapse reconstructs queued
 transactions and recalculates the presentation-only `unsigned.age` field on
-each delivery attempt, so that one field is excluded from the digest and JSON
-object keys are ordered canonically. Event arrays, IDs, types, senders, room
-references, content, state keys, and every other unsigned field remain covered;
-semantic drift for the same transaction ID still fails closed.
+each delivery attempt. Its client-v1 formatter also copies that value to the
+top-level `age` presentation field. Those two age representations, including
+inside redaction metadata, are excluded from the digest and JSON object keys
+are ordered canonically. Event arrays, IDs, types, senders, room references,
+content, state keys, and every other unsigned field remain covered; semantic
+drift for the same transaction ID still fails closed.
 
 Correlation evidence is phase-aware: the outage snapshot names only the two
 events committed before retry, while post-retry and restart snapshots name all
