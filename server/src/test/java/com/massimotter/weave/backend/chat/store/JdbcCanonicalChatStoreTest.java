@@ -31,6 +31,17 @@ class JdbcCanonicalChatStoreTest {
     private static final String PROVIDER = "matrix-synapse";
 
     @Test
+    void redactionPresentationContentIsNarrowlyBounded() {
+        assertThat(JdbcCanonicalChatStore.supportedRedactionPresentationContent(Map.of())).isTrue();
+        assertThat(JdbcCanonicalChatStore.supportedRedactionPresentationContent(
+                Map.of("reason", "isolated-e2e-cleanup"))).isTrue();
+        assertThat(JdbcCanonicalChatStore.supportedRedactionPresentationContent(
+                Map.of("reason", "line\nbreak"))).isFalse();
+        assertThat(JdbcCanonicalChatStore.supportedRedactionPresentationContent(
+                Map.of("unsupported", "private-value"))).isFalse();
+    }
+
+    @Test
     void invitedMembershipIsDistinctAndOutsiderCannotJoinOrRead() {
         JdbcCanonicalChatStore store = store(dataSource());
         ChatRequestContext author = context("author");
@@ -215,7 +226,7 @@ class JdbcCanonicalChatStoreTest {
                         "m.room.redaction",
                         null,
                         "$target-event:matrix.internal",
-                        Map.of(),
+                        Map.of("reason", "isolated-e2e-cleanup"),
                         "redaction-v1"));
 
         assertThat(callback.state()).isEqualTo("acknowledged-redaction-echo");

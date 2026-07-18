@@ -1120,7 +1120,7 @@ public final class JdbcCanonicalChatStore implements CanonicalChatStore {
                 || target.isEmpty()
                 || !"acknowledged".equals(target.get().state())
                 || !java.util.Objects.equals(target.get().providerRef(), event.providerRedactsRef())
-                || !event.content().isEmpty()) {
+                || !supportedRedactionPresentationContent(event.content())) {
             return quarantineMappedConversation(
                     echo.tenantId(), echo.conversationId(), providerKey, event,
                     "provider-redaction-echo-mismatch");
@@ -1154,6 +1154,20 @@ public final class JdbcCanonicalChatStore implements CanonicalChatStore {
         return new CallbackEventResult(
                 "acknowledged-redaction-echo",
                 sha256(echo.tenantId() + ":" + echo.canonicalObjectId()));
+    }
+
+    static boolean supportedRedactionPresentationContent(Map<String, Object> content) {
+        if (content.isEmpty()) {
+            return true;
+        }
+        if (content.size() != 1 || !(content.get("reason") instanceof String reason)) {
+            return false;
+        }
+        // Matrix permits a human-readable redaction reason. Weave does not
+        // ingest or republish that presentation field, but its presence must
+        // not turn a correctly correlated redaction echo into conversation
+        // degradation. Keep acceptance bounded and reject control characters.
+        return reason.length() <= 512 && reason.chars().noneMatch(Character::isISOControl);
     }
 
     @Override
@@ -1514,7 +1528,7 @@ public final class JdbcCanonicalChatStore implements CanonicalChatStore {
                 Optional<ProviderMapping> target = mapping(
                         candidate.tenantId(), providerKey, "event", candidate.canonicalObjectId());
                 return "m.room.redaction".equals(event.eventType())
-                        && event.content().isEmpty()
+                        && supportedRedactionPresentationContent(event.content())
                         && target.filter(mapping -> "acknowledged".equals(mapping.state()))
                                 .map(ProviderMapping::providerRef)
                                 .filter(ref -> java.util.Objects.equals(ref, event.providerRedactsRef()))
