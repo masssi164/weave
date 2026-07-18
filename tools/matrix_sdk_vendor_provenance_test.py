@@ -40,6 +40,13 @@ class MatrixSdkVendorProvenanceTest(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("archive checksum does not match", result.stderr)
 
+    def test_rejects_patch_series_checksum_drift(self) -> None:
+        with self.fixture() as fixture:
+            fixture["patch"].write_text("tampered", encoding="utf-8")
+            result = self.run_guard(fixture)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("wrong checksum", result.stderr)
+
     def fixture(self):
         temporary = tempfile.TemporaryDirectory()
         root = Path(temporary.name)
@@ -52,8 +59,21 @@ class MatrixSdkVendorProvenanceTest(unittest.TestCase):
                 '[package]\nname = "matrix-sdk-crypto"\nversion = "0.18.0"\n',
                 encoding="utf-8",
             )
-        (upstream / "src/patched.rs").write_text("upstream", encoding="utf-8")
-        (vendor / "src/patched.rs").write_text("weave", encoding="utf-8")
+        (upstream / "src/patched.rs").write_text("upstream\n", encoding="utf-8")
+        (vendor / "src/patched.rs").write_text("weave\n", encoding="utf-8")
+        patch_dir = root / "patches"
+        patch_dir.mkdir()
+        patch = patch_dir / "0001.patch"
+        patch.write_text(
+            "diff --git a/src/patched.rs b/src/patched.rs\n"
+            "index 180a4fc..cb645df 100644\n"
+            "--- a/src/patched.rs\n"
+            "+++ b/src/patched.rs\n"
+            "@@ -1 +1 @@\n"
+            "-upstream\n"
+            "+weave\n",
+            encoding="utf-8",
+        )
         archive = root / "matrix-sdk-crypto-0.18.0.crate"
         with tarfile.open(archive, "w:gz") as bundle:
             bundle.add(upstream, arcname=upstream.name)
@@ -67,13 +87,26 @@ class MatrixSdkVendorProvenanceTest(unittest.TestCase):
         manifest.write_text(
             json.dumps(
                 {
-                    "schemaVersion": 1,
+                    "schemaVersion": 2,
                     "crate": "matrix-sdk-crypto",
                     "version": "0.18.0",
                     "releaseUrl": "https://github.com/matrix-org/matrix-rust-sdk/releases/tag/matrix-sdk-0.18.0",
                     "archiveSha256": hashlib.sha256(archive.read_bytes()).hexdigest(),
                     "downloadUrl": "https://invalid.example.test/unused",
                     "allowedDifferences": ["src/patched.rs"],
+                    "allowedPackagingDifferences": [],
+                    "patchSeries": [
+                        {
+                            "path": "patches/0001.patch",
+                            "sha256": hashlib.sha256(patch.read_bytes()).hexdigest(),
+                            "changedPaths": ["src/patched.rs"],
+                            "invariant": "the focused fixture is reconstructed",
+                            "upstreamIssues": [
+                                "https://github.com/matrix-org/matrix-rust-sdk/issues/3356"
+                            ],
+                            "regressionTests": ["fixture::patched"],
+                        }
+                    ],
                 }
             ),
             encoding="utf-8",
@@ -84,6 +117,7 @@ class MatrixSdkVendorProvenanceTest(unittest.TestCase):
             "archive": archive,
             "manifest": manifest,
             "lock": lock,
+            "patch": patch,
         }
 
         class FixtureContext:

@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "crate": "matrix-sdk-crypto",
   "version": "0.18.0",
   "releaseUrl": "https://github.com/matrix-org/matrix-rust-sdk/releases/tag/matrix-sdk-0.18.0",
@@ -12,6 +12,61 @@
     "src/identities/device.rs",
     "src/olm/session.rs",
     "src/session_manager/sessions.rs"
+  ],
+  "allowedPackagingDifferences": [
+    ".cargo-ok",
+    "LICENSE"
+  ],
+  "patchSeries": [
+    {
+      "path": "patches/matrix-sdk-crypto-0.18.0/0001-track-last-successful-olm-decrypt.patch",
+      "sha256": "2a39c98d9dab1edc69449a80503fe889d83ea2de106eb2400d361578c9e88063",
+      "changedPaths": [
+        "src/olm/session.rs"
+      ],
+      "invariant": "Outbound encryption never advances the timestamp used to represent the most recent successful Olm decrypt.",
+      "upstreamIssues": [
+        "https://github.com/matrix-org/matrix-rust-sdk/issues/3356",
+        "https://github.com/matrix-org/matrix-rust-sdk/issues/3354"
+      ],
+      "regressionTests": [
+        "olm::session::tests::test_encryption_and_decryption"
+      ]
+    },
+    {
+      "path": "patches/matrix-sdk-crypto-0.18.0/0002-select-most-recent-successful-decrypt.patch",
+      "sha256": "ea170e885b404bfb88da936e9f6dd9c6e6d0a01d18fee29c2a4eda93348dc770",
+      "changedPaths": [
+        "src/identities/device.rs"
+      ],
+      "invariant": "Session choice prefers the most recent successful decrypt and uses creation time only as a deterministic tie-breaker.",
+      "upstreamIssues": [
+        "https://github.com/matrix-org/matrix-rust-sdk/issues/3356",
+        "https://github.com/matrix-org/matrix-rust-sdk/issues/3354"
+      ],
+      "regressionTests": [
+        "identities::device::tests::selects_session_with_latest_successful_decrypt"
+      ]
+    },
+    {
+      "path": "patches/matrix-sdk-crypto-0.18.0/0003-persist-immediate-unwedge-cooldown.patch",
+      "sha256": "1d5b286b9b6033d280500e9b193ca25f7ef14010c2f3fb5ea17dc4228a2ba4e9",
+      "changedPaths": [
+        "src/identities/device.rs",
+        "src/session_manager/sessions.rs"
+      ],
+      "invariant": "The first observed wedge can claim a replacement session immediately and the cooldown is persisted on the device across manager recreation.",
+      "upstreamIssues": [
+        "https://github.com/matrix-org/matrix-rust-sdk/issues/3427",
+        "https://github.com/matrix-org/matrix-rust-sdk/issues/2864",
+        "https://github.com/matrix-org/matrix-rust-sdk/issues/3354"
+      ],
+      "regressionTests": [
+        "session_manager::sessions::tests::test_session_unwedging",
+        "session_manager::sessions::tests::test_first_unwedge_without_an_existing_session",
+        "session_manager::sessions::tests::test_unwedge_cooldown_survives_manager_recreation"
+      ]
+    }
   ],
   "upstreamIssues": [
     "https://github.com/matrix-org/matrix-rust-sdk/issues/3356",

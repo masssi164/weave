@@ -5,8 +5,10 @@ upstream commit `1c44fb66214667c6d00acaf72ab592493653708b` (tag
 `matrix-sdk-crypto-0.18.0`). The upstream behavior gaps are tracked in
 <https://github.com/matrix-org/matrix-rust-sdk/issues/3356> and
 <https://github.com/matrix-org/matrix-rust-sdk/issues/3427>.
-Weave carries narrow behavior patches in `src/olm/session.rs`,
-`src/identities/device.rs`, and `src/session_manager/sessions.rs`:
+Weave carries three narrow, sequential behavior patches under
+`patches/matrix-sdk-crypto-0.18.0/`. The provenance guard applies that series
+to the checksum-verified upstream crate and requires it to reconstruct every
+vendored source difference exactly:
 
 - outbound sends no longer advance the receive timestamp;
 - Olm session selection uses that last-successful-receive time with
@@ -22,6 +24,14 @@ valid traffic, and avoids waiting an hour before the first evidence-triggered
 repair. Remove the `[patch.crates-io]` override after an upstream release
 contains the equivalent fixes and the two-pass Live Stack E2E gate passes
 against that release.
+
+Patch disposition is temporary-retain-and-upstream: keep the current 0.18.0
+pin with provenance until each focused patch is submitted or superseded by an
+accepted Matrix Rust SDK release. Do not replace duplicate one-time-key errors
+with synthetic success, and do not upgrade blindly while the currently mapped
+upstream issues remain open. The manifest records the upstream issue,
+invariant, exact patch checksum, changed source paths, and focused regression
+test for each change.
 
 `matrix-sdk-crypto.weave-provenance.json` pins the Cargo.lock version, official
 release, published crate archive checksum, and the complete allowlist of

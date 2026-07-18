@@ -685,6 +685,10 @@ mod tests {
             .await
             .unwrap();
 
+        session_managers(store)
+    }
+
+    fn session_managers(store: Store) -> (SessionManager, IdentityManager) {
         let session_cache = GroupSessionCache::new(store.clone());
         let identity_manager = IdentityManager::new(store.clone());
 
@@ -894,6 +898,42 @@ mod tests {
         manager.mark_device_as_wedged(bob_device.user_id(), curve_key).await.unwrap();
         assert!(!manager.is_device_wedged(&bob_device));
         assert!(manager.get_missing_sessions(iter::once(bob.user_id())).await.unwrap().is_none());
+    }
+
+    #[async_test]
+    async fn test_first_unwedge_without_an_existing_session() {
+        let (manager, _identity_manager) = session_manager_test_helper().await;
+        let bob = bob_account();
+        let bob_device = DeviceData::from_account(&bob);
+        manager.store.save_device_data(std::slice::from_ref(&bob_device)).await.unwrap();
+        let curve_key = bob_device.curve25519_key().unwrap();
+
+        manager.mark_device_as_wedged(bob_device.user_id(), curve_key).await.unwrap();
+
+        assert!(manager.is_device_wedged(&bob_device));
+        let (_, request) = manager
+            .get_missing_sessions(iter::once(bob.user_id()))
+            .await
+            .unwrap()
+            .expect("the first wedge should claim a replacement key immediately");
+        assert!(request.one_time_keys.contains_key(bob.user_id()));
+    }
+
+    #[async_test]
+    async fn test_unwedge_cooldown_survives_manager_recreation() {
+        let (manager, _identity_manager) = session_manager_test_helper().await;
+        let bob = bob_account();
+        let bob_device = DeviceData::from_account(&bob);
+        manager.store.save_device_data(std::slice::from_ref(&bob_device)).await.unwrap();
+        let curve_key = bob_device.curve25519_key().unwrap();
+        manager.mark_device_as_wedged(bob_device.user_id(), curve_key).await.unwrap();
+        assert!(manager.is_device_wedged(&bob_device));
+
+        let (recreated, _identity_manager) = session_managers(manager.store.clone());
+        recreated.mark_device_as_wedged(bob_device.user_id(), curve_key).await.unwrap();
+
+        assert!(!recreated.is_device_wedged(&bob_device));
+        assert!(!recreated.users_for_key_claim.read().contains_key(bob.user_id()));
     }
 
     #[async_test]

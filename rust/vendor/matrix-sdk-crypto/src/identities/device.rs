@@ -725,16 +725,7 @@ impl DeviceData {
         if let Some(sender_key) = self.curve25519_key() {
             if let Some(sessions) = store.get_sessions(&sender_key.to_base64()).await? {
                 let mut sessions = sessions.lock().await;
-                // A newer session can be wedged while an older session has
-                // just decrypted a valid message. Creation-time ordering keeps
-                // selecting the wedged session and prevents the peer from
-                // advancing the working bidirectional channel. Prefer the
-                // session with the latest successful receive, with creation
-                // time as a deterministic tie-breaker for second-resolution
-                // timestamps.
-                sessions.sort_by_key(|s| (s.last_use_time, s.creation_time));
-
-                Ok(sessions.last().cloned())
+                Ok(select_most_recent_session(&mut sessions))
             } else {
                 Ok(None)
             }
@@ -1006,6 +997,14 @@ impl DeviceData {
     }
 }
 
+fn select_most_recent_session(sessions: &mut [Session]) -> Option<Session> {
+    // A newer session can be wedged while an older session has just decrypted
+    // valid traffic. Prefer the latest successful receive, with creation time
+    // as a deterministic tie-breaker for second-resolution timestamps.
+    sessions.sort_by_key(|session| (session.last_use_time, session.creation_time));
+    sessions.last().cloned()
+}
+
 impl TryFrom<&DeviceKeys> for DeviceData {
     type Error = SignatureError;
 
@@ -1072,12 +1071,37 @@ pub(crate) mod testing {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use ruma::{MilliSecondsSinceUnixEpoch, user_id};
+    use std::time::{Duration, SystemTime};
+
+    use ruma::{MilliSecondsSinceUnixEpoch, SecondsSinceUnixEpoch, user_id};
     use serde_json::json;
     use vodozemac::{Curve25519PublicKey, Ed25519PublicKey};
 
-    use super::testing::{device_keys, get_device};
-    use crate::{DeviceData, identities::LocalTrust};
+    use super::{select_most_recent_session, testing::{device_keys, get_device}};
+    use crate::{DeviceData, identities::LocalTrust, olm::tests::get_account_and_session_test_helper};
+
+    #[test]
+    fn selects_session_with_latest_successful_decrypt() {
+        let (_, mut recently_created) = get_account_and_session_test_helper();
+        let (_, mut recently_decrypted) = get_account_and_session_test_helper();
+        recently_created.creation_time = timestamp(20);
+        recently_created.last_use_time = timestamp(20);
+        recently_decrypted.creation_time = timestamp(10);
+        recently_decrypted.last_use_time = timestamp(30);
+        let expected_session_id = recently_decrypted.session_id().to_owned();
+
+        let selected = select_most_recent_session(&mut [recently_decrypted, recently_created])
+            .expect("a session should be selected");
+
+        assert_eq!(selected.session_id(), expected_session_id);
+    }
+
+    fn timestamp(seconds: u64) -> SecondsSinceUnixEpoch {
+        SecondsSinceUnixEpoch::from_system_time(
+            SystemTime::UNIX_EPOCH + Duration::from_secs(seconds),
+        )
+        .expect("fixture timestamp should be valid")
+    }
 
     #[test]
     fn create_a_device() {
