@@ -3,6 +3,7 @@ package com.massimotter.weave.backend.chat.provider.synapse;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.massimotter.weave.backend.chat.port.CanonicalChatStore;
@@ -256,35 +257,44 @@ public final class MatrixApplicationServiceController {
 
     /**
      * Synapse reconstructs a queued Application Service transaction on every
-     * delivery attempt. Its serializer recalculates {@code unsigned.age}, then
-     * its client-v1 formatter copies that value to top-level {@code age}, so
-     * byte-for-byte payload hashing would reject a legitimate retry even though
-     * the homeserver transaction and persistent event data are unchanged.
+     * delivery attempt. Presentation fields such as age, unsigned metadata, and
+     * serialization order can therefore differ while provider event identity
+     * and semantic content remain unchanged. The homeserver transaction is an
+     * event set: order and presentation envelopes are excluded, while identity,
+     * routing, state, sender, type, redaction target, and content stay binding.
      */
     static String semanticPayloadDigest(JsonNode root) {
-        JsonNode events = root.path("events").deepCopy();
-        if (events.isArray()) {
-            events.forEach(MatrixApplicationServiceController::removeVolatileEventAge);
+        ArrayList<String> semanticEvents = new ArrayList<>();
+        for (JsonNode event : root.path("events")) {
+            ObjectNode semanticEvent = JsonNodeFactory.instance.objectNode();
+            copySemanticField(event, semanticEvent, "event_id");
+            copySemanticField(event, semanticEvent, "room_id");
+            copySemanticField(event, semanticEvent, "sender");
+            copySemanticField(event, semanticEvent, "type");
+            copySemanticField(event, semanticEvent, "state_key");
+            copySemanticField(event, semanticEvent, "content");
+            copySemanticField(event, semanticEvent, "redacts");
+            StringBuilder canonicalEvent = new StringBuilder();
+            appendCanonicalJson(semanticEvent, canonicalEvent);
+            semanticEvents.add(canonicalEvent.toString());
         }
+        Collections.sort(semanticEvents);
         StringBuilder canonical = new StringBuilder();
-        appendCanonicalJson(events, canonical);
+        canonical.append('[');
+        for (int index = 0; index < semanticEvents.size(); index++) {
+            if (index > 0) {
+                canonical.append(',');
+            }
+            canonical.append(semanticEvents.get(index));
+        }
+        canonical.append(']');
         return sha256(canonical.toString().getBytes(StandardCharsets.UTF_8));
     }
 
-    private static void removeVolatileEventAge(JsonNode event) {
-        if (!(event instanceof ObjectNode eventObject)) {
-            return;
+    private static void copySemanticField(JsonNode source, ObjectNode target, String field) {
+        if (source.has(field)) {
+            target.set(field, source.get(field));
         }
-        // Synapse's client-v1 event formatter copies unsigned.age to the
-        // top-level presentation envelope after recalculating it.
-        eventObject.remove("age");
-        removeVolatileEventAge(eventObject.get("redacted_because"));
-        JsonNode unsigned = eventObject.get("unsigned");
-        if (!(unsigned instanceof ObjectNode unsignedObject)) {
-            return;
-        }
-        unsignedObject.remove("age");
-        removeVolatileEventAge(unsignedObject.get("redacted_because"));
     }
 
     private static void appendCanonicalJson(JsonNode value, StringBuilder target) {

@@ -102,29 +102,51 @@ class MatrixApplicationServiceControllerTest {
     }
 
     @Test
-    void firstDeliverySemanticDigestIsStableAcrossSynapsePresentationAgeDrift() throws Exception {
+    void firstDeliverySemanticDigestUsesAnOrderIndependentSemanticEventSet() throws Exception {
         JsonNode first = objectMapper.readTree("""
                 {"presentation":"first-delivery","events":[{
                   "event_id":"$state:matrix.internal",
+                  "room_id":"!room:matrix.internal",
+                  "sender":"@_weave_sender:matrix.internal",
                   "type":"m.room.create",
                   "content":{"creator":"@_weave_sender:matrix.internal"},
+                  "origin_server_ts":123,
                   "age":12,
                   "redacted_because":{"event_id":"$redaction:matrix.internal","age":7,"unsigned":{"age":7}},
                   "unsigned":{"age":12,"stable":"kept","redacted_because":{"event_id":"$redaction:matrix.internal","age":7,"unsigned":{"age":7}}}
+                },{
+                  "event_id":"$name:matrix.internal",
+                  "room_id":"!room:matrix.internal",
+                  "sender":"@_weave_sender:matrix.internal",
+                  "type":"m.room.name",
+                  "state_key":"",
+                  "content":{"name":"Collaboration"}
                 }]}
                 """);
         JsonNode retried = objectMapper.readTree("""
                 {"presentation":"retry-delivery","events":[{
+                  "unsigned":{"age":42,"presentation_only":"changed"},
+                  "origin_server_ts":999,
+                  "content":{"name":"Collaboration"},
+                  "state_key":"",
+                  "sender":"@_weave_sender:matrix.internal",
+                  "room_id":"!room:matrix.internal",
+                  "type":"m.room.name",
+                  "event_id":"$name:matrix.internal"
+                },{
                   "unsigned":{"stable":"kept","age":98765,"redacted_because":{"unsigned":{"age":87654},"age":87654,"event_id":"$redaction:matrix.internal"}},
                   "age":98765,
                   "redacted_because":{"unsigned":{"age":87654},"age":87654,"event_id":"$redaction:matrix.internal"},
+                  "origin_server_ts":456,
                   "content":{"creator":"@_weave_sender:matrix.internal"},
                   "type":"m.room.create",
+                  "sender":"@_weave_sender:matrix.internal",
+                  "room_id":"!room:matrix.internal",
                   "event_id":"$state:matrix.internal"
                 }]}
                 """);
         JsonNode changed = retried.deepCopy();
-        ((com.fasterxml.jackson.databind.node.ObjectNode) changed.path("events").get(0).path("content"))
+        ((com.fasterxml.jackson.databind.node.ObjectNode) changed.path("events").get(1).path("content"))
                 .put("creator", "@_weave_other:matrix.internal");
 
         assertThat(MatrixApplicationServiceController.semanticPayloadDigest(first))

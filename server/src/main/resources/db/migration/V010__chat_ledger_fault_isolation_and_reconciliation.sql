@@ -1,5 +1,5 @@
 alter table weave_chat_appservice_transactions
-    add column semantic_fingerprint_version varchar(64) not null default 'matrix-as-event-set-v1';
+    add column semantic_fingerprint_version varchar(64) not null default 'matrix-as-semantic-event-set-v2';
 alter table weave_chat_appservice_transactions
     add column semantic_mismatch_count integer not null default 0;
 alter table weave_chat_appservice_transactions

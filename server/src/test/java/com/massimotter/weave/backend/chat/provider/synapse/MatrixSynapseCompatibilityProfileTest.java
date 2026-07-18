@@ -20,7 +20,7 @@ class MatrixSynapseCompatibilityProfileTest {
             assertThat(profile.applicationServiceRegistrationProfile())
                     .isEqualTo("exclusive-user-alias-namespaces-rooms-empty-receive-ephemeral-false-v1");
             assertThat(profile.classifierVersion()).isEqualTo("matrix-synapse-state-v1");
-            assertThat(profile.semanticFingerprintVersion()).isEqualTo("matrix-as-event-set-v1");
+            assertThat(profile.semanticFingerprintVersion()).isEqualTo("matrix-as-semantic-event-set-v2");
             assertThat(profile.classify("m.room.canonical_alias", true))
                     .isEqualTo(MatrixSynapseCompatibilityProfile.StateClassification.SUPPORTED_IGNORED);
             assertThat(profile.classify("org.example.future_state", true))

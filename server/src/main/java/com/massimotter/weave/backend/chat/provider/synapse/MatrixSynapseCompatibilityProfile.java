@@ -24,7 +24,7 @@ public record MatrixSynapseCompatibilityProfile(
     public static final String APPLICATION_SERVICE_REGISTRATION_PROFILE =
             "exclusive-user-alias-namespaces-rooms-empty-receive-ephemeral-false-v1";
     public static final String CLASSIFIER_VERSION = "matrix-synapse-state-v1";
-    public static final String SEMANTIC_FINGERPRINT_VERSION = "matrix-as-event-set-v1";
+    public static final String SEMANTIC_FINGERPRINT_VERSION = "matrix-as-semantic-event-set-v2";
 
     private static final Set<String> BASE_SUPPORTED_IGNORED_STATE_TYPES = Set.of(
             "m.room.create",
