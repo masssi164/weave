@@ -23,6 +23,7 @@ CLIENT_HTTP_OVERRIDES = (
 CLIENT_LIVE_OIDC = ROOT / "client/integration_test/helpers/live_oidc_test_driver.dart"
 IOS_SIMULATOR_XCRUN = ROOT / "tools/ios_simulator_xcrun.py"
 IOS_SIMULATOR_XCRUN_SHIM = ROOT / "tools/ios-simulator-xcrun/xcrun"
+LIVE_PHASE_OUTCOMES = ROOT / "tools/live_phase_outcomes.py"
 
 
 def main() -> int:
@@ -37,6 +38,7 @@ def main() -> int:
     client_live_oidc = CLIENT_LIVE_OIDC.read_text(encoding="utf-8")
     ios_simulator_xcrun = IOS_SIMULATOR_XCRUN.read_text(encoding="utf-8")
     ios_simulator_xcrun_shim = IOS_SIMULATOR_XCRUN_SHIM.read_text(encoding="utf-8")
+    live_phase_outcomes = LIVE_PHASE_OUTCOMES.read_text(encoding="utf-8")
 
     ordered_steps = (
         "- name: Verify isolated disposable live runner",
@@ -177,7 +179,10 @@ def main() -> int:
         "Matrix/Synapse provider proof must run independently and retain support-safe failure evidence",
     )
     require(
-        "live-phase-outcomes-v1" in workflow
+        "live-phase-outcomes-v2" in live_phase_outcomes
+        and "weave/tools/live_phase_outcomes.py" in workflow
+        and "provider-persistence-exactly-once" in workflow
+        and "identity-cleanup" in workflow
         and "WEAVE_COLLABORATION_TEST_STATUS" in workflow
         and "WEAVE_CALENDAR_CONTAINMENT_STATUS" in workflow
         and "WEAVE_STACK_TEARDOWN_STEP_OUTCOME" in workflow,

@@ -703,6 +703,7 @@ assert_provider_evidence_counts() {
       .providerEncryptedEventCount == $expectedEvents and
       .providerPlaintextEventCount == 0 and
       .pendingOperationCount == 0 and .failedOperationCount == $expectedFailed and
+      .callbackSemanticMismatchCount == 0 and
       .quarantineCount == 0 and .degradedOperationCount == 0 and
       ([.identities[] | select(
         (.role == "author" or .role == "collaborator") and
@@ -911,6 +912,7 @@ evidence_stability_tuple() {
   jq -c '[
     .callbackTransactionCount,
     .callbackDuplicateCount,
+    .callbackSemanticMismatchCount,
     .bridgeLedgerCount,
     .canonicalCommittedEventCount,
     .providerEncryptedEventCount,
@@ -1044,7 +1046,8 @@ prove_callback_replay() {
       .committedOperationCount == $before[0].committedOperationCount and
       .bridgeLedgerCount == $before[0].bridgeLedgerCount and
       .callbackTransactionCount == $before[0].callbackTransactionCount and
-      .callbackDuplicateCount == ($before[0].callbackDuplicateCount + 1)
+      .callbackDuplicateCount == ($before[0].callbackDuplicateCount + 1) and
+      .callbackSemanticMismatchCount == $before[0].callbackSemanticMismatchCount
     ' "${after}" >/dev/null || fail "callback-replay-delta-invalid"
   done
 }

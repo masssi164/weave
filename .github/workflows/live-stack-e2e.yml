@@ -866,51 +866,31 @@ jobs:
         run: |
           set -euo pipefail
           output="$WEAVE_ACCEPTANCE_EVIDENCE_DIR/live-phase-outcomes.json"
-          jq -n \
-            --arg candidateCommit "$GITHUB_SHA" \
-            --arg singleUser "${WEAVE_SINGLE_USER_TEST_STATUS:-1}" \
-            --arg collaboration "${WEAVE_COLLABORATION_TEST_STATUS:-1}" \
-            --arg matrixBefore "${WEAVE_MATRIX_BEFORE_COLLABORATION_STATUS:-1}" \
-            --arg matrixAfter "${WEAVE_MATRIX_AFTER_COLLABORATION_STATUS:-1}" \
-            --arg calendarOutageBegin "${WEAVE_CALENDAR_OUTAGE_BEGIN_STATUS:-1}" \
-            --arg calendarContainment "${WEAVE_CALENDAR_CONTAINMENT_STATUS:-1}" \
-            --arg calendarRestore "${WEAVE_CALENDAR_OUTAGE_RESTORE_STATUS:-1}" \
-            --arg providerProof "${WEAVE_CHAT_PROVIDER_PROOF_STATUS:-1}" \
-            --arg liveTestStep "$WEAVE_LIVE_TEST_STEP_OUTCOME" \
-            --arg providerProofStep "$WEAVE_PROVIDER_PROOF_STEP_OUTCOME" \
-            --arg identityCleanupStep "$WEAVE_IDENTITY_CLEANUP_STEP_OUTCOME" \
-            --arg stackTeardownStep "$WEAVE_STACK_TEARDOWN_STEP_OUTCOME" \
-            '{
-              contractVersion:"live-phase-outcomes-v1",
-              candidateCommit:$candidateCommit,
-              statuses:{
-                singleUser:($singleUser | tonumber),
-                collaboration:($collaboration | tonumber),
-                matrixBeforeCollaboration:($matrixBefore | tonumber),
-                matrixAfterCollaboration:($matrixAfter | tonumber),
-                calendarOutageBegin:($calendarOutageBegin | tonumber),
-                calendarContainment:($calendarContainment | tonumber),
-                calendarRestore:($calendarRestore | tonumber),
-                providerProof:($providerProof | tonumber)
-              },
-              stepOutcomes:{
-                liveTests:$liveTestStep,
-                providerProof:$providerProofStep,
-                identityCleanup:$identityCleanupStep,
-                stackTeardown:$stackTeardownStep
-              },
-              supportSafe:true
-            }' > "$output"
-          jq -e '
-            .contractVersion == "live-phase-outcomes-v1" and
-            .supportSafe == true and
-            ([.statuses[]] | all(
-              (type == "number") and
-              (floor == .) and
-              (. >= 0 and . <= 255)
-            )) and
-            ([.stepOutcomes[]] | all(. == "success" or . == "failure" or . == "skipped" or . == "cancelled"))
-          ' "$output" >/dev/null
+          step_status() {
+            case "$1" in
+              success) echo 0 ;;
+              failure) echo 1 ;;
+              skipped) echo 2 ;;
+              cancelled) echo 3 ;;
+              *) echo 1 ;;
+            esac
+          }
+          python3 weave/tools/live_phase_outcomes.py \
+            --output "$output" \
+            --candidate-commit "$GITHUB_SHA" \
+            --workflow-run-id "$GITHUB_RUN_ID" \
+            --run-index "$GITHUB_RUN_ATTEMPT" \
+            --observed-at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            --outcome "single-user-appshell-e2ee|${WEAVE_SINGLE_USER_TEST_STATUS:-1}|$WEAVE_LIVE_TEST_STEP_OUTCOME" \
+            --outcome "three-identity-collaboration|${WEAVE_COLLABORATION_TEST_STATUS:-1}|$WEAVE_LIVE_TEST_STEP_OUTCOME" \
+            --outcome "matrix-before-collaboration|${WEAVE_MATRIX_BEFORE_COLLABORATION_STATUS:-1}|$WEAVE_LIVE_TEST_STEP_OUTCOME" \
+            --outcome "matrix-after-collaboration|${WEAVE_MATRIX_AFTER_COLLABORATION_STATUS:-1}|$WEAVE_LIVE_TEST_STEP_OUTCOME" \
+            --outcome "calendar-outage-begin|${WEAVE_CALENDAR_OUTAGE_BEGIN_STATUS:-1}|$WEAVE_LIVE_TEST_STEP_OUTCOME" \
+            --outcome "calendar-failure-containment|${WEAVE_CALENDAR_CONTAINMENT_STATUS:-1}|$WEAVE_LIVE_TEST_STEP_OUTCOME" \
+            --outcome "calendar-outage-recovery|${WEAVE_CALENDAR_OUTAGE_RESTORE_STATUS:-1}|$WEAVE_LIVE_TEST_STEP_OUTCOME" \
+            --outcome "provider-persistence-exactly-once|${WEAVE_CHAT_PROVIDER_PROOF_STATUS:-1}|$WEAVE_PROVIDER_PROOF_STEP_OUTCOME" \
+            --outcome "identity-cleanup|$(step_status "$WEAVE_IDENTITY_CLEANUP_STEP_OUTCOME")|$WEAVE_IDENTITY_CLEANUP_STEP_OUTCOME" \
+            --outcome "stack-teardown|$(step_status "$WEAVE_STACK_TEARDOWN_STEP_OUTCOME")|$WEAVE_STACK_TEARDOWN_STEP_OUTCOME"
 
       - name: Aggregate two-pass human-testing automation evidence
         if: always()

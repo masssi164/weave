@@ -29,6 +29,7 @@ registerRootCommandTask('filesWebDavFacadeAcceptanceCheck', ['python3', 'tools/f
 registerRootCommandTask('enterpriseTargetArchitectureSpineCheck', ['python3', 'tools/enterprise_target_architecture_spine_check.py'], 'Validate the Enterprise Target Architecture E2E evidence spine.')
 registerRootCommandTask('matrixRustCoreTest', ['cargo', 'test', '-p', 'weave-matrix-core', '--all-features'], 'Run the shared Rust/Ruma Matrix core contract tests, including JNI and Flutter bridge features.')
 registerRootCommandTask('matrixSdkVendorProvenanceCheck', ['bash', '-lc', 'python3 tools/matrix_sdk_vendor_provenance_test.py && python3 tools/matrix_sdk_vendor_provenance.py'], 'Verify the vendored Matrix SDK crypto crate checksum and narrow Weave patch allowlist.')
+registerRootCommandTask('synapseCompatibilityProbeTest', ['python3', 'tools/synapse_compatibility_probe_test.py'], 'Validate support-safe pinned/candidate Synapse compatibility probe semantics without starting containers.')
 tasks.named('matrixRustCoreTest') {
     dependsOn 'matrixSdkVendorProvenanceCheck'
 }
@@ -90,7 +91,7 @@ registerRootCommandTask('sprint31LanDogfoodCheck', ['python3', 'tools/sprint31_l
 registerRootCommandTask('dogfoodActivationMailCheckTest', ['python3', 'tools/dogfood_activation_mail_check_test.py'], 'Run fixture tests for support-safe dogfood activation mail evidence checks.')
 registerRootCommandTask('dogfoodIosSessionContinuityCheckTest', ['python3', 'tools/dogfood_ios_session_continuity_check_test.py'], 'Run fixture tests for support-safe physical iPhone session restoration evidence.')
 registerRootCommandTask('iosDogfoodDistributionCheck', ['python3', 'tools/ios_dogfood_distribution_check.py'], 'Validate the GitHub-only stable iOS TestFlight dogfood distribution contract.')
-registerRootCommandTask('liveStackRunnerHygieneCheck', ['bash', '-lc', 'python3 tools/ios_simulator_xcrun_test.py && python3 tools/live_stack_runner_hygiene_check.py'], 'Validate bounded self-hosted Live Stack cleanup, simulator VM discovery, headroom, and evidence ordering.')
+registerRootCommandTask('liveStackRunnerHygieneCheck', ['bash', '-lc', 'python3 tools/ios_simulator_xcrun_test.py && python3 tools/live_phase_outcomes_test.py && python3 tools/live_stack_runner_hygiene_check.py'], 'Validate bounded self-hosted Live Stack cleanup, independent support-safe phase outcomes, simulator VM discovery, headroom, and evidence ordering.')
 registerRootCommandTask('crossDomainProviderProofCheck', ['python3', 'tools/cross_domain_provider_proof_check.py'], 'Validate Sprint 27 Calendar, Files, Identity provider-boundary fixtures, scoreboard, claim gate, and acceptance mapping.')
 registerRootCommandTask('specContractTest', ['python3', 'tools/spec_contract_check_test.py'], 'Run fixture tests for the repo-local Weave spec contract guard.')
 registerRootCommandTask('androidReleaseIdentityCheck', ['python3', 'tools/android_release_identity_check.py'], 'Validate Android package identity and release-signing fail-safe posture.')
@@ -200,6 +201,7 @@ ext.ciEvidenceGates = [
     'multiUserE2EEvidenceTest',
     'multiUserLogSanitizerTest',
     'matrixToDeviceEvidenceValidatorTest',
+    'synapseCompatibilityProbeTest',
     'dogfoodDeploymentEvidenceTest',
     'candidatePipelineCheck',
     'obsoleteFirstRunContractCheck'
@@ -294,6 +296,8 @@ List<String> artifactPathsForGate(String gateName) {
             return ['specs/weave-specs.lock.json', 'tools/spec_corpus_conformance_check.py']
         case 'matrixSdkVendorProvenanceCheck':
             return ['rust/vendor/matrix-sdk-crypto.weave-provenance.json', 'tools/matrix_sdk_vendor_provenance.py']
+        case 'synapseCompatibilityProbeTest':
+            return ['tools/synapse_compatibility_probe.py', 'tools/synapse_compatibility_probe_test.py']
         case 'sprintBootstrapAudit':
             return ['tools/sprint_bootstrap.py', 'tools/fixtures/sprint_bootstrap_sprint12.json', 'docs/sprint-bootstrap-and-board-flow.md']
         case 'specContract':
@@ -406,10 +410,10 @@ tasks.register('doctor') {
 tasks.register('ci') {
     group = 'verification'
     description = 'Run the canonical monorepo CI orchestration checks.'
-    dependsOn 'doctor', 'specCorpusConformance', 'acceptanceContract', 'specContract', 'specContractTest', 'domainRegistryCheck', 'portabilityContractCheck', 'productTrustClaimMatrixCheck', 'androidReleaseIdentityCheck', 'adminDependencyPolicyCheck', 'bootstrapFoundationCheck', 'humanTestingReadinessManifestTest', 'multiUserE2EEvidenceTest', 'multiUserLogSanitizerTest', 'matrixToDeviceEvidenceValidatorTest', 'matrixRustCoreTest', 'clientCi', 'serverCi', 'mcpCi', 'infraStatic', 'adminCi', 'docsCheck', 'releaseNotesLabelCheck', 'releaseEvidenceCheck', 'liveStackRunnerHygieneCheck', 'projectReadinessEvidenceCheck'
+    dependsOn 'doctor', 'specCorpusConformance', 'acceptanceContract', 'specContract', 'specContractTest', 'domainRegistryCheck', 'portabilityContractCheck', 'productTrustClaimMatrixCheck', 'androidReleaseIdentityCheck', 'adminDependencyPolicyCheck', 'bootstrapFoundationCheck', 'humanTestingReadinessManifestTest', 'multiUserE2EEvidenceTest', 'multiUserLogSanitizerTest', 'matrixToDeviceEvidenceValidatorTest', 'synapseCompatibilityProbeTest', 'matrixRustCoreTest', 'clientCi', 'serverCi', 'mcpCi', 'infraStatic', 'adminCi', 'docsCheck', 'releaseNotesLabelCheck', 'releaseEvidenceCheck', 'liveStackRunnerHygieneCheck', 'projectReadinessEvidenceCheck'
 }
 
-['specCorpusConformance', 'acceptanceContract', 'specContract', 'specContractTest', 'domainRegistryCheck', 'spaceAnchorCheck', 'portabilityContractCheck', 'productTrustClaimMatrixCheck', 'androidReleaseIdentityCheck', 'adminDependencyPolicyCheck', 'bootstrapFoundationCheck', 'humanTestingReadinessManifestTest', 'multiUserE2EEvidenceTest', 'multiUserLogSanitizerTest', 'matrixToDeviceEvidenceValidatorTest', 'matrixSdkVendorProvenanceCheck', 'matrixRustCoreTest', 'clientCi', 'serverCi', 'mcpCi', 'infraStatic', 'adminCi', 'docsStructureCheck', 'docsBuild', 'releaseNotesLabelCheck', 'releaseEvidenceCheck', 'liveStackRunnerHygieneCheck', 'sprint30HotPhaseCheck', 'crossDomainProviderProofCheck', 'projectReadinessEvidenceCheck', 'enterpriseReleaseGateCheck', 'releaseReadinessFixtureTest', 'releaseReadinessCheck'].each { taskName ->
+['specCorpusConformance', 'acceptanceContract', 'specContract', 'specContractTest', 'domainRegistryCheck', 'spaceAnchorCheck', 'portabilityContractCheck', 'productTrustClaimMatrixCheck', 'androidReleaseIdentityCheck', 'adminDependencyPolicyCheck', 'bootstrapFoundationCheck', 'humanTestingReadinessManifestTest', 'multiUserE2EEvidenceTest', 'multiUserLogSanitizerTest', 'matrixToDeviceEvidenceValidatorTest', 'matrixSdkVendorProvenanceCheck', 'synapseCompatibilityProbeTest', 'matrixRustCoreTest', 'clientCi', 'serverCi', 'mcpCi', 'infraStatic', 'adminCi', 'docsStructureCheck', 'docsBuild', 'releaseNotesLabelCheck', 'releaseEvidenceCheck', 'liveStackRunnerHygieneCheck', 'sprint30HotPhaseCheck', 'crossDomainProviderProofCheck', 'projectReadinessEvidenceCheck', 'enterpriseReleaseGateCheck', 'releaseReadinessFixtureTest', 'releaseReadinessCheck'].each { taskName ->
     tasks.named(taskName) {
         mustRunAfter tasks.named('doctor')
     }

@@ -403,6 +403,7 @@ elif [[ "${url}" == */api/internal/e2e/chat/provider-proof ]]; then
         bridgeLedgerCount:$ledgerCount,
         callbackTransactionCount:$callbackCount,
         callbackDuplicateCount:$duplicateCount,
+        callbackSemanticMismatchCount:0,
         quarantineCount:0,
         degradedOperationCount:0,
         observedAt:"2026-07-15T12:00:00Z",
