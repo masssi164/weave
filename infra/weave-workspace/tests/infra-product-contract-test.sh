@@ -124,6 +124,9 @@ assert_file_contains "${install_script}" 'weave-channel-engineering-general'
 assert_file_contains "${ROOT_DIR}/smoke-test.sh" 'weave-team-engineering'
 assert_file_contains "${ROOT_DIR}/operator-check.sh" 'weave-channel-engineering-general'
 assert_file_contains "${release_verify}" 'weave-channel-engineering-general'
+for readiness_check in "${ROOT_DIR}/operator-check.sh" "${release_verify}" "${ROOT_DIR}/smoke-test.sh"; do
+  assert_file_contains "${readiness_check}" 'isolated_namespace="$(container_env_value weave-backend WEAVE_ISOLATED_E2E_NAMESPACE || true)"'
+done
 legacy_e2ee_marker='planned-not-'
 legacy_e2ee_marker+='enabled'
 assert_file_absent "${install_script}" "${legacy_e2ee_marker}"
