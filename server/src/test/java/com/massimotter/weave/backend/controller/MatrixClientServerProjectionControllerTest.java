@@ -785,6 +785,21 @@ class MatrixClientServerProjectionControllerTest {
     }
 
     @Test
+    void degradedRoomMemberPreflightExposesOnlyStableQuarantineReason() throws Exception {
+        when(chatDomainFacadeService.conversation(eq("channel-general"), any()))
+                .thenThrow(new ChatProviderUnavailableException(
+                        "chat-conversation-mapping-degraded-provider-redaction-echo-mismatch"));
+
+        mockMvc.perform(get("/_matrix/client/v3/rooms/!channel-general:api.weave.test/members")
+                        .with(workspaceJwt()))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.errcode")
+                        .value("M_WEAVE_CHAT_DEGRADED_PROVIDER_REDACTION_ECHO_MISMATCH"))
+                .andExpect(content().string(not(containsString("chat-conversation-mapping"))))
+                .andExpect(content().string(not(containsString("Synapse"))));
+    }
+
+    @Test
     void stockOpenClawMemberReceiptAndTypingCallsStayOnCanonicalChat() throws Exception {
         stubConversation();
 

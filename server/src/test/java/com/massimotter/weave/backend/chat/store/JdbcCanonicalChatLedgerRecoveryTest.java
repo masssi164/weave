@@ -96,7 +96,7 @@ class JdbcCanonicalChatLedgerRecoveryTest {
         assertThatThrownBy(() -> store.conversation(author, affected.conversationId()))
                 .isInstanceOf(ChatProviderUnavailableException.class)
                 .satisfies(exception -> assertThat(((ChatProviderUnavailableException) exception).supportSafeCode())
-                        .isEqualTo("chat-conversation-mapping-degraded"));
+                        .isEqualTo("chat-conversation-mapping-degraded-provider-state-event-type-unsupported"));
         assertThatThrownBy(() -> store.prepareEvent(
                 author,
                 affected.conversationId(),

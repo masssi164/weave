@@ -398,12 +398,28 @@ public class MatrixClientServerProjectionController {
             if (exception.throttled()) {
                 return matrixThrottled(exception.retryAfterMilliseconds(Instant.now()));
             }
-            return matrixError(HttpStatus.SERVICE_UNAVAILABLE, "M_UNAVAILABLE", "Weave Chat is temporarily unavailable.");
+            return matrixError(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    supportSafeProviderErrcode(exception),
+                    "Weave Chat is temporarily unavailable.");
         } catch (IllegalArgumentException exception) {
             return matrixError(HttpStatus.BAD_REQUEST, "M_INVALID_PARAM", "The Matrix request parameter is invalid.");
         } catch (IllegalStateException exception) {
             return matrixError(HttpStatus.SERVICE_UNAVAILABLE, "M_UNAVAILABLE", "Weave Chat is not available.");
         }
+    }
+
+    private String supportSafeProviderErrcode(ChatProviderUnavailableException exception) {
+        String prefix = "chat-conversation-mapping-degraded-";
+        String code = exception.supportSafeCode();
+        if (!code.startsWith(prefix)) {
+            return "M_UNAVAILABLE";
+        }
+        String reason = code.substring(prefix.length());
+        if (!reason.matches("[a-z0-9-]{2,55}")) {
+            return "M_WEAVE_CHAT_DEGRADED_UNKNOWN";
+        }
+        return "M_WEAVE_CHAT_DEGRADED_" + reason.toUpperCase(java.util.Locale.ROOT).replace('-', '_');
     }
 
     private Map<String, Object> loginFlows() {

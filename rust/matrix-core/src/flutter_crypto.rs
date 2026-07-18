@@ -891,7 +891,7 @@ async fn converge_joined_room_security(
 }
 
 fn is_conversation_scoped_sync_security_error(code: &str) -> bool {
-    code == "M_WEAVE_E2EE_ROOM_MEMBERS"
+    code == "M_WEAVE_E2EE_ROOM_MEMBERS" || code.starts_with("M_WEAVE_CHAT_DEGRADED_")
 }
 
 fn matrix_io_gate_for(profile_key: &str) -> Result<Arc<AsyncMutex<()>>, String> {
@@ -1119,7 +1119,7 @@ async fn refresh_active_member_device_keys(
     let mut members = room
         .members_no_sync(RoomMemberships::JOIN)
         .await
-        .map_err(|_| "M_WEAVE_E2EE_ROOM_MEMBERS".to_string())?;
+        .map_err(|error| matrix_sdk_error_code(&error, "M_WEAVE_E2EE_ROOM_MEMBERS"))?;
     let observed_member_ids = joined_member_ids(&members);
     let cached_fingerprint =
         cached_room_security_fingerprint(profile_key, room.room_id().as_str())?;
@@ -1152,7 +1152,7 @@ async fn refresh_active_member_device_keys(
         members = room
             .members(RoomMemberships::JOIN)
             .await
-            .map_err(|_| "M_WEAVE_E2EE_ROOM_MEMBERS".to_string())?;
+            .map_err(|error| matrix_sdk_error_code(&error, "M_WEAVE_E2EE_ROOM_MEMBERS"))?;
     }
     let encryption = client.encryption();
     let mut member_device_ids = Vec::new();
@@ -2084,6 +2084,9 @@ mod tests {
     fn sync_contains_a_degraded_room_membership_projection() {
         assert!(is_conversation_scoped_sync_security_error(
             "M_WEAVE_E2EE_ROOM_MEMBERS"
+        ));
+        assert!(is_conversation_scoped_sync_security_error(
+            "M_WEAVE_CHAT_DEGRADED_PROVIDER_REDACTION_ECHO_MISMATCH"
         ));
         assert!(!is_conversation_scoped_sync_security_error(
             "M_WEAVE_E2EE_SESSION"

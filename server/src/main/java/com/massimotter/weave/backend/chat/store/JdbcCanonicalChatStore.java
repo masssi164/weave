@@ -1743,7 +1743,14 @@ public final class JdbcCanonicalChatStore implements CanonicalChatStore {
                         + "and object_type = 'conversation' and canonical_object_id = ? "
                         + "and mapping_state = 'degraded'",
                 tenantId, conversationId.value()) > 0) {
-            throw new ChatProviderUnavailableException("chat-conversation-mapping-degraded");
+            String reason = jdbc.query(
+                            "select reason_code from weave_chat_quarantine where tenant_id = ? "
+                                    + "and conversation_id = ? and lifecycle_state in ('pending', 'rejected') "
+                                    + "order by observed_at_utc desc, quarantine_id desc limit 1",
+                            (rs, row) -> safeCode(rs.getString("reason_code")),
+                            tenantId, conversationId.value())
+                    .stream().findFirst().orElse("unknown");
+            throw new ChatProviderUnavailableException("chat-conversation-mapping-degraded-" + reason);
         }
     }
 
