@@ -172,7 +172,16 @@ public interface CanonicalChatStore {
 
     void completeCallback(String providerKey, String transactionId, int duplicateCount);
 
-    long degradedMappingCount(String providerKey);
+    long systemicCallbackIntegrityFailureCount(String providerKey);
+
+    List<QuarantineReconciliationResult> reconcilePendingQuarantines(
+            String providerKey,
+            int limit);
+
+    QuarantineReconciliationResult reconcileQuarantine(
+            String tenantId,
+            String providerKey,
+            String correlationHash);
 
     EvidenceSnapshot evidence(String tenantId, ConversationId conversationId, String providerKey);
 
@@ -236,7 +245,8 @@ public interface CanonicalChatStore {
     enum CallbackStart {
         NEW,
         RESUME,
-        DUPLICATE
+        DUPLICATE,
+        SEMANTIC_MISMATCH
     }
 
     record ProviderCallbackEvent(
@@ -249,9 +259,25 @@ public interface CanonicalChatStore {
             String stateKey,
             String providerRedactsRef,
             Map<String, Object> content,
-            String providerSourceVersion) {
+            String providerSourceVersion,
+            boolean providerRedacted) {
         public ProviderCallbackEvent {
             content = content == null ? Map.of() : Map.copyOf(content);
+        }
+
+        public ProviderCallbackEvent(
+                String homeserverTransactionId,
+                String providerTransactionId,
+                String providerEventRef,
+                String providerRoomRef,
+                String providerSenderRef,
+                String eventType,
+                String stateKey,
+                String providerRedactsRef,
+                Map<String, Object> content,
+                String providerSourceVersion) {
+            this(homeserverTransactionId, providerTransactionId, providerEventRef, providerRoomRef,
+                    providerSenderRef, eventType, stateKey, providerRedactsRef, content, providerSourceVersion, false);
         }
 
         public ProviderCallbackEvent(
@@ -264,11 +290,19 @@ public interface CanonicalChatStore {
                 Map<String, Object> content,
                 String providerSourceVersion) {
             this(homeserverTransactionId, providerTransactionId, providerEventRef, providerRoomRef,
-                    providerSenderRef, eventType, null, null, content, providerSourceVersion);
+                    providerSenderRef, eventType, null, null, content, providerSourceVersion, false);
         }
     }
 
     record CallbackEventResult(String state, String correlationHash) {
+    }
+
+    record QuarantineReconciliationResult(
+            String lifecycleState,
+            String outcomeCode,
+            int attemptCount,
+            boolean conversationHealed,
+            String correlationHash) {
     }
 
     record EvidenceSnapshot(
@@ -284,6 +318,7 @@ public interface CanonicalChatStore {
             long bridgeLedgerCount,
             long callbackTransactionCount,
             long callbackDuplicateCount,
+            long callbackSemanticMismatchCount,
             long quarantineCount,
             long degradedMappingCount,
             Instant observedAt) {

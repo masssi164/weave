@@ -37,6 +37,8 @@ import 'package:weave/main.dart';
 
 import 'helpers/isolated_stack_scope.dart';
 import 'helpers/live_actor_session.dart';
+import 'helpers/live_chat_access_evidence.dart';
+import 'helpers/live_files_access_evidence.dart';
 import 'helpers/matrix_live_room_driver.dart';
 import 'helpers/multi_user_test_config.dart';
 import 'helpers/test_http_overrides.dart';
@@ -64,9 +66,13 @@ const _supportSafeProgressPhases = <String>{
   'room-key-exchange-author-send',
   'room-key-exchange-author-self-observe',
   'room-key-exchange-collaborator-observe-author',
+  'room-key-exchange-collaborator-observed-author',
   'room-key-exchange-collaborator-send',
   'room-key-exchange-collaborator-self-observe',
   'room-key-exchange-author-observe-collaborator',
+  'room-key-exchange-author-observed-collaborator',
+  'room-key-exchange-redaction',
+  'room-key-exchange-redacted',
   'home-baseline',
   'author-write',
   'author-capabilities',
@@ -93,6 +99,9 @@ const _supportSafeProgressPhases = <String>{
   'collaborator-calendar-observe',
   'collaborator-calendar-update',
   'outsider-authorization',
+  'outsider-chat-authorization',
+  'outsider-files-authorization',
+  'outsider-calendar-authorization',
   'fresh-session-observation',
   'resource-cleanup',
   'independent-logout',
@@ -148,6 +157,7 @@ void main() {
       final cleanup = _RunCleanup(
         profiles: profiles,
         matrixHomeserver: configuration.common.matrixHomeserverUrl,
+        runIndex: configuration.runIndex,
       );
       addTearDown(cleanup.bestEffort);
       final suffix = '${configuration.runHash}-${configuration.runIndex}';
@@ -242,18 +252,32 @@ void main() {
         );
 
         _emitProgress(configuration, 'author-chat-connect');
-        await session.chat.connect();
+        await _connectChatWithSupportSafeFailure(
+          configuration: configuration,
+          role: CollaborationActorRole.author,
+          session: session,
+        );
         _emitProgress(configuration, 'author-chat-room');
         await _requireEncryptedConversation(session, roomId);
         _emitProgress(configuration, 'author-chat-send');
-        await session.chat.sendMessage(roomId: roomId, message: authorMessage);
+        await _sendChatWithSupportSafeFailure(
+          configuration: configuration,
+          role: CollaborationActorRole.author,
+          session: session,
+          roomId: roomId,
+          message: authorMessage,
+        );
         _emitProgress(configuration, 'author-chat-observe');
         final sentAuthorMessage = await _waitForChatMessage(
           session,
           roomId,
           authorMessage,
         );
-        cleanup.rememberChatEvents(roomId, <String>{sentAuthorMessage.id});
+        cleanup.rememberChatEvents(
+          roomId,
+          CollaborationActorRole.author,
+          <String>{sentAuthorMessage.id},
+        );
 
         _emitProgress(configuration, 'author-files-connect');
         await session.files.connect();
@@ -320,7 +344,10 @@ void main() {
         await _waitForChatMessage(session, roomId, authorMessage);
         authorMessageObserved = true;
         _emitProgress(configuration, 'collaborator-chat-send');
-        await session.chat.sendMessage(
+        await _sendChatWithSupportSafeFailure(
+          configuration: configuration,
+          role: CollaborationActorRole.collaborator,
+          session: session,
           roomId: roomId,
           message: collaboratorReply,
         );
@@ -329,7 +356,11 @@ void main() {
           roomId,
           collaboratorReply,
         );
-        cleanup.rememberChatEvents(roomId, <String>{sentCollaboratorReply.id});
+        cleanup.rememberChatEvents(
+          roomId,
+          CollaborationActorRole.collaborator,
+          <String>{sentCollaboratorReply.id},
+        );
 
         _emitProgress(configuration, 'collaborator-files-connect');
         await session.files.connect();
@@ -398,37 +429,57 @@ void main() {
           localePreferences[CollaborationActorRole.outsider]!,
         );
 
-        await session.chat.connect();
-        final outsiderConversations = await session.chat.loadConversations();
-        final targetMembershipVisible = outsiderConversations.any(
-          (conversation) => conversation.id == roomId,
-        );
-        var targetMessageVisible = false;
+        _emitProgress(configuration, 'outsider-chat-authorization');
+        var chatModuleDenied = false;
+        var targetMembershipVisible = false;
         try {
-          final timeline = await session.chat.loadRoomTimeline(roomId);
-          targetMessageVisible = timeline.messages.any(
-            (message) =>
-                message.text == authorMessage ||
-                message.text == collaboratorReply,
+          await session.chat.connect();
+          final outsiderConversations = await session.chat.loadConversations();
+          targetMembershipVisible = outsiderConversations.any(
+            (conversation) => conversation.id == roomId,
           );
-        } on ChatFailure {
-          targetMessageVisible = false;
+        } on ChatFailure catch (failure) {
+          chatModuleDenied = isWorkspaceChatDeniedForEvidence(failure);
+          if (!chatModuleDenied) {
+            rethrow;
+          }
         }
-        var outsiderSendRejected = false;
-        try {
-          await session.chat.sendMessage(
-            roomId: roomId,
-            message: 'weave-outsider-denied-$suffix',
-          );
-        } on ChatFailure {
-          outsiderSendRejected = true;
+        if (chatModuleDenied) {
+          outsiderChatDenied = true;
+        } else {
+          var targetMessageVisible = false;
+          try {
+            final timeline = await session.chat.loadRoomTimeline(roomId);
+            targetMessageVisible = timeline.messages.any(
+              (message) =>
+                  message.text == authorMessage ||
+                  message.text == collaboratorReply,
+            );
+          } on ChatFailure catch (failure) {
+            if (!isWorkspaceChatDeniedForEvidence(failure)) {
+              rethrow;
+            }
+          }
+          var outsiderSendRejected = false;
+          try {
+            await session.chat.sendMessage(
+              roomId: roomId,
+              message: 'weave-outsider-denied-$suffix',
+            );
+          } on ChatFailure catch (failure) {
+            outsiderSendRejected = isWorkspaceChatDeniedForEvidence(failure);
+            if (!outsiderSendRejected) {
+              rethrow;
+            }
+          }
+          outsiderChatDenied =
+              !targetMembershipVisible &&
+              !targetMessageVisible &&
+              outsiderSendRejected;
         }
-        outsiderChatDenied =
-            !targetMembershipVisible &&
-            !targetMessageVisible &&
-            outsiderSendRejected;
         expect(outsiderChatDenied, isTrue);
 
+        _emitProgress(configuration, 'outsider-files-authorization');
         await session.files.connect();
         var outsiderListingRejected = false;
         var outsiderFileVisible = false;
@@ -438,7 +489,9 @@ void main() {
             (entry) => entry.name == fileName,
           );
         } on FilesFailure catch (failure) {
-          outsiderListingRejected = _isWorkspaceAccessDenied(failure);
+          outsiderListingRejected = isWorkspaceResourceDeniedForEvidence(
+            failure,
+          );
         }
         var outsiderDownloadRejected = false;
         try {
@@ -452,7 +505,9 @@ void main() {
             ),
           );
         } on FilesFailure catch (failure) {
-          outsiderDownloadRejected = _isWorkspaceAccessDenied(failure);
+          outsiderDownloadRejected = isWorkspaceResourceDeniedForEvidence(
+            failure,
+          );
         }
         var outsiderDeleteRejected = false;
         try {
@@ -466,7 +521,9 @@ void main() {
             ),
           );
         } on FilesFailure catch (failure) {
-          outsiderDeleteRejected = _isWorkspaceAccessDenied(failure);
+          outsiderDeleteRejected = isWorkspaceResourceDeniedForEvidence(
+            failure,
+          );
         }
         outsiderFilesReadDenied =
             (outsiderListingRejected || !outsiderFileVisible) &&
@@ -476,6 +533,7 @@ void main() {
             outsiderFilesReadDenied && outsiderFilesMutationDenied;
         expect(outsiderFilesDenied, isTrue);
 
+        _emitProgress(configuration, 'outsider-calendar-authorization');
         var outsiderEventVisible = false;
         var outsiderScopedListingRejected = false;
         try {
@@ -546,10 +604,16 @@ void main() {
         final observedAuthorMessage = authorTimeline.messages.firstWhere(
           (message) => message.text == authorMessage,
         );
-        cleanup.rememberChatEvents(roomId, <String>{
-          observedAuthorMessage.id,
-          observedReply.id,
-        });
+        cleanup.rememberChatEvents(
+          roomId,
+          CollaborationActorRole.author,
+          <String>{observedAuthorMessage.id},
+        );
+        cleanup.rememberChatEvents(
+          roomId,
+          CollaborationActorRole.collaborator,
+          <String>{observedReply.id},
+        );
         ciphertextOnlyTransport = await _verifyCiphertextOnlyTransport(
           session,
           configuration.common.matrixHomeserverUrl,
@@ -1045,38 +1109,86 @@ Future<String> _provisionEncryptedSharedRoom({
       collaboratorSession,
       provisioned.roomId,
     );
-    final keyExchangeEventIds = <String>{};
+    final keyExchangeEventIds = <CollaborationActorRole, Set<String>>{
+      CollaborationActorRole.author: <String>{},
+      CollaborationActorRole.collaborator: <String>{},
+    };
+    final redactedKeyExchangeEventIds = <CollaborationActorRole, Set<String>>{
+      CollaborationActorRole.author: <String>{},
+      CollaborationActorRole.collaborator: <String>{},
+    };
+    final keyExchangeActors =
+        <CollaborationActorRole, MatrixLiveActorCredentials>{
+          CollaborationActorRole.author: MatrixLiveActorCredentials(
+            accessToken: authorCredentials.accessToken,
+            deviceId: authorCredentials.deviceId,
+          ),
+          CollaborationActorRole.collaborator: MatrixLiveActorCredentials(
+            accessToken: collaboratorCredentials.accessToken,
+            deviceId: collaboratorCredentials.deviceId,
+          ),
+        };
+    List<MatrixLiveOwnedEventBatch> remainingKeyExchangeBatches() {
+      return <CollaborationActorRole>[
+            CollaborationActorRole.author,
+            CollaborationActorRole.collaborator,
+          ]
+          .map((role) {
+            return MatrixLiveOwnedEventBatch(
+              owner: role,
+              actor: keyExchangeActors[role]!,
+              eventIds: keyExchangeEventIds[role]!.difference(
+                redactedKeyExchangeEventIds[role]!,
+              ),
+            );
+          })
+          .toList(growable: false);
+    }
+
+    void rememberRedactedKeyExchangeBatch(MatrixLiveOwnedEventBatch batch) {
+      redactedKeyExchangeEventIds[batch.owner]!.addAll(batch.eventIds);
+    }
+
     try {
       await _establishEncryptedDeviceExchange(
         configuration: configuration,
         authorSession: authorSession,
         collaboratorSession: collaboratorSession,
         roomId: provisioned.roomId,
-        eventIds: keyExchangeEventIds,
+        eventIdsByOwner: keyExchangeEventIds,
       );
-      final redactedCount = await driver.redactEventsAndVerify(
-        actor: MatrixLiveActorCredentials(
-          accessToken: authorCredentials.accessToken,
-          deviceId: authorCredentials.deviceId,
-        ),
+      _emitProgress(configuration, 'room-key-exchange-redaction');
+      final redactedCount = await driver.redactOwnedEventsAndVerify(
         roomId: provisioned.roomId,
-        eventIds: keyExchangeEventIds,
+        batches: remainingKeyExchangeBatches(),
+        onBatchRedacted: rememberRedactedKeyExchangeBatch,
       );
-      if (redactedCount != keyExchangeEventIds.length) {
+      final expectedRedactionCount = keyExchangeEventIds.values.fold<int>(
+        0,
+        (count, eventIds) => count + eventIds.length,
+      );
+      if (redactedCount != expectedRedactionCount) {
         throw StateError(
           'The encrypted device-key exchange was not cleaned completely.',
         );
       }
-    } catch (_) {
-      if (keyExchangeEventIds.isNotEmpty) {
+      _emitProgress(configuration, 'room-key-exchange-redacted');
+    } catch (error) {
+      if (error is MatrixLiveRoomDriverException) {
+        // Emit the bounded Matrix code before best-effort cleanup. A cleanup
+        // request must not hide the operation that originally failed.
+        // ignore: avoid_print
+        print(
+          'MULTI_USER_MATRIX_FAILURE Failure code: ${error.code} '
+          'runIndex=${configuration.runIndex}',
+        );
+      }
+      if (keyExchangeEventIds.values.any((eventIds) => eventIds.isNotEmpty)) {
         try {
-          await driver.redactEventsAndVerify(
-            actor: MatrixLiveActorCredentials(
-              accessToken: authorCredentials.accessToken,
-              deviceId: authorCredentials.deviceId,
-            ),
+          await driver.redactOwnedEventsAndVerify(
             roomId: provisioned.roomId,
-            eventIds: keyExchangeEventIds,
+            batches: remainingKeyExchangeBatches(),
+            onBatchRedacted: rememberRedactedKeyExchangeBatch,
           );
         } catch (_) {
           // The run-level cleanup still owns the room and will remove the
@@ -1123,7 +1235,7 @@ Future<void> _establishEncryptedDeviceExchange({
   required LiveActorSession authorSession,
   required LiveActorSession collaboratorSession,
   required String roomId,
-  required Set<String> eventIds,
+  required Map<CollaborationActorRole, Set<String>> eventIdsByOwner,
 }) async {
   const maximumAttempts = 2;
   const observationTimeout = Duration(seconds: 16);
@@ -1151,9 +1263,10 @@ Future<void> _establishEncryptedDeviceExchange({
         authorSession,
         roomId,
         authorProbe,
+        diagnosticRole: CollaborationActorRole.author,
         timeout: observationTimeout,
       );
-      eventIds.add(authorEvent.id);
+      eventIdsByOwner[CollaborationActorRole.author]!.add(authorEvent.id);
       _emitProgress(
         configuration,
         'room-key-exchange-collaborator-observe-author',
@@ -1162,9 +1275,24 @@ Future<void> _establishEncryptedDeviceExchange({
         collaboratorSession,
         roomId,
         authorProbe,
+        diagnosticRole: CollaborationActorRole.collaborator,
         timeout: observationTimeout,
       );
+      _emitProgress(
+        configuration,
+        'room-key-exchange-collaborator-observed-author',
+      );
       if (collaboratorObservation.id != authorEvent.id) {
+        await _emitChatEventIdMismatch(
+          configuration: configuration,
+          direction: 'author-to-collaborator',
+          homeserver: configuration.common.matrixHomeserverUrl,
+          roomId: roomId,
+          authorSession: authorSession,
+          collaboratorSession: collaboratorSession,
+          expected: authorEvent,
+          observed: collaboratorObservation,
+        );
         throw StateError(
           'The collaborator resolved a different encrypted Chat event.',
         );
@@ -1187,9 +1315,12 @@ Future<void> _establishEncryptedDeviceExchange({
         collaboratorSession,
         roomId,
         collaboratorProbe,
+        diagnosticRole: CollaborationActorRole.collaborator,
         timeout: observationTimeout,
       );
-      eventIds.add(collaboratorEvent.id);
+      eventIdsByOwner[CollaborationActorRole.collaborator]!.add(
+        collaboratorEvent.id,
+      );
       _emitProgress(
         configuration,
         'room-key-exchange-author-observe-collaborator',
@@ -1198,9 +1329,24 @@ Future<void> _establishEncryptedDeviceExchange({
         authorSession,
         roomId,
         collaboratorProbe,
+        diagnosticRole: CollaborationActorRole.author,
         timeout: observationTimeout,
       );
+      _emitProgress(
+        configuration,
+        'room-key-exchange-author-observed-collaborator',
+      );
       if (authorObservation.id != collaboratorEvent.id) {
+        await _emitChatEventIdMismatch(
+          configuration: configuration,
+          direction: 'collaborator-to-author',
+          homeserver: configuration.common.matrixHomeserverUrl,
+          roomId: roomId,
+          authorSession: authorSession,
+          collaboratorSession: collaboratorSession,
+          expected: collaboratorEvent,
+          observed: authorObservation,
+        );
         throw StateError(
           'The author resolved a different encrypted Chat event.',
         );
@@ -1208,6 +1354,28 @@ Future<void> _establishEncryptedDeviceExchange({
       return;
     } catch (error) {
       lastFailure = error;
+      if (error case _ChatObservationFailure(
+        :final diagnosticRole,
+        :final diagnostics,
+      )) {
+        final supportCode = error.code;
+        // Emit the support code before any further native operation. The
+        // failed timeline request has already captured this bounded snapshot,
+        // so a later best-effort diagnostic cannot hide the original failure
+        // behind a native timeout or store lock.
+        // ignore: avoid_print
+        print(
+          'MULTI_USER_E2EE_FAILURE Failure code: $supportCode '
+          'runIndex=${configuration.runIndex}',
+        );
+        if (diagnosticRole != null && diagnostics != null) {
+          _emitRecordedE2eeDiagnostics(
+            configuration: configuration,
+            role: diagnosticRole,
+            diagnostics: diagnostics,
+          );
+        }
+      }
       // Preserve the receive-path evidence while both native clients are
       // still alive. Waiting until every retry is exhausted can let the outer
       // live-test deadline terminate the process before diagnostics run.
@@ -1317,11 +1485,6 @@ Future<T> _withSession<T>(
   } finally {
     await session.close();
   }
-}
-
-bool _isWorkspaceAccessDenied(FilesFailure failure) {
-  return failure.type == FilesFailureType.invalidCredentials &&
-      failure.cause == HttpStatus.forbidden;
 }
 
 Future<T> _withRelaunchedSession<T>(
@@ -1466,6 +1629,7 @@ Future<ChatMessage> _waitForChatMessage(
   LiveActorSession session,
   String roomId,
   String expectedText, {
+  CollaborationActorRole? diagnosticRole,
   Duration timeout = const Duration(seconds: 45),
 }) async {
   Object? lastFailure;
@@ -1484,28 +1648,179 @@ Future<ChatMessage> _waitForChatMessage(
   } catch (error) {
     lastFailure ??= error;
     var supportCode = _matrixSupportCode(lastFailure);
-    if (supportCode == null) {
-      try {
-        supportCode = (await session.chatReceiveDiagnostics().timeout(
-          const Duration(seconds: 2),
-        )).supportCode;
-      } catch (_) {
-        // The generic code remains support-safe when diagnostics are unavailable.
-      }
+    RustMatrixDecryptionDiagnostics? diagnostics;
+    try {
+      diagnostics = await session.chatReceiveDiagnostics().timeout(
+        const Duration(seconds: 2),
+      );
+      supportCode ??= diagnostics.supportCode;
+    } catch (_) {
+      // The generic code remains support-safe when diagnostics are unavailable.
     }
     throw _ChatObservationFailure(
       supportCode ?? 'M_WEAVE_E2EE_MESSAGE_NOT_OBSERVED',
+      diagnosticRole: diagnosticRole,
+      diagnostics: diagnostics,
     );
   }
 }
 
 class _ChatObservationFailure implements Exception {
-  const _ChatObservationFailure(this.code);
+  const _ChatObservationFailure(
+    this.code, {
+    this.diagnosticRole,
+    this.diagnostics,
+  });
 
   final String code;
+  final CollaborationActorRole? diagnosticRole;
+  final RustMatrixDecryptionDiagnostics? diagnostics;
 
   @override
   String toString() => code;
+}
+
+Future<void> _emitChatEventIdMismatch({
+  required MultiUserTestConfig configuration,
+  required String direction,
+  required Uri homeserver,
+  required String roomId,
+  required LiveActorSession authorSession,
+  required LiveActorSession collaboratorSession,
+  required ChatMessage expected,
+  required ChatMessage observed,
+}) async {
+  if (direction != 'author-to-collaborator' &&
+      direction != 'collaborator-to-author') {
+    throw StateError('Unsupported encrypted Chat observation direction.');
+  }
+  final expectedHash = _hashBytes(utf8.encode(expected.id)).substring(0, 16);
+  final observedHash = _hashBytes(utf8.encode(observed.id)).substring(0, 16);
+  // Emit the detection marker before optional transport diagnostics. A hung
+  // native store or network request must not erase the original mismatch.
+  // ignore: avoid_print
+  print(
+    'MULTI_USER_E2EE_EVENT_ID_MISMATCH_DETECTED direction=$direction '
+    'runIndex=${configuration.runIndex} expectedHash=$expectedHash '
+    'observedHash=$observedHash',
+  );
+  final visibility = await _inspectChatEventIdVisibility(
+    homeserver: homeserver,
+    roomId: roomId,
+    authorSession: authorSession,
+    collaboratorSession: collaboratorSession,
+    expectedId: expected.id,
+    observedId: observed.id,
+  );
+  final sameTimestamp = expected.sentAt.isAtSameMomentAs(observed.sentAt);
+  // The sanitizer accepts only these fixed labels, hashes, booleans, and
+  // counts. No identifier, actor, URL, ciphertext, or message body leaves the
+  // private integration-test process.
+  // ignore: avoid_print
+  print(
+    'MULTI_USER_E2EE_EVENT_ID_MISMATCH direction=$direction '
+    'runIndex=${configuration.runIndex} expectedHash=$expectedHash '
+    'observedHash=$observedHash sameSender=${expected.senderId == observed.senderId ? 1 : 0} '
+    'sameTimestamp=${sameTimestamp ? 1 : 0} expectedLength=${expected.id.length} '
+    'observedLength=${observed.id.length} transportAvailable=${visibility.available ? 1 : 0} '
+    'authorHasExpected=${visibility.authorHasExpected ? 1 : 0} '
+    'authorHasObserved=${visibility.authorHasObserved ? 1 : 0} '
+    'collaboratorHasExpected=${visibility.collaboratorHasExpected ? 1 : 0} '
+    'collaboratorHasObserved=${visibility.collaboratorHasObserved ? 1 : 0}',
+  );
+}
+
+Future<_ChatEventIdVisibility> _inspectChatEventIdVisibility({
+  required Uri homeserver,
+  required String roomId,
+  required LiveActorSession authorSession,
+  required LiveActorSession collaboratorSession,
+  required String expectedId,
+  required String observedId,
+}) async {
+  try {
+    final timelines = await Future.wait(<Future<Set<String>>>[
+      _rawChatEventIds(authorSession, homeserver, roomId),
+      _rawChatEventIds(collaboratorSession, homeserver, roomId),
+    ]).timeout(const Duration(seconds: 4));
+    final authorIds = timelines[0];
+    final collaboratorIds = timelines[1];
+    return _ChatEventIdVisibility(
+      available: true,
+      authorHasExpected: authorIds.contains(expectedId),
+      authorHasObserved: authorIds.contains(observedId),
+      collaboratorHasExpected: collaboratorIds.contains(expectedId),
+      collaboratorHasObserved: collaboratorIds.contains(observedId),
+    );
+  } catch (_) {
+    return const _ChatEventIdVisibility.unavailable();
+  }
+}
+
+Future<Set<String>> _rawChatEventIds(
+  LiveActorSession session,
+  Uri homeserver,
+  String roomId,
+) async {
+  final credentials = await session.matrixTransportCredentials();
+  final client = createTrustedTestHttpClient();
+  try {
+    final response = await client.get(
+      homeserver.replace(
+        pathSegments: <String>[
+          '_matrix',
+          'client',
+          'v3',
+          'rooms',
+          roomId,
+          'messages',
+        ],
+        queryParameters: const <String, String>{'dir': 'b', 'limit': '100'},
+      ),
+      headers: <String, String>{
+        'Authorization': 'Bearer ${credentials.accessToken}',
+        'X-Weave-Matrix-Device-Id': credentials.deviceId,
+        'Accept': 'application/json',
+      },
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw StateError('The raw Chat transport was unavailable.');
+    }
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map || decoded['chunk'] is! List) {
+      throw StateError('The raw Chat transport returned an invalid timeline.');
+    }
+    return <String>{
+      for (final event in decoded['chunk'] as List)
+        if (event is Map && event['event_id'] is String)
+          event['event_id'] as String,
+    };
+  } finally {
+    client.close();
+  }
+}
+
+class _ChatEventIdVisibility {
+  const _ChatEventIdVisibility({
+    required this.available,
+    required this.authorHasExpected,
+    required this.authorHasObserved,
+    required this.collaboratorHasExpected,
+    required this.collaboratorHasObserved,
+  });
+
+  const _ChatEventIdVisibility.unavailable()
+    : available = false,
+      authorHasExpected = false,
+      authorHasObserved = false,
+      collaboratorHasExpected = false,
+      collaboratorHasObserved = false;
+
+  final bool available;
+  final bool authorHasExpected;
+  final bool authorHasObserved;
+  final bool collaboratorHasExpected;
+  final bool collaboratorHasObserved;
 }
 
 Future<bool> _verifyCiphertextOnlyTransport(
@@ -1763,87 +2078,98 @@ void _emitProgress(MultiUserTestConfig configuration, String phase) {
   print('MULTI_USER_PROGRESS phase=$phase runIndex=${configuration.runIndex}');
 }
 
+Future<void> _connectChatWithSupportSafeFailure({
+  required MultiUserTestConfig configuration,
+  required CollaborationActorRole role,
+  required LiveActorSession session,
+}) async {
+  try {
+    await session.chat.connect();
+  } on ChatFailure catch (failure) {
+    final cause = failure.cause;
+    final rawCode = cause is RustMatrixCoreBridgeException
+        ? cause.code
+        : 'none';
+    final supportCode = RegExp(r'^M_[A-Z0-9_]{2,80}$').hasMatch(rawCode)
+        ? rawCode
+        : 'none';
+    // Failure type and stable Matrix code are support-safe; no exception text,
+    // provider response, identifier, endpoint, or credential is emitted.
+    // ignore: avoid_print
+    print(
+      'MULTI_USER_CHAT_CONNECT_DIAGNOSTIC '
+      'role=${role.name} runIndex=${configuration.runIndex} '
+      'failureType=${failure.type.name} supportCode=$supportCode '
+      'supportSafe=true',
+    );
+    rethrow;
+  }
+}
+
+Future<void> _sendChatWithSupportSafeFailure({
+  required MultiUserTestConfig configuration,
+  required CollaborationActorRole role,
+  required LiveActorSession session,
+  required String roomId,
+  required String message,
+}) async {
+  try {
+    await session.chat.sendMessage(roomId: roomId, message: message);
+  } on ChatFailure catch (failure) {
+    final cause = failure.cause;
+    final rawCode = cause is RustMatrixCoreBridgeException
+        ? cause.code
+        : 'none';
+    final supportCode = RegExp(r'^M_[A-Z0-9_]{2,80}$').hasMatch(rawCode)
+        ? rawCode
+        : 'none';
+    // This deliberately mirrors the connect diagnostic: the mutable message,
+    // room identifier, exception text, and provider response remain private.
+    // ignore: avoid_print
+    print(
+      'MULTI_USER_CHAT_SEND_DIAGNOSTIC '
+      'role=${role.name} runIndex=${configuration.runIndex} '
+      'failureType=${failure.type.name} supportCode=$supportCode '
+      'supportSafe=true',
+    );
+    rethrow;
+  }
+}
+
 Future<void> _emitE2eeDiagnostics({
   required MultiUserTestConfig configuration,
   required CollaborationActorRole role,
   required LiveActorSession session,
   required String roomId,
 }) async {
+  RustMatrixDecryptionDiagnostics? receiveDiagnostics;
   try {
+    try {
+      // Read the already-recorded receive state first. It neither syncs nor
+      // advances the Matrix cursor, so this compact marker cannot be hidden by
+      // a second timeline request waiting behind the failure under diagnosis.
+      receiveDiagnostics = await session.chatReceiveDiagnostics().timeout(
+        const Duration(seconds: 2),
+      );
+    } catch (_) {
+      receiveDiagnostics = null;
+    }
+    final recorded = receiveDiagnostics;
     late final RustMatrixDecryptionDiagnostics diagnostics;
     try {
       diagnostics = await session
           .chatDecryptionDiagnostics(roomId)
           .timeout(const Duration(seconds: 4));
     } catch (_) {
-      // The full timeline diagnostic can legitimately be blocked by the same
-      // network failure under investigation. Fall back to the native client's
-      // read-only aggregate; it neither syncs nor advances the Matrix cursor.
-      diagnostics = await session.chatReceiveDiagnostics().timeout(
-        const Duration(seconds: 2),
-      );
+      if (recorded == null) {
+        rethrow;
+      }
+      diagnostics = recorded;
     }
-    final toDeviceReasons = diagnostics.toDeviceReasonCounts;
-    // Keep the decisive receive-path counters on a short line. Flutter test
-    // output can split the complete convergence diagnostic, while this marker
-    // remains small enough for the support-safe sanitizer to preserve.
-    // ignore: avoid_print
-    print(
-      'MULTI_USER_E2EE_CRYPTO_DIAGNOSTIC '
-      'role=${role.name} runIndex=${configuration.runIndex} available=1 '
-      'supportCode=${diagnostics.supportCode} '
-      'eventCount=${diagnostics.eventCount} '
-      'decryptedCount=${diagnostics.decryptedCount} '
-      'unableToDecryptCount=${diagnostics.unableToDecryptCount} '
-      'toDeviceDecryptedCount=${diagnostics.toDeviceDecryptedCount} '
-      'toDeviceRoomKeyCount=${diagnostics.toDeviceDecryptedRoomKeyCount} '
-      'toDeviceUnableToDecryptCount='
-      '${diagnostics.toDeviceUnableToDecryptCount} '
-      'toDeviceDecryptionFailureCount='
-      '${toDeviceReasons['decryptionFailure'] ?? 0} '
-      'toDeviceUnverifiedSenderCount='
-      '${toDeviceReasons['unverifiedSenderDevice'] ?? 0} '
-      'toDeviceNoOlmMachineCount=${toDeviceReasons['noOlmMachine'] ?? 0} '
-      'toDeviceEncryptionDisabledCount='
-      '${toDeviceReasons['encryptionDisabled'] ?? 0}',
-    );
-    // Only allowlisted roles and bounded integer counts cross into the
-    // shareable test log. No Matrix IDs, room/session IDs, device IDs, event
-    // content, key material, ciphertext, URLs, or provider payloads are used.
-    // ignore: avoid_print
-    print(
-      'MULTI_USER_E2EE_DIAGNOSTIC '
-      'role=${role.name} runIndex=${configuration.runIndex} available=1 '
-      'eventCount=${diagnostics.eventCount} '
-      'decryptedCount=${diagnostics.decryptedCount} '
-      'unableToDecryptCount=${diagnostics.unableToDecryptCount} '
-      'toDeviceDecryptedCount=${diagnostics.toDeviceDecryptedCount} '
-      'toDeviceRoomKeyCount=${diagnostics.toDeviceDecryptedRoomKeyCount} '
-      'toDeviceForwardedRoomKeyCount='
-      '${diagnostics.toDeviceDecryptedForwardedRoomKeyCount} '
-      'toDeviceOtherCount=${diagnostics.toDeviceDecryptedOtherCount} '
-      'toDeviceUnknownTypeCount='
-      '${diagnostics.toDeviceDecryptedUnknownTypeCount} '
-      'toDeviceUnableToDecryptCount='
-      '${diagnostics.toDeviceUnableToDecryptCount} '
-      'toDevicePlaintextCount=${diagnostics.toDevicePlaintextCount} '
-      'toDeviceInvalidCount=${diagnostics.toDeviceInvalidCount} '
-      'joinedPeerCount=${diagnostics.joinedPeerCount} '
-      'authoritativeDeviceCount=${diagnostics.authoritativeDeviceCount} '
-      'sdkDeviceCount=${diagnostics.sdkDeviceCount} '
-      'sdkUsableDeviceCount=${diagnostics.sdkUsableDeviceCount} '
-      'sdkDeletedDeviceCount=${diagnostics.sdkDeletedDeviceCount} '
-      'sdkBlacklistedDeviceCount=${diagnostics.sdkBlacklistedDeviceCount} '
-      'sdkMissingCurve25519Count=${diagnostics.sdkMissingCurve25519Count} '
-      'sdkMissingAuthoritativeDeviceCount='
-      '${diagnostics.sdkMissingAuthoritativeDeviceCount} '
-      'sdkUnexpectedDeviceCount=${diagnostics.sdkUnexpectedDeviceCount} '
-      'deviceQueryAttemptCount=${diagnostics.deviceQueryAttemptCount} '
-      'convergedPeerCount=${diagnostics.convergedPeerCount} '
-      'pendingPeerCount=${diagnostics.pendingPeerCount} '
-      'rejectedPeerCount=${diagnostics.rejectedPeerCount} '
-      'blockedPeerCount=${diagnostics.blockedPeerCount} '
-      'invalidPeerCount=${diagnostics.invalidPeerCount}',
+    _emitRecordedE2eeDiagnostics(
+      configuration: configuration,
+      role: role,
+      diagnostics: diagnostics,
     );
   } catch (_) {
     // The unavailable marker remains support-safe and still distinguishes a
@@ -1853,11 +2179,7 @@ Future<void> _emitE2eeDiagnostics({
       'MULTI_USER_E2EE_CRYPTO_DIAGNOSTIC '
       'role=${role.name} runIndex=${configuration.runIndex} available=0 '
       'supportCode=M_WEAVE_E2EE_DIAGNOSTICS_UNAVAILABLE '
-      'eventCount=0 decryptedCount=0 unableToDecryptCount=0 '
-      'toDeviceDecryptedCount=0 toDeviceRoomKeyCount=0 '
-      'toDeviceUnableToDecryptCount=0 toDeviceDecryptionFailureCount=0 '
-      'toDeviceUnverifiedSenderCount=0 toDeviceNoOlmMachineCount=0 '
-      'toDeviceEncryptionDisabledCount=0',
+      'tdDec=0 tdKey=0 tdUtd=0 tdFail=0 tdUnverified=0',
     );
     // ignore: avoid_print
     print(
@@ -1877,6 +2199,64 @@ Future<void> _emitE2eeDiagnostics({
       'blockedPeerCount=0 invalidPeerCount=0',
     );
   }
+}
+
+void _emitRecordedE2eeDiagnostics({
+  required MultiUserTestConfig configuration,
+  required CollaborationActorRole role,
+  required RustMatrixDecryptionDiagnostics diagnostics,
+}) {
+  final toDeviceReasons = diagnostics.toDeviceReasonCounts;
+  // Only allowlisted roles, support codes, and bounded integer counts cross
+  // into the shareable test log. No Matrix IDs, room/session IDs, device IDs,
+  // event content, key material, ciphertext, URLs, or provider payloads are
+  // used.
+  // ignore: avoid_print
+  print(
+    'MULTI_USER_E2EE_CRYPTO_DIAGNOSTIC '
+    'role=${role.name} runIndex=${configuration.runIndex} available=1 '
+    'supportCode=${diagnostics.supportCode} '
+    'tdDec=${diagnostics.toDeviceDecryptedCount} '
+    'tdKey=${diagnostics.toDeviceDecryptedRoomKeyCount} '
+    'tdUtd=${diagnostics.toDeviceUnableToDecryptCount} '
+    'tdFail=${toDeviceReasons['decryptionFailure'] ?? 0} '
+    'tdUnverified=${toDeviceReasons['unverifiedSenderDevice'] ?? 0}',
+  );
+  // ignore: avoid_print
+  print(
+    'MULTI_USER_E2EE_DIAGNOSTIC '
+    'role=${role.name} runIndex=${configuration.runIndex} available=1 '
+    'eventCount=${diagnostics.eventCount} '
+    'decryptedCount=${diagnostics.decryptedCount} '
+    'unableToDecryptCount=${diagnostics.unableToDecryptCount} '
+    'toDeviceDecryptedCount=${diagnostics.toDeviceDecryptedCount} '
+    'toDeviceRoomKeyCount=${diagnostics.toDeviceDecryptedRoomKeyCount} '
+    'toDeviceForwardedRoomKeyCount='
+    '${diagnostics.toDeviceDecryptedForwardedRoomKeyCount} '
+    'toDeviceOtherCount=${diagnostics.toDeviceDecryptedOtherCount} '
+    'toDeviceUnknownTypeCount='
+    '${diagnostics.toDeviceDecryptedUnknownTypeCount} '
+    'toDeviceUnableToDecryptCount='
+    '${diagnostics.toDeviceUnableToDecryptCount} '
+    'toDevicePlaintextCount=${diagnostics.toDevicePlaintextCount} '
+    'toDeviceInvalidCount=${diagnostics.toDeviceInvalidCount} '
+    'joinedPeerCount=${diagnostics.joinedPeerCount} '
+    'authoritativeDeviceCount=${diagnostics.authoritativeDeviceCount} '
+    'sdkDeviceCount=${diagnostics.sdkDeviceCount} '
+    'sdkUsableDeviceCount=${diagnostics.sdkUsableDeviceCount} '
+    'sdkDeletedDeviceCount=${diagnostics.sdkDeletedDeviceCount} '
+    'sdkBlacklistedDeviceCount=${diagnostics.sdkBlacklistedDeviceCount} '
+    'sdkMissingCurve25519Count=${diagnostics.sdkMissingCurve25519Count} '
+    'sdkMissingAuthoritativeDeviceCount='
+    '${diagnostics.sdkMissingAuthoritativeDeviceCount} '
+    'sdkUnexpectedDeviceCount=${diagnostics.sdkUnexpectedDeviceCount} '
+    'deviceQueryAttemptCount=${diagnostics.deviceQueryAttemptCount} '
+    'convergedPeerCount=${diagnostics.convergedPeerCount} '
+    'pendingPeerCount=${diagnostics.pendingPeerCount} '
+    'rejectedPeerCount=${diagnostics.rejectedPeerCount} '
+    'blockedPeerCount=${diagnostics.blockedPeerCount} '
+    'invalidPeerCount=${diagnostics.invalidPeerCount}',
+  );
 }
 
 void _emitEvidence(
@@ -1915,10 +2295,15 @@ void _emitEvidence(
 }
 
 class _RunCleanup {
-  _RunCleanup({required this.profiles, required this.matrixHomeserver});
+  _RunCleanup({
+    required this.profiles,
+    required this.matrixHomeserver,
+    required this.runIndex,
+  });
 
   final Map<CollaborationActorRole, LiveActorProfile> profiles;
   final Uri matrixHomeserver;
+  final int runIndex;
   final Map<CollaborationActorRole, UserProfile> _originalProfiles =
       <CollaborationActorRole, UserProfile>{};
   final Map<CollaborationActorRole, AppLocalePreference?> _originalLocales =
@@ -1927,7 +2312,10 @@ class _RunCleanup {
   String? _eventId;
   CalendarScope? _eventScope;
   String? _chatRoomId;
-  Set<String> _chatEventIds = const <String>{};
+  final Map<CollaborationActorRole, Set<String>> _chatEventIdsByOwner =
+      <CollaborationActorRole, Set<String>>{};
+  final Map<CollaborationActorRole, Set<String>> _redactedChatEventIdsByOwner =
+      <CollaborationActorRole, Set<String>>{};
   bool _messageCleanupComplete = false;
   int _redactedMessageCount = 0;
   bool _collaboratorMembershipLeft = false;
@@ -1963,12 +2351,17 @@ class _RunCleanup {
     _chatRoomId = roomId;
   }
 
-  void rememberChatEvents(String roomId, Set<String> eventIds) {
+  void rememberChatEvents(
+    String roomId,
+    CollaborationActorRole owner,
+    Set<String> eventIds,
+  ) {
     rememberChatRoom(roomId);
-    _chatEventIds = Set<String>.unmodifiable(<String>{
-      ..._chatEventIds,
-      ...eventIds,
-    });
+    _chatEventIdsByOwner.update(
+      owner,
+      (remembered) => <String>{...remembered, ...eventIds},
+      ifAbsent: () => <String>{...eventIds},
+    );
   }
 
   Future<bool> requireComplete() async {
@@ -2057,24 +2450,93 @@ class _RunCleanup {
     );
     try {
       if (!_messageCleanupComplete) {
-        if (_chatEventIds.isEmpty) {
+        if (_chatEventIdsByOwner.values.every((eventIds) => eventIds.isEmpty)) {
           _messageCleanupComplete = true;
         } else {
-          try {
-            _redactedMessageCount = await driver.redactEventsAndVerify(
-              actor: authorActor,
-              roomId: chatRoomId,
-              eventIds: _chatEventIds,
-            );
-            _messageCleanupComplete =
-                _redactedMessageCount == _chatEventIds.length;
-          } catch (_) {
-            complete = false;
+          final seenEventIds = <String>{};
+          for (final ownedEventIds in _chatEventIdsByOwner.values) {
+            if (ownedEventIds.any(seenEventIds.contains)) {
+              // Reject ambiguous ownership before issuing any Matrix request.
+              // ignore: avoid_print
+              print(
+                'MULTI_USER_MATRIX_FAILURE Failure code: '
+                'M_WEAVE_LIVE_MATRIX_EVENT_OWNER_DUPLICATED '
+                'runIndex=$runIndex',
+              );
+              return false;
+            }
+            seenEventIds.addAll(ownedEventIds);
           }
+          for (final role in <CollaborationActorRole>[
+            CollaborationActorRole.author,
+            CollaborationActorRole.collaborator,
+          ]) {
+            final ownedEventIds =
+                _chatEventIdsByOwner[role] ?? const <String>{};
+            final redactedEventIds = _redactedChatEventIdsByOwner.putIfAbsent(
+              role,
+              () => <String>{},
+            );
+            final remainingEventIds = ownedEventIds.difference(
+              redactedEventIds,
+            );
+            if (remainingEventIds.isEmpty) {
+              continue;
+            }
+            try {
+              final actor = role == CollaborationActorRole.author
+                  ? authorActor
+                  : await _withSession(profiles[role]!, (session) async {
+                      await session.chat.connect();
+                      final credentials = await session
+                          .matrixTransportCredentials();
+                      return MatrixLiveActorCredentials(
+                        accessToken: credentials.accessToken,
+                        deviceId: credentials.deviceId,
+                      );
+                    });
+              final redactedCount = await driver.redactEventsAndVerify(
+                actor: actor,
+                roomId: chatRoomId,
+                eventIds: remainingEventIds,
+              );
+              if (redactedCount != remainingEventIds.length) {
+                throw StateError(
+                  'Disposable Chat event cleanup did not complete.',
+                );
+              }
+              redactedEventIds.addAll(remainingEventIds);
+            } catch (error) {
+              if (error is MatrixLiveRoomDriverException) {
+                // ignore: avoid_print
+                print(
+                  'MULTI_USER_MATRIX_FAILURE Failure code: ${error.code} '
+                  'runIndex=$runIndex',
+                );
+              }
+              complete = false;
+            }
+          }
+          _redactedMessageCount = _redactedChatEventIdsByOwner.values.fold<int>(
+            0,
+            (count, eventIds) => count + eventIds.length,
+          );
+          _messageCleanupComplete = _chatEventIdsByOwner.entries.every(
+            (entry) =>
+                (_redactedChatEventIdsByOwner[entry.key] ?? const <String>{})
+                    .containsAll(entry.value),
+          );
         }
       }
 
-      if (!_collaboratorMembershipLeft) {
+      final collaboratorEvents =
+          _chatEventIdsByOwner[CollaborationActorRole.collaborator] ??
+          const <String>{};
+      final collaboratorEventsClean =
+          (_redactedChatEventIdsByOwner[CollaborationActorRole.collaborator] ??
+                  const <String>{})
+              .containsAll(collaboratorEvents);
+      if (collaboratorEventsClean && !_collaboratorMembershipLeft) {
         complete =
             await _attempt(() async {
               final collaboratorProfile =
@@ -2099,7 +2561,8 @@ class _RunCleanup {
       }
 
       final safeToLeaveAuthor =
-          _messageCleanupComplete || _chatEventIds.isEmpty;
+          _messageCleanupComplete ||
+          _chatEventIdsByOwner.values.every((eventIds) => eventIds.isEmpty);
       if (safeToLeaveAuthor && !_authorMembershipLeft) {
         complete =
             await _attempt(() async {

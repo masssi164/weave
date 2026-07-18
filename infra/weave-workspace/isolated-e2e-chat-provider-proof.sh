@@ -29,6 +29,9 @@ CLIENT_RESTORE_PENDING="false"
 BACKEND_RESTORE_REQUIRED="false"
 SYNAPSE_RESTORE_REQUIRED="false"
 
+readonly SYNAPSE_LISTENER_READY_TIMEOUT_SECONDS=60
+readonly PROVIDER_OPERATION_RECOVERY_TIMEOUT_SECONDS=90
+
 fail() {
   printf 'MATRIX_SYNAPSE_PROVIDER_PROOF_ERROR code=%s\n' "$*" >&2
   exit 1
@@ -227,11 +230,26 @@ wait_container_running() {
   done
 }
 
+wait_synapse_listener_ready() {
+  local deadline status
+  deadline=$(( $(date +%s) + SYNAPSE_LISTENER_READY_TIMEOUT_SECONDS ))
+  while :; do
+    status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
+      --connect-timeout 2 --max-time 5 \
+      "http://127.0.0.1:${TF_VAR_synapse_host_port:-48008}/health" \
+      2>/dev/null || true)"
+    [[ "${status}" == "200" ]] && return 0
+    (( $(date +%s) < deadline )) || return 1
+    sleep 2
+  done
+}
+
 restore_runtime_containers() {
   local failed=0
   if [[ "${SYNAPSE_RESTORE_REQUIRED}" == "true" ]]; then
     docker start "${SYNAPSE_CONTAINER}" >/dev/null 2>&1 || failed=1
     wait_container_running "${SYNAPSE_CONTAINER}" || failed=1
+    [[ "${failed}" -ne 0 ]] || wait_synapse_listener_ready || failed=1
     [[ "${failed}" -ne 0 ]] || SYNAPSE_RESTORE_REQUIRED="false"
   fi
   if [[ "${BACKEND_RESTORE_REQUIRED}" == "true" ]]; then
@@ -414,33 +432,6 @@ register_pass_sessions() {
   done
 }
 
-preproject_outsider_fixture() {
-  local pass_index="$1" directory response status room_id
-  directory="$(pass_dir "${pass_index}")"
-  jq -n \
-    --arg name "isolated-${NAMESPACE}-outside-pass-${pass_index}" '
-      {
-        name:$name,
-        is_direct:false,
-        invite:[],
-        initial_state:[{
-          type:"m.room.encryption",
-          state_key:"",
-          content:{algorithm:"m.megolm.v1.aes-sha2"}
-        }]
-      }
-    ' >"${directory}/outside-create-room-request.json"
-  response="${directory}/outside-create-room-response.json"
-  status="$(northbound_request POST '/_matrix/client/v3/createRoom' \
-    "${directory}/outsider-headers" "${directory}/outside-create-room-request.json" "${response}")"
-  [[ "${status}" == "200" ]] || fail "outsider-fixture-create-status-${status}"
-  room_id="$(jq -r '.room_id // empty' "${response}")"
-  rm -f -- "${response}" "${directory}/outside-create-room-request.json"
-  [[ "${room_id}" == '!'*:* ]] || fail "outsider-fixture-projection-invalid"
-  printf '%s' "${room_id}" >"${directory}/outside-room-id"
-  unset room_id
-}
-
 create_encrypted_body() {
   local pass_index="$1" event_index="$2"
   local directory opaque sender_key session_id device_id
@@ -617,8 +608,9 @@ assert_outsider_denied() {
 }
 
 build_evidence_request() {
-  local pass_index="$1" directory tenant conversation author_issuer collaborator_issuer outsider_issuer
+  local pass_index="$1" expected_events="$2" directory tenant conversation author_issuer collaborator_issuer outsider_issuer
   local author_subject collaborator_subject outsider_subject correlation1 correlation2 correlation3
+  [[ "${expected_events}" =~ ^[23]$ ]] || fail "private-provider-evidence-expected-count-invalid"
   directory="$(pass_dir "${pass_index}")"
   tenant="$(jq -r '.tenant' "${directory}/author-facts.json")"
   conversation="$(<"${directory}/conversation-id")"
@@ -643,7 +635,8 @@ build_evidence_request() {
     --arg outsiderRef "user:${outsider_subject}" \
     --arg correlation1 "${correlation1}" \
     --arg correlation2 "${correlation2}" \
-    --arg correlation3 "${correlation3}" '
+    --arg correlation3 "${correlation3}" \
+    --argjson expectedEvents "${expected_events}" '
       {
         runId:$runId,
         tenantId:$tenant,
@@ -651,7 +644,7 @@ build_evidence_request() {
         author:{identityIssuer:$authorIssuer,actorRef:$authorRef},
         collaborator:{identityIssuer:$collaboratorIssuer,actorRef:$collaboratorRef},
         outsider:{identityIssuer:$outsiderIssuer,actorRef:$outsiderRef},
-        eventCorrelationSha256:[$correlation1,$correlation2,$correlation3]
+        eventCorrelationSha256:([$correlation1,$correlation2,$correlation3][0:$expectedEvents])
       }
     ' >"${directory}/private-evidence-request.json"
   unset tenant conversation author_issuer collaborator_issuer outsider_issuer
@@ -660,8 +653,9 @@ build_evidence_request() {
 }
 
 capture_private_evidence() {
-  local pass_index="$1" output="$2" directory status
+  local pass_index="$1" output="$2" expected_events="$3" directory status
   directory="$(pass_dir "${pass_index}")"
+  build_evidence_request "${pass_index}" "${expected_events}"
   status="$(curl --silent --connect-timeout 3 --max-time 20 \
     --output "${output}" --write-out '%{http_code}' \
     --request POST \
@@ -709,6 +703,7 @@ assert_provider_evidence_counts() {
       .providerEncryptedEventCount == $expectedEvents and
       .providerPlaintextEventCount == 0 and
       .pendingOperationCount == 0 and .failedOperationCount == $expectedFailed and
+      .callbackSemanticMismatchCount == 0 and
       .quarantineCount == 0 and .degradedOperationCount == 0 and
       ([.identities[] | select(
         (.role == "author" or .role == "collaborator") and
@@ -716,7 +711,7 @@ assert_provider_evidence_counts() {
         .providerJoined == true and .providerReadDenied == false
       )] | length) == 2 and
       ([.identities[] | select(
-        .role == "outsider" and .providerMapped == true and
+        .role == "outsider" and .providerMapped == false and
         .canonicalJoined == false and .providerJoined == false and .providerReadDenied == true
       )] | length) == 1
     ' "${evidence}" >/dev/null || fail "provider-evidence-counts-invalid"
@@ -731,6 +726,7 @@ stop_synapse_for_outage() {
 start_synapse_after_outage() {
   docker start "${SYNAPSE_CONTAINER}" >/dev/null || fail "synapse-start-failed"
   wait_container_running "${SYNAPSE_CONTAINER}" || fail "synapse-start-timeout"
+  wait_synapse_listener_ready || fail "synapse-listener-readiness-timeout"
   SYNAPSE_RESTORE_REQUIRED="false"
 }
 
@@ -743,7 +739,11 @@ wait_for_provider_operation() {
   encoded_user="$(uri_encode "${author_user}")"
   printf '%s' '{"typing":false,"timeout":0}' >"${directory}/typing-request.json"
   response="${directory}/typing-response.json"
-  deadline=$(( $(date +%s) + 30 ))
+  # Container process state is not provider readiness. The listener gate
+  # avoids manufacturing backoff while Synapse starts; this wider bounded
+  # window then proves that the authenticated Application Service path also
+  # recovers without weakening the backend's fail-closed retry policy.
+  deadline=$(( $(date +%s) + PROVIDER_OPERATION_RECOVERY_TIMEOUT_SECONDS ))
   while :; do
     status="$(northbound_request PUT \
       "/_matrix/client/v3/rooms/${encoded_room}/typing/${encoded_user}" \
@@ -812,7 +812,7 @@ run_outage_retry() {
   assert_outage_operation_invisible "${pass_index}"
   start_synapse_after_outage
   wait_for_provider_operation "${pass_index}" || fail "provider-recovery-timeout"
-  capture_private_evidence "${pass_index}" "${directory}/outage-before-retry-evidence.json"
+  capture_private_evidence "${pass_index}" "${directory}/outage-before-retry-evidence.json" 2
   assert_provider_evidence_counts "${directory}/outage-before-retry-evidence.json" 2 1
 
   retry_response="${directory}/outage-retry-response.json"
@@ -833,7 +833,7 @@ run_outage_retry() {
   [[ "${retry_event}" == "${repeat_event}" ]] || fail "outage-repeat-event-mismatch"
   rm -f -- "${retry_response}" "${response}"
 
-  capture_private_evidence "${pass_index}" "${directory}/outage-after-retry-evidence.json"
+  capture_private_evidence "${pass_index}" "${directory}/outage-after-retry-evidence.json" 3
   assert_provider_evidence_counts "${directory}/outage-after-retry-evidence.json" 3 0
   verify_event_observed_once "${pass_index}" collaborator 3
   unset room_id opaque retry_event repeat_event
@@ -844,10 +844,6 @@ run_collaboration_pass() {
   directory="$(pass_dir "${pass_index}")"
   namespace_short="$(sha256 "${NAMESPACE}" | cut -c1-16)"
   register_pass_sessions "${pass_index}"
-  # Establish the outsider's provider mapping through its own independent
-  # outside-workspace fixture. The read-only proof endpoint may resolve this
-  # mapping later, but must never create it to make a denial assertion pass.
-  preproject_outsider_fixture "${pass_index}"
   create_encrypted_room "${pass_index}"
   join_collaborator "${pass_index}"
   create_encrypted_body "${pass_index}" 1
@@ -859,8 +855,6 @@ run_collaboration_pass() {
   printf '%s' "${tx1}" >"${directory}/event-1-transaction"
   printf '%s' "${tx2}" >"${directory}/event-2-transaction"
   printf '%s' "${tx3}" >"${directory}/event-3-transaction"
-  build_evidence_request "${pass_index}"
-
   send_encrypted_event "${pass_index}" 1 author "${tx1}" "${directory}/event-1-id"
   verify_event_observed_once "${pass_index}" collaborator 1
   send_encrypted_event "${pass_index}" 2 collaborator "${tx2}" "${directory}/event-2-id"
@@ -903,12 +897,13 @@ prove_restart_continuity() {
   SYNAPSE_RESTORE_REQUIRED="true"
   docker restart "${SYNAPSE_CONTAINER}" >/dev/null || fail "synapse-restart-failed"
   wait_container_running "${SYNAPSE_CONTAINER}" || fail "synapse-restart-timeout"
+  wait_synapse_listener_ready || fail "synapse-restart-listener-readiness-timeout"
   SYNAPSE_RESTORE_REQUIRED="false"
   wait_for_provider_operation 1 || fail "synapse-restart-provider-timeout"
   for pass_index in 1 2; do
     verify_complete_room_readback "${pass_index}" author
     verify_complete_room_readback "${pass_index}" collaborator
-    capture_private_evidence "${pass_index}" "$(pass_dir "${pass_index}")/restart-evidence.json"
+    capture_private_evidence "${pass_index}" "$(pass_dir "${pass_index}")/restart-evidence.json" 3
     assert_provider_evidence_counts "$(pass_dir "${pass_index}")/restart-evidence.json" 3 0
   done
 }
@@ -917,6 +912,7 @@ evidence_stability_tuple() {
   jq -c '[
     .callbackTransactionCount,
     .callbackDuplicateCount,
+    .callbackSemanticMismatchCount,
     .bridgeLedgerCount,
     .canonicalCommittedEventCount,
     .providerEncryptedEventCount,
@@ -931,7 +927,7 @@ wait_for_evidence_stability() {
   directory="$(pass_dir "${pass_index}")"
   for attempt in 1 2 3 4 5 6; do
     snapshot="${directory}/stability-${attempt}.json"
-    capture_private_evidence "${pass_index}" "${snapshot}"
+    capture_private_evidence "${pass_index}" "${snapshot}" 3
     current="$(evidence_stability_tuple "${snapshot}")"
     if [[ -n "${previous}" && "${current}" == "${previous}" ]]; then
       mv "${snapshot}" "${output}"
@@ -942,6 +938,51 @@ wait_for_evidence_stability() {
     sleep 2
   done
   rm -f -- "${directory}"/stability-*.json
+  return 1
+}
+
+private_callback_replay_readiness() {
+  local response_path="$1" status
+  status="$(curl --silent --connect-timeout 3 --max-time 20 \
+    --output "${response_path}" --write-out '%{http_code}' \
+    --request GET \
+    --header @"${PROOF_AUTH_HEADER_FILE}" \
+    "${BACKEND_ORIGIN}/api/internal/e2e/chat/provider-proof/callback-replay/readiness" 2>/dev/null || true)"
+  if [[ "${status}" != "200" ]]; then
+    CALLBACK_CAPTURE_WAIT_CODE="callback-readiness-status-${status:-000}"
+    return 2
+  fi
+  if ! jq -e '
+    .contractVersion == "chat-provider-callback-replay-readiness-v1" and
+    (.callbackReplayReady | type) == "boolean" and
+    (.code == "chat-provider-callback-captured" or .code == "chat-provider-callback-not-captured") and
+    .supportSafe == true
+  ' "${response_path}" >/dev/null 2>&1; then
+    CALLBACK_CAPTURE_WAIT_CODE="callback-readiness-response-invalid"
+    return 2
+  fi
+  jq -e '.callbackReplayReady == true and .code == "chat-provider-callback-captured"' \
+    "${response_path}" >/dev/null 2>&1
+}
+
+wait_for_callback_capture() {
+  local response attempt result
+  response="${PRIVATE_STATE_DIR}/callback-replay-readiness.json"
+  CALLBACK_CAPTURE_WAIT_CODE="callback-capture-timeout"
+  for attempt in {1..45}; do
+    if private_callback_replay_readiness "${response}"; then
+      rm -f -- "${response}"
+      return 0
+    else
+      result=$?
+    fi
+    if [[ "${result}" == "2" ]]; then
+      rm -f -- "${response}"
+      return 1
+    fi
+    sleep 2
+  done
+  rm -f -- "${response}"
   return 1
 }
 
@@ -956,16 +997,29 @@ private_callback_replay() {
     --data-binary @"${request_path}" \
     "${BACKEND_ORIGIN}/api/internal/e2e/chat/provider-proof/callback-replay" 2>/dev/null || true)"
   rm -f -- "${request_path}"
-  [[ "${status}" == "200" ]] || return 1
-  jq -e '
+  if [[ "${status}" != "200" ]]; then
+    case "$(jq -r 'if .supportSafe == true then .code // empty else empty end' "${response_path}" 2>/dev/null || true)" in
+      chat-provider-callback-not-captured) CALLBACK_REPLAY_CODE="callback-not-captured" ;;
+      chat-provider-callback-replay-failed) CALLBACK_REPLAY_CODE="callback-processing-unavailable" ;;
+      chat-provider-callback-replay-request-invalid) CALLBACK_REPLAY_CODE="callback-replay-request-invalid" ;;
+      *) CALLBACK_REPLAY_CODE="callback-replay-status-${status:-000}" ;;
+    esac
+    return 1
+  fi
+  if ! jq -e '
     .contractVersion == "chat-provider-callback-replay-v1" and
     .replayed == true and .supportSafe == true and
     (.callbackCorrelationHash | test("^[0-9a-f]{64}$"))
-  ' "${response_path}" >/dev/null 2>&1
+  ' "${response_path}" >/dev/null 2>&1; then
+    CALLBACK_REPLAY_CODE="callback-replay-response-invalid"
+    return 1
+  fi
+  return 0
 }
 
 prove_callback_replay() {
   local pass_index request response before after
+  wait_for_callback_capture || fail "${CALLBACK_CAPTURE_WAIT_CODE}"
   for pass_index in 1 2; do
     wait_for_evidence_stability "${pass_index}" "$(pass_dir "${pass_index}")/replay-before.json" ||
       fail "provider-evidence-not-stable"
@@ -975,13 +1029,14 @@ prove_callback_replay() {
   # The backend captured the first successfully processed, non-empty encrypted
   # Synapse callback. This trigger re-enters that exact transaction and body;
   # neither provider references nor the raw payload leave the backend process.
-  private_callback_replay "${request}" "${response}" || fail "callback-replay-failed"
+  CALLBACK_REPLAY_CODE="callback-replay-failed"
+  private_callback_replay "${request}" "${response}" || fail "${CALLBACK_REPLAY_CODE}"
   rm -f -- "${response}"
 
   for pass_index in 1 2; do
     before="$(pass_dir "${pass_index}")/replay-before.json"
     after="$(pass_dir "${pass_index}")/replay-after.json"
-    capture_private_evidence "${pass_index}" "${after}"
+    capture_private_evidence "${pass_index}" "${after}" 3
     assert_provider_evidence_counts "${after}" 3 0
     jq -e --slurpfile before "${before}" '
       .canonicalCommittedEventCount == $before[0].canonicalCommittedEventCount and
@@ -991,7 +1046,8 @@ prove_callback_replay() {
       .committedOperationCount == $before[0].committedOperationCount and
       .bridgeLedgerCount == $before[0].bridgeLedgerCount and
       .callbackTransactionCount == $before[0].callbackTransactionCount and
-      .callbackDuplicateCount == ($before[0].callbackDuplicateCount + 1)
+      .callbackDuplicateCount == ($before[0].callbackDuplicateCount + 1) and
+      .callbackSemanticMismatchCount == $before[0].callbackSemanticMismatchCount
     ' "${after}" >/dev/null || fail "callback-replay-delta-invalid"
   done
 }
@@ -1028,24 +1084,6 @@ leave_room() {
   [[ "${status}" == "200" ]] || fail "cleanup-leave-${role}-status-${status}"
 }
 
-leave_outsider_fixture() {
-  local pass_index="$1" directory room_id encoded response status read_status
-  directory="$(pass_dir "${pass_index}")"
-  room_id="$(<"${directory}/outside-room-id")"
-  encoded="$(uri_encode "${room_id}")"
-  response="${directory}/cleanup-outside-leave.json"
-  status="$(northbound_request POST "/_matrix/client/v3/rooms/${encoded}/leave" \
-    "${directory}/outsider-headers" - "${response}")"
-  rm -f -- "${response}"
-  [[ "${status}" == "200" ]] || fail "cleanup-outside-leave-status-${status}"
-  response="${directory}/cleanup-outside-membership.json"
-  read_status="$(northbound_request GET \
-    "/_matrix/client/v3/rooms/${encoded}/messages?dir=b&limit=1" \
-    "${directory}/outsider-headers" - "${response}")"
-  rm -f -- "${response}"
-  [[ "${read_status}" == "403" ]] || fail "cleanup-outside-membership-status-${read_status}"
-}
-
 cleanup_run_resources() {
   local pass_index directory response author_status collaborator_status
   for pass_index in 1 2; do
@@ -1054,7 +1092,6 @@ cleanup_run_resources() {
     redact_event "${pass_index}" 3 author
     leave_room "${pass_index}" collaborator
     leave_room "${pass_index}" author
-    leave_outsider_fixture "${pass_index}"
     directory="$(pass_dir "${pass_index}")"
     response="${directory}/cleanup-author-membership.json"
     author_status="$(room_messages "${pass_index}" author "${response}")"
@@ -1092,7 +1129,7 @@ write_pass_evidence() {
         authorizedVirtualUserCount:2,
         authorJoined:true,
         collaboratorJoined:true,
-        outsiderPreprojectedOutsideWorkspace:true,
+        outsiderProviderMappingAbsent:true,
         outsiderRoomMembershipAbsent:true,
         outsiderReadDenied:true,
         outsiderWriteDenied:true,

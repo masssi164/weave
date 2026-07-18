@@ -14,8 +14,8 @@ on:
       - ready_for_review
   workflow_dispatch:
     inputs:
-      enable_isolated_runner:
-        description: "Run only when a disposable runner with fully isolated Docker, state, ports, users, and cleanup is available"
+      enable_run_scoped_e2e:
+        description: "Run only with run-scoped containers, networks, volumes, state, ports, users, Simulator, and cleanup"
         required: true
         default: false
         type: boolean
@@ -29,7 +29,7 @@ on:
         default: "weave-mcp-server:live-stack-ci"
   workflow_call:
     inputs:
-      enable_isolated_runner:
+      enable_run_scoped_e2e:
         type: boolean
         required: false
         default: false
@@ -47,21 +47,21 @@ permissions:
   packages: read
 
 concurrency:
-  group: weave-disposable-live-stack-${{ github.run_id }}
+  group: weave-live-mac-mini-exclusive
   cancel-in-progress: false
 
 jobs:
   isolation-gate:
-    name: Require isolated disposable runner
+    name: Require run-scoped E2E isolation
     runs-on: ubuntu-latest
     steps:
-      - name: Fail closed without isolated runtime approval
+      - name: Fail closed without run-scoped runtime approval
         env:
-          ENABLE_ISOLATED_RUNNER: ${{ github.event_name != 'workflow_dispatch' || inputs.enable_isolated_runner }}
+          ENABLE_RUN_SCOPED_E2E: ${{ github.event_name != 'workflow_dispatch' || inputs.enable_run_scoped_e2e }}
         run: |
           set -euo pipefail
-          if [[ "$ENABLE_ISOLATED_RUNNER" != "true" ]]; then
-            echo "::error::Destructive Live Stack E2E is disabled until a disposable runner with isolated containers, networks, volumes, state, ports, users, and cleanup is available. It must never run on weave-live-mac-mini." >&2
+          if [[ "$ENABLE_RUN_SCOPED_E2E" != "true" ]]; then
+            echo "::error::Live Stack E2E requires explicit approval for run-scoped containers, networks, volumes, state, ports, users, Simulator, and cleanup." >&2
             exit 1
           fi
 
@@ -72,10 +72,10 @@ jobs:
       - self-hosted
       - macOS
       - ARM64
-      - weave-disposable-live-stack
+      - weave-live
     timeout-minutes: 75
     env:
-      PERSISTENT_DOGFOOD_RUNNER_NAME: weave-live-mac-mini
+      EXPECTED_RUNNER_NAME: weave-live-mac-mini
       WEAVE_BACKEND_IMAGE: ${{ inputs.weave_backend_image || github.event.inputs.weave_backend_image || 'weave-backend:live-stack-ci' }}
       WEAVE_MCP_SERVER_IMAGE: ${{ inputs.weave_mcp_server_image || github.event.inputs.weave_mcp_server_image || 'weave-mcp-server:live-stack-ci' }}
       TF_VAR_db_admin_password: ci-db-admin-password
@@ -109,12 +109,12 @@ jobs:
         shell: bash
 
     steps:
-      - name: Verify isolated disposable live runner
+      - name: Verify run-scoped live runtime host
         run: |
           set -euo pipefail
           echo "runner=${RUNNER_NAME:-unknown}"
-          if [[ -z "${RUNNER_NAME:-}" || "${RUNNER_NAME}" == "${PERSISTENT_DOGFOOD_RUNNER_NAME}" ]]; then
-            echo "::error::Destructive Live Stack E2E must run on an isolated disposable runner, never ${PERSISTENT_DOGFOOD_RUNNER_NAME}; got ${RUNNER_NAME:-unknown}." >&2
+          if [[ "${RUNNER_NAME:-}" != "${EXPECTED_RUNNER_NAME}" ]]; then
+            echo "::error::Run-scoped Live Stack E2E must run on ${EXPECTED_RUNNER_NAME}; got ${RUNNER_NAME:-unknown}." >&2
             exit 1
           fi
 
@@ -209,6 +209,12 @@ jobs:
           chmod 600 "$DOCKER_CONFIG/config.json"
           echo "DOCKER_CONFIG=$DOCKER_CONFIG" >> "$GITHUB_ENV"
           docker --config "$DOCKER_CONFIG" info >/dev/null
+
+      - name: Capture persistent dogfood resource baseline
+        run: |
+          set -euo pipefail
+          bash weave/tools/persistent_dogfood_resource_guard.sh \
+            capture "${RUNNER_TEMP%/}/weave-live-stack-persistent-dogfood-resources"
 
       - name: Remove orphaned live-runner Buildx resources
         run: bash weave/tools/cleanup_orphaned_buildx.sh
@@ -462,6 +468,7 @@ jobs:
           echo "WEAVE_RUNNER_EMERGENCY_RESERVE_RELEASED=$released_marker" >> "$GITHUB_ENV"
 
       - name: Run live stack integration tests
+        id: live_tests
         working-directory: weave/client
         run: |
           set -euo pipefail
@@ -625,8 +632,16 @@ jobs:
               multi_user_status=1
             fi
           done
-          echo "WEAVE_SINGLE_USER_TEST_STATUS=$single_user_status" >> "$GITHUB_ENV"
-          echo "WEAVE_MULTI_USER_TEST_STATUS=$multi_user_status" >> "$GITHUB_ENV"
+          {
+            echo "WEAVE_SINGLE_USER_TEST_STATUS=$single_user_status"
+            echo "WEAVE_COLLABORATION_TEST_STATUS=$collaboration_status"
+            echo "WEAVE_MATRIX_BEFORE_COLLABORATION_STATUS=$matrix_before_collaboration_status"
+            echo "WEAVE_MATRIX_AFTER_COLLABORATION_STATUS=$matrix_after_collaboration_status"
+            echo "WEAVE_CALENDAR_OUTAGE_BEGIN_STATUS=$calendar_outage_begin_status"
+            echo "WEAVE_CALENDAR_CONTAINMENT_STATUS=$calendar_containment_status"
+            echo "WEAVE_CALENDAR_OUTAGE_RESTORE_STATUS=$calendar_outage_restore_status"
+            echo "WEAVE_MULTI_USER_TEST_STATUS=$multi_user_status"
+          } >> "$GITHUB_ENV"
           if [ -e "$released_marker" ]; then
             echo "::error::Live Stack E2E consumed its emergency disk reserve; increase durable runner headroom before retrying." >&2
             exit 1
@@ -681,10 +696,29 @@ jobs:
             --output "$output"
 
       - name: Prove durable Matrix Synapse collaboration behind the Weave facade
+        id: provider_proof
+        if: always()
         working-directory: weave/infra/weave-workspace
         run: |
           set -euo pipefail
           provider_evidence="$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-chat-provider.json"
+          if [[ ! -s "${WEAVE_E2E_CREDENTIAL_ENV_PATH:-}" || \
+                ! -s "${WEAVE_E2E_STARTUP_ENV_PATH:-}" || \
+                ! -s "${WEAVE_E2E_IDENTITY_MANIFEST_PATH:-}" ]]; then
+            jq -n \
+              --arg candidateCommit "$GITHUB_SHA" \
+              '{
+                contractVersion:"matrix-synapse-provider-proof-v1",
+                status:"unavailable",
+                candidateCommit:$candidateCommit,
+                prerequisiteState:"missing",
+                supportSafe:true
+              }' > "$provider_evidence"
+            echo "WEAVE_CHAT_PROVIDER_PROOF_STATUS=1" >> "$GITHUB_ENV"
+            echo "::error::Matrix/Synapse provider proof prerequisites are unavailable; support-safe evidence was retained." >&2
+            exit 1
+          fi
+          set +e
           ./isolated-e2e-chat-provider-proof.sh \
             --run-id "$WEAVE_E2E_RUN_ID" \
             --candidate-commit "$GITHUB_SHA" \
@@ -693,9 +727,24 @@ jobs:
             --identity-manifest "$WEAVE_E2E_IDENTITY_MANIFEST_PATH" \
             --output "$provider_evidence" \
             2>&1 | tee -a "$WEAVE_ACCEPTANCE_TEST_LOG"
-          test -s "$provider_evidence"
+          provider_status=${PIPESTATUS[0]}
+          set -e
+          if [[ ! -s "$provider_evidence" ]]; then
+            jq -n \
+              --arg candidateCommit "$GITHUB_SHA" \
+              '{
+                contractVersion:"matrix-synapse-provider-proof-v1",
+                status:"failed",
+                candidateCommit:$candidateCommit,
+                supportSafe:true
+              }' > "$provider_evidence"
+            provider_status=1
+          fi
+          echo "WEAVE_CHAT_PROVIDER_PROOF_STATUS=$provider_status" >> "$GITHUB_ENV"
+          exit "$provider_status"
 
       - name: Clean disposable identities and retain only hashed evidence
+        id: disposable_cleanup
         if: always()
         working-directory: weave/infra/weave-workspace
         run: |
@@ -769,6 +818,7 @@ jobs:
           bash weave/infra/weave-workspace/live-stack-failure-diagnostics.sh "$WEAVE_LIVE_STACK_FAILURE_DIAGNOSTICS_DIR"
 
       - name: Destroy stack and scrub stale resources
+        id: stack_teardown
         if: always()
         working-directory: weave/infra/weave-workspace
         run: |
@@ -812,9 +862,57 @@ jobs:
             WEAVE_CONFIRM_DESTRUCTIVE_RESET="$TF_VAR_tenant_slug" \
             bash ./teardown.sh
 
+      - name: Verify persistent dogfood resources were preserved
+        id: persistent_preservation
+        if: always()
+        run: |
+          set -euo pipefail
+          bash weave/tools/persistent_dogfood_resource_guard.sh \
+            verify "${RUNNER_TEMP%/}/weave-live-stack-persistent-dogfood-resources"
+
+      - name: Record independent live phase outcomes
+        if: always()
+        env:
+          WEAVE_LIVE_TEST_STEP_OUTCOME: ${{ steps.live_tests.outcome }}
+          WEAVE_PROVIDER_PROOF_STEP_OUTCOME: ${{ steps.provider_proof.outcome }}
+          WEAVE_IDENTITY_CLEANUP_STEP_OUTCOME: ${{ steps.disposable_cleanup.outcome }}
+          WEAVE_STACK_TEARDOWN_STEP_OUTCOME: ${{ steps.stack_teardown.outcome }}
+          WEAVE_PERSISTENT_PRESERVATION_STEP_OUTCOME: ${{ steps.persistent_preservation.outcome }}
+        run: |
+          set -euo pipefail
+          output="$WEAVE_ACCEPTANCE_EVIDENCE_DIR/live-phase-outcomes.json"
+          step_status() {
+            case "$1" in
+              success) echo 0 ;;
+              failure) echo 1 ;;
+              skipped) echo 2 ;;
+              cancelled) echo 3 ;;
+              *) echo 1 ;;
+            esac
+          }
+          python3 weave/tools/live_phase_outcomes.py \
+            --output "$output" \
+            --candidate-commit "$GITHUB_SHA" \
+            --workflow-run-id "$GITHUB_RUN_ID" \
+            --run-index "$GITHUB_RUN_ATTEMPT" \
+            --observed-at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            --outcome "single-user-appshell-e2ee|${WEAVE_SINGLE_USER_TEST_STATUS:-1}|$WEAVE_LIVE_TEST_STEP_OUTCOME" \
+            --outcome "three-identity-collaboration|${WEAVE_COLLABORATION_TEST_STATUS:-1}|$WEAVE_LIVE_TEST_STEP_OUTCOME" \
+            --outcome "matrix-before-collaboration|${WEAVE_MATRIX_BEFORE_COLLABORATION_STATUS:-1}|$WEAVE_LIVE_TEST_STEP_OUTCOME" \
+            --outcome "matrix-after-collaboration|${WEAVE_MATRIX_AFTER_COLLABORATION_STATUS:-1}|$WEAVE_LIVE_TEST_STEP_OUTCOME" \
+            --outcome "calendar-outage-begin|${WEAVE_CALENDAR_OUTAGE_BEGIN_STATUS:-1}|$WEAVE_LIVE_TEST_STEP_OUTCOME" \
+            --outcome "calendar-failure-containment|${WEAVE_CALENDAR_CONTAINMENT_STATUS:-1}|$WEAVE_LIVE_TEST_STEP_OUTCOME" \
+            --outcome "calendar-outage-recovery|${WEAVE_CALENDAR_OUTAGE_RESTORE_STATUS:-1}|$WEAVE_LIVE_TEST_STEP_OUTCOME" \
+            --outcome "provider-persistence-exactly-once|${WEAVE_CHAT_PROVIDER_PROOF_STATUS:-1}|$WEAVE_PROVIDER_PROOF_STEP_OUTCOME" \
+            --outcome "identity-cleanup|$(step_status "$WEAVE_IDENTITY_CLEANUP_STEP_OUTCOME")|$WEAVE_IDENTITY_CLEANUP_STEP_OUTCOME" \
+            --outcome "stack-teardown|$(step_status "$WEAVE_STACK_TEARDOWN_STEP_OUTCOME")|$WEAVE_STACK_TEARDOWN_STEP_OUTCOME" \
+            --outcome "persistent-dogfood-preservation|$(step_status "$WEAVE_PERSISTENT_PRESERVATION_STEP_OUTCOME")|$WEAVE_PERSISTENT_PRESERVATION_STEP_OUTCOME"
+
       - name: Aggregate two-pass human-testing automation evidence
         if: always()
         working-directory: weave
+        env:
+          WEAVE_PERSISTENT_PRESERVATION_STEP_OUTCOME: ${{ steps.persistent_preservation.outcome }}
         run: |
           set -o pipefail
           set +e
@@ -832,14 +930,24 @@ jobs:
             --require-passed 2>&1 | tee -a "$WEAVE_ACCEPTANCE_TEST_LOG"
           aggregate_status=${PIPESTATUS[0]}
           set -e
+          final_status=0
           if [[ "${WEAVE_SINGLE_USER_TEST_STATUS:-1}" != 0 ]]; then
             echo "::error::The existing live AppShell/provider suite failed." >&2
-            exit 1
+            final_status=1
           fi
           if [[ "${WEAVE_MULTI_USER_TEST_STATUS:-1}" != 0 || "$aggregate_status" != 0 ]]; then
             echo "::error::Three-user collaboration or provider persistence is blocked or failed; inspect the support-safe evidence artifact." >&2
-            exit 1
+            final_status=1
           fi
+          if [[ "${WEAVE_CHAT_PROVIDER_PROOF_STATUS:-1}" != 0 ]]; then
+            echo "::error::The independent Matrix/Synapse provider proof failed or was unavailable." >&2
+            final_status=1
+          fi
+          if [[ "${WEAVE_PERSISTENT_PRESERVATION_STEP_OUTCOME:-failure}" != success ]]; then
+            echo "::error::Persistent dogfood resource preservation failed or was unavailable." >&2
+            final_status=1
+          fi
+          exit "$final_status"
 
       - name: Upload live stack acceptance evidence
         if: always()

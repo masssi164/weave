@@ -3,6 +3,9 @@ package com.massimotter.weave.backend.chat.provider.synapse;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.TextNode;
 import com.massimotter.weave.backend.chat.port.CanonicalChatStore;
 import com.massimotter.weave.backend.chat.e2e.ChatE2eCallbackReplayTap;
 import com.massimotter.weave.backend.config.ChatRuntimeProperties;
@@ -13,6 +16,8 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HexFormat;
 import java.util.Map;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -106,7 +111,13 @@ public final class MatrixApplicationServiceController {
                 return matrixError(HttpStatus.PAYLOAD_TOO_LARGE, "M_TOO_LARGE", "Application Service transaction is too large.");
             }
             CanonicalChatStore.CallbackStart start = store.beginCallback(
-                    provider.providerKey(), safeTransactionId, sha256(payload), events.size());
+                    provider.providerKey(), safeTransactionId, semanticPayloadDigest(root), events.size());
+            if (start == CanonicalChatStore.CallbackStart.SEMANTIC_MISMATCH) {
+                return matrixError(
+                        HttpStatus.SERVICE_UNAVAILABLE,
+                        "M_UNAVAILABLE",
+                        "Application Service transaction semantics are inconsistent.");
+            }
             if (start == CanonicalChatStore.CallbackStart.DUPLICATE) {
                 return ResponseEntity.ok(Map.of());
             }
@@ -161,7 +172,7 @@ public final class MatrixApplicationServiceController {
     @GetMapping({"/rooms/{roomAlias:.+}", "/_matrix/app/v1/rooms/{roomAlias:.+}"})
     public ResponseEntity<Map<String, Object>> roomExists(@PathVariable String roomAlias) {
         boolean exists = store.mappingByIntent(provider.providerKey(), "conversation", required(roomAlias, 768))
-                .filter(mapping -> "acknowledged".equals(mapping.state()))
+                .filter(mapping -> "acknowledged".equals(mapping.state()) || "degraded".equals(mapping.state()))
                 .filter(mapping -> mapping.providerRef() != null && !mapping.providerRef().isBlank())
                 .isPresent();
         return exists ? ResponseEntity.ok(Map.of()) : ResponseEntity.notFound().build();
@@ -196,7 +207,8 @@ public final class MatrixApplicationServiceController {
                 optionalStateKey(value),
                 topLevelRedacts == null ? contentRedacts : topLevelRedacts,
                 content,
-                Long.toString(value.path("origin_server_ts").asLong(0)));
+                Long.toString(value.path("origin_server_ts").asLong(0)),
+                value.path("unsigned").path("redacted_because").isObject());
     }
 
     private byte[] boundedBody(HttpServletRequest request) throws IOException {
@@ -236,12 +248,88 @@ public final class MatrixApplicationServiceController {
         return stateKey.textValue();
     }
 
-    private String sha256(byte[] value) {
+    private static String sha256(byte[] value) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value));
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("SHA-256 is unavailable", exception);
         }
+    }
+
+    /**
+     * Synapse reconstructs a queued Application Service transaction on every
+     * delivery attempt. Presentation fields such as age, unsigned metadata, and
+     * serialization order can therefore differ while provider event identity
+     * and semantic content remain unchanged. The homeserver transaction is an
+     * event set: order and presentation envelopes are excluded, while identity,
+     * routing, state, sender, type, redaction target, and content stay binding.
+     */
+    static String semanticPayloadDigest(JsonNode root) {
+        ArrayList<String> semanticEvents = new ArrayList<>();
+        for (JsonNode event : root.path("events")) {
+            ObjectNode semanticEvent = JsonNodeFactory.instance.objectNode();
+            copySemanticField(event, semanticEvent, "event_id");
+            copySemanticField(event, semanticEvent, "room_id");
+            copySemanticField(event, semanticEvent, "sender");
+            copySemanticField(event, semanticEvent, "type");
+            copySemanticField(event, semanticEvent, "state_key");
+            copySemanticField(event, semanticEvent, "content");
+            copySemanticField(event, semanticEvent, "redacts");
+            if (event.path("unsigned").path("redacted_because").isObject()) {
+                semanticEvent.put("provider_redacted", true);
+            }
+            StringBuilder canonicalEvent = new StringBuilder();
+            appendCanonicalJson(semanticEvent, canonicalEvent);
+            semanticEvents.add(canonicalEvent.toString());
+        }
+        Collections.sort(semanticEvents);
+        StringBuilder canonical = new StringBuilder();
+        canonical.append('[');
+        for (int index = 0; index < semanticEvents.size(); index++) {
+            if (index > 0) {
+                canonical.append(',');
+            }
+            canonical.append(semanticEvents.get(index));
+        }
+        canonical.append(']');
+        return sha256(canonical.toString().getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static void copySemanticField(JsonNode source, ObjectNode target, String field) {
+        if (source.has(field)) {
+            target.set(field, source.get(field));
+        }
+    }
+
+    private static void appendCanonicalJson(JsonNode value, StringBuilder target) {
+        if (value.isObject()) {
+            ArrayList<String> fields = new ArrayList<>();
+            value.fieldNames().forEachRemaining(fields::add);
+            Collections.sort(fields);
+            target.append('{');
+            for (int index = 0; index < fields.size(); index++) {
+                if (index > 0) {
+                    target.append(',');
+                }
+                String field = fields.get(index);
+                target.append(TextNode.valueOf(field)).append(':');
+                appendCanonicalJson(value.get(field), target);
+            }
+            target.append('}');
+            return;
+        }
+        if (value.isArray()) {
+            target.append('[');
+            for (int index = 0; index < value.size(); index++) {
+                if (index > 0) {
+                    target.append(',');
+                }
+                appendCanonicalJson(value.get(index), target);
+            }
+            target.append(']');
+            return;
+        }
+        target.append(value);
     }
 
     private ResponseEntity<Map<String, Object>> matrixError(HttpStatus status, String code, String message) {

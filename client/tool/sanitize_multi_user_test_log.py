@@ -42,9 +42,13 @@ PROGRESS_PHASES = (
     "room-key-exchange-author-send",
     "room-key-exchange-author-self-observe",
     "room-key-exchange-collaborator-observe-author",
+    "room-key-exchange-collaborator-observed-author",
     "room-key-exchange-collaborator-send",
     "room-key-exchange-collaborator-self-observe",
     "room-key-exchange-author-observe-collaborator",
+    "room-key-exchange-author-observed-collaborator",
+    "room-key-exchange-redaction",
+    "room-key-exchange-redacted",
     "home-baseline",
     "author-write",
     "author-capabilities",
@@ -71,6 +75,9 @@ PROGRESS_PHASES = (
     "collaborator-calendar-observe",
     "collaborator-calendar-update",
     "outsider-authorization",
+    "outsider-chat-authorization",
+    "outsider-files-authorization",
+    "outsider-calendar-authorization",
     "fresh-session-observation",
     "resource-cleanup",
     "independent-logout",
@@ -94,7 +101,50 @@ PROGRESS_PATTERN = re.compile(
     rf"(?:^|\s)MULTI_USER_PROGRESS "
     rf"phase=({'|'.join(PROGRESS_PHASES)}) runIndex=(\d+)\s*$"
 )
+CHAT_CONNECT_DIAGNOSTIC_PATTERN = re.compile(
+    r"(?:^|\s)MULTI_USER_CHAT_CONNECT_DIAGNOSTIC "
+    r"role=(author|collaborator|outsider) runIndex=(\d+) "
+    r"failureType=(cancelled|configuration|sessionRequired|unsupportedConfiguration|"
+    r"peerDevicePending|protocol|storage|unsupportedPlatform|unknown) "
+    r"supportCode=(M_[A-Z0-9_]{2,80}|none) supportSafe=true\s*$"
+)
+CHAT_SEND_DIAGNOSTIC_PATTERN = re.compile(
+    r"(?:^|\s)MULTI_USER_CHAT_SEND_DIAGNOSTIC "
+    r"role=(author|collaborator|outsider) runIndex=(\d+) "
+    r"failureType=(cancelled|configuration|sessionRequired|unsupportedConfiguration|"
+    r"peerDevicePending|protocol|storage|unsupportedPlatform|unknown) "
+    r"supportCode=(M_[A-Z0-9_]{2,80}|none) supportSafe=true\s*$"
+)
 FAILURE_CATEGORIES = (
+    (
+        "identity-mismatch",
+        re.compile(
+            r"resolved a different encrypted Chat event",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "message-not-observed",
+        re.compile(
+            r"committed Chat message was not observed|M_WEAVE_E2EE_MESSAGE_NOT_OBSERVED",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "native-process",
+        re.compile(
+            r"lost connection to device|service protocol connection closed|"
+            r"process.*(?:sigabrt|sigsegv)|rust panicked|fatal signal",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "test-timeout",
+        re.compile(
+            r"test timed out after|TimeoutException after",
+            re.IGNORECASE,
+        ),
+    ),
     (
         "compilation",
         re.compile(
@@ -164,6 +214,10 @@ SAFE_E2EE_SUPPORT_CODES = (
     "M_WEAVE_E2EE_UNABLE_TO_DECRYPT",
     "M_WEAVE_E2EE_MESSAGE_NOT_OBSERVED",
     "M_WEAVE_E2EE_DEVICE_EXCHANGE_FAILED",
+    "M_WEAVE_LIVE_MATRIX_EVENT_OWNER_DUPLICATED",
+    "M_WEAVE_LIVE_MATRIX_REDACTION_COUNT_INVALID",
+    "M_WEAVE_LIVE_MATRIX_REDACTION_NOT_OBSERVED",
+    "M_WEAVE_LIVE_MATRIX_REDACT_EVENT_HTTP_403",
 )
 SAFE_E2EE_DIAGNOSTIC_CODES = SAFE_E2EE_SUPPORT_CODES + (
     "M_WEAVE_E2EE_DIAGNOSTICS_UNAVAILABLE",
@@ -206,16 +260,11 @@ E2EE_DIAGNOSTIC_PATTERN = re.compile(
     + r"\s*$"
 )
 E2EE_CRYPTO_DIAGNOSTIC_FIELDS = (
-    "eventCount",
-    "decryptedCount",
-    "unableToDecryptCount",
-    "toDeviceDecryptedCount",
-    "toDeviceRoomKeyCount",
-    "toDeviceUnableToDecryptCount",
-    "toDeviceDecryptionFailureCount",
-    "toDeviceUnverifiedSenderCount",
-    "toDeviceNoOlmMachineCount",
-    "toDeviceEncryptionDisabledCount",
+    "tdDec",
+    "tdKey",
+    "tdUtd",
+    "tdFail",
+    "tdUnverified",
 )
 E2EE_CRYPTO_DIAGNOSTIC_PATTERN = re.compile(
     r"(?:^|\s)MULTI_USER_E2EE_CRYPTO_DIAGNOSTIC "
@@ -223,6 +272,29 @@ E2EE_CRYPTO_DIAGNOSTIC_PATTERN = re.compile(
     rf"supportCode=({'|'.join(SAFE_E2EE_DIAGNOSTIC_CODES)}) "
     + r" ".join(rf"{field}=(\d+)" for field in E2EE_CRYPTO_DIAGNOSTIC_FIELDS)
     + r"\s*$"
+)
+E2EE_EVENT_ID_MISMATCH_FIELDS = (
+    "sameSender",
+    "sameTimestamp",
+    "expectedLength",
+    "observedLength",
+    "transportAvailable",
+    "authorHasExpected",
+    "authorHasObserved",
+    "collaboratorHasExpected",
+    "collaboratorHasObserved",
+)
+E2EE_EVENT_ID_MISMATCH_PATTERN = re.compile(
+    r"(?:^|\s)MULTI_USER_E2EE_EVENT_ID_MISMATCH "
+    r"direction=(author-to-collaborator|collaborator-to-author) "
+    r"runIndex=(\d+) expectedHash=([0-9a-f]{16}) observedHash=([0-9a-f]{16}) "
+    + r" ".join(rf"{field}=(\d+)" for field in E2EE_EVENT_ID_MISMATCH_FIELDS)
+    + r"\s*$"
+)
+E2EE_EVENT_ID_MISMATCH_DETECTED_PATTERN = re.compile(
+    r"(?:^|\s)MULTI_USER_E2EE_EVENT_ID_MISMATCH_DETECTED "
+    r"direction=(author-to-collaborator|collaborator-to-author) "
+    r"runIndex=(\d+) expectedHash=([0-9a-f]{16}) observedHash=([0-9a-f]{16})\s*$"
 )
 
 
@@ -255,12 +327,33 @@ def _is_safe_payload(payload: object, run_index: int) -> bool:
     return True
 
 
-def _failure_diagnostic(raw_log: str) -> tuple[str, str]:
+def _failure_diagnostic(raw_log: str, progress_phase: str) -> tuple[str, str]:
     category = "unknown"
-    for candidate, pattern in FAILURE_CATEGORIES:
-        if pattern.search(raw_log):
-            category = candidate
-            break
+    support_code = _e2ee_support_code(raw_log)
+    if progress_phase in {"room-key-exchange-redaction", "resource-cleanup"}:
+        category = "cleanup"
+    elif "resolved a different encrypted Chat event" in raw_log:
+        category = "identity-mismatch"
+    elif progress_phase.endswith("-send"):
+        category = "send"
+    elif "-observe-" in progress_phase or progress_phase.endswith("-self-observe"):
+        decrypt_codes = {
+            "M_WEAVE_E2EE_OLM_DECRYPTION_FAILURE",
+            "M_WEAVE_E2EE_ROOM_KEY_NOT_RECEIVED",
+            "M_WEAVE_E2EE_ROOM_KEY_NOT_IMPORTED",
+            "M_WEAVE_E2EE_MISSING_MEGOLM_SESSION",
+            "M_WEAVE_E2EE_MISMATCHED_IDENTITY_KEYS",
+            "M_WEAVE_E2EE_SENDER_NOT_TRUSTED",
+            "M_WEAVE_E2EE_UNABLE_TO_DECRYPT",
+        }
+        category = "decrypt" if support_code in decrypt_codes else "receive"
+    elif progress_phase.startswith("outsider-") or support_code == "M_FORBIDDEN":
+        category = "authorization"
+    else:
+        for candidate, pattern in FAILURE_CATEGORIES:
+            if pattern.search(raw_log):
+                category = candidate
+                break
 
     normalized = SECRET_VALUE_PATTERN.sub(r"\1\2<redacted>", raw_log)
     normalized = re.sub(r"https?://[^\s\"'<>]+", "<url>", normalized)
@@ -296,6 +389,36 @@ def _last_progress_phase(raw_log: str, run_index: int) -> str:
 def _e2ee_support_code(raw_log: str) -> str | None:
     matches = E2EE_SUPPORT_CODE_PATTERN.findall(raw_log)
     return matches[-1] if matches else None
+
+
+def _chat_connect_diagnostics(raw_log: str, run_index: int) -> list[str]:
+    diagnostics: list[str] = []
+    for line in raw_log.splitlines():
+        match = CHAT_CONNECT_DIAGNOSTIC_PATTERN.search(line)
+        if match is None or int(match.group(2)) != run_index:
+            continue
+        diagnostics.append(
+            "SANITIZED_MULTI_USER_CHAT_CONNECT_DIAGNOSTIC "
+            f"role={match.group(1)} runIndex={run_index} "
+            f"failureType={match.group(3)} supportCode={match.group(4)} "
+            "supportSafe=true"
+        )
+    return diagnostics[-1:]
+
+
+def _chat_send_diagnostics(raw_log: str, run_index: int) -> list[str]:
+    diagnostics: list[str] = []
+    for line in raw_log.splitlines():
+        match = CHAT_SEND_DIAGNOSTIC_PATTERN.search(line)
+        if match is None or int(match.group(2)) != run_index:
+            continue
+        diagnostics.append(
+            "SANITIZED_MULTI_USER_CHAT_SEND_DIAGNOSTIC "
+            f"role={match.group(1)} runIndex={run_index} "
+            f"failureType={match.group(3)} supportCode={match.group(4)} "
+            "supportSafe=true"
+        )
+    return diagnostics[-1:]
 
 
 def _e2ee_diagnostics(raw_log: str, run_index: int) -> list[str]:
@@ -337,6 +460,40 @@ def _e2ee_crypto_diagnostics(raw_log: str, run_index: int) -> list[str]:
     return diagnostics[-2:]
 
 
+def _e2ee_event_id_mismatches(raw_log: str, run_index: int) -> list[str]:
+    diagnostics: list[str] = []
+    for line in raw_log.splitlines():
+        match = E2EE_EVENT_ID_MISMATCH_PATTERN.search(line)
+        if match is None or int(match.group(2)) != run_index:
+            continue
+        counts = " ".join(
+            f"{field}={match.group(index + 5)}"
+            for index, field in enumerate(E2EE_EVENT_ID_MISMATCH_FIELDS)
+        )
+        diagnostics.append(
+            "SANITIZED_MULTI_USER_E2EE_EVENT_ID_MISMATCH "
+            f"direction={match.group(1)} runIndex={run_index} "
+            f"expectedHash={match.group(3)} observedHash={match.group(4)} "
+            f"{counts} supportSafe=true"
+        )
+    return diagnostics[-2:]
+
+
+def _e2ee_event_id_mismatch_detections(raw_log: str, run_index: int) -> list[str]:
+    diagnostics: list[str] = []
+    for line in raw_log.splitlines():
+        match = E2EE_EVENT_ID_MISMATCH_DETECTED_PATTERN.search(line)
+        if match is None or int(match.group(2)) != run_index:
+            continue
+        diagnostics.append(
+            "SANITIZED_MULTI_USER_E2EE_EVENT_ID_MISMATCH_DETECTED "
+            f"direction={match.group(1)} runIndex={run_index} "
+            f"expectedHash={match.group(3)} observedHash={match.group(4)} "
+            "supportSafe=true"
+        )
+    return diagnostics[-2:]
+
+
 def main() -> int:
     args = _parse_args()
     raw_log = args.input.read_text(encoding="utf-8", errors="replace")
@@ -363,12 +520,24 @@ def main() -> int:
     for diagnostic in _e2ee_crypto_diagnostics(raw_log, args.run_index):
         print(diagnostic)
 
+    for diagnostic in _chat_connect_diagnostics(raw_log, args.run_index):
+        print(diagnostic)
+
+    for diagnostic in _chat_send_diagnostics(raw_log, args.run_index):
+        print(diagnostic)
+
     for diagnostic in _e2ee_diagnostics(raw_log, args.run_index):
+        print(diagnostic)
+
+    for diagnostic in _e2ee_event_id_mismatches(raw_log, args.run_index):
+        print(diagnostic)
+
+    for diagnostic in _e2ee_event_id_mismatch_detections(raw_log, args.run_index):
         print(diagnostic)
 
     test_status = "passed" if args.test_exit_code == 0 else "failed"
     if args.test_exit_code != 0:
-        category, signature = _failure_diagnostic(raw_log)
+        category, signature = _failure_diagnostic(raw_log, progress_phase)
         support_code = _e2ee_support_code(raw_log)
         support_code_field = f" supportCode={support_code}" if support_code else ""
         print(

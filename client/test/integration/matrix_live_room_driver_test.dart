@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 import '../../integration_test/helpers/matrix_live_room_driver.dart';
+import '../../integration_test/helpers/multi_user_test_config.dart';
 
 const _author = MatrixLiveActorCredentials(
   accessToken: 'author-access-token',
@@ -665,6 +666,223 @@ void main() {
     );
   });
 
+  test('redacts each owned event with its sender credentials', () async {
+    final requests = <http.Request>[];
+    final client = MockClient((request) async {
+      requests.add(request);
+      if (request.method == 'PUT') {
+        return _jsonResponse(<String, Object>{'event_id': r'$redaction'});
+      }
+      final isAuthor =
+          request.headers['X-Weave-Matrix-Device-Id'] == _author.deviceId;
+      return _jsonResponse(<String, Object>{
+        'chunk': <Map<String, Object>>[
+          <String, Object>{
+            'event_id': isAuthor
+                ? r'$event-author:api.weave.test'
+                : r'$event-collaborator:api.weave.test',
+            'type': 'm.room.encrypted',
+            'content': <String, Object>{},
+          },
+        ],
+      });
+    });
+    final driver = MatrixLiveRoomDriver(
+      client: client,
+      homeserver: Uri.parse('https://api.weave.test'),
+    );
+
+    final redactedCount = await driver.redactOwnedEventsAndVerify(
+      roomId: _roomId,
+      batches: const <MatrixLiveOwnedEventBatch>[
+        MatrixLiveOwnedEventBatch(
+          owner: CollaborationActorRole.author,
+          actor: _author,
+          eventIds: <String>{r'$event-author:api.weave.test'},
+        ),
+        MatrixLiveOwnedEventBatch(
+          owner: CollaborationActorRole.collaborator,
+          actor: _collaborator,
+          eventIds: <String>{r'$event-collaborator:api.weave.test'},
+        ),
+      ],
+    );
+
+    expect(redactedCount, 2);
+    expect(requests.map((request) => request.method), <String>[
+      'PUT',
+      'GET',
+      'PUT',
+      'GET',
+    ]);
+    expect(
+      requests
+          .take(2)
+          .map((request) => request.headers['X-Weave-Matrix-Device-Id']),
+      everyElement(_author.deviceId),
+    );
+    expect(
+      requests
+          .skip(2)
+          .map((request) => request.headers['X-Weave-Matrix-Device-Id']),
+      everyElement(_collaborator.deviceId),
+    );
+  });
+
+  test('rejects duplicate event ownership before issuing requests', () async {
+    final requests = <http.Request>[];
+    final driver = MatrixLiveRoomDriver(
+      client: MockClient((request) async {
+        requests.add(request);
+        return _jsonResponse(<String, Object>{});
+      }),
+      homeserver: Uri.parse('https://api.weave.test'),
+    );
+
+    await expectLater(
+      driver.redactOwnedEventsAndVerify(
+        roomId: _roomId,
+        batches: const <MatrixLiveOwnedEventBatch>[
+          MatrixLiveOwnedEventBatch(
+            owner: CollaborationActorRole.author,
+            actor: _author,
+            eventIds: <String>{r'$shared:api.weave.test'},
+          ),
+          MatrixLiveOwnedEventBatch(
+            owner: CollaborationActorRole.collaborator,
+            actor: _collaborator,
+            eventIds: <String>{r'$shared:api.weave.test'},
+          ),
+        ],
+      ),
+      throwsA(
+        isA<MatrixLiveRoomDriverException>().having(
+          (error) => error.code,
+          'code',
+          'M_WEAVE_LIVE_MATRIX_EVENT_OWNER_DUPLICATED',
+        ),
+      ),
+    );
+    expect(requests, isEmpty);
+  });
+
+  test('preserves a sender authorization failure as a bounded code', () async {
+    final driver = MatrixLiveRoomDriver(
+      client: MockClient((request) async {
+        return http.Response(
+          jsonEncode(<String, String>{
+            'errcode': 'M_FORBIDDEN',
+            'error': 'private downstream detail',
+          }),
+          403,
+          headers: const <String, String>{'content-type': 'application/json'},
+        );
+      }),
+      homeserver: Uri.parse('https://api.weave.test'),
+    );
+
+    await expectLater(
+      driver.redactOwnedEventsAndVerify(
+        roomId: _roomId,
+        batches: const <MatrixLiveOwnedEventBatch>[
+          MatrixLiveOwnedEventBatch(
+            owner: CollaborationActorRole.collaborator,
+            actor: _author,
+            eventIds: <String>{r'$collaborator-event:api.weave.test'},
+          ),
+        ],
+      ),
+      throwsA(
+        isA<MatrixLiveRoomDriverException>().having(
+          (error) => error.code,
+          'code',
+          'M_WEAVE_LIVE_MATRIX_REDACT_EVENT_HTTP_403',
+        ),
+      ),
+    );
+  });
+
+  test('partial owner cleanup retries only the unfinished batch', () async {
+    final requests = <http.Request>[];
+    var collaboratorPutAttempts = 0;
+    final client = MockClient((request) async {
+      requests.add(request);
+      final isAuthor =
+          request.headers['X-Weave-Matrix-Device-Id'] == _author.deviceId;
+      if (request.method == 'PUT') {
+        if (!isAuthor && collaboratorPutAttempts++ == 0) {
+          return _jsonResponse(<String, String>{'errcode': 'M_FORBIDDEN'}, 403);
+        }
+        return _jsonResponse(<String, Object>{'event_id': r'$redaction'});
+      }
+      return _jsonResponse(<String, Object>{
+        'chunk': <Map<String, Object>>[
+          <String, Object>{
+            'event_id': isAuthor
+                ? r'$event-author:api.weave.test'
+                : r'$event-collaborator:api.weave.test',
+            'type': 'm.room.encrypted',
+            'content': <String, Object>{},
+          },
+        ],
+      });
+    });
+    final driver = MatrixLiveRoomDriver(
+      client: client,
+      homeserver: Uri.parse('https://api.weave.test'),
+    );
+    final completedDeviceIds = <String>{};
+    const batches = <MatrixLiveOwnedEventBatch>[
+      MatrixLiveOwnedEventBatch(
+        owner: CollaborationActorRole.author,
+        actor: _author,
+        eventIds: <String>{r'$event-author:api.weave.test'},
+      ),
+      MatrixLiveOwnedEventBatch(
+        owner: CollaborationActorRole.collaborator,
+        actor: _collaborator,
+        eventIds: <String>{r'$event-collaborator:api.weave.test'},
+      ),
+    ];
+
+    await expectLater(
+      driver.redactOwnedEventsAndVerify(
+        roomId: _roomId,
+        batches: batches,
+        onBatchRedacted: (batch) {
+          completedDeviceIds.add(batch.actor.deviceId);
+        },
+      ),
+      throwsA(isA<MatrixLiveRoomDriverException>()),
+    );
+    expect(completedDeviceIds, <String>{_author.deviceId});
+
+    final retriedCount = await driver.redactOwnedEventsAndVerify(
+      roomId: _roomId,
+      batches: batches
+          .where((batch) => !completedDeviceIds.contains(batch.actor.deviceId))
+          .toList(growable: false),
+      onBatchRedacted: (batch) {
+        completedDeviceIds.add(batch.actor.deviceId);
+      },
+    );
+
+    expect(retriedCount, 1);
+    expect(completedDeviceIds, <String>{
+      _author.deviceId,
+      _collaborator.deviceId,
+    });
+    expect(
+      requests
+          .where(
+            (request) =>
+                request.headers['X-Weave-Matrix-Device-Id'] == _author.deviceId,
+          )
+          .length,
+      2,
+    );
+  });
+
   test('finds and encrypts the exact joined canonical room', () async {
     var requestIndex = 0;
     final client = MockClient((request) async {
@@ -744,10 +962,10 @@ void main() {
   });
 }
 
-http.Response _jsonResponse(Map<String, Object> body) {
+http.Response _jsonResponse(Map<String, Object> body, [int statusCode = 200]) {
   return http.Response(
     jsonEncode(body),
-    200,
+    statusCode,
     headers: const <String, String>{'content-type': 'application/json'},
   );
 }

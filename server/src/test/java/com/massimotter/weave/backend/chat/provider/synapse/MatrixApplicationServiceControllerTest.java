@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.chat.provider.synapse;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.chat.e2e.ChatE2eCallbackReplayTap;
 import com.massimotter.weave.backend.chat.port.CanonicalChatStore;
@@ -83,6 +84,79 @@ class MatrixApplicationServiceControllerTest {
     }
 
     @Test
+    void callbackSemanticDisagreementFailsClosedWithoutProcessingEvents() {
+        when(provider.providerKey()).thenReturn("matrix-synapse");
+        when(resolver.synapseAdapter()).thenReturn(adapter);
+        when(store.beginCallback(anyString(), anyString(), anyString(), anyInt()))
+                .thenReturn(CanonicalChatStore.CallbackStart.SEMANTIC_MISMATCH);
+        MatrixApplicationServiceController controller = controller(65_536);
+
+        var response = controller.transaction("hs-transaction-mismatch", request("{\"events\":[]}"));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        assertThat(response.getBody())
+                .containsEntry("errcode", "M_UNAVAILABLE")
+                .doesNotContainValue("hs-transaction-mismatch");
+        verify(store, never()).recordCallbackEvent(anyString(), any());
+        verify(store, never()).completeCallback(anyString(), anyString(), anyInt());
+    }
+
+    @Test
+    void firstDeliverySemanticDigestUsesAnOrderIndependentSemanticEventSet() throws Exception {
+        JsonNode first = objectMapper.readTree("""
+                {"presentation":"first-delivery","events":[{
+                  "event_id":"$state:matrix.internal",
+                  "room_id":"!room:matrix.internal",
+                  "sender":"@_weave_sender:matrix.internal",
+                  "type":"m.room.create",
+                  "content":{"creator":"@_weave_sender:matrix.internal"},
+                  "origin_server_ts":123,
+                  "age":12,
+                  "redacted_because":{"event_id":"$redaction:matrix.internal","age":7,"unsigned":{"age":7}},
+                  "unsigned":{"age":12,"stable":"kept","redacted_because":{"event_id":"$redaction:matrix.internal","age":7,"unsigned":{"age":7}}}
+                },{
+                  "event_id":"$name:matrix.internal",
+                  "room_id":"!room:matrix.internal",
+                  "sender":"@_weave_sender:matrix.internal",
+                  "type":"m.room.name",
+                  "state_key":"",
+                  "content":{"name":"Collaboration"}
+                }]}
+                """);
+        JsonNode retried = objectMapper.readTree("""
+                {"presentation":"retry-delivery","events":[{
+                  "unsigned":{"age":42,"presentation_only":"changed"},
+                  "origin_server_ts":999,
+                  "content":{"name":"Collaboration"},
+                  "state_key":"",
+                  "sender":"@_weave_sender:matrix.internal",
+                  "room_id":"!room:matrix.internal",
+                  "type":"m.room.name",
+                  "event_id":"$name:matrix.internal"
+                },{
+                  "unsigned":{"stable":"kept","age":98765,"redacted_because":{"unsigned":{"age":87654},"age":87654,"event_id":"$redaction:matrix.internal"}},
+                  "age":98765,
+                  "redacted_because":{"unsigned":{"age":87654},"age":87654,"event_id":"$redaction:matrix.internal"},
+                  "origin_server_ts":456,
+                  "content":{"creator":"@_weave_sender:matrix.internal"},
+                  "type":"m.room.create",
+                  "sender":"@_weave_sender:matrix.internal",
+                  "room_id":"!room:matrix.internal",
+                  "event_id":"$state:matrix.internal"
+                }]}
+                """);
+        JsonNode changed = retried.deepCopy();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) changed.path("events").get(1).path("content"))
+                .put("creator", "@_weave_other:matrix.internal");
+
+        assertThat(MatrixApplicationServiceController.semanticPayloadDigest(first))
+                .isEqualTo(MatrixApplicationServiceController.semanticPayloadDigest(retried))
+                .isNotEqualTo(MatrixApplicationServiceController.semanticPayloadDigest(changed));
+        assertThat(first.path("events").get(0).path("age").asInt()).isEqualTo(12);
+        assertThat(first.path("events").get(0).path("unsigned").path("age").asInt()).isEqualTo(12);
+    }
+
+    @Test
     void capturesFirstSuccessfullyProcessedEncryptedCallbackForRealReplay() {
         when(provider.providerKey()).thenReturn("matrix-synapse");
         when(store.beginCallback(anyString(), anyString(), anyString(), anyInt()))
@@ -158,6 +232,35 @@ class MatrixApplicationServiceControllerTest {
         verify(store).recordCallbackEvent(anyString(), event.capture());
         assertThat(event.getValue().stateKey()).isEmpty();
         assertThat(event.getValue().providerRedactsRef()).isNull();
+    }
+
+    @Test
+    void callbackMarksHomeserverRedactedEncryptedProjectionWithoutCopyingRedactionBody() {
+        when(provider.providerKey()).thenReturn("matrix-synapse");
+        when(store.beginCallback(anyString(), anyString(), anyString(), anyInt()))
+                .thenReturn(CanonicalChatStore.CallbackStart.NEW);
+        when(store.recordCallbackEvent(anyString(), any()))
+                .thenReturn(new CanonicalChatStore.CallbackEventResult("acknowledged-redacted-projection", "hash"));
+        MatrixApplicationServiceController controller = controller(65_536);
+
+        var response = controller.transaction("hs-redacted-encrypted", request("""
+                {"events":[{
+                  "event_id":"$encrypted:matrix.internal",
+                  "room_id":"!room:matrix.internal",
+                  "sender":"@_weave_sender:matrix.internal",
+                  "type":"m.room.encrypted",
+                  "origin_server_ts":1,
+                  "unsigned":{"redacted_because":{"type":"m.room.redaction","content":{"reason":"private"}}},
+                  "content":{}
+                }]}
+                """));
+
+        ArgumentCaptor<CanonicalChatStore.ProviderCallbackEvent> event =
+                ArgumentCaptor.forClass(CanonicalChatStore.ProviderCallbackEvent.class);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        verify(store).recordCallbackEvent(anyString(), event.capture());
+        assertThat(event.getValue().providerRedacted()).isTrue();
+        assertThat(event.getValue().content()).isEmpty();
     }
 
     @Test

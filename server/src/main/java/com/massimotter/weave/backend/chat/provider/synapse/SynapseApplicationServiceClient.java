@@ -273,23 +273,25 @@ final class SynapseApplicationServiceClient {
                 plaintext++;
             }
         }
-        boolean outsiderDenied;
-        try {
-            request("GET",
-                    "/_matrix/client/v3/rooms/" + path(providerRoomRef) + "/messages?dir=b&limit=1",
-                    outsiderActorRef,
-                    null,
-                    Set.of(403));
-            outsiderDenied = true;
-        } catch (SynapseProviderException exception) {
-            outsiderDenied = false;
+        boolean outsiderDenied = outsiderActorRef == null;
+        if (outsiderActorRef != null) {
+            try {
+                request("GET",
+                        "/_matrix/client/v3/rooms/" + path(providerRoomRef) + "/messages?dir=b&limit=1",
+                        outsiderActorRef,
+                        null,
+                        Set.of(403));
+                outsiderDenied = true;
+            } catch (SynapseProviderException exception) {
+                outsiderDenied = false;
+            }
         }
         List<String> joinedIds = new ArrayList<>();
         joined.path("joined").fieldNames().forEachRemaining(joinedIds::add);
         boolean membershipExact = exactSet(joinedIds, expectedJoinedActors);
         return new ProviderRoomEvidence(
                 membershipExact,
-                !joinedIds.contains(outsiderActorRef),
+                outsiderActorRef == null || !joinedIds.contains(outsiderActorRef),
                 outsiderDenied,
                 ChatEncryptedEnvelope.MEGOLM_V1.equals(encryption.path("algorithm").asText()),
                 exactSet(encryptedEventRefs, expectedEncryptedEventRefs),

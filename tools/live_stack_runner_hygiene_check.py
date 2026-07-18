@@ -10,6 +10,9 @@ ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/live-stack-e2e.yml"
 DOGFOOD_DEPLOY_WORKFLOW = ROOT / ".github/workflows/test-stack-deploy.yml"
 DOGFOOD_MEMBER_WORKFLOW = ROOT / ".github/workflows/dogfood-member.yml"
+DOGFOOD_RECOVERY_WORKFLOW = ROOT / ".github/workflows/dogfood-pending-identity-recovery.yml"
+IOS_DOGFOOD_WORKFLOW = ROOT / ".github/workflows/ios-dogfood.yml"
+PERSISTENT_RESOURCE_GUARD = ROOT / "tools/persistent_dogfood_resource_guard.sh"
 DOCS = ROOT / "docs/quality-and-evidence.md"
 CLIENT_BRIDGE = (
     ROOT
@@ -23,12 +26,16 @@ CLIENT_HTTP_OVERRIDES = (
 CLIENT_LIVE_OIDC = ROOT / "client/integration_test/helpers/live_oidc_test_driver.dart"
 IOS_SIMULATOR_XCRUN = ROOT / "tools/ios_simulator_xcrun.py"
 IOS_SIMULATOR_XCRUN_SHIM = ROOT / "tools/ios-simulator-xcrun/xcrun"
+LIVE_PHASE_OUTCOMES = ROOT / "tools/live_phase_outcomes.py"
 
 
 def main() -> int:
     workflow = WORKFLOW.read_text(encoding="utf-8")
     dogfood_deploy_workflow = DOGFOOD_DEPLOY_WORKFLOW.read_text(encoding="utf-8")
     dogfood_member_workflow = DOGFOOD_MEMBER_WORKFLOW.read_text(encoding="utf-8")
+    dogfood_recovery_workflow = DOGFOOD_RECOVERY_WORKFLOW.read_text(encoding="utf-8")
+    ios_dogfood_workflow = IOS_DOGFOOD_WORKFLOW.read_text(encoding="utf-8")
+    persistent_resource_guard = PERSISTENT_RESOURCE_GUARD.read_text(encoding="utf-8")
     docs = DOCS.read_text(encoding="utf-8")
     client_bridge = CLIENT_BRIDGE.read_text(encoding="utf-8")
     client_makefile = CLIENT_MAKEFILE.read_text(encoding="utf-8")
@@ -37,9 +44,10 @@ def main() -> int:
     client_live_oidc = CLIENT_LIVE_OIDC.read_text(encoding="utf-8")
     ios_simulator_xcrun = IOS_SIMULATOR_XCRUN.read_text(encoding="utf-8")
     ios_simulator_xcrun_shim = IOS_SIMULATOR_XCRUN_SHIM.read_text(encoding="utf-8")
+    live_phase_outcomes = LIVE_PHASE_OUTCOMES.read_text(encoding="utf-8")
 
     ordered_steps = (
-        "- name: Verify isolated disposable live runner",
+        "- name: Verify run-scoped live runtime host",
         "- name: Remove stale runner-owned Weave outputs",
         "- name: Check out weave",
         "- name: Verify runner disk headroom",
@@ -50,10 +58,13 @@ def main() -> int:
         "- name: Enable bounded iOS Simulator VM-service discovery",
         "- name: Verify live test disk headroom and reserve recovery space",
         "- name: Run live stack integration tests",
+        "- name: Prove durable Matrix Synapse collaboration behind the Weave facade",
         "- name: Clean disposable identities and retain only hashed evidence",
         "- name: Generate live stack acceptance evidence",
         "- name: Generate support-safe failure diagnostics",
         "- name: Destroy stack and scrub stale resources",
+        "- name: Verify persistent dogfood resources were preserved",
+        "- name: Record independent live phase outcomes",
         "- name: Aggregate two-pass human-testing automation evidence",
         "- name: Upload live stack acceptance evidence",
         "- name: Scrub current runner-owned Weave outputs",
@@ -61,29 +72,50 @@ def main() -> int:
     positions = [workflow.index(step) for step in ordered_steps]
     require(positions == sorted(positions), "live-stack cleanup/evidence steps are misordered")
     require(
-        "group: weave-persistent-dogfood" in dogfood_deploy_workflow
-        and "group: weave-persistent-dogfood" in dogfood_member_workflow,
-        "all persistent dogfood mutators must share the non-cancelling deployment lock",
+        all(
+            "group: weave-live-mac-mini-exclusive" in document
+            for document in (
+                workflow,
+                dogfood_deploy_workflow,
+                dogfood_member_workflow,
+                dogfood_recovery_workflow,
+                ios_dogfood_workflow,
+            )
+        ),
+        "all Mac runner mutators must share the non-cancelling exclusive lock",
     )
     require(
         "cancel-in-progress: false" in dogfood_deploy_workflow
-        and "cancel-in-progress: false" in dogfood_member_workflow,
-        "persistent dogfood operations must never cancel one another",
+        and "cancel-in-progress: false" in dogfood_member_workflow
+        and "cancel-in-progress: false" in dogfood_recovery_workflow
+        and "cancel-in-progress: false" in workflow,
+        "Mac runner mutations must never cancel one another",
     )
     require(
-        "- weave-disposable-live-stack" in workflow
+        "- weave-live" in workflow
         and "needs: isolation-gate" in workflow
-        and "Fail closed without isolated runtime approval" in workflow,
-        "destructive live-stack E2E must fail closed and target only an isolated runner",
+        and "Fail closed without run-scoped runtime approval" in workflow,
+        "destructive live-stack E2E must fail closed on the dedicated Mac runner",
     )
     require(
-        "PERSISTENT_DOGFOOD_RUNNER_NAME: weave-live-mac-mini" in workflow
-        and '"${RUNNER_NAME}" == "${PERSISTENT_DOGFOOD_RUNNER_NAME}"' in workflow,
-        "destructive live-stack E2E must explicitly reject the persistent dogfood runner",
+        "EXPECTED_RUNNER_NAME: weave-live-mac-mini" in workflow
+        and '"${RUNNER_NAME:-}" != "${EXPECTED_RUNNER_NAME}"' in workflow,
+        "live-stack E2E must explicitly require the single configured Mac runner",
     )
     require(
-        "group: weave-persistent-dogfood" not in workflow,
-        "disposable E2E must not claim the persistent dogfood mutation lock",
+        "enable_run_scoped_e2e" in workflow
+        and "enable_isolated_runner" not in workflow,
+        "manual live-stack approval must describe run-scoped isolation",
+    )
+    require(
+        "persistent_dogfood_resource_guard.sh" in workflow
+        and "capture persistent dogfood resource baseline" in workflow.lower()
+        and "verify persistent dogfood resources were preserved" in workflow.lower()
+        and "persistent-dogfood-preservation" in workflow
+        and "^weave[-_]" in persistent_resource_guard
+        and "^weave[-_]e2e[-_]" in persistent_resource_guard
+        and "cmp -s" in persistent_resource_guard,
+        "single-runner E2E must prove persistent dogfood resource preservation",
     )
     require(
         "minimum_kib=$((10 * 1024 * 1024))" in workflow,
@@ -161,6 +193,28 @@ def main() -> int:
         and "isolated-authorization.json" in workflow
         and "--require-passed" in workflow,
         "live-stack E2E must run and fail closed on two-pass collaboration and real authorization evidence",
+    )
+    provider_proof_step = workflow[
+        workflow.index(
+            "- name: Prove durable Matrix Synapse collaboration behind the Weave facade"
+        ) : workflow.index("- name: Clean disposable identities")
+    ]
+    require(
+        "if: always()" in provider_proof_step
+        and "WEAVE_CHAT_PROVIDER_PROOF_STATUS" in provider_proof_step
+        and 'status:"unavailable"' in provider_proof_step
+        and 'status:"failed"' in provider_proof_step,
+        "Matrix/Synapse provider proof must run independently and retain support-safe failure evidence",
+    )
+    require(
+        "live-phase-outcomes-v2" in live_phase_outcomes
+        and "weave/tools/live_phase_outcomes.py" in workflow
+        and "provider-persistence-exactly-once" in workflow
+        and "identity-cleanup" in workflow
+        and "WEAVE_COLLABORATION_TEST_STATUS" in workflow
+        and "WEAVE_CALENDAR_CONTAINMENT_STATUS" in workflow
+        and "WEAVE_STACK_TEARDOWN_STEP_OUTCOME" in workflow,
+        "live-stack evidence must record independent functional, provider, recovery, cleanup, and teardown outcomes",
     )
     require(
         workflow.count("capture_matrix_to_device_snapshot") == 3

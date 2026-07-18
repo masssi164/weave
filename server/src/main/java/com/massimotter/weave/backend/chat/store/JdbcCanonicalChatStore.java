@@ -22,6 +22,7 @@ import com.massimotter.weave.backend.chat.domain.ChatMemberState;
 import com.massimotter.weave.backend.chat.domain.ChatMembership;
 import com.massimotter.weave.backend.chat.domain.ChatMessage;
 import com.massimotter.weave.backend.chat.domain.ChatMessages;
+import com.massimotter.weave.backend.chat.domain.ChatProviderUnavailableException;
 import com.massimotter.weave.backend.chat.domain.ChatReadReceipt;
 import com.massimotter.weave.backend.chat.domain.ChatRedactionReceipt;
 import com.massimotter.weave.backend.chat.domain.ChatRequestContext;
@@ -30,6 +31,7 @@ import com.massimotter.weave.backend.chat.domain.ChatTimelineEvent;
 import com.massimotter.weave.backend.chat.domain.ChatTransactionId;
 import com.massimotter.weave.backend.chat.domain.ConversationId;
 import com.massimotter.weave.backend.chat.port.CanonicalChatStore;
+import com.massimotter.weave.backend.chat.provider.synapse.MatrixSynapseCompatibilityProfile;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -46,7 +48,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 import javax.sql.DataSource;
@@ -57,15 +58,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 public final class JdbcCanonicalChatStore implements CanonicalChatStore {
 
     private static final String COMMITTED = "committed";
-    private static final Set<String> SUPPORTED_IGNORED_MATRIX_STATE_TYPES = Set.of(
-            "m.room.create",
-            "m.room.member",
-            "m.room.name",
-            "m.room.encryption",
-            "m.room.power_levels",
-            "m.room.join_rules",
-            "m.room.history_visibility",
-            "m.room.guest_access");
+    private static final int DEFAULT_RECONCILIATION_ATTEMPTS = 3;
     private static final ChatHistoryPolicy HISTORY_POLICY = new ChatHistoryPolicy(
             "conversation_members",
             "organization_default_retention",
@@ -77,16 +70,29 @@ public final class JdbcCanonicalChatStore implements CanonicalChatStore {
     private final TransactionTemplate transactions;
     private final ObjectMapper objectMapper;
     private final Clock clock;
+    private final MatrixSynapseCompatibilityProfile compatibilityProfile;
 
     public JdbcCanonicalChatStore(JdbcTemplate jdbc, ObjectMapper objectMapper, Clock clock) {
+        this(jdbc, objectMapper, clock, MatrixSynapseCompatibilityProfile.pinned());
+    }
+
+    public JdbcCanonicalChatStore(
+            JdbcTemplate jdbc,
+            ObjectMapper objectMapper,
+            Clock clock,
+            MatrixSynapseCompatibilityProfile compatibilityProfile) {
         if (jdbc == null || jdbc.getDataSource() == null) {
             throw new IllegalArgumentException("JdbcCanonicalChatStore requires a JdbcTemplate with a DataSource.");
+        }
+        if (compatibilityProfile == null) {
+            throw new IllegalArgumentException("JdbcCanonicalChatStore requires a Matrix/Synapse compatibility profile.");
         }
         this.jdbc = jdbc;
         DataSource dataSource = jdbc.getDataSource();
         this.transactions = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
         this.objectMapper = objectMapper == null ? new ObjectMapper().findAndRegisterModules() : objectMapper;
         this.clock = clock == null ? Clock.systemUTC() : clock;
+        this.compatibilityProfile = compatibilityProfile;
     }
 
     @Override
@@ -104,6 +110,10 @@ public final class JdbcCanonicalChatStore implements CanonicalChatStore {
                         + "where c.tenant_id = ? and c.lifecycle_state = 'committed' "
                         + "and c.context_id = ? "
                         + "and m.identity_issuer = ? and m.actor_ref = ? and m.membership_state = 'joined' "
+                        + "and not exists (select 1 from weave_chat_provider_mappings mapping "
+                        + "where mapping.tenant_id = c.tenant_id and mapping.object_type = 'conversation' "
+                        + "and mapping.canonical_object_id = c.conversation_id "
+                        + "and mapping.mapping_state = 'degraded') "
                         + "order by c.updated_at_utc desc, c.conversation_id",
                 (rs, row) -> mapConversation(rs, context.actorRef()),
                 context.tenantId(), context.contextId(), context.identityIssuer(), context.actorRef().value());
@@ -294,6 +304,7 @@ public final class JdbcCanonicalChatStore implements CanonicalChatStore {
             ChatRequestContext context,
             ConversationId conversationId,
             String targetState) {
+        requireConversationHealthy(context.tenantId(), conversationId);
         String normalized = switch (targetState) {
             case "joined", "join" -> "joined";
             case "left", "leave" -> "left";
@@ -638,6 +649,11 @@ public final class JdbcCanonicalChatStore implements CanonicalChatStore {
                         + "and membership.identity_issuer = ? and membership.actor_ref = ? "
                         + "and membership.membership_state = 'joined' "
                         + "and conversation.context_id = ? "
+                        + "and not exists (select 1 from weave_chat_provider_mappings mapping "
+                        + "where mapping.tenant_id = conversation.tenant_id "
+                        + "and mapping.object_type = 'conversation' "
+                        + "and mapping.canonical_object_id = conversation.conversation_id "
+                        + "and mapping.mapping_state = 'degraded') "
                         + "order by changes.sequence_value limit ?",
                 (rs, row) -> new ChatChange(
                         rs.getLong("sequence_value"),
@@ -757,32 +773,75 @@ public final class JdbcCanonicalChatStore implements CanonicalChatStore {
 
     @Override
     public CallbackStart beginCallback(String providerKey, String transactionId, String payloadDigest, int eventCount) {
+        String safeProvider = requiredText(providerKey, "Chat provider key", 64);
+        String safeTransaction = requiredText(transactionId, "homeserver transaction", 255);
+        if (payloadDigest == null || !payloadDigest.matches("[0-9a-f]{64}") || eventCount < 0) {
+            throw new IllegalArgumentException("Application Service semantic fingerprint is invalid.");
+        }
         return transactions.execute(status -> {
-            List<CallbackRow> existing = jdbc.query(
-                    "select payload_digest, transaction_state from weave_chat_appservice_transactions "
-                            + "where provider_key = ? and homeserver_transaction_id = ?",
-                    (rs, row) -> new CallbackRow(rs.getString("payload_digest"), rs.getString("transaction_state")),
-                    providerKey, transactionId);
-            if (!existing.isEmpty()) {
-                if (!MessageDigest.isEqual(existing.getFirst().payloadDigest().getBytes(StandardCharsets.UTF_8),
-                        payloadDigest.getBytes(StandardCharsets.UTF_8))) {
-                    throw new IllegalArgumentException("Application Service transaction digest is inconsistent.");
-                }
-                if ("completed".equals(existing.getFirst().state())) {
-                    jdbc.update("update weave_chat_appservice_transactions set duplicate_count = duplicate_count + 1 "
-                                    + "where provider_key = ? and homeserver_transaction_id = ?",
-                            providerKey, transactionId);
-                    return CallbackStart.DUPLICATE;
-                }
-                return CallbackStart.RESUME;
+            Optional<CallbackRow> existing = callbackRow(safeProvider, safeTransaction);
+            if (existing.isPresent()) {
+                return existingCallbackStart(
+                        safeProvider, safeTransaction, payloadDigest, eventCount, existing.orElseThrow());
             }
-            jdbc.update("insert into weave_chat_appservice_transactions "
+            int inserted = jdbc.update("insert into weave_chat_appservice_transactions "
                             + "(provider_key, homeserver_transaction_id, payload_digest, transaction_state, event_count, "
-                            + "duplicate_count, received_at_utc, completed_at_utc) values (?, ?, ?, ?, ?, ?, ?, ?)",
-                    providerKey, transactionId, payloadDigest, "processing", eventCount, 0,
-                    utc(clock.instant()), null);
-            return CallbackStart.NEW;
+                            + "duplicate_count, received_at_utc, completed_at_utc, semantic_fingerprint_version, "
+                            + "semantic_mismatch_count, semantic_mismatch_hash) "
+                            + "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) on conflict do nothing",
+                    safeProvider, safeTransaction, payloadDigest, "processing", eventCount, 0,
+                    utc(clock.instant()), null, compatibilityProfile.semanticFingerprintVersion(), 0, null);
+            if (inserted == 1) {
+                return CallbackStart.NEW;
+            }
+            CallbackRow raced = callbackRow(safeProvider, safeTransaction)
+                    .orElseThrow(ChatCallbackRetryRequiredException::new);
+            return existingCallbackStart(safeProvider, safeTransaction, payloadDigest, eventCount, raced);
         });
+    }
+
+    private Optional<CallbackRow> callbackRow(String providerKey, String transactionId) {
+        return jdbc.query(
+                "select transaction_state, payload_digest, event_count, semantic_fingerprint_version "
+                        + "from weave_chat_appservice_transactions "
+                        + "where provider_key = ? and homeserver_transaction_id = ?",
+                (rs, row) -> new CallbackRow(
+                        rs.getString("transaction_state"),
+                        rs.getString("payload_digest"),
+                        rs.getInt("event_count"),
+                        rs.getString("semantic_fingerprint_version")),
+                providerKey, transactionId).stream().findFirst();
+    }
+
+    private CallbackStart existingCallbackStart(
+            String providerKey,
+            String transactionId,
+            String payloadDigest,
+            int eventCount,
+            CallbackRow callback) {
+        boolean sameSemanticSet = callback.eventCount() == eventCount
+                && compatibilityProfile.semanticFingerprintVersion().equals(callback.fingerprintVersion())
+                && constantTimeTextEquals(callback.payloadDigest(), payloadDigest);
+        if (!sameSemanticSet || "semantic-mismatch".equals(callback.state())) {
+            String mismatchHash = sha256(providerKey + "\u0000" + transactionId + "\u0000"
+                    + callback.fingerprintVersion() + "\u0000" + callback.payloadDigest() + "\u0000"
+                    + callback.eventCount() + "\u0000" + compatibilityProfile.semanticFingerprintVersion()
+                    + "\u0000" + payloadDigest + "\u0000" + eventCount);
+            jdbc.update("update weave_chat_appservice_transactions set "
+                            + "transaction_state = 'semantic-mismatch', "
+                            + "semantic_mismatch_count = semantic_mismatch_count + 1, "
+                            + "semantic_mismatch_hash = ? "
+                            + "where provider_key = ? and homeserver_transaction_id = ?",
+                    mismatchHash, providerKey, transactionId);
+            return CallbackStart.SEMANTIC_MISMATCH;
+        }
+        if ("completed".equals(callback.state())) {
+            jdbc.update("update weave_chat_appservice_transactions set duplicate_count = duplicate_count + 1 "
+                            + "where provider_key = ? and homeserver_transaction_id = ?",
+                    providerKey, transactionId);
+            return CallbackStart.DUPLICATE;
+        }
+        return CallbackStart.RESUME;
     }
 
     @Override
@@ -818,7 +877,7 @@ public final class JdbcCanonicalChatStore implements CanonicalChatStore {
             Optional<ProviderMapping> expectedRoom = mapping(
                     echo.tenantId(), providerKey, "conversation", echo.conversationId());
             if (expectedRoom.isEmpty()
-                    || !"acknowledged".equals(expectedRoom.get().state())
+                    || !correlatableConversationMapping(expectedRoom.get())
                     || !event.providerRoomRef().equals(expectedRoom.get().providerRef())) {
                 return quarantineMappedConversation(
                         echo.tenantId(), echo.conversationId(), providerKey, event, "provider-echo-room-mismatch");
@@ -842,7 +901,7 @@ public final class JdbcCanonicalChatStore implements CanonicalChatStore {
             ChatRequestContext echoContext = new ChatRequestContext(
                     echo.tenantId(), echoContextId, echo.identityIssuer(), new ChatActorRef(echo.actorRef()));
             try {
-                requireJoined(echoContext, new ConversationId(echo.conversationId()));
+                requireJoinedMembership(echoContext, new ConversationId(echo.conversationId()));
             } catch (ChatAccessDeniedException exception) {
                 return quarantineMappedConversation(
                         echo.tenantId(), echo.conversationId(), providerKey, event, "provider-echo-sender-not-authorized");
@@ -891,13 +950,16 @@ public final class JdbcCanonicalChatStore implements CanonicalChatStore {
                     sha256(echo.tenantId() + ":" + echo.canonicalObjectId()));
         }
         Optional<ProviderMapping> roomMapping = mappingByProviderRef(providerKey, "conversation", event.providerRoomRef());
-        if (roomMapping.isEmpty() || !"acknowledged".equals(roomMapping.get().state())) {
+        if (roomMapping.isEmpty() || !correlatableConversationMapping(roomMapping.get())) {
             if (pendingCreateCouldOwnCallback(providerKey, event, operationEcho)) {
                 throw new ChatCallbackRetryRequiredException();
             }
             return quarantine("unknown-private", providerKey, event, "provider-room-unmapped");
         }
         ProviderMapping room = roomMapping.get();
+        if (event.providerRedacted()) {
+            return recordRedactedProviderProjection(providerKey, event, room);
+        }
         Optional<ProviderMapping> actorMapping = mappingByProviderRef(providerKey, "actor", event.providerSenderRef());
         if (actorMapping.isEmpty()
                 || !"acknowledged".equals(actorMapping.get().state())
@@ -908,36 +970,42 @@ public final class JdbcCanonicalChatStore implements CanonicalChatStore {
         String canonicalActorKey = actorMapping.get().canonicalObjectId();
         ActorIdentity actor = parseActorKey(canonicalActorKey);
         ConversationId conversationId = new ConversationId(room.canonicalObjectId());
-        String roomContextId = contextId(room.tenantId(), conversationId)
-                .orElseThrow(() -> new IllegalStateException("Canonical Chat context binding is missing."));
-        ChatRequestContext context = new ChatRequestContext(
-                room.tenantId(), roomContextId, actor.issuer(), new ChatActorRef(actor.actorRef()));
-        try {
-            requireJoined(context, conversationId);
-        } catch (ChatAccessDeniedException exception) {
+        MatrixSynapseCompatibilityProfile.StateClassification stateClassification =
+                compatibilityProfile.classify(event.eventType(), event.stateKey() != null);
+        if (stateClassification == MatrixSynapseCompatibilityProfile.StateClassification.UNKNOWN_RECOVERABLE) {
             return quarantineMappedConversation(
-                    room.tenantId(), room.canonicalObjectId(), providerKey, event, "provider-sender-not-authorized");
+                    room.tenantId(), room.canonicalObjectId(), providerKey, event,
+                    "provider-state-event-type-unsupported");
         }
-        String encryptionMode = encryptionMode(room.tenantId(), conversationId);
-        if (event.stateKey() != null) {
-            if (!SUPPORTED_IGNORED_MATRIX_STATE_TYPES.contains(event.eventType())) {
-                return quarantineMappedConversation(
-                        room.tenantId(), room.canonicalObjectId(), providerKey, event,
-                        "provider-state-event-type-unsupported");
-            }
+        if (stateClassification == MatrixSynapseCompatibilityProfile.StateClassification.SUPPORTED_IGNORED) {
+            // Membership transitions can be delivered after the canonical
+            // leave operation has already committed. They are provider state,
+            // not a new canonical member-authored event, so current joined
+            // membership is not a valid correlation prerequisite.
             recordLedger(room.tenantId(), providerKey, "inbound", event.providerTransactionId(),
                     event.providerEventRef(), room.canonicalObjectId(), event.providerSourceVersion(),
                     "ignored-supported-state");
             return new CallbackEventResult("ignored", sha256(room.tenantId() + ":" + event.providerEventRef()));
         }
-        if ("m.room.message".equals(event.eventType()) && !"unencrypted".equals(encryptionMode)) {
-            return quarantineMappedConversation(
-                    room.tenantId(), room.canonicalObjectId(), providerKey, event, "plaintext-in-encrypted-room");
-        }
-        if (SUPPORTED_IGNORED_MATRIX_STATE_TYPES.contains(event.eventType())) {
+        if (stateClassification == MatrixSynapseCompatibilityProfile.StateClassification.KNOWN_STATE_KEY_MISSING) {
             return quarantineMappedConversation(
                     room.tenantId(), room.canonicalObjectId(), providerKey, event,
                     "provider-state-key-missing");
+        }
+        String roomContextId = contextId(room.tenantId(), conversationId)
+                .orElseThrow(() -> new IllegalStateException("Canonical Chat context binding is missing."));
+        ChatRequestContext context = new ChatRequestContext(
+                room.tenantId(), roomContextId, actor.issuer(), new ChatActorRef(actor.actorRef()));
+        try {
+            requireJoinedMembership(context, conversationId);
+        } catch (ChatAccessDeniedException exception) {
+            return quarantineMappedConversation(
+                    room.tenantId(), room.canonicalObjectId(), providerKey, event, "provider-sender-not-authorized");
+        }
+        String encryptionMode = encryptionMode(room.tenantId(), conversationId);
+        if ("m.room.message".equals(event.eventType()) && !"unencrypted".equals(encryptionMode)) {
+            return quarantineMappedConversation(
+                    room.tenantId(), room.canonicalObjectId(), providerKey, event, "plaintext-in-encrypted-room");
         }
         ChatEventContent content;
         if ("m.room.encrypted".equals(event.eventType())) {
@@ -950,7 +1018,8 @@ public final class JdbcCanonicalChatStore implements CanonicalChatStore {
                 content = ChatEventContent.encrypted(event.content());
             } catch (IllegalArgumentException exception) {
                 return quarantineMappedConversation(
-                        room.tenantId(), room.canonicalObjectId(), providerKey, event, "encrypted-envelope-invalid");
+                        room.tenantId(), room.canonicalObjectId(), providerKey, event,
+                        encryptedEnvelopeReason(exception));
             }
         } else if ("m.room.message".equals(event.eventType()) && "unencrypted".equals(encryptionMode)) {
             Object body = event.content().get("body");
@@ -1002,6 +1071,49 @@ public final class JdbcCanonicalChatStore implements CanonicalChatStore {
                 sha256(room.tenantId() + ":" + canonicalEventId));
     }
 
+    private CallbackEventResult recordRedactedProviderProjection(
+            String providerKey,
+            ProviderCallbackEvent event,
+            ProviderMapping room) {
+        if (!"m.room.encrypted".equals(event.eventType())
+                || event.stateKey() != null
+                || !event.content().isEmpty()) {
+            return quarantineMappedConversation(
+                    room.tenantId(), room.canonicalObjectId(), providerKey, event,
+                    "provider-redacted-projection-invalid");
+        }
+        Optional<ProviderMapping> existingEvent = mappingByProviderRef(
+                providerKey, "event", event.providerEventRef());
+        if (existingEvent.isEmpty()) {
+            throw new ChatCallbackRetryRequiredException();
+        }
+        ProviderMapping mapping = existingEvent.get();
+        Optional<String> existingConversation = callbackEventConversation(
+                room.tenantId(), mapping.canonicalObjectId());
+        if (!"acknowledged".equals(mapping.state())
+                || !room.tenantId().equals(mapping.tenantId())
+                || existingConversation.isEmpty()
+                || !room.canonicalObjectId().equals(existingConversation.get())) {
+            return quarantineMappedConversation(
+                    room.tenantId(), room.canonicalObjectId(), providerKey, event,
+                    "provider-redacted-projection-mismatch");
+        }
+        int updated = jdbc.update("update weave_chat_events set redacted = true where tenant_id = ? "
+                        + "and conversation_id = ? and event_id = ? and redacted = false",
+                room.tenantId(), room.canonicalObjectId(), mapping.canonicalObjectId());
+        recordLedger(room.tenantId(), providerKey, "inbound", event.providerTransactionId(),
+                event.providerEventRef(), mapping.canonicalObjectId(), event.providerSourceVersion(),
+                "acknowledged-redacted-projection");
+        if (updated == 1) {
+            recordCallbackChangeIfAbsent(
+                    room.tenantId(), new ConversationId(room.canonicalObjectId()), "event.redacted",
+                    mapping.canonicalObjectId(), providerKey, event.providerEventRef(), clock.instant());
+        }
+        return new CallbackEventResult(
+                updated == 1 ? "acknowledged-redacted-projection" : "deduplicated-redacted-projection",
+                sha256(room.tenantId() + ":" + mapping.canonicalObjectId()));
+    }
+
     private CallbackEventResult recordRedactionEcho(
             String providerKey,
             ProviderCallbackEvent event,
@@ -1009,7 +1121,7 @@ public final class JdbcCanonicalChatStore implements CanonicalChatStore {
         Optional<ProviderMapping> expectedRoom = mapping(
                 echo.tenantId(), providerKey, "conversation", echo.conversationId());
         if (expectedRoom.isEmpty()
-                || !"acknowledged".equals(expectedRoom.get().state())
+                || !correlatableConversationMapping(expectedRoom.get())
                 || !event.providerRoomRef().equals(expectedRoom.get().providerRef())) {
             return quarantineMappedConversation(
                     echo.tenantId(), echo.conversationId(), providerKey, event,
@@ -1036,7 +1148,7 @@ public final class JdbcCanonicalChatStore implements CanonicalChatStore {
         ChatRequestContext echoContext = new ChatRequestContext(
                 echo.tenantId(), echoContextId, echo.identityIssuer(), new ChatActorRef(echo.actorRef()));
         try {
-            requireJoined(echoContext, new ConversationId(echo.conversationId()));
+            requireJoinedMembership(echoContext, new ConversationId(echo.conversationId()));
             EventOwner owner = eventOwner(
                     echo.tenantId(), new ConversationId(echo.conversationId()), echo.canonicalObjectId());
             if (!echo.identityIssuer().equals(owner.identityIssuer())
@@ -1055,7 +1167,7 @@ public final class JdbcCanonicalChatStore implements CanonicalChatStore {
                 || target.isEmpty()
                 || !"acknowledged".equals(target.get().state())
                 || !java.util.Objects.equals(target.get().providerRef(), event.providerRedactsRef())
-                || !event.content().isEmpty()) {
+                || !supportedRedactionPresentationContent(event.content())) {
             return quarantineMappedConversation(
                     echo.tenantId(), echo.conversationId(), providerKey, event,
                     "provider-redaction-echo-mismatch");
@@ -1091,6 +1203,20 @@ public final class JdbcCanonicalChatStore implements CanonicalChatStore {
                 sha256(echo.tenantId() + ":" + echo.canonicalObjectId()));
     }
 
+    static boolean supportedRedactionPresentationContent(Map<String, Object> content) {
+        if (content.isEmpty()) {
+            return true;
+        }
+        if (content.size() != 1 || !(content.get("reason") instanceof String reason)) {
+            return false;
+        }
+        // Matrix permits a human-readable redaction reason. Weave does not
+        // ingest or republish that presentation field, but its presence must
+        // not turn a correctly correlated redaction echo into conversation
+        // degradation. Keep acceptance bounded and reject control characters.
+        return reason.length() <= 512 && reason.chars().noneMatch(Character::isISOControl);
+    }
+
     @Override
     public CallbackEventResult recordMalformedCallbackEvent(
             String providerKey,
@@ -1099,10 +1225,15 @@ public final class JdbcCanonicalChatStore implements CanonicalChatStore {
             String reasonCode) {
         String correlationHash = sha256(providerKey + "\u0000" + transactionId + "\u0000" + eventDigest);
         String quarantineId = "quarantine-" + correlationHash;
+        Instant observedAt = clock.instant();
         jdbc.update("insert into weave_chat_quarantine "
-                        + "(tenant_id, quarantine_id, provider_key, correlation_hash, reason_code, observed_at_utc) "
-                        + "values (?, ?, ?, ?, ?, ?) on conflict do nothing",
-                "unknown-private", quarantineId, providerKey, correlationHash, safeCode(reasonCode), utc(clock.instant()));
+                        + "(tenant_id, quarantine_id, provider_key, correlation_hash, reason_code, observed_at_utc, "
+                        + "category_code, recoverable, classifier_version, lifecycle_state, attempt_count, max_attempts, "
+                        + "private_homeserver_transaction_id, resolved_at_utc, last_outcome_code) "
+                        + "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) on conflict do nothing",
+                "unknown-private", quarantineId, providerKey, correlationHash, safeCode(reasonCode), utc(observedAt),
+                "provider-malformed", false, compatibilityProfile.classifierVersion(), "rejected", 0,
+                DEFAULT_RECONCILIATION_ATTEMPTS, transactionId, utc(observedAt), "callback-event-malformed");
         return new CallbackEventResult("quarantined-poison", correlationHash);
     }
 
@@ -1110,14 +1241,137 @@ public final class JdbcCanonicalChatStore implements CanonicalChatStore {
     public void completeCallback(String providerKey, String transactionId, int duplicateCount) {
         jdbc.update("update weave_chat_appservice_transactions set transaction_state = 'completed', "
                         + "duplicate_count = duplicate_count + ?, completed_at_utc = ? "
-                        + "where provider_key = ? and homeserver_transaction_id = ?",
+                        + "where provider_key = ? and homeserver_transaction_id = ? "
+                        + "and transaction_state = 'processing'",
                 Math.max(0, duplicateCount), utc(clock.instant()), providerKey, transactionId);
     }
 
     @Override
-    public long degradedMappingCount(String providerKey) {
-        return count("select count(*) from weave_chat_provider_mappings where provider_key = ? "
-                + "and object_type = 'conversation' and mapping_state = 'degraded'", providerKey);
+    public long systemicCallbackIntegrityFailureCount(String providerKey) {
+        return count("select count(*) from weave_chat_appservice_transactions where provider_key = ? "
+                + "and transaction_state = 'semantic-mismatch'", requiredText(providerKey, "Chat provider key", 64));
+    }
+
+    @Override
+    public List<QuarantineReconciliationResult> reconcilePendingQuarantines(
+            String providerKey,
+            int limit) {
+        String safeProvider = requiredText(providerKey, "Chat provider key", 64);
+        int boundedLimit = Math.max(1, Math.min(limit, 100));
+        List<QuarantineCandidate> candidates = jdbc.query(
+                "select tenant_id, correlation_hash from weave_chat_quarantine "
+                        + "where provider_key = ? and lifecycle_state = 'pending' and recoverable = true "
+                        + "and classifier_version <> ? order by observed_at_utc, quarantine_id limit ?",
+                (rs, row) -> new QuarantineCandidate(
+                        rs.getString("tenant_id"),
+                        rs.getString("correlation_hash")),
+                safeProvider,
+                compatibilityProfile.classifierVersion(),
+                boundedLimit);
+        List<QuarantineReconciliationResult> results = new ArrayList<>(candidates.size());
+        for (QuarantineCandidate candidate : candidates) {
+            results.add(reconcileQuarantine(
+                    candidate.tenantId(), safeProvider, candidate.correlationHash()));
+        }
+        return List.copyOf(results);
+    }
+
+    @Override
+    public QuarantineReconciliationResult reconcileQuarantine(
+            String tenantId,
+            String providerKey,
+            String correlationHash) {
+        String safeTenant = requiredText(tenantId, "Chat tenant", 160);
+        String safeProvider = requiredText(providerKey, "Chat provider key", 64);
+        if (correlationHash == null || !correlationHash.matches("[0-9a-f]{64}")) {
+            throw new IllegalArgumentException("Chat quarantine correlation is invalid.");
+        }
+        QuarantineReconciliationResult result = transactions.execute(status -> {
+            QuarantineRow quarantine = jdbc.query(
+                            "select quarantine_id, conversation_id, correlation_hash, recoverable, classifier_version, "
+                                    + "lifecycle_state, attempt_count, max_attempts, private_normalized_event_json "
+                                    + "from weave_chat_quarantine where tenant_id = ? and provider_key = ? "
+                                    + "and correlation_hash = ? for update",
+                            (rs, row) -> new QuarantineRow(
+                                    rs.getString("quarantine_id"),
+                                    rs.getString("conversation_id"),
+                                    rs.getString("correlation_hash"),
+                                    rs.getBoolean("recoverable"),
+                                    rs.getString("classifier_version"),
+                                    rs.getString("lifecycle_state"),
+                                    rs.getInt("attempt_count"),
+                                    rs.getInt("max_attempts"),
+                                    rs.getString("private_normalized_event_json")),
+                            safeTenant, safeProvider, correlationHash).stream().findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException("Chat quarantine correlation was not found."));
+            if (!"pending".equals(quarantine.lifecycleState())) {
+                return new QuarantineReconciliationResult(
+                        quarantine.lifecycleState(),
+                        "quarantine-already-" + quarantine.lifecycleState(),
+                        quarantine.attemptCount(),
+                        false,
+                        quarantine.correlationHash());
+            }
+            if (!quarantine.recoverable()) {
+                return rejectQuarantine(
+                        safeTenant, quarantine, "quarantine-not-recoverable", false);
+            }
+            if (compatibilityProfile.classifierVersion().equals(quarantine.classifierVersion())) {
+                return new QuarantineReconciliationResult(
+                        "pending",
+                        "classifier-not-advanced",
+                        quarantine.attemptCount(),
+                        false,
+                        quarantine.correlationHash());
+            }
+            if (quarantine.attemptCount() >= quarantine.maxAttempts()) {
+                return rejectQuarantine(
+                        safeTenant, quarantine, "reconciliation-attempt-limit", false);
+            }
+            ProviderCallbackEvent event;
+            try {
+                event = readPrivateCallbackEvent(quarantine.normalizedEventJson());
+            } catch (IllegalArgumentException exception) {
+                return rejectQuarantine(
+                        safeTenant, quarantine, "private-reconciliation-input-invalid", true);
+            }
+            MatrixSynapseCompatibilityProfile.StateClassification classification =
+                    compatibilityProfile.classify(event.eventType(), event.stateKey() != null);
+            if (classification != MatrixSynapseCompatibilityProfile.StateClassification.SUPPORTED_IGNORED) {
+                return deferOrRejectQuarantine(
+                        safeTenant, quarantine, "classifier-still-unsupported");
+            }
+            if (providerEventAlreadyCommitted(safeTenant, safeProvider, event.providerEventRef())) {
+                return supersedeQuarantine(safeTenant, safeProvider, quarantine);
+            }
+            CallbackEventResult callback = recordCallbackEventInTransaction(safeProvider, event);
+            if (!("ignored".equals(callback.state())
+                    || "accepted".equals(callback.state())
+                    || "deduplicated".equals(callback.state())
+                    || callback.state().startsWith("acknowledged-"))) {
+                return rejectQuarantine(
+                        safeTenant, quarantine, "reconciliation-policy-rejected", true);
+            }
+            int attempts = quarantine.attemptCount() + 1;
+            Instant now = clock.instant();
+            jdbc.update("update weave_chat_quarantine set lifecycle_state = 'reconciled', attempt_count = ?, "
+                            + "last_attempt_at_utc = ?, resolved_at_utc = ?, last_outcome_code = ?, "
+                            + "classifier_version = ? where tenant_id = ? and quarantine_id = ?",
+                    attempts, utc(now), utc(now), "reconciliation-committed",
+                    compatibilityProfile.classifierVersion(), safeTenant, quarantine.quarantineId());
+            boolean healed = healConversationIfResolved(
+                    safeTenant, safeProvider, quarantine.conversationId());
+            return new QuarantineReconciliationResult(
+                    "reconciled",
+                    "reconciliation-committed",
+                    attempts,
+                    healed,
+                    quarantine.correlationHash());
+        });
+        if (result == null) {
+            throw new IllegalStateException("Chat quarantine reconciliation returned no result.");
+        }
+        return result;
     }
 
     @Override
@@ -1142,14 +1396,25 @@ public final class JdbcCanonicalChatStore implements CanonicalChatStore {
                         + "and operation_state = 'failed_retryable'", tenantId, conversation),
                 count("select count(*) from weave_chat_operations where tenant_id = ? and conversation_id = ? "
                         + "and operation_state = 'committed'", tenantId, conversation),
-                count("select count(*) from weave_chat_bridge_ledger where tenant_id = ?", tenantId),
+                count("select count(*) from weave_chat_bridge_ledger ledger where ledger.tenant_id = ? "
+                                + "and ledger.provider_key = ? and (ledger.canonical_object_id = ? "
+                                + "or ledger.canonical_object_id in (select event_id from weave_chat_events "
+                                + "where tenant_id = ? and conversation_id = ?) "
+                                + "or ledger.provider_transaction_id in (select provider_transaction_id "
+                                + "from weave_chat_operations where tenant_id = ? and conversation_id = ?))",
+                        tenantId, activeProviderKey, conversation, tenantId, conversation, tenantId, conversation),
                 count("select count(*) from weave_chat_appservice_transactions where provider_key = ?", activeProviderKey),
                 count("select coalesce(sum(duplicate_count), 0) from weave_chat_appservice_transactions "
                         + "where provider_key = ?", activeProviderKey),
-                count("select count(*) from weave_chat_quarantine where provider_key = ? "
-                        + "and tenant_id in (?, 'unknown-private')", activeProviderKey, tenantId),
+                count("select coalesce(sum(semantic_mismatch_count), 0) "
+                        + "from weave_chat_appservice_transactions where provider_key = ?", activeProviderKey),
+                count("select count(*) from weave_chat_quarantine where provider_key = ? and tenant_id = ? "
+                                + "and conversation_id = ? and lifecycle_state in ('pending', 'rejected')",
+                        activeProviderKey, tenantId, conversation),
                 count("select count(*) from weave_chat_provider_mappings where tenant_id = ? and provider_key = ? "
-                        + "and object_type = 'conversation' and mapping_state = 'degraded'", tenantId, activeProviderKey),
+                                + "and object_type = 'conversation' and canonical_object_id = ? "
+                                + "and mapping_state = 'degraded'",
+                        tenantId, activeProviderKey, conversation),
                 clock.instant());
     }
 
@@ -1251,7 +1516,7 @@ public final class JdbcCanonicalChatStore implements CanonicalChatStore {
         Optional<ProviderMapping> sender = mappingByProviderRef(
                 providerKey, "actor", event.providerSenderRef());
         if (room.isEmpty() || sender.isEmpty()
-                || !"acknowledged".equals(room.get().state())
+                || !correlatableConversationMapping(room.get())
                 || !"acknowledged".equals(sender.get().state())
                 || !room.get().tenantId().equals(sender.get().tenantId())) {
             return List.of();
@@ -1310,7 +1575,7 @@ public final class JdbcCanonicalChatStore implements CanonicalChatStore {
                 Optional<ProviderMapping> target = mapping(
                         candidate.tenantId(), providerKey, "event", candidate.canonicalObjectId());
                 return "m.room.redaction".equals(event.eventType())
-                        && event.content().isEmpty()
+                        && supportedRedactionPresentationContent(event.content())
                         && target.filter(mapping -> "acknowledged".equals(mapping.state()))
                                 .map(ProviderMapping::providerRef)
                                 .filter(ref -> java.util.Objects.equals(ref, event.providerRedactsRef()))
@@ -1426,6 +1691,15 @@ public final class JdbcCanonicalChatStore implements CanonicalChatStore {
         return MessageDigest.isEqual(expectedDigest, actualDigest);
     }
 
+    private boolean constantTimeTextEquals(String expected, String actual) {
+        if (expected == null || actual == null) {
+            return false;
+        }
+        return MessageDigest.isEqual(
+                expected.getBytes(StandardCharsets.UTF_8),
+                actual.getBytes(StandardCharsets.UTF_8));
+    }
+
     private String canonicalJsonValue(Object value) {
         return json(canonicalize(value));
     }
@@ -1495,6 +1769,11 @@ public final class JdbcCanonicalChatStore implements CanonicalChatStore {
     }
 
     private void requireJoined(ChatRequestContext context, ConversationId conversationId) {
+        requireJoinedMembership(context, conversationId);
+        requireConversationHealthy(context.tenantId(), conversationId);
+    }
+
+    private void requireJoinedMembership(ChatRequestContext context, ConversationId conversationId) {
         boolean joined = membership(context, conversationId)
                 .map(value -> "joined".equals(value.state()))
                 .orElse(false);
@@ -1503,6 +1782,22 @@ public final class JdbcCanonicalChatStore implements CanonicalChatStore {
         }
         if (findConversation(context.tenantId(), conversationId, context.actorRef()).isEmpty()) {
             throw new IllegalArgumentException("canonical chat conversation was not found");
+        }
+    }
+
+    private void requireConversationHealthy(String tenantId, ConversationId conversationId) {
+        if (count("select count(*) from weave_chat_provider_mappings where tenant_id = ? "
+                        + "and object_type = 'conversation' and canonical_object_id = ? "
+                        + "and mapping_state = 'degraded'",
+                tenantId, conversationId.value()) > 0) {
+            String reason = jdbc.query(
+                            "select reason_code from weave_chat_quarantine where tenant_id = ? "
+                                    + "and conversation_id = ? and lifecycle_state in ('pending', 'rejected') "
+                                    + "order by observed_at_utc desc, quarantine_id desc limit 1",
+                            (rs, row) -> safeCode(rs.getString("reason_code")),
+                            tenantId, conversationId.value())
+                    .stream().findFirst().orElse("unknown");
+            throw new ChatProviderUnavailableException("chat-conversation-mapping-degraded-" + reason);
         }
     }
 
@@ -1635,6 +1930,14 @@ public final class JdbcCanonicalChatStore implements CanonicalChatStore {
                 rs.getString("mapping_state"));
     }
 
+    private boolean correlatableConversationMapping(ProviderMapping mapping) {
+        return mapping != null
+                && "conversation".equals(mapping.objectType())
+                && mapping.providerRef() != null
+                && !mapping.providerRef().isBlank()
+                && ("acknowledged".equals(mapping.state()) || "degraded".equals(mapping.state()));
+    }
+
     private void recordLedger(
             String tenantId,
             String providerKey,
@@ -1662,12 +1965,32 @@ public final class JdbcCanonicalChatStore implements CanonicalChatStore {
             String providerKey,
             ProviderCallbackEvent event,
             String reason) {
+        return quarantine(tenantId, null, providerKey, event, reason);
+    }
+
+    private CallbackEventResult quarantine(
+            String tenantId,
+            String conversationId,
+            String providerKey,
+            ProviderCallbackEvent event,
+            String reason) {
         String correlationHash = sha256(providerKey + "\u0000" + event.providerEventRef());
         String quarantineId = "quarantine-" + correlationHash;
+        QuarantineDisposition disposition = quarantineDisposition(reason);
+        Instant observedAt = clock.instant();
         jdbc.update("insert into weave_chat_quarantine "
-                        + "(tenant_id, quarantine_id, provider_key, correlation_hash, reason_code, observed_at_utc) "
-                        + "values (?, ?, ?, ?, ?, ?) on conflict do nothing",
-                tenantId, quarantineId, providerKey, correlationHash, reason, utc(clock.instant()));
+                        + "(tenant_id, quarantine_id, provider_key, correlation_hash, reason_code, observed_at_utc, "
+                        + "conversation_id, category_code, recoverable, classifier_version, lifecycle_state, "
+                        + "attempt_count, max_attempts, private_homeserver_transaction_id, private_provider_event_ref, "
+                        + "private_provider_room_ref, private_normalized_event_json, resolved_at_utc, last_outcome_code) "
+                        + "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) on conflict do nothing",
+                tenantId, quarantineId, providerKey, correlationHash, safeCode(reason), utc(observedAt),
+                conversationId, disposition.categoryCode(), disposition.recoverable(),
+                compatibilityProfile.classifierVersion(), disposition.lifecycleState(), 0,
+                DEFAULT_RECONCILIATION_ATTEMPTS, event.homeserverTransactionId(), event.providerEventRef(),
+                event.providerRoomRef(), json(event),
+                "rejected".equals(disposition.lifecycleState()) ? utc(observedAt) : null,
+                "quarantine-" + disposition.lifecycleState());
         return new CallbackEventResult("quarantined", correlationHash);
     }
 
@@ -1681,7 +2004,139 @@ public final class JdbcCanonicalChatStore implements CanonicalChatStore {
                         + "where tenant_id = ? and provider_key = ? and object_type = 'conversation' "
                         + "and canonical_object_id = ?",
                 utc(clock.instant()), tenantId, providerKey, conversationId);
-        return quarantine(tenantId, providerKey, event, reason);
+        return quarantine(tenantId, conversationId, providerKey, event, reason);
+    }
+
+    private QuarantineDisposition quarantineDisposition(String reason) {
+        if (reason.startsWith("encrypted-envelope-")) {
+            return new QuarantineDisposition("encryption-policy", false, "rejected");
+        }
+        return switch (reason) {
+            case "provider-state-event-type-unsupported" ->
+                    new QuarantineDisposition("provider-compatibility", true, "pending");
+            case "plaintext-in-encrypted-room", "encrypted-event-policy-mismatch" ->
+                    new QuarantineDisposition("encryption-policy", false, "rejected");
+            case "provider-state-key-missing", "message-content-invalid" ->
+                    new QuarantineDisposition("provider-malformed", false, "rejected");
+            case "provider-event-type-unsupported" ->
+                    new QuarantineDisposition("provider-compatibility", false, "rejected");
+            default -> new QuarantineDisposition("canonical-correlation", false, "rejected");
+        };
+    }
+
+    private String encryptedEnvelopeReason(IllegalArgumentException exception) {
+        return switch (java.util.Objects.toString(exception.getMessage(), "")) {
+            case "encrypted Chat algorithm is unsupported" -> "encrypted-envelope-algorithm-unsupported";
+            case "encrypted Chat algorithm is invalid" -> "encrypted-envelope-algorithm-invalid";
+            case "encrypted Chat ciphertext is invalid" -> "encrypted-envelope-ciphertext-invalid";
+            case "encrypted Chat session_id is invalid" -> "encrypted-envelope-session-id-invalid";
+            case "encrypted Chat sender_key is invalid" -> "encrypted-envelope-sender-key-invalid";
+            case "encrypted Chat device_id is invalid" -> "encrypted-envelope-device-id-invalid";
+            case "encrypted Chat envelope nesting is too deep" -> "encrypted-envelope-nesting-invalid";
+            case "encrypted Chat envelope value is too large" -> "encrypted-envelope-value-too-large";
+            case "encrypted Chat envelope has too many fields" -> "encrypted-envelope-field-count-invalid";
+            case "encrypted Chat envelope key is invalid" -> "encrypted-envelope-key-invalid";
+            case "encrypted Chat envelope array is too large" -> "encrypted-envelope-array-too-large";
+            case "encrypted Chat envelope contains an unsupported value" -> "encrypted-envelope-value-invalid";
+            default -> "encrypted-envelope-invalid";
+        };
+    }
+
+    private QuarantineReconciliationResult deferOrRejectQuarantine(
+            String tenantId,
+            QuarantineRow quarantine,
+            String outcomeCode) {
+        int attempts = quarantine.attemptCount() + 1;
+        if (attempts >= quarantine.maxAttempts()) {
+            return rejectQuarantine(tenantId, quarantine, outcomeCode, true);
+        }
+        jdbc.update("update weave_chat_quarantine set attempt_count = ?, last_attempt_at_utc = ?, "
+                        + "last_outcome_code = ?, classifier_version = ? "
+                        + "where tenant_id = ? and quarantine_id = ?",
+                attempts, utc(clock.instant()), safeCode(outcomeCode), compatibilityProfile.classifierVersion(),
+                tenantId, quarantine.quarantineId());
+        return new QuarantineReconciliationResult(
+                "pending", safeCode(outcomeCode), attempts, false, quarantine.correlationHash());
+    }
+
+    private QuarantineReconciliationResult rejectQuarantine(
+            String tenantId,
+            QuarantineRow quarantine,
+            String outcomeCode,
+            boolean incrementAttempt) {
+        int attempts = quarantine.attemptCount() + (incrementAttempt ? 1 : 0);
+        Instant now = clock.instant();
+        jdbc.update("update weave_chat_quarantine set lifecycle_state = 'rejected', attempt_count = ?, "
+                        + "last_attempt_at_utc = ?, resolved_at_utc = ?, last_outcome_code = ?, "
+                        + "classifier_version = ? where tenant_id = ? and quarantine_id = ?",
+                attempts, incrementAttempt ? utc(now) : null, utc(now), safeCode(outcomeCode),
+                compatibilityProfile.classifierVersion(), tenantId, quarantine.quarantineId());
+        return new QuarantineReconciliationResult(
+                "rejected", safeCode(outcomeCode), attempts, false, quarantine.correlationHash());
+    }
+
+    private QuarantineReconciliationResult supersedeQuarantine(
+            String tenantId,
+            String providerKey,
+            QuarantineRow quarantine) {
+        int attempts = quarantine.attemptCount() + 1;
+        Instant now = clock.instant();
+        jdbc.update("update weave_chat_quarantine set lifecycle_state = 'superseded', attempt_count = ?, "
+                        + "last_attempt_at_utc = ?, resolved_at_utc = ?, last_outcome_code = ?, "
+                        + "classifier_version = ? where tenant_id = ? and quarantine_id = ?",
+                attempts, utc(now), utc(now), "reconciliation-superseded",
+                compatibilityProfile.classifierVersion(), tenantId, quarantine.quarantineId());
+        boolean healed = healConversationIfResolved(
+                tenantId, providerKey, quarantine.conversationId());
+        return new QuarantineReconciliationResult(
+                "superseded",
+                "reconciliation-superseded",
+                attempts,
+                healed,
+                quarantine.correlationHash());
+    }
+
+    private boolean providerEventAlreadyCommitted(
+            String tenantId,
+            String providerKey,
+            String providerEventRef) {
+        return count("select count(*) from weave_chat_bridge_ledger where tenant_id = ? and provider_key = ? "
+                        + "and provider_event_ref = ? and ledger_state in "
+                        + "('acknowledged', 'ignored-supported-state')",
+                tenantId, providerKey, providerEventRef) > 0;
+    }
+
+    private ProviderCallbackEvent readPrivateCallbackEvent(String normalizedEventJson) {
+        if (normalizedEventJson == null || normalizedEventJson.isBlank()) {
+            throw new IllegalArgumentException("Private callback reconciliation input is unavailable.");
+        }
+        try {
+            return objectMapper.readValue(normalizedEventJson, ProviderCallbackEvent.class);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalArgumentException("Private callback reconciliation input is invalid.", exception);
+        }
+    }
+
+    private boolean healConversationIfResolved(
+            String tenantId,
+            String providerKey,
+            String conversationId) {
+        if (conversationId == null || conversationId.isBlank()) {
+            return false;
+        }
+        long unresolved = count("select count(*) from weave_chat_quarantine where tenant_id = ? "
+                        + "and provider_key = ? and conversation_id = ? "
+                        + "and lifecycle_state in ('pending', 'rejected')",
+                tenantId, providerKey, conversationId);
+        if (unresolved > 0) {
+            return false;
+        }
+        int updated = jdbc.update("update weave_chat_provider_mappings set mapping_state = 'acknowledged', "
+                        + "updated_at_utc = ? where tenant_id = ? and provider_key = ? "
+                        + "and object_type = 'conversation' and canonical_object_id = ? "
+                        + "and mapping_state = 'degraded'",
+                utc(clock.instant()), tenantId, providerKey, conversationId);
+        return updated > 0;
     }
 
     private Optional<String> callbackEventConversation(String tenantId, String eventId) {
@@ -1833,7 +2288,32 @@ public final class JdbcCanonicalChatStore implements CanonicalChatStore {
     private record MembershipRow(String state) {
     }
 
-    private record CallbackRow(String payloadDigest, String state) {
+    private record CallbackRow(
+            String state,
+            String payloadDigest,
+            int eventCount,
+            String fingerprintVersion) {
+    }
+
+    private record QuarantineDisposition(
+            String categoryCode,
+            boolean recoverable,
+            String lifecycleState) {
+    }
+
+    private record QuarantineCandidate(String tenantId, String correlationHash) {
+    }
+
+    private record QuarantineRow(
+            String quarantineId,
+            String conversationId,
+            String correlationHash,
+            boolean recoverable,
+            String classifierVersion,
+            String lifecycleState,
+            int attemptCount,
+            int maxAttempts,
+            String normalizedEventJson) {
     }
 
     private record ProviderOperationEcho(

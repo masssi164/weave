@@ -112,6 +112,7 @@ void main() {
     expect(multiUserSource, contains('createEncryptedRoom('));
     expect(multiUserSource, contains('_establishEncryptedDeviceExchange('));
     expect(multiUserSource, contains('_updateCalendarEventEventually('));
+    expect(multiUserSource, contains('redactOwnedEventsAndVerify('));
     expect(multiUserSource, contains('redactEventsAndVerify('));
     expect(multiUserSource, contains('leaveRoom('));
     expect(e2eeSource, contains('createEncryptedRoom('));
@@ -123,6 +124,26 @@ void main() {
     expect(
       appSource,
       isNot(contains("conversationIdFragment: 'channel-general'")),
+    );
+  });
+
+  test('multi-user cleanup preserves sender ownership before room leave', () {
+    final source = File(
+      'integration_test/multi_user_collaboration_e2e_test.dart',
+    ).readAsStringSync();
+    final cleanup = source.substring(source.indexOf('class _RunCleanup'));
+
+    expect(cleanup, contains('_chatEventIdsByOwner'));
+    expect(cleanup, contains('_redactedChatEventIdsByOwner'));
+    expect(cleanup, contains('collaboratorEventsClean'));
+    expect(cleanup, contains('safeToLeaveAuthor'));
+    expect(
+      cleanup.indexOf('if (collaboratorEventsClean'),
+      lessThan(cleanup.indexOf('_collaboratorMembershipLeft = true')),
+    );
+    expect(
+      cleanup.indexOf('if (safeToLeaveAuthor'),
+      lessThan(cleanup.indexOf('_authorMembershipLeft = true')),
     );
   });
 

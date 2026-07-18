@@ -91,7 +91,7 @@ public final class ChatE2eProviderProofController {
 
             CanonicalChatStore.ProviderMapping authorMapping = adapter.actorMapping(authorContext);
             CanonicalChatStore.ProviderMapping collaboratorMapping = adapter.actorMapping(collaboratorContext);
-            CanonicalChatStore.ProviderMapping outsiderMapping = adapter.actorMapping(outsiderContext);
+            var outsiderMapping = adapter.actorMappingIfPresent(outsiderContext);
 
             MatrixSynapseChatSouthboundAdapter.SupportSafeRoomEvidence providerEvidence = provider.readRoomEvidence(
                     authorMapping.providerRef(),
@@ -99,7 +99,7 @@ public final class ChatE2eProviderProofController {
                     List.of(authorMapping.providerRef(), collaboratorMapping.providerRef()),
                     store.acknowledgedProviderEventRefs(tenant, conversation, provider.providerKey()),
                     eventCorrelationHashes,
-                    outsiderMapping.providerRef());
+                    outsiderMapping.map(CanonicalChatStore.ProviderMapping::providerRef).orElse(null));
             CanonicalChatStore.EvidenceSnapshot canonical = store.evidence(
                     tenant, conversation, provider.providerKey());
             MatrixSynapseChatSouthboundAdapter.SupportSafeReadiness readiness = provider.supportSafeReadiness();
@@ -111,8 +111,9 @@ public final class ChatE2eProviderProofController {
                             providerEvidence.authorizedMembershipExact(), false),
                     new IdentityProof("collaborator", hmac(identityMaterial(collaborator)), true, collaboratorJoined,
                             providerEvidence.authorizedMembershipExact(), false),
-                    new IdentityProof("outsider", hmac(identityMaterial(outsider)), true, outsiderJoined,
-                            !providerEvidence.outsiderAbsent(), providerEvidence.outsiderReadDenied()));
+                    new IdentityProof("outsider", hmac(identityMaterial(outsider)), outsiderMapping.isPresent(), outsiderJoined,
+                            outsiderMapping.isPresent() && !providerEvidence.outsiderAbsent(),
+                            providerEvidence.outsiderReadDenied()));
             return ResponseEntity.ok(new ProofResponse(
                     "chat-provider-proof-v1",
                     hmac(tenant + "\u0000" + conversation.value() + "\u0000" + input.runId()),
@@ -145,6 +146,7 @@ public final class ChatE2eProviderProofController {
                     canonical.bridgeLedgerCount(),
                     canonical.callbackTransactionCount(),
                     canonical.callbackDuplicateCount(),
+                    canonical.callbackSemanticMismatchCount(),
                     canonical.quarantineCount(),
                     canonical.degradedMappingCount(),
                     canonical.observedAt(),
@@ -219,8 +221,9 @@ public final class ChatE2eProviderProofController {
         return new ProofIdentity(issuer, actor);
     }
 
-    private List<String> requireCorrelationHashes(List<String> hashes) {
-        if (hashes == null || hashes.size() != 3 || hashes.stream().distinct().count() != hashes.size()
+    static List<String> requireCorrelationHashes(List<String> hashes) {
+        if (hashes == null || hashes.size() < 2 || hashes.size() > 3
+                || hashes.stream().distinct().count() != hashes.size()
                 || hashes.stream().anyMatch(value -> value == null || !value.matches("[0-9a-f]{64}"))) {
             throw new IllegalArgumentException("proof event correlations are invalid");
         }
@@ -311,6 +314,7 @@ public final class ChatE2eProviderProofController {
             long bridgeLedgerCount,
             long callbackTransactionCount,
             long callbackDuplicateCount,
+            long callbackSemanticMismatchCount,
             long quarantineCount,
             long degradedOperationCount,
             Instant observedAt,

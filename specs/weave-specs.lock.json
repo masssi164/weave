@@ -7,7 +7,7 @@
   },
   "specCorpus": {
     "localPath": "../weave-specs",
-    "gitCommit": "aa572e63aad9b7fdf4c3fec6ab80561f71f8d79e",
+    "gitCommit": "81510a3a2c1f9cddd83b5a03101547f49b3e9ab2",
     "manifest": "generated/manifest.json",
     "lintCommand": "python3 tools/spec_lint.py"
   },

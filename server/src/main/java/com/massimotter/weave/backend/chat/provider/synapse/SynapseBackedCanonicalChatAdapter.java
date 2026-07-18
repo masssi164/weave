@@ -80,10 +80,14 @@ public final class SynapseBackedCanonicalChatAdapter implements ChatProviderPort
         if (!configured()) {
             return ProviderReadiness.degraded("chat-provider-or-canonical-storage-not-configured");
         }
-        if (store.degradedMappingCount(provider.providerKey()) > 0) {
-            return ProviderReadiness.degraded("chat-provider-mapping-degraded");
+        ProviderReadiness providerReadiness = provider.readiness();
+        if (!providerReadiness.available()) {
+            return providerReadiness;
         }
-        return provider.readiness();
+        if (store.systemicCallbackIntegrityFailureCount(provider.providerKey()) > 0) {
+            return ProviderReadiness.degraded("chat-provider-ledger-semantic-mismatch");
+        }
+        return providerReadiness;
     }
 
     @Override
@@ -376,8 +380,12 @@ public final class SynapseBackedCanonicalChatAdapter implements ChatProviderPort
     }
 
     public CanonicalChatStore.ProviderMapping actorMapping(ChatRequestContext context) {
-        return store.mapping(context.tenantId(), provider.providerKey(), "actor", actorCanonicalId(context))
+        return actorMappingIfPresent(context)
                 .orElseThrow(() -> new IllegalArgumentException("canonical Chat actor mapping was not found"));
+    }
+
+    public java.util.Optional<CanonicalChatStore.ProviderMapping> actorMappingIfPresent(ChatRequestContext context) {
+        return store.mapping(context.tenantId(), provider.providerKey(), "actor", actorCanonicalId(context));
     }
 
     public CanonicalChatStore canonicalStore() {

@@ -136,7 +136,11 @@ docker restart weave-synapse
 ```
 
 A bounded provider-outage test arms recovery first, stops only Synapse, observes
-the canonical pending/invisible operation, and always restores Synapse:
+the canonical pending/invisible operation, and always restores Synapse. A
+running container is not treated as provider readiness: recovery first waits
+for Synapse's listener health endpoint and then proves the authenticated
+Application Service path through the Weave facade within a bounded window.
+The backend's fail-closed exponential backoff remains active:
 
 ```sh
 trap 'docker start weave-synapse >/dev/null 2>&1 || true' EXIT
@@ -146,14 +150,19 @@ docker start weave-synapse
 trap - EXIT
 ```
 
-A runner-private proof caller authenticates only to
-`POST /api/internal/e2e/chat/provider-proof` through the loopback backend port.
+A runner-private proof caller authenticates only to the isolated proof surface
+through the loopback backend port. Before replay it polls the read-only
+`GET /api/internal/e2e/chat/provider-proof/callback-replay/readiness` contract
+for at most 90 seconds. Readiness exposes only a boolean, stable code, contract
+version, and `supportSafe: true`; it never returns the captured transaction ID
+or payload. The caller then uses
+`POST /api/internal/e2e/chat/provider-proof` for provider evidence and invokes
+the replay trigger exactly once after a genuine encrypted callback is captured.
 The JSON request includes the exact run ID and pre-existing canonical
-conversation and actor references. Before target-room denial is measured, the
-outsider performs a normal northbound create/leave lifecycle in its independent
-outside-workspace fixture. That action preprojects the outsider provider actor;
-the proof endpoint remains read-only and cannot manufacture an actor, room,
-membership, event, or credential.
+conversation and actor references. The outsider remains outside the authorized
+workspace and has no provider mapping or membership. The proof verifies that
+absence directly; it does not manufacture an outsider actor, room, membership,
+event, or credential just to simplify a denial assertion.
 
 Direct provider readback returns only support-safe hashes, counts, bounded
 status values, timestamps, ages, and correlation references. It never returns
@@ -161,6 +170,28 @@ the proof token, Application Service tokens, provider identifiers, provider
 URLs, raw callback bodies, encrypted envelopes, or member content. The
 `hs_token` remains directional: it authenticates simulated Synapse callback
 replay only and grants no provider-proof access.
+
+Application Service retry identity is the authenticated, homeserver-generated
+transaction ID, as required by the Matrix Application Service API. The first
+delivery retains a canonical semantic digest as provenance. A retry does not
+compare its freshly serialized body with that digest: Synapse reconstructs
+queued transactions and can recalculate presentation fields such as
+`unsigned.age` and the client-v1 top-level `age` copy, including inside
+redaction metadata. Rejecting those changes blocks Synapse's ordered
+Application Service queue. Completed transaction IDs are acknowledged without
+reprocessing, while interrupted transactions resume through the existing
+per-event identifier, mapping, authorization, content, and quarantine checks.
+Synapse also emits the expected `m.room.canonical_alias` state event when the
+provider-neutral create operation supplies its reserved alias intent. That
+state event is ledgered and ignored like the other supported room-creation
+state; it must not quarantine or degrade an otherwise acknowledged room
+mapping. Unknown state types continue to fail closed.
+
+Correlation evidence is phase-aware: the outage snapshot names only the two
+events committed before retry, while post-retry and restart snapshots name all
+three. A proof request whose expected correlation count differs from the
+canonical committed-event count fails closed instead of manufacturing an
+"exact" result.
 
 Isolated cleanup removes the run-scoped proof token and private provider runtime
 together with the rest of the isolated namespace. The token is explicitly

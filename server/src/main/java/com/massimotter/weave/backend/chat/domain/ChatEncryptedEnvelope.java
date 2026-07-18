@@ -14,9 +14,9 @@ public record ChatEncryptedEnvelope(Map<String, Object> content) {
             throw new IllegalArgumentException("encrypted Chat algorithm is unsupported");
         }
         requireText(content, "ciphertext", 262_144);
-        requireText(content, "sender_key", 512);
         requireText(content, "session_id", 512);
-        requireText(content, "device_id", 128);
+        optionalText(content, "sender_key", 512);
+        optionalText(content, "device_id", 128);
         validateJsonValue(content, 0);
     }
 
@@ -29,6 +29,13 @@ public record ChatEncryptedEnvelope(Map<String, Object> content) {
         if (!(raw instanceof String text) || text.isBlank() || text.length() > maxLength) {
             throw new IllegalArgumentException("encrypted Chat " + field + " is invalid");
         }
+    }
+
+    private static void optionalText(Map<String, Object> value, String field, int maxLength) {
+        if (!value.containsKey(field)) {
+            return;
+        }
+        requireText(value, field, maxLength);
     }
 
     private static void validateJsonValue(Object value, int depth) {

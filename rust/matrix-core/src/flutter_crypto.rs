@@ -25,8 +25,9 @@ use matrix_sdk::{
         events::receipt::ReceiptThread,
         events::{
             key::verification::VerificationMethod, room::encryption::RoomEncryptionEventContent,
-            room::message::RoomMessageEventContent, InitialStateEvent,
+            room::message::RoomMessageEventContent, AnyToDeviceEvent, InitialStateEvent,
         },
+        serde::Raw,
         OwnedDeviceId, OwnedEventId, OwnedRoomId, OwnedUserId, UInt,
     },
     store::RoomLoadSettings,
@@ -35,6 +36,7 @@ use matrix_sdk::{
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use serde_json::{json, Value};
 use std::{
+    cmp::Ordering,
     collections::{BTreeMap, BTreeSet, HashMap},
     path::Path,
     sync::{Arc, Mutex, OnceLock},
@@ -47,6 +49,7 @@ const PRE_SEND_DEVICE_QUERY_ATTEMPTS: usize = 10;
 const PRE_SEND_DEVICE_QUERY_DELAY: Duration = Duration::from_millis(500);
 const MATRIX_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const MATRIX_REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
+const OLM_RECOVERY_ROTATION_PENDING_KEY: &[u8] = b"weave.olm-recovery-room-key-rotation-pending.v1";
 
 struct ManagedClient {
     client: Client,
@@ -61,6 +64,7 @@ struct ManagedClient {
     room_security_gate: Arc<AsyncMutex<()>>,
     sync_cursor: Option<String>,
     to_device_diagnostics: ToDeviceDiagnostics,
+    timeline_decryption_diagnostics: TimelineDecryptionDiagnostics,
     peer_device_diagnostics: PeerDeviceConvergenceDiagnostics,
     verification_request: Option<VerificationRequest>,
     sas_verification: Option<SasVerification>,
@@ -91,6 +95,7 @@ struct ClientContinuityState {
     pre_send_security_fingerprints: HashMap<String, RoomSecurityFingerprint>,
     sync_cursor: Option<String>,
     to_device_diagnostics: ToDeviceDiagnostics,
+    timeline_decryption_diagnostics: TimelineDecryptionDiagnostics,
     peer_device_diagnostics: PeerDeviceConvergenceDiagnostics,
 }
 
@@ -107,6 +112,15 @@ struct ToDeviceDiagnostics {
     encryption_disabled: u64,
     plaintext: u64,
     invalid: u64,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+struct TimelineDecryptionDiagnostics {
+    event_count: u64,
+    decrypted: u64,
+    unable_to_decrypt: u64,
+    plaintext: u64,
+    reasons: BTreeMap<&'static str, u64>,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -312,6 +326,33 @@ impl ToDeviceDiagnostics {
     }
 }
 
+impl TimelineDecryptionDiagnostics {
+    fn from_events(events: &[TimelineEvent]) -> Self {
+        let mut diagnostics = Self {
+            event_count: events.len() as u64,
+            ..Self::default()
+        };
+        for event in events {
+            match &event.kind {
+                TimelineEventKind::Decrypted(_) => {
+                    diagnostics.decrypted = diagnostics.decrypted.saturating_add(1);
+                }
+                TimelineEventKind::UnableToDecrypt { utd_info, .. } => {
+                    diagnostics.unable_to_decrypt = diagnostics.unable_to_decrypt.saturating_add(1);
+                    *diagnostics
+                        .reasons
+                        .entry(unable_to_decrypt_reason(utd_info.reason.clone()))
+                        .or_default() += 1;
+                }
+                TimelineEventKind::PlainText { .. } => {
+                    diagnostics.plaintext = diagnostics.plaintext.saturating_add(1);
+                }
+            }
+        }
+        diagnostics
+    }
+}
+
 static CLIENTS: OnceLock<Mutex<HashMap<String, ManagedClient>>> = OnceLock::new();
 static CLIENT_LIFECYCLE_GATES: OnceLock<Mutex<HashMap<String, Arc<AsyncMutex<()>>>>> =
     OnceLock::new();
@@ -418,6 +459,7 @@ async fn initialize_inner(
                 pre_send_security_fingerprints: replaced.pre_send_security_fingerprints,
                 sync_cursor: replaced.sync_cursor,
                 to_device_diagnostics: replaced.to_device_diagnostics,
+                timeline_decryption_diagnostics: replaced.timeline_decryption_diagnostics,
                 peer_device_diagnostics: replaced.peer_device_diagnostics,
             })
             .unwrap_or_default()
@@ -488,6 +530,7 @@ async fn initialize_inner(
                 room_security_gate: Arc::new(AsyncMutex::new(())),
                 sync_cursor: continuity.sync_cursor,
                 to_device_diagnostics: continuity.to_device_diagnostics,
+                timeline_decryption_diagnostics: continuity.timeline_decryption_diagnostics,
                 peer_device_diagnostics: continuity.peer_device_diagnostics,
                 verification_request: None,
                 sas_verification: None,
@@ -569,6 +612,7 @@ async fn complete_sync_cycle_under_gate(
         .await
         .map_err(|error| matrix_sdk_error_code(&error, error_code))?;
     record_to_device_diagnostics(profile_key, &response.to_device)?;
+    remember_olm_recovery_rotation(&client, &response.to_device).await?;
     reconcile_verification_requests(profile_key, &client, &response.to_device).await?;
     let (mut enabled_rooms, mut converged_rooms) =
         converge_joined_room_security(profile_key, &client).await?;
@@ -582,6 +626,7 @@ async fn complete_sync_cycle_under_gate(
             .await
             .map_err(|error| matrix_sdk_error_code(&error, error_code))?;
         record_to_device_diagnostics(profile_key, &response.to_device)?;
+        remember_olm_recovery_rotation(&client, &response.to_device).await?;
         reconcile_verification_requests(profile_key, &client, &response.to_device).await?;
         let (newly_enabled_rooms, newly_converged_rooms) =
             converge_joined_room_security(profile_key, &client).await?;
@@ -674,12 +719,98 @@ fn record_to_device_diagnostics(
     Ok(())
 }
 
+fn is_decrypted_olm_dummy(raw: &Raw<AnyToDeviceEvent>) -> bool {
+    raw.get_field::<String>("type").ok().flatten().as_deref() == Some("m.dummy")
+}
+
+fn contains_olm_recovery_signal(events: &[ProcessedToDeviceEvent]) -> bool {
+    events.iter().any(|event| match event {
+        ProcessedToDeviceEvent::Decrypted { raw, .. } => is_decrypted_olm_dummy(raw),
+        ProcessedToDeviceEvent::UnableToDecrypt { utd_info, .. } => {
+            matches!(
+                utd_info.reason,
+                ToDeviceUnableToDecryptReason::DecryptionFailure
+            )
+        }
+        ProcessedToDeviceEvent::PlainText(_) | ProcessedToDeviceEvent::Invalid(_) => false,
+    })
+}
+
+async fn remember_olm_recovery_rotation(
+    client: &Client,
+    events: &[ProcessedToDeviceEvent],
+) -> Result<(), String> {
+    if contains_olm_recovery_signal(events) {
+        // A failed Olm envelope can occur before matrix-sdk's standard
+        // hour-old-session unwedge window. A later decrypted `m.dummy` proves
+        // the SDK has completed that standard unwedge. In both cases, an
+        // existing outbound Megolm session can still remember that the peer
+        // already received its room key. Persist a one-shot latch so the next
+        // encrypted send re-shares a fresh room key over the working Olm
+        // direction and advances the bidirectional channel before the peer's
+        // next reply, even across an app relaunch.
+        client
+            .state_store()
+            .set_custom_value(OLM_RECOVERY_ROTATION_PENDING_KEY, vec![1])
+            .await
+            .map_err(|_| "M_WEAVE_E2EE_STORE".to_string())?;
+    }
+    Ok(())
+}
+
+fn olm_recovery_rotation_is_pending(value: Option<&[u8]>) -> bool {
+    !matches!(value, None | Some([]) | Some([0]))
+}
+
+async fn olm_recovery_rotation_pending(client: &Client) -> Result<bool, String> {
+    let value = client
+        .state_store()
+        .get_custom_value(OLM_RECOVERY_ROTATION_PENDING_KEY)
+        .await
+        .map_err(|_| "M_WEAVE_E2EE_STORE".to_string())?;
+    Ok(olm_recovery_rotation_is_pending(value.as_deref()))
+}
+
+async fn clear_olm_recovery_rotation(client: &Client) -> Result<(), String> {
+    client
+        .state_store()
+        .set_custom_value(OLM_RECOVERY_ROTATION_PENDING_KEY, vec![0])
+        .await
+        .map_err(|_| "M_WEAVE_E2EE_STORE".to_string())?;
+    Ok(())
+}
+
 fn to_device_diagnostics(profile_key: &str) -> Result<ToDeviceDiagnostics, String> {
     clients()
         .lock()
         .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
         .get(profile_key)
         .map(|managed| managed.to_device_diagnostics.clone())
+        .ok_or_else(|| "M_WEAVE_E2EE_NOT_INITIALIZED".to_string())
+}
+
+fn remember_timeline_decryption_diagnostics(
+    profile_key: &str,
+    diagnostics: TimelineDecryptionDiagnostics,
+) -> Result<(), String> {
+    clients()
+        .lock()
+        .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
+        .get_mut(profile_key)
+        .filter(|managed| managed.accepting_operations)
+        .ok_or_else(|| "M_WEAVE_E2EE_NOT_INITIALIZED".to_string())?
+        .timeline_decryption_diagnostics = diagnostics;
+    Ok(())
+}
+
+fn timeline_decryption_diagnostics(
+    profile_key: &str,
+) -> Result<TimelineDecryptionDiagnostics, String> {
+    clients()
+        .lock()
+        .map_err(|_| "M_WEAVE_E2EE_UNAVAILABLE".to_string())?
+        .get(profile_key)
+        .map(|managed| managed.timeline_decryption_diagnostics.clone())
         .ok_or_else(|| "M_WEAVE_E2EE_NOT_INITIALIZED".to_string())
 }
 
@@ -739,11 +870,28 @@ async fn converge_joined_room_security(
         // Olm-wrapped Megolm room key. A send-time check alone protects only
         // the sender and leaves a cold collaborator unable to authenticate or
         // decrypt the first to-device key delivery.
-        refresh_active_member_device_keys(profile_key, client, &room, RoomSecurityRefresh::Sync)
-            .await?;
-        converged_rooms += 1;
+        match refresh_active_member_device_keys(
+            profile_key,
+            client,
+            &room,
+            RoomSecurityRefresh::Sync,
+        )
+        .await
+        {
+            Ok(()) => converged_rooms += 1,
+            // Membership projection is conversation-scoped. A room whose
+            // canonical mapping is degraded must remain fail-closed when that
+            // room is read or sent to, but it cannot prevent foreground sync,
+            // valid sibling rooms, or provider proof from continuing.
+            Err(code) if is_conversation_scoped_sync_security_error(&code) => continue,
+            Err(code) => return Err(code),
+        }
     }
     Ok((enabled_rooms, converged_rooms))
+}
+
+fn is_conversation_scoped_sync_security_error(code: &str) -> bool {
+    code == "M_WEAVE_E2EE_ROOM_MEMBERS" || code.starts_with("M_WEAVE_CHAT_DEGRADED_")
 }
 
 fn matrix_io_gate_for(profile_key: &str) -> Result<Arc<AsyncMutex<()>>, String> {
@@ -865,8 +1013,10 @@ async fn room_messages_inner(
         .messages(options)
         .await
         .map_err(|_| "M_WEAVE_E2EE_TIMELINE".to_string())?;
+    let timeline_diagnostics = TimelineDecryptionDiagnostics::from_events(&response.chunk);
+    remember_timeline_decryption_diagnostics(profile_key, timeline_diagnostics.clone())?;
     let decryption = decryption_diagnostics(
-        &response.chunk,
+        &timeline_diagnostics,
         &to_device_diagnostics(profile_key)?,
         &peer_device_diagnostics(profile_key)?,
     );
@@ -929,6 +1079,24 @@ async fn send_text_inner(profile_key: &str, room_id: &str, body: &str) -> Result
     }
     refresh_active_member_device_keys(profile_key, &client, &room, RoomSecurityRefresh::PreSend)
         .await?;
+    let rotate_after_olm_recovery = olm_recovery_rotation_pending(&client).await?;
+    if rotate_after_olm_recovery {
+        // A newly-established Olm channel does not invalidate the SDK's
+        // existing outbound Megolm sharing record. Rotate exactly once after
+        // the recovery signal so the next message distributes a fresh room
+        // key over the repaired or still-working direction instead of
+        // committing another event that the peer cannot decrypt.
+        room.discard_room_key()
+            .await
+            .map_err(|_| "M_WEAVE_E2EE_ROOM_KEY_ROTATION".to_string())?;
+        // The discarded outbound Megolm state is itself the durable repair.
+        // Clear the auxiliary latch before committing the timeline event so a
+        // local store failure can never report a failed send after the server
+        // has already accepted it. If the later send fails, the next send must
+        // still create or reuse the replacement outbound session and share its
+        // key before committing.
+        clear_olm_recovery_rotation(&client).await?;
+    }
     let response = room
         .send(RoomMessageEventContent::text_plain(body))
         .await
@@ -951,7 +1119,7 @@ async fn refresh_active_member_device_keys(
     let mut members = room
         .members_no_sync(RoomMemberships::JOIN)
         .await
-        .map_err(|_| "M_WEAVE_E2EE_ROOM_MEMBERS".to_string())?;
+        .map_err(|error| matrix_sdk_error_code(&error, "M_WEAVE_E2EE_ROOM_MEMBERS"))?;
     let observed_member_ids = joined_member_ids(&members);
     let cached_fingerprint =
         cached_room_security_fingerprint(profile_key, room.room_id().as_str())?;
@@ -984,7 +1152,7 @@ async fn refresh_active_member_device_keys(
         members = room
             .members(RoomMemberships::JOIN)
             .await
-            .map_err(|_| "M_WEAVE_E2EE_ROOM_MEMBERS".to_string())?;
+            .map_err(|error| matrix_sdk_error_code(&error, "M_WEAVE_E2EE_ROOM_MEMBERS"))?;
     }
     let encryption = client.encryption();
     let mut member_device_ids = Vec::new();
@@ -1296,7 +1464,7 @@ async fn security_state_inner(profile_key: &str) -> Result<Value, String> {
     // second cursor owner or obscure the original receive-path failure behind
     // a network timeout.
     let receive_diagnostics = decryption_diagnostics(
-        &[],
+        &timeline_decryption_diagnostics(profile_key)?,
         &to_device_diagnostics(profile_key)?,
         &peer_device_diagnostics(profile_key)?,
     );
@@ -1371,27 +1539,47 @@ pub async fn start_verification(profile_key: String) -> String {
             .ok_or_else(|| "M_WEAVE_E2EE_SESSION".to_string())?;
         let encryption = client.encryption();
         // A second device can publish its keys after this client's latest
-        // sync response. Refresh and retain the current user's identity, then
-        // let the SDK address the request to every eligible sibling device.
-        // Picking the first device from UserDevices is not a stable target and
-        // can route a valid request to an older sibling instead of the active
-        // dogfood device.
-        let own_identity = encryption
+        // sync response. Refresh the current user's device data before
+        // selecting a concrete sibling verification target.
+        encryption
             .request_user_identity(own_user_id)
             .await
-            .map_err(|_| "M_WEAVE_E2EE_DEVICE".to_string())?
-            .ok_or_else(|| "M_WEAVE_E2EE_NO_OTHER_DEVICE".to_string())?;
+            .map_err(|_| "M_WEAVE_E2EE_DEVICE".to_string())?;
         let devices = encryption
             .get_user_devices(own_user_id)
             .await
             .map_err(|_| "M_WEAVE_E2EE_DEVICE".to_string())?;
-        if !devices
+        let mut candidates = devices
             .devices()
-            .any(|device| device.device_id() != own_device_id && !device.is_blacklisted())
-        {
-            return Err("M_WEAVE_E2EE_NO_OTHER_DEVICE".to_string());
-        }
-        let request = own_identity
+            .filter(|device| {
+                device.device_id() != own_device_id
+                    && !device.is_deleted()
+                    && !device.is_blacklisted()
+                    && device.curve25519_key().is_some()
+            })
+            .collect::<Vec<_>>();
+        // UserDevices is backed by a hash map, so iterator order is not a
+        // product decision. Prefer the newest unverified sibling: that is the
+        // device the user has just added and needs to approve. A stable ID
+        // tie-breaker keeps retries on the same target. Do not use
+        // OwnUserIdentity::request_verification here: matrix-sdk deliberately
+        // filters unsigned new devices from that broadcast and can therefore
+        // route the request only to an older, already-signed sibling.
+        candidates.sort_by(|left, right| {
+            verification_target_order(
+                left.is_verified(),
+                left.first_time_seen_ts().get().into(),
+                left.device_id().as_str(),
+                right.is_verified(),
+                right.first_time_seen_ts().get().into(),
+                right.device_id().as_str(),
+            )
+        });
+        let target = candidates
+            .into_iter()
+            .next()
+            .ok_or_else(|| "M_WEAVE_E2EE_NO_OTHER_DEVICE".to_string())?;
+        let request = target
             .request_verification_with_methods(vec![VerificationMethod::SasV1])
             .await
             .map_err(|_| "M_WEAVE_E2EE_VERIFICATION".to_string())?;
@@ -1400,6 +1588,20 @@ pub async fn start_verification(profile_key: String) -> String {
     }
     .await;
     json_result(result)
+}
+
+fn verification_target_order(
+    left_verified: bool,
+    left_first_seen_ms: u64,
+    left_device_id: &str,
+    right_verified: bool,
+    right_first_seen_ms: u64,
+    right_device_id: &str,
+) -> Ordering {
+    left_verified
+        .cmp(&right_verified)
+        .then_with(|| right_first_seen_ms.cmp(&left_first_seen_ms))
+        .then_with(|| left_device_id.cmp(right_device_id))
 }
 
 pub async fn accept_verification(profile_key: String) -> String {
@@ -1625,34 +1827,16 @@ fn project_timeline_event(event: &TimelineEvent) -> Option<Value> {
 }
 
 fn decryption_diagnostics(
-    events: &[TimelineEvent],
+    timeline: &TimelineDecryptionDiagnostics,
     to_device: &ToDeviceDiagnostics,
     peer_device: &PeerDeviceConvergenceDiagnostics,
 ) -> Value {
-    let mut decrypted = 0_u64;
-    let mut unable_to_decrypt = 0_u64;
-    let mut plaintext = 0_u64;
-    let mut reasons = BTreeMap::<&'static str, u64>::new();
-
-    for event in events {
-        match &event.kind {
-            TimelineEventKind::Decrypted(_) => decrypted += 1,
-            TimelineEventKind::UnableToDecrypt { utd_info, .. } => {
-                unable_to_decrypt += 1;
-                *reasons
-                    .entry(unable_to_decrypt_reason(utd_info.reason.clone()))
-                    .or_default() += 1;
-            }
-            TimelineEventKind::PlainText { .. } => plaintext += 1,
-        }
-    }
-
     json!({
-        "eventCount": events.len(),
-        "decryptedCount": decrypted,
-        "unableToDecryptCount": unable_to_decrypt,
-        "plaintextCount": plaintext,
-        "reasonCounts": reasons,
+        "eventCount": timeline.event_count,
+        "decryptedCount": timeline.decrypted,
+        "unableToDecryptCount": timeline.unable_to_decrypt,
+        "plaintextCount": timeline.plaintext,
+        "reasonCounts": timeline.reasons,
         "toDeviceDecryptedCount": to_device.decrypted,
         "toDeviceDecryptedRoomKeyCount": to_device.decrypted_room_key,
         "toDeviceDecryptedForwardedRoomKeyCount": to_device.decrypted_forwarded_room_key,
@@ -1761,6 +1945,22 @@ mod tests {
     fn matrix_request_deadlines_are_shorter_than_the_foreground_retry_window() {
         assert!(MATRIX_CONNECT_TIMEOUT < MATRIX_REQUEST_TIMEOUT);
         assert!(MATRIX_REQUEST_TIMEOUT <= Duration::from_secs(15));
+    }
+
+    #[test]
+    fn verification_target_prefers_newest_unverified_sibling_stably() {
+        assert_eq!(
+            verification_target_order(false, 2, "DEVICE_B", false, 1, "DEVICE_A"),
+            Ordering::Less
+        );
+        assert_eq!(
+            verification_target_order(false, 1, "DEVICE_A", true, 2, "DEVICE_B"),
+            Ordering::Less
+        );
+        assert_eq!(
+            verification_target_order(false, 2, "DEVICE_A", false, 2, "DEVICE_B"),
+            Ordering::Less
+        );
     }
 
     #[test]
@@ -1877,6 +2077,22 @@ mod tests {
             RoomSecurityRefresh::PreSend,
             Some(&warmed),
             Some(&expanded),
+        ));
+    }
+
+    #[test]
+    fn sync_contains_a_degraded_room_membership_projection() {
+        assert!(is_conversation_scoped_sync_security_error(
+            "M_WEAVE_E2EE_ROOM_MEMBERS"
+        ));
+        assert!(is_conversation_scoped_sync_security_error(
+            "M_WEAVE_CHAT_DEGRADED_PROVIDER_REDACTION_ECHO_MISMATCH"
+        ));
+        assert!(!is_conversation_scoped_sync_security_error(
+            "M_WEAVE_E2EE_SESSION"
+        ));
+        assert!(!is_conversation_scoped_sync_security_error(
+            "M_UNKNOWN_TOKEN"
         ));
     }
 
@@ -2027,6 +2243,32 @@ mod tests {
     }
 
     #[test]
+    fn cached_receive_diagnostics_preserve_the_last_timeline_failure() {
+        let timeline = TimelineDecryptionDiagnostics {
+            event_count: 3,
+            decrypted: 2,
+            unable_to_decrypt: 1,
+            plaintext: 0,
+            reasons: BTreeMap::from([("missingMegolmSession", 1)]),
+        };
+        let projected = decryption_diagnostics(
+            &timeline,
+            &ToDeviceDiagnostics {
+                decrypted: 1,
+                decrypted_room_key: 1,
+                ..ToDeviceDiagnostics::default()
+            },
+            &PeerDeviceConvergenceDiagnostics::default(),
+        );
+
+        assert_eq!(projected["eventCount"], 3);
+        assert_eq!(projected["decryptedCount"], 2);
+        assert_eq!(projected["unableToDecryptCount"], 1);
+        assert_eq!(projected["reasonCounts"]["missingMegolmSession"], 1);
+        assert_eq!(projected["toDeviceDecryptedRoomKeyCount"], 1);
+    }
+
+    #[test]
     fn verification_request_identity_is_taken_from_the_processed_event() {
         let request = ProcessedToDeviceEvent::PlainText(
             serde_json::from_value(json!({
@@ -2055,6 +2297,49 @@ mod tests {
         assert_eq!(sender.as_str(), "@member:api.weave.test");
         assert_eq!(transaction_id, "verification-transaction");
         assert!(verification_request_identity(&unrelated).is_none());
+    }
+
+    #[test]
+    fn olm_failure_or_unwedge_arms_a_single_fail_closed_rotation_latch() {
+        let dummy: Raw<AnyToDeviceEvent> = serde_json::from_value(json!({
+            "sender": "@member:api.weave.test",
+            "type": "m.dummy",
+            "content": {},
+        }))
+        .expect("dummy event should be valid raw JSON");
+        let room_key: Raw<AnyToDeviceEvent> = serde_json::from_value(json!({
+            "sender": "@member:api.weave.test",
+            "type": "m.room_key",
+            "content": {},
+        }))
+        .expect("room key should be valid raw JSON");
+        let encrypted: Raw<AnyToDeviceEvent> = serde_json::from_value(json!({
+            "sender": "@member:api.weave.test",
+            "type": "m.room.encrypted",
+            "content": {
+                "algorithm": "m.olm.v1.curve25519-aes-sha2",
+                "sender_key": "curve25519-public-key",
+                "ciphertext": {},
+            },
+        }))
+        .expect("encrypted event should be valid raw JSON");
+        let failed = ProcessedToDeviceEvent::UnableToDecrypt {
+            encrypted_event: encrypted,
+            utd_info: matrix_sdk::deserialized_responses::ToDeviceUnableToDecryptInfo {
+                reason: ToDeviceUnableToDecryptReason::DecryptionFailure,
+            },
+        };
+
+        assert!(is_decrypted_olm_dummy(&dummy));
+        assert!(!is_decrypted_olm_dummy(&room_key));
+        assert!(contains_olm_recovery_signal(&[failed]));
+        assert!(!olm_recovery_rotation_is_pending(None));
+        assert!(!olm_recovery_rotation_is_pending(Some(&[])));
+        assert!(!olm_recovery_rotation_is_pending(Some(&[0])));
+        assert!(olm_recovery_rotation_is_pending(Some(&[1])));
+        // Unknown persisted values rotate once instead of silently accepting
+        // a potentially stale Megolm sharing record.
+        assert!(olm_recovery_rotation_is_pending(Some(&[2, 3])));
     }
 
     #[test]

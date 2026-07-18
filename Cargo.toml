@@ -1,3 +1,11 @@
 [workspace]
 members = ["rust/matrix-core"]
+exclude = ["rust/vendor/matrix-sdk-crypto"]
 resolver = "2"
+
+[patch.crates-io]
+# matrix-sdk-crypto 0.18.0 can keep selecting a newer unusable Olm session and
+# delays the first standards-based unwedge attempt for an hour. Keep the
+# dependency version pinned and carry the narrow recovery fixes locally until
+# upstream releases equivalent behavior.
+matrix-sdk-crypto = { path = "rust/vendor/matrix-sdk-crypto" }

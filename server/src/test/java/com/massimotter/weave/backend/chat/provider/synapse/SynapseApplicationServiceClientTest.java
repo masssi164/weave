@@ -212,6 +212,27 @@ class SynapseApplicationServiceClientTest {
         assertThat(incompleteExpectation.ciphertextHashesExact()).isFalse();
     }
 
+    @Test
+    void treatsAnUnmappedOutsiderAsFailClosedWithoutAProviderRead() {
+        String author = "@_weave_opaqueauthor:matrix.internal";
+        String collaborator = "@_weave_opaquecollaborator:matrix.internal";
+
+        SynapseApplicationServiceClient.ProviderRoomEvidence evidence = client.readRoomEvidence(
+                author,
+                "!opaque-room:matrix.internal",
+                List.of(author, collaborator),
+                List.of("$opaque-event-1:matrix.internal", "$opaque-event-2:matrix.internal"),
+                List.of(sha256("opaque-ciphertext-1"), sha256("opaque-ciphertext-2")),
+                null);
+
+        assertThat(evidence.authorizedMembershipExact()).isTrue();
+        assertThat(evidence.outsiderAbsent()).isTrue();
+        assertThat(evidence.outsiderReadDenied()).isTrue();
+        assertThat(requests.stream()
+                .filter(request -> request.path().endsWith("/messages"))
+                .count()).isEqualTo(1);
+    }
+
     private void handle(HttpExchange exchange) throws IOException {
         String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
         requests.add(new ObservedRequest(

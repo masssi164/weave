@@ -83,7 +83,7 @@ access_token=abcdefghijklmnopqrstuvwxyz0123456789
         raw = """
 00:00 +0: MULTI_USER_PROGRESS phase=author-write runIndex=1
 MULTI_USER_PROGRESS phase=author-chat-room runIndex=1
-MULTI_USER_PROGRESS phase=outsider-authorization runIndex=1
+MULTI_USER_PROGRESS phase=outsider-files-authorization runIndex=1
 MULTI_USER_PROGRESS phase=containment-calendar runIndex=2
 TestFailure: Expected: true Actual: false
 """
@@ -92,7 +92,7 @@ TestFailure: Expected: true Actual: false
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn(
-            "category=assertion phase=outsider-authorization",
+            "category=authorization phase=outsider-files-authorization",
             result.stdout,
         )
         self.assertNotIn("phase=author-chat-room", result.stdout)
@@ -109,6 +109,44 @@ TestFailure: Expected: true Actual: false
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("category=assertion phase=author-chat-room", result.stdout)
+
+    def test_chat_connect_diagnostic_exposes_only_stable_failure_shape(self) -> None:
+        raw = """
+MULTI_USER_PROGRESS phase=author-chat-connect runIndex=1
+MULTI_USER_CHAT_CONNECT_DIAGNOSTIC role=author runIndex=1 failureType=configuration supportCode=M_WEAVE_E2EE_SYNC supportSafe=true
+ChatFailure with private provider response and access_token=secret
+"""
+
+        result = self.run_sanitizer(raw, exit_code=1)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "SANITIZED_MULTI_USER_CHAT_CONNECT_DIAGNOSTIC role=author "
+            "runIndex=1 failureType=configuration supportCode=M_WEAVE_E2EE_SYNC "
+            "supportSafe=true",
+            result.stdout,
+        )
+        self.assertNotIn("private provider response", result.stdout)
+        self.assertNotIn("secret", result.stdout)
+
+    def test_chat_send_diagnostic_exposes_only_stable_failure_shape(self) -> None:
+        raw = """
+MULTI_USER_PROGRESS phase=author-chat-send runIndex=1
+MULTI_USER_CHAT_SEND_DIAGNOSTIC role=author runIndex=1 failureType=peerDevicePending supportCode=M_WEAVE_E2EE_PEER_DEVICES supportSafe=true
+ChatFailure with private room id and ciphertext
+"""
+
+        result = self.run_sanitizer(raw, exit_code=1)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "SANITIZED_MULTI_USER_CHAT_SEND_DIAGNOSTIC role=author "
+            "runIndex=1 failureType=peerDevicePending "
+            "supportCode=M_WEAVE_E2EE_PEER_DEVICES supportSafe=true",
+            result.stdout,
+        )
+        self.assertNotIn("private room id", result.stdout)
+        self.assertNotIn("ciphertext", result.stdout)
 
     def test_encrypted_device_exchange_phase_is_support_safe(self) -> None:
         raw = """
@@ -157,8 +195,72 @@ TestFailure: Expected: true Actual: false
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn(
-            "category=assertion "
+            "category=receive "
             "phase=room-key-exchange-collaborator-observe-author",
+            result.stdout,
+        )
+
+    def test_encrypted_send_failure_is_classified_at_the_send_boundary(self) -> None:
+        raw = """
+MULTI_USER_PROGRESS phase=room-key-exchange-author-send runIndex=1
+Failure code: M_WEAVE_E2EE_PEER_DEVICE_PENDING.
+"""
+
+        result = self.run_sanitizer(raw, exit_code=1)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "category=send phase=room-key-exchange-author-send",
+            result.stdout,
+        )
+
+    def test_decryption_support_code_refines_the_receive_boundary(self) -> None:
+        raw = """
+MULTI_USER_PROGRESS phase=room-key-exchange-author-observe-collaborator runIndex=1
+Failure code: M_WEAVE_E2EE_MISSING_MEGOLM_SESSION.
+"""
+
+        result = self.run_sanitizer(raw, exit_code=1)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "category=decrypt "
+            "phase=room-key-exchange-author-observe-collaborator",
+            result.stdout,
+        )
+
+    def test_sender_owned_redaction_failure_is_classified_as_cleanup(self) -> None:
+        raw = """
+MULTI_USER_PROGRESS phase=room-key-exchange-redaction runIndex=1
+MULTI_USER_MATRIX_FAILURE Failure code: M_WEAVE_LIVE_MATRIX_REDACT_EVENT_HTTP_403 runIndex=1
+"""
+
+        result = self.run_sanitizer(raw, exit_code=1)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "category=cleanup phase=room-key-exchange-redaction",
+            result.stdout,
+        )
+        self.assertIn(
+            "supportCode=M_WEAVE_LIVE_MATRIX_REDACT_EVENT_HTTP_403",
+            result.stdout,
+        )
+
+    def test_event_id_mismatch_detection_survives_optional_diagnostics(self) -> None:
+        raw = """
+MULTI_USER_PROGRESS phase=room-key-exchange-author-observe-collaborator runIndex=1
+MULTI_USER_E2EE_EVENT_ID_MISMATCH_DETECTED direction=collaborator-to-author runIndex=1 expectedHash=aaaaaaaaaaaaaaaa observedHash=bbbbbbbbbbbbbbbb
+TimeoutException after 0:00:04
+"""
+
+        result = self.run_sanitizer(raw, exit_code=1)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "SANITIZED_MULTI_USER_E2EE_EVENT_ID_MISMATCH_DETECTED "
+            "direction=collaborator-to-author runIndex=1 "
+            "expectedHash=aaaaaaaaaaaaaaaa observedHash=bbbbbbbbbbbbbbbb",
             result.stdout,
         )
 
@@ -270,11 +372,8 @@ Failure code: M_WEAVE_E2EE_PROVIDER_PAYLOAD_PRIVATE.
             result.stdout,
         )
         self.assertIn(
-            "toDeviceUnableToDecryptCount=6 "
-            "toDeviceDecryptionFailureCount=7 "
-            "toDeviceUnverifiedSenderCount=8 "
-            "toDeviceNoOlmMachineCount=9 "
-            "toDeviceEncryptionDisabledCount=10 supportSafe=true",
+            "tdDec=1 tdKey=2 tdUtd=3 tdFail=4 "
+            "tdUnverified=5 supportSafe=true",
             result.stdout,
         )
 
@@ -309,7 +408,7 @@ Failure code: M_WEAVE_E2EE_PROVIDER_PAYLOAD_PRIVATE.
             "supportCode=M_WEAVE_E2EE_DIAGNOSTICS_UNAVAILABLE",
             result.stdout,
         )
-        self.assertIn("toDeviceEncryptionDisabledCount=0 supportSafe=true", result.stdout)
+        self.assertIn("tdUnverified=0 supportSafe=true", result.stdout)
 
     def test_fine_grained_collaborator_domain_phase_is_support_safe(self) -> None:
         raw = """

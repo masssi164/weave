@@ -31,6 +31,17 @@ class JdbcCanonicalChatStoreTest {
     private static final String PROVIDER = "matrix-synapse";
 
     @Test
+    void redactionPresentationContentIsNarrowlyBounded() {
+        assertThat(JdbcCanonicalChatStore.supportedRedactionPresentationContent(Map.of())).isTrue();
+        assertThat(JdbcCanonicalChatStore.supportedRedactionPresentationContent(
+                Map.of("reason", "isolated-e2e-cleanup"))).isTrue();
+        assertThat(JdbcCanonicalChatStore.supportedRedactionPresentationContent(
+                Map.of("reason", "line\nbreak"))).isFalse();
+        assertThat(JdbcCanonicalChatStore.supportedRedactionPresentationContent(
+                Map.of("unsupported", "private-value"))).isFalse();
+    }
+
+    @Test
     void invitedMembershipIsDistinctAndOutsiderCannotJoinOrRead() {
         JdbcCanonicalChatStore store = store(dataSource());
         ChatRequestContext author = context("author");
@@ -95,9 +106,7 @@ class JdbcCanonicalChatStoreTest {
         Map<String, Object> envelope = Map.of(
                 "algorithm", ChatEncryptedEnvelope.MEGOLM_V1,
                 "ciphertext", "opaque-ciphertext",
-                "sender_key", "curve25519:opaque",
-                "session_id", "opaque-session",
-                "device_id", "OPAQUEDEVICE");
+                "session_id", "opaque-session");
         CanonicalChatStore.PreparedEvent pending = store.prepareEvent(
                 author,
                 room.conversationId(),
@@ -135,8 +144,12 @@ class JdbcCanonicalChatStoreTest {
                 ChatEventContent.encrypted(envelope));
         assertThat(replay.committed()).isTrue();
 
-        assertThat(restarted.beginCallback(PROVIDER, "hs-txn-1", "a".repeat(64), 1))
+        String callbackDigest = "a".repeat(64);
+        assertThat(restarted.beginCallback(PROVIDER, "hs-txn-1", callbackDigest, 1))
                 .isEqualTo(CanonicalChatStore.CallbackStart.NEW);
+        assertThat(restarted.beginCallback(PROVIDER, "hs-txn-1", callbackDigest, 1))
+                .as("a semantically identical homeserver retry resumes by transaction ID")
+                .isEqualTo(CanonicalChatStore.CallbackStart.RESUME);
         CanonicalChatStore.CallbackEventResult callback = restarted.recordCallbackEvent(
                 PROVIDER,
                 new CanonicalChatStore.ProviderCallbackEvent(
@@ -149,7 +162,8 @@ class JdbcCanonicalChatStoreTest {
                         envelope,
                         "event-v1"));
         restarted.completeCallback(PROVIDER, "hs-txn-1", callback.state().contains("duplicate") ? 1 : 0);
-        assertThat(restarted.beginCallback(PROVIDER, "hs-txn-1", "a".repeat(64), 1))
+        assertThat(restarted.beginCallback(PROVIDER, "hs-txn-1", callbackDigest, 1))
+                .as("a completed homeserver transaction is acknowledged idempotently by transaction ID")
                 .isEqualTo(CanonicalChatStore.CallbackStart.DUPLICATE);
 
         CanonicalChatStore.EvidenceSnapshot evidence = restarted.evidence(
@@ -168,6 +182,29 @@ class JdbcCanonicalChatStoreTest {
         assertThat(restarted.acknowledgedProviderEventRefs(
                 author.tenantId(), room.conversationId(), PROVIDER))
                 .containsExactly("$opaque-event:matrix.internal");
+
+        CanonicalChatStore.ProviderCallbackEvent redactedProjection =
+                new CanonicalChatStore.ProviderCallbackEvent(
+                        "hs-txn-redacted",
+                        null,
+                        "$opaque-event:matrix.internal",
+                        "!durable-room:matrix.internal",
+                        "@_weave_sender:matrix.internal",
+                        "m.room.encrypted",
+                        null,
+                        null,
+                        Map.of(),
+                        "event-v2",
+                        true);
+        assertThat(restarted.recordCallbackEvent(PROVIDER, redactedProjection).state())
+                .isEqualTo("acknowledged-redacted-projection");
+        assertThat(restarted.recordCallbackEvent(PROVIDER, redactedProjection).state())
+                .isEqualTo("deduplicated-redacted-projection");
+        assertThat(restarted.timelineEvents(author, room.conversationId(), null, 100).events())
+                .singleElement()
+                .satisfies(event -> assertThat(event.redacted()).isTrue());
+        assertThat(restarted.evidence(author.tenantId(), room.conversationId(), PROVIDER).degradedMappingCount())
+                .isZero();
     }
 
     @Test
@@ -210,7 +247,7 @@ class JdbcCanonicalChatStoreTest {
                         "m.room.redaction",
                         null,
                         "$target-event:matrix.internal",
-                        Map.of(),
+                        Map.of("reason", "isolated-e2e-cleanup"),
                         "redaction-v1"));
 
         assertThat(callback.state()).isEqualTo("acknowledged-redaction-echo");
@@ -345,7 +382,7 @@ class JdbcCanonicalChatStoreTest {
     }
 
     @Test
-    void newRoomStateCallbackRacingCreateAckRequestsRetryWithoutQuarantine() {
+    void newRoomStateCallbacksRetryUntilAckAndIgnoreTheProviderCanonicalAlias() {
         JdbcCanonicalChatStore store = store(dataSource());
         ChatRequestContext author = context("create-race");
         acknowledgeActor(store, author, "@_weave_create_race:matrix.internal");
@@ -378,6 +415,36 @@ class JdbcCanonicalChatStoreTest {
         store.acknowledgeConversation(
                 author, room, PROVIDER, "!create-race-room:matrix.internal", "room-v1");
         assertThat(store.recordCallbackEvent(PROVIDER, callback).state()).isEqualTo("ignored");
+        CanonicalChatStore.ProviderCallbackEvent canonicalAliasCallback =
+                new CanonicalChatStore.ProviderCallbackEvent(
+                        "hs-create-race-alias",
+                        room.providerTransactionId(),
+                        "$create-alias:matrix.internal",
+                        "!create-race-room:matrix.internal",
+                        "@_weave_create_race:matrix.internal",
+                        "m.room.canonical_alias",
+                        "",
+                        null,
+                        Map.of("alias", "#_weave_create_race:matrix.internal"),
+                        "state-v2");
+        assertThat(store.recordCallbackEvent(PROVIDER, canonicalAliasCallback).state()).isEqualTo("ignored");
+
+        CanonicalChatStore.PreparedMembership leave = store.prepareMembership(
+                author, room.conversationId(), "left");
+        store.acknowledgeMembership(author, leave, PROVIDER, "membership-left-v1");
+        CanonicalChatStore.ProviderCallbackEvent leaveCallback =
+                new CanonicalChatStore.ProviderCallbackEvent(
+                        "hs-create-race-leave",
+                        leave.providerTransactionId(),
+                        "$create-leave:matrix.internal",
+                        "!create-race-room:matrix.internal",
+                        "@_weave_create_race:matrix.internal",
+                        "m.room.member",
+                        "@_weave_create_race:matrix.internal",
+                        null,
+                        Map.of("membership", "leave"),
+                        "state-v3");
+        assertThat(store.recordCallbackEvent(PROVIDER, leaveCallback).state()).isEqualTo("ignored");
         CanonicalChatStore.EvidenceSnapshot evidence = store.evidence(
                 author.tenantId(), room.conversationId(), PROVIDER);
         assertThat(evidence.quarantineCount()).isZero();

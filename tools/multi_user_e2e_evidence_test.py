@@ -269,7 +269,7 @@ class MultiUserE2EEvidenceTest(unittest.TestCase):
         self.stack_teardown.write_text(
             json.dumps(
                 {
-                    "schemaVersion": "weave.isolated-stack-teardown.v1",
+                    "schema": "weave.isolated-stack-teardown.v1",
                     "candidateCommit": COMMIT,
                     "namespaceSha256": "d" * 64,
                     "isolatedRuntimeVerified": True,

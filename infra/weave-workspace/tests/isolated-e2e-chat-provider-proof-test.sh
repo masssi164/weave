@@ -55,10 +55,12 @@ printf '%s\n' '{"id":"weave-app-uuid","clientId":"weave-app","publicClient":true
   >"${MOCK_STATE}/client.json"
 printf 'true\n' >"${MOCK_STATE}/${BACKEND_CONTAINER}-running"
 printf 'true\n' >"${MOCK_STATE}/${SYNAPSE_CONTAINER}-running"
+printf '0\n' >"${MOCK_STATE}/synapse-health-failures"
 printf '0\n' >"${MOCK_STATE}/token-counter"
 printf '20\n' >"${MOCK_STATE}/callback-count"
 printf '0\n' >"${MOCK_STATE}/callback-duplicate-count"
 printf 'false\n' >"${MOCK_STATE}/callback-replay-seen"
+printf '0\n' >"${MOCK_STATE}/callback-readiness-checks"
 : >"${MOCK_STATE}/tokens.tsv"
 : >"${MOCK_STATE}/operations.log"
 for pass_index in 1 2; do
@@ -67,7 +69,6 @@ for pass_index in 1 2; do
   printf 'false\n' >"${MOCK_STATE}/failed-${pass_index}"
   printf 'false\n' >"${MOCK_STATE}/left-${pass_index}-author"
   printf 'false\n' >"${MOCK_STATE}/left-${pass_index}-collaborator"
-  printf 'false\n' >"${MOCK_STATE}/outside-projected-${pass_index}"
 done
 
 cat >"${MOCK_BIN}/sleep" <<'MOCK'
@@ -197,6 +198,18 @@ elif [[ "${url}" == */admin/realms/weave/clients/weave-app-uuid && "${method}" =
   respond 204
 elif [[ "${url}" == */api/health/live ]]; then
   respond 200 '{"status":"UP"}'
+elif [[ "${url}" == http://127.0.0.1:*/health ]]; then
+  if [[ "$(<"${MOCK_STATE}/${MOCK_SYNAPSE_CONTAINER}-running")" != true ]]; then
+    respond 503 'NOT_READY'
+  elif (( $(<"${MOCK_STATE}/synapse-health-failures") > 0 )); then
+    printf '%s\n' "$(( $(<"${MOCK_STATE}/synapse-health-failures") - 1 ))" \
+      >"${MOCK_STATE}/synapse-health-failures"
+    printf 'synapse-health:503\n' >>"${MOCK_STATE}/operations.log"
+    respond 503 'NOT_READY'
+  else
+    printf 'synapse-health:200\n' >>"${MOCK_STATE}/operations.log"
+    respond 200 'OK'
+  fi
 elif [[ "${url}" == */api/platform/config ]]; then
   if [[ "${MOCK_FAIL_AFTER_STOP:-false}" == true && "$(<"${MOCK_STATE}/${MOCK_SYNAPSE_CONTAINER}-running")" == false ]]; then
     respond 500 '{"code":"fixture-failure"}'
@@ -216,20 +229,14 @@ elif [[ "${url}" == */_matrix/client/v3/createRoom ]]; then
   pass_index="$(jq -r '.name | capture("pass-(?<value>[12])").value' "${body_file}")"
   role_pass="$(role_and_pass)"
   role="${role_pass%%:*}"
-  if jq -e '.name | contains("-outside-pass-")' "${body_file}" >/dev/null; then
-    [[ "${role}" == outsider ]] || { respond 403 '{"errcode":"M_FORBIDDEN"}'; exit 0; }
-    printf 'true\n' >"${MOCK_STATE}/outside-projected-${pass_index}"
-    printf 'project:outsider:%s\n' "${pass_index}" >>"${MOCK_STATE}/operations.log"
-    respond 200 "$(jq -cn --arg room "!outside-pass-${pass_index}:api.weave.test" '{room_id:$room}')"
-  else
-    expected_collaborator="@collaborator_${pass_index}:api.weave.test"
-    if ! jq -e --arg expected "${expected_collaborator}" '.invite == [$expected]' "${body_file}" >/dev/null; then
-      respond 400 '{"errcode":"M_BAD_JSON","error":"fixture invite mismatch"}'
-      exit 0
-    fi
-    printf 'create:target:%s\n' "${pass_index}" >>"${MOCK_STATE}/operations.log"
-    respond 200 "$(jq -cn --arg room "!room-pass-${pass_index}:api.weave.test" '{room_id:$room}')"
+  expected_collaborator="@collaborator_${pass_index}:api.weave.test"
+  if [[ "${role}" != author ]] ||
+    ! jq -e --arg expected "${expected_collaborator}" '.invite == [$expected]' "${body_file}" >/dev/null; then
+    respond 400 '{"errcode":"M_BAD_JSON","error":"fixture invite mismatch"}'
+    exit 0
   fi
+  printf 'create:target:%s\n' "${pass_index}" >>"${MOCK_STATE}/operations.log"
+  respond 200 "$(jq -cn --arg room "!room-pass-${pass_index}:api.weave.test" '{room_id:$room}')"
 elif [[ "${url}" == */_matrix/client/v3/join/* ]]; then
   respond 200 '{}'
 elif [[ "${url}" == */send/m.room.encrypted/* ]]; then
@@ -286,6 +293,18 @@ elif [[ "${url}" == */typing/* ]]; then
   else
     respond 503 '{"errcode":"M_UNAVAILABLE","error":"Weave Chat is temporarily unavailable."}'
   fi
+elif [[ "${url}" == */api/internal/e2e/chat/provider-proof/callback-replay/readiness ]]; then
+  [[ "${method}" == GET && "${authorization}" == "${MOCK_PROOF_TOKEN}" ]] || {
+    respond 401 '{"code":"chat-e2e-proof-unauthorized","supportSafe":true}'
+    exit 0
+  }
+  readiness_checks="$(( $(<"${MOCK_STATE}/callback-readiness-checks") + 1 ))"
+  printf '%s\n' "${readiness_checks}" >"${MOCK_STATE}/callback-readiness-checks"
+  if (( readiness_checks < 3 )); then
+    respond 200 '{"contractVersion":"chat-provider-callback-replay-readiness-v1","callbackReplayReady":false,"code":"chat-provider-callback-not-captured","supportSafe":true}'
+  else
+    respond 200 '{"contractVersion":"chat-provider-callback-replay-readiness-v1","callbackReplayReady":true,"code":"chat-provider-callback-captured","supportSafe":true}'
+  fi
 elif [[ "${url}" == */api/internal/e2e/chat/provider-proof/callback-replay ]]; then
   [[ "${method}" == POST && "${authorization}" == "${MOCK_PROOF_TOKEN}" ]] || {
     respond 401 '{"code":"chat-e2e-proof-unauthorized","supportSafe":true}'
@@ -322,18 +341,21 @@ elif [[ "${url}" == */api/internal/e2e/chat/provider-proof ]]; then
     exit 0
   }
   jq -e '
-    (.eventCorrelationSha256 | length) == 3 and
+    ((.eventCorrelationSha256 | length) == 2 or (.eventCorrelationSha256 | length) == 3) and
     all(.eventCorrelationSha256[]; test("^[0-9a-f]{64}$"))
   ' "${body_file}" >/dev/null || {
     respond 400 '{"code":"chat-e2e-proof-correlation-invalid","supportSafe":true}'
     exit 0
   }
   pass_index="$(jq -r '.conversationId | capture("room-pass-(?<value>[12])").value' "${body_file}")"
-  [[ "$(<"${MOCK_STATE}/outside-projected-${pass_index}")" == true ]] || {
-    respond 503 '{"code":"chat-e2e-proof-mapping-unavailable","supportSafe":true}'
-    exit 0
-  }
   event_count="$(jq 'length' "${MOCK_STATE}/events-${pass_index}.json")"
+  requested_correlation_count="$(jq '.eventCorrelationSha256 | length' "${body_file}")"
+  printf 'proof:correlations:%s:%s:%s\n' \
+    "${pass_index}" "${requested_correlation_count}" "${event_count}" >>"${MOCK_STATE}/operations.log"
+  if [[ "${requested_correlation_count}" != "${event_count}" ]]; then
+    respond 400 '{"code":"chat-e2e-proof-correlation-count-mismatch","supportSafe":true}'
+    exit 0
+  fi
   failed_count=0
   [[ "$(<"${MOCK_STATE}/failed-${pass_index}")" != true ]] || failed_count=1
   total_events=$(( $(jq 'length' "${MOCK_STATE}/events-1.json") + $(jq 'length' "${MOCK_STATE}/events-2.json") ))
@@ -360,7 +382,7 @@ elif [[ "${url}" == */api/internal/e2e/chat/provider-proof ]]; then
         identities:[
           {role:"author",identityHash:("a"*64),providerMapped:true,canonicalJoined:true,providerJoined:true,providerReadDenied:false},
           {role:"collaborator",identityHash:("b"*64),providerMapped:true,canonicalJoined:true,providerJoined:true,providerReadDenied:false},
-          {role:"outsider",identityHash:("c"*64),providerMapped:true,canonicalJoined:false,providerJoined:false,providerReadDenied:true}
+          {role:"outsider",identityHash:("c"*64),providerMapped:false,canonicalJoined:false,providerJoined:false,providerReadDenied:true}
         ],
         providerMembershipExact:true,
         outsiderAbsent:true,
@@ -381,6 +403,7 @@ elif [[ "${url}" == */api/internal/e2e/chat/provider-proof ]]; then
         bridgeLedgerCount:$ledgerCount,
         callbackTransactionCount:$callbackCount,
         callbackDuplicateCount:$duplicateCount,
+        callbackSemanticMismatchCount:0,
         quarantineCount:0,
         degradedOperationCount:0,
         observedAt:"2026-07-15T12:00:00Z",
@@ -469,12 +492,16 @@ case "${command}" in
   start)
     container="$1"
     printf 'true\n' >"${MOCK_STATE}/${container}-running"
+    [[ "${container}" != "${MOCK_SYNAPSE_CONTAINER}" ]] || \
+      printf '1\n' >"${MOCK_STATE}/synapse-health-failures"
     printf 'start:%s\n' "${container}" >>"${MOCK_STATE}/operations.log"
     printf '%s\n' "${container}"
     ;;
   restart)
     container="$1"
     printf 'true\n' >"${MOCK_STATE}/${container}-running"
+    [[ "${container}" != "${MOCK_SYNAPSE_CONTAINER}" ]] || \
+      printf '1\n' >"${MOCK_STATE}/synapse-health-failures"
     printf 'restart:%s\n' "${container}" >>"${MOCK_STATE}/operations.log"
     printf '%s\n' "${container}"
     ;;
@@ -573,10 +600,12 @@ jq -e '.directAccessGrantsEnabled == false' "${MOCK_STATE}/client.json" >/dev/nu
 # Reset only the fixture's isolated provider model for the successful proof.
 printf 'true\n' >"${MOCK_STATE}/${SYNAPSE_CONTAINER}-running"
 printf 'true\n' >"${MOCK_STATE}/${BACKEND_CONTAINER}-running"
+printf '0\n' >"${MOCK_STATE}/synapse-health-failures"
 printf '0\n' >"${MOCK_STATE}/token-counter"
 printf '20\n' >"${MOCK_STATE}/callback-count"
 printf '0\n' >"${MOCK_STATE}/callback-duplicate-count"
 printf 'false\n' >"${MOCK_STATE}/callback-replay-seen"
+printf '0\n' >"${MOCK_STATE}/callback-readiness-checks"
 : >"${MOCK_STATE}/tokens.tsv"
 : >"${MOCK_STATE}/operations.log"
 for pass_index in 1 2; do
@@ -585,13 +614,16 @@ for pass_index in 1 2; do
   printf 'false\n' >"${MOCK_STATE}/failed-${pass_index}"
   printf 'false\n' >"${MOCK_STATE}/left-${pass_index}-author"
   printf 'false\n' >"${MOCK_STATE}/left-${pass_index}-collaborator"
-  printf 'false\n' >"${MOCK_STATE}/outside-projected-${pass_index}"
 done
 
 proof_output="${TMP_DIR}/provider-evidence.json"
 proof_log="${TMP_DIR}/proof.log"
-PATH="${MOCK_BIN}:${PATH}" WEAVE_E2E_STACK_SCOPE=isolated \
-  bash "${PROOF_SCRIPT}" "${common_args[@]}" --output "${proof_output}" >"${proof_log}" 2>&1
+if ! PATH="${MOCK_BIN}:${PATH}" WEAVE_E2E_STACK_SCOPE=isolated \
+  bash "${PROOF_SCRIPT}" "${common_args[@]}" --output "${proof_output}" >"${proof_log}" 2>&1; then
+  grep '^MATRIX_SYNAPSE_PROVIDER_PROOF_ERROR code=' "${proof_log}" >&2 || true
+  grep '^proof:correlations:' "${MOCK_STATE}/operations.log" >&2 || true
+  fail "successful provider proof fixture failed"
+fi
 
 for marker in \
   MATRIX_SYNAPSE_PROVIDER_PERSISTENCE_RESULT \
@@ -622,7 +654,7 @@ jq -e \
       .status == "passed" and .directProviderApiReadback == true and
       .authenticatedProviderReadback == true and .authorizedVirtualUserCount == 2 and
       .authorJoined == true and .collaboratorJoined == true and
-      .outsiderPreprojectedOutsideWorkspace == true and
+      .outsiderProviderMappingAbsent == true and
       .outsiderRoomMembershipAbsent == true and .outsiderReadDenied == true and
       .outsiderWriteDenied == true and .correlatedEncryptedEventCount == 3 and
       .correlatedPlaintextEventCount == 0 and .canonicalCommittedEventCount == 3 and
@@ -648,8 +680,25 @@ jq -e \
   fail "backend persistence restart proof must run exactly once"
 [[ "$(grep -c "^restart:${SYNAPSE_CONTAINER}$" "${MOCK_STATE}/operations.log")" == 1 ]] ||
   fail "Synapse persistence restart proof must run exactly once"
+[[ "$(grep -c '^synapse-health:503$' "${MOCK_STATE}/operations.log")" == 3 ]] ||
+  fail "each Synapse recovery must observe listener startup before readiness"
+[[ "$(grep -c '^synapse-health:200$' "${MOCK_STATE}/operations.log")" == 3 ]] ||
+  fail "each Synapse recovery must prove listener readiness before provider recovery"
 [[ "$(grep -c '^proof:callback-replay$' "${MOCK_STATE}/operations.log")" == 1 ]] ||
   fail "the first real private callback transaction must be replayed exactly once"
+[[ "$(<"${MOCK_STATE}/callback-readiness-checks")" == 3 ]] ||
+  fail "provider proof must wait for genuine callback capture readiness"
+awk -F: '
+  $1 == "proof" && $2 == "correlations" && $4 != $5 { mismatch = 1 }
+  END { exit mismatch }
+' "${MOCK_STATE}/operations.log" ||
+  fail "provider evidence must request exactly the correlations committed in each phase"
+for pass_index in 1 2; do
+  [[ "$(grep -c "^proof:correlations:${pass_index}:2:2$" "${MOCK_STATE}/operations.log")" == 1 ]] ||
+    fail "pass ${pass_index} must prove exactly two committed correlations before retry"
+  [[ "$(grep -c "^proof:correlations:${pass_index}:3:3$" "${MOCK_STATE}/operations.log")" -ge 3 ]] ||
+    fail "pass ${pass_index} must prove all three correlations after retry and restart"
+done
 for pass_index in 1 2; do
   author_registration_line="$(grep -n "^register:author:${pass_index}$" "${MOCK_STATE}/operations.log" | head -1 | cut -d: -f1)"
   collaborator_registration_line="$(grep -n "^register:collaborator:${pass_index}$" "${MOCK_STATE}/operations.log" | head -1 | cut -d: -f1)"
@@ -658,10 +707,9 @@ for pass_index in 1 2; do
     "${author_registration_line}" -lt "${create_line}" &&
     "${collaborator_registration_line}" -lt "${create_line}" ]] ||
     fail "author and collaborator pass ${pass_index} must register authenticated facades before the invite"
-  project_line="$(grep -n "^project:outsider:${pass_index}$" "${MOCK_STATE}/operations.log" | head -1 | cut -d: -f1)"
   proof_line="$(grep -n "^proof:evidence:${pass_index}$" "${MOCK_STATE}/operations.log" | head -1 | cut -d: -f1)"
-  [[ -n "${project_line}" && -n "${proof_line}" && "${project_line}" -lt "${proof_line}" ]] ||
-    fail "outsider pass ${pass_index} must be projected through its own fixture before read-only provider proof"
+  [[ -n "${proof_line}" && "${create_line}" -lt "${proof_line}" ]] ||
+    fail "pass ${pass_index} must prove the target only after its authorized collaboration"
 done
 jq -e '.directAccessGrantsEnabled == false' "${MOCK_STATE}/client.json" >/dev/null ||
   fail "successful proof did not restore the Keycloak client"
@@ -684,16 +732,20 @@ assert_contains "${PROOF_SCRIPT}" 'WEAVE_E2E_STACK_SCOPE'
 assert_contains "${PROOF_SCRIPT}" '/api/internal/e2e/chat/provider-proof'
 ! grep -Fq '/api/internal/chat/matrix/appservice/evidence' "${PROOF_SCRIPT}" || fail "obsolete hs-token evidence endpoint must be absent"
 assert_contains "${PROOF_SCRIPT}" 'TF_VAR_chat_e2e_proof_token_host_path'
-assert_contains "${PROOF_SCRIPT}" 'preproject_outsider_fixture'
+! grep -Fq 'preproject_outsider_fixture' "${PROOF_SCRIPT}" ||
+  fail "provider proof must not create an outsider mapping fixture"
 # shellcheck disable=SC2016
 assert_contains "${PROOF_SCRIPT}" 'runId:$runId'
 # The proof verifies the Application Service runtime boundary but callback
 # replay is triggered only by the independent, exact-run proof bearer.
 assert_contains "${PROOF_SCRIPT}" 'WEAVE_CHAT_MATRIX_APPSERVICE_HS_TOKEN_FILE'
 assert_contains "${PROOF_SCRIPT}" '/api/internal/e2e/chat/provider-proof/callback-replay'
+assert_contains "${PROOF_SCRIPT}" '/api/internal/e2e/chat/provider-proof/callback-replay/readiness'
 ! grep -Fq 'docker exec -i "${BACKEND_CONTAINER}"' "${PROOF_SCRIPT}" ||
   fail "callback replay must not export raw provider payload through docker exec"
 assert_contains "${PROOF_SCRIPT}" 'SYNAPSE_RESTORE_REQUIRED="true"'
+assert_contains "${PROOF_SCRIPT}" '/health'
+assert_contains "${PROOF_SCRIPT}" 'PROVIDER_OPERATION_RECOVERY_TIMEOUT_SECONDS=90'
 assert_contains "${PROOF_SCRIPT}" 'MATRIX_SYNAPSE_PROVIDER_PERSISTENCE_RESULT'
 assert_contains "${PROOF_SCRIPT}" 'MATRIX_SYNAPSE_PROVIDER_EXACTLY_ONCE_RESULT'
 assert_contains "${PROOF_SCRIPT}" 'MATRIX_SYNAPSE_PROVIDER_REPLAY_RESULT'
