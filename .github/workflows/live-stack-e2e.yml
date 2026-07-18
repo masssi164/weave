@@ -76,7 +76,6 @@ jobs:
     timeout-minutes: 75
     env:
       EXPECTED_RUNNER_NAME: weave-live-mac-mini
-      PERSISTENT_DOGFOOD_RESOURCE_BASELINE: ${{ runner.temp }}/weave-live-stack-persistent-dogfood-resources
       WEAVE_BACKEND_IMAGE: ${{ inputs.weave_backend_image || github.event.inputs.weave_backend_image || 'weave-backend:live-stack-ci' }}
       WEAVE_MCP_SERVER_IMAGE: ${{ inputs.weave_mcp_server_image || github.event.inputs.weave_mcp_server_image || 'weave-mcp-server:live-stack-ci' }}
       TF_VAR_db_admin_password: ci-db-admin-password
@@ -215,7 +214,7 @@ jobs:
         run: |
           set -euo pipefail
           bash weave/tools/persistent_dogfood_resource_guard.sh \
-            capture "$PERSISTENT_DOGFOOD_RESOURCE_BASELINE"
+            capture "${RUNNER_TEMP%/}/weave-live-stack-persistent-dogfood-resources"
 
       - name: Remove orphaned live-runner Buildx resources
         run: bash weave/tools/cleanup_orphaned_buildx.sh
@@ -869,7 +868,7 @@ jobs:
         run: |
           set -euo pipefail
           bash weave/tools/persistent_dogfood_resource_guard.sh \
-            verify "$PERSISTENT_DOGFOOD_RESOURCE_BASELINE"
+            verify "${RUNNER_TEMP%/}/weave-live-stack-persistent-dogfood-resources"
 
       - name: Record independent live phase outcomes
         if: always()
