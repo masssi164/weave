@@ -25,7 +25,7 @@ assert_workflow_order() {
 [[ -f "${WORKFLOW}" ]] || fail "Pending identity recovery workflow is missing"
 [[ -f "${MEMBER_HELPER}" ]] || fail "Persistent member helper is missing"
 [[ -f "${OPERATOR_RUNBOOK}" ]] || fail "Operator runbook is missing"
-require_workflow 'group: weave-persistent-dogfood'
+require_workflow 'group: weave-live-mac-mini-exclusive'
 require_workflow 'cancel-in-progress: false'
 require_workflow 'environment: dogfood'
 require_workflow 'EXPECTED_RUNNER_NAME: weave-live-mac-mini'

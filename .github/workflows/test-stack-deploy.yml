@@ -36,7 +36,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: weave-persistent-dogfood
+  group: weave-live-mac-mini-exclusive
   cancel-in-progress: false
 
 jobs:
