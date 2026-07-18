@@ -1015,7 +1015,8 @@ public final class JdbcCanonicalChatStore implements CanonicalChatStore {
                 content = ChatEventContent.encrypted(event.content());
             } catch (IllegalArgumentException exception) {
                 return quarantineMappedConversation(
-                        room.tenantId(), room.canonicalObjectId(), providerKey, event, "encrypted-envelope-invalid");
+                        room.tenantId(), room.canonicalObjectId(), providerKey, event,
+                        encryptedEnvelopeReason(exception));
             }
         } else if ("m.room.message".equals(event.eventType()) && "unencrypted".equals(encryptionMode)) {
             Object body = event.content().get("body");
@@ -1961,16 +1962,37 @@ public final class JdbcCanonicalChatStore implements CanonicalChatStore {
     }
 
     private QuarantineDisposition quarantineDisposition(String reason) {
+        if (reason.startsWith("encrypted-envelope-")) {
+            return new QuarantineDisposition("encryption-policy", false, "rejected");
+        }
         return switch (reason) {
             case "provider-state-event-type-unsupported" ->
                     new QuarantineDisposition("provider-compatibility", true, "pending");
-            case "plaintext-in-encrypted-room", "encrypted-event-policy-mismatch", "encrypted-envelope-invalid" ->
+            case "plaintext-in-encrypted-room", "encrypted-event-policy-mismatch" ->
                     new QuarantineDisposition("encryption-policy", false, "rejected");
             case "provider-state-key-missing", "message-content-invalid" ->
                     new QuarantineDisposition("provider-malformed", false, "rejected");
             case "provider-event-type-unsupported" ->
                     new QuarantineDisposition("provider-compatibility", false, "rejected");
             default -> new QuarantineDisposition("canonical-correlation", false, "rejected");
+        };
+    }
+
+    private String encryptedEnvelopeReason(IllegalArgumentException exception) {
+        return switch (java.util.Objects.toString(exception.getMessage(), "")) {
+            case "encrypted Chat algorithm is unsupported" -> "encrypted-envelope-algorithm-unsupported";
+            case "encrypted Chat algorithm is invalid" -> "encrypted-envelope-algorithm-invalid";
+            case "encrypted Chat ciphertext is invalid" -> "encrypted-envelope-ciphertext-invalid";
+            case "encrypted Chat session_id is invalid" -> "encrypted-envelope-session-id-invalid";
+            case "encrypted Chat sender_key is invalid" -> "encrypted-envelope-sender-key-invalid";
+            case "encrypted Chat device_id is invalid" -> "encrypted-envelope-device-id-invalid";
+            case "encrypted Chat envelope nesting is too deep" -> "encrypted-envelope-nesting-invalid";
+            case "encrypted Chat envelope value is too large" -> "encrypted-envelope-value-too-large";
+            case "encrypted Chat envelope has too many fields" -> "encrypted-envelope-field-count-invalid";
+            case "encrypted Chat envelope key is invalid" -> "encrypted-envelope-key-invalid";
+            case "encrypted Chat envelope array is too large" -> "encrypted-envelope-array-too-large";
+            case "encrypted Chat envelope contains an unsupported value" -> "encrypted-envelope-value-invalid";
+            default -> "encrypted-envelope-invalid";
         };
     }
 

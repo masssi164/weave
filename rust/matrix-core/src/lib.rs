@@ -667,15 +667,22 @@ fn parse_encrypted_content(content: &Value) -> Result<Value, MatrixCoreError> {
     if object.get("algorithm").and_then(Value::as_str) != Some("m.megolm.v1.aes-sha2") {
         return Err(MatrixCoreError::UnsupportedMessageType);
     }
-    for (field, max_length) in [
-        ("ciphertext", 262_144),
-        ("sender_key", 512),
-        ("session_id", 512),
-        ("device_id", 128),
-    ] {
+    for (field, max_length) in [("ciphertext", 262_144), ("session_id", 512)] {
         let value = object
             .get(field)
             .and_then(Value::as_str)
+            .filter(|value| !value.is_empty() && value.len() <= max_length)
+            .ok_or(MatrixCoreError::InvalidRequest)?;
+        if value.chars().any(char::is_control) {
+            return Err(MatrixCoreError::InvalidRequest);
+        }
+    }
+    for (field, max_length) in [("sender_key", 512), ("device_id", 128)] {
+        let Some(raw) = object.get(field) else {
+            continue;
+        };
+        let value = raw
+            .as_str()
             .filter(|value| !value.is_empty() && value.len() <= max_length)
             .ok_or(MatrixCoreError::InvalidRequest)?;
         if value.chars().any(char::is_control) {
@@ -1970,9 +1977,7 @@ mod tests {
         let encrypted_content = json!({
             "algorithm": "m.megolm.v1.aes-sha2",
             "ciphertext": "opaque-ciphertext",
-            "sender_key": "curve25519:alice",
             "session_id": "megolm-session-1",
-            "device_id": "WEAVEDEVICEALICE",
         });
         let parsed = project_json(
             "parse-event".to_string(),
