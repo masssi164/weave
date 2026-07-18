@@ -252,7 +252,11 @@ void main() {
         );
 
         _emitProgress(configuration, 'author-chat-connect');
-        await session.chat.connect();
+        await _connectChatWithSupportSafeFailure(
+          configuration: configuration,
+          role: CollaborationActorRole.author,
+          session: session,
+        );
         _emitProgress(configuration, 'author-chat-room');
         await _requireEncryptedConversation(session, roomId);
         _emitProgress(configuration, 'author-chat-send');
@@ -2063,6 +2067,34 @@ void _emitProgress(MultiUserTestConfig configuration, String phase) {
   // provider responses, URLs, credentials, or mutable application content.
   // ignore: avoid_print
   print('MULTI_USER_PROGRESS phase=$phase runIndex=${configuration.runIndex}');
+}
+
+Future<void> _connectChatWithSupportSafeFailure({
+  required MultiUserTestConfig configuration,
+  required CollaborationActorRole role,
+  required LiveActorSession session,
+}) async {
+  try {
+    await session.chat.connect();
+  } on ChatFailure catch (failure) {
+    final cause = failure.cause;
+    final rawCode = cause is RustMatrixCoreBridgeException
+        ? cause.code
+        : 'none';
+    final supportCode = RegExp(r'^M_[A-Z0-9_]{2,80}$').hasMatch(rawCode)
+        ? rawCode
+        : 'none';
+    // Failure type and stable Matrix code are support-safe; no exception text,
+    // provider response, identifier, endpoint, or credential is emitted.
+    // ignore: avoid_print
+    print(
+      'MULTI_USER_CHAT_CONNECT_DIAGNOSTIC '
+      'role=${role.name} runIndex=${configuration.runIndex} '
+      'failureType=${failure.type.name} supportCode=$supportCode '
+      'supportSafe=true',
+    );
+    rethrow;
+  }
 }
 
 Future<void> _emitE2eeDiagnostics({

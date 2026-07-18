@@ -101,6 +101,13 @@ PROGRESS_PATTERN = re.compile(
     rf"(?:^|\s)MULTI_USER_PROGRESS "
     rf"phase=({'|'.join(PROGRESS_PHASES)}) runIndex=(\d+)\s*$"
 )
+CHAT_CONNECT_DIAGNOSTIC_PATTERN = re.compile(
+    r"(?:^|\s)MULTI_USER_CHAT_CONNECT_DIAGNOSTIC "
+    r"role=(author|collaborator|outsider) runIndex=(\d+) "
+    r"failureType=(cancelled|configuration|sessionRequired|unsupportedConfiguration|"
+    r"peerDevicePending|protocol|storage|unsupportedPlatform|unknown) "
+    r"supportCode=(M_[A-Z0-9_]{2,80}|none) supportSafe=true\s*$"
+)
 FAILURE_CATEGORIES = (
     (
         "identity-mismatch",
@@ -377,6 +384,21 @@ def _e2ee_support_code(raw_log: str) -> str | None:
     return matches[-1] if matches else None
 
 
+def _chat_connect_diagnostics(raw_log: str, run_index: int) -> list[str]:
+    diagnostics: list[str] = []
+    for line in raw_log.splitlines():
+        match = CHAT_CONNECT_DIAGNOSTIC_PATTERN.search(line)
+        if match is None or int(match.group(2)) != run_index:
+            continue
+        diagnostics.append(
+            "SANITIZED_MULTI_USER_CHAT_CONNECT_DIAGNOSTIC "
+            f"role={match.group(1)} runIndex={run_index} "
+            f"failureType={match.group(3)} supportCode={match.group(4)} "
+            "supportSafe=true"
+        )
+    return diagnostics[-1:]
+
+
 def _e2ee_diagnostics(raw_log: str, run_index: int) -> list[str]:
     diagnostics: list[str] = []
     for line in raw_log.splitlines():
@@ -474,6 +496,9 @@ def main() -> int:
         print(f"{marker} {json.dumps(payload, sort_keys=True, separators=(',', ':'))}")
 
     for diagnostic in _e2ee_crypto_diagnostics(raw_log, args.run_index):
+        print(diagnostic)
+
+    for diagnostic in _chat_connect_diagnostics(raw_log, args.run_index):
         print(diagnostic)
 
     for diagnostic in _e2ee_diagnostics(raw_log, args.run_index):

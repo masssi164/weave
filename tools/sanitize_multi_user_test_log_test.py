@@ -110,6 +110,25 @@ TestFailure: Expected: true Actual: false
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("category=assertion phase=author-chat-room", result.stdout)
 
+    def test_chat_connect_diagnostic_exposes_only_stable_failure_shape(self) -> None:
+        raw = """
+MULTI_USER_PROGRESS phase=author-chat-connect runIndex=1
+MULTI_USER_CHAT_CONNECT_DIAGNOSTIC role=author runIndex=1 failureType=configuration supportCode=M_WEAVE_E2EE_SYNC supportSafe=true
+ChatFailure with private provider response and access_token=secret
+"""
+
+        result = self.run_sanitizer(raw, exit_code=1)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "SANITIZED_MULTI_USER_CHAT_CONNECT_DIAGNOSTIC role=author "
+            "runIndex=1 failureType=configuration supportCode=M_WEAVE_E2EE_SYNC "
+            "supportSafe=true",
+            result.stdout,
+        )
+        self.assertNotIn("private provider response", result.stdout)
+        self.assertNotIn("secret", result.stdout)
+
     def test_encrypted_device_exchange_phase_is_support_safe(self) -> None:
         raw = """
 MULTI_USER_PROGRESS phase=room-provision runIndex=1
