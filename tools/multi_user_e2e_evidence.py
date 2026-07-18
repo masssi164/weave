@@ -664,8 +664,8 @@ def require_stack_teardown_evidence(
     evidence: dict[str, Any], candidate: str, namespace_hash: str
 ) -> None:
     require_support_safe_document(evidence, "isolated stack teardown evidence")
-    if evidence.get("schemaVersion") != "weave.isolated-stack-teardown.v1":
-        raise EvidenceError("isolated stack teardown schemaVersion is unsupported")
+    if evidence.get("schema") != "weave.isolated-stack-teardown.v1":
+        raise EvidenceError("isolated stack teardown schema is unsupported")
     for key, expected in (
         ("candidateCommit", candidate),
         ("namespaceSha256", namespace_hash),
