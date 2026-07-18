@@ -57,6 +57,10 @@ load_environment() {
   local requested_scope="${WEAVE_DOGFOOD_DEPLOYMENT_SCOPE:-}"
   local requested_create_test_user="${TF_VAR_create_test_user:-}"
   local requested_isolated="${TF_VAR_isolated_e2e_enabled:-}"
+  local requested_namespace_set="${TF_VAR_isolated_e2e_namespace+x}"
+  local requested_namespace="${TF_VAR_isolated_e2e_namespace:-}"
+  local requested_memberships_set="${TF_VAR_isolated_e2e_context_memberships+x}"
+  local requested_memberships="${TF_VAR_isolated_e2e_context_memberships:-}"
   local requested_caddy_ca="${TF_VAR_caddy_tls_ca_file:-}"
   local requested_caddy_cert="${TF_VAR_caddy_tls_cert_file:-}"
   local requested_caddy_key="${TF_VAR_caddy_tls_key_file:-}"
@@ -67,6 +71,16 @@ load_environment() {
   [[ -z "${requested_scope}" ]] || WEAVE_DOGFOOD_DEPLOYMENT_SCOPE="${requested_scope}"
   [[ -z "${requested_create_test_user}" ]] || TF_VAR_create_test_user="${requested_create_test_user}"
   [[ -z "${requested_isolated}" ]] || TF_VAR_isolated_e2e_enabled="${requested_isolated}"
+  if [[ "${requested_namespace_set}" == x ]]; then
+    TF_VAR_isolated_e2e_namespace="${requested_namespace}"
+  else
+    unset TF_VAR_isolated_e2e_namespace
+  fi
+  if [[ "${requested_memberships_set}" == x ]]; then
+    TF_VAR_isolated_e2e_context_memberships="${requested_memberships}"
+  else
+    unset TF_VAR_isolated_e2e_context_memberships
+  fi
   [[ -z "${requested_caddy_ca}" ]] || TF_VAR_caddy_tls_ca_file="${requested_caddy_ca}"
   [[ -z "${requested_caddy_cert}" ]] || TF_VAR_caddy_tls_cert_file="${requested_caddy_cert}"
   [[ -z "${requested_caddy_key}" ]] || TF_VAR_caddy_tls_key_file="${requested_caddy_key}"
