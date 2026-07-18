@@ -396,6 +396,23 @@ class JdbcCanonicalChatStoreTest {
                         Map.of("alias", "#_weave_create_race:matrix.internal"),
                         "state-v2");
         assertThat(store.recordCallbackEvent(PROVIDER, canonicalAliasCallback).state()).isEqualTo("ignored");
+
+        CanonicalChatStore.PreparedMembership leave = store.prepareMembership(
+                author, room.conversationId(), "left");
+        store.acknowledgeMembership(author, leave, PROVIDER, "membership-left-v1");
+        CanonicalChatStore.ProviderCallbackEvent leaveCallback =
+                new CanonicalChatStore.ProviderCallbackEvent(
+                        "hs-create-race-leave",
+                        leave.providerTransactionId(),
+                        "$create-leave:matrix.internal",
+                        "!create-race-room:matrix.internal",
+                        "@_weave_create_race:matrix.internal",
+                        "m.room.member",
+                        "@_weave_create_race:matrix.internal",
+                        null,
+                        Map.of("membership", "leave"),
+                        "state-v3");
+        assertThat(store.recordCallbackEvent(PROVIDER, leaveCallback).state()).isEqualTo("ignored");
         CanonicalChatStore.EvidenceSnapshot evidence = store.evidence(
                 author.tenantId(), room.conversationId(), PROVIDER);
         assertThat(evidence.quarantineCount()).isZero();

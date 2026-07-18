@@ -870,11 +870,28 @@ async fn converge_joined_room_security(
         // Olm-wrapped Megolm room key. A send-time check alone protects only
         // the sender and leaves a cold collaborator unable to authenticate or
         // decrypt the first to-device key delivery.
-        refresh_active_member_device_keys(profile_key, client, &room, RoomSecurityRefresh::Sync)
-            .await?;
-        converged_rooms += 1;
+        match refresh_active_member_device_keys(
+            profile_key,
+            client,
+            &room,
+            RoomSecurityRefresh::Sync,
+        )
+        .await
+        {
+            Ok(()) => converged_rooms += 1,
+            // Membership projection is conversation-scoped. A room whose
+            // canonical mapping is degraded must remain fail-closed when that
+            // room is read or sent to, but it cannot prevent foreground sync,
+            // valid sibling rooms, or provider proof from continuing.
+            Err(code) if is_conversation_scoped_sync_security_error(&code) => continue,
+            Err(code) => return Err(code),
+        }
     }
     Ok((enabled_rooms, converged_rooms))
+}
+
+fn is_conversation_scoped_sync_security_error(code: &str) -> bool {
+    code == "M_WEAVE_E2EE_ROOM_MEMBERS"
 }
 
 fn matrix_io_gate_for(profile_key: &str) -> Result<Arc<AsyncMutex<()>>, String> {
@@ -2060,6 +2077,19 @@ mod tests {
             RoomSecurityRefresh::PreSend,
             Some(&warmed),
             Some(&expanded),
+        ));
+    }
+
+    #[test]
+    fn sync_contains_a_degraded_room_membership_projection() {
+        assert!(is_conversation_scoped_sync_security_error(
+            "M_WEAVE_E2EE_ROOM_MEMBERS"
+        ));
+        assert!(!is_conversation_scoped_sync_security_error(
+            "M_WEAVE_E2EE_SESSION"
+        ));
+        assert!(!is_conversation_scoped_sync_security_error(
+            "M_UNKNOWN_TOKEN"
         ));
     }
 

@@ -967,6 +967,28 @@ public final class JdbcCanonicalChatStore implements CanonicalChatStore {
         String canonicalActorKey = actorMapping.get().canonicalObjectId();
         ActorIdentity actor = parseActorKey(canonicalActorKey);
         ConversationId conversationId = new ConversationId(room.canonicalObjectId());
+        MatrixSynapseCompatibilityProfile.StateClassification stateClassification =
+                compatibilityProfile.classify(event.eventType(), event.stateKey() != null);
+        if (stateClassification == MatrixSynapseCompatibilityProfile.StateClassification.UNKNOWN_RECOVERABLE) {
+            return quarantineMappedConversation(
+                    room.tenantId(), room.canonicalObjectId(), providerKey, event,
+                    "provider-state-event-type-unsupported");
+        }
+        if (stateClassification == MatrixSynapseCompatibilityProfile.StateClassification.SUPPORTED_IGNORED) {
+            // Membership transitions can be delivered after the canonical
+            // leave operation has already committed. They are provider state,
+            // not a new canonical member-authored event, so current joined
+            // membership is not a valid correlation prerequisite.
+            recordLedger(room.tenantId(), providerKey, "inbound", event.providerTransactionId(),
+                    event.providerEventRef(), room.canonicalObjectId(), event.providerSourceVersion(),
+                    "ignored-supported-state");
+            return new CallbackEventResult("ignored", sha256(room.tenantId() + ":" + event.providerEventRef()));
+        }
+        if (stateClassification == MatrixSynapseCompatibilityProfile.StateClassification.KNOWN_STATE_KEY_MISSING) {
+            return quarantineMappedConversation(
+                    room.tenantId(), room.canonicalObjectId(), providerKey, event,
+                    "provider-state-key-missing");
+        }
         String roomContextId = contextId(room.tenantId(), conversationId)
                 .orElseThrow(() -> new IllegalStateException("Canonical Chat context binding is missing."));
         ChatRequestContext context = new ChatRequestContext(
@@ -978,27 +1000,9 @@ public final class JdbcCanonicalChatStore implements CanonicalChatStore {
                     room.tenantId(), room.canonicalObjectId(), providerKey, event, "provider-sender-not-authorized");
         }
         String encryptionMode = encryptionMode(room.tenantId(), conversationId);
-        MatrixSynapseCompatibilityProfile.StateClassification stateClassification =
-                compatibilityProfile.classify(event.eventType(), event.stateKey() != null);
-        if (stateClassification == MatrixSynapseCompatibilityProfile.StateClassification.UNKNOWN_RECOVERABLE) {
-            return quarantineMappedConversation(
-                    room.tenantId(), room.canonicalObjectId(), providerKey, event,
-                    "provider-state-event-type-unsupported");
-        }
-        if (stateClassification == MatrixSynapseCompatibilityProfile.StateClassification.SUPPORTED_IGNORED) {
-            recordLedger(room.tenantId(), providerKey, "inbound", event.providerTransactionId(),
-                    event.providerEventRef(), room.canonicalObjectId(), event.providerSourceVersion(),
-                    "ignored-supported-state");
-            return new CallbackEventResult("ignored", sha256(room.tenantId() + ":" + event.providerEventRef()));
-        }
         if ("m.room.message".equals(event.eventType()) && !"unencrypted".equals(encryptionMode)) {
             return quarantineMappedConversation(
                     room.tenantId(), room.canonicalObjectId(), providerKey, event, "plaintext-in-encrypted-room");
-        }
-        if (stateClassification == MatrixSynapseCompatibilityProfile.StateClassification.KNOWN_STATE_KEY_MISSING) {
-            return quarantineMappedConversation(
-                    room.tenantId(), room.canonicalObjectId(), providerKey, event,
-                    "provider-state-key-missing");
         }
         ChatEventContent content;
         if ("m.room.encrypted".equals(event.eventType())) {
