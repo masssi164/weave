@@ -106,9 +106,7 @@ class JdbcCanonicalChatStoreTest {
         Map<String, Object> envelope = Map.of(
                 "algorithm", ChatEncryptedEnvelope.MEGOLM_V1,
                 "ciphertext", "opaque-ciphertext",
-                "sender_key", "curve25519:opaque",
-                "session_id", "opaque-session",
-                "device_id", "OPAQUEDEVICE");
+                "session_id", "opaque-session");
         CanonicalChatStore.PreparedEvent pending = store.prepareEvent(
                 author,
                 room.conversationId(),
