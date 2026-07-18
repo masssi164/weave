@@ -95,6 +95,27 @@ grep -Fq 'databaseSha256' "${SCRIPT}"
 grep -Fq '/sessions' "${SCRIPT}"
 grep -Fq 'certificate_sha256' "${SCRIPT}"
 
+bootstrap_env="${TMP_DIR}/bootstrap.env"
+cat >"${bootstrap_env}" <<'ENV'
+export TF_VAR_keycloak_admin_password=fixture-persisted-password
+export TF_VAR_caddy_tls_ca_file=/persisted/ca.pem
+export TF_VAR_caddy_tls_cert_file=/persisted/cert.pem
+export TF_VAR_caddy_tls_key_file=/persisted/key.pem
+ENV
+(
+  export WEAVE_DOGFOOD_BOOTSTRAP_ENV="${bootstrap_env}"
+  export TF_VAR_caddy_tls_ca_file=/current/ca.pem
+  export TF_VAR_caddy_tls_cert_file=/current/cert.pem
+  export TF_VAR_caddy_tls_key_file=/current/key.pem
+  # shellcheck source=infra/weave-workspace/persistent-dogfood-observation.sh
+  source "${SCRIPT}"
+  load_environment
+  [[ "${TF_VAR_keycloak_admin_password}" == fixture-persisted-password ]]
+  [[ "${TF_VAR_caddy_tls_ca_file}" == /current/ca.pem ]]
+  [[ "${TF_VAR_caddy_tls_cert_file}" == /current/cert.pem ]]
+  [[ "${TF_VAR_caddy_tls_key_file}" == /current/key.pem ]]
+) || fail "persistent bootstrap credentials or current TLS path overrides were not restored"
+
 capture_bin="${TMP_DIR}/capture-bin"
 mkdir -p "${capture_bin}"
 cat >"${capture_bin}/docker" <<'MOCK'
