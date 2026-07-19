@@ -15,7 +15,7 @@ Feature: Enterprise target architecture evidence spine
     And Files uses the Weave WebDAV projection under "/dav/files"
     And Calendar uses the Weave CalDAV and iCalendar projection under "/caldav"
     And Chat uses a Matrix Client-Server API projection instead of Slack or Teams as northbound product protocols
-    And Calls uses WebRTC media plus the Weave Calls join-grant API
+    And Calls uses MatrixRTC Profile 0 with WebRTC media behind the RTC Authorizer
     And Agents use MCP over Weave domain capabilities
     And Admin uses OpenAPI or REST as the control plane
 

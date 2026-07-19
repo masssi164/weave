@@ -186,12 +186,11 @@ weave:
       auth-mode: ${WEAVE_BOARDS_OPENPROJECT_AUTH_MODE:disabled}
   meetings:
     livekit:
-      # LiveKit is the active meetings/video-call provider contract. The backend
-      # returns only support-safe readiness metadata; it never exposes API keys,
-      # API secrets, room tokens, credential-bearing URLs, or raw LiveKit errors.
-      # Leave credentials/token endpoint blank to fail closed until infra wires a
-      # backend-owned token facade.
-      enabled: ${WEAVE_LIVEKIT_ENABLED:true}
+      # LiveKit is a southbound MatrixRTC transport only. No member-facing Calls
+      # route or direct join-grant facade is exposed by weave-server. Leave the
+      # adapter disabled until the MatrixRTC RTC Authorizer, TURN, media E2EE,
+      # consent, and support-safe evidence gates are wired.
+      enabled: ${WEAVE_LIVEKIT_ENABLED:false}
       url: ${WEAVE_LIVEKIT_URL:}
       api-key: ${WEAVE_LIVEKIT_API_KEY:}
       api-secret: ${WEAVE_LIVEKIT_API_SECRET:}

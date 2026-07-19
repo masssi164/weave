@@ -59,9 +59,10 @@ The accepted direction is:
 - Chat targets Weave-owned Matrix Client-Server core first, with federation
   identity only after identity, signing, moderation, retention, E2EE, and
   supportability gates exist.
-- Calls use WebRTC media with a small Weave Calls API for create/join/leave/read
-  and short-lived join grants. LiveKit is the first SFU candidate; Teams/Slack
-  meetings remain southbound link/meeting adapters.
+- Calls use Matrix v1.19 plus the pinned MatrixRTC Profile 0 for signaling. An
+  internal RTC Authorizer independently proves room/slot/member/device policy
+  before granting WebRTC transport access. LiveKit is the first SFU candidate;
+  Teams/Slack meetings remain southbound link/meeting adapters.
 - MCP uses Spring AI semantic Weave tools over domain use cases, not OpenAPI
   route mirrors. Weaver is a governed client/host/agent runtime integration
   boundary, not a canonical Weave product domain.

@@ -15,7 +15,7 @@ class DomainAdapterRegistryMapperTest {
             "files", List.of("WeaveDrive", "WeaveFolder", "WeaveFile", "WeaveVersion", "WeaveShare", "WeavePermission", "WeaveLock", "WeaveQuota", "ProviderRef"),
             "calendar", List.of("WeaveCalendar", "WeaveEvent", "WeaveRecurrence", "WeaveAttendee", "WeaveResource", "WeaveAvailability", "ProviderRef"),
             "boards-tasks", List.of("Board", "List", "Task", "Status", "Assignee", "Comment", "AttachmentRef", "Dependency", "CustomField"),
-            "meetings-calls", List.of("Meeting", "MediaSession", "Participant", "TokenGrant", "Recording", "Caption", "ConsentRecord"));
+            "meetings-calls", List.of("Meeting", "MediaSession", "Participant", "RtcAuthorization", "Recording", "Transcript", "Caption", "ConsentRecord", "MeetingThreadRef"));
 
     private static final Map<String, List<String>> MIXED_PROVIDER_POSTURE = Map.of(
             "identity-idm", List.of("keycloak-realm", "entra-id", "generic-oidc", "generic-saml"),

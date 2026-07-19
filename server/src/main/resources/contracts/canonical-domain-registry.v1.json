@@ -45,7 +45,7 @@
       "key": "identity",
       "version": 1,
       "display_name": "Identity",
-      "purpose": "Provider-neutral Weave-owned domain contract.",
+      "purpose": "Strict MatrixRTC Profile 0 meeting lifecycle and provider-neutral RTC authorization contract.",
       "canonical_objects": [
         "Subject",
         "IdentitySource",
@@ -643,10 +643,12 @@
         "Meeting",
         "MediaSession",
         "Participant",
-        "TokenGrant",
+        "RtcAuthorization",
         "Recording",
+        "Transcript",
         "Caption",
-        "ConsentRecord"
+        "ConsentRecord",
+        "MeetingThreadRef"
       ],
       "capability_keys": [
         "calls.read",

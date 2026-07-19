@@ -24,7 +24,7 @@ REQUIRED_FEATURES = {
     "files_webdav_full_facade.feature": 11,
     "calendar_caldav_facade.feature": 10,
     "chat_matrix_facade.feature": 13,
-    "calls_webrtc_join_grants.feature": 9,
+    "calls_matrixrtc_profile_0.feature": 9,
     "mcp_domain_facade_boundary.feature": 9,
     "provider_neutral_no_leakage.feature": 5,
     "flutter_protocol_boundary.feature": 5,
@@ -57,12 +57,12 @@ REQUIRED_EVIDENCE_BOUNDARIES = {
         "device revocation",
         "raw Chat API-first member data-plane",
     ],
-    "calls-join-grants": [
-        "remove participant",
-        "grant revocation",
-        "expired reuse denial",
-        "Flutter LiveKit",
-        "support-safe audit",
+    "calls-matrixrtc-profile-0": [
+        "Matrix Native OAuth",
+        "MatrixRTC Profile 0",
+        "RTC Authorizer",
+        "media E2EE",
+        "physical-device",
     ],
     "protocol-credentials": [
         "WEBDAV_FILES",
@@ -160,9 +160,10 @@ def require_current_evidence_boundaries() -> None:
         'public static final String FLUTTER_BRIDGE_BOUNDARY = "flutter-rust-bridge"',
     )
     require(
-        "server/src/main/java/com/massimotter/weave/backend/controller/CallsController.java",
-        '@PostMapping("/api/calls/{id}/join")',
-        '@PostMapping("/api/calls/{id}/end")',
+        "tools/matrixrtc_profile_0_acceptance_check.py",
+        "MATRIXRTC_PROFILE_0_STRICT_CUTOVER",
+        "MATRIX_NATIVE_OAUTH_CONTRACT",
+        "MATRIXRTC_RTC_AUTHORIZER_CONTRACT",
     )
     require(
         "tools/spring_ai_mcp_facade_acceptance_check.py",

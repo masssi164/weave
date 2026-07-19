@@ -30,9 +30,9 @@ CLAIM_MATRIX_REQUIRED_CLAIMS = [
     "broad autonomous AI availability",
 ]
 MEETING_REQUIRED_BOUNDARIES = [
-    "LiveKit as the active meetings/video-call provider",
-    "join/start fail-closed",
-    "Do not claim `secure meetings`, `encrypted meetings`, or `end-to-end encrypted meetings`",
+    "LiveKit is the first replaceable MatrixRTC",
+    "An older proposal shape fails closed",
+    "Private calls require an encrypted Matrix room and MatrixRTC media E2EE",
 ]
 REQUIRED_REALITY_LEVELS = [
     "contract_only",

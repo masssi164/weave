@@ -138,12 +138,15 @@ public class OpenStandardsGatewayStepDefinitions {
                 .contains("/_matrix/client");
     }
 
-    @Then("Calls advertises the Weave Calls control API")
-    public void callsAdvertisesTheWeaveCallsControlApi() {
+    @Then("Calls advertises MatrixRTC Profile 0 through Matrix Client-Server")
+    public void callsAdvertisesMatrixRtcProfileZero() {
         assertThat(lastJson.at("/clientAccessDiscovery/meetings-calls/productApiBasePath").asText())
-                .isEqualTo("/api/calls");
+                .isEqualTo("/_matrix/client");
         assertThat(lastJson.at("/clientAccessDiscovery/meetings-calls/surfaces").toString())
-                .contains("/api/calls/native-boundary-setup");
+                .contains("MatrixRTC Profile 0")
+                .contains("/_matrix/client/v1/rtc/transports")
+                .contains("experimental_guarded")
+                .doesNotContain("/api/calls");
     }
 
     @Then("no provider URL, provider credential, raw provider payload, SecretRef value, or admin diagnostic is exposed")

@@ -287,19 +287,19 @@ public class OrganizationManifestService {
     private ClientAccessDiscoveryResponse meetingsCallsAccess() {
         return new ClientAccessDiscoveryResponse(
                 "meetings-calls",
-                "/api/calls",
+                "/_matrix/client",
                 "Calls",
                 List.of(
-                        surface("openapi", "Weave Calls and Meetings API", "/api/calls", "planned_contract",
-                                "Product API owns meeting metadata, policy, and join-grant lifecycle."),
-                        surface("native-os", "CallKit and Android Telecom boundary", "/api/calls/native-boundary-setup", "contract_ready_implementation_blocked",
-                                "Native call UI is driven by Weave invitations and short-lived join grants; media transport remains separate."),
-                        surface("standard-protocol", "Meeting links and calendar/chat thread references", null, "boundary_only",
-                                "WebDAV and CalDAV do not solve calls; calendar invites and chat threads link to Weave meeting grants.")),
+                        surface("standard-protocol", "Matrix Native OAuth discovery", "/_matrix/client/v1/auth_metadata", "guarded_contract",
+                                "MAS is the Matrix-facing authorization server and uses Keycloak as the upstream organization identity backbone."),
+                        surface("standard-protocol", "MatrixRTC Profile 0", "/_matrix/client/v1/rtc/transports", "experimental_guarded",
+                                "The revision-pinned Profile 0 is the only Calls signaling contract; incompatible legacy shapes fail closed."),
+                        surface("native-os", "CallKit and Android Core-Telecom projection", null, "implementation_blocked",
+                                "Native call UI is a thin projection of MatrixRTC and media state; it does not define another signaling API.")),
                 credentialLifecycle(
-                        "blocked_until_short_lived_join_grants",
-                        List.of("/api/calls/native-boundary-setup"),
-                        List.of("short-lived join grants", "native call UI proof", "revoke and media-policy evidence")),
+                        "blocked_until_matrixrtc_authorization_evidence",
+                        List.of("/.well-known/matrix/client", "/_matrix/client/v1/auth_metadata", "/_matrix/client/v1/rtc/transports"),
+                        List.of("RTC Authorizer", "TURN and media E2EE proof", "native physical-device evidence", "consent and accessibility evidence")),
                 true,
                 false);
     }

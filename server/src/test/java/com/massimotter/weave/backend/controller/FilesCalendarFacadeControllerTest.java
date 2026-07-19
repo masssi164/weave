@@ -16,7 +16,6 @@ import com.massimotter.weave.backend.config.ApiAccessDeniedHandler;
 import com.massimotter.weave.backend.config.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
-import com.massimotter.weave.backend.config.LiveKitMeetingsProviderProperties;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WeaverRuntimeProperties;
@@ -27,7 +26,6 @@ import com.massimotter.weave.backend.exception.ApiExceptionHandler;
 import com.massimotter.weave.backend.model.calendar.CalendarEventResponse;
 import com.massimotter.weave.backend.model.calendar.CalendarScopeResponse;
 import com.massimotter.weave.backend.service.CalendarFacadeService;
-import com.massimotter.weave.backend.service.CallsFacadeService;
 import com.massimotter.weave.backend.service.FilesFacadeService;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.service.calendar.CalendarAdapterException;
@@ -85,8 +83,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
                 FilesController.class,
                 FilesWebDavController.class,
                 CalendarController.class,
-                CalDavCalendarController.class,
-                CallsController.class},
+                CalDavCalendarController.class},
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
 @Import({
         SecurityConfig.class,
@@ -98,24 +95,18 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         FilesCalendarFacadeControllerTest.DeviceCredentialTestConfiguration.class,
         FilesFacadeService.class,
         CalendarFacadeService.class,
-        CallsFacadeService.class,
         WorkspaceCapabilityService.class
 })
 @EnableConfigurationProperties({
         WeaveSecurityProperties.class,
         WeaverRuntimeProperties.class,
         WorkspaceCapabilityProperties.class,
-        LiveKitMeetingsProviderProperties.class,
         OAuth2ResourceServerProperties.class
 })
 @TestPropertySource(properties = {
         "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.example.invalid/realms/weave",
         "weave.security.client-id=weave-app",
-        "weave.security.required-audience=weave-app",
-        "weave.meetings.livekit.enabled=true",
-        "weave.meetings.livekit.url=https://calls.example.invalid",
-        "weave.meetings.livekit.api-key=test-api-key",
-        "weave.meetings.livekit.api-secret=test-api-secret"
+        "weave.security.required-audience=weave-app"
 })
 class FilesCalendarFacadeControllerTest {
 
@@ -931,83 +922,16 @@ class FilesCalendarFacadeControllerTest {
     }
 
     @Test
-    void callsNativeBoundarySetupExposesProviderNeutralCallkitAndTelecomContract() throws Exception {
+    void proprietaryCallsRoutesAreAbsentAfterMatrixRtcCutover() throws Exception {
         mockMvc.perform(get("/api/calls/native-boundary-setup")
                         .with(workspaceJwt()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.supportSafe").value(true))
-                .andExpect(jsonPath("$.providerConfigurationExposed").value(false))
-                .andExpect(jsonPath("$.credentialsExposed").value(false))
-                .andExpect(jsonPath("$.facadeBasePath").value("/api/calls"))
-                .andExpect(jsonPath("$.joinGrantPathTemplate").value("/api/calls/meetings/{meetingId}/join-grants"))
-                .andExpect(jsonPath("$.signalingBoundary")
-                        .value("Weave meeting invitations and short-lived join grants drive native incoming-call state."))
-                .andExpect(jsonPath("$.options[0].platform").value("ios"))
-                .andExpect(jsonPath("$.options[0].osBoundary").value("CallKitPushKit"))
-                .andExpect(jsonPath("$.options[0].available").value(false))
-                .andExpect(jsonPath("$.options[0].requiredContracts[0]").value("ios-callkit-reporting"))
-                .andExpect(jsonPath("$.options[1].platform").value("android"))
-                .andExpect(jsonPath("$.options[1].osBoundary").value("TelecomConnectionService"))
-                .andExpect(jsonPath("$.options[1].requiredContracts[0]").value("android-telecom-connection-service"))
-                .andExpect(jsonPath("$.proofHooks[0]").value("GET /api/calls/native-boundary-setup"))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
-                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("LiveKit"))))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
-                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("wss://"))))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
-                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("https://"))))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
-                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("apiSecret"))));
-    }
+                .andExpect(status().isNotFound());
 
-    @Test
-    void callsControlPlaneCreatesJoinGrantsAndLeavesWithoutProviderSecrets() throws Exception {
-        String callId = JsonPath.read(mockMvc.perform(post("/api/calls")
+        mockMvc.perform(post("/api/calls")
                         .with(workspaceJwt())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "spaceId": "workspace-default",
-                                  "title": "Planning call",
-                                  "linkedCalendarRefs": ["calendar:event:planning"]
-                                }
-                                """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.mediaProvider").value("livekit"))
-                .andExpect(jsonPath("$.joinAvailable").value(true))
-                .andExpect(jsonPath("$.roomRef").exists())
-                .andReturn()
-                .getResponse()
-                .getContentAsString(), "$.callId");
-
-        mockMvc.perform(get("/api/calls/{id}", callId)
-                        .with(workspaceJwt()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.callId").value(callId))
-                .andExpect(jsonPath("$.mediaProvider").value("livekit"));
-
-        mockMvc.perform(post("/api/calls/{id}/join", callId)
-                        .with(workspaceJwt())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"role\":\"participant\"}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.callId").value(callId))
-                .andExpect(jsonPath("$.roomRef").exists())
-                .andExpect(jsonPath("$.mediaProvider").value("livekit"))
-                .andExpect(jsonPath("$.joinUrl").value("https://calls.example.invalid"))
-                .andExpect(jsonPath("$.accessToken").exists())
-                .andExpect(jsonPath("$.expiresAt").exists())
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
-                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("test-api-secret"))))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
-                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("apiSecret"))));
-
-        mockMvc.perform(post("/api/calls/{id}/leave", callId)
-                        .with(workspaceJwt()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.callId").value(callId))
-                .andExpect(jsonPath("$.left").value(true))
-                .andExpect(jsonPath("$.auditRef").exists());
+                        .content("{}"))
+                .andExpect(status().isNotFound());
     }
 
 

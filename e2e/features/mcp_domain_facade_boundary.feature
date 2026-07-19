@@ -24,12 +24,12 @@ Feature: MCP domain facade boundary
     And its future dispatch remains governed by Weave and Matrix semantics
     And it does not call Slack or Teams raw APIs directly
 
-  @mcp-calls-facade
-  Scenario: MCP Calls tools use Weave call grants
+  @mcp-calls-matrixrtc
+  Scenario: MCP Calls tools preserve MatrixRTC authorization boundaries
     Given MCP Calls tools are enabled
-    When a Calls tool creates or joins a call
-    Then it uses Weave Calls control semantics
-    And it never exposes LiveKit admin APIs
+    When a Calls tool prepares or joins a meeting
+    Then it uses canonical meeting intent and MatrixRTC Profile 0 semantics
+    And it never issues a proprietary join grant or exposes RTC provider credentials
 
   @mcp-no-provider-leakage
   Scenario: MCP outputs contain no provider internals

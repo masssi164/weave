@@ -125,7 +125,7 @@ class CanonicalDomainRegistryContractTest {
         assertThat(objects(registry, "calendar")).contains("WeaveCalendar", "WeaveEvent", "WeaveRecurrence", "WeaveAttendee", "WeaveResource", "WeaveAvailability", "ProviderRef");
         assertThat(objects(registry, "weaver")).contains("WeaverRuntimeProfile", "WeaverRuntimeInstance", "WeaverUserWorkspace", "WeaverToolGrant", "WeaverApprovalReceipt", "WeaverAuditEvent", "WeaverCustomizationProfile");
         assertThat(objects(registry, "boards")).contains("Board", "List", "Task", "Status", "Assignee", "Comment", "AttachmentRef", "Dependency", "CustomField");
-        assertThat(objects(registry, "calls")).contains("Meeting", "MediaSession", "Participant", "TokenGrant", "Recording", "Caption", "ConsentRecord");
+        assertThat(objects(registry, "calls")).contains("Meeting", "MediaSession", "Participant", "RtcAuthorization", "Recording", "Transcript", "Caption", "ConsentRecord", "MeetingThreadRef");
     }
 
     @Test

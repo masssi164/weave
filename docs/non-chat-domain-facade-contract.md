@@ -19,7 +19,7 @@ Each canonical non-chat domain facade must:
 The shared facade is a contract, not a generic data model. Files, Calendar, and Boards keep their own nouns, invariants, and tests:
 
 - Files: drives, folders, files, versions, checksums, share/link policy, document sessions, and attachment refs.
-- Calendar: calendars, events, recurrence, attendees, resources, reminders, meeting join grants, artifacts, and consent/retention refs.
+- Calendar: calendars, events, recurrence, attendees, resources, reminders, canonical MatrixRTC meeting references, artifacts, and consent/retention refs.
 - Boards: boards, lists, tasks, statuses, assignees, dependencies, labels, estimates, workflow rules, and decision/file/chat refs.
 
 ## Child implementation order

@@ -98,8 +98,10 @@ Credential and grant lifecycle is part of the Weave contract:
   evidence.
 - Chat access is session-bound and must not hand raw Matrix, Slack, or Teams
   credentials to member clients or MCP.
-- Meetings/Calls use short-lived join grants and native call handoff state;
-  media-provider credentials stay behind server/provider adapters.
+- Meetings/Calls use Matrix v1.19 plus the pinned MatrixRTC Profile 0 for
+  signaling. An internal RTC Authorizer validates room, slot/member, device,
+  policy, nonce, audience, and expiry before issuing transport access; provider
+  credentials stay behind that boundary.
 
 The first implementation slice records this discovery in the organization
 manifest as support-safe metadata only. It does not claim that native iOS or
@@ -266,22 +268,23 @@ and user-authorized decrypted indexes.
 
 Final shape:
 
-- Product truth: Weave Meetings/Calls facade for meeting metadata, invites,
-  participants, policy, join grants, recordings/captions/artifact references,
-  and audit.
-- JSON/API projection: `/api/calls/**` and generated OpenAPI models.
-- Standard/native boundary: calendar invites, meeting links, iOS CallKit /
-  PushKit boundaries, Android Telecom / ConnectionService boundaries, and
-  provider-neutral join grants.
-- Provider adapters: LiveKit first where configured; Teams/Meet/other meeting
-  providers later through adapters.
+- Product truth: Weave policy, entitlement, consent, artifact lifecycle,
+  provider readiness, and support-safe audit around Matrix-native Calls.
+- Member protocol projection: Matrix Client-Server v1.19 plus the exact
+  revision-pinned `weave.matrixrtc/profile-0`; there is no member Calls API.
+- Standard/native boundary: Matrix Native OAuth through MAS with Keycloak
+  upstream, MatrixRTC state and key events, and thin CallKit/Core-Telecom
+  projections over protocol and media state.
+- Provider adapters: LiveKit is the first MatrixRTC transport/SFU where
+  configured; transport choice never becomes member signaling truth.
 - MCP: semantic tools such as `meetings.find`, `meetings.prepare_agenda`,
-  `meetings.create_join_grant`, and `meetings.link_chat_thread`, backed by
-  policy and audit.
+  and `meetings.link_chat_thread`, backed by policy and audit. Transport-grant
+  issuance belongs to the RTC Authorizer, not a general MCP tool.
 
 Non-goal: WebDAV and CalDAV do not solve calls. Calendar may schedule a meeting
-and Chat may host a meeting thread, but calls need explicit native call UI,
-media, signaling, permissions, join-grant, and revoke boundaries.
+and Chat may host a meeting thread, while MatrixRTC owns signaling/membership
+and LiveKit owns media transport. Private calls also require MatrixRTC media
+E2EE; DTLS-SRTP alone is not an E2EE claim against the SFU.
 
 ## MCP projection rule
 

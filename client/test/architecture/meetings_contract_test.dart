@@ -3,98 +3,65 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('meeting architecture contract maps issue 216 acceptance', () async {
-    final contract = await File(
+  test('Matrix-native Calls contract is strict and internally consistent', () async {
+    final decision = await File(
       '../docs/meeting-architecture-decision.md',
+    ).readAsString();
+    final profile = await File(
+      '../docs/architecture/matrixrtc-profile-0.yaml',
     ).readAsString();
     final spec = await File(
       '../specs/0003-contextual-meetings/spec.md',
     ).readAsString();
-    final traceability = await File(
-      '../specs/0003-contextual-meetings/traceability.yaml',
-    ).readAsString();
-    final domain = await File(
-      'lib/features/chat/domain/entities/channel_workspace.dart',
-    ).readAsString();
 
     for (final required in <String>[
-      'LiveKit as the active meetings/video-call provider key',
-      'LiveKit-style SFU',
-      'MatrixRTC / Element Call',
-      'future comparison option',
-      'Generic hosted meeting links',
-      'Matrix signaling',
-      'Media streams',
-      'Captions',
-      'Transcripts',
-      'Recordings',
-      'Metadata',
-      'channel context',
-      'calendar event context',
-      'thread context',
-      'device selection',
-      'join preview',
-      'mute and camera state',
-      'participant list',
-      'errors with retry',
-      'Recording, transcription, and captions are off by default',
-      'Vague-claim guard',
+      'Matrix Client-Server v1.19',
+      '/.well-known/matrix/client',
+      '/_matrix/client/v1/auth_metadata',
+      'Authorization Code + PKCE S256',
+      'Matrix Authentication Service',
+      'Keycloak',
+      'm.rtc.slot',
+      'm.rtc.member',
+      'matrixrtc_wire',
+      'Matrix OpenID',
+      'NativeCallCoordinator',
+      'MatrixRTC media E2EE',
+      'DTLS-SRTP alone',
+      'Files/WebDAV',
+      'Experimental/Guarded',
+      'no compatibility reader',
     ]) {
-      expect(contract, contains(required));
+      expect(decision, contains(required));
     }
 
     for (final required in <String>[
-      'FR-001',
-      'FR-002',
-      'FR-003',
-      'FR-004',
-      'FR-005',
-      'FR-006',
-      'FR-007',
-      'FR-008',
-      'FR-009',
-      'FR-010',
+      'weave.matrixrtc/profile-0',
+      'specification: v1.19',
+      'compatibility_policy: strict-cutover',
+      'read_policy: strict-profile-0-only',
+      'write_policy: strict-profile-0-only',
+      'reject_unknown_or_legacy_shapes: true',
+      'identity_input: matrix-openid-credential',
+      'local_gap_module: matrixrtc_wire',
+      'dtls_srtp_only_is_e2ee: false',
+      'status: experimental-guarded',
     ]) {
-      expect(spec, contains(required));
+      expect(profile, contains(required));
     }
 
-    for (final required in <String>[
-      'ChannelMeetingAttachPoint',
-      'ChannelMeetingEncryptionBoundary',
-      'ChannelMeetingUxRequirement',
-      'meeting join and start controls fail closed',
-      'encryption claims name signaling, media, captions, transcripts, recordings, and metadata boundaries',
-    ]) {
-      expect(traceability, contains(required));
+    for (var requirement = 1; requirement <= 20; requirement++) {
+      expect(spec, contains('FR-${requirement.toString().padLeft(3, '0')}'));
     }
 
-    for (final required in <String>[
-      'enum ChannelMeetingAttachPointKind',
-      'enum ChannelMeetingEncryptionBoundaryKind',
-      'enum ChannelMeetingUxRequirementKind',
-      'canLinkFromChannelOrCalendar',
-      'hasDocumentedEncryptionBoundaries',
-      'hasAccessibleJoinContract',
-      'preventsVagueSecurityClaims',
-      'recordingEnabled: false',
-      'transcriptionEnabled: false',
+    for (final forbidden in <String>[
+      'dual_read_single_write: true',
+      'compatibility_reads:',
+      'unstable_fallback_endpoint:',
+      'legacy Calls APIs and fixtures remain guarded migration evidence',
+      'LiveKit as the current active meetings provider contract',
     ]) {
-      expect(domain, contains(required));
+      expect(profile + decision + spec, isNot(contains(forbidden)));
     }
-
-    expect(contract, contains('Do not claim `secure meetings`'));
-    expect(contract, contains('without naming the boundary and evidence'));
-    expect(
-      contract,
-      isNot(contains('Preferred first implementation candidate')),
-    );
-    expect(
-      spec,
-      contains('LiveKit as the current active meetings provider contract'),
-    );
-    expect(
-      traceability,
-      contains('LiveKit remains the active meetings provider contract'),
-    );
   });
 }

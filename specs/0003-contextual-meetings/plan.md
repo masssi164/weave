@@ -1,24 +1,33 @@
-# Implementation plan: Encrypted contextual meetings contract
+# Implementation plan: Matrix-native Calls strict cutover
 
 **Spec**: `specs/0003-contextual-meetings/spec.md`
-**Branch**: `issue-216-meetings-contract`
-**Date**: 2026-05-29
 
-## Summary
+**Issue**: #968
 
-Implement a fail-closed meeting contract for issue #216. The slice preserves LiveKit as the active meetings provider contract, documents future architecture comparison options, and extends the channel workspace meeting domain so future join/start work cannot claim security without boundary evidence.
+**Status**: target accepted; implementation Guarded
 
-## Steps
+## Ordered slices
 
-1. Add the meeting architecture decision record in `docs/meeting-architecture-decision.md`.
-2. Extend `ChannelMeetingPreview` with attach points, encryption boundaries, and UX requirements.
-3. Cover the domain contract in `client/test/features/chat/channel_workspace_test.dart`.
-4. Add an architecture guard in `client/test/architecture/meetings_contract_test.dart`.
-5. Update documentation navigation and release notes.
-6. Run `specContract`, `acceptanceContract`, `clientCi`, `docs-check`, release label check, and GitHub CI.
+1. Pin the matching canonical weave-specs corpus and Profile-0 contract.
+2. Delete proprietary member Calls routes, DTOs, generated models, tests, and discovery claims.
+3. Add organization discovery, MAS Native OAuth, Keycloak upstream identity, and token-type separation.
+4. Add exact Profile-0 transport discovery and pinned MSC golden fixtures; reject old wire shapes.
+5. Add the isolated Ruma `matrixrtc_wire` gap module.
+6. Implement RTC Authorizer identity, membership, role, policy, expiry, and replay checks.
+7. Integrate LiveKit as transport without exposing provider administration or secrets.
+8. Add thin Flutter `NativeCallCoordinator` integrations for CallKit and Android Core-Telecom.
+9. Prove media E2EE, key/device recovery, TURN, reconnect, physical devices, and accessibility.
+10. Add recording/transcription only after consent, decryption, artifact, and retention gates pass.
 
-## Risks and mitigations
+There is no compatibility phase. Older application routes and MatrixRTC proposal shapes fail
+closed after cutover.
 
-- Risk: product copy overstates E2EE. Mitigation: boundary/evidence tables and architecture tests.
-- Risk: provider internals leak into member UI. Mitigation: provider-neutral domain fields and existing member-client boundary tests.
-- Risk: accessibility is deferred. Mitigation: UX requirements are release-blocking before join/start enablement.
+## Validation
+
+- `./gradlew specCorpusConformance acceptanceContract`
+- `./gradlew serverCi`
+- `cd client && flutter test test/architecture/meetings_contract_test.dart`
+- repository scans for `/api/calls`, `/api/weave/calls`, `com.weave.call.*`, and old Calls DTOs
+
+Documentation and offline guards are not live Calls evidence. Issue #968 remains open and the
+capability remains Guarded until every runtime, interop, security, device, and accessibility gate passes.

@@ -1,259 +1,250 @@
-# Weave product line and Weaver integration plan
+# Weave product line and Weaver target plan
 
-Positioning line: **Weave – Collaboration Seamlessly Woven with Agentic AI, Activated on Your Terms.** This line is valid only with the claim gates in the product trust matrix and Sprint 30 evidence pack.
+Positioning line: **Weave – Collaboration Seamlessly Woven with Agentic AI, Activated on Your Terms.**
 
-Status: active product direction, 2026-05-24.
+Status: active implementation direction, 2026-07-19. Canonical product and domain truth lives in
+the sibling `weave-specs` repository. This document is the implementation projection for the
+`weave` monorepo; it cannot override an accepted corpus contract.
 
 ## Decision lock
 
-Sprint 21 update: [Product reality foundation](product-reality-foundation.md) is the active release-claim and proof-order gate for the next sprint sequence. Claim boundary: it narrows release/customer-ready wording to named `release_ready` evidence and moves human validation after automated provider-switch, rollback, Weaver runtime, and restore proof.
+Weave is product-first, provider-neutral for collaboration providers, and explicit about its
+authorities:
 
-Weave is planned product-first, not agent-first.
+- Keycloak is the mandatory organization identity and OAuth backbone. Entra ID, Auth0,
+  Authentik, SAML, LDAP, and other enterprise sources connect through Keycloak federation or
+  brokering; they do not replace the Weave identity authority at runtime.
+- `weave/server` owns product APIs, domain authorization, policy, audit, canonical mappings,
+  readiness, and provider anti-corruption layers.
+- Flutter owns member UX. The Admin Console owns organization setup, policy, provider readiness,
+  and diagnostics.
+- Chat uses Matrix Client-Server; Files uses WebDAV; Calendar uses CalDAV/iCalendar; Calls uses
+  Matrix v1.19 plus the exact pinned MatrixRTC Profile 0; Agents use MCP; OpenAPI/REST is the
+  control plane.
+- Calls is Core. Boards/Tasks is Expansion. Both remain evidence-gated.
+- Weaver is an optional governed runtime layer after identity, product-domain policy, and
+  provider readiness. A runtime profile, model decision, or approval never authorizes a domain
+  side effect by itself.
+- WCAG 2.2 AA and the applicable EN 301 549 requirements are release baselines.
 
-Weave is a provider-neutral organization operating layer and integration suite. It lets an organization keep existing systems for identity, chat, files, calendar, boards/tasks, documents, meetings, decisions, help/manuals, release evidence, and collaboration while presenting them through coherent Weave product concepts.
+No backward-compatibility layer is retained for an explicitly retired target contract. Removal
+still requires a recovery backup, inventory, reset plan, and post-reset evidence when dogfood
+state could otherwise be lost.
 
-Weaver is a later personal-assistant layer that plugs into this already-governed organization model. It must not define the product architecture by itself.
+## Status quo and target state
 
-## Priority realignment, 2026-05-26
+| Area | Implemented repository truth | Target/readiness gate |
+| --- | --- | --- |
+| Identity | Keycloak-backed member login, organization policy, and identity administration exist | Dedicated workload clients, exact audience/scope enforcement, rotation, and two-principal evidence must stay green |
+| Files | Weave WebDAV facade and canonical Files services | Live provider, portability, native-client, and recovery evidence |
+| Calendar | Weave CalDAV/iCalendar facade and canonical calendar services | Full recurrence, shared-scope, native-client, and recovery evidence |
+| Chat | Matrix facade and client-owned Rust/Ruma encryption boundary | Live two-device, recovery, revocation, accessibility, and provider-switch evidence |
+| Calls | Proprietary Calls REST/events/models are removed; strict MatrixRTC Profile 0 is the only contract | MAS, RTC Authorizer, third-party interop, media E2EE, TURN/reconnect, physical-device, consent, accessibility, and operations remain `Guarded` |
+| Boards/Tasks | Provider-neutral contracts and adapter seams | Expansion runtime enablement requires named product and provider evidence |
+| MCP | Spring AI semantic domain tools | Keycloak token exchange is bounded; full MCP OAuth stays `Guarded` until RFC 8707 Resource Indicator consumption is proven |
+| Weaver | Thin-fork policy and fail-closed runtime projection are being established | Cell orchestration, four external authorities, signed profile verification, recovery, and integrated E2E are not yet release-ready |
 
-Current priority is not Office/ONLYOFFICE integration or another provider feature slice. Office remains a later provider category until the more fundamental organization-embedding, provider-facade, identity/provisioning, policy, and replacement contracts are in place.
-
-The next strategy sprint is [Organization embedding and provider-neutrality proof](strategy-sprint-org-embedding-plan.md). It is supported by [Organization embedding contract](organization-embedding-contract.md), [Identity provisioning strategy](identity-provisioning-strategy.md), and [Provider replacement and anti-silo contract](provider-replacement-and-anti-silo-contract.md). New feature/provider work should be sliced from those contracts rather than from a dogfood-stack-shaped assumption.
-
-The active priority order is:
-
-1. **Prove organization embedding.** Weave must support both existing organizations and newly bootstrapped organizations: verified domains, OIDC/SAML auth, SCIM/LDAP/AD provisioning paths, role/group mapping, guests, service principals, deprovisioning, break-glass, and effective policy previews before member go-live.
-2. **Complete server-side domain facading.** The client consumes Weave domains such as Chat, Files, Calendar, Boards/Tasks, Meetings, Decisions, and Health. Provider-specific mapping, credentials, readiness, migration, lossy conversion notes, and provider failures stay server/admin/operator side. For example, an admin may later replace Slack with Synapse/Matrix for the Chat domain through the Admin Console, while conversations, membership, history policy, attachments, and support-safe migration evidence are carried over by a server-owned migration path.
-3. **Prove adapter replacement and anti-silo guarantees.** Mixed self-hosted/cloud/external deployments, such as Entra ID + Teams + SharePoint + OpenProject or Keycloak + Matrix + SharePoint, are first-class. Every provider-backed category needs source-of-truth, export/delete, provenance, lossy-field, risk, and dry-run replacement behavior.
-4. **Embed manuals as product help.** The member Help surface embeds the MkDocs user manual in `weave/client`; the Admin Console embeds the admin/operator manual. Both manuals use the same CSS variables/design tokens/corporate design as the app surfaces and must remain accessible in iframe/webview form.
-5. **Automate README release evidence and repositioning.** README must automatically include generated release notes, describe what Weave is and where it is going, and stop presenting Weave as merely a collaboration platform. Public marketing copy still needs specialist review before final release positioning.
-
-Issue hygiene rule: close or supersede provider-specific implementation epics that are lower priority than the domain-facade/admin-console path, especially office-first or fixed-stack issues. Keep or rewrite issues only when they directly support domain contracts, provider swaps/migrations, admin readiness, embedded manuals, or release-note automation.
+The product remains in active dogfood and does not claim public production readiness.
 
 ## Product line
 
-### 1. Admin portal and organization setup
+### Provider-neutral suite
 
-The admin portal is the control center for organization setup and policy.
+The member product surfaces remain Weave-owned:
 
-It must let owners/admins choose and manage provider categories:
+- Home and activity;
+- personal messages, Spaces, channels, and chat;
+- Files and documents;
+- workspace, team, and channel calendars;
+- Calls and meeting context;
+- Decisions and evidence;
+- Boards/Tasks when the Expansion capability is enabled;
+- Help, profile, settings, and support-safe capability state.
 
-- Identity/IDM: Keycloak, Entra ID, Authentik, or another OIDC/SAML source.
-- Chat: Matrix, Microsoft Teams, Slack, Nextcloud Talk, or another supported channel.
-- Files: Nextcloud Files, SharePoint/OneDrive, S3-compatible storage, SMB, or another provider.
-- Calendar: Weave-managed shared calendar facade backed by the selected provider stack.
-- Boards/tasks: Weave task/board model backed by OpenProject first, with other adapters possible.
-- Meetings/calls: LiveKit or another future provider through backend token facades.
-- Documents/collaboration: provider adapters, not direct product dependency on one vendor.
-- Weaver: disabled by default until the organization enables the PA runtime and tool policy.
+Provider choice is risk-aware, not prohibition-based. Matrix/Synapse, Nextcloud, OpenProject,
+LiveKit, Teams, Slack, SharePoint, and future adapters are southbound choices. They may change
+without changing member vocabulary, public canonical identifiers, or authorization semantics.
+Migration is never advertised as lossless without reconciliation evidence.
 
-The admin portal owns:
-
-- provider selection and readiness;
-- role and group mapping;
-- policy profiles;
-- capability availability;
-- support-safe diagnostics;
-- backup/restore and operator evidence;
-- later: Weaver capability/tool allowlists.
-
-Normal members do not configure raw providers.
+Workspace/Admin Health and setup language names identity/IDM, chat, files, calendar,
+boards/tasks, meetings/calls, documents/collaboration, and Weaver as first-class categories.
+The dogfood topology maps Keycloak as the mandatory IDM backbone, Matrix as Chat, Nextcloud as
+Files and Calendar backing, OpenProject as the Boards/Tasks candidate, and LiveKit as the first
+Calls transport. Those systems do not become northbound product contracts.
 
 ### Weave Client and Organization/Admin Console split
 
-The Weave Client owns member work surfaces: authenticated home, channels, chat, files, calendar, boards/tasks, meetings, decisions, profile, and personal settings. Its setup boundary is intentionally narrow: a member enters or opens an organization auth URL, invite link, or deep link, completes SSO, consumes the authenticated organization manifest, and renders only effective capability states. The client may show member-visible states `available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, or `coming_later`; it must not manage raw provider URLs, secrets, endpoint rotation, provider setup, support diagnostics, policy authoring, or whitelist configuration.
+The Weave Client owns member work surfaces and the primary profile-editing experience. A member
+opens an organization URL, invite, or deep link, completes sign-in, consumes a support-safe
+organization manifest, and sees only effective capability states.
 
-The Organization/Admin Console owns organization bootstrap, provider choice, policy, readiness, diagnostics, and whitelisting. It manages organization creation, users/groups/roles or IDM sync, Keycloak/Entra/Authentik/Auth0/OIDC/SAML/SCIM/LDAP-adapter setup, category provider selection, endpoint URL management and rotation, support-safe health diagnostics, capability/RBAC profiles, deny-by-default policy, provider/tool/agent allowlists, external-provider privacy/compliance/risk notes, audit logs, and org-wide defaults.
+The Organization/Admin Console owns organization bootstrap, Keycloak lifecycle administration,
+provider choice, policy, readiness, diagnostics, whitelisting, credential references,
+backup/restore status, and migration evidence. Normal members never configure provider URLs,
+client secrets, service accounts, raw diagnostics, or operator topology.
 
-The handoff contract is: org auth URL or invite/deep link -> SSO -> support-safe organization manifest -> member capability states. Provider/category/admin management must not be pressed into the member client.
+The handoff is:
 
-### 2. Provider-neutral Weave suite
+```text
+organization URL/invite -> Keycloak -> support-safe organization manifest -> member surfaces
+```
 
-Weave models collaboration categories, not vendor products.
+### Provider and domain boundaries
 
-The product surfaces remain Weave-owned:
+Every domain follows clean architecture:
 
-- Home and activity overview;
-- personal messages;
-- channels as workspaces;
-- channel tabs for chat, decisions, files, boards/tasks, calendar/events, meetings, and read-only Weaver scout;
-- Workspace/Admin Health for readiness and support;
-- accessible settings and policy-visible capability states.
+```text
+northbound protocol or product UI
+  -> application use case
+    -> canonical domain values and policy
+      -> southbound provider port
+        -> provider adapter / anti-corruption layer
+```
 
-Provider adapters sit behind Weave contracts. A Microsoft-heavy organization should be able to use Entra ID, Teams, SharePoint, and Planner/Jira-style integrations. A self-hosted organization should be able to use Keycloak, Matrix, Nextcloud, OpenProject, and LiveKit. Mixed setups must be valid. Provider swaps are admin-controlled domain migrations, not client rewrites: the server owns mapping old provider objects to canonical Weave domain objects, recording migration evidence, surfacing conflicts/lossy fields, and keeping member UX stable.
+Delivery code cannot become domain authority. Provider SDK objects, IDs, URLs, credentials,
+errors, and payloads stop at adapter boundaries. Capability profiles are deny-by-default.
 
-The contract seam is category-first: feature capabilities for identity/IDM, chat, files, office/docs collaboration, meetings/calls, boards/tasks, calendar, and Weaver runtime are separate from adapter implementations. Workspace Health and policy enforcement must evaluate category contracts and stable member impact states, while concrete providers remain admin-selected adapters.
+## Keycloak identity and workload model
 
-Provider choice is risk-aware, not prohibition-based. Weave recommends the sovereign/self-hosted default posture where it is sensible, but existing organizations may keep external providers for selected categories, such as self-hosted identity with Teams chat, SharePoint/OneDrive files, Microsoft 365 Office integration, and OpenProject tasks. Admin/provider readiness records the choice model as `recommended_self_hosted_default`, `external_existing_provider`, `managed_cloud_provider`, or `hybrid_composite`, plus support-safe privacy/compliance risk notes. Member manifest vocabulary remains stable: `available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, or `coming_later`; member copy may describe available capabilities as usable.
+Keycloak issues and validates the identities used across the product. The accepted workload
+matrix separates public member clients, resource servers, lifecycle workloads, identity
+administration, MAS, and the MCP workload.
 
-Adapter seams should prefer well-known interoperability contracts where practical: OIDC/SAML for SSO/federation, SCIM for user and group provisioning/deprovisioning, WebDAV/CMIS for file/content abstraction, CalDAV/iCalendar/VTODO for calendar and task-shaped records where applicable, and WOPI-style seams between storage and web office editors. Apache Camel, Nango, and Open Integration Hub remain research references for connector/adapter plus normalized-model patterns; do not adopt one blindly without an ADR.
+For a member-domain MCP action:
 
-This means implementation work should add category contracts and adapter seams before adding vendor-specific UX. Provider names belong in admin/operator readiness and documentation, not as the main member-facing product model.
+1. the runtime presents a short-lived member token for the exact MCP resource;
+2. `weave-mcp-server` validates issuer, subject, organization, audience, scope, expiry, and
+   RuntimeProfile binding;
+3. the confidential `weave-mcp-server` client performs Standard Token Exchange V2 for the exact
+   Weave Server audience and reduced tool scope;
+4. Weave Server requires the effective member `sub` and the allowed workload `azp`, then repeats
+   current domain authorization;
+5. ActionEvidence records the human principal and workload principal separately.
 
-### 3. Weaver as governed per-user PA runtime
+The incoming token is never relayed. A service-account/client-credentials token cannot act as a
+member. The `weaver-runtime` workload may call only Agent Runtime Control scopes. The
+`weave-identity-admin` workload may call only the required Keycloak lifecycle operations.
+`matrix-mas` receives no Weave domain, MCP, runtime-control, or identity-administration rights.
 
-Weaver is optional and later.
+Confidential clients prefer `private_key_jwt` or mTLS. A local Docker deployment may use a
+rotated SecretRef-backed client secret. Credential values never enter source, RuntimeProfile,
+logs, audit, support bundles, or MCP results.
 
-When enabled, each user receives a per-user Weaver runtime derived from OpenClaw and isolated in its own Docker container. The organization provides a baseline runtime and policy; the user may configure their personal workspace and agent defaults inside those boundaries.
+## Calls: strict MatrixRTC cutover
 
-The central rule is:
+The only member signaling shape is Matrix v1.19 plus `weave.matrixrtc/profile-0`. MAS exposes
+Matrix Native OAuth with Keycloak upstream. Matrix OAuth tokens, OIDC ID tokens, Matrix OpenID
+credentials, and RTC transport tokens are not interchangeable.
 
-> user-rights, organization-whitelisted capabilities.
+The RTC Authorizer treats Matrix OpenID as identity input only. It independently validates the
+current Matrix user, room, slot/member, device, role, organization policy, nonce, audience, and
+expiry before issuing short-lived transport access. LiveKit is the first replaceable SFU; it is
+not a Weave member API.
 
-The PA may act with the user's normal rights, but only through organization-approved capability channels. Routine operation must not depend on per-call confirmation. Step-up confirmation is reserved for exceptional high-risk actions.
-
-Admin policy controls:
-
-- which Weaver runtime profile a user/group receives;
-- which tools/capabilities are visible to that runtime;
-- which provider adapters can be used;
-- whether exec-like capabilities exist at all;
-- sandbox/workspace defaults;
-- connector/package approval, versioning, revocation, and audit.
-
-OpenClaw configuration remains an implementation target, not the product model. Weave should generate or constrain the Weaver/OpenClaw runtime from organization policy. ACP/Codex-style developer assistance may become one governed capability channel for approved users, but only inside the same opt-in, per-user, organization-whitelisted policy boundary; it must not become autonomous team-agent scope or a shortcut around disabled exec/elevated defaults.
-
-## Implementation plan
-
-### Phase 0: domain facade and documentation/release reset
-
-Goal: align the next work around Weave domains, provider migrations, embedded manuals, and release evidence before more provider-specific feature epics.
-
-- Define the `weave/server` domain facade contract for Chat first, including canonical conversation/message/membership/history/attachment identifiers, provider mapping records, support-safe migration reports, readiness, and fail-closed behavior.
-- Model provider replacement as an admin/operator action with preflight, dry-run, migration plan, reversible evidence where practical, and explicit lossy-field warnings.
-- Keep provider names out of normal member navigation; expose them only in Admin Console/provider readiness and support-safe diagnostics.
-- Add MkDocs user/admin manual embedding requirements and shared CSS-variable/design-token contract.
-- Add README release-note markers and automation contract; generated release notes must come from release metadata and be reviewable before publication.
-
-Evidence gate:
-
-- Specs make Chat provider replacement possible without changing member-facing domain vocabulary.
-- No new user-facing surface calls a raw chat/files/docs provider directly.
-- Manual embedding and README release-note automation have explicit acceptance criteria.
-- Office/provider-specific epics are marked postponed or superseded unless they support the domain-facade foundation.
-
-
-### Phase A: product foundation
-
-Goal: make the product line explicit before deeper agent work.
-
-- Add this document as the active product-line reference.
-- Update README positioning from one fixed self-hosted stack toward provider-neutral organization suite.
-- Keep v0.1 honest: existing dogfood stack stays real, but the architecture must not imply Nextcloud/Matrix/Keycloak are the only possible product shape.
-- Keep normal-member first use admin-provisioned.
-
-Evidence gate:
-
-- README and architecture docs state provider-neutral categories and admin-first setup.
-- No normal-member UX claims raw provider setup or future Weaver runtime as shipped v0.1.
-- Product acceptance includes an admin/provider-category scenario proving categories, dogfood-default mapping, member/admin boundaries, support-safe diagnostics, and Weaver-disabled-by-default ordering.
-
-### Phase B: admin/provider model
-
-Goal: implement category-based setup and readiness.
-
-- Define provider category entities in backend/domain docs: identity, chat, files, calendar, boards/tasks, meetings, docs/collaboration, Weaver.
-- Extend Workspace/Admin Health around category readiness and policy state.
-- Keep provider-specific diagnostics support-safe and admin/operator-only.
-- Map existing stack to categories: Keycloak/Auth, Matrix/Chat, Nextcloud/Files, backend calendar facade, OpenProject Boards validation, LiveKit Meetings.
-
-Evidence gate:
-
-- Admin/operator can inspect category readiness.
-- Member sees only ready capabilities or impact-level unavailable states.
-- Existing provider-specific routes remain behind Weave facades.
-
-Acceptance criteria for the initial #264 slice:
-
-- Workspace/Admin Health and setup language names identity/IDM, chat, files, calendar, boards/tasks, meetings/calls, documents/collaboration, and Weaver as first-class categories.
-- Dogfood defaults are mapped as current provider choices only: Keycloak/Auth, Matrix/Chat, Nextcloud/Files and Calendar backing, OpenProject Boards validation, and LiveKit Meetings readiness.
-- Normal members do not configure raw providers, OIDC clients, service endpoints, secrets, backup/restore, or diagnostics.
-- Admin/operator diagnostics are support-safe and redact/avoid secrets, credential-bearing URLs, bearer tokens, raw downstream bodies, and unnecessary provider internals.
-- Weaver remains disabled by default and later than admin portal, IDM/RBAC, readiness, and whitelisting.
-- `make acceptance-contract` maps the product-level scenario to executable marker evidence before any runtime implementation work expands scope.
-
-### Phase C: RBAC and whitelisting
-
-Goal: make open-source policy realistic before Weaver.
-
-- Use OIDC/IDM as source of identity, groups, and roles.
-- Keep Keycloak as the self-hosted default but support Entra ID/Auth0/Authentik-style OIDC through adapter contracts.
-- Start with simple backend-owned RBAC/policy profiles; evaluate Casbin as the first embedded open-source policy engine if policy complexity grows.
-- Model capabilities as category-level permissions first, not low-level tool IDs.
-
-Examples:
-
-- `chat.read`, `chat.send`
-- `files.read`, `files.upload`
-- `calendar.read`, `calendar.manage_events`
-- `boards.read`, `boards.update_task`
-- `weaver.enabled`, `weaver.files_read`, `weaver.exec_disabled`
-
-Evidence gate:
-
-- Capabilities are deny-by-default.
-- Role/group changes affect Weave product surfaces before any agent runtime exists.
-- Policy state is visible to admins and support-safe for members.
-
-### Phase D: Weaver integration
-
-Goal: plug the PA into an already-governed product.
-
-- Add Weaver as a provider/category in the admin portal, initially disabled.
-- Create per-user Dockerized Weaver runtime profiles.
-- Generate baseline OpenClaw/Weaver config from Weave policy:
-  - per-user workspace;
-  - isolated agent directory;
-  - plugin allowlist matching selected chat/provider categories;
-  - tool/capability allowlist from admin policy;
-  - sandbox defaults;
-  - exec disabled or heavily restricted by default.
-- Generate that runtime config only from a signed Weave `WeaverRuntimeProfile`; `openclaw.json`, channel/plugin setup, MCP servers, model defaults/fallbacks, and tool filters are implementation output, not member UX or a second policy source.
-- Treat Chat provider changes as Weave Chat domain migrations. Admin Console selects Matrix, Teams, iMessage, Slack, Telegram, or another supported Chat provider; Weave runs readiness/migration checks, binds credentials through the Credential Broker, updates backend Chat-domain routing/providerRefs, regenerates RuntimeProfile vNext while preserving the stock `channels.matrix` connection to the Weave northbound Matrix facade, and reloads/restarts that runtime if needed.
-- Keep raw OpenClaw dashboard/config/wizard surfaces locked down or RBAC-stripped for members. Member `Mein Weaver` settings may cover style, memory/workspace, admin-approved model aliases, allowed skills, and allowed personal MCP connection flows only.
-- Keep MCP servers, skills, `bundle-mcp`, gateway, cron, exec, write, and patch-style tools default-deny unless admin policy explicitly grants a constrained capability. `tools.deny` is the hard global deny layer.
-- Use CredentialRefs and short-lived runtime tokens only; provider secrets, OAuth refresh tokens, channel tokens, and MCP OAuth credentials live behind the Weave Credential Broker.
-- Add audit for Weaver capability usage.
-- Only fork OpenClaw where existing configuration/plugin hooks cannot enforce the required boundary.
-
-Evidence gate:
-
-- Weaver cannot see or call capabilities not enabled by admin policy.
-- User workspace customization cannot escape org baseline.
-- Exec/elevated surfaces are disabled by default and require explicit admin policy.
-- Audit records include `runtimeProfileHash`, user, tool, domain, providerRef, credentialRef where applicable, and decision for model/channel/tool/MCP calls.
-
-## Cross-session tracking rule
-
-Future Weave planning should preserve this order:
-
-1. Product suite and provider categories.
-2. Admin portal, IDM/RBAC, readiness, and whitelisting.
-3. Weaver PA runtime as optional governed layer.
-
-Do not regress to agent-first planning. Do not assume one required provider stack. Do not expose raw provider setup to normal members.
+The removed `/api/calls`, `/api/weave/calls`, `com.weave.call.*`, proprietary join models, old
+MSC shapes, unstable aliases, and compatibility readers do not remain as fallbacks. Private
+Calls require MatrixRTC media E2EE; DTLS-SRTP alone is not claimed as E2EE. Recording and
+transcription stay off without explicit consent, retention, and a declared decrypting boundary.
 
 ## IDM/RBAC capability profiles and whitelisting
 
-The admin portal foundation owns IDM/RBAC capability profiles and whitelisting before any Weaver runtime ships. Keycloak/Auth remains the self-hosted default identity choice, but the product contract is provider-neutral: selected IDM adapters may be Keycloak, Entra ID, Authentik, Auth0, or other OIDC/SAML-compatible providers that can supply roles and groups without leaking raw setup to members.
+Capability profiles are deny-by-default. Keycloak roles/groups and current Weave policy map to
+category-level capabilities before provider access or runtime wake-up. Member states remain
+support-safe: `available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`,
+`coming_later`, or `unsupported` where the owning contract permits it.
 
-Capability profiles are deny-by-default. Roles and groups map to category-level capabilities such as chat.read, chat.send, files.read, files.upload, calendar.read, boards.update_task, and Weaver placeholder keys. Admins/operators may inspect support-safe effective policy state and profile keys; normal members only see provider-neutral product impact states such as available, disabled by policy, not configured, degraded, unavailable, or coming later.
-
-Weaver remains disabled by default until a later governed runtime policy exists. Issue #265 may expose Weaver placeholder capabilities only to prove whitelisting and fail-closed behavior; it must not start a per-user PA runtime or grant broad tool access.
+Weaver remains disabled by default until the organization enables its runtime policy for an
+entitled user or group. Entitlement creates no product-domain permission; it only allows Agent
+Runtime Control to evaluate whether a runtime may exist.
 
 ## Governed Weaver runtime integration
 
-Issue #266 adds the first governed Weaver runtime integration contract without making agents the product model. The Weaver category still follows the product order: provider-neutral Weave suite first, admin/provider/IDM/RBAC/readiness/whitelisting second, optional Weaver PA runtime third.
+Weaver is a thin, policy-constrained fork of a signed OpenClaw release. OpenClaw owns the model
+tool-call loop, Matrix channel, approval interaction, sessions, and runtime behavior. Weave owns
+entitlement, RuntimeProfile issuance, cell lifecycle, credential references, domain tools,
+authorization, and ActionEvidence. Generated Weaver/OpenClaw config is implementation output
+from Weave policy, never a second source of authority.
 
-Weave now generates a support-safe per-user Dockerized Weaver/OpenClaw-derived runtime profile only from organization capability policy. Generated Weaver/OpenClaw config is implementation output from Weave policy, not a second agent policy model. The generated profile includes the baseline image/profile, isolated per-user workspace path, isolated agent directory, Docker network posture, plugin/tool allowlists, and capability allowlist.
+Cells are disposable and keep zero durable local bytes. Runtime adapters are portable:
 
-The default posture remains fail-closed:
+- Docker is the local/dev adapter;
+- Kubernetes with a sandboxed RuntimeClass such as gVisor is the production target;
+- the cell filesystem is ephemeral and can be destroyed after every stop.
 
-- the Weaver provider category is disabled by default;
-- the runtime generator is disabled by default;
-- user policy must explicitly grant `weaver.enabled` through an admin-selected group/profile;
-- runtime-visible capabilities are intersected with admin-whitelisted capability keys such as `weaver.files_read`;
-- exec and elevated surfaces stay disabled unless a future constrained admin profile explicitly enables them;
-- runtime profile generation is audited before provisioning.
+Exactly four external authorities remain separate:
 
-OpenClaw remains a constrained runtime target. Forking OpenClaw is only justified if configuration, plugin, or runtime hooks cannot enforce the generated policy boundary.
+| Authority | Owns | Must not own |
+| --- | --- | --- |
+| WebDAV workspace | User-editable workspace files and revisions | Runtime sessions, secrets, lifecycle leases |
+| Agent Runtime Control Store | entitlement, desired/observed state, leases/fencing, profiles, wake dedupe, audit correlations | OpenClaw session content or provider secrets |
+| Encrypted RuntimeStateStore | runtime checkpoints/session state with a 30-day default retention | policy authority or plaintext secrets |
+| Secret Manager/KMS | credential material and encryption keys | member workspace content or runtime policy |
+
+A signed RuntimeProfile is verified before projection. Missing verifier, bad signature, wrong
+issuer/audience, expiry, replay, cross-user reference, unsafe path, unknown key, or policy drift
+fails closed. Projected OpenClaw configuration is ephemeral and is removed with the cell.
+
+OpenClaw approvals remain user-interaction state. They do not replace fresh Keycloak identity,
+the authenticated MCP workload, organization policy, object scope, tool/argument validation,
+expiry, revocation, or provider-side checks at execution time.
+
+## DevOps delivery plan
+
+### P0 — contract and identity spine
+
+- merge and pin the canonical workload, ActionEvidence, RuntimeProfile, capability-state, Calls,
+  accessibility, and strict-retirement contracts;
+- provision the dedicated Keycloak clients, audiences, scopes, exchange permissions, SecretRefs,
+  rotation, and negative tests;
+- remove static boundary tokens and bearer relay;
+- publish protected-resource metadata while keeping RFC 8707 readiness guarded.
+
+### P0 — Calls foundation
+
+- deploy/configure MAS with Keycloak upstream;
+- implement the exact MatrixRTC Profile 0 wire module in the shared Rust/Ruma boundary;
+- deploy the RTC Authorizer, LiveKit transport, TURN, replay/rate/abuse protections, and redacted
+  diagnostics;
+- prove media E2EE, reconnect, consent, accessibility, physical-device behavior, and recovery.
+
+### P0 — Weaver lifecycle
+
+- keep the fork on a verified signed OpenClaw tag and enforce a small fork budget;
+- implement RuntimeProfile signing/key discovery and the fail-closed projector;
+- implement Control Store leases/fencing, wake dedupe, workspace revision materialization,
+  RuntimeStateStore checkpoint/restore, Secret Manager/KMS, and cross-node recovery;
+- package the launcher/policy into the downstream image and select sandboxed RuntimeClass in
+  production.
+
+### P1 — integrated evidence
+
+- add cross-repository contract conformance and a live Keycloak -> MCP -> Server negative and
+  positive lane;
+- add MAS/MatrixRTC/RTC-authorizer interoperability and physical-device E2E;
+- add disposable-cell restart, cross-node recovery, backup/restore, support bundle, and zero-byte
+  residue evidence;
+- repair private-repository provenance attestation without weakening other release gates.
+
+## Issue and PR hygiene
+
+Continue only work aligned to this target. Fold duplicate Python/OpenAPI MCP experiments into
+the Spring AI/OIDC removal issue. Close stale custom Calls, static-token, duplicated approval,
+custom channel, persistent-cell, and broad fork PRs after replacement evidence exists. Empty
+historical milestones should be closed; new issues should be bounded by one owner and one
+executable gate.
+
+Delivery order:
+
+1. canonical specs;
+2. Keycloak/workload and topology contracts;
+3. backend authorization and readiness;
+4. client protocol consumption and accessibility;
+5. Weaver lifecycle adapters;
+6. integrated E2E, recovery, and release evidence.
+
+## Claim boundary
+
+The portability promise is no unaccounted data loss; perfect lossless migration is not claimed.
+No green smoke test proves E2E behavior. No checked-in contract proves a live provider. No signed
+profile proves runtime isolation. No approval proves domain authorization. Each release claim
+must end in named, support-safe executable evidence.

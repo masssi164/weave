@@ -122,8 +122,8 @@ void main() {
         'PROPFIND Depth 0 and 1 list Weave-owned resources with WebDAV properties',
         'calendar-multiget returns selected calendar objects',
         'OIDC-provisioned member can connect to Matrix',
-        'Member receives short-lived scoped LiveKit join grant',
-        'MCP Calls tools use Weave call grants',
+        'RTC Authorizer issues a short-lived least-privilege transport grant',
+        'MCP Calls tools preserve MatrixRTC authorization boundaries',
         'Files native setup returns Weave WebDAV endpoint and Weave device credentials only',
       ]),
     );

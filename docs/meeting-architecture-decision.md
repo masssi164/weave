@@ -1,87 +1,90 @@
-# Meeting architecture decision record
+# Matrix-native Calls architecture decision
 
-Status: product/architecture contract for issue #216. This is the meeting contract before enabling join/start controls.
-
-Weave meetings are contextual collaboration surfaces attached to existing Weave work context. They are not generic external links and they are not enabled until encryption boundaries, consent, accessibility, and provider readiness are evidenced.
+Status: **Accepted target; Experimental/Guarded implementation.** Canonical product and domain
+truth remains the pinned Weave Specification Corpus. This projection defines the implementation
+boundary and must not be read as live-runtime or release-readiness evidence.
 
 ## Decision
 
-Adopt a provider-neutral meeting capability contract in the member client and keep join/start fail-closed until the existing backend-owned LiveKit meetings provider contract proves its concrete media architecture.
+Calls are Core collaboration. The member northbound contract is Matrix Client-Server v1.19 plus
+the exact revision-pinned `weave.matrixrtc/profile-0`. There is no member `/api/calls`, no member
+`/api/weave/calls`, and no `com.weave.call.*` event. LiveKit is the first replaceable MatrixRTC
+transport/SFU, not a Weave product API.
 
-Current direction:
+Matrix Authentication Service (MAS) is the Matrix-facing Native OAuth authorization server.
+Keycloak remains the mandatory organization identity backbone and MAS uses it as its upstream
+OIDC identity provider. A Matrix OAuth access token, an OIDC ID token, and a Matrix OpenID
+credential are distinct artifacts and cannot substitute for one another.
 
-1. Keep LiveKit as the active meetings/video-call provider key in the backend provider registry and runtime configuration.
-2. Route all LiveKit rooms, session tokens, readiness, and diagnostics through a Weave backend facade; Flutter/member UI must only see Weave meeting capability state.
-3. Treat Matrix as the chat/E2EE substrate and possible contextual signaling source, but do not promote MatrixRTC/Element Call as the active Weave meetings provider in this slice.
-4. Keep MatrixRTC/Element Call as a future comparison option only if a later migration updates the backend registry, runtime docs, acceptance tests, and provider readiness contract consistently.
-5. Do not expose provider URLs, room media tokens, SFU internals, or recording/caption storage providers in member UI.
+## Strict MatrixRTC Profile 0
 
-## Architecture options
+MatrixRTC is not a stable Matrix standard. Profile 0 freezes the live heads of MSC4143, MSC4195,
+MSC4196, MSC4075, MSC4310, MSC4140, and MSC4354 as verified on 2026-07-19. It uses the MSC4143
+slot/sticky-membership model and exact Profile-0 transport discovery for both reads and writes.
 
-| Option | Fit | E2EE and confidentiality boundary | Operational trade-off | Decision |
-| --- | --- | --- | --- | --- |
-| LiveKit-style SFU behind Weave backend facade | Current active provider contract for meetings/video calls and good fit for scalable media operations. | Media may be encrypted in transit and can support E2EE modes, but SFU metadata and feature behavior must be documented. Recording/captions/transcripts need separate encryption and consent evidence. Matrix chat encryption must not be presented as covering LiveKit media. | Requires backend token minting, SFU operations, capability health, support bundle redaction, and explicit E2EE trade-off docs. | Active provider contract; still fail-closed until backend/media/accessibility evidence is configured and validated. |
-| MatrixRTC / Element Call | Future comparison option for Matrix-native contextual calls, not the active Weave meetings provider contract. | Signaling can follow Matrix room encryption. Media confidentiality depends on MatrixRTC/Element Call mode, client support, SFU behavior, and documented key handling. | Requires registry/runtime/acceptance migration, MatrixRTC readiness, compatible clients, media backend evidence, and clear fallback states. | Future option only; do not silently replace the current LiveKit contract. |
-| Generic hosted meeting links | Low product fit. | Encryption, metadata, retention, and recording behavior are provider-defined and often opaque to Weave. | Easy link insertion but weak sovereignty and portability. | Not acceptable as the primary Weave meeting model. |
+The cutover deliberately has no compatibility reader, unstable endpoint fallback, dual-read,
+translation event, or proprietary bridge. An older proposal shape fails closed. This reduces
+short-term MatrixRTC interoperability and keeps the capability Guarded, but gives the codebase
+one wire truth. A future profile revision must be an explicit contract change.
 
-## Encryption and evidence boundaries
+## Foreign-client flow
 
-| Boundary | Product statement | Required evidence before enabling |
-| --- | --- | --- |
-| Matrix signaling | Matrix remains the chat/E2EE substrate and may provide contextual room state, but it is not the active generic meetings provider. | Matrix E2EE diagnostic, room readiness, and failure-state evidence. |
-| Media streams | Media confidentiality is documented for the active LiveKit-backed architecture before enablement; group calls must state SFU/client key handling and must not inherit Matrix chat E2EE claims. | LiveKit media transport readiness, E2EE mode evidence, and architecture trade-off record. |
-| Captions | Off by default. If enabled, caption generation, storage, retention, and encryption are visible to users. | Consent UX, storage boundary, retention policy, and accessibility evidence. |
-| Transcripts | Off by default. If enabled, transcript generation, storage, retention, and encryption are visible to users. | Consent UX, storage boundary, retention policy, export/delete behavior, and audit evidence. |
-| Recordings | Off by default and unavailable without explicit consent and visible state. | Consent UX, recording indicator, storage encryption, retention policy, export/delete behavior, and audit evidence. |
-| Metadata | Participant, timing, device, SFU routing, and diagnostic metadata is minimized and never described as end-to-end encrypted. | Support-safe metadata inventory and redaction tests. |
+1. Discover the homeserver from the organization URL through `/.well-known/matrix/client`.
+2. Read `/_matrix/client/v1/auth_metadata`.
+3. Register where required and use Authorization Code + PKCE S256 in the system browser.
+4. Authenticate through MAS and its upstream Keycloak organization session.
+5. Confirm identity with `/whoami`, inspect `/_matrix/client/versions`, and fetch the exact
+   authenticated `/_matrix/client/v1/rtc/transports` Profile-0 endpoint.
+6. Resolve or open `m.rtc.slot` and publish sticky `m.rtc.member`; use `m.rtc.notification` and
+   `m.rtc.decline` for ringing and decline.
+7. Request a separate Matrix OpenID credential and present it to the RTC Authorizer.
+8. The authorizer rechecks current room membership, slot/member binding, organization policy,
+   role, permissions, expiry, and replay state before returning a short-lived LiveKit JWT.
+9. Connect over WebRTC/LiveKit.
 
-## Context attachment contract
+OpenID establishes Matrix identity. It does not establish current room membership or authorize
+a call.
 
-Meeting surfaces can attach to:
+## Ruma and Flutter ownership
 
-- channel context: `channel:*` as the first supported member surface;
-- calendar event context: `calendar-event:*` once calendar/event facade readiness exists;
-- thread context: `thread:*` once thread identity and retention semantics are explicit.
+The shared Rust/Ruma core owns discovery, Native OAuth, sync/E2EE, Profile-0 wire state, and key
+events. Missing upstream wire types live in one `matrixrtc_wire` module with exact Matrix names,
+golden fixtures, an upstream reference, and a deletion criterion. Local types do not fork Ruma's
+`Any*Event` enums.
 
-The member client may show disabled attach points, but join/start stays disabled until backend capability, policy, and encryption evidence are all ready.
+LiveKit owns the media transport. A thin, idempotent `NativeCallCoordinator` maps protocol state
+to CallKit and Android Core-Telecom lifecycle and audio routing. It does not implement discovery,
+signaling, authorization, Matrix state, or LiveKit room administration.
 
-## UX and accessibility contract
+| OS action | Protocol/media action |
+| --- | --- |
+| Answer | join the slot, obtain a grant, start media |
+| Decline before join | send `m.rtc.decline` |
+| End after join | leave `m.rtc.member`, stop media |
+| Remote end | report the call ended to the OS |
+| Hold/mute | update local media/OS state unless a standard event exists |
 
-Before join/start can be enabled, the meeting UI must cover:
+OS UUIDs are local correlation identifiers, never Matrix protocol identifiers.
 
-- device selection for microphone, camera, and output where supported;
-- join preview with visible camera and microphone state;
-- mute and camera state that are keyboard-operable and screen-reader labelled;
-- participant list with speaking/connection state that is not color-only;
-- clear leave/end state and recovery path;
-- provider/backend unavailable errors with retry and admin/operator setup guidance;
-- captions/transcripts only when explicitly enabled and visibly consented.
+## Security, consent, and artifacts
 
-## Consent and defaults
+Private calls require an encrypted Matrix room and MatrixRTC media E2EE. DTLS-SRTP alone is
+transport encryption and is not an E2EE claim against the SFU. The SFU can still observe
+connection and traffic metadata.
 
-Recording, transcription, and captions are off by default. Enabling any of them requires explicit participant-visible consent, persistent in-meeting indicators, retention/export/delete policy, and audit evidence.
+Recording and transcription are default-off. Enabling either requires participant-visible
+consent plus a declared trusted decrypting participant/boundary or a separately named non-E2EE
+profile. Governed artifacts use Files/WebDAV retention, export, and deletion policy. Calendar
+stores a stable Matrix/slot reference, never a durable LiveKit credential.
 
-## Vague-claim guard
+## Removal and readiness
 
-Do not claim `secure meetings`, `encrypted meetings`, or `end-to-end encrypted meetings` without naming the boundary and evidence: signaling, media, captions, transcripts, recordings, and metadata. Product copy must say what is known, what is disabled, and what still needs admin/provider evidence.
+The proprietary Calls controller, in-memory call aggregate, join-grant DTOs, generated client
+models, and their acceptance scenarios are deleted in the same cutover. They are not retained as
+deprecated adapters. Existing dogfood state may be backed up for recovery evidence and reset;
+there is no supported import or rollback path to the obsolete application contract.
 
-## Implementation references
-
-- Domain contract: `client/lib/features/chat/domain/entities/channel_workspace.dart`
-- Domain test: `client/test/features/chat/channel_workspace_test.dart`
-- Architecture guard: `client/test/architecture/meetings_contract_test.dart`
-- Product scope: `docs/product-calendar-e2ee-boards-scope.md`
-- Guarded surfaces: `docs/roadmap-and-guarded-surfaces.md`
-- Runtime provider contract: `server/docs/runtime-configuration.md`
-- Provider boundary: `docs/provider-replacement-and-anti-silo-contract.md`
-
-## MVP slice
-
-The first shippable slice is a fail-closed contract:
-
-- contextual meeting preview stays attached to a channel and declares future calendar-event/thread attach points;
-- join/start controls remain disabled while backend media capability is absent;
-- encryption boundaries are explicit and evidence-labelled;
-- UX/accessibility requirements are enumerated before enablement;
-- recording/transcription are off by default;
-- tests prevent vague security claims without documented evidence.
+The truthful claim remains **“MatrixRTC Profile 0 is specified and Guarded.”** A Ready claim is
+blocked until exact wire fixtures, third-party interop, RTC authorization abuse tests, media-key
+recovery, TURN/reconnect, physical iOS and Android, consent, artifact lifecycle, and WCAG 2.2 AA
+plus EN 301 549 evidence all pass.

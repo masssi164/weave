@@ -771,15 +771,17 @@
       "key": "calls",
       "version": 1,
       "displayName": "Calls",
-      "purpose": "Meeting join/host capability, media sessions, participant state, recording/captions policy, and consent.",
+      "purpose": "MatrixRTC meeting lifecycle, media sessions, participant state, RTC authorization evidence, recording/captions policy, and consent.",
       "canonicalObjects": [
         "Meeting",
         "MediaSession",
         "Participant",
-        "TokenGrant",
+        "RtcAuthorization",
         "Recording",
+        "Transcript",
         "Caption",
-        "ConsentRecord"
+        "ConsentRecord",
+        "MeetingThreadRef"
       ],
       "capabilityKeys": [
         "meetings.join",

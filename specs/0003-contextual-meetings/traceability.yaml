@@ -1,31 +1,36 @@
 spec_id: WEAVE-SPEC-0003
-version: 0.1.0
+version: 0.2.0
 status: proposed
-github_issue: 216
+capability_state: experimental-guarded
+github_issue: 968
 release_notes_label: release-notes-feature
 depends_on:
 - WEAVE-SPEC-0001
 issue_dag:
   sequential:
-  - issue: 216
-    title: Encrypted contextual meetings
+  - issue: 968
+    title: Migrate Calls and Meetings to Matrix-native MatrixRTC Profile 0
 domain_entities:
 - ChannelMeetingPreview
 - ChannelMeetingAttachPoint
 - ChannelMeetingEncryptionBoundary
 - ChannelMeetingUxRequirement
 - ChannelMeetingControl
+protocol_entities:
+- m.rtc.slot
+- m.rtc.member
+- m.rtc.notification
+- m.rtc.decline
+- m.rtc.encryption_key
 provider_neutral_invariants:
-- meeting join and start controls fail closed until LiveKit-backed backend media capability
-  is evidenced
-- meeting surfaces attach to Weave context instead of generic provider links
-- LiveKit remains the active meetings provider contract while MatrixRTC/Element Call
-  is future comparison only unless provider contracts migrate together
-- encryption claims name signaling, media, captions, transcripts, recordings, and metadata boundaries
-- recording and transcription are off by default and require explicit participant-visible
-  consent
-- member meeting views do not expose provider URLs, tokens, SFU internals, credentials,
-  or raw diagnostics
+- Matrix v1.19 plus pinned MatrixRTC Profile 0 is the member northbound contract
+- one exact Profile-0 wire shape is used for reads and writes with no compatibility reader
+- LiveKit is a replaceable RTC transport and SFU, not a Weave Calls API
+- Matrix OpenID identity proof never substitutes for current room and call authorization
+- private-call claims require Matrix room encryption and MatrixRTC media E2EE evidence
+- recording and transcription are off by default and require visible consent and decryption truth
+- member clients never receive provider admin APIs, secrets, durable grants, or raw diagnostics
+- proprietary Calls routes events DTOs generated clients and fixtures are removed
 acceptance_features:
 - e2e/features/weave_spec_0003_acceptance.feature
 evidence_gates:
@@ -33,9 +38,9 @@ evidence_gates:
 - ./gradlew acceptanceContract
 - flutter test test/features/chat/channel_workspace_test.dart test/architecture/meetings_contract_test.dart
 open_product_core_decisions:
-- backend facade ownership for LiveKit room/session readiness and token issuance
-- policy keys for recording, transcription, captions, and participant management
-- first live meeting join/start acceptance feature
+- federated MatrixRTC membership attestation remains guarded
+- recording and transcription decrypting profiles remain default-off
+- release requires physical-device and live interoperability evidence
 acceptance_scenarios:
 - tag: '@weave-spec-0003-meeting-consent-boundary'
   evidence:

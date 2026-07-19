@@ -3465,7 +3465,7 @@
     },
     {
       "tag": "@oidc-protocol-access",
-      "suiteId": "member-live-critical-path",
+      "suiteId": "open-standards-gateway-archive-target",
       "personas": [
         "member",
         "admin"
@@ -3476,11 +3476,11 @@
         "calendar",
         "chat"
       ],
-      "testLevel": "live-e2e",
+      "testLevel": "offline-contract",
       "assertionFocus": [
-        "one OIDC bearer reaches all Weave protocol facades",
-        "platform config points Chat at the Matrix facade",
-        "provider material stays absent"
+        "each protocol validates a token bound to its exact audience",
+        "MAS issues Matrix OAuth tokens with Keycloak upstream",
+        "OIDC Matrix OpenID and RTC artifacts cannot be substituted"
       ]
     },
     {
@@ -4184,7 +4184,7 @@
       ]
     },
     {
-      "tag": "@calls-create",
+      "tag": "@calls-matrix-native-oauth",
       "suiteId": "open-standards-gateway-archive-target",
       "personas": [
         "member"
@@ -4200,7 +4200,7 @@
       ]
     },
     {
-      "tag": "@calls-join-grant",
+      "tag": "@calls-profile-exact",
       "suiteId": "open-standards-gateway-archive-target",
       "personas": [
         "member"
@@ -4216,7 +4216,7 @@
       ]
     },
     {
-      "tag": "@calls-flutter-livekit",
+      "tag": "@calls-legacy-shape-rejected",
       "suiteId": "open-standards-gateway-archive-target",
       "personas": [
         "member"
@@ -4232,7 +4232,7 @@
       ]
     },
     {
-      "tag": "@calls-media",
+      "tag": "@calls-rtc-authorizer",
       "suiteId": "open-standards-gateway-archive-target",
       "personas": [
         "member"
@@ -4248,7 +4248,7 @@
       ]
     },
     {
-      "tag": "@calls-expired-grant",
+      "tag": "@calls-short-grant",
       "suiteId": "open-standards-gateway-archive-target",
       "personas": [
         "member"
@@ -4264,7 +4264,7 @@
       ]
     },
     {
-      "tag": "@calls-revoke-participant",
+      "tag": "@calls-media-e2ee",
       "suiteId": "open-standards-gateway-archive-target",
       "personas": [
         "member"
@@ -4280,7 +4280,7 @@
       ]
     },
     {
-      "tag": "@calls-audit",
+      "tag": "@calls-native-coordinator",
       "suiteId": "open-standards-gateway-archive-target",
       "personas": [
         "member"
@@ -4296,7 +4296,7 @@
       ]
     },
     {
-      "tag": "@calls-provider-error-redaction",
+      "tag": "@calls-consent",
       "suiteId": "open-standards-gateway-archive-target",
       "personas": [
         "member"
@@ -4312,7 +4312,7 @@
       ]
     },
     {
-      "tag": "@calls-matrix-projection",
+      "tag": "@calls-no-proprietary-api",
       "suiteId": "open-standards-gateway-archive-target",
       "personas": [
         "member"
@@ -4388,7 +4388,7 @@
       ]
     },
     {
-      "tag": "@mcp-calls-facade",
+      "tag": "@mcp-calls-matrixrtc",
       "suiteId": "open-standards-gateway-archive-target",
       "personas": [
         "weaver_user"
@@ -4402,9 +4402,9 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "archive target scenario is checked in",
-        "current implementation gap remains explicit",
-        "completion claim is blocked until executable evidence replaces the gap marker"
+        "Calls tools preserve canonical meeting intent and the MatrixRTC Profile 0 boundary",
+        "the RTC Authorizer remains the only transport-token issuer",
+        "no proprietary join grant or provider credential is exposed"
       ]
     },
     {
@@ -4580,7 +4580,7 @@
       ]
     },
     {
-      "tag": "@flutter-calls-livekit",
+      "tag": "@flutter-calls-matrixrtc",
       "suiteId": "open-standards-gateway-archive-target",
       "personas": [
         "member"
@@ -4593,9 +4593,9 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "archive target scenario is checked in",
-        "current implementation gap remains explicit",
-        "completion claim is blocked until executable evidence replaces the gap marker"
+        "Flutter signaling uses the exact pinned MatrixRTC Profile 0",
+        "native call coordination remains a thin OS projection",
+        "transport credentials stay behind the RTC Authorizer"
       ]
     },
     {

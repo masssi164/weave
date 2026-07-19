@@ -64,7 +64,7 @@ public final class ProviderCapabilityContracts {
                     List.of("meetings.join", "meetings.host", "meetings.recording_policy"),
                     List.of("livekit"),
                     List.of("jitsi", "zoom", "microsoft-teams-meetings", "google-meet", "external-meeting-link"),
-                    List.of("Meeting", "MediaSession", "Participant", "TokenGrant", "Recording", "Caption", "ConsentRecord"),
+                    List.of("Meeting", "MediaSession", "Participant", "RtcAuthorization", "Recording", "Transcript", "Caption", "ConsentRecord", "MeetingThreadRef"),
                     "meeting provider owns media session; Weave owns token facade, calendar/context binding, and consent/readiness state",
                     List.of("recording retention", "captions", "external join links", "lobby/guest semantics", "provider consent"),
                     "export recording/caption metadata where available; media deletion follows provider retention policy",

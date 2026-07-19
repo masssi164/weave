@@ -574,9 +574,10 @@
         {
           "path": "docs/product-line-and-weaver-plan.md",
           "fragments": [
-            "Workspace/Admin Health and setup language names identity/IDM, chat, files, calendar, boards/tasks, meetings/calls, documents/collaboration, and Weaver as first-class categories.",
-            "Dogfood defaults are mapped as current provider choices only: Keycloak/Auth, Matrix/Chat, Nextcloud/Files and Calendar backing, OpenProject Boards validation, and LiveKit Meetings readiness.",
-            "Weaver remains disabled by default and later than admin portal, IDM/RBAC, readiness, and whitelisting."
+            "Provider-neutral suite",
+            "Keycloak as the mandatory IDM backbone",
+            "OpenProject as the Boards/Tasks candidate",
+            "Weaver remains disabled by default"
           ]
         },
         {
@@ -646,7 +647,7 @@
           "fragments": [
             "Weave Client and Organization/Admin Console split",
             "The Weave Client owns member work surfaces",
-            "The Organization/Admin Console owns organization bootstrap, provider choice, policy, readiness, diagnostics, and whitelisting"
+            "The Organization/Admin Console owns organization bootstrap"
           ]
         },
         {
@@ -916,7 +917,7 @@
           "fragments": [
             "IDM/RBAC capability profiles and whitelisting",
             "Capability profiles are deny-by-default",
-            "Weaver remains disabled by default until a later governed runtime policy"
+            "Weaver remains disabled by default until the organization enables its runtime policy"
           ]
         },
         {
@@ -951,8 +952,8 @@
           "path": "docs/product-line-and-weaver-plan.md",
           "fragments": [
             "Governed Weaver runtime integration",
-            "per-user Dockerized Weaver/OpenClaw-derived runtime profile",
-            "Generated Weaver/OpenClaw config is implementation output from Weave policy"
+            "Cells are disposable and keep zero durable local bytes",
+            "Generated Weaver/OpenClaw config is implementation output"
           ]
         },
         {
@@ -4284,7 +4285,7 @@
             "WebDAV for Files",
             "CalDAV/iCalendar for Calendar",
             "Matrix Client-Server API for Chat",
-            "WebRTC plus Weave join grants for Calls",
+            "MatrixRTC Profile 0 with WebRTC behind an RTC Authorizer for Calls",
             "MCP for Agents"
           ]
         },
@@ -4664,22 +4665,21 @@
     },
     {
       "tag": "@oidc-protocol-access",
-      "scenario": "First-party OIDC bearer token accesses all protocol surfaces",
+      "scenario": "First-party identity reaches protocol surfaces through their bound OAuth tokens",
       "feature": "e2e/features/oidc_protocol_access.feature",
-      "executableTest": "client/test/live_stack_contract_test.dart",
+      "executableTest": "tools/matrixrtc_profile_0_acceptance_check.py",
       "evidenceMarkers": [
-        "OIDC_PROTOCOL_ACCESS_RESULT"
+        "MATRIX_NATIVE_OAUTH_CONTRACT"
       ],
-      "evidenceMode": "live-runtime",
+      "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "client/test/live_stack_contract_test.dart",
+          "path": "docs/meeting-architecture-decision.md",
           "fragments": [
-            "OIDC bearer reaches every Weave-owned collaboration protocol facade",
-            "/dav/files",
-            "/caldav",
-            "/_matrix/client",
-            "platformAligned=true"
+            "Matrix Authentication Service",
+            "Keycloak",
+            "Authorization Code + PKCE S256",
+            "distinct artifacts and cannot substitute"
           ]
         },
         {
@@ -5567,181 +5567,181 @@
       ]
     },
     {
-      "tag": "@calls-create",
-      "scenario": "Member creates a Weave call",
-      "feature": "e2e/features/calls_webrtc_join_grants.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "tag": "@calls-matrix-native-oauth",
+      "scenario": "Foreign client discovers Matrix Native OAuth",
+      "feature": "e2e/features/calls_matrixrtc_profile_0.feature",
+      "executableTest": "tools/matrixrtc_profile_0_acceptance_check.py",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "MATRIX_NATIVE_OAUTH_CONTRACT"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "docs/architecture/matrixrtc-profile-0.yaml",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring AI MCP is implemented"
+            "visible_authorization_server: matrix-authentication-service",
+            "upstream_identity_backbone: keycloak",
+            "authorize_with_code_and_pkce_s256_in_system_browser"
           ]
         }
       ]
     },
     {
-      "tag": "@calls-join-grant",
-      "scenario": "Member receives short-lived scoped LiveKit join grant",
-      "feature": "e2e/features/calls_webrtc_join_grants.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "tag": "@calls-profile-exact",
+      "scenario": "Client accepts the exact Profile 0 wire shape",
+      "feature": "e2e/features/calls_matrixrtc_profile_0.feature",
+      "executableTest": "tools/matrixrtc_profile_0_acceptance_check.py",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "MATRIXRTC_PROFILE_0_STRICT_CUTOVER"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "docs/architecture/matrixrtc-profile-0.yaml",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring AI MCP is implemented"
+            "read_policy: strict-profile-0-only",
+            "write_policy: strict-profile-0-only",
+            "authoritative_shape: msc4143-slot-sticky-membership"
           ]
         }
       ]
     },
     {
-      "tag": "@calls-flutter-livekit",
-      "scenario": "Flutter joins LiveKit room using Weave join grant",
-      "feature": "e2e/features/calls_webrtc_join_grants.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "tag": "@calls-legacy-shape-rejected",
+      "scenario": "Legacy MatrixRTC shape fails closed",
+      "feature": "e2e/features/calls_matrixrtc_profile_0.feature",
+      "executableTest": "tools/matrixrtc_profile_0_acceptance_check.py",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "MATRIXRTC_PROFILE_0_STRICT_CUTOVER"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "server/src/test/java/com/massimotter/weave/backend/architecture/MatrixRtcStrictCutoverArchitectureTest.java",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring AI MCP is implemented"
+            "profileZeroHasOneWireShapeAndNoCompatibilityReader",
+            "reject_unknown_or_legacy_shapes: true",
+            "dual_read_single_write: true"
           ]
         }
       ]
     },
     {
-      "tag": "@calls-media",
-      "scenario": "Participant can publish and subscribe to media",
-      "feature": "e2e/features/calls_webrtc_join_grants.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "tag": "@calls-rtc-authorizer",
+      "scenario": "RTC Authorizer separates identity from room authorization",
+      "feature": "e2e/features/calls_matrixrtc_profile_0.feature",
+      "executableTest": "tools/matrixrtc_profile_0_acceptance_check.py",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "MATRIXRTC_RTC_AUTHORIZER_CONTRACT"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "docs/architecture/matrixrtc-profile-0.yaml",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring AI MCP is implemented"
+            "identity_input: matrix-openid-credential",
+            "current-room-membership-and-weave-policy-required",
+            "treating-openid-identity-proof-as-room-authorization"
           ]
         }
       ]
     },
     {
-      "tag": "@calls-expired-grant",
-      "scenario": "Expired join grant cannot be reused",
-      "feature": "e2e/features/calls_webrtc_join_grants.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "tag": "@calls-short-grant",
+      "scenario": "RTC Authorizer issues a short-lived least-privilege transport grant",
+      "feature": "e2e/features/calls_matrixrtc_profile_0.feature",
+      "executableTest": "tools/matrixrtc_profile_0_acceptance_check.py",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "MATRIXRTC_RTC_AUTHORIZER_CONTRACT"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "docs/architecture/matrixrtc-profile-0.yaml",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring AI MCP is implemented"
+            "output: short-lived-livekit-jwt",
+            "permissions",
+            "nonce"
           ]
         }
       ]
     },
     {
-      "tag": "@calls-revoke-participant",
-      "scenario": "Revoked participant is removed and cannot rejoin with old grant",
-      "feature": "e2e/features/calls_webrtc_join_grants.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "tag": "@calls-media-e2ee",
+      "scenario": "Private media requires MatrixRTC media E2EE",
+      "feature": "e2e/features/calls_matrixrtc_profile_0.feature",
+      "executableTest": "tools/matrixrtc_profile_0_acceptance_check.py",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "MATRIXRTC_MEDIA_E2EE_GUARD"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "docs/meeting-architecture-decision.md",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring AI MCP is implemented"
+            "MatrixRTC media E2EE",
+            "DTLS-SRTP alone",
+            "SFU can still observe"
           ]
         }
       ]
     },
     {
-      "tag": "@calls-audit",
-      "scenario": "Call leave and end record support-safe audit",
-      "feature": "e2e/features/calls_webrtc_join_grants.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "tag": "@calls-native-coordinator",
+      "scenario": "Native call coordinator remains a thin OS projection",
+      "feature": "e2e/features/calls_matrixrtc_profile_0.feature",
+      "executableTest": "tools/matrixrtc_profile_0_acceptance_check.py",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "MATRIXRTC_NATIVE_OS_BOUNDARY"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "docs/meeting-architecture-decision.md",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring AI MCP is implemented"
+            "NativeCallCoordinator",
+            "CallKit and Android Core-Telecom",
+            "does not implement discovery"
           ]
         }
       ]
     },
     {
-      "tag": "@calls-provider-error-redaction",
-      "scenario": "LiveKit provider errors are support-safe",
-      "feature": "e2e/features/calls_webrtc_join_grants.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "tag": "@calls-consent",
+      "scenario": "Recording and transcription remain consent-gated",
+      "feature": "e2e/features/calls_matrixrtc_profile_0.feature",
+      "executableTest": "tools/matrixrtc_profile_0_acceptance_check.py",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "MATRIXRTC_CONSENT_BOUNDARY"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "specs/0003-contextual-meetings/spec.md",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring AI MCP is implemented"
+            "Recording/transcription defaults and consent requirements",
+            "participant-visible consent",
+            "retention, export"
           ]
         }
       ]
     },
     {
-      "tag": "@calls-matrix-projection",
-      "scenario": "Optional Matrix call event projection is support-safe when enabled",
-      "feature": "e2e/features/calls_webrtc_join_grants.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "tag": "@calls-no-proprietary-api",
+      "scenario": "Member Calls contract has no proprietary route or event",
+      "feature": "e2e/features/calls_matrixrtc_profile_0.feature",
+      "executableTest": "tools/matrixrtc_profile_0_acceptance_check.py",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "MATRIXRTC_PROFILE_0_STRICT_CUTOVER"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "server/src/test/java/com/massimotter/weave/backend/architecture/MatrixRtcStrictCutoverArchitectureTest.java",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring AI MCP is implemented"
+            "proprietaryMemberCallsSurfaceCannotReturn",
+            "class CallsController",
+            "CallCreateRequest"
           ]
         }
       ]
@@ -5807,21 +5807,21 @@
       ]
     },
     {
-      "tag": "@mcp-calls-facade",
-      "scenario": "MCP Calls tools use Weave call grants",
+      "tag": "@mcp-calls-matrixrtc",
+      "scenario": "MCP Calls tools preserve MatrixRTC authorization boundaries",
       "feature": "e2e/features/mcp_domain_facade_boundary.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "executableTest": "tools/matrixrtc_profile_0_acceptance_check.py",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "MATRIXRTC_RTC_AUTHORIZER_CONTRACT"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "docs/meeting-architecture-decision.md",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring AI MCP is implemented"
+            "RTC Authorizer",
+            "rechecks current room membership",
+            "short-lived LiveKit JWT"
           ]
         }
       ]
@@ -6091,21 +6091,21 @@
       ]
     },
     {
-      "tag": "@flutter-calls-livekit",
-      "scenario": "Flutter Calls uses Weave Calls API and LiveKit media",
+      "tag": "@flutter-calls-matrixrtc",
+      "scenario": "Flutter Calls uses MatrixRTC Profile 0 and a replaceable RTC transport",
       "feature": "e2e/features/flutter_protocol_boundary.feature",
-      "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
+      "executableTest": "tools/matrixrtc_profile_0_acceptance_check.py",
       "evidenceMarkers": [
-        "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED"
+        "MATRIXRTC_NATIVE_OS_BOUNDARY"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "docs/open-standards-gateway-archive-integration.md",
+          "path": "docs/meeting-architecture-decision.md",
           "fragments": [
-            "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
-            "not complete",
-            "Spring AI MCP is implemented"
+            "NativeCallCoordinator",
+            "does not implement discovery",
+            "OS UUIDs are local correlation identifiers"
           ]
         }
       ]
