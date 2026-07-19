@@ -244,6 +244,23 @@ jobs:
             echo "TF_VAR_caddy_tls_ca_file=$cert_root/weave-local-ca.pem"
           } >> "$GITHUB_ENV"
 
+      - name: Run requested persistent member operation before baseline
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.dogfood_member_operation != 'status' && env.WEAVE_DOGFOOD_MEMBER_USERNAME != '' }}
+        working-directory: infra/weave-workspace
+        env:
+          DOGFOOD_MEMBER_OPERATION: ${{ inputs.dogfood_member_operation }}
+        run: |
+          set -euo pipefail
+          if curl --silent --fail --max-time 5 \
+              --cacert "$TF_VAR_caddy_tls_ca_file" \
+              "https://auth.weave.test:${TF_VAR_proxy_host_port}/realms/weave/.well-known/openid-configuration" >/dev/null 2>&1; then
+            WEAVE_DOGFOOD_MEMBER_SUBJECT_FILE="$HOME/.weave/dogfood/persistent-member.subject" \
+              ./dogfood-member.sh "$DOGFOOD_MEMBER_OPERATION" \
+              --evidence-file "$WEAVE_TEST_STACK_EVIDENCE_DIR/dogfood-member-operation.json"
+          else
+            echo "Persistent runtime is stopped; the requested member operation is deferred until after the first exact-candidate install."
+          fi
+
       - name: Capture persistent dogfood state before candidate deployment
         working-directory: infra/weave-workspace
         run: |
