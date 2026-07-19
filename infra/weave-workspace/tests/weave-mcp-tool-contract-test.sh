@@ -84,7 +84,8 @@ assert_contains "${DOC}" "MCP exposes governed actions for approved runtimes; it
 assert_contains "${DOC}" 'The earlier `infra/weave-mcp` Python/FastMCP gateway and handwritten Java JSON-RPC controller are removed'
 assert_contains "${DOC}" "SecretRef/CredentialRef handling"
 assert_contains "${DOC}" "spring.ai.mcp.server.protocol=STREAMABLE"
-assert_contains "${PRODUCT_PLAN}" "Weave is planned product-first, not agent-first."
-assert_contains "${PRODUCT_PLAN}" "OpenClaw configuration remains an implementation target, not the product model."
+assert_contains "${PRODUCT_PLAN}" "Weave is product-first, provider-neutral for collaboration providers"
+assert_contains "${PRODUCT_PLAN}" "Generated Weaver/OpenClaw config is implementation output"
+assert_contains "${PRODUCT_PLAN}" "from Weave policy, never a second source of authority."
 
 printf '%s\n' 'weave MCP tool contract tests passed'
