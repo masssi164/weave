@@ -72,4 +72,4 @@ Existing LiveKit readiness, capability, join-grant and client fixtures are retai
 
 ## Implementation status
 
-This ADR locks a target and its release gates. It intentionally changes no production route, token issuer, event writer, Ruma type, Flutter media path or native OS integration. Those changes are sequenced in [the implementation plan](../implementation-plans/matrixrtc-stateless-runtime.md).
+This ADR locks a target and its release gates. It intentionally changes no production route, token issuer, event writer, Ruma type, Flutter media path or native OS integration. Those changes are sequenced in [the implementation plan](implementation-plans/matrixrtc-stateless-runtime.md).
