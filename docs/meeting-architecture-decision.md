@@ -1,87 +1,75 @@
 # Meeting architecture decision record
 
-Status: product/architecture contract for issue #216. This is the meeting contract before enabling join/start controls.
+Status: **Proposed target architecture; Experimental/Guarded.** This document replaces the earlier proprietary member-facing Calls API direction as a conformance proposal for issue #968. It does not claim that the code is implemented or release-ready. Canonical product/domain truth remains the pinned Weave Specification Corpus; this implementation-repo projection must be reconciled with the matching corpus PR before merge.
 
-Weave meetings are contextual collaboration surfaces attached to existing Weave work context. They are not generic external links and they are not enabled until encryption boundaries, consent, accessibility, and provider readiness are evidenced.
+## Core decision
 
-## Decision
+Calls are Core collaboration. The northbound contract is Matrix Client-Server plus the pinned **Weave MatrixRTC Profile 0**. There is no member `/api/weave/calls` and no `com.weave.call.*` event where Matrix/MSC semantics exist. LiveKit is the first replaceable MatrixRTC transport/SFU, not the product API.
 
-Adopt a provider-neutral meeting capability contract in the member client and keep join/start fail-closed until the existing backend-owned LiveKit meetings provider contract proves its concrete media architecture.
+Matrix Native OAuth is stable in Matrix v1.19. MatrixRTC is not: MSC4143/4195/4196/4075/4310 and their delayed/sticky dependencies are open drafts and partly inconsistent. Profile 0 therefore freezes exact commits as of 2026-07-19, uses the latest MSC4143 slot/sticky-membership model for writes, accepts known legacy shapes for reads, and remains `Experimental/Guarded`.
 
-Current direction:
+## Interoperable foreign-client flow
 
-1. Keep LiveKit as the active meetings/video-call provider key in the backend provider registry and runtime configuration.
-2. Route all LiveKit rooms, session tokens, readiness, and diagnostics through a Weave backend facade; Flutter/member UI must only see Weave meeting capability state.
-3. Treat Matrix as the chat/E2EE substrate and possible contextual signaling source, but do not promote MatrixRTC/Element Call as the active Weave meetings provider in this slice.
-4. Keep MatrixRTC/Element Call as a future comparison option only if a later migration updates the backend registry, runtime docs, acceptance tests, and provider readiness contract consistently.
-5. Do not expose provider URLs, room media tokens, SFU internals, or recording/caption storage providers in member UI.
+1. User enters `weave.example`; client discovers the homeserver via `/.well-known/matrix/client`.
+2. Client reads `/_matrix/client/v1/auth_metadata`.
+3. It uses OAuth Dynamic Client Registration where required and Authorization Code + PKCE/S256 in the system browser.
+4. Matrix Authentication Service is the client-visible authorization server and may use Keycloak as upstream IdP. Keycloak remains the organization identity/entitlement backbone.
+5. Client confirms the Matrix identity with `/whoami`, checks `/versions`, and fetches authenticated `GET /_matrix/client/v1/rtc/transports` when the stable MSC feature is advertised; Profile 0 defines the exact unstable fallback while the MSC remains open.
+6. It resolves/opens `m.rtc.slot` and participates with sticky `m.rtc.member`; ringing/decline use `m.rtc.notification`/`m.rtc.decline`.
+7. It requests a separate Matrix OpenID credential and presents it to the RTC Authorizer.
+8. The authorizer validates identity plus available room/call policy and returns a short-lived, room/slot/member/permission-bound LiveKit JWT.
+9. The client connects over WebRTC/LiveKit.
 
-## Architecture options
+A Matrix OAuth access token, OIDC ID token and Matrix OpenID credential are three distinct artifacts. OpenID proves Matrix identity, not by itself current room/call membership.
 
-| Option | Fit | E2EE and confidentiality boundary | Operational trade-off | Decision |
-| --- | --- | --- | --- | --- |
-| LiveKit-style SFU behind Weave backend facade | Current active provider contract for meetings/video calls and good fit for scalable media operations. | Media may be encrypted in transit and can support E2EE modes, but SFU metadata and feature behavior must be documented. Recording/captions/transcripts need separate encryption and consent evidence. Matrix chat encryption must not be presented as covering LiveKit media. | Requires backend token minting, SFU operations, capability health, support bundle redaction, and explicit E2EE trade-off docs. | Active provider contract; still fail-closed until backend/media/accessibility evidence is configured and validated. |
-| MatrixRTC / Element Call | Future comparison option for Matrix-native contextual calls, not the active Weave meetings provider contract. | Signaling can follow Matrix room encryption. Media confidentiality depends on MatrixRTC/Element Call mode, client support, SFU behavior, and documented key handling. | Requires registry/runtime/acceptance migration, MatrixRTC readiness, compatible clients, media backend evidence, and clear fallback states. | Future option only; do not silently replace the current LiveKit contract. |
-| Generic hosted meeting links | Low product fit. | Encryption, metadata, retention, and recording behavior are provider-defined and often opaque to Weave. | Easy link insertion but weak sovereignty and portability. | Not acceptable as the primary Weave meeting model. |
+## Wire profile and Ruma
 
-## Encryption and evidence boundaries
+Normative pins live in `contracts/matrixrtc-profile-v0.yaml`. MSC4143 is authoritative for `m.rtc.slot`, sticky `m.rtc.member`, `transports.published/can_subscribe`, transport discovery and singular `m.rtc.encryption_key`. The frozen MSC4195/4196 heads still show older `rtc_transports`, membership-relation/disconnect fields and one plural encryption-key reference. Profile 0 documents these conflicts, reads compatible old forms, and writes only the MSC4143 shape. Unknown fields are preserved.
 
-| Boundary | Product statement | Required evidence before enabling |
-| --- | --- | --- |
-| Matrix signaling | Matrix remains the chat/E2EE substrate and may provide contextual room state, but it is not the active generic meetings provider. | Matrix E2EE diagnostic, room readiness, and failure-state evidence. |
-| Media streams | Media confidentiality is documented for the active LiveKit-backed architecture before enablement; group calls must state SFU/client key handling and must not inherit Matrix chat E2EE claims. | LiveKit media transport readiness, E2EE mode evidence, and architecture trade-off record. |
-| Captions | Off by default. If enabled, caption generation, storage, retention, and encryption are visible to users. | Consent UX, storage boundary, retention policy, and accessibility evidence. |
-| Transcripts | Off by default. If enabled, transcript generation, storage, retention, and encryption are visible to users. | Consent UX, storage boundary, retention policy, export/delete behavior, and audit evidence. |
-| Recordings | Off by default and unavailable without explicit consent and visible state. | Consent UX, recording indicator, storage encryption, retention policy, export/delete behavior, and audit evidence. |
-| Metadata | Participant, timing, device, SFU routing, and diagnostic metadata is minimized and never described as end-to-end encrypted. | Support-safe metadata inventory and redaction tests. |
+Matrix is the facade; Ruma implements it. At the pinned Ruma commit, notification/decline and legacy MSC3401 membership exist, but not the complete current slot/sticky-member model. An isolated `matrixrtc_wire` crate/module supplies missing Ruma EventContent/Serde types using exact Matrix/MSC names (`m.rtc.slot`, `m.rtc.member`, `m.rtc.encryption_key`). Raw/generic event dispatch is used because custom types do not enter Ruma's `Any*Event` enums automatically. Each local type has an upstream issue and deletion criterion.
 
-## Context attachment contract
+## RTC Authorizer
 
-Meeting surfaces can attach to:
+The authorizer exchanges a Matrix OpenID identity proof for an SFU token. Grants bind Matrix user, room, slot, member, LiveKit alias, permission set, nonce and short expiry. Publish/create and subscribe are least-privilege and separate where possible. Local membership and Weave policy are checked before grant issuance. Federated authorization stays `Guarded` until membership attestation is sufficiently standard and proven; OpenID alone is never accepted as call authorization.
 
-- channel context: `channel:*` as the first supported member surface;
-- calendar event context: `calendar-event:*` once calendar/event facade readiness exists;
-- thread context: `thread:*` once thread identity and retention semantics are explicit.
+## Flutter and native calls
 
-The member client may show disabled attach points, but join/start stays disabled until backend capability, policy, and encryption evidence are all ready.
+The shared Rust/Ruma core owns Matrix discovery, OAuth, sync/E2EE and MatrixRTC wire state. The media client owns LiveKit/WebRTC. A thin `NativeCallCoordinator` maps protocol state to CallKit and Android Core-Telecom; those OS APIs provide call UI, lifecycle and audio routing—not discovery, signaling or media.
 
-## UX and accessibility contract
+| OS action | Protocol/media action |
+|---|---|
+| Answer | join slot, obtain grant, start media |
+| Decline before join | send `m.rtc.decline` |
+| End after join | leave `m.rtc.member`, stop media |
+| Remote end | report ended to OS |
+| Hold/mute | update local media/OS state; no proprietary Matrix event |
 
-Before join/start can be enabled, the meeting UI must cover:
+Correlation is idempotent. OS UUIDs are local projections of Matrix identifiers and never become protocol IDs.
 
-- device selection for microphone, camera, and output where supported;
-- join preview with visible camera and microphone state;
-- mute and camera state that are keyboard-operable and screen-reader labelled;
-- participant list with speaking/connection state that is not color-only;
-- clear leave/end state and recovery path;
-- provider/backend unavailable errors with retry and admin/operator setup guidance;
-- captions/transcripts only when explicitly enabled and visibly consented.
+## Encryption and artifacts
 
-## Consent and defaults
+Private calls require an encrypted Matrix room and MatrixRTC media E2EE. WebRTC DTLS-SRTP alone is transport encryption and does not hide media from the SFU. The SFU still sees traffic/connection metadata. Recording or transcription requires explicit participant-visible policy/consent and either a disclosed trusted decrypting participant or a separate non-E2EE profile; blanket E2EE claims are forbidden. Artifacts follow Files/WebDAV retention/export/delete policy.
 
-Recording, transcription, and captions are off by default. Enabling any of them requires explicit participant-visible consent, persistent in-meeting indicators, retention/export/delete policy, and audit evidence.
+## Scheduling and portability
 
-## Vague-claim guard
+CalDAV/iCalendar stores a stable Matrix/meeting reference, never a durable LiveKit token. Future meetings can change RTC transport without changing member identity or scheduled reference. An active call is not live-migrated: it ends/rejoins deliberately with visible interruption.
 
-Do not claim `secure meetings`, `encrypted meetings`, or `end-to-end encrypted meetings` without naming the boundary and evidence: signaling, media, captions, transcripts, recordings, and metadata. Product copy must say what is known, what is disabled, and what still needs admin/provider evidence.
+## Ready gate
 
-## Implementation references
+- golden fixtures for every pinned MSC and dual-read/single-write tests;
+- successful third-party Matrix/Element interoperability without Weave Calls API;
+- local/federated authorization negative tests and short-token replay tests;
+- MatrixRTC media-key lifecycle, stable device recovery and no-secret scans;
+- TURN/reconnect/multi-device and physical iOS CallKit/Android Core-Telecom evidence;
+- recording/transcription consent, accessibility and artifact retention/delete evidence.
 
-- Domain contract: `client/lib/features/chat/domain/entities/channel_workspace.dart`
-- Domain test: `client/test/features/chat/channel_workspace_test.dart`
-- Architecture guard: `client/test/architecture/meetings_contract_test.dart`
-- Product scope: `docs/product-calendar-e2ee-boards-scope.md`
-- Guarded surfaces: `docs/roadmap-and-guarded-surfaces.md`
-- Runtime provider contract: `server/docs/runtime-configuration.md`
-- Provider boundary: `docs/provider-replacement-and-anti-silo-contract.md`
+Until all gates pass, the truthful claim is: **“MatrixRTC Profile 0 is specified and guarded; LiveKit integration is an implementation slice.”**
 
-## MVP slice
 
-The first shippable slice is a fail-closed contract:
+## Legacy migration boundary
 
-- contextual meeting preview stays attached to a channel and declares future calendar-event/thread attach points;
-- join/start controls remain disabled while backend media capability is absent;
-- encryption boundaries are explicit and evidence-labelled;
-- UX/accessibility requirements are enumerated before enablement;
-- recording/transcription are off by default;
-- tests prevent vague security claims without documented evidence.
+Existing LiveKit readiness, capability, join-grant and client fixtures are retained only as guarded migration evidence. During implementation they may sit behind an internal deprecated adapter, but they must not remain a member northbound contract. Every retained path needs deprecation metadata, a removal issue/date, parity tests and a rollback reason. New code must not add a member `/api/weave/calls` dependency or proprietary `com.weave.call.*` events.
+
+## Implementation status
+
+This ADR locks a target and its release gates. It intentionally changes no production route, token issuer, event writer, Ruma type, Flutter media path or native OS integration. Those changes are sequenced in [the implementation plan](../implementation-plans/matrixrtc-stateless-runtime.md).
