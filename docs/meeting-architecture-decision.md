@@ -14,7 +14,7 @@ Matrix Native OAuth is stable in Matrix v1.19. MatrixRTC is not: MSC4143/4195/41
 2. Client reads `/_matrix/client/v1/auth_metadata`.
 3. It uses OAuth Dynamic Client Registration where required and Authorization Code + PKCE/S256 in the system browser.
 4. Matrix Authentication Service is the client-visible authorization server and may use Keycloak as upstream IdP. Keycloak remains the organization identity/entitlement backbone.
-5. Client confirms the Matrix identity with `/whoami`, checks `/versions`, and fetches authenticated `GET /_matrix/client/v1/rtc/transports` when the stable MSC feature is advertised; Profile 0 defines the exact unstable fallback while the MSC remains open.
+5. Client confirms the Matrix identity with `/whoami`, checks `/_matrix/client/versions`, and fetches authenticated `GET /_matrix/client/v1/rtc/transports` when the stable MSC feature is advertised; Profile 0 defines the exact unstable fallback while the MSC remains open.
 6. It resolves/opens `m.rtc.slot` and participates with sticky `m.rtc.member`; ringing/decline use `m.rtc.notification`/`m.rtc.decline`.
 7. It requests a separate Matrix OpenID credential and presents it to the RTC Authorizer.
 8. The authorizer validates identity plus available room/call policy and returns a short-lived, room/slot/member/permission-bound LiveKit JWT.
