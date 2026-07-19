@@ -5780,7 +5780,7 @@
           "path": "server/src/test/java/com/massimotter/weave/backend/service/WeaverMcpBridgeServiceTest.java",
           "fragments": [
             "readToolUsesMemberDomainDispatcherAndPreservesStructuredFields",
-            "openClawElicitationEvidenceAuthorizesTheExactWriteOnce",
+            "writeToolRequiresApprovalBeforeDispatch",
             "calendar.search_events"
           ]
         }
@@ -5883,7 +5883,9 @@
           "fragments": [
             "oidcIsTheGatekeeperForSpringAiMcpTransport",
             "status().isUnauthorized()",
-            "claim(\"scope\", \"weave:workspace\")"
+            "claim(\"scope\", \"weave:mcp\")",
+            "audience(List.of(\"weave-mcp-server\"))",
+            "claim(\"azp\", \"weave-app\")"
           ]
         }
       ]
@@ -5909,36 +5911,21 @@
       ]
     },
     {
-      "tag": "@mcp-approval-receipt-boundary",
-      "scenario": "MCP write approval is bound to one tool invocation",
+      "tag": "@mcp-approval-ownership-boundary",
+      "scenario": "MCP writes fail closed without trusted OpenClaw approval evidence",
       "feature": "e2e/features/mcp_domain_facade_boundary.feature",
       "executableTest": "tools/spring_ai_mcp_facade_acceptance_check.py",
       "evidenceMarkers": [
-        "MCP_APPROVAL_RECEIPT_BOUNDARY"
+        "MCP_APPROVAL_EVIDENCE_FAILS_CLOSED"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "weave-mcp-server/src/test/java/com/massimotter/weave/mcp/McpToolApprovalServiceTest.java",
-          "fragments": [
-            "acceptedElicitationProducesNarrowBackendEvidence",
-            "McpSyncRequestContext",
-            "allow-always"
-          ]
-        },
-        {
-          "path": "server/src/test/java/com/massimotter/weave/backend/weaver/WeaverMcpApprovalReceiptServiceTest.java",
-          "fragments": [
-            "trustedExactElicitationMintsAOneUseServerReceipt",
-            "untrustedMismatchedExpiredAndForeignEvidenceFailClosed",
-            "argumentDigest"
-          ]
-        },
-        {
           "path": "server/src/test/java/com/massimotter/weave/backend/service/WeaverMcpBridgeServiceTest.java",
           "fragments": [
             "writeToolRequiresApprovalBeforeDispatch",
-            "openClawElicitationEvidenceAuthorizesTheExactWriteOnce"
+            "callerSuppliedElicitationCannotMintWeaveAuthority",
+            "trusted_approval_evidence_unavailable"
           ]
         }
       ]

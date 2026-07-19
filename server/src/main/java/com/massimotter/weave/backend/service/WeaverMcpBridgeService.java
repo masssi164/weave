@@ -4,8 +4,6 @@ import com.massimotter.weave.backend.model.WeaverRuntimeProfileResponse;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.weaver.MemberDomainToolDispatcher;
 import com.massimotter.weave.backend.weaver.McpDelegatedIdentity;
-import com.massimotter.weave.backend.weaver.WeaverApprovalReceipt;
-import com.massimotter.weave.backend.weaver.WeaverMcpApprovalReceiptService;
 import com.massimotter.weave.backend.weaver.WeaverToolInvocationRequest;
 import com.massimotter.weave.backend.weaver.WeaverToolInvocationResult;
 import com.massimotter.weave.backend.weaver.WeaverToolRegistry;
@@ -43,7 +41,6 @@ public class WeaverMcpBridgeService {
     private final WeaverRuntimeService runtimeService;
     private final WeaverToolRegistry toolRegistry;
     private final MemberDomainToolDispatcher memberDomainToolDispatcher;
-    private final WeaverMcpApprovalReceiptService approvalReceiptService;
     private final WeaveSecurityProperties securityProperties;
 
     @Autowired
@@ -51,21 +48,18 @@ public class WeaverMcpBridgeService {
             WeaverRuntimeService runtimeService,
             WeaverToolRegistry toolRegistry,
             MemberDomainToolDispatcher memberDomainToolDispatcher,
-            WeaverMcpApprovalReceiptService approvalReceiptService,
             WeaveSecurityProperties securityProperties) {
         this.runtimeService = runtimeService;
         this.toolRegistry = toolRegistry;
         this.memberDomainToolDispatcher = memberDomainToolDispatcher;
-        this.approvalReceiptService = approvalReceiptService;
         this.securityProperties = securityProperties;
     }
 
     WeaverMcpBridgeService(
             WeaverRuntimeService runtimeService,
             WeaverToolRegistry toolRegistry,
-            MemberDomainToolDispatcher memberDomainToolDispatcher,
-            WeaverMcpApprovalReceiptService approvalReceiptService) {
-        this(runtimeService, toolRegistry, memberDomainToolDispatcher, approvalReceiptService,
+            MemberDomainToolDispatcher memberDomainToolDispatcher) {
+        this(runtimeService, toolRegistry, memberDomainToolDispatcher,
                 new WeaveSecurityProperties("weave-backend", "weave-app"));
     }
 
@@ -89,6 +83,7 @@ public class WeaverMcpBridgeService {
                                 .filter(definition -> profile.allowedCapabilities().contains(definition.requiredCapability()))
                                 .filter(definition -> profile.toolAllowlist().contains(definition.name()))
                                 .filter(definition -> !forbiddenToolName(definition.name()))
+                                .filter(definition -> !definition.approvalRequired())
                                 .map(definition -> definition.asBridgeDefinition())
                                 .toList()));
     }
@@ -139,29 +134,16 @@ public class WeaverMcpBridgeService {
                     Map.of("supportSafe", true, "approvalRequired", definition.approvalRequired()));
         }
 
-        WeaverApprovalReceipt approvalReceipt = null;
         if (definition.approvalRequired()) {
-            WeaverMcpApprovalReceiptService.Resolution resolution = approvalReceiptService.issue(
-                    request.approvalEvidence(),
-                    profile.userRef(),
-                    profile.runtimeProfileHash(),
-                    definition,
-                    request.arguments(),
-                    delegatedIdentity);
-            if (!resolution.approved()) {
-                return bridgeInvocationResponse(
-                        toolName,
-                        ToolInvocationStatus.DENIED,
-                        resolution.auditRef() == null
-                                ? auditRef(toolName, resolution.status())
-                                : resolution.auditRef(),
-                        "Weave did not authorize the MCP elicitation evidence.",
-                        Map.of(
-                                "status", resolution.status(),
-                                "supportSafe", true,
-                                "approvalRequired", true));
-            }
-            approvalReceipt = resolution.receipt();
+            return bridgeInvocationResponse(
+                    toolName,
+                    ToolInvocationStatus.DENIED,
+                    auditRef(toolName, "trusted_approval_evidence_unavailable"),
+                    "Write-like MCP tools remain unavailable until trusted OpenClaw approval evidence and current domain authorization are validated without a parallel Weave approval workflow.",
+                    Map.of(
+                            "status", "trusted_approval_evidence_unavailable",
+                            "supportSafe", true,
+                            "approvalRequired", true));
         }
 
         WeaverToolInvocationResult governance = toolRegistry.invoke(new WeaverToolInvocationRequest(
@@ -176,8 +158,8 @@ public class WeaverMcpBridgeService {
                 profile.allowedCapabilities(),
                 profile.toolAllowlist(),
                 request.arguments(),
-                approvalReceipt == null ? null : approvalReceipt.receiptRef(),
-                approvalReceipt));
+                null,
+                null));
         if (!"ok".equals(governance.status())) {
             return bridgeInvocationResponse(
                     governance.toolName(),

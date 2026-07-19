@@ -4,22 +4,24 @@ Feature: MCP domain facade boundary
   @mcp-files-facade
   Scenario: MCP Files tools use Weave Files facade semantics
     Given MCP Files tools are enabled
-    When a Files tool reads or writes file data
+    When a Files tool searches or reads file metadata
     Then it uses Weave Files facade semantics
     And it does not accept raw provider URLs or unrestricted WebDAV scripting
 
   @mcp-calendar-facade
   Scenario: MCP Calendar tools use Weave Calendar facade semantics
     Given MCP Calendar tools are enabled
-    When a Calendar tool reads or writes calendar data
-    Then it uses Weave Calendar facade semantics
+    When a Calendar tool searches calendar data
+    Then the read uses Weave Calendar facade semantics
     And it does not expose raw provider payloads
+    And calendar writes stay unavailable until trusted approval evidence is implemented
 
   @mcp-chat-facade
   Scenario: MCP Chat tools use Weave or Matrix-governed semantics
-    Given MCP Chat tools are enabled
-    When a Chat tool sends or reads messages
-    Then it uses governed Weave/Matrix semantics
+    Given the canonical Chat send tool exists in the fixed catalog
+    When runtime-approved discovery is evaluated
+    Then the write is not advertised until trusted approval evidence is implemented
+    And its future dispatch remains governed by Weave and Matrix semantics
     And it does not call Slack or Teams raw APIs directly
 
   @mcp-calls-facade
@@ -43,9 +45,10 @@ Feature: MCP domain facade boundary
 
   @spring-ai-mcp-oidc
   Scenario: OIDC is the MCP gatekeeper
-    Given an MCP request has no valid OIDC bearer token with weave:workspace scope
+    Given an MCP request lacks a member token for audience weave-mcp-server with azp weave-app and scope weave:mcp
     When the request reaches /mcp
     Then Spring Security rejects it before MCP tool or backend dispatch
+    And no static boundary secret can substitute for the member token
 
   @mcp-runtime-approved-discovery
   Scenario: Runtime-approved MCP discovery is support-safe
@@ -54,10 +57,10 @@ Feature: MCP domain facade boundary
     Then only backend-approved Weave domain tools are returned
     And no runtime token, CredentialRef value, or provider internal is returned
 
-  @mcp-approval-receipt-boundary
-  Scenario: MCP write approval is bound to one tool invocation
+  @mcp-approval-ownership-boundary
+  Scenario: MCP writes fail closed without trusted OpenClaw approval evidence
     Given a governed Weaver write tool requires approval
     When the runtime invokes the tool through Spring AI MCP
-    Then OpenClaw routes the Spring AI form elicitation through its plugin approval manager
-    And Weave mints a short-lived receipt bound to actor, runtime profile, tool, canonical scopes, arguments, policy, and contract version
-    And changed arguments, replay, foreign elicitation evidence, or a receipt reference alone cannot authorize the write
+    Then OpenClaw remains the owner of approval presentation and decision state
+    And Weave does not mint authority from caller-supplied elicitation evidence
+    And the write stays unavailable until trusted approval evidence and current domain authorization can both be validated

@@ -6,7 +6,7 @@ Status: active projection contract. The former handwritten Java JSON-RPC and Pyt
 
 - Canonical domain models and application use cases own Files, Calendar, Chat, and governed Weaver semantics.
 - `weave-contract` currently carries the shared MCP catalog DTOs and exact JSON schemas consumed by both `server` and `weave-mcp-server`. It is a projection module, not a provider or product-domain authority.
-- `server` owns RuntimeProfile policy, effective capability grants, approval enforcement, validation, canonical dispatch, provider selection, audit, and support-safe result projection.
+- `server` owns RuntimeProfile policy, effective capability grants, current domain authorization, validation, canonical dispatch, provider selection, audit, and support-safe result projection.
 - `weave-mcp-server` owns only the OIDC-protected Spring AI 2.0 stateful Streamable HTTP transport at `/mcp`, standard form elicitation, and MCP protocol projection.
 - OpenAPI remains the control-plane/generated-model authority. MCP does not mirror OpenAPI routes.
 
@@ -20,9 +20,9 @@ The fixed protocol catalog ceiling contains:
 - `calendar.create_event`
 - `chat.send_message`
 
-The read-only resource `weave://runtime/approved-tools` reports the backend-approved subset for the current signed RuntimeProfile. The prompt `weave.workspace.plan` names only that approved subset. Listing a tool from the fixed catalog is not authorization; every call performs backend discovery again before dispatch.
+The read-only resource `weave://runtime/approved-tools` reports the backend-approved subset for the current signed RuntimeProfile. The prompt `weave.workspace.plan` names only that approved subset. Listing a tool from the fixed catalog is not authorization; every call performs backend discovery again before dispatch. Until the accepted trusted-approval and ActionEvidence contract is implemented, the approved subset excludes `calendar.create_event` and `chat.send_message` and direct invocation of either fails closed.
 
-Write-like tools call standard MCP form elicitation through `McpSyncRequestContext`. OpenClaw owns that approval lifecycle and returns bounded correlation evidence; Weave does not create a second approval workflow. The backend records short-lived, one-use action evidence that binds the effective member issuer and subject, organization, `weave-mcp-server` workload, delegated-token audience/correlation, entitlement revision, nonce, current RuntimeProfile hash, canonical domain and exact scopes, normalized arguments, exact tool, MCP contract version, backend policy version, decision time, expiry, and audit ref. Changed arguments, replay, foreign evidence, a reference, tool annotation, caller header, or prompt never grants authority.
+OpenClaw owns approval presentation and decision state; Weave does not create a second approval workflow or mint authority from caller-supplied elicitation evidence. Write-like tools remain unavailable until the receiving domain can validate trusted approval evidence together with current human identity, the authenticated `weave-mcp-server` workload, exact audience/scope, entitlement, RuntimeProfile, policy, object scope, arguments, expiry, and revocation, then record immutable ActionEvidence. A reference, annotation, caller header, prompt, or remembered decision never grants authority by itself.
 
 ## Deployment
 

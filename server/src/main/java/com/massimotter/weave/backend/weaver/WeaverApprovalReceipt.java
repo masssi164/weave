@@ -15,14 +15,6 @@ import java.util.Map;
 public record WeaverApprovalReceipt(
         String receiptRef,
         String actorRef,
-        String effectiveMemberIssuer,
-        String effectiveMemberSubject,
-        String organizationRef,
-        String workloadClientId,
-        List<String> tokenAudiences,
-        String delegationRef,
-        String entitlementRevision,
-        String nonce,
         String runtimeProfileHash,
         String domain,
         String action,
@@ -43,14 +35,6 @@ public record WeaverApprovalReceipt(
     public WeaverApprovalReceipt {
         receiptRef = safe(receiptRef);
         actorRef = safe(actorRef);
-        effectiveMemberIssuer = safe(effectiveMemberIssuer);
-        effectiveMemberSubject = safe(effectiveMemberSubject);
-        organizationRef = safe(organizationRef);
-        workloadClientId = safe(workloadClientId);
-        tokenAudiences = List.copyOf(tokenAudiences == null ? List.of() : tokenAudiences);
-        delegationRef = safe(delegationRef);
-        entitlementRevision = safe(entitlementRevision);
-        nonce = safe(nonce);
         runtimeProfileHash = safe(runtimeProfileHash);
         domain = safe(domain);
         action = safe(action);
@@ -64,48 +48,6 @@ public record WeaverApprovalReceipt(
         approvedAt = safe(approvedAt);
         expiresAt = safe(expiresAt);
         auditRef = safe(auditRef);
-    }
-
-    public WeaverApprovalReceipt(
-            String receiptRef,
-            String actorRef,
-            String runtimeProfileHash,
-            String domain,
-            String action,
-            List<String> scopeRefs,
-            String argumentDigest,
-            String toolContractVersion,
-            String policyVersion,
-            String decision,
-            String approvalMode,
-            String evidenceRef,
-            String approvedAt,
-            String expiresAt,
-            String auditRef) {
-        this(
-                receiptRef,
-                actorRef,
-                "https://auth.weave.test/realms/weave",
-                "test-member-subject",
-                "org:workspace",
-                "weave-mcp-server",
-                List.of("weave-backend"),
-                "delegation://sha256/test",
-                "entitlement://runtime-profile/" + safe(runtimeProfileHash),
-                "test-nonce",
-                runtimeProfileHash,
-                domain,
-                action,
-                scopeRefs,
-                argumentDigest,
-                toolContractVersion,
-                policyVersion,
-                decision,
-                approvalMode,
-                evidenceRef,
-                approvedAt,
-                expiresAt,
-                auditRef);
     }
 
     public boolean validFor(
@@ -124,15 +66,6 @@ public record WeaverApprovalReceipt(
         String safeExpectedToolContractVersion = safe(expectedToolContractVersion);
         return !receiptRef.isBlank()
                 && this.actorRef.equals(safe(actorRef))
-                && !effectiveMemberIssuer.isBlank()
-                && !effectiveMemberSubject.isBlank()
-                && !effectiveMemberSubject.startsWith("service-account-")
-                && !organizationRef.isBlank()
-                && "weave-mcp-server".equals(workloadClientId)
-                && tokenAudiences.contains("weave-backend")
-                && delegationRef.startsWith("delegation://sha256/")
-                && !entitlementRevision.isBlank()
-                && !nonce.isBlank()
                 && this.runtimeProfileHash.equals(safe(runtimeProfileHash))
                 && this.domain.equals(safe(domain))
                 && this.action.equals(safe(action))

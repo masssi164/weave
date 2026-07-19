@@ -169,7 +169,7 @@ def require_current_evidence_boundaries() -> None:
         "SPRING_AI_MCP_STATEFUL_TRANSPORT",
         "MCP_OIDC_GATEKEEPER",
         "MCP_CANONICAL_DOMAIN_DISPATCH",
-        "MCP_APPROVAL_RECEIPT_BOUNDARY",
+        "MCP_APPROVAL_EVIDENCE_FAILS_CLOSED",
         "MCP_LEGACY_RUNTIME_REMOVED",
     )
 
