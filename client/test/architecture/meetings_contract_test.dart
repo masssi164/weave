@@ -3,9 +3,12 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('meeting architecture contract maps issue 216 acceptance', () async {
+  test('Matrix-native meeting architecture is internally consistent', () async {
     final contract = await File(
       '../docs/meeting-architecture-decision.md',
+    ).readAsString();
+    final profile = await File(
+      '../docs/architecture/matrixrtc-profile-0.yaml',
     ).readAsString();
     final spec = await File(
       '../specs/0003-contextual-meetings/spec.md',
@@ -18,52 +21,53 @@ void main() {
     ).readAsString();
 
     for (final required in <String>[
-      'LiveKit as the active meetings/video-call provider key',
-      'LiveKit-style SFU',
-      'MatrixRTC / Element Call',
-      'future comparison option',
-      'Generic hosted meeting links',
-      'Matrix signaling',
-      'Media streams',
-      'Captions',
-      'Transcripts',
-      'Recordings',
-      'Metadata',
-      'channel context',
-      'calendar event context',
-      'thread context',
-      'device selection',
-      'join preview',
-      'mute and camera state',
-      'participant list',
-      'errors with retry',
-      'Recording, transcription, and captions are off by default',
-      'Vague-claim guard',
+      'Matrix v1.19',
+      '/.well-known/matrix/client',
+      '/_matrix/client/v1/auth_metadata',
+      'Authorization Code + PKCE',
+      'Matrix Authentication Service',
+      'Keycloak',
+      '/_matrix/client/versions',
+      'm.rtc.slot',
+      'm.rtc.member',
+      'matrixrtc_wire',
+      'Matrix OpenID',
+      'room/call policy',
+      'NativeCallCoordinator',
+      'MatrixRTC media E2EE',
+      'DTLS-SRTP alone',
+      'Files/WebDAV',
+      'Experimental/Guarded',
+      'no member `/api/weave/calls`',
+      'no `com.weave.call.*`',
     ]) {
       expect(contract, contains(required));
     }
 
     for (final required in <String>[
-      'FR-001',
-      'FR-002',
-      'FR-003',
-      'FR-004',
-      'FR-005',
-      'FR-006',
-      'FR-007',
-      'FR-008',
-      'FR-009',
-      'FR-010',
+      'weave.matrixrtc/profile-0',
+      'specification: v1.19',
+      'org.matrix.msc4143.stable',
+      'dual_read_single_write: true',
+      'known_draft_conflicts:',
+      'authoritative_write_model: msc4143-slot-sticky-membership',
+      'identity_input: matrix-openid-credential',
+      'local_gap_module: matrixrtc_wire',
+      'dtls_srtp_only_is_e2ee: false',
+      'status: experimental-guarded',
     ]) {
-      expect(spec, contains(required));
+      expect(profile, contains(required));
+    }
+
+    for (var requirement = 1; requirement <= 20; requirement++) {
+      expect(spec, contains('FR-${requirement.toString().padLeft(3, '0')}'));
     }
 
     for (final required in <String>[
-      'ChannelMeetingAttachPoint',
-      'ChannelMeetingEncryptionBoundary',
-      'ChannelMeetingUxRequirement',
-      'meeting join and start controls fail closed',
-      'encryption claims name signaling, media, captions, transcripts, recordings, and metadata boundaries',
+      'Matrix v1.19 plus pinned MatrixRTC Profile 0 is the member northbound contract',
+      'LiveKit is a replaceable RTC transport and SFU, not a Weave Calls API',
+      'Matrix OpenID identity proof never substitutes for current room and call authorization',
+      'legacy Calls APIs and fixtures remain guarded migration evidence with deletion criteria',
     ]) {
       expect(traceability, contains(required));
     }
@@ -82,19 +86,17 @@ void main() {
       expect(domain, contains(required));
     }
 
-    expect(contract, contains('Do not claim `secure meetings`'));
-    expect(contract, contains('without naming the boundary and evidence'));
     expect(
       contract,
-      isNot(contains('Preferred first implementation candidate')),
+      isNot(contains('MatrixRTC / Element Call as a future comparison option')),
     );
     expect(
       spec,
-      contains('LiveKit as the current active meetings provider contract'),
+      isNot(contains('LiveKit as the current active meetings provider contract')),
     );
     expect(
       traceability,
-      contains('LiveKit remains the active meetings provider contract'),
+      isNot(contains('MatrixRTC/Element Call is future comparison only')),
     );
   });
 }
