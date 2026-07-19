@@ -140,11 +140,7 @@ class CanonicalMcpFeaturesTest {
     }
 
     private McpTransportContext context() {
-        return McpTransportContext.create(Map.of(
-                RuntimeHeaders.AUTHORIZATION, "Bearer runtime-token",
-                RuntimeHeaders.RUNTIME_PROFILE, "sha256:test",
-                RuntimeHeaders.ORG_ID, "org:workspace",
-                RuntimeHeaders.USER_REF, "user:member"));
+        return McpTransportContext.create(Map.of(RuntimeHeaders.RUNTIME_PROFILE, "sha256:test"));
     }
 
     private McpSyncServerExchange exchange() {

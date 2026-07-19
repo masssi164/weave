@@ -34,6 +34,7 @@ assert_file_contains_once() {
 }
 
 backend_main="${ROOT_DIR}/01-infrastructure/modules/backend/main.tf"
+mcp_main="${ROOT_DIR}/01-infrastructure/modules/mcp/main.tf"
 infra_main="${ROOT_DIR}/01-infrastructure/main.tf"
 infra_outputs="${ROOT_DIR}/01-infrastructure/outputs.tf"
 install_script="${ROOT_DIR}/install.sh"
@@ -60,7 +61,7 @@ iphone_mailpit_smoke="${ROOT_DIR}/iphone-mailpit-smoke.sh"
 keycloak_extension="${REPO_DIR}/keycloak-event-listener/src/main/java/com/massimotter/weave/keycloak/events/WeaveIdentityEventListenerProvider.java"
 keycloak_extension_dockerfile="${REPO_DIR}/keycloak-event-listener/Dockerfile"
 
-for file in "${backend_main}" "${infra_main}" "${infra_outputs}" "${install_script}" "${release_verify}" "${keycloak_main}" "${release_env}" "${admin_doc}" "${caldav_doc}" "${connector_doc}" "${matrix_workspace_doc}" "${matrix_e2ee_doc}" "${openproject_doc}" "${openproject_compose}" "${provider_stack_compose}" "${provider_stack_check}" "${openproject_live_e2e}" "${support_bundle}" "${caddy_template}" "${local_invite_script}" "${dogfood_handoff_bundle}" "${dogfood_ios_smoke}" "${dogfood_cert_smoke}" "${iphone_mailpit_smoke}" "${keycloak_extension}" "${keycloak_extension_dockerfile}"; do
+for file in "${backend_main}" "${mcp_main}" "${infra_main}" "${infra_outputs}" "${install_script}" "${release_verify}" "${keycloak_main}" "${release_env}" "${admin_doc}" "${caldav_doc}" "${connector_doc}" "${matrix_workspace_doc}" "${matrix_e2ee_doc}" "${openproject_doc}" "${openproject_compose}" "${provider_stack_compose}" "${provider_stack_check}" "${openproject_live_e2e}" "${support_bundle}" "${caddy_template}" "${local_invite_script}" "${dogfood_handoff_bundle}" "${dogfood_ios_smoke}" "${dogfood_cert_smoke}" "${iphone_mailpit_smoke}" "${keycloak_extension}" "${keycloak_extension_dockerfile}"; do
   [[ -f "${file}" ]] || fail "Missing expected contract file: ${file}"
 done
 
@@ -75,8 +76,16 @@ assert_file_contains "${infra_main}" 'caldav_external_profile_password_mode     
 assert_file_contains "${infra_main}" 'caldav_external_private_user_calendars           = "disabled"'
 assert_file_contains "${install_script}" 'WEAVE_CALDAV_EXTERNAL_DISCOVERY_URL'
 assert_file_contains "${install_script}" 'WEAVE_CALDAV_EXTERNAL_PROFILE_PASSWORD_MODE'
-assert_file_contains "${install_script}" '  TF_VAR_mcp_boundary_token'
-assert_file_contains "${install_script}" 'set_default_secret TF_VAR_mcp_boundary_token'
+assert_file_contains "${install_script}" '  TF_VAR_weave_mcp_client_secret'
+assert_file_contains "${install_script}" 'set_default_secret TF_VAR_weave_mcp_client_secret'
+assert_file_contains "${keycloak_main}" 'client_id                                      = "weave-mcp-server"'
+assert_file_contains "${keycloak_main}" 'standard_token_exchange_enabled                = true'
+assert_file_contains "${keycloak_main}" 'name                   = "weave:mcp-backend"'
+assert_file_contains "${keycloak_main}" 'included_client_audience = keycloak_openid_client.client["weave_backend"].client_id'
+assert_file_contains "${mcp_main}" 'WEAVE_MCP_CLIENT_SECRET=${var.mcp_client_secret}'
+assert_file_contains "${mcp_main}" 'WEAVE_BACKEND_OIDC_AUDIENCE=${var.backend_oidc_audience}'
+assert_file_absent "${backend_main}" 'WEAVE_MCP_BOUNDARY_TOKEN'
+assert_file_absent "${mcp_main}" 'WEAVE_MCP_BOUNDARY_TOKEN'
 assert_file_contains "${release_env}" 'WEAVE_CALDAV_EXTERNAL_DISCOVERY_URL=https://files.weave.example/remote.php/dav'
 assert_file_contains "${caldav_doc}" 'CalDAV/CardDAV'
 assert_file_contains "${caldav_doc}" 'Forms are visible provider seams'

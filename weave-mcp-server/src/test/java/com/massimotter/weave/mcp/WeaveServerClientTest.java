@@ -23,17 +23,17 @@ import org.springframework.web.client.RestClient;
 class WeaveServerClientTest {
 
     @Test
-    void forwardsAuthorizationAndRuntimeHeadersWithoutQueryTokensOrApprovalHeaders() {
+    void forwardsOnlyExchangedAuthorizationAndRuntimeProfileWithoutBoundaryOrIdentityHeaders() {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        WeaveServerClient client = new WeaveServerClient(builder, "http://localhost:8080");
-        RuntimeHeaders headers = new RuntimeHeaders("Bearer runtime-token", "org:workspace", "user:member", "sha256:test");
+        WeaveServerClient client = new WeaveServerClient(builder, "http://localhost:8080", () -> "delegated-backend-token");
+        RuntimeHeaders headers = new RuntimeHeaders("sha256:test");
 
         server.expect(requestTo(org.hamcrest.Matchers.containsString("/api/workspace/weaver/mcp/servers/weave-domain-tools/tools?runtimeProfileHash=sha256:test")))
                 .andExpect(method(HttpMethod.GET))
-                .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer runtime-token"))
-                .andExpect(header("X-Weave-Org-Id", "org:workspace"))
-                .andExpect(header("X-Weave-User-Ref", "user:member"))
+                .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer delegated-backend-token"))
+                .andExpect(headerDoesNotExist("X-Weave-Org-Id"))
+                .andExpect(headerDoesNotExist("X-Weave-User-Ref"))
                 .andExpect(header("X-Weave-Runtime-Profile", "sha256:test"))
                 .andExpect(headerDoesNotExist("X-Weave-Approval-Receipt"))
                 .andExpect(queryParam("runtimeProfileHash", "sha256:test"))
@@ -56,9 +56,9 @@ class WeaveServerClientTest {
 
         server.expect(requestTo(org.hamcrest.Matchers.containsString("/api/workspace/weaver/mcp/servers/weave-domain-tools/tools/files.read:invoke")))
                 .andExpect(method(HttpMethod.POST))
-                .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer runtime-token"))
+                .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer delegated-backend-token"))
                 .andExpect(header("X-Weave-Runtime-Profile", "sha256:test"))
-                .andExpect(header("X-Weave-Mcp-Boundary-Token", "test-mcp-boundary"))
+                .andExpect(headerDoesNotExist("X-Weave-Mcp-Boundary-Token"))
                 .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("runtimeToken="))))
                 .andRespond(withSuccess("{" +
                         "\"toolName\":\"files.read\",\"status\":\"SUCCESS\",\"auditRef\":\"audit://weaver-tool/files.read/invoked\",\"supportSafe\":true,\"content\":[],\"structuredContent\":{}}", MediaType.APPLICATION_JSON));

@@ -116,7 +116,7 @@ locals {
   matrix_chat_appservice_forbidden_credentials = [
     var.db_admin_password,
     var.backend_db_password,
-    var.mcp_boundary_token,
+    var.weave_mcp_client_secret,
     var.keycloak_admin_password,
     var.keycloak_db_password,
     var.matrix_mas_client_secret,
@@ -188,7 +188,9 @@ locals {
   keycloak_issuer_url    = "${local.client_auth_url}/realms/${var.tenant_slug}"
   keycloak_jwk_set_uri   = "http://${local.service_names.keycloak}:8080/realms/${var.tenant_slug}/protocol/openid-connect/certs"
   weave_app_client_id    = "weave-app"
-  weave_backend_audience = local.weave_app_client_id
+  weave_backend_audience = "weave-backend"
+  weave_mcp_client_id    = "weave-mcp-server"
+  weave_mcp_audience     = local.weave_mcp_client_id
 
   # Backend-to-Nextcloud adapter traffic runs inside the Docker network.
   # Public 127.0.0.1.sslip.io URLs work for the host/browser, but loop back to
@@ -815,7 +817,6 @@ module "backend" {
   identity_keycloak_organization_alias             = var.tenant_slug
   identity_keycloak_client_secret                  = var.identity_admin_client_secret
   identity_events_hmac_secret                      = var.identity_events_hmac_secret
-  mcp_boundary_token                               = var.mcp_boundary_token
   healthcheck_path                                 = "/api/health/ready"
   resource_labels                                  = local.resource_labels
   depends_on                                       = [terraform_data.isolated_e2e_guard, terraform_data.matrix_chat_appservice_secret_guard, terraform_data.network_ready, terraform_data.postgres_bootstrap, module.keycloak, module.matrix, local_sensitive_file.generated]
@@ -824,18 +825,23 @@ module "backend" {
 module "mcp" {
   source = "./modules/mcp"
 
-  network_name           = docker_network.weave_network.name
-  container_name         = local.service_names.mcp
-  image_name             = var.weave_mcp_server_image
-  host_port              = var.mcp_host_port
-  container_port         = var.mcp_container_port
-  backend_base_url       = "http://${local.service_names.backend}:${var.backend_container_port}"
-  oidc_issuer_uri        = local.keycloak_issuer_url
-  oidc_jwk_set_uri       = local.keycloak_jwk_set_uri
-  oidc_required_audience = local.weave_backend_audience
-  mcp_boundary_token     = var.mcp_boundary_token
-  resource_labels        = local.resource_labels
-  depends_on             = [terraform_data.network_ready, module.backend, module.keycloak]
+  network_name             = docker_network.weave_network.name
+  container_name           = local.service_names.mcp
+  image_name               = var.weave_mcp_server_image
+  host_port                = var.mcp_host_port
+  container_port           = var.mcp_container_port
+  backend_base_url         = "http://${local.service_names.backend}:${var.backend_container_port}"
+  oidc_issuer_uri          = local.keycloak_issuer_url
+  oidc_jwk_set_uri         = local.keycloak_jwk_set_uri
+  oidc_required_audience   = local.weave_mcp_audience
+  oidc_token_uri           = "http://${local.service_names.keycloak}:8080/realms/${var.tenant_slug}/protocol/openid-connect/token"
+  mcp_client_id            = local.weave_mcp_client_id
+  mcp_client_secret        = var.weave_mcp_client_secret
+  inbound_authorized_party = local.weave_app_client_id
+  backend_oidc_audience    = local.weave_backend_audience
+  backend_scope            = "weave:mcp-backend"
+  resource_labels          = local.resource_labels
+  depends_on               = [terraform_data.network_ready, module.backend, module.keycloak]
 }
 
 module "matrix" {

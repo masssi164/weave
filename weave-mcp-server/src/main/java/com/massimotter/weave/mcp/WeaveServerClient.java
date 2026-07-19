@@ -15,27 +15,28 @@ import org.springframework.web.client.RestClient;
 public class WeaveServerClient {
     static final String SERVER_KEY = "weave-domain-tools";
     private final RestClient restClient;
-    private final String boundaryToken;
+    private final BackendAccessTokenProvider accessTokenProvider;
 
     @Autowired
     public WeaveServerClient(
             @Value("${weave.server.base-url:http://localhost:8080}") String baseUrl,
-            @Value("${weave.server.mcp-boundary-token:local-dev-mcp-boundary}") String boundaryToken) {
-        this(RestClient.builder(), baseUrl, boundaryToken);
+            BackendAccessTokenProvider accessTokenProvider) {
+        this(RestClient.builder(), baseUrl, accessTokenProvider);
     }
 
-    WeaveServerClient(RestClient.Builder builder, String baseUrl) {
-        this(builder, baseUrl, "test-mcp-boundary");
-    }
-
-    WeaveServerClient(RestClient.Builder builder, String baseUrl, String boundaryToken) {
+    WeaveServerClient(RestClient.Builder builder, String baseUrl, BackendAccessTokenProvider accessTokenProvider) {
         this.restClient = builder.baseUrl(baseUrl).build();
-        this.boundaryToken = boundaryToken;
+        this.accessTokenProvider = accessTokenProvider;
     }
 
     public BridgeDiscoveryResponse discover(String runtimeProfileHash, RuntimeHeaders headers) {
+        return discover(runtimeProfileHash, headers, accessTokenProvider.exchangeCurrentMemberToken());
+    }
+
+    private BridgeDiscoveryResponse discover(String runtimeProfileHash, RuntimeHeaders headers, String accessToken) {
         HttpHeaders httpHeaders = new HttpHeaders();
         headers.copyTo(httpHeaders);
+        httpHeaders.setBearerAuth(accessToken);
         return restClient.get()
                 .uri(uri -> uri.path("/api/workspace/weaver/mcp/servers/{serverKey}/tools").queryParam("runtimeProfileHash", runtimeProfileHash).build(SERVER_KEY))
                 .headers(h -> h.addAll(httpHeaders))
@@ -44,12 +45,16 @@ public class WeaveServerClient {
     }
 
     public BridgeInvocationResponse invoke(BridgeInvocationRequest request, RuntimeHeaders headers) {
+        return invoke(request, headers, accessTokenProvider.exchangeCurrentMemberToken());
+    }
+
+    private BridgeInvocationResponse invoke(BridgeInvocationRequest request, RuntimeHeaders headers, String accessToken) {
         HttpHeaders httpHeaders = new HttpHeaders();
         headers.copyTo(httpHeaders);
+        httpHeaders.setBearerAuth(accessToken);
         return restClient.post()
                 .uri("/api/workspace/weaver/mcp/servers/{serverKey}/tools/{toolName}:invoke", SERVER_KEY, request.toolName())
                 .headers(h -> h.addAll(httpHeaders))
-                .header("X-Weave-Mcp-Boundary-Token", boundaryToken)
                 .body(request)
                 .retrieve()
                 .body(BridgeInvocationResponse.class);
@@ -63,7 +68,8 @@ public class WeaveServerClient {
         if (!headers.valid()) {
             throw new McpBoundaryException("mcp-runtime-context-missing");
         }
-        BridgeDiscoveryResponse discovery = discover(headers.runtimeProfile(), headers);
+        String accessToken = accessTokenProvider.exchangeCurrentMemberToken();
+        BridgeDiscoveryResponse discovery = discover(headers.runtimeProfile(), headers, accessToken);
         boolean allowed = discovery.catalog().tools().stream().anyMatch(tool -> tool.name().equals(toolName));
         if (!allowed) {
             throw new McpBoundaryException("mcp-tool-not-granted");
@@ -72,6 +78,6 @@ public class WeaveServerClient {
                 toolName,
                 arguments == null ? Map.of() : arguments,
                 discovery.runtime(),
-                approvalEvidence), headers);
+                approvalEvidence), headers, accessToken);
     }
 }

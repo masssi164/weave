@@ -413,9 +413,12 @@ class WorkspaceControllerTest {
                         .with(jwt().jwt(jwt -> jwt
                                         .subject("member@example.invalid")
                                         .claim("iss", "https://auth.example.invalid/realms/acme")
+                                        .claim("aud", List.of("weave-backend"))
+                                        .claim("azp", "weave-mcp-server")
+                                        .claim("scope", "weave:mcp-backend")
                                         .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member"))))
                                         .claim("groups", List.of("weave-weaver-runtime", "weave-weaver-pilot")))
-                                .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
+                                .authorities(new SimpleGrantedAuthority("SCOPE_weave:mcp-backend"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.runtime.runtimeProfileHash").value(org.hamcrest.Matchers.startsWith("sha256:")))
                 .andExpect(jsonPath("$.catalog.serverNamespace").value("weave-domain-tools"))
@@ -427,7 +430,7 @@ class WorkspaceControllerTest {
     void returnsContractBridgeInvocationEnvelope() throws Exception {
         String runtimeProfileHash = runtimeProfileHash();
         when(weaverMcpBridgeService.invokeMcpTool(
-                        any(), eq("weave-domain-tools"), eq("files.read"), any(), eq("test-mcp-boundary")))
+                        any(), eq("weave-domain-tools"), eq("files.read"), any()))
                 .thenReturn(new BridgeInvocationResponse(
                         "files.read",
                         ToolInvocationStatus.DENIED,
@@ -439,11 +442,13 @@ class WorkspaceControllerTest {
                         .with(jwt().jwt(jwt -> jwt
                                         .subject("member@example.invalid")
                                         .claim("iss", "https://auth.example.invalid/realms/acme")
+                                        .claim("aud", List.of("weave-backend"))
+                                        .claim("azp", "weave-mcp-server")
+                                        .claim("scope", "weave:mcp-backend")
                                         .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member"))))
                                         .claim("groups", List.of("weave-weaver-runtime", "weave-weaver-pilot")))
-                                .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace")))
+                                .authorities(new SimpleGrantedAuthority("SCOPE_weave:mcp-backend")))
                         .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
-                        .header("X-Weave-Mcp-Boundary-Token", "test-mcp-boundary")
                         .content("""
                                 {
                                   "toolName": "files.read",
@@ -465,6 +470,48 @@ class WorkspaceControllerTest {
                 .andExpect(jsonPath("$.status").value("DENIED"))
                 .andExpect(jsonPath("$.supportSafe").value(true))
                 .andExpect(jsonPath("$.structuredContent.supportSafe").value(true));
+    }
+
+    @Test
+    void rejectsDirectAppTokensAtTheInternalMcpBridge() throws Exception {
+        mockMvc.perform(get("/api/v1/workspace/weaver/mcp/servers/weave-domain-tools/tools")
+                        .param("runtimeProfileHash", runtimeProfileHash())
+                        .with(jwt().jwt(token -> token
+                                        .subject("member@example.invalid")
+                                        .claim("iss", "https://auth.example.invalid/realms/acme")
+                                        .claim("aud", List.of("weave-backend"))
+                                        .claim("azp", "weave-app")
+                                        .claim("scope", "weave:workspace"))
+                                .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void rejectsPureClientCredentialsAtTheInternalMcpBridge() throws Exception {
+        mockMvc.perform(get("/api/v1/workspace/weaver/mcp/servers/weave-domain-tools/tools")
+                        .param("runtimeProfileHash", runtimeProfileHash())
+                        .with(jwt().jwt(token -> token
+                                        .subject("2f802c16-24a5-471c-9312-7f5ace77dd04")
+                                        .claim("preferred_username", "service-account-weave-mcp-server")
+                                        .claim("iss", "https://auth.example.invalid/realms/acme")
+                                        .claim("aud", List.of("weave-backend"))
+                                        .claim("azp", "weave-mcp-server")
+                                        .claim("scope", "weave:mcp-backend"))
+                                .authorities(new SimpleGrantedAuthority("SCOPE_weave:mcp-backend"))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void delegatedMcpScopeCannotRoamOrdinaryWorkspaceApis() throws Exception {
+        mockMvc.perform(get("/api/workspace/capabilities")
+                        .with(jwt().jwt(token -> token
+                                        .subject("member@example.invalid")
+                                        .claim("iss", "https://auth.example.invalid/realms/acme")
+                                        .claim("aud", List.of("weave-backend"))
+                                        .claim("azp", "weave-mcp-server")
+                                        .claim("scope", "weave:mcp-backend"))
+                                .authorities(new SimpleGrantedAuthority("SCOPE_weave:mcp-backend"))))
+                .andExpect(status().isForbidden());
     }
 
     @Test

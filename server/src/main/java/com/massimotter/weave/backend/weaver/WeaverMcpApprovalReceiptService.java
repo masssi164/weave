@@ -47,11 +47,11 @@ public class WeaverMcpApprovalReceiptService {
             String runtimeProfileHash,
             MemberMcpToolDefinition definition,
             Map<String, Object> arguments,
-            boolean trustedMcpBoundary) {
+            McpDelegatedIdentity delegatedIdentity) {
         List<String> requiredScopes = canonicalScopeRefs(arguments);
         String auditRef = "audit://weaver-approval/" + UUID.randomUUID();
-        if (!trustedMcpBoundary) {
-            return denied("mcp_boundary_untrusted", auditRef, actorRef, runtimeProfileHash, definition, requiredScopes);
+        if (delegatedIdentity == null) {
+            return denied("mcp_delegation_untrusted", auditRef, actorRef, runtimeProfileHash, definition, requiredScopes);
         }
         if (evidence == null) {
             return denied("mcp_elicitation_missing", auditRef, actorRef, runtimeProfileHash, definition, requiredScopes);
@@ -75,6 +75,14 @@ public class WeaverMcpApprovalReceiptService {
         WeaverApprovalReceipt receipt = new WeaverApprovalReceipt(
                 "approval://weaver/" + UUID.randomUUID(),
                 actorRef,
+                delegatedIdentity.issuer(),
+                delegatedIdentity.memberSubject(),
+                delegatedIdentity.organizationRef(),
+                delegatedIdentity.workloadClientId(),
+                delegatedIdentity.audiences(),
+                delegatedIdentity.delegationRef(),
+                "entitlement://runtime-profile/" + runtimeProfileHash,
+                UUID.randomUUID().toString(),
                 runtimeProfileHash,
                 definition.domain(),
                 definition.name(),
@@ -88,7 +96,8 @@ public class WeaverMcpApprovalReceiptService {
                 now.toString(),
                 now.plus(RECEIPT_TTL).toString(),
                 auditRef);
-        audit("mcp_elicitation_receipt_issued", auditRef, actorRef, runtimeProfileHash, definition, requiredScopes);
+        audit("mcp_elicitation_receipt_issued", auditRef, actorRef, runtimeProfileHash, definition, requiredScopes,
+                delegatedIdentity);
         return new Resolution("approved", receipt, auditRef);
     }
 
@@ -151,7 +160,7 @@ public class WeaverMcpApprovalReceiptService {
             String runtimeProfileHash,
             MemberMcpToolDefinition definition,
             List<String> scopes) {
-        audit(status, auditRef, actorRef, runtimeProfileHash, definition, scopes);
+        audit(status, auditRef, actorRef, runtimeProfileHash, definition, scopes, null);
         return new Resolution(status, null, auditRef);
     }
 
@@ -161,7 +170,8 @@ public class WeaverMcpApprovalReceiptService {
             String actorRef,
             String runtimeProfileHash,
             MemberMcpToolDefinition definition,
-            List<String> scopes) {
+            List<String> scopes,
+            McpDelegatedIdentity delegatedIdentity) {
         auditEventPublisher.publish(new AuditEvent(
                 "tenant:workspace",
                 null,
@@ -171,14 +181,17 @@ public class WeaverMcpApprovalReceiptService {
                 clock.instant(),
                 auditRef,
                 AuditRedactionLevel.SUPPORT_SAFE,
-                Map.of(
-                        "action", definition.name(),
-                        "domain", definition.domain(),
-                        "runtimeProfileHash", runtimeProfileHash,
-                        "canonicalRefs", scopes,
-                        "auditRef", auditRef,
-                        "status", status,
-                        "supportSafe", true)));
+                Map.ofEntries(
+                        Map.entry("action", definition.name()),
+                        Map.entry("domain", definition.domain()),
+                        Map.entry("runtimeProfileHash", runtimeProfileHash),
+                        Map.entry("canonicalRefs", scopes),
+                        Map.entry("auditRef", auditRef),
+                        Map.entry("status", status),
+                        Map.entry("effectiveMemberSubject", delegatedIdentity == null ? "untrusted" : delegatedIdentity.memberSubject()),
+                        Map.entry("workloadClientId", delegatedIdentity == null ? "untrusted" : delegatedIdentity.workloadClientId()),
+                        Map.entry("delegationRef", delegatedIdentity == null ? "untrusted" : delegatedIdentity.delegationRef()),
+                        Map.entry("supportSafe", true))));
     }
 
     public record Resolution(String status, WeaverApprovalReceipt receipt, String auditRef) {

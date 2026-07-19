@@ -35,8 +35,8 @@ class WeaverMcpApprovalReceiptServiceTest {
                 List.of("calendar:team:engineering"),
                 clock.instant());
 
-        var resolved = service.issue(evidence, ACTOR, PROFILE, definition, ARGUMENTS, true);
-        var replay = service.issue(evidence, ACTOR, PROFILE, definition, ARGUMENTS, true);
+        var resolved = service.issue(evidence, ACTOR, PROFILE, definition, ARGUMENTS, delegatedIdentity());
+        var replay = service.issue(evidence, ACTOR, PROFILE, definition, ARGUMENTS, delegatedIdentity());
 
         assertThat(resolved.approved()).isTrue();
         assertThat(resolved.receipt().receiptRef()).startsWith("approval://weaver/");
@@ -46,6 +46,13 @@ class WeaverMcpApprovalReceiptServiceTest {
         assertThat(resolved.receipt().approvalMode()).isEqualTo("allow-once");
         assertThat(resolved.receipt().evidenceRef()).isEqualTo("elicitation://openclaw/one");
         assertThat(resolved.receipt().policyVersion()).isEqualTo(WeaverToolRegistry.APPROVAL_POLICY_VERSION);
+        assertThat(resolved.receipt().effectiveMemberIssuer()).isEqualTo("https://auth.weave.test/realms/weave");
+        assertThat(resolved.receipt().effectiveMemberSubject()).isEqualTo("member-123");
+        assertThat(resolved.receipt().workloadClientId()).isEqualTo("weave-mcp-server");
+        assertThat(resolved.receipt().tokenAudiences()).containsExactly("weave-backend");
+        assertThat(resolved.receipt().delegationRef()).startsWith("delegation://sha256/");
+        assertThat(resolved.receipt().entitlementRevision()).startsWith("entitlement://runtime-profile/");
+        assertThat(resolved.receipt().nonce()).isNotBlank();
         assertThat(replay.status()).isEqualTo("mcp_elicitation_replayed");
         assertThat(audit.events()).extracting(event -> event.payload().get("status"))
                 .containsExactly("mcp_elicitation_receipt_issued", "mcp_elicitation_replayed");
@@ -64,21 +71,21 @@ class WeaverMcpApprovalReceiptServiceTest {
                 PROFILE,
                 definition,
                 ARGUMENTS,
-                false);
+                null);
         var mismatched = service.issue(
                 evidence("elicitation://openclaw/mismatch", definition.name(), List.of("calendar:workspace"), clock.instant()),
                 ACTOR,
                 PROFILE,
                 definition,
                 ARGUMENTS,
-                true);
+                delegatedIdentity());
         var foreign = service.issue(
                 evidence("elicitation://other-client/foreign", definition.name(), List.of("calendar:team:engineering"), clock.instant()),
                 ACTOR,
                 PROFILE,
                 definition,
                 ARGUMENTS,
-                true);
+                delegatedIdentity());
         clock.advance(Duration.ofMinutes(3));
         var expired = service.issue(
                 evidence("elicitation://openclaw/expired", definition.name(), List.of("calendar:team:engineering"), clock.instant().minus(Duration.ofMinutes(3))),
@@ -86,9 +93,9 @@ class WeaverMcpApprovalReceiptServiceTest {
                 PROFILE,
                 definition,
                 ARGUMENTS,
-                true);
+                delegatedIdentity());
 
-        assertThat(untrusted.status()).isEqualTo("mcp_boundary_untrusted");
+        assertThat(untrusted.status()).isEqualTo("mcp_delegation_untrusted");
         assertThat(mismatched.status()).isEqualTo("mcp_elicitation_binding_mismatch");
         assertThat(foreign.status()).isEqualTo("mcp_elicitation_untrusted");
         assertThat(expired.status()).isEqualTo("mcp_elicitation_expired");
@@ -110,6 +117,16 @@ class WeaverMcpApprovalReceiptServiceTest {
                 scopes,
                 "allow-once",
                 decidedAt.toString());
+    }
+
+    private McpDelegatedIdentity delegatedIdentity() {
+        return new McpDelegatedIdentity(
+                "https://auth.weave.test/realms/weave",
+                "member-123",
+                "org:workspace",
+                "weave-mcp-server",
+                List.of("weave-backend"),
+                "delegation://sha256/test");
     }
 
     private static final class MutableClock extends Clock {

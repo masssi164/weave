@@ -284,8 +284,8 @@ variable "mcp_container_port" {
   default     = 8091
 }
 
-variable "mcp_boundary_token" {
-  description = "Private service credential shared only by the Weave backend and Spring AI MCP server."
+variable "weave_mcp_client_secret" {
+  description = "Keycloak client secret used only by the confidential weave-mcp-server token-exchange workload."
   type        = string
   sensitive   = true
 }

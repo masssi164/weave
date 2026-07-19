@@ -18,6 +18,11 @@ import org.springframework.security.oauth2.jwt.Jwt;
 final class OrganizationIdentityContextFactory {
 
     private static final List<String> WEAVE_ORG_ROLES = List.of("owner", "admin", "member", "guest");
+    private static final Map<String, String> WEAVE_PRODUCT_ROLE_GROUPS = Map.of(
+            "workspace-owners", "owner",
+            "workspace-admins", "admin",
+            "workspace-members", "member",
+            "workspace-guests", "guest");
 
     private static final int MAX_IDENTITY_ISSUER_LENGTH = com.massimotter.weave.backend.model.IdentityKeyFormat.MAX_ISSUER_LENGTH;
     private static final int MAX_IDENTITY_SUBJECT_LENGTH = com.massimotter.weave.backend.model.IdentityKeyFormat.MAX_SUBJECT_LENGTH;
@@ -98,7 +103,15 @@ final class OrganizationIdentityContextFactory {
     }
 
     private static List<String> canonicalRoles(Jwt jwt) {
-        return clientRoles(jwt).stream()
+        Stream<String> roleClaims = clientRoles(jwt).stream();
+        if (jwt != null && "weave-mcp-server".equals(jwt.getClaimAsString("azp"))) {
+            roleClaims = Stream.concat(
+                    roleClaims,
+                    stringClaims(jwt, "weave_groups", "groups").stream()
+                            .map(WEAVE_PRODUCT_ROLE_GROUPS::get)
+                            .filter(java.util.Objects::nonNull));
+        }
+        return roleClaims
                 .map(role -> role.toLowerCase(Locale.ROOT))
                 .filter(WEAVE_ORG_ROLES::contains)
                 .distinct()

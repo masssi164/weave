@@ -24,6 +24,24 @@ class WorkspaceCapabilityServiceTest {
     // V01_IDM_RBAC_CAPABILITY_POLICY
 
     @Test
+    void delegatedMcpTokenRetainsMemberCapabilitiesThroughTheKeycloakRoleGroup() {
+        WorkspaceCapabilityService service = new WorkspaceCapabilityService(
+                resourceServerProperties("https://auth.weave.test/realms/weave"),
+                new WeaveSecurityProperties("weave-backend", "weave-app"),
+                new WorkspaceCapabilityProperties(null, null, null, null, null, null));
+        Jwt delegated = Jwt.withTokenValue("delegated")
+                .header("alg", "none")
+                .subject("user-1")
+                .issuer("https://auth.weave.test/realms/weave")
+                .claim("azp", "weave-mcp-server")
+                .claim("groups", List.of("workspace-members", "weave-weaver-runtime"))
+                .build();
+
+        assertThat(service.grantedCapabilities(delegated))
+                .contains("chat.send", "files.read", "calendar.read", "weaver.exec_disabled");
+    }
+
+    @Test
     void marksChatAndFilesDegradedUntilTheirRoutesAreConfigured() {
         WorkspaceCapabilityService service = new WorkspaceCapabilityService(
                 resourceServerProperties("https://auth.weave.test/realms/weave"),

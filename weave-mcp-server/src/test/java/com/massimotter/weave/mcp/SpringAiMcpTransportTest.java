@@ -36,7 +36,9 @@ import org.springframework.test.web.servlet.MvcResult;
 
 @SpringBootTest(properties = {
         "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.weave.test/realms/weave",
-        "spring.security.oauth2.resourceserver.jwt.jwk-set-uri=https://auth.weave.test/realms/weave/protocol/openid-connect/certs"
+        "spring.security.oauth2.resourceserver.jwt.jwk-set-uri=https://auth.weave.test/realms/weave/protocol/openid-connect/certs",
+        "weave.oidc.token-uri=https://auth.weave.test/realms/weave/protocol/openid-connect/token",
+        "weave.oidc.mcp-client-secret=test-only-secret"
 })
 @AutoConfigureMockMvc
 class SpringAiMcpTransportTest {
@@ -52,13 +54,28 @@ class SpringAiMcpTransportTest {
 
     @BeforeEach
     void validOidcToken() {
-        when(jwtDecoder.decode("runtime-token")).thenReturn(Jwt.withTokenValue("runtime-token")
+        when(jwtDecoder.decode(org.mockito.ArgumentMatchers.anyString())).thenAnswer(invocation -> token(invocation.getArgument(0)));
+    }
+
+    private Jwt token(String tokenValue) {
+        Jwt.Builder builder = Jwt.withTokenValue(tokenValue)
                 .header("alg", "none")
                 .subject("member@example.invalid")
-                .claim("scope", "weave:workspace")
+                .audience(List.of("weave-mcp-server"))
+                .claim("azp", "weave-app")
+                .claim("scope", "weave:mcp")
                 .issuedAt(Instant.now())
-                .expiresAt(Instant.now().plusSeconds(300))
-                .build());
+                .expiresAt(Instant.now().plusSeconds(300));
+        switch (tokenValue) {
+            case "wrong-audience" -> builder.audience(List.of("weave-backend"));
+            case "wrong-azp" -> builder.claim("azp", "other-client");
+            case "missing-scope" -> builder.claim("scope", "openid");
+            case "service-account" -> builder.subject("2f802c16-24a5-471c-9312-7f5ace77dd04")
+                    .claim("preferred_username", "service-account-weave-mcp-server")
+                    .claim("azp", "weave-mcp-server");
+            default -> { }
+        }
+        return builder.build();
     }
 
     @Test
@@ -68,6 +85,20 @@ class SpringAiMcpTransportTest {
                         .accept(MediaType.APPLICATION_JSON, MediaType.TEXT_EVENT_STREAM)
                         .content(initializeRequest()))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {
+            "wrong-audience", "wrong-azp", "missing-scope", "service-account"
+    })
+    void rejectsTokensThatDoNotRepresentAnAudienceBoundMemberRuntime(String tokenValue) throws Exception {
+        mvc.perform(post("/mcp")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenValue)
+                        .header("X-Weave-Runtime-Profile", "sha256:test")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.APPLICATION_JSON, MediaType.TEXT_EVENT_STREAM)
+                        .content(initializeRequest()))
+                .andExpect(status().isForbidden());
     }
 
     @Test

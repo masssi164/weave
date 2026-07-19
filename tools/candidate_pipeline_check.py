@@ -82,7 +82,7 @@ def main() -> int:
     persistent_credential_names = (
         "TF_VAR_db_admin_password",
         "TF_VAR_backend_db_password",
-        "TF_VAR_mcp_boundary_token",
+        "TF_VAR_weave_mcp_client_secret",
         "TF_VAR_keycloak_admin_password",
         "TF_VAR_keycloak_db_password",
         "TF_VAR_mas_db_password",
