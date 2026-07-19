@@ -115,6 +115,20 @@ def main() -> int:
     ordered(
         deployment,
         (
+            "Run requested persistent member operation before baseline",
+            "Capture persistent dogfood state before candidate deployment",
+            "      - name: Run requested persistent member operation\n",
+        ),
+        "persistent dogfood member lifecycle",
+    )
+    require(
+        "inputs.dogfood_member_operation != 'status'" in deployment
+        and './dogfood-member.sh "$DOGFOOD_MEMBER_OPERATION"' in deployment,
+        "explicit persistent member recovery operations do not run before the online baseline gate",
+    )
+    ordered(
+        deployment,
+        (
             "persistent-dogfood-observation.sh capture",
             "Apply the same candidate a second time non-destructively",
             "persistent-dogfood-observation.sh compare",
