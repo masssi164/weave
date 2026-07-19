@@ -1,0 +1,207 @@
+# Repo-local conformance projection for implementation and test fixtures.
+# Canonical product/domain truth remains the pinned weave-specs corpus.
+# MatrixRTC is an open-MSC snapshot, not a stable Matrix standard.
+profile:
+  id: weave.matrixrtc/profile-0
+  version: 0.1.0
+  status: experimental-guarded
+  frozen_at: 2026-07-19
+  statement: >-
+    Interoperable Calls data plane for Weave. It defines no proprietary member
+    endpoint or event type; it freezes mutually consistent reads and writes
+    across stable Matrix OAuth and open MatrixRTC MSC revisions.
+
+stable_matrix:
+  specification: v1.19
+  client_server_base: /_matrix/client
+  required:
+    - GET /.well-known/matrix/client
+    - GET /_matrix/client/v1/auth_metadata
+    - OAuth 2.0 Dynamic Client Registration (RFC 7591)
+    - Authorization Code with PKCE S256
+    - GET /_matrix/client/v3/account/whoami
+    - POST /_matrix/client/v3/user/{userId}/openid/request_token
+
+matrixrtc_snapshots:
+  # Every item is an open MSC on the freeze date; commit pinning is normative.
+  - msc: 4143
+    role: base-slot-membership-transport-discovery-e2ee
+    commit: 0c5f1877ef163c02521f22c710a18b49bb527f21
+    pull_request: https://github.com/matrix-org/matrix-spec-proposals/pull/4143
+  - msc: 4195
+    role: livekit-transport
+    commit: a8464ae82ca85eae2ca1882cd8a38305a14b8bd2
+    pull_request: https://github.com/matrix-org/matrix-spec-proposals/pull/4195
+  - msc: 4196
+    role: m.call-application
+    commit: 5add2f0c96974c4996a6e5e0907018117cbb5934
+    pull_request: https://github.com/matrix-org/matrix-spec-proposals/pull/4196
+  - msc: 4075
+    role: notifications-and-ringing
+    commit: 39cc54743a4f2187fdee1a69909b4a84eb7af014
+    pull_request: https://github.com/matrix-org/matrix-spec-proposals/pull/4075
+  - msc: 4310
+    role: decline
+    commit: 67687dc381f56c626edf6e00a2bd2c5e2d04e56b
+    pull_request: https://github.com/matrix-org/matrix-spec-proposals/pull/4310
+  - msc: 4140
+    role: cancellable-delayed-leave
+    commit: cd878d211fc855951e79cbb940bd68c304eecc87
+    pull_request: https://github.com/matrix-org/matrix-spec-proposals/pull/4140
+  - msc: 4354
+    role: sticky-events
+    commit: 74fc75e1dc1301230cc3fcb7435205bf4f567ef8
+    pull_request: https://github.com/matrix-org/matrix-spec-proposals/pull/4354
+
+authentication:
+  visible_authorization_server: matrix-authentication-service
+  upstream_identity_backbone: keycloak
+  rule: >-
+    A client authenticates through Matrix Native OAuth. MAS may federate to
+    Keycloak as upstream OIDC IdP. A Matrix OAuth access token, OIDC ID token
+    and Matrix OpenID credential are distinct artifacts and MUST NOT be
+    substituted for one another.
+
+client_flow:
+  - discover_matrix_homeserver_from_well_known
+  - fetch_auth_metadata
+  - register_oauth_client_or_use_pre_registered_client
+  - authorize_with_code_and_pkce_s256_in_system_browser
+  - confirm_identity_with_whoami
+  - discover_transports_via_authenticated_get_matrix_client_v1_rtc_transports
+  - resolve_or_open_m_rtc_slot
+  - publish_sticky_m_rtc_member
+  - request_matrix_openid_credential
+  - exchange_openid_credential_at_rtc_authorizer
+  - connect_to_livekit_over_webrtc
+
+transport_discovery:
+  preferred_endpoint: /_matrix/client/v1/rtc/transports
+  preferred_feature_flag: org.matrix.msc4143.stable
+  unstable_fallback_endpoint: /_matrix/client/unstable/org.matrix.msc4143/rtc/transports
+  unstable_feature_flag: org.matrix.msc4143
+  authenticated: true
+  rule: >-
+    Resolve support through /_matrix/client/versions. Do not invent a Weave
+    discovery endpoint and do not expose RTC infrastructure before authentication.
+
+wire_contract:
+  authoritative_write_model: msc4143-slot-sticky-membership
+  write_events:
+    slot: m.rtc.slot
+    membership: m.rtc.member
+    notification: m.rtc.notification
+    decline: m.rtc.decline
+    encryption_key: m.rtc.encryption_key
+  forbidden_event_prefixes:
+    - com.weave.call.
+  compatibility_reads:
+    - org.matrix.msc3401.call.member
+    - legacy-msc4195-rtc_transports-array
+    - legacy-msc4196-relations-and-disconnect-reason
+    - unstable-namespaced-aliases-of-profile-events
+  policy:
+    dual_read_single_write: true
+    preserve_unknown_fields: true
+    reject_schema_ambiguity: true
+
+known_draft_conflicts:
+  # The frozen PR heads are not mutually consistent. Profile 0 resolves them
+  # deliberately rather than calling their union a standard.
+  - conflict: msc4195-and-msc4196-use-rtc_transports-array
+    resolution: write-msc4143-transports-published-and-can_subscribe; read-both
+  - conflict: msc4195-text-refers-to-m.rtc.encryption_keys
+    resolution: write-and-validate-msc4143-m.rtc.encryption_key-singular
+  - conflict: msc4196-examples-use-older-membership-relations-and-disconnect-fields
+    resolution: msc4143-slot-sticky-membership-is-authoritative; preserve-known-compatible-fields-on-read
+
+rtc_authorizer:
+  identity_input: matrix-openid-credential
+  output: short-lived-livekit-jwt
+  required_bindings:
+    - matrix_user_id
+    - matrix_room_id
+    - slot_id
+    - member_id
+    - livekit_alias
+    - permissions
+    - issued_at
+    - expires_at
+    - nonce
+    - fencing_or_policy_revision
+  authorization:
+    local_publish_or_room_create: current-room-membership-and-weave-policy-required
+    subscribe: least-privilege-and-current-call-policy-required
+    federated_membership: guarded-until-standard-membership-attestation-is-sufficient
+  forbidden:
+    - treating-openid-identity-proof-as-room-authorization
+    - exposing-livekit-api-secret-to-client
+    - long-lived-join-token
+    - deriving-room-authorization-from-identity-proof-alone
+
+ruma_projection:
+  pinned_main_commit: ea3455221fd99985256b196866abb85e22ff4bdd
+  supported_upstream_types:
+    - m.rtc.notification
+    - m.rtc.decline
+    - legacy-org.matrix.msc3401.call.member
+  local_gap_module: matrixrtc_wire
+  local_types:
+    - m.rtc.slot-state-event
+    - m.rtc.member-sticky-room-event
+    - m.rtc.encryption_key-to-device-event
+    - rtc-transports-endpoint-shapes-not-yet-covered-upstream
+  constraints:
+    - use-ruma-custom-event-extension-pattern
+    - dispatch-unknown-custom-events-through-raw-wrapper-and-event-type
+    - retain-upstream-wire-names
+    - delete-local-type-when-equivalent-upstream-ruma-type-is-adopted
+
+flutter_projection:
+  matrix_protocol_core: shared-rust-ruma-via-flutter_rust_bridge
+  media_transport: livekit-client
+  native_call_coordinator:
+    owns:
+      - callkit-and-core-telecom-ui-lifecycle
+      - answer-decline-end-hold-mute-correlation
+      - audio-route-synchronization
+      - idempotent-os-protocol-state-correlation
+    must_not_own:
+      - matrix-discovery-or-oauth
+      - matrix-sync-or-e2ee
+      - matrixrtc-wire-semantics
+      - rtc-authorizer-policy
+      - livekit-room-administration
+    mappings:
+      answer: join-slot-then-start-media
+      decline_before_join: send-m.rtc.decline
+      end_after_join: leave-m.rtc.member
+      remote_end: report-os-call-ended
+      hold: local-media-state-only-unless-a-standard-event-is-defined
+
+security_claims:
+  encrypted_matrix_room: required-for-private-calls
+  matrixrtc_media_e2ee: required-for-private-calls
+  dtls_srtp_only_is_e2ee: false
+  sfu_observes_metadata: true
+  recording_or_transcription: >-
+    Requires explicit policy/consent and a disclosed trusted decrypting
+    participant or a different non-E2EE media profile. Blanket E2EE claims are forbidden.
+
+release_gates:
+  - golden-wire-fixtures-for-every-pinned-msc
+  - dual-read-single-write-contract-tests
+  - element-call-and-matrix-js-sdk-interoperability
+  - local-and-federated-authz-negative-tests
+  - matrixrtc-key-lifecycle-and-device-recovery
+  - ios-callkit-and-android-core-telecom-physical-device-evidence
+  - reconnect-turn-and-accessibility-evidence
+  - no-provider-secret-or-proprietary-call-event-scan
+
+claim:
+  allowed: Experimental MatrixRTC Profile 0; Guarded
+  forbidden:
+    - stable-matrixrtc-standard
+    - production-ready-calls
+    - lossless-live-call-provider-migration
+    - openid-alone-proves-call-membership
