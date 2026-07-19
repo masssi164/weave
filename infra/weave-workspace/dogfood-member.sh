@@ -4,7 +4,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-BOOTSTRAP_ENV_FILE="${ROOT_DIR}/.generated/bootstrap.env"
+BOOTSTRAP_ENV_FILE="${WEAVE_DOGFOOD_BOOTSTRAP_ENV:-${ROOT_DIR}/.generated/bootstrap.env}"
 SUBJECT_FILE="${WEAVE_DOGFOOD_MEMBER_SUBJECT_FILE:-${ROOT_DIR}/.generated/dogfood-member.subject}"
 REALM="${TF_VAR_tenant_slug:-weave}"
 OPERATION=""
