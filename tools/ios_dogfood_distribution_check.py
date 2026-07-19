@@ -62,6 +62,10 @@ def main() -> int:
     require("com.apple.developer.associated-domains" in entitlements, "production/TestFlight entitlements lost Associated Domains")
     require("$(AppIdentifierPrefix)com.massimotter.weave" in development_entitlements, "development fallback lost the stable Keychain identity")
     require("com.apple.developer.associated-domains" not in development_entitlements, "Personal Team fallback must omit Associated Domains")
+    require(
+        '"PRODUCT_BUNDLE_IDENTIFIER=${BUNDLE_ID}"' not in development_fallback,
+        "development fallback must not override embedded framework bundle identifiers",
+    )
     for marker in (
         "WEAVE_CANDIDATE_COMMIT",
         "WEAVE_CANDIDATE_EVIDENCE_REF",

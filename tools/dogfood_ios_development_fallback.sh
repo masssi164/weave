@@ -87,7 +87,6 @@ jq -e --arg bundle "${BUNDLE_ID}" \
     -destination generic/platform=iOS \
     -derivedDataPath "${DERIVED_DATA_DIR}" \
     "DEVELOPMENT_TEAM=${TEAM_ID}" \
-    "PRODUCT_BUNDLE_IDENTIFIER=${BUNDLE_ID}" \
     CODE_SIGN_STYLE=Automatic \
     "CODE_SIGN_ENTITLEMENTS=${FALLBACK_ENTITLEMENTS}" \
     -allowProvisioningUpdates \
