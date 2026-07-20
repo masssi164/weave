@@ -85,12 +85,12 @@ artifacts:
       - contracts/jsonschema/portability-report.schema.json
     notes: JSON dry-run and negative fixtures are implementation evidence unless promoted to corpus contracts.
   - path: specs/0007-governed-weaver-runtime
-    status: transitional-conformance
-    action: keep-only-while-acceptance-gates-consume-repo-projection
+    status: obsolete-historical
+    action: retain-only-as-implementation-conformance-evidence-until-scenario-mapping-is-pruned
     corpusCandidates:
-      - domains/weaver-governed-pa/spec.md
+      - domains/agent-runtime-control/spec.md
       - steering/openclaw-orchestrator-pattern.md
-    notes: Canonical product policy is already owned by domains/weaver-governed-pa/spec.md; deleted Python MCP evidence is obsolete and Spring AI evidence is the active repo projection. Weaver/OpenClaw runtime implementation proof belongs to its runtime repository.
+    notes: Canonical runtime-control and approval authority is owned by domains/agent-runtime-control/spec.md and ADR 0012. This packet is historical conformance evidence only; its former ApprovalReceipt product language is superseded by signed ApprovalDecisionEvidence plus independent domain authorization and immutable ActionEvidence.
   - path: specs/0008-local-dogfood-topology-weave-test
     status: implementation-evidence
     action: keep-as-repo-owned-dogfood-evidence-unless-replaced-by-release-gate
@@ -102,7 +102,7 @@ artifacts:
     action: prune-after-acceptance-mappings-consume-corpus-adr-0003-directly
     corpusCandidates:
       - architecture/adr/0003-canonical-domain-projections-and-spring-ai-mcp.md
-      - domains/weaver-governed-pa/spec.md
+      - domains/agent-runtime-control/spec.md
     notes: Obsolete as product truth; the corpus already owns domain naming and Spring AI projection semantics. Keep temporarily as acceptance traceability only.
   - path: specs/0010-full-product-target
     status: transitional-conformance
@@ -111,11 +111,12 @@ artifacts:
       - steering/product-constitution.md
       - domains/*/spec.md
   - path: specs/0011-weaver-governed-pa-target
-    status: transitional-conformance
-    action: split-product-policy-into-corpus-and-runtime-proof-into-weaver-repo
+    status: obsolete-historical
+    action: retain-only-as-implementation-conformance-evidence-until-scenario-mapping-is-pruned
     corpusCandidates:
-      - domains/weaver-governed-pa/spec.md
+      - domains/agent-runtime-control/spec.md
       - steering/openclaw-orchestrator-pattern.md
+    notes: The former weaver-governed-pa bounded context and reusable ApprovalReceipt model are superseded. Agent Runtime Control is canonical; Weaver/OpenClaw runtime proof belongs to the runtime repository.
   - path: specs/admin-ci-cd-orchestration-contract.md
     status: obsolete-historical
     action: retain-as-non-executable-migration-record-only

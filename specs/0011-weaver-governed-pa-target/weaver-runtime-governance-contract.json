@@ -1,7 +1,8 @@
 {
   "contractId": "WEAVE-SPEC-0011-weaver-runtime-governance",
   "sourceSpec": "specs/0011-weaver-governed-pa-target/spec.md",
-  "status": "target-contract-fixture",
+  "status": "deprecated-conformance-fixture",
+  "canonicalDomain": "agent-runtime-control",
   "eligibility": {
     "requiresOrganizationPolicy": true,
     "requiresGroup": "weaver-group",
@@ -20,8 +21,10 @@
   "toolExecution": {
     "discovery": "domain-first-mcp-tools",
     "providerAccess": "facade-only",
-    "riskyActionsRequireApprovalReceipt": true,
-    "approvalReceiptChecks": ["current-policy-version", "profile-hash", "tool-contract", "user-scope"]
+    "guardedActionsRequireSignedDecisionEvidence": true,
+    "decisionEvidenceChecks": ["single-use-jti", "current-policy-version", "profile-hash", "tool-contract", "action-argument-digest", "user-scope"],
+    "independentDomainAuthorizationRequired": true,
+    "finalEvidence": "immutable-action-evidence"
   },
   "heartbeatAutomation": {
     "missingAuthority": "fail-closed",

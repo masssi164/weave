@@ -1,6 +1,6 @@
 corpus:
 - WEAVE-ADR-0003
-- WEAVE-DOMAIN-WEAVER-GOVERNED-PA
+- WEAVE-DOMAIN-AGENT-RUNTIME-CONTROL
 repo_feature: specs/0009-domain-first-mcp-tools
 related_repos:
 - /Users/flotterotter/code/weaver/specs

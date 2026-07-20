@@ -106,11 +106,11 @@ Define the complete target product as an Organization Operating System with data
 
 ## Domain model and contracts
 
-- Canonical Weave entities affected: Organization, Space, Subject, Group, Role, Policy, ProviderRef, Capability, DomainObject, Decision, Evidence, WeaverRuntimeProfile, ApprovalReceipt, AuditEvent.
+- Canonical Weave entities affected: Organization, Space, Subject, Group, Role, Policy, ProviderRef, Capability, DomainObject, Decision, Evidence, RuntimeProfile, ApprovalDecisionEvidence, ActionEvidence, AuditEvent.
 - Provider/category contracts affected: identity, chat, files/documents, calendar/meetings, boards/tasks, decisions/evidence, admin/provider, weaver tools.
-- API/event contracts affected: domain facades, provider readiness reports, migration reports, runtime profile projection, approval receipts, audit events.
+- API/event contracts affected: domain facades, provider readiness reports, migration reports, signed RuntimeProfile projection, signed single-use decision evidence, immutable action evidence, audit events.
 - Policy/RBAC/capability keys affected: domain grants, admin/provider grants, support/auditor grants, `weaver.enabled`, `weaver-group`, tool/action scopes.
-- Audit/support evidence affected: support-safe diagnostics, provenance, policy decisions, migration dry-runs, blocked events, approval receipts.
+- Audit/support evidence affected: support-safe diagnostics, provenance, policy decisions, migration dry-runs, blocked events, decision/action evidence.
 
 ## Acceptance and evidence mapping
 

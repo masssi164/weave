@@ -1,6 +1,6 @@
 # Implementation plan: Full Weave target product contract
 
-**Spec corpus commit/ID**: `ebd342904b4fce4a71efdf1edd3be2635e5ede7c / WEAVE-STEERING-PRODUCT-CONSTITUTION, WEAVE-STEERING-DOMAIN-CONTEXT-MAP, WEAVE-DOMAIN-WEAVER-GOVERNED-PA`
+**Spec corpus commit/ID**: `specs/weave-specs.lock.json / WEAVE-STEERING-PRODUCT-CONSTITUTION, WEAVE-STEERING-DOMAIN-CONTEXT-MAP, WEAVE-DOMAIN-AGENT-RUNTIME-CONTROL`
 **Repo conformance spec**: `specs/0010-full-product-target/spec.md`
 **Branch**: `docs/northstar-spec-coverage-complete`
 **Date**: 2026-06-13
@@ -34,7 +34,7 @@ Create a target-product Spec Kit bridge that turns the pinned corpus plus Massim
 
 1. Product acceptance/Gherkin: create target-product setup/space/provider-change/evidence examples, then split domain-specific scenarios.
 2. Mapping/evidence marker: add `weave_spec_0010_*` markers before implementation claim.
-3. API/event/schema contracts: provider readiness/migration reports, Decision/Evidence contracts, WeaverRuntimeProfile/ApprovalReceipt where not already covered.
+3. API/event/schema contracts: provider readiness/migration reports, Decision/Evidence contracts, signed RuntimeProfile, signed single-use ApprovalDecisionEvidence, and immutable ActionEvidence where not already covered.
 4. Unit/widget/backend/admin tests: per task slice.
 5. CI/evidence artifacts: `specCorpusConformance`, `specContract`, `acceptanceContract`, plus domain gates.
 
