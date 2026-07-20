@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.agentruntime.domain;
 
+import java.time.Instant;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -11,6 +12,7 @@ public record RuntimeWorkloadCredentialState(
         String ownerFingerprint,
         String activeKeyId,
         String activeFingerprint,
+        Instant activeCreatedAt,
         Set<String> acceptedKeyIds,
         String publicJwks,
         RotationPhase rotationPhase,
@@ -31,6 +33,9 @@ public record RuntimeWorkloadCredentialState(
             throw new IllegalArgumentException("activeKeyId has an invalid format");
         }
         requireFingerprint(activeFingerprint, "activeFingerprint");
+        if (activeCreatedAt == null) {
+            throw new IllegalArgumentException("activeCreatedAt is required");
+        }
         acceptedKeyIds = acceptedKeyIds == null
                 ? Set.of()
                 : Set.copyOf(new LinkedHashSet<>(acceptedKeyIds));

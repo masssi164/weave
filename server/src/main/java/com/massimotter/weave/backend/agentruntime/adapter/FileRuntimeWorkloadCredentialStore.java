@@ -388,6 +388,7 @@ public final class FileRuntimeWorkloadCredentialStore
                     stored.ownerFingerprint(),
                     active.keyId(),
                     fingerprintForJwk(active.privateJwk()),
+                    Instant.parse(active.createdAt()),
                     keyIds,
                     mapper.writeValueAsString(jwks),
                     phase(stored),

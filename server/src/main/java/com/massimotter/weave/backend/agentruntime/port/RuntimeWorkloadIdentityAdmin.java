@@ -6,6 +6,8 @@ import java.util.Objects;
 public interface RuntimeWorkloadIdentityAdmin {
     RuntimeWorkloadBinding ensureBinding(EnsureBindingCommand command);
 
+    RuntimeWorkloadBinding reconcileBinding(ReconcileBindingCommand command);
+
     RuntimeWorkloadBinding rotateBinding(RotateBindingCommand command);
 
     RuntimeWorkloadBinding retirePreviousCredential(RetireCredentialCommand command);
@@ -44,6 +46,21 @@ public interface RuntimeWorkloadIdentityAdmin {
             RuntimeWorkloadBinding binding,
             String auditRef) {
         public DisableBindingCommand {
+            EnsureBindingCommand.requireText(organizationRef, "organizationRef");
+            EnsureBindingCommand.requireText(personRef, "personRef");
+            EnsureBindingCommand.requireText(cellRef, "cellRef");
+            Objects.requireNonNull(binding, "binding");
+            EnsureBindingCommand.requireText(auditRef, "auditRef");
+        }
+    }
+
+    record ReconcileBindingCommand(
+            String organizationRef,
+            String personRef,
+            String cellRef,
+            RuntimeWorkloadBinding binding,
+            String auditRef) {
+        public ReconcileBindingCommand {
             EnsureBindingCommand.requireText(organizationRef, "organizationRef");
             EnsureBindingCommand.requireText(personRef, "personRef");
             EnsureBindingCommand.requireText(cellRef, "cellRef");

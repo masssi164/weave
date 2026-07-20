@@ -6,12 +6,15 @@ import com.massimotter.weave.backend.agentruntime.adapter.FileRuntimeWorkloadCre
 import com.massimotter.weave.backend.agentruntime.adapter.KeycloakAdminAccessTokenProvider;
 import com.massimotter.weave.backend.agentruntime.adapter.KeycloakAgentRuntimeWorkloadIdentityAdmin;
 import com.massimotter.weave.backend.agentruntime.application.AgentRuntimeControlService;
+import com.massimotter.weave.backend.agentruntime.application.AgentRuntimeWorkloadReconciliationService;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeCellRepository;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeCommandRepository;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileRepository;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadCredentialStore;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityAdmin;
+import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityInventory;
 import com.massimotter.weave.backend.agentruntime.port.SecretRefAccess;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Clock;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -42,13 +45,30 @@ public class AgentRuntimeWorkloadIdentityConfiguration {
     }
 
     @Bean
-    RuntimeWorkloadIdentityAdmin runtimeWorkloadIdentityAdmin(
+    KeycloakAgentRuntimeWorkloadIdentityAdmin runtimeWorkloadIdentityAdmin(
             AgentRuntimeWorkloadIdentityProperties properties,
             RuntimeWorkloadCredentialStore credentials,
             KeycloakAdminAccessTokenProvider accessTokens,
             ObjectMapper objectMapper) {
         return new KeycloakAgentRuntimeWorkloadIdentityAdmin(
                 properties.workloadSettings(), credentials, accessTokens, objectMapper);
+    }
+
+    @Bean
+    AgentRuntimeWorkloadReconciliationService agentRuntimeWorkloadReconciliationService(
+            RuntimeCellRepository cells,
+            RuntimeWorkloadIdentityAdmin workloadIdentityAdmin,
+            RuntimeWorkloadIdentityInventory workloadIdentityInventory,
+            RuntimeWorkloadCredentialStore credentials,
+            ProviderHealthProperties providerHealth,
+            MeterRegistry meters) {
+        return new AgentRuntimeWorkloadReconciliationService(
+                cells,
+                workloadIdentityAdmin,
+                workloadIdentityInventory,
+                credentials,
+                providerHealth,
+                meters);
     }
 
     @Bean

@@ -62,6 +62,13 @@ public final class JdbcRuntimeCellRepository implements RuntimeCellRepository {
     }
 
     @Override
+    public List<RuntimeCell> findAll() {
+        return List.copyOf(jdbc.query(
+                "select * from weave_agent_runtime_cells order by cell_ref",
+                this::map));
+    }
+
+    @Override
     public RuntimeCell acquireLease(String cellRef, UUID leaseId, Instant now, Instant expiresAt) {
         requireLeaseWindow(now, expiresAt);
         int updated = jdbc.update("""

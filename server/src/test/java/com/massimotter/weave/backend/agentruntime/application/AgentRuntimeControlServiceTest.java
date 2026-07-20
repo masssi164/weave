@@ -147,6 +147,11 @@ class AgentRuntimeControlServiceTest {
         }
 
         @Override
+        public RuntimeWorkloadBinding reconcileBinding(ReconcileBindingCommand command) {
+            return command.binding();
+        }
+
+        @Override
         public void disableBinding(DisableBindingCommand command) {
             disabledClientId = command.binding().clientId();
             if (failDisableNext) {

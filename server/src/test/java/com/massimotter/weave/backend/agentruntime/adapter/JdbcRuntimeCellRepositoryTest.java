@@ -95,6 +95,16 @@ class JdbcRuntimeCellRepositoryTest {
     }
 
     @Test
+    void inventoryIsStableAndOrderedByCellReference() {
+        RuntimeCell second = cell("two");
+        RuntimeCell first = cell("one");
+        repository.insert(second);
+        repository.insert(first);
+
+        assertThat(repository.findAll()).containsExactly(first, second);
+    }
+
+    @Test
     void revocationClearsTheLeaseAndFencesAllPriorWriters() {
         repository.insert(cell("example"));
         UUID lease = UUID.randomUUID();

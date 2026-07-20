@@ -9,12 +9,17 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadBinding;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadCredentialState;
+import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadOwnership;
+import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadCredentialStore.DeleteCredentialCommand;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityAdmin.DeleteBindingCommand;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityAdmin.DisableBindingCommand;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityAdmin.EnsureBindingCommand;
+import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityAdmin.ReconcileBindingCommand;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityAdmin.RetireCredentialCommand;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityAdmin.RotateBindingCommand;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityException;
+import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityInventory.ManagementState;
+import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityInventory.QuarantineManagedCommand;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
@@ -102,6 +107,7 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
         assertThat(keycloak.protocolMappers()).hasSize(1);
         assertThat(keycloak.protocolMappers().get(0).path("config").path("claim.name").asText())
                 .isEqualTo("client_id");
+        assertThat(keycloak.unsafeMutationWhileEnabled()).isFalse();
 
         int firstMutationCount = keycloak.mutationCount();
         assertThat(firstMutationCount).isPositive();
@@ -114,11 +120,60 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
     void anUnownedClientInTheReservedNamespaceIsNeverAdoptedOrGivenASecret() {
         keycloak.installUnownedClient(CLIENT_ID);
 
+        var observation = adapter.scan().clients().getFirst();
+        assertThat(observation.managementState()).isEqualTo(ManagementState.UNOWNED);
+        assertThatThrownBy(() -> adapter.quarantineManaged(new QuarantineManagedCommand(
+                observation.providerRef(), observation.clientId(),
+                RuntimeWorkloadOwnership.fingerprint("unowned"), "audit:quarantine")))
+                .isInstanceOf(RuntimeWorkloadIdentityException.class)
+                .hasMessageContaining("cannot be quarantined automatically");
+        assertThat(keycloak.client().path("enabled").asBoolean()).isTrue();
+
         assertThatThrownBy(() -> adapter.ensureBinding(ensure()))
                 .isInstanceOf(RuntimeWorkloadIdentityException.class)
                 .hasMessageContaining("unowned, ambiguous, or cross-bound");
         assertThat(credentials.find(CLIENT_ID)).isEmpty();
         assertThat(keycloak.client().path("attributes").path("weave.arc.managed").isMissingNode()).isTrue();
+    }
+
+    @Test
+    void inventoryAndReconciliationPreserveTheImmutableBindingAndCanQuarantineItFailClosed() {
+        RuntimeWorkloadBinding binding = adapter.ensureBinding(ensure());
+        keycloak.resetMutationCount();
+
+        var snapshot = adapter.scan();
+        var observation = snapshot.clients().getFirst();
+        assertThat(snapshot.revision()).matches("sha256:[a-f0-9]{64}");
+        assertThat(observation.managementState()).isEqualTo(ManagementState.MANAGED);
+        assertThat(observation.serviceAccountSubject()).isEqualTo(binding.subject());
+        assertThat(observation.acceptedKeyIds()).hasSize(1);
+        assertThat(adapter.reconcileBinding(new ReconcileBindingCommand(
+                ORGANIZATION, PERSON, CELL, binding, "audit:reconcile")))
+                .isEqualTo(binding);
+        assertThat(keycloak.mutationCount()).isZero();
+
+        adapter.quarantineManaged(new QuarantineManagedCommand(
+                observation.providerRef(), observation.clientId(),
+                observation.ownerFingerprint(), "audit:quarantine"));
+        assertThat(keycloak.client().path("enabled").asBoolean()).isFalse();
+        assertThat(adapter.reconcileBinding(new ReconcileBindingCommand(
+                ORGANIZATION, PERSON, CELL, binding, "audit:reconcile")))
+                .isEqualTo(binding);
+        assertThat(keycloak.client().path("enabled").asBoolean()).isTrue();
+    }
+
+    @Test
+    void restoreWithoutTheBoundSecretDisablesTheClientBeforeFailing() {
+        RuntimeWorkloadBinding binding = adapter.ensureBinding(ensure());
+        String owner = RuntimeWorkloadOwnership.ownerFingerprint(ORGANIZATION, PERSON, CELL, CLIENT_ID);
+        credentials.delete(new DeleteCredentialCommand(CLIENT_ID, owner));
+
+        assertThatThrownBy(() -> adapter.reconcileBinding(
+                new ReconcileBindingCommand(
+                        ORGANIZATION, PERSON, CELL, binding, "audit:restore")))
+                .isInstanceOf(RuntimeWorkloadIdentityException.class)
+                .hasMessageContaining("no current SecretRef material");
+        assertThat(keycloak.client().path("enabled").asBoolean()).isFalse();
     }
 
     @Test
@@ -196,6 +251,7 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
         private final ObjectMapper mapper;
         private final HttpServer server;
         private final AtomicInteger mutations = new AtomicInteger();
+        private boolean unsafeMutationWhileEnabled;
         private final Map<String, Scope> scopes = new LinkedHashMap<>();
         private ObjectNode client;
         private final List<ObjectNode> protocolMappers = new ArrayList<>();
@@ -229,6 +285,10 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
 
         int mutationCount() {
             return mutations.get();
+        }
+
+        boolean unsafeMutationWhileEnabled() {
+            return unsafeMutationWhileEnabled;
         }
 
         void resetMutationCount() {
@@ -547,6 +607,9 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
         }
 
         private void mutate() {
+            if (client != null && client.path("enabled").asBoolean(false)) {
+                unsafeMutationWhileEnabled = true;
+            }
             mutations.incrementAndGet();
         }
 

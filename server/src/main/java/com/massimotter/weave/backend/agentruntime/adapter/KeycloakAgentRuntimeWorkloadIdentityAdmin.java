@@ -7,9 +7,11 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadBinding;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadCredentialState;
+import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadOwnership;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadCredentialStore;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityAdmin;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityException;
+import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityInventory;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -17,13 +19,10 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -31,9 +30,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /** Keycloak 26.7 Admin REST anti-corruption boundary for the owned {@code weaver-cell-*} namespace. */
-public final class KeycloakAgentRuntimeWorkloadIdentityAdmin implements RuntimeWorkloadIdentityAdmin {
+public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
+        implements RuntimeWorkloadIdentityAdmin, RuntimeWorkloadIdentityInventory {
     static final String CLIENT_AUTHENTICATOR_PRIVATE_KEY_JWT = "client-jwt";
     static final String CLIENT_ID_MAPPER_NAME = "weave-runtime-client-id";
     static final String OWNER_ATTRIBUTE = "weave.arc.owner";
@@ -44,6 +45,9 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin implements RuntimeW
     static final String CELL_ATTRIBUTE = "weave.arc.cell";
     static final String MANAGED_VALUE = "agent-runtime-control";
     static final String SCHEMA_VALUE = "weave.arc.keycloak-client/v1";
+    private static final Pattern SHA256_FINGERPRINT = Pattern.compile("sha256:[a-f0-9]{64}");
+    private static final int INVENTORY_PAGE_SIZE = 100;
+    private static final int INVENTORY_MAX_CLIENTS = 10_000;
 
     private final Settings settings;
     private final RuntimeWorkloadCredentialStore credentials;
@@ -77,23 +81,28 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin implements RuntimeW
     public RuntimeWorkloadBinding ensureBinding(EnsureBindingCommand command) {
         Objects.requireNonNull(command, "command");
         requireNamespace(command.clientId());
-        String owner = ownerFingerprint(
+        String owner = RuntimeWorkloadOwnership.ownerFingerprint(
                 command.organizationRef(), command.personRef(), command.cellRef(), command.clientId());
         Optional<Client> existing = findClient(command.clientId());
         RuntimeWorkloadCredentialState credential;
         if (existing.isPresent()) {
             ObjectNode representation = getClient(existing.orElseThrow().uuid());
             requireOwned(representation, command, owner);
-            credential = credentials.find(command.clientId())
-                    .orElseThrow(() -> new RuntimeWorkloadIdentityException(
-                            "The managed Keycloak workload client has no current SecretRef material"));
-            requireCredential(credential, owner, command.authenticationMethod(), null);
+            try {
+                credential = credentials.find(command.clientId())
+                        .orElseThrow(() -> new RuntimeWorkloadIdentityException(
+                                "The managed Keycloak workload client has no current SecretRef material"));
+                requireCredential(credential, owner, command.authenticationMethod(), null);
+            } catch (RuntimeException inconsistentCredential) {
+                setEnabled(existing.orElseThrow().uuid(), false);
+                throw inconsistentCredential;
+            }
         } else {
             credential = credentials.find(command.clientId()).orElseGet(() -> credentials.create(
                     new RuntimeWorkloadCredentialStore.CreateCredentialCommand(
                             command.clientId(), owner, command.authenticationMethod())));
             requireCredential(credential, owner, command.authenticationMethod(), null);
-            createClient(command, owner, credential);
+            createClient(command, owner, credential, false);
             existing = findClient(command.clientId());
         }
 
@@ -101,12 +110,53 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin implements RuntimeW
                 "The Keycloak workload client was not created deterministically"));
         ObjectNode representation = getClient(client.uuid());
         requireOwned(representation, command, owner);
-        reconcileClient(client.uuid(), command, owner, credential, true);
+        boolean enabledDuringReconciliation = representation.path("enabled").asBoolean(false);
+        reconcileClient(client.uuid(), command, owner, credential, enabledDuringReconciliation);
         String subject = reconcileServiceAccount(client.uuid());
+        if (!enabledDuringReconciliation) {
+            setEnabled(client.uuid(), true);
+        }
         verifyClient(client.uuid(), command, owner, credential, true, subject);
         return new RuntimeWorkloadBinding(
                 settings.issuer().toString(), subject, command.clientId(),
                 command.authenticationMethod(), credential.credentialRef());
+    }
+
+    @Override
+    public RuntimeWorkloadBinding reconcileBinding(ReconcileBindingCommand command) {
+        Objects.requireNonNull(command, "command");
+        BoundClient bound = requireBoundClient(
+                command.organizationRef(), command.personRef(), command.cellRef(), command.binding(), false);
+        RuntimeWorkloadCredentialState credential;
+        try {
+            credential = credentials.find(command.binding().clientId())
+                    .orElseThrow(() -> new RuntimeWorkloadIdentityException(
+                            "The managed Keycloak workload client has no current SecretRef material"));
+            requireCredential(credential, bound.ownerFingerprint(), command.binding().authenticationMethod(),
+                    command.binding().credentialRef());
+        } catch (RuntimeException inconsistentCredential) {
+            setEnabled(bound.client().uuid(), false);
+            throw inconsistentCredential;
+        }
+        EnsureBindingCommand ensure = ensureCommand(
+                command.organizationRef(), command.personRef(), command.cellRef(),
+                command.binding(), command.auditRef());
+        boolean enabledDuringReconciliation = getClient(bound.client().uuid())
+                .path("enabled").asBoolean(false);
+        reconcileClient(
+                bound.client().uuid(), ensure, bound.ownerFingerprint(), credential,
+                enabledDuringReconciliation);
+        String subject = reconcileServiceAccount(bound.client().uuid());
+        if (!command.binding().subject().equals(subject)) {
+            setEnabled(bound.client().uuid(), false);
+            throw new RuntimeWorkloadIdentityException(
+                    "The immutable workload service-account subject changed");
+        }
+        if (!enabledDuringReconciliation) {
+            setEnabled(bound.client().uuid(), true);
+        }
+        verifyClient(bound.client().uuid(), ensure, bound.ownerFingerprint(), credential, true, subject);
+        return command.binding();
     }
 
     @Override
@@ -152,7 +202,8 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin implements RuntimeW
     @Override
     public void disableBinding(DisableBindingCommand command) {
         Objects.requireNonNull(command, "command");
-        String owner = ownerFingerprint(command.organizationRef(), command.personRef(), command.cellRef(),
+        String owner = RuntimeWorkloadOwnership.ownerFingerprint(
+                command.organizationRef(), command.personRef(), command.cellRef(),
                 command.binding().clientId());
         Optional<Client> client = findClient(command.binding().clientId());
         if (client.isPresent()) {
@@ -171,7 +222,8 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin implements RuntimeW
     @Override
     public void deleteBinding(DeleteBindingCommand command) {
         Objects.requireNonNull(command, "command");
-        String owner = ownerFingerprint(command.organizationRef(), command.personRef(), command.cellRef(),
+        String owner = RuntimeWorkloadOwnership.ownerFingerprint(
+                command.organizationRef(), command.personRef(), command.cellRef(),
                 command.binding().clientId());
         Optional<Client> client = findClient(command.binding().clientId());
         if (client.isPresent()) {
@@ -187,11 +239,172 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin implements RuntimeW
                 command.binding().clientId(), owner));
     }
 
+    @Override
+    public Snapshot scan() {
+        List<ClientObservation> observations = new ArrayList<>();
+        for (int first = 0; first < INVENTORY_MAX_CLIENTS; first += INVENTORY_PAGE_SIZE) {
+            ArrayNode page = array(response(
+                    "GET",
+                    adminPath("/clients?first=" + first + "&max=" + INVENTORY_PAGE_SIZE
+                            + "&viewableOnly=false"),
+                    null,
+                    Set.of(200)));
+            for (JsonNode candidate : page) {
+                String clientId = candidate.path("clientId").asText("");
+                if (!clientId.startsWith("weaver-cell-")) {
+                    continue;
+                }
+                requireNamespace(clientId);
+                String providerRef = requiredText(candidate, "id");
+                observations.add(observeClient(providerRef, getClient(providerRef)));
+            }
+            if (page.size() < INVENTORY_PAGE_SIZE) {
+                return snapshot(observations);
+            }
+        }
+        throw new RuntimeWorkloadIdentityException(
+                "The reserved Keycloak workload-client inventory exceeds its safe bound");
+    }
+
+    @Override
+    public void quarantineManaged(QuarantineManagedCommand command) {
+        Objects.requireNonNull(command, "command");
+        ObjectNode representation = getClient(command.providerRef());
+        requireNamespace(command.clientId());
+        if (!command.clientId().equals(representation.path("clientId").asText())) {
+            throw new RuntimeWorkloadIdentityException(
+                    "The Keycloak workload quarantine target changed before mutation");
+        }
+        JsonNode attributes = representation.path("attributes");
+        if (managementState(attributes) != ManagementState.MANAGED
+                || !command.ownerFingerprint().equals(attributes.path(OWNER_ATTRIBUTE).asText())) {
+            throw new RuntimeWorkloadIdentityException(
+                    "An unowned or changed workload client cannot be quarantined automatically");
+        }
+        setEnabled(command.providerRef(), false);
+        if (getClient(command.providerRef()).path("enabled").asBoolean(true)) {
+            throw new RuntimeWorkloadIdentityException(
+                    "The managed Keycloak workload client did not become quarantined");
+        }
+    }
+
+    private ClientObservation observeClient(String providerRef, ObjectNode representation) {
+        String clientId = requiredText(representation, "clientId");
+        requireNamespace(clientId);
+        JsonNode attributes = representation.path("attributes");
+        ManagementState management = managementState(attributes);
+        boolean serviceAccountsEnabled = representation.path("serviceAccountsEnabled").asBoolean(false);
+        String subject = null;
+        if (serviceAccountsEnabled) {
+            Response serviceAccount = response(
+                    "GET",
+                    adminPath("/clients/" + path(providerRef) + "/service-account-user"),
+                    null,
+                    Set.of(200, 404));
+            if (serviceAccount.status() == 200) {
+                subject = requiredText(json(serviceAccount), "id");
+            }
+        }
+        return new ClientObservation(
+                providerRef,
+                clientId,
+                representation.path("enabled").asBoolean(false),
+                management,
+                optionalText(attributes, OWNER_ATTRIBUTE),
+                optionalText(attributes, ORGANIZATION_ATTRIBUTE),
+                optionalText(attributes, PERSON_ATTRIBUTE),
+                optionalText(attributes, CELL_ATTRIBUTE),
+                serviceAccountsEnabled,
+                subject,
+                representation.path("clientAuthenticatorType").asText("unknown"),
+                acceptedKeyIds(attributes));
+    }
+
+    private Snapshot snapshot(List<ClientObservation> observations) {
+        List<ClientObservation> ordered = observations.stream()
+                .sorted(java.util.Comparator.comparing(ClientObservation::clientId)
+                        .thenComparing(ClientObservation::providerRef))
+                .toList();
+        ArrayNode projection = mapper.createArrayNode();
+        for (ClientObservation observation : ordered) {
+            ObjectNode item = mapper.createObjectNode();
+            item.put("providerRef", observation.providerRef());
+            item.put("clientId", observation.clientId());
+            item.put("enabled", observation.enabled());
+            item.put("managementState", observation.managementState().name());
+            item.put("ownerFingerprint", observation.ownerFingerprint());
+            item.put("organizationFingerprint", observation.organizationFingerprint());
+            item.put("personFingerprint", observation.personFingerprint());
+            item.put("cellFingerprint", observation.cellFingerprint());
+            item.put("serviceAccountsEnabled", observation.serviceAccountsEnabled());
+            item.put("serviceAccountSubject", observation.serviceAccountSubject());
+            item.put("authenticationMethod", observation.authenticationMethod());
+            ArrayNode kids = item.putArray("acceptedKeyIds");
+            observation.acceptedKeyIds().stream().sorted().forEach(kids::add);
+            projection.add(item);
+        }
+        try {
+            return new Snapshot(
+                    RuntimeWorkloadOwnership.fingerprint(mapper.writeValueAsString(projection)),
+                    ordered);
+        } catch (JsonProcessingException exception) {
+            throw new RuntimeWorkloadIdentityException(
+                    "Unable to derive the support-safe workload inventory revision", exception);
+        }
+    }
+
+    private Set<String> acceptedKeyIds(JsonNode attributes) {
+        String encoded = attributes.path("jwks.string").asText("");
+        if (encoded.isBlank()) {
+            return Set.of();
+        }
+        try {
+            JsonNode keys = mapper.readTree(encoded).path("keys");
+            if (!keys.isArray()) {
+                return Set.of();
+            }
+            LinkedHashSet<String> result = new LinkedHashSet<>();
+            for (JsonNode key : keys) {
+                String kid = key.path("kid").asText("");
+                if (kid.isBlank() || !result.add(kid)) {
+                    return Set.of();
+                }
+            }
+            return Set.copyOf(result);
+        } catch (JsonProcessingException invalidPublicKeySet) {
+            return Set.of();
+        }
+    }
+
+    private static ManagementState managementState(JsonNode attributes) {
+        if (!MANAGED_VALUE.equals(attributes.path(MANAGED_ATTRIBUTE).asText())) {
+            return ManagementState.UNOWNED;
+        }
+        if (!SCHEMA_VALUE.equals(attributes.path(SCHEMA_ATTRIBUTE).asText())
+                || !fingerprint(attributes.path(OWNER_ATTRIBUTE).asText())
+                || !fingerprint(attributes.path(ORGANIZATION_ATTRIBUTE).asText())
+                || !fingerprint(attributes.path(PERSON_ATTRIBUTE).asText())
+                || !fingerprint(attributes.path(CELL_ATTRIBUTE).asText())) {
+            return ManagementState.MALFORMED;
+        }
+        return ManagementState.MANAGED;
+    }
+
+    private static boolean fingerprint(String value) {
+        return value != null && SHA256_FINGERPRINT.matcher(value).matches();
+    }
+
+    private static String optionalText(JsonNode node, String field) {
+        String value = node.path(field).asText("");
+        return value.isBlank() ? null : value;
+    }
+
     private void createClient(
             EnsureBindingCommand command,
             String owner,
-            RuntimeWorkloadCredentialState credential) {
-        ObjectNode desired = desiredClient(command, owner, credential, true);
+            RuntimeWorkloadCredentialState credential,
+            boolean enabled) {
+        ObjectNode desired = desiredClient(command, owner, credential, enabled);
         Response response = response("POST", adminPath("/clients"), desired, Set.of(201, 409));
         if (response.status() == 409) {
             Client concurrent = findClient(command.clientId())
@@ -462,7 +675,8 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin implements RuntimeW
         if (!settings.issuer().toString().equals(binding.issuer())) {
             throw new RuntimeWorkloadIdentityException("The workload issuer does not match the configured Keycloak realm");
         }
-        String owner = ownerFingerprint(organizationRef, personRef, cellRef, binding.clientId());
+        String owner = RuntimeWorkloadOwnership.ownerFingerprint(
+                organizationRef, personRef, cellRef, binding.clientId());
         Client client = findClient(binding.clientId())
                 .orElseThrow(() -> new RuntimeWorkloadIdentityException("The managed Keycloak workload client is unavailable"));
         EnsureBindingCommand ensure = ensureCommand(organizationRef, personRef, cellRef, binding, "audit:binding-check");
@@ -474,13 +688,23 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin implements RuntimeW
         String subject = requiredText(json(response(
                 "GET", adminPath("/clients/" + path(client.uuid()) + "/service-account-user"), null, Set.of(200))), "id");
         if (!binding.subject().equals(subject)) {
+            setEnabled(client.uuid(), false);
             throw new RuntimeWorkloadIdentityException("The immutable workload service-account subject is inconsistent");
         }
-        Optional<RuntimeWorkloadCredentialState> credential = credentials.find(binding.clientId());
-        if (credential.isPresent()) {
-            requireCredential(credential.orElseThrow(), owner, binding.authenticationMethod(), binding.credentialRef());
-        } else if (requireEnabled) {
-            throw new RuntimeWorkloadIdentityException("The enabled workload client has no SecretRef material");
+        try {
+            Optional<RuntimeWorkloadCredentialState> credential = credentials.find(binding.clientId());
+            if (credential.isPresent()) {
+                requireCredential(
+                        credential.orElseThrow(), owner, binding.authenticationMethod(), binding.credentialRef());
+            } else if (requireEnabled) {
+                setEnabled(client.uuid(), false);
+                throw new RuntimeWorkloadIdentityException("The enabled workload client has no SecretRef material");
+            }
+        } catch (RuntimeException inconsistentCredential) {
+            if (representation.path("enabled").asBoolean(false)) {
+                setEnabled(client.uuid(), false);
+            }
+            throw inconsistentCredential;
         }
         return new BoundClient(client, owner);
     }
@@ -586,9 +810,9 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin implements RuntimeW
         result.put(MANAGED_ATTRIBUTE, MANAGED_VALUE);
         result.put(SCHEMA_ATTRIBUTE, SCHEMA_VALUE);
         result.put(OWNER_ATTRIBUTE, owner);
-        result.put(ORGANIZATION_ATTRIBUTE, fingerprint(command.organizationRef()));
-        result.put(PERSON_ATTRIBUTE, fingerprint(command.personRef()));
-        result.put(CELL_ATTRIBUTE, fingerprint(command.cellRef()));
+        result.put(ORGANIZATION_ATTRIBUTE, RuntimeWorkloadOwnership.fingerprint(command.organizationRef()));
+        result.put(PERSON_ATTRIBUTE, RuntimeWorkloadOwnership.fingerprint(command.personRef()));
+        result.put(CELL_ATTRIBUTE, RuntimeWorkloadOwnership.fingerprint(command.cellRef()));
         return result;
     }
 
@@ -737,20 +961,6 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin implements RuntimeW
 
     private static String query(String value) {
         return path(value);
-    }
-
-    static String ownerFingerprint(String organizationRef, String personRef, String cellRef, String clientId) {
-        return fingerprint(organizationRef + "\u0000" + personRef + "\u0000" + cellRef + "\u0000" + clientId);
-    }
-
-    private static String fingerprint(String value) {
-        try {
-            byte[] digest = MessageDigest.getInstance("SHA-256")
-                    .digest(value.getBytes(StandardCharsets.UTF_8));
-            return "sha256:" + HexFormat.of().formatHex(digest);
-        } catch (NoSuchAlgorithmException impossible) {
-            throw new IllegalStateException("JDK SHA-256 support is unavailable", impossible);
-        }
     }
 
     private static void requireNamespace(String clientId) {
