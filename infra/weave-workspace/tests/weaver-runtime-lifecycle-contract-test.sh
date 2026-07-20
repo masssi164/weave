@@ -8,8 +8,8 @@ REPO_DIR="$(cd -- "${ROOT_DIR}/../.." && pwd)"
 CONTRACT="${ROOT_DIR}/weaver-runtime-lifecycle.contract.json"
 DOC="${ROOT_DIR}/../docs/weaver-runtime-lifecycle.md"
 ARCH_DOC="${REPO_DIR}/docs/architecture/weaver-openclaw-profile.md"
-TASKS="${REPO_DIR}/specs/0007-governed-weaver-runtime/tasks.md"
 TRACE="${REPO_DIR}/specs/0007-governed-weaver-runtime/traceability.yaml"
+SPEC_INVENTORY="${REPO_DIR}/specs/spec-inventory.yaml"
 
 fail() {
   printf '%s\n' "$*" >&2
@@ -68,8 +68,8 @@ assert_contains "${DOC}" "rollback to the previous signed profile"
 assert_contains "${DOC}" "Dogfood-production honesty"
 assert_contains "${ARCH_DOC}" "One active user/trust boundary maps to one active runtime context/container"
 assert_contains "${ARCH_DOC}" "Profile reload, restart, rollback, and revocation are lifecycle operations"
-assert_contains "${TASKS}" "T015 [#526]"
-assert_contains "${TRACE}" "526"
+assert_contains "${TRACE}" "domains/agent-runtime-control/spec.md"
 assert_contains "${TRACE}" "infra/weave-workspace/weaver-runtime-lifecycle.contract.json"
+assert_contains "${SPEC_INVENTORY}" "Canonical runtime-control and approval authority is owned by domains/agent-runtime-control/spec.md"
 
 printf '%s\n' 'weaver runtime lifecycle contract tests passed'

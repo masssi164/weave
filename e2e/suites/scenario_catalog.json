@@ -18,7 +18,7 @@
     "meetings-calls",
     "decisions-evidence",
     "admin-health-ops",
-    "weaver-governed-pa",
+    "agent-runtime-control",
     "provider-portability",
     "operator-release"
   ],
@@ -140,7 +140,7 @@
       "name": "Spec 0007 governed Weaver runtime acceptance",
       "evidenceMode": "offline-spec",
       "executionLane": "pr-safe-offline-contract",
-      "description": "Weaver runtime profiles, approved tool registry, consent receipts, and fail-closed policy drift.",
+      "description": "Weaver runtime profiles, approved tool registry, signed decision evidence, and fail-closed policy drift.",
       "scenarios": []
     },
     {
@@ -387,7 +387,7 @@
       ],
       "domains": [
         "files",
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "provider-portability"
       ],
       "testLevel": "offline-contract",
@@ -715,7 +715,7 @@
       "domains": [
         "identity-idm",
         "admin-health-ops",
-        "weaver-governed-pa"
+        "agent-runtime-control"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
@@ -731,7 +731,7 @@
         "member"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "admin-health-ops"
       ],
       "testLevel": "offline-contract",
@@ -748,7 +748,7 @@
         "member"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "provider-portability"
       ],
       "testLevel": "offline-contract",
@@ -987,7 +987,7 @@
         "member"
       ],
       "domains": [
-        "weaver-governed-pa"
+        "agent-runtime-control"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
@@ -1026,7 +1026,7 @@
         "admin-health-ops",
         "identity-idm",
         "provider-portability",
-        "weaver-governed-pa"
+        "agent-runtime-control"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
@@ -1091,7 +1091,7 @@
         "admin"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "admin-health-ops"
       ],
       "testLevel": "offline-contract",
@@ -1355,14 +1355,14 @@
         "admin"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "admin-health-ops",
         "spaces"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
         "user consent",
-        "approval receipt",
+        "signed single-use decision evidence and independent domain authorization",
         "user-rights organization-whitelisted capabilities",
         "audit and revocation"
       ]
@@ -1401,7 +1401,7 @@
         "boards-tasks",
         "meetings-calls",
         "documents-office",
-        "weaver-governed-pa"
+        "agent-runtime-control"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
@@ -1423,7 +1423,7 @@
         "admin-health-ops",
         "provider-portability",
         "identity-idm",
-        "weaver-governed-pa"
+        "agent-runtime-control"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
@@ -1493,7 +1493,7 @@
         "identity-idm",
         "chat",
         "files",
-        "weaver-governed-pa"
+        "agent-runtime-control"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
@@ -1571,12 +1571,12 @@
         "member"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "admin-health-ops"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "scoped approval receipts",
+        "signed single-use decision evidence",
         "OpenClaw exec permission separation"
       ]
     },
@@ -1589,7 +1589,7 @@
         "member"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "admin-health-ops"
       ],
       "testLevel": "offline-contract",
@@ -1644,7 +1644,7 @@
         "calendar",
         "boards-tasks",
         "decisions-evidence",
-        "weaver-governed-pa"
+        "agent-runtime-control"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
@@ -1660,7 +1660,7 @@
         "member"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "decisions-evidence",
         "admin-health-ops"
       ],
@@ -1768,7 +1768,7 @@
       ],
       "domains": [
         "spaces",
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "decisions-evidence"
       ],
       "testLevel": "offline-contract",
@@ -1785,7 +1785,7 @@
         "operator"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "decisions-evidence",
         "admin-health-ops"
       ],
@@ -1942,7 +1942,7 @@
         "weaver_user"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "identity-idm",
         "admin-health-ops"
       ],
@@ -1960,13 +1960,13 @@
         "operator"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "decisions-evidence"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "approval receipt",
-        "fail closed drift"
+        "signed decision and immutable action evidence",
+        "independent authorization and fail-closed drift"
       ]
     },
     {
@@ -2011,7 +2011,7 @@
         "operator"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "admin-health-ops"
       ],
       "testLevel": "offline-contract",
@@ -2028,7 +2028,7 @@
         "admin"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "identity-idm",
         "decisions-evidence"
       ],
@@ -2200,7 +2200,7 @@
         "admin"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "decisions-evidence",
         "spaces"
       ],
@@ -2218,7 +2218,7 @@
         "admin"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "decisions-evidence",
         "spaces"
       ],
@@ -2236,7 +2236,7 @@
         "admin"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "decisions-evidence",
         "spaces"
       ],
@@ -2254,7 +2254,7 @@
         "admin"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "decisions-evidence",
         "spaces"
       ],
@@ -2272,7 +2272,7 @@
         "admin"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "decisions-evidence",
         "spaces"
       ],
@@ -2290,7 +2290,7 @@
         "admin"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "decisions-evidence",
         "spaces"
       ],
@@ -2308,7 +2308,7 @@
         "admin"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "decisions-evidence",
         "spaces"
       ],
@@ -2656,7 +2656,7 @@
         "admin"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "identity-idm",
         "decisions-evidence"
       ],
@@ -2674,7 +2674,7 @@
         "admin"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "identity-idm",
         "decisions-evidence"
       ],
@@ -2692,7 +2692,7 @@
         "admin"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "identity-idm",
         "decisions-evidence"
       ],
@@ -2710,7 +2710,7 @@
         "admin"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "identity-idm",
         "decisions-evidence"
       ],
@@ -2744,7 +2744,7 @@
         "operator"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "admin-health-ops"
       ],
       "testLevel": "offline-contract",
@@ -2881,7 +2881,7 @@
         "admin"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "decisions-evidence",
         "spaces"
       ],
@@ -2899,7 +2899,7 @@
         "admin"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "decisions-evidence",
         "spaces"
       ],
@@ -2986,7 +2986,7 @@
         "admin"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "identity-idm",
         "decisions-evidence"
       ],
@@ -3078,7 +3078,7 @@
         "weaver_user"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "identity-idm",
         "admin-health-ops"
       ],
@@ -3096,7 +3096,7 @@
         "operator"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "identity-idm",
         "decisions-evidence"
       ],
@@ -3114,14 +3114,14 @@
         "admin"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "provider-portability",
         "decisions-evidence"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
         "domain-first tools",
-        "approval receipt validation"
+        "signed decision and action evidence"
       ]
     },
     {
@@ -3132,7 +3132,7 @@
         "operator"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "admin-health-ops",
         "decisions-evidence"
       ],
@@ -3152,7 +3152,7 @@
         "boards-tasks",
         "meetings-calls",
         "admin-health-ops",
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "provider-portability",
         "decisions-evidence"
       ],
@@ -3207,7 +3207,7 @@
         "calendar",
         "chat",
         "meetings-calls",
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "admin-health-ops",
         "provider-portability"
       ],
@@ -3255,7 +3255,7 @@
         "calendar",
         "identity-idm",
         "chat",
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "provider-portability",
         "operator-release"
       ],
@@ -3277,7 +3277,7 @@
         "files",
         "calendar",
         "chat",
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "provider-portability"
       ],
       "testLevel": "offline-contract",
@@ -3306,7 +3306,7 @@
         "meetings-calls",
         "documents-office",
         "admin-health-ops",
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "provider-portability",
         "operator-release"
       ],
@@ -3492,7 +3492,7 @@
       ],
       "domains": [
         "chat",
-        "weaver-governed-pa"
+        "agent-runtime-control"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
@@ -3545,7 +3545,7 @@
         "operator"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "admin-health-ops"
       ],
       "testLevel": "offline-contract",
@@ -3565,7 +3565,7 @@
       ],
       "domains": [
         "identity-idm",
-        "weaver-governed-pa"
+        "agent-runtime-control"
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
@@ -3582,7 +3582,7 @@
         "weaver_user"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "provider-portability"
       ],
       "testLevel": "offline-contract",
@@ -3600,7 +3600,7 @@
         "member"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "identity-idm",
         "calendar",
         "chat"
@@ -4334,7 +4334,7 @@
         "weaver_user"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "files",
         "calendar",
         "chat",
@@ -4354,7 +4354,7 @@
         "weaver_user"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "files",
         "calendar",
         "chat",
@@ -4374,7 +4374,7 @@
         "weaver_user"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "files",
         "calendar",
         "chat",
@@ -4394,7 +4394,7 @@
         "weaver_user"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "files",
         "calendar",
         "chat",
@@ -4414,7 +4414,7 @@
         "weaver_user"
       ],
       "domains": [
-        "weaver-governed-pa",
+        "agent-runtime-control",
         "files",
         "calendar",
         "chat",

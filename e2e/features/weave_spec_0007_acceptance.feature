@@ -1,23 +1,23 @@
 @weave-spec-0007
 Feature: WEAVE-SPEC-0007 acceptance
 
-  Weaver runtime profiles, approved tool registry, consent receipts, and fail-closed policy drift.
+  Historical implementation evidence for the canonical Agent Runtime Control contract.
 
   @weave-spec-0007-runtime-profile-from-policy
   Scenario: Weaver runtime profile is generated from organization policy and roles
-    Given WEAVE-SPEC-0007 is the source of truth
+    Given the pinned Agent Runtime Control corpus contract is the source of truth
     And the acceptance scenario is mapped to offline spec evidence marker WEAVE_SPEC_0007_RUNTIME_PROFILE_FROM_POLICY
     When the product claim is evaluated for merge
     Then the claim is blocked unless the mapped evidence covers runtime profile from policy
-    And the catalog records the bounded domains weaver-governed-pa, identity-idm, admin-health-ops
+    And the catalog records the bounded domains agent-runtime-control, identity-idm, admin-health-ops
 
   @weave-spec-0007-tool-approval-receipt-fail-closed
-  Scenario: Weaver tool invocation requires approval receipt and fails closed on drift
-    Given WEAVE-SPEC-0007 is the source of truth
+  Scenario: Weaver tool invocation requires signed decision evidence and current domain authorization
+    Given the pinned Agent Runtime Control corpus contract is the source of truth
     And the acceptance scenario is mapped to offline spec evidence marker WEAVE_SPEC_0007_TOOL_APPROVAL_RECEIPT_FAIL_CLOSED
     When the product claim is evaluated for merge
-    Then the claim is blocked unless the mapped evidence covers approval receipt
-    And the catalog records the bounded domains weaver-governed-pa, decisions-evidence
+    Then the claim is blocked unless the mapped evidence covers signed single-use decision evidence independent domain authorization and immutable action evidence
+    And the catalog records the bounded domains agent-runtime-control, decisions-evidence
 
   @weave-spec-0007-intent
   Scenario: Governed Weaver intent keeps runtime tools policy-derived and auditable

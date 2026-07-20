@@ -14,7 +14,7 @@ pinned_corpus_sources:
   - ../weave-specs/steering/product-constitution.md
   - ../weave-specs/steering/domain-context-map.md
   - ../weave-specs/steering/provider-portability-principles.md
-  - ../weave-specs/domains/weaver-governed-pa/spec.md
+  - ../weave-specs/domains/agent-runtime-control/spec.md
 repo_projection:
   - specs/0010-full-product-target/spec.md
   - specs/0010-full-product-target/plan.md

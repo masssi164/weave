@@ -1348,14 +1348,6 @@
           ]
         },
         {
-          "path": "specs/0007-governed-weaver-runtime/spec.md",
-          "fragments": [
-            "The Weaver RuntimeProfile Loader renders internal `openclaw.json` and related channel/plugin/MCP/tool settings as runtime implementation detail.",
-            "OpenClaw stock `channels.matrix` configuration with the Weave Matrix-facade URL",
-            "Provider-change flow: Admin changes the Weave Chat domain provider"
-          ]
-        },
-        {
           "path": "docs/architecture/weaver-openclaw-profile.md",
           "fragments": [
             "The `WeaverRuntimeProfile` is a support-safe runtime projection consumed by the OpenClaw-derived Weaver runtime, not the hard authorization boundary for governed tool calls.",
@@ -2000,7 +1992,7 @@
     },
     {
       "tag": "@weave-product-weaver-consent-approval-receipt",
-      "scenario": "Weaver user consents to an approved tool action with an audit receipt",
+      "scenario": "Weaver user consents to a guarded tool action with signed evidence",
       "feature": "e2e/features/product_e2e_scenario_layer.feature",
       "executableTest": "client/test/release_1/product_e2e_scenario_layer_contract_test.dart",
       "evidenceMarkers": [
@@ -2238,7 +2230,7 @@
     },
     {
       "tag": "@northstar-weaver-approval-receipts",
-      "scenario": "Weaver approvals are product-domain grants, not OpenClaw exec permissions",
+      "scenario": "Weaver approval decisions are evidence not domain grants or OpenClaw exec permissions",
       "feature": "e2e/features/northstar_spec_decisions.feature",
       "executableTest": "e2e/features/northstar_spec_decisions.feature",
       "evidenceMarkers": [
@@ -2666,7 +2658,7 @@
     },
     {
       "tag": "@weave-spec-0007-tool-approval-receipt-fail-closed",
-      "scenario": "Weaver tool invocation requires approval receipt and fails closed on drift",
+      "scenario": "Weaver tool invocation requires signed decision evidence and current domain authorization",
       "feature": "e2e/features/weave_spec_0007_acceptance.feature",
       "executableTest": "client/test/live_stack_feature_mapping_test.dart",
       "evidenceMarkers": [
@@ -4121,7 +4113,7 @@
     },
     {
       "tag": "@weave-spec-0011-domain-tool-approval",
-      "scenario": "Weaver uses domain-first tools with approval receipts",
+      "scenario": "Weaver uses domain-first tools with signed decision and action evidence",
       "feature": "e2e/features/weave_spec_0011_acceptance.feature",
       "executableTest": "client/test/live_stack_feature_mapping_test.dart",
       "evidenceMarkers": [
@@ -4148,7 +4140,7 @@
           "fragments": [
             "domain-first-mcp-tools",
             "facade-only",
-            "approvalReceiptChecks"
+            "decisionEvidenceChecks"
           ]
         },
         {

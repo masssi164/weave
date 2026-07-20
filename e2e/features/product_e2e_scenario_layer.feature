@@ -66,13 +66,13 @@ Feature: Product E2E scenario layer before runtime implementation
     And retained or deleted data is reported without exposing private content
 
   @weave-product-weaver-consent-approval-receipt
-  Scenario: Weaver user consents to an approved tool action with an audit receipt
+  Scenario: Weaver user consents to a guarded tool action with signed evidence
     Given Weaver is enabled for a user by organization policy
     And the requested domain tool is approved for that user and Space
     When the Weaver user consents to a high-risk action
-    Then Weave records an approval receipt with scope, policy, and evidence references
-    And the action runs only with the user's rights and approved capabilities
-    And the user and admin can later audit or revoke the grant
+    Then Agent Runtime Control signs short-lived single-use decision evidence for the exact action and arguments
+    And the owning domain independently reauthorizes the user's rights and approved capabilities before the action
+    And the final observed result is recorded as immutable action evidence
 
   @weave-product-provider-switch-manual-review
   Scenario: Admin handles provider-switch manual review without changing member language
