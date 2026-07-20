@@ -21,6 +21,7 @@ locals {
     "offline_access",
     "organization",
     "phone",
+    "weave:mcp",
   ]
 
   weave_app_default_scopes = [
@@ -73,18 +74,24 @@ locals {
   ]
 
   client_defaults = {
-    enabled                             = true
-    standard_flow_enabled               = false
-    implicit_flow_enabled               = false
-    direct_access_grants_enabled        = false
-    valid_redirect_uris                 = []
-    valid_post_logout_redirect_uris     = []
-    web_origins                         = []
-    pkce_code_challenge_method          = null
-    client_secret                       = null
-    backchannel_logout_url              = null
-    backchannel_logout_session_required = null
-    service_accounts_enabled            = false
+    enabled                                        = true
+    standard_flow_enabled                          = false
+    implicit_flow_enabled                          = false
+    direct_access_grants_enabled                   = false
+    valid_redirect_uris                            = []
+    valid_post_logout_redirect_uris                = []
+    web_origins                                    = []
+    pkce_code_challenge_method                     = null
+    client_secret                                  = null
+    backchannel_logout_url                         = null
+    backchannel_logout_session_required            = null
+    service_accounts_enabled                       = false
+    standard_token_exchange_enabled                = null
+    full_scope_allowed                             = null
+    access_token_lifespan                          = null
+    allow_refresh_token_in_standard_token_exchange = null
+    use_refresh_tokens                             = null
+    use_refresh_tokens_client_credentials          = null
   }
 
   client_specs = {
@@ -111,6 +118,19 @@ locals {
       access_type              = "CONFIDENTIAL"
       client_secret            = var.identity_admin_client_secret
       service_accounts_enabled = true
+    })
+    weave_mcp_server = merge(local.client_defaults, {
+      name                                           = "weave-mcp-server"
+      client_id                                      = "weave-mcp-server"
+      access_type                                    = "CONFIDENTIAL"
+      client_secret                                  = var.weave_mcp_client_secret
+      service_accounts_enabled                       = true
+      standard_token_exchange_enabled                = true
+      full_scope_allowed                             = false
+      access_token_lifespan                          = 60
+      allow_refresh_token_in_standard_token_exchange = false
+      use_refresh_tokens                             = false
+      use_refresh_tokens_client_credentials          = false
     })
     weave_admin_console = merge(local.client_defaults, {
       name                       = "weave-admin-console"
@@ -296,19 +316,25 @@ resource "keycloak_openid_client" "client" {
   client_id = each.value.client_id
   name      = each.value.name
 
-  access_type                         = each.value.access_type
-  enabled                             = each.value.enabled
-  standard_flow_enabled               = each.value.standard_flow_enabled
-  implicit_flow_enabled               = each.value.implicit_flow_enabled
-  direct_access_grants_enabled        = each.value.direct_access_grants_enabled
-  pkce_code_challenge_method          = each.value.pkce_code_challenge_method
-  client_secret                       = each.value.client_secret
-  valid_redirect_uris                 = each.value.valid_redirect_uris
-  valid_post_logout_redirect_uris     = each.value.valid_post_logout_redirect_uris
-  web_origins                         = each.value.web_origins
-  backchannel_logout_url              = each.value.backchannel_logout_url
-  backchannel_logout_session_required = each.value.backchannel_logout_session_required
-  service_accounts_enabled            = each.value.service_accounts_enabled
+  access_type                                    = each.value.access_type
+  enabled                                        = each.value.enabled
+  standard_flow_enabled                          = each.value.standard_flow_enabled
+  implicit_flow_enabled                          = each.value.implicit_flow_enabled
+  direct_access_grants_enabled                   = each.value.direct_access_grants_enabled
+  pkce_code_challenge_method                     = each.value.pkce_code_challenge_method
+  client_secret                                  = each.value.client_secret
+  valid_redirect_uris                            = each.value.valid_redirect_uris
+  valid_post_logout_redirect_uris                = each.value.valid_post_logout_redirect_uris
+  web_origins                                    = each.value.web_origins
+  backchannel_logout_url                         = each.value.backchannel_logout_url
+  backchannel_logout_session_required            = each.value.backchannel_logout_session_required
+  service_accounts_enabled                       = each.value.service_accounts_enabled
+  standard_token_exchange_enabled                = each.value.standard_token_exchange_enabled
+  full_scope_allowed                             = each.value.full_scope_allowed
+  access_token_lifespan                          = each.value.access_token_lifespan
+  allow_refresh_token_in_standard_token_exchange = each.value.allow_refresh_token_in_standard_token_exchange
+  use_refresh_tokens                             = each.value.use_refresh_tokens
+  use_refresh_tokens_client_credentials          = each.value.use_refresh_tokens_client_credentials
 }
 
 data "keycloak_openid_client" "realm_management" {
@@ -334,6 +360,20 @@ resource "keycloak_openid_client_scope" "weave_workspace" {
   realm_id               = keycloak_realm.tenant.id
   name                   = "weave:workspace"
   description            = "Grants Weave mobile clients access to workspace APIs."
+  include_in_token_scope = true
+}
+
+resource "keycloak_openid_client_scope" "weave_mcp" {
+  realm_id               = keycloak_realm.tenant.id
+  name                   = "weave:mcp"
+  description            = "Allows an authenticated member runtime to call the Weave MCP resource server."
+  include_in_token_scope = true
+}
+
+resource "keycloak_openid_client_scope" "weave_mcp_backend" {
+  realm_id               = keycloak_realm.tenant.id
+  name                   = "weave:mcp-backend"
+  description            = "Backend-only delegated scope emitted through standard token exchange."
   include_in_token_scope = true
 }
 
@@ -364,10 +404,40 @@ resource "keycloak_openid_hardcoded_claim_protocol_mapper" "weave_organization_n
 resource "keycloak_openid_audience_protocol_mapper" "weave_backend_audience" {
   realm_id                 = keycloak_realm.tenant.id
   client_scope_id          = keycloak_openid_client_scope.weave_workspace.id
-  name                     = "weave-app-audience"
-  included_client_audience = keycloak_openid_client.client["weave_app"].client_id
+  name                     = "weave-backend-audience"
+  included_client_audience = keycloak_openid_client.client["weave_backend"].client_id
   add_to_id_token          = false
   add_to_access_token      = true
+}
+
+resource "keycloak_openid_audience_protocol_mapper" "weave_mcp_audience" {
+  realm_id                 = keycloak_realm.tenant.id
+  client_scope_id          = keycloak_openid_client_scope.weave_mcp.id
+  name                     = "weave-mcp-server-audience"
+  included_client_audience = keycloak_openid_client.client["weave_mcp_server"].client_id
+  add_to_id_token          = false
+  add_to_access_token      = true
+}
+
+resource "keycloak_openid_audience_protocol_mapper" "weave_mcp_backend_audience" {
+  realm_id                 = keycloak_realm.tenant.id
+  client_scope_id          = keycloak_openid_client_scope.weave_mcp_backend.id
+  name                     = "weave-mcp-backend-audience"
+  included_client_audience = keycloak_openid_client.client["weave_backend"].client_id
+  add_to_id_token          = false
+  add_to_access_token      = true
+}
+
+resource "keycloak_openid_hardcoded_claim_protocol_mapper" "weave_mcp_tenant_id" {
+  realm_id            = keycloak_realm.tenant.id
+  client_scope_id     = keycloak_openid_client_scope.weave_mcp_backend.id
+  name                = "weave-mcp-tenant-id"
+  claim_name          = "weave_tenant_id"
+  claim_value         = var.context_authorization_default_tenant_id
+  claim_value_type    = "String"
+  add_to_id_token     = false
+  add_to_access_token = true
+  add_to_userinfo     = false
 }
 
 resource "keycloak_openid_audience_protocol_mapper" "nextcloud_bearer_audience" {
@@ -387,6 +457,7 @@ resource "keycloak_openid_client_optional_scopes" "weave_app" {
 
   depends_on = [
     keycloak_openid_client_scope.weave_workspace,
+    keycloak_openid_client_scope.weave_mcp,
   ]
 }
 
@@ -412,6 +483,20 @@ resource "keycloak_openid_client_default_scopes" "weave_admin_console" {
   ]
 }
 
+resource "keycloak_openid_client_default_scopes" "weave_mcp_server" {
+  realm_id  = keycloak_realm.tenant.id
+  client_id = keycloak_openid_client.client["weave_mcp_server"].id
+
+  default_scopes = ["acr", "basic", "profile", "roles"]
+}
+
+resource "keycloak_openid_client_optional_scopes" "weave_mcp_server" {
+  realm_id  = keycloak_realm.tenant.id
+  client_id = keycloak_openid_client.client["weave_mcp_server"].id
+
+  optional_scopes = [keycloak_openid_client_scope.weave_mcp_backend.name]
+}
+
 resource "keycloak_openid_group_membership_protocol_mapper" "weave_app_groups" {
   realm_id            = keycloak_realm.tenant.id
   client_id           = keycloak_openid_client.client["weave_app"].id
@@ -421,6 +506,17 @@ resource "keycloak_openid_group_membership_protocol_mapper" "weave_app_groups" {
   add_to_id_token     = true
   add_to_access_token = true
   add_to_userinfo     = true
+}
+
+resource "keycloak_openid_group_membership_protocol_mapper" "weave_mcp_server_groups" {
+  realm_id            = keycloak_realm.tenant.id
+  client_id           = keycloak_openid_client.client["weave_mcp_server"].id
+  name                = "groups"
+  claim_name          = "groups"
+  full_path           = false
+  add_to_id_token     = false
+  add_to_access_token = true
+  add_to_userinfo     = false
 }
 
 resource "keycloak_openid_group_membership_protocol_mapper" "weave_admin_console_groups" {

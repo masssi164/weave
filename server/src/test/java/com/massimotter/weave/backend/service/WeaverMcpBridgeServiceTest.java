@@ -6,7 +6,6 @@ import com.massimotter.weave.backend.config.WeaverRuntimeProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
 import com.massimotter.weave.backend.weaver.MemberDomainToolDispatcher;
-import com.massimotter.weave.backend.weaver.WeaverMcpApprovalReceiptService;
 import com.massimotter.weave.backend.weaver.WeaverToolRegistry;
 import com.massimotter.weave.contract.mcp.MemberMcpToolCatalog;
 import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.ApprovalEvidence;
@@ -22,6 +21,7 @@ import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2Res
 import org.springframework.security.oauth2.jwt.Jwt;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -40,7 +40,7 @@ class WeaverMcpBridgeServiceTest {
 
         assertThat(discovery.catalog().serverNamespace()).isEqualTo(MemberMcpToolCatalog.SERVER_NAMESPACE);
         assertThat(discovery.catalog().tools()).extracting(tool -> tool.name())
-                .containsExactly("files.search", "files.read", "calendar.search_events", "calendar.create_event", "chat.send_message");
+                .containsExactly("files.search", "files.read", "calendar.search_events");
         assertThat(discovery.catalog().tools()).allSatisfy(tool -> assertThat(tool.annotations().openWorldHint()).isFalse());
     }
 
@@ -137,12 +137,12 @@ class WeaverMcpBridgeServiceTest {
 
         assertThat(response.status()).isEqualTo(ToolInvocationStatus.DENIED);
         assertThat(response.structuredContent()).containsEntry("approvalRequired", true);
-        assertThat(response.structuredContent().toString()).contains("mcp_elicitation_missing");
+        assertThat(response.structuredContent().toString()).contains("trusted_approval_evidence_unavailable");
         verifyNoInteractions(fixture.dispatcher);
     }
 
     @Test
-    void directOidcCallerWithoutPrivateMcpBoundaryDoesNotAuthorizeWriteToolDispatch() {
+    void directOidcCallerCannotEnterTheDelegatedMcpBoundary() {
         Fixture fixture = fixture();
         var profile = fixture.runtimeService.profileFor(jwt());
         Map<String, Object> arguments = Map.of(
@@ -150,7 +150,10 @@ class WeaverMcpBridgeServiceTest {
                 "startsAt", "2026-07-10T09:00:00Z",
                 "calendarRef", "calendar:team:engineering");
 
-        var response = fixture.bridge.invokeMcpTool(jwt(), MemberMcpToolCatalog.SERVER_NAMESPACE, "calendar.create_event",
+        assertThatThrownBy(() -> fixture.bridge.invokeMcpTool(
+                directAppJwt(),
+                MemberMcpToolCatalog.SERVER_NAMESPACE,
+                "calendar.create_event",
                 request(
                         "calendar.create_event",
                         profile.runtimeProfileHash(),
@@ -162,12 +165,39 @@ class WeaverMcpBridgeServiceTest {
                                 List.of("calendar:team:engineering"),
                                 "allow-once",
                                 Instant.now().toString()),
-                        arguments),
-                "wrong-boundary-token");
+                        arguments)))
+                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
+        verifyNoInteractions(fixture.dispatcher);
+    }
+
+    @Test
+    void invocationRuntimeCannotChangeTheDelegatedOrganization() {
+        Fixture fixture = fixture();
+        var profile = fixture.runtimeService.profileFor(jwt());
+        BridgeInvocationRequest original = request(
+                "files.read",
+                profile.runtimeProfileHash(),
+                profile.userRef(),
+                null,
+                Map.of("fileRef", "file:/Team/readme.md"));
+        RuntimeInvocationContext foreignRuntime = new RuntimeInvocationContext(
+                new WeaveMcpRef("org:foreign"),
+                original.runtime().userRef(),
+                original.runtime().runtimeProfileRef(),
+                original.runtime().runtimeProfileHash(),
+                original.runtime().runtimeTokenRef(),
+                original.runtime().auditRef(),
+                original.runtime().capabilityGrants(),
+                original.runtime().allowedTools());
+
+        var response = fixture.bridge.invokeMcpTool(
+                jwt(),
+                MemberMcpToolCatalog.SERVER_NAMESPACE,
+                "files.read",
+                new BridgeInvocationRequest("files.read", original.arguments(), foreignRuntime, null));
 
         assertThat(response.status()).isEqualTo(ToolInvocationStatus.DENIED);
-        assertThat(response.structuredContent()).containsEntry("approvalRequired", true);
-        assertThat(response.structuredContent().toString()).contains("mcp_boundary_untrusted");
+        assertThat(response.auditRef()).contains("delegated_identity_mismatch");
         verifyNoInteractions(fixture.dispatcher);
     }
 
@@ -192,21 +222,13 @@ class WeaverMcpBridgeServiceTest {
     }
 
     @Test
-    void openClawElicitationEvidenceAuthorizesTheExactWriteOnce() {
+    void callerSuppliedElicitationCannotMintWeaveAuthority() {
         Fixture fixture = fixture();
         var profile = fixture.runtimeService.profileFor(jwt());
         Map<String, Object> arguments = Map.of(
                 "title", "Planning",
                 "startsAt", "2026-07-10T09:00:00Z",
                 "calendarRef", "calendar:team:engineering");
-        when(fixture.dispatcher.dispatch(any(Jwt.class), eq("calendar.create_event"), eq(arguments)))
-                .thenReturn(Map.of(
-                        "status", "ok",
-                        "supportSafe", true,
-                        "event", Map.of("id", "calendar-event:created"),
-                        "auditRef", "audit://calendar/create/support-safe",
-                        "rawProviderPayload", "redacted"));
-
         ApprovalEvidence evidence = new ApprovalEvidence(
                 "mcp-elicitation/v1",
                 "elicitation://openclaw/approval-1",
@@ -221,17 +243,10 @@ class WeaverMcpBridgeServiceTest {
                 "calendar.create_event",
                 request("calendar.create_event", profile.runtimeProfileHash(), profile.userRef(), evidence, arguments));
 
-        assertThat(response.status()).isEqualTo(ToolInvocationStatus.SUCCESS);
-        assertThat(response.structuredContent().get("structuredContent").toString()).contains("calendar-event:created");
-        verify(fixture.dispatcher).dispatch(any(Jwt.class), eq("calendar.create_event"), eq(arguments));
-
-        var replay = fixture.bridge.invokeMcpTool(
-                jwt(),
-                MemberMcpToolCatalog.SERVER_NAMESPACE,
-                "calendar.create_event",
-                request("calendar.create_event", profile.runtimeProfileHash(), profile.userRef(), evidence, arguments));
-        assertThat(replay.status()).isEqualTo(ToolInvocationStatus.DENIED);
-        assertThat(replay.structuredContent().toString()).contains("mcp_elicitation_replayed");
+        assertThat(response.status()).isEqualTo(ToolInvocationStatus.DENIED);
+        assertThat(response.structuredContent()).containsEntry("approvalRequired", true);
+        assertThat(response.structuredContent().toString()).contains("trusted_approval_evidence_unavailable");
+        verifyNoInteractions(fixture.dispatcher);
     }
 
     private BridgeInvocationRequest request(
@@ -259,8 +274,7 @@ class WeaverMcpBridgeServiceTest {
         WeaverMcpBridgeService bridge = new WeaverMcpBridgeService(
                 runtimeService,
                 new WeaverToolRegistry(audit),
-                dispatcher,
-                new WeaverMcpApprovalReceiptService(audit));
+                dispatcher);
         return new Fixture(runtimeService, bridge, dispatcher);
     }
 
@@ -306,8 +320,27 @@ class WeaverMcpBridgeServiceTest {
                 Map.of(
                         "sub", "member@example.invalid",
                         "iss", "https://auth.example.invalid/realms/acme",
+                        "aud", List.of("weave-backend"),
+                        "azp", "weave-mcp-server",
+                        "scope", "weave:mcp-backend",
+                        "jti", "delegated-test-token",
+                        "weave_tenant_id", "workspace",
                         "resource_access", Map.of("weave-app", Map.of("roles", List.of("member"))),
                         "groups", List.of("weave-weaver-runtime", "weave-weaver-calendar")));
+    }
+
+    private Jwt directAppJwt() {
+        return new Jwt(
+                "direct-token",
+                Instant.now(),
+                Instant.now().plusSeconds(300),
+                Map.of("alg", "none"),
+                Map.of(
+                        "sub", "member@example.invalid",
+                        "iss", "https://auth.example.invalid/realms/acme",
+                        "aud", List.of("weave-backend"),
+                        "azp", "weave-app",
+                        "scope", "weave:workspace"));
     }
 
     private record Fixture(

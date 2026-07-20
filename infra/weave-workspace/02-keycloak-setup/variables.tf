@@ -167,6 +167,12 @@ variable "identity_admin_client_secret" {
   sensitive   = true
 }
 
+variable "weave_mcp_client_secret" {
+  description = "Client secret for the confidential weave-mcp-server token-exchange workload."
+  type        = string
+  sensitive   = true
+}
+
 variable "create_test_user" {
   description = "Create a test user for integration testing. Do not enable in production."
   type        = bool

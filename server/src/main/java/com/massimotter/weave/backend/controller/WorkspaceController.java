@@ -34,7 +34,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -196,9 +195,8 @@ public class WorkspaceController {
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable String serverKey,
             @PathVariable String toolName,
-            @RequestHeader("X-Weave-Mcp-Boundary-Token") String boundaryToken,
             @RequestBody BridgeInvocationRequest request) {
-        return weaverMcpBridgeService.invokeMcpTool(jwt, serverKey, toolName, request, boundaryToken);
+        return weaverMcpBridgeService.invokeMcpTool(jwt, serverKey, toolName, request);
     }
 
     @GetMapping({"/api/workspace/release-readiness", "/api/v1/workspace/release-readiness"})

@@ -40,7 +40,22 @@ output "weave_backend_client_id" {
 
 output "weave_backend_audience" {
   description = "Audience value emitted for access tokens that the Weave backend accepts."
-  value       = try(keycloak_openid_client.client["weave_app"].client_id, null)
+  value       = try(keycloak_openid_client.client["weave_backend"].client_id, null)
+}
+
+output "weave_mcp_client_id" {
+  description = "Confidential MCP workload client allowed to perform standard token exchange."
+  value       = try(keycloak_openid_client.client["weave_mcp_server"].client_id, null)
+}
+
+output "weave_mcp_audience" {
+  description = "Audience required by the MCP resource server for member runtime tokens."
+  value       = try(keycloak_openid_client.client["weave_mcp_server"].client_id, null)
+}
+
+output "weave_mcp_backend_scope_name" {
+  description = "Backend-only scope requested during MCP standard token exchange."
+  value       = try(keycloak_openid_client_scope.weave_mcp_backend.name, null)
 }
 
 output "weave_identity_admin_client_id" {

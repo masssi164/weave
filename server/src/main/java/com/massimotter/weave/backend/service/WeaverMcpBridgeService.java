@@ -1,9 +1,9 @@
 package com.massimotter.weave.backend.service;
 
 import com.massimotter.weave.backend.model.WeaverRuntimeProfileResponse;
+import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.weaver.MemberDomainToolDispatcher;
-import com.massimotter.weave.backend.weaver.WeaverApprovalReceipt;
-import com.massimotter.weave.backend.weaver.WeaverMcpApprovalReceiptService;
+import com.massimotter.weave.backend.weaver.McpDelegatedIdentity;
 import com.massimotter.weave.backend.weaver.WeaverToolInvocationRequest;
 import com.massimotter.weave.backend.weaver.WeaverToolInvocationResult;
 import com.massimotter.weave.backend.weaver.WeaverToolRegistry;
@@ -20,10 +20,7 @@ import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.WeaveMcpRef;
 import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.WeaveMcpToolCatalog;
 import java.util.List;
 import java.util.Map;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 
@@ -44,34 +41,36 @@ public class WeaverMcpBridgeService {
     private final WeaverRuntimeService runtimeService;
     private final WeaverToolRegistry toolRegistry;
     private final MemberDomainToolDispatcher memberDomainToolDispatcher;
-    private final WeaverMcpApprovalReceiptService approvalReceiptService;
-    private final byte[] mcpBoundaryToken;
+    private final WeaveSecurityProperties securityProperties;
 
     @Autowired
     public WeaverMcpBridgeService(
             WeaverRuntimeService runtimeService,
             WeaverToolRegistry toolRegistry,
             MemberDomainToolDispatcher memberDomainToolDispatcher,
-            WeaverMcpApprovalReceiptService approvalReceiptService,
-            @Value("${weave.mcp.boundary-token:local-dev-mcp-boundary}") String mcpBoundaryToken) {
+            WeaveSecurityProperties securityProperties) {
         this.runtimeService = runtimeService;
         this.toolRegistry = toolRegistry;
         this.memberDomainToolDispatcher = memberDomainToolDispatcher;
-        this.approvalReceiptService = approvalReceiptService;
-        this.mcpBoundaryToken = mcpBoundaryToken.getBytes(StandardCharsets.UTF_8);
+        this.securityProperties = securityProperties;
     }
 
     WeaverMcpBridgeService(
             WeaverRuntimeService runtimeService,
             WeaverToolRegistry toolRegistry,
-            MemberDomainToolDispatcher memberDomainToolDispatcher,
-            WeaverMcpApprovalReceiptService approvalReceiptService) {
-        this(runtimeService, toolRegistry, memberDomainToolDispatcher, approvalReceiptService, "test-mcp-boundary");
+            MemberDomainToolDispatcher memberDomainToolDispatcher) {
+        this(runtimeService, toolRegistry, memberDomainToolDispatcher,
+                new WeaveSecurityProperties("weave-backend", "weave-app"));
     }
 
     public BridgeDiscoveryResponse discoverMcpTools(Jwt jwt, String runtimeProfileHash, String serverKey) {
+        McpDelegatedIdentity delegatedIdentity = delegatedIdentity(jwt);
         WeaverRuntimeProfileResponse profile = runtimeService.profileByHash(jwt, runtimeProfileHash);
-        RuntimeInvocationContext runtime = runtimeContext(profile, serverKey, discoveryAuditRef(serverKey));
+        RuntimeInvocationContext runtime = runtimeContext(
+                profile,
+                delegatedIdentity.organizationRef(),
+                serverKey,
+                discoveryAuditRef(serverKey));
         if (!profile.enabled() || !MEMBER_SERVER_KEY.equals(serverKey)) {
             return new BridgeDiscoveryResponse(runtime, new WeaveMcpToolCatalog(serverKey, MemberMcpDomainDefinition.CONTRACT_VERSION, List.of()));
         }
@@ -84,6 +83,7 @@ public class WeaverMcpBridgeService {
                                 .filter(definition -> profile.allowedCapabilities().contains(definition.requiredCapability()))
                                 .filter(definition -> profile.toolAllowlist().contains(definition.name()))
                                 .filter(definition -> !forbiddenToolName(definition.name()))
+                                .filter(definition -> !definition.approvalRequired())
                                 .map(definition -> definition.asBridgeDefinition())
                                 .toList()));
     }
@@ -93,17 +93,18 @@ public class WeaverMcpBridgeService {
             String serverKey,
             String toolName,
             BridgeInvocationRequest request) {
-        return invokeMcpTool(jwt, serverKey, toolName, request, "test-mcp-boundary");
-    }
-
-    public BridgeInvocationResponse invokeMcpTool(
-            Jwt jwt,
-            String serverKey,
-            String toolName,
-            BridgeInvocationRequest request,
-            String boundaryToken) {
+        McpDelegatedIdentity delegatedIdentity = delegatedIdentity(jwt);
         WeaverRuntimeProfileResponse profile = runtimeService.profileByHash(jwt, request.runtime().runtimeProfileHash());
         MemberMcpToolDefinition definition = MemberMcpToolCatalog.byName().get(toolName);
+        if (!delegatedIdentity.organizationRef().equals(request.runtime().orgRef().value())
+                || !profile.userRef().equals(request.runtime().userRef().value())) {
+            return bridgeInvocationResponse(
+                    toolName,
+                    ToolInvocationStatus.DENIED,
+                    auditRef(toolName, "delegated_identity_mismatch"),
+                    "MCP delegated identity does not match the discovered runtime context.",
+                    Map.of("supportSafe", true, "approvalRequired", false));
+        }
         if (!profile.enabled()
                 || !MEMBER_SERVER_KEY.equals(serverKey)
                 || forbiddenToolName(toolName)
@@ -133,29 +134,16 @@ public class WeaverMcpBridgeService {
                     Map.of("supportSafe", true, "approvalRequired", definition.approvalRequired()));
         }
 
-        WeaverApprovalReceipt approvalReceipt = null;
         if (definition.approvalRequired()) {
-            WeaverMcpApprovalReceiptService.Resolution resolution = approvalReceiptService.issue(
-                    request.approvalEvidence(),
-                    profile.userRef(),
-                    profile.runtimeProfileHash(),
-                    definition,
-                    request.arguments(),
-                    trustedBoundary(boundaryToken));
-            if (!resolution.approved()) {
-                return bridgeInvocationResponse(
-                        toolName,
-                        ToolInvocationStatus.DENIED,
-                        resolution.auditRef() == null
-                                ? auditRef(toolName, resolution.status())
-                                : resolution.auditRef(),
-                        "Weave did not authorize the MCP elicitation evidence.",
-                        Map.of(
-                                "status", resolution.status(),
-                                "supportSafe", true,
-                                "approvalRequired", true));
-            }
-            approvalReceipt = resolution.receipt();
+            return bridgeInvocationResponse(
+                    toolName,
+                    ToolInvocationStatus.DENIED,
+                    auditRef(toolName, "trusted_approval_evidence_unavailable"),
+                    "Write-like MCP tools remain unavailable until trusted OpenClaw approval evidence and current domain authorization are validated without a parallel Weave approval workflow.",
+                    Map.of(
+                            "status", "trusted_approval_evidence_unavailable",
+                            "supportSafe", true,
+                            "approvalRequired", true));
         }
 
         WeaverToolInvocationResult governance = toolRegistry.invoke(new WeaverToolInvocationRequest(
@@ -170,8 +158,8 @@ public class WeaverMcpBridgeService {
                 profile.allowedCapabilities(),
                 profile.toolAllowlist(),
                 request.arguments(),
-                approvalReceipt == null ? null : approvalReceipt.receiptRef(),
-                approvalReceipt));
+                null,
+                null));
         if (!"ok".equals(governance.status())) {
             return bridgeInvocationResponse(
                     governance.toolName(),
@@ -220,10 +208,11 @@ public class WeaverMcpBridgeService {
 
     private RuntimeInvocationContext runtimeContext(
             WeaverRuntimeProfileResponse profile,
+            String organizationRef,
             String serverKey,
             String auditRef) {
         return new RuntimeInvocationContext(
-                new WeaveMcpRef("org:workspace"),
+                new WeaveMcpRef(organizationRef),
                 new WeaveMcpRef(profile.userRef()),
                 new WeaveMcpRef("weave-runtime-profile://" + profile.runtimeProfileHash()),
                 profile.runtimeProfileHash(),
@@ -255,12 +244,11 @@ public class WeaverMcpBridgeService {
                 || normalized.contains("readiness");
     }
 
-    private boolean trustedBoundary(String candidate) {
-        byte[] candidateBytes = candidate == null
-                ? new byte[0]
-                : candidate.getBytes(StandardCharsets.UTF_8);
-        return mcpBoundaryToken.length > 0
-                && MessageDigest.isEqual(mcpBoundaryToken, candidateBytes);
+    private McpDelegatedIdentity delegatedIdentity(Jwt jwt) {
+        return McpDelegatedIdentity.require(
+                jwt,
+                securityProperties.mcpClientId(),
+                securityProperties.requiredAudience());
     }
 
     private String discoveryAuditRef(String serverKey) {

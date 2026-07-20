@@ -45,7 +45,9 @@ public class JwtDecoderConfig {
         if (weaveSecurityProperties.hasRequiredAuthorizedParty()) {
             validator = new DelegatingOAuth2TokenValidator<>(
                     validator,
-                    requiredAuthorizedPartyValidator(weaveSecurityProperties.requiredAuthorizedParty()));
+                    allowedAuthorizedPartiesValidator(List.of(
+                            weaveSecurityProperties.requiredAuthorizedParty(),
+                            weaveSecurityProperties.mcpClientId())));
         }
 
         jwtDecoder.setJwtValidator(validator);
@@ -62,6 +64,16 @@ public class JwtDecoderConfig {
         return jwt -> hasRequiredAuthorizedParty(jwt, normalizedRequiredAuthorizedParty);
     }
 
+    static OAuth2TokenValidator<Jwt> allowedAuthorizedPartiesValidator(List<String> allowedAuthorizedParties) {
+        List<String> normalized = allowedAuthorizedParties.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList();
+        return jwt -> hasAllowedAuthorizedParty(jwt, normalized);
+    }
+
     private static OAuth2TokenValidatorResult hasRequiredAudience(Jwt jwt, String requiredAudience) {
         List<String> audiences = jwt.getAudience();
         if (audiences != null && audiences.contains(requiredAudience)) {
@@ -74,6 +86,10 @@ public class JwtDecoderConfig {
     }
 
     private static OAuth2TokenValidatorResult hasRequiredAuthorizedParty(Jwt jwt, String requiredAuthorizedParty) {
+        return hasAllowedAuthorizedParty(jwt, List.of(requiredAuthorizedParty));
+    }
+
+    private static OAuth2TokenValidatorResult hasAllowedAuthorizedParty(Jwt jwt, List<String> allowedAuthorizedParties) {
         List<String> authorizedPartyClaims = Stream.of(
                         jwt.getClaimAsString("azp"),
                         jwt.getClaimAsString("client_id"))
@@ -85,19 +101,19 @@ public class JwtDecoderConfig {
         if (authorizedPartyClaims.isEmpty()) {
             return OAuth2TokenValidatorResult.failure(
                     error("invalid_token",
-                            "The token is missing required authorized party/client ID '"
-                                    + requiredAuthorizedParty + "'."));
+                            "The token is missing a required authorized party/client ID."));
         }
 
         boolean allClaimsMatch = authorizedPartyClaims.stream()
-                .allMatch(requiredAuthorizedParty::equals);
-        if (allClaimsMatch) {
+                .allMatch(allowedAuthorizedParties::contains);
+        boolean claimsAgree = authorizedPartyClaims.stream().distinct().count() == 1;
+        if (allClaimsMatch && claimsAgree) {
             return OAuth2TokenValidatorResult.success();
         }
 
         return OAuth2TokenValidatorResult.failure(
                 error("invalid_token",
-                        "The token authorized party/client ID must be '" + requiredAuthorizedParty + "'."));
+                        "The token authorized party/client ID is not an allowed Weave caller."));
     }
 
     private static org.springframework.security.oauth2.core.OAuth2Error error(String code, String description) {

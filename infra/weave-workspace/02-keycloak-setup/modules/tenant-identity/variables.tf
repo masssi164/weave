@@ -45,6 +45,12 @@ variable "identity_admin_client_secret" {
   sensitive   = true
 }
 
+variable "weave_mcp_client_secret" {
+  description = "Client secret for the confidential weave-mcp-server token-exchange workload."
+  type        = string
+  sensitive   = true
+}
+
 variable "smtp_host" {
   description = "SMTP host used by the dogfood/local Keycloak realm."
   type        = string

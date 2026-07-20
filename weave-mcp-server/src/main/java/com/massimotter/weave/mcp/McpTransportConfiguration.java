@@ -8,7 +8,6 @@ import org.springframework.ai.mcp.server.webmvc.transport.WebMvcStreamableServer
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpHeaders;
 import org.springframework.web.servlet.function.ServerRequest;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -28,9 +27,6 @@ class McpTransportConfiguration {
 
     private Map<String, Object> contextValues(ServerRequest request) {
         Map<String, String> candidates = new LinkedHashMap<>();
-        candidates.put(RuntimeHeaders.AUTHORIZATION, request.headers().firstHeader(HttpHeaders.AUTHORIZATION));
-        candidates.put(RuntimeHeaders.ORG_ID, request.headers().firstHeader("X-Weave-Org-Id"));
-        candidates.put(RuntimeHeaders.USER_REF, request.headers().firstHeader("X-Weave-User-Ref"));
         candidates.put(RuntimeHeaders.RUNTIME_PROFILE, request.headers().firstHeader("X-Weave-Runtime-Profile"));
         Map<String, Object> context = new LinkedHashMap<>();
         candidates.forEach((key, value) -> {

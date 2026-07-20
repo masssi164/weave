@@ -53,7 +53,6 @@ resource "docker_container" "this" {
     "WEAVE_IDENTITY_KEYCLOAK_CLIENT_ID=weave-identity-admin",
     "WEAVE_IDENTITY_KEYCLOAK_CLIENT_SECRET=${var.identity_keycloak_client_secret}",
     "WEAVE_IDENTITY_EVENTS_HMAC_SECRET=${var.identity_events_hmac_secret}",
-    "WEAVE_MCP_BOUNDARY_TOKEN=${var.mcp_boundary_token}",
     "WEAVE_PUBLIC_BASE_URL=${var.public_base_url}",
     "WEAVE_API_ORIGIN=${var.api_origin}",
     "WEAVE_API_BASE_URL=${var.api_base_url}",

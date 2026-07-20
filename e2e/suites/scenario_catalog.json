@@ -3570,7 +3570,8 @@
       "testLevel": "offline-contract",
       "assertionFocus": [
         "issuer audience and expiry validation are configured",
-        "weave:workspace scope is required",
+        "weave:mcp scope and the exact MCP audience are required",
+        "the member client azp must be weave-app",
         "unauthenticated requests fail before MCP dispatch"
       ]
     },
@@ -3592,7 +3593,7 @@
       ]
     },
     {
-      "tag": "@mcp-approval-receipt-boundary",
+      "tag": "@mcp-approval-ownership-boundary",
       "suiteId": "open-standards-gateway-archive-target",
       "personas": [
         "weaver_user",
@@ -3606,9 +3607,9 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "OpenClaw plugin approvals resolve standard MCP form elicitation",
-        "approval receipts bind actor profile tool scopes normalized arguments policy and contract",
-        "changed arguments replay foreign evidence and receipt references fail closed"
+        "OpenClaw owns approval presentation and decision state",
+        "caller-supplied elicitation evidence cannot mint Weave authority",
+        "write tools remain undiscoverable and fail closed until trusted evidence and current domain authorization are both validated"
       ]
     },
     {
@@ -4361,8 +4362,8 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "Calendar tools route through the canonical Calendar service and CalDAV-backed projection",
-        "event writes require verifiable approval receipts",
+        "Calendar reads route through the canonical Calendar service and CalDAV-backed projection",
+        "event writes remain undiscoverable and fail closed pending trusted approval evidence",
         "raw CalDAV and provider payloads are excluded"
       ]
     },
@@ -4381,9 +4382,9 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "Chat sends route through ChatDomainFacadeService and the canonical provider port",
-        "idempotency keys survive MCP-to-domain dispatch",
-        "provider-shaped thread references fail before canonical dispatch"
+        "the Chat send tool is not advertised pending trusted approval evidence",
+        "future dispatch remains governed by ChatDomainFacadeService and Matrix semantics",
+        "raw provider clients and provider-shaped references remain forbidden"
       ]
     },
     {

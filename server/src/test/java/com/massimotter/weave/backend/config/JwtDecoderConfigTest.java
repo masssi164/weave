@@ -88,7 +88,7 @@ class JwtDecoderConfigTest {
         JWTClaimsSet claims = new JWTClaimsSet.Builder()
                 .issuer(issuerUri)
                 .subject("user-123")
-                .audience(List.of("weave-app"))
+                .audience(List.of("weave-backend"))
                 .claim("azp", "weave-app")
                 .claim("scope", "weave:workspace")
                 .issueTime(Date.from(now))

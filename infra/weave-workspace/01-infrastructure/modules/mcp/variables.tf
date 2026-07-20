@@ -43,10 +43,35 @@ variable "oidc_required_audience" {
   type        = string
 }
 
-variable "mcp_boundary_token" {
-  description = "Private credential used to attest backend calls from the MCP service boundary."
+variable "oidc_token_uri" {
+  description = "Internal Keycloak token endpoint used for standard token exchange."
+  type        = string
+}
+
+variable "mcp_client_id" {
+  description = "Confidential Keycloak workload client ID used by the MCP server."
+  type        = string
+}
+
+variable "mcp_client_secret" {
+  description = "Confidential Keycloak workload client secret used only for token exchange."
   type        = string
   sensitive   = true
+}
+
+variable "inbound_authorized_party" {
+  description = "Authorized party required on member tokens accepted by the MCP server."
+  type        = string
+}
+
+variable "backend_oidc_audience" {
+  description = "Audience requested for delegated backend access tokens."
+  type        = string
+}
+
+variable "backend_scope" {
+  description = "Least-privilege backend scope requested during standard token exchange."
+  type        = string
 }
 
 variable "resource_labels" {

@@ -13931,14 +13931,6 @@
         "operationId": "weaverMcpToolInvokeV1",
         "parameters": [
           {
-            "in": "header",
-            "name": "X-Weave-Mcp-Boundary-Token",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "in": "path",
             "name": "serverKey",
             "required": true,
@@ -14394,14 +14386,6 @@
       "post": {
         "operationId": "weaverMcpToolInvoke",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-Weave-Mcp-Boundary-Token",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "in": "path",
             "name": "serverKey",

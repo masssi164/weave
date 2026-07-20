@@ -73,15 +73,36 @@ Dogfood/local realm email is captured by Mailpit only:
 
 - Keycloak client ID: `weave-backend`
 - Access type: bearer-only
-- Expected token audience: `weave-app`
-- Expected token `azp` or `client_id`: `weave-app`
+- Expected token audience: `weave-backend`
+- Direct member API token `azp` or `client_id`: `weave-app`
+- Delegated MCP bridge token `azp` (and `client_id` when present): `weave-mcp-server`
+- Delegated MCP bridge scope: `weave:mcp-backend`; it is not accepted by ordinary `weave:workspace` routes
 - Backend environment:
   - `WEAVE_OIDC_ISSUER_URI=https://auth.weave.test/realms/weave`
   - `WEAVE_OIDC_JWK_SET_URI=http://weave-keycloak:8080/realms/weave/protocol/openid-connect/certs`
-  - `WEAVE_OIDC_REQUIRED_AUDIENCE=weave-app`
+  - `WEAVE_OIDC_REQUIRED_AUDIENCE=weave-backend`
   - `WEAVE_CLIENT_ID=weave-app`
+  - `WEAVE_MCP_CLIENT_ID=weave-mcp-server`
 - Public API URL: `https://api.weave.test/api`
 - Direct readiness URL: `http://127.0.0.1:8084/api/health/ready`
+
+### Weave MCP Server
+
+- Keycloak client ID: `weave-mcp-server`
+- Access type: confidential, with a service account and no service-account roles
+- Browser/direct-access grants: disabled
+- Full scope: disabled
+- Standard token exchange: enabled
+- Refresh tokens for client credentials and token exchange: disabled
+- Workload access-token lifespan: 60 seconds
+- Inbound member contract: `aud` includes `weave-mcp-server`, `azp=weave-app`, and `scope` includes `weave:mcp`
+- Backend exchange contract: RFC 8693 token exchange with `audience=weave-backend` and `scope=weave:mcp-backend`
+- Exchanged tokens project signed Keycloak groups; the backend derives the effective product role only from the managed `workspace-owners`, `workspace-admins`, `workspace-members`, or `workspace-guests` group when `azp=weave-mcp-server`.
+- Pure client-credentials subjects (`service-account-*`) cannot enter `/mcp` or invoke backend member tools.
+
+The MCP server authenticates to Keycloak with `TF_VAR_weave_mcp_client_secret`. The secret is generated into the operator-owned secret environment and injected only into the MCP container and Keycloak client configuration. It is not shared with the backend and is never an HTTP boundary header.
+
+Keycloak's supported standard token exchange is used; the experimental delegation feature is not enabled. Keycloak does not implement the RFC 8707 `resource` parameter for this flow, so the current interoperable contract uses the standard token-exchange `audience` parameter. End-to-end RFC 8707 and MCP Authorization Server Metadata conformance therefore remain **Guarded**, not claimed complete. See the [Keycloak token exchange documentation](https://www.keycloak.org/securing-apps/token-exchange).
 
 ### Matrix Authentication Service
 
@@ -110,11 +131,24 @@ Dogfood/local realm email is captured by Mailpit only:
 
 The scope carries an audience mapper:
 
-- Mapper name: `weave-app-audience`
+- Mapper name: `weave-backend-audience`
 - Mapper type: OIDC audience protocol mapper
-- Included client audience: `weave-app`
+- Included client audience: `weave-backend`
 - Added to access token: true
 - Added to ID token: false
+
+### `weave:mcp`
+
+- Optional scope of `weave-app`; a runtime must request it explicitly
+- Adds `weave-mcp-server` to the access-token audience
+- Required by the `/mcp` resource server
+
+### `weave:mcp-backend`
+
+- Optional scope assigned only to the confidential `weave-mcp-server` client
+- Requested only during standard token exchange
+- Adds `weave-backend` to the exchanged access-token audience and carries the tenant identity claim
+- Does not grant general workspace API access
 
 ## Token Claims
 
@@ -123,7 +157,7 @@ A mobile access token for `weave-app` must include:
 - `iss`: `https://auth.weave.test/realms/weave`
 - `azp`: `weave-app`
 - `client_id`: `weave-app` when present
-- `aud`: includes `weave-app`
+- `aud`: includes `weave-backend`
 - `scope`: includes `openid`, requested profile scopes, and `weave:workspace`
 - refresh token: present for mobile app sign-in when the user belongs to an offline-session-entitled product group and the app requested `offline_access`
 
@@ -147,6 +181,9 @@ The Keycloak setup stage exports these OpenTofu outputs:
 - `weave_workspace_scope_name`
 - `weave_backend_client_id`
 - `weave_backend_audience`
+- `weave_mcp_client_id`
+- `weave_mcp_audience`
+- `weave_mcp_backend_scope_name`
 - `nextcloud_client_id`
 - `nextcloud_client_secret`
 - `test_user_username`

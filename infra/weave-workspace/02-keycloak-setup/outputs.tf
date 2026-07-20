@@ -43,6 +43,21 @@ output "weave_backend_audience" {
   value       = module.tenant_identity.weave_backend_audience
 }
 
+output "weave_mcp_client_id" {
+  description = "Confidential MCP workload client ID."
+  value       = module.tenant_identity.weave_mcp_client_id
+}
+
+output "weave_mcp_audience" {
+  description = "Audience required by the MCP resource server."
+  value       = module.tenant_identity.weave_mcp_audience
+}
+
+output "weave_mcp_backend_scope_name" {
+  description = "Backend-only delegated MCP scope."
+  value       = module.tenant_identity.weave_mcp_backend_scope_name
+}
+
 output "weave_identity_admin_client_id" {
   description = "Backend-only client used for Keycloak organization invitation administration."
   value       = module.tenant_identity.weave_identity_admin_client_id

@@ -58,8 +58,6 @@ weave:
       readiness-cache-ttl: ${WEAVE_CHAT_MATRIX_READINESS_CACHE_TTL:60s}
       callback-max-bytes: ${WEAVE_CHAT_MATRIX_CALLBACK_MAX_BYTES:1048576}
       callback-max-events: ${WEAVE_CHAT_MATRIX_CALLBACK_MAX_EVENTS:100}
-  mcp:
-    boundary-token: ${WEAVE_MCP_BOUNDARY_TOKEN:local-dev-mcp-boundary}
   platform:
     public-base-url: ${WEAVE_PUBLIC_BASE_URL:https://weave.test}
     api-base-url: ${WEAVE_API_BASE_URL:https://api.weave.test/api}
@@ -74,10 +72,10 @@ weave:
       desktop: ${WEAVE_TARGET_DESKTOP:true}
       web: ${WEAVE_TARGET_WEB:false}
   security:
-    # JWT aud must include the first-party Weave app audience.
-    required-audience: ${WEAVE_OIDC_REQUIRED_AUDIENCE:weave-app}
-    # JWT azp and/or client_id must identify the first-party Weave app client.
+    # JWT aud names the backend resource; azp/client_id binds the direct app or delegated MCP workload.
+    required-audience: ${WEAVE_OIDC_REQUIRED_AUDIENCE:weave-backend}
     client-id: ${WEAVE_CLIENT_ID:weave-app}
+    mcp-client-id: ${WEAVE_MCP_CLIENT_ID:weave-mcp-server}
     device-credentials:
       # Memory is reserved for local development and isolated tests. The shipped
       # infrastructure selects JDBC so DAV credentials remain revocable after restart.

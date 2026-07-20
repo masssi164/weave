@@ -126,7 +126,7 @@ readonly PERSISTED_TF_VARS=(
   TF_VAR_db_admin_password
   TF_VAR_backend_db_username
   TF_VAR_backend_db_password
-  TF_VAR_mcp_boundary_token
+  TF_VAR_weave_mcp_client_secret
   TF_VAR_keycloak_admin_username
   TF_VAR_keycloak_admin_password
   TF_VAR_keycloak_db_username
@@ -758,6 +758,7 @@ ensure_existing_keycloak_terraform_state() {
     weave_app:weave-app \
     weave_backend:weave-backend \
     weave_identity_admin:weave-identity-admin \
+    weave_mcp_server:weave-mcp-server \
     weave_admin_console:weave-admin-console \
     matrix_mas:matrix-mas \
     nextcloud:nextcloud; do
@@ -775,11 +776,16 @@ ensure_existing_keycloak_terraform_state() {
   for mapper_address_and_name in \
     module.tenant_identity.keycloak_openid_hardcoded_claim_protocol_mapper.weave_tenant_id:weave-tenant-id \
     module.tenant_identity.keycloak_openid_hardcoded_claim_protocol_mapper.weave_organization_name:weave-organization-name \
-    module.tenant_identity.keycloak_openid_audience_protocol_mapper.weave_backend_audience:weave-app-audience \
+    module.tenant_identity.keycloak_openid_audience_protocol_mapper.weave_backend_audience:weave-backend-audience \
     module.tenant_identity.keycloak_openid_audience_protocol_mapper.nextcloud_bearer_audience:nextcloud-bearer-audience; do
     local mapper_address="${mapper_address_and_name%%:*}"
     local mapper_name="${mapper_address_and_name#*:}"
     mapper_id="$(keycloak_lookup_client_scope_mapper_id "${client_scope_id}" "${mapper_name}")"
+    if [[ -z "${mapper_id}" && "${mapper_name}" == "weave-backend-audience" ]]; then
+      # Import the retired mapper address so OpenTofu updates it in place instead
+      # of leaving a second, overbroad weave-app audience mapper unmanaged.
+      mapper_id="$(keycloak_lookup_client_scope_mapper_id "${client_scope_id}" "weave-app-audience")"
+    fi
     keycloak_import_if_missing "${mapper_address}" "${TF_VAR_tenant_slug}/client-scope/${client_scope_id}/${mapper_id}"
   done
 
@@ -1587,7 +1593,7 @@ ensure_docker_provider_inputs() {
 ensure_generated_secrets() {
   set_default_secret TF_VAR_db_admin_password "$(random_base64 24)"
   set_default_secret TF_VAR_backend_db_password "$(random_base64 24)"
-  set_default_secret TF_VAR_mcp_boundary_token "$(random_base64 32)"
+  set_default_secret TF_VAR_weave_mcp_client_secret "$(random_base64 32)"
   set_default_secret TF_VAR_keycloak_admin_password "$(random_base64 24)"
   set_default_secret TF_VAR_keycloak_db_password "$(random_base64 24)"
   set_default_secret TF_VAR_mas_db_password "$(random_base64 24)"
@@ -1616,7 +1622,7 @@ ensure_generated_secrets() {
   local -a protected_names=(
     TF_VAR_db_admin_password
     TF_VAR_backend_db_password
-    TF_VAR_mcp_boundary_token
+    TF_VAR_weave_mcp_client_secret
     TF_VAR_keycloak_admin_password
     TF_VAR_keycloak_db_password
     TF_VAR_matrix_mas_client_secret
