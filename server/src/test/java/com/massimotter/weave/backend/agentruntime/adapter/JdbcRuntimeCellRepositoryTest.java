@@ -12,6 +12,7 @@ import com.massimotter.weave.backend.agentruntime.port.StaleRuntimeCellException
 import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ClassPathResource;
@@ -122,6 +123,45 @@ class JdbcRuntimeCellRepositoryTest {
                 "cell:example", lease, acquired.fencingEpoch(), RuntimeCellState.READY,
                 "audit:stale", NOW.plusSeconds(2)))
                 .isInstanceOf(StaleRuntimeCellException.class);
+    }
+
+    @Test
+    void desiredStateTransitionUsesVersionAndAllowedSourceAsACasBoundary() {
+        RuntimeCell inserted = repository.insert(cell("example"));
+
+        RuntimeCell starting = repository.transitionDesiredState(
+                inserted.organizationRef(), inserted.personRef(), inserted.version(),
+                Set.of(RuntimeCellState.PROVISIONING), RuntimeCellState.STARTING,
+                "audit:start", NOW.plusSeconds(1));
+
+        assertThat(starting.desiredState()).isEqualTo(RuntimeCellState.STARTING);
+        assertThat(starting.version()).isEqualTo(inserted.version() + 1);
+        assertThat(starting.auditRef()).isEqualTo("audit:start");
+        assertThat(repository.transitionDesiredState(
+                inserted.organizationRef(), inserted.personRef(), inserted.version(),
+                Set.of(RuntimeCellState.PROVISIONING), RuntimeCellState.STARTING,
+                "audit:replay", NOW.plusSeconds(2))).isEqualTo(starting);
+        assertThatThrownBy(() -> repository.transitionDesiredState(
+                inserted.organizationRef(), inserted.personRef(), starting.version(),
+                Set.of(RuntimeCellState.STOPPED), RuntimeCellState.READY,
+                "audit:invalid", NOW.plusSeconds(2)))
+                .isInstanceOf(StaleRuntimeCellException.class);
+    }
+
+    @Test
+    void revokedCellsCanStillEnterTheExplicitDeletionSidePath() {
+        RuntimeCell inserted = repository.insert(cell("example"));
+        RuntimeCell revoked = repository.revoke(
+                inserted.organizationRef(), inserted.personRef(), "entitlement:revoked:2",
+                "audit:revoke", NOW.plusSeconds(1));
+
+        RuntimeCell deleting = repository.transitionDesiredState(
+                revoked.organizationRef(), revoked.personRef(), revoked.version(),
+                Set.of(RuntimeCellState.REVOKING), RuntimeCellState.DELETING,
+                "audit:delete", NOW.plusSeconds(2));
+
+        assertThat(deleting.entitlementState()).isEqualTo(RuntimeEntitlementState.REVOKED);
+        assertThat(deleting.desiredState()).isEqualTo(RuntimeCellState.DELETING);
     }
 
     private static RuntimeCell cell(String id) {

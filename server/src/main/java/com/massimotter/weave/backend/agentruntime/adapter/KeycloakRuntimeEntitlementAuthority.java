@@ -3,10 +3,15 @@ package com.massimotter.weave.backend.agentruntime.adapter;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementObservation;
+import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadOwnership;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeEntitlementAuthority;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeEntitlementAuthorityException;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeEntitlementDeniedException;
+import com.massimotter.weave.backend.agentruntime.port.RuntimePersonDirectory;
+import com.massimotter.weave.backend.agentruntime.port.RuntimePersonDirectoryException;
+import com.massimotter.weave.backend.agentruntime.port.RuntimePersonNotFoundException;
+import com.massimotter.weave.backend.identity.IdentityReferences;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -27,9 +32,10 @@ import java.util.Objects;
 import java.util.Set;
 
 /** Read-only Keycloak 26.7 Admin REST adapter for current per-person Weaver entitlement. */
-public final class KeycloakRuntimeEntitlementAuthority implements RuntimeEntitlementAuthority {
+public final class KeycloakRuntimeEntitlementAuthority implements RuntimeEntitlementAuthority, RuntimePersonDirectory {
     private static final int PAGE_SIZE = 100;
     private static final int MAX_GROUPS = 10_000;
+    private static final int MAX_ORGANIZATION_MEMBERS = 10_000;
     private static final int MAX_RESPONSE_BYTES = 1_048_576;
     private static final String SOURCE_PROVIDER = "keycloak";
 
@@ -69,6 +75,19 @@ public final class KeycloakRuntimeEntitlementAuthority implements RuntimeEntitle
         if (!settings.issuer().toString().equals(command.memberBinding().issuer())) {
             throw new RuntimeEntitlementDeniedException("The member identity is not bound to the configured IDM");
         }
+        if (!settings.organizationRef().equals(command.organizationRef())) {
+            throw new RuntimeEntitlementDeniedException("The member identity is not bound to the configured organization");
+        }
+
+        JsonNode organizationMember = get(
+                "/organizations/" + path(settings.organizationId()) + "/members/"
+                        + path(command.memberBinding().subject()),
+                Set.of(200, 404));
+        if (organizationMember == null
+                || !command.memberBinding().subject().equals(organizationMember.path("id").asText())) {
+            throw new RuntimeEntitlementDeniedException(
+                    "The authoritative identity is not a current organization member");
+        }
 
         JsonNode user = get("/users/" + path(command.memberBinding().subject()), Set.of(200, 404));
         if (user == null
@@ -99,6 +118,71 @@ public final class KeycloakRuntimeEntitlementAuthority implements RuntimeEntitle
         return new RuntimeEntitlementObservation(
                 command.organizationRef(), command.personRef(), command.memberBinding(), SOURCE_PROVIDER,
                 sourceGroupRef, capabilityRevision, observedAt, observedAt.plus(settings.observationTtl()));
+    }
+
+    @Override
+    public ResolvedRuntimePerson resolve(ResolveRuntimePersonCommand command) {
+        Objects.requireNonNull(command, "command");
+        if (!settings.organizationRef().equals(command.organizationRef())
+                || !command.personRef().matches("acct_[a-f0-9]{32}")) {
+            throw new RuntimePersonNotFoundException("The requested runtime person does not exist");
+        }
+        try {
+            String subject = null;
+            for (JsonNode member : organizationMembers()) {
+                String candidate = text(member, "id");
+                if (IdentityReferences.accountId(settings.issuer().toString(), candidate)
+                        .equals(command.personRef())) {
+                    if (subject != null && !subject.equals(candidate)) {
+                        throw new RuntimePersonDirectoryException(
+                                "The runtime person reference resolves ambiguously");
+                    }
+                    subject = candidate;
+                }
+            }
+            if (subject == null) {
+                throw new RuntimePersonNotFoundException("The requested runtime person does not exist");
+            }
+            JsonNode member = get(
+                    "/organizations/" + path(settings.organizationId()) + "/members/" + path(subject),
+                    Set.of(200, 404));
+            JsonNode user = get("/users/" + path(subject), Set.of(200, 404));
+            if (member == null || user == null
+                    || !subject.equals(member.path("id").asText())
+                    || !subject.equals(user.path("id").asText())
+                    || !user.path("enabled").asBoolean(false)) {
+                throw new RuntimePersonNotFoundException("The requested runtime person does not exist");
+            }
+            return new ResolvedRuntimePerson(
+                    command.organizationRef(),
+                    command.personRef(),
+                    new RuntimeMemberBinding(settings.issuer().toString(), subject));
+        } catch (RuntimePersonNotFoundException | RuntimePersonDirectoryException failure) {
+            throw failure;
+        } catch (RuntimeEntitlementAuthorityException unavailable) {
+            throw new RuntimePersonDirectoryException(
+                    "The authoritative runtime person directory is unavailable", unavailable);
+        }
+    }
+
+    private List<JsonNode> organizationMembers() {
+        List<JsonNode> members = new ArrayList<>();
+        for (int first = 0; first < MAX_ORGANIZATION_MEMBERS; first += PAGE_SIZE) {
+            JsonNode page = get(
+                    "/organizations/" + path(settings.organizationId())
+                            + "/members?first=" + first + "&max=" + PAGE_SIZE,
+                    Set.of(200));
+            if (page == null || !page.isArray()) {
+                throw new RuntimeEntitlementAuthorityException(
+                        "Keycloak returned an invalid organization member projection");
+            }
+            page.forEach(members::add);
+            if (page.size() < PAGE_SIZE) {
+                return List.copyOf(members);
+            }
+        }
+        throw new RuntimeEntitlementAuthorityException(
+                "The Keycloak organization member projection exceeds its safe bound");
     }
 
     private List<Group> groups(String subject) {
@@ -214,6 +298,8 @@ public final class KeycloakRuntimeEntitlementAuthority implements RuntimeEntitle
             boolean enabled,
             URI adminBaseUrl,
             URI issuer,
+            String organizationRef,
+            String organizationId,
             String realm,
             Duration timeout,
             Duration observationTtl,
@@ -222,6 +308,13 @@ public final class KeycloakRuntimeEntitlementAuthority implements RuntimeEntitle
         public Settings {
             requireHttp(adminBaseUrl, "adminBaseUrl", false);
             requireHttp(issuer, "issuer", true);
+            if (organizationRef == null || organizationRef.isBlank() || organizationRef.length() > 255) {
+                throw new IllegalArgumentException("organizationRef is required");
+            }
+            if (organizationId == null || organizationId.isBlank()
+                    || organizationId.length() > 255 || organizationId.contains("/")) {
+                throw new IllegalArgumentException("organizationId is required");
+            }
             if (realm == null || realm.isBlank() || realm.contains("/")) {
                 throw new IllegalArgumentException("realm is required");
             }

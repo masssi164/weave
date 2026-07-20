@@ -79,6 +79,37 @@ class AgentRuntimeControlServiceTest {
     }
 
     @Test
+    void completedProvisionReplayReturnsTheCurrentCellWithoutRepeatingAuthorityOrIdentityWork() {
+        RuntimeCell provisioned = service.provision(command("idempotency-key-0001", "member-1"));
+        RuntimeCell stopped = cells.transitionDesiredState(
+                provisioned.organizationRef(), provisioned.personRef(), provisioned.version(),
+                java.util.Set.of(RuntimeCellState.PROVISIONING), RuntimeCellState.STOPPED,
+                "audit:stopped", NOW.plusSeconds(1));
+
+        RuntimeCell replay = service.provision(command("idempotency-key-0001", "member-1"));
+
+        assertThat(replay).isEqualTo(stopped);
+        assertThat(workloadAdmin.calls).hasValue(1);
+        assertThat(entitlementAuthority.calls).hasValue(1);
+    }
+
+    @Test
+    void oneIdempotencyKeyCannotBeReusedForDifferentProvisioningSemantics() {
+        AgentRuntimeControlService.ProvisionRuntimeCommand first = command(
+                "idempotency-key-0001", "member-1");
+        service.provision(first);
+        AgentRuntimeControlService.ProvisionRuntimeCommand changed =
+                new AgentRuntimeControlService.ProvisionRuntimeCommand(
+                        first.organizationRef(), first.personRef(), first.memberBinding(),
+                        "workspace:2", first.workspaceManifestRef(), first.runtimeStateStoreRef(),
+                        first.authenticationMethod(), first.idempotencyKey(), first.auditRef());
+
+        assertThatThrownBy(() -> service.provision(changed))
+                .isInstanceOf(RuntimeCommandConflictException.class)
+                .hasMessageContaining("another command");
+    }
+
+    @Test
     void aPersonReferenceCannotBeReboundToAnotherMemberIdentity() {
         service.provision(command("idempotency-key-0001", "member-1"));
 
@@ -106,7 +137,8 @@ class AgentRuntimeControlServiceTest {
         RuntimeCell provisioned = service.provision(command("idempotency-key-0001", "member-1"));
 
         RuntimeCell revoked = service.revoke(new AgentRuntimeControlService.RevokeRuntimeCommand(
-                "org:example", "person:example", "membership-revoked", "actor:admin",
+                "org:example", "person:example", provisioned.entitlementRevision(),
+                "membership-revoked", "sha256:" + "4".repeat(64), "actor:admin",
                 "idempotency-key-0002", "audit:revoke"));
 
         assertThat(revoked.entitlementState()).isEqualTo(RuntimeEntitlementState.REVOKED);
@@ -117,10 +149,12 @@ class AgentRuntimeControlServiceTest {
     @Test
     void identityProviderFailureCannotRestoreARevokedCellsLeaseAuthority() {
         service.provision(command("idempotency-key-0001", "member-1"));
+        RuntimeCell provisioned = cells.findByPerson("org:example", "person:example").orElseThrow();
         workloadAdmin.failDisableNext = true;
         AgentRuntimeControlService.RevokeRuntimeCommand revoke =
                 new AgentRuntimeControlService.RevokeRuntimeCommand(
-                        "org:example", "person:example", "membership-revoked", "actor:admin",
+                        "org:example", "person:example", provisioned.entitlementRevision(),
+                        "membership-revoked", "sha256:" + "4".repeat(64), "actor:admin",
                         "idempotency-key-0002", "audit:revoke");
 
         assertThatThrownBy(() -> service.revoke(revoke)).isInstanceOf(IllegalStateException.class);
@@ -183,12 +217,14 @@ class AgentRuntimeControlServiceTest {
     }
 
     private static final class FixedEntitlementAuthority implements RuntimeEntitlementAuthority {
+        private final AtomicInteger calls = new AtomicInteger();
         private boolean denied;
         private boolean unavailable;
         private String capabilityRevision = "sha256:" + "2".repeat(64);
 
         @Override
         public RuntimeEntitlementObservation observe(ObserveEntitlementCommand command) {
+            calls.incrementAndGet();
             if (denied) {
                 throw new RuntimeEntitlementDeniedException("not currently entitled");
             }

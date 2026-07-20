@@ -5,6 +5,7 @@ import com.massimotter.weave.backend.agentruntime.domain.RuntimeCellState;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 public interface RuntimeCellRepository {
@@ -28,6 +29,15 @@ public interface RuntimeCellRepository {
             String personRef,
             long expectedVersion,
             String entitlementRevision,
+            String auditRef,
+            Instant now);
+
+    RuntimeCell transitionDesiredState(
+            String organizationRef,
+            String personRef,
+            long expectedVersion,
+            Set<RuntimeCellState> allowedFrom,
+            RuntimeCellState desiredState,
             String auditRef,
             Instant now);
 

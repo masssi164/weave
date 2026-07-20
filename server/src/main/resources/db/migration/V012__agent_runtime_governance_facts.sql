@@ -73,6 +73,7 @@ create table weave_agent_runtime_revocations (
     organization_ref varchar(255) not null,
     person_ref varchar(255) not null,
     reason_code varchar(100) not null,
+    reason_ref_hash varchar(71) not null,
     actor_ref_hash varchar(71) not null,
     effective_at timestamp with time zone not null,
     entitlement_ref varchar(255) not null,
@@ -84,6 +85,7 @@ create table weave_agent_runtime_revocations (
     created_at timestamp with time zone not null,
     constraint weave_agent_runtime_revocation_formats check (
         char_length(revocation_ref) = 75 and revocation_ref like 'revocation:%'
+        and char_length(reason_ref_hash) = 71 and reason_ref_hash like 'sha256:%'
         and char_length(actor_ref_hash) = 71 and actor_ref_hash like 'sha256:%'
         and char_length(entitlement_revision) = 71 and entitlement_revision like 'sha256:%'
         and char_length(workload_ref_hash) = 71 and workload_ref_hash like 'sha256:%'

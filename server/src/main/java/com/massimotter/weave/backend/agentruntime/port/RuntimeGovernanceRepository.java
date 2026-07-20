@@ -33,6 +33,7 @@ public interface RuntimeGovernanceRepository {
             String profileHash,
             String workloadRefHash,
             String reasonCode,
+            String reasonRefHash,
             String actorRefHash,
             String revocationRef,
             String auditCorrelationRef,

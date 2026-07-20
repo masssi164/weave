@@ -58,7 +58,7 @@ public class AgentRuntimeWorkloadIdentityConfiguration {
     }
 
     @Bean
-    RuntimeEntitlementAuthority runtimeEntitlementAuthority(
+    KeycloakRuntimeEntitlementAuthority runtimeEntitlementAuthority(
             AgentRuntimeWorkloadIdentityProperties properties,
             WeaverRuntimeProperties runtimePolicy,
             KeycloakAdminAccessTokenProvider accessTokens,

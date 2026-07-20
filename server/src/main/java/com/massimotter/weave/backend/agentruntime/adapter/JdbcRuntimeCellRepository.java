@@ -14,6 +14,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -137,6 +138,40 @@ public final class JdbcRuntimeCellRepository implements RuntimeCellRepository {
             return current;
         }
         throw new StaleRuntimeCellException("runtime cell entitlement changed concurrently");
+    }
+
+    @Override
+    public RuntimeCell transitionDesiredState(
+            String organizationRef,
+            String personRef,
+            long expectedVersion,
+            Set<RuntimeCellState> allowedFrom,
+            RuntimeCellState desiredState,
+            String auditRef,
+            Instant now) {
+        if (allowedFrom == null || allowedFrom.isEmpty() || desiredState == null
+                || auditRef == null || auditRef.isBlank() || now == null) {
+            throw new IllegalArgumentException("complete desired-state transition metadata is required");
+        }
+        RuntimeCell current = findByPerson(organizationRef, personRef)
+                .orElseThrow(() -> new StaleRuntimeCellException("runtime cell does not exist"));
+        if (current.desiredState() == desiredState) {
+            return current;
+        }
+        if (current.version() != expectedVersion
+                || !allowedFrom.contains(current.desiredState())) {
+            throw new StaleRuntimeCellException("runtime cell rejects the requested desired-state transition");
+        }
+        int updated = jdbc.update("""
+                update weave_agent_runtime_cells
+                   set desired_state=?, audit_ref=?, version=version+1, updated_at=?
+                 where organization_ref=? and person_ref=? and version=? and desired_state=?
+                """, desiredState.name(), auditRef, time(now), organizationRef, personRef,
+                expectedVersion, current.desiredState().name());
+        if (updated != 1) {
+            throw new StaleRuntimeCellException("runtime cell desired state changed concurrently");
+        }
+        return findByPerson(organizationRef, personRef).orElseThrow();
     }
 
     @Override

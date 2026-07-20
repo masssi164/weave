@@ -38,11 +38,26 @@ weave:
     # selected explicitly. Long-lived credentials are SecretRefs, never env values.
     storage:
       mode: ${WEAVE_AGENT_RUNTIME_STORAGE_MODE:disabled}
+    profile-signing:
+      # The server never bootstraps a missing trust root. Initialize and rotate
+      # the mounted SecretRef state explicitly so incomplete restores fail closed.
+      enabled: ${WEAVE_AGENT_RUNTIME_PROFILE_SIGNING_ENABLED:false}
+      secret-root: ${WEAVE_AGENT_RUNTIME_PROFILE_SIGNING_SECRET_ROOT:}
+      key-lifetime: ${WEAVE_AGENT_RUNTIME_PROFILE_SIGNING_KEY_LIFETIME:P365D}
+      trust-overlap: ${WEAVE_AGENT_RUNTIME_PROFILE_SIGNING_TRUST_OVERLAP:10m}
+      maximum-profile-ttl: ${WEAVE_AGENT_RUNTIME_PROFILE_TTL:5m}
+    policy:
+      # Strict, secret-free server-owned RuntimeProfile policy. Requests never
+      # supply model, Matrix, MCP, sandbox, workspace, or CredentialRef grants.
+      enabled: ${WEAVE_AGENT_RUNTIME_POLICY_ENABLED:false}
+      file: ${WEAVE_AGENT_RUNTIME_POLICY_FILE:}
     workload-identity:
       enabled: ${WEAVE_AGENT_RUNTIME_WORKLOAD_IDENTITY_ENABLED:false}
       keycloak-admin-base-url: ${WEAVE_AGENT_RUNTIME_KEYCLOAK_ADMIN_BASE_URL:}
       issuer: ${WEAVE_AGENT_RUNTIME_ISSUER:}
       realm: ${WEAVE_AGENT_RUNTIME_REALM:weave}
+      organization-ref: ${WEAVE_AGENT_RUNTIME_ORGANIZATION_REF:tenant-default}
+      keycloak-organization-id: ${WEAVE_AGENT_RUNTIME_KEYCLOAK_ORGANIZATION_ID:}
       admin-client-id: ${WEAVE_AGENT_RUNTIME_ADMIN_CLIENT_ID:weave-identity-admin}
       admin-credential-ref: ${WEAVE_AGENT_RUNTIME_ADMIN_CREDENTIAL_REF:}
       secret-root: ${WEAVE_AGENT_RUNTIME_SECRET_ROOT:}

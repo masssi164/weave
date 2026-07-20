@@ -70,6 +70,13 @@ tasks.named('bootRun') {
     systemProperty 'weave.matrix.core.library.path', matrixCoreLibrary.absolutePath
 }
 
+tasks.register('runtimeProfileSigningKeys', JavaExec) {
+    group = 'weave operations'
+    description = 'Initialize, inspect, or rotate the offline RuntimeProfile signing-key SecretRef store.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.massimotter.weave.backend.agentruntime.operator.RuntimeProfileSigningKeyCli'
+}
+
 tasks.matching { it.name == 'wrapper' }.configureEach {
     gradleVersion = '8.7'
     distributionType = Wrapper.DistributionType.ALL

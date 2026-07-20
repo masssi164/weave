@@ -10,6 +10,9 @@ import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeEntitlementAuthority.ObserveEntitlementCommand;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeEntitlementAuthorityException;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeEntitlementDeniedException;
+import com.massimotter.weave.backend.agentruntime.port.RuntimePersonDirectory.ResolveRuntimePersonCommand;
+import com.massimotter.weave.backend.agentruntime.port.RuntimePersonNotFoundException;
+import com.massimotter.weave.backend.identity.IdentityReferences;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
@@ -69,6 +72,29 @@ class KeycloakRuntimeEntitlementAuthorityTest {
     }
 
     @Test
+    void resolvesOnlyTheOpaqueAccountReferenceInsideTheConfiguredOrganization() {
+        String personRef = IdentityReferences.accountId(ISSUER, SUBJECT);
+
+        var resolved = authority.resolve(new ResolveRuntimePersonCommand(
+                "org:example", personRef, "audit:person-resolution"));
+
+        assertThat(resolved.organizationRef()).isEqualTo("org:example");
+        assertThat(resolved.personRef()).isEqualTo(personRef);
+        assertThat(resolved.memberBinding()).isEqualTo(new RuntimeMemberBinding(ISSUER, SUBJECT));
+        assertThatThrownBy(() -> authority.resolve(new ResolveRuntimePersonCommand(
+                "org:another", personRef, "audit:cross-org")))
+                .isInstanceOf(RuntimePersonNotFoundException.class);
+        assertThatThrownBy(() -> authority.resolve(new ResolveRuntimePersonCommand(
+                "org:example", SUBJECT, "audit:raw-subject")))
+                .isInstanceOf(RuntimePersonNotFoundException.class);
+
+        keycloak.organizationMember = false;
+        assertThatThrownBy(() -> authority.resolve(new ResolveRuntimePersonCommand(
+                "org:example", personRef, "audit:removed-member")))
+                .isInstanceOf(RuntimePersonNotFoundException.class);
+    }
+
+    @Test
     void disabledAbsentWrongIssuerAndNonMemberIdentitiesFailClosed() {
         assertThatThrownBy(() -> authority.observe(command(ISSUER)))
                 .isInstanceOf(RuntimeEntitlementDeniedException.class)
@@ -79,6 +105,13 @@ class KeycloakRuntimeEntitlementAuthorityTest {
         assertThatThrownBy(() -> authority.observe(command(ISSUER)))
                 .isInstanceOf(RuntimeEntitlementDeniedException.class)
                 .hasMessageContaining("absent or disabled");
+
+        keycloak.userEnabled = true;
+        keycloak.organizationMember = false;
+        assertThatThrownBy(() -> authority.observe(command(ISSUER)))
+                .isInstanceOf(RuntimeEntitlementDeniedException.class)
+                .hasMessageContaining("not a current organization member");
+        keycloak.organizationMember = true;
 
         int requests = keycloak.requests.get();
         assertThatThrownBy(() -> authority.observe(command("https://different.example/realms/weave")))
@@ -101,7 +134,7 @@ class KeycloakRuntimeEntitlementAuthorityTest {
 
         assertThat(authority.observe(command(ISSUER)).sourceGroupRef()).startsWith("sha256:");
         assertThat(tokens.invalidations).hasValue(1);
-        assertThat(tokens.calls).hasValue(3);
+        assertThat(tokens.calls).hasValue(4);
 
         keycloak.failureStatus = 503;
         keycloak.failureBody = "provider-secret-debug-payload";
@@ -113,7 +146,8 @@ class KeycloakRuntimeEntitlementAuthorityTest {
 
     private KeycloakRuntimeEntitlementAuthority.Settings settings(boolean enabled) {
         return new KeycloakRuntimeEntitlementAuthority.Settings(
-                enabled, keycloak.baseUri(), URI.create(ISSUER), "weave", Duration.ofSeconds(2),
+                enabled, keycloak.baseUri(), URI.create(ISSUER), "org:example", "org-uuid", "weave",
+                Duration.ofSeconds(2),
                 Duration.ofMinutes(5), List.of("weave-weaver-runtime"),
                 List.of("weaver.exec_disabled", "weaver.files_read"));
     }
@@ -151,6 +185,7 @@ class KeycloakRuntimeEntitlementAuthorityTest {
         private final AtomicInteger requests = new AtomicInteger();
         private final List<ObjectNode> groups = new java.util.ArrayList<>();
         private boolean userEnabled = true;
+        private boolean organizationMember = true;
         private boolean rejectFirstToken;
         private int failureStatus;
         private String failureBody = "";
@@ -180,6 +215,23 @@ class KeycloakRuntimeEntitlementAuthorityTest {
                 return;
             }
             String path = exchange.getRequestURI().getPath();
+            if (path.equals("/admin/realms/weave/organizations/org-uuid/members")) {
+                ArrayNode members = mapper.createArrayNode();
+                if (organizationMember) {
+                    members.add(mapper.createObjectNode().put("id", SUBJECT));
+                }
+                respond(exchange, 200, mapper.writeValueAsString(members));
+                return;
+            }
+            if (path.equals("/admin/realms/weave/organizations/org-uuid/members/" + SUBJECT)) {
+                if (!organizationMember) {
+                    respond(exchange, 404, "{}");
+                    return;
+                }
+                respond(exchange, 200, mapper.writeValueAsString(
+                        mapper.createObjectNode().put("id", SUBJECT)));
+                return;
+            }
             if (path.equals("/admin/realms/weave/users/" + SUBJECT)) {
                 ObjectNode user = mapper.createObjectNode()
                         .put("id", SUBJECT)

@@ -16,6 +16,8 @@ public class AgentRuntimeWorkloadIdentityProperties {
     private URI keycloakAdminBaseUrl;
     private URI issuer;
     private String realm = "weave";
+    private String organizationRef = "tenant-default";
+    private String keycloakOrganizationId = "";
     private String adminClientId = "weave-identity-admin";
     private String adminCredentialRef = "";
     private Path secretRoot;
@@ -51,6 +53,22 @@ public class AgentRuntimeWorkloadIdentityProperties {
 
     public String realm() {
         return realm;
+    }
+
+    public String organizationRef() {
+        return organizationRef;
+    }
+
+    public void setOrganizationRef(String organizationRef) {
+        this.organizationRef = organizationRef;
+    }
+
+    public String keycloakOrganizationId() {
+        return keycloakOrganizationId;
+    }
+
+    public void setKeycloakOrganizationId(String keycloakOrganizationId) {
+        this.keycloakOrganizationId = keycloakOrganizationId;
     }
 
     public void setRealm(String realm) {
@@ -156,6 +174,8 @@ public class AgentRuntimeWorkloadIdentityProperties {
                 runtimePolicy.enabled(),
                 keycloakAdminBaseUrl,
                 issuer,
+                organizationRef,
+                keycloakOrganizationId,
                 realm,
                 timeout,
                 entitlementObservationTtl,

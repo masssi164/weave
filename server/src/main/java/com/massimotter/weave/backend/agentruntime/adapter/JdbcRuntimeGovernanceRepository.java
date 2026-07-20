@@ -110,6 +110,7 @@ public final class JdbcRuntimeGovernanceRepository implements RuntimeGovernanceR
             String profileHash,
             String workloadRefHash,
             String reasonCode,
+            String reasonRefHash,
             String actorRefHash,
             String revocationRef,
             String auditCorrelationRef,
@@ -117,7 +118,8 @@ public final class JdbcRuntimeGovernanceRepository implements RuntimeGovernanceR
         Objects.requireNonNull(entitlement, "entitlement");
         RuntimeRevocation proposed = new RuntimeRevocation(
                 UUID.randomUUID(), revocationRef, entitlement.organizationRef(), entitlement.personRef(),
-                reasonCode, actorRefHash, now, entitlement.entitlementRef(), entitlement.entitlementRevision(),
+                reasonCode, reasonRefHash, actorRefHash, now,
+                entitlement.entitlementRef(), entitlement.entitlementRevision(),
                 cellRef, profileHash, workloadRefHash, auditCorrelationRef, now);
         return Objects.requireNonNull(transactions.execute(status -> {
             int inserted;
@@ -125,11 +127,12 @@ public final class JdbcRuntimeGovernanceRepository implements RuntimeGovernanceR
                 inserted = jdbc.update("""
                         insert into weave_agent_runtime_revocations
                           (record_id, revocation_ref, organization_ref, person_ref, reason_code, actor_ref_hash,
-                           effective_at, entitlement_ref, entitlement_revision, cell_ref, profile_hash,
-                           workload_ref_hash, audit_correlation_ref, created_at)
-                        values (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                           reason_ref_hash, effective_at, entitlement_ref, entitlement_revision, cell_ref,
+                           profile_hash, workload_ref_hash, audit_correlation_ref, created_at)
+                        values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                         """, proposed.recordId(), proposed.revocationRef(), proposed.organizationRef(),
                         proposed.personRef(), proposed.reasonCode(), proposed.actorRefHash(),
+                        proposed.reasonRefHash(),
                         time(proposed.effectiveAt()), proposed.entitlementRef(), proposed.entitlementRevision(),
                         proposed.cellRef(), proposed.profileHash(), proposed.workloadRefHash(),
                         proposed.auditCorrelationRef(), time(proposed.createdAt()));
@@ -297,7 +300,8 @@ public final class JdbcRuntimeGovernanceRepository implements RuntimeGovernanceR
         return new RuntimeRevocation(
                 result.getObject("record_id", UUID.class), result.getString("revocation_ref"),
                 result.getString("organization_ref"), result.getString("person_ref"),
-                result.getString("reason_code"), result.getString("actor_ref_hash"),
+                result.getString("reason_code"), result.getString("reason_ref_hash"),
+                result.getString("actor_ref_hash"),
                 instant(result, "effective_at"), result.getString("entitlement_ref"),
                 result.getString("entitlement_revision"), result.getString("cell_ref"),
                 result.getString("profile_hash"), result.getString("workload_ref_hash"),
@@ -339,6 +343,7 @@ public final class JdbcRuntimeGovernanceRepository implements RuntimeGovernanceR
                 || !expected.organizationRef().equals(actual.organizationRef())
                 || !expected.personRef().equals(actual.personRef())
                 || !expected.reasonCode().equals(actual.reasonCode())
+                || !expected.reasonRefHash().equals(actual.reasonRefHash())
                 || !expected.actorRefHash().equals(actual.actorRefHash())
                 || !expected.entitlementRef().equals(actual.entitlementRef())
                 || !expected.entitlementRevision().equals(actual.entitlementRevision())

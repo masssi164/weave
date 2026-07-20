@@ -11,6 +11,7 @@ public record RuntimeRevocation(
         String organizationRef,
         String personRef,
         String reasonCode,
+        String reasonRefHash,
         String actorRefHash,
         Instant effectiveAt,
         String entitlementRef,
@@ -29,6 +30,7 @@ public record RuntimeRevocation(
         if (reasonCode == null || !reasonCode.matches("[a-z0-9][a-z0-9-]{1,98}[a-z0-9]")) {
             throw new IllegalArgumentException("reasonCode must be a bounded machine-readable code");
         }
+        requireFingerprint(reasonRefHash, "reasonRefHash");
         requireFingerprint(actorRefHash, "actorRefHash");
         Objects.requireNonNull(effectiveAt, "effectiveAt");
         requirePrefix(entitlementRef, "entitlement:", "entitlementRef");

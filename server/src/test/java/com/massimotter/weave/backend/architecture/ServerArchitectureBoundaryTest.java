@@ -79,6 +79,8 @@ class ServerArchitectureBoundaryTest {
             "/service/FileOrganizationBootstrapRepository.java",
             "/service/FileProductProfileOverrideRepository.java",
             "/service/migration/FileMigrationRunEvidenceRepository.java");
+    private static final List<String> ACCEPTED_FILE_KEY_CUSTODY_ALLOWLIST = List.of(
+            "/agentruntime/adapter/FileRuntimeProfileSigningKeyStore.java");
     private static final List<String> FILE_RUNTIME_AUTHORITY_MARKERS = List.of(
             "Path storagePath",
             "readValue(storagePath.toFile()",
@@ -194,14 +196,14 @@ class ServerArchitectureBoundaryTest {
     void strategicJsonAndFileRuntimeAuthorityDoesNotExpandBeyondFencedDebt() throws IOException {
         List<String> violations = productionSources().stream()
                 .filter(ServerArchitectureBoundaryTest::usesFileRuntimeStore)
-                .filter(source -> !isLegacyFileRuntimeStoreAllowlisted(source))
+                .filter(source -> !isAllowedFileRuntimeAuthority(source))
                 .map(source -> source.path()
                         + " uses file-backed runtime persistence outside the explicit #1019/#1011 debt fence")
                 .sorted()
                 .toList();
 
         assertThat(violations)
-                .as("New #1011 slices must not add strategic JSON/file runtime truth; use relational/domain stores, deterministic fixtures, or an explicit one-shot import issue.")
+                .as("Runtime truth must remain relational; only canonical operator-mounted cryptographic key custody and fenced legacy debt may use files.")
                 .isEmpty();
     }
 
@@ -482,9 +484,10 @@ class ServerArchitectureBoundaryTest {
                 && (text.contains(".json") || text.contains(".jsonl") || text.contains("storagePath"));
     }
 
-    private static boolean isLegacyFileRuntimeStoreAllowlisted(JavaSource source) {
+    private static boolean isAllowedFileRuntimeAuthority(JavaSource source) {
         String path = source.path().toString().replace('\\', '/');
-        return LEGACY_FILE_RUNTIME_STORE_ALLOWLIST.stream().anyMatch(path::endsWith);
+        return LEGACY_FILE_RUNTIME_STORE_ALLOWLIST.stream().anyMatch(path::endsWith)
+                || ACCEPTED_FILE_KEY_CUSTODY_ALLOWLIST.stream().anyMatch(path::endsWith);
     }
 
     private static List<String> forbiddenNativeOrMcpLiterals(JavaSource source) {

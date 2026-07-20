@@ -9,12 +9,18 @@ import com.massimotter.weave.backend.agentruntime.application.RuntimeProfileDeli
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileTrustBundlePublisher;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileTrustKeyProvider;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileVerifier;
+import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileSigner;
+import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileSigningKeyLifecycle;
+import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileSigningKeyProvider;
+import com.massimotter.weave.backend.agentruntime.port.RuntimePersonDirectory;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeEntitlementAuthority;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadCredentialStore;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityAdmin;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityInventory;
 import com.massimotter.weave.backend.agentruntime.port.SecretRefAccess;
 import com.massimotter.weave.backend.config.AgentRuntimeProfileConfiguration;
+import com.massimotter.weave.backend.config.AgentRuntimeProfileSigningConfiguration;
+import com.massimotter.weave.backend.config.AgentRuntimeProfileSigningProperties;
 import com.massimotter.weave.backend.config.AgentRuntimeWorkloadIdentityConfiguration;
 import com.massimotter.weave.backend.config.AgentRuntimeWorkloadIdentityProperties;
 import com.massimotter.weave.backend.config.PlatformContractProperties;
@@ -36,6 +42,7 @@ class AgentRuntimePersistenceConfigurationTest {
             .withConfiguration(AutoConfigurations.of(WeavePersistenceConfiguration.class))
             .withUserConfiguration(
                     AgentRuntimeProfileConfiguration.class,
+                    AgentRuntimeProfileSigningConfiguration.class,
                     AgentRuntimeWorkloadIdentityConfiguration.class)
             .withBean(ObjectMapper.class, ObjectMapper::new)
             .withBean(PlatformContractProperties.class,
@@ -61,10 +68,42 @@ class AgentRuntimePersistenceConfigurationTest {
             assertThat(application).hasSingleBean(RuntimeProfileDeliveryService.class);
             assertThat(application).hasSingleBean(AgentRuntimeWorkloadTokenPolicy.class);
             assertThat(application).doesNotHaveBean(RuntimeProfileTrustKeyProvider.class);
+            assertThat(application).doesNotHaveBean(RuntimeProfileSigningKeyProvider.class);
+            assertThat(application).doesNotHaveBean(RuntimeProfileSigningKeyLifecycle.class);
+            assertThat(application).doesNotHaveBean(RuntimeProfileSigner.class);
             assertThat(application).doesNotHaveBean(RuntimeWorkloadCredentialStore.class);
             assertThat(application).doesNotHaveBean(RuntimeWorkloadIdentityAdmin.class);
             assertThat(application).hasSingleBean(WeavePersistenceProperties.class);
         });
+    }
+
+    @Test
+    void explicitProfileSigningEnablementBuildsAStillUninitializedFailClosedTrustRoot() {
+        context.withPropertyValues(
+                        "weave.agent-runtime.profile-signing.enabled=true",
+                        "weave.agent-runtime.profile-signing.secret-root=" + temporary.resolve("profile-keys"))
+                .run(application -> {
+                    assertThat(application).hasNotFailed();
+                    assertThat(application).hasSingleBean(AgentRuntimeProfileSigningProperties.class);
+                    assertThat(application).hasSingleBean(FileRuntimeProfileSigningKeyStore.class);
+                    assertThat(application).hasSingleBean(RuntimeProfileSigningKeyProvider.class);
+                    assertThat(application).hasSingleBean(RuntimeProfileTrustKeyProvider.class);
+                    assertThat(application).hasSingleBean(RuntimeProfileSigningKeyLifecycle.class);
+                    assertThat(application).hasSingleBean(RuntimeProfileSigner.class);
+                    assertThat(application.getBean(RuntimeProfileTrustKeyProvider.class)
+                                    .publishedKeys(java.time.Instant.now()))
+                            .isEmpty();
+                });
+    }
+
+    @Test
+    void profileSigningEnablementWithoutAnExplicitSecretRootFailsStartup() {
+        context.withPropertyValues("weave.agent-runtime.profile-signing.enabled=true")
+                .run(application -> assertThat(application)
+                        .hasFailed()
+                        .getFailure()
+                        .hasRootCauseMessage(
+                                "RuntimeProfile signing requires an explicit operator-mounted SecretRef root"));
     }
 
     @Test
@@ -73,6 +112,8 @@ class AgentRuntimePersistenceConfigurationTest {
                         "weave.agent-runtime.workload-identity.enabled=true",
                         "weave.agent-runtime.workload-identity.keycloak-admin-base-url=http://127.0.0.1:8180",
                         "weave.agent-runtime.workload-identity.issuer=https://auth.weave.test/realms/weave",
+                        "weave.agent-runtime.workload-identity.organization-ref=tenant-default",
+                        "weave.agent-runtime.workload-identity.keycloak-organization-id=keycloak-org-uuid",
                         "weave.agent-runtime.workload-identity.admin-credential-ref="
                                 + "credentialref://weave/agent-runtime/admin/keycloak",
                         "weave.agent-runtime.workload-identity.secret-root=" + temporary)
@@ -85,6 +126,7 @@ class AgentRuntimePersistenceConfigurationTest {
                     assertThat(application).hasSingleBean(RuntimeWorkloadIdentityAdmin.class);
                     assertThat(application).hasSingleBean(RuntimeWorkloadIdentityInventory.class);
                     assertThat(application).hasSingleBean(RuntimeEntitlementAuthority.class);
+                    assertThat(application).hasSingleBean(RuntimePersonDirectory.class);
                     assertThat(application).hasSingleBean(AgentRuntimeControlService.class);
                     assertThat(application).hasSingleBean(AgentRuntimeWorkloadReconciliationService.class);
                 });

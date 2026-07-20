@@ -65,12 +65,21 @@ public final class AgentRuntimeControlService implements RuntimeEntitlementRecon
         if (existing != null) {
             requireSameBinding(existing, cellRef, command);
         }
-        RuntimeAuditCorrelation correlation = appendCorrelation(
+        RuntimeAuditCorrelation attemptCorrelation = appendCorrelation(
                 PROVISION, command.organizationRef(), command.personRef(), cellRef,
                 command.idempotencyKey(), command.auditRef(), now);
         RuntimeCommandReceipt receipt = commands.claim(
-                command.organizationRef(), command.personRef(), command.idempotencyKey(), PROVISION,
-                cellRef, correlation.correlationRef(), now);
+                command.organizationRef(), command.personRef(), command.idempotencyKey(),
+                provisionCommand(command),
+                cellRef, attemptCorrelation.correlationRef(), now);
+        String correlationRef = receipt.auditRef();
+        if (receipt.status() == RuntimeCommandReceipt.Status.COMPLETED) {
+            RuntimeCell replay = cells.findByPerson(command.organizationRef(), command.personRef())
+                    .orElseThrow(() -> new RuntimeCommandConflictException(
+                            "the completed provisioning receipt has no runtime cell"));
+            requireSameBinding(replay, receipt, command);
+            return replay;
+        }
         RuntimeEntitlementRef entitlement;
         RuntimeEntitlementRef previousEntitlement = existing == null
                 ? null
@@ -79,9 +88,9 @@ public final class AgentRuntimeControlService implements RuntimeEntitlementRecon
             RuntimeEntitlementObservation observation = entitlementAuthority.observe(
                     new RuntimeEntitlementAuthority.ObserveEntitlementCommand(
                             command.organizationRef(), command.personRef(), command.memberBinding(),
-                            correlation.correlationRef()));
+                            correlationRef));
             entitlement = governance.activate(
-                    observation, command.idempotencyKey(), correlation.correlationRef(), now);
+                    observation, command.idempotencyKey(), correlationRef, now);
         } catch (RuntimeException failure) {
             commands.fail(receipt, "runtime-entitlement-unavailable-or-denied", clock.instant());
             throw failure;
@@ -102,17 +111,17 @@ public final class AgentRuntimeControlService implements RuntimeEntitlementRecon
                         }
                         revokeEntitlementFact(
                                 existing, previousEntitlement, "capability-policy-superseded",
-                                correlation.correlationRef(), now, true);
+                                correlationRef, now, true);
                     }
                     profiles.revokeCurrent(existing.cellRef(), "entitlement-superseded", now);
                     current = cells.bindEntitlement(
                             command.organizationRef(), command.personRef(), existing.version(),
-                            entitlement.entitlementRevision(), correlation.correlationRef(), now);
+                            entitlement.entitlementRevision(), correlationRef, now);
                     RuntimeWorkloadBinding workload = workloadIdentityAdmin.ensureBinding(
                             new RuntimeWorkloadIdentityAdmin.EnsureBindingCommand(
                                     command.organizationRef(), command.personRef(), cellRef,
                                     current.workloadBinding().clientId(), command.authenticationMethod(),
-                                    correlation.correlationRef()));
+                                    correlationRef));
                     if (!workload.equals(current.workloadBinding())) {
                         throw new RuntimeCommandConflictException(
                                 "the immutable workload identity changed during re-entitlement");
@@ -130,11 +139,11 @@ public final class AgentRuntimeControlService implements RuntimeEntitlementRecon
             RuntimeWorkloadBinding workload = workloadIdentityAdmin.ensureBinding(
                     new RuntimeWorkloadIdentityAdmin.EnsureBindingCommand(
                             command.organizationRef(), command.personRef(), cellRef, "weaver-cell-" + cellKey,
-                            command.authenticationMethod(), correlation.correlationRef()));
+                            command.authenticationMethod(), correlationRef));
             RuntimeCell proposed = RuntimeCell.provisioning(
                     command.organizationRef(), command.personRef(), command.memberBinding(), cellRef, workload,
                     entitlement.entitlementRevision(), command.workspaceRevision(), command.workspaceManifestRef(),
-                    command.runtimeStateStoreRef(), correlation.correlationRef(), now);
+                    command.runtimeStateStoreRef(), correlationRef, now);
             RuntimeCell persisted;
             try {
                 persisted = cells.insert(proposed);
@@ -155,21 +164,32 @@ public final class AgentRuntimeControlService implements RuntimeEntitlementRecon
         RuntimeCell existing = cells.findByPerson(command.organizationRef(), command.personRef())
                 .orElseThrow(() -> new IllegalStateException("runtime cell does not exist"));
         Instant now = clock.instant();
-        RuntimeAuditCorrelation correlation = appendCorrelation(
+        RuntimeAuditCorrelation attemptCorrelation = appendCorrelation(
                 REVOKE, command.organizationRef(), command.personRef(), existing.cellRef(),
                 command.idempotencyKey(), command.auditRef(), now);
         RuntimeCommandReceipt receipt = commands.claim(
-                command.organizationRef(), command.personRef(), command.idempotencyKey(), REVOKE,
-                existing.cellRef(), correlation.correlationRef(), now);
+                command.organizationRef(), command.personRef(), command.idempotencyKey(),
+                revokeCommand(command),
+                existing.cellRef(), attemptCorrelation.correlationRef(), now);
+        String correlationRef = receipt.auditRef();
+        if (receipt.status() == RuntimeCommandReceipt.Status.COMPLETED) {
+            return cells.findByPerson(command.organizationRef(), command.personRef())
+                    .filter(cell -> cell.cellRef().equals(receipt.cellRef()))
+                    .orElseThrow(() -> new RuntimeCommandConflictException(
+                            "the completed revocation receipt has no matching runtime cell"));
+        }
         try {
             RuntimeEntitlementRef entitlement = governance.findCurrent(
                             command.organizationRef(), command.personRef())
                     .orElseThrow(() -> new IllegalStateException("runtime entitlement does not exist"));
+            if (!entitlement.entitlementRevision().equals(command.expectedEntitlementRevision())) {
+                throw new RuntimeCommandConflictException("the requested entitlement revision is stale");
+            }
             if (existing.entitlementState() == RuntimeEntitlementState.REVOKED
                     && entitlement.state() == RuntimeEntitlementState.REVOKED) {
                 workloadIdentityAdmin.disableBinding(new RuntimeWorkloadIdentityAdmin.DisableBindingCommand(
                         existing.organizationRef(), existing.personRef(), existing.cellRef(),
-                        existing.workloadBinding(), correlation.correlationRef()));
+                        existing.workloadBinding(), correlationRef));
                 commands.complete(receipt, existing.version(), clock.instant());
                 return existing;
             }
@@ -182,15 +202,16 @@ public final class AgentRuntimeControlService implements RuntimeEntitlementRecon
                             + existing.workloadBinding().credentialRef());
             governance.revoke(
                     entitlement, existing.cellRef(), existing.runtimeProfileHash(), workloadRefHash,
-                    command.reasonCode(), RuntimeWorkloadOwnership.fingerprint(command.actorRef()),
-                    revocationRef, correlation.correlationRef(), now);
+                    command.reasonCode(), command.reasonRefHash(),
+                    RuntimeWorkloadOwnership.fingerprint(command.actorRef()),
+                    revocationRef, correlationRef, now);
             profiles.revokeCurrent(existing.cellRef(), command.reasonCode(), now);
             RuntimeCell revoked = cells.revoke(
                     command.organizationRef(), command.personRef(), entitlement.entitlementRevision(),
-                    correlation.correlationRef(), now);
+                    correlationRef, now);
             workloadIdentityAdmin.disableBinding(new RuntimeWorkloadIdentityAdmin.DisableBindingCommand(
                     revoked.organizationRef(), revoked.personRef(), revoked.cellRef(),
-                    revoked.workloadBinding(), correlation.correlationRef()));
+                    revoked.workloadBinding(), correlationRef));
             commands.complete(receipt, revoked.version(), clock.instant());
             return revoked;
         } catch (RuntimeException failure) {
@@ -334,6 +355,8 @@ public final class AgentRuntimeControlService implements RuntimeEntitlementRecon
                         + cell.workloadBinding().clientId() + "\u0000" + cell.workloadBinding().credentialRef());
         governance.revoke(
                 entitlement, cell.cellRef(), cell.runtimeProfileHash(), workloadRefHash, reasonCode,
+                RuntimeWorkloadOwnership.fingerprint(
+                        "weave.agent-runtime.revocation-reason/v1\u0000" + reasonCode),
                 RuntimeWorkloadOwnership.fingerprint("actor:agent-runtime-control"), revocationRef,
                 correlationRef, now);
     }
@@ -363,6 +386,24 @@ public final class AgentRuntimeControlService implements RuntimeEntitlementRecon
         }
     }
 
+    private static String provisionCommand(ProvisionRuntimeCommand command) {
+        return semanticCommand(PROVISION,
+                command.memberBinding().issuer() + "\u0000" + command.memberBinding().subject() + "\u0000"
+                        + command.workspaceRevision() + "\u0000" + command.workspaceManifestRef() + "\u0000"
+                        + command.runtimeStateStoreRef() + "\u0000" + command.authenticationMethod().name());
+    }
+
+    private static String revokeCommand(RevokeRuntimeCommand command) {
+        return semanticCommand(REVOKE,
+                command.expectedEntitlementRevision() + "\u0000" + command.reasonCode() + "\u0000"
+                        + command.reasonRefHash() + "\u0000"
+                        + RuntimeWorkloadOwnership.fingerprint(command.actorRef()));
+    }
+
+    private static String semanticCommand(String operation, String semantics) {
+        return operation + ":" + RuntimeWorkloadOwnership.fingerprint(semantics).substring(7, 39);
+    }
+
     private RuntimeAuditCorrelation appendCorrelation(
             String operation,
             String organizationRef,
@@ -372,7 +413,8 @@ public final class AgentRuntimeControlService implements RuntimeEntitlementRecon
             String auditRef,
             Instant now) {
         String correlationRef = "correlation:" + RuntimeWorkloadOwnership.fingerprint(
-                operation + "\u0000" + organizationRef + "\u0000" + personRef + "\u0000" + idempotencyKey)
+                operation + "\u0000" + organizationRef + "\u0000" + personRef + "\u0000"
+                        + idempotencyKey + "\u0000" + auditRef)
                 .substring(7);
         return governance.appendCorrelation(new RuntimeAuditCorrelation(
                 UUID.randomUUID(), correlationRef,
@@ -415,15 +457,25 @@ public final class AgentRuntimeControlService implements RuntimeEntitlementRecon
     public record RevokeRuntimeCommand(
             String organizationRef,
             String personRef,
+            String expectedEntitlementRevision,
             String reasonCode,
+            String reasonRefHash,
             String actorRef,
             String idempotencyKey,
             String auditRef) {
         public RevokeRuntimeCommand {
             requireText(organizationRef, "organizationRef");
             requireText(personRef, "personRef");
+            if (expectedEntitlementRevision == null
+                    || !expectedEntitlementRevision.matches("sha256:[a-f0-9]{64}")) {
+                throw new IllegalArgumentException(
+                        "expectedEntitlementRevision must be an authoritative SHA-256 revision");
+            }
             if (reasonCode == null || !reasonCode.matches("[a-z0-9][a-z0-9-]{1,98}[a-z0-9]")) {
                 throw new IllegalArgumentException("reasonCode must be a bounded machine-readable code");
+            }
+            if (reasonRefHash == null || !reasonRefHash.matches("sha256:[a-f0-9]{64}")) {
+                throw new IllegalArgumentException("reasonRefHash must be a SHA-256 reference");
             }
             requireText(actorRef, "actorRef");
             if (idempotencyKey == null || idempotencyKey.length() < 16 || idempotencyKey.length() > 128) {

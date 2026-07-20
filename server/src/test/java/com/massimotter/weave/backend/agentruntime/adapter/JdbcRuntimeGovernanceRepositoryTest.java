@@ -27,6 +27,7 @@ class JdbcRuntimeGovernanceRepositoryTest {
     private static final Instant NOW = Instant.parse("2026-07-20T09:00:00Z");
     private static final String HASH_ONE = "sha256:" + "1".repeat(64);
     private static final String HASH_TWO = "sha256:" + "2".repeat(64);
+    private static final String HASH_THREE = "sha256:" + "3".repeat(64);
 
     private JdbcTemplate jdbc;
     private JdbcRuntimeGovernanceRepository repository;
@@ -71,10 +72,10 @@ class JdbcRuntimeGovernanceRepositoryTest {
         RuntimeCell cell = cells.insert(cell(first));
         RuntimeAuditCorrelation correlation = repository.appendCorrelation(correlation(correlationRef('a')));
         RuntimeRevocation revoked = repository.revoke(
-                first, cell.cellRef(), null, HASH_TWO, "membership-revoked", HASH_ONE,
+                first, cell.cellRef(), null, HASH_TWO, "membership-revoked", HASH_THREE, HASH_ONE,
                 "revocation:" + "a".repeat(64), correlation.correlationRef(), NOW.plusSeconds(10));
         RuntimeRevocation replay = repository.revoke(
-                first, cell.cellRef(), null, HASH_TWO, "membership-revoked", HASH_ONE,
+                first, cell.cellRef(), null, HASH_TWO, "membership-revoked", HASH_THREE, HASH_ONE,
                 revoked.revocationRef(), correlation.correlationRef(), NOW.plusSeconds(10));
 
         RuntimeEntitlementRef replacement = repository.activate(
@@ -82,6 +83,7 @@ class JdbcRuntimeGovernanceRepositoryTest {
                 "idempotency-key-0003", "correlation:replacement", NOW.plusSeconds(20));
 
         assertThat(replay).isEqualTo(revoked);
+        assertThat(revoked.reasonRefHash()).isEqualTo(HASH_THREE);
         assertThat(repository.findEffectiveRevision(
                 first.organizationRef(), first.personRef(), first.entitlementRevision(), NOW.plusSeconds(20)))
                 .isEmpty();
