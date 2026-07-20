@@ -41,6 +41,14 @@ public record PlatformContractProperties(
                 : normalized;
     }
 
+    public String agentRuntimeControlResource() {
+        String normalized = apiBaseUrl;
+        while (normalized.endsWith("/") && normalized.length() > 1) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        return normalized + "/v1/agent-runtime";
+    }
+
     public record Targets(boolean mobile, boolean desktop, boolean web) {
     }
 }

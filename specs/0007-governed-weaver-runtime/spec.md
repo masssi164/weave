@@ -77,6 +77,10 @@ tampering, expiry, revocation, wrong subject, wrong organization, or stale polic
 The current corpus defines `runtimeProfileHash` as the lowercase `sha256:` digest of the RFC 8785
 JCS UTF-8 payload bytes, excluding the protected header and signature. Overlap-key re-signing
 therefore preserves semantic identity while every payload change produces another hash.
+Profile retrieval is a separate workload-only OAuth path. It requires the exact Agent Runtime
+Control audience, only `agent-runtime.profile.read`, matching per-cell `client_id` and `azp`, the
+sole `weaver-runtime` realm role, no client roles, and the current authoritative
+subject/client/cell/profile binding. Member and generic-service tokens cannot enter that path.
 
 ## Initial tool set
 

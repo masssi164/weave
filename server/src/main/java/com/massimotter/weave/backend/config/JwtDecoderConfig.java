@@ -26,16 +26,8 @@ public class JwtDecoderConfig {
             WeaveSecurityProperties weaveSecurityProperties) {
         String issuerUri = resourceServerProperties.getJwt().getIssuerUri();
         if (!StringUtils.hasText(issuerUri)) {
-            return token -> {
-                throw new BadJwtException("The backend JWT issuer is not configured.");
-            };
+            return configuredDecoder(resourceServerProperties, jwt -> OAuth2TokenValidatorResult.success());
         }
-
-        String jwkSetUri = resourceServerProperties.getJwt().getJwkSetUri();
-        NimbusJwtDecoder jwtDecoder = StringUtils.hasText(jwkSetUri)
-                ? NimbusJwtDecoder.withJwkSetUri(jwkSetUri).build()
-                : NimbusJwtDecoder.withIssuerLocation(issuerUri).build();
-
         OAuth2TokenValidator<Jwt> validator = JwtValidators.createDefaultWithIssuer(issuerUri);
         if (weaveSecurityProperties.hasRequiredAudience()) {
             validator = new DelegatingOAuth2TokenValidator<>(
@@ -47,7 +39,22 @@ public class JwtDecoderConfig {
                     validator,
                     requiredAuthorizedPartyValidator(weaveSecurityProperties.requiredAuthorizedParty()));
         }
+        return configuredDecoder(resourceServerProperties, validator);
+    }
 
+    static JwtDecoder configuredDecoder(
+            OAuth2ResourceServerProperties resourceServerProperties,
+            OAuth2TokenValidator<Jwt> validator) {
+        String issuerUri = resourceServerProperties.getJwt().getIssuerUri();
+        if (!StringUtils.hasText(issuerUri)) {
+            return token -> {
+                throw new BadJwtException("The backend JWT issuer is not configured.");
+            };
+        }
+        String jwkSetUri = resourceServerProperties.getJwt().getJwkSetUri();
+        NimbusJwtDecoder jwtDecoder = StringUtils.hasText(jwkSetUri)
+                ? NimbusJwtDecoder.withJwkSetUri(jwkSetUri).build()
+                : NimbusJwtDecoder.withIssuerLocation(issuerUri).build();
         jwtDecoder.setJwtValidator(validator);
         return jwtDecoder;
     }
