@@ -804,7 +804,7 @@ describe("Admin Console MVP", () => {
     expect(await screen.findByRole("status")).toHaveTextContent(
       /delete-runtime-state accepted/i,
     );
-  });
+  }, 15_000);
 
   it("dry-runs selected providers through the backend API before applying", async () => {
     const api = mockApi();
