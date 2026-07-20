@@ -26,7 +26,7 @@ CLAIM_MATRIX_REQUIRED_CLAIMS = [
     "Consistent member UX across providers",
     "Provider-neutral replacement dry-run",
     "no-unaccounted-data-loss",
-    "Bounded governed Weaver assistance",
+    "Workload-only governed Weaver target",
     "broad autonomous AI availability",
 ]
 MEETING_REQUIRED_BOUNDARIES = [
