@@ -102,6 +102,7 @@ class SpringAiMcpTransportTest {
                 .andExpect(jsonPath("$.resource").value("https://api.weave.test/mcp"))
                 .andExpect(jsonPath("$.authorization_servers[0]").value("https://auth.weave.test/realms/weave"))
                 .andExpect(jsonPath("$.bearer_methods_supported[0]").value("header"))
+                .andExpect(jsonPath("$.bearer_methods_supported.length()").value(1))
                 .andExpect(jsonPath("$.scopes_supported[0]").value("weave:mcp"));
     }
 

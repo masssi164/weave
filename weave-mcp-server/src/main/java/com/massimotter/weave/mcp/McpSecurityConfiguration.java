@@ -52,7 +52,6 @@ class McpSecurityConfiguration {
                                 .resource(resourceMetadata.resource().toString())
                                 .authorizationServer(resourceMetadata.authorizationServer().toString())
                                 .scope("weave:mcp")
-                                .bearerMethod("header")
                                 .tlsClientCertificateBoundAccessTokens(false)))
                         .jwt(Customizer.withDefaults()))
                 .build();
