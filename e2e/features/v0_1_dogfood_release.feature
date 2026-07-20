@@ -142,7 +142,7 @@ Feature: Weave v0.1 dogfood production release
     When a member runtime discovers tools and requests a write-like tool invocation
     Then the runtime sees only domain-scoped tools granted by its signed profile and same-user lookup
     And blocked tools, revoked profiles, expired runtime tokens, missing consent, and overbroad grants are denied with support-safe audit evidence
-    And write, delete, external-send, and provider-switch actions require approval receipts before invocation
+    And guarded actions require signed single-use decision evidence plus current independent domain authorization before provider access
     And bounded assistance results may cite Space, Decision, and Board canonical refs without raw provider payloads or private content
 
   @weave-v01-channel-workspace

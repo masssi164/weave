@@ -1,6 +1,6 @@
 spec_id: WEAVE-SPEC-0007
-version: 0.1.0
-status: implementing
+version: 0.2.0
+status: deprecated
 github_issues:
 - 433
 - 446
@@ -19,8 +19,6 @@ pinned_corpus_sources:
 - ../weave-specs (locked corpus; product/domain SSOT)
 repo_projection:
 - specs/0007-governed-weaver-runtime/spec.md
-- specs/0007-governed-weaver-runtime/plan.md
-- specs/0007-governed-weaver-runtime/tasks.md
 acceptance_scenarios:
 - tag: '@weave-v01-governed-weaver-runtime-policy'
   evidence:
@@ -71,8 +69,8 @@ acceptance_scenarios:
   - e2e/scenario_mappings.json
   - e2e/suites/scenario_catalog.json
   assertions:
-  - approval receipt
-  - fail closed drift
+  - signed single-use ApprovalDecisionEvidence
+  - independent domain authorization and immutable ActionEvidence
   - WEAVE_SPEC_0007_TOOL_APPROVAL_RECEIPT_FAIL_CLOSED
   - '@weave-spec-0007-tool-approval-receipt-fail-closed'
 evidence_gates:

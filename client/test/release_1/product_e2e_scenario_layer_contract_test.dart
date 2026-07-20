@@ -46,7 +46,9 @@ void main() {
     expect(featureText, contains('bounded guest access'));
     expect(featureText, contains('support bundle'));
     expect(featureText, contains('backup manifest and restore receipt'));
-    expect(featureText, contains('approval receipt'));
+    expect(featureText, contains('short-lived single-use decision evidence'));
+    expect(featureText, contains('independently reauthorizes'));
+    expect(featureText, contains('immutable action evidence'));
     expect(featureText, contains('portable, lossy, unsupported'));
     expect(
       featureText,
@@ -100,7 +102,7 @@ void main() {
           'admin-health-ops',
         },
         '@weave-product-weaver-consent-approval-receipt': {
-          'weaver-governed-pa',
+          'agent-runtime-control',
           'admin-health-ops',
         },
         '@weave-product-provider-switch-manual-review': {

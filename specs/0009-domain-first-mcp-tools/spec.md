@@ -19,7 +19,7 @@ evidence_gates:
 # Feature 0009: Domain-first MCP tools
 
 > Obsolete as independent product/domain truth. The pinned corpus ADR
-> `WEAVE-ADR-0003` and `WEAVE-DOMAIN-WEAVER-GOVERNED-PA` now own this meaning.
+> `WEAVE-ADR-0003` and `WEAVE-DOMAIN-AGENT-RUNTIME-CONTROL` now own this meaning.
 > This packet remains temporarily as repo-side acceptance traceability.
 
 Corpus sources: `WEAVE-STEERING-SPEC-KIT-OPERATING-MODEL`, provider portability principles, domain context map.
