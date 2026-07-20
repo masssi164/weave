@@ -195,7 +195,7 @@ elif [[ "${url}" == */realms/weave/protocol/openid-connect/token ]]; then
     --argjson iat "${now}" \
     --argjson exp "$((now + lifespan))" \
     --arg jti "fixture-${count}" \
-    '{sub:$subject,preferred_username:$username,aud:["weave-app"],scope:$scope,groups:$groups,iat:$iat,exp:$exp,jti:$jti}')"
+    '{sub:$subject,preferred_username:$username,aud:["weave-backend"],scope:$scope,groups:$groups,iat:$iat,exp:$exp,jti:$jti}')"
   token="$(printf '{"alg":"none","typ":"JWT"}' | encode_segment).$(printf '%s' "${payload}" | encode_segment).fixture"
   printf '%s' "${token}" >"${MOCK_STATE}/token-${count}"
   respond 200 "$(jq -cn --arg token "${token}" '{access_token:$token}')"

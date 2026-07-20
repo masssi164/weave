@@ -310,7 +310,7 @@ validate_workspace_token() {
   payload="$(jwt_payload "${token}")" || fail "minted token is not a JWT"
   jq -e --arg username "${expected_username}" '
     .preferred_username == $username and
-    ((.aud | if type == "array" then . else [.] end) | index("weave-app") != null) and
+    ((.aud | if type == "array" then . else [.] end) | index("weave-backend") != null) and
     ((.scope // "") | split(" ") | index("weave:workspace") != null) and
     (.exp | type == "number") and (.iat | type == "number") and (.exp > .iat)
   ' <<<"${payload}" >/dev/null || fail "minted token does not satisfy the real workspace JWT contract"

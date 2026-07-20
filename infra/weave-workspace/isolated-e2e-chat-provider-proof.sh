@@ -298,7 +298,7 @@ scope = value.get("scope", "").split()
 required = ("sub", "iss", "preferred_username", "weave_tenant_id", "exp")
 if any(not value.get(field) for field in required):
     raise SystemExit(1)
-if value["preferred_username"] != expected or "weave-app" not in audience:
+if value["preferred_username"] != expected or "weave-backend" not in audience:
     raise SystemExit(1)
 if "weave:workspace" not in scope or int(value["exp"]) <= int(time.time()) + 120:
     raise SystemExit(1)

@@ -86,6 +86,8 @@ assert_file_contains "${keycloak_main}" 'client_id                              
 assert_file_contains "${keycloak_main}" 'standard_token_exchange_enabled                = true'
 assert_file_contains "${keycloak_main}" 'included_custom_audience = var.weave_mcp_resource'
 assert_file_contains "${keycloak_main}" 'resource "keycloak_openid_audience_protocol_mapper" "weave_mcp_resource_audience"'
+assert_file_contains "${ROOT_DIR}/isolated-e2e-authorization-probes.sh" 'index("weave-backend") != null'
+assert_file_contains "${ROOT_DIR}/isolated-e2e-chat-provider-proof.sh" '"weave-backend" not in audience'
 assert_file_contains "${keycloak_main}" 'name                   = "weave:mcp-backend"'
 assert_file_contains "${keycloak_main}" 'included_client_audience = keycloak_openid_client.client["weave_backend"].client_id'
 assert_file_contains "${mcp_main}" 'WEAVE_MCP_CLIENT_SECRET_FILE=/run/secrets/weave-mcp-client-secret'

@@ -357,30 +357,6 @@ jobs:
           ./isolated-e2e-identities.sh provision --run-id "$WEAVE_E2E_RUN_ID" \
             2>&1 | tee -a "$WEAVE_ACCEPTANCE_TEST_LOG"
 
-      - name: Prove missing-capability expired-token and revoked-session denials
-        working-directory: weave
-        env:
-          WEAVE_E2E_STACK_SCOPE: isolated
-        run: |
-          set -euo pipefail
-          infra/weave-workspace/isolated-e2e-authorization-probes.sh \
-            --run-id "$WEAVE_E2E_RUN_ID" \
-            --output-root "$WEAVE_E2E_OUTPUT_ROOT" \
-            --credentials-env "$WEAVE_E2E_CREDENTIAL_ENV_PATH" \
-            --startup-env "$WEAVE_E2E_STARTUP_ENV_PATH" \
-            --identity-manifest "$WEAVE_E2E_IDENTITY_MANIFEST_PATH" \
-            --stack-bootstrap-env "$WEAVE_E2E_STACK_BOOTSTRAP_ENV" \
-            --authorization-evidence "$WEAVE_E2E_AUTHORIZATION_EVIDENCE_PATH" \
-            2>&1 | tee -a "$WEAVE_ACCEPTANCE_TEST_LOG"
-          test -s "$WEAVE_E2E_AUTHORIZATION_EVIDENCE_PATH"
-          cp "$WEAVE_E2E_AUTHORIZATION_EVIDENCE_PATH" \
-            "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-authorization.json"
-          {
-            echo "WEAVE_E2E_MISSING_CAPABILITY_VERIFIED=true"
-            echo "WEAVE_E2E_EXPIRED_TOKEN_VERIFIED=true"
-            echo "WEAVE_E2E_REVOKED_SESSION_VERIFIED=true"
-          } >> "$GITHUB_ENV"
-
       - name: Prove MCP workload identity, exact resource, and secret rotation
         working-directory: weave
         env:
@@ -406,6 +382,30 @@ jobs:
             .rawTokenIncluded == false and .rawSecretIncluded == false and
             .supportSafe == true
           ' "$MCP_EVIDENCE_PATH" >/dev/null
+
+      - name: Prove missing-capability expired-token and revoked-session denials
+        working-directory: weave
+        env:
+          WEAVE_E2E_STACK_SCOPE: isolated
+        run: |
+          set -euo pipefail
+          infra/weave-workspace/isolated-e2e-authorization-probes.sh \
+            --run-id "$WEAVE_E2E_RUN_ID" \
+            --output-root "$WEAVE_E2E_OUTPUT_ROOT" \
+            --credentials-env "$WEAVE_E2E_CREDENTIAL_ENV_PATH" \
+            --startup-env "$WEAVE_E2E_STARTUP_ENV_PATH" \
+            --identity-manifest "$WEAVE_E2E_IDENTITY_MANIFEST_PATH" \
+            --stack-bootstrap-env "$WEAVE_E2E_STACK_BOOTSTRAP_ENV" \
+            --authorization-evidence "$WEAVE_E2E_AUTHORIZATION_EVIDENCE_PATH" \
+            2>&1 | tee -a "$WEAVE_ACCEPTANCE_TEST_LOG"
+          test -s "$WEAVE_E2E_AUTHORIZATION_EVIDENCE_PATH"
+          cp "$WEAVE_E2E_AUTHORIZATION_EVIDENCE_PATH" \
+            "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-authorization.json"
+          {
+            echo "WEAVE_E2E_MISSING_CAPABILITY_VERIFIED=true"
+            echo "WEAVE_E2E_EXPIRED_TOKEN_VERIFIED=true"
+            echo "WEAVE_E2E_REVOKED_SESSION_VERIFIED=true"
+          } >> "$GITHUB_ENV"
 
       - name: Expose generated local CA to Rust Matrix tests
         run: |

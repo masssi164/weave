@@ -181,7 +181,7 @@ elif [[ "${url}" == */realms/weave/protocol/openid-connect/token ]]; then
     --argjson exp "$((now + 900))" '
       {
         sub:$sub,iss:$issuer,preferred_username:$username,weave_tenant_id:$tenant,
-        aud:["weave-app"],scope:"openid profile email weave:workspace",
+        aud:["weave-backend"],scope:"openid profile email weave:workspace",
         groups:["workspace-members"],iat:$iat,exp:$exp
       }
     ')"
