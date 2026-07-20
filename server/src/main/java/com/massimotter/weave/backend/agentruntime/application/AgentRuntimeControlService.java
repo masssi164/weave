@@ -93,7 +93,7 @@ public final class AgentRuntimeControlService {
             profiles.revokeCurrent(revoked.cellRef(), "entitlement-revoked", now);
             workloadIdentityAdmin.disableBinding(new RuntimeWorkloadIdentityAdmin.DisableBindingCommand(
                     revoked.organizationRef(), revoked.personRef(), revoked.cellRef(),
-                    revoked.workloadBinding().clientId(), command.auditRef()));
+                    revoked.workloadBinding(), command.auditRef()));
             commands.complete(receipt, revoked.version(), clock.instant());
             return revoked;
         } catch (RuntimeException failure) {

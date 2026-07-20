@@ -148,11 +148,26 @@ class AgentRuntimeControlServiceTest {
 
         @Override
         public void disableBinding(DisableBindingCommand command) {
-            disabledClientId = command.clientId();
+            disabledClientId = command.binding().clientId();
             if (failDisableNext) {
                 failDisableNext = false;
                 throw new IllegalStateException("simulated identity provider outage");
             }
+        }
+
+        @Override
+        public RuntimeWorkloadBinding rotateBinding(RotateBindingCommand command) {
+            return command.binding();
+        }
+
+        @Override
+        public RuntimeWorkloadBinding retirePreviousCredential(RetireCredentialCommand command) {
+            return command.binding();
+        }
+
+        @Override
+        public void deleteBinding(DeleteBindingCommand command) {
+            disabledClientId = command.binding().clientId();
         }
     }
 }

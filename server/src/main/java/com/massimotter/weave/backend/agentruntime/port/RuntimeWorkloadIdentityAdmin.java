@@ -6,7 +6,13 @@ import java.util.Objects;
 public interface RuntimeWorkloadIdentityAdmin {
     RuntimeWorkloadBinding ensureBinding(EnsureBindingCommand command);
 
+    RuntimeWorkloadBinding rotateBinding(RotateBindingCommand command);
+
+    RuntimeWorkloadBinding retirePreviousCredential(RetireCredentialCommand command);
+
     void disableBinding(DisableBindingCommand command);
+
+    void deleteBinding(DeleteBindingCommand command);
 
     record EnsureBindingCommand(
             String organizationRef,
@@ -35,13 +41,62 @@ public interface RuntimeWorkloadIdentityAdmin {
             String organizationRef,
             String personRef,
             String cellRef,
-            String clientId,
+            RuntimeWorkloadBinding binding,
             String auditRef) {
         public DisableBindingCommand {
             EnsureBindingCommand.requireText(organizationRef, "organizationRef");
             EnsureBindingCommand.requireText(personRef, "personRef");
             EnsureBindingCommand.requireText(cellRef, "cellRef");
-            EnsureBindingCommand.requireText(clientId, "clientId");
+            Objects.requireNonNull(binding, "binding");
+            EnsureBindingCommand.requireText(auditRef, "auditRef");
+        }
+    }
+
+    record RotateBindingCommand(
+            String organizationRef,
+            String personRef,
+            String cellRef,
+            RuntimeWorkloadBinding binding,
+            String rotationRef,
+            String auditRef) {
+        public RotateBindingCommand {
+            EnsureBindingCommand.requireText(organizationRef, "organizationRef");
+            EnsureBindingCommand.requireText(personRef, "personRef");
+            EnsureBindingCommand.requireText(cellRef, "cellRef");
+            Objects.requireNonNull(binding, "binding");
+            EnsureBindingCommand.requireText(rotationRef, "rotationRef");
+            EnsureBindingCommand.requireText(auditRef, "auditRef");
+        }
+    }
+
+    record RetireCredentialCommand(
+            String organizationRef,
+            String personRef,
+            String cellRef,
+            RuntimeWorkloadBinding binding,
+            String rotationRef,
+            String auditRef) {
+        public RetireCredentialCommand {
+            EnsureBindingCommand.requireText(organizationRef, "organizationRef");
+            EnsureBindingCommand.requireText(personRef, "personRef");
+            EnsureBindingCommand.requireText(cellRef, "cellRef");
+            Objects.requireNonNull(binding, "binding");
+            EnsureBindingCommand.requireText(rotationRef, "rotationRef");
+            EnsureBindingCommand.requireText(auditRef, "auditRef");
+        }
+    }
+
+    record DeleteBindingCommand(
+            String organizationRef,
+            String personRef,
+            String cellRef,
+            RuntimeWorkloadBinding binding,
+            String auditRef) {
+        public DeleteBindingCommand {
+            EnsureBindingCommand.requireText(organizationRef, "organizationRef");
+            EnsureBindingCommand.requireText(personRef, "personRef");
+            EnsureBindingCommand.requireText(cellRef, "cellRef");
+            Objects.requireNonNull(binding, "binding");
             EnsureBindingCommand.requireText(auditRef, "auditRef");
         }
     }
