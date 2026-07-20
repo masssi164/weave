@@ -108,7 +108,10 @@ class JdbcProviderSelectionRepositoryTest {
                         "WEAVE_AGENT_RUNTIME_CELLS",
                         "WEAVE_AGENT_RUNTIME_PROFILES",
                         "WEAVE_AGENT_RUNTIME_PROFILE_SIGNATURES",
-                        "WEAVE_AGENT_RUNTIME_COMMANDS");
+                        "WEAVE_AGENT_RUNTIME_COMMANDS",
+                        "WEAVE_AGENT_RUNTIME_ENTITLEMENTS",
+                        "WEAVE_AGENT_RUNTIME_REVOCATIONS",
+                        "WEAVE_AGENT_RUNTIME_AUDIT_CORRELATIONS");
     }
 
     @Test

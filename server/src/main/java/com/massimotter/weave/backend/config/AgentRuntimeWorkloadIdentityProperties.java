@@ -2,6 +2,7 @@ package com.massimotter.weave.backend.config;
 
 import com.massimotter.weave.backend.agentruntime.adapter.ClientSecretKeycloakAdminAccessTokenProvider;
 import com.massimotter.weave.backend.agentruntime.adapter.KeycloakAgentRuntimeWorkloadIdentityAdmin;
+import com.massimotter.weave.backend.agentruntime.adapter.KeycloakRuntimeEntitlementAuthority;
 import java.net.URI;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -19,6 +20,7 @@ public class AgentRuntimeWorkloadIdentityProperties {
     private String adminCredentialRef = "";
     private Path secretRoot;
     private Duration timeout = Duration.ofSeconds(10);
+    private Duration entitlementObservationTtl = Duration.ofMinutes(5);
     private String workloadRole = "weaver-runtime";
     private List<String> optionalClientScopes = new ArrayList<>(List.of("agent-runtime.profile.read"));
     private int accessTokenLifespanSeconds = 60;
@@ -87,6 +89,14 @@ public class AgentRuntimeWorkloadIdentityProperties {
         this.timeout = timeout;
     }
 
+    public Duration entitlementObservationTtl() {
+        return entitlementObservationTtl;
+    }
+
+    public void setEntitlementObservationTtl(Duration entitlementObservationTtl) {
+        this.entitlementObservationTtl = entitlementObservationTtl;
+    }
+
     public String workloadRole() {
         return workloadRole;
     }
@@ -138,5 +148,18 @@ public class AgentRuntimeWorkloadIdentityProperties {
                 adminClientId,
                 adminCredentialRef,
                 timeout);
+    }
+
+    public KeycloakRuntimeEntitlementAuthority.Settings entitlementSettings(
+            WeaverRuntimeProperties runtimePolicy) {
+        return new KeycloakRuntimeEntitlementAuthority.Settings(
+                runtimePolicy.enabled(),
+                keycloakAdminBaseUrl,
+                issuer,
+                realm,
+                timeout,
+                entitlementObservationTtl,
+                runtimePolicy.enabledGroups(),
+                runtimePolicy.allowedCapabilities());
     }
 }

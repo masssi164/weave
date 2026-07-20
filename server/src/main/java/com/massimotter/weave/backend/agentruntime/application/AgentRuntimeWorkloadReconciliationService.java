@@ -8,6 +8,7 @@ import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadReconcil
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadReconciliationReport.Counts;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadReconciliationReport.State;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeCellRepository;
+import com.massimotter.weave.backend.agentruntime.port.RuntimeEntitlementReconciler;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadCredentialStore;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityAdmin;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityInventory;
@@ -43,6 +44,7 @@ public final class AgentRuntimeWorkloadReconciliationService {
     private static final String SCHEDULED_AUDIT_REF = "audit:arc-workload-reconciliation";
 
     private final RuntimeCellRepository cells;
+    private final RuntimeEntitlementReconciler entitlementReconciler;
     private final RuntimeWorkloadIdentityAdmin identityAdmin;
     private final RuntimeWorkloadIdentityInventory identityInventory;
     private final RuntimeWorkloadReconciliationEvaluator evaluator;
@@ -56,6 +58,7 @@ public final class AgentRuntimeWorkloadReconciliationService {
 
     public AgentRuntimeWorkloadReconciliationService(
             RuntimeCellRepository cells,
+            RuntimeEntitlementReconciler entitlementReconciler,
             RuntimeWorkloadIdentityAdmin identityAdmin,
             RuntimeWorkloadIdentityInventory identityInventory,
             RuntimeWorkloadCredentialStore credentials,
@@ -63,6 +66,7 @@ public final class AgentRuntimeWorkloadReconciliationService {
             MeterRegistry meters) {
         this(
                 cells,
+                entitlementReconciler,
                 identityAdmin,
                 identityInventory,
                 credentials,
@@ -74,6 +78,7 @@ public final class AgentRuntimeWorkloadReconciliationService {
 
     AgentRuntimeWorkloadReconciliationService(
             RuntimeCellRepository cells,
+            RuntimeEntitlementReconciler entitlementReconciler,
             RuntimeWorkloadIdentityAdmin identityAdmin,
             RuntimeWorkloadIdentityInventory identityInventory,
             RuntimeWorkloadCredentialStore credentials,
@@ -82,6 +87,7 @@ public final class AgentRuntimeWorkloadReconciliationService {
             Clock clock,
             LongSupplier jitterSource) {
         this.cells = Objects.requireNonNull(cells, "cells");
+        this.entitlementReconciler = Objects.requireNonNull(entitlementReconciler, "entitlementReconciler");
         this.identityAdmin = Objects.requireNonNull(identityAdmin, "identityAdmin");
         this.identityInventory = Objects.requireNonNull(identityInventory, "identityInventory");
         this.evaluator = new RuntimeWorkloadReconciliationEvaluator(
@@ -199,6 +205,14 @@ public final class AgentRuntimeWorkloadReconciliationService {
     }
 
     private RuntimeWorkloadReconciliationReport reconcile(String auditRef, Instant now) {
+        List<RuntimeCell> beforeEntitlement = cells.findAll().stream()
+                .sorted(Comparator.comparing(RuntimeCell::cellRef))
+                .toList();
+        for (RuntimeCell cell : beforeEntitlement) {
+            if (cell.entitlementState() == RuntimeEntitlementState.ENTITLED) {
+                entitlementReconciler.reconcileEntitlement(cell, auditRef);
+            }
+        }
         List<RuntimeCell> authoritative = cells.findAll().stream()
                 .sorted(Comparator.comparing(RuntimeCell::cellRef))
                 .toList();

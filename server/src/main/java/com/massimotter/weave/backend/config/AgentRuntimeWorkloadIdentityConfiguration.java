@@ -5,10 +5,13 @@ import com.massimotter.weave.backend.agentruntime.adapter.ClientSecretKeycloakAd
 import com.massimotter.weave.backend.agentruntime.adapter.FileRuntimeWorkloadCredentialStore;
 import com.massimotter.weave.backend.agentruntime.adapter.KeycloakAdminAccessTokenProvider;
 import com.massimotter.weave.backend.agentruntime.adapter.KeycloakAgentRuntimeWorkloadIdentityAdmin;
+import com.massimotter.weave.backend.agentruntime.adapter.KeycloakRuntimeEntitlementAuthority;
 import com.massimotter.weave.backend.agentruntime.application.AgentRuntimeControlService;
 import com.massimotter.weave.backend.agentruntime.application.AgentRuntimeWorkloadReconciliationService;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeCellRepository;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeCommandRepository;
+import com.massimotter.weave.backend.agentruntime.port.RuntimeEntitlementAuthority;
+import com.massimotter.weave.backend.agentruntime.port.RuntimeGovernanceRepository;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileRepository;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadCredentialStore;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityAdmin;
@@ -22,7 +25,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties(AgentRuntimeWorkloadIdentityProperties.class)
+@EnableConfigurationProperties({AgentRuntimeWorkloadIdentityProperties.class, WeaverRuntimeProperties.class})
 @ConditionalOnExpression(
         "'${weave.agent-runtime.storage.mode:disabled}' == 'jdbc'"
                 + " && '${weave.agent-runtime.workload-identity.enabled:false}' == 'true'")
@@ -55,8 +58,19 @@ public class AgentRuntimeWorkloadIdentityConfiguration {
     }
 
     @Bean
+    RuntimeEntitlementAuthority runtimeEntitlementAuthority(
+            AgentRuntimeWorkloadIdentityProperties properties,
+            WeaverRuntimeProperties runtimePolicy,
+            KeycloakAdminAccessTokenProvider accessTokens,
+            ObjectMapper objectMapper) {
+        return new KeycloakRuntimeEntitlementAuthority(
+                properties.entitlementSettings(runtimePolicy), accessTokens, objectMapper);
+    }
+
+    @Bean
     AgentRuntimeWorkloadReconciliationService agentRuntimeWorkloadReconciliationService(
             RuntimeCellRepository cells,
+            AgentRuntimeControlService controlService,
             RuntimeWorkloadIdentityAdmin workloadIdentityAdmin,
             RuntimeWorkloadIdentityInventory workloadIdentityInventory,
             RuntimeWorkloadCredentialStore credentials,
@@ -64,6 +78,7 @@ public class AgentRuntimeWorkloadIdentityConfiguration {
             MeterRegistry meters) {
         return new AgentRuntimeWorkloadReconciliationService(
                 cells,
+                controlService,
                 workloadIdentityAdmin,
                 workloadIdentityInventory,
                 credentials,
@@ -76,8 +91,11 @@ public class AgentRuntimeWorkloadIdentityConfiguration {
             RuntimeCellRepository cells,
             RuntimeCommandRepository commands,
             RuntimeProfileRepository profiles,
-            RuntimeWorkloadIdentityAdmin workloadIdentityAdmin) {
+            RuntimeWorkloadIdentityAdmin workloadIdentityAdmin,
+            RuntimeEntitlementAuthority entitlementAuthority,
+            RuntimeGovernanceRepository governance) {
         return new AgentRuntimeControlService(
-                cells, commands, profiles, workloadIdentityAdmin, Clock.systemUTC());
+                cells, commands, profiles, workloadIdentityAdmin, entitlementAuthority, governance,
+                Clock.systemUTC());
     }
 }

@@ -6,10 +6,13 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeProfile;
+import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementRef;
+import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadPrincipal;
 import com.massimotter.weave.backend.agentruntime.domain.SignedRuntimeProfile;
 import com.massimotter.weave.backend.agentruntime.port.InvalidRuntimeProfileException;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileRepository;
+import com.massimotter.weave.backend.agentruntime.port.RuntimeGovernanceRepository;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileVerifier;
 import java.time.Clock;
 import java.time.Instant;
@@ -26,6 +29,7 @@ class RuntimeProfileDeliveryServiceTest {
 
     private RuntimeProfileRepository repository;
     private RuntimeProfileVerifier verifier;
+    private RuntimeGovernanceRepository governance;
     private RuntimeProfileDeliveryService service;
     private SignedRuntimeProfile envelope;
     private RuntimeProfile profile;
@@ -35,8 +39,9 @@ class RuntimeProfileDeliveryServiceTest {
     void setUp() {
         repository = mock(RuntimeProfileRepository.class);
         verifier = mock(RuntimeProfileVerifier.class);
+        governance = mock(RuntimeGovernanceRepository.class);
         service = new RuntimeProfileDeliveryService(
-                repository, verifier, Clock.fixed(NOW, ZoneOffset.UTC));
+                repository, verifier, governance, Clock.fixed(NOW, ZoneOffset.UTC));
         envelope = new SignedRuntimeProfile(
                 "header", "payload", "A".repeat(86), HASH,
                 "rp_example", "cell:example", "key-1",
@@ -44,6 +49,17 @@ class RuntimeProfileDeliveryServiceTest {
         profile = mock(RuntimeProfile.class);
         workload = mock(RuntimeProfile.WorkloadIdentity.class);
         when(profile.workloadIdentity()).thenReturn(workload);
+        when(profile.organizationRef()).thenReturn("org:example");
+        when(profile.personRef()).thenReturn("person:example");
+        when(profile.entitlementRevision()).thenReturn("sha256:" + "e".repeat(64));
+        RuntimeMemberBinding memberBinding = new RuntimeMemberBinding(
+                "https://auth.weave.test/realms/weave", "member-1");
+        when(profile.memberBinding()).thenReturn(memberBinding);
+        RuntimeEntitlementRef entitlement = mock(RuntimeEntitlementRef.class);
+        when(entitlement.memberBinding()).thenReturn(memberBinding);
+        when(governance.findEffectiveRevision(
+                "org:example", "person:example", "sha256:" + "e".repeat(64), NOW))
+                .thenReturn(Optional.of(entitlement));
         when(workload.issuer()).thenReturn(PRINCIPAL.issuer());
         when(workload.subject()).thenReturn(PRINCIPAL.subject());
         when(workload.clientId()).thenReturn(PRINCIPAL.clientId());
@@ -90,8 +106,21 @@ class RuntimeProfileDeliveryServiceTest {
 
         RuntimeProfileRepository untouched = mock(RuntimeProfileRepository.class);
         RuntimeProfileDeliveryService guarded = new RuntimeProfileDeliveryService(
-                untouched, verifier, Clock.fixed(NOW, ZoneOffset.UTC));
+                untouched, verifier, governance, Clock.fixed(NOW, ZoneOffset.UTC));
         assertThat(guarded.findCurrent("not-a-hash", PRINCIPAL)).isEmpty();
         verifyNoInteractions(untouched);
+    }
+
+    @Test
+    void expiredOrRevokedAuthoritativeEntitlementHidesAnOtherwiseValidProfile() {
+        when(repository.findCurrentForWorkload(
+                HASH, PRINCIPAL.issuer(), PRINCIPAL.subject(), PRINCIPAL.clientId(), NOW))
+                .thenReturn(Optional.of(envelope));
+        when(verifier.verify(envelope, NOW)).thenReturn(profile);
+        when(governance.findEffectiveRevision(
+                "org:example", "person:example", "sha256:" + "e".repeat(64), NOW))
+                .thenReturn(Optional.empty());
+
+        assertThat(service.findCurrent(HASH, PRINCIPAL)).isEmpty();
     }
 }

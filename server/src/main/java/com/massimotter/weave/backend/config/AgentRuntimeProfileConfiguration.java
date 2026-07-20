@@ -7,6 +7,7 @@ import com.massimotter.weave.backend.agentruntime.adapter.Ed25519RuntimeProfileT
 import com.massimotter.weave.backend.agentruntime.adapter.UnavailableRuntimeProfileTrustKeyProvider;
 import com.massimotter.weave.backend.agentruntime.application.RuntimeProfileDeliveryService;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileRepository;
+import com.massimotter.weave.backend.agentruntime.port.RuntimeGovernanceRepository;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileTrustBundlePublisher;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileTrustKeyProvider;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileVerifier;
@@ -39,8 +40,9 @@ public class AgentRuntimeProfileConfiguration {
     @Bean
     RuntimeProfileDeliveryService runtimeProfileDeliveryService(
             RuntimeProfileRepository profiles,
-            RuntimeProfileVerifier verifier) {
-        return new RuntimeProfileDeliveryService(profiles, verifier, Clock.systemUTC());
+            RuntimeProfileVerifier verifier,
+            RuntimeGovernanceRepository governance) {
+        return new RuntimeProfileDeliveryService(profiles, verifier, governance, Clock.systemUTC());
     }
 
     @Bean

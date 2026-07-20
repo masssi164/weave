@@ -101,6 +101,7 @@ class AgentRuntimeWorkloadReconciliationServiceTest {
         meters = new SimpleMeterRegistry();
         service = new AgentRuntimeWorkloadReconciliationService(
                 cells,
+                (runtimeCell, auditRef) -> runtimeCell,
                 identity,
                 identity,
                 credentials,
@@ -249,6 +250,7 @@ class AgentRuntimeWorkloadReconciliationServiceTest {
         MutableClock mutableClock = new MutableClock(NOW);
         service = new AgentRuntimeWorkloadReconciliationService(
                 cells,
+                (runtimeCell, auditRef) -> runtimeCell,
                 identity,
                 identity,
                 credentials,

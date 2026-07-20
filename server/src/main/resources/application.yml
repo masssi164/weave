@@ -33,6 +33,24 @@ management:
         enabled: true
 
 weave:
+  agent-runtime:
+    # ARC remains inert unless JDBC plus the Keycloak workload-identity adapter are
+    # selected explicitly. Long-lived credentials are SecretRefs, never env values.
+    storage:
+      mode: ${WEAVE_AGENT_RUNTIME_STORAGE_MODE:disabled}
+    workload-identity:
+      enabled: ${WEAVE_AGENT_RUNTIME_WORKLOAD_IDENTITY_ENABLED:false}
+      keycloak-admin-base-url: ${WEAVE_AGENT_RUNTIME_KEYCLOAK_ADMIN_BASE_URL:}
+      issuer: ${WEAVE_AGENT_RUNTIME_ISSUER:}
+      realm: ${WEAVE_AGENT_RUNTIME_REALM:weave}
+      admin-client-id: ${WEAVE_AGENT_RUNTIME_ADMIN_CLIENT_ID:weave-identity-admin}
+      admin-credential-ref: ${WEAVE_AGENT_RUNTIME_ADMIN_CREDENTIAL_REF:}
+      secret-root: ${WEAVE_AGENT_RUNTIME_SECRET_ROOT:}
+      timeout: ${WEAVE_AGENT_RUNTIME_KEYCLOAK_TIMEOUT:10s}
+      entitlement-observation-ttl: ${WEAVE_AGENT_RUNTIME_ENTITLEMENT_OBSERVATION_TTL:5m}
+      workload-role: weaver-runtime
+      optional-client-scopes: agent-runtime.profile.read
+      access-token-lifespan-seconds: ${WEAVE_AGENT_RUNTIME_ACCESS_TOKEN_LIFESPAN_SECONDS:60}
   chat:
     # Live and shipped stacks select matrix-synapse plus JDBC. The memory path is
     # deliberately limited to isolated server tests and local contract fixtures.

@@ -115,6 +115,31 @@ public final class JdbcRuntimeCellRepository implements RuntimeCellRepository {
     }
 
     @Override
+    public RuntimeCell bindEntitlement(
+            String organizationRef,
+            String personRef,
+            long expectedVersion,
+            String entitlementRevision,
+            String auditRef,
+            Instant now) {
+        int updated = jdbc.update("""
+                update weave_agent_runtime_cells
+                   set entitlement_state='ENTITLED', entitlement_revision=?, desired_state='PROVISIONING',
+                       runtime_profile_id=null, runtime_profile_hash=null,
+                       lease_id=null, lease_expires_at=null, fencing_epoch=fencing_epoch+1,
+                       audit_ref=?, version=version+1, updated_at=?
+                 where organization_ref=? and person_ref=? and version=?
+                """, entitlementRevision, auditRef, time(now), organizationRef, personRef, expectedVersion);
+        RuntimeCell current = findByPerson(organizationRef, personRef)
+                .orElseThrow(() -> new StaleRuntimeCellException("runtime cell does not exist"));
+        if (updated == 1 || (current.entitlementState() == RuntimeEntitlementState.ENTITLED
+                && current.entitlementRevision().equals(entitlementRevision))) {
+            return current;
+        }
+        throw new StaleRuntimeCellException("runtime cell entitlement changed concurrently");
+    }
+
+    @Override
     public RuntimeCell revoke(
             String organizationRef, String personRef, String entitlementRevision, String auditRef, Instant now) {
         int updated = jdbc.update("""

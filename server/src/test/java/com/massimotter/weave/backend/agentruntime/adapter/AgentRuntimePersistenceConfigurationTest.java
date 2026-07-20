@@ -9,6 +9,7 @@ import com.massimotter.weave.backend.agentruntime.application.RuntimeProfileDeli
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileTrustBundlePublisher;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileTrustKeyProvider;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileVerifier;
+import com.massimotter.weave.backend.agentruntime.port.RuntimeEntitlementAuthority;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadCredentialStore;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityAdmin;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityInventory;
@@ -54,6 +55,7 @@ class AgentRuntimePersistenceConfigurationTest {
             assertThat(application).hasSingleBean(JdbcRuntimeCellRepository.class);
             assertThat(application).hasSingleBean(JdbcRuntimeCommandRepository.class);
             assertThat(application).hasSingleBean(JdbcRuntimeProfileRepository.class);
+            assertThat(application).hasSingleBean(JdbcRuntimeGovernanceRepository.class);
             assertThat(application).hasSingleBean(RuntimeProfileVerifier.class);
             assertThat(application).hasSingleBean(RuntimeProfileTrustBundlePublisher.class);
             assertThat(application).hasSingleBean(RuntimeProfileDeliveryService.class);
@@ -82,6 +84,7 @@ class AgentRuntimePersistenceConfigurationTest {
                     assertThat(application).hasSingleBean(KeycloakAdminAccessTokenProvider.class);
                     assertThat(application).hasSingleBean(RuntimeWorkloadIdentityAdmin.class);
                     assertThat(application).hasSingleBean(RuntimeWorkloadIdentityInventory.class);
+                    assertThat(application).hasSingleBean(RuntimeEntitlementAuthority.class);
                     assertThat(application).hasSingleBean(AgentRuntimeControlService.class);
                     assertThat(application).hasSingleBean(AgentRuntimeWorkloadReconciliationService.class);
                 });
