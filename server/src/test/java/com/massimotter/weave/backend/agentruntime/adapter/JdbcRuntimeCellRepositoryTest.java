@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCell;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCellState;
+import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementState;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadBinding;
 import com.massimotter.weave.backend.agentruntime.port.StaleRuntimeCellException;
@@ -91,6 +92,26 @@ class JdbcRuntimeCellRepositoryTest {
                 other.createdAt(), other.updatedAt());
 
         assertThatThrownBy(() -> repository.insert(shared)).isInstanceOf(RuntimeException.class);
+    }
+
+    @Test
+    void revocationClearsTheLeaseAndFencesAllPriorWriters() {
+        repository.insert(cell("example"));
+        UUID lease = UUID.randomUUID();
+        RuntimeCell acquired = repository.acquireLease(
+                "cell:example", lease, NOW, NOW.plusSeconds(60));
+
+        RuntimeCell revoked = repository.revoke(
+                "org:example", "person:example", "entitlement:revoked:2", "audit:revoke", NOW.plusSeconds(1));
+
+        assertThat(revoked.entitlementState()).isEqualTo(RuntimeEntitlementState.REVOKED);
+        assertThat(revoked.desiredState()).isEqualTo(RuntimeCellState.REVOKING);
+        assertThat(revoked.leaseId()).isNull();
+        assertThat(revoked.fencingEpoch()).isEqualTo(acquired.fencingEpoch() + 1);
+        assertThatThrownBy(() -> repository.observe(
+                "cell:example", lease, acquired.fencingEpoch(), RuntimeCellState.READY,
+                "audit:stale", NOW.plusSeconds(2)))
+                .isInstanceOf(StaleRuntimeCellException.class);
     }
 
     private static RuntimeCell cell(String id) {

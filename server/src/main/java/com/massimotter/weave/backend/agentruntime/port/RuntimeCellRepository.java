@@ -19,4 +19,7 @@ public interface RuntimeCellRepository {
 
     RuntimeCell observe(String cellRef, UUID leaseId, long fencingEpoch, RuntimeCellState observedState,
             String auditRef, Instant now);
+
+    RuntimeCell revoke(
+            String organizationRef, String personRef, String entitlementRevision, String auditRef, Instant now);
 }

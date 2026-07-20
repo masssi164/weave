@@ -107,6 +107,25 @@ public final class JdbcRuntimeCellRepository implements RuntimeCellRepository {
         return findByCellRef(cellRef).orElseThrow();
     }
 
+    @Override
+    public RuntimeCell revoke(
+            String organizationRef, String personRef, String entitlementRevision, String auditRef, Instant now) {
+        int updated = jdbc.update("""
+                update weave_agent_runtime_cells
+                   set entitlement_state='REVOKED', entitlement_revision=?, desired_state='REVOKING',
+                       lease_id=null, lease_expires_at=null, fencing_epoch=fencing_epoch+1,
+                       audit_ref=?, version=version+1, updated_at=?
+                 where organization_ref=? and person_ref=? and entitlement_state<>'REVOKED'
+                """, entitlementRevision, auditRef, time(now), organizationRef, personRef);
+        RuntimeCell current = findByPerson(organizationRef, personRef)
+                .orElseThrow(() -> new StaleRuntimeCellException("runtime cell does not exist"));
+        if (updated == 1 || (current.entitlementState() == RuntimeEntitlementState.REVOKED
+                && current.entitlementRevision().equals(entitlementRevision))) {
+            return current;
+        }
+        throw new StaleRuntimeCellException("runtime cell was revoked at another entitlement revision");
+    }
+
     private Optional<RuntimeCell> one(String where, Object... arguments) {
         List<RuntimeCell> rows = jdbc.query(
                 "select * from weave_agent_runtime_cells where " + where,

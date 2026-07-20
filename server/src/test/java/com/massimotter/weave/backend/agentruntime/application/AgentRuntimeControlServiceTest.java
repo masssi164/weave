@@ -6,7 +6,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.massimotter.weave.backend.agentruntime.adapter.JdbcRuntimeCellRepository;
 import com.massimotter.weave.backend.agentruntime.adapter.JdbcRuntimeCommandRepository;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCell;
+import com.massimotter.weave.backend.agentruntime.domain.RuntimeCellState;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
+import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementState;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadBinding;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeCommandConflictException;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityAdmin;
@@ -85,6 +87,36 @@ class AgentRuntimeControlServiceTest {
         assertThat(cells.findByPerson("org:example", "person:example")).contains(recovered);
     }
 
+    @Test
+    void revocationFencesTheCellBeforeDisablingItsWorkloadIdentity() {
+        RuntimeCell provisioned = service.provision(command("idempotency-key-0001", "member-1"));
+
+        RuntimeCell revoked = service.revoke(new AgentRuntimeControlService.RevokeRuntimeCommand(
+                "org:example", "person:example", "entitlement:revoked:2",
+                "idempotency-key-0002", "audit:revoke"));
+
+        assertThat(revoked.entitlementState()).isEqualTo(RuntimeEntitlementState.REVOKED);
+        assertThat(revoked.desiredState()).isEqualTo(RuntimeCellState.REVOKING);
+        assertThat(workloadAdmin.disabledClientId).isEqualTo(provisioned.workloadBinding().clientId());
+    }
+
+    @Test
+    void identityProviderFailureCannotRestoreARevokedCellsLeaseAuthority() {
+        service.provision(command("idempotency-key-0001", "member-1"));
+        workloadAdmin.failDisableNext = true;
+        AgentRuntimeControlService.RevokeRuntimeCommand revoke =
+                new AgentRuntimeControlService.RevokeRuntimeCommand(
+                        "org:example", "person:example", "entitlement:revoked:2",
+                        "idempotency-key-0002", "audit:revoke");
+
+        assertThatThrownBy(() -> service.revoke(revoke)).isInstanceOf(IllegalStateException.class);
+
+        RuntimeCell fenced = cells.findByPerson("org:example", "person:example").orElseThrow();
+        assertThat(fenced.entitlementState()).isEqualTo(RuntimeEntitlementState.REVOKED);
+        assertThat(fenced.leaseId()).isNull();
+        assertThat(service.revoke(revoke).entitlementState()).isEqualTo(RuntimeEntitlementState.REVOKED);
+    }
+
     private static AgentRuntimeControlService.ProvisionRuntimeCommand command(String key, String subject) {
         return new AgentRuntimeControlService.ProvisionRuntimeCommand(
                 "org:example", "person:example", new RuntimeMemberBinding(ISSUER, subject),
@@ -97,6 +129,8 @@ class AgentRuntimeControlServiceTest {
         private final AtomicInteger calls = new AtomicInteger();
         private boolean failNext;
         private String lastClientId;
+        private String disabledClientId;
+        private boolean failDisableNext;
 
         @Override
         public RuntimeWorkloadBinding ensureBinding(EnsureBindingCommand command) {
@@ -109,6 +143,15 @@ class AgentRuntimeControlServiceTest {
             return new RuntimeWorkloadBinding(
                     ISSUER, "service-account-" + command.clientId(), command.clientId(),
                     command.authenticationMethod(), "credentialref://weave/runtime/" + command.cellRef().substring(5));
+        }
+
+        @Override
+        public void disableBinding(DisableBindingCommand command) {
+            disabledClientId = command.clientId();
+            if (failDisableNext) {
+                failDisableNext = false;
+                throw new IllegalStateException("simulated identity provider outage");
+            }
         }
     }
 }

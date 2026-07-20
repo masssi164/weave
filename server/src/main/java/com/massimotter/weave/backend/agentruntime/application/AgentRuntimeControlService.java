@@ -17,6 +17,7 @@ import java.util.Base64;
 
 public final class AgentRuntimeControlService {
     private static final String PROVISION = "PROVISION";
+    private static final String REVOKE = "REVOKE";
 
     private final RuntimeCellRepository cells;
     private final RuntimeCommandRepository commands;
@@ -73,6 +74,28 @@ public final class AgentRuntimeControlService {
         }
     }
 
+    public RuntimeCell revoke(RevokeRuntimeCommand command) {
+        RuntimeCell existing = cells.findByPerson(command.organizationRef(), command.personRef())
+                .orElseThrow(() -> new IllegalStateException("runtime cell does not exist"));
+        Instant now = clock.instant();
+        RuntimeCommandReceipt receipt = commands.claim(
+                command.organizationRef(), command.personRef(), command.idempotencyKey(), REVOKE,
+                existing.cellRef(), command.auditRef(), now);
+        try {
+            RuntimeCell revoked = cells.revoke(
+                    command.organizationRef(), command.personRef(), command.entitlementRevision(),
+                    command.auditRef(), now);
+            workloadIdentityAdmin.disableBinding(new RuntimeWorkloadIdentityAdmin.DisableBindingCommand(
+                    revoked.organizationRef(), revoked.personRef(), revoked.cellRef(),
+                    revoked.workloadBinding().clientId(), command.auditRef()));
+            commands.complete(receipt, revoked.version(), clock.instant());
+            return revoked;
+        } catch (RuntimeException failure) {
+            commands.fail(receipt, "runtime-revocation-incomplete", clock.instant());
+            throw failure;
+        }
+    }
+
     private static void requireSameBinding(
             RuntimeCell cell, RuntimeCommandReceipt receipt, ProvisionRuntimeCommand command) {
         if (!cell.cellRef().equals(receipt.cellRef())
@@ -115,6 +138,23 @@ public final class AgentRuntimeControlService {
             requireText(workspaceRevision, "workspaceRevision");
             requireText(workspaceManifestRef, "workspaceManifestRef");
             requireText(runtimeStateStoreRef, "runtimeStateStoreRef");
+            if (idempotencyKey == null || idempotencyKey.length() < 16 || idempotencyKey.length() > 128) {
+                throw new IllegalArgumentException("idempotency key length must be between 16 and 128");
+            }
+            requireText(auditRef, "auditRef");
+        }
+    }
+
+    public record RevokeRuntimeCommand(
+            String organizationRef,
+            String personRef,
+            String entitlementRevision,
+            String idempotencyKey,
+            String auditRef) {
+        public RevokeRuntimeCommand {
+            requireText(organizationRef, "organizationRef");
+            requireText(personRef, "personRef");
+            requireText(entitlementRevision, "entitlementRevision");
             if (idempotencyKey == null || idempotencyKey.length() < 16 || idempotencyKey.length() > 128) {
                 throw new IllegalArgumentException("idempotency key length must be between 16 and 128");
             }
