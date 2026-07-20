@@ -47,9 +47,13 @@ create table weave_agent_runtime_commands (
     person_ref varchar(255) not null,
     idempotency_key varchar(128) not null,
     command varchar(64) not null,
-    runtime_version bigint not null,
+    status varchar(32) not null,
+    cell_ref varchar(255) not null,
+    runtime_version bigint,
     audit_ref varchar(255) not null,
+    failure_code varchar(100),
     created_at timestamp with time zone not null,
+    updated_at timestamp with time zone not null,
     primary key (organization_ref, person_ref, idempotency_key),
     constraint weave_agent_runtime_command_key_length check (char_length(idempotency_key) between 16 and 128)
 );
