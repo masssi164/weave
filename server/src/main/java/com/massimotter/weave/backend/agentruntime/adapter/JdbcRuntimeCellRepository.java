@@ -63,6 +63,11 @@ public final class JdbcRuntimeCellRepository implements RuntimeCellRepository {
     }
 
     @Override
+    public Optional<RuntimeCell> findByWorkload(String workloadIssuer, String workloadSubject) {
+        return one("workload_issuer=? and workload_subject=?", workloadIssuer, workloadSubject);
+    }
+
+    @Override
     public List<RuntimeCell> findAll() {
         return List.copyOf(jdbc.query(
                 "select * from weave_agent_runtime_cells order by cell_ref",

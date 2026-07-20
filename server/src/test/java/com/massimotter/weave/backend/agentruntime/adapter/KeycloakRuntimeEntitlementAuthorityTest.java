@@ -149,7 +149,7 @@ class KeycloakRuntimeEntitlementAuthorityTest {
                 enabled, keycloak.baseUri(), URI.create(ISSUER), "org:example", "org-uuid", "weave",
                 Duration.ofSeconds(2),
                 Duration.ofMinutes(5), List.of("weave-weaver-runtime"),
-                List.of("weaver.exec_disabled", "weaver.files_read"));
+                List.of("calendar.read"));
     }
 
     private static ObserveEntitlementCommand command(String issuer) {

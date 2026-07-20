@@ -32,9 +32,9 @@ class ProviderCoreConfigurationTest {
     }
 
     @Test
-    void liveKitMeetingsProviderReportsDirectCredentialModeSupportSafely() {
-        ProviderStatusResponse status = configuration.liveKitMeetingsProviderRegistrySeam(
-                new LiveKitMeetingsProviderProperties(
+    void liveKitSfuAdapterReportsDirectCredentialModeSupportSafely() {
+        ProviderStatusResponse status = configuration.liveKitSfuProviderRegistrySeam(
+                new LiveKitSfuProviderProperties(
                         true,
                         "https://livekit.internal",
                         "secret-api-key",
@@ -64,9 +64,9 @@ class ProviderCoreConfigurationTest {
     }
 
     @Test
-    void liveKitMeetingsProviderCanUseTokenEndpointModeWithoutReturningEndpointValue() {
-        ProviderStatusResponse status = configuration.liveKitMeetingsProviderRegistrySeam(
-                new LiveKitMeetingsProviderProperties(
+    void liveKitSfuAdapterCanUseTokenEndpointModeWithoutReturningEndpointValue() {
+        ProviderStatusResponse status = configuration.liveKitSfuProviderRegistrySeam(
+                new LiveKitSfuProviderProperties(
                         true,
                         "https://livekit.internal",
                         "",

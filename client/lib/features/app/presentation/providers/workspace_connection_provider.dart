@@ -230,7 +230,9 @@ WorkspaceCapabilitySnapshot _mapBackendFacadeLocalSnapshot(
       capability: WorkspaceCapability.boards,
       shellAccess: appAuth,
     ),
-    weaver: _mapDisabledPolicyCapability(WorkspaceCapability.weaver),
+    agentRuntimeControl: _mapDisabledPolicyCapability(
+      WorkspaceCapability.agentRuntimeControl,
+    ),
   );
 }
 
@@ -259,9 +261,9 @@ WorkspaceCapabilitySnapshot _mergeWorkspaceCapabilitySnapshots({
       local: localSnapshot.boards,
       backend: backendSnapshot.boards,
     ),
-    weaver: _mergeWorkspaceCapabilityState(
-      local: localSnapshot.weaver,
-      backend: backendSnapshot.weaver,
+    agentRuntimeControl: _mergeWorkspaceCapabilityState(
+      local: localSnapshot.agentRuntimeControl,
+      backend: backendSnapshot.agentRuntimeControl,
     ),
   );
 }

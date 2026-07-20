@@ -77,6 +77,13 @@ tasks.register('runtimeProfileSigningKeys', JavaExec) {
     mainClass = 'com.massimotter.weave.backend.agentruntime.operator.RuntimeProfileSigningKeyCli'
 }
 
+tasks.register('runtimeStateWrappingKeys', JavaExec) {
+    group = 'weave operations'
+    description = 'Initialize, inspect, or rotate the offline RuntimeStateStore wrapping-key SecretRef store.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.massimotter.weave.backend.agentruntime.operator.RuntimeStateWrappingKeyCli'
+}
+
 tasks.matching { it.name == 'wrapper' }.configureEach {
     gradleVersion = '8.7'
     distributionType = Wrapper.DistributionType.ALL

@@ -47,6 +47,7 @@ readonly PUBLIC_ENV_KEYS=(
   TF_VAR_mas_host_port
   TF_VAR_synapse_host_port
   TF_VAR_weave_backend_image
+  TF_VAR_agent_runtime_enabled
   TF_VAR_synapse_image
   TF_VAR_mas_image
   TF_VAR_create_test_user
@@ -141,6 +142,8 @@ redact_stream() {
     s/\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/<redacted-cloud-token>/g;
     s/\b(?:ghp|gho|ghu|ghs|ghr|github_pat|glpat|xox[baprs])-[-_A-Za-z0-9]{20,}\b/<redacted-cloud-token>/g;
     s#\bsecretref://[^\s\r\n"'"'"']+#<redacted-secret-ref>#gi;
+    s#\bcredentialref://[^\s\r\n"'"'"']+#<redacted-credential-ref>#gi;
+    s/\b(?:rpk|rsk)_[A-Za-z0-9_-]{20,64}\b/<redacted-key-ref>/g;
     s/\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/<redacted-jwt>/g;
     s/(([A-Za-z0-9_]*(?:password|passwd|token|secret|private[_-]?key|signing[_-]?key|credential|authorization|cookie)[A-Za-z0-9_]*\s*[=:]\s*)([^\s\r\n"'"'"']+))/${2}<redacted>/gi;
     s/("(?:password|passwd|token|secret|privateKey|signingKey|credential|authorization|cookie)"\s*:\s*")[^"]+/${1}<redacted>/gi;
@@ -152,7 +155,7 @@ scan_for_unredacted_secrets() {
   local findings=""
 
   findings="$(grep -RIliE \
-    'BEGIN ((RSA|EC|OPENSSH) )?PRIVATE KEY|[a-z][a-z0-9+.-]*://[^[:space:]/@:]+:[^[:space:]/@]+@|Authorization:[[:space:]]+(Bearer|Basic)[[:space:]]+[^<[:space:]]|Cookie:[[:space:]]+[^<[:space:]]|Set-Cookie:[[:space:]]+[^<[:space:]]|([A-Za-z0-9_]*(PASSWORD|TOKEN|SECRET|PRIVATE_KEY|SIGNING_KEY|CREDENTIAL)[A-Za-z0-9_]*[=:][[:space:]]*[^<[:space:]]+)|[Ss][Ee][Cc][Rr][Ee][Tt][Rr][Ee][Ff]://[^[:space:]<]+|[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|(AKIA|ASIA)[A-Z0-9]{16}|(ghp|gho|ghu|ghs|ghr|github_pat|glpat|xox[baprs])-[-_A-Za-z0-9]{20,}|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}' \
+    'BEGIN ((RSA|EC|OPENSSH) )?PRIVATE KEY|[a-z][a-z0-9+.-]*://[^[:space:]/@:]+:[^[:space:]/@]+@|Authorization:[[:space:]]+(Bearer|Basic)[[:space:]]+[^<[:space:]]|Cookie:[[:space:]]+[^<[:space:]]|Set-Cookie:[[:space:]]+[^<[:space:]]|([A-Za-z0-9_]*(PASSWORD|TOKEN|SECRET|PRIVATE_KEY|SIGNING_KEY|CREDENTIAL)[A-Za-z0-9_]*[=:][[:space:]]*[^<[:space:]]+)|[Ss][Ee][Cc][Rr][Ee][Tt][Rr][Ee][Ff]://[^[:space:]<]+|[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll][Rr][Ee][Ff]://[^[:space:]<]+|(rpk|rsk)_[A-Za-z0-9_-]{20,64}|[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|(AKIA|ASIA)[A-Z0-9]{16}|(ghp|gho|ghu|ghs|ghr|github_pat|glpat|xox[baprs])-[-_A-Za-z0-9]{20,}|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}' \
     "${path}" 2>/dev/null || true)"
 
   if [[ -n "${findings}" ]]; then
@@ -380,6 +383,89 @@ collect_adapter_readiness_evidence() {
     adapter_evidence_object "," "meetings-calls" "livekit" "${meetings_configured}"
     printf '  ]\n}\n'
   } >"${target}"
+}
+
+collect_agent_runtime_evidence() {
+  local target="${WORK_DIR}/checks/agent-runtime-control.json"
+  local backend_container
+  local configured="false"
+  local secret_roots_mounted="false"
+  local volume_inventory_observed="false"
+  local zero_durable_cell_volumes="null"
+  local state_readiness="not_observed"
+  local workload_reconciliation="not_observed"
+  local readiness=""
+  local parsed=""
+  local destination
+  local mount_writable
+  local mount_count=0
+  local volume_names=""
+  mkdir -p "$(dirname -- "${target}")"
+
+  backend_container="$(weave_container_name backend)"
+  if env_or_file_equals TF_VAR_agent_runtime_enabled true; then
+    configured="true"
+  fi
+
+  if command -v docker >/dev/null 2>&1 &&
+    volume_names="$(docker volume ls --format '{{.Name}}' 2>/dev/null)"; then
+    volume_inventory_observed="true"
+    zero_durable_cell_volumes="true"
+    if printf '%s\n' "${volume_names}" |
+      grep -Eiq '(^|[_-])weaver([_-].*)?(state|workspace|agent|cell)([_-]|$)|(^|[_-])agent[_-]runtime[_-](state|workspace|agent|cell)([_-]|$)'; then
+      zero_durable_cell_volumes="false"
+    fi
+  fi
+
+  if command -v docker >/dev/null 2>&1 &&
+    docker container inspect "${backend_container}" >/dev/null 2>&1; then
+    if docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "${backend_container}" 2>/dev/null |
+      grep -Fxq 'WEAVE_AGENT_RUNTIME_STATE_STORE_ENABLED=true'; then
+      configured="true"
+    fi
+    for destination in \
+      /run/weave-agent-runtime/profile-signing \
+      /run/weave-agent-runtime/state-wrapping \
+      /run/weave-agent-runtime/credentials; do
+      mount_writable="$(docker inspect --format "{{range .Mounts}}{{if eq .Destination \"${destination}\"}}{{.RW}}{{end}}{{end}}" "${backend_container}" 2>/dev/null || true)"
+      [[ "${mount_writable}" == "true" ]] && mount_count=$((mount_count + 1))
+    done
+    [[ "${mount_count}" == 3 ]] && secret_roots_mounted="true"
+
+    readiness="$(docker exec "${backend_container}" sh -c '
+      curl -sS http://127.0.0.1:8080/api/health/ready 2>/dev/null ||
+        wget -qO- http://127.0.0.1:8080/api/health/ready 2>/dev/null
+    ' || true)"
+    parsed="$(printf '%s' "${readiness}" | python3 -c '
+import json, sys
+allowed = {"ready", "blocked", "degraded"}
+try:
+    data = json.load(sys.stdin)
+    checks = {item.get("key"): item.get("readiness") for item in data.get("checks", [])}
+    values = [checks.get("agent-runtime-state"), checks.get("agent-runtime-workload-identities")]
+    print(" ".join(value if value in allowed else "not_observed" for value in values))
+except Exception:
+    print("not_observed not_observed")
+' 2>/dev/null || printf 'not_observed not_observed')"
+    read -r state_readiness workload_reconciliation <<<"${parsed}"
+  fi
+
+  cat >"${target}" <<JSON
+{
+  "schemaVersion": "weave-support-agent-runtime-control-v1",
+  "claimMaturity": "Guarded",
+  "configured": ${configured},
+  "encryptedExternalStateReadiness": "${state_readiness}",
+  "workloadIdentityReconciliation": "${workload_reconciliation}",
+  "secretRootMountSetPresent": ${secret_roots_mounted},
+  "durableCellVolumeInventoryObserved": ${volume_inventory_observed},
+  "zeroDurableCellVolumes": ${zero_durable_cell_volumes},
+  "privateKeyMaterialIncluded": false,
+  "keyOrCredentialReferencesIncluded": false,
+  "rawProviderPayloadIncluded": false,
+  "supportSafe": true
+}
+JSON
 }
 
 write_provider_health_collection_state() {
@@ -727,6 +813,9 @@ run_negative_redaction_fixture() {
   cat >"${fixture_dir}/unsafe.txt" <<'MSG'
 Authorization: Bearer fixture-token-that-must-be-detected
 Cookie: fixture_session=must_be_detected
+credentialref://weave/runtime/cell/private
+rpk_0123456789abcdefghijklmnopqrstuv
+rsk_0123456789abcdefghijklmnopqrstuv
 MSG
 
   if scan_for_unredacted_secrets "${fixture_dir}" >/dev/null 2>&1; then
@@ -754,6 +843,7 @@ write_redaction_report() {
     {"name": "cookies", "status": "passed"},
     {"name": "private_keys", "status": "passed"},
     {"name": "secret_refs", "status": "passed"},
+    {"name": "agent_runtime_key_and_credential_refs", "status": "passed"},
     {"name": "matrix_appservice_tokens_and_registration", "status": "excluded_by_bundle_scope"},
     {"name": "chat_e2e_proof_token_and_run_binding", "status": "excluded_by_bundle_scope"},
     {"name": "provider_urls", "status": "passed"},
@@ -798,6 +888,7 @@ MSG
   collect_logs
   collect_optional_checks
   collect_adapter_readiness_evidence
+  collect_agent_runtime_evidence
   collect_provider_capability_health
   collect_nextcloud_auth_security_audit
   collect_recent_artifacts

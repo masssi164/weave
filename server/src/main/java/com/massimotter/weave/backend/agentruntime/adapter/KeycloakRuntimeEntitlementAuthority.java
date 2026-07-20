@@ -70,7 +70,7 @@ public final class KeycloakRuntimeEntitlementAuthority implements RuntimeEntitle
     public RuntimeEntitlementObservation observe(ObserveEntitlementCommand command) {
         Objects.requireNonNull(command, "command");
         if (!settings.enabled()) {
-            throw new RuntimeEntitlementDeniedException("The governed Weaver runtime is disabled by policy");
+            throw new RuntimeEntitlementDeniedException("Agent Runtime Control entitlement is disabled by policy");
         }
         if (!settings.issuer().toString().equals(command.memberBinding().issuer())) {
             throw new RuntimeEntitlementDeniedException("The member identity is not bound to the configured IDM");

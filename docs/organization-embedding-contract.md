@@ -246,12 +246,13 @@ Capability permissions are category-level and deny-by-default, for example:
 - `admin.policy.edit`
 - `operator.support_bundle.create`
 - `operator.backup.restore`
-- `weaver.enabled`
-- `weaver.tool.use.<capability>`
+- `agent-runtime.entitled`
+- `agent-runtime.profile.read`
+- `agent-runtime.lifecycle.write`
 
 ### Machine principals
 
-Connectors, migration jobs, bots, and future Weaver runtimes use non-human identities. They require owner, expiry/review date, least-privilege scopes, rotation policy, and audit trail. Shared bot-user accounts are not acceptable as the default model.
+Connectors, migration jobs, and bots use scoped non-human identities. ARC-bound Weaver/OpenClaw cells additionally require a unique confidential Keycloak client, exact workload audience/scope, current cell/profile binding, rotation/revocation, and audit correlation. Shared bot users or shared runtime service accounts are forbidden.
 
 ## Organization topologies to support
 
@@ -261,7 +262,7 @@ Connectors, migration jobs, bots, and future Weaver runtimes use non-human ident
 - Chat: Matrix/Synapse.
 - Files/docs: Nextcloud/WebDAV/WOPI-compatible editor where supported.
 - Boards/tasks: OpenProject.
-- Meetings: LiveKit.
+- Calls: MatrixRTC Profile 0 with LiveKit as the first replaceable SFU adapter.
 - Weave: canonical domains, policy, readiness, member UX, admin console.
 
 ### Microsoft-heavy existing organization

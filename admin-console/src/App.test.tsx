@@ -21,17 +21,38 @@ function mockApi(
       ...sampleControlPlane.whitelistPolicy,
       allowedCapabilities: ["files.read"],
     }),
-    updateWeaverDistributionPolicy: vi
-      .fn()
-      .mockImplementation(async (policy) => policy),
-    revokeRuntimeProfile: vi.fn().mockResolvedValue({
-      ...sampleControlPlane.weaverDistributionPolicy,
-      revocationState: "revocation_pending",
-      auditRefs: [
-        ...sampleControlPlane.weaverDistributionPolicy.auditRefs,
-        "audit://weaver/revocation/requested",
-      ],
+    getAgentRuntime: vi.fn().mockResolvedValue({
+      personRef: "acct_0123456789abcdef0123456789abcdef",
+      cellRef: "cell_01",
+      runtimeProvider: "weaver-openclaw",
+      entitlementState: "entitled",
+      entitlementRevision: "entitlement-rev-7",
+      desiredState: "ready",
+      observedState: "ready",
+      runtimeProfileRef:
+        "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      workspaceRevision: "workspace-rev-3",
+      conflicts: 0,
+      capabilityState: "ready",
+      auditRef: "audit://agent-runtime-control/test",
     }),
+    changeAgentRuntime: vi.fn().mockImplementation(
+      async (_personRef, action) => ({
+        personRef: "acct_0123456789abcdef0123456789abcdef",
+        cellRef: "cell_01",
+        runtimeProvider: "weaver-openclaw",
+        entitlementState: action === "revoke" ? "revoked" : "entitled",
+        entitlementRevision: "entitlement-rev-7",
+        desiredState: action === "delete-runtime-state" ? "deleted" : "ready",
+        observedState: action === "delete-runtime-state" ? "deleted" : "ready",
+        runtimeProfileRef:
+          "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        workspaceRevision: "workspace-rev-3",
+        conflicts: 0,
+        capabilityState: "ready",
+        auditRef: "audit://agent-runtime-control/test",
+      }),
+    ),
     selectProvider: vi.fn(
       async (category, providerKey, choiceModel, dryRun) => ({
         category,
@@ -264,7 +285,7 @@ describe("Admin Console MVP", () => {
       screen.getByRole("heading", { name: /member capability preview/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: /weaver runtimeprofile projection/i }),
+      screen.getByRole("heading", { name: /agent runtime control/i, level: 2 }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", {
@@ -272,7 +293,7 @@ describe("Admin Console MVP", () => {
       }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: /weaver distribution policy/i }),
+      screen.getByRole("heading", { name: /mcp workload boundary/i }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: /policy and whitelist/i }),
@@ -298,9 +319,11 @@ describe("Admin Console MVP", () => {
       "Decisions",
       "Notifications",
       "Health",
-      "Weaver",
+      "Agent Runtime Control",
     ]) {
-      expect(screen.getByRole("heading", { name: domain })).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { name: domain, level: 3 }),
+      ).toBeInTheDocument();
     }
     expect(screen.getAllByText(/Selected adapter/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Required next action/i).length).toBeGreaterThan(
@@ -393,7 +416,7 @@ describe("Admin Console MVP", () => {
     ).toHaveTextContent(/idm and rbac posture: ready/i);
     expect(
       screen.getByLabelText(/beta setup and control readiness checklist/i),
-    ).toHaveTextContent(/weaver availability: coming_later/i);
+    ).toHaveTextContent(/agent runtime control: disabled/i);
     expect(
       screen.getByLabelText(/beta setup and control readiness checklist/i),
     ).toHaveTextContent(/raw provider diagnostics exposed: no/i);
@@ -431,67 +454,36 @@ describe("Admin Console MVP", () => {
     ).toBeInTheDocument();
   });
 
-  // V01_GOVERNED_WEAVER_RUNTIME_POLICY: admins preview support-safe RuntimeProfile distribution labels and receipt refs before apply.
-  // Evidence fragment: receipt://weaver/runtime/profile-regeneration
-  it("renders support-safe Weaver projection labels for chat, models, tools, skills, and MCPs", async () => {
-    render(<App api={mockApi()} />);
+  // V01_AGENT_RUNTIME_CONTROL_POLICY: admins operate the real support-safe lifecycle API.
+  it("loads an Agent Runtime Control projection without exposing runtime internals", async () => {
+    const api = mockApi();
+    const user = userEvent.setup();
+    render(<App api={api} />);
 
     expect(
       await screen.findByRole("heading", {
-        name: /weaver runtimeprofile projection/i,
+        name: /agent runtime control/i,
+        level: 2,
       }),
     ).toBeInTheDocument();
-    for (const category of [
-      /chat projection/i,
-      /model aliases/i,
-      /tool distribution/i,
-      /skill distribution/i,
-      /mcp connectors/i,
-    ]) {
-      expect(screen.getByRole("heading", { name: category })).toBeInTheDocument();
-    }
-    expect(screen.getByText(/weave chat domain route/i)).toBeInTheDocument();
-    expect(screen.getByText(/general assistant model alias/i)).toBeInTheDocument();
-    expect(screen.getByText(/chat summary read tool/i)).toBeInTheDocument();
-    expect(screen.getByText(/workspace triage skill package/i)).toBeInTheDocument();
-    expect(screen.getByText(/approved knowledge connector/i)).toBeInTheDocument();
-    expect(screen.getByText(/eligibility preview: policy enabled no; required groups: weaver-group, weave-weaver-runtime; eligible member preview: coming_later/i)).toBeInTheDocument();
-    expect(screen.getByText(/admin-bound MCP server registry/i)).toBeInTheDocument();
-    expect(screen.getByText(/weave governed domain tools \(streamable-http\)/i)).toBeInTheDocument();
-    expect(screen.getByText(/members never wire raw MCP endpoints/i)).toBeInTheDocument();
-    expect(screen.getByText(/provider changes preserve the stable weave chat projection/i)).toBeInTheDocument();
-    expect(screen.getByText(/user selectable: yes; default: yes; fallback order: 1/i)).toBeInTheDocument();
-    expect(screen.getAllByText(/receipt:\/\/weaver\//i).length).toBeGreaterThan(0);
+    const personField = screen.getByRole("textbox", {
+      name: /opaque person reference/i,
+    });
+    await user.type(personField, "acct_0123456789abcdef0123456789abcdef");
+    await user.click(screen.getByRole("button", { name: /load runtime/i }));
+
+    await waitFor(() => expect(api.getAgentRuntime).toHaveBeenCalled());
+    expect(screen.getByText("cell_01")).toBeInTheDocument();
     expect(
-      screen.getByRole("region", {
-        name: /weaver runtimeprofile projection/i,
-      }),
+      screen.getAllByText(/audit:\/\/agent-runtime-control\/test/i).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByRole("heading", { name: /mcp workload boundary/i })).toBeInTheDocument();
+    expect(screen.getByText(/empty catalog/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: /agent runtime control/i }),
     ).not.toHaveTextContent(
-      /client_secret|access_token|refresh token|bearer|openclaw\.json|credential=|rawMcpServerConfig/i,
+      /client_secret\s*[:=]|access_token\s*[:=]|refresh_token\s*[:=]|Bearer\s+[A-Za-z0-9_-]{20}|openclaw\.json/i,
     );
-  });
-
-  it("shows Weaver projection as an inspect-only member-safe preview", async () => {
-    render(<App api={mockApi()} viewerRole="operator" />);
-
-    expect(
-      await screen.findByText(/label-only chat, model, tool, skill, and MCP projections/i),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/audit receipt refs:/i)).toHaveTextContent(
-      /receipt:\/\/weaver\/runtime\/profile-regeneration/i,
-    );
-    expect(screen.getByText(/eligibility blockers:/i)).toHaveTextContent(
-      /weaver.enabled remains blocked until organization policy enables governed weaver runtime provisioning/i,
-    );
-    expect(screen.getByText(/revocation refs:/i)).toHaveTextContent(
-      /receipt:\/\/weaver\/runtime\/revocation-preview/i,
-    );
-    expect(
-      screen.queryByRole("button", { name: /apply selected provider/i }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: /save whitelist policy/i }),
-    ).not.toBeInTheDocument();
   });
 
   it("saves whitelist policy through the backend API and announces the result", async () => {
@@ -761,112 +753,56 @@ describe("Admin Console MVP", () => {
     expect(api.selectProvider).toHaveBeenCalledTimes(2);
   });
 
-  it("manages Weaver chat, model, tool, skill, and MCP policy before RuntimeProfile apply", async () => {
+  it("fences Agent Runtime Control mutations and confirms runtime-state deletion", async () => {
     const api = mockApi();
     const user = userEvent.setup();
     render(<App api={api} />);
 
-    expect(
-      await screen.findByRole("heading", {
-        name: /weaver distribution policy/i,
-      }),
-    ).toBeInTheDocument();
-    expect(screen.getAllByText(/channels.matrix/i).length).toBeGreaterThan(
-      0,
+    await user.type(
+      await screen.findByRole("textbox", { name: /opaque person reference/i }),
+      "acct_0123456789abcdef0123456789abcdef",
     );
-    expect(screen.getByText(/chat readiness: ready/i)).toBeInTheDocument();
-    expect(
-      screen.getByLabelText(/effective weaver runtimeprofile policy preview/i),
-    ).toHaveTextContent(/model.default=general-assistant/i);
-    expect(
-      screen.getByLabelText(/effective weaver runtimeprofile policy preview/i),
-    ).toHaveTextContent(/mcp.allow=weave-facade-mcp/i);
+    await user.click(screen.getByRole("button", { name: /load runtime/i }));
+    await user.type(
+      screen.getByRole("textbox", { name: /lifecycle reason/i }),
+      "Member offboarding",
+    );
+    await user.click(screen.getByRole("button", { name: /^revoke$/i }));
 
-    expect(
-      screen.getByLabelText(/weaver chat-domain provider/i),
-    ).toHaveTextContent(/synapse-homeserver/i);
-    fireEvent.change(screen.getByLabelText(/default model alias/i), {
-      target: { value: "sovereign-local" },
+    await waitFor(() =>
+      expect(api.changeAgentRuntime).toHaveBeenCalledWith(
+        "acct_0123456789abcdef0123456789abcdef",
+        "revoke",
+        expect.stringMatching(/^admin-console-/),
+        {
+          reason: "Member offboarding",
+          entitlementRevision: "entitlement-rev-7",
+        },
+      ),
+    );
+    const deleteButton = screen.getByRole("button", {
+      name: /delete runtime state only/i,
     });
-    fireEvent.change(screen.getByLabelText(/allowed weaver tools/i), {
-      target: {
-        value: "chat.search_messages\nnotifications.create_action_request",
-      },
-    });
-    fireEvent.change(screen.getByLabelText(/allowed weaver skills/i), {
-      target: { value: "weave-user-help\nweave-release-evidence" },
-    });
-    fireEvent.change(screen.getByLabelText(/allowed mcp servers/i), {
-      target: {
-        value: "weave-facade-mcp=chat.search_messages approval-required",
-      },
-    });
-
-    expect(
-      screen.getByRole("button", { name: /save weaver distribution policy/i }),
-    ).toBeDisabled();
+    expect(deleteButton).toBeDisabled();
     await user.click(
       screen.getByRole("checkbox", {
-        name: /i confirm the effective weaver policy preview/i,
+        name: /i confirm delete_runtime_state_only/i,
       }),
     );
-    await user.click(
-      screen.getByRole("button", { name: /save weaver distribution policy/i }),
-    );
-
+    await user.click(deleteButton);
     await waitFor(() =>
-      expect(api.updateWeaverDistributionPolicy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          chatProviderKey: "synapse-homeserver",
-          defaultModelAlias: "sovereign-local",
-          allowedTools: [
-            "chat.search_messages",
-            "notifications.create_action_request",
-          ],
-          allowedSkills: ["weave-user-help", "weave-release-evidence"],
-          mcpServers: [
-            {
-              serverKey: "weave-facade-mcp",
-              tools: ["chat.search_messages"],
-              approvalRequired: true,
-            },
-          ],
-        }),
+      expect(api.changeAgentRuntime).toHaveBeenCalledWith(
+        "acct_0123456789abcdef0123456789abcdef",
+        "delete-runtime-state",
+        expect.stringMatching(/^admin-console-/),
+        {
+          reason: "Member offboarding",
+          entitlementRevision: "entitlement-rev-7",
+        },
       ),
     );
     expect(await screen.findByRole("status")).toHaveTextContent(
-      /weaver distribution policy saved/i,
-    );
-  });
-
-  it("surfaces RuntimeProfile revocation and audit affordances", async () => {
-    const api = mockApi();
-    const user = userEvent.setup();
-    render(<App api={api} />);
-
-    expect(
-      await screen.findByRole("heading", {
-        name: /runtimeprofile revocation and audit/i,
-      }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/active hash: wrp_2026_05_31_active_hash/i),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByLabelText(/runtimeprofile change history/i),
-    ).toHaveTextContent(/draft regeneration waits/i);
-
-    await user.click(
-      screen.getByRole("button", { name: /revoke active runtimeprofile/i }),
-    );
-
-    await waitFor(() =>
-      expect(api.revokeRuntimeProfile).toHaveBeenCalledWith(
-        "wrp_2026_05_31_active_hash",
-      ),
-    );
-    expect(await screen.findByRole("status")).toHaveTextContent(
-      /revocation requested/i,
+      /delete-runtime-state accepted/i,
     );
   });
 
@@ -1080,12 +1016,6 @@ describe("Admin Console MVP", () => {
     );
     expect(adminConsoleMessages.en.replacementButton).toBe(
       "Dry-run replacement contract",
-    );
-    expect(adminConsoleMessages.en.weaverProjectionHeading).toBe(
-      "Weaver RuntimeProfile projection",
-    );
-    expect(adminConsoleMessages.en.weaverProjectionSummary).toContain(
-      "label-only chat, model, tool, skill, and MCP projections",
     );
     expect(adminConsoleMessages.en.memberPreviewDescription).toContain(
       "hides provider adapters",

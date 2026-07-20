@@ -38,8 +38,9 @@ import org.springframework.web.bind.annotation.RestController;
         "'${weave.agent-runtime.storage.mode:disabled}' == 'jdbc'"
                 + " && '${weave.agent-runtime.workload-identity.enabled:false}' == 'true'"
                 + " && '${weave.agent-runtime.policy.enabled:false}' == 'true'"
-                + " && '${weave.agent-runtime.profile-signing.enabled:false}' == 'true'")
-@PreAuthorize("hasAuthority('" + AgentRuntimeAdminSecurityConfiguration.ADMIN_AUTHORITY + "')")
+                + " && '${weave.agent-runtime.profile-signing.enabled:false}' == 'true'"
+                + " && '${weave.agent-runtime.state-store.enabled:false}' == 'true'")
+@PreAuthorize(AgentRuntimeAdminSecurityConfiguration.ACCESS_EXPRESSION)
 public class AgentRuntimeAdminController {
     private static final String IDEMPOTENCY_HEADER = "Idempotency-Key";
     private static final String PERSON_REF = "acct_[a-f0-9]{32}";

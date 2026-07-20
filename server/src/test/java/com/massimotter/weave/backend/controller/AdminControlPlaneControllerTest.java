@@ -81,9 +81,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 @TestPropertySource(properties = {
         "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.example.invalid/realms/weave",
-        "weave.meetings.livekit.enabled=true",
-        "weave.meetings.livekit.api-key=server-test-key-that-must-never-appear",
-        "weave.meetings.livekit.api-secret=server-test-secret-that-must-never-appear"
+        "weave.calls.sfu.livekit.enabled=true",
+        "weave.calls.sfu.livekit.api-key=server-test-key-that-must-never-appear",
+        "weave.calls.sfu.livekit.api-secret=server-test-secret-that-must-never-appear"
 })
 class AdminControlPlaneControllerTest {
 
@@ -124,10 +124,10 @@ class AdminControlPlaneControllerTest {
                 List.of("admin"),
                 List.of("weave-board-editors"),
                 List.of("workspace-admin", "group:weave-board-editors"),
-                List.of("chat.read", "files.read", "boards.update_task", "admin.policy.edit", "admin.provider.configure", "weaver.exec_disabled"),
+                List.of("chat.read", "files.read", "boards.update_task", "admin.policy.edit", "admin.provider.configure"),
                 true,
                 true,
-                "disabled-by-default; per-user Dockerized Weaver runtime may only be generated from org policy later"));
+                "disabled-by-default; Agent Runtime Control requires explicit Keycloak entitlement configuration"));
         when(workspaceCapabilityService.effectivePolicySnapshot(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn(new EffectivePolicyResponse(
                 "admin-123",
                 "weave-dogfood",
@@ -137,8 +137,8 @@ class AdminControlPlaneControllerTest {
                 List.of("admin"),
                 List.of("context_admin"),
                 List.of("role_claim:admin", "group_claim:weave-board-editors"),
-                List.of("chat.read", "files.read", "boards.update_task", "admin.policy.edit", "admin.provider.configure", "weaver.exec_disabled"),
-                List.of(new EffectivePolicyDenyResponse("weaver.enabled", "weaver runtime is disabled unless an organization policy group explicitly grants it", "deny-by-default-capability-policy")),
+                List.of("chat.read", "files.read", "boards.update_task", "admin.policy.edit", "admin.provider.configure"),
+                List.of(new EffectivePolicyDenyResponse("agent-runtime.entitled", "Agent Runtime Control requires current Keycloak entitlement", "deny-by-default-capability-policy")),
                 List.of("member-visible states remain available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later"),
                 List.of("effective-policy-preview:admin-123"),
                 true,
@@ -222,17 +222,11 @@ class AdminControlPlaneControllerTest {
                 .andExpect(jsonPath("$.denyByDefaultPolicy").value(true))
                 .andExpect(jsonPath("$.memberClientMayConfigureProviders").value(false))
                 .andExpect(jsonPath("$.categories[*].category", hasItems(
-                        "identity-idm", "chat", "files", "calendar", "boards-tasks", "meetings-calls", "documents-collaboration", "model", "weaver")))
+                        "identity-idm", "chat", "files", "calendar", "boards-tasks", "meetings-calls", "documents-collaboration", "model", "agent-runtime-control")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'chat')].selectedByAdmin", hasItems(true)))
                 .andExpect(jsonPath("$.categories[?(@.category == 'chat')].selectedProviderKey", hasItems("synapse-homeserver")))
                 .andExpect(jsonPath("$.selectedProviderMappings[*].category", hasItems("identity-idm", "chat", "files")))
                 .andExpect(jsonPath("$.selectedProviderMappings[*].supportSafe", hasItems(true)))
-                .andExpect(jsonPath("$.weaverDistributionPolicy.modelAliases[0].provider").value("lmstudio"))
-                .andExpect(jsonPath("$.weaverDistributionPolicy.modelAliases[0].model").value("lmstudio/qwen/qwen3.5-9b"))
-                .andExpect(jsonPath("$.weaverDistributionPolicy.effectivePolicyPreview[*]", hasItems("credentialRef=credentialref://weave/channels/matrix/access-token")))
-                .andExpect(jsonPath("$.weaverEligibilityPreview.policyEnabled").value(false))
-                .andExpect(jsonPath("$.weaverEligibilityPreview.requiredGroups[*]", hasItems("weaver-group", "weave-weaver-runtime")))
-                .andExpect(jsonPath("$.weaverEligibilityPreview.memberStateWithoutGroup").value("disabled_by_policy"))
                 .andExpect(jsonPath("$.whitelist.denyByDefault").value(true))
                 .andExpect(jsonPath("$.whitelist.normalMembersMayAuthorPolicy").value(false))
                 .andExpect(jsonPath("$.whitelist.stableMemberImpactStates[*]", hasItems(
@@ -392,7 +386,7 @@ class AdminControlPlaneControllerTest {
                 .andExpect(jsonPath("$.organization").value("weave-dogfood"))
                 .andExpect(jsonPath("$.capabilityGrants[*]", hasItems("admin.policy.edit", "admin.provider.configure")))
                 .andExpect(jsonPath("$.providerRoleMappings[*]", hasItems("role_claim:admin", "group_claim:weave-board-editors")))
-                .andExpect(jsonPath("$.denies[0].capability").value("weaver.enabled"))
+                .andExpect(jsonPath("$.denies[0].capability").value("agent-runtime.entitled"))
                 .andExpect(jsonPath("$.denyByDefault").value(true))
                 .andExpect(jsonPath("$.supportSafe").value(true))
                 .andExpect(jsonPath("$.primaryIdentityKey", containsString("issuer+subject:")))
@@ -409,7 +403,7 @@ class AdminControlPlaneControllerTest {
                   "organizationId": "weave-dogfood",
                   "roles": ["member"],
                   "groups": ["weave-board-editors"],
-                  "requestedCapabilities": ["chat.send", "boards.update_task", "admin.provider.configure", "weaver.enabled"],
+                  "requestedCapabilities": ["chat.send", "boards.update_task", "admin.provider.configure", "agent-runtime.entitled"],
                   "reason": "preview before provider change with Bearer secret-token and client_secret"
                 }
                 """;
@@ -423,11 +417,11 @@ class AdminControlPlaneControllerTest {
                 .andExpect(jsonPath("$.organizationId").value("weave-dogfood"))
                 .andExpect(jsonPath("$.supportSafe").value(true))
                 .andExpect(jsonPath("$.unknownInputsFailClosed").value(false))
-                .andExpect(jsonPath("$.weaverDefaultDisabled").value(true))
+                .andExpect(jsonPath("$.agentRuntimeEntitlementRequired").value(true))
                 .andExpect(jsonPath("$.grantedCapabilities[*]", hasItems("chat.send", "boards.update_task")))
                 .andExpect(jsonPath("$.deniedInputs").isEmpty())
                 .andExpect(jsonPath("$.capabilityStates[*].state", hasItems("ready", "disabled", "policy-blocked")))
-                .andExpect(jsonPath("$.capabilityStates[?(@.capability == 'weaver.enabled')].reasonCode", hasItems("weaver-default-disabled")))
+                .andExpect(jsonPath("$.capabilityStates[?(@.capability == 'agent-runtime.entitled')].reasonCode", hasItems("agent-runtime-entitlement-required")))
                 .andExpect(jsonPath("$.capabilityStates[?(@.capability == 'admin.provider.configure')].state", hasItems("policy-blocked")))
                 .andExpect(content().string(not(containsString("alice@example.com"))))
                 .andExpect(content().string(not(containsString("secret-token"))))
@@ -809,31 +803,31 @@ class AdminControlPlaneControllerTest {
     }
 
     @Test
-    void weaverSelectionUsesContractCandidatesEvenWithoutRawProviderPort() throws Exception {
+    void agentRuntimeSelectionUsesContractCandidatesWithoutRawProviderPort() throws Exception {
         mockMvc.perform(post("/api/admin/providers/selections")
                         .with(adminJwt())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"category\":\"weaver\",\"providerKey\":\"openclaw-derived-profile\",\"choiceModel\":\"managed_cloud_provider\",\"secretRef\":\"secretref://weave/provider/openclaw-derived-profile\",\"reason\":\"governed runtime pilot\"}"))
+                        .content("{\"category\":\"agent-runtime-control\",\"providerKey\":\"weaver-openclaw\",\"choiceModel\":\"managed_cloud_provider\",\"secretRef\":\"secretref://weave/provider/weaver-openclaw\",\"reason\":\"governed runtime pilot\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.category").value("weaver"))
-                .andExpect(jsonPath("$.providerKey").value("openclaw-derived-profile"))
+                .andExpect(jsonPath("$.category").value("agent-runtime-control"))
+                .andExpect(jsonPath("$.providerKey").value("weaver-openclaw"))
                 .andExpect(jsonPath("$.supportSafe").value(true))
                 .andExpect(jsonPath("$.migrationDryRunRequired").value(true));
 
         mockMvc.perform(get("/api/admin/control-plane").with(adminJwt()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.categories[?(@.category == 'weaver')].selectedByAdmin", hasItems(true)))
-                .andExpect(jsonPath("$.categories[?(@.category == 'weaver')].selectedProviderKey", hasItems("openclaw-derived-profile")))
-                .andExpect(jsonPath("$.categories[?(@.category == 'weaver')].providerCandidates[*]", hasItems("openclaw-derived-profile")))
+                .andExpect(jsonPath("$.categories[?(@.category == 'agent-runtime-control')].selectedByAdmin", hasItems(true)))
+                .andExpect(jsonPath("$.categories[?(@.category == 'agent-runtime-control')].selectedProviderKey", hasItems("weaver-openclaw")))
+                .andExpect(jsonPath("$.categories[?(@.category == 'agent-runtime-control')].providerCandidates[*]", hasItems("weaver-openclaw")))
                 .andExpect(content().string(not(containsString("raw provider"))));
     }
 
     @Test
-    void memberCannotChangeWeaverProviderSelection() throws Exception {
+    void memberCannotChangeAgentRuntimeProviderSelection() throws Exception {
         mockMvc.perform(post("/api/admin/providers/selections")
                         .with(memberJwt())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"category\":\"weaver\",\"providerKey\":\"openclaw-derived-profile\",\"choiceModel\":\"recommended_self_hosted_default\",\"secretRef\":\"secretref://weave/provider/openclaw-derived-profile\",\"reason\":\"member attempt\"}"))
+                        .content("{\"category\":\"agent-runtime-control\",\"providerKey\":\"weaver-openclaw\",\"choiceModel\":\"recommended_self_hosted_default\",\"secretRef\":\"secretref://weave/provider/weaver-openclaw\",\"reason\":\"member attempt\"}"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("capability-policy-blocked"))
                 .andExpect(jsonPath("$.details.requiredCapability").value("admin.provider.configure"))

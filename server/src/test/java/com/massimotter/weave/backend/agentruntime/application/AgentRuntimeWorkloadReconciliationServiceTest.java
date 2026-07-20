@@ -72,7 +72,8 @@ class AgentRuntimeWorkloadReconciliationServiceTest {
         new ResourceDatabasePopulator(new ClassPathResource(
                 "db/migration/V011__agent_runtime_control_foundation.sql")).execute(database);
         cells = new JdbcRuntimeCellRepository(new JdbcTemplate(database));
-        credentials = new FileRuntimeWorkloadCredentialStore(temporary, new ObjectMapper());
+        credentials = new FileRuntimeWorkloadCredentialStore(
+                temporary, new ObjectMapper(), Clock.fixed(NOW.minusSeconds(60), ZoneOffset.UTC));
         String owner = owner();
         RuntimeWorkloadCredentialState credential = credentials.create(
                 new RuntimeWorkloadCredentialStore.CreateCredentialCommand(

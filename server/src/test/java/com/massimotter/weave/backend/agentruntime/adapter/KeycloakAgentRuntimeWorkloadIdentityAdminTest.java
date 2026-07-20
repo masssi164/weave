@@ -62,7 +62,8 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
         adapter = new KeycloakAgentRuntimeWorkloadIdentityAdmin(
                 new KeycloakAgentRuntimeWorkloadIdentityAdmin.Settings(
                         keycloak.baseUri(), URI.create(ISSUER), "weave", Duration.ofSeconds(2),
-                        "weaver-runtime", List.of("agent-runtime.profile.read"), 60),
+                        "weaver-runtime", List.of("weaver-runtime.workload"),
+                        List.of("agent-runtime.profile.read"), 60),
                 credentials,
                 () -> "admin-token",
                 mapper);
@@ -99,14 +100,27 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
         JsonNode keySet = mapper.readTree(client.path("attributes").path("jwks.string").asText());
         assertThat(keySet.path("keys")).hasSize(1);
         assertThat(keySet.path("keys").get(0).has("d")).isFalse();
-        assertThat(keycloak.defaultScopeNames()).isEmpty();
+        assertThat(keycloak.defaultScopeNames()).containsExactly("weaver-runtime.workload");
         assertThat(keycloak.optionalScopeNames()).containsExactly("agent-runtime.profile.read");
         assertThat(keycloak.serviceRealmRoleNames()).containsExactly("weaver-runtime");
         assertThat(keycloak.serviceClientMappings().size()).isZero();
-        assertThat(keycloak.clientRealmScopeRoleNames()).containsExactly("weaver-runtime");
-        assertThat(keycloak.protocolMappers()).hasSize(1);
-        assertThat(keycloak.protocolMappers().get(0).path("config").path("claim.name").asText())
+        assertThat(keycloak.protocolMappers()).hasSize(2);
+        assertThat(keycloak.protocolMappers())
+                .extracting(mapper -> mapper.path("name").asText())
+                .containsExactlyInAnyOrder("weave-runtime-client-id", "weave-runtime-realm-role");
+        assertThat(keycloak.protocolMappers().stream()
+                        .filter(mapper -> "weave-runtime-client-id".equals(mapper.path("name").asText()))
+                        .findFirst().orElseThrow()
+                        .path("config").path("claim.name").asText())
                 .isEqualTo("client_id");
+        JsonNode realmRoleMapper = keycloak.protocolMappers().stream()
+                        .filter(mapper -> "weave-runtime-realm-role".equals(mapper.path("name").asText()))
+                        .findFirst().orElseThrow();
+        assertThat(realmRoleMapper.path("protocolMapper").asText())
+                .isEqualTo("oidc-usermodel-realm-role-mapper");
+        assertThat(realmRoleMapper.path("config").path("claim.name").asText())
+                .isEqualTo("realm_access.roles");
+        assertThat(realmRoleMapper.path("config").path("multivalued").asText()).isEqualTo("true");
         assertThat(keycloak.unsafeMutationWhileEnabled()).isFalse();
 
         int firstMutationCount = keycloak.mutationCount();
@@ -259,11 +273,11 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
         private final List<String> optionalScopeIds = new ArrayList<>();
         private final List<ObjectNode> serviceRealmRoles = new ArrayList<>();
         private final Map<String, List<ObjectNode>> serviceClientMappings = new LinkedHashMap<>();
-        private final List<ObjectNode> clientRealmScopeRoles = new ArrayList<>();
 
         FakeKeycloak(ObjectMapper mapper) throws IOException {
             this.mapper = mapper;
             scopes.put("scope-arc", new Scope("scope-arc", "agent-runtime.profile.read"));
+            scopes.put("scope-workload", new Scope("scope-workload", "weaver-runtime.workload"));
             scopes.put("scope-default", new Scope("scope-default", "profile"));
             scopes.put("scope-extra", new Scope("scope-extra", "offline_access"));
             server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -313,10 +327,6 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
 
         Map<String, List<ObjectNode>> serviceClientMappings() {
             return serviceClientMappings;
-        }
-
-        List<String> clientRealmScopeRoleNames() {
-            return clientRealmScopeRoles.stream().map(role -> role.path("name").asText()).toList();
         }
 
         List<ObjectNode> protocolMappers() {
@@ -393,8 +403,6 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
                 serviceRealmRoles.add(EXTRA_ROLE.deepCopy());
                 serviceClientMappings.clear();
                 serviceClientMappings.put("other-client", new ArrayList<>(List.of(EXTRA_CLIENT_ROLE.deepCopy())));
-                clientRealmScopeRoles.clear();
-                clientRealmScopeRoles.add(EXTRA_ROLE.deepCopy());
                 respond(exchange, 201, null);
                 return;
             }
@@ -441,7 +449,7 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
                 return;
             }
             if ("/scope-mappings/realm".equals(suffix)) {
-                roleList(exchange, method, body, clientRealmScopeRoles);
+                respond(exchange, 403, mapper.createObjectNode().put("error", "forbidden"));
                 return;
             }
             respond(exchange, 404, null);
@@ -587,6 +595,7 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
         private void replaceClient(ObjectNode next) {
             client = next.deepCopy();
             client.put("id", CLIENT_UUID);
+            client.remove("authorizationServicesEnabled");
             ((ObjectNode) client.path("attributes"))
                     .put("keycloak.provider-owned-default", "preserved");
             JsonNode suppliedMappers = client.path("protocolMappers");

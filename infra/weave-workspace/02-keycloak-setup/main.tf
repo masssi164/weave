@@ -57,9 +57,11 @@ module "tenant_identity" {
   mas_public_url                          = local.client_matrix_url
   nextcloud_public_url                    = local.public_urls.files
   admin_console_public_url                = local.public_urls.admin
+  api_public_url                          = local.public_urls.api
   matrix_mas_upstream_id                  = local.matrix_mas_upstream_id
   matrix_mas_client_secret                = var.matrix_mas_client_secret
   identity_admin_client_secret            = var.identity_admin_client_secret
+  agent_runtime_admin_client_secret       = var.agent_runtime_admin_client_secret
   weave_mcp_client_secret                 = var.weave_mcp_client_secret
   smtp_host                               = var.keycloak_smtp_host
   smtp_port                               = var.keycloak_smtp_port

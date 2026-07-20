@@ -1,11 +1,16 @@
 package com.massimotter.weave.backend.config;
 
+import com.nimbusds.jose.JOSEObjectType;
+import com.nimbusds.jose.proc.DefaultJOSEObjectTypeVerifier;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Stream;
 import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
@@ -21,6 +26,7 @@ import org.springframework.util.StringUtils;
 public class JwtDecoderConfig {
 
     @Bean
+    @Primary
     JwtDecoder jwtDecoder(
             OAuth2ResourceServerProperties resourceServerProperties,
             WeaveSecurityProperties weaveSecurityProperties) {
@@ -42,9 +48,38 @@ public class JwtDecoderConfig {
         return configuredDecoder(resourceServerProperties, validator);
     }
 
+    @Bean("agentRuntimeAdminJwtDecoder")
+    @ConditionalOnProperty(name = "weave.agent-runtime.storage.mode", havingValue = "jdbc")
+    JwtDecoder agentRuntimeAdminJwtDecoder(
+            OAuth2ResourceServerProperties resourceServerProperties,
+            WeaveSecurityProperties weaveSecurityProperties) {
+        String issuerUri = resourceServerProperties.getJwt().getIssuerUri();
+        if (!StringUtils.hasText(issuerUri)) {
+            return configuredDecoder(resourceServerProperties, jwt -> OAuth2TokenValidatorResult.success());
+        }
+        OAuth2TokenValidator<Jwt> validator = new DelegatingOAuth2TokenValidator<>(
+                JwtValidators.createDefaultWithIssuer(issuerUri),
+                exactAudienceValidator(Set.of(weaveSecurityProperties.requiredAudience())),
+                requiredAuthorizedPartyValidator(AgentRuntimeAdminSecurityConfiguration.CLIENT_ID));
+        return configuredDecoder(resourceServerProperties, validator);
+    }
+
     static JwtDecoder configuredDecoder(
             OAuth2ResourceServerProperties resourceServerProperties,
             OAuth2TokenValidator<Jwt> validator) {
+        return configuredDecoder(resourceServerProperties, validator, null);
+    }
+
+    static JwtDecoder configuredRfc9068Decoder(
+            OAuth2ResourceServerProperties resourceServerProperties,
+            OAuth2TokenValidator<Jwt> validator) {
+        return configuredDecoder(resourceServerProperties, validator, new JOSEObjectType("at+jwt"));
+    }
+
+    private static JwtDecoder configuredDecoder(
+            OAuth2ResourceServerProperties resourceServerProperties,
+            OAuth2TokenValidator<Jwt> validator,
+            JOSEObjectType requiredType) {
         String issuerUri = resourceServerProperties.getJwt().getIssuerUri();
         if (!StringUtils.hasText(issuerUri)) {
             return token -> {
@@ -52,16 +87,53 @@ public class JwtDecoderConfig {
             };
         }
         String jwkSetUri = resourceServerProperties.getJwt().getJwkSetUri();
-        NimbusJwtDecoder jwtDecoder = StringUtils.hasText(jwkSetUri)
-                ? NimbusJwtDecoder.withJwkSetUri(jwkSetUri).build()
-                : NimbusJwtDecoder.withIssuerLocation(issuerUri).build();
+        var builder = StringUtils.hasText(jwkSetUri)
+                ? NimbusJwtDecoder.withJwkSetUri(jwkSetUri)
+                : NimbusJwtDecoder.withIssuerLocation(issuerUri);
+        if (requiredType != null) {
+            builder.jwtProcessorCustomizer(processor -> processor.setJWSTypeVerifier(
+                    new DefaultJOSEObjectTypeVerifier<>(requiredType)));
+        }
+        NimbusJwtDecoder jwtDecoder = builder.build();
         jwtDecoder.setJwtValidator(validator);
         return jwtDecoder;
+    }
+
+    static OAuth2TokenValidator<Jwt> rfc9068AccessTokenTypeValidator() {
+        return jwt -> {
+            Object type = jwt == null ? null : jwt.getHeaders().get("typ");
+            if (type instanceof String value && "at+jwt".equalsIgnoreCase(value)) {
+                return OAuth2TokenValidatorResult.success();
+            }
+            return OAuth2TokenValidatorResult.failure(
+                    error("invalid_token", "The workload resource accepts only RFC 9068 at+jwt access tokens."));
+        };
     }
 
     static OAuth2TokenValidator<Jwt> requiredAudienceValidator(String requiredAudience) {
         String normalizedRequiredAudience = requiredAudience.trim();
         return jwt -> hasRequiredAudience(jwt, normalizedRequiredAudience);
+    }
+
+    static OAuth2TokenValidator<Jwt> exactAudienceValidator(Set<String> requiredAudiences) {
+        Set<String> normalized = requiredAudiences.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(StringUtils::hasText)
+                .collect(java.util.stream.Collectors.toUnmodifiableSet());
+        if (normalized.isEmpty()) {
+            throw new IllegalArgumentException("At least one exact audience is required");
+        }
+        return jwt -> {
+            List<String> audiences = jwt.getAudience();
+            if (audiences != null
+                    && audiences.size() == normalized.size()
+                    && Set.copyOf(audiences).equals(normalized)) {
+                return OAuth2TokenValidatorResult.success();
+            }
+            return OAuth2TokenValidatorResult.failure(
+                    error("invalid_token", "The token audience set is not exact."));
+        };
     }
 
     static OAuth2TokenValidator<Jwt> requiredAuthorizedPartyValidator(String requiredAuthorizedParty) {

@@ -153,6 +153,7 @@ class AgentRuntimeAdminServiceTest {
         assertThat(state.calls).hasValue(1);
         assertThat(state.last.runtimeStateStoreRef()).startsWith("runtime-state://");
         assertThat(state.last.runtimeStateStoreRef()).doesNotContain("webdav");
+        assertThat(workloads.deleteCalls).hasValue(1);
         verify(issuance, times(2)).issue(any(), any(), any());
     }
 
@@ -203,6 +204,7 @@ class AgentRuntimeAdminServiceTest {
 
     private static final class CountingWorkloadAdmin implements RuntimeWorkloadIdentityAdmin {
         private final AtomicInteger ensureCalls = new AtomicInteger();
+        private final AtomicInteger deleteCalls = new AtomicInteger();
 
         @Override
         public RuntimeWorkloadBinding ensureBinding(EnsureBindingCommand command) {
@@ -236,7 +238,7 @@ class AgentRuntimeAdminServiceTest {
 
         @Override
         public void deleteBinding(DeleteBindingCommand command) {
-            // State deletion disables but deliberately does not delete the identity binding.
+            deleteCalls.incrementAndGet();
         }
     }
 }

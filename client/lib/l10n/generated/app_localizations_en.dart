@@ -29,7 +29,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get setupProviderStepDescription =>
-      'Admin setup starts with the identity/IDM category and keeps chat, files, calendar, boards/tasks, meetings/calls, documents/collaboration, and Weaver visible as provider categories before members join.';
+      'Admin setup starts with the identity/IDM category and keeps chat, files, calendar, boards/tasks, meetings/calls, documents/collaboration, and Agent Runtime Control visible as product categories before members join.';
 
   @override
   String get setupServicesStepTitle => 'Review Backend API';
@@ -98,7 +98,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get providerCategoryMeetingsDetail =>
-      'LiveKit Meetings readiness is tracked behind the token facade before members can start or join calls.';
+      'MatrixRTC Profile 0 is the signaling boundary; a replaceable SFU carries media only after current RTC authorization.';
 
   @override
   String get providerCategoryDocumentsTitle => 'Documents/collaboration';
@@ -108,11 +108,12 @@ class AppLocalizationsEn extends AppLocalizations {
       'Document collaboration is a provider adapter category and stays admin setup required until a backend-owned launch path is configured.';
 
   @override
-  String get providerCategoryWeaverTitle => 'Weaver';
+  String get providerCategoryAgentRuntimeControlTitle =>
+      'Agent Runtime Control';
 
   @override
-  String get providerCategoryWeaverDetail =>
-      'Weaver stays disabled by default until governed per-user PA policy, whitelisting, consent, and audit are accepted.';
+  String get providerCategoryAgentRuntimeControlDetail =>
+      'Agent Runtime Control stays disabled without current Keycloak entitlement, signed RuntimeProfile v2, encrypted external state, and cell-bound workload identity.';
 
   @override
   String get setupLanguageStepTitle => 'Your Language';

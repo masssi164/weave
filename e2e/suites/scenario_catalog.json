@@ -84,7 +84,7 @@
       "name": "Northstar Spec Kit decision gates",
       "evidenceMode": "offline-spec",
       "executionLane": "spec-contract",
-      "description": "Repo-local Spec Kit projections for claim-control, Identity/RBAC portability, governed Weaver approvals, and domain-first MCP naming.",
+      "description": "Repo-local Spec Kit projections for claim control, identity/RBAC portability, RuntimeProfile desired-state limits, and workload-only MCP admission.",
       "scenarios": []
     },
     {
@@ -137,10 +137,10 @@
     },
     {
       "id": "spec-0007-governed-weaver-runtime",
-      "name": "Spec 0007 governed Weaver runtime acceptance",
+      "name": "Spec 0007 historical Agent Runtime Control conformance",
       "evidenceMode": "offline-spec",
       "executionLane": "pr-safe-offline-contract",
-      "description": "Weaver runtime profiles, approved tool registry, signed decision evidence, and fail-closed policy drift.",
+      "description": "Current entitlement, signed RuntimeProfile v2 desired state, empty MCP catalogs, signed decision evidence, and fail-closed policy drift.",
       "scenarios": []
     },
     {
@@ -220,7 +220,7 @@
       "name": "WEAVE-SPEC-0007 requirement coverage",
       "evidenceMode": "offline-spec",
       "executionLane": "pr-safe-offline-contract",
-      "description": "Requirement-category scenarios proving Governed Weaver runtime and tool approval contract is not only linked but covered.",
+      "description": "Requirement-category scenarios proving Agent Runtime Control lifecycle, external state, per-cell workload identity, and empty-by-default MCP catalog boundaries.",
       "scenarios": []
     },
     {
@@ -248,11 +248,11 @@
       "scenarios": []
     },
     {
-      "id": "spec-0011-weaver-governed-pa-target",
-      "name": "Spec 0011 Weaver governed PA target acceptance",
+      "id": "spec-0011-agent-runtime-control-conformance",
+      "name": "Spec 0011 Agent Runtime Control conformance",
       "evidenceMode": "offline-spec",
       "executionLane": "pr-safe-offline-contract",
-      "description": "Weaver group gating, policy, per-user memory, domain-first tools, approvals, heartbeat, fallback, and audit acceptance.",
+      "description": "Keycloak entitlement, zero-local-state cells, RuntimeProfile v2, workload-only MCP, revocation, wake recovery, and support-safe audit conformance.",
       "scenarios": []
     },
     {
@@ -724,7 +724,7 @@
       ]
     },
     {
-      "tag": "@weave-v01-governed-weaver-runtime-policy",
+      "tag": "@weave-v01-agent-runtime-control-policy",
       "suiteId": "v0-1-dogfood-release-spine",
       "personas": [
         "admin",
@@ -736,12 +736,12 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "runtime generated from policy",
-        "disabled by default"
+        "current Keycloak entitlement and signed RuntimeProfile v2",
+        "zero durable cell-local state"
       ]
     },
     {
-      "tag": "@weave-v01-governed-weaver-tool-registry",
+      "tag": "@weave-v01-mcp-workload-boundary",
       "suiteId": "v0-1-dogfood-release-spine",
       "personas": [
         "admin",
@@ -753,8 +753,8 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "approved domain tools only",
-        "organization whitelist"
+        "current ARC-bound workload only",
+        "empty tool resource and prompt catalogs"
       ]
     },
     {
@@ -1096,8 +1096,8 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "preflight-only Weaver",
-        "disabled runtime/tools"
+        "guarded Agent Runtime Control",
+        "workload-only MCP and empty catalogs"
       ]
     },
     {
@@ -1948,8 +1948,8 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "runtime profile from policy",
-        "role-derived grants"
+        "runtime profile from current entitlement and policy",
+        "signed desired state is not an authorization grant"
       ]
     },
     {
@@ -2979,7 +2979,7 @@
       ]
     },
     {
-      "tag": "@weave-spec-0007-initial-tool-set",
+      "tag": "@weave-spec-0007-mcp-catalog-boundary",
       "suiteId": "spec-0007-requirement-coverage",
       "personas": [
         "weaver_user",
@@ -2992,7 +2992,7 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "Initial tool set",
+        "MCP catalog boundary",
         "explicit scenario coverage"
       ]
     },
@@ -3072,7 +3072,7 @@
     },
     {
       "tag": "@weave-spec-0011-group-policy-gating",
-      "suiteId": "spec-0011-weaver-governed-pa-target",
+      "suiteId": "spec-0011-agent-runtime-control-conformance",
       "personas": [
         "admin",
         "weaver_user"
@@ -3084,13 +3084,13 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "weaver-group gating",
-        "policy controlled provisioning"
+        "Keycloak entitlement gating",
+        "fail-closed cell provisioning"
       ]
     },
     {
       "tag": "@weave-spec-0011-memory-isolation",
-      "suiteId": "spec-0011-weaver-governed-pa-target",
+      "suiteId": "spec-0011-agent-runtime-control-conformance",
       "personas": [
         "weaver_user",
         "operator"
@@ -3102,13 +3102,13 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "per-user memory isolation",
-        "export delete retention privacy"
+        "zero durable cell-local bytes",
+        "encrypted external state deletion retention privacy"
       ]
     },
     {
       "tag": "@weave-spec-0011-domain-tool-approval",
-      "suiteId": "spec-0011-weaver-governed-pa-target",
+      "suiteId": "spec-0011-agent-runtime-control-conformance",
       "personas": [
         "weaver_user",
         "admin"
@@ -3120,13 +3120,13 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "domain-first tools",
-        "signed decision and action evidence"
+        "empty workload-only MCP catalog",
+        "current per-cell service-account binding"
       ]
     },
     {
       "tag": "@weave-spec-0011-heartbeat-fallback-audit",
-      "suiteId": "spec-0011-weaver-governed-pa-target",
+      "suiteId": "spec-0011-agent-runtime-control-conformance",
       "personas": [
         "weaver_user",
         "operator"
@@ -3138,40 +3138,9 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "heartbeat scope enforcement",
-        "safe fallback audit"
+        "wake scope enforcement",
+        "safe recovery audit"
       ]
-    },
-    {
-      "tag": "@sprint32-beta-admin-user-weaver-path",
-      "domains": [
-        "identity-idm",
-        "chat",
-        "files",
-        "calendar",
-        "boards-tasks",
-        "meetings-calls",
-        "admin-health-ops",
-        "agent-runtime-control",
-        "provider-portability",
-        "decisions-evidence"
-      ],
-      "assertionFocus": [
-        "coherent Beta evaluator path",
-        "Admin readiness and Weaver enablement",
-        "member workspace Weaver use",
-        "governed runtime/tool execution",
-        "adapter-continuity accounting",
-        "support-safe audit evidence"
-      ],
-      "suiteId": "product-e2e-scenario-layer",
-      "personas": [
-        "admin",
-        "member",
-        "weaver_user",
-        "operator"
-      ],
-      "testLevel": "offline-contract"
     },
     {
       "tag": "@enterprise-target-decision-lock",
@@ -3551,7 +3520,7 @@
       "testLevel": "offline-contract",
       "assertionFocus": [
         "Spring AI 2.0 owns stateful Streamable HTTP protocol handling",
-        "stateful sessions enable standard form elicitation",
+        "extension-negotiated sessions admit only bound cell workloads",
         "the handwritten Java JSON-RPC controller is absent",
         "the Python and FastMCP runtime is absent"
       ]
@@ -3569,10 +3538,10 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "issuer audience and expiry validation are configured",
+        "issuer exact audience expiry and RFC 9068 at+jwt validation are configured",
         "weave:mcp scope and the exact MCP audience are required",
-        "the member client azp must be weave-app",
-        "unauthenticated requests fail before MCP dispatch"
+        "the client_id and azp must match the current per-cell confidential client",
+        "human and unbound service-account requests fail before MCP dispatch"
       ]
     },
     {
@@ -3587,9 +3556,9 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "backend RuntimeProfile projection owns approved tool discovery",
-        "protocol catalog presence does not authorize invocation",
-        "discovery omits runtime tokens credentials and provider internals"
+        "backend current ARC context is revalidated after token exchange",
+        "RuntimeProfile contents do not create or authorize tools",
+        "tool resource and prompt catalogs remain empty"
       ]
     },
     {
@@ -4184,7 +4153,7 @@
       ]
     },
     {
-      "tag": "@calls-create",
+      "tag": "@calls-matrixrtc-discovery",
       "suiteId": "open-standards-gateway-archive-target",
       "personas": [
         "member"
@@ -4200,7 +4169,7 @@
       ]
     },
     {
-      "tag": "@calls-join-grant",
+      "tag": "@calls-rtc-authorization",
       "suiteId": "open-standards-gateway-archive-target",
       "personas": [
         "member"
@@ -4248,7 +4217,7 @@
       ]
     },
     {
-      "tag": "@calls-expired-grant",
+      "tag": "@calls-expired-sfu-token",
       "suiteId": "open-standards-gateway-archive-target",
       "personas": [
         "member"
@@ -4312,7 +4281,7 @@
       ]
     },
     {
-      "tag": "@calls-matrix-projection",
+      "tag": "@calls-reject-legacy",
       "suiteId": "open-standards-gateway-archive-target",
       "personas": [
         "member"
@@ -4342,8 +4311,8 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "Files tools route through the canonical Files service and WebDAV-backed projection",
-        "runtime profile grants are checked before invocation",
+        "Files remains authoritative for content and authorization",
+        "the Files MCP catalog stays empty until a complete domain action contract exists",
         "raw provider URLs and credentials are excluded"
       ]
     },
@@ -4362,8 +4331,8 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "Calendar reads route through the canonical Calendar service and CalDAV-backed projection",
-        "event writes remain undiscoverable and fail closed pending trusted approval evidence",
+        "Calendar remains authoritative for events and authorization",
+        "the Calendar MCP catalog stays empty until a complete domain action contract exists",
         "raw CalDAV and provider payloads are excluded"
       ]
     },
@@ -4382,8 +4351,8 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "the Chat send tool is not advertised pending trusted approval evidence",
-        "future dispatch remains governed by ChatDomainFacadeService and Matrix semantics",
+        "Chat and Matrix remain authoritative for conversation authorization",
+        "the Chat MCP catalog stays empty until a complete domain action contract exists",
         "raw provider clients and provider-shaped references remain forbidden"
       ]
     },
@@ -4422,7 +4391,7 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "tools resources and prompts contain canonical Weave vocabulary only",
+        "protocol metadata is support-safe while tools resources and prompts remain empty",
         "runtime token and CredentialRef values are excluded",
         "backend failures are mapped to support-safe MCP results"
       ]

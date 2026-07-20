@@ -43,14 +43,14 @@ REQUIRED_DOMAINS = {
     "files": {"nextcloud", "minio-s3"},
     "calendar": {"nextcloud-caldav", "radicale"},
     "boards": {"openproject"},
-    "weaver": {"docker-runtime"},
+    "agent-runtime-control": {"weaver-openclaw"},
 }
 
 REQUIRED_CANONICAL = {
     "chat": {"WeaveSpace", "WeaveConversation", "WeaveMessage", "WeaveThread", "WeaveReaction", "WeaveAttachment", "WeaveMembership", "WeaveHistoryPolicy", "ProviderRef", "MigrationReceipt", "RollbackReceipt", "LossyFieldReport"},
     "files": {"WeaveDrive", "WeaveFolder", "WeaveFile", "WeaveVersion", "WeaveShare", "WeavePermission", "WeaveLock", "WeaveQuota", "ProviderRef"},
     "calendar": {"WeaveCalendar", "WeaveEvent", "WeaveRecurrence", "WeaveAttendee", "WeaveResource", "WeaveAvailability", "ProviderRef"},
-    "weaver": {"WeaverRuntimeProfile", "WeaverRuntimeInstance", "WeaverUserWorkspace", "WeaverToolGrant", "WeaverApprovalReceipt", "WeaverAuditEvent", "WeaverCustomizationProfile"},
+    "agent-runtime-control": {"RuntimeEntitlementRef", "RuntimeProfile", "ApprovalChallenge", "RuntimeCell", "WorkspaceRevision", "RuntimeRevocation", "RuntimeAuditCorrelation"},
 }
 
 ALLOWED_CONTEXT_HINTS = (

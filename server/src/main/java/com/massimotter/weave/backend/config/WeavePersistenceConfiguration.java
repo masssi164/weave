@@ -17,7 +17,9 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import org.springframework.transaction.PlatformTransactionManager;
 
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(WeavePersistenceProperties.class)
@@ -73,6 +75,20 @@ public class WeavePersistenceConfiguration {
             + "|| '${weave.agent-runtime.storage.mode:disabled}' == 'jdbc'")
     JdbcTemplate weaveJdbcTemplate(DataSource weaveDataSource, Flyway weaveFlyway) {
         return new JdbcTemplate(weaveDataSource);
+    }
+
+    @Bean
+    @ConditionalOnExpression("'${weave.provider.selections.storage.mode:file}' == 'jdbc' "
+            + "|| '${weave.profile.storage.mode:file}' == 'jdbc' "
+            + "|| '${weave.audit.events.storage.mode:file}' == 'jdbc' "
+            + "|| '${weave.security.device-credentials.storage.mode:memory}' == 'jdbc' "
+            + "|| '${weave.migration.evidence.storage.mode:file}' == 'jdbc' "
+            + "|| '${weave.matrix.e2ee.storage.mode:memory}' == 'jdbc' "
+            + "|| '${weave.chat.storage.mode:memory}' == 'jdbc' "
+            + "|| '${weave.identity.invitations.storage-mode:memory}' == 'jdbc' "
+            + "|| '${weave.agent-runtime.storage.mode:disabled}' == 'jdbc'")
+    PlatformTransactionManager weaveTransactionManager(DataSource weaveDataSource) {
+        return new DataSourceTransactionManager(weaveDataSource);
     }
 
     @Bean

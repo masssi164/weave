@@ -567,9 +567,9 @@
         {
           "path": "docs/product-line-and-weaver-plan.md",
           "fragments": [
-            "Workspace/Admin Health and setup language names identity/IDM, chat, files, calendar, boards/tasks, meetings/calls, documents/collaboration, and Weaver as first-class categories.",
-            "Dogfood defaults are mapped as current provider choices only: Keycloak/Auth, Matrix/Chat, Nextcloud/Files and Calendar backing, OpenProject Boards validation, and LiveKit Meetings readiness.",
-            "Weaver remains disabled by default and later than admin portal, IDM/RBAC, readiness, and whitelisting."
+            "Agent Runtime Control as bounded",
+            "the MatrixRTC Calls target",
+            "Agent Runtime Control remains optional and fail-closed"
           ]
         },
         {
@@ -584,7 +584,7 @@
           "path": "docs/release-v0.1-dogfood-plan.md",
           "fragments": [
             "Provider categories are first-class product/admin concepts",
-            "Weaver is represented only as a disabled-by-default category",
+            "Agent Runtime Control is entitlement-bound",
             "never raw provider setup, service endpoints, provider secrets, or diagnostics"
           ]
         },
@@ -594,7 +594,7 @@
             "configure provider categories, replacement dry-runs",
             "provider categories",
             "Documents",
-            "Weaver"
+            "Agent Runtime Control"
           ]
         },
         {
@@ -909,7 +909,7 @@
           "fragments": [
             "IDM/RBAC capability profiles and whitelisting",
             "Capability profiles are deny-by-default",
-            "Weaver remains disabled by default until a later governed runtime policy"
+            "Agent Runtime Control remains fail-closed without current entitlement"
           ]
         },
         {
@@ -932,84 +932,84 @@
       "evidenceMode": "offline-spec"
     },
     {
-      "tag": "@weave-v01-governed-weaver-runtime-policy",
-      "scenario": "Weaver runtime profiles are generated from organization policy",
+      "tag": "@weave-v01-agent-runtime-control-policy",
+      "scenario": "Runtime cells derive from current organization entitlement and policy",
       "feature": "e2e/features/v0_1_dogfood_release.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/WorkspaceControllerTest.java",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/AgentRuntimeAdminControllerTest.java",
       "evidenceMarkers": [
-        "V01_GOVERNED_WEAVER_RUNTIME_POLICY"
+        "V01_AGENT_RUNTIME_CONTROL_POLICY"
       ],
       "additionalEvidence": [
         {
           "path": "docs/product-line-and-weaver-plan.md",
           "fragments": [
-            "Governed Weaver runtime integration",
-            "per-user Dockerized Weaver/OpenClaw-derived runtime profile",
-            "Generated Weaver/OpenClaw config is implementation output from Weave policy"
+            "Agent Runtime Control integration",
+            "signed RuntimeProfile v2",
+            "cell owns zero durable bytes"
           ]
         },
         {
           "path": "docs/architecture.md",
           "fragments": [
-            "Governed Weaver runtime profile contract",
-            "workspace-capability-policy",
-            "exec and elevated surfaces stay disabled by default"
+            "## Agent Runtime Control contract",
+            "RuntimeProfile v2 is a signed, short-lived desired-state projection",
+            "The active MCP catalog is empty"
           ]
         },
         {
           "path": "docs/admin-provisioned-first-use.md",
           "fragments": [
-            "Governed Weaver runtime policy",
-            "User-rights, organization-whitelisted capabilities",
-            "runtime profile generation is audited"
+            "## Agent Runtime Control policy",
+            "Keycloak group membership is the sole coarse entitlement source",
+            "profile generation is audited"
           ]
         },
         {
           "path": "infra/docs/weaver-runtime-lifecycle.md",
           "fragments": [
-            "One active user/trust boundary maps to one active Weaver runtime context",
-            "The only runtime input is a signed `WeaverRuntimeProfile`",
-            "Default egress is deny",
-            "Rollback to the previous signed profile"
+            "Each cell gets a dedicated confidential Keycloak client",
+            "Signed RuntimeProfile input",
+            "Zero durable cell-local bytes",
+            "DELETE_RUNTIME_STATE_ONLY"
           ]
         },
         {
           "path": "infra/weave-workspace/weaver-runtime-lifecycle.contract.json",
           "fragments": [
-            "weave-weaver-runtime-lifecycle-contract-v1",
-            "signed-WeaverRuntimeProfile",
-            "weave-api-internal",
-            "stop-container-revoke-token-deny-new-tool-calls"
+            "weave-weaver-runtime-lifecycle-contract-v2",
+            "signed-RuntimeProfile-v2",
+            "zeroDurableCellLocalBytes",
+            "confirmed-delete-runtime-state-identity-credential-and-ephemeral-material"
           ]
         }
       ],
       "evidenceMode": "offline-spec"
     },
     {
-      "tag": "@weave-v01-governed-weaver-tool-registry",
-      "scenario": "Weaver discovers and invokes only approved domain tools",
+      "tag": "@weave-v01-mcp-workload-boundary",
+      "scenario": "MCP admits only a current entitled workload and advertises no tools yet",
       "feature": "e2e/features/v0_1_dogfood_release.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/WorkspaceControllerTest.java",
+      "executableTest": "weave-mcp-server/src/test/java/com/massimotter/weave/mcp/SpringAiMcpTransportTest.java",
       "evidenceMarkers": [
-        "V01_GOVERNED_WEAVER_TOOL_REGISTRY"
+        "V01_MCP_WORKLOAD_BOUNDARY"
       ],
       "additionalEvidence": [
         {
           "path": "docs/governed-weaver-runtime-security-contract.md",
           "fragments": [
-            "Tool registry v1",
-            "Discovery filters by the generated runtime profile's grants",
-            "Invocation additionally fails closed unless the signed profile matches the same user",
-            "Bounded assistance results may cite canonical `space:`, `decision:`, and `board-task:` refs"
+            "MCP is an AI-workload surface, never a human member API",
+            "The domain tool, resource, and prompt catalogs are currently empty",
+            "inbound bearer is never relayed",
+            "ApprovalDecisionEvidence v2"
           ]
         },
         {
-          "path": "docs/evidence/weaver-security-privacy-accessibility-report.md",
+          "path": "infra/docs/weave-mcp-tool-contract.md",
           "fragments": [
-            "grant-filtered discovery",
-            "signed same-user profile enforcement",
-            "approval-required writes",
-            "Weaver bounded-assistance approval proof"
+            "workload boundary active",
+            "Human access tokens",
+            "Standard Token Exchange V2",
+            "catalogs remain empty"
           ]
         }
       ],
@@ -1342,9 +1342,10 @@
         {
           "path": "docs/architecture/weaver-openclaw-profile.md",
           "fragments": [
-            "The `WeaverRuntimeProfile` is a support-safe runtime projection consumed by the OpenClaw-derived Weaver runtime, not the hard authorization boundary for governed tool calls.",
-            "Matrix, Teams, iMessage, Slack, Telegram, or another supported southbound provider are backend providerRefs",
-            "Admin Chat provider changes are provider migrations, not member adapter switches"
+            "The active projection is `RuntimeProfile v2`.",
+            "authenticates, authorizes, policy-checks, idempotently applies, and audits every MCP side effect.",
+            "providerRefs, not per-member runtime channel choices",
+            "migrations, not member adapter switches"
           ]
         }
       ],
@@ -1539,7 +1540,7 @@
     },
     {
       "tag": "@weave-product-readiness-waterfall",
-      "scenario": "Admin bootstraps organization, validates domains, configures providers, enables Weaver, and member works provider-neutrally",
+      "scenario": "Admin bootstraps organization, validates domains, controls an entitled runtime cell, and members work provider-neutrally",
       "feature": "e2e/features/product_readiness_waterfall.feature",
       "executableTest": "client/test/release_1/v0_1_release_spine_contract_test.dart",
       "evidenceMarkers": [
@@ -1553,9 +1554,9 @@
             "Domain registry version",
             "Migration contract version",
             "Keycloak dry-run sample",
-            "Calls/LiveKit readiness artifact",
-            "Weaver tool approval proof",
-            "OpenClaw fork image digest/SBOM/scan refs",
+            "Calls/MatrixRTC readiness artifact",
+            "ARC workload identity and lifecycle proof",
+            "Weaver/OpenClaw upstream provenance",
             "Security report",
             "Privacy report",
             "Accessibility report",
@@ -1669,7 +1670,7 @@
       "executableTest": "client/test/release_1/v0_1_release_spine_contract_test.dart",
       "evidenceMode": "offline-spec",
       "tag": "@weave-sprint12-weaver-preflight-disabled",
-      "scenario": "Weaver runtime and tools remain preflight-only",
+      "scenario": "Agent runtime remains guarded and workload-only",
       "evidenceMarkers": [
         "SPRINT12_WEAVER_PREFLIGHT_DISABLED"
       ],
@@ -1684,9 +1685,9 @@
         {
           "path": "docs/governed-weaver-runtime-security-contract.md",
           "fragments": [
-            "Signed skill/tool manifest",
-            "SecretRef and OAuth broker rules",
-            "no marketplace"
+            "MCP is an AI-workload surface, never a human member API",
+            "zero durable cell-local bytes",
+            "domain tool, resource, and prompt catalogs are currently empty"
           ]
         }
       ]
@@ -2038,7 +2039,7 @@
             "| Weave Control |",
             "| Admin Console |",
             "| Weave App / Client |",
-            "future organization capability and governance surface"
+            "Agent Runtime Control lifecycle and policy controls"
           ]
         },
         {
@@ -2048,7 +2049,7 @@
             "weave_control",
             "admin_console",
             "weave_app_client",
-            "v0_1_spec_0001_runtime_claim"
+            "domain_authorization_authority"
           ]
         }
       ]
@@ -2609,7 +2610,7 @@
     },
     {
       "tag": "@weave-spec-0007-runtime-profile-from-policy",
-      "scenario": "Weaver runtime profile is generated from organization policy and roles",
+      "scenario": "Agent Runtime Control profile is generated from current entitlement and policy",
       "feature": "e2e/features/weave_spec_0007_acceptance.feature",
       "executableTest": "client/test/live_stack_feature_mapping_test.dart",
       "evidenceMarkers": [
@@ -2635,7 +2636,7 @@
     },
     {
       "tag": "@weave-spec-0007-tool-approval-receipt-fail-closed",
-      "scenario": "Weaver tool invocation requires signed decision evidence and current domain authorization",
+      "scenario": "ARC workload invocation requires signed decision evidence and current domain authorization",
       "feature": "e2e/features/weave_spec_0007_acceptance.feature",
       "executableTest": "client/test/live_stack_feature_mapping_test.dart",
       "evidenceMarkers": [
@@ -3430,7 +3431,7 @@
     },
     {
       "tag": "@weave-spec-0007-intent",
-      "scenario": "Governed Weaver intent keeps runtime tools policy-derived and auditable",
+      "scenario": "Agent Runtime Control keeps workload access policy-derived and auditable",
       "feature": "e2e/features/weave_spec_0007_acceptance.feature",
       "executableTest": "client/test/live_stack_feature_mapping_test.dart",
       "evidenceMarkers": [
@@ -3449,7 +3450,7 @@
     },
     {
       "tag": "@weave-spec-0007-scope",
-      "scenario": "Governed Weaver separates approved tool execution from out-of-scope autonomous actions",
+      "scenario": "Agent Runtime Control separates approved domain execution from autonomous runtime behavior",
       "feature": "e2e/features/weave_spec_0007_acceptance.feature",
       "executableTest": "client/test/live_stack_feature_mapping_test.dart",
       "evidenceMarkers": [
@@ -3468,7 +3469,7 @@
     },
     {
       "tag": "@weave-spec-0007-functional-requirements",
-      "scenario": "Governed Weaver functional requirements are scenario-backed",
+      "scenario": "Agent Runtime Control functional requirements are scenario-backed",
       "feature": "e2e/features/weave_spec_0007_acceptance.feature",
       "executableTest": "client/test/live_stack_feature_mapping_test.dart",
       "evidenceMarkers": [
@@ -3487,7 +3488,7 @@
     },
     {
       "tag": "@weave-spec-0007-runtime-profile",
-      "scenario": "RuntimeProfile projection model reflects policy roles grants and denied tools",
+      "scenario": "RuntimeProfile projection is desired state and never an authorization grant",
       "feature": "e2e/features/weave_spec_0007_acceptance.feature",
       "executableTest": "client/test/live_stack_feature_mapping_test.dart",
       "evidenceMarkers": [
@@ -3790,12 +3791,12 @@
       ]
     },
     {
-      "tag": "@weave-spec-0007-initial-tool-set",
-      "scenario": "Initial Weaver tool set is explicit approved and policy bounded",
+      "tag": "@weave-spec-0007-mcp-catalog-boundary",
+      "scenario": "Workload MCP catalog remains empty until domain action contracts are implemented",
       "feature": "e2e/features/weave_spec_0007_acceptance.feature",
       "executableTest": "client/test/live_stack_feature_mapping_test.dart",
       "evidenceMarkers": [
-        "WEAVE_SPEC_0007_INITIAL_TOOL_SET"
+        "WEAVE_SPEC_0007_MCP_CATALOG_BOUNDARY"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
@@ -3803,7 +3804,7 @@
           "path": "specs/0007-governed-weaver-runtime/spec.md",
           "fragments": [
             "WEAVE-SPEC-0007",
-            "Initial tool set"
+            "MCP catalog boundary"
           ]
         }
       ]
@@ -4002,7 +4003,7 @@
     },
     {
       "tag": "@weave-spec-0011-group-policy-gating",
-      "scenario": "Weaver provisioning is gated by organization policy and weaver-group membership",
+      "scenario": "Agent runtime provisioning is gated by authoritative Keycloak entitlement",
       "feature": "e2e/features/weave_spec_0011_acceptance.feature",
       "executableTest": "client/test/live_stack_feature_mapping_test.dart",
       "evidenceMarkers": [
@@ -4027,22 +4028,22 @@
         {
           "path": "specs/0011-weaver-governed-pa-target/weaver-runtime-governance-contract.json",
           "fragments": [
-            "weaver-group",
-            "deny-runtime-profile-tool-grants-memory-automation"
+            "weave-weaver-runtime",
+            "agent-runtime.entitled"
           ]
         },
         {
           "path": "admin-console/src/App.test.tsx",
           "fragments": [
-            "shows Weaver projection as an inspect-only member-safe preview",
-            "weaver.enabled remains blocked"
+            "loads an Agent Runtime Control projection without exposing runtime internals",
+            "Agent Runtime Control"
           ]
         }
       ]
     },
     {
       "tag": "@weave-spec-0011-memory-isolation",
-      "scenario": "Weaver memory is isolated per user",
+      "scenario": "Runtime state is external encrypted and isolated per cell",
       "feature": "e2e/features/weave_spec_0011_acceptance.feature",
       "executableTest": "client/test/live_stack_feature_mapping_test.dart",
       "evidenceMarkers": [
@@ -4067,8 +4068,8 @@
         {
           "path": "specs/0011-weaver-governed-pa-target/weaver-runtime-governance-contract.json",
           "fragments": [
-            "per-user",
-            "export",
+            "cellLocalDurableBytes",
+            "encrypted-external-runtime-state",
             "retention"
           ]
         }
@@ -4076,7 +4077,7 @@
     },
     {
       "tag": "@weave-spec-0011-domain-tool-approval",
-      "scenario": "Weaver uses domain-first tools with signed decision and action evidence",
+      "scenario": "Workload MCP stays empty until domain tools have current action evidence contracts",
       "feature": "e2e/features/weave_spec_0011_acceptance.feature",
       "executableTest": "client/test/live_stack_feature_mapping_test.dart",
       "evidenceMarkers": [
@@ -4109,15 +4110,15 @@
         {
           "path": "admin-console/src/App.test.tsx",
           "fragments": [
-            "renders support-safe Weaver projection labels for chat, models, tools, skills, and MCPs",
-            "approval"
+            "loads an Agent Runtime Control projection without exposing runtime internals",
+            "empty catalog"
           ]
         }
       ]
     },
     {
       "tag": "@weave-spec-0011-heartbeat-fallback-audit",
-      "scenario": "Weaver automation heartbeat fails closed with support-safe audit and fallback",
+      "scenario": "Runtime wake processing fails closed with support-safe audit and fallback",
       "feature": "e2e/features/weave_spec_0011_acceptance.feature",
       "executableTest": "client/test/live_stack_feature_mapping_test.dart",
       "evidenceMarkers": [
@@ -4144,39 +4145,6 @@
           "fragments": [
             "fail-closed",
             "support-safe-no-raw-provider-secrets-no-private-runtime-paths"
-          ]
-        }
-      ]
-    },
-    {
-      "tag": "@sprint32-beta-admin-user-weaver-path",
-      "scenario": "Admin prepares readiness, enables Weaver, and a member uses governed Weaver in a workspace",
-      "feature": "e2e/features/sprint_32_beta_path.feature",
-      "executableTest": "e2e/tests/sprint32_beta_path_check.py",
-      "evidenceMarkers": [
-        "BETA_ADMIN_READINESS_RESULT",
-        "BETA_WEAVER_ENABLEMENT_RESULT",
-        "BETA_MEMBER_WORKSPACE_RESULT",
-        "BETA_GOVERNED_RUNTIME_RESULT",
-        "BETA_ADAPTER_CONTINUITY_RESULT",
-        "BETA_AUDIT_EVIDENCE_RESULT"
-      ],
-      "evidenceMode": "offline-spec",
-      "additionalEvidence": [
-        {
-          "path": "docs/evidence/sprint-32-beta-path-evidence.md",
-          "fragments": [
-            "Admin prepares and validates organization/provider/category readiness",
-            "User opens the Client in workspace context and uses Weaver",
-            "No secrets, raw provider payloads, raw Weaver prompts, endpoint URLs, room IDs, event IDs, usernames, or member content are recorded"
-          ]
-        },
-        {
-          "path": "release/provider-lab/weaver-runtime/sprint-32-beta-path-evidence.fixture.json",
-          "fragments": [
-            "weave-beta-admin-user-weaver-path-evidence",
-            "blocked_environment_unavailable",
-            "BETA_GOVERNED_RUNTIME_RESULT"
           ]
         }
       ]
@@ -4226,8 +4194,8 @@
             "WebDAV for Files",
             "CalDAV/iCalendar for Calendar",
             "Matrix Client-Server API for Chat",
-            "WebRTC plus Weave join grants for Calls",
-            "MCP for Agents"
+            "pinned MatrixRTC Profile 0 plus WebRTC for Calls",
+            "workload-only MCP for Agents"
           ]
         },
         {
@@ -4606,7 +4574,7 @@
     },
     {
       "tag": "@oidc-protocol-access",
-      "scenario": "First-party OIDC bearer token accesses all protocol surfaces",
+      "scenario": "First-party authentication reaches each protocol through its native authorization boundary",
       "feature": "e2e/features/oidc_protocol_access.feature",
       "executableTest": "client/test/live_stack_contract_test.dart",
       "evidenceMarkers": [
@@ -5501,8 +5469,8 @@
       ]
     },
     {
-      "tag": "@calls-create",
-      "scenario": "Member creates a Weave call",
+      "tag": "@calls-matrixrtc-discovery",
+      "scenario": "Member discovers MatrixRTC through authenticated Matrix APIs",
       "feature": "e2e/features/calls_webrtc_join_grants.feature",
       "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
       "evidenceMarkers": [
@@ -5515,14 +5483,14 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring AI MCP is implemented"
+            "Spring AI MCP is the only runtime MCP path"
           ]
         }
       ]
     },
     {
-      "tag": "@calls-join-grant",
-      "scenario": "Member receives short-lived scoped LiveKit join grant",
+      "tag": "@calls-rtc-authorization",
+      "scenario": "Matrix identity is independently authorized for an RTC slot",
       "feature": "e2e/features/calls_webrtc_join_grants.feature",
       "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
       "evidenceMarkers": [
@@ -5535,14 +5503,14 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring AI MCP is implemented"
+            "Spring AI MCP is the only runtime MCP path"
           ]
         }
       ]
     },
     {
       "tag": "@calls-flutter-livekit",
-      "scenario": "Flutter joins LiveKit room using Weave join grant",
+      "scenario": "Flutter joins the configured SFU through MatrixRTC",
       "feature": "e2e/features/calls_webrtc_join_grants.feature",
       "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
       "evidenceMarkers": [
@@ -5555,14 +5523,14 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring AI MCP is implemented"
+            "Spring AI MCP is the only runtime MCP path"
           ]
         }
       ]
     },
     {
       "tag": "@calls-media",
-      "scenario": "Participant can publish and subscribe to media",
+      "scenario": "Private media requires MatrixRTC media E2EE",
       "feature": "e2e/features/calls_webrtc_join_grants.feature",
       "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
       "evidenceMarkers": [
@@ -5575,14 +5543,14 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring AI MCP is implemented"
+            "Spring AI MCP is the only runtime MCP path"
           ]
         }
       ]
     },
     {
-      "tag": "@calls-expired-grant",
-      "scenario": "Expired join grant cannot be reused",
+      "tag": "@calls-expired-sfu-token",
+      "scenario": "Expired SFU token cannot be reused",
       "feature": "e2e/features/calls_webrtc_join_grants.feature",
       "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
       "evidenceMarkers": [
@@ -5595,14 +5563,14 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring AI MCP is implemented"
+            "Spring AI MCP is the only runtime MCP path"
           ]
         }
       ]
     },
     {
       "tag": "@calls-revoke-participant",
-      "scenario": "Revoked participant is removed and cannot rejoin with old grant",
+      "scenario": "Revoked participant loses current and future media access",
       "feature": "e2e/features/calls_webrtc_join_grants.feature",
       "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
       "evidenceMarkers": [
@@ -5615,14 +5583,14 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring AI MCP is implemented"
+            "Spring AI MCP is the only runtime MCP path"
           ]
         }
       ]
     },
     {
       "tag": "@calls-audit",
-      "scenario": "Call leave and end record support-safe audit",
+      "scenario": "RTC authorization and call lifecycle record support-safe evidence",
       "feature": "e2e/features/calls_webrtc_join_grants.feature",
       "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
       "evidenceMarkers": [
@@ -5635,14 +5603,14 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring AI MCP is implemented"
+            "Spring AI MCP is the only runtime MCP path"
           ]
         }
       ]
     },
     {
       "tag": "@calls-provider-error-redaction",
-      "scenario": "LiveKit provider errors are support-safe",
+      "scenario": "SFU adapter failures remain support-safe",
       "feature": "e2e/features/calls_webrtc_join_grants.feature",
       "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
       "evidenceMarkers": [
@@ -5655,14 +5623,14 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring AI MCP is implemented"
+            "Spring AI MCP is the only runtime MCP path"
           ]
         }
       ]
     },
     {
-      "tag": "@calls-matrix-projection",
-      "scenario": "Optional Matrix call event projection is support-safe when enabled",
+      "tag": "@calls-reject-legacy",
+      "scenario": "Legacy Calls contracts are rejected",
       "feature": "e2e/features/calls_webrtc_join_grants.feature",
       "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
       "evidenceMarkers": [
@@ -5675,44 +5643,44 @@
           "fragments": [
             "OPEN_STANDARDS_GATEWAY_ARCHIVE_FULL_TARGET_TRACKED",
             "not complete",
-            "Spring AI MCP is implemented"
+            "Spring AI MCP is the only runtime MCP path"
           ]
         }
       ]
     },
     {
       "tag": "@mcp-files-facade",
-      "scenario": "MCP Files tools use Weave Files facade semantics",
+      "scenario": "MCP Files catalog stays empty until the Files action contract is complete",
       "feature": "e2e/features/mcp_domain_facade_boundary.feature",
       "executableTest": "tools/spring_ai_mcp_facade_acceptance_check.py",
       "evidenceMarkers": [
-        "MCP_CANONICAL_DOMAIN_DISPATCH"
+        "MCP_DOMAIN_CATALOGS_EMPTY"
       ],
       "evidenceMode": "offline-spec"
     },
     {
       "tag": "@mcp-calendar-facade",
-      "scenario": "MCP Calendar tools use Weave Calendar facade semantics",
+      "scenario": "MCP Calendar catalog stays empty until the Calendar action contract is complete",
       "feature": "e2e/features/mcp_domain_facade_boundary.feature",
       "executableTest": "tools/spring_ai_mcp_facade_acceptance_check.py",
       "evidenceMarkers": [
-        "MCP_CANONICAL_DOMAIN_DISPATCH"
+        "MCP_DOMAIN_CATALOGS_EMPTY"
       ],
       "evidenceMode": "offline-spec"
     },
     {
       "tag": "@mcp-chat-facade",
-      "scenario": "MCP Chat tools use Weave or Matrix-governed semantics",
+      "scenario": "MCP Chat catalog stays empty until the Chat action contract is complete",
       "feature": "e2e/features/mcp_domain_facade_boundary.feature",
       "executableTest": "tools/spring_ai_mcp_facade_acceptance_check.py",
       "evidenceMarkers": [
-        "MCP_CANONICAL_DOMAIN_DISPATCH"
+        "MCP_DOMAIN_CATALOGS_EMPTY"
       ],
       "evidenceMode": "offline-spec"
     },
     {
       "tag": "@mcp-calls-facade",
-      "scenario": "MCP Calls tools use Weave call grants",
+      "scenario": "MCP Calls catalog stays empty until MatrixRTC authorization is current",
       "feature": "e2e/features/mcp_domain_facade_boundary.feature",
       "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
       "evidenceMarkers": [
@@ -5732,7 +5700,7 @@
     },
     {
       "tag": "@mcp-no-provider-leakage",
-      "scenario": "MCP outputs contain no provider internals",
+      "scenario": "MCP protocol metadata contains no provider internals",
       "feature": "e2e/features/mcp_domain_facade_boundary.feature",
       "executableTest": "tools/spring_ai_mcp_facade_acceptance_check.py",
       "evidenceMarkers": [
@@ -5743,7 +5711,7 @@
     },
     {
       "tag": "@spring-ai-mcp-transport",
-      "scenario": "MCP keeps the Spring AI transport dark until workload binding exists",
+      "scenario": "MCP admits only a current ARC-bound workload",
       "feature": "e2e/features/mcp_domain_facade_boundary.feature",
       "executableTest": "tools/spring_ai_mcp_facade_acceptance_check.py",
       "evidenceMarkers": [
@@ -5755,7 +5723,8 @@
         {
           "path": "weave-mcp-server/src/test/java/com/massimotter/weave/mcp/SpringAiMcpTransportTest.java",
           "fragments": [
-            "mcpRemainsDarkForHumansAndUnboundWorkloadsUntilArcBindingExists",
+            "boundCellIsExchangedAndDispatchedThroughTheFrameworkTransport",
+            "humanBearerCannotDiscoverTheMcpCatalog",
             "weaver-cell-test",
             "status().isForbidden()"
           ]
@@ -5768,45 +5737,46 @@
       "feature": "e2e/features/mcp_domain_facade_boundary.feature",
       "executableTest": "tools/spring_ai_mcp_facade_acceptance_check.py",
       "evidenceMarkers": [
-        "MCP_WORKLOAD_EDGE_DENY_ALL"
+        "MCP_WORKLOAD_EDGE_BOUND_CELL_ONLY"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
           "path": "weave-mcp-server/src/test/java/com/massimotter/weave/mcp/SpringAiMcpTransportTest.java",
           "fragments": [
-            "oidcIsTheGatekeeperForSpringAiMcpTransport",
+            "missingBearerReceivesDiscoverableRfc9728Challenge",
+            "humanBearerCannotDiscoverTheMcpCatalog",
             "status().isUnauthorized()",
-            "audience(List.of(\"weave-mcp-server\"))",
-            "authorizedParty(tokenValue)",
-            "service-account-"
+            "audience(human ? List.of(\"https://api.weave.test/api\") : List.of(RESOURCE, EDGE))",
+            "weaver-runtime"
           ]
         }
       ]
     },
     {
       "tag": "@mcp-runtime-approved-discovery",
-      "scenario": "Runtime-approved MCP discovery remains unavailable without ARC binding",
+      "scenario": "Runtime-approved MCP context is active while domain catalogs stay guarded",
       "feature": "e2e/features/mcp_domain_facade_boundary.feature",
       "executableTest": "tools/spring_ai_mcp_facade_acceptance_check.py",
       "evidenceMarkers": [
-        "MCP_RUNTIME_DISCOVERY_DARK_UNTIL_ARC"
+        "MCP_RUNTIME_CONTEXT_ACTIVE"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/McpSecurityConfiguration.java",
+          "path": "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/McpRequestAdmissionFilter.java",
           "fragments": [
-            ".requestMatchers(\"/mcp\", \"/mcp/**\").denyAll()",
-            "service-account -> cell -> RuntimeProfile v2 binding",
-            "Human/member tokens and unbound service accounts"
+            "CLIENT_CREDENTIALS_EXTENSION",
+            "exchange.exchange(",
+            "contexts.resolve(",
+            "BACKEND_CONTEXT_ATTRIBUTE"
           ]
         }
       ]
     },
     {
       "tag": "@mcp-approval-ownership-boundary",
-      "scenario": "MCP writes fail closed without trusted OpenClaw approval evidence",
+      "scenario": "MCP write catalogs remain empty without trusted OpenClaw decision evidence",
       "feature": "e2e/features/mcp_domain_facade_boundary.feature",
       "executableTest": "tools/spring_ai_mcp_facade_acceptance_check.py",
       "evidenceMarkers": [
@@ -5976,7 +5946,7 @@
     },
     {
       "tag": "@flutter-calls-livekit",
-      "scenario": "Flutter Calls uses Weave Calls API and LiveKit media",
+      "scenario": "Flutter Calls uses MatrixRTC Profile 0 and WebRTC media",
       "feature": "e2e/features/flutter_protocol_boundary.feature",
       "executableTest": "tools/open_standards_gateway_archive_gap_check.py",
       "evidenceMarkers": [

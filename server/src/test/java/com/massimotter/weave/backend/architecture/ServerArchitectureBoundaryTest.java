@@ -26,7 +26,6 @@ class ServerArchitectureBoundaryTest {
             BACKEND_PACKAGE + "boards.vikunja.",
             BACKEND_PACKAGE + "boards.deck.",
             BACKEND_PACKAGE + "boards.local.",
-            BACKEND_PACKAGE + "calls.livekit.",
             BACKEND_PACKAGE + "identity.realm.");
     private static final List<String> PROVIDER_ADAPTER_IMPORT_PREFIXES = List.of(
             BACKEND_PACKAGE + "chat.provider.",
@@ -34,7 +33,6 @@ class ServerArchitectureBoundaryTest {
             BACKEND_PACKAGE + "boards.vikunja.",
             BACKEND_PACKAGE + "boards.deck.",
             BACKEND_PACKAGE + "boards.local.",
-            BACKEND_PACKAGE + "calls.livekit.",
             BACKEND_PACKAGE + "service.files.NextcloudFilesAdapter",
             BACKEND_PACKAGE + "service.calendar.CalDavCalendarAdapter",
             BACKEND_PACKAGE + "identity.realm.HttpKeycloakRealmAdminClient",
@@ -80,7 +78,8 @@ class ServerArchitectureBoundaryTest {
             "/service/FileProductProfileOverrideRepository.java",
             "/service/migration/FileMigrationRunEvidenceRepository.java");
     private static final List<String> ACCEPTED_FILE_KEY_CUSTODY_ALLOWLIST = List.of(
-            "/agentruntime/adapter/FileRuntimeProfileSigningKeyStore.java");
+            "/agentruntime/adapter/FileRuntimeProfileSigningKeyStore.java",
+            "/agentruntime/adapter/FileRuntimeStateKeyWrapper.java");
     private static final List<String> FILE_RUNTIME_AUTHORITY_MARKERS = List.of(
             "Path storagePath",
             "readValue(storagePath.toFile()",
@@ -456,9 +455,7 @@ class ServerArchitectureBoundaryTest {
         return !source.packageName().equals(BACKEND_PACKAGE + "config")
                 && !source.packageName().startsWith(BACKEND_PACKAGE + "config.")
                 && !source.packageName().startsWith(BACKEND_PACKAGE + "chat.provider.")
-                && (source.packageName().equals(BACKEND_PACKAGE + "weaver")
-                || source.packageName().startsWith(BACKEND_PACKAGE + "weaver.")
-                || className.contains("Mcp")
+                && (className.contains("Mcp")
                 || className.contains("WebDav")
                 || className.contains("CalDav")
                 || className.contains("CardDav")

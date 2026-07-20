@@ -51,7 +51,7 @@ Commercial adapters are preparation-only until the free provider lab proves the 
 | Files | Nextcloud and MinIO/S3 | WebDAV/S3 boundary, versions/shares/permissions/lossy evidence. |
 | Calendar | Nextcloud CalDAV and Radicale | Event/recurrence/attendee/resource mapping and rollback limits. |
 | Boards | OpenProject and a second OSS provider later | Board/task workflow mapping and lossy fields. |
-| Weaver | Docker runtime | Per-user isolated runtime lifecycle, profile hashing, audit, revoke proof. |
+| Agent Runtime Control | OpenClaw/Weaver runtime provider | Entitled disposable-cell lifecycle, RuntimeProfile v2 signing, external encrypted state, workload identity, audit, revoke, delete, and kill/recreate proof. |
 
 Commercial adapter readiness for Teams and Slack is allowed only as research/spec readiness: auth model, API rights, rate limits, history export, attachments, user/guest/thread mapping, retention, E2EE/compliance limits, costs, admin consent, rollback capability.
 
@@ -62,7 +62,8 @@ Sprint 21 must align docs, contracts, and manifests to these object names before
 - Chat: `WeaveSpace`, `WeaveConversation`, `WeaveMessage`, `WeaveThread`, `WeaveReaction`, `WeaveAttachment`, `WeaveMembership`, `WeaveHistoryPolicy`, `ProviderRef`, `MigrationReceipt`, `RollbackReceipt`, `LossyFieldReport`.
 - Files: `WeaveDrive`, `WeaveFolder`, `WeaveFile`, `WeaveVersion`, `WeaveShare`, `WeavePermission`, `WeaveLock`, `WeaveQuota`, `ProviderRef`.
 - Calendar: `WeaveCalendar`, `WeaveEvent`, `WeaveRecurrence`, `WeaveAttendee`, `WeaveResource`, `WeaveAvailability`, `ProviderRef`.
-- Weaver: `WeaverRuntimeProfile`, `WeaverRuntimeInstance`, `WeaverUserWorkspace`, `WeaverToolGrant`, `WeaverApprovalReceipt`, `WeaverAuditEvent`, `WeaverCustomizationProfile`.
+- Agent Runtime Control: `RuntimeEntitlementRef`, `RuntimeProfile`, `ApprovalChallenge`,
+  `RuntimeCell`, `WorkspaceRevision`, `RuntimeRevocation`, `RuntimeAuditCorrelation`.
 
 ## Provider manifest shape
 
@@ -113,7 +114,9 @@ supportEvidence:
 1. **Foundation/claim gate**: tighten forbidden-claim scans; wire reality-level JSON checks into release evidence.
 2. **Manifest/schema**: add provider manifest schema and seed free-provider manifests at truthful levels.
 3. **Chat switch proof**: build Matrix/Zulip fixture generator, mapping, lossy report, import/apply, rollback receipt, and UI-stability evidence.
-4. **Weaver runtime factory**: implement reconciler, container manager, workspace manager, secret broker, audit and health service contracts; prove per-user isolation.
+4. **Agent Runtime Control**: implement entitlement/profile/cell reconciliation, external encrypted
+   state, WebDAV manifest materialization, workload identity, audit, and health ports; prove
+   cross-cell isolation and kill/recreate without durable cell bytes.
 5. **Operator recovery**: upgrade backup/restore/support-bundle artifacts from offline/static to rehearsed evidence.
 6. **Commercial readiness**: maintain Teams/Slack readiness research only after Sprints 21-24 gates are protected.
 

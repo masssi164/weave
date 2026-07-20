@@ -48,7 +48,7 @@ Complete every row with a real person, real device/browser, and real assistive t
 | `member-workspace-loop` | member | Weave Home -> channel workspace -> chat -> files -> calendar -> boards -> meeting/decision loop | VoiceOver or TalkBack; desktop keyboard + screen reader; 200% text scale/reflow | `docs/evidence/accessibility/sprint-18-manual-at-blocker.md`, replace the matching blocked row or link a new completed evidence file |
 | `admin-migration-apply-recovery` | admin/operator | Admin provider replacement dry-run, member-impact preview, apply block, recovery, rollback, support boundary | desktop keyboard; screen reader; 200% zoom/text scale | same as above |
 | `admin-go-live-claim-control` | admin/release owner | Admin RC go-live summary, release blockers, support-bundle refs, audit/export refs, release-notes source, CI/Live Stack evidence, next actions | desktop keyboard; screen reader; text-scale/reflow | same as above |
-| `governed-weaver-approval-revocation` | space owner/admin | Governed Weaver approval, denial, revocation, receipt, audit, disabled-by-policy states | desktop keyboard; screen reader; text-scale/reflow | same as above |
+| `agent-runtime-control-admin-lifecycle` | owner/admin/operator | ARC entitlement and lifecycle actions, delete-state confirmation, audit correlation, disabled-by-policy states | desktop keyboard; screen reader; text-scale/reflow | same as above |
 
 For each row, record:
 
@@ -66,7 +66,7 @@ For each row, record:
 
 ## 4. Support-safe #591 comment template
 
-Paste a completed version into #591 only after the human session. Keep #591 open unless release ownership explicitly accepts all pass rows or an exceptional scoped waiver.
+Issue #591 is closed_not_planned and this file is only a historical template. Record a current human session against the current candidate and current release-owner issue; do not reopen or reuse #591 as pass evidence.
 
 ```markdown
 Manual AT candidate signoff update for #591
@@ -85,7 +85,7 @@ Manual AT rows:
 - `member-workspace-loop`: <pass/fail/waived>, reviewer: <name>, AT/browser/device: <support-safe summary>, blocker: <issue or none>
 - `admin-migration-apply-recovery`: <pass/fail/waived>, reviewer: <name>, AT/browser/device: <support-safe summary>, blocker: <issue or none>
 - `admin-go-live-claim-control`: <pass/fail/waived>, reviewer: <name>, AT/browser/device: <support-safe summary>, blocker: <issue or none>
-- `governed-weaver-approval-revocation`: <pass/fail/waived>, reviewer: <name>, AT/browser/device: <support-safe summary>, blocker: <issue or none>
+- `agent-runtime-control-admin-lifecycle`: <pass/fail/waived>, reviewer: <name>, AT/browser/device: <support-safe summary>, blocker: <issue or none>
 
 Release-owner decision:
 - <accepted / blocked / scoped waiver>

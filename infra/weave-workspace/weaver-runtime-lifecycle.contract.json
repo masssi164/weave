@@ -1,128 +1,179 @@
 {
-  "schema": "weave-weaver-runtime-lifecycle-contract-v1",
-  "status": "disabled-preflight",
+  "schema": "weave-weaver-runtime-lifecycle-contract-v2",
+  "status": "guarded-control-plane",
   "runtimeProfileInput": {
-    "source": "signed-WeaverRuntimeProfile",
+    "source": "signed-RuntimeProfile-v2",
     "requiredVerification": [
-      "signature",
+      "flattenedJwsEdDsa",
+      "rfc8785Payload",
       "issuer",
       "organizationRef",
-      "subjectRef",
+      "personRef",
+      "cellRef",
+      "workloadClientId",
       "runtimeProfileHash",
       "expiresAt",
       "revocationGeneration",
-      "rollbackPointer"
+      "currentCellBinding"
     ],
     "forbiddenMaterial": [
       "rawProviderSecrets",
+      "oauthAccessTokens",
       "oauthRefreshTokens",
       "credentialBearingProviderUrls",
       "rawProviderPayloads"
     ]
   },
+  "identity": {
+    "authority": "keycloak",
+    "clientPerCell": true,
+    "clientIdTemplate": "weaver-cell-{cellId}",
+    "grant": "client_credentials",
+    "tokenMaxTtlSeconds": 60,
+    "subjectBinding": "immutable-keycloak-service-account-subject",
+    "authorizedPartyEqualsClientId": true,
+    "soleRealmRole": "weaver-runtime",
+    "clientRolesAllowed": false,
+    "profileFetch": {
+      "audience": "https://api.weave.test/api/v1/agent-runtime",
+      "soleScope": "agent-runtime.profile.read"
+    },
+    "mcp": {
+      "audience": "https://api.weave.test/mcp",
+      "requiredBaseScope": "mcp:tools",
+      "domainScopesFromCurrentRuntimeProfile": true,
+      "edgeClientId": "weave-mcp-server",
+      "accessTokenType": "at+jwt",
+      "clientCredentialsExtension": "io.modelcontextprotocol/oauth-client-credentials",
+      "backendTokenExchange": "standard-token-exchange-v2-downscoped",
+      "incomingBearerRelayAllowed": false
+    },
+    "humanOrGenericServiceAccess": "deny"
+  },
   "containerBinding": {
     "activeContainerPerTrustBoundary": 1,
     "trustBoundaryKeys": [
       "organizationRef",
-      "subjectRef",
-      "capabilityProfileRef",
+      "personRef",
+      "cellRef",
       "runtimeProfileHash",
       "revocationGeneration"
     ],
-    "supportSafeContainerNameTemplate": "weaver-${runtimeContextRef}",
-    "disallowUsernamesInRuntimeRefs": true
+    "supportSafeContainerNameTemplate": "weaver-{cellRef}",
+    "disallowHumanOrProviderIdentifiersInRuntimeRefs": true
   },
   "filesystem": {
+    "zeroDurableCellLocalBytes": true,
     "readOnlyRootFilesystem": true,
+    "durableCellVolumesAllowed": false,
     "implicitHostMounts": false,
-    "volumes": {
-      "stateDir": "weaver-state-${runtimeContextRef}",
-      "workspaceDir": "weaver-workspace-${runtimeContextRef}",
-      "agentDir": "weaver-agent-${runtimeContextRef}"
+    "ephemeralWritableMounts": [
+      "tmpfs-runtime",
+      "tmpfs-materialization-staging",
+      "tmpfs-cache"
+    ],
+    "portableWorkspace": {
+      "authority": "webdav",
+      "manifest": "signed-WorkspaceManifest",
+      "materialization": "validated-ephemeral-snapshot"
     },
     "forbiddenMounts": [
       "/var/run/docker.sock",
       "hostSshAgent",
       "hostKeychain",
       "operatorHome",
-      "rawOpenClawDashboard"
+      "rawOpenClawDashboard",
+      "durableStateDir",
+      "durableWorkspaceDir",
+      "durableAgentDir"
     ]
+  },
+  "externalRuntimeState": {
+    "authority": "RuntimeStateStore",
+    "cellLocalCopy": "ephemeral-only",
+    "webDavStorageAllowed": false,
+    "dogfoodAdapter": "postgresql-client-encrypted-generations",
+    "generationCipher": "AES-256-GCM",
+    "dataKeyWrapping": "AES-KWP-mounted-file-key",
+    "authenticatedContext": [
+      "organizationRef",
+      "personRef",
+      "cellRef",
+      "storeRef",
+      "generationRef",
+      "generation",
+      "runtimeProfileHash"
+    ],
+    "commit": "compare-and-swap",
+    "fileKeyClaimMaturity": "Guarded",
+    "productionRequirement": "external-kms-or-secret-manager-adapter"
   },
   "resources": {
     "memoryLimitRequired": true,
     "cpuLimitRequired": true,
     "processLimitRequired": true,
-    "diskQuotaRequired": true,
-    "quotaCleanupRequired": true
+    "ephemeralDiskQuotaRequired": true,
+    "ephemeralCleanupRequired": true
   },
   "network": {
     "defaultEgress": "deny",
     "allowedInternalTargets": [
       "weave-api-internal",
       "weave-mcp-gateway-internal",
-      "allowed-channel-proxy",
-      "allowed-mcp-proxy"
+      "allowed-channel-proxy"
     ],
     "forbiddenTargets": [
       "public-internet",
       "provider-api-direct",
       "cloud-metadata-service",
       "host-network",
-      "cross-user-runtime-network"
+      "cross-cell-runtime-network"
     ]
-  },
-  "credentials": {
-    "runtimeReceives": [
-      "shortLivedRuntimeTokenRef",
-      "CredentialRef"
-    ],
-    "runtimeTokenMaxTtlSeconds": 900,
-    "directSecretAccess": false,
-    "credentialBrokerRequired": true
   },
   "lifecycle": {
     "states": [
-      "profile_received",
-      "verified",
-      "staged",
-      "active",
-      "reload_requested",
-      "restart_required",
-      "rollback_pending",
-      "revoked",
-      "stopped"
+      "ABSENT",
+      "PROVISIONING",
+      "STOPPED",
+      "STARTING",
+      "MATERIALIZING",
+      "READY",
+      "BUSY",
+      "SYNCING",
+      "DEGRADED",
+      "SUSPENDED",
+      "REVOKING",
+      "DELETING",
+      "DELETED"
     ],
-    "reloadAllowedFor": [
-      "toolGrantChange",
-      "modelAliasChange",
-      "approvalPolicyChange",
-      "auditPolicyChange"
+    "eventProcessingStates": [
+      "READY",
+      "BUSY"
     ],
-    "restartRequiredFor": [
-      "imageDigestChange",
-      "networkBoundaryChange",
-      "filesystemBoundaryChange",
-      "memoryBoundaryChange",
-      "workspaceBoundaryChange",
-      "sandboxPolicyChange"
+    "revocationAction": "revoke-credential-stop-cell-deny-profile-and-tools",
+    "deleteAction": "confirmed-delete-runtime-state-identity-credential-and-ephemeral-material",
+    "cellDeletionDeletesWebDav": false,
+    "confirmedRuntimeStateDeletionDeletesExternalRuntimeState": true,
+    "runtimeStateDeletionConfirmation": "DELETE_RUNTIME_STATE_ONLY"
+  },
+  "restore": {
+    "consistencySet": [
+      "keycloak-data",
+      "agent-runtime-control-store",
+      "runtime-profile-signing-secret-root",
+      "runtime-state-wrapping-secret-root",
+      "workload-credential-secret-refs"
     ],
-    "rollbackGate": [
-      "previousProfileSignatureValid",
-      "previousProfileUnexpired",
-      "previousProfileNotRevoked",
-      "compatibleWithCurrentPolicyFloor"
-    ],
-    "revocationAction": "stop-container-revoke-token-deny-new-tool-calls"
+    "normalStartupMayGenerateMissingKeys": false,
+    "readinessBlockedUntilReconciled": true
   },
   "supportBundle": {
     "allowedEvidence": [
-      "runtimeContextRef",
+      "supportSafeCellRef",
       "runtimeProfileHash",
       "lifecycleState",
-      "imageDigest",
-      "sbomRef",
-      "scanRef",
-      "quotaSummary",
+      "reconciliationStatus",
+      "runtimeStateGenerationCount",
       "policyDecisionRef",
       "auditEventRef"
     ],
@@ -133,6 +184,8 @@
       "oauthRefreshTokens",
       "cookies",
       "privateKeys",
+      "keyReferences",
+      "credentialReferences",
       "credentialBearingUrls",
       "SecretRefValues",
       "runtimeTokens",

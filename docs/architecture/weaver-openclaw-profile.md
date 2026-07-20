@@ -1,70 +1,107 @@
-# Weaver OpenClaw-derived runtime profile
+# Weaver/OpenClaw runtime projection
 
-Weaver is the optional personal-assistant product line inside Weave. Sprint 8 defines the foundation contract only: a per-user, OpenClaw-derived, governed runtime profile generated from organization policy, user consent, capability whitelists, sandbox rules, and audit requirements. Runtime execution is blocked until those controls exist.
+Status: **Guarded**. Agent Runtime Control, signed RuntimeProfile v2, per-cell Keycloak workload
+identity, encrypted external state generations, and the MCP identity/context chain are implemented.
+A production cell runtime, immutable workspace materializer, external KMS custody, native approval
+evidence, and cross-node crash/reconstruction proof remain gated.
 
-## Positioning
+## Ownership
 
-- Weave remains the provider-neutral organization suite first.
-- Admin Console, identity, RBAC, readiness, whitelisting, diagnostics, backup/restore, and audit come before Weaver runtime execution.
-- Weaver profiles are derived from Weave organization policy and user rights. They do not bypass product permissions or provider facades.
-- No alternative Weaver runtime is approved by this foundation document.
+Weave is the provider-neutral organization product. Weaver is an optional OpenClaw-based runtime,
+not a collaboration domain and not a second source of identity, policy, provider configuration, or
+authorization. `weave/server` owns the narrow Agent Runtime Control context. The upstream-first
+`weaver` distribution owns the agent loop and consumes the signed desired-state projection.
 
-## Runtime profile contract
+The active projection is `RuntimeProfile v2`. Older `WeaverRuntimeProfile` product models and v1
+readers are historical only; they do not authorize a cell or MCP call. Generated `openclaw.json`,
+channel/plugin entries, MCP configuration, tool filters, model defaults, and sandbox settings are
+ephemeral implementation outputs and never member-editable authority.
 
-The `WeaverRuntimeProfile` is a support-safe runtime projection consumed by the OpenClaw-derived Weaver runtime, not the hard authorization boundary for governed tool calls. The runtime may render an internal `openclaw.json`, channel/plugin entries, MCP server entries, tool filters, model defaults, and sandbox settings, but those files are generated implementation artifacts and correlation inputs only. Normal members must not edit them or use the raw OpenClaw dashboard/config wizard to bypass Weave policy. Weave MCP is the policy-enforcement point for tool invocation: it validates transport/resource auth, user/workspace policy, current tool scope, explicit consent, ApprovalReceipts where required, and auditability before any provider access.
+## RuntimeProfile v2
 
-A Weaver runtime profile must be generated per user and per organization. The profile contains only support-safe, auditable grants.
+ARC issues a flattened Ed25519 JWS after revalidating current Keycloak organization membership,
+entitlement, immutable person/cell/workload binding, policy, workspace revision, and revocation
+state. The cell verifies the signature and exact canonical hash before projection. The profile
+contains identifiers, maximum capabilities, expiry, references, and SecretRefs only—never bearer
+tokens, refresh tokens, raw provider credentials, provider payloads, or mutable authorization
+decisions.
 
-| Profile section | Requirement |
-| --- | --- |
-| Identity binding | Weave person, immutable identity subject, organization, Space memberships, and effective capability profile. |
-| Tool grants | Explicit Weave domain tools only, grouped by canonical domain and capability key. Unknown tools are denied. |
-| Provider boundary | Tools call Weave facades, not raw provider credentials or unredacted provider payloads. |
-| Secrets | User/org secrets stay in approved secret storage and are never exported into prompts, logs, or member-visible diagnostics. |
-| Sandbox | Isolated filesystem/network/process policy appropriate to the granted tools. Cross-user data access is denied by default. |
-| Skill packages | Organization-approved skills/packages with version, provenance, and allowlist metadata. |
-| Approval policy | Human approval requirements for external sends, destructive actions, provider writes, group-chat participation, and policy-sensitive operations. |
-| Audit | Every tool call, approval decision, denied action, and capability-bound data access emits support-safe audit evidence. |
-| Member opt-in | Runtime is disabled until the member opts in where required and the organization enables the capability. |
-| Group-chat consent | Assistant participation in shared spaces requires explicit organization policy and conversation-level consent signals. |
+The effective capability rule is **user-rights, organization-whitelisted capabilities**. A profile
+can narrow what a runtime may attempt; it cannot grant a product-domain permission. Weave freshly
+authenticates, authorizes, policy-checks, idempotently applies, and audits every MCP side effect.
 
-Minimum profile fields for the next implementation slice:
+## Upstream-first OpenClaw boundary
 
-- profile version, `runtimeProfileHash`, expiry, support-safe integrity/correlation metadata, and rollback pointer;
-- model provider aliases, default, fallback order, and user-selectable alias list from admin policy;
-- domain capability catalog including `chat.read`, `chat.send`, `files.read`, `calendar.read`, and `weaver.enabled`;
-- stock `channels.matrix` projection pointed at the OIDC-gated Weave Matrix Client-Server facade; Matrix, Teams, iMessage, Slack, Telegram, or another supported southbound provider are backend providerRefs, not separate member/runtime channel configs;
-- MCP server/tool/skill grants from Weave policy only, with personal MCPs routed through Weave approval where allowed;
-- tool and sandbox deny policy where `tools.deny` wins globally and `bundle-mcp`, gateway, cron, exec, write, and patch-style tools are disabled unless explicitly granted;
-- CredentialRefs and short-lived runtime token references only;
-- audit policy requiring `runtimeProfileHash`, user, tool, domain, providerRef, credentialRef when applicable, and policy decision for model/channel/tool/MCP calls.
+The Weaver fork uses upstream OpenClaw for the agent loop, sessions, official Matrix plugin,
+workspace/Markdown memory and skill loaders, MCP client, and native approval lifecycle. It does not
+create `weave-chat`, a second memory engine, a second approval inbox, or a parallel agent core.
+OpenClaw owns approval presentation and decision state. Weave accepts only canonical,
+argument-bound ApprovalDecisionEvidence v2 at the final authorization boundary and emits immutable
+ActionEvidence v2 for a completed side effect.
 
-Admin Chat provider changes are provider migrations, not member adapter switches: Weave checks readiness/migration, binds credentials through the Credential Broker, updates backend Chat-domain routing and providerRefs, generates RuntimeProfile vNext while preserving the stock `channels.matrix` northbound facade contract, reloads or restarts the runtime when needed, and keeps member UX inside Weave.
+The stock `channels.matrix` projection points to the OIDC-gated Weave Matrix Client-Server facade.
+Matrix, Teams, iMessage, Slack, Telegram, or another supported southbound provider are backend
+providerRefs, not per-member runtime channel choices. Admin Chat provider changes are provider
+migrations, not member adapter switches: Weave reviews readiness/fidelity, changes the Chat-domain
+route, and issues RuntimeProfile vNext without exposing provider secrets or URLs to the cell.
 
-## Per-user runtime container lifecycle
+## Disposable cell and external authorities
 
-The infrastructure lifecycle contract is defined in `infra/docs/weaver-runtime-lifecycle.md` and the executable static projection is `infra/weave-workspace/weaver-runtime-lifecycle.contract.json`. One active user/trust boundary maps to one active runtime context/container. The trust boundary is the organization, immutable subject, effective capability profile, current server-side policy/session state, and support-safe `runtimeProfileHash` correlation; another browser session for the same boundary attaches to that context instead of creating a second container.
+One active user/trust boundary maps to one active runtime context/container. The binding consists
+of organization, immutable Keycloak service-account subject and person owner, `cellRef`, current
+RuntimeProfile hash, entitlement revision, and revocation/fencing state.
 
-Each runtime context uses separate `stateDir`, `workspaceDir`, and `agentDir` volumes with opaque support-safe refs, a read-only base filesystem, explicit CPU/memory/process/disk quotas, and no implicit host mounts such as Docker socket, SSH agent, keychain, operator home, or raw OpenClaw dashboard. Default egress is deny. The allowed network targets are internal Weave API, internal Weave MCP Gateway, and explicitly allowed channel/MCP proxies that enforce the same RuntimeProfile and short-lived runtime token.
+The target cell has zero durable cell-local bytes. It uses a read-only image and bounded ephemeral
+runtime/materialization/cache storage. Durable `stateDir`, `workspaceDir`, `agentDir`, host home,
+Docker socket, SSH agent, keychain, and implicit bind mounts are forbidden. Durable authorities are
+separated:
 
-Profile reload, restart, rollback, and revocation are lifecycle operations, not ad-hoc container edits. Here, revocation means server-side session, runtime-token, or tool-grant revocation; the `WeaverRuntimeProfile` remains a support-safe projection and correlation artifact, not the hard authorization boundary. Grant/model/approval/audit changes may reload when the loader proves they are safe. Image, network, filesystem, memory, workspace, and sandbox changes require restart. Rollback may activate only a compatible previous projection under the current server-side policy floor. Revocation of sessions, runtime tokens, or tool grants stops or narrows the container as applicable, denies new tool calls at Weave MCP, and preserves only support-safe audit evidence.
+- WebDAV stores only signed-manifest-constrained portable workspace and Markdown memory;
+- the Weave Control Store owns entitlement/profile refs, lifecycle, manifests/HEAD, dedupe,
+  checkpoint refs, fencing, conflicts, and audit metadata;
+- RuntimeStateStore owns encrypted OpenClaw sessions/databases, native approval state,
+  channel/plugin state, Matrix device/crypto state, and recovery journal generations;
+- Secret Manager/KMS owns credentials, recovery material, and encryption keys.
 
-## Capability rule
+The dogfood RuntimeStateStore encrypts each generation with AES-256-GCM, wraps the random data key
+with a separately mounted AES-KWP key, chunks ciphertext in PostgreSQL, and advances state through
+compare-and-swap. The file-key adapter remains Guarded; production needs an external KMS/secret
+manager plus cross-node reconstruction, corruption, rollback, and migration evidence.
 
-The effective rule is: **user-rights, organization-whitelisted capabilities**.
+## Workload and MCP path
 
-A user must have product permission for the underlying domain object, and the organization must whitelist the corresponding Weaver tool/capability. The narrower result wins. For example, a user who can read a Space board but lacks `boards.update_task` may receive a read-only board summary tool, not a task mutation tool.
+Each cell receives only its dedicated `weaver-cell-{cellId}` private-key credential reference. A
+profile-read token has the exact ARC audience and sole `agent-runtime.profile.read` scope. An MCP
+token has the exact MCP/requester audience set, `mcp:tools`, and only the profile's current domain
+scopes. Both are RFC 9068 access tokens; human and generic service-account tokens are rejected.
 
-## Blocked until evidenced
+The MCP edge negotiates the MCP Client Credentials extension, validates the bound workload, uses
+Keycloak Standard Token Exchange V2 to mint a reduced exact-audience backend token, and resolves
+current ARC context before Spring AI protocol dispatch. It exchanges rather than relays the bearer.
+The domain catalogs remain empty until discovery and approval/action-evidence gates are complete.
 
-Weaver runtime execution stays blocked until implementation proves:
+## Lifecycle, deletion, and recovery
 
-- OpenClaw-derived profile generation is deterministic and policy-bound;
-- tool grants are least-privilege and domain-facade mediated;
-- member opt-in and admin enablement are enforced;
-- approval policy handles external, destructive, and shared-space actions;
-- secrets never cross into prompts, logs, or diagnostics;
-- sandboxing prevents cross-user and cross-organization data bleed;
-- audit and support bundles are redacted and reviewer-verifiable.
+Lifecycle changes are server-governed and idempotent. Revocation wins over queued wake work,
+remembered approval, profile expiry, and pending tools. It fences new work, revokes the profile and
+credential, and stops compute. The confirmed `DELETE_RUNTIME_STATE_ONLY` command additionally
+deletes the selected cell's encrypted RuntimeState generations, Keycloak client, and credential
+SecretRef; it never deletes WebDAV/Files or provider data.
 
-Until then, normal members should not see a half-built assistant surface. Admin/operator views may show readiness blockers and next actions.
+Session reset, RuntimeState reset, Matrix device/crypto rotation, credential revocation, workspace
+memory deletion, and complete personal-agent-data deletion are separate operations. E2EE-destructive
+actions require step-up, an irreversibility warning, and recovery/backup evidence.
+
+Restore treats Keycloak data, ARC database state, signing trust, wrapping keys, and per-cell
+credential SecretRefs as one consistency set. Missing trust roots are never generated by normal
+startup. Readiness stays closed until profiles, bindings, clients, revocations, and encrypted state
+reconcile.
+
+## Promotion gates
+
+No overall Weaver readiness claim is allowed until a busy cell is killed and reconstructed on
+another node without the old filesystem or acknowledged-memory loss; stale-fencing writers fail;
+official Matrix wake/dedupe and native approvals survive replacement; workspace materialization and
+skill quarantine withstand path/content attacks; external KMS and key-loss operations are proven;
+and support/evidence scans remain free of member content, tokens, keys, SecretRef values, and raw
+provider data.

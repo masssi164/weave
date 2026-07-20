@@ -38,10 +38,8 @@
     { "name": "workspace-members", "roles": ["member"] },
     { "name": "workspace-guests", "roles": ["guest"] },
     { "name": "weave-board-editors", "capabilities": ["boards.update_task"] },
-    { "name": "weave-calendar-editors", "capabilities": ["calendar.manage_events", "weaver.calendar_read", "weaver.calendar_create_event"] },
-    { "name": "weave-weaver-pilot", "capabilities": ["weaver.files_read", "weaver.exec_disabled"] },
-    { "name": "weave-weaver-runtime", "capabilities": ["weaver.enabled"] },
-    { "name": "weaver-group", "capabilities": ["weaver.enabled"] }
+    { "name": "weave-calendar-editors", "capabilities": ["calendar.manage_events"] },
+    { "name": "weave-weaver-runtime", "capabilities": ["agent-runtime.entitled"] }
   ],
   "secretRefs": [
     "secretref://weave/provider/keycloak-realm/admin-password",

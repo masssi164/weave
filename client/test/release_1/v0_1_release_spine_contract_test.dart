@@ -99,7 +99,7 @@ void main() {
         'Product positioning',
         'Weave Home and chat overview',
         'Workspace/Admin Health',
-        'Governed Weaver runtime',
+        'Agent Runtime Control',
         'Operator release path',
       ]) {
         expect(markdown, contains(required));
@@ -123,7 +123,7 @@ void main() {
       // V01_ADMIN_HEALTH_POLICY_ENFORCEMENT
       // V01_ORG_CONTROL_PLANE_PROVIDER_FACADE
       // V01_IDM_RBAC_CAPABILITY_POLICY
-      // V01_GOVERNED_WEAVER_RUNTIME_POLICY
+      // V01_AGENT_RUNTIME_CONTROL_POLICY
       // V01_INFRA_CONTROL_PLANE_BOOTSTRAP
       // V01_ADMIN_CONSOLE_MVP
       expect(productLine.existsSync(), isTrue);
@@ -144,14 +144,14 @@ void main() {
         'meetings/calls',
         'documents/collaboration',
         'Weaver',
-        'disabled by default',
+        'disabled without a current entitlement group',
         'Keycloak/Auth',
         'Matrix/Chat',
         'Nextcloud/Files and Calendar backing',
         'OpenProject Boards validation',
-        'LiveKit Meetings readiness',
+        'the MatrixRTC Calls target',
         'IDM/RBAC capability profiles and whitelisting',
-        'Governed Weaver runtime integration',
+        'Agent Runtime Control integration',
       ]) {
         expect(productLineText, contains(required));
       }
@@ -164,17 +164,17 @@ void main() {
         'provider diagnostics',
         'support-safe readiness and next actions',
         'IDM/RBAC capability profiles',
-        'Governed Weaver runtime policy',
+        'Agent Runtime Control policy',
       ]) {
         expect(firstUseText, contains(required));
       }
 
       for (final required in <String>[
         'Provider categories are first-class product/admin concepts',
-        'Weaver is represented only as a disabled-by-default category',
+        'Agent Runtime Control is entitlement-bound',
         'never raw provider setup, service endpoints, provider secrets, or diagnostics',
         'IDM/RBAC and capability whitelisting acceptance',
-        'Governed Weaver runtime policy evidence',
+        'Agent Runtime Control policy evidence',
       ]) {
         expect(planText, contains(required));
       }
@@ -183,7 +183,7 @@ void main() {
         'The Organization/Admin Console remains the control plane',
         'Workspace/Admin Health is organized around feature capability categories',
         'Capability policy responses are support-safe',
-        'Weaver runtime integration consumes the workspace capability policy',
+        'Agent Runtime Control consumes authoritative Keycloak entitlement',
       ]) {
         expect(architectureText, contains(required));
       }
@@ -194,7 +194,7 @@ void main() {
         'V01_ADMIN_HEALTH_POLICY_ENFORCEMENT',
         'V01_ORG_CONTROL_PLANE_PROVIDER_FACADE',
         'V01_IDM_RBAC_CAPABILITY_POLICY',
-        'V01_GOVERNED_WEAVER_RUNTIME_POLICY',
+        'V01_AGENT_RUNTIME_CONTROL_POLICY',
         'V01_INFRA_CONTROL_PLANE_BOOTSTRAP',
         'V01_ADMIN_CONSOLE_MVP',
       ]) {
@@ -297,9 +297,9 @@ void main() {
         'Domain registry version',
         'Migration contract version',
         'Keycloak dry-run sample',
-        'Calls/LiveKit readiness artifact',
-        'Weaver tool approval proof',
-        'OpenClaw fork image digest/SBOM/scan refs',
+        'Calls/MatrixRTC readiness artifact',
+        'ARC workload identity and lifecycle proof',
+        'Weaver/OpenClaw upstream provenance',
         'Security report',
         'Privacy report',
         'Accessibility report',
@@ -315,8 +315,10 @@ void main() {
         'runs Keycloak desired-state dry-run',
         'provider apply is blocked',
         'reviews migration dry-run, lossy report, conflict report, rollback boundary, and member impact preview',
-        'approves selected tools for that group',
-        'member sees only approved Weave domain tools',
+        'grants the agent runtime entitlement through Keycloak',
+        'provisions a dedicated Keycloak workload identity for that cell',
+        'MCP domain tool catalogs stay empty',
+        'revoked without deleting provider data',
         'no raw provider tokens or secrets are exposed',
       ]) {
         expect(featureText, contains(required));
@@ -346,7 +348,8 @@ void main() {
         '@weave-v01-member-provider-neutral-states',
         '@weave-v01-admin-policy-decides-capabilities',
         '@weave-v01-idm-rbac-capability-policy',
-        '@weave-v01-governed-weaver-runtime-policy',
+        '@weave-v01-agent-runtime-control-policy',
+        '@weave-v01-mcp-workload-boundary',
         '@weave-v01-channel-workspace',
         '@weave-v01-chat-domain-facade',
         '@weave-v01-board-write-audit',

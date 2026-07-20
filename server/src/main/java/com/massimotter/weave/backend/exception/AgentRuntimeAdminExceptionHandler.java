@@ -18,6 +18,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.ConstraintViolationException;
 import java.io.IOException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.beans.factory.ObjectProvider;
@@ -33,6 +35,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @Order(Ordered.HIGHEST_PRECEDENCE)
 @RestControllerAdvice(assignableTypes = AgentRuntimeAdminController.class)
 public final class AgentRuntimeAdminExceptionHandler {
+    private static final Logger LOGGER = LoggerFactory.getLogger(AgentRuntimeAdminExceptionHandler.class);
     private final AgentRuntimeErrorResponseWriter errors;
 
     public AgentRuntimeAdminExceptionHandler(
@@ -92,6 +95,7 @@ public final class AgentRuntimeAdminExceptionHandler {
     })
     public void unavailable(RuntimeException failure, HttpServletRequest request, HttpServletResponse response)
             throws IOException {
+        logOperatorFailure("dependency", failure, request);
         errors.write(request, response, HttpStatus.SERVICE_UNAVAILABLE,
                 "agent-runtime-dependency-unavailable", "unavailable", true,
                 "Agent Runtime administration is temporarily unavailable.");
@@ -109,8 +113,18 @@ public final class AgentRuntimeAdminExceptionHandler {
     @ExceptionHandler(Exception.class)
     public void unexpected(Exception failure, HttpServletRequest request, HttpServletResponse response)
             throws IOException {
+        logOperatorFailure("unexpected", failure, request);
         errors.write(request, response, HttpStatus.SERVICE_UNAVAILABLE,
                 "agent-runtime-unavailable", "unavailable", true,
                 "Agent Runtime administration is temporarily unavailable.");
+    }
+
+    private void logOperatorFailure(String category, Exception failure, HttpServletRequest request) {
+        LOGGER.error(
+                "Agent Runtime {} failure [auditRef={}, type={}]",
+                category,
+                errors.auditRef(request),
+                failure.getClass().getSimpleName(),
+                failure);
     }
 }

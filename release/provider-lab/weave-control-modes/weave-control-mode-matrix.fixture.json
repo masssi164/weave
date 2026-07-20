@@ -98,7 +98,7 @@
         "readiness_diagnostics",
         "whitelists",
         "audit_refs",
-        "future_weaver_governance_controls"
+        "agent_runtime_control_lifecycle"
       ],
       "forbidden": [
         "raw_provider_payloads",
@@ -120,18 +120,19 @@
         "endpoint_rotation",
         "bootstrap_diagnostics",
         "cicd_targets",
-        "weaver_runtime_administration"
+        "agent_runtime_control_administration"
       ]
     },
     "weaver": {
       "owns": [
-        "future_governed_organization_capability_planning"
+        "optional_runtime_provider_execution"
       ],
       "forbidden": [
-        "v0_1_spec_0001_runtime_claim",
-        "default_pa_availability",
-        "raw_openclaw_config",
-        "autonomous_runtime_claim"
+        "domain_authorization_authority",
+        "human_mcp_access",
+        "shared_service_account",
+        "durable_cell_local_state",
+        "runtime_profile_v1"
       ]
     }
   }

@@ -29,6 +29,7 @@ if grep -Eq 'TRUSTED_PROXIES=|nextcloud_trusted_proxies' "${nextcloud_module}" "
   fail "Nextcloud proxy trust must not use a static network-wide input"
 fi
 grep -Fq 'FORWARDEDFORHEADERS=HTTP_X_FORWARDED_FOR' "${nextcloud_module}"
+grep -Fq 'NC_dbpassword=${var.db_password}' "${nextcloud_module}"
 grep -Fq 'header_up X-Forwarded-For {http.request.remote.host}' "${caddy_template}"
 grep -Fq 'header_up X-Forwarded-Host {host}' "${caddy_template}"
 grep -Fq 'header_up X-Forwarded-Proto {scheme}' "${caddy_template}"
@@ -89,6 +90,17 @@ export TF_VAR_nextcloud_admin_username='fixture-admin'
 export TF_VAR_nextcloud_admin_password='fixture-admin-password'
 ensure_nextcloud_installed >/dev/null
 [[ "$(cat "${install_race_state}")" == 2 ]] || fail "Nextcloud install convergence was not rechecked after a concurrent install"
+
+actor_reset_state="${TMP_DIR}/nextcloud-actor-reset-state"
+: >"${actor_reset_state}"
+export TF_VAR_nextcloud_backend_actor_username='fixture-actor'
+export TF_VAR_nextcloud_backend_actor_token='fixture-token'
+nextcloud_backend_actor_exists() { return 0; }
+set_nextcloud_backend_actor_password() { printf '%s\n' reset >>"${actor_reset_state}"; }
+ensure_nextcloud_backend_actor_calendar() { :; }
+ensure_nextcloud_backend_actor >/dev/null
+[[ "$(wc -l <"${actor_reset_state}" | tr -d ' ')" == 1 ]] ||
+  fail "an existing Weave-owned Nextcloud actor must converge to the declared protected credential"
 
 oidc_command_state="${TMP_DIR}/nextcloud-oidc-command-state"
 printf '0\n' >"${oidc_command_state}"

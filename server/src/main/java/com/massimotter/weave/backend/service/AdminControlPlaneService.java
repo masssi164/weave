@@ -4,7 +4,6 @@ import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.AuditEvent;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.audit.AuditRedactionLevel;
-import com.massimotter.weave.backend.config.WeaverRuntimeProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.identity.realm.IdentityRealmApplyProperties;
 import com.massimotter.weave.backend.identity.realm.IdentityRealmApplyReport;
@@ -43,13 +42,6 @@ import com.massimotter.weave.backend.model.admin.RcEvidenceGateReadinessResponse
 import com.massimotter.weave.backend.model.admin.ReleaseClaimControlResponse;
 import com.massimotter.weave.backend.model.admin.SecretRefResponse;
 import com.massimotter.weave.backend.model.admin.SuiteDomainReadinessResponse;
-import com.massimotter.weave.backend.model.admin.WeaverDistributionPolicyResponse;
-import com.massimotter.weave.backend.model.admin.WeaverEligibilityPreviewResponse;
-import com.massimotter.weave.backend.model.admin.WeaverMcpGrantResponse;
-import com.massimotter.weave.backend.model.admin.WeaverModelAliasResponse;
-import com.massimotter.weave.backend.model.admin.WeaverRuntimeProfileChangeResponse;
-import com.massimotter.weave.backend.model.admin.WeaverRuntimeProjectionItemResponse;
-import com.massimotter.weave.backend.model.admin.WeaverRuntimeProjectionResponse;
 import com.massimotter.weave.backend.provider.ProviderCapabilityContracts;
 import com.massimotter.weave.backend.provider.ProviderCategoryCatalog;
 import com.massimotter.weave.backend.provider.ProviderRegistry;
@@ -105,22 +97,20 @@ public class AdminControlPlaneService {
             "weave-meeting-hosts",
             "weave-document-editors",
             "weave-decision-recorders",
-            "weaver-group",
-            "weave-weaver-pilot");
+            "weave-weaver-runtime");
     private static final Map<String, List<String>> SIMULATION_GROUP_CAPABILITIES = Map.of(
             "weave-calendar-editors", List.of("calendar.manage_events"),
             "weave-board-editors", List.of("boards.update_task"),
             "weave-meeting-hosts", List.of("meetings.host"),
             "weave-document-editors", List.of("documents.edit"),
             "weave-decision-recorders", List.of("decisions.record"),
-            "weaver-group", List.of("weaver.files_read", "weaver.exec_disabled"),
-            "weave-weaver-pilot", List.of("weaver.files_read", "weaver.exec_disabled"));
+            "weave-weaver-runtime", List.of("agent-runtime.entitled"));
     private static final Set<String> SIMULATION_KNOWN_CAPABILITIES = Set.of(
             "chat.read", "chat.send", "files.read", "files.upload", "calendar.read", "calendar.manage_events",
             "boards.read", "boards.update_task", "meetings.join", "meetings.host", "documents.view", "documents.edit",
             "decisions.read", "decisions.record", "manuals.read", "manuals.admin", "release_evidence.read", "release_evidence.manage",
             "admin_control_plane.readiness_read", "admin.policy.edit", "admin.provider.configure", "operator.support_bundle.create",
-            "weaver.enabled", "weaver.files_read", "weaver.exec_disabled");
+            "agent-runtime.entitled");
     private static final int MAX_BOOTSTRAP_ADMIN_KEYS = 25;
     private static final int MAX_BOOTSTRAP_ADMIN_KEY_LENGTH = MAX_PRIMARY_IDENTITY_KEY_LENGTH;
     private static final Pattern PRIMARY_IDENTITY_KEY_REGEX = Pattern.compile(PRIMARY_IDENTITY_KEY_PATTERN);
@@ -138,7 +128,6 @@ public class AdminControlPlaneService {
     private final List<IdentityRealmLiveApplyAdapter> identityRealmLiveApplyAdapters;
     private final IdentityRealmApplyProperties identityRealmApplyProperties;
     private final Clock clock;
-    private final WeaverRuntimeProperties weaverRuntimeProperties;
 
     @Autowired
     public AdminControlPlaneService(
@@ -151,7 +140,6 @@ public class AdminControlPlaneService {
             ObjectProvider<IdentityRealmEvidenceRepository> identityRealmEvidenceRepository,
             ObjectProvider<List<IdentityRealmLiveApplyAdapter>> identityRealmLiveApplyAdapters,
             ObjectProvider<IdentityRealmApplyProperties> identityRealmApplyProperties,
-            ObjectProvider<WeaverRuntimeProperties> weaverRuntimeProperties,
             ObjectProvider<ProductProfileOverrideRepository> productProfileOverrideRepository,
             ObjectProvider<MigrationRunEvidenceRepository> migrationRunEvidenceRepository) {
         IdentityRealmApplyProperties properties = identityRealmApplyProperties.getIfAvailable(IdentityRealmApplyProperties::new);
@@ -171,8 +159,6 @@ public class AdminControlPlaneService {
         this.identityRealmLiveApplyAdapters = adapters == null || adapters.isEmpty()
                 ? List.of(new KeycloakRealmLiveApplyAdapter(this.identityRealmApplyProperties))
                 : List.copyOf(adapters);
-        this.weaverRuntimeProperties = weaverRuntimeProperties.getIfAvailable(
-                () -> new WeaverRuntimeProperties(false, null, null, null, null, null, null, null, null, null, false, false, true, false));
         this.clock = Clock.systemUTC();
     }
 
@@ -184,8 +170,7 @@ public class AdminControlPlaneService {
             AuditEventPublisher auditEventPublisher,
             Clock clock) {
         this(providerRegistry, workspaceCapabilityService, providerSelectionRepository, organizationBootstrapRepository, auditEventPublisher,
-                List.of(new KeycloakRealmDryRunProvider()), new InMemoryIdentityRealmEvidenceRepository(), List.of(new KeycloakRealmLiveApplyAdapter(new IdentityRealmApplyProperties())), new IdentityRealmApplyProperties(), clock,
-                new WeaverRuntimeProperties(false, null, null, null, null, null, null, null, null, null, false, false, true, false));
+                List.of(new KeycloakRealmDryRunProvider()), new InMemoryIdentityRealmEvidenceRepository(), List.of(new KeycloakRealmLiveApplyAdapter(new IdentityRealmApplyProperties())), new IdentityRealmApplyProperties(), clock);
     }
 
     AdminControlPlaneService(
@@ -198,11 +183,10 @@ public class AdminControlPlaneService {
             IdentityRealmEvidenceRepository identityRealmEvidenceRepository,
             List<IdentityRealmLiveApplyAdapter> identityRealmLiveApplyAdapters,
             IdentityRealmApplyProperties identityRealmApplyProperties,
-            Clock clock,
-            WeaverRuntimeProperties weaverRuntimeProperties) {
+            Clock clock) {
         this(providerRegistry, workspaceCapabilityService, providerSelectionRepository, organizationBootstrapRepository, auditEventPublisher,
                 identityRealmProviders, identityRealmEvidenceRepository, identityRealmLiveApplyAdapters, identityRealmApplyProperties, clock,
-                weaverRuntimeProperties, null, new InMemoryMigrationRunEvidenceRepository());
+                null, new InMemoryMigrationRunEvidenceRepository());
     }
 
     AdminControlPlaneService(
@@ -216,7 +200,6 @@ public class AdminControlPlaneService {
             List<IdentityRealmLiveApplyAdapter> identityRealmLiveApplyAdapters,
             IdentityRealmApplyProperties identityRealmApplyProperties,
             Clock clock,
-            WeaverRuntimeProperties weaverRuntimeProperties,
             ProductProfileOverrideRepository productProfileOverrideRepository,
             MigrationRunEvidenceRepository migrationRunEvidenceRepository) {
         this.providerRegistry = providerRegistry;
@@ -241,9 +224,6 @@ public class AdminControlPlaneService {
                 ? List.of(new KeycloakRealmLiveApplyAdapter(this.identityRealmApplyProperties))
                 : List.copyOf(identityRealmLiveApplyAdapters);
         this.clock = clock;
-        this.weaverRuntimeProperties = weaverRuntimeProperties == null
-                ? new WeaverRuntimeProperties(false, null, null, null, null, null, null, null, null, null, false, false, true, false)
-                : weaverRuntimeProperties;
     }
 
     public AdminControlPlaneResponse overview(Jwt jwt) {
@@ -268,9 +248,6 @@ public class AdminControlPlaneService {
                         .map(selection -> toSelectionResponse(selection, false, readinessFor(selection.category(), registry)))
                         .toList(),
                 whitelist(jwt),
-                weaverDistributionPolicy(registry),
-                weaverEligibilityPreview(),
-                weaverRuntimeProjection(registry),
                 identityReadiness,
                 suiteReadiness,
                 goLiveReadiness(identityReadiness, suiteReadiness),
@@ -289,7 +266,7 @@ public class AdminControlPlaneService {
                         Map.entry("providerSelections", "/api/admin/providers/selections"),
                         Map.entry("suiteReadiness", "/api/admin/control-plane#suiteDomainReadiness"),
                         Map.entry("mcpServerBindings", "/api/admin/control-plane#mcpServerBindings"),
-                        Map.entry("weaverRuntimeProjection", "/api/admin/control-plane#weaverRuntimeProjection")));
+                        Map.entry("agentRuntimes", "/api/admin/agent-runtimes/{personRef}")));
     }
 
     public IdentityProviderReadinessResponse identityProviderReadiness(Jwt jwt) {
@@ -833,18 +810,17 @@ public class AdminControlPlaneService {
                         "chat.read", "chat.send", "files.read", "files.upload", "calendar.read", "calendar.manage_events",
                         "boards.read", "boards.update_task", "meetings.join", "meetings.host", "documents.view", "documents.edit",
                         "decisions.read", "decisions.record", "manuals.read", "manuals.admin", "release_evidence.read", "release_evidence.manage",
-                        "admin_control_plane.readiness_read", "admin.policy.edit", "admin.provider.configure", "weaver.exec_disabled"));
+                        "admin_control_plane.readiness_read", "admin.policy.edit", "admin.provider.configure"));
             }
             if (roles.contains("operator")) {
-                grants.addAll(List.of("admin_control_plane.readiness_read", "operator.support_bundle.create", "release_evidence.read", "manuals.admin", "manuals.read", "weaver.exec_disabled"));
+                grants.addAll(List.of("admin_control_plane.readiness_read", "operator.support_bundle.create", "release_evidence.read", "manuals.admin", "manuals.read"));
             }
             if (roles.contains("member")) {
-                grants.addAll(List.of("chat.read", "chat.send", "files.read", "files.upload", "calendar.read", "boards.read", "meetings.join", "documents.view", "decisions.read", "manuals.read", "release_evidence.read", "weaver.exec_disabled"));
+                grants.addAll(List.of("chat.read", "chat.send", "files.read", "files.upload", "calendar.read", "boards.read", "meetings.join", "documents.view", "decisions.read", "manuals.read", "release_evidence.read"));
             }
             for (String group : groups) {
                 grants.addAll(SIMULATION_GROUP_CAPABILITIES.getOrDefault(group, List.of()));
             }
-            grants.remove("weaver.enabled");
         }
         List<EffectivePolicySimulationResponse.CapabilityState> capabilityStates = requestedCapabilities.stream()
                 .map(capability -> simulationState(capability, grants, failClosed))
@@ -1116,14 +1092,13 @@ public class AdminControlPlaneService {
         Map<String, List<String>> profileCapabilities = new LinkedHashMap<>();
         profileCapabilities.put("workspace-admin", List.of(
                 "chat.read", "chat.send", "files.read", "files.upload", "calendar.read", "calendar.manage_events",
-                "boards.read", "boards.update_task", "admin.provider.configure", "admin.policy.edit", "weaver.exec_disabled"));
+                "boards.read", "boards.update_task", "admin.provider.configure", "admin.policy.edit"));
         profileCapabilities.put("workspace-operator", List.of(
-                "admin_control_plane.readiness_read", "operator.support_bundle.create", "release_evidence.read", "manuals.admin", "weaver.exec_disabled"));
+                "admin_control_plane.readiness_read", "operator.support_bundle.create", "release_evidence.read", "manuals.admin"));
         profileCapabilities.put("member-default", List.of(
-                "chat.read", "chat.send", "files.read", "files.upload", "calendar.read", "boards.read", "weaver.exec_disabled"));
+                "chat.read", "chat.send", "files.read", "files.upload", "calendar.read", "boards.read"));
         profileCapabilities.put("guest-deny-default", List.of());
-        profileCapabilities.put("group:weaver-group", List.of("weaver.files_read", "weaver.exec_disabled"));
-        profileCapabilities.put("group:weave-weaver-pilot", List.of("weaver.files_read", "weaver.exec_disabled"));
+        profileCapabilities.put("group:weave-weaver-runtime", List.of("agent-runtime.entitled"));
         return new CapabilityWhitelistResponse(
                 policy.denyByDefault(),
                 false,
@@ -1961,7 +1936,7 @@ public class AdminControlPlaneService {
                                 "degraded",
                                 "stale",
                                 List.of("docs/evidence/accessibility/sprint-18-manual-at-blocker.md", "docs/evidence/weaver-security-privacy-accessibility-report.md"),
-                                "Refresh manual AT evidence for admin go-live, Workspace, migration, and governed Weaver surfaces before public/final release claims.",
+                                "Refresh manual AT evidence for admin go-live, Workspace, migration, and Agent Runtime Control lifecycle surfaces before public/final release claims.",
                                 true),
                         new RcEvidenceGateReadinessResponse(
                                 "release-notes-input",
@@ -1971,137 +1946,6 @@ public class AdminControlPlaneService {
                                 List.of("docs/release-notes/unreleased.md"),
                                 "Generate release notes from merged PR metadata before RC tagging.",
                                 true)));
-    }
-
-    private WeaverRuntimeProjectionResponse weaverRuntimeProjection(ProviderRegistryResponse registry) {
-        Instant generatedAt = Instant.now(clock);
-        String modelProviderKey = registry.selectedProviderMappings().stream()
-                .filter(selection -> selection.category().equals("model"))
-                .map(ProviderSelection::providerKey)
-                .findFirst()
-                .orElse("lmstudio");
-        String chatProviderKey = registry.selectedProviderMappings().stream()
-                .filter(selection -> selection.category().equals("chat"))
-                .map(ProviderSelection::providerKey)
-                .findFirst()
-                .orElse("matrix-chat");
-        return new WeaverRuntimeProjectionResponse(
-                "weaver-runtime-profile-v1",
-                "runtime-profile-hash-pending-live-regeneration",
-                generatedAt.plusSeconds(3600).toString(),
-                generatedAt.toString(),
-                true,
-                true,
-                false,
-                true,
-                true,
-                "sandbox-readiness-recorded-runtime-execution-disabled",
-                List.of(),
-                List.of("audit://weaver/runtime-profile/projection"),
-                List.of(
-                        projectionItem("chat-route", "chat", "channels.matrix via Weave facade; southbound " + chatProviderKey, "ready", "available", "Stock Matrix channel uses the Weave northbound facade; provider rooms stay behind canonical Chat.", false),
-                        projectionItem("model-alias-general", "model", "general-assistant via " + modelProviderKey, readinessFor("model", registry), "disabled_by_policy", "Alias is admin-selected but runtime remains disabled by default.", false),
-                        projectionItem("tool-calendar-search", "tool", "calendar.search_events", readinessFor("calendar", registry), "disabled_by_policy", "Read-only discovery requires weaver.calendar_read and calendar.read grants.", false),
-                        projectionItem("tool-boards-comment", "tool", "boards.comment", readinessFor("boards-tasks", registry), "disabled_by_policy", "Write-like tool requires explicit approval receipt and audit.", true),
-                        projectionItem("mcp-weave-domain-tools", "mcp", "weave-domain-tools via streamable-http", "configured", "disabled_by_policy", "Admin-bound MCP server is discoverable only to granted RuntimeProfiles and remains disabled until org policy enables Weaver.", true),
-                        projectionItem("consent-shared-space", "mcp", "shared-space consent gate", "admin-action-required", "disabled_by_policy", "Group chat/shared-space participation requires org policy and consent evidence.", true)));
-    }
-
-    private WeaverEligibilityPreviewResponse weaverEligibilityPreview() {
-        boolean policyEnabled = weaverRuntimeProperties.enabled();
-        List<String> requiredGroups = weaverRuntimeProperties.enabledGroups();
-        String canonicalGroup = requiredGroups.isEmpty() ? "weaver-group" : requiredGroups.get(0);
-        List<String> blockedReasons = new ArrayList<>();
-        if (!policyEnabled) {
-            blockedReasons.add("weaver.enabled remains blocked until organization policy enables governed Weaver runtime provisioning");
-        }
-        blockedReasons.add("members outside " + canonicalGroup + " stay deny-by-default for Weaver runtime provisioning");
-        return new WeaverEligibilityPreviewResponse(
-                policyEnabled,
-                true,
-                requiredGroups,
-                List.of("weaver.files_read", "weaver.exec_disabled"),
-                "disabled_by_policy",
-                "disabled_by_policy",
-                policyEnabled ? "coming_later" : "disabled_by_policy",
-                blockedReasons,
-                List.of(
-                        "Grant weaver.enabled through organization policy before runtime rollout.",
-                        "Map eligible members into " + canonicalGroup + " only after member impact preview and audit review."),
-                List.of("audit://weaver/eligibility-preview"));
-    }
-
-    private WeaverRuntimeProjectionItemResponse projectionItem(
-            String id,
-            String category,
-            String label,
-            String state,
-            String memberImpact,
-            String policyImpact,
-            boolean approvalRequired) {
-        String safeState = "unknown".equals(state) ? "admin-action-required" : state;
-        return new WeaverRuntimeProjectionItemResponse(
-                id,
-                category,
-                label,
-                safeState,
-                memberImpact,
-                policyImpact,
-                "Projected through Weave domain policy; raw OpenClaw config, provider credentials, and downstream payloads are not exposed.",
-                List.of("audit://weaver/runtime-profile/" + id),
-                false,
-                approvalRequired);
-    }
-
-    private WeaverDistributionPolicyResponse weaverDistributionPolicy(ProviderRegistryResponse registry) {
-        String modelProviderKey = registry.selectedProviderMappings().stream()
-                .filter(selection -> selection.category().equals("model"))
-                .map(ProviderSelection::providerKey)
-                .findFirst()
-                .orElse("lmstudio");
-        String chatProviderKey = registry.selectedProviderMappings().stream()
-                .filter(selection -> selection.category().equals("chat"))
-                .map(ProviderSelection::providerKey)
-                .findFirst()
-                .orElse("matrix-chat");
-        String readiness = readinessFor("model", registry);
-        if ("unknown".equals(readiness)) {
-            readiness = "admin-action-required";
-        }
-        return new WeaverDistributionPolicyResponse(
-                false,
-                chatProviderKey,
-                readiness,
-                List.of("Changing the model provider regenerates the Weaver RuntimeProfile projection and requires live completion evidence before member rollout."),
-                List.of("runtime profile generation remains blocked until weaver.enabled is explicitly granted by organization policy"),
-                List.of(new WeaverModelAliasResponse(
-                        "general-assistant",
-                        modelProviderKey,
-                        "lmstudio/qwen/qwen3.5-9b",
-                        true)),
-                "general-assistant",
-                List.of(),
-                List.of("chat.search_messages"),
-                List.of("workspace-triage"),
-                List.of(new WeaverMcpGrantResponse("matrix", List.of("reply", "approval"), true)),
-                List.of("shell.exec", "provider.raw_config.read"),
-                List.of("chat.reply", "external.send"),
-                List.of(
-                        "chat.provider=" + chatProviderKey,
-                        "model.provider=" + modelProviderKey,
-                        "models.default=general-assistant",
-                        "credentialRef=credentialref://weave/channels/matrix/access-token"),
-                "runtime-profile-hash-pending-live-regeneration",
-                null,
-                "not_revoked",
-                null,
-                List.of("audit://weaver/matrix-facade/runtime-profile"),
-                List.of(new WeaverRuntimeProfileChangeResponse(
-                        "matrix-mcp-cutover",
-                        "runtime-profile-hash-pending-live-regeneration",
-                        Instant.now(clock).toString(),
-                        "draft",
-                        "Stock Matrix and Spring AI MCP are projected without exposing provider secrets to members.")));
     }
 
     private String readinessFor(String category, ProviderRegistryResponse registry) {
@@ -2202,12 +2046,19 @@ public class AdminControlPlaneService {
                     "unknown-identity-inputs-fail-closed",
                     "Admins must map unknown provider inputs before members receive this capability.");
         }
-        if ("weaver.enabled".equals(capability)) {
+        if ("agent-runtime.entitled".equals(capability)) {
+            if (grants.contains(capability)) {
+                return new EffectivePolicySimulationResponse.CapabilityState(
+                        capability,
+                        "ready",
+                        "current-keycloak-entitlement",
+                        "The person is currently entitled; ARC still validates cell and profile state independently.");
+            }
             return new EffectivePolicySimulationResponse.CapabilityState(
                     capability,
                     "disabled",
-                    "weaver-default-disabled",
-                    "Weaver remains opt-in, governed, audited, and disabled by default.");
+                    "agent-runtime-entitlement-required",
+                    "Agent Runtime Control remains closed without current Keycloak entitlement.");
         }
         if (grants.contains(capability)) {
             return new EffectivePolicySimulationResponse.CapabilityState(

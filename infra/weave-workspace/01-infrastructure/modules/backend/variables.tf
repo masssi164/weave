@@ -291,6 +291,111 @@ variable "context_authorization_bootstrap_role" {
   type        = string
 }
 
+variable "agent_runtime_enabled" {
+  description = "Enable Agent Runtime Control persistence, policy, signing trust, and encrypted external state."
+  type        = bool
+}
+
+variable "agent_runtime_workload_identity_enabled" {
+  description = "Enable live per-cell Keycloak lifecycle only after the exact organization UUID is available."
+  type        = bool
+}
+
+variable "agent_runtime_profile_signing_host_root" {
+  description = "Absolute operator host root for RuntimeProfile signing-key custody."
+  type        = string
+}
+
+variable "agent_runtime_profile_signing_container_root" {
+  description = "Backend mount path for RuntimeProfile signing-key custody."
+  type        = string
+}
+
+variable "agent_runtime_state_wrapping_host_root" {
+  description = "Absolute operator host root for external runtime-state wrapping keys."
+  type        = string
+}
+
+variable "agent_runtime_state_wrapping_container_root" {
+  description = "Backend mount path for external runtime-state wrapping keys."
+  type        = string
+}
+
+variable "agent_runtime_credential_host_root" {
+  description = "Absolute operator host root for per-cell workload credentials and the Keycloak admin SecretRef."
+  type        = string
+}
+
+variable "agent_runtime_credential_container_root" {
+  description = "Backend mount path for per-cell workload credentials."
+  type        = string
+}
+
+variable "agent_runtime_policy_source" {
+  description = "Generated secret-free Agent Runtime policy source."
+  type        = string
+}
+
+variable "agent_runtime_policy_source_hash" {
+  description = "Content hash that recreates the backend when the Agent Runtime policy changes."
+  type        = string
+}
+
+variable "agent_runtime_policy_container_path" {
+  description = "Immutable backend path for the Agent Runtime policy."
+  type        = string
+}
+
+variable "agent_runtime_keycloak_admin_base_url" {
+  description = "Internal Keycloak admin origin used only by Agent Runtime Control."
+  type        = string
+}
+
+variable "agent_runtime_issuer" {
+  description = "Public Keycloak issuer used by runtime workload bindings."
+  type        = string
+}
+
+variable "agent_runtime_realm" {
+  description = "Keycloak realm owning the runtime workload identities."
+  type        = string
+}
+
+variable "agent_runtime_organization_ref" {
+  description = "Weave-owned organization reference bound to the Keycloak organization."
+  type        = string
+}
+
+variable "agent_runtime_keycloak_organization_id" {
+  description = "Exact Keycloak organization UUID; empty keeps workload identity fail-closed."
+  type        = string
+}
+
+variable "agent_runtime_admin_client_id" {
+  description = "Dedicated Keycloak service account client used only for ARC per-cell workload lifecycle."
+  type        = string
+}
+
+variable "agent_runtime_admin_credential_ref" {
+  description = "SecretRef for the dedicated Keycloak workload lifecycle administrator."
+  type        = string
+}
+
+variable "agent_runtime_entitlement_client_id" {
+  description = "Identity-owned Keycloak client used only for read-only ARC entitlement resolution."
+  type        = string
+}
+
+variable "agent_runtime_entitlement_credential_ref" {
+  description = "SecretRef for the separately qualified read-only entitlement token provider."
+  type        = string
+}
+
+variable "agent_runtime_resource" {
+  description = "Exact HTTPS Agent Runtime Control OAuth resource."
+  type        = string
+}
+
 variable "interop_enabled" {
   description = "Enable backend interop gateway runtime. Defaults false for connector preview guardrails."
   type        = bool
@@ -482,7 +587,7 @@ variable "groupware_forms_runtime_enabled" {
 
 
 variable "livekit_runtime_enabled" {
-  description = "Enable LiveKit meetings runtime. Defaults false/fail-closed."
+  description = "Enable LiveKit SFU configuration readiness. Defaults false/fail-closed and does not enable member join."
   type        = bool
 }
 

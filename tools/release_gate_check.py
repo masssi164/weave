@@ -162,7 +162,7 @@ def check_accessibility_gate() -> None:
         "member-workspace-loop",
         "admin-migration-apply-recovery",
         "admin-go-live-claim-control",
-        "governed-weaver-approval-revocation",
+        "agent-runtime-control-admin-lifecycle",
     )
     flow_ids = {flow.get("id") for flow in flows if isinstance(flow, dict)}
     for required in required_flows:
@@ -181,7 +181,7 @@ def check_accessibility_gate() -> None:
         "member Workspace loop",
         "admin migration apply/recovery",
         "admin go-live claim-control",
-        "governed Weaver approval/revocation",
+        "Agent Runtime Control admin lifecycle",
         "docs/evidence/accessibility/sprint-18-manual-at-blocker.md",
     ):
         if fragment not in doc:

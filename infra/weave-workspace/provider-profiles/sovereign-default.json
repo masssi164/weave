@@ -63,12 +63,12 @@
       "secretRefs": ["secretref://weave/provider/onlyoffice-community/jwt-secret"],
       "externalAlternatives": ["microsoft-365-office-graph", "collabora-code", "google-workspace-docs"]
     },
-    "weaver": {
-      "selectedAdapter": "weaver-runtime-disabled",
-      "providerKey": "weaver-runtime-disabled",
+    "agent-runtime-control": {
+      "selectedAdapter": "weaver-openclaw",
+      "providerKey": "weaver-openclaw",
       "enabledByDefault": false,
       "secretRefs": [],
-      "externalAlternatives": ["openclaw-governed-runtime"]
+      "externalAlternatives": []
     }
   }
 }

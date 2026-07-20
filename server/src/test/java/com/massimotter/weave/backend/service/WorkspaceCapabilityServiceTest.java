@@ -38,7 +38,8 @@ class WorkspaceCapabilityServiceTest {
                 .build();
 
         assertThat(service.grantedCapabilities(delegated))
-                .contains("chat.send", "files.read", "calendar.read", "weaver.exec_disabled");
+                .contains("chat.send", "files.read", "calendar.read")
+                .doesNotContain("agent-runtime.entitled");
     }
 
     @Test
@@ -293,11 +294,11 @@ class WorkspaceCapabilityServiceTest {
         assertThat(policy.roles()).containsExactly("admin");
         assertThat(policy.groups()).containsExactly("weave-board-editors");
         assertThat(policy.profileKeys()).contains("workspace-admin", "group:weave-board-editors");
-        assertThat(policy.grantedCapabilities()).contains("chat.read", "files.upload", "boards.update_task", "weaver.exec_disabled");
-        assertThat(policy.grantedCapabilities()).doesNotContain("weaver.enabled");
+        assertThat(policy.grantedCapabilities()).contains("chat.read", "files.upload", "boards.update_task");
+        assertThat(policy.grantedCapabilities()).doesNotContain("agent-runtime.entitled");
         assertThat(policy.denyByDefault()).isTrue();
         assertThat(policy.supportSafe()).isTrue();
-        assertThat(policy.weaverRuntimePosture()).contains("disabled-by-default");
+        assertThat(policy.agentRuntimeControlPosture()).contains("disabled-by-default");
     }
 
     @Test
@@ -381,7 +382,7 @@ class WorkspaceCapabilityServiceTest {
     }
 
     @Test
-    void keepsWeaverRuntimeDisabledByDefaultEvenForPilotGroups() {
+    void keepsAgentRuntimeControlDisabledWithoutConfiguredEntitlement() {
         WorkspaceCapabilityService service = new WorkspaceCapabilityService(
                 resourceServerProperties("https://auth.weave.test/realms/weave"),
                 new WeaveSecurityProperties("weave-app", "weave-app"),
@@ -393,13 +394,12 @@ class WorkspaceCapabilityServiceTest {
                         null,
                         new WorkspaceCapabilityProperties.Capability(false, null, null)));
 
-        var snapshot = service.snapshot(jwt(List.of("admin"), List.of("weave-weaver-pilot")));
+        var snapshot = service.snapshot(jwt(List.of("admin"), List.of("weave-weaver-runtime")));
 
-        assertThat(snapshot.weaver().enabled()).isFalse();
-        assertThat(snapshot.weaver().readiness()).isEqualTo(WorkspaceCapabilityReadiness.UNAVAILABLE);
-        assertThat(snapshot.weaver().policyState()).isEqualTo(WorkspaceCapabilityPolicyState.DISABLED);
-        assertThat(snapshot.weaver().grantedCapabilities()).contains("weaver.files_read", "weaver.exec_disabled");
-        assertThat(snapshot.weaver().grantedCapabilities()).doesNotContain("weaver.enabled");
+        assertThat(snapshot.agentRuntimeControl().enabled()).isFalse();
+        assertThat(snapshot.agentRuntimeControl().readiness()).isEqualTo(WorkspaceCapabilityReadiness.UNAVAILABLE);
+        assertThat(snapshot.agentRuntimeControl().policyState()).isEqualTo(WorkspaceCapabilityPolicyState.DISABLED);
+        assertThat(snapshot.agentRuntimeControl().grantedCapabilities()).isEmpty();
     }
 
     private OAuth2ResourceServerProperties resourceServerProperties(String issuerUri) {

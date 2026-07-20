@@ -29,7 +29,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get setupProviderStepDescription =>
-      'Die Admin-Einrichtung beginnt mit der Kategorie Identität/IDM und hält Chat, Dateien, Kalender, Boards/Aufgaben, Besprechungen/Anrufe, Dokumente/Zusammenarbeit und Weaver als Provider-Kategorien sichtbar, bevor Mitglieder beitreten.';
+      'Die Admin-Einrichtung beginnt mit der Kategorie Identität/IDM und hält Chat, Dateien, Kalender, Boards/Aufgaben, Besprechungen/Anrufe, Dokumente/Zusammenarbeit und Agent Runtime Control als Produktkategorien sichtbar, bevor Mitglieder beitreten.';
 
   @override
   String get setupServicesStepTitle => 'Backend-API prüfen';
@@ -100,7 +100,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get providerCategoryMeetingsDetail =>
-      'LiveKit-Meetings-Bereitschaft wird hinter der Token-Fassade verfolgt, bevor Mitglieder Anrufe starten oder beitreten können.';
+      'MatrixRTC Profil 0 ist die Signalisierungsgrenze; ein austauschbarer SFU überträgt Medien erst nach aktueller RTC-Autorisierung.';
 
   @override
   String get providerCategoryDocumentsTitle => 'Dokumente/Zusammenarbeit';
@@ -110,11 +110,12 @@ class AppLocalizationsDe extends AppLocalizations {
       'Dokument-Zusammenarbeit ist eine Provider-Adapter-Kategorie und bleibt Admin-Einrichtung erforderlich, bis ein backend-eigener Startpfad konfiguriert ist.';
 
   @override
-  String get providerCategoryWeaverTitle => 'Weaver';
+  String get providerCategoryAgentRuntimeControlTitle =>
+      'Agent Runtime Control';
 
   @override
-  String get providerCategoryWeaverDetail =>
-      'Weaver bleibt standardmäßig deaktiviert, bis regulierte persönliche PA-Richtlinie, Whitelisting, Einwilligung und Audit akzeptiert sind.';
+  String get providerCategoryAgentRuntimeControlDetail =>
+      'Agent Runtime Control bleibt ohne aktuelle Keycloak-Berechtigung, signiertes RuntimeProfile v2, externen verschlüsselten Zustand und zellgebundene Workload-Identität deaktiviert.';
 
   @override
   String get setupLanguageStepTitle => 'Deine Sprache';

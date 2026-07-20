@@ -1,6 +1,6 @@
 spec_id: WEAVE-SPEC-0003
-version: 0.1.0
-status: proposed
+version: 0.2.0
+status: deprecated
 github_issue: 216
 release_notes_label: release-notes-feature
 depends_on:
@@ -16,11 +16,10 @@ domain_entities:
 - ChannelMeetingUxRequirement
 - ChannelMeetingControl
 provider_neutral_invariants:
-- meeting join and start controls fail closed until LiveKit-backed backend media capability
-  is evidenced
+- meeting join and start controls fail closed until MatrixRTC Profile 0 signaling, RTC authorization, and media capability are evidenced
 - meeting surfaces attach to Weave context instead of generic provider links
-- LiveKit remains the active meetings provider contract while MatrixRTC/Element Call
-  is future comparison only unless provider contracts migrate together
+- Matrix v1.19 plus pinned MatrixRTC Profile 0 is the only member signaling contract
+- LiveKit is only a replaceable southbound SFU adapter
 - encryption claims name signaling, media, captions, transcripts, recordings, and metadata boundaries
 - recording and transcription are off by default and require explicit participant-visible
   consent
@@ -32,10 +31,10 @@ evidence_gates:
 - ./gradlew specContract
 - ./gradlew acceptanceContract
 - flutter test test/features/chat/channel_workspace_test.dart test/architecture/meetings_contract_test.dart
-open_product_core_decisions:
-- backend facade ownership for LiveKit room/session readiness and token issuance
-- policy keys for recording, transcription, captions, and participant management
-- first live meeting join/start acceptance feature
+resolved_architecture_boundaries:
+- MAS fronts Matrix Native OAuth with Keycloak upstream
+- the internal RTC Authorizer independently validates current call context before SFU token issuance
+- member Calls REST and proprietary join grants are removed
 acceptance_scenarios:
 - tag: '@weave-spec-0003-meeting-consent-boundary'
   evidence:

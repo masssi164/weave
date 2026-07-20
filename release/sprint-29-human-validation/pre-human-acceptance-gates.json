@@ -85,36 +85,36 @@
       "evidence": ["specs/0006-portability-contract/provider-portability-v2-calendar-dry-run.json"]
     },
     {
-      "id": "weaver-runtime",
+      "id": "agent-runtime-control",
       "issue": 651,
       "requiredBeforeHumanValidation": true,
       "status": "pending-current-evidence",
-      "commands": ["./gradlew weaverRuntimeFactoryCheck"],
-      "evidence": ["docs/evidence/weaver-runtime-factory-report.md", "release/provider-lab/weaver-runtime"]
+      "commands": ["./gradlew :server:test --tests 'com.massimotter.weave.backend.agentruntime.*'"],
+      "evidence": ["docs/evidence/weaver-security-privacy-accessibility-report.md", "infra/docs/weaver-runtime-lifecycle.md"]
     },
     {
-      "id": "weaver-customization",
+      "id": "runtime-external-state",
       "issue": 651,
       "requiredBeforeHumanValidation": true,
       "status": "pending-current-evidence",
-      "commands": ["./gradlew weaverCustomizationCheck"],
-      "evidence": ["docs/evidence/weaver-customization-report.md", "release/provider-lab/weaver-runtime/sprint-25-scoreboard.json"]
+      "commands": ["./gradlew :server:test --tests 'com.massimotter.weave.backend.agentruntime.adapter.JdbcEncryptedRuntimeStateStoreTest'"],
+      "evidence": ["server/src/main/resources/db/migration/V013__agent_runtime_external_state.sql", "docs/evidence/weaver-security-privacy-accessibility-report.md"]
     },
     {
-      "id": "weaver-approval",
+      "id": "mcp-workload-identity",
       "issue": 651,
       "requiredBeforeHumanValidation": true,
       "status": "pending-current-evidence",
-      "commands": ["./gradlew weaverCustomizationCheck"],
-      "evidence": ["release/provider-lab/weaver-runtime/sprint-25-claim-gate.fixture.json"]
+      "commands": ["./gradlew mcpCi"],
+      "evidence": ["docs/weave-contract-java-mcp.md", "infra/docs/weave-mcp-tool-contract.md"]
     },
     {
-      "id": "weaver-revoke",
+      "id": "runtime-revoke-delete",
       "issue": 651,
       "requiredBeforeHumanValidation": true,
       "status": "pending-current-evidence",
-      "commands": ["./gradlew weaverRuntimeFactoryCheck", "./gradlew weaverCustomizationCheck"],
-      "evidence": ["docs/evidence/weaver-runtime-factory-report.md", "docs/evidence/weaver-customization-report.md"]
+      "commands": ["bash infra/weave-workspace/tests/weaver-runtime-lifecycle-contract-test.sh"],
+      "evidence": ["infra/weave-workspace/weaver-runtime-lifecycle.contract.json", "infra/docs/weaver-runtime-lifecycle.md"]
     },
     {
       "id": "backup-restore",

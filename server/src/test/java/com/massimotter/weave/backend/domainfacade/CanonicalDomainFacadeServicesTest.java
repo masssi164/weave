@@ -333,7 +333,7 @@ class CanonicalDomainFacadeServicesTest {
                 capability("files", List.of("files.read", "files.upload", "documents.view", "documents.edit"), WorkspaceCapabilityPolicyState.ALLOWED),
                 capability("calendar", List.of("calendar.read", "calendar.manage_events", "meetings.join"), WorkspaceCapabilityPolicyState.ALLOWED),
                 capability("boards/tasks", List.of("boards.read", "boards.update_task"), WorkspaceCapabilityPolicyState.ALLOWED),
-                capability("Weaver", List.of("weaver.exec_disabled"), WorkspaceCapabilityPolicyState.ALLOWED));
+                capability("Agent Runtime Control", List.of("agent-runtime.entitled"), WorkspaceCapabilityPolicyState.ALLOWED));
     }
 
     private WorkspaceCapabilitiesResponse blockedCapabilities() {
@@ -343,7 +343,7 @@ class CanonicalDomainFacadeServicesTest {
                 capability("files", List.of(), WorkspaceCapabilityPolicyState.POLICY_BLOCKED),
                 capability("calendar", List.of(), WorkspaceCapabilityPolicyState.POLICY_BLOCKED),
                 capability("boards/tasks", List.of(), WorkspaceCapabilityPolicyState.POLICY_BLOCKED),
-                capability("Weaver", List.of(), WorkspaceCapabilityPolicyState.POLICY_BLOCKED));
+                capability("Agent Runtime Control", List.of(), WorkspaceCapabilityPolicyState.POLICY_BLOCKED));
     }
 
     private WorkspaceCapabilityStatusResponse capability(

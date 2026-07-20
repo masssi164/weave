@@ -27,7 +27,7 @@ This directory is the provider-stack implementation layer inside the Weave monor
 - A complete Slack/Teams replacement.
 - Production connector/provider writes.
 - Completed Matrix E2EE product readiness.
-- LiveKit is the active meeting/video-call provider contract; TURN/SFU hardening and recording/caption policy remain promotion gates.
+- Matrix v1.19 plus pinned MatrixRTC Profile 0 is the Calls target; the obsolete member Calls API and proprietary LiveKit join-grant slice are removed. LiveKit remains a replaceable southbound SFU only.
 - Agent/automation runtime.
 
 Those are later product or operations tracks and must stay behind explicit contracts and evidence.
@@ -67,8 +67,8 @@ For a real single-host deployment, start here:
 - [CalDAV/CardDAV external clients](docs/calendar-caldav-external-clients.md): DAV discovery, safe external-client credential path, and blocked private calendar/addressbook/profile flows.
 - [Connector runtime guardrails](docs/connector-runtime-guardrails.md): disabled-by-default connector runtime, callback, secret, and support-bundle boundaries.
 - [Matrix/Synapse southbound Chat Application Service](docs/matrix-synapse-chat-appservice.md): private provider credential, namespace, callback, backup/restore, and isolated proof boundaries.
-- [Weaver runtime lifecycle](docs/weaver-runtime-lifecycle.md): signed RuntimeProfile input, one active per-user runtime container boundary, internal-only network, reload/restart/rollback/revocation gates, and support-safe evidence; execution remains disabled by default.
-- [Weave MCP runtime contract](docs/weave-mcp-tool-contract.md): Spring AI transport, OIDC gatekeeper, canonical domain dispatch, approval, audit, and support-safe output boundaries.
+- [Weaver runtime lifecycle](docs/weaver-runtime-lifecycle.md): Agent Runtime Control cell lifecycle, signed RuntimeProfile v2 input, zero durable cell-byte boundary, external encrypted state, per-cell Keycloak workload identity, and deletion evidence.
+- [Weave MCP workload contract](docs/weave-mcp-tool-contract.md): Spring AI transport, workload-only OIDC admission, protected-resource discovery, token exchange, current ARC context, and fail-closed empty catalogs.
 - [OpenProject Boards runtime](docs/openproject-boards-runtime.md): optional provider-backed validation setup and live E2E gate; off by default.
 - [Identity environment parity](docs/identity-environment-parity.md): one dogfood/production identity flow, the narrow Keycloak extension boundary, and iPhone Mailpit verification.
 

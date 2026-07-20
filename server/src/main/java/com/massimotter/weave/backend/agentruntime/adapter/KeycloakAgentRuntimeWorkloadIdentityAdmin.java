@@ -37,6 +37,7 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
         implements RuntimeWorkloadIdentityAdmin, RuntimeWorkloadIdentityInventory {
     static final String CLIENT_AUTHENTICATOR_PRIVATE_KEY_JWT = "client-jwt";
     static final String CLIENT_ID_MAPPER_NAME = "weave-runtime-client-id";
+    static final String WORKLOAD_ROLE_MAPPER_NAME = "weave-runtime-realm-role";
     static final String OWNER_ATTRIBUTE = "weave.arc.owner";
     static final String MANAGED_ATTRIBUTE = "weave.arc.managed";
     static final String SCHEMA_ATTRIBUTE = "weave.arc.schema";
@@ -157,6 +158,32 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
         }
         verifyClient(bound.client().uuid(), ensure, bound.ownerFingerprint(), credential, true, subject);
         return command.binding();
+    }
+
+    @Override
+    public void requireCurrentBinding(CurrentBindingCommand command) {
+        Objects.requireNonNull(command, "command");
+        BoundClient bound = requireBoundClient(
+                command.organizationRef(), command.personRef(), command.cellRef(), command.binding(), true);
+        EnsureBindingCommand ensure = ensureCommand(
+                command.organizationRef(), command.personRef(), command.cellRef(),
+                command.binding(), command.auditRef());
+        RuntimeWorkloadCredentialState credential = credentials.find(command.binding().clientId())
+                .orElseThrow(() -> new RuntimeWorkloadIdentityException(
+                        "The enabled workload client has no current SecretRef material"));
+        requireCredential(
+                credential,
+                bound.ownerFingerprint(),
+                command.binding().authenticationMethod(),
+                command.binding().credentialRef());
+        ObjectNode current = getClient(bound.client().uuid());
+        ObjectNode desired = desiredClient(ensure, bound.ownerFingerprint(), credential, true);
+        if (clientSettingsDiffer(current, desired)) {
+            throw new RuntimeWorkloadIdentityException("The current workload client settings have drifted");
+        }
+        verifyProtocolMappers(bound.client().uuid(), command.binding().clientId());
+        verifyScopes(bound.client().uuid());
+        verifyServiceAccountRoles(command.binding().subject());
     }
 
     @Override
@@ -428,7 +455,6 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
         }
         reconcileProtocolMappers(clientUuid, command.clientId());
         reconcileScopes(clientUuid);
-        reconcileClientRoleScope(clientUuid);
     }
 
     private String reconcileServiceAccount(String clientUuid) {
@@ -492,34 +518,6 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
         }
     }
 
-    private void reconcileClientRoleScope(String clientUuid) {
-        ObjectNode workloadRole = realmRole();
-        ArrayNode mappings = array(response(
-                "GET", adminPath("/clients/" + path(clientUuid) + "/scope-mappings/realm"), null, Set.of(200)));
-        ArrayNode remove = mapper.createArrayNode();
-        boolean present = false;
-        for (JsonNode role : mappings) {
-            if (settings.workloadRole().equals(role.path("name").asText())) {
-                present = true;
-            } else {
-                remove.add(role);
-            }
-        }
-        if (!remove.isEmpty()) {
-            response("DELETE", adminPath("/clients/" + path(clientUuid) + "/scope-mappings/realm"),
-                    remove, Set.of(204));
-        }
-        if (!present) {
-            response("POST", adminPath("/clients/" + path(clientUuid) + "/scope-mappings/realm"),
-                    mapper.createArrayNode().add(workloadRole), Set.of(204));
-        }
-        ArrayNode verified = array(response(
-                "GET", adminPath("/clients/" + path(clientUuid) + "/scope-mappings/realm"), null, Set.of(200)));
-        if (verified.size() != 1 || !settings.workloadRole().equals(verified.get(0).path("name").asText())) {
-            throw new RuntimeWorkloadIdentityException("The workload client role scope is not exact");
-        }
-    }
-
     private ObjectNode realmRole() {
         ObjectNode role = object(response(
                 "GET", adminPath("/roles/" + path(settings.workloadRole())), null, Set.of(200)));
@@ -531,54 +529,51 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
 
     private void reconcileScopes(String clientUuid) {
         Map<String, String> desiredScopeIds = resolveClientScopes();
-        ArrayNode defaults = array(response("GET",
-                adminPath("/clients/" + path(clientUuid) + "/default-client-scopes"), null, Set.of(200)));
-        for (JsonNode scope : defaults) {
-            response("DELETE", adminPath("/clients/" + path(clientUuid) + "/default-client-scopes/"
-                    + path(requiredText(scope, "id"))), null, Set.of(204));
-        }
+        reconcileScopeSet(clientUuid, "default-client-scopes", settings.defaultClientScopes(), desiredScopeIds);
+        reconcileScopeSet(clientUuid, "optional-client-scopes", settings.optionalClientScopes(), desiredScopeIds);
+        verifyScopes(clientUuid);
+    }
 
-        ArrayNode optional = array(response("GET",
-                adminPath("/clients/" + path(clientUuid) + "/optional-client-scopes"), null, Set.of(200)));
+    private void reconcileScopeSet(
+            String clientUuid,
+            String endpoint,
+            List<String> desiredNames,
+            Map<String, String> desiredScopeIds) {
+        ArrayNode current = array(response("GET",
+                adminPath("/clients/" + path(clientUuid) + "/" + endpoint), null, Set.of(200)));
         Set<String> present = new HashSet<>();
-        for (JsonNode scope : optional) {
+        for (JsonNode scope : current) {
             String name = requiredText(scope, "name");
             String id = requiredText(scope, "id");
-            if (desiredScopeIds.containsKey(name)) {
-                present.add(name);
-            } else {
-                response("DELETE", adminPath("/clients/" + path(clientUuid) + "/optional-client-scopes/"
-                        + path(id)), null, Set.of(204));
+            if (desiredNames.contains(name)
+                    && id.equals(desiredScopeIds.get(name))
+                    && present.add(name)) {
+                continue;
             }
+            response("DELETE", adminPath("/clients/" + path(clientUuid) + "/" + endpoint + "/"
+                    + path(id)), null, Set.of(204));
         }
-        for (Map.Entry<String, String> desired : desiredScopeIds.entrySet()) {
-            if (!present.contains(desired.getKey())) {
-                response("PUT", adminPath("/clients/" + path(clientUuid) + "/optional-client-scopes/"
-                        + path(desired.getValue())), null, Set.of(204));
+        for (String desiredName : desiredNames) {
+            if (!present.contains(desiredName)) {
+                response("PUT", adminPath("/clients/" + path(clientUuid) + "/" + endpoint + "/"
+                        + path(desiredScopeIds.get(desiredName))), null, Set.of(204));
             }
-        }
-        ArrayNode verifiedDefaults = array(response("GET",
-                adminPath("/clients/" + path(clientUuid) + "/default-client-scopes"), null, Set.of(200)));
-        ArrayNode verifiedOptional = array(response("GET",
-                adminPath("/clients/" + path(clientUuid) + "/optional-client-scopes"), null, Set.of(200)));
-        Set<String> verifiedNames = new LinkedHashSet<>();
-        verifiedOptional.forEach(scope -> verifiedNames.add(scope.path("name").asText()));
-        if (!verifiedDefaults.isEmpty() || !verifiedNames.equals(new LinkedHashSet<>(settings.optionalClientScopes()))) {
-            throw new RuntimeWorkloadIdentityException("The workload client scopes are not exact");
         }
     }
 
     private Map<String, String> resolveClientScopes() {
+        Set<String> desiredNames = new LinkedHashSet<>(settings.defaultClientScopes());
+        desiredNames.addAll(settings.optionalClientScopes());
         ArrayNode scopes = array(response("GET", adminPath("/client-scopes"), null, Set.of(200)));
         Map<String, List<String>> candidates = new LinkedHashMap<>();
         for (JsonNode scope : scopes) {
             String name = scope.path("name").asText();
-            if (settings.optionalClientScopes().contains(name)) {
+            if (desiredNames.contains(name)) {
                 candidates.computeIfAbsent(name, ignored -> new ArrayList<>()).add(requiredText(scope, "id"));
             }
         }
         Map<String, String> result = new LinkedHashMap<>();
-        for (String name : settings.optionalClientScopes()) {
+        for (String name : desiredNames) {
             List<String> matches = candidates.getOrDefault(name, List.of());
             if (matches.size() != 1) {
                 throw new RuntimeWorkloadIdentityException("A fixed workload client scope is unavailable or ambiguous");
@@ -588,17 +583,35 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
         return result;
     }
 
+    private void verifyScopes(String clientUuid) {
+        ArrayNode defaults = array(response(
+                "GET", adminPath("/clients/" + path(clientUuid) + "/default-client-scopes"), null, Set.of(200)));
+        ArrayNode optional = array(response(
+                "GET", adminPath("/clients/" + path(clientUuid) + "/optional-client-scopes"), null, Set.of(200)));
+        Set<String> defaultNames = new LinkedHashSet<>();
+        defaults.forEach(scope -> defaultNames.add(scope.path("name").asText()));
+        Set<String> optionalNames = new LinkedHashSet<>();
+        optional.forEach(scope -> optionalNames.add(scope.path("name").asText()));
+        if (!defaultNames.equals(new LinkedHashSet<>(settings.defaultClientScopes()))
+                || !optionalNames.equals(new LinkedHashSet<>(settings.optionalClientScopes()))) {
+            throw new RuntimeWorkloadIdentityException("The current workload client scopes have drifted");
+        }
+    }
+
     private void reconcileProtocolMappers(String clientUuid, String clientId) {
         ArrayNode mappers = array(response("GET",
                 adminPath("/clients/" + path(clientUuid) + "/protocol-mappers/models"), null, Set.of(200)));
-        ObjectNode expected = clientIdMapper(clientId);
-        JsonNode retained = null;
+        Map<String, ObjectNode> expected = Map.of(
+                CLIENT_ID_MAPPER_NAME, clientIdMapper(clientId),
+                WORKLOAD_ROLE_MAPPER_NAME, workloadRoleMapper());
+        Set<String> retained = new HashSet<>();
         for (JsonNode existing : mappers) {
             String id = requiredText(existing, "id");
-            if (CLIENT_ID_MAPPER_NAME.equals(existing.path("name").asText()) && retained == null) {
-                retained = existing;
-                if (!mapperMatches(existing, expected)) {
-                    ObjectNode update = expected.deepCopy();
+            String name = existing.path("name").asText();
+            ObjectNode desired = expected.get(name);
+            if (desired != null && retained.add(name)) {
+                if (!mapperMatches(existing, desired)) {
+                    ObjectNode update = desired.deepCopy();
                     update.put("id", id);
                     response("PUT", adminPath("/clients/" + path(clientUuid) + "/protocol-mappers/models/"
                             + path(id)), update, Set.of(204));
@@ -608,14 +621,43 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
                         + path(id)), null, Set.of(204));
             }
         }
-        if (retained == null) {
-            response("POST", adminPath("/clients/" + path(clientUuid) + "/protocol-mappers/models"),
-                    expected, Set.of(201));
+        for (Map.Entry<String, ObjectNode> entry : expected.entrySet()) {
+            if (!retained.contains(entry.getKey())) {
+                response("POST", adminPath("/clients/" + path(clientUuid) + "/protocol-mappers/models"),
+                        entry.getValue(), Set.of(201));
+            }
         }
         ArrayNode verified = array(response("GET",
                 adminPath("/clients/" + path(clientUuid) + "/protocol-mappers/models"), null, Set.of(200)));
-        if (verified.size() != 1 || !mapperMatches(verified.get(0), expected)) {
+        if (verified.size() != expected.size()) {
             throw new RuntimeWorkloadIdentityException("The workload client claim mapper is not exact");
+        }
+        Set<String> verifiedNames = new HashSet<>();
+        for (JsonNode mapper : verified) {
+            String name = mapper.path("name").asText();
+            if (!verifiedNames.add(name) || !expected.containsKey(name)
+                    || !mapperMatches(mapper, expected.get(name))) {
+                throw new RuntimeWorkloadIdentityException("The workload client claim mapper is not exact");
+            }
+        }
+    }
+
+    private void verifyProtocolMappers(String clientUuid, String clientId) {
+        Map<String, ObjectNode> expected = Map.of(
+                CLIENT_ID_MAPPER_NAME, clientIdMapper(clientId),
+                WORKLOAD_ROLE_MAPPER_NAME, workloadRoleMapper());
+        ArrayNode current = array(response(
+                "GET", adminPath("/clients/" + path(clientUuid) + "/protocol-mappers/models"), null, Set.of(200)));
+        if (current.size() != expected.size()) {
+            throw new RuntimeWorkloadIdentityException("The current workload client claim mappers have drifted");
+        }
+        Set<String> names = new HashSet<>();
+        for (JsonNode mapper : current) {
+            String name = mapper.path("name").asText();
+            if (!names.add(name) || !expected.containsKey(name)
+                    || !mapperMatches(mapper, expected.get(name))) {
+                throw new RuntimeWorkloadIdentityException("The current workload client claim mappers have drifted");
+            }
         }
     }
 
@@ -632,6 +674,24 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
         expected.put("name", CLIENT_ID_MAPPER_NAME);
         expected.put("protocol", "openid-connect");
         expected.put("protocolMapper", "oidc-hardcoded-claim-mapper");
+        expected.put("consentRequired", false);
+        expected.set("config", config);
+        return expected;
+    }
+
+    private ObjectNode workloadRoleMapper() {
+        ObjectNode config = mapper.createObjectNode();
+        config.put("claim.name", "realm_access.roles");
+        config.put("jsonType.label", "String");
+        config.put("multivalued", "true");
+        config.put("access.token.claim", "true");
+        config.put("id.token.claim", "false");
+        config.put("userinfo.token.claim", "false");
+        config.put("introspection.token.claim", "false");
+        ObjectNode expected = mapper.createObjectNode();
+        expected.put("name", WORKLOAD_ROLE_MAPPER_NAME);
+        expected.put("protocol", "openid-connect");
+        expected.put("protocolMapper", "oidc-usermodel-realm-role-mapper");
         expected.put("consentRequired", false);
         expected.set("config", config);
         return expected;
@@ -761,21 +821,32 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
         desired.set("attributes", attributes);
         desired.set("redirectUris", mapper.createArrayNode());
         desired.set("webOrigins", mapper.createArrayNode());
-        desired.set("defaultClientScopes", mapper.createArrayNode());
+        ArrayNode defaultScopes = mapper.createArrayNode();
+        settings.defaultClientScopes().forEach(defaultScopes::add);
+        desired.set("defaultClientScopes", defaultScopes);
         ArrayNode optional = mapper.createArrayNode();
         settings.optionalClientScopes().forEach(optional::add);
         desired.set("optionalClientScopes", optional);
-        desired.set("protocolMappers", mapper.createArrayNode().add(clientIdMapper(command.clientId())));
+        desired.set("protocolMappers", mapper.createArrayNode()
+                .add(clientIdMapper(command.clientId()))
+                .add(workloadRoleMapper()));
         return desired;
     }
 
     private static boolean clientSettingsDiffer(JsonNode actual, JsonNode desired) {
         for (String field : List.of(
-                "clientId", "name", "description", "enabled", "protocol", "publicClient", "bearerOnly",
-                "consentRequired", "standardFlowEnabled", "implicitFlowEnabled", "directAccessGrantsEnabled",
-                "serviceAccountsEnabled", "authorizationServicesEnabled", "fullScopeAllowed", "frontchannelLogout",
-                "alwaysDisplayInConsole", "clientAuthenticatorType", "redirectUris", "webOrigins")) {
+                "clientId", "name", "description", "protocol", "clientAuthenticatorType",
+                "redirectUris", "webOrigins")) {
             if (!desired.path(field).equals(actual.path(field))) {
+                return true;
+            }
+        }
+        for (String field : List.of(
+                "enabled", "publicClient", "bearerOnly", "consentRequired", "standardFlowEnabled",
+                "implicitFlowEnabled", "directAccessGrantsEnabled", "serviceAccountsEnabled",
+                "authorizationServicesEnabled", "fullScopeAllowed", "frontchannelLogout",
+                "alwaysDisplayInConsole")) {
+            if (desired.path(field).asBoolean(false) != actual.path(field).asBoolean(false)) {
                 return true;
             }
         }
@@ -975,6 +1046,7 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
             String realm,
             Duration timeout,
             String workloadRole,
+            List<String> defaultClientScopes,
             List<String> optionalClientScopes,
             int accessTokenLifespanSeconds) {
         public Settings {
@@ -989,6 +1061,12 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
             if (!"weaver-runtime".equals(workloadRole)) {
                 throw new IllegalArgumentException("workloadRole must be weaver-runtime");
             }
+            defaultClientScopes = defaultClientScopes == null ? List.of() : List.copyOf(defaultClientScopes);
+            if (defaultClientScopes.size() != 1
+                    || !defaultClientScopes.contains("weaver-runtime.workload")) {
+                throw new IllegalArgumentException(
+                        "defaultClientScopes must contain only weaver-runtime.workload");
+            }
             optionalClientScopes = optionalClientScopes == null ? List.of() : List.copyOf(optionalClientScopes);
             if (optionalClientScopes.isEmpty()
                     || optionalClientScopes.stream().anyMatch(value -> value == null || value.isBlank())
@@ -996,6 +1074,9 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
                     || !optionalClientScopes.contains("agent-runtime.profile.read")) {
                 throw new IllegalArgumentException(
                         "optionalClientScopes must be unique and contain agent-runtime.profile.read");
+            }
+            if (!java.util.Collections.disjoint(defaultClientScopes, optionalClientScopes)) {
+                throw new IllegalArgumentException("default and optional client scopes must not overlap");
             }
             if (accessTokenLifespanSeconds < 5 || accessTokenLifespanSeconds > 300) {
                 throw new IllegalArgumentException("workload access-token lifespan must be between 5 and 300 seconds");

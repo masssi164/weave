@@ -32,9 +32,6 @@ export type GeneratedAdminControlPlaneResponse = {
   "selectedProviderMappings"?: GeneratedProviderSelectionResponse[];
   "suiteDomainReadiness"?: GeneratedSuiteDomainReadinessResponse[];
   "supportSafe"?: boolean;
-  "weaverDistributionPolicy"?: GeneratedWeaverDistributionPolicyResponse;
-  "weaverEligibilityPreview"?: GeneratedWeaverEligibilityPreviewResponse;
-  "weaverRuntimeProjection"?: GeneratedWeaverRuntimeProjectionResponse;
   "whitelist"?: GeneratedCapabilityWhitelistResponse;
 };
 
@@ -457,90 +454,4 @@ export type GeneratedSwitchPlan = {
   "preflightRequired"?: boolean;
   "recoveryActions"?: string[];
   "rollbackRequired"?: boolean;
-};
-
-export type GeneratedWeaverDistributionPolicyResponse = {
-  "allowedSkills"?: string[];
-  "allowedTools"?: string[];
-  "approvalRequiredFor"?: string[];
-  "auditRefs"?: string[];
-  "changeHistory"?: GeneratedWeaverRuntimeProfileChangeResponse[];
-  "chatMigrationConsequences"?: string[];
-  "chatProviderKey"?: string;
-  "chatReadinessState"?: string;
-  "defaultModelAlias"?: string;
-  "deniedTools"?: string[];
-  "effectivePolicyPreview"?: string[];
-  "enabledByDefault"?: boolean;
-  "fallbackModelAliases"?: string[];
-  "mcpServers"?: GeneratedWeaverMcpGrantResponse[];
-  "modelAliases"?: GeneratedWeaverModelAliasResponse[];
-  "pendingRuntimeProfileHash"?: string;
-  "profileRegenerationBlockedReasons"?: string[];
-  "revocationState"?: string;
-  "rollbackProfileHash"?: string;
-  "runtimeProfileHash"?: string;
-};
-
-export type GeneratedWeaverEligibilityPreviewResponse = {
-  "auditRefs"?: string[];
-  "blockedReasons"?: string[];
-  "eligibleCapabilities"?: string[];
-  "groupMembershipRequired"?: boolean;
-  "memberStateWhenEligible"?: string;
-  "memberStateWithoutGroup"?: string;
-  "memberStateWithoutPolicy"?: string;
-  "nextActions"?: string[];
-  "policyEnabled"?: boolean;
-  "requiredGroups"?: string[];
-};
-
-export type GeneratedWeaverMcpGrantResponse = {
-  "approvalRequired"?: boolean;
-  "serverKey"?: string;
-  "tools"?: string[];
-};
-
-export type GeneratedWeaverModelAliasResponse = {
-  "alias"?: string;
-  "model"?: string;
-  "provider"?: string;
-  "userSelectable"?: boolean;
-};
-
-export type GeneratedWeaverRuntimeProfileChangeResponse = {
-  "createdAt"?: string;
-  "runtimeProfileHash"?: string;
-  "status"?: string;
-  "summary"?: string;
-  "version"?: string;
-};
-
-export type GeneratedWeaverRuntimeProjectionItemResponse = {
-  "approvalRequired"?: boolean;
-  "category"?: string;
-  "discoverableToRuntime"?: boolean;
-  "id"?: string;
-  "label"?: string;
-  "memberImpact"?: string;
-  "policyImpact"?: string;
-  "readinessSummary"?: string;
-  "receiptRefs"?: string[];
-  "state"?: string;
-};
-
-export type GeneratedWeaverRuntimeProjectionResponse = {
-  "auditReceiptRefs"?: string[];
-  "disabledByDefault"?: boolean;
-  "expiresAt"?: string;
-  "groupChatConsentRequired"?: boolean;
-  "items"?: GeneratedWeaverRuntimeProjectionItemResponse[];
-  "pendingRevocationRefs"?: string[];
-  "profileVersion"?: string;
-  "providerDiagnosticsRedacted"?: boolean;
-  "rawRuntimeInternalsExposed"?: boolean;
-  "regeneratedAt"?: string;
-  "runtimeProfileHash"?: string;
-  "sandboxPosture"?: string;
-  "supportSafe"?: boolean;
 };

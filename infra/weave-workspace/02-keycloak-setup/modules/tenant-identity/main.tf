@@ -21,7 +21,6 @@ locals {
     "offline_access",
     "organization",
     "phone",
-    "weave:mcp",
   ]
 
   weave_app_default_scopes = [
@@ -32,6 +31,14 @@ locals {
     "roles",
     "web-origins",
     "weave:workspace",
+  ]
+
+  weave_admin_console_default_scopes = [
+    "acr",
+    "basic",
+    "email",
+    "profile",
+    "web-origins",
   ]
 
   weave_product_roles = {
@@ -60,17 +67,13 @@ locals {
     document_editors = "weave-document-editors"
     meeting_hosts    = "weave-meeting-hosts"
     decision_records = "weave-decision-recorders"
-    weaver_pilot     = "weave-weaver-pilot"
     weaver_runtime   = "weave-weaver-runtime"
-    weaver_group     = "weaver-group"
   }
 
   live_e2e_test_user_capability_groups = [
     "board_editors",
     "calendar_editors",
-    "weaver_pilot",
     "weaver_runtime",
-    "weaver_group",
   ]
 
   client_defaults = {
@@ -92,6 +95,7 @@ locals {
     allow_refresh_token_in_standard_token_exchange = null
     use_refresh_tokens                             = null
     use_refresh_tokens_client_credentials          = null
+    extra_config                                   = {}
   }
 
   client_specs = {
@@ -109,7 +113,7 @@ locals {
     })
     weave_backend = merge(local.client_defaults, {
       name        = "weave-backend"
-      client_id   = "weave-backend"
+      client_id   = "${var.api_public_url}/api"
       access_type = "BEARER-ONLY"
     })
     weave_identity_admin = merge(local.client_defaults, {
@@ -117,6 +121,13 @@ locals {
       client_id                = "weave-identity-admin"
       access_type              = "CONFIDENTIAL"
       client_secret            = var.identity_admin_client_secret
+      service_accounts_enabled = true
+    })
+    weave_agent_runtime_admin = merge(local.client_defaults, {
+      name                     = "weave-agent-runtime-admin"
+      client_id                = "weave-agent-runtime-admin"
+      access_type              = "CONFIDENTIAL"
+      client_secret            = var.agent_runtime_admin_client_secret
       service_accounts_enabled = true
     })
     weave_mcp_server = merge(local.client_defaults, {
@@ -131,13 +142,18 @@ locals {
       allow_refresh_token_in_standard_token_exchange = false
       use_refresh_tokens                             = false
       use_refresh_tokens_client_credentials          = false
+      extra_config = {
+        "weave.mcp.exchange-requester"     = "true"
+        "access.token.header.type.rfc9068" = "true"
+      }
     })
     weave_admin_console = merge(local.client_defaults, {
-      name                       = "weave-admin-console"
-      client_id                  = "weave-admin-console"
-      access_type                = "PUBLIC"
-      standard_flow_enabled      = true
-      pkce_code_challenge_method = "S256"
+      name                         = "weave-admin-console"
+      client_id                    = "weave-admin-console"
+      access_type                  = "PUBLIC"
+      standard_flow_enabled        = true
+      direct_access_grants_enabled = var.create_test_user
+      pkce_code_challenge_method   = "S256"
       valid_redirect_uris = [
         "${var.admin_console_public_url}/*",
         "http://localhost:5173/*",
@@ -260,6 +276,12 @@ resource "keycloak_role" "weave_product" {
   description = each.value
 }
 
+resource "keycloak_role" "weaver_runtime" {
+  realm_id    = keycloak_realm.tenant.id
+  name        = "weaver-runtime"
+  description = "Machine-only role assigned exactly to one managed Weaver cell service account."
+}
+
 data "keycloak_role" "offline_access" {
   realm_id = keycloak_realm.tenant.id
   name     = "offline_access"
@@ -335,6 +357,7 @@ resource "keycloak_openid_client" "client" {
   allow_refresh_token_in_standard_token_exchange = each.value.allow_refresh_token_in_standard_token_exchange
   use_refresh_tokens                             = each.value.use_refresh_tokens
   use_refresh_tokens_client_credentials          = each.value.use_refresh_tokens_client_credentials
+  extra_config                                   = each.value.extra_config
 }
 
 data "keycloak_openid_client" "realm_management" {
@@ -344,14 +367,33 @@ data "keycloak_openid_client" "realm_management" {
 
 resource "keycloak_openid_client_service_account_role" "identity_admin" {
   for_each = toset([
+    "manage-users",
     "manage-organizations",
     "query-organizations",
     "view-organizations",
+    "view-users",
     "query-users",
   ])
 
   realm_id                = keycloak_realm.tenant.id
   service_account_user_id = keycloak_openid_client.client["weave_identity_admin"].service_account_user_id
+  client_id               = data.keycloak_openid_client.realm_management.id
+  role                    = each.value
+}
+
+resource "keycloak_openid_client_service_account_role" "agent_runtime_admin" {
+  for_each = toset([
+    "manage-clients",
+    "manage-users",
+    "query-clients",
+    "query-users",
+    "view-clients",
+    "view-realm",
+    "view-users",
+  ])
+
+  realm_id                = keycloak_realm.tenant.id
+  service_account_user_id = keycloak_openid_client.client["weave_agent_runtime_admin"].service_account_user_id
   client_id               = data.keycloak_openid_client.realm_management.id
   role                    = each.value
 }
@@ -363,18 +405,52 @@ resource "keycloak_openid_client_scope" "weave_workspace" {
   include_in_token_scope = true
 }
 
-resource "keycloak_openid_client_scope" "weave_mcp" {
+resource "keycloak_openid_client_scope" "agent_runtime_profile_read" {
   realm_id               = keycloak_realm.tenant.id
-  name                   = "weave:mcp"
-  description            = "Allows an authenticated member runtime to call the Weave MCP resource server."
+  name                   = "agent-runtime.profile.read"
+  description            = "Machine-only scope for one cell to fetch its current signed RuntimeProfile."
   include_in_token_scope = true
 }
 
-resource "keycloak_openid_client_scope" "weave_mcp_backend" {
+resource "keycloak_openid_client_scope" "weaver_runtime_workload" {
   realm_id               = keycloak_realm.tenant.id
-  name                   = "weave:mcp-backend"
-  description            = "Backend-only delegated scope emitted through standard token exchange."
+  name                   = "weaver-runtime.workload"
+  description            = "Fixed role-scope boundary attached by ARC to managed per-cell workload clients."
+  include_in_token_scope = false
+}
+
+resource "keycloak_generic_role_mapper" "weaver_runtime_workload" {
+  realm_id        = keycloak_realm.tenant.id
+  client_scope_id = keycloak_openid_client_scope.weaver_runtime_workload.id
+  role_id         = keycloak_role.weaver_runtime.id
+}
+
+resource "keycloak_openid_client_scope" "agent_runtime_admin" {
+  realm_id               = keycloak_realm.tenant.id
+  name                   = "agent-runtime.admin"
+  description            = "Interactive owner/admin authority for the Agent Runtime lifecycle control plane."
   include_in_token_scope = true
+}
+
+resource "keycloak_openid_client_scope" "mcp_tools" {
+  realm_id               = keycloak_realm.tenant.id
+  name                   = "mcp:tools"
+  description            = "Machine-only scope for an active bound Weaver cell to reach the exact MCP resource."
+  include_in_token_scope = true
+}
+
+resource "keycloak_openid_client_scope" "calendar_read" {
+  realm_id               = keycloak_realm.tenant.id
+  name                   = "calendar.read"
+  description            = "Machine-only, downscopable Calendar read authority for a currently bound Weaver cell."
+  include_in_token_scope = true
+}
+
+resource "keycloak_openid_client_scope" "mcp_backend_exchange" {
+  realm_id               = keycloak_realm.tenant.id
+  name                   = "weave-mcp-backend.exchange"
+  description            = "Internal default scope that makes only the Weave API audience available to MCP token exchange."
+  include_in_token_scope = false
 }
 
 resource "keycloak_openid_hardcoded_claim_protocol_mapper" "weave_tenant_id" {
@@ -410,34 +486,86 @@ resource "keycloak_openid_audience_protocol_mapper" "weave_backend_audience" {
   add_to_access_token      = true
 }
 
-resource "keycloak_openid_audience_protocol_mapper" "weave_mcp_audience" {
+resource "keycloak_openid_audience_protocol_mapper" "agent_runtime_profile_read_audience" {
   realm_id                 = keycloak_realm.tenant.id
-  client_scope_id          = keycloak_openid_client_scope.weave_mcp.id
-  name                     = "weave-mcp-server-audience"
-  included_client_audience = keycloak_openid_client.client["weave_mcp_server"].client_id
+  client_scope_id          = keycloak_openid_client_scope.agent_runtime_profile_read.id
+  name                     = "agent-runtime-control-resource"
+  included_custom_audience = "${var.api_public_url}/api/v1/agent-runtime"
   add_to_id_token          = false
   add_to_access_token      = true
 }
 
-resource "keycloak_openid_audience_protocol_mapper" "weave_mcp_backend_audience" {
-  realm_id                 = keycloak_realm.tenant.id
-  client_scope_id          = keycloak_openid_client_scope.weave_mcp_backend.id
-  name                     = "weave-mcp-backend-audience"
-  included_client_audience = keycloak_openid_client.client["weave_backend"].client_id
-  add_to_id_token          = false
-  add_to_access_token      = true
-}
-
-resource "keycloak_openid_hardcoded_claim_protocol_mapper" "weave_mcp_tenant_id" {
+resource "keycloak_openid_hardcoded_claim_protocol_mapper" "agent_runtime_admin_tenant" {
   realm_id            = keycloak_realm.tenant.id
-  client_scope_id     = keycloak_openid_client_scope.weave_mcp_backend.id
-  name                = "weave-mcp-tenant-id"
+  client_scope_id     = keycloak_openid_client_scope.agent_runtime_admin.id
+  name                = "agent-runtime-admin-tenant"
   claim_name          = "weave_tenant_id"
   claim_value         = var.context_authorization_default_tenant_id
   claim_value_type    = "String"
   add_to_id_token     = false
   add_to_access_token = true
   add_to_userinfo     = false
+}
+
+resource "keycloak_openid_audience_protocol_mapper" "agent_runtime_admin_audience" {
+  realm_id                 = keycloak_realm.tenant.id
+  client_scope_id          = keycloak_openid_client_scope.agent_runtime_admin.id
+  name                     = "weave-agent-runtime-admin-api-resource"
+  included_client_audience = keycloak_openid_client.client["weave_backend"].client_id
+  add_to_id_token          = false
+  add_to_access_token      = true
+}
+
+resource "keycloak_openid_audience_protocol_mapper" "mcp_tools_audience" {
+  realm_id                 = keycloak_realm.tenant.id
+  client_scope_id          = keycloak_openid_client_scope.mcp_tools.id
+  name                     = "weave-mcp-resource"
+  included_custom_audience = "${var.api_public_url}/mcp"
+  add_to_id_token          = false
+  add_to_access_token      = true
+}
+
+resource "keycloak_openid_audience_protocol_mapper" "mcp_exchange_requester_audience" {
+  realm_id                 = keycloak_realm.tenant.id
+  client_scope_id          = keycloak_openid_client_scope.mcp_tools.id
+  name                     = "weave-mcp-exchange-requester"
+  included_client_audience = keycloak_openid_client.client["weave_mcp_server"].client_id
+  add_to_id_token          = false
+  add_to_access_token      = true
+}
+
+resource "keycloak_openid_audience_protocol_mapper" "mcp_backend_resource_audience" {
+  realm_id                 = keycloak_realm.tenant.id
+  client_scope_id          = keycloak_openid_client_scope.mcp_backend_exchange.id
+  name                     = "weave-api-resource"
+  included_client_audience = keycloak_openid_client.client["weave_backend"].client_id
+  add_to_id_token          = false
+  add_to_access_token      = true
+}
+
+resource "keycloak_realm_client_policy_profile" "token_exchange_downscope" {
+  realm_id    = keycloak_realm.tenant.id
+  name        = "weave-token-exchange-downscope"
+  description = "Reject token exchange scopes that were not present in the subject token."
+
+  executor {
+    name = "downscope-assertion-grant-enforcer"
+  }
+}
+
+resource "keycloak_realm_client_policy_profile_policy" "token_exchange_downscope" {
+  realm_id    = keycloak_realm.tenant.id
+  name        = "weave-token-exchange-downscope"
+  description = "Apply strict downscoping to every Standard Token Exchange V2 request in this realm."
+  enabled     = true
+  profiles    = [keycloak_realm_client_policy_profile.token_exchange_downscope.name]
+
+  condition {
+    name = "grant-type"
+    configuration = {
+      grant_types = jsonencode(["urn:ietf:params:oauth:grant-type:token-exchange"])
+    }
+  }
 }
 
 resource "keycloak_openid_audience_protocol_mapper" "nextcloud_bearer_audience" {
@@ -457,7 +585,6 @@ resource "keycloak_openid_client_optional_scopes" "weave_app" {
 
   depends_on = [
     keycloak_openid_client_scope.weave_workspace,
-    keycloak_openid_client_scope.weave_mcp,
   ]
 }
 
@@ -476,10 +603,17 @@ resource "keycloak_openid_client_default_scopes" "weave_admin_console" {
   realm_id  = keycloak_realm.tenant.id
   client_id = keycloak_openid_client.client["weave_admin_console"].id
 
-  default_scopes = local.weave_app_default_scopes
+  default_scopes = local.weave_admin_console_default_scopes
+}
+
+resource "keycloak_openid_client_optional_scopes" "weave_admin_console" {
+  realm_id  = keycloak_realm.tenant.id
+  client_id = keycloak_openid_client.client["weave_admin_console"].id
+
+  optional_scopes = [keycloak_openid_client_scope.agent_runtime_admin.name]
 
   depends_on = [
-    keycloak_openid_client_scope.weave_workspace,
+    keycloak_openid_client_scope.agent_runtime_admin,
   ]
 }
 
@@ -487,14 +621,22 @@ resource "keycloak_openid_client_default_scopes" "weave_mcp_server" {
   realm_id  = keycloak_realm.tenant.id
   client_id = keycloak_openid_client.client["weave_mcp_server"].id
 
-  default_scopes = ["acr", "basic", "profile", "roles"]
+  default_scopes = [keycloak_openid_client_scope.mcp_backend_exchange.name]
+
+  depends_on = [
+    keycloak_openid_client_scope.mcp_backend_exchange,
+  ]
 }
 
 resource "keycloak_openid_client_optional_scopes" "weave_mcp_server" {
   realm_id  = keycloak_realm.tenant.id
   client_id = keycloak_openid_client.client["weave_mcp_server"].id
 
-  optional_scopes = [keycloak_openid_client_scope.weave_mcp_backend.name]
+  optional_scopes = [keycloak_openid_client_scope.calendar_read.name]
+
+  depends_on = [
+    keycloak_openid_client_scope.calendar_read,
+  ]
 }
 
 resource "keycloak_openid_group_membership_protocol_mapper" "weave_app_groups" {
@@ -506,17 +648,6 @@ resource "keycloak_openid_group_membership_protocol_mapper" "weave_app_groups" {
   add_to_id_token     = true
   add_to_access_token = true
   add_to_userinfo     = true
-}
-
-resource "keycloak_openid_group_membership_protocol_mapper" "weave_mcp_server_groups" {
-  realm_id            = keycloak_realm.tenant.id
-  client_id           = keycloak_openid_client.client["weave_mcp_server"].id
-  name                = "groups"
-  claim_name          = "groups"
-  full_path           = false
-  add_to_id_token     = false
-  add_to_access_token = true
-  add_to_userinfo     = false
 }
 
 resource "keycloak_openid_group_membership_protocol_mapper" "weave_admin_console_groups" {

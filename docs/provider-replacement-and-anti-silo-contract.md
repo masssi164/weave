@@ -158,7 +158,7 @@ Examples:
 
 - Entra ID + Teams chat + SharePoint files + OpenProject tasks + Weave admin/readiness.
 - Keycloak + Matrix chat + SharePoint files + Planner-like tasks.
-- LDAP/AD via Authentik + Slack chat + Nextcloud files + LiveKit meetings.
+- LDAP/AD via Authentik + Slack chat + Nextcloud files + MatrixRTC Calls with a LiveKit SFU adapter.
 - New organization starts with self-hosted defaults, later moves files to SharePoint while keeping Matrix chat and OpenProject tasks.
 
 Member UX must stay Weave-owned across those deployments. Provider names may appear only where they matter for admin/operator decisions, risk notes, support, or external launch context.

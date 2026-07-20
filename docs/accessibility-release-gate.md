@@ -46,13 +46,13 @@ Sprint 4 adds work-room surfaces that must be usable with a screen reader, Brail
 
 ## Sprint 9 product-readiness accessibility scope
 
-Sprint 9 treats setup, provider switching/report review, Calls/LiveKit readiness, Weaver approvals, and member capability states as release-blocking accessibility flows. Automated evidence must prove keyboard-reachable controls, visible labels, support-safe status text, and no color-only readiness states; manual evidence must cover screen-reader traversal before an RC can be promoted.
+Sprint 9 treats setup, provider switching/report review, Calls/MatrixRTC readiness, Agent Runtime Control administration, and member entitlement states as release-blocking accessibility flows. Automated evidence must prove keyboard-reachable controls, visible labels, support-safe status text, and no color-only readiness states; manual evidence must cover screen-reader traversal before an RC can be promoted.
 
 | Sprint 9 flow | Required evidence shape | Current automated anchor |
 | --- | --- | --- |
 | Admin setup and domain registry review | keyboard-accessible setup progression, stable domain labels, and no raw provider setup in member paths | `test/features/onboarding/setup_flow_test.dart`, `test/release_1/v0_1_release_spine_contract_test.dart` |
 | Provider switching and report review | dry-run, lossy, conflict, rollback, member-impact, and blocked-apply states are reachable and text-first | `admin-console/src/App.test.tsx`, `server/src/test/java/com/massimotter/weave/backend/controller/AdminControlPlaneControllerTest.java` |
-| Calls/LiveKit readiness | join/start states fail closed with labeled controls and honest media/E2EE readiness copy | `test/features/chat/channel_workspace_test.dart`, `docs/meeting-architecture-decision.md` |
+| Calls/MatrixRTC readiness | join/start states fail closed with labeled controls and honest signaling, RTC-authorization, media-E2EE, and SFU readiness copy | `test/features/chat/channel_workspace_test.dart`, `docs/meeting-architecture-decision.md` |
 | Member capability states | provider-neutral states are exposed as semantic text and never require provider diagnostics | `test/features/settings/settings_screen_test.dart`, `test/features/app/weave_app_backend_capability_flow_test.dart` |
 
 ## Sprint 10 manual accessibility closure scope
@@ -76,7 +76,7 @@ Release evidence distinguishes live-runtime checks from offline/spec checks: `e2
 
 | Sprint 11 flow | Required replacement evidence shape | Current artifact |
 | --- | --- | --- |
-| Admin setup and provider category review | Keyboard-only and screen-reader traversal reaches identity, chat, files, documents, calendar, boards, calls, and Weaver readiness without pointer-only steps or raw provider setup leakage to members. | Pending execution: `docs/evidence/sprint-11-manual-accessibility-evidence-template.md` |
+| Admin setup and provider category review | Keyboard-only and screen-reader traversal reaches identity, chat, files, documents, calendar, boards, calls, and Agent Runtime Control readiness without pointer-only steps or raw provider setup leakage to members. | Pending execution: `docs/evidence/sprint-11-manual-accessibility-evidence-template.md` |
 | Provider apply and recovery gates | Category, adapter, dry-run, consequence confirmation, readiness test, replacement evidence, blocked apply, enabled apply, rollback/support boundary, and fresh/stale evidence states are reachable and announced as text. | Pending execution: `docs/evidence/sprint-11-manual-accessibility-evidence-template.md` |
 | Member domain provider reality | Files, Calendar, Boards, Calls, and Documents states are announced as available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later with support-safe fallback copy. | Pending execution: `docs/evidence/sprint-11-manual-accessibility-evidence-template.md` |
 | Admin Console and member 200% text scaling | Provider apply gates, evidence refs, recovery copy, and member domain state cards remain readable and operable at 200% zoom/text scaling. | Pending execution: `docs/evidence/sprint-11-manual-accessibility-evidence-template.md` |
@@ -125,7 +125,7 @@ The gate maps Flutter semantics, keyboard traversal, text-scale/reflow, Admin Co
 
 ## Sprint 18 manual assistive-technology release trust gate
 
-Historical issue #591 expanded the manual AT scope to the Sprint 18 member Workspace loop, admin migration apply/recovery, admin go-live claim-control, and governed Weaver approval/revocation surfaces. That issue is closed; the machine-readable gate remains `release/accessibility-gate.json`, and current release promotion must use current candidate evidence or an explicit release-owner scope decision. The historical accounting artifact is `docs/evidence/accessibility/sprint-18-manual-at-blocker.md`.
+Historical issue #591 expanded the manual AT scope to the Sprint 18 member Workspace loop, admin migration apply/recovery, admin go-live claim-control, and the then-proposed governed-Weaver approval/revocation surface. That issue is closed and the obsolete member approval surface was removed. The machine-readable gate now requires current Agent Runtime Control admin lifecycle evidence; current release promotion must use current candidate evidence or an explicit release-owner scope decision. The historical accounting artifact is `docs/evidence/accessibility/sprint-18-manual-at-blocker.md`.
 
 The blocker artifact and candidate checklist are not pass evidence. They exist because the repository automation environment cannot collect a real screen-reader, keyboard-only, and text-scale session by itself. Before any current candidate claims accessibility signoff for these flows, each row must be replaced by real reviewer evidence or by an exceptional release-owner waiver that names the owner, candidate commit/tag, tested route, assistive technology/browser or device combination, result, linked blocker, expiry, and compensating evidence.
 
@@ -134,4 +134,4 @@ The blocker artifact and candidate checklist are not pass evidence. They exist b
 | member Workspace loop | VoiceOver or TalkBack, desktop keyboard/screen reader, and 200% text scale across Weave Home, channel workspace, chat, files, calendar, boards, meetings, and decisions. | Requires current candidate evidence; do not claim member workspace accessibility signoff from historical blocker accounting. |
 | admin migration apply/recovery | Desktop keyboard, screen reader, and text-scale traversal of dry-run, member-impact preview, apply block, recovery, rollback, and support boundary. | Requires current candidate evidence; do not claim production provider migration apply or lossless cutover. |
 | admin go-live claim-control | Desktop keyboard, screen reader, and reflow of release blockers, support-bundle refs, audit/export refs, release notes source, CI/Live Stack evidence, and next actions. | Missing or stale current evidence blocks RC/prod readiness claims. |
-| governed Weaver approval/revocation | Desktop keyboard, screen reader, and text-scale traversal of approval, denial, revocation, receipt, audit, and disabled-by-policy states. | Requires current candidate evidence; do not claim broad Weaver availability or autonomous team writes. |
+| Agent Runtime Control admin lifecycle | Desktop keyboard, screen reader, and text-scale traversal of entitlement, provision/start/stop/suspend/reconcile/revoke/delete-state confirmation, audit correlation, and disabled-by-policy states. | Requires current candidate evidence; no member approval inbox or broad autonomous-write claim exists. |

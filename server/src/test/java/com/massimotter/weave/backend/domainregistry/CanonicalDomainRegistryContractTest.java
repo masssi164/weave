@@ -26,7 +26,7 @@ class CanonicalDomainRegistryContractTest {
             "decisions",
             "notifications",
             "health",
-            "weaver");
+            "agent-runtime-control");
 
     @Test
     void registryDefinesCanonicalDomainsStatesAliasesAndPortabilityMetadata() {
@@ -84,12 +84,22 @@ class CanonicalDomainRegistryContractTest {
         registry.domains().forEach(domain -> {
             assertThat(domain.version()).isEqualTo(1);
             assertThat(domain.canonicalObjects()).isNotEmpty();
-            assertThat(domain.capabilityKeys()).contains(
-                    domain.key() + ".read",
-                    domain.key() + ".export",
-                    domain.key() + ".dryRun",
-                    domain.key() + ".apply",
-                    domain.key() + ".adminConfigure");
+            if (domain.key().equals("agent-runtime-control")) {
+                assertThat(domain.capabilityKeys()).contains(
+                        "agent-runtime.entitled",
+                        "agent-runtime.profile.read",
+                        "agent-runtime.lifecycle.write",
+                        "agent-runtime.wake",
+                        "agent-runtime.approval.attest",
+                        "agent-runtime.admin");
+            } else {
+                assertThat(domain.capabilityKeys()).contains(
+                        domain.key() + ".read",
+                        domain.key() + ".export",
+                        domain.key() + ".dryRun",
+                        domain.key() + ".apply",
+                        domain.key() + ".adminConfigure");
+            }
             assertThat(domain.memberStates()).containsExactlyElementsOf(registry.memberStates());
             assertThat(domain.adminStates()).containsExactlyElementsOf(registry.adminStates());
             assertThat(domain.sourceOfTruthModes()).contains("weave_owned", "selected_provider_owned", "hybrid_composite");
@@ -123,9 +133,13 @@ class CanonicalDomainRegistryContractTest {
         assertThat(objects(registry, "files")).contains("WeaveDrive", "WeaveFolder", "WeaveFile", "WeaveVersion", "WeaveShare", "WeavePermission", "WeaveLock", "WeaveQuota", "ProviderRef");
         assertThat(objects(registry, "documents")).contains("Document", "EditSession", "Comment", "Suggestion", "CoauthorPresence", "Version", "Export");
         assertThat(objects(registry, "calendar")).contains("WeaveCalendar", "WeaveEvent", "WeaveRecurrence", "WeaveAttendee", "WeaveResource", "WeaveAvailability", "ProviderRef");
-        assertThat(objects(registry, "weaver")).contains("WeaverRuntimeProfile", "WeaverRuntimeInstance", "WeaverUserWorkspace", "WeaverToolGrant", "WeaverApprovalReceipt", "WeaverAuditEvent", "WeaverCustomizationProfile");
+        assertThat(objects(registry, "agent-runtime-control")).contains(
+                "RuntimeEntitlementRef", "RuntimeProfile", "ApprovalChallenge", "RuntimeCell",
+                "WorkspaceRevision", "RuntimeRevocation", "RuntimeAuditCorrelation");
         assertThat(objects(registry, "boards")).contains("Board", "List", "Task", "Status", "Assignee", "Comment", "AttachmentRef", "Dependency", "CustomField");
-        assertThat(objects(registry, "calls")).contains("Meeting", "MediaSession", "Participant", "TokenGrant", "Recording", "Caption", "ConsentRecord");
+        assertThat(objects(registry, "calls")).contains(
+                "Meeting", "MatrixRtcSlot", "MatrixRtcMember", "DeviceBinding", "MediaSession",
+                "RtcAuthorization", "Recording", "Caption", "ConsentRecord");
     }
 
     @Test

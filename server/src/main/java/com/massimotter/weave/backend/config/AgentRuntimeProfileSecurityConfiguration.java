@@ -14,7 +14,8 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.oauth2.jwt.JwtValidators;
+import org.springframework.security.oauth2.jwt.JwtIssuerValidator;
+import org.springframework.security.oauth2.jwt.JwtTimestampValidator;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
@@ -35,12 +36,14 @@ public class AgentRuntimeProfileSecurityConfiguration {
             ApiErrorResponseWriter errors) throws Exception {
         String issuer = resourceServerProperties.getJwt().getIssuerUri();
         JwtDecoder decoder = StringUtils.hasText(issuer)
-                ? JwtDecoderConfig.configuredDecoder(
+                ? JwtDecoderConfig.configuredRfc9068Decoder(
                         resourceServerProperties,
                         new DelegatingOAuth2TokenValidator<Jwt>(
-                                JwtValidators.createDefaultWithIssuer(issuer),
+                                new JwtTimestampValidator(),
+                                new JwtIssuerValidator(issuer),
+                                JwtDecoderConfig.rfc9068AccessTokenTypeValidator(),
                                 JwtDecoderConfig.requiredAudienceValidator(platform.agentRuntimeControlResource())))
-                : JwtDecoderConfig.configuredDecoder(
+                : JwtDecoderConfig.configuredRfc9068Decoder(
                         resourceServerProperties,
                         token -> org.springframework.security.oauth2.core.OAuth2TokenValidatorResult.success());
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();

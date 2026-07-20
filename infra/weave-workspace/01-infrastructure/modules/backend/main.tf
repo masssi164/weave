@@ -103,6 +103,31 @@ resource "docker_container" "this" {
     "WEAVE_PERSISTENCE_JDBC_USERNAME=${var.persistence_jdbc_username}",
     "WEAVE_PERSISTENCE_JDBC_PASSWORD=${var.persistence_jdbc_password}",
     "WEAVE_DEVICE_CREDENTIAL_STORAGE_MODE=${var.device_credential_storage_mode}",
+    "WEAVE_AGENT_RUNTIME_STORAGE_MODE=${var.agent_runtime_enabled ? "jdbc" : "disabled"}",
+    "WEAVE_AGENT_RUNTIME_PROFILE_SIGNING_ENABLED=${var.agent_runtime_enabled}",
+    "WEAVE_AGENT_RUNTIME_PROFILE_SIGNING_SECRET_ROOT=${var.agent_runtime_profile_signing_container_root}",
+    "WEAVE_AGENT_RUNTIME_STATE_STORE_ENABLED=${var.agent_runtime_enabled}",
+    "WEAVE_AGENT_RUNTIME_STATE_WRAPPING_KEY_ROOT=${var.agent_runtime_state_wrapping_container_root}",
+    "WEAVE_AGENT_RUNTIME_POLICY_ENABLED=${var.agent_runtime_enabled}",
+    "WEAVE_AGENT_RUNTIME_POLICY_FILE=${var.agent_runtime_policy_container_path}",
+    "WEAVE_AGENT_RUNTIME_WORKLOAD_IDENTITY_ENABLED=${var.agent_runtime_workload_identity_enabled}",
+    "WEAVE_AGENT_RUNTIME_KEYCLOAK_ADMIN_BASE_URL=${var.agent_runtime_keycloak_admin_base_url}",
+    "WEAVE_AGENT_RUNTIME_ISSUER=${var.agent_runtime_issuer}",
+    "WEAVE_AGENT_RUNTIME_REALM=${var.agent_runtime_realm}",
+    "WEAVE_AGENT_RUNTIME_ORGANIZATION_REF=${var.agent_runtime_organization_ref}",
+    "WEAVE_AGENT_RUNTIME_KEYCLOAK_ORGANIZATION_ID=${var.agent_runtime_keycloak_organization_id}",
+    "WEAVE_AGENT_RUNTIME_ADMIN_CLIENT_ID=${var.agent_runtime_admin_client_id}",
+    "WEAVE_AGENT_RUNTIME_ADMIN_CREDENTIAL_REF=${var.agent_runtime_admin_credential_ref}",
+    "WEAVE_AGENT_RUNTIME_ENTITLEMENT_CLIENT_ID=${var.agent_runtime_entitlement_client_id}",
+    "WEAVE_AGENT_RUNTIME_ENTITLEMENT_CREDENTIAL_REF=${var.agent_runtime_entitlement_credential_ref}",
+    "WEAVE_AGENT_RUNTIME_SECRET_ROOT=${var.agent_runtime_credential_container_root}",
+    "WEAVE_AGENT_RUNTIME_DEFAULT_CLIENT_SCOPES=weaver-runtime.workload",
+    "WEAVE_AGENT_RUNTIME_OPTIONAL_CLIENT_SCOPES=agent-runtime.profile.read,mcp:tools,calendar.read",
+    "WEAVE_AGENT_RUNTIME_ENTITLEMENT_ENABLED=${var.agent_runtime_enabled}",
+    "WEAVE_AGENT_RUNTIME_ENTITLEMENT_GROUPS=weave-weaver-runtime",
+    "WEAVE_AGENT_RUNTIME_ENTITLEMENT_CAPABILITIES=calendar.read",
+    "WEAVE_WORKSPACE_AGENT_RUNTIME_CONTROL_ENABLED=${var.agent_runtime_enabled}",
+    "WEAVE_WORKSPACE_AGENT_RUNTIME_CONTROL_READINESS=${var.agent_runtime_enabled ? "ready" : "unavailable"}",
     "WEAVE_MATRIX_E2EE_STORAGE_MODE=jdbc",
     "WEAVE_DEVOPS_PRIMARY_PROVIDER=${var.devops_primary_provider}",
     "WEAVE_DEVOPS_GITLAB_RUNTIME_ENABLED=${var.devops_gitlab_runtime_enabled}",
@@ -185,6 +210,12 @@ resource "docker_container" "this" {
     source_hash = var.provider_selections_source_hash
   }
 
+  upload {
+    file        = var.agent_runtime_policy_container_path
+    source      = var.agent_runtime_policy_source
+    source_hash = var.agent_runtime_policy_source_hash
+  }
+
   volumes {
     volume_name    = var.matrix_appservice_runtime_volume_name
     container_path = var.matrix_appservice_runtime_container_path
@@ -198,6 +229,29 @@ resource "docker_container" "this" {
       host_path      = volumes.value
       container_path = var.chat_e2e_proof_token_container_path
       read_only      = true
+    }
+  }
+
+  dynamic "volumes" {
+    for_each = var.agent_runtime_enabled ? {
+      profile_signing = {
+        host      = var.agent_runtime_profile_signing_host_root
+        container = var.agent_runtime_profile_signing_container_root
+      }
+      state_wrapping = {
+        host      = var.agent_runtime_state_wrapping_host_root
+        container = var.agent_runtime_state_wrapping_container_root
+      }
+      credentials = {
+        host      = var.agent_runtime_credential_host_root
+        container = var.agent_runtime_credential_container_root
+      }
+    } : {}
+
+    content {
+      host_path      = volumes.value.host
+      container_path = volumes.value.container
+      read_only      = false
     }
   }
 

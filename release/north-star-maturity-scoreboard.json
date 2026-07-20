@@ -57,12 +57,12 @@
       "score": 2,
       "evidenceClass": "blocked manual evidence with current automated/accessibility support evidence only",
       "evidence": [
-        "GitHub issue #591 remains open and release-blocking.",
+        "GitHub issue #591 is closed_not_planned; its historical artifact is not current manual AT pass evidence.",
         "docs/evidence/accessibility/sprint-18-manual-at-blocker.md records the missing manual AT evidence boundary.",
         "release/accessibility-gate.json keeps manual AT promotion blocked."
       ],
       "blockers": [
-        "External human AT reviewer required for release-promotion credit. Smallest next action: execute the #591 checklist for member Space loop, admin migration apply/recovery, go-live claim-control, and governed Weaver approval/revocation on exact candidate build and record reviewer/date/AT/browser/device/results."
+        "External human AT reviewer required for release-promotion credit. Smallest next action: execute the current checklist for member Space loop, admin migration apply/recovery, go-live claim-control, and Agent Runtime Control admin lifecycle on the exact candidate build and record reviewer/date/AT/browser/device/results."
       ]
     },
     {
@@ -97,20 +97,21 @@
       ]
     },
     {
-      "id": "governed-weaver-runtime-safety",
-      "label": "Governed Weaver runtime safety",
+      "id": "agent-runtime-control-safety",
+      "label": "Agent Runtime Control safety",
       "weight": 10,
       "score": 8,
       "evidenceClass": "current-head offline/spec, backend, admin, and infra contract evidence",
       "evidence": [
-        "./gradlew serverCi passed in local current-head CI.",
-        "server/src/test/java/com/massimotter/weave/backend/service/WeaverRuntimeServiceTest.java",
-        "server/src/test/java/com/massimotter/weave/backend/weaver/WeaverToolRegistryTest.java",
+        "Backend and MCP tests cover per-cell Keycloak identity, token exchange, current-context revalidation, revocation, and fail-closed admission.",
+        "server/src/test/java/com/massimotter/weave/backend/agentruntime/application/AgentRuntimeAdminServiceTest.java",
+        "server/src/test/java/com/massimotter/weave/backend/agentruntime/application/McpWorkloadAuthorizationServiceTest.java",
+        "weave-mcp-server/src/test/java/com/massimotter/weave/mcp/SpringAiMcpTransportTest.java",
         "infra/weave-workspace/tests/weaver-runtime-lifecycle-contract-test.sh",
         "docs/governed-weaver-runtime-security-contract.md"
       ],
       "blockers": [
-        "No broad autonomous AI/runtime execution claim; manual AT evidence for Weaver approval/revocation surfaces remains #591."
+        "No broad autonomous AI/runtime execution claim: production KMS, disposable orchestration, cross-node reconstruction, compatible workload projection, runtime image/SBOM/scan, and current accessibility evidence remain required."
       ]
     },
     {

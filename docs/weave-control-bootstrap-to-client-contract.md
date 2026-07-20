@@ -6,14 +6,14 @@ Status: Sprint 30 contract slice for issue #681, now subordinate to the stable [
 
 The Bootstrap foundation defines the enterprise component split: Control Plane = Weave Server + Admin Console; Provider Stack / Infra is optional and profile-driven; the member client is never deployed by bootstrap. Weave Control is the admin/operator bootstrap and operations product surface. It consists of `weavectl` plus the Control UI, backed by Weave Server as the Java domain facade, policy, readiness, audit, and evidence brain. It owns plan drafting, preflight, explicit apply approval, local/remote CI/CD dispatch, stack/bootstrap operations, rollback/support boundaries, readiness collection, support-bundle references, and client handoff target generation. Weave Server stays separately deployable or attachable until contract evidence proves a different implementation is safer.
 
-The Admin Console is the organization management surface that sits on top of the same Weave Server contract after or during bootstrap. It owns organization/provider category management, IDM/RBAC sync, users/groups/roles, capability/RBAC profiles, policy preview, whitelists, audit views, readiness/diagnostics, and future governed Weaver category controls. It may show support-safe pipeline/evidence refs produced by Weave Control, but it must not become a raw CI log viewer or secret console.
+The Admin Console is the organization management surface that sits on top of the same Weave Server contract after or during bootstrap. It owns organization/provider category management, IDM/RBAC sync, users/groups/roles, capability/RBAC profiles, policy preview, whitelists, audit views, readiness/diagnostics, and Agent Runtime Control lifecycle and policy controls. It may show support-safe pipeline/evidence refs produced by Weave Control, but it must not become a raw CI log viewer or secret console.
 
 Weave App is the member product surface. A normal member enters through an organization auth URL, non-secret enrollment handoff link, or deep link, completes SSO, and sees Weave product capabilities. The handoff link is not bearer access; account provisioning, organization/workspace membership, and the identity-provider session are the access control boundary. Members never configure CI/CD targets. GitHub is the sole repository delivery authority, but its settings, OIDC clients, provider URLs, service endpoints, SecretRefs, Matrix/Nextcloud/OpenProject/LiveKit internals, Weaver runtime internals, and bootstrap diagnostics remain admin/operator concerns.
 
 | Surface | Primary responsibility | Must not own |
 | --- | --- | --- |
 | Weave Control | Bootstrap/ops plans, preflight, approved mutation dispatch, stack readiness, handoff target, support-safe deployment evidence. | Member UX, provider-specific member setup, app/client E2E signals, raw secrets, raw logs, or member content. |
-| Admin Console | Organization/provider/policy management, readiness, IDM/RBAC, whitelists, audit, diagnostics, future Weaver governance controls. | CI/CD mutation without Weave Control approval boundary, raw provider payloads, raw runtime config, or member app flows. |
+| Admin Console | Organization/provider/policy management, readiness, IDM/RBAC, whitelists, audit, diagnostics, and Agent Runtime Control lifecycle/policy controls. | CI/CD mutation without Weave Control approval boundary, raw provider payloads, raw runtime config, or member app flows. |
 | Weave App / Client | SSO/invite/deep-link entry, provider-neutral product surfaces, member capability states, separate app/client E2E proof. | Provider setup, SecretRefs, endpoint rotation, bootstrap diagnostics, CI/CD targets, Admin Console policy authoring, or Weaver runtime administration. |
 
 ## Setup modes
@@ -102,25 +102,25 @@ The member path may contain:
 
 The member path must not contain provider setup forms, OIDC/SAML wiring, realms, CI/CD target selection, raw service endpoints, SecretRefs, selected adapter names in core workflows, provider diagnostics, raw downstream errors, tokens, tenant URLs, Matrix room IDs, Nextcloud paths, OpenProject/Vikunja project identifiers, LiveKit room tokens, or bootstrap run logs.
 
-## Optional governed Weaver boundary
+## Optional Agent Runtime Control boundary
 
-Weaver remains an optional future organization capability and governance surface, disabled by default. It belongs in Admin Console policy/readiness/whitelist planning so the organization story does not forget it, but this contract and WEAVE-SPEC-0001 do not claim Weaver/AI runtime behavior in v0.1. It is unavailable unless all of these are true:
+Weaver/OpenClaw remains an optional organization runtime behind Agent Runtime Control and is disabled by default. It is unavailable unless all of these are true:
 
-1. organization policy enables the Weaver category;
-2. per-user or group policy grants `weaver.enabled`;
-3. the governed runtime generator and sandbox profile are enabled;
-4. tool and domain allowlists intersect with the member's normal rights;
-5. write-like or external actions require approval receipts;
-6. audit, revoke, redaction, and support-safe evidence refs are active.
+1. authoritative Keycloak group membership derives `agent-runtime.entitled`;
+2. profile signing, workload identity, encrypted external state, and lifecycle reconciliation are enabled;
+3. a unique per-cell OIDC client and current server-owned cell binding exist;
+4. MCP token exchange and backend current-context revalidation pass;
+5. any future domain tool has an explicit facade contract and action-bound approval evidence; and
+6. audit, revoke, deletion, redaction, and support-safe evidence are active.
 
-Policy-denied, approval-required, revoked, unavailable, and not-configured states must be observable to admins/operators and translated to safe member copy. Support evidence must exclude prompts, private memory, member content, tokens, raw provider payloads, credential URLs, raw runtime configuration, and raw downstream errors. No PR, release note, issue comment, or product copy may claim Weaver is a default production PA or broadly autonomous assistant from this slice.
+Policy-denied, revoked, unavailable, and not-configured states must be observable to admins/operators and translated to safe member copy. Support evidence must exclude prompts, private state, member content, tokens, raw provider payloads, credential URLs, runtime configuration, and downstream errors. RuntimeProfile v1, human MCP access, shared service accounts, and profile-derived tools are not compatibility paths.
 
 ## Current repo slices
 
 - `docs/admin-provisioned-first-use.md` owns the member/admin first-use split.
 - `docs/admin-suite-readiness-setup-contract.md` owns Admin Console readiness, guided setup, and claim-control summary language.
 - `docs/control-plane-infra-bootstrap.md` owns current bootstrap artifacts, SecretRefs, and smoke contract.
-- `docs/governed-weaver-runtime-security-contract.md` owns Weaver policy, runtime, sandbox, approval, audit, and revoke gates.
+- `docs/governed-weaver-runtime-security-contract.md` records the Agent Runtime Control workload, external-state, approval-evidence, audit, and revoke gates for Weaver/OpenClaw cells.
 - `client/test/architecture/admin_provisioned_first_use_contract_test.dart` and `client/test/architecture/member_client_provider_boundary_contract_test.dart` guard member setup leakage.
 
 ## Release-claim boundary

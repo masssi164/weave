@@ -18,7 +18,7 @@ Massimo provided an architecture package for a full Weave restructuring on
 It contains a target architecture, migration roadmap, ADR drafts, Cucumber
 features, CI gate sketches, SQL migration examples, and Java examples for
 canonical persistence, open-standard protocol projections, provider switching,
-MCP policy, Matrix gateway strategy, and the governed Weaver boundary.
+workload-only MCP policy, Matrix gateway strategy, and the Agent Runtime Control boundary.
 
 The current implementation truth at intake was:
 
@@ -59,8 +59,10 @@ The accepted direction is:
 - Chat targets Weave-owned Matrix Client-Server core first, with federation
   identity only after identity, signing, moderation, retention, E2EE, and
   supportability gates exist.
-- Calls use WebRTC media with a small Weave Calls API for create/join/leave/read
-  and short-lived join grants. LiveKit is the first SFU candidate; Teams/Slack
+- Calls use Matrix v1.19 plus pinned MatrixRTC Profile 0 as the only member
+  signaling contract, with WebRTC media and an internal RTC Authorizer that
+  independently validates current context before issuing short-lived SFU tokens.
+  There is no member Calls REST API. LiveKit is the first SFU candidate; Teams/Slack
   meetings remain southbound link/meeting adapters.
 - MCP uses Spring AI semantic Weave tools over domain use cases, not OpenAPI
   route mirrors. Weaver is a governed client/host/agent runtime integration
@@ -132,7 +134,7 @@ Existing work remains part of the graph rather than being duplicated:
 - #1031 People/Contacts CardDAV facade and native address-book boundary.
 - #968 Calls/Meetings provider-neutral app shell.
 - #865 and #870 transitional Python/OpenAPI MCP work.
-- #971 governed Weaver member surface.
+- #971 historical Weaver member-surface proposal, superseded by admin/operator Agent Runtime Control lifecycle and Matrix-channel runtime interaction.
 
 ## Consequences
 

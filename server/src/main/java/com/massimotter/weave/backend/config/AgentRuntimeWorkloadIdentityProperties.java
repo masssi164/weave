@@ -18,12 +18,15 @@ public class AgentRuntimeWorkloadIdentityProperties {
     private String realm = "weave";
     private String organizationRef = "tenant-default";
     private String keycloakOrganizationId = "";
-    private String adminClientId = "weave-identity-admin";
+    private String adminClientId = "weave-agent-runtime-admin";
     private String adminCredentialRef = "";
+    private String entitlementClientId = "weave-identity-admin";
+    private String entitlementCredentialRef = "";
     private Path secretRoot;
     private Duration timeout = Duration.ofSeconds(10);
     private Duration entitlementObservationTtl = Duration.ofMinutes(5);
     private String workloadRole = "weaver-runtime";
+    private List<String> defaultClientScopes = new ArrayList<>(List.of("weaver-runtime.workload"));
     private List<String> optionalClientScopes = new ArrayList<>(List.of("agent-runtime.profile.read"));
     private int accessTokenLifespanSeconds = 60;
 
@@ -91,6 +94,22 @@ public class AgentRuntimeWorkloadIdentityProperties {
         this.adminCredentialRef = adminCredentialRef;
     }
 
+    public String entitlementClientId() {
+        return entitlementClientId;
+    }
+
+    public void setEntitlementClientId(String entitlementClientId) {
+        this.entitlementClientId = entitlementClientId;
+    }
+
+    public String entitlementCredentialRef() {
+        return entitlementCredentialRef;
+    }
+
+    public void setEntitlementCredentialRef(String entitlementCredentialRef) {
+        this.entitlementCredentialRef = entitlementCredentialRef;
+    }
+
     public Path secretRoot() {
         return secretRoot;
     }
@@ -121,6 +140,16 @@ public class AgentRuntimeWorkloadIdentityProperties {
 
     public void setWorkloadRole(String workloadRole) {
         this.workloadRole = workloadRole;
+    }
+
+    public List<String> defaultClientScopes() {
+        return List.copyOf(defaultClientScopes);
+    }
+
+    public void setDefaultClientScopes(List<String> defaultClientScopes) {
+        this.defaultClientScopes = defaultClientScopes == null
+                ? new ArrayList<>()
+                : new ArrayList<>(defaultClientScopes);
     }
 
     public List<String> optionalClientScopes() {
@@ -155,11 +184,12 @@ public class AgentRuntimeWorkloadIdentityProperties {
                 realm,
                 timeout,
                 workloadRole,
+                defaultClientScopes(),
                 optionalClientScopes(),
                 accessTokenLifespanSeconds);
     }
 
-    public ClientSecretKeycloakAdminAccessTokenProvider.Settings adminTokenSettings() {
+    public ClientSecretKeycloakAdminAccessTokenProvider.Settings workloadAdminTokenSettings() {
         return new ClientSecretKeycloakAdminAccessTokenProvider.Settings(
                 keycloakAdminBaseUrl,
                 realm,
@@ -168,10 +198,19 @@ public class AgentRuntimeWorkloadIdentityProperties {
                 timeout);
     }
 
+    public ClientSecretKeycloakAdminAccessTokenProvider.Settings entitlementTokenSettings() {
+        return new ClientSecretKeycloakAdminAccessTokenProvider.Settings(
+                keycloakAdminBaseUrl,
+                realm,
+                entitlementClientId,
+                entitlementCredentialRef,
+                timeout);
+    }
+
     public KeycloakRuntimeEntitlementAuthority.Settings entitlementSettings(
-            WeaverRuntimeProperties runtimePolicy) {
+            AgentRuntimeEntitlementProperties entitlement) {
         return new KeycloakRuntimeEntitlementAuthority.Settings(
-                runtimePolicy.enabled(),
+                entitlement.enabled(),
                 keycloakAdminBaseUrl,
                 issuer,
                 organizationRef,
@@ -179,7 +218,7 @@ public class AgentRuntimeWorkloadIdentityProperties {
                 realm,
                 timeout,
                 entitlementObservationTtl,
-                runtimePolicy.enabledGroups(),
-                runtimePolicy.allowedCapabilities());
+                entitlement.enabledGroups(),
+                entitlement.allowedCapabilities());
     }
 }

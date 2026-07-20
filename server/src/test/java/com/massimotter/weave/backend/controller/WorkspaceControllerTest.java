@@ -171,12 +171,16 @@ class WorkspaceControllerTest {
                         .value(hasItem("encrypted_data_plane_available")))
                 .andExpect(jsonPath("$.clientAccessDiscovery.chat.credentialLifecycle.status")
                         .value("session_bound_no_raw_matrix_credentials"))
-                .andExpect(jsonPath("$.clientAccessDiscovery['meetings-calls'].surfaces[?(@.kind == 'native-os')].setupPath")
-                        .value(hasItem("/api/calls/native-boundary-setup")))
+                .andExpect(jsonPath("$.clientAccessDiscovery['meetings-calls'].productApiBasePath")
+                        .value("/_matrix/client"))
+                .andExpect(jsonPath("$.clientAccessDiscovery['meetings-calls'].surfaces[?(@.kind == 'standard-protocol')].name")
+                        .value(hasItem("MatrixRTC Profile 0 signaling")))
                 .andExpect(jsonPath("$.clientAccessDiscovery['meetings-calls'].surfaces[?(@.kind == 'standard-protocol')].readiness")
-                        .value(hasItem("boundary_only")))
+                        .value(hasItems("experimental_guarded", "rtc_authorizer_required")))
+                .andExpect(jsonPath("$.clientAccessDiscovery['meetings-calls'].credentialLifecycle.status")
+                        .value("matrix_native_oauth_distinct_from_sfu_tokens"))
                 .andExpect(jsonPath("$.capabilities.calendar.grantedCapabilities", hasItems("calendar.manage_events")))
-                .andExpect(jsonPath("$.capabilities.weaver.policyState").value("disabled"))
+                .andExpect(jsonPath("$.capabilities.agentRuntimeControl.policyState").value("disabled"))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("matrix.weave.test"))))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("files.weave.test"))))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("nextcloud"))))
@@ -332,8 +336,7 @@ class WorkspaceControllerTest {
 
     @Test
     void removedMemberWeaverRoutesAreDeniedWithoutCompatibilityHandler() throws Exception {
-        // V01_GOVERNED_WEAVER_RUNTIME_POLICY
-        // V01_GOVERNED_WEAVER_TOOL_REGISTRY
+        // Removed member Weaver routes remain denied without a compatibility handler.
         var member = jwt()
                 .jwt(token -> token
                         .subject("member@example.invalid")
@@ -367,7 +370,7 @@ class WorkspaceControllerTest {
                 .andExpect(jsonPath("$.denyByDefault").value(true))
                 .andExpect(jsonPath("$.supportSafe").value(true))
                 .andExpect(jsonPath("$.grantedCapabilities").isArray())
-                .andExpect(jsonPath("$.weaverRuntimePosture").value(org.hamcrest.Matchers.containsString("disabled-by-default")));
+                .andExpect(jsonPath("$.agentRuntimeControlPosture").value(org.hamcrest.Matchers.containsString("disabled-by-default")));
     }
 
     @Test
@@ -433,8 +436,8 @@ class WorkspaceControllerTest {
                 .andExpect(jsonPath("$.calendar.readiness").value("degraded"))
                 .andExpect(jsonPath("$.boards.readiness").value("unavailable"))
                 .andExpect(jsonPath("$.chat.policyState").value("allowed"))
-                .andExpect(jsonPath("$.weaver.enabled").value(false))
-                .andExpect(jsonPath("$.weaver.policyState").value("disabled"));
+                .andExpect(jsonPath("$.agentRuntimeControl.enabled").value(false))
+                .andExpect(jsonPath("$.agentRuntimeControl.policyState").value("disabled"));
     }
 
     private void assertReleaseReadinessSnapshot(String path) throws Exception {

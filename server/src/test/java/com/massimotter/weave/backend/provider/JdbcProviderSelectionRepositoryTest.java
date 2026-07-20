@@ -111,7 +111,11 @@ class JdbcProviderSelectionRepositoryTest {
                         "WEAVE_AGENT_RUNTIME_COMMANDS",
                         "WEAVE_AGENT_RUNTIME_ENTITLEMENTS",
                         "WEAVE_AGENT_RUNTIME_REVOCATIONS",
-                        "WEAVE_AGENT_RUNTIME_AUDIT_CORRELATIONS");
+                        "WEAVE_AGENT_RUNTIME_AUDIT_CORRELATIONS",
+                        "WEAVE_AGENT_RUNTIME_STATE_GENERATIONS",
+                        "WEAVE_AGENT_RUNTIME_STATE_CHUNKS",
+                        "WEAVE_AGENT_RUNTIME_STATE_HEADS",
+                        "WEAVE_AGENT_RUNTIME_STATE_DELETIONS");
     }
 
     @Test

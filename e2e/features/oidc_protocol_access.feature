@@ -2,10 +2,11 @@ Feature: OIDC and protocol credential access
   First-party clients use OIDC bearer tokens and generic DAV/CalDAV clients use Weave-issued device credentials.
 
   @oidc-protocol-access
-  Scenario: First-party OIDC bearer token accesses all protocol surfaces
+  Scenario: First-party authentication reaches each protocol through its native authorization boundary
     Given an authenticated member has Files, Calendar, Chat, and Calls capability
-    When the member accesses WebDAV, CalDAV, Matrix, and Calls join-grant surfaces
-    Then each request is authorized through Weave tenant, context, principal, and capability policy
+    When the member accesses WebDAV, CalDAV, Matrix, and MatrixRTC surfaces
+    Then DAV requests use Weave policy and MatrixRTC uses Matrix Native OAuth plus independent RTC authorization
+    And no OIDC ID token or Matrix OpenID credential is substituted for an SFU token
 
   @oidc-revoked-token
   Scenario: Revoked or expired bearer token fails support-safely

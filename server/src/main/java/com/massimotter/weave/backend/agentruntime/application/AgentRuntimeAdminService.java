@@ -280,7 +280,7 @@ public final class AgentRuntimeAdminService {
                         RuntimeCellState.DELETING,
                         reasonAuditRef("delete-state", reason, context.auditRef()),
                         clock.instant());
-                workloadIdentities.disableBinding(new RuntimeWorkloadIdentityAdmin.DisableBindingCommand(
+                workloadIdentities.deleteBinding(new RuntimeWorkloadIdentityAdmin.DeleteBindingCommand(
                         cell.organizationRef(), cell.personRef(), cell.cellRef(),
                         cell.workloadBinding(), context.auditRef()));
                 runtimeState.deleteRuntimeState(new RuntimeStateStoreAdmin.DeleteRuntimeStateCommand(

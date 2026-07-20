@@ -15,6 +15,8 @@ public interface RuntimeCellRepository {
 
     Optional<RuntimeCell> findByCellRef(String cellRef);
 
+    Optional<RuntimeCell> findByWorkload(String workloadIssuer, String workloadSubject);
+
     List<RuntimeCell> findAll();
 
     RuntimeCell acquireLease(String cellRef, UUID leaseId, Instant now, Instant expiresAt);

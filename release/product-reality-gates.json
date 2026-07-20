@@ -49,8 +49,8 @@
       "minimumSprint21RealityLevel": "contract_only"
     },
     {
-      "domain": "weaver",
-      "providers": ["docker-runtime"],
+      "domain": "agent-runtime-control",
+      "providers": ["weaver-openclaw"],
       "minimumSprint21RealityLevel": "contract_only"
     }
   ],
@@ -58,7 +58,7 @@
     "chat": ["WeaveSpace", "WeaveConversation", "WeaveMessage", "WeaveThread", "WeaveReaction", "WeaveAttachment", "WeaveMembership", "WeaveHistoryPolicy", "ProviderRef", "MigrationReceipt", "RollbackReceipt", "LossyFieldReport"],
     "files": ["WeaveDrive", "WeaveFolder", "WeaveFile", "WeaveVersion", "WeaveShare", "WeavePermission", "WeaveLock", "WeaveQuota", "ProviderRef"],
     "calendar": ["WeaveCalendar", "WeaveEvent", "WeaveRecurrence", "WeaveAttendee", "WeaveResource", "WeaveAvailability", "ProviderRef"],
-    "weaver": ["WeaverRuntimeProfile", "WeaverRuntimeInstance", "WeaverUserWorkspace", "WeaverToolGrant", "WeaverApprovalReceipt", "WeaverAuditEvent", "WeaverCustomizationProfile"]
+    "agent-runtime-control": ["RuntimeEntitlementRef", "RuntimeProfile", "ApprovalChallenge", "RuntimeCell", "WorkspaceRevision", "RuntimeRevocation", "RuntimeAuditCorrelation"]
   },
   "humanValidationSprint": "Human-in-the-Loop Release Validation",
   "humanValidationPrerequisite": "All automated E2E/runtime/migration/rollback/restore/support-safe gates are green before human testers validate."

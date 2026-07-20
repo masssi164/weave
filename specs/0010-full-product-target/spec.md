@@ -83,14 +83,14 @@ Define the complete target product as an Organization Operating System with data
 ### US3 - Use Weaver as governed assistance (Priority: P1)
 
 **Actor**: Weaver User  
-**Story**: If in `weaver-group`, use a per-user PA that can read, reason, and act through approved Weave domain capabilities under policy, consent, approval, audit, and fallback rules.  
+**Story**: If an authoritative Keycloak group derives `agent-runtime.entitled`, use an optional per-person Weaver/OpenClaw cell through Agent Runtime Control and independently authorized Weave domain capabilities.
 **Why now**: Weaver is part of the complete target product but must not leak OpenClaw operator runtime into product specs.  
-**Independent test**: Weaver examples prove group eligibility, per-user memory, RBAC/policy intersection, MCP/tool scopes, approvals, heartbeat/automation, audit, and safe fallback.
+**Independent test**: Agent Runtime Control examples prove Keycloak entitlement, unique cell workload identity, zero durable local bytes, signed RuntimeProfile v2, workload-only MCP admission, revocation, audit, and safe fallback.
 
 **Acceptance scenarios**:
 
-1. Given a member is not in `weaver-group`, when they open Weave, then no personal assistant runtime or tool grants are provisioned for them.
-2. Given a Weaver User asks Weaver to create or send something externally, when policy marks the action risky, then Weaver requests approval, records a receipt, and fails closed if policy/profile/tool versions changed.
+1. Given a member lacks `agent-runtime.entitled`, when runtime provisioning is requested, then no cell, workload client, profile, or MCP access is provisioned.
+2. Given an entitled runtime asks to create or send something externally, when policy marks the action risky, then OpenClaw resolves the Matrix-native approval and the owning domain accepts only current action-bound evidence plus independent authorization.
 3. Given Weaver cannot complete a task safely, when capability, consent, or provider evidence is missing, then it explains the reason, asks only necessary follow-up questions, and offers a safe fallback.
 
 ## Functional requirements
@@ -100,7 +100,7 @@ Define the complete target product as an Organization Operating System with data
 - **FR-003**: Weave MUST model provider changes with preflight, dry-run evidence, approval, cutover, rollback/recovery, and audit.
 - **FR-004**: Weave MUST expose Decisions/Evidence as a first-class domain with provenance, rationale, linked evidence, audit, and exportability.
 - **FR-005**: Weave MUST express acceptance per persona/domain in Given/When/Then form before implementation claims completion.
-- **FR-006**: Weaver MUST be a governed product component, disabled unless organization policy and `weaver-group` eligibility allow it.
+- **FR-006**: Weaver MUST be an optional product runtime behind Agent Runtime Control, disabled unless authoritative Keycloak policy derives `agent-runtime.entitled`.
 - **FR-007**: Weaver MUST act only through Weave domain capabilities, never raw provider APIs or private OpenClaw runtime configuration.
 - **FR-008**: Product specs MUST NOT encode `weave-co-leader`, local OpenClaw paths, personal operator allowlists, private model routing, or ACP harness choices as product concepts.
 
@@ -109,7 +109,7 @@ Define the complete target product as an Organization Operating System with data
 - Canonical Weave entities affected: Organization, Space, Subject, Group, Role, Policy, ProviderRef, Capability, DomainObject, Decision, Evidence, RuntimeProfile, ApprovalDecisionEvidence, ActionEvidence, AuditEvent.
 - Provider/category contracts affected: identity, chat, files/documents, calendar/meetings, boards/tasks, decisions/evidence, admin/provider, weaver tools.
 - API/event contracts affected: domain facades, provider readiness reports, migration reports, signed RuntimeProfile projection, signed single-use decision evidence, immutable action evidence, audit events.
-- Policy/RBAC/capability keys affected: domain grants, admin/provider grants, support/auditor grants, `weaver.enabled`, `weaver-group`, tool/action scopes.
+- Policy/RBAC/capability keys affected: domain grants, admin/provider grants, support/auditor grants, `agent-runtime.entitled`, workload scopes, and domain tool/action scopes.
 - Audit/support evidence affected: support-safe diagnostics, provenance, policy decisions, migration dry-runs, blocked events, decision/action evidence.
 
 ## Acceptance and evidence mapping

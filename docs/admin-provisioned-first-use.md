@@ -100,12 +100,12 @@ Admins/operators configure the selected IDM adapter and map roles/groups into We
 
 Admins/operators see support-safe effective policy state: IDM category, profile keys, role/group-derived grants, deny-by-default posture, provider readiness, and how policy/readiness maps to member states such as `available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, or `coming_later`. They do not need secret values in normal health views.
 
-Members only see provider-neutral manifest states: `available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, or `coming_later`. They never see raw provider setup, OIDC/SAML wiring, service endpoints, provider secrets, or diagnostics. Weaver appears only as a disabled-by-policy placeholder until a later governed per-user runtime policy exists.
+Members only see provider-neutral manifest states: `available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, or `coming_later`. They never see raw provider setup, OIDC/SAML wiring, service endpoints, provider secrets, or diagnostics. Agent Runtime Control appears as a capability state; lifecycle and workload controls remain admin/operator-only.
 
-## Governed Weaver runtime policy
+## Agent Runtime Control policy
 
-Weaver follows the same admin-provisioned boundary as every other provider category. User-rights, organization-whitelisted capabilities is the rule: a personal assistant may only receive the normal user's rights through capability channels the organization has explicitly enabled.
+Weaver/OpenClaw is an optional product runtime behind Agent Runtime Control. Keycloak group membership is the sole coarse entitlement source; collaboration domains still authorize every content operation under their own contracts.
 
-Admins/operators control the Weaver category, the runtime generator, the groups that may receive `weaver.enabled`, and the capability/tool allowlist. Normal members do not configure Docker, OpenClaw plugins, provider adapters, service endpoints, or secrets. They either receive an available governed profile or an impact-only disabled_by_policy/not_configured state.
+Admins/operators control entitlement mapping and the provision/start/stop/suspend/reconcile/revoke/delete-state lifecycle. Normal members do not configure containers, OpenClaw plugins, OIDC clients, provider adapters, service endpoints, or secrets. Human roles do not imply `agent-runtime.entitled`.
 
-The generated runtime profile is support-safe and runtime profile generation is audited. It includes per-user Docker isolation metadata, plugin/tool allowlists, and allowed capability keys, while exec and elevated surfaces remain disabled by default unless a later constrained admin profile explicitly enables them.
+RuntimeProfile v2 is signed desired state and profile generation is audited; it cannot authorize tools. Each cell uses a unique Keycloak workload client and zero durable local bytes. The MCP catalog remains empty until explicit domain facade contracts and approval/action evidence exist.

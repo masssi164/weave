@@ -137,7 +137,7 @@ abstract class AppLocalizations {
   /// Description shown in the setup provider step
   ///
   /// In en, this message translates to:
-  /// **'Admin setup starts with the identity/IDM category and keeps chat, files, calendar, boards/tasks, meetings/calls, documents/collaboration, and Weaver visible as provider categories before members join.'**
+  /// **'Admin setup starts with the identity/IDM category and keeps chat, files, calendar, boards/tasks, meetings/calls, documents/collaboration, and Agent Runtime Control visible as product categories before members join.'**
   String get setupProviderStepDescription;
 
   /// Title for the setup services step
@@ -257,7 +257,7 @@ abstract class AppLocalizations {
   /// Provider category detail for meetings and calls
   ///
   /// In en, this message translates to:
-  /// **'LiveKit Meetings readiness is tracked behind the token facade before members can start or join calls.'**
+  /// **'MatrixRTC Profile 0 is the signaling boundary; a replaceable SFU carries media only after current RTC authorization.'**
   String get providerCategoryMeetingsDetail;
 
   /// Provider category title for documents and collaboration
@@ -272,17 +272,17 @@ abstract class AppLocalizations {
   /// **'Document collaboration is a provider adapter category and stays admin setup required until a backend-owned launch path is configured.'**
   String get providerCategoryDocumentsDetail;
 
-  /// Provider category title for Weaver
+  /// Product category title for Agent Runtime Control
   ///
   /// In en, this message translates to:
-  /// **'Weaver'**
-  String get providerCategoryWeaverTitle;
+  /// **'Agent Runtime Control'**
+  String get providerCategoryAgentRuntimeControlTitle;
 
-  /// Provider category detail for Weaver
+  /// Product category detail for Agent Runtime Control
   ///
   /// In en, this message translates to:
-  /// **'Weaver stays disabled by default until governed per-user PA policy, whitelisting, consent, and audit are accepted.'**
-  String get providerCategoryWeaverDetail;
+  /// **'Agent Runtime Control stays disabled without current Keycloak entitlement, signed RuntimeProfile v2, encrypted external state, and cell-bound workload identity.'**
+  String get providerCategoryAgentRuntimeControlDetail;
 
   /// Title for the language preference step
   ///

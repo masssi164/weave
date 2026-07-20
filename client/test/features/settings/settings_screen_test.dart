@@ -707,11 +707,12 @@ void main() {
                   },
                 ),
                 ProviderCategoryStatusSnapshot(
-                  category: 'weaver',
-                  label: 'Weaver',
+                  category: 'agent-runtime-control',
+                  label: 'Agent Runtime Control',
                   readiness: ProviderCategoryReadiness.policyBlocked,
                   policyState: 'policy_blocked',
-                  memberImpact: 'Weaver is disabled by workspace policy.',
+                  memberImpact:
+                      'Agent Runtime Control is disabled by workspace policy.',
                   modules: [],
                   providerCandidates: [],
                   diagnostics: {
@@ -844,7 +845,7 @@ void main() {
       expect(find.text('calendar: degraded'), findsOneWidget);
       expect(find.text('nextcloud-caldav: unconfigured'), findsOneWidget);
       expect(find.text('Unavailable'), findsWidgets);
-      expect(find.text('Weaver: Blocked'), findsOneWidget);
+      expect(find.text('Agent Runtime Control: Blocked'), findsOneWidget);
       expect(find.textContaining('provider-token-123'), findsNothing);
       expect(find.textContaining('https://gitlab.example.test'), findsNothing);
       expect(find.textContaining('https://office.example.test'), findsNothing);

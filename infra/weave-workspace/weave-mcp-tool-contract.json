@@ -1,17 +1,17 @@
 {
   "schema": "weave-mcp-workload-contract-v2",
-  "status": "guarded-dark-awaiting-arc-binding",
+  "status": "guarded-workload-boundary-active",
   "placement": {
     "contractArea": "infra/weave-workspace",
     "runtimeModule": "weave-mcp-server",
     "runtimeInfrastructureModule": "infra/weave-workspace/01-infrastructure/modules/mcp",
-    "implementation": "Spring AI 2.0 stateful Streamable HTTP installed with the MCP path denied before protocol dispatch",
+    "implementation": "Spring AI 2.0 stateful Streamable HTTP admitted only after RFC 9068 workload validation, server-owned cell binding, token exchange, and backend context revalidation",
     "retiredRuntime": "infra/weave-mcp Python and FastMCP gateway",
     "architecturePrinciple": "MCP is a workload-only Weaver boundary; humans never access MCP"
   },
   "authorityBoundary": {
     "productAuthority": "weave-backend",
-    "mcpRole": "dark workload edge pending server-owned cell binding",
+    "mcpRole": "active workload identity and context bridge with an empty domain-tool catalog until the approval and action-evidence gates are implemented",
     "canonicalApiRemainsAuthoritative": true,
     "runtimeDirectProviderAccessAllowed": false,
     "memberMayConfigureProvidersThroughMcp": false,
@@ -229,32 +229,6 @@
         "memberPrivateMemory",
         "rawProviderDiagnostics"
       ]
-    },
-    {
-      "key": "weaver_runtime_governance",
-      "label": "Weaver runtime and governance",
-      "toolFamilies": [
-        "tool_allowlists",
-        "capability_bundles",
-        "consent_policy",
-        "sandbox_package_projection",
-        "runtime_audit_handoff"
-      ],
-      "allowedProofTools": [
-        "weaver.runtime_profile.preview",
-        "weaver.tools.list_granted"
-      ],
-      "writeToolsRequireApproval": [
-        "weaver.enable_for_group",
-        "weaver.revoke_runtime",
-        "weaver.approve_tool_bundle"
-      ],
-      "forbiddenOutputs": [
-        "openclaw.json",
-        "runtimeTokens",
-        "rawMcpServerConfig",
-        "execPolicyBypass"
-      ]
     }
   ],
   "sprint16ProofSlice": {
@@ -269,15 +243,19 @@
     "status": "historical-foundation-superseded-by-spring-ai-runtime"
   },
   "activeRuntimeEvidence": {
-    "transport": "stateful-streamable-http-installed",
+    "transport": "stateful-streamable-http-workload-active",
     "endpoint": "/mcp",
     "oidcGatekeeper": "spring-security-oauth2-resource-server",
+    "accessTokenType": "at+jwt",
+    "protectedResourceMetadata": "/.well-known/oauth-protected-resource/mcp",
+    "clientCredentialsExtension": "io.modelcontextprotocol/oauth-client-credentials",
+    "backendContext": "standard-token-exchange-v2-and-current-arc-binding",
     "tools": [],
     "resources": [],
     "prompts": [],
     "pythonFastMcpRemoved": true,
     "handwrittenJsonRpcRemoved": true,
-    "enabled": false,
-    "security": "deny-all-until-arc-binding"
+    "enabled": true,
+    "security": "bound-cell-only-rfc9068-exact-audience-and-current-arc-context"
   }
 }

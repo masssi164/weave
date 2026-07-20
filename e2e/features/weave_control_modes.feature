@@ -3,18 +3,18 @@ Feature: Weave Control setup modes and bootstrap-to-client proof
   @weave-control-plan-preflight-modes
   Scenario: Admin preflights deploy-new, attach-existing, and hybrid modes before mutation
     Given an admin is preparing organization setup in Weave Control
-    When the admin selects setup modes for identity, chat, files, calendar, boards, meetings, documents, and Weaver
+    When the admin selects setup modes for identity, chat, files, calendar, boards, meetings, documents, and Agent Runtime Control
     Then Weave Control shows a support-safe plan for deploy_new, attach_existing, and hybrid choices
     And unsupported combinations fail closed before mutation
     And the plan shows SecretRef or CredentialRef posture, consequence copy, rollback boundary, and blocked claims without secret values
-    And Weaver is represented only as a future governed organization capability and not as a v0.1 Spec 0001 runtime claim
+    And Weaver or OpenClaw is represented only as an optional runtime provider behind Agent Runtime Control
 
   @weave-control-admin-console-client-responsibility-split
   Scenario: Weave Control, Admin Console, and Client keep separate responsibilities
     Given Weave Control has produced support-safe deployment handoff refs
     And Bootstrap deploys the Control Plane as server plus Admin Console
     When admins review organization readiness in the Admin Console
-    Then the Admin Console may show provider, policy, readiness, audit, whitelist, and future Weaver governance states with sanitized refs
+    Then the Admin Console may show provider, policy, readiness, audit, whitelist, and Agent Runtime Control lifecycle states with sanitized refs
     And the Weave App consumes only organization URL, invite link, or deep link handoff plus provider-neutral capability states
     And the GitHub deployment lane remains client-free and never emits member_provider_neutral_join_passed or weave_client_e2e_passed
 

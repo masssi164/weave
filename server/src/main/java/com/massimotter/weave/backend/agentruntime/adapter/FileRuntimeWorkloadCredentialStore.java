@@ -86,6 +86,10 @@ public final class FileRuntimeWorkloadCredentialStore
         this(root, objectMapper, Clock.systemUTC(), new SecureRandom());
     }
 
+    public FileRuntimeWorkloadCredentialStore(Path root, ObjectMapper objectMapper, Clock clock) {
+        this(root, objectMapper, clock, new SecureRandom());
+    }
+
     FileRuntimeWorkloadCredentialStore(
             Path root,
             ObjectMapper objectMapper,

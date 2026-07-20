@@ -21,7 +21,7 @@ pinned_corpus_sources:
 repo_projection:
 - specs/0007-governed-weaver-runtime/spec.md
 acceptance_scenarios:
-- tag: '@weave-v01-governed-weaver-runtime-policy'
+- tag: '@weave-v01-agent-runtime-control-policy'
   evidence:
   - server/src/test/java/com/massimotter/weave/backend/controller/WorkspaceControllerTest.java
   - infra/docs/weaver-runtime-lifecycle.md
@@ -31,18 +31,16 @@ acceptance_scenarios:
   - admin-console/src/App.test.tsx
   - admin-console/src/api.test.ts
   assertions:
-  - V01_GOVERNED_WEAVER_RUNTIME_POLICY
-- tag: '@weave-v01-governed-weaver-tool-registry'
+  - V01_AGENT_RUNTIME_CONTROL_POLICY
+- tag: '@weave-v01-mcp-workload-boundary'
   evidence:
   - weave-mcp-server/src/test/java/com/massimotter/weave/mcp/SpringAiMcpTransportTest.java
   - infra/weave-workspace/tests/weave-mcp-tool-contract-test.sh
   assertions:
-  - MCP tools are named for Weave domains/capabilities, not providers or adapters.
-  - calendar.search_events delegates to the backend Calendar facade and never directly
-    to CalDAV/Nextcloud.
-  - Discovery omits providerRef/credentialRef target detail and returns only support-safe
-    metadata.
-  - V01_GOVERNED_WEAVER_TOOL_REGISTRY
+  - The workload-only MCP catalog is empty until each receiving domain has an explicit facade contract and current independent authorization.
+  - Human tokens, shared service accounts, and RuntimeProfile-derived tool grants fail closed.
+  - Discovery returns only support-safe protocol metadata and no provider or credential target detail.
+  - V01_MCP_WORKLOAD_BOUNDARY
 - tag: '@weave-v01-provider-switch-portability'
   evidence:
   - admin-console/src/App.test.tsx
@@ -56,8 +54,8 @@ acceptance_scenarios:
   - e2e/scenario_mappings.json
   - e2e/suites/scenario_catalog.json
   assertions:
-  - runtime profile from policy
-  - role-derived grants
+  - runtime profile from current entitlement and policy
+  - signed desired state is not an authorization grant
   - WEAVE_SPEC_0007_RUNTIME_PROFILE_FROM_POLICY
   - '@weave-spec-0007-runtime-profile-from-policy'
 - tag: '@weave-spec-0007-tool-approval-receipt-fail-closed'

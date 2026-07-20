@@ -50,9 +50,11 @@ import org.springframework.test.web.servlet.MockMvc;
         "weave.agent-runtime.storage.mode=jdbc",
         "weave.agent-runtime.workload-identity.enabled=true",
         "weave.agent-runtime.policy.enabled=true",
-        "weave.agent-runtime.profile-signing.enabled=true"
+        "weave.agent-runtime.profile-signing.enabled=true",
+        "weave.agent-runtime.state-store.enabled=true"
 })
 class AgentRuntimeAdminControllerTest {
+    // V01_AGENT_RUNTIME_CONTROL_POLICY
     private static final String PERSON = "acct_" + "a".repeat(32);
     private static final String KEY = "idempotency-key-00000001";
 
@@ -62,8 +64,8 @@ class AgentRuntimeAdminControllerTest {
     @MockBean
     private AgentRuntimeAdminService runtimes;
 
-    @MockBean
-    private JwtDecoder jwtDecoder;
+    @MockBean(name = "agentRuntimeAdminJwtDecoder")
+    private JwtDecoder agentRuntimeAdminJwtDecoder;
 
     @Test
     void exactAdminScopeAndOrganizationBoundIdentityAreRequired() throws Exception {
@@ -80,6 +82,12 @@ class AgentRuntimeAdminControllerTest {
 
         mockMvc.perform(get("/api/admin/agent-runtimes/{personRef}", PERSON)
                         .with(jwt().authorities()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("agent-runtime-admin-forbidden"));
+
+        mockMvc.perform(get("/api/admin/agent-runtimes/{personRef}", PERSON)
+                        .with(jwt().authorities(new SimpleGrantedAuthority(
+                                AgentRuntimeAdminSecurityConfiguration.ADMIN_AUTHORITY))))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("agent-runtime-admin-forbidden"));
 
@@ -189,7 +197,9 @@ class AgentRuntimeAdminControllerTest {
                         .claim("weave_tenant", "tenant-default")
                         .claim("scope", AgentRuntimeAdminSecurityConfiguration.ADMIN_SCOPE))
                 .authorities(new SimpleGrantedAuthority(
-                        AgentRuntimeAdminSecurityConfiguration.ADMIN_AUTHORITY));
+                                AgentRuntimeAdminSecurityConfiguration.ADMIN_AUTHORITY),
+                        new SimpleGrantedAuthority(
+                                AgentRuntimeAdminSecurityConfiguration.ADMIN_ROLE_AUTHORITY));
     }
 
     private static AgentRuntimeProjectionResponse projection() {

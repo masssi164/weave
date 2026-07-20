@@ -12,7 +12,6 @@ import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileSigner;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeStateStoreAdmin;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityAdmin;
 import java.time.Clock;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -23,8 +22,8 @@ import org.springframework.context.annotation.Configuration;
         "'${weave.agent-runtime.storage.mode:disabled}' == 'jdbc'"
                 + " && '${weave.agent-runtime.workload-identity.enabled:false}' == 'true'"
                 + " && '${weave.agent-runtime.policy.enabled:false}' == 'true'"
-                + " && '${weave.agent-runtime.profile-signing.enabled:false}' == 'true'")
-@ConditionalOnBean(RuntimeStateStoreAdmin.class)
+                + " && '${weave.agent-runtime.profile-signing.enabled:false}' == 'true'"
+                + " && '${weave.agent-runtime.state-store.enabled:false}' == 'true'")
 public class AgentRuntimeAdminConfiguration {
 
     @Bean

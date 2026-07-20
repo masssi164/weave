@@ -26,7 +26,7 @@
     "weave-meeting-hosts",
     "weave-document-editors",
     "weave-decision-recorders",
-    "weave-weaver-pilot"
+    "weave-weaver-runtime"
   ],
   "scopes": ["openid", "profile", "email", "weave:workspace"],
   "claimMappers": [

@@ -99,7 +99,7 @@ Map<String, Object?> _workspaceCapabilitiesJson({
     'manualsHelp': _capability(enabled: true, readiness: 'ready'),
     'releaseEvidence': _capability(enabled: true, readiness: 'ready'),
     'adminControlPlane': _capability(enabled: true, readiness: 'ready'),
-    'weaver': _capability(
+    'agentRuntimeControl': _capability(
       enabled: false,
       readiness: 'unavailable',
       policyState: 'disabled',
@@ -718,17 +718,17 @@ void main() {
                   },
                 },
                 {
-                  'category': 'weaver',
-                  'label': 'Weaver',
+                  'category': 'agent-runtime-control',
+                  'label': 'Agent Runtime Control',
                   'contract': {
-                    'category': 'weaver',
-                    'featureCapabilities': ['weaver.enabled'],
-                    'defaultAdapters': ['weaver-runtime-disabled'],
-                    'externalAdapters': ['openclaw-governed-runtime'],
+                    'category': 'agent-runtime-control',
+                    'featureCapabilities': ['agent-runtime.entitled'],
+                    'defaultAdapters': ['weaver-openclaw'],
+                    'externalAdapters': [],
                     'choiceModels': [
                       {
                         'choiceModel': 'recommended_self_hosted_default',
-                        'adapters': ['weaver-runtime-disabled'],
+                        'adapters': ['weaver-openclaw'],
                         'adminRiskNotes': ['disabled by default'],
                         'recommended': true,
                       },
@@ -751,7 +751,8 @@ void main() {
                   'realityLevelRemediation':
                       'Contract-only candidate remains unavailable.',
                   'policyState': 'policy_blocked',
-                  'memberImpact': 'Weaver is disabled by workspace policy.',
+                  'memberImpact':
+                      'Agent Runtime Control is disabled by workspace policy.',
                   'modules': [],
                   'providerCandidates': [],
                   'selectedProviderKey': 'awaiting_admin_selection',
@@ -798,15 +799,15 @@ void main() {
                   'failClosed': true,
                   'supportSafe': true,
                   'paidFeaturesRequired': false,
-                  'summary': 'LiveKit readiness is fail-closed.',
-                  'supportedCapabilities': ['join-token-broker'],
+                  'summary': 'LiveKit SFU readiness is fail-closed.',
+                  'supportedCapabilities': ['sfu-configuration-readiness'],
                   'unsupportedOperations': ['livekit-api-secret-exposure'],
-                  'supportSafeErrorCodes': ['meetings-token-unavailable'],
+                  'supportSafeErrorCodes': ['rtc-authorization-required'],
                   'redactionPolicy': 'booleans only',
                   'candidates': ['livekit'],
                   'providerRealityLevel': 'rollback_ready',
                   'diagnostics': {
-                    'activeProvider': 'livekit',
+                    'activeSfuAdapter': 'livekit',
                     'livekitUrlConfigured': true,
                     'apiKeyConfigured': true,
                     'apiSecretConfigured': true,
@@ -913,7 +914,7 @@ void main() {
               .supportSafeDiagnostics,
           isNot(contains('rawProviderError')),
         );
-        expect(snapshot.categories.last.category, 'weaver');
+        expect(snapshot.categories.last.category, 'agent-runtime-control');
         expect(
           snapshot.categories.last.readiness,
           ProviderCategoryReadiness.policyBlocked,
