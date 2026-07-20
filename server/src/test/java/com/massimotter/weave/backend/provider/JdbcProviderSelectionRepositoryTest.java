@@ -104,7 +104,9 @@ class JdbcProviderSelectionRepositoryTest {
                         "WEAVE_CHAT_APPSERVICE_TRANSACTIONS",
                         "WEAVE_CHAT_QUARANTINE",
                         "WEAVE_CHAT_READ_RECEIPTS",
-                        "WEAVE_CHAT_CHANGES");
+                        "WEAVE_CHAT_CHANGES",
+                        "WEAVE_AGENT_RUNTIME_CELLS",
+                        "WEAVE_AGENT_RUNTIME_COMMANDS");
     }
 
     @Test
