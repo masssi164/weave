@@ -1668,6 +1668,8 @@ materialize_runtime_secret_files() {
   local staged_file="${secret_file}.new"
 
   umask 077
+  mkdir -p "${INFRA_GENERATED_DIR}/secrets"
+  chmod 700 "${INFRA_GENERATED_DIR}/secrets"
   printf '%s' "${TF_VAR_weave_mcp_client_secret}" > "${staged_file}"
   chmod 600 "${staged_file}"
   mv -f "${staged_file}" "${secret_file}"
