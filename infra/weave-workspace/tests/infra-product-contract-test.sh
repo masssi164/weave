@@ -103,6 +103,7 @@ assert_file_contains "${ROOT_DIR}/operator-check.sh" 'oauth-protected-resource/m
 assert_file_contains "${ROOT_DIR}/smoke-test.sh" 'WEAVE_MCP_CLIENT_SECRET='
 assert_file_contains "${ROOT_DIR}/operator-check.sh" 'WEAVE_MCP_CLIENT_SECRET='
 assert_file_contains "${ROOT_DIR}/isolated-e2e-mcp-workload.sh" 'oldCredentialRevoked:true'
+assert_file_contains "${ROOT_DIR}/isolated-e2e-mcp-workload.sh" 'subject_token_type=urn:ietf:params:oauth:token-type:access_token'
 assert_file_contains "${ROOT_DIR}/isolated-e2e-mcp-workload.sh" 'rawTokenIncluded:false'
 assert_file_contains "${mcp_main}" 'WEAVE_BACKEND_OIDC_AUDIENCE=${var.backend_oidc_audience}'
 assert_file_absent "${backend_main}" 'WEAVE_MCP_BOUNDARY_TOKEN'

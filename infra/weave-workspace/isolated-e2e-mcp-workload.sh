@@ -134,6 +134,7 @@ exchange_token() {
     --connect-timeout 5 --max-time 20 -X POST "$(token_endpoint)" \
     -H 'Content-Type: application/x-www-form-urlencoded' \
     --data-urlencode 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
+    --data-urlencode 'subject_token_type=urn:ietf:params:oauth:token-type:access_token' \
     --data-urlencode 'requested_token_type=urn:ietf:params:oauth:token-type:access_token' \
     --data-urlencode 'client_id=weave-mcp-server' \
     --data-urlencode "client_secret=${client_secret}" \
