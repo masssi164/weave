@@ -11,8 +11,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
-import org.springframework.security.authorization.AuthorizationDecision;
-import org.springframework.security.authorization.AuthorizationManager;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -21,7 +19,6 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
@@ -29,8 +26,6 @@ import org.springframework.core.annotation.Order;
 import org.springframework.security.web.access.expression.WebExpressionAuthorizationManager;
 import org.springframework.security.web.firewall.HttpFirewall;
 import org.springframework.security.web.firewall.StrictHttpFirewall;
-import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
-import org.springframework.util.StringUtils;
 
 @Configuration
 @EnableMethodSecurity
@@ -54,10 +49,7 @@ public class SecurityConfig {
 
     @Bean
     @Order(3)
-    SecurityFilterChain securityFilterChain(HttpSecurity http, WeaveSecurityProperties securityProperties) throws Exception {
-        AuthorizationManager<RequestAuthorizationContext> delegatedMcpAccess = (authentication, context) ->
-                new AuthorizationDecision(authentication.get() instanceof JwtAuthenticationToken jwtAuthentication
-                        && validDelegatedMcpToken(jwtAuthentication.getToken(), securityProperties));
+    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -76,9 +68,6 @@ public class SecurityConfig {
                         .requestMatchers(ChatE2eProofSecurityConfiguration.PATH).permitAll()
                         .requestMatchers("/v3/api-docs", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/api/internal/keycloak/events").permitAll()
-                        .requestMatchers(
-                                "/api/workspace/weaver/mcp/servers/**",
-                                "/api/v1/workspace/weaver/mcp/servers/**").access(delegatedMcpAccess)
                         .requestMatchers("/api/migration/**").access(MIGRATION_CONTROL_PLANE_ACCESS)
                         .requestMatchers("/dav/**", "/caldav/**", "/_matrix/client/**").hasAuthority(WORKSPACE_SCOPE_AUTHORITY)
                         .requestMatchers("/api/**").hasAuthority(WORKSPACE_SCOPE_AUTHORITY)
@@ -92,22 +81,6 @@ public class SecurityConfig {
         }
 
         return http.build();
-    }
-
-    static boolean validDelegatedMcpToken(Jwt jwt, WeaveSecurityProperties properties) {
-        String subject = jwt.getSubject();
-        String username = jwt.getClaimAsString("preferred_username");
-        String azp = jwt.getClaimAsString("azp");
-        String clientId = jwt.getClaimAsString("client_id");
-        String scope = jwt.getClaimAsString("scope");
-        return StringUtils.hasText(subject)
-                && !subject.startsWith("service-account-")
-                && (username == null || !username.startsWith("service-account-"))
-                && properties.mcpClientId().equals(azp)
-                && (clientId == null || properties.mcpClientId().equals(clientId))
-                && jwt.getAudience().contains(properties.requiredAudience())
-                && scope != null
-                && java.util.Arrays.stream(scope.split("\\s+")).anyMatch("weave:mcp-backend"::equals);
     }
 
     @Bean

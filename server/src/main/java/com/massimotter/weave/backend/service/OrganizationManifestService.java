@@ -227,9 +227,7 @@ public class OrganizationManifestService {
                         surface("standard-protocol", "Weave WebDAV projection", "/dav/files", "data_plane_read_write_available",
                                 "OPTIONS, PROPFIND, GET, HEAD, PUT, DELETE, and MKCOL are exposed through Weave policy, audit, file IDs, ETags, and support-safe conflict/precondition/storage errors."),
                         surface("native-os", "iOS File Provider and Android DocumentsProvider setup", "/api/files/native-provider-setup", "contract_ready_implementation_blocked",
-                                "Native providers call Weave file facade paths only and must prove device revocation before availability."),
-                        surface("mcp", "Governed Files MCP tools", "/api/workspace/weaver/mcp/servers/weave-domain-tools/tools", "read_allowlist_available_write_cutover_blocked",
-                                "Files MCP read/search tools route through the WebDAV-backed Weave Files facade/projection; semantic write tools remain blocked until their policy/approval/audit slice.")),
+                                "Native providers call Weave file facade paths only and must prove device revocation before availability.")),
                 credentialLifecycle(
                         "revocable_device_grants_available",
                         List.of(

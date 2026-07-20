@@ -18,6 +18,7 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Changed
 
+- Cuts over Weaver/MCP to the pinned workload-only v2 contract: removes member-facing Weaver Scout and permission-mode UI/API, deletes the v1 member MCP catalog/runtime/bridge/token-exchange stack, and keeps the Spring AI transport dark until ARC proves per-cell Keycloak workload identity and lifecycle reconciliation.
 - Separates process liveness, local backend readiness, and cached provider capability health; provider probes are single-flight, rate-limit aware, support-safe, and no longer run on every readiness poll.
 - Normal member Files, Calendar, and Chat data planes are now documented coherently as OIDC-gated Weave WebDAV, CalDAV/iCalendar, and Matrix Client-Server facades over canonical domains; obsolete REST event/message data-plane access is not a compatibility target.
 - Public docs and README evidence pointers now identify `v0.1.0-rc.3` as the latest published prerelease and link the RC3 evidence audit.
@@ -39,6 +40,7 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Security
 
+- Rejects every human token and unbound service account at `/mcp`, removes the obsolete delegated member-token backend admission path, and stops injecting the MCP client secret into the dark transport container.
 - Preserves Nextcloud brute-force protection while correcting stable backend credentials and exact trusted-proxy forwarding, and records only sanitized cached provider-health, authorization, identity-hash, and security-audit evidence.
 
 ## Accessibility

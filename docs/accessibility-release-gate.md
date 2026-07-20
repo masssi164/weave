@@ -40,10 +40,9 @@ Sprint 4 adds work-room surfaces that must be usable with a screen reader, Brail
 | Sprint 4 flow | Required evidence shape | Current automated anchor |
 | --- | --- | --- |
 | Weave Home | deterministic traversal across DMs, favorites, channels, and AI/Weaver areas; no raw provider setup copy in normal member paths | `test/features/chat/chat_screen_test.dart`, `test/release_1/ux_release_copy_contract_test.dart` |
-| Channel Work Rooms | tab labels and status semantics for chat, decisions, files, boards, calendar, meetings, and Weaver; no color-only state | `test/features/chat/channel_workspace_test.dart`, `test/release_1/v0_1_release_spine_contract_test.dart` |
+| Channel Work Rooms | tab labels and status semantics for chat, decisions, files, boards, calendar, and meetings; no color-only state | `test/features/chat/channel_workspace_test.dart`, `test/release_1/v0_1_release_spine_contract_test.dart` |
 | Decision Ledger | text-first create/read flow with source references, lifecycle state, owner/time, and keyboard-reachable capture actions | `test/features/chat/decision_evidence_provider_test.dart`, `test/features/chat/chat_room_screen_test.dart` |
 | Meeting Capsule | fail-closed join/start controls, consent/evidence copy, and clear Matrix-chat vs media-protection boundaries | `test/features/chat/channel_workspace_test.dart`, `test/release_1/v0_1_release_spine_contract_test.dart` |
-| Weaver Scout | read-only/proposal-only status, citable source list, support-safe failure copy, and explicit approval-receipt requirement | `test/features/chat/channel_workspace_test.dart`, `test/release_1/ux_release_copy_contract_test.dart` |
 
 ## Sprint 9 product-readiness accessibility scope
 
@@ -54,7 +53,6 @@ Sprint 9 treats setup, provider switching/report review, Calls/LiveKit readiness
 | Admin setup and domain registry review | keyboard-accessible setup progression, stable domain labels, and no raw provider setup in member paths | `test/features/onboarding/setup_flow_test.dart`, `test/release_1/v0_1_release_spine_contract_test.dart` |
 | Provider switching and report review | dry-run, lossy, conflict, rollback, member-impact, and blocked-apply states are reachable and text-first | `admin-console/src/App.test.tsx`, `server/src/test/java/com/massimotter/weave/backend/controller/AdminControlPlaneControllerTest.java` |
 | Calls/LiveKit readiness | join/start states fail closed with labeled controls and honest media/E2EE readiness copy | `test/features/chat/channel_workspace_test.dart`, `docs/meeting-architecture-decision.md` |
-| Weaver approvals | group enablement, tool approval, member opt-in, and unauthorized-tool blocks are announced and audit refs are not color-only | `server/src/test/java/com/massimotter/weave/backend/service/WeaverRuntimeServiceTest.java` |
 | Member capability states | provider-neutral states are exposed as semantic text and never require provider diagnostics | `test/features/settings/settings_screen_test.dart`, `test/features/app/weave_app_backend_capability_flow_test.dart` |
 
 ## Sprint 10 manual accessibility closure scope
@@ -94,7 +92,7 @@ Record the tester, date, platform, assistive technology, result, and evidence li
 | Main navigation/settings | Bottom navigation labels are announced and current destination is clear | Navigation and settings actions are reachable by keyboard | Settings cards remain readable | Pass or release-blocking bug |
 | Chat room list/message list/composer | Room names, message authors/content, composer, and send are announced | Keyboard can open a room and send a message | Message list/composer remain usable | Pass or release-blocking bug |
 | Weave Home and Channel Work Rooms | Home sections, channel tabs, capability states, and active tab changes are announced without preview/provider setup vocabulary | Keyboard can move through Home sections and switch channel work-room tabs without pointer-only steps | Tabs and cards remain readable and do not hide critical status | Pass or release-blocking bug |
-| Decision Ledger, Meeting Capsule, and Weaver Scout | Decision records, meeting fail-closed controls, and Weaver source/receipt requirements are announced with enough context to act safely | Decision capture, meeting controls, and Weaver tab content are reachable in deterministic order | Ledger, capsule, and scout cards remain readable at 200% | Pass or release-blocking bug |
+| Decision Ledger and Meeting Capsule | Decision records and meeting fail-closed controls are announced with enough context to act safely | Decision capture and meeting controls are reachable in deterministic order | Ledger and capsule cards remain readable at 200% | Pass or release-blocking bug |
 | Files list/upload/download/status/error | File/folder rows, breadcrumbs, upload/download states, and errors are announced | Keyboard can navigate folders and trigger file actions | File rows and breadcrumbs remain usable | Pass or release-blocking bug |
 | Calendar list/create/delete/status/error | Calendar states/events/actions are announced without color-only status | Keyboard can reach event actions where enabled | Event rows/forms remain usable | Pass or release-blocking bug |
 | Admin/status/recovery copy | Degraded/offline states and recovery instructions are understandable | Recovery/status actions are keyboard reachable | Diagnostic copy remains readable | Pass or release-blocking bug |

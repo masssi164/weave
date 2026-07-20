@@ -37,25 +37,25 @@ Feature: MCP domain facade boundary
     Then no raw provider URL, credential, token, tenant ID, SecretRef value, or downstream payload is present
 
   @spring-ai-mcp-transport
-  Scenario: MCP uses Spring AI stateful Streamable HTTP
-    Given the governed Weave MCP server is running
-    When a client initializes at /mcp
-    Then Spring AI 2.0 serves the stateful Streamable HTTP protocol required for elicitation
+  Scenario: MCP keeps the Spring AI transport dark until workload binding exists
+    Given the Spring AI Streamable HTTP implementation is installed
+    When a human token or unbound service account initializes at /mcp
+    Then Spring Security rejects it before the MCP transport
     And the handwritten JSON-RPC and Python FastMCP runtimes are absent
 
   @spring-ai-mcp-oidc
-  Scenario: OIDC is the MCP gatekeeper
-    Given an MCP request lacks a member token for audience weave-mcp-server with azp weave-app and scope weave:mcp
+  Scenario: OIDC admits no human or unbound workload compatibility path
+    Given an MCP request carries a human token or an unbound service-account token
     When the request reaches /mcp
     Then Spring Security rejects it before MCP tool or backend dispatch
-    And no static boundary secret can substitute for the member token
+    And only a future server-owned service-account to cell to RuntimeProfile v2 binding may open the edge
 
   @mcp-runtime-approved-discovery
-  Scenario: Runtime-approved MCP discovery is support-safe
-    Given an OIDC-authenticated Weaver runtime profile
-    When it reads weave://runtime/approved-tools
-    Then only backend-approved Weave domain tools are returned
-    And no runtime token, CredentialRef value, or provider internal is returned
+  Scenario: Runtime-approved MCP discovery remains unavailable without ARC binding
+    Given the ARC workload binding implementation is not yet present
+    When any caller attempts to initialize or discover MCP tools
+    Then the MCP edge remains dark
+    And no obsolete member runtime profile or approved-tools compatibility path is exposed
 
   @mcp-approval-ownership-boundary
   Scenario: MCP writes fail closed without trusted OpenClaw approval evidence

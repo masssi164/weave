@@ -75,14 +75,11 @@ Dogfood/local realm email is captured by Mailpit only:
 - Access type: bearer-only
 - Expected token audience: `weave-backend`
 - Direct member API token `azp` or `client_id`: `weave-app`
-- Delegated MCP bridge token `azp` (and `client_id` when present): `weave-mcp-server`
-- Delegated MCP bridge scope: `weave:mcp-backend`; it is not accepted by ordinary `weave:workspace` routes
 - Backend environment:
   - `WEAVE_OIDC_ISSUER_URI=https://auth.weave.test/realms/weave`
   - `WEAVE_OIDC_JWK_SET_URI=http://weave-keycloak:8080/realms/weave/protocol/openid-connect/certs`
   - `WEAVE_OIDC_REQUIRED_AUDIENCE=weave-backend`
   - `WEAVE_CLIENT_ID=weave-app`
-  - `WEAVE_MCP_CLIENT_ID=weave-mcp-server`
 - Public API URL: `https://api.weave.test/api`
 - Direct readiness URL: `http://127.0.0.1:8084/api/health/ready`
 
@@ -95,14 +92,14 @@ Dogfood/local realm email is captured by Mailpit only:
 - Standard token exchange: enabled
 - Refresh tokens for client credentials and token exchange: disabled
 - Workload access-token lifespan: 60 seconds
-- Inbound member contract: `aud` includes `weave-mcp-server`, `azp=weave-app`, and `scope` includes `weave:mcp`
-- Backend exchange contract: RFC 8693 token exchange with `audience=weave-backend` and `scope=weave:mcp-backend`
-- Exchanged tokens project signed Keycloak groups; the backend derives the effective product role only from the managed `workspace-owners`, `workspace-admins`, `workspace-members`, or `workspace-guests` group when `azp=weave-mcp-server`.
-- Pure client-credentials subjects (`service-account-*`) cannot enter `/mcp` or invoke backend member tools.
+- Inbound human/member tokens are forbidden. The MCP edge is currently dark and rejects every caller.
+- ARC will provision one confidential service-account client per enabled Weaver cell using the `weaver-cell-{cellId}` convention.
+- Future admission binds the authenticated workload client and subject to the server-owned cell, organization, immutable human owner, and RuntimeProfile v2. Generic or unbound service accounts remain forbidden.
+- The fixed `weave-mcp-server` client is platform baseline state, not a Weaver cell identity and not a compatibility caller.
 
-The MCP server authenticates to Keycloak with `TF_VAR_weave_mcp_client_secret`. The secret is generated into the operator-owned secret environment and injected only into the MCP container and Keycloak client configuration. It is not shared with the backend and is never an HTTP boundary header.
+While the edge is dark, `TF_VAR_weave_mcp_client_secret` remains operator-owned Keycloak baseline input but is not injected into the MCP container. ARC owns dynamic per-cell secret creation, rotation, revocation, cleanup, and restore reconciliation.
 
-Keycloak's supported standard token exchange is used; the experimental delegation feature is not enabled. Keycloak does not implement the RFC 8707 `resource` parameter for this flow, so the current interoperable contract uses the standard token-exchange `audience` parameter. End-to-end RFC 8707 and MCP Authorization Server Metadata conformance therefore remain **Guarded**, not claimed complete. See the [Keycloak token exchange documentation](https://www.keycloak.org/securing-apps/token-exchange).
+Keycloak's supported Standard Token Exchange V2 is the target for audience-restricted downstream workload tokens; the experimental delegation feature stays disabled. Current Keycloak does not implement RFC 8707 `resource` for this flow, so end-to-end RFC 8707 and MCP Authorization Server Metadata conformance remain **Guarded**, not claimed complete. See the [Keycloak token exchange documentation](https://www.keycloak.org/securing-apps/token-exchange).
 
 ### Matrix Authentication Service
 

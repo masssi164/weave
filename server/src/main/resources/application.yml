@@ -72,10 +72,9 @@ weave:
       desktop: ${WEAVE_TARGET_DESKTOP:true}
       web: ${WEAVE_TARGET_WEB:false}
   security:
-    # JWT aud names the backend resource; azp/client_id binds the direct app or delegated MCP workload.
+    # JWT aud names the backend resource; azp/client_id binds the direct first-party app.
     required-audience: ${WEAVE_OIDC_REQUIRED_AUDIENCE:weave-backend}
     client-id: ${WEAVE_CLIENT_ID:weave-app}
-    mcp-client-id: ${WEAVE_MCP_CLIENT_ID:weave-mcp-server}
     device-credentials:
       # Memory is reserved for local development and isolated tests. The shipped
       # infrastructure selects JDBC so DAV credentials remain revocable after restart.

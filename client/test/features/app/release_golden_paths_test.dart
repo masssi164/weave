@@ -12,7 +12,6 @@ import 'package:weave/features/app/domain/entities/workspace_capability_snapshot
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
 import 'package:weave/features/app/domain/entities/workspace_home_snapshot.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
-import 'package:weave/features/agents/domain/entities/weaver_permission_mode.dart';
 import 'package:weave/features/auth/data/dtos/auth_session_dto.dart';
 import 'package:weave/features/auth/data/repositories/oidc_auth_session_repository.dart';
 import 'package:weave/features/auth/data/services/flutter_appauth_oidc_client.dart';
@@ -358,25 +357,6 @@ class _StaticWeaveApiClient implements WeaveApiClient {
   }) async {
     throw UnimplementedError('Office launch is not used by this test fake.');
   }
-
-  @override
-  Future<WeaverPermissionMode> fetchWeaverPermissionMode({
-    required Uri baseUrl,
-    required String accessToken,
-  }) async => WeaverPermissionMode.ask;
-
-  @override
-  Future<WeaverPermissionModeUpdate> updateWeaverPermissionMode({
-    required Uri baseUrl,
-    required String accessToken,
-    required WeaverPermissionMode mode,
-  }) async => WeaverPermissionModeUpdate(
-    accepted: true,
-    mode: mode,
-    dangerous: mode.isDangerous,
-    policyReason: 'test_fixture',
-    runtimeProfileHash: 'test-profile',
-  );
 }
 
 void main() {

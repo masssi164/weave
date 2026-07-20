@@ -133,13 +133,6 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/weaver/MemberDomainToolDispatcherTest.java",
-          "fragments": [
-            "filesSearchUsesFilesFacadeAndProjectsWebdavBackedMcpMetadata",
-            "filesReadRejectsProviderShapedRefsBeforeProviderAccess"
-          ]
-        },
-        {
           "path": "infra/weave-workspace/weave-mcp-tool-contract.json",
           "fragments": [
             "\"dataPlaneAuthority\": \"weave-webdav-facade\"",
@@ -942,7 +935,7 @@
       "tag": "@weave-v01-governed-weaver-runtime-policy",
       "scenario": "Weaver runtime profiles are generated from organization policy",
       "feature": "e2e/features/v0_1_dogfood_release.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/service/WeaverRuntimeServiceTest.java",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/WorkspaceControllerTest.java",
       "evidenceMarkers": [
         "V01_GOVERNED_WEAVER_RUNTIME_POLICY"
       ],
@@ -996,7 +989,7 @@
       "tag": "@weave-v01-governed-weaver-tool-registry",
       "scenario": "Weaver discovers and invokes only approved domain tools",
       "feature": "e2e/features/v0_1_dogfood_release.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/weaver/WeaverToolRegistryTest.java",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/WorkspaceControllerTest.java",
       "evidenceMarkers": [
         "V01_GOVERNED_WEAVER_TOOL_REGISTRY"
       ],
@@ -1053,14 +1046,14 @@
           "fragments": [
             "decisionLedgerCreateAndReadUseSourceLinkedLifecycleRecords",
             "meetingCapsuleCreateAndReadStayFailClosedWithoutProviderLeakage",
-            "weaverScoutSummarizesAllowedContextAndBlocksWritesWithReceipts"
+            "removedWeaverScoutRouteHasNoCompatibilityHandler"
           ]
         },
         {
           "path": "docs/release-v0.1-dogfood-plan.md",
           "fragments": [
             "One member-visible Space control room route anchors Chat, Decisions, Files, Board, and Calendar to one support-safe Space ID.",
-            "Tabs for Chat, Decisions, Files, Board, Calendar, Meetings, and read-only Weaver scout",
+            "Tabs for Chat, Decisions, Files, Board, Calendar, and Meetings; Weaver is a workload-only boundary and has no member tab.",
             "Support-safe evidence refs record the Space identity, linked domain objects, and final Decision state"
           ]
         }
@@ -1536,13 +1529,6 @@
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/service/WeaverRuntimeServiceTest.java",
-          "fragments": [
-            "keepsWeaverDisabledByDefaultEvenForRuntimeGroup",
-            "blocksRuntimeWhenUserPolicyDoesNotGrantWeaverEnabled"
-          ]
-        },
-        {
           "path": "docs/sprint-9-product-readiness-waterfall.md",
           "fragments": [
             "Live-stack execution is required for release-candidate promotion unless a release-owner waiver"
@@ -1591,14 +1577,6 @@
             "adminRealmDryRunIsBackendOwnedDeterministicAndSupportSafe",
             "providerReplacementDryRunReturnsBackendOwnedPortableSwitchContract",
             "operatorAndMemberCannotApplyIdentityRealmWhenPolicyForbidsProviderConfiguration"
-          ]
-        },
-        {
-          "path": "server/src/test/java/com/massimotter/weave/backend/service/WeaverRuntimeServiceTest.java",
-          "fragments": [
-            "generatesAuditedPerUserDockerProfileFromCapabilityPolicy",
-            "blocksRuntimeWhenUserPolicyDoesNotGrantWeaverEnabled",
-            "files.read"
           ]
         },
         {
@@ -4059,13 +4037,6 @@
             "shows Weaver projection as an inspect-only member-safe preview",
             "weaver.enabled remains blocked"
           ]
-        },
-        {
-          "path": "server/src/test/java/com/massimotter/weave/backend/service/WeaverRuntimeServiceTest.java",
-          "fragments": [
-            "weave-weaver-runtime",
-            "policy"
-          ]
         }
       ]
     },
@@ -4099,13 +4070,6 @@
             "per-user",
             "export",
             "retention"
-          ]
-        },
-        {
-          "path": "server/src/test/java/com/massimotter/weave/backend/service/WeaverRuntimeServiceTest.java",
-          "fragments": [
-            "per-user",
-            "memory"
           ]
         }
       ]
@@ -4148,13 +4112,6 @@
             "renders support-safe Weaver projection labels for chat, models, tools, skills, and MCPs",
             "approval"
           ]
-        },
-        {
-          "path": "server/src/test/java/com/massimotter/weave/backend/service/WeaverRuntimeServiceTest.java",
-          "fragments": [
-            "approval",
-            "domain"
-          ]
         }
       ]
     },
@@ -4187,13 +4144,6 @@
           "fragments": [
             "fail-closed",
             "support-safe-no-raw-provider-secrets-no-private-runtime-paths"
-          ]
-        },
-        {
-          "path": "server/src/test/java/com/massimotter/weave/backend/service/WeaverRuntimeServiceTest.java",
-          "fragments": [
-            "reconcile",
-            "admin-disabled"
           ]
         }
       ]
@@ -5350,14 +5300,6 @@
             "stockOpenClawMemberReceiptAndTypingCallsStayOnCanonicalChat",
             "roomLifecycleStateAndProfileProjectCanonicalChat"
           ]
-        },
-        {
-          "path": "server/src/test/java/com/massimotter/weave/backend/service/WeaverRuntimeServiceTest.java",
-          "fragments": [
-            "channels.matrix",
-            "https://api.weave.test",
-            "runtimeTokenRef=credentialref://weave/runtime/short-lived/"
-          ]
         }
       ]
     },
@@ -5746,17 +5688,7 @@
       "evidenceMarkers": [
         "MCP_CANONICAL_DOMAIN_DISPATCH"
       ],
-      "evidenceMode": "offline-spec",
-      "additionalEvidence": [
-        {
-          "path": "server/src/test/java/com/massimotter/weave/backend/weaver/MemberDomainToolDispatcherTest.java",
-          "fragments": [
-            "filesSearchUsesFilesFacadeAndProjectsWebdavBackedMcpMetadata",
-            "filesReadRequiresCanonicalWeaveFileRefAndReturnsMetadataOnly",
-            "weave-webdav-facade"
-          ]
-        }
-      ]
+      "evidenceMode": "offline-spec"
     },
     {
       "tag": "@mcp-calendar-facade",
@@ -5766,17 +5698,7 @@
       "evidenceMarkers": [
         "MCP_CANONICAL_DOMAIN_DISPATCH"
       ],
-      "evidenceMode": "offline-spec",
-      "additionalEvidence": [
-        {
-          "path": "server/src/test/java/com/massimotter/weave/backend/service/WeaverMcpBridgeServiceTest.java",
-          "fragments": [
-            "readToolUsesMemberDomainDispatcherAndPreservesStructuredFields",
-            "writeToolRequiresApprovalBeforeDispatch",
-            "calendar.search_events"
-          ]
-        }
-      ]
+      "evidenceMode": "offline-spec"
     },
     {
       "tag": "@mcp-chat-facade",
@@ -5786,17 +5708,7 @@
       "evidenceMarkers": [
         "MCP_CANONICAL_DOMAIN_DISPATCH"
       ],
-      "evidenceMode": "offline-spec",
-      "additionalEvidence": [
-        {
-          "path": "server/src/test/java/com/massimotter/weave/backend/weaver/MemberDomainToolDispatcherTest.java",
-          "fragments": [
-            "chatSendUsesCanonicalChatFacadeAndProjectsNoProviderPayload",
-            "chatSendRejectsProviderShapedThreadBeforeCanonicalFacade",
-            "weave-matrix-facade"
-          ]
-        }
-      ]
+      "evidenceMode": "offline-spec"
     },
     {
       "tag": "@mcp-calls-facade",
@@ -5827,20 +5739,11 @@
         "MCP_PROVIDER_NEUTRAL_OUTPUT"
       ],
       "evidenceMode": "offline-spec",
-      "additionalEvidence": [
-        {
-          "path": "weave-mcp-server/src/test/java/com/massimotter/weave/mcp/CanonicalMcpFeaturesTest.java",
-          "fragments": [
-            "approvedToolsResourceAndWorkspacePromptUseBackendGrantedCatalogOnly",
-            "doesNotContain(\"credentialref://\", \"Bearer \", \"remote.php\", \"tenantId\")",
-            "doesNotContain(\"nextcloud\", \"synapse\", \"providerAccessToken\")"
-          ]
-        }
-      ]
+      "additionalEvidence": []
     },
     {
       "tag": "@spring-ai-mcp-transport",
-      "scenario": "MCP uses Spring AI stateful Streamable HTTP",
+      "scenario": "MCP keeps the Spring AI transport dark until workload binding exists",
       "feature": "e2e/features/mcp_domain_facade_boundary.feature",
       "executableTest": "tools/spring_ai_mcp_facade_acceptance_check.py",
       "evidenceMarkers": [
@@ -5852,21 +5755,20 @@
         {
           "path": "weave-mcp-server/src/test/java/com/massimotter/weave/mcp/SpringAiMcpTransportTest.java",
           "fragments": [
-            "springAiInitializesAndAdvertisesOnlyCanonicalDomainToolNames",
-            "statefulRequestsRejectUnknownSessions",
-            "weave-domain-tools",
-            "chat.send_message"
+            "mcpRemainsDarkForHumansAndUnboundWorkloadsUntilArcBindingExists",
+            "weaver-cell-test",
+            "status().isForbidden()"
           ]
         }
       ]
     },
     {
       "tag": "@spring-ai-mcp-oidc",
-      "scenario": "OIDC is the MCP gatekeeper",
+      "scenario": "OIDC admits no human or unbound workload compatibility path",
       "feature": "e2e/features/mcp_domain_facade_boundary.feature",
       "executableTest": "tools/spring_ai_mcp_facade_acceptance_check.py",
       "evidenceMarkers": [
-        "MCP_OIDC_GATEKEEPER"
+        "MCP_WORKLOAD_EDGE_DENY_ALL"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
@@ -5875,29 +5777,29 @@
           "fragments": [
             "oidcIsTheGatekeeperForSpringAiMcpTransport",
             "status().isUnauthorized()",
-            "claim(\"scope\", \"weave:mcp\")",
             "audience(List.of(\"weave-mcp-server\"))",
-            "claim(\"azp\", \"weave-app\")"
+            "authorizedParty(tokenValue)",
+            "service-account-"
           ]
         }
       ]
     },
     {
       "tag": "@mcp-runtime-approved-discovery",
-      "scenario": "Runtime-approved MCP discovery is support-safe",
+      "scenario": "Runtime-approved MCP discovery remains unavailable without ARC binding",
       "feature": "e2e/features/mcp_domain_facade_boundary.feature",
       "executableTest": "tools/spring_ai_mcp_facade_acceptance_check.py",
       "evidenceMarkers": [
-        "MCP_RUNTIME_APPROVED_DISCOVERY"
+        "MCP_RUNTIME_DISCOVERY_DARK_UNTIL_ARC"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "weave-mcp-server/src/test/java/com/massimotter/weave/mcp/SpringAiMcpTransportTest.java",
+          "path": "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/McpSecurityConfiguration.java",
           "fragments": [
-            "approvedToolsResourceIsResolvedThroughTheOidcBoundBackendProfile",
-            "weave://runtime/approved-tools",
-            "credentialref://"
+            ".requestMatchers(\"/mcp\", \"/mcp/**\").denyAll()",
+            "service-account -> cell -> RuntimeProfile v2 binding",
+            "Human/member tokens and unbound service accounts"
           ]
         }
       ]
@@ -5910,17 +5812,7 @@
       "evidenceMarkers": [
         "MCP_APPROVAL_EVIDENCE_FAILS_CLOSED"
       ],
-      "evidenceMode": "offline-spec",
-      "additionalEvidence": [
-        {
-          "path": "server/src/test/java/com/massimotter/weave/backend/service/WeaverMcpBridgeServiceTest.java",
-          "fragments": [
-            "writeToolRequiresApprovalBeforeDispatch",
-            "callerSuppliedElicitationCannotMintWeaveAuthority",
-            "trusted_approval_evidence_unavailable"
-          ]
-        }
-      ]
+      "evidenceMode": "offline-spec"
     },
     {
       "tag": "@member-protocol-no-leakage",

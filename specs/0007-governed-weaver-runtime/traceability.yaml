@@ -23,7 +23,7 @@ repo_projection:
 acceptance_scenarios:
 - tag: '@weave-v01-governed-weaver-runtime-policy'
   evidence:
-  - server/src/test/java/com/massimotter/weave/backend/service/WeaverRuntimeServiceTest.java
+  - server/src/test/java/com/massimotter/weave/backend/controller/WorkspaceControllerTest.java
   - infra/docs/weaver-runtime-lifecycle.md
   - infra/weave-workspace/weaver-runtime-lifecycle.contract.json
   - infra/weave-workspace/tests/weaver-runtime-lifecycle-contract-test.sh
@@ -34,10 +34,6 @@ acceptance_scenarios:
   - V01_GOVERNED_WEAVER_RUNTIME_POLICY
 - tag: '@weave-v01-governed-weaver-tool-registry'
   evidence:
-  - server/src/test/java/com/massimotter/weave/backend/weaver/WeaverToolRegistryTest.java
-  - server/src/test/java/com/massimotter/weave/backend/weaver/MemberDomainToolDispatcherTest.java
-  - weave-contract/src/test/java/com/massimotter/weave/contract/mcp/MemberMcpToolCatalogTest.java
-  - weave-mcp-server/src/test/java/com/massimotter/weave/mcp/CanonicalMcpFeaturesTest.java
   - weave-mcp-server/src/test/java/com/massimotter/weave/mcp/SpringAiMcpTransportTest.java
   - infra/weave-workspace/tests/weave-mcp-tool-contract-test.sh
   assertions:

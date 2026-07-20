@@ -24,28 +24,30 @@ assert_contains() {
 [[ -f "${DOC}" ]] || fail "Missing Weave MCP tool contract doc: ${DOC}"
 
 jq -e '
-  .schema == "weave-mcp-tool-contract-v1"
-  and .status == "implemented-spring-ai-stateful"
+  .schema == "weave-mcp-workload-contract-v2"
+  and .status == "guarded-dark-awaiting-arc-binding"
   and .placement.contractArea == "infra/weave-workspace"
   and .placement.runtimeModule == "weave-mcp-server"
-  and (.placement.implementation | test("Spring AI 2.0"))
+  and (.placement.implementation | test("denied before protocol dispatch"))
   and (.placement.retiredRuntime | test("Python and FastMCP"))
-  and (.placement.architecturePrinciple | test("governed tool projection over Weave APIs"))
+  and (.placement.architecturePrinciple | test("workload-only Weaver boundary"))
   and .authorityBoundary.productAuthority == "weave-backend"
   and .authorityBoundary.canonicalApiRemainsAuthoritative == true
   and .authorityBoundary.runtimeDirectProviderAccessAllowed == false
   and .authorityBoundary.memberMayConfigureProvidersThroughMcp == false
+  and .authorityBoundary.humanAccessAllowed == false
+  and .authorityBoundary.unboundServiceAccountAccessAllowed == false
   and .globalControls.defaultExposeTools == false
   and .globalControls.protocolCatalogIsCanonicalCapabilityCeiling == true
   and .globalControls.runtimeProfileGrantRequiredForInvocation == true
-  and .globalControls.runtimeApprovedDiscoveryResource == "weave://runtime/approved-tools"
-  and .globalControls.approvalReceiptReferenceAloneAuthorizes == false
-  and (.globalControls.approvalReceiptBindings | index("runtimeProfileHash"))
-  and (.globalControls.approvalReceiptBindings | index("argumentDigest"))
-  and (.globalControls.approvalReceiptBindings | index("approvalMode"))
-  and (.globalControls.approvalReceiptBindings | index("evidenceRef"))
-  and (.globalControls.approvalReceiptBindings | index("toolContractVersion"))
-  and (.globalControls.approvalReceiptBindings | index("policyVersion"))
+  and .globalControls.runtimeProfileVersion == "v2"
+  and .globalControls.workloadClientConvention == "weaver-cell-{cellId}"
+  and .globalControls.serverOwnedBindingRequired == true
+  and .globalControls.humanTokensForbidden == true
+  and .globalControls.genericServiceAccountsForbidden == true
+  and .globalControls.v1ReadersAllowed == false
+  and .globalControls.approvalDecisionEvidenceVersion == "v2"
+  and .globalControls.actionEvidenceVersion == "v2"
   and .globalControls.denyUnknownTools == true
   and .globalControls.supportSafeOutputsOnly == true
   and .globalControls.secretRefOnly == true
@@ -54,7 +56,7 @@ jq -e '
   and .globalControls.rawProviderPayloadsReturned == false
   and .globalControls.credentialBearingUrlsReturned == false
   and .globalControls.auditRequiredForEveryToolCall == true
-  and .globalControls.approvalReceiptRequiredForWriteDeleteExternalSendProviderSwitch == true
+  and .globalControls.approvalDecisionEvidenceRequiredForWriteDeleteExternalSendProviderSwitch == true
   and (.canonicalDomains | length) == 8
   and ([.canonicalDomains[].key] | index("calendar"))
   and ([.canonicalDomains[].key] | index("files_documents"))
@@ -70,20 +72,21 @@ jq -e '
   and ([.canonicalDomains[].writeToolsRequireApproval | length] | all(. > 0))
   and .sprint16ProofSlice.implementAllAdapters == false
   and .sprint16ProofSlice.allowedProofAdaptersMax <= 2
-  and .activeRuntimeEvidence.transport == "stateful-streamable-http"
-  and .activeRuntimeEvidence.elicitation == "form"
+  and .activeRuntimeEvidence.transport == "stateful-streamable-http-installed"
+  and .activeRuntimeEvidence.enabled == false
+  and .activeRuntimeEvidence.security == "deny-all-until-arc-binding"
   and .activeRuntimeEvidence.oidcGatekeeper == "spring-security-oauth2-resource-server"
-  and (.activeRuntimeEvidence.tools | index("files.search"))
-  and (.activeRuntimeEvidence.tools | index("calendar.search_events"))
-  and (.activeRuntimeEvidence.tools | index("chat.send_message"))
+  and .activeRuntimeEvidence.tools == []
+  and .activeRuntimeEvidence.resources == []
+  and .activeRuntimeEvidence.prompts == []
   and .activeRuntimeEvidence.pythonFastMcpRemoved == true
   and .activeRuntimeEvidence.handwrittenJsonRpcRemoved == true
 ' "${CONTRACT}" >/dev/null || fail "Weave MCP tool contract is missing required support-safe/fail-closed controls"
 
-assert_contains "${DOC}" "MCP exposes governed actions for approved runtimes; it does not replace backend APIs."
-assert_contains "${DOC}" 'The earlier `infra/weave-mcp` Python/FastMCP gateway and handwritten Java JSON-RPC controller are removed'
-assert_contains "${DOC}" "SecretRef/CredentialRef handling"
-assert_contains "${DOC}" "spring.ai.mcp.server.protocol=STREAMABLE"
+assert_contains "${DOC}" "Status: **Guarded / dark**"
+assert_contains "${DOC}" 'Each enabled Weaver cell receives its own confidential Keycloak workload client, `weaver-cell-{cellId}`'
+assert_contains "${DOC}" "Human access tokens"
+assert_contains "${DOC}" "Tool, resource, and prompt capabilities are disabled."
 assert_contains "${PRODUCT_PLAN}" "Weave is planned product-first, not agent-first."
 assert_contains "${PRODUCT_PLAN}" "OpenClaw configuration remains an implementation target, not the product model."
 

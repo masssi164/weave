@@ -830,10 +830,6 @@ class _ChannelWorkspaceTabs extends StatelessWidget {
                     return _ChannelMeetingsPreviewPanel(workspace: workspace);
                   }
 
-                  if (surface.kind == ChannelWorkspaceSurfaceKind.weaver) {
-                    return _ChannelWeaverScoutPanel(workspace: workspace);
-                  }
-
                   return _ChannelWorkspaceSurfacePanel(
                     workspace: workspace,
                     surface: surface,
@@ -1085,7 +1081,6 @@ IconData _channelSurfaceIcon(ChannelWorkspaceSurfaceKind kind) {
     ChannelWorkspaceSurfaceKind.decisions =>
       Icons.assignment_turned_in_outlined,
     ChannelWorkspaceSurfaceKind.evidence => Icons.fact_check_outlined,
-    ChannelWorkspaceSurfaceKind.weaver => Icons.psychology_alt_outlined,
   };
 }
 
@@ -1105,7 +1100,6 @@ String _channelSurfaceTabLabel(
       l10n.chatDecisionEvidenceDecisionsLabel,
     ChannelWorkspaceSurfaceKind.evidence =>
       l10n.chatDecisionEvidenceEvidencePluralLabel,
-    ChannelWorkspaceSurfaceKind.weaver => l10n.providerCategoryWeaverTitle,
   };
 }
 
@@ -1124,7 +1118,6 @@ String _channelSurfacePanelTitle(
     ChannelWorkspaceSurfaceKind.decisions =>
       l10n.chatDecisionEvidencePanelTitle,
     ChannelWorkspaceSurfaceKind.evidence => l10n.chatContextEvidenceHintTitle,
-    ChannelWorkspaceSurfaceKind.weaver => l10n.chatWeaverScoutPanelTitle,
   };
 }
 
@@ -1147,7 +1140,6 @@ String _channelSurfacePanelDescription(
       l10n.chatDecisionEvidencePanelDescription,
     ChannelWorkspaceSurfaceKind.evidence =>
       l10n.chatContextEvidenceHintDescription,
-    ChannelWorkspaceSurfaceKind.weaver => l10n.chatWeaverScoutPanelDescription,
   };
 }
 
@@ -1168,291 +1160,6 @@ String _channelSurfaceStatusLabel(
       l10n.channelWorkspaceStatusUnavailable,
     ChannelWorkspaceSurfaceAvailability.comingLater =>
       l10n.channelWorkspaceStatusComingLater,
-  };
-}
-
-class _ChannelWeaverScoutPanel extends StatelessWidget {
-  const _ChannelWeaverScoutPanel({required this.workspace});
-
-  final ChannelWorkspacePreview workspace;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    final scout = workspace.weaverScoutPreview;
-    final capabilitySummary = scout.capabilities
-        .map((capability) => _weaverScoutCapabilityLabel(l10n, capability.kind))
-        .join(', ');
-    final sourceSummary = scout.allowedSources
-        .map(
-          (source) =>
-              '${_weaverScoutSourceLabel(l10n, source.kind)}: '
-              '${_weaverScoutSourceExcerpt(l10n, source.kind)}',
-        )
-        .join('. ');
-    final semanticsLabel = [
-      l10n.chatWeaverScoutPanelTitle,
-      l10n.chatWeaverScoutReadOnlyStatus,
-      l10n.chatWeaverScoutPanelDescription,
-      capabilitySummary,
-      sourceSummary,
-      l10n.chatWeaverScoutApprovalReceiptsRequired,
-    ].join('. ');
-
-    return Semantics(
-      container: true,
-      label: semanticsLabel,
-      child: ExcludeSemantics(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Card(
-            elevation: 0,
-            color: theme.colorScheme.surfaceContainerHighest,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(24),
-              side: BorderSide(color: theme.colorScheme.outlineVariant),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(
-                        Icons.psychology_alt_outlined,
-                        color: theme.colorScheme.primary,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              l10n.chatWeaverScoutPanelTitle,
-                              style: theme.textTheme.titleLarge,
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              l10n.chatWeaverScoutPanelDescription,
-                              style: theme.textTheme.bodyMedium,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      Chip(
-                        avatar: const Icon(Icons.visibility_outlined, size: 18),
-                        label: Text(l10n.chatWeaverScoutReadOnlyStatus),
-                      ),
-                      Chip(
-                        avatar: const Icon(Icons.edit_note_outlined, size: 18),
-                        label: Text(l10n.chatWeaverScoutProposalOnlyStatus),
-                      ),
-                      Chip(
-                        avatar: const Icon(
-                          Icons.receipt_long_outlined,
-                          size: 18,
-                        ),
-                        label: Text(l10n.chatWeaverScoutReceiptStatus),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    l10n.chatWeaverScoutCapabilitiesTitle,
-                    style: theme.textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  for (final capability in scout.capabilities)
-                    _ChannelWeaverScoutInfoRow(
-                      icon: _weaverScoutCapabilityIcon(capability.kind),
-                      title: _weaverScoutCapabilityLabel(l10n, capability.kind),
-                      body: _weaverScoutCapabilityDescription(
-                        l10n,
-                        capability.kind,
-                      ),
-                    ),
-                  const SizedBox(height: 16),
-                  Text(
-                    l10n.chatWeaverScoutSourcesTitle,
-                    style: theme.textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  for (final source in scout.allowedSources)
-                    _ChannelWeaverScoutInfoRow(
-                      icon: _weaverScoutSourceIcon(source.kind),
-                      title: _weaverScoutSourceLabel(l10n, source.kind),
-                      body: _weaverScoutSourceExcerpt(l10n, source.kind),
-                    ),
-                  const SizedBox(height: 16),
-                  MergeSemantics(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(
-                          Icons.receipt_long_outlined,
-                          size: 20,
-                          color: theme.colorScheme.primary,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            l10n.chatWeaverScoutApprovalReceiptsRequired,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ChannelWeaverScoutInfoRow extends StatelessWidget {
-  const _ChannelWeaverScoutInfoRow({
-    required this.icon,
-    required this.title,
-    required this.body,
-  });
-
-  final IconData icon;
-  final String title;
-  final String body;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: MergeSemantics(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, size: 20, color: theme.colorScheme.primary),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: theme.textTheme.titleSmall),
-                  const SizedBox(height: 2),
-                  Text(
-                    body,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-IconData _weaverScoutCapabilityIcon(ChannelWeaverScoutCapabilityKind kind) {
-  return switch (kind) {
-    ChannelWeaverScoutCapabilityKind.summarizeAllowedContext =>
-      Icons.summarize_outlined,
-    ChannelWeaverScoutCapabilityKind.citeSources => Icons.link_outlined,
-    ChannelWeaverScoutCapabilityKind.proposeOnly => Icons.edit_note_outlined,
-    ChannelWeaverScoutCapabilityKind.approvalReceiptRequired =>
-      Icons.receipt_long_outlined,
-  };
-}
-
-IconData _weaverScoutSourceIcon(ChannelWeaverScoutSourceKind kind) {
-  return switch (kind) {
-    ChannelWeaverScoutSourceKind.message => Icons.chat_bubble_outline,
-    ChannelWeaverScoutSourceKind.decision =>
-      Icons.assignment_turned_in_outlined,
-    ChannelWeaverScoutSourceKind.file => Icons.folder_outlined,
-    ChannelWeaverScoutSourceKind.task => Icons.view_kanban_outlined,
-    ChannelWeaverScoutSourceKind.meeting => Icons.video_call_outlined,
-  };
-}
-
-String _weaverScoutCapabilityLabel(
-  AppLocalizations l10n,
-  ChannelWeaverScoutCapabilityKind kind,
-) {
-  return switch (kind) {
-    ChannelWeaverScoutCapabilityKind.summarizeAllowedContext =>
-      l10n.chatWeaverScoutSummarizeCapability,
-    ChannelWeaverScoutCapabilityKind.citeSources =>
-      l10n.chatWeaverScoutCiteSourcesCapability,
-    ChannelWeaverScoutCapabilityKind.proposeOnly =>
-      l10n.chatWeaverScoutProposeOnlyCapability,
-    ChannelWeaverScoutCapabilityKind.approvalReceiptRequired =>
-      l10n.chatWeaverScoutApprovalReceiptCapability,
-  };
-}
-
-String _weaverScoutCapabilityDescription(
-  AppLocalizations l10n,
-  ChannelWeaverScoutCapabilityKind kind,
-) {
-  return switch (kind) {
-    ChannelWeaverScoutCapabilityKind.summarizeAllowedContext =>
-      l10n.chatWeaverScoutSummarizeDescription,
-    ChannelWeaverScoutCapabilityKind.citeSources =>
-      l10n.chatWeaverScoutCiteSourcesDescription,
-    ChannelWeaverScoutCapabilityKind.proposeOnly =>
-      l10n.chatWeaverScoutProposeOnlyDescription,
-    ChannelWeaverScoutCapabilityKind.approvalReceiptRequired =>
-      l10n.chatWeaverScoutApprovalReceiptDescription,
-  };
-}
-
-String _weaverScoutSourceLabel(
-  AppLocalizations l10n,
-  ChannelWeaverScoutSourceKind kind,
-) {
-  return switch (kind) {
-    ChannelWeaverScoutSourceKind.message =>
-      l10n.chatWeaverScoutMessageSourceLabel,
-    ChannelWeaverScoutSourceKind.decision =>
-      l10n.chatWeaverScoutDecisionSourceLabel,
-    ChannelWeaverScoutSourceKind.file => l10n.chatWeaverScoutFileSourceLabel,
-    ChannelWeaverScoutSourceKind.task => l10n.chatWeaverScoutTaskSourceLabel,
-    ChannelWeaverScoutSourceKind.meeting =>
-      l10n.chatWeaverScoutMeetingSourceLabel,
-  };
-}
-
-String _weaverScoutSourceExcerpt(
-  AppLocalizations l10n,
-  ChannelWeaverScoutSourceKind kind,
-) {
-  return switch (kind) {
-    ChannelWeaverScoutSourceKind.message =>
-      l10n.chatWeaverScoutMessageSourceExcerpt,
-    ChannelWeaverScoutSourceKind.decision =>
-      l10n.chatWeaverScoutDecisionSourceExcerpt,
-    ChannelWeaverScoutSourceKind.file => l10n.chatWeaverScoutFileSourceExcerpt,
-    ChannelWeaverScoutSourceKind.task => l10n.chatWeaverScoutTaskSourceExcerpt,
-    ChannelWeaverScoutSourceKind.meeting =>
-      l10n.chatWeaverScoutMeetingSourceExcerpt,
   };
 }
 
