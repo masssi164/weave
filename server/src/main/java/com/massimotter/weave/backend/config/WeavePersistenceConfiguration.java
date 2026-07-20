@@ -3,6 +3,7 @@ package com.massimotter.weave.backend.config;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.agentruntime.adapter.JdbcRuntimeCellRepository;
 import com.massimotter.weave.backend.agentruntime.adapter.JdbcRuntimeCommandRepository;
+import com.massimotter.weave.backend.agentruntime.adapter.JdbcRuntimeProfileRepository;
 import com.massimotter.weave.backend.audit.JdbcAuditEventPublisher;
 import com.massimotter.weave.backend.provider.JdbcProviderSelectionRepository;
 import com.massimotter.weave.backend.service.JdbcProductProfileOverrideRepository;
@@ -109,5 +110,11 @@ public class WeavePersistenceConfiguration {
     @ConditionalOnProperty(name = "weave.agent-runtime.storage.mode", havingValue = "jdbc")
     JdbcRuntimeCommandRepository jdbcRuntimeCommandRepository(JdbcTemplate weaveJdbcTemplate) {
         return new JdbcRuntimeCommandRepository(weaveJdbcTemplate);
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "weave.agent-runtime.storage.mode", havingValue = "jdbc")
+    JdbcRuntimeProfileRepository jdbcRuntimeProfileRepository(JdbcTemplate weaveJdbcTemplate) {
+        return new JdbcRuntimeProfileRepository(weaveJdbcTemplate);
     }
 }

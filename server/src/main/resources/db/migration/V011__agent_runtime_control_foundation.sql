@@ -42,6 +42,45 @@ create table weave_agent_runtime_cells (
 create index weave_agent_runtime_reconcile
     on weave_agent_runtime_cells (desired_state, observed_state, lease_expires_at);
 
+create table weave_agent_runtime_profiles (
+    profile_hash varchar(71) primary key,
+    profile_id varchar(255) not null unique,
+    cell_ref varchar(255) not null,
+    organization_ref varchar(255) not null,
+    person_ref varchar(255) not null,
+    payload text not null,
+    selected_key_id varchar(255) not null,
+    issued_at timestamp with time zone not null,
+    expires_at timestamp with time zone not null,
+    revoked_at timestamp with time zone,
+    revocation_code varchar(100),
+    created_at timestamp with time zone not null,
+    constraint weave_agent_runtime_profile_cell_fk foreign key (cell_ref)
+        references weave_agent_runtime_cells (cell_ref),
+    constraint weave_agent_runtime_profile_hash_format check (
+        char_length(profile_hash) = 71 and profile_hash like 'sha256:%'
+    ),
+    constraint weave_agent_runtime_profile_expiry check (expires_at > issued_at),
+    constraint weave_agent_runtime_profile_revocation_pair check (
+        (revoked_at is null and revocation_code is null)
+        or (revoked_at is not null and revocation_code is not null)
+    )
+);
+
+create index weave_agent_runtime_profile_cell
+    on weave_agent_runtime_profiles (cell_ref, expires_at, revoked_at);
+
+create table weave_agent_runtime_profile_signatures (
+    profile_hash varchar(71) not null,
+    key_id varchar(255) not null,
+    protected_header text not null,
+    signature text not null,
+    created_at timestamp with time zone not null,
+    primary key (profile_hash, key_id),
+    constraint weave_agent_runtime_profile_signature_fk foreign key (profile_hash)
+        references weave_agent_runtime_profiles (profile_hash)
+);
+
 create table weave_agent_runtime_commands (
     organization_ref varchar(255) not null,
     person_ref varchar(255) not null,

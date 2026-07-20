@@ -15,6 +15,10 @@ public interface RuntimeProfileSigningKeyProvider {
                     && !"Ed25519".equalsIgnoreCase(privateKey.getAlgorithm())) {
                 throw new IllegalArgumentException("runtime profiles require an Ed25519 private key");
             }
+            if (!"EdDSA".equalsIgnoreCase(publicKey.getAlgorithm())
+                    && !"Ed25519".equalsIgnoreCase(publicKey.getAlgorithm())) {
+                throw new IllegalArgumentException("runtime profiles require an Ed25519 public key");
+            }
         }
     }
 }

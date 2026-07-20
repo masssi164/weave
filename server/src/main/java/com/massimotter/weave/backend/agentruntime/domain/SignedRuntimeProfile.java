@@ -16,6 +16,7 @@ public record SignedRuntimeProfile(
 
     private static final Pattern BASE64URL = Pattern.compile("[A-Za-z0-9_-]+");
     private static final Pattern HASH = Pattern.compile("sha256:[a-f0-9]{64}");
+    private static final Pattern PROFILE_ID = Pattern.compile("rp_[A-Za-z0-9_-]+");
 
     public SignedRuntimeProfile {
         requireBase64Url(protectedHeader, "protectedHeader", 1);
@@ -24,7 +25,9 @@ public record SignedRuntimeProfile(
         if (profileHash == null || !HASH.matcher(profileHash).matches()) {
             throw new IllegalArgumentException("profileHash must be a SHA-256 reference");
         }
-        if (profileId == null || cellRef == null || keyId == null || issuedAt == null || expiresAt == null) {
+        if (profileId == null || !PROFILE_ID.matcher(profileId).matches()
+                || cellRef == null || cellRef.isBlank() || keyId == null || keyId.isBlank()
+                || issuedAt == null || expiresAt == null || !expiresAt.isAfter(issuedAt)) {
             throw new IllegalArgumentException("signed RuntimeProfile metadata is required");
         }
     }

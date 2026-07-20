@@ -106,6 +106,8 @@ class JdbcProviderSelectionRepositoryTest {
                         "WEAVE_CHAT_READ_RECEIPTS",
                         "WEAVE_CHAT_CHANGES",
                         "WEAVE_AGENT_RUNTIME_CELLS",
+                        "WEAVE_AGENT_RUNTIME_PROFILES",
+                        "WEAVE_AGENT_RUNTIME_PROFILE_SIGNATURES",
                         "WEAVE_AGENT_RUNTIME_COMMANDS");
     }
 

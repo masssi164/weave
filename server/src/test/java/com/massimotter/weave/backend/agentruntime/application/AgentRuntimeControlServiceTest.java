@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.massimotter.weave.backend.agentruntime.adapter.JdbcRuntimeCellRepository;
 import com.massimotter.weave.backend.agentruntime.adapter.JdbcRuntimeCommandRepository;
+import com.massimotter.weave.backend.agentruntime.adapter.JdbcRuntimeProfileRepository;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCell;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCellState;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
@@ -46,7 +47,7 @@ class AgentRuntimeControlServiceTest {
         cells = new JdbcRuntimeCellRepository(jdbc);
         workloadAdmin = new CountingWorkloadAdmin();
         service = new AgentRuntimeControlService(
-                cells, new JdbcRuntimeCommandRepository(jdbc), workloadAdmin,
+                cells, new JdbcRuntimeCommandRepository(jdbc), new JdbcRuntimeProfileRepository(jdbc), workloadAdmin,
                 Clock.fixed(NOW, ZoneOffset.UTC));
     }
 

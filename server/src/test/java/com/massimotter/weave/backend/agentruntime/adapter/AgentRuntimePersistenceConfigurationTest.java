@@ -22,6 +22,7 @@ class AgentRuntimePersistenceConfigurationTest {
         context.run(application -> {
             assertThat(application).hasSingleBean(JdbcRuntimeCellRepository.class);
             assertThat(application).hasSingleBean(JdbcRuntimeCommandRepository.class);
+            assertThat(application).hasSingleBean(JdbcRuntimeProfileRepository.class);
             assertThat(application).hasSingleBean(WeavePersistenceProperties.class);
         });
     }

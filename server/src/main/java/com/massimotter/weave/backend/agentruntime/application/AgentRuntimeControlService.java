@@ -7,6 +7,7 @@ import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadBinding;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeCellRepository;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeCommandConflictException;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeCommandRepository;
+import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileRepository;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityAdmin;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -14,6 +15,7 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.Objects;
 
 public final class AgentRuntimeControlService {
     private static final String PROVISION = "PROVISION";
@@ -21,18 +23,21 @@ public final class AgentRuntimeControlService {
 
     private final RuntimeCellRepository cells;
     private final RuntimeCommandRepository commands;
+    private final RuntimeProfileRepository profiles;
     private final RuntimeWorkloadIdentityAdmin workloadIdentityAdmin;
     private final Clock clock;
 
     public AgentRuntimeControlService(
             RuntimeCellRepository cells,
             RuntimeCommandRepository commands,
+            RuntimeProfileRepository profiles,
             RuntimeWorkloadIdentityAdmin workloadIdentityAdmin,
             Clock clock) {
-        this.cells = cells;
-        this.commands = commands;
-        this.workloadIdentityAdmin = workloadIdentityAdmin;
-        this.clock = clock;
+        this.cells = Objects.requireNonNull(cells, "cells");
+        this.commands = Objects.requireNonNull(commands, "commands");
+        this.profiles = Objects.requireNonNull(profiles, "profiles");
+        this.workloadIdentityAdmin = Objects.requireNonNull(workloadIdentityAdmin, "workloadIdentityAdmin");
+        this.clock = Objects.requireNonNull(clock, "clock");
     }
 
     public RuntimeCell provision(ProvisionRuntimeCommand command) {
@@ -85,6 +90,7 @@ public final class AgentRuntimeControlService {
             RuntimeCell revoked = cells.revoke(
                     command.organizationRef(), command.personRef(), command.entitlementRevision(),
                     command.auditRef(), now);
+            profiles.revokeCurrent(revoked.cellRef(), "entitlement-revoked", now);
             workloadIdentityAdmin.disableBinding(new RuntimeWorkloadIdentityAdmin.DisableBindingCommand(
                     revoked.organizationRef(), revoked.personRef(), revoked.cellRef(),
                     revoked.workloadBinding().clientId(), command.auditRef()));
