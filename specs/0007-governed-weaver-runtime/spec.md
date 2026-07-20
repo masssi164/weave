@@ -74,6 +74,9 @@ RuntimeProfile is a signed, short-lived desired-state ceiling and correlation ar
 contains references and maximum permitted capabilities; it is not an authorization grant.
 Profiles are verified through the canonical trust-discovery/JWKS boundary and fail closed on
 tampering, expiry, revocation, wrong subject, wrong organization, or stale policy.
+The current corpus defines `runtimeProfileHash` as the lowercase `sha256:` digest of the RFC 8785
+JCS UTF-8 payload bytes, excluding the protected header and signature. Overlap-key re-signing
+therefore preserves semantic identity while every payload change produces another hash.
 
 ## Initial tool set
 
