@@ -415,6 +415,14 @@ resource "keycloak_openid_audience_protocol_mapper" "weave_mcp_audience" {
   client_scope_id          = keycloak_openid_client_scope.weave_mcp.id
   name                     = "weave-mcp-server-audience"
   included_client_audience = keycloak_openid_client.client["weave_mcp_server"].client_id
+  add_to_id_token          = false
+  add_to_access_token      = true
+}
+
+resource "keycloak_openid_audience_protocol_mapper" "weave_mcp_resource_audience" {
+  realm_id                 = keycloak_realm.tenant.id
+  client_scope_id          = keycloak_openid_client_scope.weave_mcp.id
+  name                     = "weave-mcp-resource-audience"
   included_custom_audience = var.weave_mcp_resource
   add_to_id_token          = false
   add_to_access_token      = true
