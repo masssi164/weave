@@ -50,7 +50,7 @@ output "weave_mcp_client_id" {
 
 output "weave_mcp_audience" {
   description = "Audience required by the MCP resource server for member runtime tokens."
-  value       = try(keycloak_openid_client.client["weave_mcp_server"].client_id, null)
+  value       = var.weave_mcp_resource
 }
 
 output "weave_mcp_backend_scope_name" {

@@ -7,7 +7,10 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withUnauthorizedRequest;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
@@ -25,6 +28,9 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 class WeaveTokenExchangeClientTest {
+
+    @org.junit.jupiter.api.io.TempDir
+    Path tempDirectory;
 
     @AfterEach
     void clearSecurityContext() {
@@ -59,6 +65,27 @@ class WeaveTokenExchangeClientTest {
     }
 
     @Test
+    void redactsAuthorizationServerFailureBeforeItCrossesTheMcpBoundary() {
+        RestClient.Builder builder = RestClient.builder()
+                .configureMessageConverters(converters ->
+                        converters.addCustomConverter(new OAuth2AccessTokenResponseHttpMessageConverter()));
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        RestClientTokenExchangeTokenResponseClient responseClient = new RestClientTokenExchangeTokenResponseClient();
+        responseClient.setRestClient(builder.build());
+        WeaveTokenExchangeClient client = client(responseClient);
+        authenticate(memberToken("member-token", "member-123", List.of("weave-mcp-server"), "weave-app", "weave:mcp"));
+
+        server.expect(requestTo("https://auth.weave.test/realms/weave/protocol/openid-connect/token"))
+                .andRespond(withUnauthorizedRequest().body("{\"error\":\"invalid_client\",\"error_description\":\"provider-only-detail\"}"));
+
+        assertThatThrownBy(client::exchangeCurrentMemberToken)
+                .isInstanceOf(McpBoundaryException.class)
+                .hasMessage("mcp-token-exchange-failed")
+                .hasMessageNotContaining("provider-only-detail");
+        server.verify();
+    }
+
+    @Test
     void rejectsClientCredentialsAndWrongAudienceBeforeCallingTheTokenEndpoint() {
         WeaveTokenExchangeClient client = client(new RestClientTokenExchangeTokenResponseClient());
 
@@ -82,6 +109,54 @@ class WeaveTokenExchangeClientTest {
         assertThatThrownBy(client::exchangeCurrentMemberToken)
                 .isInstanceOf(McpBoundaryException.class)
                 .hasMessage("mcp-token-audience-invalid");
+
+        authenticate(memberToken("wrong-azp", "member-123", List.of("weave-mcp-server"), "other-client", "weave:mcp"));
+        assertThatThrownBy(client::exchangeCurrentMemberToken)
+                .isInstanceOf(McpBoundaryException.class)
+                .hasMessage("mcp-token-authorized-party-invalid");
+
+        authenticate(memberToken(
+                "overbroad-scope",
+                "member-123",
+                List.of("weave-mcp-server"),
+                "weave-app",
+                "weave:mcp weave:mcp-backend"));
+        assertThatThrownBy(client::exchangeCurrentMemberToken)
+                .isInstanceOf(McpBoundaryException.class)
+                .hasMessage("mcp-token-scope-overbroad");
+
+        Jwt expired = Jwt.withTokenValue("expired")
+                .header("alg", "none")
+                .subject("member-123")
+                .audience(List.of("weave-mcp-server"))
+                .claim("azp", "weave-app")
+                .claim("scope", "weave:mcp")
+                .issuedAt(Instant.now().minusSeconds(600))
+                .expiresAt(Instant.now().minusSeconds(300))
+                .build();
+        authenticate(expired);
+        assertThatThrownBy(client::exchangeCurrentMemberToken)
+                .isInstanceOf(McpBoundaryException.class)
+                .hasMessage("mcp-member-token-expired");
+    }
+
+    @Test
+    void loadsClientAuthenticationOnlyFromARegularSecretFile() throws Exception {
+        Path secretFile = tempDirectory.resolve("mcp-client-secret");
+        Files.writeString(secretFile, "rotated-test-secret\n");
+        assertThat(WeaveTokenExchangeClient.readClientSecret(secretFile.toString()))
+                .isEqualTo("rotated-test-secret");
+
+        Path symlink = tempDirectory.resolve("mcp-client-secret-link");
+        Files.createSymbolicLink(symlink, secretFile);
+        assertThatThrownBy(() -> WeaveTokenExchangeClient.readClientSecret(symlink.toString()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("MCP client secret file must be a regular non-symlink file");
+
+        Files.writeString(secretFile, "invalid secret with whitespace");
+        assertThatThrownBy(() -> WeaveTokenExchangeClient.readClientSecret(secretFile.toString()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("MCP client secret file contains invalid secret material");
     }
 
     private WeaveTokenExchangeClient client(RestClientTokenExchangeTokenResponseClient responseClient) {

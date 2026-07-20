@@ -76,6 +76,7 @@ readonly PERSISTED_TF_VARS=(
   TF_VAR_mcp_host_port
   TF_VAR_mcp_container_port
   TF_VAR_weave_mcp_server_image
+  TF_VAR_weave_mcp_client_secret_file
   TF_VAR_provider_stack_profile
   TF_VAR_provider_stack_readiness
   TF_VAR_devops_primary_provider
@@ -1425,8 +1426,10 @@ ensure_generated_directories() {
     "${INFRA_GENERATED_DIR}/db" \
     "${INFRA_GENERATED_DIR}/caddy/certs" \
     "${INFRA_GENERATED_DIR}/mas" \
+    "${INFRA_GENERATED_DIR}/secrets" \
     "${INFRA_GENERATED_DIR}/synapse" \
     "${INFRA_GENERATED_DIR}/synapse/appservices"
+  chmod 700 "${INFRA_GENERATED_DIR}/secrets"
 }
 
 maybe_prepare_runner_hygiene() {
@@ -1658,6 +1661,17 @@ ensure_generated_secrets() {
   fi
   ensure_mas_signing_key
   export TF_VAR_mas_signing_key_pem
+}
+
+materialize_runtime_secret_files() {
+  local secret_file="${INFRA_GENERATED_DIR}/secrets/weave-mcp-client-secret"
+  local staged_file="${secret_file}.new"
+
+  umask 077
+  printf '%s' "${TF_VAR_weave_mcp_client_secret}" > "${staged_file}"
+  chmod 600 "${staged_file}"
+  mv -f "${staged_file}" "${secret_file}"
+  export TF_VAR_weave_mcp_client_secret_file="${secret_file}"
 }
 
 private_file_mode() {
@@ -2235,6 +2249,7 @@ main() {
   cleanup_partial_weave_containers
   ensure_docker_provider_inputs
   ensure_generated_secrets
+  materialize_runtime_secret_files
   assert_chat_e2e_proof_contract
   ensure_local_tls_certificates
   persist_bootstrap_env

@@ -116,7 +116,6 @@ locals {
   matrix_chat_appservice_forbidden_credentials = [
     var.db_admin_password,
     var.backend_db_password,
-    var.weave_mcp_client_secret,
     var.keycloak_admin_password,
     var.keycloak_db_password,
     var.matrix_mas_client_secret,
@@ -176,6 +175,7 @@ locals {
     synapse_upstream      = "${local.service_names.synapse}:8008"
     # Backend is routed via Caddy (api_upstream); no Traefik labels needed
     api_upstream                       = "${local.service_names.backend}:${var.backend_container_port}"
+    mcp_upstream                       = "${local.service_names.mcp}:${var.mcp_container_port}"
     tls_cert_filename                  = basename(local.caddy_tls_cert_file)
     tls_key_filename                   = basename(local.caddy_tls_key_file)
     connector_provider_callbacks_guard = local.connector_provider_callbacks_guard
@@ -190,7 +190,8 @@ locals {
   weave_app_client_id    = "weave-app"
   weave_backend_audience = "weave-backend"
   weave_mcp_client_id    = "weave-mcp-server"
-  weave_mcp_audience     = local.weave_mcp_client_id
+  weave_mcp_resource     = "${local.public_urls.api}/mcp"
+  weave_mcp_audience     = local.weave_mcp_resource
 
   # Backend-to-Nextcloud adapter traffic runs inside the Docker network.
   # Public 127.0.0.1.sslip.io URLs work for the host/browser, but loop back to
@@ -834,9 +835,10 @@ module "mcp" {
   oidc_issuer_uri          = local.keycloak_issuer_url
   oidc_jwk_set_uri         = local.keycloak_jwk_set_uri
   oidc_required_audience   = local.weave_mcp_audience
+  mcp_resource             = local.weave_mcp_resource
   oidc_token_uri           = "http://${local.service_names.keycloak}:8080/realms/${var.tenant_slug}/protocol/openid-connect/token"
   mcp_client_id            = local.weave_mcp_client_id
-  mcp_client_secret        = var.weave_mcp_client_secret
+  mcp_client_secret_file   = var.weave_mcp_client_secret_file
   inbound_authorized_party = local.weave_app_client_id
   backend_oidc_audience    = local.weave_backend_audience
   backend_scope            = "weave:mcp-backend"

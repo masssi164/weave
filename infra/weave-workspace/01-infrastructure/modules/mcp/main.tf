@@ -32,10 +32,11 @@ resource "docker_container" "this" {
     "WEAVE_SERVER_BASE_URL=${var.backend_base_url}",
     "WEAVE_OIDC_ISSUER_URI=${var.oidc_issuer_uri}",
     "WEAVE_OIDC_AUDIENCE=${var.oidc_required_audience}",
+    "WEAVE_MCP_RESOURCE=${var.mcp_resource}",
     "WEAVE_OIDC_TOKEN_URI=${var.oidc_token_uri}",
     "SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI=${var.oidc_jwk_set_uri}",
     "WEAVE_MCP_CLIENT_ID=${var.mcp_client_id}",
-    "WEAVE_MCP_CLIENT_SECRET=${var.mcp_client_secret}",
+    "WEAVE_MCP_CLIENT_SECRET_FILE=/run/secrets/weave-mcp-client-secret",
     "WEAVE_MCP_INBOUND_AUTHORIZED_PARTY=${var.inbound_authorized_party}",
     "WEAVE_BACKEND_OIDC_AUDIENCE=${var.backend_oidc_audience}",
     "WEAVE_MCP_BACKEND_SCOPE=${var.backend_scope}",
@@ -45,6 +46,12 @@ resource "docker_container" "this" {
     internal = var.container_port
     external = var.host_port
     ip       = "127.0.0.1"
+  }
+
+  volumes {
+    host_path      = var.mcp_client_secret_file
+    container_path = "/run/secrets/weave-mcp-client-secret"
+    read_only      = true
   }
 
   healthcheck {

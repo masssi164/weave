@@ -43,6 +43,11 @@ variable "oidc_required_audience" {
   type        = string
 }
 
+variable "mcp_resource" {
+  description = "Exact public HTTPS resource identifier for the MCP Streamable HTTP endpoint."
+  type        = string
+}
+
 variable "oidc_token_uri" {
   description = "Internal Keycloak token endpoint used for standard token exchange."
   type        = string
@@ -53,10 +58,9 @@ variable "mcp_client_id" {
   type        = string
 }
 
-variable "mcp_client_secret" {
-  description = "Confidential Keycloak workload client secret used only for token exchange."
+variable "mcp_client_secret_file" {
+  description = "Absolute host path to the confidential Keycloak workload client secret."
   type        = string
-  sensitive   = true
 }
 
 variable "inbound_authorized_party" {

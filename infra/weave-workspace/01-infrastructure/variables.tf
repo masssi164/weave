@@ -284,10 +284,9 @@ variable "mcp_container_port" {
   default     = 8091
 }
 
-variable "weave_mcp_client_secret" {
-  description = "Keycloak client secret used only by the confidential weave-mcp-server token-exchange workload."
+variable "weave_mcp_client_secret_file" {
+  description = "Absolute host path to the generated MCP workload client secret mounted read-only into the MCP container."
   type        = string
-  sensitive   = true
 }
 
 variable "weave_mcp_server_image" {

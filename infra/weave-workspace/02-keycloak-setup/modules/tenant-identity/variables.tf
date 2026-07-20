@@ -51,6 +51,11 @@ variable "weave_mcp_client_secret" {
   sensitive   = true
 }
 
+variable "weave_mcp_resource" {
+  description = "Exact public HTTPS MCP resource emitted as an access-token audience."
+  type        = string
+}
+
 variable "smtp_host" {
   description = "SMTP host used by the dogfood/local Keycloak realm."
   type        = string

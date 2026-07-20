@@ -737,6 +737,15 @@ calendar_product_status="$(curl_status "${WEAVE_PUBLIC_BASE_URL}/calendar")"
 issuer_config="$(curl_json "${WEAVE_OIDC_ISSUER_URL}/.well-known/openid-configuration")"
 assert_json "${issuer_config}" ".issuer == \"${WEAVE_OIDC_ISSUER_URL}\"" "public Keycloak issuer should match the configured release URL"
 
+mcp_resource="$(api_public_url)/mcp"
+mcp_metadata="$(curl_json "$(api_public_url)/.well-known/oauth-protected-resource/mcp")"
+assert_json "${mcp_metadata}" ".resource == \"${mcp_resource}\"" "MCP metadata should publish the exact public HTTPS resource"
+assert_json "${mcp_metadata}" ".authorization_servers == [\"${WEAVE_OIDC_ISSUER_URL}\"]" "MCP metadata should publish only the configured Keycloak issuer"
+assert_json "${mcp_metadata}" '.bearer_methods_supported == ["header"] and (.scopes_supported | index("weave:mcp") != null)' "MCP metadata should publish the bounded bearer and scope contract"
+mcp_runtime_inspect="$(docker inspect "$(weave_container_name mcp-server)")"
+assert_json "${mcp_runtime_inspect}" '.[0].Config.Env | all(startswith("WEAVE_MCP_CLIENT_SECRET=") | not)' "MCP runtime must not receive the client secret value through its environment"
+assert_json "${mcp_runtime_inspect}" 'any(.[0].Mounts[]; .Destination == "/run/secrets/weave-mcp-client-secret" and .RW == false)' "MCP runtime should mount its workload credential read-only"
+
 backend_health="$(curl_json "${WEAVE_BASE_URL}/health/ready")"
 assert_json "${backend_health}" '.status == "up"' "public backend readiness should report up"
 

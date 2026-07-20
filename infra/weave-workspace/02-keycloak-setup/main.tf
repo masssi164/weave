@@ -61,6 +61,7 @@ module "tenant_identity" {
   matrix_mas_client_secret                = var.matrix_mas_client_secret
   identity_admin_client_secret            = var.identity_admin_client_secret
   weave_mcp_client_secret                 = var.weave_mcp_client_secret
+  weave_mcp_resource                      = "${local.public_urls.api}/mcp"
   smtp_host                               = var.keycloak_smtp_host
   smtp_port                               = var.keycloak_smtp_port
   smtp_from                               = local.smtp_from

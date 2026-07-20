@@ -100,7 +100,7 @@ Dogfood/local realm email is captured by Mailpit only:
 - Exchanged tokens project signed Keycloak groups; the backend derives the effective product role only from the managed `workspace-owners`, `workspace-admins`, `workspace-members`, or `workspace-guests` group when `azp=weave-mcp-server`.
 - Pure client-credentials subjects (`service-account-*`) cannot enter `/mcp` or invoke backend member tools.
 
-The MCP server authenticates to Keycloak with `TF_VAR_weave_mcp_client_secret`. The secret is generated into the operator-owned secret environment and injected only into the MCP container and Keycloak client configuration. It is not shared with the backend and is never an HTTP boundary header.
+The installer accepts `TF_VAR_weave_mcp_client_secret` as operator-owned Keycloak bootstrap input, writes it to a mode-`0600` generated secret file, and bind-mounts that file read-only into the MCP container. The MCP process receives only `WEAVE_MCP_CLIENT_SECRET_FILE`; the secret value is never exposed as a container environment variable, shared with the backend, or used as an HTTP boundary header.
 
 Keycloak's supported standard token exchange is used; the experimental delegation feature is not enabled. Keycloak does not implement the RFC 8707 `resource` parameter for this flow, so the current interoperable contract uses the standard token-exchange `audience` parameter. End-to-end RFC 8707 and MCP Authorization Server Metadata conformance therefore remain **Guarded**, not claimed complete. See the [Keycloak token exchange documentation](https://www.keycloak.org/securing-apps/token-exchange).
 
@@ -140,7 +140,7 @@ The scope carries an audience mapper:
 ### `weave:mcp`
 
 - Optional scope of `weave-app`; a runtime must request it explicitly
-- Adds `weave-mcp-server` to the access-token audience
+- Adds both the requester client audience `weave-mcp-server` needed by Keycloak exchange and the exact MCP resource `https://api.weave.test/mcp` to the access-token audience
 - Required by the `/mcp` resource server
 
 ### `weave:mcp-backend`

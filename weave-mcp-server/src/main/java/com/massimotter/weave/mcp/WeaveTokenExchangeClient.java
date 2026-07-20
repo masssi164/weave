@@ -1,5 +1,9 @@
 package com.massimotter.weave.mcp;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
@@ -14,6 +18,7 @@ import org.springframework.security.oauth2.client.endpoint.TokenExchangeGrantReq
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
+import org.springframework.security.oauth2.core.OAuth2AuthorizationException;
 import org.springframework.security.oauth2.core.OAuth2AccessToken;
 import org.springframework.security.oauth2.core.OAuth2AccessToken.TokenType;
 import org.springframework.security.oauth2.core.endpoint.OAuth2AccessTokenResponse;
@@ -39,13 +44,13 @@ final class WeaveTokenExchangeClient implements BackendAccessTokenProvider {
     WeaveTokenExchangeClient(
             @Value("${weave.oidc.token-uri:}") String tokenUri,
             @Value("${weave.oidc.mcp-client-id:weave-mcp-server}") String clientId,
-            @Value("${weave.oidc.mcp-client-secret:}") String clientSecret,
+            @Value("${weave.oidc.mcp-client-secret-file:}") String clientSecretFile,
             @Value("${weave.oidc.backend-audience:weave-backend}") String backendAudience,
             @Value("${weave.oidc.backend-scope:weave:mcp-backend}") String backendScope,
             @Value("${weave.oidc.inbound-audience:weave-mcp-server}") String inboundAudience,
             @Value("${weave.oidc.inbound-authorized-party:weave-app}") String inboundAuthorizedParty,
             @Value("${weave.oidc.inbound-scope:weave:mcp}") String inboundScope) {
-        this(new RestClientTokenExchangeTokenResponseClient(), tokenUri, clientId, clientSecret,
+        this(new RestClientTokenExchangeTokenResponseClient(), tokenUri, clientId, readClientSecret(clientSecretFile),
                 backendAudience, backendScope, inboundAudience, inboundAuthorizedParty, inboundScope);
     }
 
@@ -94,8 +99,13 @@ final class WeaveTokenExchangeClient implements BackendAccessTokenProvider {
                 requiredInstant(jwt.getIssuedAt(), "issued-at"),
                 requiredInstant(jwt.getExpiresAt(), "expiry"),
                 scopes(jwt));
-        OAuth2AccessTokenResponse response = responseClient.getTokenResponse(
-                new TokenExchangeGrantRequest(clientRegistration, subjectToken, null));
+        OAuth2AccessTokenResponse response;
+        try {
+            response = responseClient.getTokenResponse(
+                    new TokenExchangeGrantRequest(clientRegistration, subjectToken, null));
+        } catch (OAuth2AuthorizationException exception) {
+            throw new McpBoundaryException("mcp-token-exchange-failed");
+        }
         String exchangedToken = response == null || response.getAccessToken() == null
                 ? null
                 : response.getAccessToken().getTokenValue();
@@ -122,6 +132,12 @@ final class WeaveTokenExchangeClient implements BackendAccessTokenProvider {
         }
         if (!scopes(jwt).contains(inboundScope)) {
             throw new McpBoundaryException("mcp-token-scope-invalid");
+        }
+        if (scopes(jwt).contains("weave:mcp-backend")) {
+            throw new McpBoundaryException("mcp-token-scope-overbroad");
+        }
+        if (jwt.getExpiresAt() == null || !jwt.getExpiresAt().isAfter(Instant.now())) {
+            throw new McpBoundaryException("mcp-member-token-expired");
         }
     }
 
@@ -159,5 +175,31 @@ final class WeaveTokenExchangeClient implements BackendAccessTokenProvider {
             throw new IllegalStateException(field + " must be configured");
         }
         return value.trim();
+    }
+
+    static String readClientSecret(String configuredPath) {
+        String pathValue = required(configuredPath, "MCP client secret file");
+        Path path = Path.of(pathValue).toAbsolutePath().normalize();
+        if (Files.isSymbolicLink(path) || !Files.isRegularFile(path)) {
+            throw new IllegalStateException("MCP client secret file must be a regular non-symlink file");
+        }
+        try {
+            long size = Files.size(path);
+            if (size < 8 || size > 4096) {
+                throw new IllegalStateException("MCP client secret file has an invalid size");
+            }
+            String secret = Files.readString(path, StandardCharsets.UTF_8);
+            if (secret.endsWith("\r\n")) {
+                secret = secret.substring(0, secret.length() - 2);
+            } else if (secret.endsWith("\n")) {
+                secret = secret.substring(0, secret.length() - 1);
+            }
+            if (!StringUtils.hasText(secret) || secret.chars().anyMatch(Character::isWhitespace)) {
+                throw new IllegalStateException("MCP client secret file contains invalid secret material");
+            }
+            return secret;
+        } catch (IOException exception) {
+            throw new IllegalStateException("MCP client secret file cannot be read", exception);
+        }
     }
 }

@@ -166,6 +166,11 @@ ${connector_provider_callbacks_guard}
 		respond "Not Found" 404
 	}
 
+	@mcp_resource path /mcp /mcp/* /.well-known/oauth-protected-resource/mcp
+	handle @mcp_resource {
+		reverse_proxy ${mcp_upstream}
+	}
+
 	reverse_proxy ${api_upstream}
 }
 

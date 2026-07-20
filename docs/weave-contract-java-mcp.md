@@ -26,13 +26,13 @@ OpenClaw owns approval presentation and decision state; Weave does not create a 
 
 ## Deployment
 
-The OpenTofu MCP module runs `weave-mcp-server` on the internal Weave network. Weaver runtimes connect to:
+The OpenTofu MCP module runs `weave-mcp-server` on the internal Weave network. Weaver runtimes use the exact public HTTPS resource:
 
 ```text
-http://weave-mcp-server:8091/mcp
+https://api.weave.test/mcp
 ```
 
-The loopback host port is for operator health checks only. `/mcp` requires a real member OIDC bearer with the configured issuer, `aud=weave-mcp-server`, `azp=weave-app`, expiry, and `weave:mcp` scope, plus `X-Weave-Runtime-Profile` for governed discovery and invocation. Service-account/client-credentials subjects are rejected.
+The edge publishes RFC 9728 metadata at `https://api.weave.test/.well-known/oauth-protected-resource/mcp`. The loopback host port is for operator health checks only. `/mcp` requires a real member OIDC bearer with the configured issuer, an audience containing the exact `https://api.weave.test/mcp` resource, `azp=weave-app`, expiry, and `weave:mcp` scope, plus `X-Weave-Runtime-Profile` for governed discovery and invocation. Service-account/client-credentials subjects are rejected.
 
 For each governed operation, the MCP process uses Keycloak standard token exchange (RFC 8693) as confidential client `weave-mcp-server`. It requests only `audience=weave-backend` and `scope=weave:mcp-backend`; the original member bearer, untrusted member/org headers, and the retired static boundary token are never relayed. The backend accepts that delegated scope only on its internal MCP bridge routes, rechecks `azp`, audience, scope, and non-service member subject, and remains the final domain authorization authority. Provider credentials and provider endpoints are never accepted by the MCP process.
 

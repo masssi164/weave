@@ -6,8 +6,11 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 
 import com.massimotter.weave.contract.mcp.MemberMcpDomainDefinition;
 import com.massimotter.weave.contract.mcp.MemberMcpToolCatalog;
@@ -38,7 +41,8 @@ import org.springframework.test.web.servlet.MvcResult;
         "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.weave.test/realms/weave",
         "spring.security.oauth2.resourceserver.jwt.jwk-set-uri=https://auth.weave.test/realms/weave/protocol/openid-connect/certs",
         "weave.oidc.token-uri=https://auth.weave.test/realms/weave/protocol/openid-connect/token",
-        "weave.oidc.mcp-client-secret=test-only-secret"
+        "weave.oidc.resource=https://api.weave.test/mcp",
+        "weave.oidc.mcp-client-secret-file=src/test/resources/weave-mcp-client-secret.test"
 })
 @AutoConfigureMockMvc
 class SpringAiMcpTransportTest {
@@ -61,7 +65,7 @@ class SpringAiMcpTransportTest {
         Jwt.Builder builder = Jwt.withTokenValue(tokenValue)
                 .header("alg", "none")
                 .subject("member@example.invalid")
-                .audience(List.of("weave-mcp-server"))
+                .audience(List.of("weave-mcp-server", "https://api.weave.test/mcp"))
                 .claim("azp", "weave-app")
                 .claim("scope", "weave:mcp")
                 .issuedAt(Instant.now())
@@ -70,6 +74,7 @@ class SpringAiMcpTransportTest {
             case "wrong-audience" -> builder.audience(List.of("weave-backend"));
             case "wrong-azp" -> builder.claim("azp", "other-client");
             case "missing-scope" -> builder.claim("scope", "openid");
+            case "overbroad-scope" -> builder.claim("scope", "weave:mcp weave:mcp-backend");
             case "service-account" -> builder.subject("2f802c16-24a5-471c-9312-7f5ace77dd04")
                     .claim("preferred_username", "service-account-weave-mcp-server")
                     .claim("azp", "weave-mcp-server");
@@ -84,12 +89,25 @@ class SpringAiMcpTransportTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .accept(MediaType.APPLICATION_JSON, MediaType.TEXT_EVENT_STREAM)
                         .content(initializeRequest()))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string(
+                        HttpHeaders.WWW_AUTHENTICATE,
+                        "Bearer resource_metadata=\"https://api.weave.test/.well-known/oauth-protected-resource/mcp\""));
+    }
+
+    @Test
+    void publishesProtectedResourceMetadataForTheExactMcpResource() throws Exception {
+        mvc.perform(get(McpOAuthResourceMetadata.METADATA_PATH))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.resource").value("https://api.weave.test/mcp"))
+                .andExpect(jsonPath("$.authorization_servers[0]").value("https://auth.weave.test/realms/weave"))
+                .andExpect(jsonPath("$.bearer_methods_supported[0]").value("header"))
+                .andExpect(jsonPath("$.scopes_supported[0]").value("weave:mcp"));
     }
 
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(strings = {
-            "wrong-audience", "wrong-azp", "missing-scope", "service-account"
+            "wrong-audience", "wrong-azp", "missing-scope", "overbroad-scope", "service-account"
     })
     void rejectsTokensThatDoNotRepresentAnAudienceBoundMemberRuntime(String tokenValue) throws Exception {
         mvc.perform(post("/mcp")

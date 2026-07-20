@@ -10,7 +10,7 @@ spring:
         jwt:
           issuer-uri: ${WEAVE_OIDC_ISSUER_URI:https://auth.weave.test/realms/weave}
           audiences:
-            - ${WEAVE_OIDC_AUDIENCE:weave-mcp-server}
+            - ${WEAVE_OIDC_AUDIENCE:https://api.weave.test/mcp}
   ai:
     mcp:
       server:
@@ -42,8 +42,9 @@ weave:
   oidc:
     token-uri: ${WEAVE_OIDC_TOKEN_URI:https://auth.weave.test/realms/weave/protocol/openid-connect/token}
     mcp-client-id: ${WEAVE_MCP_CLIENT_ID:weave-mcp-server}
-    mcp-client-secret: ${WEAVE_MCP_CLIENT_SECRET:}
-    inbound-audience: ${WEAVE_OIDC_AUDIENCE:weave-mcp-server}
+    mcp-client-secret-file: ${WEAVE_MCP_CLIENT_SECRET_FILE:}
+    resource: ${WEAVE_MCP_RESOURCE:https://api.weave.test/mcp}
+    inbound-audience: ${WEAVE_OIDC_AUDIENCE:https://api.weave.test/mcp}
     inbound-authorized-party: ${WEAVE_MCP_INBOUND_AUTHORIZED_PARTY:weave-app}
     inbound-scope: ${WEAVE_MCP_INBOUND_SCOPE:weave:mcp}
     backend-audience: ${WEAVE_BACKEND_OIDC_AUDIENCE:weave-backend}

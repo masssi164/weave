@@ -96,6 +96,14 @@ public class WeaverMcpBridgeService {
         McpDelegatedIdentity delegatedIdentity = delegatedIdentity(jwt);
         WeaverRuntimeProfileResponse profile = runtimeService.profileByHash(jwt, request.runtime().runtimeProfileHash());
         MemberMcpToolDefinition definition = MemberMcpToolCatalog.byName().get(toolName);
+        if (!profile.runtimeProfileHash().equals(request.runtime().runtimeProfileHash())) {
+            return bridgeInvocationResponse(
+                    toolName,
+                    ToolInvocationStatus.DENIED,
+                    auditRef(toolName, "runtime_profile_mismatch"),
+                    "MCP runtime profile is stale or no longer current.",
+                    Map.of("supportSafe", true, "approvalRequired", false));
+        }
         if (!delegatedIdentity.organizationRef().equals(request.runtime().orgRef().value())
                 || !profile.userRef().equals(request.runtime().userRef().value())) {
             return bridgeInvocationResponse(

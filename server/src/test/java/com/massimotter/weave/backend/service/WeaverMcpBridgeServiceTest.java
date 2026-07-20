@@ -202,6 +202,27 @@ class WeaverMcpBridgeServiceTest {
     }
 
     @Test
+    void staleRuntimeProfileFailsBeforeDomainDispatch() {
+        Fixture fixture = fixture();
+        var profile = fixture.runtimeService.profileFor(jwt());
+
+        var response = fixture.bridge.invokeMcpTool(
+                jwt(),
+                MemberMcpToolCatalog.SERVER_NAMESPACE,
+                "files.read",
+                request(
+                        "files.read",
+                        profile.runtimeProfileHash() + "-stale",
+                        profile.userRef(),
+                        null,
+                        Map.of("fileRef", "file:/Team/readme.md")));
+
+        assertThat(response.status()).isEqualTo(ToolInvocationStatus.DENIED);
+        assertThat(response.auditRef()).contains("runtime_profile_mismatch");
+        verifyNoInteractions(fixture.dispatcher);
+    }
+
+    @Test
     void unknownProviderShapedArgumentsFailBeforeGovernanceOrDomainDispatch() {
         Fixture fixture = fixture();
         var profile = fixture.runtimeService.profileFor(jwt());

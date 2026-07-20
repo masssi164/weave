@@ -381,6 +381,32 @@ jobs:
             echo "WEAVE_E2E_REVOKED_SESSION_VERIFIED=true"
           } >> "$GITHUB_ENV"
 
+      - name: Prove MCP workload identity, exact resource, and secret rotation
+        working-directory: weave
+        env:
+          WEAVE_E2E_STACK_SCOPE: isolated
+        run: |
+          set -euo pipefail
+          MCP_PRIVATE_EVIDENCE_PATH="$WEAVE_E2E_OUTPUT_ROOT/$WEAVE_E2E_RUN_NAMESPACE/mcp-workload-evidence.json"
+          MCP_EVIDENCE_PATH="$WEAVE_ACCEPTANCE_EVIDENCE_DIR/mcp-workload-identity.json"
+          infra/weave-workspace/isolated-e2e-mcp-workload.sh \
+            --run-id "$WEAVE_E2E_RUN_ID" \
+            --output-root "$WEAVE_E2E_OUTPUT_ROOT" \
+            --credentials-env "$WEAVE_E2E_CREDENTIAL_ENV_PATH" \
+            --startup-env "$WEAVE_E2E_STARTUP_ENV_PATH" \
+            --identity-manifest "$WEAVE_E2E_IDENTITY_MANIFEST_PATH" \
+            --stack-bootstrap-env "$WEAVE_E2E_STACK_BOOTSTRAP_ENV" \
+            --evidence "$MCP_PRIVATE_EVIDENCE_PATH" \
+            2>&1 | tee -a "$WEAVE_ACCEPTANCE_TEST_LOG"
+          cp "$MCP_PRIVATE_EVIDENCE_PATH" "$MCP_EVIDENCE_PATH"
+          jq -e '
+            .protectedResource.rfc9728Published == true and
+            .workload.standardTokenExchangeV2 == true and
+            .rotation.oldCredentialRevoked == true and
+            .rawTokenIncluded == false and .rawSecretIncluded == false and
+            .supportSafe == true
+          ' "$MCP_EVIDENCE_PATH" >/dev/null
+
       - name: Expose generated local CA to Rust Matrix tests
         run: |
           set -euo pipefail

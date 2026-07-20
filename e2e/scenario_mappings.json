@@ -5876,7 +5876,7 @@
             "oidcIsTheGatekeeperForSpringAiMcpTransport",
             "status().isUnauthorized()",
             "claim(\"scope\", \"weave:mcp\")",
-            "audience(List.of(\"weave-mcp-server\"))",
+            "audience(List.of(\"weave-mcp-server\", \"https://api.weave.test/mcp\"))",
             "claim(\"azp\", \"weave-app\")"
           ]
         }

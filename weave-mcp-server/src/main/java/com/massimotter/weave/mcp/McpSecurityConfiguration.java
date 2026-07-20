@@ -4,6 +4,8 @@ import java.util.Objects;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.authorization.AuthorizationManager;
 import org.springframework.security.config.Customizer;
@@ -21,7 +23,8 @@ class McpSecurityConfiguration {
     @Bean
     SecurityFilterChain mcpSecurityFilterChain(
             HttpSecurity http,
-            @Value("${weave.oidc.inbound-audience:weave-mcp-server}") String audience,
+            McpOAuthResourceMetadata resourceMetadata,
+            @Value("${weave.oidc.inbound-audience:https://api.weave.test/mcp}") String audience,
             @Value("${weave.oidc.inbound-authorized-party:weave-app}") String authorizedParty,
             @Value("${weave.oidc.inbound-scope:weave:mcp}") String scope) throws Exception {
         AuthorizationManager<RequestAuthorizationContext> memberMcpAccess = (authentication, context) ->
@@ -31,10 +34,27 @@ class McpSecurityConfiguration {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/actuator/health", "/actuator/info", "/error").permitAll()
+                        .requestMatchers(
+                                "/actuator/health",
+                                "/actuator/info",
+                                "/error",
+                                McpOAuthResourceMetadata.METADATA_PATH).permitAll()
                         .requestMatchers("/mcp", "/mcp/**").access(memberMcpAccess)
                         .anyRequest().authenticated())
-                .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
+                .oauth2ResourceServer(oauth2 -> oauth2
+                        .authenticationEntryPoint((request, response, exception) -> {
+                            response.setStatus(HttpStatus.UNAUTHORIZED.value());
+                            response.setHeader(
+                                    HttpHeaders.WWW_AUTHENTICATE,
+                                    "Bearer resource_metadata=\"" + resourceMetadata.metadataUri() + "\"");
+                        })
+                        .protectedResourceMetadata(metadata -> metadata.protectedResourceMetadataCustomizer(builder -> builder
+                                .resource(resourceMetadata.resource().toString())
+                                .authorizationServer(resourceMetadata.authorizationServer().toString())
+                                .scope("weave:mcp")
+                                .bearerMethod("header")
+                                .tlsClientCertificateBoundAccessTokens(false)))
+                        .jwt(Customizer.withDefaults()))
                 .build();
     }
 
@@ -52,6 +72,8 @@ class McpSecurityConfiguration {
                 && jwt.getClaimAsString("scope") != null
                 && java.util.Arrays.stream(jwt.getClaimAsString("scope").split("\\s+"))
                         .filter(Objects::nonNull)
-                        .anyMatch(scope::equals);
+                        .anyMatch(scope::equals)
+                && java.util.Arrays.stream(jwt.getClaimAsString("scope").split("\\s+"))
+                        .noneMatch("weave:mcp-backend"::equals);
     }
 }
