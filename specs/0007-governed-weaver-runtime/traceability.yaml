@@ -16,7 +16,8 @@ acceptance_features:
 - e2e/features/weave_spec_0007_acceptance.feature
 pinned_corpus_sources:
 - specs/weave-specs.lock.json
-- ../weave-specs (locked corpus; product/domain SSOT)
+- ../weave-specs/domains/agent-runtime-control/spec.md
+- ../weave-specs/architecture/adr/0012-keycloak-workload-identity-and-token-exchange.md
 repo_projection:
 - specs/0007-governed-weaver-runtime/spec.md
 acceptance_scenarios:
