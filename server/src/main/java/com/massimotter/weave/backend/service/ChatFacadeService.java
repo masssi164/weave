@@ -25,10 +25,6 @@ import com.massimotter.weave.backend.model.chat.DecisionLedgerReferenceResponse;
 import com.massimotter.weave.backend.model.chat.MeetingCapsuleCreateRequest;
 import com.massimotter.weave.backend.model.chat.MeetingCapsuleResponse;
 import com.massimotter.weave.backend.model.chat.MeetingCapsulesResponse;
-import com.massimotter.weave.backend.model.chat.WeaverApprovalReceiptResponse;
-import com.massimotter.weave.backend.model.chat.WeaverScoutSourceResponse;
-import com.massimotter.weave.backend.model.chat.WeaverScoutSummaryRequest;
-import com.massimotter.weave.backend.model.chat.WeaverScoutSummaryResponse;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -179,41 +175,6 @@ public class ChatFacadeService {
                 "supportSafe", true));
         meetingCapsulesFor(conversation.id()).add(capsule);
         return capsule;
-    }
-
-    public WeaverScoutSummaryResponse weaverScoutSummary(Jwt jwt, String conversationId, WeaverScoutSummaryRequest request) {
-        requireChatReady(jwt, "chat.read", "weaver_scout_summary");
-        PrincipalContext principal = requireContextPermission(jwt, ContextPermission.VIEW);
-        ChannelContextState conversation = requireChannelContext(jwt, conversationId, principal);
-        String question = sanitizeText(request.question(), "question", 240);
-        List<WeaverScoutSourceResponse> sources = allowedWeaverSources(conversation);
-        List<WeaverApprovalReceiptResponse> receipts = approvalReceiptsForScoutRequest(
-                principal,
-                conversation,
-                request.requestedAction());
-        Instant timestamp = Instant.now();
-        publishAudit(principal, AuditAction.WEAVER_SCOUT_SUMMARY_REQUESTED, "weaver-scout:" + conversation.id(), timestamp, Map.of(
-                "command", "weaver_scout_summary",
-                "conversationId", conversation.id(),
-                "sourceCount", sources.size(),
-                "readOnly", true,
-                "supportSafe", true));
-        String answer = sources.isEmpty()
-                ? "I can only summarize explicit allowed channel context, and no readable sources are available yet."
-                : "Allowed context for " + conversation.title() + " includes " + sources.size()
-                        + " citable source(s). Question: " + question
-                        + ". I can summarize and propose next steps, but I cannot mutate the room.";
-        return new WeaverScoutSummaryResponse(
-                conversation.id(),
-                conversation.contextId(),
-                answer,
-                sources,
-                receipts,
-                true,
-                true,
-                false,
-                true,
-                sources.isEmpty() ? "no-allowed-sources" : "none");
     }
 
     public ChatProviderReplacementDryRunResponse dryRunProviderReplacement(
@@ -525,61 +486,6 @@ public class ChatFacadeService {
 
     private CopyOnWriteArrayList<MeetingCapsuleResponse> meetingCapsulesFor(String conversationId) {
         return meetingCapsules.computeIfAbsent(conversationId, ignored -> new CopyOnWriteArrayList<>());
-    }
-
-    private List<WeaverScoutSourceResponse> allowedWeaverSources(ChannelContextState conversation) {
-        List<WeaverScoutSourceResponse> sources = new ArrayList<>();
-        conversation.messages().stream()
-                .filter(message -> hasText(message.text()))
-                .limit(3)
-                .map(message -> new WeaverScoutSourceResponse(
-                        "message",
-                        "message:" + message.id(),
-                        "Message in " + conversation.title(),
-                        truncate(message.text(), 160)))
-                .forEach(sources::add);
-        decisionsFor(conversation.id()).stream()
-                .limit(3)
-                .map(decision -> new WeaverScoutSourceResponse(
-                        "decision",
-                        "decision:" + decision.id(),
-                        decision.title(),
-                        decision.status()))
-                .forEach(sources::add);
-        meetingCapsulesFor(conversation.id()).stream()
-                .limit(3)
-                .map(capsule -> new WeaverScoutSourceResponse(
-                        "meeting",
-                        "meeting:" + capsule.id(),
-                        capsule.title(),
-                        String.join("; ", capsule.agendaItems())))
-                .forEach(sources::add);
-        return List.copyOf(sources);
-    }
-
-    private List<WeaverApprovalReceiptResponse> approvalReceiptsForScoutRequest(
-            PrincipalContext principal,
-            ChannelContextState conversation,
-            String requestedAction) {
-        if (!hasText(requestedAction)) {
-            return List.of();
-        }
-        Instant timestamp = Instant.now();
-        return List.of(new WeaverApprovalReceiptResponse(
-                "receipt-" + UUID.randomUUID(),
-                principal.principalRef(),
-                sanitizeText(requestedAction, "requestedAction", 160),
-                "none - Sprint 4 Weaver scout is read-only",
-                "conversation:" + conversation.id(),
-                timestamp,
-                "blocked"));
-    }
-
-    private String truncate(String value, int maxLength) {
-        if (value.length() <= maxLength) {
-            return value;
-        }
-        return value.substring(0, maxLength - 1) + "…";
     }
 
     private boolean containsSecretHint(String value) {

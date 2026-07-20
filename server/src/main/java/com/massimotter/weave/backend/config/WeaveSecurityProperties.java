@@ -4,23 +4,14 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.ConstructorBinding;
 
 @ConfigurationProperties(prefix = "weave.security")
-public record WeaveSecurityProperties(String requiredAudience, String clientId, String mcpClientId) {
+public record WeaveSecurityProperties(String requiredAudience, String clientId) {
 
     private static final String DEFAULT_FIRST_PARTY_CLIENT_ID = "weave-app";
     private static final String DEFAULT_BACKEND_AUDIENCE = "weave-backend";
-    private static final String DEFAULT_MCP_CLIENT_ID = "weave-mcp-server";
-
-    public WeaveSecurityProperties(String requiredAudience, String clientId) {
-        this(requiredAudience, clientId, null);
-    }
-
     @ConstructorBinding
     public WeaveSecurityProperties {
         requiredAudience = defaultIfBlank(requiredAudience, DEFAULT_BACKEND_AUDIENCE);
         clientId = defaultIfBlank(clientId, DEFAULT_FIRST_PARTY_CLIENT_ID);
-        mcpClientId = mcpClientId == null || mcpClientId.isBlank()
-                ? DEFAULT_MCP_CLIENT_ID
-                : mcpClientId.trim();
     }
 
     public boolean hasRequiredAudience() {

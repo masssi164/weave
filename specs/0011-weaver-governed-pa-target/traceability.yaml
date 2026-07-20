@@ -13,7 +13,7 @@ acceptance_features:
 pinned_corpus_sources:
   - specs/weave-specs.lock.json
   - ../weave-specs/domains/agent-runtime-control/spec.md
-  - ../weave-specs/architecture/adr/0012-oidc-workload-identity-and-mcp-token-exchange.md
+  - ../weave-specs/architecture/adr/0012-keycloak-workload-identity-and-token-exchange.md
   - ../weave-specs/steering/product-constitution.md
   - ../weave-specs/steering/domain-context-map.md
 repo_projection:
@@ -24,7 +24,6 @@ acceptance_scenarios:
       - client/test/live_stack_feature_mapping_test.dart
       - specs/0011-weaver-governed-pa-target/traceability.yaml
       - admin-console/src/App.test.tsx
-      - server/src/test/java/com/massimotter/weave/backend/service/WeaverRuntimeServiceTest.java
     assertions:
       - WEAVE_SPEC_0011_GROUP_POLICY_GATING
   - tag: @weave-spec-0011-memory-isolation
@@ -32,7 +31,6 @@ acceptance_scenarios:
       - client/test/live_stack_feature_mapping_test.dart
       - specs/0011-weaver-governed-pa-target/traceability.yaml
       - specs/0011-weaver-governed-pa-target/weaver-runtime-governance-contract.json
-      - server/src/test/java/com/massimotter/weave/backend/service/WeaverRuntimeServiceTest.java
     assertions:
       - WEAVE_SPEC_0011_MEMORY_ISOLATION
   - tag: @weave-spec-0011-domain-tool-approval
@@ -40,7 +38,6 @@ acceptance_scenarios:
       - client/test/live_stack_feature_mapping_test.dart
       - specs/0011-weaver-governed-pa-target/traceability.yaml
       - admin-console/src/App.test.tsx
-      - server/src/test/java/com/massimotter/weave/backend/service/WeaverRuntimeServiceTest.java
     assertions:
       - WEAVE_SPEC_0011_DOMAIN_TOOL_APPROVAL
   - tag: @weave-spec-0011-heartbeat-fallback-audit
@@ -48,7 +45,6 @@ acceptance_scenarios:
       - client/test/live_stack_feature_mapping_test.dart
       - specs/0011-weaver-governed-pa-target/traceability.yaml
       - specs/0011-weaver-governed-pa-target/weaver-runtime-governance-contract.json
-      - server/src/test/java/com/massimotter/weave/backend/service/WeaverRuntimeServiceTest.java
     assertions:
       - WEAVE_SPEC_0011_HEARTBEAT_FALLBACK_AUDIT
 evidence_gates:

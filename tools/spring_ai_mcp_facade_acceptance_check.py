@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify the Spring AI MCP projection remains canonical and OIDC-gated."""
+"""Verify the MCP transport remains canonical and dark until workload binding exists."""
 
 from __future__ import annotations
 
@@ -10,10 +10,10 @@ ROOT = Path(__file__).resolve().parents[1]
 
 MARKERS = (
     "SPRING_AI_MCP_STATEFUL_TRANSPORT",
-    "MCP_OIDC_GATEKEEPER",
+    "MCP_WORKLOAD_EDGE_DENY_ALL",
     "MCP_CANONICAL_DOMAIN_DISPATCH",
     "MCP_PROVIDER_NEUTRAL_OUTPUT",
-    "MCP_RUNTIME_APPROVED_DISCOVERY",
+    "MCP_RUNTIME_DISCOVERY_DARK_UNTIL_ARC",
     "MCP_APPROVAL_EVIDENCE_FAILS_CLOSED",
     "MCP_LEGACY_RUNTIME_REMOVED",
 )
@@ -57,73 +57,35 @@ def main() -> int:
     )
     require(
         "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/McpSecurityConfiguration.java",
-        '.requestMatchers("/mcp", "/mcp/**").access(memberMcpAccess)',
-        "validMemberToken",
+        '.requestMatchers("/mcp", "/mcp/**").denyAll()',
+        "service-account -> cell -> RuntimeProfile v2 binding",
         ".oauth2ResourceServer",
     )
     require(
         "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/McpTransportConfiguration.java",
         "WebMvcStreamableServerTransportProvider",
-        ".contextExtractor",
         ".mcpEndpoint(endpoint)",
-    )
-    features = require(
-        "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/CanonicalMcpFeatures.java",
-        "@McpTool(",
-        "McpSyncRequestContext",
-        'APPROVED_TOOLS_RESOURCE = "weave://runtime/approved-tools"',
-        'WORKSPACE_PROMPT = "weave.workspace.plan"',
-        "approvalService.requireApproval(",
-    )
-    for forbidden in ("Nextcloud", "Synapse", "SlackClient", "TeamsClient", "ProviderAdapter"):
-        if forbidden in features:
-            fail(f"CanonicalMcpFeatures.java leaks provider implementation term: {forbidden}")
-    require(
-        "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/McpToolApprovalService.java",
-        "context.elicit(",
-        '"mcp-elicitation/v1"',
-        '"elicitation://openclaw/"',
-        '"allow-always"',
-    )
-    require(
-        "server/src/main/java/com/massimotter/weave/backend/service/WeaverMcpBridgeService.java",
-        ".filter(definition -> !definition.approvalRequired())",
-        'auditRef(toolName, "trusted_approval_evidence_unavailable")',
-        "without a parallel Weave approval workflow",
-    )
-    require(
-        "server/src/main/java/com/massimotter/weave/backend/weaver/MemberDomainToolDispatcher.java",
-        'case "files.search" -> filesSearch',
-        'case "calendar.search_events" -> calendarSearchEvents',
-        'case "chat.send_message" -> chatSendMessage',
-        "chatDomainFacadeService.sendMessage(",
     )
     require(
         "weave-mcp-server/src/test/java/com/massimotter/weave/mcp/SpringAiMcpTransportTest.java",
         "oidcIsTheGatekeeperForSpringAiMcpTransport",
-        "springAiInitializesAndAdvertisesOnlyCanonicalDomainToolNames",
-        "approvedToolsResourceIsResolvedThroughTheOidcBoundBackendProfile",
-        "statefulRequestsRejectUnknownSessions",
-    )
-    require(
-        "weave-mcp-server/src/test/java/com/massimotter/weave/mcp/CanonicalMcpFeaturesTest.java",
-        "springAiToolsAreGeneratedFromAnnotatedCanonicalMethods",
-        "toolInvocationPreflightsRuntimeGrantAndReturnsSupportSafeStructuredContent",
-        "approvedToolsResourceAndWorkspacePromptUseBackendGrantedCatalogOnly",
-    )
-    require(
-        "server/src/test/java/com/massimotter/weave/backend/service/WeaverMcpBridgeServiceTest.java",
-        "writeToolRequiresApprovalBeforeDispatch",
-        "callerSuppliedElicitationCannotMintWeaveAuthority",
-        "trusted_approval_evidence_unavailable",
+        "mcpRemainsDarkForHumansAndUnboundWorkloadsUntilArcBindingExists",
+        '"member", "weave-mcp-server", "generic-service-account", "weaver-cell-test"',
     )
     require(
         "infra/weave-workspace/01-infrastructure/modules/mcp/main.tf",
-        '"WEAVE_SERVER_BASE_URL=${var.backend_base_url}"',
         '"WEAVE_OIDC_ISSUER_URI=${var.oidc_issuer_uri}"',
         "127.0.0.1",
     )
     require_absent("weave-mcp-server/src/main/java/com/massimotter/weave/mcp/McpJsonRpcController.java")
+    require_absent("weave-mcp-server/src/main/java/com/massimotter/weave/mcp/CanonicalMcpFeatures.java")
+    require_absent("weave-mcp-server/src/main/java/com/massimotter/weave/mcp/McpToolApprovalService.java")
+    require_absent("weave-mcp-server/src/main/java/com/massimotter/weave/mcp/WeaveTokenExchangeClient.java")
+    require_absent("weave-mcp-server/src/main/java/com/massimotter/weave/mcp/WeaveServerClient.java")
+    require_absent("server/src/main/java/com/massimotter/weave/backend/service/WeaverMcpBridgeService.java")
+    require_absent("server/src/main/java/com/massimotter/weave/backend/weaver/MemberDomainToolDispatcher.java")
+    require_absent("server/src/test/java/com/massimotter/weave/backend/service/WeaverMcpBridgeServiceTest.java")
+    require_absent("server/src/test/java/com/massimotter/weave/backend/weaver/MemberDomainToolDispatcherTest.java")
     require_absent("server/src/main/java/com/massimotter/weave/backend/weaver/WeaverMcpApprovalReceiptService.java")
     require_absent("infra/weave-mcp/pyproject.toml")
     require_absent("infra/weave-mcp/src/weave_mcp/fastmcp_app.py")

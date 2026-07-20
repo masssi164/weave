@@ -10,7 +10,6 @@ import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
-import com.massimotter.weave.backend.config.WeaverRuntimeProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
@@ -19,17 +18,6 @@ import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.service.WorkspaceHomeService;
 import com.massimotter.weave.backend.service.WorkspaceHomeRecentActivityService;
 import com.massimotter.weave.backend.service.WorkspaceReleaseReadinessService;
-import com.massimotter.weave.backend.service.WeaverMcpBridgeService;
-import com.massimotter.weave.backend.service.WeaverRuntimeService;
-import com.massimotter.weave.backend.weaver.WeaverToolRegistry;
-import com.massimotter.weave.contract.mcp.MemberMcpDomainDefinition;
-import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.BridgeDiscoveryResponse;
-import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.BridgeInvocationResponse;
-import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.RuntimeInvocationContext;
-import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.ToolInvocationStatus;
-import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.WeaveMcpContentBlock;
-import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.WeaveMcpRef;
-import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.WeaveMcpToolCatalog;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -50,11 +38,9 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -68,8 +54,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         WorkspaceReleaseReadinessService.class,
         WorkspaceHomeService.class,
         WorkspaceHomeRecentActivityService.class,
-        WeaverRuntimeService.class,
-        WeaverToolRegistry.class,
         ApiAuthenticationEntryPoint.class,
         ApiAccessDeniedHandler.class,
         ApiErrorResponseWriter.class
@@ -77,7 +61,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @EnableConfigurationProperties({
         WeaveSecurityProperties.class,
         ContextAuthorizationProperties.class,
-        WeaverRuntimeProperties.class,
         WorkspaceCapabilityProperties.class,
         OAuth2ResourceServerProperties.class
 })
@@ -97,9 +80,6 @@ class WorkspaceControllerTest {
     @Autowired
     private OAuth2ResourceServerProperties resourceServerProperties;
 
-    @Autowired
-    private WeaverRuntimeService weaverRuntimeService;
-
     @MockBean
     private JwtDecoder jwtDecoder;
 
@@ -108,9 +88,6 @@ class WorkspaceControllerTest {
 
     @MockBean
     private ContextAuthorizationPort contextAuthorizationPort;
-
-    @MockBean
-    private WeaverMcpBridgeService weaverMcpBridgeService;
 
     @Test
     void returnsOrganizationManifestForMemberClientWithoutAdminConsoleLeakage() throws Exception {
@@ -163,8 +140,7 @@ class WorkspaceControllerTest {
                         .value(hasItem("/dav/files")))
                 .andExpect(jsonPath("$.clientAccessDiscovery.files.surfaces[?(@.kind == 'standard-protocol')].readiness")
                         .value(hasItem("data_plane_read_write_available")))
-                .andExpect(jsonPath("$.clientAccessDiscovery.files.surfaces[?(@.kind == 'mcp')].readiness")
-                        .value(hasItem("read_allowlist_available_write_cutover_blocked")))
+                .andExpect(jsonPath("$.clientAccessDiscovery.files.surfaces[?(@.kind == 'mcp')]").isEmpty())
                 .andExpect(jsonPath("$.clientAccessDiscovery.files.surfaces[?(@.kind == 'native-os')].setupPath")
                         .value(hasItem("/api/files/native-provider-setup")))
                 .andExpect(jsonPath("$.clientAccessDiscovery.files.credentialLifecycle.status")
@@ -355,21 +331,25 @@ class WorkspaceControllerTest {
     }
 
     @Test
-    void returnsFailClosedWeaverRuntimeProfile() throws Exception {
-        mockMvc.perform(get("/api/v1/workspace/weaver/runtime-profile").with(jwt()
-                        .jwt(jwt -> jwt
-                                .subject("member@example.invalid")
-                                .claim("iss", "https://auth.example.invalid/realms/acme")
-                                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member")))))
-                        .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.enabled").value(false))
-                .andExpect(jsonPath("$.runtimeKind").value("per-user-docker"))
-                .andExpect(jsonPath("$.generatedFrom").value("workspace-capability-policy"))
-                .andExpect(jsonPath("$.posture").value("disabled-by-default"))
-                .andExpect(jsonPath("$.execEnabled").value(false))
-                .andExpect(jsonPath("$.elevatedEnabled").value(false))
-                .andExpect(jsonPath("$.auditRequired").value(true));
+    void removedMemberWeaverRoutesAreDeniedWithoutCompatibilityHandler() throws Exception {
+        // V01_GOVERNED_WEAVER_RUNTIME_POLICY
+        // V01_GOVERNED_WEAVER_TOOL_REGISTRY
+        var member = jwt()
+                .jwt(token -> token
+                        .subject("member@example.invalid")
+                        .claim("iss", "https://auth.example.invalid/realms/acme")
+                        .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member")))))
+                .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
+
+        for (String path : List.of(
+                "/api/workspace/weaver/runtime-profile",
+                "/api/v1/workspace/weaver/runtime-profile",
+                "/api/workspace/weaver/runtime-profiles/sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "/api/v1/workspace/weaver/runtime-profiles/sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "/api/workspace/weaver/mcp/servers/weave-domain-tools/tools",
+                "/api/v1/workspace/weaver/mcp/servers/weave-domain-tools/tools")) {
+            mockMvc.perform(get(path).with(member)).andExpect(status().is4xxClientError());
+        }
     }
 
     @Test
@@ -401,104 +381,6 @@ class WorkspaceControllerTest {
                 .andExpect(jsonPath("$.code").value("capability-policy-blocked"))
                 .andExpect(jsonPath("$.details.requiredCapability").value("admin_control_plane.readiness_read"))
                 .andExpect(jsonPath("$.details.diagnosticsRedacted").value(true));
-    }
-
-    @Test
-    void returnsContractBridgeDiscoveryEnvelope() throws Exception {
-        String runtimeProfileHash = runtimeProfileHash();
-        when(weaverMcpBridgeService.discoverMcpTools(any(), eq(runtimeProfileHash), eq("weave-domain-tools")))
-                .thenReturn(new BridgeDiscoveryResponse(runtime(runtimeProfileHash), new WeaveMcpToolCatalog("weave-domain-tools", MemberMcpDomainDefinition.CONTRACT_VERSION, List.of())));
-        mockMvc.perform(get("/api/v1/workspace/weaver/mcp/servers/weave-domain-tools/tools")
-                        .param("runtimeProfileHash", runtimeProfileHash)
-                        .with(jwt().jwt(jwt -> jwt
-                                        .subject("member@example.invalid")
-                                        .claim("iss", "https://auth.example.invalid/realms/acme")
-                                        .claim("aud", List.of("weave-backend"))
-                                        .claim("azp", "weave-mcp-server")
-                                        .claim("scope", "weave:mcp-backend")
-                                        .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member"))))
-                                        .claim("groups", List.of("weave-weaver-runtime", "weave-weaver-pilot")))
-                                .authorities(new SimpleGrantedAuthority("SCOPE_weave:mcp-backend"))))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.runtime.runtimeProfileHash").value(org.hamcrest.Matchers.startsWith("sha256:")))
-                .andExpect(jsonPath("$.catalog.serverNamespace").value("weave-domain-tools"))
-                .andExpect(jsonPath("$.catalog.contractVersion").value(MemberMcpDomainDefinition.CONTRACT_VERSION))
-                .andExpect(jsonPath("$.catalog.tools").isArray());
-    }
-
-    @Test
-    void returnsContractBridgeInvocationEnvelope() throws Exception {
-        String runtimeProfileHash = runtimeProfileHash();
-        when(weaverMcpBridgeService.invokeMcpTool(
-                        any(), eq("weave-domain-tools"), eq("files.read"), any()))
-                .thenReturn(new BridgeInvocationResponse(
-                        "files.read",
-                        ToolInvocationStatus.DENIED,
-                        "audit://weaver-tool/files.read/blocked",
-                        true,
-                        List.of(new WeaveMcpContentBlock("text", "blocked", null, Map.of("status", "DENIED"))),
-                        Map.of("supportSafe", true)));
-        mockMvc.perform(post("/api/v1/workspace/weaver/mcp/servers/weave-domain-tools/tools/files.read:invoke")
-                        .with(jwt().jwt(jwt -> jwt
-                                        .subject("member@example.invalid")
-                                        .claim("iss", "https://auth.example.invalid/realms/acme")
-                                        .claim("aud", List.of("weave-backend"))
-                                        .claim("azp", "weave-mcp-server")
-                                        .claim("scope", "weave:mcp-backend")
-                                        .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member"))))
-                                        .claim("groups", List.of("weave-weaver-runtime", "weave-weaver-pilot")))
-                                .authorities(new SimpleGrantedAuthority("SCOPE_weave:mcp-backend")))
-                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "toolName": "files.read",
-                                  "arguments": {"spaceRef": "space:control-room"},
-                                  "runtime": {
-                                    "orgRef": {"value": "org:workspace"},
-                                    "userRef": {"value": "user:member-example-invalid"},
-                                    "runtimeProfileRef": {"value": "weave-runtime-profile://%s"},
-                                    "runtimeProfileHash": "%s",
-                                    "runtimeTokenRef": {"value": "credentialref://weave/runtime/short-lived/user-member-example-invalid"},
-                                    "auditRef": "audit://weaver-mcp/weave-domain-tools/discover",
-                                    "capabilityGrants": ["files.read", "weaver.exec_disabled"],
-                                    "allowedTools": ["files.read"]
-                                  }
-                                }
-                                """.formatted(runtimeProfileHash, runtimeProfileHash)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.toolName").value("files.read"))
-                .andExpect(jsonPath("$.status").value("DENIED"))
-                .andExpect(jsonPath("$.supportSafe").value(true))
-                .andExpect(jsonPath("$.structuredContent.supportSafe").value(true));
-    }
-
-    @Test
-    void rejectsDirectAppTokensAtTheInternalMcpBridge() throws Exception {
-        mockMvc.perform(get("/api/v1/workspace/weaver/mcp/servers/weave-domain-tools/tools")
-                        .param("runtimeProfileHash", runtimeProfileHash())
-                        .with(jwt().jwt(token -> token
-                                        .subject("member@example.invalid")
-                                        .claim("iss", "https://auth.example.invalid/realms/acme")
-                                        .claim("aud", List.of("weave-backend"))
-                                        .claim("azp", "weave-app")
-                                        .claim("scope", "weave:workspace"))
-                                .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
-                .andExpect(status().isForbidden());
-    }
-
-    @Test
-    void rejectsPureClientCredentialsAtTheInternalMcpBridge() throws Exception {
-        mockMvc.perform(get("/api/v1/workspace/weaver/mcp/servers/weave-domain-tools/tools")
-                        .param("runtimeProfileHash", runtimeProfileHash())
-                        .with(jwt().jwt(token -> token
-                                        .subject("2f802c16-24a5-471c-9312-7f5ace77dd04")
-                                        .claim("preferred_username", "service-account-weave-mcp-server")
-                                        .claim("iss", "https://auth.example.invalid/realms/acme")
-                                        .claim("aud", List.of("weave-backend"))
-                                        .claim("azp", "weave-mcp-server")
-                                        .claim("scope", "weave:mcp-backend"))
-                                .authorities(new SimpleGrantedAuthority("SCOPE_weave:mcp-backend"))))
-                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -534,33 +416,6 @@ class WorkspaceControllerTest {
         mockMvc.perform(get("/api/v1/workspace/home"))
                 .andExpect(status().isUnauthorized());
 
-        mockMvc.perform(get("/api/v1/workspace/weaver/runtime-profile"))
-                .andExpect(status().isUnauthorized());
-    }
-
-    private RuntimeInvocationContext runtime(String runtimeProfileHash) {
-        return new RuntimeInvocationContext(
-                new WeaveMcpRef("org:workspace"),
-                new WeaveMcpRef("user:test"),
-                new WeaveMcpRef("weave-runtime-profile://" + runtimeProfileHash),
-                runtimeProfileHash,
-                new WeaveMcpRef("credentialref://weave/runtime/short-lived/test"),
-                "audit://weaver-mcp/weave-domain-tools/discover",
-                List.of(),
-                List.of());
-    }
-
-    private String runtimeProfileHash() {
-        return weaverRuntimeService.profileFor(org.springframework.security.oauth2.jwt.Jwt.withTokenValue("token")
-                        .header("alg", "none")
-                        .claim("sub", "member@example.invalid")
-                        .claim("iss", "https://auth.example.invalid/realms/acme")
-                        .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member"))))
-                        .claim("groups", List.of("weave-weaver-runtime", "weave-weaver-pilot"))
-                        .issuedAt(java.time.Instant.now())
-                        .expiresAt(java.time.Instant.now().plusSeconds(300))
-                        .build())
-                .runtimeProfileHash();
     }
 
     private void assertConfiguredWorkspaceCapabilities(String path) throws Exception {

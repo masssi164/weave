@@ -80,7 +80,6 @@ SCAN_PATHS = [
     ROOT / "docs" / "release-v0.1-rc3-evidence.md",
     ROOT / "docs" / "admin-operator-handbook.md",
     ROOT / "docs" / "domain-registry-v1.md",
-    ROOT / "server" / "src" / "main" / "java" / "com" / "massimotter" / "weave" / "backend" / "service" / "WeaverRuntimeService.java",
     ROOT / "client" / "test" / "features" / "settings" / "settings_screen_test.dart",
 ]
 

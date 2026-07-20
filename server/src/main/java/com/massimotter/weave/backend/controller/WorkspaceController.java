@@ -6,19 +6,10 @@ import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyResponse;
 import com.massimotter.weave.backend.model.WorkspaceHomeResponse;
 import com.massimotter.weave.backend.model.WorkspaceReleaseReadinessResponse;
-import com.massimotter.weave.backend.model.WeaverRuntimeProfileResponse;
-import com.massimotter.weave.backend.model.WeaverPermissionModeRequest;
-import com.massimotter.weave.backend.model.WeaverPermissionModeResponse;
-import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.BridgeDiscoveryResponse;
-import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.BridgeInvocationRequest;
-import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.BridgeInvocationResponse;
-import java.util.Map;
 import com.massimotter.weave.backend.service.OrganizationManifestService;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.service.WorkspaceHomeService;
 import com.massimotter.weave.backend.service.WorkspaceReleaseReadinessService;
-import com.massimotter.weave.backend.service.WeaverMcpBridgeService;
-import com.massimotter.weave.backend.service.WeaverRuntimeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -30,11 +21,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -44,22 +30,16 @@ public class WorkspaceController {
     private final WorkspaceCapabilityService workspaceCapabilityService;
     private final WorkspaceReleaseReadinessService workspaceReleaseReadinessService;
     private final WorkspaceHomeService workspaceHomeService;
-    private final WeaverRuntimeService weaverRuntimeService;
-    private final WeaverMcpBridgeService weaverMcpBridgeService;
     private final OrganizationManifestService organizationManifestService;
 
     public WorkspaceController(
             WorkspaceCapabilityService workspaceCapabilityService,
             WorkspaceReleaseReadinessService workspaceReleaseReadinessService,
             WorkspaceHomeService workspaceHomeService,
-            WeaverRuntimeService weaverRuntimeService,
-            WeaverMcpBridgeService weaverMcpBridgeService,
             OrganizationManifestService organizationManifestService) {
         this.workspaceCapabilityService = workspaceCapabilityService;
         this.workspaceReleaseReadinessService = workspaceReleaseReadinessService;
         this.workspaceHomeService = workspaceHomeService;
-        this.weaverRuntimeService = weaverRuntimeService;
-        this.weaverMcpBridgeService = weaverMcpBridgeService;
         this.organizationManifestService = organizationManifestService;
     }
 
@@ -121,82 +101,6 @@ public class WorkspaceController {
     })
     public WorkspaceCapabilityPolicyResponse capabilityPolicy(@AuthenticationPrincipal Jwt jwt) {
         return workspaceCapabilityService.policySnapshot(jwt);
-    }
-
-    @GetMapping({"/api/workspace/weaver/runtime-profile", "/api/v1/workspace/weaver/runtime-profile"})
-    @Operation(
-            summary = "Get generated Weaver runtime profile",
-            description = "Returns the support-safe per-user Weaver/OpenClaw runtime profile generated from organization capability policy. Runtime provisioning stays disabled unless the Weaver category, runtime generator, and user policy all allow it.",
-            security = @SecurityRequirement(name = "bearer-jwt"))
-    @ApiResponses({
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "Generated Weaver runtime profile or fail-closed disabled posture.",
-                    content = @Content(schema = @Schema(implementation = WeaverRuntimeProfileResponse.class))),
-            @ApiResponse(responseCode = "401", description = "Missing or invalid bearer token.",
-                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
-            @ApiResponse(responseCode = "403", description = "Bearer token is missing the weave:workspace scope.",
-                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
-    })
-    public WeaverRuntimeProfileResponse weaverRuntimeProfile(@AuthenticationPrincipal Jwt jwt) {
-        return weaverRuntimeService.profileFor(jwt);
-    }
-
-    @PutMapping({"/api/workspace/weaver/permission-mode", "/api/v1/workspace/weaver/permission-mode"})
-    @Operation(
-            summary = "Update the Weaver permission mode",
-            description = "Updates the authenticated member's governed Weaver mode. Full access remains subject to organization exec and elevated-runtime policy.",
-            security = @SecurityRequirement(name = "bearer-jwt"))
-    public WeaverPermissionModeResponse updateWeaverPermissionMode(
-            @AuthenticationPrincipal Jwt jwt,
-            @RequestBody WeaverPermissionModeRequest request) {
-        return weaverRuntimeService.updatePermissionMode(jwt, request.mode());
-    }
-
-    @GetMapping({"/api/workspace/weaver/runtime-profiles/{runtimeProfileHash}", "/api/v1/workspace/weaver/runtime-profiles/{runtimeProfileHash}"})
-    @Operation(
-            summary = "Fetch generated Weaver runtime profile by hash",
-            description = "Returns only a previously issued, signed, current, unrevoked RuntimeProfile for the authenticated user. Missing, stale, mismatched, or unsigned profile evidence fails closed without exposing raw runtime tokens, provider endpoints, or OpenClaw configuration.",
-            security = @SecurityRequirement(name = "bearer-jwt"))
-    @ApiResponses({
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "Generated Weaver runtime profile or fail-closed disabled posture.",
-                    content = @Content(schema = @Schema(implementation = WeaverRuntimeProfileResponse.class))),
-            @ApiResponse(responseCode = "401", description = "Missing or invalid bearer token.",
-                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
-            @ApiResponse(responseCode = "403", description = "Bearer token is missing the weave:workspace scope.",
-                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
-    })
-    public WeaverRuntimeProfileResponse weaverRuntimeProfileByHash(
-            @AuthenticationPrincipal Jwt jwt,
-            @PathVariable String runtimeProfileHash) {
-        return weaverRuntimeService.profileByHash(jwt, runtimeProfileHash);
-    }
-
-    @GetMapping({"/api/workspace/weaver/mcp/servers/{serverKey}", "/api/v1/workspace/weaver/mcp/servers/{serverKey}"})
-    public Map<String, Object> weaverMcpServerProjection(
-            @AuthenticationPrincipal Jwt jwt,
-            @PathVariable String serverKey,
-            @RequestParam String runtimeProfileHash) {
-        return weaverRuntimeService.mcpServerProjection(jwt, runtimeProfileHash, serverKey);
-    }
-
-    @GetMapping({"/api/workspace/weaver/mcp/servers/{serverKey}/tools", "/api/v1/workspace/weaver/mcp/servers/{serverKey}/tools"})
-    public BridgeDiscoveryResponse weaverMcpToolDiscovery(
-            @AuthenticationPrincipal Jwt jwt,
-            @PathVariable String serverKey,
-            @RequestParam String runtimeProfileHash) {
-        return weaverMcpBridgeService.discoverMcpTools(jwt, runtimeProfileHash, serverKey);
-    }
-
-    @PostMapping({"/api/workspace/weaver/mcp/servers/{serverKey}/tools/{toolName}:invoke", "/api/v1/workspace/weaver/mcp/servers/{serverKey}/tools/{toolName}:invoke"})
-    public BridgeInvocationResponse weaverMcpToolInvoke(
-            @AuthenticationPrincipal Jwt jwt,
-            @PathVariable String serverKey,
-            @PathVariable String toolName,
-            @RequestBody BridgeInvocationRequest request) {
-        return weaverMcpBridgeService.invokeMcpTool(jwt, serverKey, toolName, request);
     }
 
     @GetMapping({"/api/workspace/release-readiness", "/api/v1/workspace/release-readiness"})

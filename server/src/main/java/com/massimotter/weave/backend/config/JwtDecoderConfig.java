@@ -45,9 +45,7 @@ public class JwtDecoderConfig {
         if (weaveSecurityProperties.hasRequiredAuthorizedParty()) {
             validator = new DelegatingOAuth2TokenValidator<>(
                     validator,
-                    allowedAuthorizedPartiesValidator(List.of(
-                            weaveSecurityProperties.requiredAuthorizedParty(),
-                            weaveSecurityProperties.mcpClientId())));
+                    requiredAuthorizedPartyValidator(weaveSecurityProperties.requiredAuthorizedParty()));
         }
 
         jwtDecoder.setJwtValidator(validator);

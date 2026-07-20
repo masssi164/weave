@@ -167,7 +167,7 @@ def require_current_evidence_boundaries() -> None:
     require(
         "tools/spring_ai_mcp_facade_acceptance_check.py",
         "SPRING_AI_MCP_STATEFUL_TRANSPORT",
-        "MCP_OIDC_GATEKEEPER",
+        "MCP_WORKLOAD_EDGE_DENY_ALL",
         "MCP_CANONICAL_DOMAIN_DISPATCH",
         "MCP_APPROVAL_EVIDENCE_FAILS_CLOSED",
         "MCP_LEGACY_RUNTIME_REMOVED",

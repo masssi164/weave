@@ -29,16 +29,9 @@ resource "docker_container" "this" {
 
   env = [
     "WEAVE_MCP_PORT=${var.container_port}",
-    "WEAVE_SERVER_BASE_URL=${var.backend_base_url}",
     "WEAVE_OIDC_ISSUER_URI=${var.oidc_issuer_uri}",
     "WEAVE_OIDC_AUDIENCE=${var.oidc_required_audience}",
-    "WEAVE_OIDC_TOKEN_URI=${var.oidc_token_uri}",
     "SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI=${var.oidc_jwk_set_uri}",
-    "WEAVE_MCP_CLIENT_ID=${var.mcp_client_id}",
-    "WEAVE_MCP_CLIENT_SECRET=${var.mcp_client_secret}",
-    "WEAVE_MCP_INBOUND_AUTHORIZED_PARTY=${var.inbound_authorized_party}",
-    "WEAVE_BACKEND_OIDC_AUDIENCE=${var.backend_oidc_audience}",
-    "WEAVE_MCP_BACKEND_SCOPE=${var.backend_scope}",
   ]
 
   ports {

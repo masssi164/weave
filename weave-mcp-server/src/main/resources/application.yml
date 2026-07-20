@@ -17,16 +17,16 @@ spring:
         enabled: true
         protocol: STREAMABLE
         type: SYNC
-        name: weave-domain-tools
-        version: 0.2.0
-        instructions: Use only approved Weave domain capabilities. Provider APIs and credentials are never MCP tools.
+        name: weave-workload-tools
+        version: 0.3.0
+        instructions: Disabled until Agent Runtime Control validates a bound Weaver cell workload.
         tool-callback-converter: true
         annotation-scanner:
           enabled: true
         capabilities:
-          tool: true
-          resource: true
-          prompt: true
+          tool: false
+          resource: false
+          prompt: false
           completion: false
         streamable-http:
           mcp-endpoint: /mcp
@@ -37,16 +37,3 @@ management:
     web:
       exposure:
         include: health,info
-
-weave:
-  oidc:
-    token-uri: ${WEAVE_OIDC_TOKEN_URI:https://auth.weave.test/realms/weave/protocol/openid-connect/token}
-    mcp-client-id: ${WEAVE_MCP_CLIENT_ID:weave-mcp-server}
-    mcp-client-secret: ${WEAVE_MCP_CLIENT_SECRET:}
-    inbound-audience: ${WEAVE_OIDC_AUDIENCE:weave-mcp-server}
-    inbound-authorized-party: ${WEAVE_MCP_INBOUND_AUTHORIZED_PARTY:weave-app}
-    inbound-scope: ${WEAVE_MCP_INBOUND_SCOPE:weave:mcp}
-    backend-audience: ${WEAVE_BACKEND_OIDC_AUDIENCE:weave-backend}
-    backend-scope: ${WEAVE_MCP_BACKEND_SCOPE:weave:mcp-backend}
-  server:
-    base-url: ${WEAVE_SERVER_BASE_URL:http://localhost:8080}

@@ -825,23 +825,16 @@ module "backend" {
 module "mcp" {
   source = "./modules/mcp"
 
-  network_name             = docker_network.weave_network.name
-  container_name           = local.service_names.mcp
-  image_name               = var.weave_mcp_server_image
-  host_port                = var.mcp_host_port
-  container_port           = var.mcp_container_port
-  backend_base_url         = "http://${local.service_names.backend}:${var.backend_container_port}"
-  oidc_issuer_uri          = local.keycloak_issuer_url
-  oidc_jwk_set_uri         = local.keycloak_jwk_set_uri
-  oidc_required_audience   = local.weave_mcp_audience
-  oidc_token_uri           = "http://${local.service_names.keycloak}:8080/realms/${var.tenant_slug}/protocol/openid-connect/token"
-  mcp_client_id            = local.weave_mcp_client_id
-  mcp_client_secret        = var.weave_mcp_client_secret
-  inbound_authorized_party = local.weave_app_client_id
-  backend_oidc_audience    = local.weave_backend_audience
-  backend_scope            = "weave:mcp-backend"
-  resource_labels          = local.resource_labels
-  depends_on               = [terraform_data.network_ready, module.backend, module.keycloak]
+  network_name           = docker_network.weave_network.name
+  container_name         = local.service_names.mcp
+  image_name             = var.weave_mcp_server_image
+  host_port              = var.mcp_host_port
+  container_port         = var.mcp_container_port
+  oidc_issuer_uri        = local.keycloak_issuer_url
+  oidc_jwk_set_uri       = local.keycloak_jwk_set_uri
+  oidc_required_audience = local.weave_mcp_audience
+  resource_labels        = local.resource_labels
+  depends_on             = [terraform_data.network_ready, module.backend, module.keycloak]
 }
 
 module "matrix" {

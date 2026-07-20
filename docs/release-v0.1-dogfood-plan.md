@@ -104,7 +104,7 @@ Exit gate:
 ### Space control room
 
 - One member-visible Space control room route anchors Chat, Decisions, Files, Board, and Calendar to one support-safe Space ID.
-- Tabs for Chat, Decisions, Files, Board, Calendar, Meetings, and read-only Weaver scout, with Meetings/Weaver treated as governed or coming_later where evidence requires it.
+- Tabs for Chat, Decisions, Files, Board, Calendar, and Meetings; Weaver is a workload-only boundary and has no member tab.
 - Keyboard and screen-reader navigation across tabs.
 - Empty, disabled_by_policy, not_configured, degraded, unavailable, coming_later, and evidence-linked states that explain what is safe now without provider-shaped wording.
 - Support-safe evidence refs record the Space identity, linked domain objects, and final Decision state without raw provider identifiers, diagnostics, URLs, or private content.

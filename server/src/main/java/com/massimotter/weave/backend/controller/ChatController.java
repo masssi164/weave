@@ -13,8 +13,6 @@ import com.massimotter.weave.backend.model.chat.DecisionLedgerRecordsResponse;
 import com.massimotter.weave.backend.model.chat.MeetingCapsuleCreateRequest;
 import com.massimotter.weave.backend.model.chat.MeetingCapsuleResponse;
 import com.massimotter.weave.backend.model.chat.MeetingCapsulesResponse;
-import com.massimotter.weave.backend.model.chat.WeaverScoutSummaryRequest;
-import com.massimotter.weave.backend.model.chat.WeaverScoutSummaryResponse;
 import com.massimotter.weave.backend.service.ChatFacadeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -105,17 +103,6 @@ public class ChatController {
             @PathVariable @Size(max = 128) String conversationId,
             @Valid @RequestBody MeetingCapsuleCreateRequest request) {
         return chatFacadeService.createMeetingCapsule(jwt, conversationId, request);
-    }
-
-    @PostMapping({"/api/chat/conversations/{conversationId}/weaver/scout/summaries", "/api/v1/chat/conversations/{conversationId}/weaver/scout/summaries"})
-    @Operation(operationId = "createWeaverScoutSummary", summary = "Ask read-only Weaver scout for a source-cited channel summary")
-    @ApiResponse(responseCode = "200", description = "Read-only, support-safe Weaver scout response.",
-            content = @Content(schema = @Schema(implementation = WeaverScoutSummaryResponse.class)))
-    public WeaverScoutSummaryResponse weaverScoutSummary(
-            @AuthenticationPrincipal Jwt jwt,
-            @PathVariable @Size(max = 128) String conversationId,
-            @Valid @RequestBody WeaverScoutSummaryRequest request) {
-        return chatFacadeService.weaverScoutSummary(jwt, conversationId, request);
     }
 
     @GetMapping({"/api/admin/chat/readiness", "/api/v1/admin/chat/readiness"})
