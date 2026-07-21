@@ -76,6 +76,10 @@ locals {
     "weaver_runtime",
   ]
 
+  admin_client_secret_authentication = {
+    "client.secret.authentication.allowed.method" = "client_secret_basic"
+  }
+
   client_defaults = {
     enabled                                        = true
     standard_flow_enabled                          = false
@@ -122,6 +126,7 @@ locals {
       access_type              = "CONFIDENTIAL"
       client_secret            = var.identity_admin_client_secret
       service_accounts_enabled = true
+      extra_config             = local.admin_client_secret_authentication
     })
     weave_agent_runtime_admin = merge(local.client_defaults, {
       name                     = "weave-agent-runtime-admin"
@@ -129,6 +134,7 @@ locals {
       access_type              = "CONFIDENTIAL"
       client_secret            = var.agent_runtime_admin_client_secret
       service_accounts_enabled = true
+      extra_config             = local.admin_client_secret_authentication
     })
     weave_mcp_server = merge(local.client_defaults, {
       name                                           = "weave-mcp-server"
