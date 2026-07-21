@@ -31,7 +31,7 @@
         "decisions",
         "notifications",
         "health",
-        "weaver"
+        "agent-runtime-control"
       ]
     },
     "run_id": {

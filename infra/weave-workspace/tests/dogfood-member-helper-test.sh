@@ -89,7 +89,10 @@ export PATH="${TMP_DIR}/bin:${PATH}"
 export FAKE_CURL_LOG="${TMP_DIR}/curl.log"
 export FAKE_STATE="${TMP_DIR}/state"
 export FAKE_MAIL_SENT="${TMP_DIR}/mail-sent"
-export TF_VAR_keycloak_admin_password=fake-secret
+bootstrap_env="${TMP_DIR}/protected-bootstrap.env"
+printf 'export TF_VAR_keycloak_admin_password=%q\n' fake-secret >"${bootstrap_env}"
+export WEAVE_DOGFOOD_BOOTSTRAP_ENV="${bootstrap_env}"
+unset TF_VAR_keycloak_admin_password
 export WEAVE_DOGFOOD_MEMBER_USERNAME=human
 export WEAVE_DOGFOOD_MEMBER_EMAIL=human@example.test
 export WEAVE_DOGFOOD_MEMBER_DISPLAY_NAME='Human Tester'

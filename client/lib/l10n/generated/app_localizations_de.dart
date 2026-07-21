@@ -29,7 +29,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get setupProviderStepDescription =>
-      'Die Admin-Einrichtung beginnt mit der Kategorie Identität/IDM und hält Chat, Dateien, Kalender, Boards/Aufgaben, Besprechungen/Anrufe, Dokumente/Zusammenarbeit und Weaver als Provider-Kategorien sichtbar, bevor Mitglieder beitreten.';
+      'Die Admin-Einrichtung beginnt mit der Kategorie Identität/IDM und hält Chat, Dateien, Kalender, Boards/Aufgaben, Besprechungen/Anrufe, Dokumente/Zusammenarbeit und Agent Runtime Control als Produktkategorien sichtbar, bevor Mitglieder beitreten.';
 
   @override
   String get setupServicesStepTitle => 'Backend-API prüfen';
@@ -100,7 +100,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get providerCategoryMeetingsDetail =>
-      'LiveKit-Meetings-Bereitschaft wird hinter der Token-Fassade verfolgt, bevor Mitglieder Anrufe starten oder beitreten können.';
+      'MatrixRTC Profil 0 ist die Signalisierungsgrenze; ein austauschbarer SFU überträgt Medien erst nach aktueller RTC-Autorisierung.';
 
   @override
   String get providerCategoryDocumentsTitle => 'Dokumente/Zusammenarbeit';
@@ -110,11 +110,12 @@ class AppLocalizationsDe extends AppLocalizations {
       'Dokument-Zusammenarbeit ist eine Provider-Adapter-Kategorie und bleibt Admin-Einrichtung erforderlich, bis ein backend-eigener Startpfad konfiguriert ist.';
 
   @override
-  String get providerCategoryWeaverTitle => 'Weaver';
+  String get providerCategoryAgentRuntimeControlTitle =>
+      'Agent Runtime Control';
 
   @override
-  String get providerCategoryWeaverDetail =>
-      'Weaver bleibt standardmäßig deaktiviert, bis regulierte persönliche PA-Richtlinie, Whitelisting, Einwilligung und Audit akzeptiert sind.';
+  String get providerCategoryAgentRuntimeControlDetail =>
+      'Agent Runtime Control bleibt ohne aktuelle Keycloak-Berechtigung, signiertes RuntimeProfile v2, externen verschlüsselten Zustand und zellgebundene Workload-Identität deaktiviert.';
 
   @override
   String get setupLanguageStepTitle => 'Deine Sprache';
@@ -2591,98 +2592,6 @@ class AppLocalizationsDe extends AppLocalizations {
       'Als Evidenz erfassen';
 
   @override
-  String get chatWeaverScoutPanelTitle => 'Weaver-Scout';
-
-  @override
-  String get chatWeaverScoutPanelDescription =>
-      'Frage nur erlaubte Quellen nach Kanal-Kontext. Sprint-4-Weaver ist nur lesend und vorschlagsbasiert; er kann Raumdaten nicht still verändern.';
-
-  @override
-  String get chatWeaverScoutReadOnlyStatus => 'Nur lesend';
-
-  @override
-  String get chatWeaverScoutProposalOnlyStatus => 'Nur Vorschläge';
-
-  @override
-  String get chatWeaverScoutReceiptStatus => 'Beleg erforderlich';
-
-  @override
-  String get chatWeaverScoutCapabilitiesTitle => 'Was Weaver darf';
-
-  @override
-  String get chatWeaverScoutSourcesTitle => 'Erlaubte Quellen';
-
-  @override
-  String get chatWeaverScoutApprovalReceiptsRequired =>
-      'Jeder künftige Schreibzugriff oder jede Teamraum-Änderung muss einen Freigabebeleg mit Akteur, angefragter Aktion, freigegebener Aktion, Ziel, Zeitstempel und Ergebniskategorie erzeugen.';
-
-  @override
-  String get chatWeaverScoutSummarizeCapability =>
-      'Erlaubten Kontext zusammenfassen';
-
-  @override
-  String get chatWeaverScoutCiteSourcesCapability => 'Quellen zitieren';
-
-  @override
-  String get chatWeaverScoutProposeOnlyCapability => 'Nur Entwürfe vorschlagen';
-
-  @override
-  String get chatWeaverScoutApprovalReceiptCapability =>
-      'Freigabebelege verlangen';
-
-  @override
-  String get chatWeaverScoutSummarizeDescription =>
-      'Nur ausdrücklich erlaubten Kanal-Kontext zusammenfassen.';
-
-  @override
-  String get chatWeaverScoutCiteSourcesDescription =>
-      'Nachrichten, Dateien, Aufgaben, Meetings und Entscheidungen zitieren.';
-
-  @override
-  String get chatWeaverScoutProposeOnlyDescription =>
-      'Aktionen entwerfen oder vorschlagen, ohne Teamdaten zu verändern.';
-
-  @override
-  String get chatWeaverScoutApprovalReceiptDescription =>
-      'Freigabebelege für jeden künftigen Schreibpfad verlangen.';
-
-  @override
-  String get chatWeaverScoutMessageSourceLabel =>
-      'Ausdrückliche Kanalnachrichten';
-
-  @override
-  String get chatWeaverScoutMessageSourceExcerpt =>
-      'Nachrichten, die durch die Mitglieder-Kontextrichtlinie ausgewählt oder erlaubt sind.';
-
-  @override
-  String get chatWeaverScoutDecisionSourceLabel => 'Entscheidungsprotokoll';
-
-  @override
-  String get chatWeaverScoutDecisionSourceExcerpt =>
-      'Erfasste Entscheidungen mit Quellenverweisen.';
-
-  @override
-  String get chatWeaverScoutFileSourceLabel => 'Geteilte Dateien';
-
-  @override
-  String get chatWeaverScoutFileSourceExcerpt =>
-      'Dateinamen und support-sichere Metadaten, die für das Mitglied sichtbar sind.';
-
-  @override
-  String get chatWeaverScoutTaskSourceLabel => 'Offene Aufgaben';
-
-  @override
-  String get chatWeaverScoutTaskSourceExcerpt =>
-      'Aufgabenstatus und Follow-up-Links, die für das Mitglied sichtbar sind.';
-
-  @override
-  String get chatWeaverScoutMeetingSourceLabel => 'Meeting-Kapseln';
-
-  @override
-  String get chatWeaverScoutMeetingSourceExcerpt =>
-      'Agenda- und Follow-up-Verweise, keine Aufzeichnungen oder Transkripte.';
-
-  @override
   String get filesEmptyMessage => 'Noch keine Dateien';
 
   @override
@@ -3580,87 +3489,6 @@ class AppLocalizationsDe extends AppLocalizations {
       'Agenten-Funktionsrichtlinie wird geprüft…';
 
   @override
-  String get weaverMemberTitle => 'Mein Weaver';
-
-  @override
-  String get weaverMemberUnavailableTitle => 'Weaver nicht verfügbar';
-
-  @override
-  String get weaverMemberDescription =>
-      'Wähle aus adminfreigegebenen Modell-Aliasen und prüfe die persönlichen Einstellungen, die deine Workspace-Richtlinie erlaubt.';
-
-  @override
-  String get weaverMemberUnavailableDescription =>
-      'Dein Workspace hat für dieses Konto kein gesteuertes Weaver-Profil aktiviert.';
-
-  @override
-  String get weaverMemberStatusAvailable => 'Durch Richtlinie aktiviert';
-
-  @override
-  String get weaverMemberStatusDisabled => 'Durch Richtlinie deaktiviert';
-
-  @override
-  String get weaverMemberStatusUnavailable => 'Nicht verfügbar';
-
-  @override
-  String get weaverMemberLoading => 'Weaver-Richtlinie wird geprüft…';
-
-  @override
-  String get weaverMemberModelAliasTitle => 'Modell-Alias';
-
-  @override
-  String get weaverMemberModelAliasDescription =>
-      'Hier erscheinen nur Aliase, die deine Workspace-Richtlinie freigegeben hat.';
-
-  @override
-  String get weaverMemberWorkspaceDefaultAlias => 'Workspace-Standard';
-
-  @override
-  String get weaverMemberApprovedByAdmin =>
-      'Durch Workspace-Richtlinie freigegeben';
-
-  @override
-  String get weaverMemberPersonalSettingsTitle => 'Persönliche Einstellungen';
-
-  @override
-  String get weaverMemberStyleSetting => 'Stilpräferenzen';
-
-  @override
-  String get weaverMemberMemorySetting => 'Speichersteuerung';
-
-  @override
-  String get weaverMemberWorkspaceSetting => 'Workspace-Personalisierung';
-
-  @override
-  String get weaverMemberSettingAllowed => 'Für dein Profil erlaubt';
-
-  @override
-  String get weaverMemberSettingDisabled => 'Für dein Profil nicht aktiviert';
-
-  @override
-  String get weaverMemberAllowedSkillsTitle => 'Erlaubte Skills';
-
-  @override
-  String get weaverMemberNoAllowedSkills =>
-      'Für dein Profil sind keine optionalen Skills aktiviert.';
-
-  @override
-  String get weaverMemberAllowedConnectionsTitle =>
-      'Erlaubte persönliche Verbindungen';
-
-  @override
-  String get weaverMemberNoAllowedConnections =>
-      'Für dein Profil sind keine persönlichen Verbindungsabläufe aktiviert.';
-
-  @override
-  String get weaverMemberBoundaryNotice =>
-      'Administration von Providern, Zugangsdaten, Connector-Einrichtung und Laufzeitdateien bleibt außerhalb der Mitgliedereinstellungen; Mitglieder sehen nur richtlinienfreigegebene Auswahl.';
-
-  @override
-  String get weaverMemberDisabledBoundaryNotice =>
-      'Es werden keine Provider-Secrets oder Laufzeitkonfigurationen angezeigt. Kontaktiere deine Workspace-Eigentümerin, wenn du Weaver-Zugriff erwartet hast.';
-
-  @override
   String get workflowPreviewTitle => 'Aktive Workflows';
 
   @override
@@ -4102,48 +3930,4 @@ class AppLocalizationsDe extends AppLocalizations {
   String memberHandoffErrorCode(String code) {
     return 'Fehlercode: $code';
   }
-
-  @override
-  String get weaverPermissionModeTitle => 'Berechtigungsmodus';
-
-  @override
-  String get weaverPermissionModeDeny => 'Alles verweigern';
-
-  @override
-  String get weaverPermissionModeAllowlist => 'Nur Positivliste';
-
-  @override
-  String get weaverPermissionModeAsk => 'Jedes Mal fragen';
-
-  @override
-  String get weaverPermissionModeAuto => 'Automatische Prüfung';
-
-  @override
-  String get weaverPermissionModeFull => 'Vollzugriff (gefährlich)';
-
-  @override
-  String get weaverPermissionFullWarningTitle =>
-      'Gefährlichen Vollzugriff aktivieren?';
-
-  @override
-  String get weaverPermissionFullWarningBody =>
-      'Weaver darf Host-Befehle ohne Freigabe ausführen und vertrauenswürdige Weave-Tool-Anfragen automatisch annehmen. Organisationsrichtlinie, Anmeldung, Validierung, Provider-Grenzen und Audit-Protokollierung gelten weiterhin.';
-
-  @override
-  String get weaverPermissionFullConfirm => 'Vollzugriff aktivieren';
-
-  @override
-  String get weaverPermissionCancel => 'Abbrechen';
-
-  @override
-  String get weaverPermissionUpdated =>
-      'Weaver-Berechtigungsmodus aktualisiert.';
-
-  @override
-  String get weaverPermissionPolicyDenied =>
-      'Deine Organisationsrichtlinie erlaubt diesen Modus nicht.';
-
-  @override
-  String get weaverPermissionUpdateFailed =>
-      'Der Weaver-Berechtigungsmodus konnte nicht aktualisiert werden.';
 }

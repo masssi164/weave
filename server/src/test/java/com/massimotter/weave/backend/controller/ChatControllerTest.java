@@ -28,7 +28,7 @@ import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
-import com.massimotter.weave.backend.config.WeaverRuntimeProperties;
+import com.massimotter.weave.backend.config.AgentRuntimeEntitlementProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
@@ -69,16 +69,16 @@ import org.springframework.test.web.servlet.MockMvc;
 @TestPropertySource(properties = {
         "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.example.invalid/realms/weave",
         "weave.workspace.chat.readiness=ready",
-        "weave.workspace.weaver.enabled=true",
-        "weave.workspace.weaver.readiness=ready",
-        "weave.weaver.runtime.enabled=true",
+        "weave.workspace.agent-runtime-control.enabled=true",
+        "weave.workspace.agent-runtime-control.readiness=ready",
+        "weave.agent-runtime.entitlement.enabled=true",
         "weave.context.authorization.principal-claim=preferred_username"
 })
 @EnableConfigurationProperties({
         ContextAuthorizationProperties.class,
         WorkspaceCapabilityProperties.class,
         WeaveSecurityProperties.class,
-        WeaverRuntimeProperties.class,
+        AgentRuntimeEntitlementProperties.class,
         OAuth2ResourceServerProperties.class
 })
 class ChatControllerTest {
@@ -180,7 +180,7 @@ class ChatControllerTest {
                 .andExpect(status().isNotFound());
 
         mockMvc.perform(request(HttpMethod.POST, "/api/chat/conversations/pa-weaver/messages")
-                        .with(workspaceJwt("member", List.of("weave-weaver-runtime", "weave-weaver-pilot")))
+                        .with(workspaceJwt("member", List.of("weave-weaver-runtime")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"text\":\"PA Weaver chat must enter through Matrix.\"}"))
                 .andExpect(status().isNotFound());
@@ -278,54 +278,16 @@ class ChatControllerTest {
     }
 
     @Test
-    void weaverScoutSummarizesAllowedContextAndBlocksWritesWithReceipts() throws Exception {
-        allowChatPermission(ContextPermission.EDIT);
-        allowChatPermission(ContextPermission.VIEW);
-        mockMvc.perform(post("/api/v1/chat/conversations/channel-general/decisions")
-                        .with(workspaceJwt("member"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "title":"Keep Weaver read-only in Sprint 4",
-                                  "references":[{
-                                    "type":"chat-message",
-                                    "ref":"message:msg-seed-welcome",
-                                    "label":"Seed welcome message"
-                                  }]
-                                }
-                                """))
-                .andExpect(status().isOk());
-
+    void removedWeaverScoutRouteHasNoCompatibilityHandler() throws Exception {
         mockMvc.perform(post("/api/v1/chat/conversations/channel-general/weaver/scout/summaries")
                         .with(workspaceJwt("member"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "question":"What is open in this channel?",
-                                  "requestedAction":"Create a task from the summary"
+                                  "question":"What is open in this channel?"
                                 }
                                 """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.conversationId").value("channel-general"))
-                .andExpect(jsonPath("$.readOnly").value(true))
-                .andExpect(jsonPath("$.proposalOnly").value(true))
-                .andExpect(jsonPath("$.backgroundRoomReadingEnabled").value(false))
-                .andExpect(jsonPath("$.supportSafe").value(true))
-                .andExpect(jsonPath("$.sources[0].kind").value("message"))
-                .andExpect(content().string(containsString("\"kind\":\"decision\"")))
-                .andExpect(jsonPath("$.approvalReceipts[0].actorRef").value("user:test"))
-                .andExpect(jsonPath("$.approvalReceipts[0].requestedAction").value("Create a task from the summary"))
-                .andExpect(jsonPath("$.approvalReceipts[0].approvedAction").value("none - Sprint 4 Weaver scout is read-only"))
-                .andExpect(jsonPath("$.approvalReceipts[0].targetRef").value("conversation:channel-general"))
-                .andExpect(jsonPath("$.approvalReceipts[0].resultCategory").value("blocked"))
-                .andExpect(content().string(not(containsString("secretref://"))))
-                .andExpect(content().string(not(containsString("access_token"))));
-
-        verify(auditEventPublisher).publish(argThat(event ->
-                event != null
-                        && event.action() == AuditAction.WEAVER_SCOUT_SUMMARY_REQUESTED
-                        && Boolean.TRUE.equals(event.payload().get("readOnly"))
-                        && Boolean.TRUE.equals(event.payload().get("supportSafe"))));
+                .andExpect(status().isNotFound());
     }
 
     @Test

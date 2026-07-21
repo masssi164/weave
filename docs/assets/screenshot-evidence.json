@@ -53,11 +53,11 @@
       "altText": "Weave boards roadmap screen showing feature-gated tasks with keyboard-accessible non-drag actions."
     },
     {
-      "path": "docs/assets/roadmap/08-livekit-meetings-readiness.svg",
+      "path": "docs/assets/roadmap/08-matrixrtc-calls-readiness.svg",
       "source": "deterministic-svg-generator",
       "maturityStatus": "guarded_roadmap",
-      "claimBoundary": "Guarded LiveKit meetings roadmap visual only; join/start remain behind backend token and encryption evidence gates.",
-      "altText": "Weave meetings roadmap screen showing LiveKit readiness behind a fail-closed backend token facade."
+      "claimBoundary": "Guarded MatrixRTC Calls roadmap visual only; join/start remains behind RTC authorization, TURN, media-E2EE, and physical-device evidence gates.",
+      "altText": "Weave Calls roadmap screen showing MatrixRTC Profile 0, independent RTC authorization, and a replaceable SFU boundary."
     }
   ]
 }

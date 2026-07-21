@@ -9,7 +9,7 @@ import com.massimotter.weave.backend.chat.domain.ChatHistoryPolicy;
 import com.massimotter.weave.backend.chat.domain.ChatMemberState;
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
-import com.massimotter.weave.backend.config.WeaverRuntimeProperties;
+import com.massimotter.weave.backend.config.AgentRuntimeEntitlementProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
@@ -106,7 +106,7 @@ class ChatFacadeServiceTest {
         WorkspaceCapabilityProperties properties = workspaceCapabilityProperties();
         return new ChatFacadeService(
                 properties,
-                workspaceCapabilityService(properties, weaverRuntimeProperties(true)),
+                workspaceCapabilityService(properties, runtimeEntitlementProperties(true)),
                 request -> ContextAuthorizationDecision.allow("test allow"),
                 new ContextAuthorizationProperties(null, null, null, null, null, null, null, null),
                 mock(ChatDomainFacadeService.class),
@@ -123,7 +123,7 @@ class ChatFacadeServiceTest {
         WorkspaceCapabilityProperties properties = workspaceCapabilityProperties();
         return new ChatFacadeService(
                 properties,
-                workspaceCapabilityService(properties, weaverRuntimeProperties(true)),
+                workspaceCapabilityService(properties, runtimeEntitlementProperties(true)),
                 request -> ContextAuthorizationDecision.allow("test allow"),
                 new ContextAuthorizationProperties(null, null, null, null, null, null, null, null),
                 chatDomainFacadeService,
@@ -140,34 +140,23 @@ class ChatFacadeServiceTest {
                 null);
     }
 
-    private WeaverRuntimeProperties weaverRuntimeProperties(boolean enabled) {
-        return new WeaverRuntimeProperties(
+    private AgentRuntimeEntitlementProperties runtimeEntitlementProperties(boolean enabled) {
+        return new AgentRuntimeEntitlementProperties(
                 enabled,
-                "weaver-governed-baseline",
-                "ghcr.io/masssi164/weaver-openclaw:policy-generated",
-                "/var/lib/weave/weaver/{userId}",
-                ".weaver/agents",
-                "weave-runtime-net",
                 List.of("weave-weaver-runtime"),
-                List.of("weaver.files_read", "weaver.exec_disabled"),
-                List.of("weave-chat"),
-                List.of("message.send"),
-                false,
-                false,
-                true,
-                true);
+                List.of("calendar.read"));
     }
 
     private WorkspaceCapabilityService workspaceCapabilityService(
             WorkspaceCapabilityProperties properties,
-            WeaverRuntimeProperties weaverRuntimeProperties) {
+            AgentRuntimeEntitlementProperties runtimeEntitlementProperties) {
         OAuth2ResourceServerProperties resourceServerProperties = new OAuth2ResourceServerProperties();
         resourceServerProperties.getJwt().setIssuerUri("https://auth.example.invalid/realms/acme");
         return new WorkspaceCapabilityService(
                 resourceServerProperties,
                 new WeaveSecurityProperties("weave-app", "weave-app"),
                 properties,
-                weaverRuntimeProperties);
+                runtimeEntitlementProperties);
     }
 
     private DecisionLedgerCreateRequest decisionRequest() {

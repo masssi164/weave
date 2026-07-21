@@ -21,7 +21,7 @@ REQUIRED_SPRINT18_FLOWS = {
     "member-workspace-loop",
     "admin-migration-apply-recovery",
     "admin-go-live-claim-control",
-    "governed-weaver-approval-revocation",
+    "agent-runtime-control-admin-lifecycle",
 }
 
 REQUIRED_BLOCKER_PHRASES = [

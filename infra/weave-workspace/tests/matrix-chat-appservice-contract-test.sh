@@ -90,6 +90,8 @@ assert_contains "${infra_main}" 'resource "terraform_data" "matrix_chat_appservi
 assert_contains "${infra_main}" 'var.matrix_chat_appservice_as_token != var.matrix_chat_appservice_hs_token'
 assert_contains "${install_script}" 'set_default_secret TF_VAR_matrix_chat_appservice_as_token "$(random_hex 32)"'
 assert_contains "${install_script}" 'set_default_secret TF_VAR_matrix_chat_appservice_hs_token "$(random_hex 32)"'
+assert_contains "${install_script}" 'if ((${#TF_VAR_matrix_chat_appservice_as_token} < 43 || ${#TF_VAR_matrix_chat_appservice_hs_token} < 43)); then'
+assert_contains "${install_script}" 'Rotated legacy Matrix Application Service credentials to the current entropy contract.'
 assert_contains "${install_script}" 'TF_VAR_matrix_chat_appservice_as_token'
 assert_contains "${install_script}" 'TF_VAR_matrix_chat_appservice_hs_token'
 

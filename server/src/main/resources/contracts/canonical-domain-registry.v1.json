@@ -641,9 +641,11 @@
       "purpose": "Provider-neutral Weave-owned domain contract.",
       "canonical_objects": [
         "Meeting",
+        "MatrixRtcSlot",
+        "MatrixRtcMember",
+        "DeviceBinding",
         "MediaSession",
-        "Participant",
-        "TokenGrant",
+        "RtcAuthorization",
         "Recording",
         "Caption",
         "ConsentRecord"
@@ -926,29 +928,26 @@
       "provider_reality_level_by_candidate": {}
     },
     {
-      "key": "weaver",
+      "key": "agent-runtime-control",
       "version": 1,
-      "display_name": "Weaver",
-      "purpose": "Provider-neutral Weave-owned domain contract.",
+      "display_name": "Agent Runtime Control",
+      "purpose": "Entitlement-bound runtime control plane; not a collaboration content domain.",
       "canonical_objects": [
-        "WeaverRuntimeProfile",
-        "WeaverRuntimeInstance",
-        "WeaverUserWorkspace",
-        "WeaverToolGrant",
-        "WeaverApprovalReceipt",
-        "WeaverAuditEvent",
-        "WeaverCustomizationProfile"
+        "RuntimeEntitlementRef",
+        "RuntimeProfile",
+        "ApprovalChallenge",
+        "RuntimeCell",
+        "WorkspaceRevision",
+        "RuntimeRevocation",
+        "RuntimeAuditCorrelation"
       ],
       "capability_keys": [
-        "weaver.read",
-        "weaver.search",
-        "weaver.export",
-        "weaver.import",
-        "weaver.dryRun",
-        "weaver.apply",
-        "weaver.write",
-        "weaver.delete",
-        "weaver.adminConfigure"
+        "agent-runtime.entitled",
+        "agent-runtime.profile.read",
+        "agent-runtime.lifecycle.write",
+        "agent-runtime.wake",
+        "agent-runtime.approval.attest",
+        "agent-runtime.admin"
       ],
       "member_states": [
         "available",

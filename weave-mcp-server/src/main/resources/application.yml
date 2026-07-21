@@ -9,36 +9,46 @@ spring:
       resourceserver:
         jwt:
           issuer-uri: ${WEAVE_OIDC_ISSUER_URI:https://auth.weave.test/realms/weave}
-          audiences:
-            - ${WEAVE_OIDC_AUDIENCE:weave-app}
+          jwk-set-uri: ${WEAVE_OIDC_JWK_SET_URI:https://auth.weave.test/realms/weave/protocol/openid-connect/certs}
   ai:
     mcp:
       server:
         enabled: true
         protocol: STREAMABLE
         type: SYNC
-        name: weave-domain-tools
-        version: 0.2.0
-        instructions: Use only approved Weave domain capabilities. Provider APIs and credentials are never MCP tools.
+        name: weave-workload-tools
+        version: 0.3.0
+        instructions: Workload-only tools; every call requires a current Agent Runtime Control cell binding.
         tool-callback-converter: true
         annotation-scanner:
           enabled: true
         capabilities:
-          tool: true
-          resource: true
-          prompt: true
+          tool: false
+          resource: false
+          prompt: false
           completion: false
         streamable-http:
           mcp-endpoint: /mcp
           disallow-delete: true
+
+weave:
+  mcp:
+    resource-uri: ${WEAVE_MCP_RESOURCE_URI:https://api.weave.test/mcp}
+    resource-metadata-uri: ${WEAVE_MCP_RESOURCE_METADATA_URI:https://api.weave.test/.well-known/oauth-protected-resource/mcp}
+    authorization-server: ${WEAVE_MCP_AUTHORIZATION_SERVER:https://auth.weave.test/realms/weave}
+    required-scopes: ${WEAVE_MCP_REQUIRED_SCOPES:mcp:tools,calendar.read}
+    token-uri: ${WEAVE_MCP_TOKEN_URI:https://auth.weave.test/realms/weave/protocol/openid-connect/token}
+    exchange-client-id: ${WEAVE_MCP_EXCHANGE_CLIENT_ID:weave-mcp-server}
+    exchange-client-secret-file: ${WEAVE_MCP_EXCHANGE_CLIENT_SECRET_FILE:/run/secrets/weave/mcp-client-secret}
+    backend-resource-uri: ${WEAVE_MCP_BACKEND_RESOURCE_URI:https://api.weave.test/api}
+    backend-context-uri: ${WEAVE_MCP_BACKEND_CONTEXT_URI:https://api.weave.test/api/internal/agent-runtime/mcp-context}
+    exchange-scopes: ${WEAVE_MCP_EXCHANGE_SCOPES:calendar.read}
+    request-timeout: ${WEAVE_MCP_REQUEST_TIMEOUT:10s}
+    maximum-token-ttl: ${WEAVE_MCP_MAXIMUM_TOKEN_TTL:60s}
+    maximum-request-bytes: ${WEAVE_MCP_MAXIMUM_REQUEST_BYTES:1048576}
 
 management:
   endpoints:
     web:
       exposure:
         include: health,info
-
-weave:
-  server:
-    base-url: ${WEAVE_SERVER_BASE_URL:http://localhost:8080}
-    mcp-boundary-token: ${WEAVE_MCP_BOUNDARY_TOKEN:local-dev-mcp-boundary}

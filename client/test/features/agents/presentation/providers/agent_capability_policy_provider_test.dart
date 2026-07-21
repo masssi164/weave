@@ -55,8 +55,8 @@ const _weaverDisabledSnapshot = WorkspaceCapabilitySnapshot(
     readiness: WorkspaceCapabilityReadiness.unavailable,
     policyState: WorkspaceCapabilityPolicyState.unavailable,
   ),
-  weaver: WorkspaceCapabilityState(
-    capability: WorkspaceCapability.weaver,
+  agentRuntimeControl: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.agentRuntimeControl,
     readiness: WorkspaceCapabilityReadiness.unavailable,
     policyState: WorkspaceCapabilityPolicyState.disabled,
     grantedCapabilities: ['weaver.exec_disabled'],

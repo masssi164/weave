@@ -43,6 +43,11 @@ def require_absent(path: str, *fragments: str) -> None:
             fail(f"{path} still contains forbidden fragment: {fragment}")
 
 
+def require_file_absent(path: str) -> None:
+    if (ROOT / path).exists():
+        fail(f"obsolete file still exists: {path}")
+
+
 def require_openapi_boundary() -> None:
     openapi = json.loads(read("contracts/openapi/weave-openapi.json"))
     paths = set(openapi.get("paths", {}).keys())
@@ -206,22 +211,13 @@ def require_webdav_write_mvp() -> None:
 
 
 def require_mcp_facade_boundary() -> None:
-    require(
-        "weave-contract/src/main/java/com/massimotter/weave/contract/mcp/MemberMcpToolResultProjections.java",
-        "webDavFacadePath",
-        "openApiDataPlaneUsed",
-        "rawProviderPayload",
-    )
-    require(
-        "server/src/main/java/com/massimotter/weave/backend/weaver/MemberDomainToolDispatcher.java",
-        'return "/dav/files"',
-        "files_file_ref_requires_weave_webdav_facade_path",
-    )
-    require(
-        "server/src/test/java/com/massimotter/weave/backend/weaver/MemberDomainToolDispatcherTest.java",
-        "filesSearchUsesFilesFacadeAndProjectsWebdavBackedMcpMetadata",
-        "filesReadRejectsProviderShapedRefsBeforeProviderAccess",
-        "https://files.example.invalid/remote.php/dav/files/readme.md",
+    require_file_absent("weave-contract/src/main/java/com/massimotter/weave/contract/mcp/MemberMcpToolResultProjections.java")
+    require_file_absent("server/src/main/java/com/massimotter/weave/backend/weaver/MemberDomainToolDispatcher.java")
+    require_file_absent("server/src/test/java/com/massimotter/weave/backend/weaver/MemberDomainToolDispatcherTest.java")
+    require_absent(
+        "server/src/main/java/com/massimotter/weave/backend/controller/WorkspaceController.java",
+        "workspace/weaver/mcp/servers",
+        "workspace/weaver/runtime-profile",
     )
     require(
         "infra/weave-workspace/weave-mcp-tool-contract.json",

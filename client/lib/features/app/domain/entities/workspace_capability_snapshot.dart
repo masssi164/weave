@@ -12,7 +12,7 @@ enum WorkspaceCapability {
   manualsHelp,
   releaseEvidence,
   adminControlPlane,
-  weaver,
+  agentRuntimeControl,
 }
 
 enum WorkspaceCapabilityReadiness { ready, degraded, blocked, unavailable }
@@ -93,8 +93,8 @@ class WorkspaceCapabilitySnapshot {
       readiness: WorkspaceCapabilityReadiness.ready,
       policyState: WorkspaceCapabilityPolicyState.allowed,
     ),
-    this.weaver = const WorkspaceCapabilityState(
-      capability: WorkspaceCapability.weaver,
+    this.agentRuntimeControl = const WorkspaceCapabilityState(
+      capability: WorkspaceCapability.agentRuntimeControl,
       readiness: WorkspaceCapabilityReadiness.unavailable,
       policyState: WorkspaceCapabilityPolicyState.disabled,
     ),
@@ -111,7 +111,7 @@ class WorkspaceCapabilitySnapshot {
   final WorkspaceCapabilityState manualsHelp;
   final WorkspaceCapabilityState releaseEvidence;
   final WorkspaceCapabilityState adminControlPlane;
-  final WorkspaceCapabilityState weaver;
+  final WorkspaceCapabilityState agentRuntimeControl;
 
   List<WorkspaceCapabilityState> get all => <WorkspaceCapabilityState>[
     shellAccess,
@@ -125,6 +125,6 @@ class WorkspaceCapabilitySnapshot {
     manualsHelp,
     releaseEvidence,
     adminControlPlane,
-    weaver,
+    agentRuntimeControl,
   ];
 }

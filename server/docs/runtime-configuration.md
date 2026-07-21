@@ -77,17 +77,17 @@ Boards remains a Weave product facade. OpenProject is the first provider-backed 
 
 OpenProject workspace-sync requires provider `openproject`, runtime enabled, read-sync enabled, Context/Space authorization enabled, `service-token` auth, a base URL, and a backend-held API token. Local workspace user writes are in v0.1 scope when authenticated, authorized, explicit, and audited; OpenProject provider writes still fail closed unless the future write, audit/consent, and Context/Space gates are all promoted. The OpenProject webhook signature verifier is available for the future ingress seam, but no runtime webhook route is published here; webhook handling remains normalization-only and does not enable agent/team writes or live audit publication.
 
-## Meetings/LiveKit provider contract
+## Calls/LiveKit SFU readiness
 
-LiveKit is the active meetings/video-call provider key in the provider registry. The backend exposes only support-safe readiness for meetings and keeps actual room/session tokens behind a backend-owned facade. Matrix is not advertised as the generic meetings provider.
+Matrix v1.19 plus pinned MatrixRTC Profile 0 is the only member signaling contract. LiveKit is the first replaceable southbound SFU adapter and exposes only support-safe configuration readiness in the provider registry. It does not own signaling, room membership, RTC authorization, consent, or a member Calls API.
 
-- `WEAVE_LIVEKIT_ENABLED`: exposes the LiveKit meetings provider contract, defaults to `true` while failing closed when not configured.
+- `WEAVE_LIVEKIT_ENABLED`: enables LiveKit SFU configuration readiness, defaults to `false`, and does not enable member join/start.
 - `WEAVE_LIVEKIT_URL`: LiveKit server URL. Blank keeps direct credential mode and token-endpoint mode unconfigured.
-- `WEAVE_LIVEKIT_API_KEY`: backend-held LiveKit API key for future token minting. Blank keeps direct credential mode unconfigured. Never expose this value to Flutter, platform config, support logs, or support bundles.
-- `WEAVE_LIVEKIT_API_SECRET`: backend-held LiveKit API secret for future token minting. Blank keeps direct credential mode unconfigured. Never expose this value to Flutter, platform config, support logs, or support bundles.
-- `WEAVE_LIVEKIT_TOKEN_ENDPOINT`: optional backend/internal token endpoint alternative when token minting is delegated. Blank keeps token-endpoint mode unconfigured.
+- `WEAVE_LIVEKIT_API_KEY`: backend-held LiveKit API key reserved for the future RTC Authorizer. Blank keeps direct credential mode unconfigured. Never expose this value to Flutter, platform config, support logs, or support bundles.
+- `WEAVE_LIVEKIT_API_SECRET`: backend-held LiveKit API secret reserved for the future RTC Authorizer. Blank keeps direct credential mode unconfigured. Never expose this value to Flutter, platform config, support logs, or support bundles.
+- `WEAVE_LIVEKIT_TOKEN_ENDPOINT`: optional internal SFU token endpoint that only the RTC Authorizer may call after current-context validation. Blank keeps token-endpoint mode unconfigured.
 
-Provider readiness is `configured` only when LiveKit is enabled and either `WEAVE_LIVEKIT_URL` + `WEAVE_LIVEKIT_API_KEY` + `WEAVE_LIVEKIT_API_SECRET`, or `WEAVE_LIVEKIT_URL` + `WEAVE_LIVEKIT_TOKEN_ENDPOINT`, are present. `/api/providers/status` reports booleans such as `livekitUrlConfigured`, `apiKeyConfigured`, `apiSecretConfigured`, and `tokenEndpointConfigured`; it must not return raw keys, secrets, endpoint credentials, room tokens, credential-bearing join URLs, or raw LiveKit errors.
+Provider readiness is `configured` only when LiveKit is enabled and either `WEAVE_LIVEKIT_URL` + `WEAVE_LIVEKIT_API_KEY` + `WEAVE_LIVEKIT_API_SECRET`, or `WEAVE_LIVEKIT_URL` + `WEAVE_LIVEKIT_TOKEN_ENDPOINT`, are present. This proves configuration presence only; RTC Authorizer, TURN, media E2EE, revocation, consent/artifacts, interoperability, and physical-device evidence remain separate gates. `/api/providers/status` reports booleans such as `livekitUrlConfigured`, `apiKeyConfigured`, `apiSecretConfigured`, and `tokenEndpointConfigured`; it must not return raw keys, secrets, endpoint credentials, room tokens, credential-bearing join URLs, or raw LiveKit errors.
 
 ## Files facade and Nextcloud WebDAV adapter
 

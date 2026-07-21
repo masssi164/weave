@@ -137,7 +137,7 @@ manifest = {
     "backupId": os.environ["BACKUP_ID"],
     "scope": {
         "environment": os.environ.get("WEAVE_BACKUP_ENVIRONMENT", "operator-managed-stack"),
-        "domains": ["identity-idm", "chat", "files", "calendar", "health"],
+        "domains": ["identity-idm", "agent-runtime-control", "chat", "files", "calendar", "health"],
         "artifactsContainSecretsOrMemberData": True,
         "shareExternally": False,
     },
@@ -165,9 +165,11 @@ Notes:
   nextcloud-data.tgz.
 - Caddy artifacts are included for ACME/TLS continuity when applicable.
 - Generated config/secrets are included because restore/reprovisioning may need them;
-  this includes the stable Synapse Application Service registration and its two
-  independent tokens. Disposable Chat E2E proof credentials are explicitly excluded
-  and cannot be restored. Keep this backup private.
+  this includes the stable Synapse Application Service registration/tokens plus
+  the Agent Runtime Control signing root, runtime-state
+  wrapping root, policy, and workload-credential SecretRefs. Keycloak, PostgreSQL,
+  and those private ARC assets are one restore consistency set. Disposable Chat E2E
+  proof credentials are explicitly excluded and cannot be restored. Keep this backup private.
 MSG
 }
 
@@ -182,7 +184,33 @@ backup_postgres() {
 
   log "Backing up PostgreSQL service databases to postgres.sql"
   docker exec -e "PGPASSWORD=${db_password}" weave-db pg_dumpall -U "${db_user}" >"${target}"
-  append_manifest "postgres.sql" "PostgreSQL dump for Keycloak, MAS, Synapse, Nextcloud, and Weave backend service databases"
+  if [[ "${TF_VAR_agent_runtime_enabled:-false}" == "true" ]]; then
+    grep -Fq 'weave_agent_runtime_cells' "${target}" ||
+      fail "PostgreSQL backup is missing the Agent Runtime Control store."
+    grep -Fq 'weave_agent_runtime_state_generations' "${target}" ||
+      fail "PostgreSQL backup is missing encrypted external runtime-state storage."
+  fi
+  append_manifest "postgres.sql" "PostgreSQL dump for Keycloak, Agent Runtime Control and encrypted runtime state, MAS, Synapse, Nextcloud, and Weave backend service databases"
+}
+
+require_agent_runtime_consistency_set() {
+  [[ "${TF_VAR_agent_runtime_enabled:-false}" == "true" ]] || return 0
+
+  local root="${ROOT_DIR}/01-infrastructure/.generated/agent-runtime"
+  [[ -s "${root}/profile-signing/runtime-profile-signing-keys.json" ]] ||
+    fail "Agent Runtime Control signing trust root is incomplete; refusing a partial backup."
+  [[ -n "$(find "${root}/profile-signing" -maxdepth 1 -type f -name 'key-rpk_*.pk8' -size +0c -print -quit 2>/dev/null)" ]] ||
+    fail "Agent Runtime Control signing private material is incomplete; refusing a partial backup."
+  [[ -s "${root}/state-wrapping/runtime-state-wrapping-keys.json" ]] ||
+    fail "Agent Runtime Control state-wrapping trust root is incomplete; refusing a partial backup."
+  [[ -n "$(find "${root}/state-wrapping/keys" -maxdepth 1 -type f -name 'rsk_*.key' -size +0c -print -quit 2>/dev/null)" ]] ||
+    fail "Agent Runtime Control state-wrapping private material is incomplete; refusing a partial backup."
+  [[ -s "${root}/runtime-policy.json" ]] ||
+    fail "Agent Runtime Control runtime policy is missing; refusing a partial backup."
+  [[ -s "${root}/credentials/weave/agent-runtime/admin/keycloak" ]] ||
+    fail "Agent Runtime Control Keycloak administration SecretRef is missing; refusing a partial backup."
+  [[ "${TF_VAR_agent_runtime_keycloak_organization_id:-}" =~ ^[0-9a-fA-F-]{36}$ ]] ||
+    fail "Agent Runtime Control Keycloak organization authority is unresolved; refusing a partial backup."
 }
 
 backup_volume() {
@@ -218,7 +246,7 @@ backup_generated_config() {
     --exclude='*/chat-provider-proof.token' \
     --exclude='.generated/isolated-e2e' \
     "${generated_paths[@]}"
-  append_manifest "generated-config-secrets.tgz" "Generated bootstrap env, no-secret app config, TLS material, Synapse Application Service registration/tokens, and generated Terraform service config needed for restore/reprovisioning; disposable Chat E2E proof credentials are excluded"
+  append_manifest "generated-config-secrets.tgz" "Private generated runtime consistency set required for restore/reprovisioning, including TLS, Matrix Application Service state, and Agent Runtime Control trust roots and workload credentials; disposable Chat E2E proof credentials are excluded"
 }
 
 create_backup() {
@@ -257,6 +285,7 @@ main() {
   load_bootstrap_env
   [[ "${TF_VAR_chat_e2e_proof_enabled:-false}" != "true" ]] ||
     fail "Backups are disabled for disposable Chat E2E proof namespaces; destroy the isolated namespace instead."
+  require_agent_runtime_consistency_set
 
   local output_dir="${1:-${BACKUP_OUTPUT_DIR}}"
   create_backup "${output_dir}"

@@ -16,6 +16,6 @@
     "boards-tasks": { "selectedAdapter": "microsoft-planner", "secretRefs": ["secretref://weave/provider/microsoft-planner/app-secret"] },
     "meetings-calls": { "selectedAdapter": "microsoft-teams-meetings", "secretRefs": ["secretref://weave/provider/microsoft-teams-meetings/app-secret"] },
     "documents-collaboration": { "selectedAdapter": "microsoft-365-office-graph", "secretRefs": ["secretref://weave/provider/microsoft-365-office-graph/app-secret"] },
-    "weaver": { "selectedAdapter": "weaver-runtime-disabled", "enabledByDefault": false, "secretRefs": [] }
+    "agent-runtime-control": { "selectedAdapter": "weaver-openclaw", "enabledByDefault": false, "secretRefs": [] }
   }
 }

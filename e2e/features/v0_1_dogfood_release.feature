@@ -127,23 +127,23 @@ Feature: Weave v0.1 dogfood production release
     And members only see available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later impact states
     And Weaver capability placeholders stay disabled by default until a governed runtime policy exists
 
-  @weave-v01-governed-weaver-runtime-policy
-  Scenario: Weaver runtime profiles are generated from organization policy
-    Given an admin has enabled the Weaver provider category after IDM/RBAC policy is ready
-    When a member with an explicit Weaver runtime group requests their runtime profile
-    Then Weave generates a per-user Dockerized Weaver/OpenClaw-derived profile from workspace capability policy
-    And the profile contains only admin-whitelisted capabilities and provider adapter tools
-    And exec and elevated surfaces are disabled unless explicitly constrained by admin policy
-    And runtime profile generation is audited and disabled_by_policy by default for everyone else
+  @weave-v01-agent-runtime-control-policy
+  Scenario: Runtime cells derive from current organization entitlement and policy
+    Given an admin has enabled Agent Runtime Control after Keycloak entitlement and signing trust are ready
+    When an entitled person is provisioned through the organization-bound administrative API
+    Then ARC binds one disposable cell and dedicated Keycloak workload client to the immutable person identity
+    And ARC signs a short-lived RuntimeProfile v2 containing references and maximum capabilities only
+    And portable workspace content and encrypted runtime state remain in authorities outside the zero-durable-byte cell
+    And missing entitlement, stale profile, cross-cell access, or incomplete restore state fails closed
 
-  @weave-v01-governed-weaver-tool-registry
-  Scenario: Weaver discovers and invokes only approved domain tools
-    Given an admin has approved Weaver tools by domain capability
-    When a member runtime discovers tools and requests a write-like tool invocation
-    Then the runtime sees only domain-scoped tools granted by its signed profile and same-user lookup
-    And blocked tools, revoked profiles, expired runtime tokens, missing consent, and overbroad grants are denied with support-safe audit evidence
-    And write, delete, external-send, and provider-switch actions require approval receipts before invocation
-    And bounded assistance results may cite Space, Decision, and Board canonical refs without raw provider payloads or private content
+  @weave-v01-mcp-workload-boundary
+  Scenario: MCP admits only a current entitled workload and advertises no tools yet
+    Given an ARC-bound cell has an exact-audience Keycloak workload token
+    When the cell negotiates the MCP Client Credentials extension over Spring AI Streamable HTTP
+    Then the MCP edge exchanges rather than relays the workload token and resolves current backend cell context
+    And human tokens, generic service accounts, stale profiles, and upscope attempts are denied
+    And domain tool resource and prompt catalogs remain empty until current authorization and evidence gates are executable
+    And a future domain side effect still requires independent domain authorization and single-use decision evidence
 
   @weave-v01-channel-workspace
   Scenario: A Space control room is the primary workspace surface

@@ -1,6 +1,6 @@
 spec_id: WEAVE-SPEC-0011
-version: 0.1.0
-status: accepted
+version: 0.2.0
+status: deprecated
 github_issues:
   - 719
   - 735
@@ -12,20 +12,18 @@ acceptance_features:
   - e2e/features/weave_spec_0011_acceptance.feature
 pinned_corpus_sources:
   - specs/weave-specs.lock.json
-  - ../weave-specs/domains/weaver-governed-pa/spec.md
+  - ../weave-specs/domains/agent-runtime-control/spec.md
+  - ../weave-specs/architecture/adr/0012-keycloak-workload-identity-and-token-exchange.md
   - ../weave-specs/steering/product-constitution.md
   - ../weave-specs/steering/domain-context-map.md
 repo_projection:
   - specs/0011-weaver-governed-pa-target/spec.md
-  - specs/0011-weaver-governed-pa-target/plan.md
-  - specs/0011-weaver-governed-pa-target/tasks.md
 acceptance_scenarios:
   - tag: @weave-spec-0011-group-policy-gating
     evidence:
       - client/test/live_stack_feature_mapping_test.dart
       - specs/0011-weaver-governed-pa-target/traceability.yaml
       - admin-console/src/App.test.tsx
-      - server/src/test/java/com/massimotter/weave/backend/service/WeaverRuntimeServiceTest.java
     assertions:
       - WEAVE_SPEC_0011_GROUP_POLICY_GATING
   - tag: @weave-spec-0011-memory-isolation
@@ -33,7 +31,6 @@ acceptance_scenarios:
       - client/test/live_stack_feature_mapping_test.dart
       - specs/0011-weaver-governed-pa-target/traceability.yaml
       - specs/0011-weaver-governed-pa-target/weaver-runtime-governance-contract.json
-      - server/src/test/java/com/massimotter/weave/backend/service/WeaverRuntimeServiceTest.java
     assertions:
       - WEAVE_SPEC_0011_MEMORY_ISOLATION
   - tag: @weave-spec-0011-domain-tool-approval
@@ -41,7 +38,6 @@ acceptance_scenarios:
       - client/test/live_stack_feature_mapping_test.dart
       - specs/0011-weaver-governed-pa-target/traceability.yaml
       - admin-console/src/App.test.tsx
-      - server/src/test/java/com/massimotter/weave/backend/service/WeaverRuntimeServiceTest.java
     assertions:
       - WEAVE_SPEC_0011_DOMAIN_TOOL_APPROVAL
   - tag: @weave-spec-0011-heartbeat-fallback-audit
@@ -49,7 +45,6 @@ acceptance_scenarios:
       - client/test/live_stack_feature_mapping_test.dart
       - specs/0011-weaver-governed-pa-target/traceability.yaml
       - specs/0011-weaver-governed-pa-target/weaver-runtime-governance-contract.json
-      - server/src/test/java/com/massimotter/weave/backend/service/WeaverRuntimeServiceTest.java
     assertions:
       - WEAVE_SPEC_0011_HEARTBEAT_FALLBACK_AUDIT
 evidence_gates:
@@ -60,19 +55,8 @@ evidence_gates:
 repo_sources:
   - specs/0007-governed-weaver-runtime/spec.md
   - specs/0009-domain-first-mcp-tools/spec.md
-handoff_inputs:
-  - /Users/flotterotter/.openclaw/workspace/tmp/weave-waterfall-spec-kit-handoff-20260613.md
-  - /Users/flotterotter/server/nextcloud-forms/weave-waterfall-submissions/weave-waterfall-answers-summary.md
-implementation_tasks:
-  - specs/0011-weaver-governed-pa-target/tasks.md#T020
-  - specs/0011-weaver-governed-pa-target/tasks.md#T021
-  - specs/0011-weaver-governed-pa-target/tasks.md#T022
-  - specs/0011-weaver-governed-pa-target/tasks.md#T023
-  - specs/0011-weaver-governed-pa-target/tasks.md#T024
-  - specs/0011-weaver-governed-pa-target/tasks.md#T025
-  - specs/0011-weaver-governed-pa-target/tasks.md#T026
 blocked_release_claim:
-  - GitHub issue #719 remains required before live Weaver availability claims
+  - Canonical Agent Runtime Control live-stack gates remain required before live Weaver availability claims
 forbidden_leakage:
   - raw openclaw.json product config
   - local operator paths

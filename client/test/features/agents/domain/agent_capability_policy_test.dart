@@ -46,7 +46,7 @@ void main() {
     });
 
     test(
-      'maps governed Weaver grants into member UX without raw runtime config',
+      'maps ARC entitlement without exposing obsolete v1 runtime grants',
       () {
         const snapshot = WorkspaceCapabilitySnapshot(
           shellAccess: WorkspaceCapabilityState(
@@ -72,17 +72,11 @@ void main() {
             capability: WorkspaceCapability.boards,
             readiness: WorkspaceCapabilityReadiness.unavailable,
           ),
-          weaver: WorkspaceCapabilityState(
-            capability: WorkspaceCapability.weaver,
+          agentRuntimeControl: WorkspaceCapabilityState(
+            capability: WorkspaceCapability.agentRuntimeControl,
             readiness: WorkspaceCapabilityReadiness.ready,
             policyState: WorkspaceCapabilityPolicyState.allowed,
-            grantedCapabilities: [
-              'weaver.enabled',
-              'weaver.model_alias.fast_local',
-              'weaver.skill.summarize_notes',
-              'weaver.personal_connection.calendar_import',
-              'weaver.configure_style',
-            ],
+            grantedCapabilities: ['agent-runtime.entitled'],
           ),
         );
 
@@ -93,13 +87,13 @@ void main() {
 
         expect(policy.canStartAnyCapability, isTrue);
         expect(policy.weaverMemberUx.available, isTrue);
-        expect(policy.weaverMemberUx.modelAliases, ['Fast Local']);
-        expect(policy.weaverMemberUx.allowedSkills, ['Summarize Notes']);
-        expect(policy.weaverMemberUx.allowedPersonalConnections, [
-          'Calendar Import',
-        ]);
-        expect(policy.weaverMemberUx.canConfigureStyle, isTrue);
+        expect(policy.weaverMemberUx.modelAliases, isEmpty);
+        expect(policy.weaverMemberUx.allowedSkills, isEmpty);
+        expect(policy.weaverMemberUx.allowedPersonalConnections, isEmpty);
+        expect(policy.weaverMemberUx.canConfigureStyle, isFalse);
         expect(policy.weaverMemberUx.canConfigureMemory, isFalse);
+        expect(policy.weaverMemberUx.canConfigureWorkspace, isFalse);
+        expect(policy.weaverMemberUx.hasAnyPersonalSetting, isFalse);
       },
     );
   });

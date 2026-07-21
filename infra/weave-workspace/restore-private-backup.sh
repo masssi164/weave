@@ -297,6 +297,19 @@ prepare_generated_config() {
     fail "restored dogfood TLS certificate is missing"
   [[ -s "${TEMP_ROOT}/generated/01-infrastructure/.generated/caddy/certs/weave.test-key.pem" ]] ||
     fail "restored dogfood TLS key is missing"
+  local agent_runtime_root="${TEMP_ROOT}/generated/01-infrastructure/.generated/agent-runtime"
+  [[ -s "${agent_runtime_root}/profile-signing/runtime-profile-signing-keys.json" ]] ||
+    fail "restored Agent Runtime Control signing trust root is missing"
+  [[ -n "$(find "${agent_runtime_root}/profile-signing" -maxdepth 1 -type f -name 'key-rpk_*.pk8' -size +0c -print -quit 2>/dev/null)" ]] ||
+    fail "restored Agent Runtime Control signing private material is missing"
+  [[ -s "${agent_runtime_root}/state-wrapping/runtime-state-wrapping-keys.json" ]] ||
+    fail "restored Agent Runtime Control state-wrapping trust root is missing"
+  [[ -n "$(find "${agent_runtime_root}/state-wrapping/keys" -maxdepth 1 -type f -name 'rsk_*.key' -size +0c -print -quit 2>/dev/null)" ]] ||
+    fail "restored Agent Runtime Control state-wrapping private material is missing"
+  [[ -s "${agent_runtime_root}/runtime-policy.json" ]] ||
+    fail "restored Agent Runtime Control runtime policy is missing"
+  [[ -s "${agent_runtime_root}/credentials/weave/agent-runtime/admin/keycloak" ]] ||
+    fail "restored Agent Runtime Control workload-administration SecretRef is missing"
 }
 
 commit_generated_config() {
@@ -361,7 +374,7 @@ write_restore_evidence() {
     --argjson soleRestoredDisposableBootstrapIdentity "${sole_bootstrap}" '
     {
       schemaVersion:"weave.dogfood.platform-private-restore.v1",
-      status:"passed",
+      status:"restore-applied-reconciliation-required",
       backupIdSha256:$backupIdSha256,
       restoredAt:$restoredAt,
       integrity:{
@@ -377,6 +390,15 @@ write_restore_evidence() {
         soleRestoredDisposableBootstrapIdentity:$soleRestoredDisposableBootstrapIdentity
       },
       generatedRuntimeAssets:{bootstrapCredentialsRestored:true,tlsIdentityRestored:true},
+      agentRuntimeControl:{
+        databaseRestored:true,
+        profileSigningRootRestored:true,
+        runtimeStateWrappingRootRestored:true,
+        workloadCredentialSecretRefsRestored:true,
+        consistencySetComplete:true,
+        liveReconciliationRequired:true,
+        liveReconciliationStatus:"pending"
+      },
       mailpit:{historyRestored:false,reason:"not-in-backup-artifact-set"},
       privateArtifactContentIncluded:false,
       supportSafe:true
@@ -434,7 +456,7 @@ main() {
   install_restore_evidence
   CONFIG_COMMIT_COMPLETED=true
   RESTORE_COMMITTED=true
-  log "PRIVATE_DOGFOOD_RESTORE status=passed restoredArchiveVolumes=5 serviceDatabases=5 mailpitHistoryRestored=false supportSafe=true"
+  log "PRIVATE_DOGFOOD_RESTORE status=restore-applied reconciliation=required restoredArchiveVolumes=5 serviceDatabases=5 mailpitHistoryRestored=false supportSafe=true"
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then

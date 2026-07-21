@@ -65,12 +65,12 @@ class AgentCapabilityPolicy {
     required bool canManageCapabilities,
     required WorkspaceCapabilitySnapshot workspaceCapabilities,
   }) {
-    final weaver = workspaceCapabilities.weaver;
+    final runtimeControl = workspaceCapabilities.agentRuntimeControl;
     final enabled =
-        weaver.policyState == WorkspaceCapabilityPolicyState.allowed &&
-        weaver.readiness == WorkspaceCapabilityReadiness.ready &&
-        weaver.grants('weaver.enabled');
-    final availability = switch (weaver.policyState) {
+        runtimeControl.policyState == WorkspaceCapabilityPolicyState.allowed &&
+        runtimeControl.readiness == WorkspaceCapabilityReadiness.ready &&
+        runtimeControl.grants('agent-runtime.entitled');
+    final availability = switch (runtimeControl.policyState) {
       WorkspaceCapabilityPolicyState.disabled =>
         AgentCapabilityAvailability.disabledByPolicy,
       WorkspaceCapabilityPolicyState.policyBlocked =>
@@ -85,7 +85,7 @@ class AgentCapabilityPolicy {
 
     return AgentCapabilityPolicy(
       canManageCapabilities: canManageCapabilities,
-      weaverMemberUx: WeaverMemberUxState.fromCapability(weaver),
+      weaverMemberUx: WeaverMemberUxState.fromCapability(runtimeControl),
       capabilities: <AgentCapabilityState>[
         AgentCapabilityState(
           capability: AgentCapability.personalAssistant,
@@ -176,38 +176,38 @@ class WeaverMemberUxState {
     canConfigureWorkspace: false,
   );
 
-  factory WeaverMemberUxState.fromCapability(WorkspaceCapabilityState weaver) {
+  factory WeaverMemberUxState.fromCapability(
+    WorkspaceCapabilityState runtimeControl,
+  ) {
     final available =
-        weaver.policyState == WorkspaceCapabilityPolicyState.allowed &&
-        weaver.readiness == WorkspaceCapabilityReadiness.ready &&
-        weaver.grants('weaver.enabled');
+        runtimeControl.policyState == WorkspaceCapabilityPolicyState.allowed &&
+        runtimeControl.readiness == WorkspaceCapabilityReadiness.ready &&
+        runtimeControl.grants('agent-runtime.entitled');
     if (!available) {
       return WeaverMemberUxState(
         available: false,
-        isBlocked: weaver.readiness == WorkspaceCapabilityReadiness.blocked,
+        isBlocked:
+            runtimeControl.readiness == WorkspaceCapabilityReadiness.blocked,
         modelAliases: const <String>[],
         allowedSkills: const <String>[],
         allowedPersonalConnections: const <String>[],
         canConfigureStyle: false,
         canConfigureMemory: false,
         canConfigureWorkspace: false,
-        memberImpact: weaver.memberImpact,
+        memberImpact: runtimeControl.memberImpact,
       );
     }
 
     return WeaverMemberUxState(
       available: true,
       isBlocked: false,
-      modelAliases: _labelsForPrefix(weaver, 'weaver.model_alias.'),
-      allowedSkills: _labelsForPrefix(weaver, 'weaver.skill.'),
-      allowedPersonalConnections: _labelsForPrefix(
-        weaver,
-        'weaver.personal_connection.',
-      ),
-      canConfigureStyle: weaver.grants('weaver.configure_style'),
-      canConfigureMemory: weaver.grants('weaver.configure_memory'),
-      canConfigureWorkspace: weaver.grants('weaver.configure_workspace'),
-      memberImpact: weaver.memberImpact,
+      modelAliases: const <String>[],
+      allowedSkills: const <String>[],
+      allowedPersonalConnections: const <String>[],
+      canConfigureStyle: false,
+      canConfigureMemory: false,
+      canConfigureWorkspace: false,
+      memberImpact: runtimeControl.memberImpact,
     );
   }
 
@@ -223,35 +223,4 @@ class WeaverMemberUxState {
 
   bool get hasAnyPersonalSetting =>
       canConfigureStyle || canConfigureMemory || canConfigureWorkspace;
-
-  static List<String> _labelsForPrefix(
-    WorkspaceCapabilityState weaver,
-    String prefix,
-  ) {
-    final labels =
-        weaver.grantedCapabilities
-            .where((grant) => grant.startsWith(prefix))
-            .map((grant) => _humanizeGrant(grant.substring(prefix.length)))
-            .where((label) => label.isNotEmpty)
-            .toSet()
-            .toList()
-          ..sort();
-    return labels;
-  }
-
-  static String _humanizeGrant(String rawValue) {
-    final words = rawValue
-        .replaceAll(RegExp(r'[_\-]+'), ' ')
-        .trim()
-        .split(RegExp(r'\s+'))
-        .where((word) => word.isNotEmpty)
-        .toList();
-    return words
-        .map(
-          (word) => word.length == 1
-              ? word.toUpperCase()
-              : '${word[0].toUpperCase()}${word.substring(1)}',
-        )
-        .join(' ');
-  }
 }

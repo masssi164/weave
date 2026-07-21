@@ -25,6 +25,7 @@ PROOF_AUTH_HEADER_FILE=""
 ADMIN_ACCESS_TOKEN=""
 KEYCLOAK_API_BASE=""
 WEAVE_APP_CLIENT_ID=""
+WORKSPACE_RESOURCE_AUDIENCE=""
 CLIENT_RESTORE_PENDING="false"
 BACKEND_RESTORE_REQUIRED="false"
 SYNAPSE_RESTORE_REQUIRED="false"
@@ -177,6 +178,30 @@ resolve_weave_app_client() {
   printf '%s' "${client_id}"
 }
 
+resolve_workspace_resource_audience() {
+  local scopes scope_id mappers audience
+  scopes="$(request GET "${KEYCLOAK_API_BASE}/client-scopes" "${ADMIN_ACCESS_TOKEN}")" ||
+    return 1
+  scope_id="$(find_exact_id "${scopes}" name weave:workspace)"
+  [[ -n "${scope_id}" ]] || return 1
+  mappers="$(request GET "${KEYCLOAK_API_BASE}/client-scopes/${scope_id}/protocol-mappers/models" \
+    "${ADMIN_ACCESS_TOKEN}")" || return 1
+  audience="$(jq -r '
+    [
+      .[] |
+      select(
+        .name == "weave-backend-audience" and
+        .protocol == "openid-connect" and
+        .protocolMapper == "oidc-audience-mapper"
+      ) |
+      .config["included.client.audience"]
+    ] |
+    if length == 1 then .[0] else empty end
+  ' <<<"${mappers}")"
+  [[ -n "${audience}" && "${audience}" != "null" ]] || return 1
+  printf '%s' "${audience}"
+}
+
 enable_direct_grants_for_sessions() {
   WEAVE_APP_CLIENT_ID="$(resolve_weave_app_client)" || fail "weave-app-client-unavailable"
   request GET "${KEYCLOAK_API_BASE}/clients/${WEAVE_APP_CLIENT_ID}" "${ADMIN_ACCESS_TOKEN}" \
@@ -278,13 +303,16 @@ on_provider_proof_exit() {
 
 write_jwt_facts() {
   local token="$1" expected_username="$2" output="$3"
-  python3 - "${expected_username}" 3<<<"${token}" >"${output}" <<'PY'
+  [[ -n "${WORKSPACE_RESOURCE_AUDIENCE}" ]] || return 1
+  python3 - "${expected_username}" "${WORKSPACE_RESOURCE_AUDIENCE}" \
+    3<<<"${token}" >"${output}" <<'PY'
 import base64
 import json
 import sys
 import time
 
 expected = sys.argv[1]
+expected_audience = sys.argv[2]
 token = open(3, encoding="utf-8").read().strip()
 parts = token.split(".")
 if len(parts) != 3:
@@ -298,7 +326,7 @@ scope = value.get("scope", "").split()
 required = ("sub", "iss", "preferred_username", "weave_tenant_id", "exp")
 if any(not value.get(field) for field in required):
     raise SystemExit(1)
-if value["preferred_username"] != expected or "weave-app" not in audience:
+if value["preferred_username"] != expected or expected_audience not in audience:
     raise SystemExit(1)
 if "weave:workspace" not in scope or int(value["exp"]) <= int(time.time()) + 120:
     raise SystemExit(1)
@@ -1250,6 +1278,8 @@ initialize_provider_proof() {
   [[ -n "${ADMIN_ACCESS_TOKEN}" ]] || fail "keycloak-admin-authentication-failed"
   KEYCLOAK_API_BASE="$(api_base)"
   enable_direct_grants_for_sessions
+  WORKSPACE_RESOURCE_AUDIENCE="$(resolve_workspace_resource_audience)" ||
+    fail "workspace-resource-audience-unavailable"
   for pass_index in 1 2; do
     mint_user_session "${pass_index}" author "${AUTHOR_USERNAME}" "${AUTHOR_PASSWORD}"
     mint_user_session "${pass_index}" collaborator "${COLLABORATOR_USERNAME}" "${COLLABORATOR_PASSWORD}"

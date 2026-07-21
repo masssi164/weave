@@ -6,7 +6,7 @@
   "continueButton": "Organisation beitreten",
   "setupTitle": "Organisationszugang",
   "setupProviderStepTitle": "Provider-Kategorien konfigurieren",
-  "setupProviderStepDescription": "Die Admin-Einrichtung beginnt mit der Kategorie Identität/IDM und hält Chat, Dateien, Kalender, Boards/Aufgaben, Besprechungen/Anrufe, Dokumente/Zusammenarbeit und Weaver als Provider-Kategorien sichtbar, bevor Mitglieder beitreten.",
+  "setupProviderStepDescription": "Die Admin-Einrichtung beginnt mit der Kategorie Identität/IDM und hält Chat, Dateien, Kalender, Boards/Aufgaben, Besprechungen/Anrufe, Dokumente/Zusammenarbeit und Agent Runtime Control als Produktkategorien sichtbar, bevor Mitglieder beitreten.",
   "setupServicesStepTitle": "Backend-API prüfen",
   "setupServicesStepDescription": "Prüfe den Weave-Backend-API-Endpunkt, der aus dem Organisations-Login abgeleitet wurde. Provider-Service-URLs bleiben in Admin-/Support-Diagnosen, nicht in der Mitglieder-Einrichtung.",
   "providerCategorySummaryTitle": "Provider-Kategorien",
@@ -77,7 +77,7 @@
   "@providerCategoryMeetingsTitle": {
     "description": "Provider-Kategorietitel für Besprechungen und Anrufe"
   },
-  "providerCategoryMeetingsDetail": "LiveKit-Meetings-Bereitschaft wird hinter der Token-Fassade verfolgt, bevor Mitglieder Anrufe starten oder beitreten können.",
+  "providerCategoryMeetingsDetail": "MatrixRTC Profil 0 ist die Signalisierungsgrenze; ein austauschbarer SFU überträgt Medien erst nach aktueller RTC-Autorisierung.",
   "@providerCategoryMeetingsDetail": {
     "description": "Provider-Kategoriedetail für Besprechungen und Anrufe"
   },
@@ -89,13 +89,13 @@
   "@providerCategoryDocumentsDetail": {
     "description": "Provider-Kategoriedetail für Dokumente und Zusammenarbeit"
   },
-  "providerCategoryWeaverTitle": "Weaver",
-  "@providerCategoryWeaverTitle": {
-    "description": "Provider-Kategorietitel für Weaver"
+  "providerCategoryAgentRuntimeControlTitle": "Agent Runtime Control",
+  "@providerCategoryAgentRuntimeControlTitle": {
+    "description": "Produktkategorietitel für Agent Runtime Control"
   },
-  "providerCategoryWeaverDetail": "Weaver bleibt standardmäßig deaktiviert, bis regulierte persönliche PA-Richtlinie, Whitelisting, Einwilligung und Audit akzeptiert sind.",
-  "@providerCategoryWeaverDetail": {
-    "description": "Provider-Kategoriedetail für Weaver"
+  "providerCategoryAgentRuntimeControlDetail": "Agent Runtime Control bleibt ohne aktuelle Keycloak-Berechtigung, signiertes RuntimeProfile v2, externen verschlüsselten Zustand und zellgebundene Workload-Identität deaktiviert.",
+  "@providerCategoryAgentRuntimeControlDetail": {
+    "description": "Produktkategoriedetail für Agent Runtime Control"
   },
   "setupLanguageStepTitle": "Deine Sprache",
   "setupLanguageStepDescription": "Weave verwendet deine Gerätesprache. Du kannst sie später in den Einstellungen ändern.",
@@ -773,32 +773,6 @@
   "chatDecisionEvidenceCaptureRiskAction": "Als Risiko erfassen",
   "chatDecisionEvidenceCaptureQuestionAction": "Als offene Frage erfassen",
   "chatDecisionEvidenceCaptureEvidenceAction": "Als Evidenz erfassen",
-  "chatWeaverScoutPanelTitle": "Weaver-Scout",
-  "chatWeaverScoutPanelDescription": "Frage nur erlaubte Quellen nach Kanal-Kontext. Sprint-4-Weaver ist nur lesend und vorschlagsbasiert; er kann Raumdaten nicht still verändern.",
-  "chatWeaverScoutReadOnlyStatus": "Nur lesend",
-  "chatWeaverScoutProposalOnlyStatus": "Nur Vorschläge",
-  "chatWeaverScoutReceiptStatus": "Beleg erforderlich",
-  "chatWeaverScoutCapabilitiesTitle": "Was Weaver darf",
-  "chatWeaverScoutSourcesTitle": "Erlaubte Quellen",
-  "chatWeaverScoutApprovalReceiptsRequired": "Jeder künftige Schreibzugriff oder jede Teamraum-Änderung muss einen Freigabebeleg mit Akteur, angefragter Aktion, freigegebener Aktion, Ziel, Zeitstempel und Ergebniskategorie erzeugen.",
-  "chatWeaverScoutSummarizeCapability": "Erlaubten Kontext zusammenfassen",
-  "chatWeaverScoutCiteSourcesCapability": "Quellen zitieren",
-  "chatWeaverScoutProposeOnlyCapability": "Nur Entwürfe vorschlagen",
-  "chatWeaverScoutApprovalReceiptCapability": "Freigabebelege verlangen",
-  "chatWeaverScoutSummarizeDescription": "Nur ausdrücklich erlaubten Kanal-Kontext zusammenfassen.",
-  "chatWeaverScoutCiteSourcesDescription": "Nachrichten, Dateien, Aufgaben, Meetings und Entscheidungen zitieren.",
-  "chatWeaverScoutProposeOnlyDescription": "Aktionen entwerfen oder vorschlagen, ohne Teamdaten zu verändern.",
-  "chatWeaverScoutApprovalReceiptDescription": "Freigabebelege für jeden künftigen Schreibpfad verlangen.",
-  "chatWeaverScoutMessageSourceLabel": "Ausdrückliche Kanalnachrichten",
-  "chatWeaverScoutMessageSourceExcerpt": "Nachrichten, die durch die Mitglieder-Kontextrichtlinie ausgewählt oder erlaubt sind.",
-  "chatWeaverScoutDecisionSourceLabel": "Entscheidungsprotokoll",
-  "chatWeaverScoutDecisionSourceExcerpt": "Erfasste Entscheidungen mit Quellenverweisen.",
-  "chatWeaverScoutFileSourceLabel": "Geteilte Dateien",
-  "chatWeaverScoutFileSourceExcerpt": "Dateinamen und support-sichere Metadaten, die für das Mitglied sichtbar sind.",
-  "chatWeaverScoutTaskSourceLabel": "Offene Aufgaben",
-  "chatWeaverScoutTaskSourceExcerpt": "Aufgabenstatus und Follow-up-Links, die für das Mitglied sichtbar sind.",
-  "chatWeaverScoutMeetingSourceLabel": "Meeting-Kapseln",
-  "chatWeaverScoutMeetingSourceExcerpt": "Agenda- und Follow-up-Verweise, keine Aufzeichnungen oder Transkripte.",
   "filesEmptyMessage": "Noch keine Dateien",
   "filesEmptyGuidance": "Lade eine Datei hoch oder erstelle einen Ordner, wenn du Arbeitsbereichsdateien hinzufügen möchtest.",
   "filesDisconnectedTitle": "Dateien sind nicht verbunden",
@@ -1115,102 +1089,6 @@
   "@agentCapabilityPolicyLoading": {
     "description": "Loading message for AI agent capability policy settings section"
   },
-  "weaverMemberTitle": "Mein Weaver",
-  "@weaverMemberTitle": {
-    "description": "Title for the governed member Weaver settings entry point"
-  },
-  "weaverMemberUnavailableTitle": "Weaver nicht verfügbar",
-  "@weaverMemberUnavailableTitle": {
-    "description": "Title when the governed Weaver member settings entry point is unavailable"
-  },
-  "weaverMemberDescription": "Wähle aus adminfreigegebenen Modell-Aliasen und prüfe die persönlichen Einstellungen, die deine Workspace-Richtlinie erlaubt.",
-  "@weaverMemberDescription": {
-    "description": "Description for available governed Weaver member settings"
-  },
-  "weaverMemberUnavailableDescription": "Dein Workspace hat für dieses Konto kein gesteuertes Weaver-Profil aktiviert.",
-  "@weaverMemberUnavailableDescription": {
-    "description": "Description when Weaver is unavailable for the member"
-  },
-  "weaverMemberStatusAvailable": "Durch Richtlinie aktiviert",
-  "@weaverMemberStatusAvailable": {
-    "description": "Status chip for available Weaver member settings"
-  },
-  "weaverMemberStatusDisabled": "Durch Richtlinie deaktiviert",
-  "@weaverMemberStatusDisabled": {
-    "description": "Status chip for disabled Weaver member settings"
-  },
-  "weaverMemberStatusUnavailable": "Nicht verfügbar",
-  "@weaverMemberStatusUnavailable": {
-    "description": "Status chip for unavailable Weaver member settings"
-  },
-  "weaverMemberLoading": "Weaver-Richtlinie wird geprüft…",
-  "@weaverMemberLoading": {
-    "description": "Loading message for Weaver member policy"
-  },
-  "weaverMemberModelAliasTitle": "Modell-Alias",
-  "@weaverMemberModelAliasTitle": {
-    "description": "Title for choosing a Weaver model alias"
-  },
-  "weaverMemberModelAliasDescription": "Hier erscheinen nur Aliase, die deine Workspace-Richtlinie freigegeben hat.",
-  "@weaverMemberModelAliasDescription": {
-    "description": "Description for admin-approved model alias choices"
-  },
-  "weaverMemberWorkspaceDefaultAlias": "Workspace-Standard",
-  "@weaverMemberWorkspaceDefaultAlias": {
-    "description": "Fallback model alias label when no explicit alias names are exposed"
-  },
-  "weaverMemberApprovedByAdmin": "Durch Workspace-Richtlinie freigegeben",
-  "@weaverMemberApprovedByAdmin": {
-    "description": "Subtitle for an approved Weaver setting"
-  },
-  "weaverMemberPersonalSettingsTitle": "Persönliche Einstellungen",
-  "@weaverMemberPersonalSettingsTitle": {
-    "description": "Title for personal Weaver settings"
-  },
-  "weaverMemberStyleSetting": "Stilpräferenzen",
-  "@weaverMemberStyleSetting": {
-    "description": "Weaver style preference setting label"
-  },
-  "weaverMemberMemorySetting": "Speichersteuerung",
-  "@weaverMemberMemorySetting": {
-    "description": "Weaver memory control setting label"
-  },
-  "weaverMemberWorkspaceSetting": "Workspace-Personalisierung",
-  "@weaverMemberWorkspaceSetting": {
-    "description": "Weaver workspace personalization setting label"
-  },
-  "weaverMemberSettingAllowed": "Für dein Profil erlaubt",
-  "@weaverMemberSettingAllowed": {
-    "description": "Subtitle for an allowed Weaver personal setting"
-  },
-  "weaverMemberSettingDisabled": "Für dein Profil nicht aktiviert",
-  "@weaverMemberSettingDisabled": {
-    "description": "Subtitle for a disabled Weaver personal setting"
-  },
-  "weaverMemberAllowedSkillsTitle": "Erlaubte Skills",
-  "@weaverMemberAllowedSkillsTitle": {
-    "description": "Title for allowed Weaver skills"
-  },
-  "weaverMemberNoAllowedSkills": "Für dein Profil sind keine optionalen Skills aktiviert.",
-  "@weaverMemberNoAllowedSkills": {
-    "description": "Empty state for allowed Weaver skills"
-  },
-  "weaverMemberAllowedConnectionsTitle": "Erlaubte persönliche Verbindungen",
-  "@weaverMemberAllowedConnectionsTitle": {
-    "description": "Title for approved personal Weaver connections"
-  },
-  "weaverMemberNoAllowedConnections": "Für dein Profil sind keine persönlichen Verbindungsabläufe aktiviert.",
-  "@weaverMemberNoAllowedConnections": {
-    "description": "Empty state for allowed Weaver personal connections"
-  },
-  "weaverMemberBoundaryNotice": "Administration von Providern, Zugangsdaten, Connector-Einrichtung und Laufzeitdateien bleibt außerhalb der Mitgliedereinstellungen; Mitglieder sehen nur richtlinienfreigegebene Auswahl.",
-  "@weaverMemberBoundaryNotice": {
-    "description": "Boundary notice for available Weaver member settings"
-  },
-  "weaverMemberDisabledBoundaryNotice": "Es werden keine Provider-Secrets oder Laufzeitkonfigurationen angezeigt. Kontaktiere deine Workspace-Eigentümerin, wenn du Weaver-Zugriff erwartet hast.",
-  "@weaverMemberDisabledBoundaryNotice": {
-    "description": "Boundary notice when Weaver is disabled for a member"
-  },
   "workflowPreviewTitle": "Aktive Workflows",
   "workflowPreviewDescription": "Eine lineare Ansicht der aktuellen Schritte, Verantwortlichen, Blockaden und Evidenz. Diagramme können später dazukommen; diese Ansicht muss zuerst mit Tastatur und Screenreadern funktionieren.",
   "workflowPreviewLinearViewChip": "Lineare Ansicht zuerst",
@@ -1460,57 +1338,5 @@
         "type": "String"
       }
     }
-  },
-  "weaverPermissionModeTitle": "Berechtigungsmodus",
-  "@weaverPermissionModeTitle": {
-    "description": "Label for the governed Weaver permission mode selector"
-  },
-  "weaverPermissionModeDeny": "Alles verweigern",
-  "@weaverPermissionModeDeny": {
-    "description": "Weaver permission mode that denies actions"
-  },
-  "weaverPermissionModeAllowlist": "Nur Positivliste",
-  "@weaverPermissionModeAllowlist": {
-    "description": "Weaver permission mode that permits remembered exact grants"
-  },
-  "weaverPermissionModeAsk": "Jedes Mal fragen",
-  "@weaverPermissionModeAsk": {
-    "description": "Weaver permission mode that requests member approval"
-  },
-  "weaverPermissionModeAuto": "Automatische Prüfung",
-  "@weaverPermissionModeAuto": {
-    "description": "Weaver permission mode using automatic host review"
-  },
-  "weaverPermissionModeFull": "Vollzugriff (gefährlich)",
-  "@weaverPermissionModeFull": {
-    "description": "Dangerous Weaver full access mode"
-  },
-  "weaverPermissionFullWarningTitle": "Gefährlichen Vollzugriff aktivieren?",
-  "@weaverPermissionFullWarningTitle": {
-    "description": "Warning title before enabling dangerous Weaver full access"
-  },
-  "weaverPermissionFullWarningBody": "Weaver darf Host-Befehle ohne Freigabe ausführen und vertrauenswürdige Weave-Tool-Anfragen automatisch annehmen. Organisationsrichtlinie, Anmeldung, Validierung, Provider-Grenzen und Audit-Protokollierung gelten weiterhin.",
-  "@weaverPermissionFullWarningBody": {
-    "description": "Warning body before enabling dangerous Weaver full access"
-  },
-  "weaverPermissionFullConfirm": "Vollzugriff aktivieren",
-  "@weaverPermissionFullConfirm": {
-    "description": "Confirmation button for dangerous Weaver full access"
-  },
-  "weaverPermissionCancel": "Abbrechen",
-  "@weaverPermissionCancel": {
-    "description": "Cancel button for Weaver permission mode warning"
-  },
-  "weaverPermissionUpdated": "Weaver-Berechtigungsmodus aktualisiert.",
-  "@weaverPermissionUpdated": {
-    "description": "Success feedback after updating Weaver permission mode"
-  },
-  "weaverPermissionPolicyDenied": "Deine Organisationsrichtlinie erlaubt diesen Modus nicht.",
-  "@weaverPermissionPolicyDenied": {
-    "description": "Feedback when organization policy denies a Weaver permission mode"
-  },
-  "weaverPermissionUpdateFailed": "Der Weaver-Berechtigungsmodus konnte nicht aktualisiert werden.",
-  "@weaverPermissionUpdateFailed": {
-    "description": "Failure feedback after updating Weaver permission mode"
   }
 }

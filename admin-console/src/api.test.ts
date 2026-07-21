@@ -277,7 +277,7 @@ describe("AdminControlPlaneApi provider boundary", () => {
     );
   });
 
-  it("normalizes Weaver projection labels without exposing unsafe runtime details", async () => {
+  it("does not read the removed v1 Weaver policy or projection fields", async () => {
     const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
       const path = String(input);
       const body = path.includes("/audit/events")
@@ -286,34 +286,9 @@ describe("AdminControlPlaneApi provider boundary", () => {
             organizationId: "weave-dogfood",
             categories: [],
             whitelist: { denyByDefault: true },
-            weaverRuntimeProjection: {
-              profileVersion: "weaver-runtime-profile-v1",
-              runtimeProfileHash: "sha256:test-profile",
-              expiresAt: "2099-01-02T00:00:00Z",
-              supportSafe: true,
-              providerDiagnosticsRedacted: true,
-              rawRuntimeInternalsExposed: false,
-              auditReceiptRefs: ["receipt://weaver/runtime/test-audit"],
-              pendingRevocationRefs: ["receipt://weaver/runtime/test-revoke"],
-              items: [
-                {
-                  id: "chat-route",
-                  category: "chat",
-                  label: "Weave Chat domain route",
-                  state: "ready",
-                  memberImpact: "available",
-                  policyImpact: "Stable chat projection is preserved.",
-                  readinessSummary: "Backend dry-run passed.",
-                  receiptRefs: ["receipt://weaver/chat-route"],
-                },
-                {
-                  id: "unsafe",
-                  category: "tool",
-                  label: "openclaw.json bearer token",
-                  state: "ready",
-                },
-              ],
-            },
+            weaverRuntimeProjection: { unsafe: "obsolete" },
+            weaverEligibilityPreview: { unsafe: "obsolete" },
+            weaverDistributionPolicy: { unsafe: "obsolete" },
           };
       return new Response(JSON.stringify(body), {
         status: 200,
@@ -331,20 +306,8 @@ describe("AdminControlPlaneApi provider boundary", () => {
 
     const controlPlane = await api.getControlPlane();
 
-    expect(controlPlane.weaverRuntimeProjection.supportSafe).toBe(true);
-    expect(controlPlane.weaverRuntimeProjection.rawRuntimeInternalsExposed).toBe(
-      false,
-    );
-    expect(controlPlane.weaverRuntimeProjection.items).toHaveLength(1);
-    expect(controlPlane.weaverRuntimeProjection.items[0]).toEqual(
-      expect.objectContaining({
-        category: "chat",
-        label: "Weave Chat domain route",
-        receiptRefs: ["receipt://weaver/chat-route"],
-      }),
-    );
-    expect(JSON.stringify(controlPlane.weaverRuntimeProjection)).not.toMatch(
-      /openclaw\.json|bearer|token/i,
+    expect(JSON.stringify(controlPlane)).not.toMatch(
+      /weaverRuntimeProjection|weaverEligibilityPreview|weaverDistributionPolicy|obsolete/,
     );
   });
 
@@ -477,46 +440,36 @@ describe("AdminControlPlaneApi provider boundary", () => {
     expect(controlPlane.providerCategories[0]?.supportSafe).toBe(false);
   });
 
-  it("uses backend admin endpoints for Weaver distribution policy and RuntimeProfile revocation", async () => {
-    const calls: Array<{ path: string; body?: Record<string, unknown> }> = [];
+  it("uses the exact Agent Runtime Control lifecycle endpoints", async () => {
+    const calls: Array<{
+      path: string;
+      method: string;
+      idempotencyKey?: string;
+      body?: Record<string, unknown>;
+    }> = [];
     const fetchImpl = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
         const path = String(input);
         calls.push({
           path,
+          method: init?.method ?? "GET",
+          idempotencyKey: new Headers(init?.headers).get("Idempotency-Key") ?? undefined,
           body: init?.body ? JSON.parse(String(init.body)) : undefined,
         });
-        const body = path.includes("/weaver/runtime-profiles/revocations")
-          ? {
-              runtimeProfileHash: "wrp_active_hash",
-              revocationState: "revocation_pending",
-              auditRefs: ["audit://weaver/revocation/requested"],
-            }
-          : {
-              chatProviderKey: "slack",
-              chatReadinessState: "ready",
-              modelAliases: [
-                {
-                  alias: "general-assistant",
-                  provider: "weave-approved-openai",
-                  model: "gpt-4.1-mini",
-                  userSelectable: true,
-                },
-              ],
-              defaultModelAlias: "general-assistant",
-              fallbackModelAliases: ["general-assistant"],
-              allowedTools: ["chat.search_messages"],
-              allowedSkills: ["weave-user-help"],
-              mcpServers: [
-                {
-                  serverKey: "weave-facade-mcp",
-                  tools: ["chat.search_messages"],
-                  approvalRequired: false,
-                },
-              ],
-              runtimeProfileHash: "wrp_active_hash",
-              auditRefs: ["audit://weaver/policy-preview"],
-            };
+        const body = {
+          personRef: "acct_0123456789abcdef0123456789abcdef",
+          cellRef: "cell_01",
+          runtimeProvider: "weaver-openclaw",
+          entitlementState: path.endsWith("/revoke") ? "revoked" : "entitled",
+          entitlementRevision: "entitlement-rev-7",
+          desiredState: path.endsWith("/runtime-state") ? "deleted" : "ready",
+          observedState: path.endsWith("/runtime-state") ? "deleted" : "ready",
+          runtimeProfileRef: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          workspaceRevision: "workspace-rev-3",
+          conflicts: 0,
+          capabilityState: "ready",
+          auditRef: "audit://agent-runtime-control/test",
+        };
         return new Response(JSON.stringify(body), {
           status: 200,
           headers: { "Content-Type": "application/json" },
@@ -532,35 +485,39 @@ describe("AdminControlPlaneApi provider boundary", () => {
       fetchImpl as typeof fetch,
     );
 
-    const saved = await api.updateWeaverDistributionPolicy({
-      ...sampleControlPlane.weaverDistributionPolicy,
-      chatProviderKey: "slack",
-      allowedTools: ["chat.search_messages"],
-    });
-    const revoked = await api.revokeRuntimeProfile("wrp_active_hash");
+    const personRef = "acct_0123456789abcdef0123456789abcdef";
+    const loaded = await api.getAgentRuntime(personRef);
+    await api.changeAgentRuntime(personRef, "provision", "idem-provision-0001");
+    const revoked = await api.changeAgentRuntime(
+      personRef,
+      "revoke",
+      "idem-revocation-0001",
+      { reason: "Entitlement removed", entitlementRevision: "entitlement-rev-7" },
+    );
+    await api.changeAgentRuntime(
+      personRef,
+      "delete-runtime-state",
+      "idem-delete-state-0001",
+      { reason: "Member requested runtime-state deletion" },
+    );
 
-    expect(saved.chatProviderKey).toBe("slack");
-    expect(saved.effectivePolicyPreview.join("\n")).toContain(
-      "chat.provider=slack",
-    );
-    expect(revoked.revocationState).toBe("revocation_pending");
+    expect(loaded.runtimeProvider).toBe("weaver-openclaw");
+    expect(revoked.entitlementState).toBe("revoked");
     expect(calls.map((call) => call.path)).toEqual([
-      "https://api.example.invalid/api/admin/weaver/distribution-policy",
-      "https://api.example.invalid/api/admin/weaver/runtime-profiles/revocations",
+      `https://api.example.invalid/api/admin/agent-runtimes/${personRef}`,
+      `https://api.example.invalid/api/admin/agent-runtimes/${personRef}/provision`,
+      `https://api.example.invalid/api/admin/agent-runtimes/${personRef}/revoke`,
+      `https://api.example.invalid/api/admin/agent-runtimes/${personRef}/runtime-state`,
     ]);
-    expect(calls[0]?.body).toEqual(
-      expect.objectContaining({
-        chatProviderKey: "slack",
-        reason:
-          "Updated Weaver distribution policy through Organization/Admin Console",
-      }),
-    );
-    expect(calls[1]?.body).toEqual(
-      expect.objectContaining({
-        runtimeProfileHash: "wrp_active_hash",
-        reason: "Revoked through Organization/Admin Console",
-      }),
-    );
+    expect(calls[1]).toMatchObject({ method: "POST", idempotencyKey: "idem-provision-0001" });
+    expect(calls[2]?.body).toEqual({
+      reason: "Entitlement removed",
+      entitlementRevision: "entitlement-rev-7",
+    });
+    expect(calls[3]?.body).toEqual({
+      reason: "Member requested runtime-state deletion",
+      confirmation: "DELETE_RUNTIME_STATE_ONLY",
+    });
     expect(calls.map((call) => call.path).join("\n")).not.toMatch(
       /slack\.com|graph\.microsoft\.com|matrix|openclaw\.json/i,
     );

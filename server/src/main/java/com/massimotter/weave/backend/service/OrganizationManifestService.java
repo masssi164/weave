@@ -227,9 +227,7 @@ public class OrganizationManifestService {
                         surface("standard-protocol", "Weave WebDAV projection", "/dav/files", "data_plane_read_write_available",
                                 "OPTIONS, PROPFIND, GET, HEAD, PUT, DELETE, and MKCOL are exposed through Weave policy, audit, file IDs, ETags, and support-safe conflict/precondition/storage errors."),
                         surface("native-os", "iOS File Provider and Android DocumentsProvider setup", "/api/files/native-provider-setup", "contract_ready_implementation_blocked",
-                                "Native providers call Weave file facade paths only and must prove device revocation before availability."),
-                        surface("mcp", "Governed Files MCP tools", "/api/workspace/weaver/mcp/servers/weave-domain-tools/tools", "read_allowlist_available_write_cutover_blocked",
-                                "Files MCP read/search tools route through the WebDAV-backed Weave Files facade/projection; semantic write tools remain blocked until their policy/approval/audit slice.")),
+                                "Native providers call Weave file facade paths only and must prove device revocation before availability.")),
                 credentialLifecycle(
                         "revocable_device_grants_available",
                         List.of(
@@ -287,19 +285,21 @@ public class OrganizationManifestService {
     private ClientAccessDiscoveryResponse meetingsCallsAccess() {
         return new ClientAccessDiscoveryResponse(
                 "meetings-calls",
-                "/api/calls",
+                "/_matrix/client",
                 "Calls",
                 List.of(
-                        surface("openapi", "Weave Calls and Meetings API", "/api/calls", "planned_contract",
-                                "Product API owns meeting metadata, policy, and join-grant lifecycle."),
-                        surface("native-os", "CallKit and Android Telecom boundary", "/api/calls/native-boundary-setup", "contract_ready_implementation_blocked",
-                                "Native call UI is driven by Weave invitations and short-lived join grants; media transport remains separate."),
-                        surface("standard-protocol", "Meeting links and calendar/chat thread references", null, "boundary_only",
-                                "WebDAV and CalDAV do not solve calls; calendar invites and chat threads link to Weave meeting grants.")),
+                        surface("standard-protocol", "MatrixRTC Profile 0 signaling", "/_matrix/client", "experimental_guarded",
+                                "Matrix v1.19 plus Weave MatrixRTC Profile 0 is the only member signaling shape; no member Calls REST API or proprietary join grant exists."),
+                        surface("native-os", "CallKit and Android Core-Telecom boundary", null, "guarded_physical_device_evidence_required",
+                                "Native call UI follows MatrixRTC invitation and membership state; provider transport credentials remain internal."),
+                        surface("standard-protocol", "WebRTC media and meeting context", null, "rtc_authorizer_required",
+                                "Calendar and chat link meeting context while an internal RTC Authorizer independently validates current Matrix room, slot, member, device, policy, nonce, audience, and expiry.")),
                 credentialLifecycle(
-                        "blocked_until_short_lived_join_grants",
-                        List.of("/api/calls/native-boundary-setup"),
-                        List.of("short-lived join grants", "native call UI proof", "revoke and media-policy evidence")),
+                        "matrix_native_oauth_distinct_from_sfu_tokens",
+                        List.of(
+                                "/_matrix/client/v1/auth_metadata",
+                                "/_matrix/client/v3/user/{userId}/openid/request_token"),
+                        List.of("RTC Authorizer evidence", "MatrixRTC media E2EE", "native call UI proof", "TURN/reconnect evidence")),
                 true,
                 false);
     }

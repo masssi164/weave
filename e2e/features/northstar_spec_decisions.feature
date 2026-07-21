@@ -19,11 +19,11 @@ Feature: Northstar Spec Kit decision gates
     And every unsupported or lossy mapping is classified so there is no unaccounted data loss
 
   @northstar-weaver-approval-receipts
-  Scenario: Weaver approvals are product-domain grants, not OpenClaw exec permissions
+  Scenario: Weaver approval decisions are evidence not domain grants or OpenClaw exec permissions
     Given Weaver is enabled for an opted-in user by organization policy
     When a write-like domain tool requests approval
-    Then the approval receipt is scoped to the Weave domain, capability, tool, action, policy version, runtime profile, expiry or revocation state, and audit correlation id
-    And it does not grant generic local exec, filesystem, provider-admin, or raw OpenClaw configuration permission
+    Then signed single-use decision evidence is bound to the authenticated resolver exact action arguments policy runtime profile expiry and audit correlation id
+    And it grants neither domain authority nor generic local exec filesystem provider-admin or raw OpenClaw configuration permission
 
   @northstar-domain-first-mcp-hard-gate
   Scenario: Domain-first MCP naming is a hard gate
@@ -57,8 +57,8 @@ Feature: Northstar Spec Kit decision gates
   Scenario: Executable workflows require governed receipts and drift checks
     Given a context-driven workflow moves beyond preview-only evidence
     When the workflow proposes a write, destructive, external-send, provider-switch, or release-affecting action
-    Then the workflow instance records the policy decision, action preview, required approval receipt, execution outcome, rollback or compensation reference, and support-safe audit correlation id
-    And execution fails closed when the workflow definition, policy version, approval receipt, tool contract, runtime profile, or referenced context node has drifted since approval
+    Then the workflow instance records the policy decision action preview required decision evidence execution outcome rollback or compensation reference and support-safe audit correlation id
+    And execution fails closed when the workflow definition policy version decision evidence tool contract runtime profile or referenced context node has drifted since approval
 
   @northstar-meeting-consent-boundary
   Scenario: Meeting join and transcript claims stay blocked without consent and boundary evidence

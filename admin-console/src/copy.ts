@@ -76,7 +76,7 @@ export const adminConsoleMessages = {
     readinessDashboardLabel: 'Domain readiness dashboard',
     betaReadinessHeading: 'Beta setup and control readiness preview',
     betaReadinessDescription:
-      'This Admin Console preview ties IDM/RBAC, provider adapters, Weaver eligibility, and evidence posture into one screen-reader-friendly checklist before members are invited. It is support-safe: admins see action labels and evidence refs, not raw provider payloads or secrets.',
+      'This Admin Console preview ties IDM/RBAC, provider adapters, Agent Runtime Control, and evidence posture into one screen-reader-friendly checklist before members are invited. It is support-safe: admins see action labels and evidence refs, not raw provider payloads or secrets.',
     betaReadinessChecklistLabel: 'Beta setup and control readiness checklist',
     goLiveHeading: 'Organization go-live readiness',
     goLiveStateLabel: 'State',
@@ -129,40 +129,6 @@ export const adminConsoleMessages = {
     replacementEmpty:
       'Run a replacement dry-run to review support-safe evidence before applying provider changes.',
     replacementStatusSuccess: 'Replacement dry-run completed',
-    weaverProjectionEligibilityLabel: 'Eligibility preview',
-    weaverProjectionBlockedWithoutPolicyLabel: 'Blocked without policy',
-    weaverProjectionBlockedWithoutGroupLabel: 'blocked without group',
-    weaverProjectionProfileVersionLabel: 'Profile version',
-    weaverProjectionRuntimeHashLabel: 'RuntimeProfile hash',
-    weaverProjectionExpiresLabel: 'expires',
-    weaverProjectionAuditRefsLabel: 'Audit receipt refs',
-    weaverProjectionRevocationRefsLabel: 'Revocation refs',
-    weaverProjectionEligibilityBlockersLabel: 'Eligibility blockers',
-    weaverProjectionHeading: 'Weaver RuntimeProfile projection',
-    weaverProjectionSummary:
-      'Admin Console shows label-only chat, model, tool, skill, and MCP projections before profile regeneration. Raw provider secrets, downstream diagnostics, runtime configuration files, and credential-bearing URLs are never displayed.',
-    weaverDistributionHeading: 'Weaver distribution policy',
-    weaverDistributionDescription:
-      'Admin Console is the source of Weaver Chat, model, tool, skill, and MCP distribution policy. RuntimeProfile regeneration is blocked until readiness, migration, effective policy, revocation, and audit consequences are visible before apply.',
-    weaverChatProviderLabel: 'Weaver Chat-domain provider',
-    weaverChatProviderHelper:
-      'Members keep the stable channels.matrix facade; this selects backend Chat routing/providerRef for profile vNext.',
-    weaverModelAliasesLabel: 'Model aliases (alias=provider/model selectable|locked)',
-    weaverDefaultModelLabel: 'Default model alias',
-    weaverFallbackModelsLabel: 'Fallback model aliases',
-    weaverAllowedToolsLabel: 'Allowed Weaver tools',
-    weaverAllowedToolsHelper:
-      'Canonical Weave domain tools only, e.g. chat.search_messages or notifications.create_action_request.',
-    weaverAllowedSkillsLabel: 'Allowed Weaver skills',
-    weaverAllowedMcpLabel: 'Allowed MCP servers (server=tool1,tool2 approval-required)',
-    weaverMcpRegistryHeading: 'Admin-bound MCP server registry',
-    weaverMcpRegistryDescription:
-      'Admins bind Streamable HTTP MCP servers for Weaver here; members never wire raw MCP endpoints or runtime tokens.',
-    weaverEffectivePolicyPreviewHeading: 'Effective RuntimeProfile policy preview',
-    weaverPolicyConfirmLabel:
-      'I confirm the effective Weaver policy preview, Chat migration consequences, model fallback order, tool/skill/MCP grants, revocation, and audit refs before apply.',
-    saveWeaverPolicyButton: 'Save Weaver distribution policy',
-    revokeRuntimeProfileButton: 'Revoke active RuntimeProfile',
     policyWhitelistHeading: 'Policy and whitelist',
     policyWhitelistDescription:
       'Policy is deny-by-default. Add one canonical Weave capability per line only after the organization has approved it.',
@@ -256,7 +222,7 @@ export const adminConsoleMessages = {
     readinessDashboardLabel: 'Domain-Bereitschafts-Dashboard',
     betaReadinessHeading: 'Beta-Einrichtungs- und Steuerungsbereitschaft',
     betaReadinessDescription:
-      'Diese Admin-Konsolenvorschau verbindet IDM/RBAC, Provider-Adapter, Weaver-Berechtigung und Evidenzlage in einer screenreader-freundlichen Checkliste, bevor Mitglieder eingeladen werden. Sie ist support-sicher: Admins sehen Aktionslabels und Evidenz-Refs, keine rohen Provider-Payloads oder Secrets.',
+      'Diese Admin-Konsolenvorschau verbindet IDM/RBAC, Provider-Adapter, Agent Runtime Control und Evidenzlage in einer screenreader-freundlichen Checkliste, bevor Mitglieder eingeladen werden. Sie ist support-sicher: Admins sehen Aktionslabels und Evidenz-Refs, keine rohen Provider-Payloads oder Secrets.',
     betaReadinessChecklistLabel: 'Beta-Einrichtungs- und Steuerungscheckliste',
     goLiveHeading: 'Organisations-Go-Live-Bereitschaft',
     goLiveStateLabel: 'Zustand',
@@ -309,40 +275,6 @@ export const adminConsoleMessages = {
     replacementEmpty:
       'Führe einen Ersatz-Dry-Run aus, um support-sichere Evidenz vor Provider-Änderungen zu prüfen.',
     replacementStatusSuccess: 'Ersatz-Dry-Run abgeschlossen',
-    weaverProjectionEligibilityLabel: 'Berechtigungsvorschau',
-    weaverProjectionBlockedWithoutPolicyLabel: 'Blockiert ohne Richtlinie',
-    weaverProjectionBlockedWithoutGroupLabel: 'blockiert ohne Gruppe',
-    weaverProjectionProfileVersionLabel: 'Profilversion',
-    weaverProjectionRuntimeHashLabel: 'RuntimeProfile-Hash',
-    weaverProjectionExpiresLabel: 'läuft ab',
-    weaverProjectionAuditRefsLabel: 'Audit-Receipt-Refs',
-    weaverProjectionRevocationRefsLabel: 'Widerrufs-Refs',
-    weaverProjectionEligibilityBlockersLabel: 'Berechtigungsblocker',
-    weaverProjectionHeading: 'Weaver RuntimeProfile-Projektion',
-    weaverProjectionSummary:
-      'Die Admin-Konsole zeigt nur Label-Projektionen für Chat, Modelle, Tools, Skills und MCP vor der Profilregeneration. Rohe Provider-Secrets, Downstream-Diagnosen, Runtime-Konfigurationsdateien und credentialtragende URLs werden nie angezeigt.',
-    weaverDistributionHeading: 'Weaver-Verteilungsrichtlinie',
-    weaverDistributionDescription:
-      'Die Admin-Konsole ist Source of Truth für Weaver Chat-, Modell-, Tool-, Skill- und MCP-Verteilungsrichtlinien. RuntimeProfile-Regeneration bleibt blockiert, bis Bereitschaft, Migration, wirksame Richtlinie, Widerruf und Audit-Konsequenzen vor Apply sichtbar sind.',
-    weaverChatProviderLabel: 'Weaver Chat-Domain-Provider',
-    weaverChatProviderHelper:
-      'Mitglieder behalten die stabile channels.matrix-Fassade; dies wählt Backend-Chat-Routing/providerRef für profile vNext.',
-    weaverModelAliasesLabel: 'Modell-Aliase (alias=provider/model selectable|locked)',
-    weaverDefaultModelLabel: 'Standardmodell-Alias',
-    weaverFallbackModelsLabel: 'Fallback-Modell-Aliase',
-    weaverAllowedToolsLabel: 'Erlaubte Weaver-Tools',
-    weaverAllowedToolsHelper:
-      'Nur kanonische Weave-Domain-Tools, z. B. chat.search_messages oder notifications.create_action_request.',
-    weaverAllowedSkillsLabel: 'Erlaubte Weaver-Skills',
-    weaverAllowedMcpLabel: 'Erlaubte MCP-Server (server=tool1,tool2 approval-required)',
-    weaverMcpRegistryHeading: 'Admin-gebundene MCP-Server-Registry',
-    weaverMcpRegistryDescription:
-      'Admins binden Streamable-HTTP-MCP-Server für Weaver hier; Mitglieder verdrahten nie rohe MCP-Endpunkte oder Runtime-Tokens.',
-    weaverEffectivePolicyPreviewHeading: 'Wirksame RuntimeProfile-Richtlinienvorschau',
-    weaverPolicyConfirmLabel:
-      'Ich bestätige die wirksame Weaver-Richtlinienvorschau, Chat-Migrationskonsequenzen, Modell-Fallback-Reihenfolge, Tool-/Skill-/MCP-Gewährungen, Widerruf und Audit-Refs vor Apply.',
-    saveWeaverPolicyButton: 'Weaver-Verteilungsrichtlinie speichern',
-    revokeRuntimeProfileButton: 'Aktives RuntimeProfile widerrufen',
     policyWhitelistHeading: 'Richtlinie und Whitelist',
     policyWhitelistDescription:
       'Richtlinie ist deny-by-default. Pro Zeile nur eine kanonische Weave-Fähigkeit hinzufügen, nachdem die Organisation sie freigegeben hat.',

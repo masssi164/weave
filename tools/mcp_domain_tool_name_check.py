@@ -29,7 +29,6 @@ DOMAIN_FIRST_PREFIXES = {
     "policy",
     "registry",
     "tasks",
-    "weaver",
 }
 
 ADAPTER_FIRST_PREFIXES = {
@@ -57,10 +56,7 @@ ADAPTER_TOKEN_RE = re.compile(
 TOOL_NAME_RE = re.compile(r"^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9_]*)+$")
 
 SOURCES = [
-    ROOT / "weave-contract/src/main/java/com/massimotter/weave/contract/mcp/MemberMcpToolCatalog.java",
     ROOT / "infra/weave-workspace/weave-mcp-tool-contract.json",
-    ROOT / "release/provider-lab/weaver-runtime/sprint-32-weaver-mcp-tool-execution.fixture.json",
-    ROOT / "release/provider-lab/weaver-runtime/tool-approval-gate-proof.fixture.json",
 ]
 
 

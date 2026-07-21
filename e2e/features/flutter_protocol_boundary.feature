@@ -17,10 +17,10 @@ Feature: Flutter protocol boundary
     Then chat data-plane operations use the Weave Matrix facade and Rust Matrix core bridge boundary
 
   @flutter-calls-livekit
-  Scenario: Flutter Calls uses Weave Calls API and LiveKit media
+  Scenario: Flutter Calls uses MatrixRTC Profile 0 and WebRTC media
     Given Flutter Calls repository operations are exercised
-    Then call control uses Weave Calls API
-    And media uses LiveKit join grants
+    Then call signaling uses the pinned MatrixRTC Profile 0 shape
+    And media access uses an RTC Authorizer token rather than a member Calls API
 
   @flutter-openapi-control-only
   Scenario: Flutter uses OpenAPI only for control surfaces

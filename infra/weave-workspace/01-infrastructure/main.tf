@@ -54,6 +54,25 @@ locals {
 
   runtime_asset_root = var.isolated_e2e_enabled ? "${path.module}/.generated/isolated/${var.isolated_e2e_namespace}" : "${path.module}/.generated"
 
+  agent_runtime = {
+    profile_signing_host_root   = abspath("${local.runtime_asset_root}/agent-runtime/profile-signing")
+    state_wrapping_host_root    = abspath("${local.runtime_asset_root}/agent-runtime/state-wrapping")
+    credential_host_root        = abspath("${local.runtime_asset_root}/agent-runtime/credentials")
+    profile_signing_root        = "/run/weave-agent-runtime/profile-signing"
+    state_wrapping_root         = "/run/weave-agent-runtime/state-wrapping"
+    credential_root             = "/run/weave-agent-runtime/credentials"
+    policy_path                 = "/app/agent-runtime-policy.json"
+    admin_credential_ref        = "credentialref://weave/agent-runtime/admin/keycloak"
+    admin_credential_host       = abspath("${local.runtime_asset_root}/agent-runtime/credentials/weave/agent-runtime/admin/keycloak")
+    entitlement_credential_ref  = "credentialref://weave/agent-runtime/admin/identity"
+    entitlement_credential_host = abspath("${local.runtime_asset_root}/agent-runtime/credentials/weave/agent-runtime/admin/identity")
+  }
+  mcp = {
+    client_secret_host_file      = abspath("${local.runtime_asset_root}/mcp/weave-mcp-server-client-secret")
+    client_secret_container_file = "/run/secrets/weave-mcp-server-client-secret"
+  }
+  agent_runtime_workload_enabled = var.agent_runtime_enabled && var.agent_runtime_keycloak_organization_id != ""
+
   public_port_suffix = (
     (var.public_scheme == "http" && var.proxy_host_port == 80) ||
     (var.public_scheme == "https" && var.proxy_host_port == 443)
@@ -116,11 +135,12 @@ locals {
   matrix_chat_appservice_forbidden_credentials = [
     var.db_admin_password,
     var.backend_db_password,
-    var.mcp_boundary_token,
+    var.weave_mcp_client_secret,
     var.keycloak_admin_password,
     var.keycloak_db_password,
     var.matrix_mas_client_secret,
     var.identity_admin_client_secret,
+    var.agent_runtime_admin_client_secret,
     var.identity_events_hmac_secret,
     var.mas_db_password,
     var.mas_encryption_secret,
@@ -176,6 +196,7 @@ locals {
     synapse_upstream      = "${local.service_names.synapse}:8008"
     # Backend is routed via Caddy (api_upstream); no Traefik labels needed
     api_upstream                       = "${local.service_names.backend}:${var.backend_container_port}"
+    mcp_upstream                       = "${local.service_names.mcp}:${var.mcp_container_port}"
     tls_cert_filename                  = basename(local.caddy_tls_cert_file)
     tls_key_filename                   = basename(local.caddy_tls_key_file)
     connector_provider_callbacks_guard = local.connector_provider_callbacks_guard
@@ -188,7 +209,10 @@ locals {
   keycloak_issuer_url    = "${local.client_auth_url}/realms/${var.tenant_slug}"
   keycloak_jwk_set_uri   = "http://${local.service_names.keycloak}:8080/realms/${var.tenant_slug}/protocol/openid-connect/certs"
   weave_app_client_id    = "weave-app"
-  weave_backend_audience = local.weave_app_client_id
+  weave_backend_audience = local.client_api_base_url
+  weave_mcp_client_id    = "weave-mcp-server"
+  weave_mcp_audience     = "${local.client_api_origin}/mcp"
+  agent_runtime_resource = "${local.client_api_base_url}/v1/agent-runtime"
 
   # Backend-to-Nextcloud adapter traffic runs inside the Docker network.
   # Public 127.0.0.1.sslip.io URLs work for the host/browser, but loop back to
@@ -440,6 +464,75 @@ generated_files = {
       }
     })
   }
+  agent_runtime_policy = {
+    filename = "${local.runtime_asset_root}/agent-runtime/runtime-policy.json"
+    content = jsonencode({
+      schemaVersion     = "weave.runtime-policy/v1"
+      profileTtlSeconds = 120
+      workspace = {
+        revision                     = "workspace:v1"
+        manifestRefTemplate          = "webdav-manifest://{organizationRef}/{personRef}/current"
+        runtimeStateStoreRefTemplate = "runtime-state://{organizationRef}/{personRef}/state"
+      }
+      modelPolicy = {
+        allowedProviders     = ["provider-neutral"]
+        allowedModels        = ["model-default"]
+        fallback             = []
+        maximumContextTokens = 32768
+        dataRegion           = "eu"
+      }
+      matrix = {
+        accountRefTemplate    = "matrix-account://{personRef}"
+        homeserverRefTemplate = "matrix-homeserver://default"
+        credentialRefTemplate = "credentialref://weave/runtime/{cellRef}/matrix"
+        allowedRooms          = []
+        autoJoin              = "off"
+      }
+      mcp = {
+        servers = [{
+          serverRef             = "weave-mcp"
+          endpoint              = local.weave_mcp_audience
+          requestedResource     = local.weave_mcp_audience
+          requiredScopes        = ["mcp:tools", "calendar.read"]
+          credentialRefTemplate = "credentialref://weave/runtime/{cellRef}/{workloadClientId}/mcp"
+          allowedToolClasses    = ["calendar.read"]
+        }]
+        visibleToolClasses = ["calendar.read"]
+      }
+      approvals = {
+        pluginRouting = {
+          enabled    = true
+          mode       = "same-chat"
+          targetRefs = []
+        }
+        execMode              = "ask"
+        persistentTrustPolicy = "bounded"
+      }
+      sandbox = {
+        mode                  = "required"
+        networkPolicy         = "allowlist"
+        allowedNetworkTargets = [local.public_hosts.api]
+        filesystemPolicy      = "workspace-only"
+        approvedMountRefs     = []
+      }
+      automation = {
+        heartbeatEnabled = false
+        schedulePolicy   = "disabled"
+      }
+    })
+  }
+  agent_runtime_admin_credential = {
+    filename = local.agent_runtime.admin_credential_host
+    content  = "${var.agent_runtime_admin_client_secret}\n"
+  }
+  agent_runtime_entitlement_credential = {
+    filename = local.agent_runtime.entitlement_credential_host
+    content  = "${var.identity_admin_client_secret}\n"
+  }
+  mcp_client_secret = {
+    filename = local.mcp.client_secret_host_file
+    content  = "${var.weave_mcp_client_secret}\n"
+  }
 }
 }
 
@@ -575,12 +668,51 @@ resource "terraform_data" "network_ready" {
   }
 }
 
+resource "terraform_data" "agent_runtime_secret_roots" {
+  count = var.agent_runtime_enabled ? 1 : 0
+
+  input = {
+    profile_signing = local.agent_runtime.profile_signing_host_root
+    state_wrapping  = local.agent_runtime.state_wrapping_host_root
+    credentials     = local.agent_runtime.credential_host_root
+  }
+
+  provisioner "local-exec" {
+    interpreter = ["/bin/bash", "-c"]
+    environment = {
+      PROFILE_SIGNING_ROOT = local.agent_runtime.profile_signing_host_root
+      STATE_WRAPPING_ROOT  = local.agent_runtime.state_wrapping_host_root
+      CREDENTIAL_ROOT      = local.agent_runtime.credential_host_root
+    }
+    command = <<-EOT
+      set -euo pipefail
+      install -d -m 0700 "$${PROFILE_SIGNING_ROOT}" "$${STATE_WRAPPING_ROOT}" "$${CREDENTIAL_ROOT}"
+    EOT
+  }
+}
+
+resource "terraform_data" "mcp_secret_root" {
+  input = dirname(local.mcp.client_secret_host_file)
+
+  provisioner "local-exec" {
+    interpreter = ["/bin/bash", "-c"]
+    environment = {
+      MCP_SECRET_ROOT = dirname(local.mcp.client_secret_host_file)
+    }
+    command = <<-EOT
+      set -euo pipefail
+      install -d -m 0700 "$${MCP_SECRET_ROOT}"
+    EOT
+  }
+}
+
 resource "local_sensitive_file" "generated" {
   for_each = local.generated_files
 
   filename        = each.value.filename
   content         = each.value.content
   file_permission = "0600"
+  depends_on      = [terraform_data.agent_runtime_secret_roots, terraform_data.mcp_secret_root]
 }
 
 resource "local_file" "caddyfile" {
@@ -618,7 +750,7 @@ resource "terraform_data" "postgres_bootstrap" {
       DATABASE_NAME  = "postgres"
       DATABASE_USER  = var.db_admin_username
       DATABASE_PASS  = var.db_admin_password
-      SQL_FILE       = local_sensitive_file.generated["postgres_init_sql"].filename
+      SQL_FILE       = local.generated_files["postgres_init_sql"].filename
     }
     command = <<-EOT
       set -euo pipefail
@@ -640,7 +772,7 @@ resource "terraform_data" "postgres_bootstrap" {
 
   depends_on = [
     module.postgres,
-    local_sensitive_file.generated["postgres_init_sql"],
+    local_sensitive_file.generated,
   ]
 }
 
@@ -799,7 +931,7 @@ module "backend" {
   boards_openproject_auth_mode                     = var.boards_openproject_auth_mode
   boards_openproject_base_url                      = var.boards_openproject_base_url
   boards_openproject_api_token                     = var.boards_openproject_api_token
-  provider_selections_source                       = local_sensitive_file.generated["provider_selections"].filename
+  provider_selections_source                       = local.generated_files["provider_selections"].filename
   provider_selections_source_hash                  = sha256(local.generated_files["provider_selections"].content)
   provider_selections_storage_path                 = "/app/provider-selections.json"
   persistence_jdbc_url                             = "jdbc:postgresql://${module.postgres.container_name}:5432/${local.service_databases.backend.database_name}"
@@ -815,10 +947,30 @@ module "backend" {
   identity_keycloak_organization_alias             = var.tenant_slug
   identity_keycloak_client_secret                  = var.identity_admin_client_secret
   identity_events_hmac_secret                      = var.identity_events_hmac_secret
-  mcp_boundary_token                               = var.mcp_boundary_token
+  agent_runtime_enabled                            = var.agent_runtime_enabled
+  agent_runtime_workload_identity_enabled          = local.agent_runtime_workload_enabled
+  agent_runtime_profile_signing_host_root          = local.agent_runtime.profile_signing_host_root
+  agent_runtime_profile_signing_container_root     = local.agent_runtime.profile_signing_root
+  agent_runtime_state_wrapping_host_root           = local.agent_runtime.state_wrapping_host_root
+  agent_runtime_state_wrapping_container_root      = local.agent_runtime.state_wrapping_root
+  agent_runtime_credential_host_root               = local.agent_runtime.credential_host_root
+  agent_runtime_credential_container_root          = local.agent_runtime.credential_root
+  agent_runtime_policy_source                      = local.generated_files["agent_runtime_policy"].filename
+  agent_runtime_policy_source_hash                 = sha256(local.generated_files["agent_runtime_policy"].content)
+  agent_runtime_policy_container_path              = local.agent_runtime.policy_path
+  agent_runtime_keycloak_admin_base_url            = "http://${local.service_names.keycloak}:8080"
+  agent_runtime_issuer                             = local.keycloak_issuer_url
+  agent_runtime_realm                              = var.tenant_slug
+  agent_runtime_organization_ref                   = var.context_authorization_default_tenant_id
+  agent_runtime_keycloak_organization_id           = var.agent_runtime_keycloak_organization_id
+  agent_runtime_admin_client_id                    = "weave-agent-runtime-admin"
+  agent_runtime_admin_credential_ref               = local.agent_runtime.admin_credential_ref
+  agent_runtime_entitlement_client_id              = "weave-identity-admin"
+  agent_runtime_entitlement_credential_ref         = local.agent_runtime.entitlement_credential_ref
+  agent_runtime_resource                           = local.agent_runtime_resource
   healthcheck_path                                 = "/api/health/ready"
   resource_labels                                  = local.resource_labels
-  depends_on                                       = [terraform_data.isolated_e2e_guard, terraform_data.matrix_chat_appservice_secret_guard, terraform_data.network_ready, terraform_data.postgres_bootstrap, module.keycloak, module.matrix, local_sensitive_file.generated]
+  depends_on                                       = [terraform_data.isolated_e2e_guard, terraform_data.matrix_chat_appservice_secret_guard, terraform_data.agent_runtime_secret_roots, terraform_data.network_ready, terraform_data.postgres_bootstrap, module.keycloak, module.matrix, local_sensitive_file.generated]
 }
 
 module "mcp" {
@@ -829,13 +981,21 @@ module "mcp" {
   image_name             = var.weave_mcp_server_image
   host_port              = var.mcp_host_port
   container_port         = var.mcp_container_port
-  backend_base_url       = "http://${local.service_names.backend}:${var.backend_container_port}"
   oidc_issuer_uri        = local.keycloak_issuer_url
   oidc_jwk_set_uri       = local.keycloak_jwk_set_uri
-  oidc_required_audience = local.weave_backend_audience
-  mcp_boundary_token     = var.mcp_boundary_token
+  oidc_required_audience = local.weave_mcp_audience
+  oidc_required_scopes   = ["mcp:tools", "calendar.read"]
+  authorization_server   = local.keycloak_issuer_url
+  resource_metadata_uri  = "${local.client_api_origin}/.well-known/oauth-protected-resource/mcp"
+  token_uri              = "http://${local.service_names.keycloak}:8080/realms/${var.tenant_slug}/protocol/openid-connect/token"
+  exchange_client_id     = local.weave_mcp_client_id
+  exchange_secret_source = local.generated_files["mcp_client_secret"].filename
+  exchange_secret_file   = local.mcp.client_secret_container_file
+  backend_resource       = local.weave_backend_audience
+  backend_context_uri    = "http://${local.service_names.backend}:${var.backend_container_port}/api/internal/agent-runtime/mcp-context"
+  exchange_scopes        = ["calendar.read"]
   resource_labels        = local.resource_labels
-  depends_on             = [terraform_data.network_ready, module.backend, module.keycloak]
+  depends_on             = [terraform_data.network_ready, module.backend, module.keycloak, local_sensitive_file.generated]
 }
 
 module "matrix" {
@@ -849,20 +1009,20 @@ module "matrix" {
   synapse_volume_name               = local.volume_names.synapse
   appservice_runtime_volume_name    = local.matrix_chat_appservice.runtime_volume
   appservice_runtime_container_path = local.matrix_chat_appservice.runtime_path
-  appservice_registration_source    = local_sensitive_file.generated["matrix_chat_appservice_registration"].filename
+  appservice_registration_source    = local.generated_files["matrix_chat_appservice_registration"].filename
   appservice_registration_hash      = sha256(local.generated_files["matrix_chat_appservice_registration"].content)
-  appservice_as_token_source        = local_sensitive_file.generated["matrix_chat_appservice_as_token"].filename
+  appservice_as_token_source        = local.generated_files["matrix_chat_appservice_as_token"].filename
   appservice_as_token_hash          = sha256(local.generated_files["matrix_chat_appservice_as_token"].content)
-  appservice_hs_token_source        = local_sensitive_file.generated["matrix_chat_appservice_hs_token"].filename
+  appservice_hs_token_source        = local.generated_files["matrix_chat_appservice_hs_token"].filename
   appservice_hs_token_hash          = sha256(local.generated_files["matrix_chat_appservice_hs_token"].content)
   mas_host_port                     = var.mas_host_port
   synapse_host_port                 = var.synapse_host_port
   matrix_public_host                = local.public_hosts.matrix
-  mas_config_source                 = local_sensitive_file.generated["mas_config"].filename
+  mas_config_source                 = local.generated_files["mas_config"].filename
   mas_config_hash                   = sha256(local.generated_files["mas_config"].content)
-  mas_signing_key_source            = local_sensitive_file.generated["mas_signing_key"].filename
+  mas_signing_key_source            = local.generated_files["mas_signing_key"].filename
   mas_signing_key_hash              = sha256(local.generated_files["mas_signing_key"].content)
-  synapse_config_source             = local_sensitive_file.generated["synapse_homeserver"].filename
+  synapse_config_source             = local.generated_files["synapse_homeserver"].filename
   synapse_config_hash               = sha256(local.generated_files["synapse_homeserver"].content)
   tls_ca_file                       = local.caddy_tls_ca_file
   tls_ca_filename                   = basename(local.caddy_tls_ca_file)

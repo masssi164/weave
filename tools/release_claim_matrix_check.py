@@ -26,12 +26,13 @@ CLAIM_MATRIX_REQUIRED_CLAIMS = [
     "Consistent member UX across providers",
     "Provider-neutral replacement dry-run",
     "no-unaccounted-data-loss",
-    "Bounded governed Weaver assistance",
+    "Workload-only Agent Runtime Control target",
     "broad autonomous AI availability",
 ]
 MEETING_REQUIRED_BOUNDARIES = [
-    "LiveKit as the active meetings/video-call provider",
-    "join/start fail-closed",
+    "LiveKit is the first replaceable southbound SFU adapter",
+    "internal RTC Authorizer",
+    "obsolete member `/api/calls` routes",
     "Do not claim `secure meetings`, `encrypted meetings`, or `end-to-end encrypted meetings`",
 ]
 REQUIRED_REALITY_LEVELS = [

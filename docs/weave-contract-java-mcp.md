@@ -1,35 +1,43 @@
-# Weave canonical contract and Spring AI MCP
+# Weave MCP implementation boundary
 
-Status: active projection contract. The former handwritten Java JSON-RPC and Python/FastMCP transition paths are retired.
+Status: **Guarded / workload boundary active**. The previous member-oriented v1 runtime was
+removed without compatibility readers. The replacement admits only an ARC-bound cell workload;
+the domain tool catalog remains empty until its authorization and evidence gates are complete.
 
-## Authority
+## Implemented path
 
-- Canonical domain models and application use cases own Files, Calendar, Chat, and governed Weaver semantics.
-- `weave-contract` currently carries the shared MCP catalog DTOs and exact JSON schemas consumed by both `server` and `weave-mcp-server`. It is a projection module, not a provider or product-domain authority.
-- `server` owns RuntimeProfile policy, effective capability grants, approval enforcement, validation, canonical dispatch, provider selection, audit, and support-safe result projection.
-- `weave-mcp-server` owns only the OIDC-protected Spring AI 2.0 stateful Streamable HTTP transport at `/mcp`, standard form elicitation, and MCP protocol projection.
-- OpenAPI remains the control-plane/generated-model authority. MCP does not mirror OpenAPI routes.
+1. A dedicated `weaver-cell-{cellId}` Keycloak service account obtains a short-lived RFC 9068
+   access token for the exact MCP resource through the MCP Client Credentials extension.
+2. Spring Security validates token type, issuer, lifetime, exact audiences, workload identity,
+   role, and required scopes before Spring AI sees the request.
+3. `weave-mcp-server` exchanges that token with Keycloak Standard Token Exchange V2 for a new,
+   short-lived, exact-audience backend token. It never forwards the inbound bearer.
+4. `weave-backend` resolves the immutable service-account-to-cell mapping and revalidates the
+   current entitlement, lifecycle, RuntimeProfile v2 hash, policy, and domain scopes.
+5. Only then may the framework-native stateful Streamable HTTP transport initialize. The current
+   catalogs contain no tools, resources, or prompts.
 
-## Active surface
+The edge publishes protected-resource metadata and a discoverable bearer challenge. Human tokens,
+generic service accounts, the fixed MCP edge account, missing extension negotiation, scope
+escalation, stale profiles, and direct workload calls to member/admin APIs fail closed.
 
-The fixed protocol catalog ceiling contains:
+## Removed code and contracts
 
-- `files.search`
-- `files.read`
-- `calendar.search_events`
-- `calendar.create_event`
-- `chat.send_message`
+- `MemberMcp*` DTOs and the `member-mcp-contract-v1` catalog;
+- member-oriented admission, forwarded-member-token exchange, and caller-supplied profile headers;
+- caller-supplied elicitation as approval authority;
+- `/api[/v1]/workspace/weaver/**` runtime-profile, discovery, and invocation routes;
+- the fake Weaver Scout response and UI;
+- the old backend runtime, registry, dispatcher, bridge, and receipt classes;
+- the Python/FastMCP gateway and handwritten Java JSON-RPC controller.
 
-The read-only resource `weave://runtime/approved-tools` reports the backend-approved subset for the current signed RuntimeProfile. The prompt `weave.workspace.plan` names only that approved subset. Listing a tool from the fixed catalog is not authorization; every call performs backend discovery again before dispatch.
+## Next activation gate
 
-Write-like tools call standard MCP form elicitation through `McpSyncRequestContext`. OpenClaw routes that elicitation through plugin approvals and returns bounded evidence; the trusted MCP boundary exchanges it for a short-lived, one-use Weave receipt. The receipt binds the actor, current RuntimeProfile hash, canonical domain and exact scopes, normalized arguments, exact tool, MCP contract version, backend policy version, decision time, expiry, and audit ref. Changed arguments, replay, foreign evidence, a reference, tool annotation, caller header, or prompt never grants authority.
+Read tools may be exposed only from the intersection of the canonical catalog, the current signed
+RuntimeProfile, current product-domain authorization, and runtime availability. Write-like tools
+also require signed, single-use, argument-bound ApprovalDecisionEvidence v2 and immutable
+ActionEvidence v2. OpenClaw owns the native approval lifecycle; Weave remains the final
+authorization and side-effect authority.
 
-## Deployment
-
-The OpenTofu MCP module runs `weave-mcp-server` on the internal Weave network. Weaver runtimes connect to:
-
-```text
-http://weave-mcp-server:8091/mcp
-```
-
-The loopback host port is for operator health checks only. `/mcp` requires a valid OIDC bearer token with the configured issuer, audience, expiry, and `weave:workspace` scope, plus `X-Weave-Runtime-Profile` for governed discovery and invocation. Provider credentials and provider endpoints are never accepted by the MCP process.
+See the pinned `weave-specs` corpus and
+`infra/docs/weave-mcp-tool-contract.md` for the normative and executable contracts.

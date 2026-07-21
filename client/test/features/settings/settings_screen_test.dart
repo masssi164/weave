@@ -11,7 +11,6 @@ import 'package:weave/features/app/domain/entities/provider_stack_snapshot.dart'
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
-import 'package:weave/features/agents/domain/entities/weaver_permission_mode.dart';
 import 'package:weave/features/chat/presentation/providers/chat_security_repository_provider.dart';
 import 'package:weave/features/profile/domain/entities/user_profile.dart';
 import 'package:weave/features/profile/domain/repositories/user_profile_repository.dart';
@@ -46,29 +45,6 @@ class _RetryableAppBootstrap extends AppBootstrap {
     shouldFail = false;
     state = const AsyncLoading();
     state = const AsyncData(BootstrapState.ready());
-  }
-}
-
-class _FakeWeaverPermissionModeController
-    extends WeaverPermissionModeController {
-  final updates = <WeaverPermissionMode>[];
-
-  @override
-  Future<WeaverPermissionMode> build() async => WeaverPermissionMode.ask;
-
-  @override
-  Future<WeaverPermissionModeUpdate> updateMode(
-    WeaverPermissionMode mode,
-  ) async {
-    updates.add(mode);
-    state = AsyncData(mode);
-    return WeaverPermissionModeUpdate(
-      accepted: true,
-      mode: mode,
-      dangerous: mode.isDangerous,
-      policyReason: 'permission_mode_updated',
-      runtimeProfileHash: 'sha256:test',
-    );
   }
 }
 
@@ -179,55 +155,6 @@ AsyncValue<WorkspaceCapabilitySnapshot> _workspaceCapabilitySnapshot() {
       boards: WorkspaceCapabilityState(
         capability: WorkspaceCapability.boards,
         readiness: WorkspaceCapabilityReadiness.unavailable,
-      ),
-    ),
-  );
-}
-
-AsyncValue<WorkspaceCapabilitySnapshot>
-_workspaceCapabilitySnapshotWithWeaver() {
-  return const AsyncData(
-    WorkspaceCapabilitySnapshot(
-      shellAccess: WorkspaceCapabilityState(
-        capability: WorkspaceCapability.shellAccess,
-        readiness: WorkspaceCapabilityReadiness.ready,
-        connectionStatus: IntegrationConnectionStatus.connected,
-        policyState: WorkspaceCapabilityPolicyState.allowed,
-      ),
-      chat: WorkspaceCapabilityState(
-        capability: WorkspaceCapability.chat,
-        readiness: WorkspaceCapabilityReadiness.ready,
-        connectionStatus: IntegrationConnectionStatus.connected,
-        policyState: WorkspaceCapabilityPolicyState.allowed,
-      ),
-      files: WorkspaceCapabilityState(
-        capability: WorkspaceCapability.files,
-        readiness: WorkspaceCapabilityReadiness.ready,
-        connectionStatus: IntegrationConnectionStatus.connected,
-        policyState: WorkspaceCapabilityPolicyState.allowed,
-      ),
-      calendar: WorkspaceCapabilityState(
-        capability: WorkspaceCapability.calendar,
-        readiness: WorkspaceCapabilityReadiness.unavailable,
-      ),
-      boards: WorkspaceCapabilityState(
-        capability: WorkspaceCapability.boards,
-        readiness: WorkspaceCapabilityReadiness.unavailable,
-      ),
-      weaver: WorkspaceCapabilityState(
-        capability: WorkspaceCapability.weaver,
-        readiness: WorkspaceCapabilityReadiness.ready,
-        policyState: WorkspaceCapabilityPolicyState.allowed,
-        memberImpact: 'Mein Weaver follows workspace-approved choices.',
-        grantedCapabilities: [
-          'weaver.enabled',
-          'weaver.model_alias.fast_local',
-          'weaver.model_alias.careful_cloud',
-          'weaver.configure_style',
-          'weaver.configure_memory',
-          'weaver.skill.summarize_notes',
-          'weaver.personal_connection.calendar_import',
-        ],
       ),
     ),
   );
@@ -533,233 +460,6 @@ void main() {
       expect(find.text('Profile saved.'), findsOneWidget);
     });
 
-    testWidgets(
-      'shows governed Mein Weaver choices without raw runtime surfaces',
-      (tester) async {
-        final capabilities = _workspaceCapabilitySnapshotWithWeaver();
-        final container = ProviderContainer.test(
-          overrides: [
-            preferencesStoreProvider.overrideWith(
-              (ref) => InMemoryPreferencesStore(buildStoredConfiguration()),
-            ),
-            chatSecurityRepositoryProvider.overrideWithValue(
-              FakeChatSecurityRepository(),
-            ),
-            workspaceConnectionStateProvider.overrideWithValue(
-              _workspaceConnectionState(),
-            ),
-            workspaceCapabilitySnapshotProvider.overrideWithValue(capabilities),
-            weaveApiWorkspaceCapabilitySnapshotProvider.overrideWith(
-              (ref) async => capabilities.requireValue,
-            ),
-            weaveBackendConnectionStateProvider.overrideWithValue(
-              WeaveBackendConnectionState.connected,
-            ),
-            userProfileProvider.overrideWith((ref) async => _memberProfile),
-          ],
-        );
-        addTearDown(container.dispose);
-
-        await tester.pumpWidget(
-          UncontrolledProviderScope(
-            container: container,
-            child: const MaterialApp(
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
-              supportedLocales: AppLocalizations.supportedLocales,
-              home: Scaffold(body: SettingsScreen()),
-            ),
-          ),
-        );
-        await tester.pumpAndSettle();
-
-        await tester.scrollUntilVisible(
-          find.text('Mein Weaver'),
-          300,
-          scrollable: find.byType(Scrollable).first,
-        );
-        expect(find.text('Mein Weaver'), findsOneWidget);
-        expect(find.text('Enabled by policy'), findsOneWidget);
-        expect(find.text('Careful Cloud'), findsOneWidget);
-        expect(find.text('Fast Local'), findsOneWidget);
-        expect(find.text('Style preferences'), findsOneWidget);
-        expect(find.text('Memory controls'), findsOneWidget);
-        expect(find.text('Summarize Notes'), findsOneWidget);
-        expect(find.text('Calendar Import'), findsOneWidget);
-        expect(
-          find.textContaining('members only see policy-approved choices'),
-          findsOneWidget,
-        );
-        expect(find.textContaining('OpenClaw'), findsNothing);
-        expect(find.textContaining('openclaw.json'), findsNothing);
-        expect(find.textContaining('channel tokens'), findsNothing);
-        expect(find.textContaining('provider secrets'), findsNothing);
-        expect(find.textContaining('raw MCP'), findsNothing);
-        expect(find.text('Server Configuration'), findsNothing);
-      },
-    );
-
-    testWidgets('requires explicit confirmation before dangerous full mode', (
-      tester,
-    ) async {
-      tester.view.physicalSize = const Size(1200, 2600);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      final capabilities = _workspaceCapabilitySnapshotWithWeaver();
-      final permissionController = _FakeWeaverPermissionModeController();
-      final container = ProviderContainer.test(
-        overrides: [
-          preferencesStoreProvider.overrideWith(
-            (ref) => InMemoryPreferencesStore(buildStoredConfiguration()),
-          ),
-          chatSecurityRepositoryProvider.overrideWithValue(
-            FakeChatSecurityRepository(),
-          ),
-          workspaceConnectionStateProvider.overrideWithValue(
-            _workspaceConnectionState(),
-          ),
-          workspaceCapabilitySnapshotProvider.overrideWithValue(capabilities),
-          weaveApiWorkspaceCapabilitySnapshotProvider.overrideWith(
-            (ref) async => capabilities.requireValue,
-          ),
-          weaveBackendConnectionStateProvider.overrideWithValue(
-            WeaveBackendConnectionState.connected,
-          ),
-          userProfileProvider.overrideWith((ref) async => _memberProfile),
-          weaverPermissionModeProvider.overrideWith(() => permissionController),
-        ],
-      );
-      addTearDown(container.dispose);
-
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: const MaterialApp(
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: Scaffold(body: SettingsScreen()),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      final picker = find.byType(DropdownButtonFormField<WeaverPermissionMode>);
-      await tester.scrollUntilVisible(
-        picker,
-        300,
-        scrollable: find.byType(Scrollable).first,
-      );
-      await tester.tap(picker);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Full access (dangerous)').last);
-      await tester.pumpAndSettle();
-
-      expect(find.text('Enable dangerous full access?'), findsOneWidget);
-      expect(
-        find.textContaining('run host commands without approval'),
-        findsOneWidget,
-      );
-      expect(permissionController.updates, isEmpty);
-
-      await tester.tap(find.text('Cancel'));
-      await tester.pumpAndSettle();
-      expect(permissionController.updates, isEmpty);
-
-      await tester.tap(picker);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Full access (dangerous)').last);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Enable full access'));
-      await tester.pumpAndSettle();
-
-      expect(permissionController.updates, [WeaverPermissionMode.full]);
-      expect(find.text('Weaver permission mode updated.'), findsOneWidget);
-    });
-
-    testWidgets('localizes unavailable Mein Weaver copy', (tester) async {
-      tester.view.physicalSize = const Size(1200, 2400);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-
-      const capabilities = AsyncData(
-        WorkspaceCapabilitySnapshot(
-          shellAccess: WorkspaceCapabilityState(
-            capability: WorkspaceCapability.shellAccess,
-            readiness: WorkspaceCapabilityReadiness.ready,
-            policyState: WorkspaceCapabilityPolicyState.allowed,
-          ),
-          chat: WorkspaceCapabilityState(
-            capability: WorkspaceCapability.chat,
-            readiness: WorkspaceCapabilityReadiness.ready,
-            policyState: WorkspaceCapabilityPolicyState.allowed,
-          ),
-          files: WorkspaceCapabilityState(
-            capability: WorkspaceCapability.files,
-            readiness: WorkspaceCapabilityReadiness.ready,
-            policyState: WorkspaceCapabilityPolicyState.allowed,
-          ),
-          calendar: WorkspaceCapabilityState(
-            capability: WorkspaceCapability.calendar,
-            readiness: WorkspaceCapabilityReadiness.unavailable,
-          ),
-          boards: WorkspaceCapabilityState(
-            capability: WorkspaceCapability.boards,
-            readiness: WorkspaceCapabilityReadiness.unavailable,
-          ),
-          weaver: WorkspaceCapabilityState(
-            capability: WorkspaceCapability.weaver,
-            readiness: WorkspaceCapabilityReadiness.unavailable,
-            policyState: WorkspaceCapabilityPolicyState.disabled,
-            memberImpact: 'RAW WEAVER BACKEND MEMBER IMPACT',
-          ),
-        ),
-      );
-      final container = ProviderContainer.test(
-        overrides: [
-          preferencesStoreProvider.overrideWith(
-            (ref) => InMemoryPreferencesStore(buildStoredConfiguration()),
-          ),
-          chatSecurityRepositoryProvider.overrideWithValue(
-            FakeChatSecurityRepository(),
-          ),
-          workspaceConnectionStateProvider.overrideWithValue(
-            _workspaceConnectionState(),
-          ),
-          workspaceCapabilitySnapshotProvider.overrideWithValue(capabilities),
-          weaveApiWorkspaceCapabilitySnapshotProvider.overrideWith(
-            (ref) async => capabilities.requireValue,
-          ),
-          weaveBackendConnectionStateProvider.overrideWithValue(
-            WeaveBackendConnectionState.connected,
-          ),
-          userProfileProvider.overrideWith((ref) async => _memberProfile),
-        ],
-      );
-      addTearDown(container.dispose);
-
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: const MaterialApp(
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: Scaffold(body: SettingsScreen()),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('Weaver unavailable'), findsOneWidget);
-      expect(find.text('RAW WEAVER BACKEND MEMBER IMPACT'), findsNothing);
-      expect(
-        find.textContaining(
-          'Your workspace has not enabled a governed Weaver profile',
-        ),
-        findsOneWidget,
-      );
-    });
-
     testWidgets('keeps provider diagnostics admin-only for members', (
       tester,
     ) async {
@@ -1007,11 +707,12 @@ void main() {
                   },
                 ),
                 ProviderCategoryStatusSnapshot(
-                  category: 'weaver',
-                  label: 'Weaver',
+                  category: 'agent-runtime-control',
+                  label: 'Agent Runtime Control',
                   readiness: ProviderCategoryReadiness.policyBlocked,
                   policyState: 'policy_blocked',
-                  memberImpact: 'Weaver is disabled by workspace policy.',
+                  memberImpact:
+                      'Agent Runtime Control is disabled by workspace policy.',
                   modules: [],
                   providerCandidates: [],
                   diagnostics: {
@@ -1144,7 +845,7 @@ void main() {
       expect(find.text('calendar: degraded'), findsOneWidget);
       expect(find.text('nextcloud-caldav: unconfigured'), findsOneWidget);
       expect(find.text('Unavailable'), findsWidgets);
-      expect(find.text('Weaver: Blocked'), findsOneWidget);
+      expect(find.text('Agent Runtime Control: Blocked'), findsOneWidget);
       expect(find.textContaining('provider-token-123'), findsNothing);
       expect(find.textContaining('https://gitlab.example.test'), findsNothing);
       expect(find.textContaining('https://office.example.test'), findsNothing);

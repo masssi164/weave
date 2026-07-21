@@ -227,7 +227,7 @@ Microsoft-heavy organizations should use Entra B2B / External ID for Microsoft r
 
 ## Service principals and machine identities
 
-Machine identities include connectors, migration jobs, bots, backend actors, and future Weaver runtimes.
+Machine identities include connectors, migration jobs, bots, backend actors, and ARC-bound Weaver/OpenClaw cells. Each runtime cell uses its own confidential Keycloak client; shared service accounts are forbidden.
 
 Requirements:
 

@@ -47,6 +47,14 @@ public final class CanonicalDomainRegistry {
     private static final List<String> STANDARD_CAPABILITIES = List.of(
             "read", "search", "export", "import", "dryRun", "apply", "write", "delete", "adminConfigure");
 
+    private static final List<String> AGENT_RUNTIME_CONTROL_CAPABILITIES = List.of(
+            "agent-runtime.entitled",
+            "agent-runtime.profile.read",
+            "agent-runtime.lifecycle.write",
+            "agent-runtime.wake",
+            "agent-runtime.approval.attest",
+            "agent-runtime.admin");
+
     private static final List<String> SOURCE_OF_TRUTH_MODES = List.of(
             "weave_owned",
             "selected_provider_owned",
@@ -100,7 +108,7 @@ public final class CanonicalDomainRegistry {
                 domain("people", "People", "Provider-neutral people/profile directory separate from authentication credentials and email primary keys.",
                         List.of("Person", "Membership", "Profile", "ContactMethod", "Team", "Guest", "ServiceAccountRef"),
                         List.of()),
-                domain("spaces", "Spaces", "Cross-domain work context anchor binding chat, files, calendar, boards, calls, decisions, and Weaver context.",
+                domain("spaces", "Spaces", "Cross-domain work context anchor binding chat, files, calendar, boards, calls, decisions, and optional agent context.",
                         List.of("Space", "SpaceMembership", "RoleBinding", "LinkedChannel", "LinkedBoard", "LinkedCalendar", "LinkedFileRoot", "DecisionLedgerRef"),
                         List.of()),
                 domain("chat", "Chat", "Conversation, message, membership, history, attachment, and presence facade independent from the selected chat adapter.",
@@ -118,8 +126,8 @@ public final class CanonicalDomainRegistry {
                 domain("boards", "Boards & Tasks", "Provider-neutral boards/tasks workflow contract for boards, lists, tasks, statuses, assignments, and workflow rules.",
                         List.of("Board", "List", "Task", "Status", "Assignee", "Comment", "AttachmentRef", "Dependency", "CustomField"),
                         List.of("boards-tasks")),
-                domain("calls", "Calls & Meetings", "Meeting/call room, media-session, participant, recording, transcript, captions, consent, retention, and join-grant facade.",
-                        List.of("Meeting", "MediaSession", "Participant", "TokenGrant", "Recording", "Caption", "ConsentRecord"),
+                domain("calls", "Calls & Meetings", "Meeting identity, MatrixRTC slot/member state, independently authorized media sessions, participants, recordings, transcripts, captions, consent, retention, and audit.",
+                        List.of("Meeting", "MatrixRtcSlot", "MatrixRtcMember", "DeviceBinding", "MediaSession", "RtcAuthorization", "Recording", "Caption", "ConsentRecord"),
                         List.of("meetings-calls")),
                 domain("decisions", "Decisions", "Weave-owned decisions and evidence references across chat, files, boards, calls, and calendar.",
                         List.of("Decision", "Proposal", "Approval", "Rationale", "DecisionLink", "EvidenceRef", "Supersession"),
@@ -130,8 +138,8 @@ public final class CanonicalDomainRegistry {
                 domain("health", "Health", "Support-safe provider readiness, risk notes, support bundle references, migration runs, and secret reference state.",
                         List.of("ReadinessCard", "Diagnostic", "SupportBundle", "BackupJob", "RestoreDrill", "EvidenceItem", "AuditRef"),
                         List.of("admin-control-plane", "release-evidence", "manuals-help")),
-                domain("weaver", "Weaver", "Optional governed per-user PA runtime domain, disabled by default and controlled by organization policy.",
-                        List.of("WeaverRuntimeProfile", "WeaverRuntimeInstance", "WeaverUserWorkspace", "WeaverToolGrant", "WeaverApprovalReceipt", "WeaverAuditEvent", "WeaverCustomizationProfile"),
+                domain("agent-runtime-control", "Agent Runtime Control", "Optional entitlement-bound control plane for signed RuntimeProfiles, disposable runtime cells, external state, revocation, and runtime-provider mapping; it owns no collaboration content or domain authorization.",
+                        List.of("RuntimeEntitlementRef", "RuntimeProfile", "ApprovalChallenge", "RuntimeCell", "WorkspaceRevision", "RuntimeRevocation", "RuntimeAuditCorrelation"),
                         List.of()));
     }
 
@@ -147,7 +155,9 @@ public final class CanonicalDomainRegistry {
                 displayName,
                 purpose,
                 canonicalObjects,
-                STANDARD_CAPABILITIES.stream().map(capability -> key + "." + capability).toList(),
+                "agent-runtime-control".equals(key)
+                        ? AGENT_RUNTIME_CONTROL_CAPABILITIES
+                        : STANDARD_CAPABILITIES.stream().map(capability -> key + "." + capability).toList(),
                 MEMBER_STATES,
                 ADMIN_STATES,
                 SOURCE_OF_TRUTH_MODES,
@@ -193,11 +203,9 @@ public final class CanonicalDomainRegistry {
                     "vikunja", "contract_only");
             case "calls" -> Map.of(
                     "livekit", "configured",
-                    "jitsi", "contract_only",
-                    "zoom", "contract_only",
-                    "microsoft-teams-meetings", "contract_only",
-                    "google-meet", "contract_only",
-                    "external-meeting-link", "contract_only");
+                    "generic-webrtc-sfu", "contract_only",
+                    "microsoft-teams-meeting-link", "contract_only",
+                    "google-meet-link", "contract_only");
             case "documents" -> Map.of(
                     "collabora", "contract_only",
                     "onlyoffice", "contract_only",
@@ -220,7 +228,7 @@ public final class CanonicalDomainRegistry {
                     "weave-health-facade", "contract_only",
                     "provider-stack-health", "contract_only",
                     "release-evidence", "contract_only");
-            case "weaver" -> Map.of("openclaw-derived-profile", "contract_only");
+            case "agent-runtime-control" -> Map.of("weaver-openclaw", "contract_only");
             default -> Map.of(key + "-weave-owned", "release_ready");
         };
     }

@@ -53,6 +53,10 @@ mv "${MOCK_STATE}/manifest.json" "${WEAVE_E2E_IDENTITY_MANIFEST_PATH}"
 
 printf '%s\n' '{"id":"weave-app-uuid","clientId":"weave-app","publicClient":true,"directAccessGrantsEnabled":false}' \
   >"${MOCK_STATE}/client.json"
+printf '%s\n' '[{"id":"workspace-scope-uuid","name":"weave:workspace"}]' \
+  >"${MOCK_STATE}/client-scopes.json"
+printf '%s\n' '[{"id":"workspace-audience-mapper-uuid","name":"weave-backend-audience","protocol":"openid-connect","protocolMapper":"oidc-audience-mapper","config":{"included.client.audience":"https://api.weave.test/api"}}]' \
+  >"${MOCK_STATE}/workspace-mappers.json"
 printf 'true\n' >"${MOCK_STATE}/${BACKEND_CONTAINER}-running"
 printf 'true\n' >"${MOCK_STATE}/${SYNAPSE_CONTAINER}-running"
 printf '0\n' >"${MOCK_STATE}/synapse-health-failures"
@@ -181,7 +185,7 @@ elif [[ "${url}" == */realms/weave/protocol/openid-connect/token ]]; then
     --argjson exp "$((now + 900))" '
       {
         sub:$sub,iss:$issuer,preferred_username:$username,weave_tenant_id:$tenant,
-        aud:["weave-app"],scope:"openid profile email weave:workspace",
+        aud:["https://api.weave.test/api"],scope:"openid profile email weave:workspace",
         groups:["workspace-members"],iat:$iat,exp:$exp
       }
     ')"
@@ -190,6 +194,10 @@ elif [[ "${url}" == */realms/weave/protocol/openid-connect/token ]]; then
   respond 200 "$(jq -cn --arg token "${token}" '{access_token:$token}')"
 elif [[ "${url}" == */admin/realms/weave/clients\?clientId=weave-app ]]; then
   respond 200 '[{"id":"weave-app-uuid","clientId":"weave-app"}]'
+elif [[ "${url}" == */admin/realms/weave/client-scopes ]]; then
+  respond 200 "$(<"${MOCK_STATE}/client-scopes.json")"
+elif [[ "${url}" == */admin/realms/weave/client-scopes/workspace-scope-uuid/protocol-mappers/models ]]; then
+  respond 200 "$(<"${MOCK_STATE}/workspace-mappers.json")"
 elif [[ "${url}" == */admin/realms/weave/clients/weave-app-uuid && "${method}" == GET ]]; then
   respond 200 "$(<"${MOCK_STATE}/client.json")"
 elif [[ "${url}" == */admin/realms/weave/clients/weave-app-uuid && "${method}" == PUT ]]; then

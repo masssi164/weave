@@ -26,7 +26,7 @@ Verifies a stack after an operator restore or clean reprovisioning rehearsal.
 This script does not restore data and never deletes volumes. It checks the same
 minimum recovery contract that issue #36 requires: backend readiness, Keycloak
 discovery, Matrix client versions and MAS discovery, default Matrix room aliases,
-and raw Nextcloud readiness.
+raw Nextcloud readiness, and the Agent Runtime Control restore/reconciliation boundary.
 
 Arguments:
   backup-dir  Optional directory created by backup.sh. When provided, restore-smoke
@@ -58,6 +58,7 @@ write_restore_receipt() {
   local domain_data_status="$5"
   local release_eligible="$6"
   local chat_appservice_status="$7"
+  local agent_runtime_status="$8"
   local output="${RESTORE_RECEIPT_OUTPUT}"
   if [[ -z "${output}" ]]; then
     if [[ -n "${backup_dir}" ]]; then
@@ -67,7 +68,7 @@ write_restore_receipt() {
     fi
   fi
   mkdir -p "$(dirname -- "${output}")"
-  RESTORE_CREATED_AT="$(date -u +%Y%m%dT%H%M%SZ)"     RESTORE_BACKUP_DIR="${backup_dir}"     RESTORE_VALIDATION_MODE="${validation_mode}"     RESTORE_STATUS="${status}"     RESTORE_DESTROY_PERFORMED="${destroy_performed}"     RESTORE_DOMAIN_DATA_STATUS="${domain_data_status}"     RESTORE_RELEASE_ELIGIBLE="${release_eligible}"     RESTORE_CHAT_APPSERVICE_STATUS="${chat_appservice_status}"     RESTORE_RECEIPT_OUTPUT_PATH="${output}"     python3 - <<'PYJSON'
+  RESTORE_CREATED_AT="$(date -u +%Y%m%dT%H%M%SZ)"     RESTORE_BACKUP_DIR="${backup_dir}"     RESTORE_VALIDATION_MODE="${validation_mode}"     RESTORE_STATUS="${status}"     RESTORE_DESTROY_PERFORMED="${destroy_performed}"     RESTORE_DOMAIN_DATA_STATUS="${domain_data_status}"     RESTORE_RELEASE_ELIGIBLE="${release_eligible}"     RESTORE_CHAT_APPSERVICE_STATUS="${chat_appservice_status}"     RESTORE_AGENT_RUNTIME_STATUS="${agent_runtime_status}"     RESTORE_RECEIPT_OUTPUT_PATH="${output}"     python3 - <<'PYJSON'
 import json
 import os
 from pathlib import Path
@@ -96,6 +97,7 @@ receipt = {
         {"name": "backup_manifest_present", "status": "passed" if manifest_ref != "not-provided" else "not_provided"},
         {"name": "post_restore_operator_check", "status": "passed" if os.environ["RESTORE_VALIDATION_MODE"] != "artifacts_only" else "not_run"},
         {"name": "matrix_chat_appservice_registration_and_secret_mounts", "status": os.environ["RESTORE_CHAT_APPSERVICE_STATUS"]},
+        {"name": "agent_runtime_consistency_set_and_live_reconciliation", "status": os.environ["RESTORE_AGENT_RUNTIME_STATUS"]},
         {"name": "domain_data_recovered", "status": domain_status},
     ],
     "provesRestoredDomainData": domain_status == "passed" and destroy_performed,
@@ -104,9 +106,49 @@ receipt = {
         "This receipt does not prove release-ready backup/restore unless destroyStep.performed=true and domain_data_recovered passed.",
     ],
 }
+
 Path(os.environ["RESTORE_RECEIPT_OUTPUT_PATH"]).write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
 PYJSON
   log "RestoreReceipt written to ${output}"
+}
+
+verify_agent_runtime_restore_boundary() {
+  local destination
+  local mount_writable
+  local readiness
+  for destination in \
+    /run/weave-agent-runtime/profile-signing \
+    /run/weave-agent-runtime/state-wrapping \
+    /run/weave-agent-runtime/credentials; do
+    mount_writable="$(docker inspect --format "{{range .Mounts}}{{if eq .Destination \"${destination}\"}}{{.RW}}{{end}}{{end}}" weave-backend 2>/dev/null || true)"
+    [[ "${mount_writable}" == "true" ]] ||
+      fail "The backend is missing one explicit writable Agent Runtime Control SecretRef mount."
+  done
+
+  docker exec weave-backend sh -c '
+    test -s /run/weave-agent-runtime/profile-signing/runtime-profile-signing-keys.json &&
+    test -s /run/weave-agent-runtime/state-wrapping/runtime-state-wrapping-keys.json &&
+    test -s /run/weave-agent-runtime/credentials/weave/agent-runtime/admin/keycloak
+  ' >/dev/null || fail "The backend cannot read the complete restored Agent Runtime Control private consistency set."
+
+  if docker volume ls --format '{{.Name}}' |
+    grep -Eiq '(^|[_-])weaver([_-].*)?(state|workspace|agent|cell)([_-]|$)|(^|[_-])agent[_-]runtime[_-](state|workspace|agent|cell)([_-]|$)'; then
+    fail "A forbidden durable Weaver cell volume exists after restore."
+  fi
+
+  readiness="$(docker exec weave-backend sh -c '
+    curl -fsS http://127.0.0.1:8080/api/health/ready 2>/dev/null ||
+      wget -qO- http://127.0.0.1:8080/api/health/ready 2>/dev/null
+  ' || true)"
+  printf '%s' "${readiness}" | python3 -c '
+import json, sys
+data = json.load(sys.stdin)
+checks = {item.get("key"): item.get("readiness") for item in data.get("checks", [])}
+required = ("agent-runtime-state", "agent-runtime-workload-identities")
+raise SystemExit(0 if data.get("status") == "up" and all(checks.get(key) == "ready" for key in required) else 1)
+' || fail "Agent Runtime Control state and Keycloak workload reconciliation are not ready after restore."
+
+  log "Verified the restored Agent Runtime Control consistency set, converged workload identities, and zero durable cell volumes."
 }
 
 verify_matrix_chat_appservice_runtime() {
@@ -167,7 +209,7 @@ main() {
 
   if [[ "${ARTIFACTS_ONLY}" == "true" ]]; then
     [[ -n "${backup_dir}" ]] || fail "WEAVE_RESTORE_SMOKE_ARTIFACTS_ONLY=true requires a backup directory argument."
-    write_restore_receipt "${backup_dir}" "artifacts_only" "artifact_preflight_passed_not_restore_proof" "false" "not_proven" "false" "archived_not_runtime_verified"
+    write_restore_receipt "${backup_dir}" "artifacts_only" "artifact_preflight_passed_not_restore_proof" "false" "not_proven" "false" "archived_not_runtime_verified" "archived_not_runtime_verified"
     log "Restore smoke artifact preflight passed. Service readiness was not checked in artifacts-only mode."
     exit 0
   fi
@@ -181,9 +223,10 @@ main() {
   bash "${ROOT_DIR}/operator-check.sh"
 
   verify_matrix_chat_appservice_runtime
+  verify_agent_runtime_restore_boundary
 
-  write_restore_receipt "${backup_dir}" "post_restore_live" "passed" "${WEAVE_RESTORE_SMOKE_DESTROY_PERFORMED:-false}" "${WEAVE_RESTORE_SMOKE_DOMAIN_DATA_RECOVERED:-not_proven}" "${WEAVE_RESTORE_SMOKE_RELEASE_ELIGIBLE:-false}" "passed"
-  log "Restore smoke passed: backend, Keycloak, Matrix/MAS, default Matrix rooms, and raw Nextcloud checks are healthy."
+  write_restore_receipt "${backup_dir}" "post_restore_live" "passed" "${WEAVE_RESTORE_SMOKE_DESTROY_PERFORMED:-false}" "${WEAVE_RESTORE_SMOKE_DOMAIN_DATA_RECOVERED:-not_proven}" "${WEAVE_RESTORE_SMOKE_RELEASE_ELIGIBLE:-false}" "passed" "passed"
+  log "Restore smoke passed: backend, Keycloak, Agent Runtime Control, Matrix/MAS, default Matrix rooms, and raw Nextcloud checks are healthy."
 }
 
 main "$@"

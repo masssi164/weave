@@ -98,7 +98,7 @@ Credential and grant lifecycle is part of the Weave contract:
   evidence.
 - Chat access is session-bound and must not hand raw Matrix, Slack, or Teams
   credentials to member clients or MCP.
-- Meetings/Calls use short-lived join grants and native call handoff state;
+- Meetings/Calls use MatrixRTC signaling, independent RTC authorization, short-lived SFU tokens, and native call handoff state;
   media-provider credentials stay behind server/provider adapters.
 
 The first implementation slice records this discovery in the organization
@@ -266,22 +266,25 @@ and user-authorized decrypted indexes.
 
 Final shape:
 
-- Product truth: Weave Meetings/Calls facade for meeting metadata, invites,
-  participants, policy, join grants, recordings/captions/artifact references,
-  and audit.
-- JSON/API projection: `/api/calls/**` and generated OpenAPI models.
+- Product truth: Weave owns meeting identity, authorized participants/roles,
+  policy, consent, artifact references, retention, audit, and provider fidelity.
+- Member signaling: Matrix v1.19 plus pinned MatrixRTC Profile 0. There is no
+  Calls member REST/OpenAPI projection, proprietary event, or join-grant model.
+- Authorization/media boundary: an internal RTC Authorizer treats Matrix OpenID
+  as identity input only, independently validates current room, slot, member,
+  device, role, policy, nonce, audience, and expiry, then may issue a short-lived
+  least-privilege SFU token.
 - Standard/native boundary: calendar invites, meeting links, iOS CallKit /
-  PushKit boundaries, Android Telecom / ConnectionService boundaries, and
-  provider-neutral join grants.
+  PushKit, Android Core-Telecom, MatrixRTC signaling, WebRTC media, and
+  MatrixRTC media E2EE for private calls.
 - Provider adapters: LiveKit first where configured; Teams/Meet/other meeting
   providers later through adapters.
-- MCP: semantic tools such as `meetings.find`, `meetings.prepare_agenda`,
-  `meetings.create_join_grant`, and `meetings.link_chat_thread`, backed by
-  policy and audit.
+- MCP: the Calls catalog stays empty until current RTC authorization and accepted
+  approval/action-evidence gates can be enforced without exposing provider APIs.
 
 Non-goal: WebDAV and CalDAV do not solve calls. Calendar may schedule a meeting
 and Chat may host a meeting thread, but calls need explicit native call UI,
-media, signaling, permissions, join-grant, and revoke boundaries.
+media, signaling, permissions, RTC authorization, E2EE key, and revoke boundaries.
 
 ## MCP projection rule
 

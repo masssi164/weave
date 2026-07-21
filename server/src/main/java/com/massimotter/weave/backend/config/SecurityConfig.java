@@ -64,6 +64,7 @@ public class SecurityConfig {
                                 "/actuator/metrics/**",
                                 "/error").permitAll()
                         .requestMatchers("/api/health/**", "/api/platform/config", "/api/platform/status").permitAll()
+                        .requestMatchers("/api/v1/agent-runtime/trust/jwks.json").permitAll()
                         .requestMatchers("/.well-known/matrix/client", "/.well-known/weave").permitAll()
                         .requestMatchers(ChatE2eProofSecurityConfiguration.PATH).permitAll()
                         .requestMatchers("/v3/api-docs", "/v3/api-docs/**").permitAll()

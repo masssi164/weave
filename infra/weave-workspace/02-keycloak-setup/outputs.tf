@@ -43,9 +43,61 @@ output "weave_backend_audience" {
   value       = module.tenant_identity.weave_backend_audience
 }
 
+output "weave_mcp_client_id" {
+  description = "Confidential MCP resource server client ID used only for server-side exchange."
+  value       = module.tenant_identity.weave_mcp_client_id
+}
+
+output "weave_mcp_audience" {
+  description = "Audience required by the MCP resource server."
+  value       = module.tenant_identity.weave_mcp_audience
+}
+
+output "agent_runtime_resource" {
+  description = "Exact HTTPS audience required by the workload-only RuntimeProfile resource."
+  value       = module.tenant_identity.agent_runtime_resource
+}
+
+output "agent_runtime_profile_read_scope_name" {
+  description = "Machine-only RuntimeProfile read scope."
+  value       = module.tenant_identity.agent_runtime_profile_read_scope_name
+}
+
+output "weaver_runtime_workload_scope_name" {
+  description = "Fixed default client scope carrying only the per-cell Weaver workload role."
+  value       = module.tenant_identity.weaver_runtime_workload_scope_name
+}
+
+output "agent_runtime_admin_scope_name" {
+  description = "Interactive owner/admin scope used by the separate Organization/Admin Console."
+  value       = module.tenant_identity.agent_runtime_admin_scope_name
+}
+
+output "mcp_tools_scope_name" {
+  description = "Machine-only MCP tool scope."
+  value       = module.tenant_identity.mcp_tools_scope_name
+}
+
 output "weave_identity_admin_client_id" {
   description = "Backend-only client used for Keycloak organization invitation administration."
   value       = module.tenant_identity.weave_identity_admin_client_id
+}
+
+output "weave_agent_runtime_admin_client_id" {
+  description = "Dedicated client used only for ARC-managed per-cell Keycloak workload identities."
+  value       = module.tenant_identity.weave_agent_runtime_admin_client_id
+}
+
+output "weave_identity_admin_client_secret" {
+  description = "Keycloak-generated credential for the backend-only identity administrator."
+  value       = module.tenant_identity.weave_identity_admin_client_secret
+  sensitive   = true
+}
+
+output "weave_agent_runtime_admin_client_secret" {
+  description = "Keycloak-generated credential for the ARC workload identity administrator."
+  value       = module.tenant_identity.weave_agent_runtime_admin_client_secret
+  sensitive   = true
 }
 
 output "weave_organization_id" {

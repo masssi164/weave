@@ -1,10 +1,7 @@
 package com.massimotter.weave.backend.service;
 
 import com.massimotter.weave.backend.exception.ApiErrorException;
-import java.nio.charset.StandardCharsets;
-import java.util.HexFormat;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
+import com.massimotter.weave.backend.identity.IdentityReferences;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -15,9 +12,14 @@ import java.util.stream.Stream;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
 
-final class OrganizationIdentityContextFactory {
+public final class OrganizationIdentityContextFactory {
 
     private static final List<String> WEAVE_ORG_ROLES = List.of("owner", "admin", "member", "guest");
+    private static final Map<String, String> WEAVE_PRODUCT_ROLE_GROUPS = Map.of(
+            "workspace-owners", "owner",
+            "workspace-admins", "admin",
+            "workspace-members", "member",
+            "workspace-guests", "guest");
 
     private static final int MAX_IDENTITY_ISSUER_LENGTH = com.massimotter.weave.backend.model.IdentityKeyFormat.MAX_ISSUER_LENGTH;
     private static final int MAX_IDENTITY_SUBJECT_LENGTH = com.massimotter.weave.backend.model.IdentityKeyFormat.MAX_SUBJECT_LENGTH;
@@ -25,7 +27,7 @@ final class OrganizationIdentityContextFactory {
     private OrganizationIdentityContextFactory() {
     }
 
-    static OrganizationIdentityContext fromJwt(Jwt jwt) {
+    public static OrganizationIdentityContext fromJwt(Jwt jwt) {
         String subject = requireSubject(jwt);
         String issuer = issuer(jwt);
         String organizationId = firstText(
@@ -36,8 +38,8 @@ final class OrganizationIdentityContextFactory {
                 claim(jwt, "tid"),
                 claim(jwt, "org_id"),
                 "weave-dogfood");
-        String primaryIdentityKey = "issuer+subject:" + issuer + "#" + subject;
-        String accountId = stableAccountId(primaryIdentityKey);
+        String primaryIdentityKey = IdentityReferences.primaryIdentityKey(issuer, subject);
+        String accountId = IdentityReferences.accountId(issuer, subject);
         List<String> roles = canonicalRoles(jwt);
         List<String> groups = stringClaims(jwt, "weave_groups", "groups");
         List<String> contextRoles = stringClaims(jwt, "weave_context_roles").stream()
@@ -98,7 +100,15 @@ final class OrganizationIdentityContextFactory {
     }
 
     private static List<String> canonicalRoles(Jwt jwt) {
-        return clientRoles(jwt).stream()
+        Stream<String> roleClaims = clientRoles(jwt).stream();
+        if (jwt != null && "weave-mcp-server".equals(jwt.getClaimAsString("azp"))) {
+            roleClaims = Stream.concat(
+                    roleClaims,
+                    stringClaims(jwt, "weave_groups", "groups").stream()
+                            .map(WEAVE_PRODUCT_ROLE_GROUPS::get)
+                            .filter(java.util.Objects::nonNull));
+        }
+        return roleClaims
                 .map(role -> role.toLowerCase(Locale.ROOT))
                 .filter(WEAVE_ORG_ROLES::contains)
                 .distinct()
@@ -177,13 +187,4 @@ final class OrganizationIdentityContextFactory {
         return value != null && !value.isBlank();
     }
 
-    private static String stableAccountId(String primaryIdentityKey) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(primaryIdentityKey.getBytes(StandardCharsets.UTF_8));
-            return "acct_" + HexFormat.of().formatHex(hash, 0, 16);
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 digest is required for stable account identifiers", exception);
-        }
-    }
 }

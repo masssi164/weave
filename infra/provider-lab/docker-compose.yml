@@ -183,13 +183,6 @@ services:
       - openproject-data:/var/openproject/assets
       - openproject-pgdata:/var/openproject/pgdata
 
-  docker-runtime-boundary:
-    <<: *lab-common
-    image: docker:28-cli
-    command: ["sh", "-c", "while true; do sleep 3600; done"]
-    environment:
-      WEAVE_LAB_RUNTIME_BOUNDARY: per-user-runtime-proof-placeholder
-
 networks:
   provider-lab:
     name: weave-provider-lab

@@ -39,7 +39,7 @@
           "decisions",
           "notifications",
           "health",
-          "weaver"
+          "agent-runtime-control"
         ]
       },
       "minItems": 1,

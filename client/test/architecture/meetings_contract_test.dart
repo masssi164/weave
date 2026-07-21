@@ -18,27 +18,24 @@ void main() {
     ).readAsString();
 
     for (final required in <String>[
-      'LiveKit as the active meetings/video-call provider key',
-      'LiveKit-style SFU',
-      'MatrixRTC / Element Call',
-      'future comparison option',
-      'Generic hosted meeting links',
-      'Matrix signaling',
-      'Media streams',
+      'Matrix Client-Server API v1.19',
+      'Matrix Authentication Service (MAS)',
+      'internal RTC Authorizer',
+      'LiveKit is the first replaceable southbound SFU adapter',
+      'obsolete member `/api/calls` routes',
+      'Authorization is reevaluated for join and refresh',
+      'Call signaling and membership',
+      'Media transport',
       'Captions',
-      'Transcripts',
+      'transcripts',
       'Recordings',
-      'Metadata',
-      'channel context',
-      'calendar event context',
-      'thread context',
+      'metadata',
       'device selection',
       'join preview',
-      'mute and camera state',
+      'mute, camera, leave, and end controls',
       'participant list',
-      'errors with retry',
-      'Recording, transcription, and captions are off by default',
-      'Vague-claim guard',
+      'physical-device proof',
+      'does not claim',
     ]) {
       expect(contract, contains(required));
     }
@@ -83,18 +80,15 @@ void main() {
     }
 
     expect(contract, contains('Do not claim `secure meetings`'));
-    expect(contract, contains('without naming the boundary and evidence'));
+    expect(contract, contains('without\nnaming and evidencing'));
     expect(
       contract,
       isNot(contains('Preferred first implementation candidate')),
     );
-    expect(
-      spec,
-      contains('LiveKit as the current active meetings provider contract'),
-    );
+    expect(spec, contains('Matrix v1.19 plus pinned MatrixRTC Profile 0'));
     expect(
       traceability,
-      contains('LiveKit remains the active meetings provider contract'),
+      contains('LiveKit is only a replaceable southbound SFU adapter'),
     );
   });
 }

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "candidateCommit": "1111111111111111111111111111111111111111",
-  "specCorpusCommit": "e96ffdd461243d4105a20ea050920ce1a936fd94",
+  "specCorpusCommit": "173111bf57a0a7f343337c7dfb0ffdc5224e9d3b",
   "generatedAtUtc": "2026-07-12T12:00:00Z",
   "state": "ready",
   "humanTestingReady": true,

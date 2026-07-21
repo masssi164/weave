@@ -73,7 +73,7 @@ Plan input may include:
 - source repo ref and candidate commit SHA;
 - target provider lane: GitHub Actions for repository delivery, with local Docker/Compose or Kubernetes remaining deployment substrates behind that workflow;
 - setup profile;
-- domain modes for identity, chat, files, calendar, boards, documents, meetings, and future Weaver governance;
+- domain modes for identity, chat, files, calendar, boards, documents, calls, and optional Agent Runtime Control;
 - opaque `SecretRef`/`CredentialRef` handles;
 - approval policy and rollback/support expectations;
 - provider category choices visible only to owner/admin/operator roles.

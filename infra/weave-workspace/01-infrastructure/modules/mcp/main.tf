@@ -12,9 +12,18 @@ resource "docker_image" "this" {
 }
 
 resource "docker_container" "this" {
-  name    = var.container_name
-  image   = docker_image.this.image_id
-  restart = "unless-stopped"
+  name          = var.container_name
+  image         = docker_image.this.image_id
+  restart       = "unless-stopped"
+  read_only     = true
+  security_opts = ["no-new-privileges:true"]
+  tmpfs = {
+    "/tmp" = "rw,noexec,nosuid,nodev,size=64m"
+  }
+
+  capabilities {
+    drop = ["ALL"]
+  }
 
   dynamic "labels" {
     for_each = var.resource_labels
@@ -29,12 +38,26 @@ resource "docker_container" "this" {
 
   env = [
     "WEAVE_MCP_PORT=${var.container_port}",
-    "WEAVE_SERVER_BASE_URL=${var.backend_base_url}",
     "WEAVE_OIDC_ISSUER_URI=${var.oidc_issuer_uri}",
     "WEAVE_OIDC_AUDIENCE=${var.oidc_required_audience}",
+    "WEAVE_MCP_RESOURCE_URI=${var.oidc_required_audience}",
+    "WEAVE_MCP_REQUIRED_SCOPES=${join(",", var.oidc_required_scopes)}",
+    "WEAVE_MCP_AUTHORIZATION_SERVER=${var.authorization_server}",
+    "WEAVE_MCP_RESOURCE_METADATA_URI=${var.resource_metadata_uri}",
+    "WEAVE_MCP_TOKEN_URI=${var.token_uri}",
+    "WEAVE_MCP_EXCHANGE_CLIENT_ID=${var.exchange_client_id}",
+    "WEAVE_MCP_EXCHANGE_CLIENT_SECRET_FILE=${var.exchange_secret_file}",
+    "WEAVE_MCP_BACKEND_RESOURCE_URI=${var.backend_resource}",
+    "WEAVE_MCP_BACKEND_CONTEXT_URI=${var.backend_context_uri}",
+    "WEAVE_MCP_EXCHANGE_SCOPES=${join(",", var.exchange_scopes)}",
     "SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI=${var.oidc_jwk_set_uri}",
-    "WEAVE_MCP_BOUNDARY_TOKEN=${var.mcp_boundary_token}",
   ]
+
+  volumes {
+    host_path      = var.exchange_secret_source
+    container_path = var.exchange_secret_file
+    read_only      = true
+  }
 
   ports {
     internal = var.container_port

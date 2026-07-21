@@ -284,8 +284,8 @@ variable "mcp_container_port" {
   default     = 8091
 }
 
-variable "mcp_boundary_token" {
-  description = "Private service credential shared only by the Weave backend and Spring AI MCP server."
+variable "weave_mcp_client_secret" {
+  description = "Keycloak client secret used only by the confidential weave-mcp-server token-exchange workload."
   type        = string
   sensitive   = true
 }
@@ -294,6 +294,23 @@ variable "weave_mcp_server_image" {
   description = "Docker image for the Spring AI Weave MCP server."
   type        = string
   default     = "weave-mcp-server:local"
+}
+
+variable "agent_runtime_enabled" {
+  description = "Enable the governed Agent Runtime Control plane and encrypted external state boundary. Cells remain absent until an entitled member is provisioned."
+  type        = bool
+  default     = true
+}
+
+variable "agent_runtime_keycloak_organization_id" {
+  description = "Keycloak organization UUID resolved from the tenant identity stage. Workload lifecycle remains disabled until this exact authority is available."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.agent_runtime_keycloak_organization_id == "" || can(regex("^[0-9a-fA-F-]{36}$", var.agent_runtime_keycloak_organization_id))
+    error_message = "agent_runtime_keycloak_organization_id must be empty during bootstrap or a Keycloak UUID."
+  }
 }
 
 variable "proxy_image" {
@@ -452,7 +469,7 @@ variable "groupware_forms_runtime_enabled" {
 
 
 variable "livekit_runtime_enabled" {
-  description = "Enable LiveKit as the active meetings/video-call provider runtime. Defaults false/fail-closed unless explicitly configured."
+  description = "Enable LiveKit SFU configuration readiness for the MatrixRTC Profile 0 target. Defaults false/fail-closed and does not enable member join."
   type        = bool
   default     = false
 }
@@ -843,6 +860,12 @@ variable "matrix_mas_client_secret" {
 
 variable "identity_admin_client_secret" {
   description = "Client secret used only by the backend Keycloak organization identity administrator."
+  type        = string
+  sensitive   = true
+}
+
+variable "agent_runtime_admin_client_secret" {
+  description = "Client secret used only by the dedicated Agent Runtime workload identity administrator."
   type        = string
   sensitive   = true
 }

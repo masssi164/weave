@@ -76,6 +76,12 @@ JSON
 cat >"${MOCK_STATE}/client.json" <<'JSON'
 {"id":"weave-app-uuid","clientId":"weave-app","publicClient":true,"directAccessGrantsEnabled":false}
 JSON
+cat >"${MOCK_STATE}/client-scopes.json" <<'JSON'
+[{"id":"workspace-scope-uuid","name":"weave:workspace"}]
+JSON
+cat >"${MOCK_STATE}/workspace-mappers.json" <<'JSON'
+[{"id":"workspace-audience-mapper-uuid","name":"weave-backend-audience","protocol":"openid-connect","protocolMapper":"oidc-audience-mapper","config":{"included.client.audience":"https://api.weave.test/api"}}]
+JSON
 printf 'true\n' >"${MOCK_STATE}/collaborator-calendar-membership"
 printf '0\n' >"${MOCK_STATE}/token-counter"
 printf 'false\n' >"${MOCK_STATE}/revoked"
@@ -195,7 +201,7 @@ elif [[ "${url}" == */realms/weave/protocol/openid-connect/token ]]; then
     --argjson iat "${now}" \
     --argjson exp "$((now + lifespan))" \
     --arg jti "fixture-${count}" \
-    '{sub:$subject,preferred_username:$username,aud:["weave-app"],scope:$scope,groups:$groups,iat:$iat,exp:$exp,jti:$jti}')"
+    '{sub:$subject,preferred_username:$username,aud:["https://api.weave.test/api"],scope:$scope,groups:$groups,iat:$iat,exp:$exp,jti:$jti}')"
   token="$(printf '{"alg":"none","typ":"JWT"}' | encode_segment).$(printf '%s' "${payload}" | encode_segment).fixture"
   printf '%s' "${token}" >"${MOCK_STATE}/token-${count}"
   respond 200 "$(jq -cn --arg token "${token}" '{access_token:$token}')"
@@ -222,6 +228,10 @@ elif [[ "${url}" == */admin/realms/weave/groups\?* ]]; then
   respond 200 '[{"id":"calendar-group","name":"weave-calendar-editors"}]'
 elif [[ "${url}" == */admin/realms/weave/clients\?* ]]; then
   respond 200 '[{"id":"weave-app-uuid","clientId":"weave-app"}]'
+elif [[ "${url}" == */admin/realms/weave/client-scopes ]]; then
+  respond 200 "$(cat "${MOCK_STATE}/client-scopes.json")"
+elif [[ "${url}" == */admin/realms/weave/client-scopes/workspace-scope-uuid/protocol-mappers/models ]]; then
+  respond 200 "$(cat "${MOCK_STATE}/workspace-mappers.json")"
 elif [[ "${url}" == */admin/realms/weave/clients/weave-app-uuid && "${method}" == GET ]]; then
   respond 200 "$(cat "${MOCK_STATE}/client.json")"
 elif [[ "${url}" == */admin/realms/weave/clients/weave-app-uuid && "${method}" == PUT ]]; then

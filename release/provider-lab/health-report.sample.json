@@ -12,13 +12,6 @@
       "supportEvidenceRedacted": true
     },
     {
-      "providerKey": "docker-runtime",
-      "domain": "weaver",
-      "realityLevel": "configured",
-      "evidenceTimestamp": "2026-06-03T08:30:00Z",
-      "supportEvidenceRedacted": true
-    },
-    {
       "providerKey": "keycloak",
       "domain": "identity",
       "realityLevel": "configured",

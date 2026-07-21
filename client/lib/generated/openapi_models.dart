@@ -83,9 +83,6 @@ class AdminControlPlaneResponse {
     this.selectedProviderMappings,
     this.suiteDomainReadiness,
     this.supportSafe,
-    this.weaverDistributionPolicy,
-    this.weaverEligibilityPreview,
-    this.weaverRuntimeProjection,
     this.whitelist,
   });
 
@@ -145,21 +142,6 @@ class AdminControlPlaneResponse {
         )
         .toList(),
     supportSafe: json["supportSafe"] as bool?,
-    weaverDistributionPolicy: json["weaverDistributionPolicy"] == null
-        ? null
-        : WeaverDistributionPolicyResponse.fromJson(
-            json["weaverDistributionPolicy"] as Map<String, dynamic>,
-          ),
-    weaverEligibilityPreview: json["weaverEligibilityPreview"] == null
-        ? null
-        : WeaverEligibilityPreviewResponse.fromJson(
-            json["weaverEligibilityPreview"] as Map<String, dynamic>,
-          ),
-    weaverRuntimeProjection: json["weaverRuntimeProjection"] == null
-        ? null
-        : WeaverRuntimeProjectionResponse.fromJson(
-            json["weaverRuntimeProjection"] as Map<String, dynamic>,
-          ),
     whitelist: json["whitelist"] == null
         ? null
         : CapabilityWhitelistResponse.fromJson(
@@ -186,9 +168,6 @@ class AdminControlPlaneResponse {
   final List<ProviderSelectionResponse>? selectedProviderMappings;
   final List<SuiteDomainReadinessResponse>? suiteDomainReadiness;
   final bool? supportSafe;
-  final WeaverDistributionPolicyResponse? weaverDistributionPolicy;
-  final WeaverEligibilityPreviewResponse? weaverEligibilityPreview;
-  final WeaverRuntimeProjectionResponse? weaverRuntimeProjection;
   final CapabilityWhitelistResponse? whitelist;
 
   Map<String, dynamic> toJson() => {
@@ -215,9 +194,6 @@ class AdminControlPlaneResponse {
     "selectedProviderMappings": _openApiJsonValue(selectedProviderMappings),
     "suiteDomainReadiness": _openApiJsonValue(suiteDomainReadiness),
     "supportSafe": _openApiJsonValue(supportSafe),
-    "weaverDistributionPolicy": _openApiJsonValue(weaverDistributionPolicy),
-    "weaverEligibilityPreview": _openApiJsonValue(weaverEligibilityPreview),
-    "weaverRuntimeProjection": _openApiJsonValue(weaverRuntimeProjection),
     "whitelist": _openApiJsonValue(whitelist),
   };
 }
@@ -257,45 +233,6 @@ class ApiErrorResponse {
     "message": _openApiJsonValue(message),
     "requestId": _openApiJsonValue(requestId),
     "supportRef": _openApiJsonValue(supportRef),
-  };
-}
-
-class ApprovalEvidence {
-  const ApprovalEvidence({
-    this.decidedAt,
-    this.decision,
-    this.evidenceRef,
-    this.protocol,
-    this.scopeRefs,
-    this.toolName,
-  });
-
-  factory ApprovalEvidence.fromJson(Map<String, dynamic> json) =>
-      ApprovalEvidence(
-        decidedAt: json["decidedAt"] as String?,
-        decision: json["decision"] as String?,
-        evidenceRef: json["evidenceRef"] as String?,
-        protocol: json["protocol"] as String?,
-        scopeRefs: (json["scopeRefs"] as List<dynamic>?)
-            ?.map((e) => e as String)
-            .toList(),
-        toolName: json["toolName"] as String?,
-      );
-
-  final String? decidedAt;
-  final String? decision;
-  final String? evidenceRef;
-  final String? protocol;
-  final List<String>? scopeRefs;
-  final String? toolName;
-
-  Map<String, dynamic> toJson() => {
-    "decidedAt": _openApiJsonValue(decidedAt),
-    "decision": _openApiJsonValue(decision),
-    "evidenceRef": _openApiJsonValue(evidenceRef),
-    "protocol": _openApiJsonValue(protocol),
-    "scopeRefs": _openApiJsonValue(scopeRefs),
-    "toolName": _openApiJsonValue(toolName),
   };
 }
 
@@ -830,112 +767,6 @@ class BoundedApplyCutoverRollbackProof {
   };
 }
 
-class BridgeDiscoveryResponse {
-  const BridgeDiscoveryResponse({this.catalog, this.runtime});
-
-  factory BridgeDiscoveryResponse.fromJson(Map<String, dynamic> json) =>
-      BridgeDiscoveryResponse(
-        catalog: json["catalog"] == null
-            ? null
-            : WeaveMcpToolCatalog.fromJson(
-                json["catalog"] as Map<String, dynamic>,
-              ),
-        runtime: json["runtime"] == null
-            ? null
-            : RuntimeInvocationContext.fromJson(
-                json["runtime"] as Map<String, dynamic>,
-              ),
-      );
-
-  final WeaveMcpToolCatalog? catalog;
-  final RuntimeInvocationContext? runtime;
-
-  Map<String, dynamic> toJson() => {
-    "catalog": _openApiJsonValue(catalog),
-    "runtime": _openApiJsonValue(runtime),
-  };
-}
-
-class BridgeInvocationRequest {
-  const BridgeInvocationRequest({
-    this.approvalEvidence,
-    this.arguments,
-    this.runtime,
-    this.toolName,
-  });
-
-  factory BridgeInvocationRequest.fromJson(Map<String, dynamic> json) =>
-      BridgeInvocationRequest(
-        approvalEvidence: json["approvalEvidence"] == null
-            ? null
-            : ApprovalEvidence.fromJson(
-                json["approvalEvidence"] as Map<String, dynamic>,
-              ),
-        arguments: (json["arguments"] as Map<String, dynamic>?)
-            ?.cast<String, Object?>(),
-        runtime: json["runtime"] == null
-            ? null
-            : RuntimeInvocationContext.fromJson(
-                json["runtime"] as Map<String, dynamic>,
-              ),
-        toolName: json["toolName"] as String?,
-      );
-
-  final ApprovalEvidence? approvalEvidence;
-  final Map<String, Object?>? arguments;
-  final RuntimeInvocationContext? runtime;
-  final String? toolName;
-
-  Map<String, dynamic> toJson() => {
-    "approvalEvidence": _openApiJsonValue(approvalEvidence),
-    "arguments": _openApiJsonValue(arguments),
-    "runtime": _openApiJsonValue(runtime),
-    "toolName": _openApiJsonValue(toolName),
-  };
-}
-
-class BridgeInvocationResponse {
-  const BridgeInvocationResponse({
-    this.auditRef,
-    this.content,
-    this.status,
-    this.structuredContent,
-    this.supportSafe,
-    this.toolName,
-  });
-
-  factory BridgeInvocationResponse.fromJson(Map<String, dynamic> json) =>
-      BridgeInvocationResponse(
-        auditRef: json["auditRef"] as String?,
-        content: (json["content"] as List<dynamic>?)
-            ?.map(
-              (e) => WeaveMcpContentBlock.fromJson(e as Map<String, dynamic>),
-            )
-            .toList(),
-        status: json["status"] as String?,
-        structuredContent: (json["structuredContent"] as Map<String, dynamic>?)
-            ?.cast<String, Object?>(),
-        supportSafe: json["supportSafe"] as bool?,
-        toolName: json["toolName"] as String?,
-      );
-
-  final String? auditRef;
-  final List<WeaveMcpContentBlock>? content;
-  final String? status;
-  final Map<String, Object?>? structuredContent;
-  final bool? supportSafe;
-  final String? toolName;
-
-  Map<String, dynamic> toJson() => {
-    "auditRef": _openApiJsonValue(auditRef),
-    "content": _openApiJsonValue(content),
-    "status": _openApiJsonValue(status),
-    "structuredContent": _openApiJsonValue(structuredContent),
-    "supportSafe": _openApiJsonValue(supportSafe),
-    "toolName": _openApiJsonValue(toolName),
-  };
-}
-
 class CalendarAccessModelResponse {
   const CalendarAccessModelResponse({
     this.externalClientCredentialModel,
@@ -1455,313 +1286,6 @@ class CalendarSetupCredentialResponse {
     "secretMaterialReturned": _openApiJsonValue(secretMaterialReturned),
     "state": _openApiJsonValue(state),
     "username": _openApiJsonValue(username),
-  };
-}
-
-class CallCreateRequest {
-  const CallCreateRequest({
-    this.linkedCalendarRefs,
-    this.linkedChatRefs,
-    this.linkedDecisionRefs,
-    this.linkedFileRefs,
-    this.spaceId,
-    this.title,
-  });
-
-  factory CallCreateRequest.fromJson(Map<String, dynamic> json) =>
-      CallCreateRequest(
-        linkedCalendarRefs: (json["linkedCalendarRefs"] as List<dynamic>?)
-            ?.map((e) => e as String)
-            .toList(),
-        linkedChatRefs: (json["linkedChatRefs"] as List<dynamic>?)
-            ?.map((e) => e as String)
-            .toList(),
-        linkedDecisionRefs: (json["linkedDecisionRefs"] as List<dynamic>?)
-            ?.map((e) => e as String)
-            .toList(),
-        linkedFileRefs: (json["linkedFileRefs"] as List<dynamic>?)
-            ?.map((e) => e as String)
-            .toList(),
-        spaceId: json["spaceId"] as String?,
-        title: json["title"] as String?,
-      );
-
-  final List<String>? linkedCalendarRefs;
-  final List<String>? linkedChatRefs;
-  final List<String>? linkedDecisionRefs;
-  final List<String>? linkedFileRefs;
-  final String? spaceId;
-  final String? title;
-
-  Map<String, dynamic> toJson() => {
-    "linkedCalendarRefs": _openApiJsonValue(linkedCalendarRefs),
-    "linkedChatRefs": _openApiJsonValue(linkedChatRefs),
-    "linkedDecisionRefs": _openApiJsonValue(linkedDecisionRefs),
-    "linkedFileRefs": _openApiJsonValue(linkedFileRefs),
-    "spaceId": _openApiJsonValue(spaceId),
-    "title": _openApiJsonValue(title),
-  };
-}
-
-class CallJoinRequest {
-  const CallJoinRequest({this.role});
-
-  factory CallJoinRequest.fromJson(Map<String, dynamic> json) =>
-      CallJoinRequest(role: json["role"] as String?);
-
-  final String? role;
-
-  Map<String, dynamic> toJson() => {"role": _openApiJsonValue(role)};
-}
-
-class CallJoinResponse {
-  const CallJoinResponse({
-    this.accessToken,
-    this.callId,
-    this.expiresAt,
-    this.joinUrl,
-    this.mediaProvider,
-    this.roomRef,
-  });
-
-  factory CallJoinResponse.fromJson(Map<String, dynamic> json) =>
-      CallJoinResponse(
-        accessToken: json["accessToken"] as String?,
-        callId: json["callId"] as String?,
-        expiresAt: json["expiresAt"] as String?,
-        joinUrl: json["joinUrl"] as String?,
-        mediaProvider: json["mediaProvider"] as String?,
-        roomRef: json["roomRef"] as String?,
-      );
-
-  final String? accessToken;
-  final String? callId;
-  final String? expiresAt;
-  final String? joinUrl;
-  final String? mediaProvider;
-  final String? roomRef;
-
-  Map<String, dynamic> toJson() => {
-    "accessToken": _openApiJsonValue(accessToken),
-    "callId": _openApiJsonValue(callId),
-    "expiresAt": _openApiJsonValue(expiresAt),
-    "joinUrl": _openApiJsonValue(joinUrl),
-    "mediaProvider": _openApiJsonValue(mediaProvider),
-    "roomRef": _openApiJsonValue(roomRef),
-  };
-}
-
-class CallLeaveResponse {
-  const CallLeaveResponse({this.auditRef, this.callId, this.left, this.leftAt});
-
-  factory CallLeaveResponse.fromJson(Map<String, dynamic> json) =>
-      CallLeaveResponse(
-        auditRef: json["auditRef"] as String?,
-        callId: json["callId"] as String?,
-        left: json["left"] as bool?,
-        leftAt: json["leftAt"] as String?,
-      );
-
-  final String? auditRef;
-  final String? callId;
-  final bool? left;
-  final String? leftAt;
-
-  Map<String, dynamic> toJson() => {
-    "auditRef": _openApiJsonValue(auditRef),
-    "callId": _openApiJsonValue(callId),
-    "left": _openApiJsonValue(left),
-    "leftAt": _openApiJsonValue(leftAt),
-  };
-}
-
-class CallNativeBoundaryOptionResponse {
-  const CallNativeBoundaryOptionResponse({
-    this.available,
-    this.bridge,
-    this.notes,
-    this.osBoundary,
-    this.platform,
-    this.requiredContracts,
-    this.setupAction,
-    this.setupState,
-  });
-
-  factory CallNativeBoundaryOptionResponse.fromJson(
-    Map<String, dynamic> json,
-  ) => CallNativeBoundaryOptionResponse(
-    available: json["available"] as bool?,
-    bridge: json["bridge"] as String?,
-    notes: (json["notes"] as List<dynamic>?)?.map((e) => e as String).toList(),
-    osBoundary: json["osBoundary"] as String?,
-    platform: json["platform"] as String?,
-    requiredContracts: (json["requiredContracts"] as List<dynamic>?)
-        ?.map((e) => e as String)
-        .toList(),
-    setupAction: json["setupAction"] as String?,
-    setupState: json["setupState"] as String?,
-  );
-
-  final bool? available;
-  final String? bridge;
-  final List<String>? notes;
-  final String? osBoundary;
-  final String? platform;
-  final List<String>? requiredContracts;
-  final String? setupAction;
-  final String? setupState;
-
-  Map<String, dynamic> toJson() => {
-    "available": _openApiJsonValue(available),
-    "bridge": _openApiJsonValue(bridge),
-    "notes": _openApiJsonValue(notes),
-    "osBoundary": _openApiJsonValue(osBoundary),
-    "platform": _openApiJsonValue(platform),
-    "requiredContracts": _openApiJsonValue(requiredContracts),
-    "setupAction": _openApiJsonValue(setupAction),
-    "setupState": _openApiJsonValue(setupState),
-  };
-}
-
-class CallNativeBoundarySetupResponse {
-  const CallNativeBoundarySetupResponse({
-    this.blockedUntil,
-    this.credentialsExposed,
-    this.facadeBasePath,
-    this.joinGrantPathTemplate,
-    this.mediaBoundary,
-    this.options,
-    this.proofHooks,
-    this.providerConfigurationExposed,
-    this.readiness,
-    this.signalingBoundary,
-    this.supportSafe,
-  });
-
-  factory CallNativeBoundarySetupResponse.fromJson(
-    Map<String, dynamic> json,
-  ) => CallNativeBoundarySetupResponse(
-    blockedUntil: (json["blockedUntil"] as List<dynamic>?)
-        ?.map((e) => e as String)
-        .toList(),
-    credentialsExposed: json["credentialsExposed"] as bool?,
-    facadeBasePath: json["facadeBasePath"] as String?,
-    joinGrantPathTemplate: json["joinGrantPathTemplate"] as String?,
-    mediaBoundary: json["mediaBoundary"] as String?,
-    options: (json["options"] as List<dynamic>?)
-        ?.map(
-          (e) => CallNativeBoundaryOptionResponse.fromJson(
-            e as Map<String, dynamic>,
-          ),
-        )
-        .toList(),
-    proofHooks: (json["proofHooks"] as List<dynamic>?)
-        ?.map((e) => e as String)
-        .toList(),
-    providerConfigurationExposed: json["providerConfigurationExposed"] as bool?,
-    readiness: json["readiness"] == null
-        ? null
-        : WorkspaceCapabilityStatusResponse.fromJson(
-            json["readiness"] as Map<String, dynamic>,
-          ),
-    signalingBoundary: json["signalingBoundary"] as String?,
-    supportSafe: json["supportSafe"] as bool?,
-  );
-
-  final List<String>? blockedUntil;
-  final bool? credentialsExposed;
-  final String? facadeBasePath;
-  final String? joinGrantPathTemplate;
-  final String? mediaBoundary;
-  final List<CallNativeBoundaryOptionResponse>? options;
-  final List<String>? proofHooks;
-  final bool? providerConfigurationExposed;
-  final WorkspaceCapabilityStatusResponse? readiness;
-  final String? signalingBoundary;
-  final bool? supportSafe;
-
-  Map<String, dynamic> toJson() => {
-    "blockedUntil": _openApiJsonValue(blockedUntil),
-    "credentialsExposed": _openApiJsonValue(credentialsExposed),
-    "facadeBasePath": _openApiJsonValue(facadeBasePath),
-    "joinGrantPathTemplate": _openApiJsonValue(joinGrantPathTemplate),
-    "mediaBoundary": _openApiJsonValue(mediaBoundary),
-    "options": _openApiJsonValue(options),
-    "proofHooks": _openApiJsonValue(proofHooks),
-    "providerConfigurationExposed": _openApiJsonValue(
-      providerConfigurationExposed,
-    ),
-    "readiness": _openApiJsonValue(readiness),
-    "signalingBoundary": _openApiJsonValue(signalingBoundary),
-    "supportSafe": _openApiJsonValue(supportSafe),
-  };
-}
-
-class CallResponse {
-  const CallResponse({
-    this.callId,
-    this.ended,
-    this.joinAvailable,
-    this.linkedCalendarRefs,
-    this.linkedChatRefs,
-    this.linkedDecisionRefs,
-    this.linkedFileRefs,
-    this.mediaProvider,
-    this.roomRef,
-    this.spaceId,
-    this.title,
-    this.updatedAt,
-  });
-
-  factory CallResponse.fromJson(Map<String, dynamic> json) => CallResponse(
-    callId: json["callId"] as String?,
-    ended: json["ended"] as bool?,
-    joinAvailable: json["joinAvailable"] as bool?,
-    linkedCalendarRefs: (json["linkedCalendarRefs"] as List<dynamic>?)
-        ?.map((e) => e as String)
-        .toList(),
-    linkedChatRefs: (json["linkedChatRefs"] as List<dynamic>?)
-        ?.map((e) => e as String)
-        .toList(),
-    linkedDecisionRefs: (json["linkedDecisionRefs"] as List<dynamic>?)
-        ?.map((e) => e as String)
-        .toList(),
-    linkedFileRefs: (json["linkedFileRefs"] as List<dynamic>?)
-        ?.map((e) => e as String)
-        .toList(),
-    mediaProvider: json["mediaProvider"] as String?,
-    roomRef: json["roomRef"] as String?,
-    spaceId: json["spaceId"] as String?,
-    title: json["title"] as String?,
-    updatedAt: json["updatedAt"] as String?,
-  );
-
-  final String? callId;
-  final bool? ended;
-  final bool? joinAvailable;
-  final List<String>? linkedCalendarRefs;
-  final List<String>? linkedChatRefs;
-  final List<String>? linkedDecisionRefs;
-  final List<String>? linkedFileRefs;
-  final String? mediaProvider;
-  final String? roomRef;
-  final String? spaceId;
-  final String? title;
-  final String? updatedAt;
-
-  Map<String, dynamic> toJson() => {
-    "callId": _openApiJsonValue(callId),
-    "ended": _openApiJsonValue(ended),
-    "joinAvailable": _openApiJsonValue(joinAvailable),
-    "linkedCalendarRefs": _openApiJsonValue(linkedCalendarRefs),
-    "linkedChatRefs": _openApiJsonValue(linkedChatRefs),
-    "linkedDecisionRefs": _openApiJsonValue(linkedDecisionRefs),
-    "linkedFileRefs": _openApiJsonValue(linkedFileRefs),
-    "mediaProvider": _openApiJsonValue(mediaProvider),
-    "roomRef": _openApiJsonValue(roomRef),
-    "spaceId": _openApiJsonValue(spaceId),
-    "title": _openApiJsonValue(title),
-    "updatedAt": _openApiJsonValue(updatedAt),
   };
 }
 
@@ -4045,6 +3569,7 @@ class EffectivePolicySimulationRequest {
 
 class EffectivePolicySimulationResponse {
   const EffectivePolicySimulationResponse({
+    this.agentRuntimeEntitlementRequired,
     this.auditRefs,
     this.capabilityStates,
     this.deniedInputs,
@@ -4057,12 +3582,13 @@ class EffectivePolicySimulationResponse {
     this.subject,
     this.supportSafe,
     this.unknownInputsFailClosed,
-    this.weaverDefaultDisabled,
   });
 
   factory EffectivePolicySimulationResponse.fromJson(
     Map<String, dynamic> json,
   ) => EffectivePolicySimulationResponse(
+    agentRuntimeEntitlementRequired:
+        json["agentRuntimeEntitlementRequired"] as bool?,
     auditRefs: (json["auditRefs"] as List<dynamic>?)
         ?.map((e) => e as String)
         .toList(),
@@ -4089,9 +3615,9 @@ class EffectivePolicySimulationResponse {
     subject: json["subject"] as String?,
     supportSafe: json["supportSafe"] as bool?,
     unknownInputsFailClosed: json["unknownInputsFailClosed"] as bool?,
-    weaverDefaultDisabled: json["weaverDefaultDisabled"] as bool?,
   );
 
+  final bool? agentRuntimeEntitlementRequired;
   final List<String>? auditRefs;
   final List<CapabilityState>? capabilityStates;
   final List<String>? deniedInputs;
@@ -4104,9 +3630,11 @@ class EffectivePolicySimulationResponse {
   final String? subject;
   final bool? supportSafe;
   final bool? unknownInputsFailClosed;
-  final bool? weaverDefaultDisabled;
 
   Map<String, dynamic> toJson() => {
+    "agentRuntimeEntitlementRequired": _openApiJsonValue(
+      agentRuntimeEntitlementRequired,
+    ),
     "auditRefs": _openApiJsonValue(auditRefs),
     "capabilityStates": _openApiJsonValue(capabilityStates),
     "deniedInputs": _openApiJsonValue(deniedInputs),
@@ -4119,7 +3647,6 @@ class EffectivePolicySimulationResponse {
     "subject": _openApiJsonValue(subject),
     "supportSafe": _openApiJsonValue(supportSafe),
     "unknownInputsFailClosed": _openApiJsonValue(unknownInputsFailClosed),
-    "weaverDefaultDisabled": _openApiJsonValue(weaverDefaultDisabled),
   };
 }
 
@@ -8162,67 +7689,6 @@ class ReleaseClaimControlResponse {
   };
 }
 
-class RuntimeInvocationContext {
-  const RuntimeInvocationContext({
-    this.allowedTools,
-    this.auditRef,
-    this.capabilityGrants,
-    this.orgRef,
-    this.runtimeProfileHash,
-    this.runtimeProfileRef,
-    this.runtimeTokenRef,
-    this.userRef,
-  });
-
-  factory RuntimeInvocationContext.fromJson(Map<String, dynamic> json) =>
-      RuntimeInvocationContext(
-        allowedTools: (json["allowedTools"] as List<dynamic>?)
-            ?.map((e) => e as String)
-            .toList(),
-        auditRef: json["auditRef"] as String?,
-        capabilityGrants: (json["capabilityGrants"] as List<dynamic>?)
-            ?.map((e) => e as String)
-            .toList(),
-        orgRef: json["orgRef"] == null
-            ? null
-            : WeaveMcpRef.fromJson(json["orgRef"] as Map<String, dynamic>),
-        runtimeProfileHash: json["runtimeProfileHash"] as String?,
-        runtimeProfileRef: json["runtimeProfileRef"] == null
-            ? null
-            : WeaveMcpRef.fromJson(
-                json["runtimeProfileRef"] as Map<String, dynamic>,
-              ),
-        runtimeTokenRef: json["runtimeTokenRef"] == null
-            ? null
-            : WeaveMcpRef.fromJson(
-                json["runtimeTokenRef"] as Map<String, dynamic>,
-              ),
-        userRef: json["userRef"] == null
-            ? null
-            : WeaveMcpRef.fromJson(json["userRef"] as Map<String, dynamic>),
-      );
-
-  final List<String>? allowedTools;
-  final String? auditRef;
-  final List<String>? capabilityGrants;
-  final WeaveMcpRef? orgRef;
-  final String? runtimeProfileHash;
-  final WeaveMcpRef? runtimeProfileRef;
-  final WeaveMcpRef? runtimeTokenRef;
-  final WeaveMcpRef? userRef;
-
-  Map<String, dynamic> toJson() => {
-    "allowedTools": _openApiJsonValue(allowedTools),
-    "auditRef": _openApiJsonValue(auditRef),
-    "capabilityGrants": _openApiJsonValue(capabilityGrants),
-    "orgRef": _openApiJsonValue(orgRef),
-    "runtimeProfileHash": _openApiJsonValue(runtimeProfileHash),
-    "runtimeProfileRef": _openApiJsonValue(runtimeProfileRef),
-    "runtimeTokenRef": _openApiJsonValue(runtimeTokenRef),
-    "userRef": _openApiJsonValue(userRef),
-  };
-}
-
 class SecretRefResponse {
   const SecretRefResponse({
     this.configured,
@@ -8747,152 +8213,6 @@ class UpdateProductProfileRequest {
   };
 }
 
-class WeaveMcpContentBlock {
-  const WeaveMcpContentBlock({this.metadata, this.ref, this.text, this.type});
-
-  factory WeaveMcpContentBlock.fromJson(Map<String, dynamic> json) =>
-      WeaveMcpContentBlock(
-        metadata: (json["metadata"] as Map<String, dynamic>?)
-            ?.cast<String, Object?>(),
-        ref: json["ref"] == null
-            ? null
-            : WeaveMcpRef.fromJson(json["ref"] as Map<String, dynamic>),
-        text: json["text"] as String?,
-        type: json["type"] as String?,
-      );
-
-  final Map<String, Object?>? metadata;
-  final WeaveMcpRef? ref;
-  final String? text;
-  final String? type;
-
-  Map<String, dynamic> toJson() => {
-    "metadata": _openApiJsonValue(metadata),
-    "ref": _openApiJsonValue(ref),
-    "text": _openApiJsonValue(text),
-    "type": _openApiJsonValue(type),
-  };
-}
-
-class WeaveMcpRef {
-  const WeaveMcpRef({this.value});
-
-  factory WeaveMcpRef.fromJson(Map<String, dynamic> json) =>
-      WeaveMcpRef(value: json["value"] as String?);
-
-  final String? value;
-
-  Map<String, dynamic> toJson() => {"value": _openApiJsonValue(value)};
-}
-
-class WeaveMcpToolAnnotations {
-  const WeaveMcpToolAnnotations({
-    this.destructiveHint,
-    this.openWorldHint,
-    this.readOnlyHint,
-  });
-
-  factory WeaveMcpToolAnnotations.fromJson(Map<String, dynamic> json) =>
-      WeaveMcpToolAnnotations(
-        destructiveHint: json["destructiveHint"] as bool?,
-        openWorldHint: json["openWorldHint"] as bool?,
-        readOnlyHint: json["readOnlyHint"] as bool?,
-      );
-
-  final bool? destructiveHint;
-  final bool? openWorldHint;
-  final bool? readOnlyHint;
-
-  Map<String, dynamic> toJson() => {
-    "destructiveHint": _openApiJsonValue(destructiveHint),
-    "openWorldHint": _openApiJsonValue(openWorldHint),
-    "readOnlyHint": _openApiJsonValue(readOnlyHint),
-  };
-}
-
-class WeaveMcpToolCatalog {
-  const WeaveMcpToolCatalog({
-    this.contractVersion,
-    this.serverNamespace,
-    this.tools,
-  });
-
-  factory WeaveMcpToolCatalog.fromJson(Map<String, dynamic> json) =>
-      WeaveMcpToolCatalog(
-        contractVersion: json["contractVersion"] as String?,
-        serverNamespace: json["serverNamespace"] as String?,
-        tools: (json["tools"] as List<dynamic>?)
-            ?.map(
-              (e) => WeaveMcpToolDefinition.fromJson(e as Map<String, dynamic>),
-            )
-            .toList(),
-      );
-
-  final String? contractVersion;
-  final String? serverNamespace;
-  final List<WeaveMcpToolDefinition>? tools;
-
-  Map<String, dynamic> toJson() => {
-    "contractVersion": _openApiJsonValue(contractVersion),
-    "serverNamespace": _openApiJsonValue(serverNamespace),
-    "tools": _openApiJsonValue(tools),
-  };
-}
-
-class WeaveMcpToolDefinition {
-  const WeaveMcpToolDefinition({
-    this.annotations,
-    this.approvalRequired,
-    this.description,
-    this.domain,
-    this.inputSchema,
-    this.mode,
-    this.name,
-    this.requiredCapability,
-    this.version,
-  });
-
-  factory WeaveMcpToolDefinition.fromJson(Map<String, dynamic> json) =>
-      WeaveMcpToolDefinition(
-        annotations: json["annotations"] == null
-            ? null
-            : WeaveMcpToolAnnotations.fromJson(
-                json["annotations"] as Map<String, dynamic>,
-              ),
-        approvalRequired: json["approvalRequired"] as bool?,
-        description: json["description"] as String?,
-        domain: json["domain"] as String?,
-        inputSchema: (json["inputSchema"] as Map<String, dynamic>?)
-            ?.cast<String, Object?>(),
-        mode: json["mode"] as String?,
-        name: json["name"] as String?,
-        requiredCapability: json["requiredCapability"] as String?,
-        version: json["version"] as String?,
-      );
-
-  final WeaveMcpToolAnnotations? annotations;
-  final bool? approvalRequired;
-  final String? description;
-  final String? domain;
-  final Map<String, Object?>? inputSchema;
-  final String? mode;
-  final String? name;
-  final String? requiredCapability;
-  final String? version;
-
-  Map<String, dynamic> toJson() => {
-    "annotations": _openApiJsonValue(annotations),
-    "approvalRequired": _openApiJsonValue(approvalRequired),
-    "description": _openApiJsonValue(description),
-    "domain": _openApiJsonValue(domain),
-    "inputSchema": _openApiJsonValue(inputSchema),
-    "mode": _openApiJsonValue(mode),
-    "name": _openApiJsonValue(name),
-    "requiredCapability": _openApiJsonValue(requiredCapability),
-    "version": _openApiJsonValue(version),
-  };
-}
-
 class WeaveProject {
   const WeaveProject({
     this.id,
@@ -8929,807 +8249,10 @@ class WeaveProject {
   };
 }
 
-class WeaverApprovalReceiptResponse {
-  const WeaverApprovalReceiptResponse({
-    this.actorRef,
-    this.approvedAction,
-    this.id,
-    this.requestedAction,
-    this.resultCategory,
-    this.targetRef,
-    this.timestamp,
-  });
-
-  factory WeaverApprovalReceiptResponse.fromJson(Map<String, dynamic> json) =>
-      WeaverApprovalReceiptResponse(
-        actorRef: json["actorRef"] as String?,
-        approvedAction: json["approvedAction"] as String?,
-        id: json["id"] as String?,
-        requestedAction: json["requestedAction"] as String?,
-        resultCategory: json["resultCategory"] as String?,
-        targetRef: json["targetRef"] as String?,
-        timestamp: json["timestamp"] as String?,
-      );
-
-  final String? actorRef;
-  final String? approvedAction;
-  final String? id;
-  final String? requestedAction;
-  final String? resultCategory;
-  final String? targetRef;
-  final String? timestamp;
-
-  Map<String, dynamic> toJson() => {
-    "actorRef": _openApiJsonValue(actorRef),
-    "approvedAction": _openApiJsonValue(approvedAction),
-    "id": _openApiJsonValue(id),
-    "requestedAction": _openApiJsonValue(requestedAction),
-    "resultCategory": _openApiJsonValue(resultCategory),
-    "targetRef": _openApiJsonValue(targetRef),
-    "timestamp": _openApiJsonValue(timestamp),
-  };
-}
-
-class WeaverDistributionPolicyResponse {
-  const WeaverDistributionPolicyResponse({
-    this.allowedSkills,
-    this.allowedTools,
-    this.approvalRequiredFor,
-    this.auditRefs,
-    this.changeHistory,
-    this.chatMigrationConsequences,
-    this.chatProviderKey,
-    this.chatReadinessState,
-    this.defaultModelAlias,
-    this.deniedTools,
-    this.effectivePolicyPreview,
-    this.enabledByDefault,
-    this.fallbackModelAliases,
-    this.mcpServers,
-    this.modelAliases,
-    this.pendingRuntimeProfileHash,
-    this.profileRegenerationBlockedReasons,
-    this.revocationState,
-    this.rollbackProfileHash,
-    this.runtimeProfileHash,
-  });
-
-  factory WeaverDistributionPolicyResponse.fromJson(
-    Map<String, dynamic> json,
-  ) => WeaverDistributionPolicyResponse(
-    allowedSkills: (json["allowedSkills"] as List<dynamic>?)
-        ?.map((e) => e as String)
-        .toList(),
-    allowedTools: (json["allowedTools"] as List<dynamic>?)
-        ?.map((e) => e as String)
-        .toList(),
-    approvalRequiredFor: (json["approvalRequiredFor"] as List<dynamic>?)
-        ?.map((e) => e as String)
-        .toList(),
-    auditRefs: (json["auditRefs"] as List<dynamic>?)
-        ?.map((e) => e as String)
-        .toList(),
-    changeHistory: (json["changeHistory"] as List<dynamic>?)
-        ?.map(
-          (e) => WeaverRuntimeProfileChangeResponse.fromJson(
-            e as Map<String, dynamic>,
-          ),
-        )
-        .toList(),
-    chatMigrationConsequences:
-        (json["chatMigrationConsequences"] as List<dynamic>?)
-            ?.map((e) => e as String)
-            .toList(),
-    chatProviderKey: json["chatProviderKey"] as String?,
-    chatReadinessState: json["chatReadinessState"] as String?,
-    defaultModelAlias: json["defaultModelAlias"] as String?,
-    deniedTools: (json["deniedTools"] as List<dynamic>?)
-        ?.map((e) => e as String)
-        .toList(),
-    effectivePolicyPreview: (json["effectivePolicyPreview"] as List<dynamic>?)
-        ?.map((e) => e as String)
-        .toList(),
-    enabledByDefault: json["enabledByDefault"] as bool?,
-    fallbackModelAliases: (json["fallbackModelAliases"] as List<dynamic>?)
-        ?.map((e) => e as String)
-        .toList(),
-    mcpServers: (json["mcpServers"] as List<dynamic>?)
-        ?.map((e) => WeaverMcpGrantResponse.fromJson(e as Map<String, dynamic>))
-        .toList(),
-    modelAliases: (json["modelAliases"] as List<dynamic>?)
-        ?.map(
-          (e) => WeaverModelAliasResponse.fromJson(e as Map<String, dynamic>),
-        )
-        .toList(),
-    pendingRuntimeProfileHash: json["pendingRuntimeProfileHash"] as String?,
-    profileRegenerationBlockedReasons:
-        (json["profileRegenerationBlockedReasons"] as List<dynamic>?)
-            ?.map((e) => e as String)
-            .toList(),
-    revocationState: json["revocationState"] as String?,
-    rollbackProfileHash: json["rollbackProfileHash"] as String?,
-    runtimeProfileHash: json["runtimeProfileHash"] as String?,
-  );
-
-  final List<String>? allowedSkills;
-  final List<String>? allowedTools;
-  final List<String>? approvalRequiredFor;
-  final List<String>? auditRefs;
-  final List<WeaverRuntimeProfileChangeResponse>? changeHistory;
-  final List<String>? chatMigrationConsequences;
-  final String? chatProviderKey;
-  final String? chatReadinessState;
-  final String? defaultModelAlias;
-  final List<String>? deniedTools;
-  final List<String>? effectivePolicyPreview;
-  final bool? enabledByDefault;
-  final List<String>? fallbackModelAliases;
-  final List<WeaverMcpGrantResponse>? mcpServers;
-  final List<WeaverModelAliasResponse>? modelAliases;
-  final String? pendingRuntimeProfileHash;
-  final List<String>? profileRegenerationBlockedReasons;
-  final String? revocationState;
-  final String? rollbackProfileHash;
-  final String? runtimeProfileHash;
-
-  Map<String, dynamic> toJson() => {
-    "allowedSkills": _openApiJsonValue(allowedSkills),
-    "allowedTools": _openApiJsonValue(allowedTools),
-    "approvalRequiredFor": _openApiJsonValue(approvalRequiredFor),
-    "auditRefs": _openApiJsonValue(auditRefs),
-    "changeHistory": _openApiJsonValue(changeHistory),
-    "chatMigrationConsequences": _openApiJsonValue(chatMigrationConsequences),
-    "chatProviderKey": _openApiJsonValue(chatProviderKey),
-    "chatReadinessState": _openApiJsonValue(chatReadinessState),
-    "defaultModelAlias": _openApiJsonValue(defaultModelAlias),
-    "deniedTools": _openApiJsonValue(deniedTools),
-    "effectivePolicyPreview": _openApiJsonValue(effectivePolicyPreview),
-    "enabledByDefault": _openApiJsonValue(enabledByDefault),
-    "fallbackModelAliases": _openApiJsonValue(fallbackModelAliases),
-    "mcpServers": _openApiJsonValue(mcpServers),
-    "modelAliases": _openApiJsonValue(modelAliases),
-    "pendingRuntimeProfileHash": _openApiJsonValue(pendingRuntimeProfileHash),
-    "profileRegenerationBlockedReasons": _openApiJsonValue(
-      profileRegenerationBlockedReasons,
-    ),
-    "revocationState": _openApiJsonValue(revocationState),
-    "rollbackProfileHash": _openApiJsonValue(rollbackProfileHash),
-    "runtimeProfileHash": _openApiJsonValue(runtimeProfileHash),
-  };
-}
-
-class WeaverEligibilityPreviewResponse {
-  const WeaverEligibilityPreviewResponse({
-    this.auditRefs,
-    this.blockedReasons,
-    this.eligibleCapabilities,
-    this.groupMembershipRequired,
-    this.memberStateWhenEligible,
-    this.memberStateWithoutGroup,
-    this.memberStateWithoutPolicy,
-    this.nextActions,
-    this.policyEnabled,
-    this.requiredGroups,
-  });
-
-  factory WeaverEligibilityPreviewResponse.fromJson(
-    Map<String, dynamic> json,
-  ) => WeaverEligibilityPreviewResponse(
-    auditRefs: (json["auditRefs"] as List<dynamic>?)
-        ?.map((e) => e as String)
-        .toList(),
-    blockedReasons: (json["blockedReasons"] as List<dynamic>?)
-        ?.map((e) => e as String)
-        .toList(),
-    eligibleCapabilities: (json["eligibleCapabilities"] as List<dynamic>?)
-        ?.map((e) => e as String)
-        .toList(),
-    groupMembershipRequired: json["groupMembershipRequired"] as bool?,
-    memberStateWhenEligible: json["memberStateWhenEligible"] as String?,
-    memberStateWithoutGroup: json["memberStateWithoutGroup"] as String?,
-    memberStateWithoutPolicy: json["memberStateWithoutPolicy"] as String?,
-    nextActions: (json["nextActions"] as List<dynamic>?)
-        ?.map((e) => e as String)
-        .toList(),
-    policyEnabled: json["policyEnabled"] as bool?,
-    requiredGroups: (json["requiredGroups"] as List<dynamic>?)
-        ?.map((e) => e as String)
-        .toList(),
-  );
-
-  final List<String>? auditRefs;
-  final List<String>? blockedReasons;
-  final List<String>? eligibleCapabilities;
-  final bool? groupMembershipRequired;
-  final String? memberStateWhenEligible;
-  final String? memberStateWithoutGroup;
-  final String? memberStateWithoutPolicy;
-  final List<String>? nextActions;
-  final bool? policyEnabled;
-  final List<String>? requiredGroups;
-
-  Map<String, dynamic> toJson() => {
-    "auditRefs": _openApiJsonValue(auditRefs),
-    "blockedReasons": _openApiJsonValue(blockedReasons),
-    "eligibleCapabilities": _openApiJsonValue(eligibleCapabilities),
-    "groupMembershipRequired": _openApiJsonValue(groupMembershipRequired),
-    "memberStateWhenEligible": _openApiJsonValue(memberStateWhenEligible),
-    "memberStateWithoutGroup": _openApiJsonValue(memberStateWithoutGroup),
-    "memberStateWithoutPolicy": _openApiJsonValue(memberStateWithoutPolicy),
-    "nextActions": _openApiJsonValue(nextActions),
-    "policyEnabled": _openApiJsonValue(policyEnabled),
-    "requiredGroups": _openApiJsonValue(requiredGroups),
-  };
-}
-
-class WeaverMcpGrantResponse {
-  const WeaverMcpGrantResponse({
-    this.approvalRequired,
-    this.serverKey,
-    this.tools,
-  });
-
-  factory WeaverMcpGrantResponse.fromJson(Map<String, dynamic> json) =>
-      WeaverMcpGrantResponse(
-        approvalRequired: json["approvalRequired"] as bool?,
-        serverKey: json["serverKey"] as String?,
-        tools: (json["tools"] as List<dynamic>?)
-            ?.map((e) => e as String)
-            .toList(),
-      );
-
-  final bool? approvalRequired;
-  final String? serverKey;
-  final List<String>? tools;
-
-  Map<String, dynamic> toJson() => {
-    "approvalRequired": _openApiJsonValue(approvalRequired),
-    "serverKey": _openApiJsonValue(serverKey),
-    "tools": _openApiJsonValue(tools),
-  };
-}
-
-class WeaverModelAliasResponse {
-  const WeaverModelAliasResponse({
-    this.alias,
-    this.model,
-    this.provider,
-    this.userSelectable,
-  });
-
-  factory WeaverModelAliasResponse.fromJson(Map<String, dynamic> json) =>
-      WeaverModelAliasResponse(
-        alias: json["alias"] as String?,
-        model: json["model"] as String?,
-        provider: json["provider"] as String?,
-        userSelectable: json["userSelectable"] as bool?,
-      );
-
-  final String? alias;
-  final String? model;
-  final String? provider;
-  final bool? userSelectable;
-
-  Map<String, dynamic> toJson() => {
-    "alias": _openApiJsonValue(alias),
-    "model": _openApiJsonValue(model),
-    "provider": _openApiJsonValue(provider),
-    "userSelectable": _openApiJsonValue(userSelectable),
-  };
-}
-
-class WeaverPermissionModeRequest {
-  const WeaverPermissionModeRequest({required this.mode});
-
-  factory WeaverPermissionModeRequest.fromJson(Map<String, dynamic> json) =>
-      WeaverPermissionModeRequest(mode: json["mode"] as String);
-
-  final String mode;
-
-  Map<String, dynamic> toJson() => {"mode": _openApiJsonValue(mode)};
-}
-
-class WeaverPermissionModeResponse {
-  const WeaverPermissionModeResponse({
-    required this.accepted,
-    required this.dangerous,
-    required this.mode,
-    required this.policyReason,
-    required this.runtimeProfileHash,
-  });
-
-  factory WeaverPermissionModeResponse.fromJson(Map<String, dynamic> json) =>
-      WeaverPermissionModeResponse(
-        accepted: json["accepted"] as bool,
-        dangerous: json["dangerous"] as bool,
-        mode: json["mode"] as String,
-        policyReason: json["policyReason"] as String,
-        runtimeProfileHash: json["runtimeProfileHash"] as String,
-      );
-
-  final bool accepted;
-  final bool dangerous;
-  final String mode;
-  final String policyReason;
-  final String runtimeProfileHash;
-
-  Map<String, dynamic> toJson() => {
-    "accepted": _openApiJsonValue(accepted),
-    "dangerous": _openApiJsonValue(dangerous),
-    "mode": _openApiJsonValue(mode),
-    "policyReason": _openApiJsonValue(policyReason),
-    "runtimeProfileHash": _openApiJsonValue(runtimeProfileHash),
-  };
-}
-
-class WeaverRuntimeProfileChangeResponse {
-  const WeaverRuntimeProfileChangeResponse({
-    this.createdAt,
-    this.runtimeProfileHash,
-    this.status,
-    this.summary,
-    this.version,
-  });
-
-  factory WeaverRuntimeProfileChangeResponse.fromJson(
-    Map<String, dynamic> json,
-  ) => WeaverRuntimeProfileChangeResponse(
-    createdAt: json["createdAt"] as String?,
-    runtimeProfileHash: json["runtimeProfileHash"] as String?,
-    status: json["status"] as String?,
-    summary: json["summary"] as String?,
-    version: json["version"] as String?,
-  );
-
-  final String? createdAt;
-  final String? runtimeProfileHash;
-  final String? status;
-  final String? summary;
-  final String? version;
-
-  Map<String, dynamic> toJson() => {
-    "createdAt": _openApiJsonValue(createdAt),
-    "runtimeProfileHash": _openApiJsonValue(runtimeProfileHash),
-    "status": _openApiJsonValue(status),
-    "summary": _openApiJsonValue(summary),
-    "version": _openApiJsonValue(version),
-  };
-}
-
-class WeaverRuntimeProfileResponse {
-  const WeaverRuntimeProfileResponse({
-    required this.allowedCapabilities,
-    required this.approvalPolicy,
-    required this.auditPolicy,
-    required this.auditRequired,
-    required this.baselineProfile,
-    required this.channelProjection,
-    required this.containerImage,
-    required this.credentialBrokerContract,
-    required this.dockerNetworkMode,
-    required this.elevatedEnabled,
-    required this.enabled,
-    required this.execEnabled,
-    required this.expiresAt,
-    required this.forkRequired,
-    required this.generatedFrom,
-    required this.isolatedAgentDirectory,
-    required this.isolationBoundary,
-    required this.mcpProjection,
-    required this.memberImpact,
-    required this.modelProvider,
-    required this.permissionMode,
-    required this.pluginAllowlist,
-    required this.posture,
-    required this.previousProfileHash,
-    required this.profileVersion,
-    required this.revocationGeneration,
-    required this.revocationStatus,
-    required this.revoked,
-    required this.rollbackProfileHash,
-    required this.runtimeKind,
-    required this.runtimeProfileHash,
-    required this.runtimeProvider,
-    required this.secretPosture,
-    required this.signature,
-    required this.supportSafeProfileReceipt,
-    required this.toolAllowlist,
-    required this.toolProvider,
-    required this.userRef,
-    required this.workspacePath,
-  });
-
-  factory WeaverRuntimeProfileResponse.fromJson(Map<String, dynamic> json) =>
-      WeaverRuntimeProfileResponse(
-        allowedCapabilities: (json["allowedCapabilities"] as List<dynamic>)
-            .map((e) => e as String)
-            .toList(),
-        approvalPolicy: json["approvalPolicy"] as String,
-        auditPolicy: (json["auditPolicy"] as Map<String, dynamic>)
-            .cast<String, Object?>(),
-        auditRequired: json["auditRequired"] as bool,
-        baselineProfile: json["baselineProfile"] as String,
-        channelProjection: (json["channelProjection"] as Map<String, dynamic>)
-            .cast<String, Object?>(),
-        containerImage: json["containerImage"] as String,
-        credentialBrokerContract:
-            (json["credentialBrokerContract"] as Map<String, dynamic>)
-                .cast<String, Object?>(),
-        dockerNetworkMode: json["dockerNetworkMode"] as String,
-        elevatedEnabled: json["elevatedEnabled"] as bool,
-        enabled: json["enabled"] as bool,
-        execEnabled: json["execEnabled"] as bool,
-        expiresAt: json["expiresAt"] as String,
-        forkRequired: json["forkRequired"] as bool,
-        generatedFrom: json["generatedFrom"] as String,
-        isolatedAgentDirectory: json["isolatedAgentDirectory"] as String,
-        isolationBoundary: json["isolationBoundary"] as String,
-        mcpProjection: (json["mcpProjection"] as Map<String, dynamic>)
-            .cast<String, Object?>(),
-        memberImpact: json["memberImpact"] as String,
-        modelProvider: json["modelProvider"] as String,
-        permissionMode: json["permissionMode"] as String,
-        pluginAllowlist: (json["pluginAllowlist"] as List<dynamic>)
-            .map((e) => e as String)
-            .toList(),
-        posture: json["posture"] as String,
-        previousProfileHash: json["previousProfileHash"] as String,
-        profileVersion: json["profileVersion"] as String,
-        revocationGeneration: (json["revocationGeneration"] as num).toInt(),
-        revocationStatus: json["revocationStatus"] as String,
-        revoked: json["revoked"] as bool,
-        rollbackProfileHash: json["rollbackProfileHash"] as String,
-        runtimeKind: json["runtimeKind"] as String,
-        runtimeProfileHash: json["runtimeProfileHash"] as String,
-        runtimeProvider: json["runtimeProvider"] as String,
-        secretPosture: json["secretPosture"] as String,
-        signature: json["signature"] as String,
-        supportSafeProfileReceipt:
-            (json["supportSafeProfileReceipt"] as Map<String, dynamic>)
-                .cast<String, Object?>(),
-        toolAllowlist: (json["toolAllowlist"] as List<dynamic>)
-            .map((e) => e as String)
-            .toList(),
-        toolProvider: json["toolProvider"] as String,
-        userRef: json["userRef"] as String,
-        workspacePath: json["workspacePath"] as String,
-      );
-
-  final List<String> allowedCapabilities;
-  final String approvalPolicy;
-  final Map<String, Object?> auditPolicy;
-  final bool auditRequired;
-  final String baselineProfile;
-  final Map<String, Object?> channelProjection;
-  final String containerImage;
-  final Map<String, Object?> credentialBrokerContract;
-  final String dockerNetworkMode;
-  final bool elevatedEnabled;
-  final bool enabled;
-  final bool execEnabled;
-  final String expiresAt;
-  final bool forkRequired;
-  final String generatedFrom;
-  final String isolatedAgentDirectory;
-  final String isolationBoundary;
-  final Map<String, Object?> mcpProjection;
-  final String memberImpact;
-  final String modelProvider;
-  final String permissionMode;
-  final List<String> pluginAllowlist;
-  final String posture;
-  final String previousProfileHash;
-  final String profileVersion;
-  final int revocationGeneration;
-  final String revocationStatus;
-  final bool revoked;
-  final String rollbackProfileHash;
-  final String runtimeKind;
-  final String runtimeProfileHash;
-  final String runtimeProvider;
-  final String secretPosture;
-  final String signature;
-  final Map<String, Object?> supportSafeProfileReceipt;
-  final List<String> toolAllowlist;
-  final String toolProvider;
-  final String userRef;
-  final String workspacePath;
-
-  Map<String, dynamic> toJson() => {
-    "allowedCapabilities": _openApiJsonValue(allowedCapabilities),
-    "approvalPolicy": _openApiJsonValue(approvalPolicy),
-    "auditPolicy": _openApiJsonValue(auditPolicy),
-    "auditRequired": _openApiJsonValue(auditRequired),
-    "baselineProfile": _openApiJsonValue(baselineProfile),
-    "channelProjection": _openApiJsonValue(channelProjection),
-    "containerImage": _openApiJsonValue(containerImage),
-    "credentialBrokerContract": _openApiJsonValue(credentialBrokerContract),
-    "dockerNetworkMode": _openApiJsonValue(dockerNetworkMode),
-    "elevatedEnabled": _openApiJsonValue(elevatedEnabled),
-    "enabled": _openApiJsonValue(enabled),
-    "execEnabled": _openApiJsonValue(execEnabled),
-    "expiresAt": _openApiJsonValue(expiresAt),
-    "forkRequired": _openApiJsonValue(forkRequired),
-    "generatedFrom": _openApiJsonValue(generatedFrom),
-    "isolatedAgentDirectory": _openApiJsonValue(isolatedAgentDirectory),
-    "isolationBoundary": _openApiJsonValue(isolationBoundary),
-    "mcpProjection": _openApiJsonValue(mcpProjection),
-    "memberImpact": _openApiJsonValue(memberImpact),
-    "modelProvider": _openApiJsonValue(modelProvider),
-    "permissionMode": _openApiJsonValue(permissionMode),
-    "pluginAllowlist": _openApiJsonValue(pluginAllowlist),
-    "posture": _openApiJsonValue(posture),
-    "previousProfileHash": _openApiJsonValue(previousProfileHash),
-    "profileVersion": _openApiJsonValue(profileVersion),
-    "revocationGeneration": _openApiJsonValue(revocationGeneration),
-    "revocationStatus": _openApiJsonValue(revocationStatus),
-    "revoked": _openApiJsonValue(revoked),
-    "rollbackProfileHash": _openApiJsonValue(rollbackProfileHash),
-    "runtimeKind": _openApiJsonValue(runtimeKind),
-    "runtimeProfileHash": _openApiJsonValue(runtimeProfileHash),
-    "runtimeProvider": _openApiJsonValue(runtimeProvider),
-    "secretPosture": _openApiJsonValue(secretPosture),
-    "signature": _openApiJsonValue(signature),
-    "supportSafeProfileReceipt": _openApiJsonValue(supportSafeProfileReceipt),
-    "toolAllowlist": _openApiJsonValue(toolAllowlist),
-    "toolProvider": _openApiJsonValue(toolProvider),
-    "userRef": _openApiJsonValue(userRef),
-    "workspacePath": _openApiJsonValue(workspacePath),
-  };
-}
-
-class WeaverRuntimeProjectionItemResponse {
-  const WeaverRuntimeProjectionItemResponse({
-    this.approvalRequired,
-    this.category,
-    this.discoverableToRuntime,
-    this.id,
-    this.label,
-    this.memberImpact,
-    this.policyImpact,
-    this.readinessSummary,
-    this.receiptRefs,
-    this.state,
-  });
-
-  factory WeaverRuntimeProjectionItemResponse.fromJson(
-    Map<String, dynamic> json,
-  ) => WeaverRuntimeProjectionItemResponse(
-    approvalRequired: json["approvalRequired"] as bool?,
-    category: json["category"] as String?,
-    discoverableToRuntime: json["discoverableToRuntime"] as bool?,
-    id: json["id"] as String?,
-    label: json["label"] as String?,
-    memberImpact: json["memberImpact"] as String?,
-    policyImpact: json["policyImpact"] as String?,
-    readinessSummary: json["readinessSummary"] as String?,
-    receiptRefs: (json["receiptRefs"] as List<dynamic>?)
-        ?.map((e) => e as String)
-        .toList(),
-    state: json["state"] as String?,
-  );
-
-  final bool? approvalRequired;
-  final String? category;
-  final bool? discoverableToRuntime;
-  final String? id;
-  final String? label;
-  final String? memberImpact;
-  final String? policyImpact;
-  final String? readinessSummary;
-  final List<String>? receiptRefs;
-  final String? state;
-
-  Map<String, dynamic> toJson() => {
-    "approvalRequired": _openApiJsonValue(approvalRequired),
-    "category": _openApiJsonValue(category),
-    "discoverableToRuntime": _openApiJsonValue(discoverableToRuntime),
-    "id": _openApiJsonValue(id),
-    "label": _openApiJsonValue(label),
-    "memberImpact": _openApiJsonValue(memberImpact),
-    "policyImpact": _openApiJsonValue(policyImpact),
-    "readinessSummary": _openApiJsonValue(readinessSummary),
-    "receiptRefs": _openApiJsonValue(receiptRefs),
-    "state": _openApiJsonValue(state),
-  };
-}
-
-class WeaverRuntimeProjectionResponse {
-  const WeaverRuntimeProjectionResponse({
-    this.auditReceiptRefs,
-    this.disabledByDefault,
-    this.expiresAt,
-    this.groupChatConsentRequired,
-    this.items,
-    this.pendingRevocationRefs,
-    this.profileVersion,
-    this.providerDiagnosticsRedacted,
-    this.rawRuntimeInternalsExposed,
-    this.regeneratedAt,
-    this.runtimeProfileHash,
-    this.sandboxPosture,
-    this.supportSafe,
-  });
-
-  factory WeaverRuntimeProjectionResponse.fromJson(Map<String, dynamic> json) =>
-      WeaverRuntimeProjectionResponse(
-        auditReceiptRefs: (json["auditReceiptRefs"] as List<dynamic>?)
-            ?.map((e) => e as String)
-            .toList(),
-        disabledByDefault: json["disabledByDefault"] as bool?,
-        expiresAt: json["expiresAt"] as String?,
-        groupChatConsentRequired: json["groupChatConsentRequired"] as bool?,
-        items: (json["items"] as List<dynamic>?)
-            ?.map(
-              (e) => WeaverRuntimeProjectionItemResponse.fromJson(
-                e as Map<String, dynamic>,
-              ),
-            )
-            .toList(),
-        pendingRevocationRefs: (json["pendingRevocationRefs"] as List<dynamic>?)
-            ?.map((e) => e as String)
-            .toList(),
-        profileVersion: json["profileVersion"] as String?,
-        providerDiagnosticsRedacted:
-            json["providerDiagnosticsRedacted"] as bool?,
-        rawRuntimeInternalsExposed: json["rawRuntimeInternalsExposed"] as bool?,
-        regeneratedAt: json["regeneratedAt"] as String?,
-        runtimeProfileHash: json["runtimeProfileHash"] as String?,
-        sandboxPosture: json["sandboxPosture"] as String?,
-        supportSafe: json["supportSafe"] as bool?,
-      );
-
-  final List<String>? auditReceiptRefs;
-  final bool? disabledByDefault;
-  final String? expiresAt;
-  final bool? groupChatConsentRequired;
-  final List<WeaverRuntimeProjectionItemResponse>? items;
-  final List<String>? pendingRevocationRefs;
-  final String? profileVersion;
-  final bool? providerDiagnosticsRedacted;
-  final bool? rawRuntimeInternalsExposed;
-  final String? regeneratedAt;
-  final String? runtimeProfileHash;
-  final String? sandboxPosture;
-  final bool? supportSafe;
-
-  Map<String, dynamic> toJson() => {
-    "auditReceiptRefs": _openApiJsonValue(auditReceiptRefs),
-    "disabledByDefault": _openApiJsonValue(disabledByDefault),
-    "expiresAt": _openApiJsonValue(expiresAt),
-    "groupChatConsentRequired": _openApiJsonValue(groupChatConsentRequired),
-    "items": _openApiJsonValue(items),
-    "pendingRevocationRefs": _openApiJsonValue(pendingRevocationRefs),
-    "profileVersion": _openApiJsonValue(profileVersion),
-    "providerDiagnosticsRedacted": _openApiJsonValue(
-      providerDiagnosticsRedacted,
-    ),
-    "rawRuntimeInternalsExposed": _openApiJsonValue(rawRuntimeInternalsExposed),
-    "regeneratedAt": _openApiJsonValue(regeneratedAt),
-    "runtimeProfileHash": _openApiJsonValue(runtimeProfileHash),
-    "sandboxPosture": _openApiJsonValue(sandboxPosture),
-    "supportSafe": _openApiJsonValue(supportSafe),
-  };
-}
-
-class WeaverScoutSourceResponse {
-  const WeaverScoutSourceResponse({
-    this.excerpt,
-    this.kind,
-    this.label,
-    this.ref,
-  });
-
-  factory WeaverScoutSourceResponse.fromJson(Map<String, dynamic> json) =>
-      WeaverScoutSourceResponse(
-        excerpt: json["excerpt"] as String?,
-        kind: json["kind"] as String?,
-        label: json["label"] as String?,
-        ref: json["ref"] as String?,
-      );
-
-  final String? excerpt;
-  final String? kind;
-  final String? label;
-  final String? ref;
-
-  Map<String, dynamic> toJson() => {
-    "excerpt": _openApiJsonValue(excerpt),
-    "kind": _openApiJsonValue(kind),
-    "label": _openApiJsonValue(label),
-    "ref": _openApiJsonValue(ref),
-  };
-}
-
-class WeaverScoutSummaryRequest {
-  const WeaverScoutSummaryRequest({
-    required this.question,
-    this.requestedAction,
-  });
-
-  factory WeaverScoutSummaryRequest.fromJson(Map<String, dynamic> json) =>
-      WeaverScoutSummaryRequest(
-        question: json["question"] as String,
-        requestedAction: json["requestedAction"] as String?,
-      );
-
-  final String question;
-  final String? requestedAction;
-
-  Map<String, dynamic> toJson() => {
-    "question": _openApiJsonValue(question),
-    "requestedAction": _openApiJsonValue(requestedAction),
-  };
-}
-
-class WeaverScoutSummaryResponse {
-  const WeaverScoutSummaryResponse({
-    this.answer,
-    this.approvalReceipts,
-    this.backgroundRoomReadingEnabled,
-    this.contextId,
-    this.conversationId,
-    this.failureMode,
-    this.proposalOnly,
-    this.readOnly,
-    this.sources,
-    this.supportSafe,
-  });
-
-  factory WeaverScoutSummaryResponse.fromJson(
-    Map<String, dynamic> json,
-  ) => WeaverScoutSummaryResponse(
-    answer: json["answer"] as String?,
-    approvalReceipts: (json["approvalReceipts"] as List<dynamic>?)
-        ?.map(
-          (e) =>
-              WeaverApprovalReceiptResponse.fromJson(e as Map<String, dynamic>),
-        )
-        .toList(),
-    backgroundRoomReadingEnabled: json["backgroundRoomReadingEnabled"] as bool?,
-    contextId: json["contextId"] as String?,
-    conversationId: json["conversationId"] as String?,
-    failureMode: json["failureMode"] as String?,
-    proposalOnly: json["proposalOnly"] as bool?,
-    readOnly: json["readOnly"] as bool?,
-    sources: (json["sources"] as List<dynamic>?)
-        ?.map(
-          (e) => WeaverScoutSourceResponse.fromJson(e as Map<String, dynamic>),
-        )
-        .toList(),
-    supportSafe: json["supportSafe"] as bool?,
-  );
-
-  final String? answer;
-  final List<WeaverApprovalReceiptResponse>? approvalReceipts;
-  final bool? backgroundRoomReadingEnabled;
-  final String? contextId;
-  final String? conversationId;
-  final String? failureMode;
-  final bool? proposalOnly;
-  final bool? readOnly;
-  final List<WeaverScoutSourceResponse>? sources;
-  final bool? supportSafe;
-
-  Map<String, dynamic> toJson() => {
-    "answer": _openApiJsonValue(answer),
-    "approvalReceipts": _openApiJsonValue(approvalReceipts),
-    "backgroundRoomReadingEnabled": _openApiJsonValue(
-      backgroundRoomReadingEnabled,
-    ),
-    "contextId": _openApiJsonValue(contextId),
-    "conversationId": _openApiJsonValue(conversationId),
-    "failureMode": _openApiJsonValue(failureMode),
-    "proposalOnly": _openApiJsonValue(proposalOnly),
-    "readOnly": _openApiJsonValue(readOnly),
-    "sources": _openApiJsonValue(sources),
-    "supportSafe": _openApiJsonValue(supportSafe),
-  };
-}
-
 class WorkspaceCapabilitiesResponse {
   const WorkspaceCapabilitiesResponse({
     required this.adminControlPlane,
+    required this.agentRuntimeControl,
     required this.boards,
     required this.calendar,
     required this.chat,
@@ -9740,13 +8263,15 @@ class WorkspaceCapabilitiesResponse {
     required this.meetingsCalls,
     required this.releaseEvidence,
     required this.shellAccess,
-    required this.weaver,
   });
 
   factory WorkspaceCapabilitiesResponse.fromJson(Map<String, dynamic> json) =>
       WorkspaceCapabilitiesResponse(
         adminControlPlane: WorkspaceCapabilityStatusResponse.fromJson(
           json["adminControlPlane"] as Map<String, dynamic>,
+        ),
+        agentRuntimeControl: WorkspaceCapabilityStatusResponse.fromJson(
+          json["agentRuntimeControl"] as Map<String, dynamic>,
         ),
         boards: WorkspaceCapabilityStatusResponse.fromJson(
           json["boards"] as Map<String, dynamic>,
@@ -9778,12 +8303,10 @@ class WorkspaceCapabilitiesResponse {
         shellAccess: WorkspaceCapabilityStatusResponse.fromJson(
           json["shellAccess"] as Map<String, dynamic>,
         ),
-        weaver: WorkspaceCapabilityStatusResponse.fromJson(
-          json["weaver"] as Map<String, dynamic>,
-        ),
       );
 
   final WorkspaceCapabilityStatusResponse adminControlPlane;
+  final WorkspaceCapabilityStatusResponse agentRuntimeControl;
   final WorkspaceCapabilityStatusResponse boards;
   final WorkspaceCapabilityStatusResponse calendar;
   final WorkspaceCapabilityStatusResponse chat;
@@ -9794,10 +8317,10 @@ class WorkspaceCapabilitiesResponse {
   final WorkspaceCapabilityStatusResponse meetingsCalls;
   final WorkspaceCapabilityStatusResponse releaseEvidence;
   final WorkspaceCapabilityStatusResponse shellAccess;
-  final WorkspaceCapabilityStatusResponse weaver;
 
   Map<String, dynamic> toJson() => {
     "adminControlPlane": _openApiJsonValue(adminControlPlane),
+    "agentRuntimeControl": _openApiJsonValue(agentRuntimeControl),
     "boards": _openApiJsonValue(boards),
     "calendar": _openApiJsonValue(calendar),
     "chat": _openApiJsonValue(chat),
@@ -9808,13 +8331,13 @@ class WorkspaceCapabilitiesResponse {
     "meetingsCalls": _openApiJsonValue(meetingsCalls),
     "releaseEvidence": _openApiJsonValue(releaseEvidence),
     "shellAccess": _openApiJsonValue(shellAccess),
-    "weaver": _openApiJsonValue(weaver),
   };
 }
 
 class WorkspaceCapabilityPolicyResponse {
   const WorkspaceCapabilityPolicyResponse({
     required this.adapterContract,
+    required this.agentRuntimeControlPosture,
     required this.defaultIdmProvider,
     required this.denyByDefault,
     required this.grantedCapabilities,
@@ -9824,13 +8347,13 @@ class WorkspaceCapabilityPolicyResponse {
     required this.profileKeys,
     required this.roles,
     required this.supportSafe,
-    required this.weaverRuntimePosture,
   });
 
   factory WorkspaceCapabilityPolicyResponse.fromJson(
     Map<String, dynamic> json,
   ) => WorkspaceCapabilityPolicyResponse(
     adapterContract: json["adapterContract"] as String,
+    agentRuntimeControlPosture: json["agentRuntimeControlPosture"] as String,
     defaultIdmProvider: json["defaultIdmProvider"] as String,
     denyByDefault: json["denyByDefault"] as bool,
     grantedCapabilities: (json["grantedCapabilities"] as List<dynamic>)
@@ -9844,10 +8367,10 @@ class WorkspaceCapabilityPolicyResponse {
         .toList(),
     roles: (json["roles"] as List<dynamic>).map((e) => e as String).toList(),
     supportSafe: json["supportSafe"] as bool,
-    weaverRuntimePosture: json["weaverRuntimePosture"] as String,
   );
 
   final String adapterContract;
+  final String agentRuntimeControlPosture;
   final String defaultIdmProvider;
   final bool denyByDefault;
   final List<String> grantedCapabilities;
@@ -9857,10 +8380,10 @@ class WorkspaceCapabilityPolicyResponse {
   final List<String> profileKeys;
   final List<String> roles;
   final bool supportSafe;
-  final String weaverRuntimePosture;
 
   Map<String, dynamic> toJson() => {
     "adapterContract": _openApiJsonValue(adapterContract),
+    "agentRuntimeControlPosture": _openApiJsonValue(agentRuntimeControlPosture),
     "defaultIdmProvider": _openApiJsonValue(defaultIdmProvider),
     "denyByDefault": _openApiJsonValue(denyByDefault),
     "grantedCapabilities": _openApiJsonValue(grantedCapabilities),
@@ -9870,7 +8393,6 @@ class WorkspaceCapabilityPolicyResponse {
     "profileKeys": _openApiJsonValue(profileKeys),
     "roles": _openApiJsonValue(roles),
     "supportSafe": _openApiJsonValue(supportSafe),
-    "weaverRuntimePosture": _openApiJsonValue(weaverRuntimePosture),
   };
 }
 

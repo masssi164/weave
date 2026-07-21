@@ -7,7 +7,7 @@ Feature: Open standards gateway control plane
     Then Files advertises the Weave WebDAV facade at "/dav/files"
     And Calendar advertises the Weave CalDAV facade at "/caldav"
     And Chat advertises a Matrix Client-Server endpoint
-    And Calls advertises the Weave Calls control API
+    And Calls advertises MatrixRTC Profile 0 without a member Calls API
     And no provider URL, provider credential, raw provider payload, SecretRef value, or admin diagnostic is exposed
 
   Scenario: OpenAPI is only control and generated convenience

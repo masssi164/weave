@@ -33,6 +33,55 @@ management:
         enabled: true
 
 weave:
+  agent-runtime:
+    # ARC remains inert unless JDBC plus the Keycloak workload-identity adapter are
+    # selected explicitly. Long-lived credentials are SecretRefs, never env values.
+    storage:
+      mode: ${WEAVE_AGENT_RUNTIME_STORAGE_MODE:disabled}
+    state-store:
+      # Runtime cells have no durable volume. The dogfood adapter envelope-encrypts
+      # every generation before PostgreSQL and requires a separately mounted key root.
+      enabled: ${WEAVE_AGENT_RUNTIME_STATE_STORE_ENABLED:false}
+      wrapping-key-root: ${WEAVE_AGENT_RUNTIME_STATE_WRAPPING_KEY_ROOT:}
+      chunk-size: ${WEAVE_AGENT_RUNTIME_STATE_CHUNK_SIZE:1MB}
+      maximum-generation-size: ${WEAVE_AGENT_RUNTIME_STATE_MAXIMUM_GENERATION_SIZE:64MB}
+    profile-signing:
+      # The server never bootstraps a missing trust root. Initialize and rotate
+      # the mounted SecretRef state explicitly so incomplete restores fail closed.
+      enabled: ${WEAVE_AGENT_RUNTIME_PROFILE_SIGNING_ENABLED:false}
+      secret-root: ${WEAVE_AGENT_RUNTIME_PROFILE_SIGNING_SECRET_ROOT:}
+      key-lifetime: ${WEAVE_AGENT_RUNTIME_PROFILE_SIGNING_KEY_LIFETIME:P365D}
+      trust-overlap: ${WEAVE_AGENT_RUNTIME_PROFILE_SIGNING_TRUST_OVERLAP:10m}
+      maximum-profile-ttl: ${WEAVE_AGENT_RUNTIME_PROFILE_TTL:5m}
+    policy:
+      # Strict, secret-free server-owned RuntimeProfile policy. Requests never
+      # supply model, Matrix, MCP, sandbox, workspace, or CredentialRef grants.
+      enabled: ${WEAVE_AGENT_RUNTIME_POLICY_ENABLED:false}
+      file: ${WEAVE_AGENT_RUNTIME_POLICY_FILE:}
+    entitlement:
+      # Keycloak group membership is authoritative. This configuration carries
+      # no cell path, container, provider credential, or tool implementation.
+      enabled: ${WEAVE_AGENT_RUNTIME_ENTITLEMENT_ENABLED:false}
+      enabled-groups: ${WEAVE_AGENT_RUNTIME_ENTITLEMENT_GROUPS:weave-weaver-runtime}
+      allowed-capabilities: ${WEAVE_AGENT_RUNTIME_ENTITLEMENT_CAPABILITIES:calendar.read}
+    workload-identity:
+      enabled: ${WEAVE_AGENT_RUNTIME_WORKLOAD_IDENTITY_ENABLED:false}
+      keycloak-admin-base-url: ${WEAVE_AGENT_RUNTIME_KEYCLOAK_ADMIN_BASE_URL:}
+      issuer: ${WEAVE_AGENT_RUNTIME_ISSUER:}
+      realm: ${WEAVE_AGENT_RUNTIME_REALM:weave}
+      organization-ref: ${WEAVE_AGENT_RUNTIME_ORGANIZATION_REF:tenant-default}
+      keycloak-organization-id: ${WEAVE_AGENT_RUNTIME_KEYCLOAK_ORGANIZATION_ID:}
+      admin-client-id: ${WEAVE_AGENT_RUNTIME_ADMIN_CLIENT_ID:weave-agent-runtime-admin}
+      admin-credential-ref: ${WEAVE_AGENT_RUNTIME_ADMIN_CREDENTIAL_REF:}
+      entitlement-client-id: ${WEAVE_AGENT_RUNTIME_ENTITLEMENT_CLIENT_ID:weave-identity-admin}
+      entitlement-credential-ref: ${WEAVE_AGENT_RUNTIME_ENTITLEMENT_CREDENTIAL_REF:}
+      secret-root: ${WEAVE_AGENT_RUNTIME_SECRET_ROOT:}
+      timeout: ${WEAVE_AGENT_RUNTIME_KEYCLOAK_TIMEOUT:10s}
+      entitlement-observation-ttl: ${WEAVE_AGENT_RUNTIME_ENTITLEMENT_OBSERVATION_TTL:5m}
+      workload-role: weaver-runtime
+      default-client-scopes: ${WEAVE_AGENT_RUNTIME_DEFAULT_CLIENT_SCOPES:weaver-runtime.workload}
+      optional-client-scopes: ${WEAVE_AGENT_RUNTIME_OPTIONAL_CLIENT_SCOPES:agent-runtime.profile.read,mcp:tools,calendar.read}
+      access-token-lifespan-seconds: ${WEAVE_AGENT_RUNTIME_ACCESS_TOKEN_LIFESPAN_SECONDS:60}
   chat:
     # Live and shipped stacks select matrix-synapse plus JDBC. The memory path is
     # deliberately limited to isolated server tests and local contract fixtures.
@@ -58,8 +107,6 @@ weave:
       readiness-cache-ttl: ${WEAVE_CHAT_MATRIX_READINESS_CACHE_TTL:60s}
       callback-max-bytes: ${WEAVE_CHAT_MATRIX_CALLBACK_MAX_BYTES:1048576}
       callback-max-events: ${WEAVE_CHAT_MATRIX_CALLBACK_MAX_EVENTS:100}
-  mcp:
-    boundary-token: ${WEAVE_MCP_BOUNDARY_TOKEN:local-dev-mcp-boundary}
   platform:
     public-base-url: ${WEAVE_PUBLIC_BASE_URL:https://weave.test}
     api-base-url: ${WEAVE_API_BASE_URL:https://api.weave.test/api}
@@ -74,9 +121,8 @@ weave:
       desktop: ${WEAVE_TARGET_DESKTOP:true}
       web: ${WEAVE_TARGET_WEB:false}
   security:
-    # JWT aud must include the first-party Weave app audience.
-    required-audience: ${WEAVE_OIDC_REQUIRED_AUDIENCE:weave-app}
-    # JWT azp and/or client_id must identify the first-party Weave app client.
+    # JWT aud names the backend resource; azp/client_id binds the direct first-party app.
+    required-audience: ${WEAVE_OIDC_REQUIRED_AUDIENCE:https://api.weave.test/api}
     client-id: ${WEAVE_CLIENT_ID:weave-app}
     device-credentials:
       # Memory is reserved for local development and isolated tests. The shipped
@@ -152,30 +198,9 @@ weave:
     boards:
       enabled: ${WEAVE_WORKSPACE_BOARDS_ENABLED:false}
       readiness: ${WEAVE_WORKSPACE_BOARDS_READINESS:}
-    weaver:
-      # Weaver is a policy-controlled category. Runtime startup remains
-      # disabled-by-default unless organization policy enables the category and
-      # the governed runtime generator grants a per-user profile.
-      enabled: ${WEAVE_WORKSPACE_WEAVER_ENABLED:false}
-      readiness: ${WEAVE_WORKSPACE_WEAVER_READINESS:}
-  weaver:
-    runtime:
-      # Generated Weaver/OpenClaw config is implementation output from Weave
-      # policy, never a second product policy model. Defaults fail closed.
-      enabled: ${WEAVE_WEAVER_RUNTIME_ENABLED:false}
-      baseline-profile: ${WEAVE_WEAVER_RUNTIME_BASELINE_PROFILE:weaver-governed-baseline}
-      image: ${WEAVE_WEAVER_RUNTIME_IMAGE:ghcr.io/masssi164/weaver-openclaw:policy-generated}
-      workspace-root-template: ${WEAVE_WEAVER_RUNTIME_WORKSPACE_ROOT_TEMPLATE:/var/lib/weave/weaver/{userId}}
-      isolated-agent-directory: ${WEAVE_WEAVER_RUNTIME_AGENT_DIRECTORY:.weaver/agents}
-      docker-network-mode: ${WEAVE_WEAVER_RUNTIME_DOCKER_NETWORK_MODE:none}
-      enabled-groups: ${WEAVE_WEAVER_RUNTIME_ENABLED_GROUPS:weaver-group,weave-weaver-runtime}
-      allowed-capabilities: ${WEAVE_WEAVER_RUNTIME_ALLOWED_CAPABILITIES:weaver.files_read,weaver.exec_disabled}
-      plugin-allowlist: ${WEAVE_WEAVER_RUNTIME_PLUGIN_ALLOWLIST:weave-files-readonly}
-      tool-allowlist: ${WEAVE_WEAVER_RUNTIME_TOOL_ALLOWLIST:files.read}
-      exec-enabled: ${WEAVE_WEAVER_RUNTIME_EXEC_ENABLED:false}
-      elevated-enabled: ${WEAVE_WEAVER_RUNTIME_ELEVATED_ENABLED:false}
-      audit-required: true
-      fork-required: ${WEAVE_WEAVER_RUNTIME_FORK_REQUIRED:false}
+    agent-runtime-control:
+      enabled: ${WEAVE_WORKSPACE_AGENT_RUNTIME_CONTROL_ENABLED:false}
+      readiness: ${WEAVE_WORKSPACE_AGENT_RUNTIME_CONTROL_READINESS:}
   boards:
     runtime-enabled: ${WEAVE_BOARDS_RUNTIME_ENABLED:${WEAVE_BOARDS_WORKSPACE_RUNTIME_ENABLED:false}}
     provider: ${WEAVE_BOARDS_PROVIDER:${WEAVE_BOARDS_WORKSPACE_PROVIDER:local-workspace}}
@@ -186,18 +211,17 @@ weave:
       audit-consent-enabled: ${WEAVE_BOARDS_OPENPROJECT_AUDIT_CONSENT_ENABLED:false}
       provider-writes-enabled: ${WEAVE_BOARDS_OPENPROJECT_PROVIDER_WRITES_ENABLED:false}
       auth-mode: ${WEAVE_BOARDS_OPENPROJECT_AUTH_MODE:disabled}
-  meetings:
-    livekit:
-      # LiveKit is the active meetings/video-call provider contract. The backend
-      # returns only support-safe readiness metadata; it never exposes API keys,
-      # API secrets, room tokens, credential-bearing URLs, or raw LiveKit errors.
-      # Leave credentials/token endpoint blank to fail closed until infra wires a
-      # backend-owned token facade.
-      enabled: ${WEAVE_LIVEKIT_ENABLED:true}
-      url: ${WEAVE_LIVEKIT_URL:}
-      api-key: ${WEAVE_LIVEKIT_API_KEY:}
-      api-secret: ${WEAVE_LIVEKIT_API_SECRET:}
-      token-endpoint: ${WEAVE_LIVEKIT_TOKEN_ENDPOINT:}
+  calls:
+    sfu:
+      livekit:
+        # LiveKit is the first replaceable southbound SFU adapter for the pinned
+        # MatrixRTC Profile 0 target. It never owns signaling, membership, RTC
+        # authorization, or a member API. Blank configuration fails closed.
+        enabled: ${WEAVE_LIVEKIT_ENABLED:false}
+        url: ${WEAVE_LIVEKIT_URL:}
+        api-key: ${WEAVE_LIVEKIT_API_KEY:}
+        api-secret: ${WEAVE_LIVEKIT_API_SECRET:}
+        token-endpoint: ${WEAVE_LIVEKIT_TOKEN_ENDPOINT:}
   identity:
     invitations:
       storage-mode: ${WEAVE_IDENTITY_INVITATIONS_STORAGE_MODE:memory}

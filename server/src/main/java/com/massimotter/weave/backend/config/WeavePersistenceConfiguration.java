@@ -1,6 +1,10 @@
 package com.massimotter.weave.backend.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.massimotter.weave.backend.agentruntime.adapter.JdbcRuntimeCellRepository;
+import com.massimotter.weave.backend.agentruntime.adapter.JdbcRuntimeCommandRepository;
+import com.massimotter.weave.backend.agentruntime.adapter.JdbcRuntimeGovernanceRepository;
+import com.massimotter.weave.backend.agentruntime.adapter.JdbcRuntimeProfileRepository;
 import com.massimotter.weave.backend.audit.JdbcAuditEventPublisher;
 import com.massimotter.weave.backend.provider.JdbcProviderSelectionRepository;
 import com.massimotter.weave.backend.service.JdbcProductProfileOverrideRepository;
@@ -13,7 +17,9 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import org.springframework.transaction.PlatformTransactionManager;
 
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(WeavePersistenceProperties.class)
@@ -27,7 +33,8 @@ public class WeavePersistenceConfiguration {
             + "|| '${weave.migration.evidence.storage.mode:file}' == 'jdbc' "
             + "|| '${weave.matrix.e2ee.storage.mode:memory}' == 'jdbc' "
             + "|| '${weave.chat.storage.mode:memory}' == 'jdbc' "
-            + "|| '${weave.identity.invitations.storage-mode:memory}' == 'jdbc'")
+            + "|| '${weave.identity.invitations.storage-mode:memory}' == 'jdbc' "
+            + "|| '${weave.agent-runtime.storage.mode:disabled}' == 'jdbc'")
     DataSource weaveDataSource(WeavePersistenceProperties properties) {
         DriverManagerDataSource dataSource = new DriverManagerDataSource();
         dataSource.setUrl(properties.requiredUrl());
@@ -47,7 +54,8 @@ public class WeavePersistenceConfiguration {
             + "|| '${weave.migration.evidence.storage.mode:file}' == 'jdbc' "
             + "|| '${weave.matrix.e2ee.storage.mode:memory}' == 'jdbc' "
             + "|| '${weave.chat.storage.mode:memory}' == 'jdbc' "
-            + "|| '${weave.identity.invitations.storage-mode:memory}' == 'jdbc'")
+            + "|| '${weave.identity.invitations.storage-mode:memory}' == 'jdbc' "
+            + "|| '${weave.agent-runtime.storage.mode:disabled}' == 'jdbc'")
     Flyway weaveFlyway(DataSource weaveDataSource) {
         return Flyway.configure()
                 .dataSource(weaveDataSource)
@@ -63,9 +71,24 @@ public class WeavePersistenceConfiguration {
             + "|| '${weave.migration.evidence.storage.mode:file}' == 'jdbc' "
             + "|| '${weave.matrix.e2ee.storage.mode:memory}' == 'jdbc' "
             + "|| '${weave.chat.storage.mode:memory}' == 'jdbc' "
-            + "|| '${weave.identity.invitations.storage-mode:memory}' == 'jdbc'")
+            + "|| '${weave.identity.invitations.storage-mode:memory}' == 'jdbc' "
+            + "|| '${weave.agent-runtime.storage.mode:disabled}' == 'jdbc'")
     JdbcTemplate weaveJdbcTemplate(DataSource weaveDataSource, Flyway weaveFlyway) {
         return new JdbcTemplate(weaveDataSource);
+    }
+
+    @Bean
+    @ConditionalOnExpression("'${weave.provider.selections.storage.mode:file}' == 'jdbc' "
+            + "|| '${weave.profile.storage.mode:file}' == 'jdbc' "
+            + "|| '${weave.audit.events.storage.mode:file}' == 'jdbc' "
+            + "|| '${weave.security.device-credentials.storage.mode:memory}' == 'jdbc' "
+            + "|| '${weave.migration.evidence.storage.mode:file}' == 'jdbc' "
+            + "|| '${weave.matrix.e2ee.storage.mode:memory}' == 'jdbc' "
+            + "|| '${weave.chat.storage.mode:memory}' == 'jdbc' "
+            + "|| '${weave.identity.invitations.storage-mode:memory}' == 'jdbc' "
+            + "|| '${weave.agent-runtime.storage.mode:disabled}' == 'jdbc'")
+    PlatformTransactionManager weaveTransactionManager(DataSource weaveDataSource) {
+        return new DataSourceTransactionManager(weaveDataSource);
     }
 
     @Bean
@@ -92,5 +115,29 @@ public class WeavePersistenceConfiguration {
             JdbcTemplate weaveJdbcTemplate,
             ObjectMapper objectMapper) {
         return new JdbcDeviceCredentialRepository(weaveJdbcTemplate, objectMapper);
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "weave.agent-runtime.storage.mode", havingValue = "jdbc")
+    JdbcRuntimeCellRepository jdbcRuntimeCellRepository(JdbcTemplate weaveJdbcTemplate) {
+        return new JdbcRuntimeCellRepository(weaveJdbcTemplate);
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "weave.agent-runtime.storage.mode", havingValue = "jdbc")
+    JdbcRuntimeCommandRepository jdbcRuntimeCommandRepository(JdbcTemplate weaveJdbcTemplate) {
+        return new JdbcRuntimeCommandRepository(weaveJdbcTemplate);
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "weave.agent-runtime.storage.mode", havingValue = "jdbc")
+    JdbcRuntimeProfileRepository jdbcRuntimeProfileRepository(JdbcTemplate weaveJdbcTemplate) {
+        return new JdbcRuntimeProfileRepository(weaveJdbcTemplate);
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "weave.agent-runtime.storage.mode", havingValue = "jdbc")
+    JdbcRuntimeGovernanceRepository jdbcRuntimeGovernanceRepository(JdbcTemplate weaveJdbcTemplate) {
+        return new JdbcRuntimeGovernanceRepository(weaveJdbcTemplate);
     }
 }

@@ -64,11 +64,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 @TestPropertySource(properties = {
         "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.example.invalid/realms/weave",
-        "weave.meetings.livekit.enabled=true",
-        "weave.meetings.livekit.url=",
-        "weave.meetings.livekit.api-key=",
-        "weave.meetings.livekit.api-secret=",
-        "weave.meetings.livekit.token-endpoint="
+        "weave.calls.sfu.livekit.enabled=true",
+        "weave.calls.sfu.livekit.url=",
+        "weave.calls.sfu.livekit.api-key=",
+        "weave.calls.sfu.livekit.api-secret=",
+        "weave.calls.sfu.livekit.token-endpoint="
 })
 class ProviderRegistryControllerTest {
 
@@ -173,7 +173,7 @@ class ProviderRegistryControllerTest {
                 .andExpect(jsonPath("$.canonicalDomainRegistry.registryVersion").value("canonical-domain-registry-v1"))
                 .andExpect(jsonPath("$.canonicalDomainRegistry.providerNamesInMemberContractsAllowed").value(false))
                 .andExpect(jsonPath("$.canonicalDomainRegistry.domains[*].key", hasItems(
-                        "identity", "people", "spaces", "chat", "files", "documents", "calendar", "boards", "calls", "decisions", "notifications", "health", "weaver")))
+                        "identity", "people", "spaces", "chat", "files", "documents", "calendar", "boards", "calls", "decisions", "notifications", "health", "agent-runtime-control")))
                 .andExpect(jsonPath("$.canonicalDomainRegistry.memberStates[*]", hasItems("available", "disabled_by_policy", "not_configured", "degraded", "unavailable", "coming_later")))
                 .andExpect(jsonPath("$.canonicalDomainRegistry.adminStates[*]", hasItems("provider_not_configured", "dry_run_required", "lossy_mapping_pending", "apply_blocked", "migration_ready")))
                 .andExpect(jsonPath("$.canonicalDomainRegistry.lossClasses[*]", hasItems("lossless_canonical", "lossy_with_report", "blocked_nonportable", "provider_unexportable")))
@@ -186,7 +186,7 @@ class ProviderRegistryControllerTest {
                 .andExpect(jsonPath("$.domainAdapterRegistry.domains[?(@.domain == 'chat')].activeAdapter", hasItems("synapse-homeserver")))
                 .andExpect(jsonPath("$.domainAdapterRegistry.domains[?(@.domain == 'chat')].candidates[*].diagnostics.secretsReturned", hasItems(false)))
                 .andExpect(jsonPath("$.categories[*].category", hasItems(
-                        "identity-idm", "chat", "files", "calendar", "boards-tasks", "meetings-calls", "documents-collaboration", "decisions-evidence", "manuals-help", "release-evidence", "admin-control-plane", "weaver")))
+                        "identity-idm", "chat", "files", "calendar", "boards-tasks", "meetings-calls", "documents-collaboration", "decisions-evidence", "manuals-help", "release-evidence", "admin-control-plane", "agent-runtime-control")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'identity-idm')].readiness", hasItems("ready")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'identity-idm')].selectedByAdmin", hasItems(true)))
                 .andExpect(jsonPath("$.categories[?(@.category == 'identity-idm')].bootstrapSuggestionOnly", hasItems(false)))
@@ -206,7 +206,7 @@ class ProviderRegistryControllerTest {
                 .andExpect(jsonPath("$.categories[?(@.category == 'manuals-help')].contract.defaultAdapters[*]", hasItems("mkdocs-material-embedded")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'release-evidence')].contract.defaultAdapters[*]", hasItems("release-evidence")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'admin-control-plane')].contract.defaultAdapters[*]", hasItems("weave-health-facade")))
-                .andExpect(jsonPath("$.categories[?(@.category == 'weaver')].readiness", hasItems("disabled")))
+                .andExpect(jsonPath("$.categories[?(@.category == 'agent-runtime-control')].readiness", hasItems("disabled")))
                 .andExpect(jsonPath("$.categories[*].contract.stableMemberImpactStates[*]", hasItems(
                         "available", "disabled_by_policy", "not_configured", "degraded", "unavailable", "coming_later")))
                 .andExpect(jsonPath("$.categories[*].contract.normalMembersConfigureProviders", hasItems(false)))
@@ -241,7 +241,7 @@ class ProviderRegistryControllerTest {
                 .andExpect(jsonPath("$.providers[?(@.module == 'meetings')].configured", hasItems(false)))
                 .andExpect(jsonPath("$.providers[?(@.module == 'meetings')].failClosed", hasItems(true)))
                 .andExpect(jsonPath("$.providers[?(@.module == 'meetings')].supportSafe", hasItems(true)))
-                .andExpect(jsonPath("$.providers[?(@.module == 'meetings')].diagnostics.activeProvider", hasItems("livekit")))
+                .andExpect(jsonPath("$.providers[?(@.module == 'meetings')].diagnostics.activeSfuAdapter", hasItems("livekit")))
                 .andExpect(jsonPath("$.providers[?(@.module == 'meetings')].diagnostics.apiKeyConfigured", hasItems(false)))
                 .andExpect(jsonPath("$.providers[?(@.module == 'meetings')].diagnostics.apiSecretConfigured", hasItems(false)))
                 .andExpect(jsonPath("$.providers[?(@.module == 'meetings')].diagnostics.tokenEndpointConfigured", hasItems(false)))

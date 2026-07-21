@@ -1,6 +1,6 @@
 spec_id: WEAVE-SPEC-0007
-version: 0.1.0
-status: implementing
+version: 0.2.0
+status: deprecated
 github_issues:
 - 433
 - 446
@@ -16,15 +16,14 @@ acceptance_features:
 - e2e/features/weave_spec_0007_acceptance.feature
 pinned_corpus_sources:
 - specs/weave-specs.lock.json
-- ../weave-specs (locked corpus; product/domain SSOT)
+- ../weave-specs/domains/agent-runtime-control/spec.md
+- ../weave-specs/architecture/adr/0012-keycloak-workload-identity-and-token-exchange.md
 repo_projection:
 - specs/0007-governed-weaver-runtime/spec.md
-- specs/0007-governed-weaver-runtime/plan.md
-- specs/0007-governed-weaver-runtime/tasks.md
 acceptance_scenarios:
-- tag: '@weave-v01-governed-weaver-runtime-policy'
+- tag: '@weave-v01-agent-runtime-control-policy'
   evidence:
-  - server/src/test/java/com/massimotter/weave/backend/service/WeaverRuntimeServiceTest.java
+  - server/src/test/java/com/massimotter/weave/backend/controller/WorkspaceControllerTest.java
   - infra/docs/weaver-runtime-lifecycle.md
   - infra/weave-workspace/weaver-runtime-lifecycle.contract.json
   - infra/weave-workspace/tests/weaver-runtime-lifecycle-contract-test.sh
@@ -32,22 +31,16 @@ acceptance_scenarios:
   - admin-console/src/App.test.tsx
   - admin-console/src/api.test.ts
   assertions:
-  - V01_GOVERNED_WEAVER_RUNTIME_POLICY
-- tag: '@weave-v01-governed-weaver-tool-registry'
+  - V01_AGENT_RUNTIME_CONTROL_POLICY
+- tag: '@weave-v01-mcp-workload-boundary'
   evidence:
-  - server/src/test/java/com/massimotter/weave/backend/weaver/WeaverToolRegistryTest.java
-  - server/src/test/java/com/massimotter/weave/backend/weaver/MemberDomainToolDispatcherTest.java
-  - weave-contract/src/test/java/com/massimotter/weave/contract/mcp/MemberMcpToolCatalogTest.java
-  - weave-mcp-server/src/test/java/com/massimotter/weave/mcp/CanonicalMcpFeaturesTest.java
   - weave-mcp-server/src/test/java/com/massimotter/weave/mcp/SpringAiMcpTransportTest.java
   - infra/weave-workspace/tests/weave-mcp-tool-contract-test.sh
   assertions:
-  - MCP tools are named for Weave domains/capabilities, not providers or adapters.
-  - calendar.search_events delegates to the backend Calendar facade and never directly
-    to CalDAV/Nextcloud.
-  - Discovery omits providerRef/credentialRef target detail and returns only support-safe
-    metadata.
-  - V01_GOVERNED_WEAVER_TOOL_REGISTRY
+  - The workload-only MCP catalog is empty until each receiving domain has an explicit facade contract and current independent authorization.
+  - Human tokens, shared service accounts, and RuntimeProfile-derived tool grants fail closed.
+  - Discovery returns only support-safe protocol metadata and no provider or credential target detail.
+  - V01_MCP_WORKLOAD_BOUNDARY
 - tag: '@weave-v01-provider-switch-portability'
   evidence:
   - admin-console/src/App.test.tsx
@@ -61,8 +54,8 @@ acceptance_scenarios:
   - e2e/scenario_mappings.json
   - e2e/suites/scenario_catalog.json
   assertions:
-  - runtime profile from policy
-  - role-derived grants
+  - runtime profile from current entitlement and policy
+  - signed desired state is not an authorization grant
   - WEAVE_SPEC_0007_RUNTIME_PROFILE_FROM_POLICY
   - '@weave-spec-0007-runtime-profile-from-policy'
 - tag: '@weave-spec-0007-tool-approval-receipt-fail-closed'
@@ -71,8 +64,8 @@ acceptance_scenarios:
   - e2e/scenario_mappings.json
   - e2e/suites/scenario_catalog.json
   assertions:
-  - approval receipt
-  - fail closed drift
+  - signed single-use ApprovalDecisionEvidence
+  - independent domain authorization and immutable ActionEvidence
   - WEAVE_SPEC_0007_TOOL_APPROVAL_RECEIPT_FAIL_CLOSED
   - '@weave-spec-0007-tool-approval-receipt-fail-closed'
 evidence_gates:

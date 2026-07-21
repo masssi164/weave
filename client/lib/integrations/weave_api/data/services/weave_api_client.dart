@@ -8,7 +8,6 @@ import 'package:weave/features/app/domain/entities/organization_manifest_snapsho
 import 'package:weave/features/app/domain/entities/provider_stack_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_home_snapshot.dart';
-import 'package:weave/features/agents/domain/entities/weaver_permission_mode.dart';
 import 'package:weave/generated/openapi_models.dart' as openapi;
 import 'package:weave/integrations/weave_api/data/dtos/organization_manifest_response_dto.dart';
 import 'package:weave/integrations/weave_api/data/dtos/platform_status_response_dto.dart';
@@ -60,17 +59,6 @@ abstract interface class WeaveApiClient {
     required String accessToken,
     required String fileId,
     required String requestedMode,
-  });
-
-  Future<WeaverPermissionMode> fetchWeaverPermissionMode({
-    required Uri baseUrl,
-    required String accessToken,
-  });
-
-  Future<WeaverPermissionModeUpdate> updateWeaverPermissionMode({
-    required Uri baseUrl,
-    required String accessToken,
-    required WeaverPermissionMode mode,
   });
 }
 
@@ -239,48 +227,6 @@ class HttpWeaveApiClient implements WeaveApiClient {
     return openapi.OfficeLaunchResponse.fromJson(payload.json).toSnapshot();
   }
 
-  @override
-  Future<WeaverPermissionMode> fetchWeaverPermissionMode({
-    required Uri baseUrl,
-    required String accessToken,
-  }) async {
-    final payload = await _getJson(
-      requestUri: _weaverRuntimeProfileUri(baseUrl),
-      accessToken: accessToken,
-      failureMessage: 'The Weave backend failed to return the Weaver profile.',
-      invalidPayloadMessage:
-          'The Weave backend returned an invalid Weaver profile.',
-      decodeFailureMessage: 'Unable to decode the Weaver profile.',
-    );
-    final profile = openapi.WeaverRuntimeProfileResponse.fromJson(payload);
-    return WeaverPermissionMode.fromWire(profile.permissionMode);
-  }
-
-  @override
-  Future<WeaverPermissionModeUpdate> updateWeaverPermissionMode({
-    required Uri baseUrl,
-    required String accessToken,
-    required WeaverPermissionMode mode,
-  }) async {
-    final payload = await _putJson(
-      requestUri: _weaverPermissionModeUri(baseUrl),
-      accessToken: accessToken,
-      body: openapi.WeaverPermissionModeRequest(mode: mode.name).toJson(),
-      failureMessage: 'The Weave backend refused the permission mode update.',
-      invalidPayloadMessage:
-          'The Weave backend returned an invalid permission mode response.',
-      decodeFailureMessage: 'Unable to decode the permission mode response.',
-    );
-    final response = openapi.WeaverPermissionModeResponse.fromJson(payload);
-    return WeaverPermissionModeUpdate(
-      accepted: response.accepted,
-      mode: WeaverPermissionMode.fromWire(response.mode),
-      dangerous: response.dangerous,
-      policyReason: response.policyReason,
-      runtimeProfileHash: response.runtimeProfileHash,
-    );
-  }
-
   Future<Map<String, dynamic>> _getJson({
     required Uri requestUri,
     required String accessToken,
@@ -390,54 +336,6 @@ class HttpWeaveApiClient implements WeaveApiClient {
     }
   }
 
-  Future<Map<String, dynamic>> _putJson({
-    required Uri requestUri,
-    required String accessToken,
-    required Map<String, Object?> body,
-    required String failureMessage,
-    required String invalidPayloadMessage,
-    required String decodeFailureMessage,
-  }) async {
-    late http.Response response;
-    try {
-      response = await _httpClient
-          .put(
-            requestUri,
-            headers: {
-              'Accept': 'application/json',
-              'Authorization': 'Bearer $accessToken',
-              'Content-Type': 'application/json',
-            },
-            body: jsonEncode(body),
-          )
-          .timeout(const Duration(seconds: 5));
-    } catch (error) {
-      throw AppFailure.unknown(
-        'Unable to reach the Weave backend right now.',
-        cause: error,
-      );
-    }
-    if (response.statusCode == 401 || response.statusCode == 403) {
-      throw const AppFailure.unknown(
-        'The Weave backend rejected the current session.',
-      );
-    }
-    if (response.statusCode != 200) {
-      throw AppFailure.unknown(failureMessage, cause: response.statusCode);
-    }
-    try {
-      final payload = jsonDecode(response.body);
-      if (payload is! Map<String, dynamic>) {
-        throw AppFailure.unknown(invalidPayloadMessage);
-      }
-      return payload;
-    } on AppFailure {
-      rethrow;
-    } catch (error) {
-      throw AppFailure.unknown(decodeFailureMessage, cause: error);
-    }
-  }
-
   Uri _organizationManifestUri(Uri baseUrl) {
     return weaveApiUri(baseUrl, const [
       'api',
@@ -490,26 +388,6 @@ class HttpWeaveApiClient implements WeaveApiClient {
 
   Uri _officeLaunchUri(Uri baseUrl) {
     return weaveApiUri(baseUrl, const ['api', 'office', 'launch']);
-  }
-
-  Uri _weaverRuntimeProfileUri(Uri baseUrl) {
-    return weaveApiUri(baseUrl, const [
-      'api',
-      'v1',
-      'workspace',
-      'weaver',
-      'runtime-profile',
-    ]);
-  }
-
-  Uri _weaverPermissionModeUri(Uri baseUrl) {
-    return weaveApiUri(baseUrl, const [
-      'api',
-      'v1',
-      'workspace',
-      'weaver',
-      'permission-mode',
-    ]);
   }
 }
 

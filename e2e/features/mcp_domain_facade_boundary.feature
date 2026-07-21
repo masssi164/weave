@@ -1,63 +1,66 @@
 Feature: MCP domain facade boundary
-  MCP tools use Weave domain facades and never raw provider APIs.
+  MCP is a workload-only protocol edge. Domain catalogs stay empty until each owning domain has a complete, independently authorized action contract.
 
   @mcp-files-facade
-  Scenario: MCP Files tools use Weave Files facade semantics
-    Given MCP Files tools are enabled
-    When a Files tool reads or writes file data
-    Then it uses Weave Files facade semantics
-    And it does not accept raw provider URLs or unrestricted WebDAV scripting
+  Scenario: MCP Files catalog stays empty until the Files action contract is complete
+    Given Files remains authoritative for its own content and authorization
+    When runtime-approved MCP discovery is evaluated
+    Then no Files tool is advertised before its domain catalog and current authorization gates exist
+    And no raw provider URL or unrestricted WebDAV scripting surface is exposed
 
   @mcp-calendar-facade
-  Scenario: MCP Calendar tools use Weave Calendar facade semantics
-    Given MCP Calendar tools are enabled
-    When a Calendar tool reads or writes calendar data
-    Then it uses Weave Calendar facade semantics
-    And it does not expose raw provider payloads
+  Scenario: MCP Calendar catalog stays empty until the Calendar action contract is complete
+    Given Calendar remains authoritative for its own events and authorization
+    When runtime-approved MCP discovery is evaluated
+    Then no Calendar tool is advertised before its domain catalog and current authorization gates exist
+    And no raw provider payload or provider-shaped calendar operation is exposed
 
   @mcp-chat-facade
-  Scenario: MCP Chat tools use Weave or Matrix-governed semantics
-    Given MCP Chat tools are enabled
-    When a Chat tool sends or reads messages
-    Then it uses governed Weave/Matrix semantics
-    And it does not call Slack or Teams raw APIs directly
+  Scenario: MCP Chat catalog stays empty until the Chat action contract is complete
+    Given Chat and Matrix remain authoritative for conversation authorization
+    When runtime-approved discovery is evaluated
+    Then no Chat tool is advertised before its domain catalog and current authorization gates exist
+    And no Slack or Teams raw API is exposed
 
   @mcp-calls-facade
-  Scenario: MCP Calls tools use Weave call grants
-    Given MCP Calls tools are enabled
-    When a Calls tool creates or joins a call
-    Then it uses Weave Calls control semantics
-    And it never exposes LiveKit admin APIs
+  Scenario: MCP Calls catalog stays empty until MatrixRTC authorization is current
+    Given the Calls domain uses the pinned MatrixRTC Profile 0 member contract
+    When runtime-approved MCP discovery is evaluated
+    Then no Calls tool is advertised before current RTC authorization and action-evidence gates exist
+    And no member Calls API, proprietary join grant, or LiveKit admin API is exposed
 
   @mcp-no-provider-leakage
-  Scenario: MCP outputs contain no provider internals
-    Given MCP outputs are inspected
+  Scenario: MCP protocol metadata contains no provider internals
+    Given MCP protocol metadata is inspected while domain catalogs are empty
     Then no raw provider URL, credential, token, tenant ID, SecretRef value, or downstream payload is present
 
   @spring-ai-mcp-transport
-  Scenario: MCP uses Spring AI stateful Streamable HTTP
-    Given the governed Weave MCP server is running
-    When a client initializes at /mcp
-    Then Spring AI 2.0 serves the stateful Streamable HTTP protocol required for elicitation
+  Scenario: MCP admits only a current ARC-bound workload
+    Given the Spring AI Streamable HTTP implementation is installed
+    When a bound cell negotiates the MCP Client Credentials extension at /mcp
+    Then the edge exchanges its exact-audience workload token and resolves current ARC context before protocol dispatch
+    And a human token or unbound service account is rejected
     And the handwritten JSON-RPC and Python FastMCP runtimes are absent
 
   @spring-ai-mcp-oidc
-  Scenario: OIDC is the MCP gatekeeper
-    Given an MCP request has no valid OIDC bearer token with weave:workspace scope
+  Scenario: OIDC admits no human or unbound workload compatibility path
+    Given an MCP request carries a human token or an unbound service-account token
     When the request reaches /mcp
     Then Spring Security rejects it before MCP tool or backend dispatch
+    And only a server-owned service-account to cell to RuntimeProfile v2 binding may enter the transport
 
   @mcp-runtime-approved-discovery
-  Scenario: Runtime-approved MCP discovery is support-safe
-    Given an OIDC-authenticated Weaver runtime profile
-    When it reads weave://runtime/approved-tools
-    Then only backend-approved Weave domain tools are returned
-    And no runtime token, CredentialRef value, or provider internal is returned
+  Scenario: Runtime-approved MCP context is active while domain catalogs stay guarded
+    Given ARC has a current workload binding and RuntimeProfile v2
+    When the bound cell initializes the MCP transport
+    Then the edge resolves its current backend authorization context
+    And no domain tool is advertised before its catalog, authorization, and evidence gates are implemented
+    And no obsolete member runtime profile or approved-tools compatibility path is exposed
 
-  @mcp-approval-receipt-boundary
-  Scenario: MCP write approval is bound to one tool invocation
-    Given a governed Weaver write tool requires approval
-    When the runtime invokes the tool through Spring AI MCP
-    Then OpenClaw routes the Spring AI form elicitation through its plugin approval manager
-    And Weave mints a short-lived receipt bound to actor, runtime profile, tool, canonical scopes, arguments, policy, and contract version
-    And changed arguments, replay, foreign elicitation evidence, or a receipt reference alone cannot authorize the write
+  @mcp-approval-ownership-boundary
+  Scenario: MCP write catalogs remain empty without trusted OpenClaw decision evidence
+    Given a candidate ARC workload domain write would require approval
+    When the runtime initializes Spring AI MCP
+    Then OpenClaw remains the owner of approval presentation and decision state
+    And Weave does not mint authority from caller-supplied elicitation evidence
+    And no write tool is advertised until trusted decision evidence and current domain authorization can both be validated
