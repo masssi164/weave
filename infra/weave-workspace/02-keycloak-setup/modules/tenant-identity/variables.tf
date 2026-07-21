@@ -28,6 +28,11 @@ variable "admin_console_public_url" {
   type        = string
 }
 
+variable "api_public_url" {
+  description = "Canonical HTTPS Weave API origin used to define exact ARC and MCP OAuth resources."
+  type        = string
+}
+
 variable "matrix_mas_upstream_id" {
   description = "ULID used by MAS for the upstream OIDC provider."
   type        = string
@@ -41,6 +46,12 @@ variable "matrix_mas_client_secret" {
 
 variable "identity_admin_client_secret" {
   description = "Client secret for the backend-only Keycloak organization identity administrator."
+  type        = string
+  sensitive   = true
+}
+
+variable "agent_runtime_admin_client_secret" {
+  description = "Client secret for the dedicated Agent Runtime per-cell workload identity administrator."
   type        = string
   sensitive   = true
 }

@@ -31,16 +31,16 @@ Current evidence and boundaries:
 
 ## Meetings / video calls
 
-Classic meetings and video calls are active product scope. LiveKit is the media provider contract, while Matrix remains the chat/E2EE substrate rather than the generic meetings provider. Matrix chat encryption must not be presented as covering LiveKit media calls. The app must keep join/start controls fail-closed until the backend token facade, signaling/media path, metadata boundaries, media-encryption evidence, and accessibility evidence are configured and validated.
+Calls and meetings are active product scope. Matrix v1.19 plus pinned MatrixRTC Profile 0 is the only member signaling contract. An internal RTC Authorizer must independently validate current room, slot/member, device, role, policy, nonce, audience, and expiry before a short-lived SFU token is issued. LiveKit is only the first replaceable southbound SFU adapter. Matrix room encryption must not be presented as covering media, captions, transcripts, recordings, or metadata.
 
-[<img src="assets/roadmap/08-livekit-meetings-readiness.svg" alt="Weave LiveKit meetings readiness visual showing LiveKit as provider, backend token facade control, and fail-closed default state." width="560">](assets/roadmap/08-livekit-meetings-readiness.svg)
+[<img src="assets/roadmap/08-matrixrtc-calls-readiness.svg" alt="Weave MatrixRTC Calls readiness visual showing Profile 0 signaling, independent RTC authorization, and a replaceable SFU boundary." width="560">](assets/roadmap/08-matrixrtc-calls-readiness.svg)
 
 Current evidence and boundaries:
 
-- Provider status uses `meetings` + `livekit`, not `matrix-meetings`.
+- Provider status may report LiveKit SFU configuration readiness, but never treats it as the member signaling or authorization contract.
 - Flutter must not hold LiveKit API keys, API secrets, room tokens, or credential-bearing join URLs.
 - Support and readiness output may expose booleans such as configured/enabled only, not raw LiveKit URLs, token endpoints, raw provider errors, or secrets.
-- Recording, transcription, captions, metadata retention, and encryption claims require explicit evidence before promotion.
+- RTC Authorizer, TURN, media E2EE, recording, transcription, captions, metadata retention, interoperability, and physical-device claims require explicit evidence before promotion.
 
 ## Matrix E2EE
 

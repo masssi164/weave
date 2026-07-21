@@ -17,7 +17,7 @@ Admin/operator setup owns:
 - provider/tool/agent whitelists;
 - readiness, audit, backup/restore, and support bundles.
 
-The current product order remains: provider-neutral Weave suite first, admin portal/IDM/RBAC/readiness/whitelisting second, optional governed Weaver runtime later.
+The current product order remains: provider-neutral Weave suite first, admin portal/IDM/RBAC/readiness/whitelisting second, optional Agent Runtime Control with Weaver/OpenClaw as a runtime provider.
 
 ## Identity and Keycloak default
 
@@ -37,7 +37,7 @@ Provider categories are first-class product concepts:
 - meetings/calls;
 - documents/collaboration;
 - model provider;
-- Weaver runtime (disabled by default until later governed policy work).
+- Agent Runtime Control (entitlement-bound and fail-closed; Weaver/OpenClaw is the first runtime provider).
 
 Record provider posture as `recommended_self_hosted_default`, `external_existing_provider`, or `managed_cloud_provider`. Provider-specific risk notes belong in admin/operator surfaces, not normal member UX.
 
@@ -51,7 +51,7 @@ For Matrix Chat Sprint 15, the dry-run is review-only: the backend returns conse
 
 Rollback decision points are: keep the current adapter active until export/import and rollback evidence pass; archive provider mapping refs before cutover; use only support-safe audit refs in support bundles; and keep the member preview provider-neutral (`available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, or `coming_later`) during and after the switch.
 
-For Weaver chat/model routing, admins select the `model` provider category through the Admin Control Plane, for example `lmstudio` with a `SecretRef`/Credential Broker handle. Weaver conversation enters through OpenClaw's stock `channels.matrix` plugin pointed at the OIDC-gated Weave Matrix facade; governed domain actions enter through the Spring AI MCP server and its approval flow. Members do not configure model endpoints, raw model ids, TLS policy, tokens, southbound provider rooms, or MCP transport details. If the selected model endpoint uses a private development CA such as mkcert, mount the CA certificate into the runtime/container read-only and point the HTTP client trust configuration at it (for curl-based probes, `CURL_CA_BUNDLE=/path/in/container/rootCA.pem`). Do not use `--insecure`, disabled certificate validation, or equivalent flags as final evidence; they are temporary diagnostics only.
+For Weaver/OpenClaw model routing, admins select the `model` provider category through the Admin Control Plane, for example `lmstudio` with a `SecretRef`/Credential Broker handle. Conversation enters through OpenClaw's stock `channels.matrix` plugin pointed at the OIDC-gated Weave Matrix facade. The workload-only Spring AI MCP edge currently advertises no tools, resources, or prompts; a domain action can be added only after independent current domain authorization, exact action-bound approval evidence where required, idempotency/reconciliation, and immutable ActionEvidence exist. Members do not configure model endpoints, raw model ids, TLS policy, tokens, southbound provider rooms, or MCP transport details. If the selected model endpoint uses a private development CA such as mkcert, mount the CA certificate into the runtime/container read-only and point the HTTP client trust configuration at it (for curl-based probes, `CURL_CA_BUNDLE=/path/in/container/rootCA.pem`). Do not use `--insecure`, disabled certificate validation, or equivalent flags as final evidence; they are temporary diagnostics only.
 
 ## Provider URLs and SecretRefs
 
@@ -116,9 +116,9 @@ Weave policy is deny-by-default. Capability profiles should use category-level p
 - `files.read`, `files.upload`;
 - `calendar.read`, `calendar.manage_events`;
 - `boards.read`, `boards.update_task`;
-- placeholder Weaver keys only when explicitly gated.
+- `agent-runtime.entitled` only from the configured authoritative Keycloak group; human roles never imply it.
 
-Whitelists restrict which providers, adapters, tools, and later Weaver capabilities are visible to an organization or role. A missing whitelist entry does not grant access.
+Whitelists restrict which providers and adapters are visible to an organization or role. ARC lifecycle permissions remain admin/operator-only, and a missing whitelist or entitlement never grants runtime or domain access.
 
 ## Effective policy simulation
 
@@ -126,7 +126,7 @@ Use `POST /api/admin/policies/effective/simulations` before applying identity, r
 
 The simulation complements Workspace Health/admin readiness work (#212): readiness explains whether backend-owned provider setup is ready or degraded, while effective policy simulation explains whether known identity inputs would grant, disable, degrade, or policy-block product capabilities for members. It also fits before the identity realm dry-run/apply path (#233): run the realm dry-run to inspect desired realm changes, then run effective policy simulation to preview capability impact before any guarded apply.
 
-Unknown roles, groups, or capabilities fail closed and produce `disabled_by_policy` member states. The response uses only stable member state labels (`available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, `coming_later`) and admin reason codes; it must not expose email as a primary identity key, raw provider IDs, endpoint URLs, tokens, credentials, SecretRef payloads, or provider internals. Weaver remains disabled by default in this slice; `weaver.enabled` reports `disabled` unless later governed policy work explicitly enables a runtime. A support-safe fixture is checked in at `server/src/test/resources/effective-policy-simulation/admin-operator-preview.json`.
+Unknown roles, groups, or capabilities fail closed and produce `disabled_by_policy` member states. The response uses only stable member state labels (`available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, `coming_later`) and admin reason codes; it must not expose email as a primary identity key, raw provider IDs, endpoint URLs, tokens, credentials, SecretRef payloads, or provider internals. Agent runtime entitlement is never inferred from a human role: only the configured authoritative Keycloak group may derive `agent-runtime.entitled`. A support-safe fixture is checked in at `server/src/test/resources/effective-policy-simulation/admin-operator-preview.json`.
 
 ## Readiness and audit
 

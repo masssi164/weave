@@ -1,7 +1,7 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.config.AgentRuntimeEntitlementProperties;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
-import com.massimotter.weave.backend.config.WeaverRuntimeProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyResponse;
@@ -48,15 +48,13 @@ public class WorkspaceCapabilityService {
             "release_evidence.manage",
             "admin_control_plane.readiness_read",
             "admin.policy.edit",
-            "admin.provider.configure",
-            "weaver.exec_disabled");
+            "admin.provider.configure");
     private static final List<String> OPERATOR_CAPABILITIES = List.of(
             "admin_control_plane.readiness_read",
             "operator.support_bundle.create",
             "release_evidence.read",
             "manuals.admin",
-            "manuals.read",
-            "weaver.exec_disabled");
+            "manuals.read");
     private static final List<String> MEMBER_CAPABILITIES = List.of(
             "chat.read",
             "chat.send",
@@ -68,21 +66,18 @@ public class WorkspaceCapabilityService {
             "documents.view",
             "decisions.read",
             "manuals.read",
-            "release_evidence.read",
-            "weaver.exec_disabled");
+            "release_evidence.read");
     private static final Map<String, List<String>> GROUP_CAPABILITIES = Map.of(
-            "weave-calendar-editors", List.of("calendar.manage_events", "weaver.calendar_read", "weaver.calendar_create_event"),
+            "weave-calendar-editors", List.of("calendar.manage_events"),
             "weave-board-editors", List.of("boards.update_task"),
             "weave-meeting-hosts", List.of("meetings.host"),
             "weave-document-editors", List.of("documents.edit"),
-            "weave-decision-recorders", List.of("decisions.record"),
-            "weave-weaver-pilot", List.of("weaver.files_read", "weaver.exec_disabled"),
-            "weave-weaver-calendar", List.of("calendar.read", "calendar.manage_events", "weaver.exec_disabled"));
+            "weave-decision-recorders", List.of("decisions.record"));
 
     private final OAuth2ResourceServerProperties resourceServerProperties;
     private final WeaveSecurityProperties weaveSecurityProperties;
     private final WorkspaceCapabilityProperties workspaceCapabilityProperties;
-    private final WeaverRuntimeProperties weaverRuntimeProperties;
+    private final AgentRuntimeEntitlementProperties runtimeEntitlementProperties;
     private final ProviderCapabilityHealthService providerHealthService;
 
     public WorkspaceCapabilityService(
@@ -93,7 +88,7 @@ public class WorkspaceCapabilityService {
                 resourceServerProperties,
                 weaveSecurityProperties,
                 workspaceCapabilityProperties,
-                new WeaverRuntimeProperties(false, null, null, null, null, null, null, null, null, null, false, false, true, false),
+                AgentRuntimeEntitlementProperties.disabled(),
                 (ProviderCapabilityHealthService) null);
     }
 
@@ -102,13 +97,13 @@ public class WorkspaceCapabilityService {
             OAuth2ResourceServerProperties resourceServerProperties,
             WeaveSecurityProperties weaveSecurityProperties,
             WorkspaceCapabilityProperties workspaceCapabilityProperties,
-            WeaverRuntimeProperties weaverRuntimeProperties,
+            AgentRuntimeEntitlementProperties runtimeEntitlementProperties,
             ObjectProvider<ProviderCapabilityHealthService> providerHealthServiceProvider) {
         this(
                 resourceServerProperties,
                 weaveSecurityProperties,
                 workspaceCapabilityProperties,
-                weaverRuntimeProperties,
+                runtimeEntitlementProperties,
                 providerHealthServiceProvider == null ? null : providerHealthServiceProvider.getIfAvailable());
     }
 
@@ -116,12 +111,12 @@ public class WorkspaceCapabilityService {
             OAuth2ResourceServerProperties resourceServerProperties,
             WeaveSecurityProperties weaveSecurityProperties,
             WorkspaceCapabilityProperties workspaceCapabilityProperties,
-            WeaverRuntimeProperties weaverRuntimeProperties) {
+            AgentRuntimeEntitlementProperties runtimeEntitlementProperties) {
         this(
                 resourceServerProperties,
                 weaveSecurityProperties,
                 workspaceCapabilityProperties,
-                weaverRuntimeProperties,
+                runtimeEntitlementProperties,
                 (ProviderCapabilityHealthService) null);
     }
 
@@ -129,12 +124,12 @@ public class WorkspaceCapabilityService {
             OAuth2ResourceServerProperties resourceServerProperties,
             WeaveSecurityProperties weaveSecurityProperties,
             WorkspaceCapabilityProperties workspaceCapabilityProperties,
-            WeaverRuntimeProperties weaverRuntimeProperties,
+            AgentRuntimeEntitlementProperties runtimeEntitlementProperties,
             ProviderCapabilityHealthService providerHealthService) {
         this.resourceServerProperties = resourceServerProperties;
         this.weaveSecurityProperties = weaveSecurityProperties;
         this.workspaceCapabilityProperties = workspaceCapabilityProperties;
-        this.weaverRuntimeProperties = weaverRuntimeProperties;
+        this.runtimeEntitlementProperties = runtimeEntitlementProperties;
         this.providerHealthService = providerHealthService;
     }
 
@@ -147,7 +142,7 @@ public class WorkspaceCapabilityService {
                 resourceServerProperties,
                 weaveSecurityProperties,
                 workspaceCapabilityProperties,
-                new WeaverRuntimeProperties(false, null, null, null, null, null, null, null, null, null, false, false, true, false),
+                AgentRuntimeEntitlementProperties.disabled(),
                 providerHealthService);
     }
 
@@ -237,12 +232,12 @@ public class WorkspaceCapabilityService {
                         policy,
                         "Workspace Health exposes support-safe admin readiness without provider credentials."),
                 standaloneStatus(
-                        workspaceCapabilityProperties.weaver(),
+                        workspaceCapabilityProperties.agentRuntimeControl(),
                         WorkspaceCapabilityReadiness.UNAVAILABLE,
-                        "Weaver",
-                        List.of("weaver.enabled", "weaver.files_read", "weaver.exec_disabled"),
+                        "Agent Runtime Control",
+                        List.of("agent-runtime.entitled"),
                         policy,
-                        "Weaver is disabled by default until an admin enables a governed runtime profile."));
+                        "Agent Runtime Control is optional and requires a current Keycloak entitlement."));
     }
 
     public WorkspaceCapabilityPolicyResponse policySnapshot(Jwt jwt) {
@@ -259,9 +254,9 @@ public class WorkspaceCapabilityService {
                 policy.capabilities().stream().sorted().toList(),
                 true,
                 true,
-                weaverRuntimeProperties.enabled()
-                        ? "governed per-user Dockerized Weaver profiles are generated only when org policy grants weaver.enabled"
-                        : "disabled-by-default; per-user Dockerized Weaver runtime may only be generated from org policy later");
+                runtimeEntitlementProperties.enabled()
+                        ? "ARC entitlement is derived from the configured Keycloak group; profile and cell authority remain server-owned"
+                        : "disabled-by-default; Agent Runtime Control requires explicit Keycloak entitlement configuration");
     }
 
     public List<String> grantedCapabilities(Jwt jwt) {
@@ -278,7 +273,7 @@ public class WorkspaceCapabilityService {
         List<String> denies = List.of(
                 "admin.policy.edit",
                 "admin.provider.configure",
-                "weaver.enabled").stream()
+                "agent-runtime.entitled").stream()
                 .filter(capability -> !policy.capabilities().contains(capability))
                 .toList();
         return new EffectivePolicyResponse(
@@ -550,7 +545,6 @@ public class WorkspaceCapabilityService {
     private EffectivePolicy effectivePolicy(OrganizationIdentityContext identity) {
         if (identity == null) {
             LinkedHashSet<String> systemCapabilities = new LinkedHashSet<>(OWNER_ADMIN_CAPABILITIES);
-            systemCapabilities.remove("weaver.enabled");
             return new EffectivePolicy(
                     List.of("system"),
                     List.of(),
@@ -584,19 +578,18 @@ public class WorkspaceCapabilityService {
                 capabilities.addAll(groupCapabilities);
                 profileKeys.add("group:" + group);
             }
-            if (weaverRuntimeProperties.enabledGroups().contains(group)) {
+            if (runtimeEntitlementProperties.enabledGroups().contains(group)) {
                 profileKeys.add("group:" + group);
-                if (weaverRuntimeProperties.enabled()) {
-                    capabilities.add("weaver.enabled");
+                if (runtimeEntitlementProperties.enabled()) {
+                    capabilities.add("agent-runtime.entitled");
                 }
             }
         }
         if (profileKeys.isEmpty()) {
             profileKeys.add("deny-by-default");
         }
-        // Weaver runtime enablement is deliberately absent from built-in role profiles.
-        // Only explicit admin runtime policy groups may carry weaver.enabled, and only when
-        // the runtime generator is enabled in organization configuration.
+        // ARC entitlement is deliberately absent from built-in human role profiles. Only the
+        // configured Keycloak group may contribute the member-safe entitlement capability.
         return new EffectivePolicy(
                 roles,
                 groups,
@@ -616,8 +609,8 @@ public class WorkspaceCapabilityService {
     }
 
     private String denyReason(EffectivePolicy policy, String capability) {
-        if (capability.equals("weaver.enabled")) {
-            return "weaver runtime is disabled unless an organization policy group explicitly grants it";
+        if (capability.equals("agent-runtime.entitled")) {
+            return "Agent Runtime Control is disabled unless current Keycloak group membership grants entitlement";
         }
         if (policy.roles().contains("operator")) {
             return "operator role does not automatically grant user, provider, or policy administration";

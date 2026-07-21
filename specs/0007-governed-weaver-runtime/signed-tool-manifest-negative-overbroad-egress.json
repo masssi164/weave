@@ -1,6 +1,0 @@
-{
-  "negativeFixture": true,
-  "reason": "undeclared wildcard egress",
-  "expectedOutcome": "reject",
-  "redaction": "support_safe"
-}

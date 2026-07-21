@@ -56,11 +56,11 @@ class ProviderRegistryTest {
                     .containsEntry("rawProviderErrorsReturned", false)
                     .doesNotContainKeys("endpoint", "rawProviderError", "authorization");
         });
-        ProviderCategoryStatusResponse weaver = response.categories().stream()
-                .filter(category -> category.category().equals("weaver"))
+        ProviderCategoryStatusResponse runtimeControl = response.categories().stream()
+                .filter(category -> category.category().equals("agent-runtime-control"))
                 .findFirst()
                 .orElseThrow();
-        assertThat(weaver.providerCandidates()).containsExactly("openclaw-derived-profile");
+        assertThat(runtimeControl.providerCandidates()).containsExactly("weaver-openclaw");
         assertThat(response.providers().get(0).enabled()).isFalse();
         assertThat(response.providers().get(0).diagnostics()).containsEntry("selectedByAdmin", false);
     }

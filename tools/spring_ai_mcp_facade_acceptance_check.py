@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify the MCP transport remains canonical and dark until workload binding exists."""
+"""Verify the canonical MCP transport admits only a current ARC-bound workload."""
 
 from __future__ import annotations
 
@@ -10,10 +10,10 @@ ROOT = Path(__file__).resolve().parents[1]
 
 MARKERS = (
     "SPRING_AI_MCP_STATEFUL_TRANSPORT",
-    "MCP_WORKLOAD_EDGE_DENY_ALL",
-    "MCP_CANONICAL_DOMAIN_DISPATCH",
+    "MCP_WORKLOAD_EDGE_BOUND_CELL_ONLY",
+    "MCP_DOMAIN_CATALOGS_EMPTY",
     "MCP_PROVIDER_NEUTRAL_OUTPUT",
-    "MCP_RUNTIME_DISCOVERY_DARK_UNTIL_ARC",
+    "MCP_RUNTIME_CONTEXT_ACTIVE",
     "MCP_APPROVAL_EVIDENCE_FAILS_CLOSED",
     "MCP_LEGACY_RUNTIME_REMOVED",
 )
@@ -53,13 +53,21 @@ def main() -> int:
         "protocol: STREAMABLE",
         "mcp-endpoint: /mcp",
         "issuer-uri:",
-        "audiences:",
+        "resource-uri:",
     )
     require(
         "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/McpSecurityConfiguration.java",
-        '.requestMatchers("/mcp", "/mcp/**").denyAll()',
-        "service-account -> cell -> RuntimeProfile v2 binding",
+        '.requestMatchers("/mcp", "/mcp/**").authenticated()',
+        "McpAccessTokenTypeValidator",
+        "PROTECTED_RESOURCE_METADATA_PATH",
         ".oauth2ResourceServer",
+    )
+    require(
+        "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/McpRequestAdmissionFilter.java",
+        "CLIENT_CREDENTIALS_EXTENSION",
+        "exchange.exchange(",
+        "contexts.resolve(",
+        "BACKEND_CONTEXT_ATTRIBUTE",
     )
     require(
         "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/McpTransportConfiguration.java",
@@ -68,9 +76,22 @@ def main() -> int:
     )
     require(
         "weave-mcp-server/src/test/java/com/massimotter/weave/mcp/SpringAiMcpTransportTest.java",
-        "oidcIsTheGatekeeperForSpringAiMcpTransport",
-        "mcpRemainsDarkForHumansAndUnboundWorkloadsUntilArcBindingExists",
-        '"member", "weave-mcp-server", "generic-service-account", "weaver-cell-test"',
+        "publishesProtectedResourceMetadataWithoutAuthentication",
+        "humanBearerCannotDiscoverTheMcpCatalog",
+        "extensionNegotiationIsMandatoryForWorkloadClientCredentials",
+        "boundCellIsExchangedAndDispatchedThroughTheFrameworkTransport",
+    )
+    require(
+        "server/src/main/java/com/massimotter/weave/backend/config/McpWorkloadBridgeSecurityConfiguration.java",
+        "configuredRfc9068Decoder",
+        "rfc9068AccessTokenTypeValidator",
+        "exactAudienceValidator",
+    )
+    require(
+        "server/src/main/java/com/massimotter/weave/backend/controller/AgentRuntimeMcpContextController.java",
+        '@RequestMapping("/api/internal/agent-runtime")',
+        '@PostMapping("/mcp-context")',
+        "authorization.authorize(authentication.getToken())",
     )
     require(
         "infra/weave-workspace/01-infrastructure/modules/mcp/main.tf",

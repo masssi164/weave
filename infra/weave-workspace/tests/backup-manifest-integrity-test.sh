@@ -33,6 +33,11 @@ done
 finalize_text_manifest
 write_backup_manifest_json
 
+jq -e '.scope.domains | index("agent-runtime-control")' "${BACKUP_DIR}/BackupManifest.json" >/dev/null || {
+  echo "BackupManifest does not include the Agent Runtime Control restore scope." >&2
+  exit 1
+}
+
 grep -Fq 'BackupManifest.json' "${BACKUP_DIR}/MANIFEST.txt" || {
   echo "Final text manifest does not list BackupManifest.json." >&2
   exit 1

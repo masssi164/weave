@@ -15,6 +15,12 @@ readonly KEYCLOAK_DIR="${ROOT_DIR}/02-keycloak-setup"
 source "${ROOT_DIR}/lib/runtime-namespace.sh"
 readonly WORKSPACE_GENERATED_DIR="$(weave_workspace_generated_dir "${ROOT_DIR}")"
 readonly INFRA_GENERATED_DIR="$(weave_infra_generated_dir "${ROOT_DIR}")"
+readonly AGENT_RUNTIME_GENERATED_DIR="${INFRA_GENERATED_DIR}/agent-runtime"
+readonly AGENT_RUNTIME_PROFILE_SIGNING_HOST_ROOT="${AGENT_RUNTIME_GENERATED_DIR}/profile-signing"
+readonly AGENT_RUNTIME_STATE_WRAPPING_HOST_ROOT="${AGENT_RUNTIME_GENERATED_DIR}/state-wrapping"
+readonly AGENT_RUNTIME_CREDENTIAL_HOST_ROOT="${AGENT_RUNTIME_GENERATED_DIR}/credentials"
+readonly AGENT_RUNTIME_PROFILE_SIGNING_CONTAINER_ROOT="/run/weave-agent-runtime/profile-signing"
+readonly AGENT_RUNTIME_STATE_WRAPPING_CONTAINER_ROOT="/run/weave-agent-runtime/state-wrapping"
 readonly BOOTSTRAP_ENV_FILE="${WORKSPACE_GENERATED_DIR}/bootstrap.env"
 readonly APP_CONFIG_ENV_FILE="${WORKSPACE_GENERATED_DIR}/app-config.env"
 readonly RUNNER_BOOTSTRAP_ENV_FILE="/tmp/weave-infra/weave-workspace/.generated/bootstrap.env"
@@ -73,6 +79,8 @@ readonly PERSISTED_TF_VARS=(
   TF_VAR_backend_host_port
   TF_VAR_backend_container_port
   TF_VAR_weave_backend_image
+  TF_VAR_agent_runtime_enabled
+  TF_VAR_agent_runtime_keycloak_organization_id
   TF_VAR_mcp_host_port
   TF_VAR_mcp_container_port
   TF_VAR_weave_mcp_server_image
@@ -143,6 +151,7 @@ readonly PERSISTED_TF_VARS=(
   TF_VAR_nextcloud_backend_actor_token
   TF_VAR_matrix_mas_client_secret
   TF_VAR_identity_admin_client_secret
+  TF_VAR_agent_runtime_admin_client_secret
   TF_VAR_identity_events_hmac_secret
   TF_VAR_mas_encryption_secret
   TF_VAR_mas_signing_key_pem
@@ -323,6 +332,16 @@ load_persisted_env() {
 
   for ((index = 0; index < ${#preset_names[@]}; index++)); do
     export "${preset_names[$index]}=${preset_values[$index]}"
+  done
+
+  # A bootstrap file may have been produced by an older installer that used
+  # plain assignments. OpenTofu only consumes TF_VAR_* values from the process
+  # environment, so normalize every persisted value to an exported variable
+  # before any state import, plan, or apply.
+  for var in "${PERSISTED_TF_VARS[@]}"; do
+    if [[ "${!var+x}" == "x" ]]; then
+      export "${var}=${!var}"
+    fi
   done
 
 }
@@ -585,12 +604,17 @@ keycloak_state_has() {
 keycloak_import_if_missing() {
   local address="$1"
   local import_id="$2"
+  local allow_empty_role_client_id="${3:-false}"
 
   if keycloak_state_has "${address}"; then
     return
   fi
 
-  if [[ -z "${import_id}" || "${import_id}" == */ || "${import_id}" == *'//'* ]]; then
+  if [[ -z "${import_id}" || "${import_id}" == */ ]]; then
+    return
+  fi
+
+  if [[ "${allow_empty_role_client_id}" != "true" && "${import_id}" == *'//'* ]]; then
     return
   fi
 
@@ -618,6 +642,16 @@ keycloak_admin_get_query() {
   curl -fsS -G \
     -H "Authorization: Bearer ${token}" \
     --data-urlencode "${query_key}=${query_value}" \
+    "http://${LOOPBACK_HOST}:${TF_VAR_keycloak_host_port}${path}"
+}
+
+keycloak_admin_delete() {
+  local path="$1"
+  local token=""
+
+  token="$(keycloak_admin_token)"
+  curl -fsS -o /dev/null -X DELETE \
+    -H "Authorization: Bearer ${token}" \
     "http://${LOOPBACK_HOST}:${TF_VAR_keycloak_host_port}${path}"
 }
 
@@ -686,6 +720,37 @@ keycloak_lookup_role_id() {
     keycloak_json_id_by_field name "${name}" || true
 }
 
+keycloak_lookup_client_role_id() {
+  local client_uuid="$1"
+  local name="$2"
+
+  keycloak_admin_get "/admin/realms/${TF_VAR_tenant_slug}/clients/${client_uuid}/roles/${name}" 2>/dev/null |
+    keycloak_json_id_by_field name "${name}" || true
+}
+
+keycloak_lookup_service_account_user_id() {
+  local client_uuid="$1"
+
+  keycloak_admin_get "/admin/realms/${TF_VAR_tenant_slug}/clients/${client_uuid}/service-account-user" 2>/dev/null |
+    python3 -c 'import json,sys; print(json.load(sys.stdin).get("id", ""))' || true
+}
+
+keycloak_lookup_assigned_client_role_id() {
+  local service_account_user_id="$1"
+  local client_uuid="$2"
+  local name="$3"
+
+  keycloak_admin_get "/admin/realms/${TF_VAR_tenant_slug}/users/${service_account_user_id}/role-mappings/clients/${client_uuid}" 2>/dev/null |
+    keycloak_json_id_by_field name "${name}" || true
+}
+
+keycloak_lookup_organization_id() {
+  local alias="$1"
+
+  keycloak_admin_get "/admin/realms/${TF_VAR_tenant_slug}/organizations" |
+    keycloak_json_id_by_field alias "${alias}"
+}
+
 keycloak_lookup_user_id() {
   local username="$1"
 
@@ -697,22 +762,81 @@ keycloak_lookup_client_scope_mapper_id() {
   local client_scope_id="$1"
   local name="$2"
 
+  [[ -n "${client_scope_id}" ]] || return 0
+
   keycloak_admin_get "/admin/realms/${TF_VAR_tenant_slug}/client-scopes/${client_scope_id}/protocol-mappers/models" |
     keycloak_json_id_by_field name "${name}"
+}
+
+keycloak_lookup_client_scope_realm_role_id() {
+  local client_scope_id="$1"
+  local name="$2"
+
+  [[ -n "${client_scope_id}" ]] || return 0
+
+  keycloak_admin_get "/admin/realms/${TF_VAR_tenant_slug}/client-scopes/${client_scope_id}/scope-mappings/realm" |
+    keycloak_json_id_by_field name "${name}"
+}
+
+keycloak_lookup_role_container_id() {
+  local name="$1"
+
+  keycloak_admin_get "/admin/realms/${TF_VAR_tenant_slug}/roles/${name}" 2>/dev/null |
+    python3 -c 'import json,sys; print(json.load(sys.stdin).get("containerId", ""))' || true
 }
 
 keycloak_lookup_client_mapper_id() {
   local client_uuid="$1"
   local name="$2"
 
+  [[ -n "${client_uuid}" ]] || return 0
+
   keycloak_admin_get "/admin/realms/${TF_VAR_tenant_slug}/clients/${client_uuid}/protocol-mappers/models" |
     keycloak_json_id_by_field name "${name}"
 }
 
-ensure_existing_keycloak_terraform_state() {
+remove_obsolete_keycloak_contracts() {
   local client_scope_id=""
   local mapper_id=""
   local uuid=""
+
+  uuid="$(keycloak_lookup_client_uuid 'weave-backend')"
+  if [[ -n "${uuid}" ]]; then
+    log "Removing obsolete Keycloak client weave-backend; the exact API URI is now the resource client identifier."
+    keycloak_admin_delete "/admin/realms/${TF_VAR_tenant_slug}/clients/${uuid}"
+  fi
+
+  for obsolete_scope in 'weave:mcp' 'weave:mcp-backend'; do
+    client_scope_id="$(keycloak_lookup_client_scope_id "${obsolete_scope}")"
+    if [[ -n "${client_scope_id}" ]]; then
+      log "Removing obsolete Keycloak client scope ${obsolete_scope}."
+      keycloak_admin_delete "/admin/realms/${TF_VAR_tenant_slug}/client-scopes/${client_scope_id}"
+    fi
+  done
+
+  client_scope_id="$(keycloak_lookup_client_scope_id 'weave:workspace')"
+  if [[ -n "${client_scope_id}" ]]; then
+    mapper_id="$(keycloak_lookup_client_scope_mapper_id "${client_scope_id}" 'weave-app-audience')"
+    if [[ -n "${mapper_id}" ]]; then
+      log "Removing obsolete broad weave-app audience mapper."
+      keycloak_admin_delete "/admin/realms/${TF_VAR_tenant_slug}/client-scopes/${client_scope_id}/protocol-mappers/models/${mapper_id}"
+    fi
+  fi
+}
+
+ensure_existing_keycloak_terraform_state() {
+  local client_scope_id=""
+  local client_uuid=""
+  local mapper_id=""
+  local organization_id=""
+  local role_container_id=""
+  local realm_management_uuid=""
+  local role_id=""
+  local service_account_user_id=""
+  local uuid=""
+  local weave_app_uuid=""
+  local weave_agent_runtime_admin_uuid=""
+  local weave_identity_admin_uuid=""
 
   weave_iac_init "${KEYCLOAK_DIR}" -input=false
 
@@ -726,7 +850,19 @@ ensure_existing_keycloak_terraform_state() {
     return
   fi
 
+  remove_obsolete_keycloak_contracts
+
+  # Provider object IDs can change when an existing Keycloak database is
+  # adopted or restored. Refresh state first so stale identities disappear;
+  # the exact-name imports below then bind every live object without trying to
+  # recreate it or deleting any member/organization data.
+  log "Refreshing Keycloak OpenTofu state before exact-name adoption..."
+  weave_iac "${KEYCLOAK_DIR}" apply -refresh-only -input=false -auto-approve >/dev/null
+
   keycloak_import_if_missing module.tenant_identity.keycloak_realm.tenant "${TF_VAR_tenant_slug}"
+
+  organization_id="$(keycloak_lookup_organization_id "${TF_VAR_tenant_slug}")"
+  keycloak_import_if_missing module.tenant_identity.keycloak_organization.tenant "${TF_VAR_tenant_slug}/${organization_id}"
 
   for group_key_and_name in \
     owner:workspace-owners \
@@ -737,6 +873,7 @@ ensure_existing_keycloak_terraform_state() {
     local group_name="${group_key_and_name#*:}"
     uuid="$(keycloak_lookup_group_id "${group_name}")"
     keycloak_import_if_missing "module.tenant_identity.keycloak_group.weave_product_role[\"${group_key}\"]" "${TF_VAR_tenant_slug}/${uuid}"
+    keycloak_import_if_missing "module.tenant_identity.keycloak_group_roles.weave_product_role[\"${group_key}\"]" "${TF_VAR_tenant_slug}/${uuid}"
   done
 
   for group_key_and_name in \
@@ -745,9 +882,7 @@ ensure_existing_keycloak_terraform_state() {
     document_editors:weave-document-editors \
     meeting_hosts:weave-meeting-hosts \
     decision_records:weave-decision-recorders \
-    weaver_pilot:weave-weaver-pilot \
-    weaver_runtime:weave-weaver-runtime \
-    weaver_group:weaver-group; do
+    weaver_runtime:weave-weaver-runtime; do
     local group_key="${group_key_and_name%%:*}"
     local group_name="${group_key_and_name#*:}"
     uuid="$(keycloak_lookup_group_id "${group_name}")"
@@ -756,8 +891,8 @@ ensure_existing_keycloak_terraform_state() {
 
   for client_key_and_id in \
     weave_app:weave-app \
-    weave_backend:weave-backend \
     weave_identity_admin:weave-identity-admin \
+    weave_agent_runtime_admin:weave-agent-runtime-admin \
     weave_mcp_server:weave-mcp-server \
     weave_admin_console:weave-admin-console \
     matrix_mas:matrix-mas \
@@ -770,8 +905,46 @@ ensure_existing_keycloak_terraform_state() {
     fi
   done
 
+  uuid="$(keycloak_lookup_client_uuid "$(integration_test_base_url)")"
+  if [[ -n "${uuid}" ]]; then
+    keycloak_import_if_missing 'module.tenant_identity.keycloak_openid_client.client["weave_backend"]' "${TF_VAR_tenant_slug}/${uuid}"
+  fi
+
+  weave_app_uuid="$(keycloak_lookup_client_uuid 'weave-app')"
+  for product_role in owner admin member guest; do
+    role_id="$(keycloak_lookup_client_role_id "${weave_app_uuid}" "${product_role}")"
+    keycloak_import_if_missing "module.tenant_identity.keycloak_role.weave_product[\"${product_role}\"]" "${TF_VAR_tenant_slug}/${role_id}"
+  done
+
+  role_id="$(keycloak_lookup_role_id 'weaver-runtime')"
+  keycloak_import_if_missing module.tenant_identity.keycloak_role.weaver_runtime "${TF_VAR_tenant_slug}/${role_id}"
+
+  for scope_address_and_name in \
+    module.tenant_identity.keycloak_openid_client_scope.weave_workspace:weave:workspace \
+    module.tenant_identity.keycloak_openid_client_scope.weaver_runtime_workload:weaver-runtime.workload \
+    module.tenant_identity.keycloak_openid_client_scope.agent_runtime_admin:agent-runtime.admin \
+    module.tenant_identity.keycloak_openid_client_scope.agent_runtime_profile_read:agent-runtime.profile.read \
+    module.tenant_identity.keycloak_openid_client_scope.mcp_tools:mcp:tools \
+    module.tenant_identity.keycloak_openid_client_scope.calendar_read:calendar.read \
+    module.tenant_identity.keycloak_openid_client_scope.mcp_backend_exchange:weave-mcp-backend.exchange; do
+    local scope_address="${scope_address_and_name%%:*}"
+    local scope_name="${scope_address_and_name#*:}"
+    client_scope_id="$(keycloak_lookup_client_scope_id "${scope_name}")"
+    keycloak_import_if_missing "${scope_address}" "${TF_VAR_tenant_slug}/${client_scope_id}"
+  done
+
+  client_scope_id="$(keycloak_lookup_client_scope_id 'weaver-runtime.workload')"
+  role_id="$(keycloak_lookup_client_scope_realm_role_id "${client_scope_id}" 'weaver-runtime')"
+  role_container_id="$(keycloak_lookup_role_container_id 'weaver-runtime')"
+  # The provider's canonical ID uses an empty role-client segment for a realm
+  # role, yielding `scope-mappings//{roleId}`. That double slash is valid only
+  # for this exact, fully resolved generic-role-mapper import.
+  keycloak_import_if_missing \
+    module.tenant_identity.keycloak_generic_role_mapper.weaver_runtime_workload \
+    "${TF_VAR_tenant_slug}/client-scope/${client_scope_id}/scope-mappings/${role_container_id}/${role_id}" \
+    true
+
   client_scope_id="$(keycloak_lookup_client_scope_id 'weave:workspace')"
-  keycloak_import_if_missing module.tenant_identity.keycloak_openid_client_scope.weave_workspace "${TF_VAR_tenant_slug}/${client_scope_id}"
 
   for mapper_address_and_name in \
     module.tenant_identity.keycloak_openid_hardcoded_claim_protocol_mapper.weave_tenant_id:weave-tenant-id \
@@ -781,11 +954,23 @@ ensure_existing_keycloak_terraform_state() {
     local mapper_address="${mapper_address_and_name%%:*}"
     local mapper_name="${mapper_address_and_name#*:}"
     mapper_id="$(keycloak_lookup_client_scope_mapper_id "${client_scope_id}" "${mapper_name}")"
-    if [[ -z "${mapper_id}" && "${mapper_name}" == "weave-backend-audience" ]]; then
-      # Import the retired mapper address so OpenTofu updates it in place instead
-      # of leaving a second, overbroad weave-app audience mapper unmanaged.
-      mapper_id="$(keycloak_lookup_client_scope_mapper_id "${client_scope_id}" "weave-app-audience")"
-    fi
+    keycloak_import_if_missing "${mapper_address}" "${TF_VAR_tenant_slug}/client-scope/${client_scope_id}/${mapper_id}"
+  done
+
+
+  for scope_name_and_mapper in \
+    'agent-runtime.admin|module.tenant_identity.keycloak_openid_hardcoded_claim_protocol_mapper.agent_runtime_admin_tenant|agent-runtime-admin-tenant' \
+    'agent-runtime.admin|module.tenant_identity.keycloak_openid_audience_protocol_mapper.agent_runtime_admin_audience|weave-agent-runtime-admin-api-resource' \
+    'agent-runtime.profile.read|module.tenant_identity.keycloak_openid_audience_protocol_mapper.agent_runtime_profile_read_audience|agent-runtime-control-resource' \
+    'mcp:tools|module.tenant_identity.keycloak_openid_audience_protocol_mapper.mcp_tools_audience|weave-mcp-resource' \
+    'mcp:tools|module.tenant_identity.keycloak_openid_audience_protocol_mapper.mcp_exchange_requester_audience|weave-mcp-exchange-requester' \
+    'weave-mcp-backend.exchange|module.tenant_identity.keycloak_openid_audience_protocol_mapper.mcp_backend_resource_audience|weave-api-resource'; do
+    local scope_name="${scope_name_and_mapper%%|*}"
+    local mapper_contract="${scope_name_and_mapper#*|}"
+    local mapper_address="${mapper_contract%%|*}"
+    local mapper_name="${mapper_contract#*|}"
+    client_scope_id="$(keycloak_lookup_client_scope_id "${scope_name}")"
+    mapper_id="$(keycloak_lookup_client_scope_mapper_id "${client_scope_id}" "${mapper_name}")"
     keycloak_import_if_missing "${mapper_address}" "${TF_VAR_tenant_slug}/client-scope/${client_scope_id}/${mapper_id}"
   done
 
@@ -804,6 +989,37 @@ ensure_existing_keycloak_terraform_state() {
     mapper_id="$(keycloak_lookup_client_mapper_id "${uuid}" groups)"
     keycloak_import_if_missing "${mapper_address}" "${TF_VAR_tenant_slug}/client/${uuid}/${mapper_id}"
   done
+
+
+  weave_identity_admin_uuid="$(keycloak_lookup_client_uuid 'weave-identity-admin')"
+  realm_management_uuid="$(keycloak_lookup_client_uuid 'realm-management')"
+  service_account_user_id="$(keycloak_lookup_service_account_user_id "${weave_identity_admin_uuid}")"
+  for admin_role in \
+    manage-users \
+    manage-organizations \
+    query-organizations \
+    view-organizations \
+    view-users \
+    query-users; do
+    role_id="$(keycloak_lookup_assigned_client_role_id "${service_account_user_id}" "${realm_management_uuid}" "${admin_role}")"
+    keycloak_import_if_missing "module.tenant_identity.keycloak_openid_client_service_account_role.identity_admin[\"${admin_role}\"]" "${TF_VAR_tenant_slug}/${service_account_user_id}/${realm_management_uuid}/${role_id}"
+  done
+
+  weave_agent_runtime_admin_uuid="$(keycloak_lookup_client_uuid 'weave-agent-runtime-admin')"
+  if [[ -n "${weave_agent_runtime_admin_uuid}" ]]; then
+    service_account_user_id="$(keycloak_lookup_service_account_user_id "${weave_agent_runtime_admin_uuid}")"
+    for admin_role in \
+      manage-clients \
+      manage-users \
+      query-clients \
+      query-users \
+      view-clients \
+      view-realm \
+      view-users; do
+      role_id="$(keycloak_lookup_assigned_client_role_id "${service_account_user_id}" "${realm_management_uuid}" "${admin_role}")"
+      keycloak_import_if_missing "module.tenant_identity.keycloak_openid_client_service_account_role.agent_runtime_admin[\"${admin_role}\"]" "${TF_VAR_tenant_slug}/${service_account_user_id}/${realm_management_uuid}/${role_id}"
+    done
+  fi
 
   if create_test_user_enabled; then
     uuid="$(keycloak_lookup_user_id test)"
@@ -957,18 +1173,31 @@ terraform_apply() {
 }
 
 ensure_terraform_network_state() {
-  local existing_network_id=""
+  local state_network_id=""
+  local live_network_id=""
 
   weave_iac_init "${INFRA_DIR}" -input=false
 
-  if weave_iac "${INFRA_DIR}" state show docker_network.weave_network >/dev/null 2>&1; then
+  state_network_id="$(
+    weave_iac "${INFRA_DIR}" state show -no-color docker_network.weave_network 2>/dev/null |
+      awk '$1 == "id" && $2 == "=" { gsub(/"/, "", $3); print $3; exit }'
+  )" || true
+  if docker network inspect "${TF_VAR_docker_network_name}" >/dev/null 2>&1; then
+    live_network_id="$(docker network inspect --format '{{.ID}}' "${TF_VAR_docker_network_name}")"
+  fi
+
+  if [[ -n "${state_network_id}" && "${state_network_id}" == "${live_network_id}" ]]; then
     return
   fi
 
-  if docker network inspect "${TF_VAR_docker_network_name}" >/dev/null 2>&1; then
-    existing_network_id="$(docker network inspect --format '{{.ID}}' "${TF_VAR_docker_network_name}")"
+  if [[ -n "${state_network_id}" ]]; then
+    log "Removing stale Docker network identity from OpenTofu state before reconciliation..."
+    weave_iac "${INFRA_DIR}" state rm docker_network.weave_network >/dev/null
+  fi
+
+  if [[ -n "${live_network_id}" ]]; then
     log "Importing existing Docker network ${TF_VAR_docker_network_name} into Terraform state..."
-    weave_iac "${INFRA_DIR}" import -input=false docker_network.weave_network "${existing_network_id}"
+    weave_iac "${INFRA_DIR}" import -input=false docker_network.weave_network "${live_network_id}"
   fi
 }
 
@@ -1509,6 +1738,8 @@ ensure_default_inputs() {
     "TF_VAR_backend_host_port=48084"
     "TF_VAR_backend_container_port=8080"
     "TF_VAR_weave_backend_image=weave-backend:local"
+    "TF_VAR_agent_runtime_enabled=true"
+    "TF_VAR_agent_runtime_keycloak_organization_id="
     "TF_VAR_mcp_host_port=48085"
     "TF_VAR_mcp_container_port=8091"
     "TF_VAR_weave_mcp_server_image=weave-mcp-server:local"
@@ -1609,6 +1840,7 @@ ensure_generated_secrets() {
   set_default_var TF_VAR_openproject_secret_key_base ""
   set_default_secret TF_VAR_matrix_mas_client_secret "$(random_base64 32)"
   set_default_secret TF_VAR_identity_admin_client_secret "$(random_base64 32)"
+  set_default_secret TF_VAR_agent_runtime_admin_client_secret "$(random_base64 32)"
   set_default_secret TF_VAR_identity_events_hmac_secret "$(random_base64 32)"
   set_default_secret TF_VAR_mas_encryption_secret "$(random_hex 32)"
   set_default_secret TF_VAR_mas_matrix_secret "$(random_base64 32)"
@@ -1617,6 +1849,19 @@ ensure_generated_secrets() {
   set_default_secret TF_VAR_synapse_registration_shared_secret "$(random_base64 32)"
   set_default_secret TF_VAR_synapse_macaroon_secret_key "$(random_base64 32)"
   set_default_secret TF_VAR_synapse_form_secret "$(random_base64 32)"
+
+  # The current Application Service contract requires at least 256 bits of
+  # independently generated material. Rotate both sides as one consistency set
+  # when adopting a legacy bootstrap whose tokens predate that requirement.
+  if ((${#TF_VAR_matrix_chat_appservice_as_token} < 43 || ${#TF_VAR_matrix_chat_appservice_hs_token} < 43)); then
+    local rotated_appservice_as_token
+    local rotated_appservice_hs_token
+    rotated_appservice_as_token="$(random_hex 32)"
+    rotated_appservice_hs_token="$(random_hex 32)"
+    export TF_VAR_matrix_chat_appservice_as_token="${rotated_appservice_as_token}"
+    export TF_VAR_matrix_chat_appservice_hs_token="${rotated_appservice_hs_token}"
+    log "Rotated legacy Matrix Application Service credentials to the current entropy contract."
+  fi
 
   local protected_name
   local -a protected_names=(
@@ -1627,6 +1872,7 @@ ensure_generated_secrets() {
     TF_VAR_keycloak_db_password
     TF_VAR_matrix_mas_client_secret
     TF_VAR_identity_admin_client_secret
+    TF_VAR_agent_runtime_admin_client_secret
     TF_VAR_identity_events_hmac_secret
     TF_VAR_mas_db_password
     TF_VAR_mas_encryption_secret
@@ -1658,6 +1904,83 @@ ensure_generated_secrets() {
   fi
   ensure_mas_signing_key
   export TF_VAR_mas_signing_key_pem
+}
+
+agent_runtime_enabled() {
+  case "${TF_VAR_agent_runtime_enabled:-false}" in
+    true | TRUE | True | 1)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+run_agent_runtime_key_operator() {
+  local host_root="$1"
+  local container_root="$2"
+  local command_name="$3"
+  local action="$4"
+  local operation_ref="${5:-}"
+  local -a arguments=(
+    docker run --rm
+    --network none
+    --read-only
+    --cap-drop ALL
+    --security-opt no-new-privileges
+    --tmpfs "/tmp:rw,noexec,nosuid,size=16m"
+    --user "$(id -u):$(id -g)"
+    --volume "${host_root}:${container_root}:rw"
+    "${TF_VAR_weave_backend_image}"
+    "${command_name}"
+    "--action=${action}"
+    "--root=${container_root}"
+  )
+
+  if [[ -n "${operation_ref}" ]]; then
+    arguments+=("--operation-ref=${operation_ref}")
+  fi
+  "${arguments[@]}" >/dev/null
+}
+
+ensure_agent_runtime_trust_roots() {
+  agent_runtime_enabled || return 0
+
+  docker image inspect "${TF_VAR_weave_backend_image}" >/dev/null 2>&1 ||
+    fail "Agent Runtime Control requires the local backend image ${TF_VAR_weave_backend_image} before trust-root initialization. Build :server:bootJar and server/Dockerfile, then rerun ./install.sh."
+
+  install -d -m 0700 \
+    "${AGENT_RUNTIME_PROFILE_SIGNING_HOST_ROOT}" \
+    "${AGENT_RUNTIME_STATE_WRAPPING_HOST_ROOT}" \
+    "${AGENT_RUNTIME_CREDENTIAL_HOST_ROOT}"
+
+  local runtime_namespace
+  runtime_namespace="$(weave_resource_prefix)"
+  log "Ensuring Agent Runtime Control signing and state-wrapping trust roots are initialized..."
+  run_agent_runtime_key_operator \
+    "${AGENT_RUNTIME_PROFILE_SIGNING_HOST_ROOT}" \
+    "${AGENT_RUNTIME_PROFILE_SIGNING_CONTAINER_ROOT}" \
+    runtime-profile-signing-keys \
+    initialize \
+    "${runtime_namespace}:runtime-profile-signing-root:v1"
+  run_agent_runtime_key_operator \
+    "${AGENT_RUNTIME_STATE_WRAPPING_HOST_ROOT}" \
+    "${AGENT_RUNTIME_STATE_WRAPPING_CONTAINER_ROOT}" \
+    runtime-state-wrapping-keys \
+    initialize \
+    "${runtime_namespace}:runtime-state-wrapping-root:v1"
+  run_agent_runtime_key_operator \
+    "${AGENT_RUNTIME_PROFILE_SIGNING_HOST_ROOT}" \
+    "${AGENT_RUNTIME_PROFILE_SIGNING_CONTAINER_ROOT}" \
+    runtime-profile-signing-keys \
+    status
+  run_agent_runtime_key_operator \
+    "${AGENT_RUNTIME_STATE_WRAPPING_HOST_ROOT}" \
+    "${AGENT_RUNTIME_STATE_WRAPPING_CONTAINER_ROOT}" \
+    runtime-state-wrapping-keys \
+    status
+  log "Agent Runtime Control trust roots are initialized and readable."
 }
 
 private_file_mode() {
@@ -2152,9 +2475,11 @@ ensure_nextcloud_backend_actor() {
 
   if ! nextcloud_backend_actor_exists; then
     create_nextcloud_backend_actor
-  elif [[ "${WEAVE_NEXTCLOUD_ROTATE_BACKEND_ACTOR_CREDENTIAL:-false}" == "true" ]]; then
+  else
+    # This is a Weave-owned machine principal. Its declared bootstrap SecretRef
+    # is authoritative, so an interrupted restore or secret rotation must
+    # converge locally before the single bounded DAV proof is attempted.
     set_nextcloud_backend_actor_password
-    log "Rotated the Nextcloud backend actor credential by explicit operator request."
   fi
 
   ensure_nextcloud_backend_actor_calendar
@@ -2235,6 +2560,7 @@ main() {
   cleanup_partial_weave_containers
   ensure_docker_provider_inputs
   ensure_generated_secrets
+  ensure_agent_runtime_trust_roots
   assert_chat_e2e_proof_contract
   ensure_local_tls_certificates
   persist_bootstrap_env
@@ -2262,6 +2588,7 @@ main() {
 
   log "Applying Keycloak configuration module..."
   terraform_apply "${KEYCLOAK_DIR}"
+  reconcile_agent_runtime_organization_authority
 
   log "Waiting for Weave backend readiness..."
   wait_for_http_200 "Weave backend" "http://${LOOPBACK_HOST}:${TF_VAR_backend_host_port}/api/health/ready"
@@ -2297,6 +2624,27 @@ main() {
   verify_nextcloud_dav_post_provision
 
   print_summary
+}
+
+# This post-Keycloak reconciliation is deliberately declared after main so the
+# first infrastructure apply remains visibly guarded by the Synapse state repair
+# sequence above. Bash resolves the function when main executes below.
+reconcile_agent_runtime_organization_authority() {
+  agent_runtime_enabled || return 0
+
+  local organization_id
+  organization_id="$(terraform_output_raw "${KEYCLOAK_DIR}" weave_organization_id)"
+  [[ "${organization_id}" =~ ^[0-9a-fA-F-]{36}$ ]] ||
+    fail "Keycloak did not return the required organization UUID for Agent Runtime Control."
+
+  if [[ "${TF_VAR_agent_runtime_keycloak_organization_id:-}" == "${organization_id}" ]]; then
+    return 0
+  fi
+
+  export TF_VAR_agent_runtime_keycloak_organization_id="${organization_id}"
+  persist_bootstrap_env
+  log "Reapplying infrastructure with the resolved Keycloak organization authority..."
+  terraform_apply "${INFRA_DIR}"
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then

@@ -104,7 +104,18 @@ class JdbcProviderSelectionRepositoryTest {
                         "WEAVE_CHAT_APPSERVICE_TRANSACTIONS",
                         "WEAVE_CHAT_QUARANTINE",
                         "WEAVE_CHAT_READ_RECEIPTS",
-                        "WEAVE_CHAT_CHANGES");
+                        "WEAVE_CHAT_CHANGES",
+                        "WEAVE_AGENT_RUNTIME_CELLS",
+                        "WEAVE_AGENT_RUNTIME_PROFILES",
+                        "WEAVE_AGENT_RUNTIME_PROFILE_SIGNATURES",
+                        "WEAVE_AGENT_RUNTIME_COMMANDS",
+                        "WEAVE_AGENT_RUNTIME_ENTITLEMENTS",
+                        "WEAVE_AGENT_RUNTIME_REVOCATIONS",
+                        "WEAVE_AGENT_RUNTIME_AUDIT_CORRELATIONS",
+                        "WEAVE_AGENT_RUNTIME_STATE_GENERATIONS",
+                        "WEAVE_AGENT_RUNTIME_STATE_CHUNKS",
+                        "WEAVE_AGENT_RUNTIME_STATE_HEADS",
+                        "WEAVE_AGENT_RUNTIME_STATE_DELETIONS");
     }
 
     @Test

@@ -44,6 +44,11 @@ resource "docker_container" "this" {
     "POSTGRES_DB=${var.db_name}",
     "POSTGRES_USER=${var.db_username}",
     "POSTGRES_PASSWORD=${var.db_password}",
+    # Nextcloud persists the installation-time database credential in config.php.
+    # NC_ values are the upstream-supported highest-precedence system-config
+    # override, so a protected stack-secret rotation converges without rewriting
+    # the data volume or leaving OCC permanently unable to reach PostgreSQL.
+    "NC_dbpassword=${var.db_password}",
     "NEXTCLOUD_ADMIN_USER=${var.admin_username}",
     "NEXTCLOUD_ADMIN_PASSWORD=${var.admin_password}",
     "NEXTCLOUD_TRUSTED_DOMAINS=${var.public_host} ${var.container_name} localhost 127.0.0.1",

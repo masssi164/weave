@@ -15,7 +15,7 @@ public record WorkspaceCapabilitiesResponse(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) WorkspaceCapabilityStatusResponse manualsHelp,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) WorkspaceCapabilityStatusResponse releaseEvidence,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) WorkspaceCapabilityStatusResponse adminControlPlane,
-        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) WorkspaceCapabilityStatusResponse weaver) {
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) WorkspaceCapabilityStatusResponse agentRuntimeControl) {
 
     public WorkspaceCapabilitiesResponse(
             WorkspaceCapabilityStatusResponse shellAccess,
@@ -23,7 +23,7 @@ public record WorkspaceCapabilitiesResponse(
             WorkspaceCapabilityStatusResponse files,
             WorkspaceCapabilityStatusResponse calendar,
             WorkspaceCapabilityStatusResponse boards,
-            WorkspaceCapabilityStatusResponse weaver) {
+            WorkspaceCapabilityStatusResponse agentRuntimeControl) {
         this(
                 shellAccess,
                 chat,
@@ -36,7 +36,7 @@ public record WorkspaceCapabilitiesResponse(
                 ready("manuals/help"),
                 ready("release evidence"),
                 ready("admin control plane"),
-                weaver);
+                agentRuntimeControl);
     }
 
     private static WorkspaceCapabilityStatusResponse disabled(String category) {

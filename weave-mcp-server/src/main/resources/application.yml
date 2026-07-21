@@ -9,8 +9,7 @@ spring:
       resourceserver:
         jwt:
           issuer-uri: ${WEAVE_OIDC_ISSUER_URI:https://auth.weave.test/realms/weave}
-          audiences:
-            - ${WEAVE_OIDC_AUDIENCE:weave-mcp-server}
+          jwk-set-uri: ${WEAVE_OIDC_JWK_SET_URI:https://auth.weave.test/realms/weave/protocol/openid-connect/certs}
   ai:
     mcp:
       server:
@@ -19,7 +18,7 @@ spring:
         type: SYNC
         name: weave-workload-tools
         version: 0.3.0
-        instructions: Disabled until Agent Runtime Control validates a bound Weaver cell workload.
+        instructions: Workload-only tools; every call requires a current Agent Runtime Control cell binding.
         tool-callback-converter: true
         annotation-scanner:
           enabled: true
@@ -31,6 +30,22 @@ spring:
         streamable-http:
           mcp-endpoint: /mcp
           disallow-delete: true
+
+weave:
+  mcp:
+    resource-uri: ${WEAVE_MCP_RESOURCE_URI:https://api.weave.test/mcp}
+    resource-metadata-uri: ${WEAVE_MCP_RESOURCE_METADATA_URI:https://api.weave.test/.well-known/oauth-protected-resource/mcp}
+    authorization-server: ${WEAVE_MCP_AUTHORIZATION_SERVER:https://auth.weave.test/realms/weave}
+    required-scopes: ${WEAVE_MCP_REQUIRED_SCOPES:mcp:tools,calendar.read}
+    token-uri: ${WEAVE_MCP_TOKEN_URI:https://auth.weave.test/realms/weave/protocol/openid-connect/token}
+    exchange-client-id: ${WEAVE_MCP_EXCHANGE_CLIENT_ID:weave-mcp-server}
+    exchange-client-secret-file: ${WEAVE_MCP_EXCHANGE_CLIENT_SECRET_FILE:/run/secrets/weave/mcp-client-secret}
+    backend-resource-uri: ${WEAVE_MCP_BACKEND_RESOURCE_URI:https://api.weave.test/api}
+    backend-context-uri: ${WEAVE_MCP_BACKEND_CONTEXT_URI:https://api.weave.test/api/internal/agent-runtime/mcp-context}
+    exchange-scopes: ${WEAVE_MCP_EXCHANGE_SCOPES:calendar.read}
+    request-timeout: ${WEAVE_MCP_REQUEST_TIMEOUT:10s}
+    maximum-token-ttl: ${WEAVE_MCP_MAXIMUM_TOKEN_TTL:60s}
+    maximum-request-bytes: ${WEAVE_MCP_MAXIMUM_REQUEST_BYTES:1048576}
 
 management:
   endpoints:

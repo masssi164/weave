@@ -6,7 +6,7 @@
   "continueButton": "Organisation beitreten",
   "setupTitle": "Organisationszugang",
   "setupProviderStepTitle": "Provider-Kategorien konfigurieren",
-  "setupProviderStepDescription": "Die Admin-Einrichtung beginnt mit der Kategorie Identität/IDM und hält Chat, Dateien, Kalender, Boards/Aufgaben, Besprechungen/Anrufe, Dokumente/Zusammenarbeit und Weaver als Provider-Kategorien sichtbar, bevor Mitglieder beitreten.",
+  "setupProviderStepDescription": "Die Admin-Einrichtung beginnt mit der Kategorie Identität/IDM und hält Chat, Dateien, Kalender, Boards/Aufgaben, Besprechungen/Anrufe, Dokumente/Zusammenarbeit und Agent Runtime Control als Produktkategorien sichtbar, bevor Mitglieder beitreten.",
   "setupServicesStepTitle": "Backend-API prüfen",
   "setupServicesStepDescription": "Prüfe den Weave-Backend-API-Endpunkt, der aus dem Organisations-Login abgeleitet wurde. Provider-Service-URLs bleiben in Admin-/Support-Diagnosen, nicht in der Mitglieder-Einrichtung.",
   "providerCategorySummaryTitle": "Provider-Kategorien",
@@ -77,7 +77,7 @@
   "@providerCategoryMeetingsTitle": {
     "description": "Provider-Kategorietitel für Besprechungen und Anrufe"
   },
-  "providerCategoryMeetingsDetail": "LiveKit-Meetings-Bereitschaft wird hinter der Token-Fassade verfolgt, bevor Mitglieder Anrufe starten oder beitreten können.",
+  "providerCategoryMeetingsDetail": "MatrixRTC Profil 0 ist die Signalisierungsgrenze; ein austauschbarer SFU überträgt Medien erst nach aktueller RTC-Autorisierung.",
   "@providerCategoryMeetingsDetail": {
     "description": "Provider-Kategoriedetail für Besprechungen und Anrufe"
   },
@@ -89,13 +89,13 @@
   "@providerCategoryDocumentsDetail": {
     "description": "Provider-Kategoriedetail für Dokumente und Zusammenarbeit"
   },
-  "providerCategoryWeaverTitle": "Weaver",
-  "@providerCategoryWeaverTitle": {
-    "description": "Provider-Kategorietitel für Weaver"
+  "providerCategoryAgentRuntimeControlTitle": "Agent Runtime Control",
+  "@providerCategoryAgentRuntimeControlTitle": {
+    "description": "Produktkategorietitel für Agent Runtime Control"
   },
-  "providerCategoryWeaverDetail": "Weaver bleibt standardmäßig deaktiviert, bis regulierte persönliche PA-Richtlinie, Whitelisting, Einwilligung und Audit akzeptiert sind.",
-  "@providerCategoryWeaverDetail": {
-    "description": "Provider-Kategoriedetail für Weaver"
+  "providerCategoryAgentRuntimeControlDetail": "Agent Runtime Control bleibt ohne aktuelle Keycloak-Berechtigung, signiertes RuntimeProfile v2, externen verschlüsselten Zustand und zellgebundene Workload-Identität deaktiviert.",
+  "@providerCategoryAgentRuntimeControlDetail": {
+    "description": "Produktkategoriedetail für Agent Runtime Control"
   },
   "setupLanguageStepTitle": "Deine Sprache",
   "setupLanguageStepDescription": "Weave verwendet deine Gerätesprache. Du kannst sie später in den Einstellungen ändern.",

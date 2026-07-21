@@ -24,7 +24,7 @@
   "@setupProviderStepTitle": {
     "description": "Title for the setup provider and issuer step"
   },
-  "setupProviderStepDescription": "Admin setup starts with the identity/IDM category and keeps chat, files, calendar, boards/tasks, meetings/calls, documents/collaboration, and Weaver visible as provider categories before members join.",
+  "setupProviderStepDescription": "Admin setup starts with the identity/IDM category and keeps chat, files, calendar, boards/tasks, meetings/calls, documents/collaboration, and Agent Runtime Control visible as product categories before members join.",
   "@setupProviderStepDescription": {
     "description": "Description shown in the setup provider step"
   },
@@ -104,7 +104,7 @@
   "@providerCategoryMeetingsTitle": {
     "description": "Provider category title for meetings and calls"
   },
-  "providerCategoryMeetingsDetail": "LiveKit Meetings readiness is tracked behind the token facade before members can start or join calls.",
+  "providerCategoryMeetingsDetail": "MatrixRTC Profile 0 is the signaling boundary; a replaceable SFU carries media only after current RTC authorization.",
   "@providerCategoryMeetingsDetail": {
     "description": "Provider category detail for meetings and calls"
   },
@@ -116,13 +116,13 @@
   "@providerCategoryDocumentsDetail": {
     "description": "Provider category detail for documents and collaboration"
   },
-  "providerCategoryWeaverTitle": "Weaver",
-  "@providerCategoryWeaverTitle": {
-    "description": "Provider category title for Weaver"
+  "providerCategoryAgentRuntimeControlTitle": "Agent Runtime Control",
+  "@providerCategoryAgentRuntimeControlTitle": {
+    "description": "Product category title for Agent Runtime Control"
   },
-  "providerCategoryWeaverDetail": "Weaver stays disabled by default until governed per-user PA policy, whitelisting, consent, and audit are accepted.",
-  "@providerCategoryWeaverDetail": {
-    "description": "Provider category detail for Weaver"
+  "providerCategoryAgentRuntimeControlDetail": "Agent Runtime Control stays disabled without current Keycloak entitlement, signed RuntimeProfile v2, encrypted external state, and cell-bound workload identity.",
+  "@providerCategoryAgentRuntimeControlDetail": {
+    "description": "Product category detail for Agent Runtime Control"
   },
   "setupLanguageStepTitle": "Your Language",
   "@setupLanguageStepTitle": {

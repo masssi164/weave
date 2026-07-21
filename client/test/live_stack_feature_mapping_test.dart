@@ -86,7 +86,7 @@ const _specAcceptanceEvidenceMarkers = <String>[
   'WEAVE_SPEC_0004_PRODUCT_BOUNDARIES',
   'WEAVE_SPEC_0005_PRODUCT_BOUNDARIES',
   'WEAVE_SPEC_0006_PRODUCT_BOUNDARIES',
-  'WEAVE_SPEC_0007_INITIAL_TOOL_SET',
+  'WEAVE_SPEC_0007_MCP_CATALOG_BOUNDARY',
 ];
 
 void main() {
@@ -122,8 +122,8 @@ void main() {
         'PROPFIND Depth 0 and 1 list Weave-owned resources with WebDAV properties',
         'calendar-multiget returns selected calendar objects',
         'OIDC-provisioned member can connect to Matrix',
-        'Member receives short-lived scoped LiveKit join grant',
-        'MCP Calls tools use Weave call grants',
+        'Matrix identity is independently authorized for an RTC slot',
+        'MCP Calls catalog stays empty until MatrixRTC authorization is current',
         'Files native setup returns Weave WebDAV endpoint and Weave device credentials only',
       ]),
     );
@@ -229,13 +229,13 @@ void main() {
         featurePath: 'e2e/features/product_readiness_waterfall.feature',
         line: 6,
         name:
-            'Admin bootstraps organization, validates domains, configures providers, enables Weaver, and member works provider-neutrally',
+            'Admin bootstraps organization, validates domains, controls an entitled runtime cell, and members work provider-neutrally',
         tags: <String>['@weave-product-readiness-waterfall'],
       );
       const mapping = acceptance.ScenarioMapping(
         tag: '@weave-product-readiness-waterfall',
         scenario:
-            'Admin bootstraps organization, validates domains, configures providers, enables Weaver, and member works provider-neutrally',
+            'Admin bootstraps organization, validates domains, controls an entitled runtime cell, and members work provider-neutrally',
         featurePath: 'e2e/features/product_readiness_waterfall.feature',
         executableTest:
             'client/test/release_1/v0_1_release_spine_contract_test.dart',

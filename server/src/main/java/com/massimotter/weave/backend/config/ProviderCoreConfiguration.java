@@ -194,7 +194,7 @@ public class ProviderCoreConfiguration {
     }
 
     @Bean
-    ProviderPort liveKitMeetingsProviderRegistrySeam(LiveKitMeetingsProviderProperties liveKit) {
+    ProviderPort liveKitSfuProviderRegistrySeam(LiveKitSfuProviderProperties liveKit) {
         ProviderState state = liveKit.enabled()
                 ? liveKit.configured() ? ProviderState.CONFIGURED : ProviderState.NOT_CONFIGURED
                 : ProviderState.DISABLED;
@@ -213,26 +213,27 @@ public class ProviderCoreConfiguration {
                 true,
                 true,
                 false,
-                "LiveKit is the active meetings/video-call provider contract; room/session access stays behind a backend-owned token facade and fails closed until configured.",
+                "LiveKit is a replaceable southbound SFU adapter for MatrixRTC Profile 0; signaling, membership, authorization, consent, and member APIs remain Weave/Matrix-owned.",
                 Set.of(
-                        "room-readiness",
-                        "join-token-broker",
-                        "server-url-discovery",
-                        "calendar-thread-binding",
-                        "recording-policy-readiness"),
+                        "sfu-configuration-readiness",
+                        "matrixrtc-profile-0-target",
+                        "media-e2ee-readiness",
+                        "turn-readiness"),
                 Set.of(
-                        "non-livekit-meetings-provider",
+                        "member-calls-rest-api",
+                        "proprietary-join-grant",
+                        "identity-only-sfu-token",
                         "direct-flutter-livekit-admin-api",
                         "livekit-api-key-exposure",
                         "livekit-api-secret-exposure",
                         "credential-bearing-join-url",
                         "raw-provider-errors"),
-                List.of("meetings-provider-not-configured", "meetings-provider-disabled", "meetings-provider-unavailable", "meetings-token-unavailable"),
+                List.of("calls-sfu-not-configured", "calls-sfu-disabled", "calls-sfu-unavailable", "rtc-authorization-required"),
                 "support-safe: no LiveKit API keys, API secrets, bearer tokens, room tokens, credential-bearing URLs, or raw provider errors",
-                List.of("livekit", "jitsi", "zoom", "microsoft-teams-meetings", "google-meet", "external-meeting-link"),
+                List.of("livekit", "generic-webrtc-sfu"),
                 ProviderRealityLevel.CONFIGURED,
                 Map.of(
-                        "activeProvider", "livekit",
+                        "activeSfuAdapter", "livekit",
                         "livekitUrlConfigured", liveKit.urlConfigured(),
                         "apiKeyConfigured", liveKit.apiKeyConfigured(),
                         "apiSecretConfigured", liveKit.apiSecretConfigured(),

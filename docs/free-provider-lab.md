@@ -14,7 +14,7 @@ The lab proves only these facts when `./gradlew providerLabCheck` is green:
 - the Sprint 23 entry scoreboard agrees with the gate output;
 - support-safe evidence omits secrets, credential-bearing URLs, raw provider payloads, message bodies, attachment contents, and private provider identifiers.
 
-The lab does not prove provider interchangeability, production SSO, production-grade file storage, production rollback, migration apply readiness, Weaver availability, per-user PA runtime availability, full history preservation, release readiness, or customer-ready status.
+The lab does not prove provider interchangeability, production SSO, production-grade file storage, production rollback, migration apply readiness, Agent Runtime Control or Weaver availability, full history preservation, release readiness, or customer-ready status.
 
 ## Provider scope
 
@@ -42,9 +42,9 @@ Boards provider:
 
 - OpenProject as a local boards/work-package fixture using the Docker image. The Sprint 22 claim is local lab boot/readiness only, not production deployment or repository integration.
 
-Weaver boundary:
+Agent runtime boundary:
 
-- Docker Runtime boundary only. Sprint 22 does not enable a per-user PA runtime.
+- Agent Runtime Control and Weaver/OpenClaw are outside the provider lab. Runtime lifecycle, workload identity, encrypted state, and disposable orchestration use their dedicated contracts and evidence lanes.
 
 ## Start, inspect, stop, and reset
 

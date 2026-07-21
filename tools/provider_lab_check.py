@@ -41,7 +41,6 @@ REQUIRED_PROVIDERS = {
     "nextcloud-caldav": "calendar",
     "radicale": "calendar",
     "openproject": "boards",
-    "docker-runtime": "weaver",
 }
 REQUIRED_COUNTS = {
     "spaces": 2,

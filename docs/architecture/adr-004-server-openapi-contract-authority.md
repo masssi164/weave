@@ -32,7 +32,7 @@ Normal collaboration data planes use open standard projections:
 - Files: WebDAV under `/dav/files/**`.
 - Calendar: CalDAV plus iCalendar under `/caldav/**`.
 - Chat: Matrix Client-Server API projection, with Slack/Teams only as southbound bridge/provider adapters.
-- Calls: WebRTC media plus Weave Calls control-plane join grants.
+- Calls: Matrix v1.19 plus pinned MatrixRTC Profile 0 signaling, WebRTC media, and an internal RTC Authorizer; no member Calls OpenAPI.
 - Weaver/Agents: MCP over Weave domain capabilities.
 
 `weave-contract` is no longer the place for new hand-written canonical domain truth. It is transitional and must either be removed or narrowed to generated/compatibility artifacts after consumers move to server OpenAPI.
@@ -51,7 +51,7 @@ MCP tool annotations are UX/risk hints only. They are not enforcement. Approval,
 - New client/admin/MCP control-plane work must not add parallel hand-written DTO truth when the server OpenAPI can describe the surface.
 - Flutter remains feature-centered under `client/lib/features/<feature>/`. Generated OpenAPI DTOs belong in feature `data/` mappers or shared integration data, then map into feature-owned domain models and repository contracts before presentation/application code consumes them.
 - Reusable client feature-adapter primitives may cover OpenAPI-backed resource pages, capability/readiness state, errors, and future realtime watch streams. They must stay small and must not erase feature-specific repository methods such as Chat message sending or Files folder mutation.
-- Normal member Flutter surfaces consume Weave repositories over canonical standard projections or server control-plane APIs: `/dav/files` for Files, `/caldav` plus iCalendar for Calendar, Matrix Client-Server projection for Chat, Calls join grants for Calls, and `/api/*` for manifest/readiness/setup/revoke/admin/generated-model control-plane state. Provider SDKs and provider-native IDs remain behind server services or deliberately fenced diagnostic seams.
+- Normal member Flutter surfaces consume Weave repositories over canonical standard projections or server control-plane APIs: `/dav/files` for Files, `/caldav` plus iCalendar for Calendar, Matrix Client-Server for Chat, pinned MatrixRTC Profile 0 plus WebRTC for Calls, and `/api/*` for manifest/readiness/setup/revoke/admin/generated-model control-plane state. Provider SDKs and provider-native IDs remain behind server services or deliberately fenced diagnostic seams.
 - OpenAPI quality becomes a build gate: stable `operationId`, stable schema names, validation constraints, support-safe errors, and no provider secret/raw payload leakage.
 - The root build orchestrates all consumer checks from the repository root; it does not replace Flutter, npm, or Python tooling.
 - Existing `weave-contract` usages remain compatibility debt until migrated. Follow-up PRs must move authority back into server/OpenAPI before deleting the module.

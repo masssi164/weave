@@ -97,9 +97,9 @@ class ProviderCategorySummary extends StatelessWidget {
         detail: l10n.providerCategoryDocumentsDetail,
       ),
       _ProviderCategory(
-        title: l10n.providerCategoryWeaverTitle,
+        title: l10n.providerCategoryAgentRuntimeControlTitle,
         state: l10n.providerCategoryStatusDisabledByDefault,
-        detail: l10n.providerCategoryWeaverDetail,
+        detail: l10n.providerCategoryAgentRuntimeControlDetail,
       ),
     ];
   }

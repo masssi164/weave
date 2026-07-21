@@ -37,23 +37,36 @@ At minimum track ownership and rotation dates for:
 - `TF_VAR_nextcloud_admin_password`
 - `TF_VAR_nextcloud_backend_actor_token`
 - `TF_VAR_matrix_mas_client_secret`
+- `TF_VAR_weave_mcp_client_secret`
+- `TF_VAR_agent_runtime_admin_client_secret`
+- `TF_VAR_identity_admin_client_secret`
 - `TF_VAR_mas_encryption_secret`
 - `TF_VAR_mas_signing_key_pem`
 - `TF_VAR_mas_matrix_secret`
 - `TF_VAR_synapse_registration_shared_secret`
 - `TF_VAR_synapse_macaroon_secret_key`
 - `TF_VAR_synapse_form_secret`
+- Agent Runtime signing key ring under
+  `01-infrastructure/.generated/agent-runtime/profile-signing/`
+- Agent Runtime state-wrapping key ring under
+  `01-infrastructure/.generated/agent-runtime/state-wrapping/`
+- separate ARC administrative and per-cell credential SecretRefs under
+  `01-infrastructure/.generated/agent-runtime/credentials/`
 
 Rotation guidance:
 
 1. update the private env file
 2. re-export the `TF_VAR_*` values
-3. for `TF_VAR_nextcloud_backend_actor_token`, set `WEAVE_NEXTCLOUD_ROTATE_BACKEND_ACTOR_CREDENTIAL=true` for this explicit rotation run; ordinary installs never reset that credential
+3. for `TF_VAR_nextcloud_backend_actor_token`, rerun the installer; the Weave-owned backend actor is reconciled through local OCC before the bounded DAV proof
 4. run `bash weave-workspace/install.sh`
 5. run `bash weave-workspace/release-verify.sh`
 6. if the rotated secret affects sign-in, also test a fresh login manually
 
-Treat `TF_VAR_mas_signing_key_pem` as a durable signing secret. Rotating it is possible, but it is a higher-risk maintenance event and should be paired with a recovery window and explicit client revalidation.
+Treat `TF_VAR_mas_signing_key_pem`, the RuntimeProfile signing key ring, and the RuntimeState
+wrapping key ring as durable trust roots. Rotate through overlap and pair the change with a private
+backup, restore rehearsal, reconciliation, and explicit consumer validation. Never remove a
+wrapping key while a retained state generation still references it. Normal backend startup must
+not invent a missing trust root.
 
 ## 3. Install and upgrade flow
 
@@ -72,6 +85,8 @@ Notes:
 - `install.sh` is the supported apply path for both first install and repeat apply
 - keep `TF_VAR_create_test_user=false` for release environments
 - use pinned images, not `:latest`
+- build/publish both `weave-backend` and `weave-mcp-server`; MCP is a separate workload boundary
+  and must not be folded into the member API process
 - after a backend image change, verify `/api/health/ready` and the backend-owned Nextcloud actor checks through both `release-verify.sh` and `operator-check.sh`
 - Nextcloud trusts only the exact Caddy container address resolved on the active Docker network. Do not configure a Docker-wide or private-LAN trusted-proxy CIDR, and do not disable brute-force protection.
 - install performs one bounded WebDAV and one CalDAV authentication check after provisioning. `429` is evidence of a credential/proxy/client fault; wait for the provider backoff window and fix the cause rather than resetting counters.
@@ -92,6 +107,9 @@ What `operator-check.sh` adds beyond `release-verify.sh`:
 - checks the public product, backend, auth, OIDC-gated Matrix facade, southbound Matrix provider, and raw Nextcloud fallback routes through the configured release URLs
 - checks that the default Matrix workspace aliases resolve (`#weave-workspace`, `#announcements`, `#general`, and `#help` on the configured southbound Matrix provider)
 - checks that `weave-backend` has the required server-side Files/Calendar Nextcloud actor env and that the actor user exists in Nextcloud
+- checks backend and MCP readiness plus support-safe Agent Runtime state/workload-identity
+  summaries; readiness closes when signing/wrapping trust, the workload-administration boundary,
+  or external RuntimeStateStore is unavailable
 - treats the actor's own `personal` CalDAV collection as the temporary Weave-managed workspace calendar fallback while team/channel scopes are implemented; private personal calendars require later explicit sharing/provisioning before they are safe to expose through the backend facade
 
 The default Matrix workspace is provisioned by `weave-workspace/provision-matrix-default-workspace.sh` during install. See `docs/matrix-default-workspace.md` for aliases, the owner/admin-limited `announcements` policy, and current member/guest automation limits.
@@ -111,7 +129,10 @@ The helper writes one timestamped directory and sets restrictive file permission
 - `matrix-synapse-data.tgz`: Matrix/Synapse media and local data from Docker volume `weave_synapse_data`
 - `caddy-data.tgz` and `caddy-config.tgz`: Caddy ACME/TLS state and runtime config when local Caddy owns certificates
 - `keycloak-data.tgz`: Keycloak container-side runtime data from Docker volume `weave_keycloak_data`
-- `generated-config-secrets.tgz`: generated bootstrap env, no-secret app config, TLS material, and generated OpenTofu service config needed to restore or reprovision without inventing credentials
+- `generated-config-secrets.tgz`: generated bootstrap env, no-secret app config, TLS material,
+  generated OpenTofu service config, RuntimeProfile signing trust, RuntimeState wrapping trust,
+  separate ARC administration credentials, and per-cell workload SecretRefs needed to restore or
+  reprovision without inventing credentials
 - `MANIFEST.txt`: artifact list and restore-smoke reminder
 
 Support bundles are **not** backups. `support-bundle.sh` deliberately excludes raw databases, Matrix media, Nextcloud files/calendar data, Caddy ACME state, and generated secrets.
@@ -136,7 +157,8 @@ For a host-level restore or failed upgrade rollback:
 2. restore the release env file, generated config/secrets, and TLS material from `generated-config-secrets.tgz`
 3. restore the Postgres dump from `postgres.sql`
 4. restore `weave_nextcloud_data`, `weave_synapse_data`, Caddy volumes, and Keycloak runtime volume from their `.tgz` archives when those volumes are part of the deployment
-5. run `bash weave-workspace/install.sh` to reconcile containers and generated config
+5. run `bash weave-workspace/install.sh` to reconcile containers, fixed Keycloak baseline, dynamic
+   cell clients, profiles, revocations, and generated config
 6. run `bash weave-workspace/restore-smoke.sh <backup-dir>`
 
 `restore-private-backup.sh` is the guarded persistent-dogfood restore path when the entire Weave runtime boundary is absent. Run its non-mutating preflight first:
@@ -208,6 +230,7 @@ Useful commands:
 ```bash
 docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
 docker logs --tail=100 weave-backend
+docker logs --tail=100 weave-mcp-server
 docker logs --tail=100 weave-keycloak
 docker logs --tail=100 weave-mas
 docker logs --tail=100 weave-synapse
@@ -246,6 +269,9 @@ Escalate quickly when any of these fail:
 - backend readiness is not `up`
 - Nextcloud `status.php` is not installed/healthy
 - Matrix delegated auth discovery, client versions, or `/authorize` is unavailable
+- MCP protected-resource metadata or loopback readiness is unavailable
+- Agent Runtime signing/wrapping trust is missing, a per-cell Keycloak client is ambiguous, or
+  RuntimeState readiness reports a storage/key failure
 
 ## 9. Known single-host limits
 
@@ -253,6 +279,9 @@ These are still intentionally out of scope for this repo slice:
 
 - automated backup scheduling
 - secret manager integration
+- external KMS/secret-manager custody for RuntimeState wrapping keys (the mounted file-key adapter
+  is dogfood-only)
+- production Weaver cell scheduling and cross-node checkpoint reconstruction
 - connector runtime enablement, including reviewed provider callback exposure and revocable provider secret references
 - HA or zero-downtime upgrades
 - centralized metrics or alert routing

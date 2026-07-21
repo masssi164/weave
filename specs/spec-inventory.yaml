@@ -55,8 +55,8 @@ artifacts:
       - domains/spaces/spec.md
       - steering/ubiquitous-language.md
   - path: specs/0003-contextual-meetings
-    status: transitional-conformance
-    action: migrate-product-meaning-to-corpus-then-prune-repo-copy
+    status: obsolete-historical
+    action: retain-only-as-implementation-conformance-evidence-until-scenario-mapping-is-pruned
     corpusCandidates:
       - domains/meetings-calls/spec.md
       - domains/calendar/spec.md

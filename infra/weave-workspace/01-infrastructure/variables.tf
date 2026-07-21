@@ -296,6 +296,23 @@ variable "weave_mcp_server_image" {
   default     = "weave-mcp-server:local"
 }
 
+variable "agent_runtime_enabled" {
+  description = "Enable the governed Agent Runtime Control plane and encrypted external state boundary. Cells remain absent until an entitled member is provisioned."
+  type        = bool
+  default     = true
+}
+
+variable "agent_runtime_keycloak_organization_id" {
+  description = "Keycloak organization UUID resolved from the tenant identity stage. Workload lifecycle remains disabled until this exact authority is available."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.agent_runtime_keycloak_organization_id == "" || can(regex("^[0-9a-fA-F-]{36}$", var.agent_runtime_keycloak_organization_id))
+    error_message = "agent_runtime_keycloak_organization_id must be empty during bootstrap or a Keycloak UUID."
+  }
+}
+
 variable "proxy_image" {
   description = "Caddy image used for the reverse proxy."
   type        = string
@@ -452,7 +469,7 @@ variable "groupware_forms_runtime_enabled" {
 
 
 variable "livekit_runtime_enabled" {
-  description = "Enable LiveKit as the active meetings/video-call provider runtime. Defaults false/fail-closed unless explicitly configured."
+  description = "Enable LiveKit SFU configuration readiness for the MatrixRTC Profile 0 target. Defaults false/fail-closed and does not enable member join."
   type        = bool
   default     = false
 }
@@ -843,6 +860,12 @@ variable "matrix_mas_client_secret" {
 
 variable "identity_admin_client_secret" {
   description = "Client secret used only by the backend Keycloak organization identity administrator."
+  type        = string
+  sensitive   = true
+}
+
+variable "agent_runtime_admin_client_secret" {
+  description = "Client secret used only by the dedicated Agent Runtime workload identity administrator."
   type        = string
   sensitive   = true
 }

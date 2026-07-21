@@ -15,7 +15,7 @@ public record WorkspaceCapabilityPolicyResponse(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<String> grantedCapabilities,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean denyByDefault,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean supportSafe,
-        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String weaverRuntimePosture) {
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String agentRuntimeControlPosture) {
 
     public WorkspaceCapabilityPolicyResponse {
         roles = roles == null ? List.of() : List.copyOf(roles);

@@ -29,6 +29,8 @@ import {
 import {
   AdminControlPlaneApi,
   adminConsoleConfig,
+  AgentRuntimeLifecycleAction,
+  AgentRuntimeProjection,
   CapabilityState,
   ControlPlaneResponse,
   OrganizationInvitation,
@@ -37,10 +39,6 @@ import {
   ProviderReplacementDryRunReport,
   ProviderSwitchApplyGates,
   sampleControlPlane,
-  WeaverDistributionPolicy,
-  WeaverMcpGrant,
-  WeaverModelAlias,
-  WeaverProjectionCategory,
 } from "./api";
 import { AdminConsoleLocale, adminCopy } from "./copy";
 
@@ -173,80 +171,6 @@ function linesFromText(value: string): string[] {
     .filter(Boolean);
 }
 
-function formatModelAliases(aliases: WeaverModelAlias[]): string {
-  return aliases
-    .map(
-      (alias) =>
-        `${alias.alias}=${alias.provider}/${alias.model}${alias.userSelectable ? " selectable" : " locked"}`,
-    )
-    .join("\n");
-}
-
-function parseModelAliases(text: string): WeaverModelAlias[] {
-  return linesFromText(text).map((line) => {
-    const [left, ...rightParts] = line.split("=");
-    const right = rightParts.join("=");
-    const [providerModel, selectableToken] = right.trim().split(/\s+/, 2);
-    const [provider, ...modelParts] = providerModel.split("/");
-    return {
-      alias: left.trim(),
-      provider: provider?.trim() || "provider-not-selected",
-      model: modelParts.join("/").trim() || "model-not-selected",
-      userSelectable: selectableToken !== "locked",
-    };
-  });
-}
-
-function formatMcpServers(servers: WeaverMcpGrant[]): string {
-  return servers
-    .map(
-      (server) =>
-        `${server.serverKey}=${server.tools.join(",")}${server.approvalRequired ? " approval-required" : ""}`,
-    )
-    .join("\n");
-}
-
-function parseMcpServers(text: string): WeaverMcpGrant[] {
-  return linesFromText(text).map((line) => {
-    const [left, ...rightParts] = line.split("=");
-    const right = rightParts.join("=");
-    const approvalRequired = /approval-required/.test(right);
-    const tools = right
-      .replace(/approval-required/g, "")
-      .split(",")
-      .map((tool) => tool.trim())
-      .filter(Boolean);
-    return { serverKey: left.trim(), tools, approvalRequired };
-  });
-}
-
-function buildEffectiveWeaverPreview(
-  policy: WeaverDistributionPolicy,
-): string[] {
-  return [
-    `channel=channels.matrix via chat.provider=${policy.chatProviderKey}`,
-    `chat.readiness=${readableState(policy.chatReadinessState)}`,
-    `model.default=${policy.defaultModelAlias}`,
-    `model.fallback=${policy.fallbackModelAliases.join(" -> ") || "none"}`,
-    ...policy.modelAliases
-      .filter((alias) => alias.userSelectable)
-      .map((alias) => `model.user-selectable=${alias.alias}`),
-    ...policy.allowedTools.map((tool) =>
-      policy.approvalRequiredFor.some(
-        (approval) => tool.includes("create") || tool.includes("send"),
-      )
-        ? `tool.allow=${tool}:approval-required`
-        : `tool.allow=${tool}`,
-    ),
-    ...policy.allowedSkills.map((skill) => `skill.allow=${skill}`),
-    ...policy.mcpServers.map(
-      (server) =>
-        `mcp.allow=${server.serverKey}:${server.tools.join("|") || "no-tools"}${server.approvalRequired ? ":approval-required" : ""}`,
-    ),
-    `tool.deny=${policy.deniedTools.join(",") || "none"}`,
-  ];
-}
-
 interface AppProps {
   api?: AdminControlPlaneApi;
   viewerRole?: ViewerRole;
@@ -285,14 +209,6 @@ function dryRunEvidenceFailureLabel(
   return "Fresh current-session dry-run evidence";
 }
 
-const weaverProjectionCategoryLabels: Record<WeaverProjectionCategory, string> = {
-  chat: "Chat projection",
-  model: "Model aliases",
-  tool: "Tool distribution",
-  skill: "Skill distribution",
-  mcp: "MCP connectors",
-};
-
 export default function App({
   api = new AdminControlPlaneApi(),
   viewerRole = "owner",
@@ -327,33 +243,14 @@ export default function App({
   const [statusMessage, setStatusMessage] = useState<string>(
     adminCopy(locale).loadingStatus,
   );
-  const [weaverPolicyDraft, setWeaverPolicyDraft] = useState(
-    sampleControlPlane.weaverDistributionPolicy,
-  );
-  const [weaverChatProviderDraft, setWeaverChatProviderDraft] = useState(
-    sampleControlPlane.weaverDistributionPolicy.chatProviderKey,
-  );
-  const [weaverModelsDraft, setWeaverModelsDraft] = useState(
-    formatModelAliases(
-      sampleControlPlane.weaverDistributionPolicy.modelAliases,
-    ),
-  );
-  const [weaverDefaultModelDraft, setWeaverDefaultModelDraft] = useState(
-    sampleControlPlane.weaverDistributionPolicy.defaultModelAlias,
-  );
-  const [weaverFallbackModelsDraft, setWeaverFallbackModelsDraft] = useState(
-    sampleControlPlane.weaverDistributionPolicy.fallbackModelAliases.join("\n"),
-  );
-  const [weaverToolsDraft, setWeaverToolsDraft] = useState(
-    sampleControlPlane.weaverDistributionPolicy.allowedTools.join("\n"),
-  );
-  const [weaverSkillsDraft, setWeaverSkillsDraft] = useState(
-    sampleControlPlane.weaverDistributionPolicy.allowedSkills.join("\n"),
-  );
-  const [weaverMcpDraft, setWeaverMcpDraft] = useState(
-    formatMcpServers(sampleControlPlane.weaverDistributionPolicy.mcpServers),
-  );
-  const [weaverPolicyConfirmed, setWeaverPolicyConfirmed] = useState(false);
+  const [agentRuntimePersonRef, setAgentRuntimePersonRef] = useState("");
+  const [agentRuntimeReason, setAgentRuntimeReason] = useState("");
+  const [agentRuntime, setAgentRuntime] =
+    useState<AgentRuntimeProjection | null>(null);
+  const [agentRuntimeBusy, setAgentRuntimeBusy] = useState(false);
+  const [agentRuntimeError, setAgentRuntimeError] = useState<string | null>(null);
+  const [runtimeStateDeleteConfirmed, setRuntimeStateDeleteConfirmed] =
+    useState(false);
   const [invitations, setInvitations] = useState<OrganizationInvitation[]>([]);
   const [invitationEmail, setInvitationEmail] = useState("");
   const [invitationDisplayName, setInvitationDisplayName] = useState("");
@@ -372,29 +269,6 @@ export default function App({
         const firstCategory = response.providerCategories[0];
         setControlPlane(response);
         setPolicyDraft(response.whitelistPolicy.allowedCapabilities.join("\n"));
-        setWeaverPolicyDraft(response.weaverDistributionPolicy);
-        setWeaverChatProviderDraft(
-          response.weaverDistributionPolicy.chatProviderKey,
-        );
-        setWeaverModelsDraft(
-          formatModelAliases(response.weaverDistributionPolicy.modelAliases),
-        );
-        setWeaverDefaultModelDraft(
-          response.weaverDistributionPolicy.defaultModelAlias,
-        );
-        setWeaverFallbackModelsDraft(
-          response.weaverDistributionPolicy.fallbackModelAliases.join("\n"),
-        );
-        setWeaverToolsDraft(
-          response.weaverDistributionPolicy.allowedTools.join("\n"),
-        );
-        setWeaverSkillsDraft(
-          response.weaverDistributionPolicy.allowedSkills.join("\n"),
-        );
-        setWeaverMcpDraft(
-          formatMcpServers(response.weaverDistributionPolicy.mcpServers),
-        );
-        setWeaverPolicyConfirmed(false);
         setSelectedCategory(firstCategory?.key ?? "");
         setProviderDraft(defaultProviderKey(firstCategory));
         setChoiceModelDraft(
@@ -470,46 +344,6 @@ export default function App({
     selectedApplyBackendAllowed &&
     hasFreshProviderSelectionDryRun &&
     consequenceConfirmed;
-  const chatCategory = controlPlane.providerCategories.find(
-    (category) => category.key === "chat" || category.key === "chat-channels",
-  );
-  const weaverEffectiveDraft = useMemo(() => {
-    const draft: WeaverDistributionPolicy = {
-      ...weaverPolicyDraft,
-      chatProviderKey: weaverChatProviderDraft,
-      chatReadinessState:
-        chatCategory?.state ?? weaverPolicyDraft.chatReadinessState,
-      modelAliases: parseModelAliases(weaverModelsDraft),
-      defaultModelAlias: weaverDefaultModelDraft,
-      fallbackModelAliases: linesFromText(weaverFallbackModelsDraft),
-      allowedTools: linesFromText(weaverToolsDraft),
-      allowedSkills: linesFromText(weaverSkillsDraft),
-      mcpServers: parseMcpServers(weaverMcpDraft),
-    };
-    return {
-      ...draft,
-      effectivePolicyPreview: buildEffectiveWeaverPreview(draft),
-    };
-  }, [
-    chatCategory?.state,
-    weaverChatProviderDraft,
-    weaverDefaultModelDraft,
-    weaverFallbackModelsDraft,
-    weaverMcpDraft,
-    weaverModelsDraft,
-    weaverPolicyDraft,
-    weaverSkillsDraft,
-    weaverToolsDraft,
-  ]);
-  const weaverRegenerationBlockedReasons = [
-    ...weaverEffectiveDraft.profileRegenerationBlockedReasons,
-    ...(weaverPolicyConfirmed
-      ? []
-      : ["Effective Weaver policy preview confirmation"]),
-  ];
-  const weaverProfileRegenerationAllowed =
-    canConfigure && weaverRegenerationBlockedReasons.length === 0;
-
   function resetApplyEvidence() {
     setProviderSelectionDryRun(null);
     setConsequenceConfirmed(false);
@@ -543,33 +377,58 @@ export default function App({
     );
   }
 
-  async function saveWeaverDistributionPolicy() {
-    if (!canConfigure) return;
-    const response =
-      await api.updateWeaverDistributionPolicy(weaverEffectiveDraft);
-    setControlPlane((current) => ({
-      ...current,
-      weaverDistributionPolicy: response,
-    }));
-    setWeaverPolicyDraft(response);
-    setStatusMessage(
-      `Weaver distribution policy saved for Chat provider ${response.chatProviderKey}; RuntimeProfile regeneration remains ${weaverProfileRegenerationAllowed ? "ready" : "blocked pending backend gates"}.`,
-    );
+  async function loadAgentRuntime() {
+    if (!agentRuntimePersonRef) return;
+    setAgentRuntimeBusy(true);
+    setAgentRuntimeError(null);
+    try {
+      const response = await api.getAgentRuntime(agentRuntimePersonRef);
+      setAgentRuntime(response);
+      setStatusMessage(`Agent runtime loaded; audit ref ${response.auditRef}.`);
+    } catch (cause: unknown) {
+      setAgentRuntime(null);
+      setAgentRuntimeError(
+        cause instanceof Error ? cause.message : "Agent runtime is unavailable.",
+      );
+    } finally {
+      setAgentRuntimeBusy(false);
+    }
   }
 
-  async function revokeRuntimeProfile() {
-    if (!canConfigure) return;
-    const response = await api.revokeRuntimeProfile(
-      weaverPolicyDraft.runtimeProfileHash,
-    );
-    setControlPlane((current) => ({
-      ...current,
-      weaverDistributionPolicy: response,
-    }));
-    setWeaverPolicyDraft(response);
-    setStatusMessage(
-      `RuntimeProfile ${weaverPolicyDraft.runtimeProfileHash} revocation requested; audit refs: ${response.auditRefs.join(", ")}.`,
-    );
+  async function changeAgentRuntime(action: AgentRuntimeLifecycleAction) {
+    if (!canConfigure || !agentRuntimePersonRef) return;
+    if (action === "revoke" && !agentRuntime?.entitlementRevision) {
+      setAgentRuntimeError(
+        "Load the current runtime before revocation so its entitlement revision can be fenced.",
+      );
+      return;
+    }
+    if (action === "delete-runtime-state" && !runtimeStateDeleteConfirmed) return;
+    setAgentRuntimeBusy(true);
+    setAgentRuntimeError(null);
+    try {
+      const idempotencyKey = `admin-console-${Date.now()}-${action}`;
+      const response = await api.changeAgentRuntime(
+        agentRuntimePersonRef,
+        action,
+        idempotencyKey,
+        {
+          reason: agentRuntimeReason || undefined,
+          entitlementRevision: agentRuntime?.entitlementRevision,
+        },
+      );
+      setAgentRuntime(response);
+      setRuntimeStateDeleteConfirmed(false);
+      setStatusMessage(
+        `Agent runtime ${action} accepted; desired ${response.desiredState}, observed ${response.observedState}, audit ref ${response.auditRef}.`,
+      );
+    } catch (cause: unknown) {
+      setAgentRuntimeError(
+        cause instanceof Error ? cause.message : "Agent runtime transition failed.",
+      );
+    } finally {
+      setAgentRuntimeBusy(false);
+    }
   }
 
   async function selectProvider(dryRun: boolean) {
@@ -1227,8 +1086,8 @@ export default function App({
                     </ListItem>
                     <ListItem alignItems="flex-start">
                       <ListItemText
-                        primary={`Weaver availability: ${controlPlane.weaverEligibilityPreview.memberStateWhenEligible}`}
-                        secondary={`Explicit policy enabled: ${controlPlane.weaverEligibilityPreview.policyEnabled ? "yes" : "no"}; required groups: ${controlPlane.weaverEligibilityPreview.requiredGroups.join(", ") || "none"}; fail-closed without group: ${controlPlane.weaverEligibilityPreview.memberStateWithoutGroup}.`}
+                        primary={`Agent Runtime Control: ${readableState(controlPlane.providerCategories.find((category) => category.key === "agent-runtime-control")?.state ?? "disabled")}`}
+                        secondary="Keycloak group entitlement is authoritative. Runtime cells, signed RuntimeProfile v2 projections, workload identities, and external state remain backend-operated and fail closed."
                       />
                     </ListItem>
                     <ListItem alignItems="flex-start">
@@ -1730,165 +1589,172 @@ export default function App({
 
               <Card
                 component="section"
-                aria-labelledby="weaver-projection-heading"
+                aria-labelledby="agent-runtime-control-heading"
               >
                 <CardContent>
                   <Typography
-                    id="weaver-projection-heading"
+                    id="agent-runtime-control-heading"
                     variant="h2"
                     sx={{ fontSize: "1.35rem", mb: 1 }}
                   >
-                    {copy.weaverProjectionHeading}
+                    Agent Runtime Control
                   </Typography>
-                  <Alert
-                    severity={
-                      controlPlane.weaverRuntimeProjection.supportSafe &&
-                      controlPlane.weaverRuntimeProjection
-                        .providerDiagnosticsRedacted &&
-                      !controlPlane.weaverRuntimeProjection
-                        .rawRuntimeInternalsExposed
-                        ? "success"
-                        : "warning"
-                    }
-                    sx={{ mb: 2 }}
-                  >
-                    {copy.weaverProjectionSummary}
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    Operate one Keycloak-entitled cell through the real lifecycle
+                    API. RuntimeProfile v2 is signed desired state, not an
+                    authorization grant. Runtime-internal state is external and
+                    encrypted; deleting it never deletes canonical Files content.
                   </Alert>
-                  <Stack spacing={1} sx={{ mb: 2 }}>
-                    <Typography>
-                      {copy.weaverProjectionEligibilityLabel}: policy enabled{" "}
-                      {controlPlane.weaverEligibilityPreview.policyEnabled
-                        ? copy.yes
-                        : copy.no}
-                      ; required group
-                      {controlPlane.weaverEligibilityPreview.requiredGroups
-                        .length === 1
-                        ? ""
-                        : "s"}
-                      :{" "}
-                      {controlPlane.weaverEligibilityPreview.requiredGroups.join(
-                        ", ",
-                      ) || copy.none}
-                      ; eligible member preview:{" "}
-                      {
-                        controlPlane.weaverEligibilityPreview
-                          .memberStateWhenEligible
-                      }
-                      .
-                    </Typography>
-                    <Typography>
-                      {copy.weaverProjectionBlockedWithoutPolicyLabel}:{" "}
-                      {
-                        controlPlane.weaverEligibilityPreview
-                          .memberStateWithoutPolicy
-                      }
-                      ; {copy.weaverProjectionBlockedWithoutGroupLabel}:{" "}
-                      {
-                        controlPlane.weaverEligibilityPreview
-                          .memberStateWithoutGroup
-                      }
-                      .
-                    </Typography>
-                    <Typography>
-                      {copy.weaverProjectionProfileVersionLabel}:{" "}
-                      <code>
-                        {controlPlane.weaverRuntimeProjection.profileVersion}
-                      </code>
-                      ; {copy.weaverProjectionRuntimeHashLabel}:{" "}
-                      <code>
-                        {controlPlane.weaverRuntimeProjection.runtimeProfileHash}
-                      </code>
-                      ; {copy.weaverProjectionExpiresLabel}:{" "}
-                      {controlPlane.weaverRuntimeProjection.expiresAt}
-                      .
-                    </Typography>
-                    <Typography>
-                      {copy.weaverProjectionAuditRefsLabel}:{" "}
-                      {controlPlane.weaverRuntimeProjection.auditReceiptRefs.join(
-                        ", ",
-                      ) || "backend audit receipt required"}
-                    </Typography>
-                    <Typography>
-                      {copy.weaverProjectionRevocationRefsLabel}:{" "}
-                      {controlPlane.weaverRuntimeProjection.pendingRevocationRefs.join(
-                        ", ",
-                      ) || "no pending revocation reported"}
-                    </Typography>
-                    <Typography>
-                      {copy.weaverProjectionEligibilityBlockersLabel}:{" "}
-                      {controlPlane.weaverEligibilityPreview.blockedReasons.join(
-                        "; ",
-                      ) || copy.none}
-                    </Typography>
-                  </Stack>
-                  <Stack
-                    direction={{ xs: "column", md: "row" }}
-                    spacing={2}
-                    sx={{ flexWrap: "wrap" }}
-                    useFlexGap
-                  >
-                    {controlPlane.weaverRuntimeProjection.items.map((item) => (
-                      <Card
-                        key={item.id}
+                  <Stack spacing={2}>
+                    <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                      <TextField
+                        label="Opaque person reference"
+                        value={agentRuntimePersonRef}
+                        onChange={(event) => {
+                          setAgentRuntimePersonRef(event.target.value.trim());
+                          setAgentRuntime(null);
+                          setAgentRuntimeError(null);
+                          setRuntimeStateDeleteConfirmed(false);
+                        }}
+                        placeholder="acct_0123456789abcdef0123456789abcdef"
+                        slotProps={{
+                          htmlInput: {
+                            pattern: "acct_[a-f0-9]{32}",
+                            "aria-describedby": "agent-runtime-person-helper",
+                          },
+                        }}
+                        fullWidth
+                      />
+                      <Button
                         variant="outlined"
-                        sx={{ flex: "1 1 280px" }}
+                        disabled={!agentRuntimePersonRef || agentRuntimeBusy}
+                        onClick={() => void loadAgentRuntime()}
                       >
+                        Load runtime
+                      </Button>
+                    </Stack>
+                    <FormHelperText id="agent-runtime-person-helper">
+                      Use the opaque Weave personRef. Email and provider-native
+                      user IDs are not runtime identity keys.
+                    </FormHelperText>
+                    {agentRuntimeError ? (
+                      <Alert severity="error">{agentRuntimeError}</Alert>
+                    ) : null}
+                    {agentRuntime ? (
+                      <Card variant="outlined">
                         <CardContent>
-                          <Typography variant="h3" sx={{ fontSize: "1.05rem" }}>
-                            {weaverProjectionCategoryLabels[item.category]}
-                          </Typography>
-                          <Typography sx={{ mt: 1 }}>
-                            <strong>{item.label}</strong>
-                          </Typography>
-                          <Chip
-                            sx={{ mt: 1 }}
-                            color={stateColor[item.state]}
-                            label={`State: ${readableState(item.state)}`}
-                            aria-label={`${item.label} projection state is ${readableState(item.state)}`}
-                          />
-                          <List
-                            dense
-                            aria-label={`${item.label} support-safe projection details`}
-                          >
-                            <ListItem disableGutters>
-                              <ListItemText
-                                primary="Member impact"
-                                secondary={item.memberImpact}
+                          <Stack spacing={1}>
+                            <Stack
+                              direction={{ xs: "column", sm: "row" }}
+                              spacing={1}
+                            >
+                              <Chip
+                                color={stateColor[agentRuntime.capabilityState]}
+                                label={`Capability: ${readableState(agentRuntime.capabilityState)}`}
                               />
-                            </ListItem>
-                            <ListItem disableGutters>
-                              <ListItemText
-                                primary="Policy impact preview"
-                                secondary={item.policyImpact}
+                              <Chip
+                                label={`Entitlement: ${readableState(agentRuntime.entitlementState)}`}
                               />
-                            </ListItem>
-                            <ListItem disableGutters>
-                              <ListItemText
-                                primary="Readiness preview"
-                                secondary={item.readinessSummary}
+                              <Chip
+                                label={`Desired: ${readableState(agentRuntime.desiredState)}`}
                               />
-                            </ListItem>
-                            <ListItem disableGutters>
-                              <ListItemText
-                                primary="Receipt refs"
-                                secondary={
-                                  item.receiptRefs.join(", ") ||
-                                  "backend receipt required before apply"
-                                }
+                              <Chip
+                                label={`Observed: ${readableState(agentRuntime.observedState)}`}
                               />
-                            </ListItem>
-                            {item.category === "model" ? (
-                              <ListItem disableGutters>
-                                <ListItemText
-                                  primary="Model alias exposure"
-                                  secondary={`User selectable: ${item.userSelectable ? "yes" : "no"}; default: ${item.defaultSelected ? "yes" : "no"}; fallback order: ${item.fallbackOrder ?? "not configured"}`}
-                                />
-                              </ListItem>
-                            ) : null}
-                          </List>
+                            </Stack>
+                            <Typography>
+                              Cell: <code>{agentRuntime.cellRef ?? "not provisioned"}</code>;
+                              provider: {agentRuntime.runtimeProvider ?? "not selected"};
+                              workspace revision: {agentRuntime.workspaceRevision ?? "none"}.
+                            </Typography>
+                            <Typography>
+                              RuntimeProfile: <code>{agentRuntime.runtimeProfileRef ?? "none"}</code>;
+                              conflicts: {agentRuntime.conflicts}; audit ref:{" "}
+                              <code>{agentRuntime.auditRef}</code>.
+                            </Typography>
+                          </Stack>
                         </CardContent>
                       </Card>
-                    ))}
+                    ) : null}
+                    {canConfigure ? (
+                      <>
+                        <TextField
+                          label="Lifecycle reason"
+                          value={agentRuntimeReason}
+                          onChange={(event) =>
+                            setAgentRuntimeReason(event.target.value)
+                          }
+                          helperText="Required context for suspend, revoke, and runtime-state deletion; kept support-safe in audit."
+                          slotProps={{ htmlInput: { maxLength: 500 } }}
+                          fullWidth
+                        />
+                        <Stack
+                          direction={{ xs: "column", sm: "row" }}
+                          spacing={1}
+                          sx={{ flexWrap: "wrap" }}
+                          useFlexGap
+                        >
+                          {(
+                            [
+                              "provision",
+                              "start",
+                              "stop",
+                              "suspend",
+                              "reconcile",
+                              "revoke",
+                            ] as AgentRuntimeLifecycleAction[]
+                          ).map((action) => (
+                            <Button
+                              key={action}
+                              variant={action === "revoke" ? "outlined" : "contained"}
+                              color={action === "revoke" ? "error" : "primary"}
+                              disabled={
+                                agentRuntimeBusy ||
+                                !agentRuntimePersonRef ||
+                                ((action === "suspend" || action === "revoke") &&
+                                  !agentRuntimeReason.trim())
+                              }
+                              onClick={() => void changeAgentRuntime(action)}
+                            >
+                              {action}
+                            </Button>
+                          ))}
+                        </Stack>
+                        <Divider />
+                        <Alert severity="warning">
+                          Runtime-state deletion revokes the per-cell workload
+                          identity and removes encrypted runtime-internal state.
+                          Canonical WebDAV/Files content is intentionally outside
+                          this deletion boundary.
+                        </Alert>
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={runtimeStateDeleteConfirmed}
+                              onChange={(event) =>
+                                setRuntimeStateDeleteConfirmed(event.target.checked)
+                              }
+                            />
+                          }
+                          label="I confirm DELETE_RUNTIME_STATE_ONLY"
+                        />
+                        <Button
+                          variant="outlined"
+                          color="error"
+                          disabled={
+                            agentRuntimeBusy ||
+                            !agentRuntimePersonRef ||
+                            !agentRuntimeReason.trim() ||
+                            !runtimeStateDeleteConfirmed
+                          }
+                          onClick={() =>
+                            void changeAgentRuntime("delete-runtime-state")
+                          }
+                        >
+                          Delete runtime state only
+                        </Button>
+                      </>
+                    ) : null}
                   </Stack>
                 </CardContent>
               </Card>
@@ -2090,251 +1956,45 @@ export default function App({
               {canConfigure ? (
                 <Card
                   component="section"
-                  aria-labelledby="weaver-distribution-policy-heading"
+                  aria-labelledby="mcp-workload-boundary-heading"
                 >
                   <CardContent>
                     <Typography
-                      id="weaver-distribution-policy-heading"
+                      id="mcp-workload-boundary-heading"
                       variant="h2"
                       sx={{ fontSize: "1.35rem", mb: 1 }}
                     >
-                      {copy.weaverDistributionHeading}
+                      MCP workload boundary
                     </Typography>
                     <Alert severity="info" sx={{ mb: 2 }}>
-                      {copy.weaverDistributionDescription}
+                      MCP is service-to-service only. Every admitted caller is a
+                      current per-cell Keycloak service account, and its token is
+                      exchanged to the backend audience before authorization.
+                      Human bearer tokens and generic shared clients fail closed.
                     </Alert>
                     <Stack spacing={2}>
-                      <FormControl fullWidth>
-                        <InputLabel id="weaver-chat-provider-label">
-                          {copy.weaverChatProviderLabel}
-                        </InputLabel>
-                        <Select
-                          labelId="weaver-chat-provider-label"
-                          id="weaver-chat-provider"
-                          value={weaverChatProviderDraft}
-                          label={copy.weaverChatProviderLabel}
-                          onChange={(event) => {
-                            setWeaverChatProviderDraft(event.target.value);
-                            setWeaverPolicyConfirmed(false);
-                          }}
-                        >
-                          {(
-                            chatCategory?.providerCandidates ?? [
-                              weaverPolicyDraft.chatProviderKey,
-                            ]
-                          ).map((candidate) => (
-                            <MenuItem key={candidate} value={candidate}>
-                              {candidate}
-                            </MenuItem>
-                          ))}
-                        </Select>
-                        <FormHelperText>
-                          {copy.weaverChatProviderHelper}
-                        </FormHelperText>
-                      </FormControl>
-                      <Alert severity="warning">
-                        Chat readiness:{" "}
-                        {readableState(weaverEffectiveDraft.chatReadinessState)}
-                        . Migration consequences before regeneration:{" "}
-                        {weaverEffectiveDraft.chatMigrationConsequences.join(
-                          " ",
-                        )}
-                      </Alert>
-                      <TextField
-                        label={copy.weaverModelAliasesLabel}
-                        value={weaverModelsDraft}
-                        onChange={(event) => {
-                          setWeaverModelsDraft(event.target.value);
-                          setWeaverPolicyConfirmed(false);
-                        }}
-                        fullWidth
-                        multiline
-                        minRows={4}
-                      />
-                      <TextField
-                        label={copy.weaverDefaultModelLabel}
-                        value={weaverDefaultModelDraft}
-                        onChange={(event) => {
-                          setWeaverDefaultModelDraft(event.target.value);
-                          setWeaverPolicyConfirmed(false);
-                        }}
-                        fullWidth
-                      />
-                      <TextField
-                        label={copy.weaverFallbackModelsLabel}
-                        value={weaverFallbackModelsDraft}
-                        onChange={(event) => {
-                          setWeaverFallbackModelsDraft(event.target.value);
-                          setWeaverPolicyConfirmed(false);
-                        }}
-                        fullWidth
-                        multiline
-                        minRows={2}
-                      />
-                      <TextField
-                        label={copy.weaverAllowedToolsLabel}
-                        value={weaverToolsDraft}
-                        onChange={(event) => {
-                          setWeaverToolsDraft(event.target.value);
-                          setWeaverPolicyConfirmed(false);
-                        }}
-                        helperText={copy.weaverAllowedToolsHelper}
-                        fullWidth
-                        multiline
-                        minRows={4}
-                      />
-                      <TextField
-                        label={copy.weaverAllowedSkillsLabel}
-                        value={weaverSkillsDraft}
-                        onChange={(event) => {
-                          setWeaverSkillsDraft(event.target.value);
-                          setWeaverPolicyConfirmed(false);
-                        }}
-                        fullWidth
-                        multiline
-                        minRows={2}
-                      />
-                      <TextField
-                        label={copy.weaverAllowedMcpLabel}
-                        value={weaverMcpDraft}
-                        onChange={(event) => {
-                          setWeaverMcpDraft(event.target.value);
-                          setWeaverPolicyConfirmed(false);
-                        }}
-                        fullWidth
-                        multiline
-                        minRows={3}
-                      />
                       <Card variant="outlined">
                         <CardContent>
                           <Typography variant="h3" sx={{ fontSize: "1.05rem" }}>
-                            {copy.weaverMcpRegistryHeading}
+                            Active server binding
                           </Typography>
                           <Alert severity="info" sx={{ my: 1 }}>
-                            {copy.weaverMcpRegistryDescription}
+                            The current catalog is intentionally empty. Tool names
+                            are never inferred from RuntimeProfile data or provider
+                            configuration.
                           </Alert>
                           <List aria-label="Admin-bound MCP server registry">
                             {controlPlane.mcpServerBindings.map((binding) => (
                               <ListItem key={binding.serverKey} disableGutters>
                                 <ListItemText
                                   primary={`${binding.displayName} (${binding.transport}) — ${readableState(binding.readinessState)}`}
-                                  secondary={`Endpoint ref: ${binding.endpointRef}; enabled: ${binding.enabled ? "yes" : "no"}; tools: ${binding.allowedTools.join(", ")}; auth: ${binding.authRef}; raw endpoint exposed: ${binding.rawEndpointExposed ? "yes" : "no"}`}
+                                  secondary={`Endpoint ref: ${binding.endpointRef}; enabled: ${binding.enabled ? "yes" : "no"}; tools: ${binding.allowedTools.join(", ") || "empty catalog"}; auth: ${binding.authRef}; raw endpoint exposed: ${binding.rawEndpointExposed ? "yes" : "no"}`}
                                 />
                               </ListItem>
                             ))}
                           </List>
                         </CardContent>
                       </Card>
-                      <Card variant="outlined">
-                        <CardContent>
-                          <Typography variant="h3" sx={{ fontSize: "1.05rem" }}>
-                            {copy.weaverEffectivePolicyPreviewHeading}
-                          </Typography>
-                          <List aria-label="Effective Weaver RuntimeProfile policy preview">
-                            {weaverEffectiveDraft.effectivePolicyPreview.map(
-                              (line) => (
-                                <ListItem key={line} disableGutters>
-                                  <ListItemText primary={line} />
-                                </ListItem>
-                              ),
-                            )}
-                          </List>
-                          <Typography>
-                            Denied tools win globally:{" "}
-                            {weaverEffectiveDraft.deniedTools.join(", ") ||
-                              "none"}
-                            .
-                          </Typography>
-                          <Typography>
-                            Approval required for:{" "}
-                            {weaverEffectiveDraft.approvalRequiredFor.join(
-                              ", ",
-                            )}
-                            .
-                          </Typography>
-                        </CardContent>
-                      </Card>
-                      <Card variant="outlined">
-                        <CardContent>
-                          <Typography variant="h3" sx={{ fontSize: "1.05rem" }}>
-                            RuntimeProfile revocation and audit
-                          </Typography>
-                          <Typography>
-                            Active hash: {weaverPolicyDraft.runtimeProfileHash};
-                            pending hash:{" "}
-                            {weaverPolicyDraft.pendingRuntimeProfileHash ??
-                              "none"}
-                            ; rollback:{" "}
-                            {weaverPolicyDraft.rollbackProfileHash ??
-                              "not available"}
-                            ; revocation state:{" "}
-                            {readableState(weaverPolicyDraft.revocationState)}.
-                          </Typography>
-                          <Typography>
-                            Audit refs:{" "}
-                            {weaverPolicyDraft.auditRefs.join(", ") ||
-                              "backend audit ref required"}
-                            .
-                          </Typography>
-                          <List aria-label="RuntimeProfile change history">
-                            {weaverPolicyDraft.changeHistory.map((change) => (
-                              <ListItem
-                                key={`${change.version}-${change.runtimeProfileHash}`}
-                                disableGutters
-                              >
-                                <ListItemText
-                                  primary={`${change.version}: ${readableState(change.status)} ${change.runtimeProfileHash}`}
-                                  secondary={`${change.createdAt} — ${change.summary}`}
-                                />
-                              </ListItem>
-                            ))}
-                          </List>
-                        </CardContent>
-                      </Card>
-                      <Alert
-                        severity={
-                          weaverProfileRegenerationAllowed
-                            ? "success"
-                            : "warning"
-                        }
-                      >
-                        RuntimeProfile regeneration is{" "}
-                        {weaverProfileRegenerationAllowed ? "ready" : "blocked"}
-                        .
-                        {weaverProfileRegenerationAllowed
-                          ? " Effective policy was confirmed and backend blockers are clear."
-                          : ` Blocked by: ${weaverRegenerationBlockedReasons.join(", ")}.`}
-                      </Alert>
-                      <FormControlLabel
-                        control={
-                          <Checkbox
-                            checked={weaverPolicyConfirmed}
-                            onChange={(event) =>
-                              setWeaverPolicyConfirmed(event.target.checked)
-                            }
-                          />
-                        }
-                        label={copy.weaverPolicyConfirmLabel}
-                      />
-                      <Stack
-                        direction={{ xs: "column", sm: "row" }}
-                        spacing={2}
-                      >
-                        <Button
-                          variant="contained"
-                          disabled={!weaverPolicyConfirmed}
-                          onClick={() => void saveWeaverDistributionPolicy()}
-                        >
-                          {copy.saveWeaverPolicyButton}
-                        </Button>
-                        <Button
-                          variant="outlined"
-                          color="error"
-                          onClick={() => void revokeRuntimeProfile()}
-                        >
-                          {copy.revokeRuntimeProfileButton}
-                        </Button>
-                      </Stack>
                     </Stack>
                   </CardContent>
                 </Card>

@@ -57,12 +57,12 @@ REQUIRED_EVIDENCE_BOUNDARIES = {
         "device revocation",
         "raw Chat API-first member data-plane",
     ],
-    "calls-join-grants": [
-        "remove participant",
-        "grant revocation",
-        "expired reuse denial",
-        "Flutter LiveKit",
-        "support-safe audit",
+    "calls-matrixrtc-profile-zero": [
+        "MatrixRTC Profile 0",
+        "RTC Authorizer",
+        "room/slot/member/device/policy/nonce/audience/expiry",
+        "MatrixRTC media E2EE",
+        "replaceable southbound SFU adapter",
     ],
     "protocol-credentials": [
         "WEBDAV_FILES",
@@ -111,7 +111,7 @@ def require_gap_inventory() -> None:
     docs = require(
         "docs/open-standards-gateway-archive-integration.md",
         MARKER,
-        "Spring AI MCP is implemented",
+        "Spring AI MCP is the only runtime MCP path",
         "not complete",
     )
     for gap_id, fragments in REQUIRED_EVIDENCE_BOUNDARIES.items():
@@ -159,16 +159,18 @@ def require_current_evidence_boundaries() -> None:
         'NativeMatrixCore.projectJson(operation, inputJson, serverName)',
         'public static final String FLUTTER_BRIDGE_BOUNDARY = "flutter-rust-bridge"',
     )
-    require(
-        "server/src/main/java/com/massimotter/weave/backend/controller/CallsController.java",
-        '@PostMapping("/api/calls/{id}/join")',
-        '@PostMapping("/api/calls/{id}/end")',
-    )
+    forbidden_calls_path = ROOT / "server/src/main/java/com/massimotter/weave/backend/controller/CallsController.java"
+    if forbidden_calls_path.exists():
+        fail("legacy member Calls controller must be removed")
+    for path in ROOT.glob("server/src/main/java/**/*.java"):
+        text = path.read_text(encoding="utf-8")
+        if '"/api/calls' in text or "com.weave.call." in text:
+            fail(f"legacy Calls contract remains in {path.relative_to(ROOT)}")
     require(
         "tools/spring_ai_mcp_facade_acceptance_check.py",
         "SPRING_AI_MCP_STATEFUL_TRANSPORT",
-        "MCP_WORKLOAD_EDGE_DENY_ALL",
-        "MCP_CANONICAL_DOMAIN_DISPATCH",
+        "MCP_WORKLOAD_EDGE_BOUND_CELL_ONLY",
+        "MCP_DOMAIN_CATALOGS_EMPTY",
         "MCP_APPROVAL_EVIDENCE_FAILS_CLOSED",
         "MCP_LEGACY_RUNTIME_REMOVED",
     )

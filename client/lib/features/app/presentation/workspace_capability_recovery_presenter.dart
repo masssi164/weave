@@ -85,7 +85,8 @@ WorkspaceMemberRecoveryState _unavailableRecoveryState(
     WorkspaceCapability.chat ||
     WorkspaceCapability.files ||
     WorkspaceCapability.calendar ||
-    WorkspaceCapability.weaver => WorkspaceMemberRecoveryState.unavailable,
+    WorkspaceCapability.agentRuntimeControl =>
+      WorkspaceMemberRecoveryState.unavailable,
   };
 }
 

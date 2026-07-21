@@ -18,7 +18,7 @@ public record WorkspaceCapabilityProperties(
         Capability manualsHelp,
         Capability releaseEvidence,
         Capability adminControlPlane,
-        Capability weaver) {
+        Capability agentRuntimeControl) {
 
     public WorkspaceCapabilityProperties(
             Capability shellAccess,
@@ -26,7 +26,7 @@ public record WorkspaceCapabilityProperties(
             Capability files,
             Capability calendar,
             Capability boards,
-            Capability weaver) {
+            Capability agentRuntimeControl) {
         this(
                 shellAccess,
                 chat,
@@ -39,7 +39,7 @@ public record WorkspaceCapabilityProperties(
                 null,
                 null,
                 null,
-                weaver);
+                agentRuntimeControl);
     }
 
     @ConstructorBinding
@@ -55,7 +55,7 @@ public record WorkspaceCapabilityProperties(
             Capability manualsHelp,
             Capability releaseEvidence,
             Capability adminControlPlane,
-            Capability weaver) {
+            Capability agentRuntimeControl) {
         this.shellAccess = defaultCapability(shellAccess, true, null, null);
         this.chat = defaultCapability(chat, true, null, null);
         this.files = defaultCapability(files, true, null, null);
@@ -67,7 +67,7 @@ public record WorkspaceCapabilityProperties(
         this.manualsHelp = defaultCapability(manualsHelp, true, null, WorkspaceCapabilityReadiness.READY);
         this.releaseEvidence = defaultCapability(releaseEvidence, true, null, WorkspaceCapabilityReadiness.READY);
         this.adminControlPlane = defaultCapability(adminControlPlane, true, null, WorkspaceCapabilityReadiness.READY);
-        this.weaver = defaultCapability(weaver, false, null, null);
+        this.agentRuntimeControl = defaultCapability(agentRuntimeControl, false, null, null);
     }
 
     private static Capability defaultCapability(

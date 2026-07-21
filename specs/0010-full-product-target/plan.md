@@ -53,7 +53,7 @@ Create a target-product Spec Kit bridge that turns the pinned corpus plus Massim
 
 - Backward compatibility: target artifacts guide future work; no runtime behavior changes by this spec alone.
 - Data migration: provider-change tasks must require dry-run/no-loss evidence.
-- Feature flag/capability gate: Weaver gated by `weaver-group`, org policy, and profile grants.
+- Feature flag/capability gate: Agent Runtime Control is gated by authoritative Keycloak group membership deriving `agent-runtime.entitled`; RuntimeProfile v2 never grants authorization.
 - Rollback plan: provider changes and profile changes require rollback/revocation paths.
 - Release evidence: target spec is not a release claim.
 

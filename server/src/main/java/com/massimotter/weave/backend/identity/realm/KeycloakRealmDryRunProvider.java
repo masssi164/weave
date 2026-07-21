@@ -18,17 +18,17 @@ public class KeycloakRealmDryRunProvider implements IdentityRealmProvider {
     private static final String PROVIDER_KEY = "keycloak-realm";
     // Realm-operation service accounts may still use the operator role. It is not a weave-app member role.
     private static final Set<String> KNOWN_ROLES = Set.of("owner", "admin", "operator", "member", "guest");
-    private static final Set<String> KNOWN_SCOPES = Set.of("openid", "profile", "email", "weave:workspace", "offline_access");
+    private static final Set<String> KNOWN_SCOPES = Set.of(
+            "openid", "profile", "email", "weave:workspace", "offline_access", "agent-runtime.admin");
     private static final Set<String> KNOWN_GROUPS = Set.of(
-            "weaver-group",
             "weave-calendar-editors",
             "weave-board-editors",
             "weave-meeting-hosts",
             "weave-document-editors",
             "weave-decision-recorders",
-            "weave-weaver-pilot");
+            "weave-weaver-runtime");
     private static final Set<String> KNOWN_FEATURES = Set.of(
-            "chat", "files", "calendar", "boards", "meetings", "documents", "decisions", "manuals", "release-evidence", "weaver");
+            "chat", "files", "calendar", "boards", "meetings", "documents", "decisions", "manuals", "release-evidence", "agent-runtime-control");
     private static final Pattern SECRET_LIKE = Pattern.compile(
             "(?i)(password|passwd|secret|token|bearer|api[_-]?key|x-access-token|client_secret|credential|private[_-]?key)");
 

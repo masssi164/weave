@@ -167,6 +167,12 @@ variable "identity_admin_client_secret" {
   sensitive   = true
 }
 
+variable "agent_runtime_admin_client_secret" {
+  description = "Client secret for the dedicated Agent Runtime per-cell workload identity administrator."
+  type        = string
+  sensitive   = true
+}
+
 variable "weave_mcp_client_secret" {
   description = "Client secret for the confidential weave-mcp-server token-exchange workload."
   type        = string

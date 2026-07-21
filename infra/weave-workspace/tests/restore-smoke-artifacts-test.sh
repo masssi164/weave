@@ -51,6 +51,11 @@ assert any(
     and check['status'] == 'archived_not_runtime_verified'
     for check in receipt['checks']
 )
+assert any(
+    check['name'] == 'agent_runtime_consistency_set_and_live_reconciliation'
+    and check['status'] == 'archived_not_runtime_verified'
+    for check in receipt['checks']
+)
 PY
 
 rm "${backup_dir}/postgres.sql"

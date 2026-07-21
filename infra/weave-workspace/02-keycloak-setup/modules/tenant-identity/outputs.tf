@@ -44,23 +44,48 @@ output "weave_backend_audience" {
 }
 
 output "weave_mcp_client_id" {
-  description = "Confidential MCP workload client allowed to perform standard token exchange."
+  description = "Confidential MCP resource server client used only for server-side token exchange."
   value       = try(keycloak_openid_client.client["weave_mcp_server"].client_id, null)
 }
 
 output "weave_mcp_audience" {
-  description = "Audience required by the MCP resource server for member runtime tokens."
-  value       = try(keycloak_openid_client.client["weave_mcp_server"].client_id, null)
+  description = "Exact HTTPS audience accepted by the machine-only MCP resource server."
+  value       = "${var.api_public_url}/mcp"
 }
 
-output "weave_mcp_backend_scope_name" {
-  description = "Backend-only scope requested during MCP standard token exchange."
-  value       = try(keycloak_openid_client_scope.weave_mcp_backend.name, null)
+output "agent_runtime_resource" {
+  description = "Exact HTTPS audience accepted by the workload-only RuntimeProfile resource."
+  value       = "${var.api_public_url}/api/v1/agent-runtime"
+}
+
+output "agent_runtime_profile_read_scope_name" {
+  description = "Machine-only scope used by a cell to fetch its current RuntimeProfile."
+  value       = keycloak_openid_client_scope.agent_runtime_profile_read.name
+}
+
+output "weaver_runtime_workload_scope_name" {
+  description = "Fixed default client scope carrying only the per-cell Weaver workload role."
+  value       = keycloak_openid_client_scope.weaver_runtime_workload.name
+}
+
+output "agent_runtime_admin_scope_name" {
+  description = "Interactive owner/admin scope used by the separate Organization/Admin Console."
+  value       = keycloak_openid_client_scope.agent_runtime_admin.name
+}
+
+output "mcp_tools_scope_name" {
+  description = "Machine-only scope used by an active cell to call the MCP resource."
+  value       = keycloak_openid_client_scope.mcp_tools.name
 }
 
 output "weave_identity_admin_client_id" {
   description = "Backend-only Keycloak client used for organization invitation administration."
   value       = try(keycloak_openid_client.client["weave_identity_admin"].client_id, null)
+}
+
+output "weave_agent_runtime_admin_client_id" {
+  description = "Dedicated client used only for ARC-managed per-cell Keycloak workload identities."
+  value       = try(keycloak_openid_client.client["weave_agent_runtime_admin"].client_id, null)
 }
 
 output "weave_organization_id" {

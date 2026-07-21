@@ -7,7 +7,6 @@ import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import com.massimotter.weave.backend.audit.JdbcAuditEventPublisher;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
-import com.massimotter.weave.backend.config.WeaverRuntimeProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.identity.realm.IdentityRealmApplyProperties;
@@ -114,22 +113,22 @@ class AdminControlPlaneServiceTest {
                 "weave-dogfood",
                 List.of("member"),
                 List.of("weave-board-editors"),
-                List.of("chat.send", "boards.update_task", "admin.provider.configure", "weaver.enabled"),
+                List.of("chat.send", "boards.update_task", "admin.provider.configure", "agent-runtime.entitled"),
                 "simulate before #233 dry-run/apply with Bearer operator-token and secretref://weave/provider/keycloak");
 
         var adminResponse = service.simulateEffectivePolicy(request, jwt("admin"));
 
         assertThat(adminResponse.supportSafe()).isTrue();
         assertThat(adminResponse.unknownInputsFailClosed()).isFalse();
-        assertThat(adminResponse.weaverDefaultDisabled()).isTrue();
+        assertThat(adminResponse.agentRuntimeEntitlementRequired()).isTrue();
         assertThat(adminResponse.grantedCapabilities()).containsExactly("boards.update_task", "chat.send");
         assertThat(adminResponse.capabilityStates()).extracting(state -> state.state())
                 .containsOnly("ready", "disabled", "policy-blocked");
-        assertThat(adminResponse.capabilityStates()).filteredOn(state -> state.capability().equals("weaver.enabled"))
+        assertThat(adminResponse.capabilityStates()).filteredOn(state -> state.capability().equals("agent-runtime.entitled"))
                 .singleElement()
                 .satisfies(state -> {
                     assertThat(state.state()).isEqualTo("disabled");
-                    assertThat(state.reasonCode()).isEqualTo("weaver-default-disabled");
+                    assertThat(state.reasonCode()).isEqualTo("agent-runtime-entitlement-required");
                 });
         assertThat(auditPublisher.events()).hasSize(1);
         assertThat(auditPublisher.events()).allSatisfy(event -> {
@@ -187,7 +186,7 @@ class AdminControlPlaneServiceTest {
             JsonNode fixture = objectMapper.readTree(input);
 
             assertThat(fixture.path("supportSafe").asBoolean()).isTrue();
-            assertThat(fixture.path("weaverDefaultDisabled").asBoolean()).isTrue();
+            assertThat(fixture.path("agentRuntimeEntitlementRequired").asBoolean()).isTrue();
             assertThat(fixture.path("unknownInputsFailClosed").asBoolean()).isFalse();
             assertThat(fixture.path("subject").asText()).startsWith("issuer+subject:");
             assertThat(fixture.path("capabilityStates")).allSatisfy(state ->
@@ -496,7 +495,6 @@ class AdminControlPlaneServiceTest {
                 List.of(new KeycloakRealmLiveApplyAdapter(new IdentityRealmApplyProperties())),
                 new IdentityRealmApplyProperties(),
                 Clock.fixed(Instant.parse("2026-05-31T08:00:00Z"), ZoneOffset.UTC),
-                new WeaverRuntimeProperties(false, null, null, null, null, null, null, null, null, null, false, false, true, false),
                 profileRepository,
                 migrationEvidenceRepository);
 
@@ -613,12 +611,8 @@ class AdminControlPlaneServiceTest {
             assertThat(gate.key()).isEqualTo("conformance-gates");
             assertThat(gate.blocksReleaseClaim()).isTrue();
         });
-        assertThat(response.weaverEligibilityPreview().requiredGroups()).contains("weaver-group", "weave-weaver-runtime");
-        assertThat(response.weaverEligibilityPreview().memberStateWhenEligible()).isEqualTo("disabled_by_policy");
-        assertThat(response.weaverRuntimeProjection().disabledByDefault()).isTrue();
-        assertThat(response.weaverRuntimeProjection().rawRuntimeInternalsExposed()).isFalse();
-        assertThat(response.weaverRuntimeProjection().items()).extracting(item -> item.id())
-                .contains("chat-route", "tool-calendar-search", "tool-boards-comment", "mcp-weave-domain-tools", "consent-shared-space");
+        assertThat(response.adminApiRoutes()).containsEntry(
+                "agentRuntimes", "/api/admin/agent-runtimes/{personRef}");
         assertThat(response.mcpServerBindings()).singleElement().satisfies(binding -> {
             assertThat(binding.serverKey()).isEqualTo("weave-domain-tools");
             assertThat(binding.transport()).isEqualTo("streamable-http");
@@ -668,8 +662,7 @@ class AdminControlPlaneServiceTest {
                 new InMemoryIdentityRealmEvidenceRepository(),
                 List.of(new KeycloakRealmLiveApplyAdapter(properties)),
                 properties,
-                Clock.fixed(Instant.parse("2026-05-27T01:03:39Z"), ZoneOffset.UTC),
-                new WeaverRuntimeProperties(false, null, null, null, null, null, null, null, null, null, false, false, true, false));
+                Clock.fixed(Instant.parse("2026-05-27T01:03:39Z"), ZoneOffset.UTC));
     }
 
     private DriverManagerDataSource migratedDataSource() {

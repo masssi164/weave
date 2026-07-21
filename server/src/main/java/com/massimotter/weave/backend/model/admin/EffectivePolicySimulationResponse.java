@@ -13,7 +13,7 @@ public record EffectivePolicySimulationResponse(
         List<String> grantedCapabilities,
         List<String> deniedInputs,
         boolean unknownInputsFailClosed,
-        boolean weaverDefaultDisabled,
+        boolean agentRuntimeEntitlementRequired,
         boolean supportSafe,
         List<CapabilityState> capabilityStates,
         List<String> nextActions,

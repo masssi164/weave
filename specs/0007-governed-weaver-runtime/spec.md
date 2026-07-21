@@ -74,11 +74,20 @@ RuntimeProfile is a signed, short-lived desired-state ceiling and correlation ar
 contains references and maximum permitted capabilities; it is not an authorization grant.
 Profiles are verified through the canonical trust-discovery/JWKS boundary and fail closed on
 tampering, expiry, revocation, wrong subject, wrong organization, or stale policy.
+The current corpus defines `runtimeProfileHash` as the lowercase `sha256:` digest of the RFC 8785
+JCS UTF-8 payload bytes, excluding the protected header and signature. Overlap-key re-signing
+therefore preserves semantic identity while every payload change produces another hash.
+Profile retrieval is a separate workload-only OAuth path. It requires the exact Agent Runtime
+Control audience, only `agent-runtime.profile.read`, matching per-cell `client_id` and `azp`, the
+sole `weaver-runtime` realm role, no client roles, and the current authoritative
+subject/client/cell/profile binding. Member and generic-service tokens cannot enter that path.
 
-## Initial tool set
+## MCP catalog boundary
 
-Tool availability is derived from the current canonical capability registry and receiving-domain
-authorization. This historical packet does not own or freeze a tool list.
+The workload MCP catalog is empty. A domain tool may appear only after its owning collaboration
+domain defines a provider-neutral facade contract, independent current authorization, exact
+action-bound approval evidence where required, idempotency and reconciliation behavior, and
+immutable ActionEvidence. RuntimeProfile contents do not create tools or grant domain access.
 
 ## Acceptance mapping
 

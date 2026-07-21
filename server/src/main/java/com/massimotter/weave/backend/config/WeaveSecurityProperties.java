@@ -7,7 +7,7 @@ import org.springframework.boot.context.properties.bind.ConstructorBinding;
 public record WeaveSecurityProperties(String requiredAudience, String clientId) {
 
     private static final String DEFAULT_FIRST_PARTY_CLIENT_ID = "weave-app";
-    private static final String DEFAULT_BACKEND_AUDIENCE = "weave-backend";
+    private static final String DEFAULT_BACKEND_AUDIENCE = "https://api.weave.test/api";
     @ConstructorBinding
     public WeaveSecurityProperties {
         requiredAudience = defaultIfBlank(requiredAudience, DEFAULT_BACKEND_AUDIENCE);

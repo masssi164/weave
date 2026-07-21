@@ -250,15 +250,15 @@ public class ProviderStackReadinessStepDefinitions {
         }
     }
 
-    @Then("meetings readiness uses LiveKit as the active provider and fails closed support-safely")
-    public void meetingsReadinessUsesLiveKitAsTheActiveProviderAndFailsClosedSupportSafely() {
+    @Then("Calls readiness treats LiveKit as a replaceable SFU and fails closed support-safely")
+    public void callsReadinessTreatsLiveKitAsAReplaceableSfuAndFailsClosedSupportSafely() {
         JsonNode provider = providerByModule("meetings");
         assertThat(provider).as("meetings provider status").isNotNull();
         assertThat(provider.path("providerKey").asText()).isEqualTo("livekit");
         assertThat(provider.path("configured").asBoolean()).isFalse();
         assertThat(provider.path("failClosed").asBoolean()).isTrue();
         assertThat(provider.path("supportSafe").asBoolean()).isTrue();
-        assertThat(provider.at("/diagnostics/activeProvider").asText()).isEqualTo("livekit");
+        assertThat(provider.at("/diagnostics/activeSfuAdapter").asText()).isEqualTo("livekit");
         assertThat(provider.at("/diagnostics/livekitUrlConfigured").asBoolean()).isFalse();
         assertThat(provider.at("/diagnostics/apiKeyConfigured").asBoolean()).isFalse();
         assertThat(provider.at("/diagnostics/apiSecretConfigured").asBoolean()).isFalse();

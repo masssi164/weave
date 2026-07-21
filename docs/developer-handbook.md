@@ -230,7 +230,7 @@ make marketing-screenshots
 The generator is `client/tool/generate_marketing_screenshots.py`.
 
 - Main product showcase assets live in `docs/assets/marketing/`.
-- Calendar, boards/tasks, and LiveKit meetings guarded roadmap visuals live in `docs/assets/roadmap/`.
+- Calendar, boards/tasks, and MatrixRTC Calls guarded roadmap visuals live in `docs/assets/roadmap/`.
 - The evidence manifest lives at `docs/assets/screenshot-evidence.json`.
 - Keep SVG `<title>` and `<desc>` meaningful.
 - Keep README and docs `alt` text descriptive.

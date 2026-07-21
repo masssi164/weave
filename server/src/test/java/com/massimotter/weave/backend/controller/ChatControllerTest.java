@@ -28,7 +28,7 @@ import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
-import com.massimotter.weave.backend.config.WeaverRuntimeProperties;
+import com.massimotter.weave.backend.config.AgentRuntimeEntitlementProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
@@ -69,16 +69,16 @@ import org.springframework.test.web.servlet.MockMvc;
 @TestPropertySource(properties = {
         "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.example.invalid/realms/weave",
         "weave.workspace.chat.readiness=ready",
-        "weave.workspace.weaver.enabled=true",
-        "weave.workspace.weaver.readiness=ready",
-        "weave.weaver.runtime.enabled=true",
+        "weave.workspace.agent-runtime-control.enabled=true",
+        "weave.workspace.agent-runtime-control.readiness=ready",
+        "weave.agent-runtime.entitlement.enabled=true",
         "weave.context.authorization.principal-claim=preferred_username"
 })
 @EnableConfigurationProperties({
         ContextAuthorizationProperties.class,
         WorkspaceCapabilityProperties.class,
         WeaveSecurityProperties.class,
-        WeaverRuntimeProperties.class,
+        AgentRuntimeEntitlementProperties.class,
         OAuth2ResourceServerProperties.class
 })
 class ChatControllerTest {
@@ -180,7 +180,7 @@ class ChatControllerTest {
                 .andExpect(status().isNotFound());
 
         mockMvc.perform(request(HttpMethod.POST, "/api/chat/conversations/pa-weaver/messages")
-                        .with(workspaceJwt("member", List.of("weave-weaver-runtime", "weave-weaver-pilot")))
+                        .with(workspaceJwt("member", List.of("weave-weaver-runtime")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"text\":\"PA Weaver chat must enter through Matrix.\"}"))
                 .andExpect(status().isNotFound());

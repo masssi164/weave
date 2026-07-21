@@ -3,6 +3,7 @@ package com.massimotter.weave.backend.config;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.JWSSigner;
+import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
@@ -66,11 +67,97 @@ class JwtDecoderConfigTest {
         assertThrows(JwtException.class, () -> jwtDecoder.decode("token-value"));
     }
 
+    @Test
+    void workloadTypeValidatorAcceptsOnlyRfc9068AccessTokens() {
+        Instant now = Instant.now();
+        Jwt accessToken = Jwt.withTokenValue("access-token")
+                .header("alg", "RS256")
+                .header("typ", "at+jwt")
+                .subject("service-account")
+                .issuedAt(now)
+                .expiresAt(now.plusSeconds(60))
+                .build();
+        Jwt genericJwt = Jwt.withTokenValue("generic-jwt")
+                .header("alg", "RS256")
+                .header("typ", "JWT")
+                .subject("service-account")
+                .issuedAt(now)
+                .expiresAt(now.plusSeconds(60))
+                .build();
+
+        assertThat(JwtDecoderConfig.rfc9068AccessTokenTypeValidator().validate(accessToken).hasErrors())
+                .isFalse();
+        assertThat(JwtDecoderConfig.rfc9068AccessTokenTypeValidator().validate(genericJwt).hasErrors())
+                .isTrue();
+    }
+
+    @Test
+    void rfc9068DecoderAcceptsAtJwtAndRejectsGenericJwtBeforeClaimsAreTrusted() throws Exception {
+        RSAKey signingKey = rsaSigningKey();
+        try (JwksServer jwksServer = JwksServer.start(signingKey)) {
+            OAuth2ResourceServerProperties properties = new OAuth2ResourceServerProperties();
+            properties.getJwt().setIssuerUri(ISSUER_URI);
+            properties.getJwt().setJwkSetUri(jwksServer.jwkSetUri());
+            JwtDecoder decoder = JwtDecoderConfig.configuredRfc9068Decoder(
+                    properties, JwtDecoderConfig.rfc9068AccessTokenTypeValidator());
+
+            Jwt accepted = decoder.decode(signedToken(
+                    signingKey,
+                    ISSUER_URI,
+                    List.of("https://api.weave.test/api"),
+                    "weave-mcp-server",
+                    new JOSEObjectType("at+jwt")));
+            assertThat(accepted.getHeaders().get("typ")).isEqualTo("at+jwt");
+
+            assertThrows(JwtException.class, () -> decoder.decode(signedToken(
+                    signingKey,
+                    ISSUER_URI,
+                    List.of("https://api.weave.test/api"),
+                    "weave-mcp-server",
+                    JOSEObjectType.JWT)));
+        }
+    }
+
+    @Test
+    void adminDecoderAcceptsOnlyTheAdminConsoleWithTheExactApiAudience() throws Exception {
+        RSAKey signingKey = rsaSigningKey();
+        try (JwksServer jwksServer = JwksServer.start(signingKey)) {
+            JwtDecoder decoder = adminJwtDecoder(jwksServer.jwkSetUri());
+
+            Jwt accepted = decoder.decode(signedToken(
+                    signingKey,
+                    ISSUER_URI,
+                    List.of("https://api.weave.test/api"),
+                    AgentRuntimeAdminSecurityConfiguration.CLIENT_ID));
+            assertThat(accepted.getAudience()).containsExactly("https://api.weave.test/api");
+
+            assertThrows(JwtValidationException.class, () -> decoder.decode(signedToken(
+                    signingKey,
+                    ISSUER_URI,
+                    List.of("https://api.weave.test/api"),
+                    "weave-app")));
+            assertThrows(JwtValidationException.class, () -> decoder.decode(signedToken(
+                    signingKey,
+                    ISSUER_URI,
+                    List.of("https://api.weave.test/api", "account"),
+                    AgentRuntimeAdminSecurityConfiguration.CLIENT_ID)));
+        }
+    }
+
     private JwtDecoder jwtDecoder(String jwkSetUri) {
         OAuth2ResourceServerProperties properties = new OAuth2ResourceServerProperties();
         properties.getJwt().setIssuerUri(ISSUER_URI);
         properties.getJwt().setJwkSetUri(jwkSetUri);
         return new JwtDecoderConfig().jwtDecoder(properties, new WeaveSecurityProperties(null, null));
+    }
+
+    private JwtDecoder adminJwtDecoder(String jwkSetUri) {
+        OAuth2ResourceServerProperties properties = new OAuth2ResourceServerProperties();
+        properties.getJwt().setIssuerUri(ISSUER_URI);
+        properties.getJwt().setJwkSetUri(jwkSetUri);
+        return new JwtDecoderConfig().agentRuntimeAdminJwtDecoder(
+                properties,
+                new WeaveSecurityProperties("https://api.weave.test/api", "weave-app"));
     }
 
     private static RSAKey rsaSigningKey() throws Exception {
@@ -84,20 +171,44 @@ class JwtDecoderConfigTest {
     }
 
     private static String signedToken(RSAKey signingKey, String issuerUri) throws Exception {
+        return signedToken(
+                signingKey,
+                issuerUri,
+                List.of("https://api.weave.test/api"),
+                "weave-app");
+    }
+
+    private static String signedToken(
+            RSAKey signingKey,
+            String issuerUri,
+            List<String> audiences,
+            String authorizedParty) throws Exception {
+        return signedToken(signingKey, issuerUri, audiences, authorizedParty, null);
+    }
+
+    private static String signedToken(
+            RSAKey signingKey,
+            String issuerUri,
+            List<String> audiences,
+            String authorizedParty,
+            JOSEObjectType type) throws Exception {
         Instant now = Instant.now();
         JWTClaimsSet claims = new JWTClaimsSet.Builder()
                 .issuer(issuerUri)
                 .subject("user-123")
-                .audience(List.of("weave-backend"))
-                .claim("azp", "weave-app")
+                .audience(audiences)
+                .claim("azp", authorizedParty)
                 .claim("scope", "weave:workspace")
                 .issueTime(Date.from(now))
                 .notBeforeTime(Date.from(now.minusSeconds(30)))
                 .expirationTime(Date.from(now.plusSeconds(300)))
                 .build();
-        SignedJWT jwt = new SignedJWT(
-                new JWSHeader.Builder(JWSAlgorithm.RS256).keyID(signingKey.getKeyID()).build(),
-                claims);
+        JWSHeader.Builder header = new JWSHeader.Builder(JWSAlgorithm.RS256)
+                .keyID(signingKey.getKeyID());
+        if (type != null) {
+            header.type(type);
+        }
+        SignedJWT jwt = new SignedJWT(header.build(), claims);
         JWSSigner signer = new RSASSASigner(signingKey);
         jwt.sign(signer);
         return jwt.serialize();
