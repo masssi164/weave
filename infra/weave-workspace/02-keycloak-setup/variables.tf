@@ -161,16 +161,10 @@ variable "matrix_mas_client_secret" {
   sensitive   = true
 }
 
-variable "identity_admin_client_secret" {
-  description = "Client secret for the backend-only Keycloak organization identity administrator."
+variable "admin_client_secret_rotation_epoch" {
+  description = "Explicit epoch that rotates both Keycloak-generated backend administrative client secrets."
   type        = string
-  sensitive   = true
-}
-
-variable "agent_runtime_admin_client_secret" {
-  description = "Client secret for the dedicated Agent Runtime per-cell workload identity administrator."
-  type        = string
-  sensitive   = true
+  default     = "v1"
 }
 
 variable "weave_mcp_client_secret" {

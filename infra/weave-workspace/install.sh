@@ -150,6 +150,7 @@ readonly PERSISTED_TF_VARS=(
   TF_VAR_nextcloud_backend_actor_username
   TF_VAR_nextcloud_backend_actor_token
   TF_VAR_matrix_mas_client_secret
+  TF_VAR_admin_client_secret_rotation_epoch
   TF_VAR_identity_admin_client_secret
   TF_VAR_agent_runtime_admin_client_secret
   TF_VAR_identity_events_hmac_secret
@@ -1839,6 +1840,7 @@ ensure_generated_secrets() {
   set_default_var TF_VAR_boards_openproject_api_token ""
   set_default_var TF_VAR_openproject_secret_key_base ""
   set_default_secret TF_VAR_matrix_mas_client_secret "$(random_base64 32)"
+  set_default_var TF_VAR_admin_client_secret_rotation_epoch "v1"
   set_default_secret TF_VAR_identity_admin_client_secret "$(random_base64 32)"
   set_default_secret TF_VAR_agent_runtime_admin_client_secret "$(random_base64 32)"
   set_default_secret TF_VAR_identity_events_hmac_secret "$(random_base64 32)"
@@ -2588,7 +2590,7 @@ main() {
 
   log "Applying Keycloak configuration module..."
   terraform_apply "${KEYCLOAK_DIR}"
-  reconcile_agent_runtime_organization_authority
+  reconcile_keycloak_generated_admin_credentials
 
   log "Waiting for Weave backend readiness..."
   wait_for_http_200 "Weave backend" "http://${LOOPBACK_HOST}:${TF_VAR_backend_host_port}/api/health/ready"
@@ -2629,21 +2631,42 @@ main() {
 # This post-Keycloak reconciliation is deliberately declared after main so the
 # first infrastructure apply remains visibly guarded by the Synapse state repair
 # sequence above. Bash resolves the function when main executes below.
-reconcile_agent_runtime_organization_authority() {
-  agent_runtime_enabled || return 0
+reconcile_keycloak_generated_admin_credentials() {
+  local generated_agent_runtime_secret
+  local generated_identity_secret
+  local organization_id=""
+  local reconciliation_required=false
 
-  local organization_id
-  organization_id="$(terraform_output_raw "${KEYCLOAK_DIR}" weave_organization_id)"
-  [[ "${organization_id}" =~ ^[0-9a-fA-F-]{36}$ ]] ||
-    fail "Keycloak did not return the required organization UUID for Agent Runtime Control."
+  generated_identity_secret="$(terraform_output_raw "${KEYCLOAK_DIR}" weave_identity_admin_client_secret)"
+  generated_agent_runtime_secret="$(terraform_output_raw "${KEYCLOAK_DIR}" weave_agent_runtime_admin_client_secret)"
+  ((${#generated_identity_secret} >= 32)) ||
+    fail "Keycloak did not return a valid generated identity-admin credential."
+  ((${#generated_agent_runtime_secret} >= 32)) ||
+    fail "Keycloak did not return a valid generated Agent Runtime administrator credential."
 
-  if [[ "${TF_VAR_agent_runtime_keycloak_organization_id:-}" == "${organization_id}" ]]; then
-    return 0
+  if [[ "${TF_VAR_identity_admin_client_secret:-}" != "${generated_identity_secret}" ]]; then
+    export TF_VAR_identity_admin_client_secret="${generated_identity_secret}"
+    reconciliation_required=true
+  fi
+  if [[ "${TF_VAR_agent_runtime_admin_client_secret:-}" != "${generated_agent_runtime_secret}" ]]; then
+    export TF_VAR_agent_runtime_admin_client_secret="${generated_agent_runtime_secret}"
+    reconciliation_required=true
   fi
 
-  export TF_VAR_agent_runtime_keycloak_organization_id="${organization_id}"
+  if agent_runtime_enabled; then
+    organization_id="$(terraform_output_raw "${KEYCLOAK_DIR}" weave_organization_id)"
+    [[ "${organization_id}" =~ ^[0-9a-fA-F-]{36}$ ]] ||
+      fail "Keycloak did not return the required organization UUID for Agent Runtime Control."
+    if [[ "${TF_VAR_agent_runtime_keycloak_organization_id:-}" != "${organization_id}" ]]; then
+      export TF_VAR_agent_runtime_keycloak_organization_id="${organization_id}"
+      reconciliation_required=true
+    fi
+  fi
+
+  [[ "${reconciliation_required}" == "true" ]] || return 0
+
   persist_bootstrap_env
-  log "Reapplying infrastructure with the resolved Keycloak organization authority..."
+  log "Reapplying infrastructure with Keycloak-generated administrative credentials and organization authority..."
   terraform_apply "${INFRA_DIR}"
 }
 

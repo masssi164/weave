@@ -76,10 +76,6 @@ locals {
     "weaver_runtime",
   ]
 
-  admin_client_secret_authentication = {
-    "client.secret.authentication.allowed.method" = "client_secret_basic"
-  }
-
   client_defaults = {
     enabled                                        = true
     standard_flow_enabled                          = false
@@ -90,6 +86,7 @@ locals {
     web_origins                                    = []
     pkce_code_challenge_method                     = null
     client_secret                                  = null
+    client_secret_regenerate_when_changed          = null
     backchannel_logout_url                         = null
     backchannel_logout_session_required            = null
     service_accounts_enabled                       = false
@@ -121,20 +118,18 @@ locals {
       access_type = "BEARER-ONLY"
     })
     weave_identity_admin = merge(local.client_defaults, {
-      name                     = "weave-identity-admin"
-      client_id                = "weave-identity-admin"
-      access_type              = "CONFIDENTIAL"
-      client_secret            = var.identity_admin_client_secret
-      service_accounts_enabled = true
-      extra_config             = local.admin_client_secret_authentication
+      name                                  = "weave-identity-admin"
+      client_id                             = "weave-identity-admin"
+      access_type                           = "CONFIDENTIAL"
+      service_accounts_enabled              = true
+      client_secret_regenerate_when_changed = { rotation_epoch = var.admin_client_secret_rotation_epoch }
     })
     weave_agent_runtime_admin = merge(local.client_defaults, {
-      name                     = "weave-agent-runtime-admin"
-      client_id                = "weave-agent-runtime-admin"
-      access_type              = "CONFIDENTIAL"
-      client_secret            = var.agent_runtime_admin_client_secret
-      service_accounts_enabled = true
-      extra_config             = local.admin_client_secret_authentication
+      name                                  = "weave-agent-runtime-admin"
+      client_id                             = "weave-agent-runtime-admin"
+      access_type                           = "CONFIDENTIAL"
+      service_accounts_enabled              = true
+      client_secret_regenerate_when_changed = { rotation_epoch = var.admin_client_secret_rotation_epoch }
     })
     weave_mcp_server = merge(local.client_defaults, {
       name                                           = "weave-mcp-server"
@@ -351,6 +346,7 @@ resource "keycloak_openid_client" "client" {
   direct_access_grants_enabled                   = each.value.direct_access_grants_enabled
   pkce_code_challenge_method                     = each.value.pkce_code_challenge_method
   client_secret                                  = each.value.client_secret
+  client_secret_regenerate_when_changed          = each.value.client_secret_regenerate_when_changed
   valid_redirect_uris                            = each.value.valid_redirect_uris
   valid_post_logout_redirect_uris                = each.value.valid_post_logout_redirect_uris
   web_origins                                    = each.value.web_origins

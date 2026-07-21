@@ -107,6 +107,7 @@ Keycloak Standard Token Exchange V2 is active for audience-restricted downstream
 
 - `weave-agent-runtime-admin` is a confidential service account used only by ARC's Keycloak workload-client adapter. Its realm-management roles are the minimum set needed to create/read/update/delete owned `weaver-cell-*` clients, service-account users, credentials, and the `weaver-runtime` mapping. The adapter rejects targets outside that namespace.
 - `weave-identity-admin` remains a separate confidential service account for organization/member lifecycle and authoritative user/group reads. ARC entitlement reads use a separately qualified provider backed by this credential; workload client lifecycle never receives it.
+- Keycloak generates both administrative client secrets. After the Keycloak stage, `install.sh` atomically reconciles the sensitive outputs into their mounted SecretRefs and reapplies the runtime stage before backend readiness; the clients authenticate with HTTP Basic and never use a form-post fallback.
 - Both credentials are mounted through separate SecretRefs. Neither is available to a cell, MCP edge, member client, or product-domain service.
 
 ### Matrix Authentication Service
