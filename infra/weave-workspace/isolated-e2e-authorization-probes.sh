@@ -22,6 +22,7 @@ AUTHOR_SUBJECT=""
 COLLABORATOR_SUBJECT=""
 CALENDAR_EDITOR_GROUP_ID=""
 WEAVE_APP_CLIENT_ID=""
+WORKSPACE_RESOURCE_AUDIENCE=""
 GROUP_RESTORE_PENDING="false"
 REALM_RESTORE_PENDING="false"
 CLIENT_RESTORE_PENDING="false"
@@ -151,6 +152,30 @@ resolve_weave_app_client() {
   client_id="$(find_exact_id "${clients}" clientId weave-app)"
   [[ -n "${client_id}" ]] || fail "weave-app client is unavailable"
   printf '%s' "${client_id}"
+}
+
+resolve_workspace_resource_audience() {
+  local scopes scope_id mappers audience
+  scopes="$(request GET "${KEYCLOAK_API_BASE}/client-scopes" "${ADMIN_ACCESS_TOKEN}")"
+  scope_id="$(find_exact_id "${scopes}" name weave:workspace)"
+  [[ -n "${scope_id}" ]] || fail "weave:workspace client scope is unavailable"
+  mappers="$(request GET "${KEYCLOAK_API_BASE}/client-scopes/${scope_id}/protocol-mappers/models" \
+    "${ADMIN_ACCESS_TOKEN}")"
+  audience="$(jq -r '
+    [
+      .[] |
+      select(
+        .name == "weave-backend-audience" and
+        .protocol == "openid-connect" and
+        .protocolMapper == "oidc-audience-mapper"
+      ) |
+      .config["included.client.audience"]
+    ] |
+    if length == 1 then .[0] else empty end
+  ' <<<"${mappers}")"
+  [[ -n "${audience}" && "${audience}" != "null" ]] ||
+    fail "weave:workspace does not contain one exact backend audience mapper"
+  printf '%s' "${audience}"
 }
 
 restore_group_now() {
@@ -307,10 +332,13 @@ json.dump(value, sys.stdout, separators=(",", ":"), sort_keys=True)
 
 validate_workspace_token() {
   local token="$1" expected_username="$2" payload
+  [[ -n "${WORKSPACE_RESOURCE_AUDIENCE}" ]] || fail "workspace resource audience is unresolved"
   payload="$(jwt_payload "${token}")" || fail "minted token is not a JWT"
-  jq -e --arg username "${expected_username}" '
+  jq -e \
+    --arg username "${expected_username}" \
+    --arg audience "${WORKSPACE_RESOURCE_AUDIENCE}" '
     .preferred_username == $username and
-    ((.aud | if type == "array" then . else [.] end) | index("weave-app") != null) and
+    ((.aud | if type == "array" then . else [.] end) | index($audience) != null) and
     ((.scope // "") | split(" ") | index("weave:workspace") != null) and
     (.exp | type == "number") and (.iat | type == "number") and (.exp > .iat)
   ' <<<"${payload}" >/dev/null || fail "minted token does not satisfy the real workspace JWT contract"
@@ -494,6 +522,7 @@ run_authorization_probes() {
     fail "collaborator must start in the calendar editor group"
 
   enable_direct_grants_for_token_minting
+  WORKSPACE_RESOURCE_AUDIENCE="$(resolve_workspace_resource_audience)"
 
   local revoked_token missing_token expired_token
   # Spring Resource Server intentionally tolerates clock skew after exp. Wait
