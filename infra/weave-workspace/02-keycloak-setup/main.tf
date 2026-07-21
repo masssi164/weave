@@ -60,8 +60,7 @@ module "tenant_identity" {
   api_public_url                          = local.public_urls.api
   matrix_mas_upstream_id                  = local.matrix_mas_upstream_id
   matrix_mas_client_secret                = var.matrix_mas_client_secret
-  identity_admin_client_secret            = var.identity_admin_client_secret
-  agent_runtime_admin_client_secret       = var.agent_runtime_admin_client_secret
+  admin_client_secret_rotation_epoch      = var.admin_client_secret_rotation_epoch
   weave_mcp_client_secret                 = var.weave_mcp_client_secret
   smtp_host                               = var.keycloak_smtp_host
   smtp_port                               = var.keycloak_smtp_port

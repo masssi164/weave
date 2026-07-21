@@ -88,6 +88,18 @@ output "weave_agent_runtime_admin_client_id" {
   value       = try(keycloak_openid_client.client["weave_agent_runtime_admin"].client_id, null)
 }
 
+output "weave_identity_admin_client_secret" {
+  description = "Keycloak-generated credential for the backend-only identity administrator."
+  value       = keycloak_openid_client.client["weave_identity_admin"].client_secret
+  sensitive   = true
+}
+
+output "weave_agent_runtime_admin_client_secret" {
+  description = "Keycloak-generated credential for the ARC workload identity administrator."
+  value       = keycloak_openid_client.client["weave_agent_runtime_admin"].client_secret
+  sensitive   = true
+}
+
 output "weave_organization_id" {
   description = "Keycloak organization identifier managed by this tenant module."
   value       = keycloak_organization.tenant.id
