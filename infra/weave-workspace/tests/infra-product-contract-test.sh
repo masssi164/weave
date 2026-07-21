@@ -33,6 +33,14 @@ assert_file_contains_once() {
   [[ "${count}" == "1" ]] || fail "Expected ${file} to contain exactly once: ${needle} (found ${count})"
 }
 
+assert_file_contains_twice() {
+  local file="$1"
+  local needle="$2"
+  local count
+  count="$(grep -F -c -- "${needle}" "${file}" || true)"
+  [[ "${count}" == "2" ]] || fail "Expected ${file} to contain exactly twice: ${needle} (found ${count})"
+}
+
 backend_main="${ROOT_DIR}/01-infrastructure/modules/backend/main.tf"
 mcp_main="${ROOT_DIR}/01-infrastructure/modules/mcp/main.tf"
 infra_main="${ROOT_DIR}/01-infrastructure/main.tf"
@@ -83,6 +91,9 @@ assert_file_contains "${install_script}" 'export "${var}=${!var}"'
 assert_file_contains "${install_script}" '[[ -n "${client_scope_id}" ]] || return 0'
 assert_file_contains "${keycloak_main}" 'client_id                                      = "weave-mcp-server"'
 assert_file_contains "${keycloak_main}" 'standard_token_exchange_enabled                = true'
+assert_file_contains_once "${keycloak_main}" '"client.secret.authentication.allowed.method" = "client_secret_basic"'
+assert_file_contains_twice "${keycloak_main}" 'extra_config             = local.admin_client_secret_authentication'
+assert_file_absent "${keycloak_main}" 'client_secret_post'
 assert_file_contains "${keycloak_main}" 'name                   = "agent-runtime.profile.read"'
 assert_file_contains "${keycloak_main}" 'name                   = "weaver-runtime.workload"'
 assert_file_contains "${keycloak_main}" 'resource "keycloak_generic_role_mapper" "weaver_runtime_workload"'
