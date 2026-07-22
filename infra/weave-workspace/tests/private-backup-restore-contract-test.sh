@@ -37,6 +37,8 @@ require_script 'liveReconciliationStatus:"pending"'
 require_script 'mailpitHistoryRestored=false'
 require_script 'privateArtifactContentIncluded:false'
 require_script 'supportSafe:true'
+grep -Fq -- '-hczf "${target}"' "${ROOT_DIR}/backup.sh" ||
+  fail "Private generated-state backup must archive symlink targets rather than checkout-local links"
 
 if grep -Eq 'docker (system|volume) prune|teardown\.sh|WEAVE_REMOVE_VOLUMES' "${SCRIPT}"; then
   fail "Private restore helper contains an unbounded destructive operation"
