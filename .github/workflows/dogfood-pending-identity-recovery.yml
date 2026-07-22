@@ -368,7 +368,7 @@ jobs:
             WEAVE_IDENTITY_AUDIT_EVIDENCE_FILE="$evidence_file" \
               ./audit-private-backup-identity.sh "$backup_candidate"
           done
-          jq -s '
+          jq -s --slurpfile latest "$evidence_file" '
             {
               schemaVersion:"weave.dogfood.private-backup-identity-audit-set.v1",
               status:(if all(.[]; .status == "passed") then "passed" else "failed" end),
@@ -380,7 +380,9 @@ jobs:
               },
               identity:{
                 identityRestorableForRecordedMember:any(.[]; .identity.identityRestorableForRecordedMember == true),
-                soleDisposableBootstrapIdentity:all(.[]; .identity.soleDisposableBootstrapIdentity == true),
+                recoveryIdentityBoundaryAccepted:all(.[]; .identity.recoveryIdentityBoundaryAccepted == true),
+                bootstrapRetirementRequired:$latest[0].identity.bootstrapRetirementRequired,
+                latestHumanIdentityCount:$latest[0].identity.humanIdentityCount,
                 maximumOtherHumanIdentityCount:([.[].identity.otherHumanIdentityCount] | max)
               },
               privateArtifactContentIncluded:any(.[]; .privateArtifactContentIncluded == true),
@@ -395,7 +397,8 @@ jobs:
             .isolatedDatabaseReplay.status == "passed" and
             .isolatedDatabaseReplay.persistentRuntimeMutated == false and
             .identity.identityRestorableForRecordedMember == false and
-            .identity.soleDisposableBootstrapIdentity == true and
+            .identity.recoveryIdentityBoundaryAccepted == true and
+            (.identity.latestHumanIdentityCount == 0 or .identity.latestHumanIdentityCount == 1) and
             .identity.maximumOtherHumanIdentityCount == 0 and
             .privateArtifactContentIncluded == false and
             .supportSafe == true
@@ -439,7 +442,8 @@ jobs:
             .isolatedDatabaseReplay.status == "passed" and
             .isolatedDatabaseReplay.persistentRuntimeMutated == false and
             .identity.identityRestorableForRecordedMember == false and
-            .identity.soleDisposableBootstrapIdentity == true and
+            .identity.recoveryIdentityBoundaryAccepted == true and
+            (.identity.latestHumanIdentityCount == 0 or .identity.latestHumanIdentityCount == 1) and
             .identity.maximumOtherHumanIdentityCount == 0 and
             .privateArtifactContentIncluded == false and
             .supportSafe == true
@@ -560,11 +564,12 @@ jobs:
           ' "$WEAVE_RECOVERY_EVIDENCE_DIR/pending-identity-transition.json" >/dev/null
           jq -e '
             .schemaVersion == "weave.dogfood.restored-bootstrap-retirement.v1" and
-            .action == "restored_disposable_bootstrap_retired" and
+            (.action == "restored_disposable_bootstrap_retired" or .action == "not_required_empty_human_boundary") and
             .protectedIdentityPresentBefore == false and
-            .humanIdentityCountBefore == 1 and
+            (.humanIdentityCountBefore == 0 or .humanIdentityCountBefore == 1) and
             .humanIdentityCountAfter == 0 and
-            .deletionBoundary == "keycloak-admin-api-exact-subject" and
+            ((.action == "restored_disposable_bootstrap_retired" and .deletionBoundary == "keycloak-admin-api-exact-subject") or
+              (.action == "not_required_empty_human_boundary" and .deletionBoundary == "none" and .providerMutationPerformed == false)) and
             .supportSafe == true
           ' "$WEAVE_RECOVERY_EVIDENCE_DIR/restored-bootstrap-retirement.json" >/dev/null
 
@@ -624,12 +629,12 @@ jobs:
           transition_completed=false
           backup_completed=false
           if [[ -s "$WEAVE_RECOVERY_EVIDENCE_DIR/private-backup-identity-audit.json" ]] && \
-              jq -e '.status == "passed" and .auditedBackupCount > 0 and .integrity.allRequiredArtifactsVerified == true and .isolatedDatabaseReplay.status == "passed" and .identity.identityRestorableForRecordedMember == false and .identity.soleDisposableBootstrapIdentity == true and .supportSafe == true' \
+              jq -e '.status == "passed" and .auditedBackupCount > 0 and .integrity.allRequiredArtifactsVerified == true and .isolatedDatabaseReplay.status == "passed" and .identity.identityRestorableForRecordedMember == false and .identity.recoveryIdentityBoundaryAccepted == true and .supportSafe == true' \
                 "$WEAVE_RECOVERY_EVIDENCE_DIR/private-backup-identity-audit.json" >/dev/null; then
             identity_audit_completed=true
           fi
           if [[ -s "$WEAVE_RECOVERY_EVIDENCE_DIR/restored-bootstrap-retirement.json" ]] && \
-              jq -e '.action == "restored_disposable_bootstrap_retired" and .humanIdentityCountAfter == 0 and .supportSafe == true' \
+              jq -e '(.action == "restored_disposable_bootstrap_retired" or .action == "not_required_empty_human_boundary") and .humanIdentityCountAfter == 0 and .supportSafe == true' \
                 "$WEAVE_RECOVERY_EVIDENCE_DIR/restored-bootstrap-retirement.json" >/dev/null; then
             bootstrap_retirement_completed=true
           fi
