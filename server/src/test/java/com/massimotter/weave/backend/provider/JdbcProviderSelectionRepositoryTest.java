@@ -115,7 +115,11 @@ class JdbcProviderSelectionRepositoryTest {
                         "WEAVE_AGENT_RUNTIME_STATE_GENERATIONS",
                         "WEAVE_AGENT_RUNTIME_STATE_CHUNKS",
                         "WEAVE_AGENT_RUNTIME_STATE_HEADS",
-                        "WEAVE_AGENT_RUNTIME_STATE_DELETIONS");
+                        "WEAVE_AGENT_RUNTIME_STATE_DELETIONS",
+                        "WEAVE_OPERATION_INTENTS",
+                        "WEAVE_OPERATION_OUTBOX",
+                        "WEAVE_PROVIDER_BINDINGS",
+                        "WEAVE_PROVIDER_OBJECT_MAPPINGS");
     }
 
     @Test
