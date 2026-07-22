@@ -46,6 +46,7 @@ class FilesMutationIntentServicePostgresTest {
 
         assertThat(first.binding().adapterKey()).isEqualTo("nextcloud-webdav");
         assertThat(first.binding().revision()).isEqualTo(1);
+        assertThat(first.retry()).isFalse();
         assertThat(succeeded.intent().state()).isEqualTo(State.SUCCEEDED);
         assertThat(retry.retry()).isTrue();
         assertThat(retry.intent().operationRef()).isEqualTo(first.intent().operationRef());
@@ -133,7 +134,9 @@ class FilesMutationIntentServicePostgresTest {
         Flyway.configure().dataSource(dataSource).locations("classpath:db/migration").load().migrate();
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);
         var transactions = new DataSourceTransactionManager(dataSource);
-        Instant now = Instant.parse("2026-07-22T02:00:00Z");
+        // PostgreSQL truncates this nanosecond value to microsecond precision on round-trip.
+        // A successful insert must still be reported as new rather than mistaken for a retry.
+        Instant now = Instant.parse("2026-07-22T02:00:00.123456789Z");
         var bindings = new JdbcProviderBindingRepository(jdbc, transactions);
         var intents = new OperationIntentService(
                 new JdbcOperationIntentRepository(

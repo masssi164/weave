@@ -111,11 +111,11 @@ public final class OperationIntentService {
                 null,
                 now,
                 now);
-        OperationIntent created = repository.create(intent, event(outboxRef, operationRef, "operation.created", now));
-        if (!created.equals(intent)) {
-            return equivalentRetry(created, command);
+        var result = repository.create(intent, event(outboxRef, operationRef, "operation.created", now));
+        if (!result.created()) {
+            return equivalentRetry(result.intent(), command);
         }
-        return new BeginResult(created, false);
+        return new BeginResult(result.intent(), false);
     }
 
     private BeginResult equivalentRetry(OperationIntent existing, BeginCommand command) {
