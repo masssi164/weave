@@ -192,7 +192,7 @@ bootstrap_value() {
 }
 
 restore_postgres() {
-  local bootstrap_file="$1" db_admin_username db_admin_password ready
+  local bootstrap_file="$1" db_admin_username db_admin_password ready process_one
   db_admin_username="$(bootstrap_value TF_VAR_db_admin_username "${bootstrap_file}")"
   db_admin_password="$(bootstrap_value TF_VAR_db_admin_password "${bootstrap_file}")"
   [[ "${db_admin_username}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || fail "restored database administrator name is invalid"
@@ -245,7 +245,9 @@ PY
 
   ready=false
   for _ in $(seq 1 60); do
-    if docker exec "${TEMP_CONTAINER}" pg_isready -U "${db_admin_username}" -d postgres >/dev/null 2>&1; then
+    process_one="$(docker exec "${TEMP_CONTAINER}" cat /proc/1/comm 2>/dev/null || true)"
+    if [[ "${process_one}" == postgres ]] &&
+      docker exec "${TEMP_CONTAINER}" pg_isready -U "${db_admin_username}" -d postgres >/dev/null 2>&1; then
       ready=true
       break
     fi

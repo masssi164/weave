@@ -214,6 +214,31 @@ if grep -Eq 'bootstrap-subject-1|human-subject-1|human@example\.test|"test"' "${
   echo 'bootstrap retirement evidence leaked direct identity data' >&2; exit 1
 fi
 
+printf missing >"${FAKE_STATE}"
+: >"${FAKE_CURL_LOG}"
+output="$("${SCRIPT}" retire-restored-bootstrap \
+  --subject-file "${subject_file}" \
+  --prior-evidence "${evidence_file}" \
+  --evidence-file "${bootstrap_retirement_evidence}" \
+  --approval-ref 'https://github.com/masssi164/weave/actions/runs/1235' \
+  --confirm-bootstrap-retirement retire-restored-test-bootstrap)"
+grep -Fq 'action=not_required_empty_human_boundary' <<<"${output}"
+[[ "$(grep -c 'DELETE .*\/users\/' "${FAKE_CURL_LOG}" || true)" -eq 0 ]]
+jq -e '
+  .schemaVersion == "weave.dogfood.restored-bootstrap-retirement.v1" and
+  .action == "not_required_empty_human_boundary" and
+  .reason == "platform-backup-has-no-human-identity" and
+  .protectedIdentityPresentBefore == false and
+  .humanIdentityCountBefore == 0 and
+  .humanIdentityCountAfter == 0 and
+  .deletionBoundary == "none" and
+  .providerMutationPerformed == false and
+  .supportSafe == true
+' "${bootstrap_retirement_evidence}" >/dev/null
+if grep -Eq 'human-subject-1|human@example\.test' "${bootstrap_retirement_evidence}"; then
+  echo 'empty bootstrap boundary evidence leaked direct identity data' >&2; exit 1
+fi
+
 : >"${FAKE_CURL_LOG}"
 if env FAKE_CREATE_REPLACEMENT=true FAKE_FAIL_ACCESS=true "${SCRIPT}" recover-lost-pending \
   --subject-file "${subject_file}" \
