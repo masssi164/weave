@@ -58,7 +58,7 @@ public final class JdbcOperationIntentRepository implements OperationIntentRepos
     }
 
     @Override
-    public OperationIntent create(OperationIntent intent, OperationOutboxEvent event) {
+    public CreateResult create(OperationIntent intent, OperationOutboxEvent event) {
         try {
             return transactions.execute(status -> {
                 ProjectionColumns projection = ProjectionColumns.from(intent.projection());
@@ -85,11 +85,13 @@ public final class JdbcOperationIntentRepository implements OperationIntentRepos
                         reconciliationOutcome(intent), reconciliationLastAttempt(intent), reconciliationResult(intent),
                         intent.resultDigest(), intent.auditRef(), timestamp(intent.createdAt()), timestamp(intent.updatedAt()));
                 insertOutbox(event);
-                return findByOperationRef(intent.operationRef()).orElseThrow();
+                return new CreateResult(findByOperationRef(intent.operationRef()).orElseThrow(), true);
             });
         } catch (DuplicateKeyException duplicate) {
-            return findByIdempotencyKey(intent.organizationRef(), intent.idempotencyKey())
-                    .orElseThrow(() -> duplicate);
+            return new CreateResult(
+                    findByIdempotencyKey(intent.organizationRef(), intent.idempotencyKey())
+                            .orElseThrow(() -> duplicate),
+                    false);
         }
     }
 
