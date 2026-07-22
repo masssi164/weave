@@ -12,9 +12,12 @@ public interface OperationIntentRepository {
 
     Optional<OperationIntent> findByIdempotencyKey(String organizationRef, String idempotencyKey);
 
-    OperationIntent create(OperationIntent intent, OperationOutboxEvent event);
+    CreateResult create(OperationIntent intent, OperationOutboxEvent event);
 
     OperationIntent update(OperationIntent expected, OperationIntent updated, OperationOutboxEvent event);
 
     List<OperationIntent> leaseReconciliationBatch(Instant now, int limit, Instant leaseUntil);
+
+    record CreateResult(OperationIntent intent, boolean created) {
+    }
 }
