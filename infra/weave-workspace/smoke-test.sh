@@ -632,6 +632,41 @@ log "Checking authenticated WebDAV and CalDAV northbound facades..."
 assert_backend_nextcloud_actor_config
 files_facade_status="$(curl_bearer_propfind_status "${access_token}" "$(public_url "${TF_VAR_api_subdomain:-api}")/dav/files" || true)"
 [[ "${files_facade_status}" == "207" ]] || fail "Smoke check failed: authenticated WebDAV facade returned HTTP ${files_facade_status}"
+
+log "Checking durable WebDAV mutation idempotency through the active provider binding..."
+files_facade_base="$(public_url "${TF_VAR_api_subdomain:-api}")/dav/files"
+files_smoke_nonce="${GITHUB_RUN_ID:-local}-$$"
+files_smoke_path="/weave-intent-smoke-${files_smoke_nonce}.txt"
+files_smoke_url="${files_facade_base}${files_smoke_path}"
+files_put_key="files-smoke-put-${files_smoke_nonce}"
+files_delete_key="files-smoke-delete-${files_smoke_nonce}"
+files_host_port="$(host_port_from_url "${files_smoke_url}")"
+files_put_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+  --cacert "${CADDY_TLS_CA_FILE}" --resolve "${files_host_port}:127.0.0.1" \
+  --request PUT --header "Authorization: Bearer ${access_token}" \
+  --header 'Content-Type: text/plain' --header "Idempotency-Key: ${files_put_key}" \
+  --data-binary 'weave durable files intent' "${files_smoke_url}" || true)"
+[[ "${files_put_status}" == "201" || "${files_put_status}" == "204" ]] || \
+  fail "Smoke check failed: first idempotent WebDAV PUT returned HTTP ${files_put_status}"
+files_retry_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+  --cacert "${CADDY_TLS_CA_FILE}" --resolve "${files_host_port}:127.0.0.1" \
+  --request PUT --header "Authorization: Bearer ${access_token}" \
+  --header 'Content-Type: text/plain' --header "Idempotency-Key: ${files_put_key}" \
+  --data-binary 'weave durable files intent' "${files_smoke_url}" || true)"
+[[ "${files_retry_status}" == "204" ]] || \
+  fail "Smoke check failed: reconciled WebDAV PUT retry returned HTTP ${files_retry_status}"
+files_smoke_content="$(curl --silent --show-error --fail \
+  --cacert "${CADDY_TLS_CA_FILE}" --resolve "${files_host_port}:127.0.0.1" \
+  --header "Authorization: Bearer ${access_token}" "${files_smoke_url}")"
+[[ "${files_smoke_content}" == "weave durable files intent" ]] || \
+  fail "Smoke check failed: idempotent WebDAV PUT content did not reconcile"
+files_delete_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+  --cacert "${CADDY_TLS_CA_FILE}" --resolve "${files_host_port}:127.0.0.1" \
+  --request DELETE --header "Authorization: Bearer ${access_token}" \
+  --header "Idempotency-Key: ${files_delete_key}" "${files_smoke_url}" || true)"
+[[ "${files_delete_status}" == "204" ]] || \
+  fail "Smoke check failed: idempotent WebDAV cleanup returned HTTP ${files_delete_status}"
+
 calendar_facade_status="$(curl_bearer_propfind_status "${access_token}" "$(public_url "${TF_VAR_api_subdomain:-api}")/caldav" || true)"
 [[ "${calendar_facade_status}" == "207" ]] || fail "Smoke check failed: authenticated CalDAV facade returned HTTP ${calendar_facade_status}"
 

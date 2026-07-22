@@ -11,6 +11,12 @@ import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest;
 import com.massimotter.weave.backend.context.authz.ContextPermission;
+import com.massimotter.weave.backend.files.application.FilesLockService;
+import com.massimotter.weave.backend.files.application.FilesMutationIntentService;
+import com.massimotter.weave.backend.files.application.FilesMutationIntentService.Command;
+import com.massimotter.weave.backend.files.application.FilesMutationIntentService.PinnedMutation;
+import com.massimotter.weave.backend.files.domain.FilesAuthority.CanonicalFileRecord;
+import com.massimotter.weave.backend.files.domain.FilesAuthority.FileLockRecord;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileContent;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileId;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileListing;
@@ -22,16 +28,22 @@ import com.massimotter.weave.backend.files.domain.FilesDomain.FileWrite;
 import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedFile;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedListing;
+import com.massimotter.weave.backend.files.port.FilesAuthorityRepository;
 import com.massimotter.weave.backend.files.port.FilesProviderPort;
 import com.massimotter.weave.backend.model.files.CreateFolderRequest;
 import com.massimotter.weave.backend.model.files.FileItemResponse;
 import com.massimotter.weave.backend.model.files.FileListResponse;
+import com.massimotter.weave.backend.operation.domain.OperationIntent;
 import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
 import com.massimotter.weave.backend.portability.ProviderReadiness;
-import com.massimotter.weave.backend.service.files.WebDavPropfindResource;
+import com.massimotter.weave.backend.providerbinding.domain.ProviderBinding;
+import com.massimotter.weave.backend.security.device.DeviceCredentialService;
+import com.massimotter.weave.backend.security.device.InMemoryDeviceCredentialRepository;
 import com.massimotter.weave.backend.service.files.WebDavLockResult;
 import com.massimotter.weave.backend.service.files.WebDavMutationResult;
+import com.massimotter.weave.backend.service.files.WebDavPropfindResource;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.HashMap;
@@ -40,6 +52,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -56,6 +69,10 @@ import org.springframework.security.oauth2.jwt.Jwt;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class FilesFacadeServiceTest {
 
@@ -449,6 +466,54 @@ class FilesFacadeServiceTest {
     }
 
     @Test
+    void webDavPutPinsProviderAndPersistsIntentAroundAdapterMutation() {
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
+        FilesMutationIntentService intents = mock(FilesMutationIntentService.class);
+        OperationIntent createdIntent = mock(OperationIntent.class);
+        OperationIntent dispatchingIntent = mock(OperationIntent.class);
+        ProviderBinding binding = new ProviderBinding(
+                "tenant-default", "files", 4, "test-memory", "secretref:files:stub",
+                ProviderBinding.State.ACTIVE, Instant.parse("2026-07-22T02:00:00Z"));
+        PinnedMutation created = new PinnedMutation(createdIntent, binding, false);
+        PinnedMutation dispatching = new PinnedMutation(dispatchingIntent, binding, false);
+        when(createdIntent.state()).thenReturn(OperationIntent.State.CREATED);
+        when(dispatchingIntent.state()).thenReturn(OperationIntent.State.DISPATCHING);
+        when(dispatchingIntent.operationRef()).thenReturn("operation:files-put-test");
+        when(intents.begin(any(Command.class))).thenReturn(created);
+        when(intents.dispatch(created)).thenReturn(dispatching);
+        when(intents.succeed(any(PinnedMutation.class), any(String.class), any(String.class)))
+                .thenReturn(dispatching);
+        StubAdapter adapter = new StubAdapter(true);
+        InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
+        FilesFacadeService service = service(adapter, audit, intents);
+
+        service.putWebDavFile(
+                "/Team/readme.md",
+                "intent".getBytes(StandardCharsets.UTF_8),
+                "text/markdown",
+                null,
+                null,
+                null,
+                "files-put-idempotency-0001");
+
+        var command = org.mockito.ArgumentCaptor.forClass(Command.class);
+        verify(intents).begin(command.capture());
+        assertThat(command.getValue().idempotencyKey()).isEqualTo("files-put-idempotency-0001");
+        assertThat(command.getValue().organizationRef()).isEqualTo("tenant-default");
+        assertThat(command.getValue().operation()).isEqualTo("webdav-put");
+        verify(intents).requireAdapter(created, "test-memory");
+        verify(intents).dispatch(created);
+        verify(intents).succeed(any(PinnedMutation.class), any(String.class), any(String.class));
+        assertThat(adapter.putPath).isEqualTo("/Team/readme.md");
+        assertThat(audit.events())
+                .extracting(event -> event.action())
+                .containsExactly(
+                        AuditAction.FILES_WEBDAV_WRITE_ATTEMPTED,
+                        AuditAction.FILES_WEBDAV_WRITE_COMPLETED,
+                        AuditAction.FILES_OPERATION_INTENT_RECORDED);
+    }
+
+    @Test
     void guestFileAccessRequiresEffectivePolicyGrantBeforeContextAuthorization() {
         java.util.concurrent.atomic.AtomicBoolean contextChecked = new java.util.concurrent.atomic.AtomicBoolean(false);
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwtWithRolesAndGroups(List.of("guest"), List.of()), null));
@@ -611,6 +676,21 @@ class FilesFacadeServiceTest {
         return service(adapter, request -> ContextAuthorizationDecision.allow("test allow"), auditEventPublisher);
     }
 
+    private FilesFacadeService service(
+            FilesProviderPort adapter,
+            InMemoryAuditEventPublisher auditEventPublisher,
+            FilesMutationIntentService intents) {
+        return new FilesFacadeService(
+                provider(adapter),
+                request -> ContextAuthorizationDecision.allow("test allow"),
+                defaultContextAuthorizationProperties(),
+                workspaceCapabilityService(),
+                new DeviceCredentialService(new InMemoryDeviceCredentialRepository()),
+                auditEventPublisher,
+                new FilesLockService(new TestFilesAuthorityRepository(), Clock.systemUTC()),
+                intents);
+    }
+
     private FilesFacadeService service(FilesProviderPort adapter, ContextAuthorizationPort contextAuthorizationPort) {
         return service(adapter, contextAuthorizationPort, new InMemoryAuditEventPublisher());
     }
@@ -639,11 +719,97 @@ class FilesFacadeServiceTest {
                 contextAuthorizationPort,
                 contextAuthorizationProperties,
                 workspaceCapabilityService(),
-                auditEventPublisher);
+                auditEventPublisher,
+                new FilesLockService(new TestFilesAuthorityRepository(), Clock.systemUTC()));
     }
 
     private ContextAuthorizationProperties defaultContextAuthorizationProperties() {
         return new ContextAuthorizationProperties(null, null, null, null, null, List.of(), List.of(), List.of());
+    }
+
+    private static final class TestFilesAuthorityRepository implements FilesAuthorityRepository {
+        private final Map<String, FileLockRecord> locks = new ConcurrentHashMap<>();
+
+        @Override
+        public CanonicalFileRecord save(CanonicalFileRecord record) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Optional<CanonicalFileRecord> findByPath(String organizationRef, String spaceRef, FilePath path) {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<CanonicalFileRecord> findById(String organizationRef, String spaceRef, FileId id) {
+            return Optional.empty();
+        }
+
+        @Override
+        public CanonicalFileRecord move(String organizationRef, String spaceRef, FileId id,
+                FilePath expectedPath, FilePath destination, Instant movedAt) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public synchronized FileLockRecord acquireLock(FileLockRecord requested, Instant now) {
+            String key = key(requested.organizationRef(), requested.spaceRef(), requested.path());
+            FileLockRecord active = locks.get(key);
+            if (active != null && active.expiresAt().isAfter(now)) {
+                throw new LockConflictException(requested.path());
+            }
+            long fence = active == null ? 1 : active.fence() + 1;
+            FileLockRecord stored = new FileLockRecord(requested.organizationRef(), requested.spaceRef(),
+                    requested.path(), requested.tokenDigest(), requested.ownerRef(), fence,
+                    requested.expiresAt(), requested.createdAt());
+            locks.put(key, stored);
+            return stored;
+        }
+
+        @Override
+        public Optional<FileLockRecord> activeLock(
+                String organizationRef, String spaceRef, FilePath path, Instant now) {
+            FileLockRecord lock = locks.get(key(organizationRef, spaceRef, path));
+            return lock != null && lock.expiresAt().isAfter(now) ? Optional.of(lock) : Optional.empty();
+        }
+
+        @Override
+        public List<FileLockRecord> activeLocks(String organizationRef, String spaceRef, Instant now) {
+            return locks.values().stream()
+                    .filter(lock -> lock.organizationRef().equals(organizationRef))
+                    .filter(lock -> lock.spaceRef().equals(spaceRef))
+                    .filter(lock -> lock.expiresAt().isAfter(now))
+                    .toList();
+        }
+
+        @Override
+        public synchronized void releaseLock(String organizationRef, String spaceRef, FilePath path,
+                String tokenDigest, String ownerRef, Instant now) {
+            String key = key(organizationRef, spaceRef, path);
+            FileLockRecord active = locks.get(key);
+            if (active == null || !active.tokenDigest().equals(tokenDigest) || !active.ownerRef().equals(ownerRef)) {
+                throw new LockConflictException(path);
+            }
+            locks.remove(key);
+        }
+
+        @Override
+        public synchronized void moveLock(String organizationRef, String spaceRef, FilePath source,
+                FilePath destination, String tokenDigest, String ownerRef, Instant now) {
+            String sourceKey = key(organizationRef, spaceRef, source);
+            FileLockRecord active = locks.get(sourceKey);
+            if (active == null || !active.tokenDigest().equals(tokenDigest) || !active.ownerRef().equals(ownerRef)) {
+                throw new LockConflictException(source);
+            }
+            locks.remove(sourceKey);
+            locks.put(key(organizationRef, spaceRef, destination), new FileLockRecord(
+                    organizationRef, spaceRef, destination, active.tokenDigest(), active.ownerRef(),
+                    active.fence(), active.expiresAt(), active.createdAt()));
+        }
+
+        private String key(String organizationRef, String spaceRef, FilePath path) {
+            return organizationRef + "\u0000" + spaceRef + "\u0000" + path.value();
+        }
     }
 
     private WorkspaceCapabilityService workspaceCapabilityService() {
