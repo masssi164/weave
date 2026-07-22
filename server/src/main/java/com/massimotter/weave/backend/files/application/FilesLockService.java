@@ -79,6 +79,28 @@ public final class FilesLockService {
         }
     }
 
+    public GrantedLock refresh(
+            String organizationRef,
+            String spaceRef,
+            FilePath path,
+            String presentedToken,
+            String actorRef) {
+        FileLockRecord active = repository.activeLock(organizationRef, spaceRef, path, Instant.now(clock))
+                .orElseThrow(() -> new FileLockedException(path));
+        if (presentedToken == null
+                || !MessageDigest.isEqual(
+                        active.tokenDigest().getBytes(StandardCharsets.US_ASCII),
+                        digest(presentedToken).getBytes(StandardCharsets.US_ASCII))
+                || !active.ownerRef().equals(actorRef)) {
+            throw new FileLockedException(path);
+        }
+        return new GrantedLock(path, presentedToken, active.fence(), active.expiresAt());
+    }
+
+    public boolean unlocked(String organizationRef, String spaceRef, FilePath path) {
+        return repository.activeLock(organizationRef, spaceRef, path, Instant.now(clock)).isEmpty();
+    }
+
     public void move(
             String organizationRef,
             String spaceRef,

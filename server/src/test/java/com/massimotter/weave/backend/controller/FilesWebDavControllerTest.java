@@ -202,12 +202,13 @@ class FilesWebDavControllerTest {
                 "text/markdown",
                 "\"etag-old\"",
                 null,
-                null))
+                null,
+                "files-put-idempotency-0001"))
                 .willReturn(new WebDavMutationResult(
                         file("/Team/readme.md", "text/markdown", 3L),
                         "\"etag-new\"",
                         false));
-        given(filesFacadeService.createWebDavFolder("/Team/Design", null, "*", null))
+        given(filesFacadeService.createWebDavFolder("/Team/Design", null, "*", null, null))
                 .willReturn(new WebDavMutationResult(
                         folder("/Team/Design"),
                         "\"etag-folder\"",
@@ -217,6 +218,7 @@ class FilesWebDavControllerTest {
                         .content("new")
                         .contentType("text/markdown")
                         .header(HttpHeaders.IF_MATCH, "\"etag-old\"")
+                        .header("Idempotency-Key", "files-put-idempotency-0001")
                         .with(workspaceJwt()))
                 .andExpect(status().isNoContent())
                 .andExpect(header().string(HttpHeaders.ETAG, "\"etag-new\""))
@@ -240,9 +242,10 @@ class FilesWebDavControllerTest {
                 "text/markdown",
                 "\"etag-old\"",
                 null,
-                null);
-        then(filesFacadeService).should().createWebDavFolder("/Team/Design", null, "*", null);
-        then(filesFacadeService).should().deleteWebDavPath("/Team/old.md", "\"etag-old\"", null);
+                null,
+                "files-put-idempotency-0001");
+        then(filesFacadeService).should().createWebDavFolder("/Team/Design", null, "*", null, null);
+        then(filesFacadeService).should().deleteWebDavPath("/Team/old.md", "\"etag-old\"", null, null);
     }
 
     @Test
@@ -254,6 +257,7 @@ class FilesWebDavControllerTest {
                 "text/markdown",
                 null,
                 "*",
+                null,
                 null))
                 .willThrow(new ApiErrorException(
                         HttpStatus.PRECONDITION_FAILED,
@@ -281,6 +285,7 @@ class FilesWebDavControllerTest {
                 "/Team/readme-copy.md",
                 false,
                 "\"etag-readme\"",
+                null,
                 null))
                 .willReturn(new WebDavMutationResult(
                         file("/Team/readme-copy.md", "text/markdown", 12L),
@@ -291,12 +296,13 @@ class FilesWebDavControllerTest {
                 "/Archive/readme.md",
                 true,
                 null,
+                null,
                 null))
                 .willReturn(new WebDavMutationResult(
                         file("/Archive/readme.md", "text/markdown", 12L),
                         "\"etag-move\"",
                         false));
-        given(filesFacadeService.lockWebDavPath("/Team/readme.md", null))
+        given(filesFacadeService.lockWebDavPath("/Team/readme.md", null, null))
                 .willReturn(new WebDavLockResult("/Team/readme.md", "opaquelocktoken:test-lock", 3600));
 
         mockMvc.perform(request(HttpMethod.valueOf("COPY"), "/dav/files/Team/readme.md")
@@ -332,15 +338,18 @@ class FilesWebDavControllerTest {
                 "/Team/readme-copy.md",
                 false,
                 "\"etag-readme\"",
+                null,
                 null);
         then(filesFacadeService).should().moveWebDavPath(
                 "/Team/readme.md",
                 "/Archive/readme.md",
                 true,
                 null,
+                null,
                 null);
-        then(filesFacadeService).should().lockWebDavPath("/Team/readme.md", null);
-        then(filesFacadeService).should().unlockWebDavPath("/Team/readme.md", "<opaquelocktoken:test-lock>");
+        then(filesFacadeService).should().lockWebDavPath("/Team/readme.md", null, null);
+        then(filesFacadeService).should().unlockWebDavPath(
+                "/Team/readme.md", "<opaquelocktoken:test-lock>", null);
     }
 
     @Test
@@ -370,6 +379,7 @@ class FilesWebDavControllerTest {
                 "application/octet-stream",
                 null,
                 "*",
+                null,
                 null))
                 .willThrow(new ApiErrorException(
                         HttpStatus.INSUFFICIENT_STORAGE,

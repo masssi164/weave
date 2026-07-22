@@ -12,6 +12,9 @@ import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest;
 import com.massimotter.weave.backend.context.authz.ContextPermission;
 import com.massimotter.weave.backend.files.application.FilesLockService;
+import com.massimotter.weave.backend.files.application.FilesMutationIntentService;
+import com.massimotter.weave.backend.files.application.FilesMutationIntentService.Command;
+import com.massimotter.weave.backend.files.application.FilesMutationIntentService.PinnedMutation;
 import com.massimotter.weave.backend.files.domain.FilesAuthority.CanonicalFileRecord;
 import com.massimotter.weave.backend.files.domain.FilesAuthority.FileLockRecord;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileContent;
@@ -30,11 +33,15 @@ import com.massimotter.weave.backend.files.port.FilesProviderPort;
 import com.massimotter.weave.backend.model.files.CreateFolderRequest;
 import com.massimotter.weave.backend.model.files.FileItemResponse;
 import com.massimotter.weave.backend.model.files.FileListResponse;
+import com.massimotter.weave.backend.operation.domain.OperationIntent;
 import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
 import com.massimotter.weave.backend.portability.ProviderReadiness;
-import com.massimotter.weave.backend.service.files.WebDavPropfindResource;
+import com.massimotter.weave.backend.providerbinding.domain.ProviderBinding;
+import com.massimotter.weave.backend.security.device.DeviceCredentialService;
+import com.massimotter.weave.backend.security.device.InMemoryDeviceCredentialRepository;
 import com.massimotter.weave.backend.service.files.WebDavLockResult;
 import com.massimotter.weave.backend.service.files.WebDavMutationResult;
+import com.massimotter.weave.backend.service.files.WebDavPropfindResource;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
@@ -62,6 +69,10 @@ import org.springframework.security.oauth2.jwt.Jwt;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class FilesFacadeServiceTest {
 
@@ -455,6 +466,47 @@ class FilesFacadeServiceTest {
     }
 
     @Test
+    void webDavPutPinsProviderAndPersistsIntentAroundAdapterMutation() {
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
+        FilesMutationIntentService intents = mock(FilesMutationIntentService.class);
+        OperationIntent createdIntent = mock(OperationIntent.class);
+        OperationIntent dispatchingIntent = mock(OperationIntent.class);
+        ProviderBinding binding = new ProviderBinding(
+                "tenant-default", "files", 4, "test-memory", "secretref:files:stub",
+                ProviderBinding.State.ACTIVE, Instant.parse("2026-07-22T02:00:00Z"));
+        PinnedMutation created = new PinnedMutation(createdIntent, binding, false);
+        PinnedMutation dispatching = new PinnedMutation(dispatchingIntent, binding, false);
+        when(createdIntent.state()).thenReturn(OperationIntent.State.CREATED);
+        when(dispatchingIntent.state()).thenReturn(OperationIntent.State.DISPATCHING);
+        when(dispatchingIntent.operationRef()).thenReturn("operation:files-put-test");
+        when(intents.begin(any(Command.class))).thenReturn(created);
+        when(intents.dispatch(created)).thenReturn(dispatching);
+        when(intents.succeed(any(PinnedMutation.class), any(String.class), any(String.class)))
+                .thenReturn(dispatching);
+        StubAdapter adapter = new StubAdapter(true);
+        FilesFacadeService service = service(adapter, new InMemoryAuditEventPublisher(), intents);
+
+        service.putWebDavFile(
+                "/Team/readme.md",
+                "intent".getBytes(StandardCharsets.UTF_8),
+                "text/markdown",
+                null,
+                null,
+                null,
+                "files-put-idempotency-0001");
+
+        var command = org.mockito.ArgumentCaptor.forClass(Command.class);
+        verify(intents).begin(command.capture());
+        assertThat(command.getValue().idempotencyKey()).isEqualTo("files-put-idempotency-0001");
+        assertThat(command.getValue().organizationRef()).isEqualTo("tenant-default");
+        assertThat(command.getValue().operation()).isEqualTo("webdav-put");
+        verify(intents).requireAdapter(created, "test-memory");
+        verify(intents).dispatch(created);
+        verify(intents).succeed(any(PinnedMutation.class), any(String.class), any(String.class));
+        assertThat(adapter.putPath).isEqualTo("/Team/readme.md");
+    }
+
+    @Test
     void guestFileAccessRequiresEffectivePolicyGrantBeforeContextAuthorization() {
         java.util.concurrent.atomic.AtomicBoolean contextChecked = new java.util.concurrent.atomic.AtomicBoolean(false);
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwtWithRolesAndGroups(List.of("guest"), List.of()), null));
@@ -615,6 +667,21 @@ class FilesFacadeServiceTest {
 
     private FilesFacadeService service(FilesProviderPort adapter, InMemoryAuditEventPublisher auditEventPublisher) {
         return service(adapter, request -> ContextAuthorizationDecision.allow("test allow"), auditEventPublisher);
+    }
+
+    private FilesFacadeService service(
+            FilesProviderPort adapter,
+            InMemoryAuditEventPublisher auditEventPublisher,
+            FilesMutationIntentService intents) {
+        return new FilesFacadeService(
+                provider(adapter),
+                request -> ContextAuthorizationDecision.allow("test allow"),
+                defaultContextAuthorizationProperties(),
+                workspaceCapabilityService(),
+                new DeviceCredentialService(new InMemoryDeviceCredentialRepository()),
+                auditEventPublisher,
+                new FilesLockService(new TestFilesAuthorityRepository(), Clock.systemUTC()),
+                intents);
     }
 
     private FilesFacadeService service(FilesProviderPort adapter, ContextAuthorizationPort contextAuthorizationPort) {

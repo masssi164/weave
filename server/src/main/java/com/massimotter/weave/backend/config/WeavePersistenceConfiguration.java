@@ -8,10 +8,13 @@ import com.massimotter.weave.backend.agentruntime.adapter.JdbcRuntimeProfileRepo
 import com.massimotter.weave.backend.audit.JdbcAuditEventPublisher;
 import com.massimotter.weave.backend.files.adapter.JdbcFilesAuthorityRepository;
 import com.massimotter.weave.backend.files.application.FilesLockService;
+import com.massimotter.weave.backend.files.application.FilesMutationIntentService;
 import com.massimotter.weave.backend.operation.adapter.JdbcOperationIntentRepository;
 import com.massimotter.weave.backend.operation.application.OperationIntentService;
 import com.massimotter.weave.backend.provider.JdbcProviderSelectionRepository;
 import com.massimotter.weave.backend.providerbinding.adapter.JdbcProviderBindingRepository;
+import com.massimotter.weave.backend.providerbinding.application.FilesProviderBindingBootstrap;
+import com.massimotter.weave.backend.providerbinding.application.ProviderBindingBootstrapProperties;
 import com.massimotter.weave.backend.service.JdbcProductProfileOverrideRepository;
 import com.massimotter.weave.backend.security.device.JdbcDeviceCredentialRepository;
 import javax.sql.DataSource;
@@ -27,7 +30,7 @@ import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.transaction.PlatformTransactionManager;
 
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties(WeavePersistenceProperties.class)
+@EnableConfigurationProperties({WeavePersistenceProperties.class, ProviderBindingBootstrapProperties.class})
 public class WeavePersistenceConfiguration {
 
     @Bean
@@ -135,6 +138,23 @@ public class WeavePersistenceConfiguration {
     @ConditionalOnProperty(name = "weave.operation-intents.storage.mode", havingValue = "jdbc")
     FilesLockService filesLockService(JdbcFilesAuthorityRepository repository) {
         return new FilesLockService(repository, java.time.Clock.systemUTC());
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "weave.operation-intents.storage.mode", havingValue = "jdbc")
+    FilesMutationIntentService filesMutationIntentService(
+            OperationIntentService operationIntentService,
+            JdbcProviderBindingRepository providerBindingRepository) {
+        return new FilesMutationIntentService(operationIntentService, providerBindingRepository);
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "weave.provider-bindings.bootstrap.files.enabled", havingValue = "true")
+    FilesProviderBindingBootstrap filesProviderBindingBootstrap(
+            JdbcProviderBindingRepository providerBindingRepository,
+            ProviderBindingBootstrapProperties properties) {
+        return new FilesProviderBindingBootstrap(
+                providerBindingRepository, properties, java.time.Clock.systemUTC());
     }
 
     @Bean
