@@ -118,7 +118,8 @@ public class FilesWebDavController {
                 request.getContentType(),
                 request.getHeader(HttpHeaders.IF_MATCH),
                 request.getHeader(HttpHeaders.IF_NONE_MATCH),
-                request.getHeader("If"));
+                request.getHeader("If"),
+                request.getHeader("Idempotency-Key"));
         HttpStatus status = result.created() ? HttpStatus.CREATED : HttpStatus.NO_CONTENT;
         return ResponseEntity.status(status)
                 .eTag(result.etag())
@@ -131,7 +132,8 @@ public class FilesWebDavController {
                 productPath(request),
                 request.getHeader(HttpHeaders.IF_MATCH),
                 request.getHeader(HttpHeaders.IF_NONE_MATCH),
-                request.getHeader("If"));
+                request.getHeader("If"),
+                request.getHeader("Idempotency-Key"));
         return ResponseEntity.status(HttpStatus.CREATED)
                 .eTag(result.etag())
                 .header(HttpHeaders.LOCATION, davHref(result.item().path(), true))
@@ -142,7 +144,8 @@ public class FilesWebDavController {
         filesFacadeService.deleteWebDavPath(
                 productPath(request),
                 request.getHeader(HttpHeaders.IF_MATCH),
-                request.getHeader("If"));
+                request.getHeader("If"),
+                request.getHeader("Idempotency-Key"));
         return ResponseEntity.noContent().build();
     }
 
@@ -152,7 +155,8 @@ public class FilesWebDavController {
                 destinationPath(request),
                 overwrite(request),
                 request.getHeader(HttpHeaders.IF_MATCH),
-                request.getHeader("If"));
+                request.getHeader("If"),
+                request.getHeader("Idempotency-Key"));
         return ResponseEntity.status(result.created() ? HttpStatus.CREATED : HttpStatus.NO_CONTENT)
                 .eTag(result.etag())
                 .header(HttpHeaders.LOCATION, davHref(result.item().path(), "folder".equals(result.item().type())))
@@ -165,7 +169,8 @@ public class FilesWebDavController {
                 destinationPath(request),
                 overwrite(request),
                 request.getHeader(HttpHeaders.IF_MATCH),
-                request.getHeader("If"));
+                request.getHeader("If"),
+                request.getHeader("Idempotency-Key"));
         return ResponseEntity.status(result.created() ? HttpStatus.CREATED : HttpStatus.NO_CONTENT)
                 .eTag(result.etag())
                 .header(HttpHeaders.LOCATION, davHref(result.item().path(), "folder".equals(result.item().type())))
@@ -173,7 +178,8 @@ public class FilesWebDavController {
     }
 
     private ResponseEntity<String> lock(HttpServletRequest request) {
-        WebDavLockResult result = filesFacadeService.lockWebDavPath(productPath(request), request.getHeader("If"));
+        WebDavLockResult result = filesFacadeService.lockWebDavPath(
+                productPath(request), request.getHeader("If"), request.getHeader("Idempotency-Key"));
         return ResponseEntity.status(HttpStatus.OK)
                 .contentType(XML)
                 .header("Lock-Token", "<" + result.token() + ">")
@@ -182,7 +188,8 @@ public class FilesWebDavController {
     }
 
     private ResponseEntity<Void> unlock(HttpServletRequest request) {
-        filesFacadeService.unlockWebDavPath(productPath(request), request.getHeader("Lock-Token"));
+        filesFacadeService.unlockWebDavPath(
+                productPath(request), request.getHeader("Lock-Token"), request.getHeader("Idempotency-Key"));
         return ResponseEntity.noContent().build();
     }
 

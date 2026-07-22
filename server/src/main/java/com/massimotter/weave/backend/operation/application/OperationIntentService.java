@@ -49,6 +49,18 @@ public final class OperationIntentService {
                 "operation.ambiguous");
     }
 
+    public OperationIntent beginReconciliation(OperationIntent current) {
+        requireState(current, State.AMBIGUOUS);
+        Reconciliation previous = current.reconciliation();
+        Reconciliation reconciliation = new Reconciliation(
+                previous.attempts() + 1,
+                ReconciliationOutcome.PENDING,
+                Instant.now(clock),
+                previous.resultDigest());
+        return update(current, State.RECONCILING, current.providerCorrelationHash(), reconciliation,
+                null, "operation.reconciling");
+    }
+
     public OperationIntent succeed(OperationIntent current, String resultDigest, String auditRef) {
         requireState(current, State.DISPATCHING, State.RECONCILING);
         Reconciliation reconciliation = current.state() == State.RECONCILING
