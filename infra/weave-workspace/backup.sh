@@ -241,7 +241,7 @@ backup_generated_config() {
   ((${#generated_paths[@]} > 0)) || fail "No generated config/secrets were found under weave-workspace/.generated or Terraform stage .generated directories."
 
   log "Archiving generated config/secrets metadata to generated-config-secrets.tgz"
-  tar -C "${ROOT_DIR}" -czf "${target}" \
+  tar -C "${ROOT_DIR}" -hczf "${target}" \
     --exclude='chat-provider-proof.token' \
     --exclude='*/chat-provider-proof.token' \
     --exclude='.generated/isolated-e2e' \
