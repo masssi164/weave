@@ -244,64 +244,6 @@ jobs:
             '{schemaVersion:"weave.dogfood.pending-recovery-precondition.v1",state:"pending",subjectSha256:$subjectSha256,privateEvidencePresent:true,supportSafe:true}' \
             >"$WEAVE_RECOVERY_EVIDENCE_DIR/precondition.json"
 
-      - name: Verify support-safe platform restore boundary
-        run: |
-          set -euo pipefail
-          restored_volumes=(
-            weave_db_data
-            weave_nextcloud_data
-            weave_synapse_data
-            weave_caddy_data
-            weave_caddy_config
-            weave_keycloak_data
-          )
-          for volume in "${restored_volumes[@]}"; do
-            docker volume inspect "$volume" >/dev/null 2>&1 || {
-              echo "::error::Guarded platform restore volume is unavailable." >&2
-              exit 1
-            }
-          done
-          for fresh_volume in weave_mailpit_data weave_matrix_chat_appservice_runtime; do
-            ! docker volume inspect "$fresh_volume" >/dev/null 2>&1 || {
-              echo "::error::A non-restorable persistent volume exists before candidate bootstrap." >&2
-              exit 1
-            }
-          done
-          persistent_containers=(
-            weave-db weave-proxy weave-keycloak weave-mailpit weave-backend
-            weave-mcp-server weave-mas weave-synapse weave-nextcloud
-          )
-          for container in "${persistent_containers[@]}"; do
-            ! docker container inspect "$container" >/dev/null 2>&1 || {
-              echo "::error::Persistent runtime started outside the protected recovery workflow." >&2
-              exit 1
-            }
-          done
-          source_evidence="$HOME/.weave/dogfood/identity-recovery/platform-restore.json"
-          [[ -s "$source_evidence" ]] || {
-            echo "::error::Guarded private platform restore evidence is unavailable." >&2
-            exit 1
-          }
-          jq -e '
-            .schemaVersion == "weave.dogfood.platform-private-restore.v1" and
-            .status == "passed" and
-            .integrity.allRequiredArtifactsVerified == true and
-            .platformData.status == "passed" and
-            .postgresBootstrap.restoredPersistentAdministrator == true and
-            .postgresBootstrap.temporaryAdministratorCreated == false and
-            .identity.identityRestorableForRecordedMember == false and
-            .identity.soleRestoredDisposableBootstrapIdentity == true and
-            .generatedRuntimeAssets.bootstrapCredentialsRestored == true and
-            .generatedRuntimeAssets.tlsIdentityRestored == true and
-            .mailpit.historyRestored == false and
-            .privateArtifactContentIncluded == false and
-            .supportSafe == true
-          ' "$source_evidence" >/dev/null || {
-            echo "::error::Platform restore evidence does not prove the exact pre-member backup boundary." >&2
-            exit 1
-          }
-          cp "$source_evidence" "$WEAVE_RECOVERY_EVIDENCE_DIR/platform-restore.json"
-
       - name: Restore persistent OpenTofu and generated workspace
         working-directory: infra/weave-workspace
         run: |
@@ -321,11 +263,129 @@ jobs:
             rm -rf "$stage/.generated"
             ln -s "$generated_root/$stage" "$stage/.generated"
           done
+          rm -rf .generated
+          ln -s "$generated_root" .generated
           {
             echo "TF_VAR_caddy_tls_cert_file=$cert_root/weave.test.pem"
             echo "TF_VAR_caddy_tls_key_file=$cert_root/weave.test-key.pem"
             echo "TF_VAR_caddy_tls_ca_file=$cert_root/weave-local-ca.pem"
           } >>"$GITHUB_ENV"
+
+      - name: Create private pre-recovery backup and audit identity-restorability
+        working-directory: infra/weave-workspace
+        run: |
+          set -euo pipefail
+          backup_root="$HOME/.weave/dogfood/backups"
+          marker="$RUNNER_TEMP/pending-identity-pre-recovery-backup-start"
+          mkdir -p "$backup_root"
+          chmod 700 "$backup_root"
+          touch "$marker"
+          bash ./backup.sh "$backup_root"
+          backup_candidates=()
+          while IFS= read -r backup_candidate; do
+            [[ -n "$backup_candidate" ]] && backup_candidates+=("$backup_candidate")
+          done < <(find "$backup_root" -mindepth 1 -maxdepth 1 -type d -name 'weave-backup-*' -newer "$marker" -print | sort)
+          [[ ${#backup_candidates[@]} -eq 1 ]] || {
+            echo "::error::Pre-recovery audit did not create exactly one private backup artifact set." >&2
+            exit 1
+          }
+          audit_dir="$WEAVE_RECOVERY_EVIDENCE_DIR/private-backup-identity-audits"
+          mkdir -p "$audit_dir"
+          chmod 700 "$audit_dir"
+          all_backups=()
+          while IFS= read -r backup_candidate; do
+            [[ -n "$backup_candidate" ]] && all_backups+=("$backup_candidate")
+          done < <(find "$backup_root" -mindepth 1 -maxdepth 1 -type d -name 'weave-backup-*' -print | sort)
+          [[ ${#all_backups[@]} -gt 0 ]] || {
+            echo "::error::No private backup is available for identity-restorability audit." >&2
+            exit 1
+          }
+          audit_index=0
+          for backup_candidate in "${all_backups[@]}"; do
+            audit_index=$((audit_index + 1))
+            evidence_file="$audit_dir/audit-$(printf '%04d' "$audit_index").json"
+            WEAVE_IDENTITY_AUDIT_EVIDENCE_FILE="$evidence_file" \
+              ./audit-private-backup-identity.sh "$backup_candidate"
+          done
+          jq -s '
+            {
+              schemaVersion:"weave.dogfood.private-backup-identity-audit-set.v1",
+              status:(if all(.[]; .status == "passed") then "passed" else "failed" end),
+              auditedBackupCount:length,
+              integrity:{allRequiredArtifactsVerified:all(.[]; .integrity.allRequiredArtifactsVerified == true)},
+              isolatedDatabaseReplay:{
+                status:(if all(.[]; .isolatedDatabaseReplay.status == "passed") then "passed" else "failed" end),
+                persistentRuntimeMutated:any(.[]; .isolatedDatabaseReplay.persistentRuntimeMutated == true)
+              },
+              identity:{
+                identityRestorableForRecordedMember:any(.[]; .identity.identityRestorableForRecordedMember == true),
+                soleDisposableBootstrapIdentity:all(.[]; .identity.soleDisposableBootstrapIdentity == true),
+                maximumOtherHumanIdentityCount:([.[].identity.otherHumanIdentityCount] | max)
+              },
+              privateArtifactContentIncluded:any(.[]; .privateArtifactContentIncluded == true),
+              supportSafe:all(.[]; .supportSafe == true)
+            }
+          ' "$audit_dir"/*.json >"$WEAVE_RECOVERY_EVIDENCE_DIR/private-backup-identity-audit.json"
+          jq -e '
+            .schemaVersion == "weave.dogfood.private-backup-identity-audit-set.v1" and
+            .status == "passed" and
+            .auditedBackupCount > 0 and
+            .integrity.allRequiredArtifactsVerified == true and
+            .isolatedDatabaseReplay.status == "passed" and
+            .isolatedDatabaseReplay.persistentRuntimeMutated == false and
+            .identity.identityRestorableForRecordedMember == false and
+            .identity.soleDisposableBootstrapIdentity == true and
+            .identity.maximumOtherHumanIdentityCount == 0 and
+            .privateArtifactContentIncluded == false and
+            .supportSafe == true
+          ' "$WEAVE_RECOVERY_EVIDENCE_DIR/private-backup-identity-audit.json" >/dev/null
+
+      - name: Verify support-safe running recovery boundary
+        run: |
+          set -euo pipefail
+          persistent_volumes=(
+            weave_db_data
+            weave_nextcloud_data
+            weave_synapse_data
+            weave_caddy_data
+            weave_caddy_config
+            weave_keycloak_data
+            weave_mailpit_data
+            weave_matrix_chat_appservice_runtime
+          )
+          for volume in "${persistent_volumes[@]}"; do
+            docker volume inspect "$volume" >/dev/null 2>&1 || {
+              echo "::error::Declared persistent recovery volume is unavailable." >&2
+              exit 1
+            }
+          done
+          persistent_containers=(
+            weave-db weave-proxy weave-keycloak weave-mailpit weave-backend
+            weave-mcp-server weave-mas weave-synapse weave-nextcloud
+          )
+          for container in "${persistent_containers[@]}"; do
+            docker container inspect "$container" >/dev/null 2>&1 || {
+              echo "::error::Declared persistent recovery container is unavailable." >&2
+              exit 1
+            }
+          done
+          source_evidence="$WEAVE_RECOVERY_EVIDENCE_DIR/private-backup-identity-audit.json"
+          jq -e '
+            .schemaVersion == "weave.dogfood.private-backup-identity-audit-set.v1" and
+            .status == "passed" and
+            .auditedBackupCount > 0 and
+            .integrity.allRequiredArtifactsVerified == true and
+            .isolatedDatabaseReplay.status == "passed" and
+            .isolatedDatabaseReplay.persistentRuntimeMutated == false and
+            .identity.identityRestorableForRecordedMember == false and
+            .identity.soleDisposableBootstrapIdentity == true and
+            .identity.maximumOtherHumanIdentityCount == 0 and
+            .privateArtifactContentIncluded == false and
+            .supportSafe == true
+          ' "$source_evidence" >/dev/null || {
+            echo "::error::Private backup audit does not prove the exact pending-identity recovery boundary." >&2
+            exit 1
+          }
 
       - name: Detach the restored disposable bootstrap identity from stale state
         working-directory: infra/weave-workspace
@@ -498,14 +558,14 @@ jobs:
         if: ${{ always() && env.WEAVE_RECOVERY_EVIDENCE_DIR != '' }}
         run: |
           set -euo pipefail
-          platform_restore_completed=false
+          identity_audit_completed=false
           bootstrap_retirement_completed=false
           transition_completed=false
           backup_completed=false
-          if [[ -s "$WEAVE_RECOVERY_EVIDENCE_DIR/platform-restore.json" ]] && \
-              jq -e '.status == "passed" and .identity.identityRestorableForRecordedMember == false and .identity.soleRestoredDisposableBootstrapIdentity == true and .supportSafe == true' \
-                "$WEAVE_RECOVERY_EVIDENCE_DIR/platform-restore.json" >/dev/null; then
-            platform_restore_completed=true
+          if [[ -s "$WEAVE_RECOVERY_EVIDENCE_DIR/private-backup-identity-audit.json" ]] && \
+              jq -e '.status == "passed" and .auditedBackupCount > 0 and .integrity.allRequiredArtifactsVerified == true and .isolatedDatabaseReplay.status == "passed" and .identity.identityRestorableForRecordedMember == false and .identity.soleDisposableBootstrapIdentity == true and .supportSafe == true' \
+                "$WEAVE_RECOVERY_EVIDENCE_DIR/private-backup-identity-audit.json" >/dev/null; then
+            identity_audit_completed=true
           fi
           if [[ -s "$WEAVE_RECOVERY_EVIDENCE_DIR/restored-bootstrap-retirement.json" ]] && \
               jq -e '.action == "restored_disposable_bootstrap_retired" and .humanIdentityCountAfter == 0 and .supportSafe == true' \
@@ -526,11 +586,11 @@ jobs:
           recovery_state=not-completed
           overall_state=failed
           blockers='["protected-recovery-incomplete"]'
-          if [[ "$platform_restore_completed" == true && "$bootstrap_retirement_completed" == true && "$transition_completed" == true && "$backup_completed" == true ]]; then
+          if [[ "$identity_audit_completed" == true && "$bootstrap_retirement_completed" == true && "$transition_completed" == true && "$backup_completed" == true ]]; then
             recovery_state=completed
             overall_state=blocked
             blockers='["human-activation-required","active-session-required","two-install-dogfood-deployment-required"]'
-          elif [[ "$platform_restore_completed" == true && "$bootstrap_retirement_completed" == true && "$transition_completed" == true ]]; then
+          elif [[ "$identity_audit_completed" == true && "$bootstrap_retirement_completed" == true && "$transition_completed" == true ]]; then
             recovery_state=transition-completed-backup-incomplete
             blockers='["private-backup-or-restore-smoke-failed","human-activation-required","active-session-required","two-install-dogfood-deployment-required"]'
           fi
@@ -540,7 +600,7 @@ jobs:
             --arg specCorpusCommit "$SPEC_CORPUS_COMMIT" \
             --arg isolatedE2ERunId "$ISOLATED_E2E_RUN_ID" \
             --arg runUrl "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
-            --arg platformRestoreStatus "$([[ "$platform_restore_completed" == true ]] && printf passed || printf failed)" \
+            --arg identityAuditStatus "$([[ "$identity_audit_completed" == true ]] && printf passed || printf failed)" \
             --arg bootstrapRetirementStatus "$([[ "$bootstrap_retirement_completed" == true ]] && printf passed || printf failed)" \
             --arg recoveryState "$recovery_state" \
             --arg overallState "$overall_state" \
@@ -551,7 +611,7 @@ jobs:
               specCorpusCommit:$specCorpusCommit,
               isolatedE2ERunId:$isolatedE2ERunId,
               runUrl:$runUrl,
-              platformRestoreStatus:$platformRestoreStatus,
+              privateBackupIdentityAuditStatus:$identityAuditStatus,
               restoredBootstrapRetirementStatus:$bootstrapRetirementStatus,
               recoveryState:$recoveryState,
               overallState:$overallState,
