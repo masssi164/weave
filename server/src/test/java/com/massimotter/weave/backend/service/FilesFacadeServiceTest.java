@@ -484,7 +484,8 @@ class FilesFacadeServiceTest {
         when(intents.succeed(any(PinnedMutation.class), any(String.class), any(String.class)))
                 .thenReturn(dispatching);
         StubAdapter adapter = new StubAdapter(true);
-        FilesFacadeService service = service(adapter, new InMemoryAuditEventPublisher(), intents);
+        InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
+        FilesFacadeService service = service(adapter, audit, intents);
 
         service.putWebDavFile(
                 "/Team/readme.md",
@@ -504,6 +505,12 @@ class FilesFacadeServiceTest {
         verify(intents).dispatch(created);
         verify(intents).succeed(any(PinnedMutation.class), any(String.class), any(String.class));
         assertThat(adapter.putPath).isEqualTo("/Team/readme.md");
+        assertThat(audit.events())
+                .extracting(event -> event.action())
+                .containsExactly(
+                        AuditAction.FILES_WEBDAV_WRITE_ATTEMPTED,
+                        AuditAction.FILES_WEBDAV_WRITE_COMPLETED,
+                        AuditAction.FILES_OPERATION_INTENT_RECORDED);
     }
 
     @Test

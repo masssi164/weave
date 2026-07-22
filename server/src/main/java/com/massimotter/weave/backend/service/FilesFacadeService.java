@@ -1015,7 +1015,7 @@ public class FilesFacadeService {
                 DEFAULT_CONTEXT_ID,
                 principal.principalRef(),
                 "files:operation-intent",
-                AuditAction.FILES_WEBDAV_WRITE_COMPLETED,
+                AuditAction.FILES_OPERATION_INTENT_RECORDED,
                 Instant.now(),
                 auditRef,
                 AuditRedactionLevel.SUPPORT_SAFE,

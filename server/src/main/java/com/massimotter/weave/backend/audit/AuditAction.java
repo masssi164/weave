@@ -15,6 +15,7 @@ public enum AuditAction {
     FILES_WEBDAV_WRITE_ATTEMPTED("files.webdav_write.attempted"),
     FILES_WEBDAV_WRITE_COMPLETED("files.webdav_write.completed"),
     FILES_WEBDAV_WRITE_BLOCKED("files.webdav_write.blocked"),
+    FILES_OPERATION_INTENT_RECORDED("files.operation_intent.recorded"),
     FILES_DEVICE_CREDENTIAL_ISSUED("files.device_credential.issued"),
     FILES_DEVICE_CREDENTIAL_REVOKED("files.device_credential.revoked"),
     CONSENT_GRANTED("consent.granted"),
