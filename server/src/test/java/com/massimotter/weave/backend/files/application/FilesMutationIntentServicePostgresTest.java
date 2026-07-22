@@ -17,6 +17,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.UUID;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -36,12 +37,12 @@ class FilesMutationIntentServicePostgresTest {
     void pinsBindingAndReusesOneIntentAcrossEquivalentRetries() {
         Fixture fixture = fixture();
         fixture.bindings().activate(
-                "org:example", "files", 0, "nextcloud-webdav", "secretref:files:nextcloud", fixture.now());
+                fixture.organizationRef(), "files", 0, "nextcloud-webdav", "secretref:files:nextcloud", fixture.now());
 
-        var first = fixture.service().begin(command("human-supplied-idempotency-0001", "/Team/plan.md"));
+        var first = fixture.service().begin(command(fixture, "human-supplied-idempotency-0001", "/Team/plan.md"));
         var dispatching = fixture.service().dispatch(first);
         var succeeded = fixture.service().succeed(dispatching, "etag:v1", "audit:files:put:1");
-        var retry = fixture.service().begin(command("human-supplied-idempotency-0001", "/Team/plan.md"));
+        var retry = fixture.service().begin(command(fixture, "human-supplied-idempotency-0001", "/Team/plan.md"));
 
         assertThat(first.binding().adapterKey()).isEqualTo("nextcloud-webdav");
         assertThat(first.binding().revision()).isEqualTo(1);
@@ -49,27 +50,31 @@ class FilesMutationIntentServicePostgresTest {
         assertThat(retry.retry()).isTrue();
         assertThat(retry.intent().operationRef()).isEqualTo(first.intent().operationRef());
         assertThat(fixture.jdbc().queryForObject(
-                "select count(*) from weave_operation_intents", Integer.class)).isEqualTo(1);
+                "select count(*) from weave_operation_intents where organization_ref = ?",
+                Integer.class,
+                fixture.organizationRef())).isEqualTo(1);
     }
 
     @Test
     void failsClosedWithoutAnActiveFilesBinding() {
         Fixture fixture = fixture();
 
-        assertThatThrownBy(() -> fixture.service().begin(command(null, "/Team/plan.md")))
+        assertThatThrownBy(() -> fixture.service().begin(command(fixture, null, "/Team/plan.md")))
                 .isInstanceOf(ProviderBindingUnavailableException.class)
-                .hasMessageContaining("org:example");
+                .hasMessageContaining(fixture.organizationRef());
         assertThat(fixture.jdbc().queryForObject(
-                "select count(*) from weave_operation_intents", Integer.class)).isZero();
+                "select count(*) from weave_operation_intents where organization_ref = ?",
+                Integer.class,
+                fixture.organizationRef())).isZero();
     }
 
     @Test
     void ambiguousDispatchEntersDurableReconciliation() {
         Fixture fixture = fixture();
         fixture.bindings().activate(
-                "org:example", "files", 0, "nextcloud-webdav", "secretref:files:nextcloud", fixture.now());
+                fixture.organizationRef(), "files", 0, "nextcloud-webdav", "secretref:files:nextcloud", fixture.now());
 
-        var dispatching = fixture.service().dispatch(fixture.service().begin(command(null, "/Team/plan.md")));
+        var dispatching = fixture.service().dispatch(fixture.service().begin(command(fixture, null, "/Team/plan.md")));
         var ambiguous = fixture.service().ambiguous(dispatching, "support-safe:timeout");
         var reconciling = fixture.service().reconcile(ambiguous);
 
@@ -82,7 +87,7 @@ class FilesMutationIntentServicePostgresTest {
     void dogfoodBindingBootstrapIsIdempotentAndNeverOverwritesAuthority() {
         Fixture fixture = fixture();
         var properties = new ProviderBindingBootstrapProperties(
-                true, "org:example", "nextcloud-webdav", "secretref:files:nextcloud");
+                true, fixture.organizationRef(), "nextcloud-webdav", "secretref:files:nextcloud");
         var bootstrap = new FilesProviderBindingBootstrap(
                 fixture.bindings(), properties, Clock.fixed(fixture.now(), ZoneOffset.UTC));
 
@@ -92,22 +97,24 @@ class FilesMutationIntentServicePostgresTest {
         assertThat(first.revision()).isEqualTo(1);
         assertThat(second).isEqualTo(first);
         assertThat(fixture.jdbc().queryForObject(
-                "select count(*) from weave_provider_bindings", Integer.class)).isEqualTo(1);
+                "select count(*) from weave_provider_bindings where organization_ref = ?",
+                Integer.class,
+                fixture.organizationRef())).isEqualTo(1);
 
         var conflicting = new FilesProviderBindingBootstrap(
                 fixture.bindings(),
                 new ProviderBindingBootstrapProperties(
-                        true, "org:example", "weave-s3-minio", "secretref:files:minio"),
+                        true, fixture.organizationRef(), "weave-s3-minio", "secretref:files:minio"),
                 Clock.fixed(fixture.now().plusSeconds(1), ZoneOffset.UTC));
         assertThatThrownBy(conflicting::reconcile)
                 .isInstanceOf(ProviderBindingBootstrapConflictException.class);
-        assertThat(fixture.bindings().current("org:example", "files")).contains(first);
+        assertThat(fixture.bindings().current(fixture.organizationRef(), "files")).contains(first);
     }
 
-    private Command command(String idempotencyKey, String path) {
+    private Command command(Fixture fixture, String idempotencyKey, String path) {
         return new Command(
                 idempotencyKey,
-                "org:example",
+                fixture.organizationRef(),
                 "person:alice",
                 "subject:alice",
                 "PUT",
@@ -132,13 +139,15 @@ class FilesMutationIntentServicePostgresTest {
                 new JdbcOperationIntentRepository(
                         jdbc, new ObjectMapper().findAndRegisterModules(), transactions),
                 Clock.fixed(now, ZoneOffset.UTC));
-        return new Fixture(new FilesMutationIntentService(intents, bindings), bindings, jdbc, now);
+        String organizationRef = "org:test:" + UUID.randomUUID();
+        return new Fixture(new FilesMutationIntentService(intents, bindings), bindings, jdbc, now, organizationRef);
     }
 
     private record Fixture(
             FilesMutationIntentService service,
             JdbcProviderBindingRepository bindings,
             JdbcTemplate jdbc,
-            Instant now) {
+            Instant now,
+            String organizationRef) {
     }
 }
