@@ -6,6 +6,8 @@ import com.massimotter.weave.backend.agentruntime.adapter.JdbcRuntimeCommandRepo
 import com.massimotter.weave.backend.agentruntime.adapter.JdbcRuntimeGovernanceRepository;
 import com.massimotter.weave.backend.agentruntime.adapter.JdbcRuntimeProfileRepository;
 import com.massimotter.weave.backend.audit.JdbcAuditEventPublisher;
+import com.massimotter.weave.backend.files.adapter.JdbcFilesAuthorityRepository;
+import com.massimotter.weave.backend.files.application.FilesLockService;
 import com.massimotter.weave.backend.operation.adapter.JdbcOperationIntentRepository;
 import com.massimotter.weave.backend.operation.application.OperationIntentService;
 import com.massimotter.weave.backend.provider.JdbcProviderSelectionRepository;
@@ -119,6 +121,20 @@ public class WeavePersistenceConfiguration {
             JdbcTemplate weaveJdbcTemplate,
             PlatformTransactionManager weaveTransactionManager) {
         return new JdbcProviderBindingRepository(weaveJdbcTemplate, weaveTransactionManager);
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "weave.operation-intents.storage.mode", havingValue = "jdbc")
+    JdbcFilesAuthorityRepository jdbcFilesAuthorityRepository(
+            JdbcTemplate weaveJdbcTemplate,
+            PlatformTransactionManager weaveTransactionManager) {
+        return new JdbcFilesAuthorityRepository(weaveJdbcTemplate, weaveTransactionManager);
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "weave.operation-intents.storage.mode", havingValue = "jdbc")
+    FilesLockService filesLockService(JdbcFilesAuthorityRepository repository) {
+        return new FilesLockService(repository, java.time.Clock.systemUTC());
     }
 
     @Bean

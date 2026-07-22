@@ -11,6 +11,9 @@ import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest;
 import com.massimotter.weave.backend.context.authz.ContextPermission;
+import com.massimotter.weave.backend.files.application.FilesLockService;
+import com.massimotter.weave.backend.files.domain.FilesAuthority.CanonicalFileRecord;
+import com.massimotter.weave.backend.files.domain.FilesAuthority.FileLockRecord;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileContent;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileId;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileListing;
@@ -22,6 +25,7 @@ import com.massimotter.weave.backend.files.domain.FilesDomain.FileWrite;
 import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedFile;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedListing;
+import com.massimotter.weave.backend.files.port.FilesAuthorityRepository;
 import com.massimotter.weave.backend.files.port.FilesProviderPort;
 import com.massimotter.weave.backend.model.files.CreateFolderRequest;
 import com.massimotter.weave.backend.model.files.FileItemResponse;
@@ -32,6 +36,7 @@ import com.massimotter.weave.backend.service.files.WebDavPropfindResource;
 import com.massimotter.weave.backend.service.files.WebDavLockResult;
 import com.massimotter.weave.backend.service.files.WebDavMutationResult;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.HashMap;
@@ -40,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -639,11 +645,97 @@ class FilesFacadeServiceTest {
                 contextAuthorizationPort,
                 contextAuthorizationProperties,
                 workspaceCapabilityService(),
-                auditEventPublisher);
+                auditEventPublisher,
+                new FilesLockService(new TestFilesAuthorityRepository(), Clock.systemUTC()));
     }
 
     private ContextAuthorizationProperties defaultContextAuthorizationProperties() {
         return new ContextAuthorizationProperties(null, null, null, null, null, List.of(), List.of(), List.of());
+    }
+
+    private static final class TestFilesAuthorityRepository implements FilesAuthorityRepository {
+        private final Map<String, FileLockRecord> locks = new ConcurrentHashMap<>();
+
+        @Override
+        public CanonicalFileRecord save(CanonicalFileRecord record) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Optional<CanonicalFileRecord> findByPath(String organizationRef, String spaceRef, FilePath path) {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<CanonicalFileRecord> findById(String organizationRef, String spaceRef, FileId id) {
+            return Optional.empty();
+        }
+
+        @Override
+        public CanonicalFileRecord move(String organizationRef, String spaceRef, FileId id,
+                FilePath expectedPath, FilePath destination, Instant movedAt) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public synchronized FileLockRecord acquireLock(FileLockRecord requested, Instant now) {
+            String key = key(requested.organizationRef(), requested.spaceRef(), requested.path());
+            FileLockRecord active = locks.get(key);
+            if (active != null && active.expiresAt().isAfter(now)) {
+                throw new LockConflictException(requested.path());
+            }
+            long fence = active == null ? 1 : active.fence() + 1;
+            FileLockRecord stored = new FileLockRecord(requested.organizationRef(), requested.spaceRef(),
+                    requested.path(), requested.tokenDigest(), requested.ownerRef(), fence,
+                    requested.expiresAt(), requested.createdAt());
+            locks.put(key, stored);
+            return stored;
+        }
+
+        @Override
+        public Optional<FileLockRecord> activeLock(
+                String organizationRef, String spaceRef, FilePath path, Instant now) {
+            FileLockRecord lock = locks.get(key(organizationRef, spaceRef, path));
+            return lock != null && lock.expiresAt().isAfter(now) ? Optional.of(lock) : Optional.empty();
+        }
+
+        @Override
+        public List<FileLockRecord> activeLocks(String organizationRef, String spaceRef, Instant now) {
+            return locks.values().stream()
+                    .filter(lock -> lock.organizationRef().equals(organizationRef))
+                    .filter(lock -> lock.spaceRef().equals(spaceRef))
+                    .filter(lock -> lock.expiresAt().isAfter(now))
+                    .toList();
+        }
+
+        @Override
+        public synchronized void releaseLock(String organizationRef, String spaceRef, FilePath path,
+                String tokenDigest, String ownerRef, Instant now) {
+            String key = key(organizationRef, spaceRef, path);
+            FileLockRecord active = locks.get(key);
+            if (active == null || !active.tokenDigest().equals(tokenDigest) || !active.ownerRef().equals(ownerRef)) {
+                throw new LockConflictException(path);
+            }
+            locks.remove(key);
+        }
+
+        @Override
+        public synchronized void moveLock(String organizationRef, String spaceRef, FilePath source,
+                FilePath destination, String tokenDigest, String ownerRef, Instant now) {
+            String sourceKey = key(organizationRef, spaceRef, source);
+            FileLockRecord active = locks.get(sourceKey);
+            if (active == null || !active.tokenDigest().equals(tokenDigest) || !active.ownerRef().equals(ownerRef)) {
+                throw new LockConflictException(source);
+            }
+            locks.remove(sourceKey);
+            locks.put(key(organizationRef, spaceRef, destination), new FileLockRecord(
+                    organizationRef, spaceRef, destination, active.tokenDigest(), active.ownerRef(),
+                    active.fence(), active.expiresAt(), active.createdAt()));
+        }
+
+        private String key(String organizationRef, String spaceRef, FilePath path) {
+            return organizationRef + "\u0000" + spaceRef + "\u0000" + path.value();
+        }
     }
 
     private WorkspaceCapabilityService workspaceCapabilityService() {

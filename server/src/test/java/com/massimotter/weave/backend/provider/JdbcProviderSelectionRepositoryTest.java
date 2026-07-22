@@ -119,7 +119,9 @@ class JdbcProviderSelectionRepositoryTest {
                         "WEAVE_OPERATION_INTENTS",
                         "WEAVE_OPERATION_OUTBOX",
                         "WEAVE_PROVIDER_BINDINGS",
-                        "WEAVE_PROVIDER_OBJECT_MAPPINGS");
+                        "WEAVE_PROVIDER_OBJECT_MAPPINGS",
+                        "WEAVE_FILES_OBJECTS",
+                        "WEAVE_FILE_LOCKS");
     }
 
     @Test

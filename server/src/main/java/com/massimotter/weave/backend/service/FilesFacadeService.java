@@ -20,6 +20,8 @@ import com.massimotter.weave.backend.files.domain.FilesDomain.FileVersion;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileWrite;
 import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedFile;
+import com.massimotter.weave.backend.files.application.FilesLockService;
+import com.massimotter.weave.backend.files.application.FilesLockService.FileLockedException;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedListing;
 import com.massimotter.weave.backend.files.port.FilesProviderPort;
 import com.massimotter.weave.backend.model.files.CreateFolderRequest;
@@ -45,6 +47,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Arrays;
@@ -56,7 +59,6 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
@@ -78,7 +80,7 @@ public class FilesFacadeService {
     private final WorkspaceCapabilityService workspaceCapabilityService;
     private final AuditEventPublisher auditEventPublisher;
     private final DeviceCredentialService deviceCredentialService;
-    private final Map<String, WebDavLockState> webDavLocks = new ConcurrentHashMap<>();
+    private final FilesLockService filesLockService;
 
     @Autowired
     public FilesFacadeService(
@@ -87,14 +89,16 @@ public class FilesFacadeService {
             ContextAuthorizationProperties contextAuthorizationProperties,
             WorkspaceCapabilityService workspaceCapabilityService,
             DeviceCredentialService deviceCredentialService,
-            ObjectProvider<AuditEventPublisher> auditEventPublisherProvider) {
+            ObjectProvider<AuditEventPublisher> auditEventPublisherProvider,
+            ObjectProvider<FilesLockService> filesLockServiceProvider) {
         this(
                 filesProviderPortProvider,
                 contextAuthorizationPort,
                 contextAuthorizationProperties,
                 workspaceCapabilityService,
                 deviceCredentialService,
-                auditEventPublisherProvider.getIfAvailable(InMemoryAuditEventPublisher::new));
+                auditEventPublisherProvider.getIfAvailable(InMemoryAuditEventPublisher::new),
+                filesLockServiceProvider.getIfAvailable());
     }
 
     public FilesFacadeService(
@@ -104,12 +108,25 @@ public class FilesFacadeService {
             WorkspaceCapabilityService workspaceCapabilityService,
             DeviceCredentialService deviceCredentialService,
             AuditEventPublisher auditEventPublisher) {
+        this(filesProviderPortProvider, contextAuthorizationPort, contextAuthorizationProperties,
+                workspaceCapabilityService, deviceCredentialService, auditEventPublisher, null);
+    }
+
+    public FilesFacadeService(
+            ObjectProvider<FilesProviderPort> filesProviderPortProvider,
+            ContextAuthorizationPort contextAuthorizationPort,
+            ContextAuthorizationProperties contextAuthorizationProperties,
+            WorkspaceCapabilityService workspaceCapabilityService,
+            DeviceCredentialService deviceCredentialService,
+            AuditEventPublisher auditEventPublisher,
+            FilesLockService filesLockService) {
         this.filesProviderPort = filesProviderPortProvider.getIfAvailable();
         this.contextAuthorizationPort = contextAuthorizationPort;
         this.contextAuthorizationProperties = contextAuthorizationProperties;
         this.workspaceCapabilityService = workspaceCapabilityService;
         this.deviceCredentialService = deviceCredentialService;
         this.auditEventPublisher = auditEventPublisher;
+        this.filesLockService = filesLockService;
     }
 
     public FilesFacadeService(
@@ -125,6 +142,23 @@ public class FilesFacadeService {
                 workspaceCapabilityService,
                 new DeviceCredentialService(new InMemoryDeviceCredentialRepository()),
                 auditEventPublisher);
+    }
+
+    public FilesFacadeService(
+            ObjectProvider<FilesProviderPort> filesProviderPortProvider,
+            ContextAuthorizationPort contextAuthorizationPort,
+            ContextAuthorizationProperties contextAuthorizationProperties,
+            WorkspaceCapabilityService workspaceCapabilityService,
+            AuditEventPublisher auditEventPublisher,
+            FilesLockService filesLockService) {
+        this(
+                filesProviderPortProvider,
+                contextAuthorizationPort,
+                contextAuthorizationProperties,
+                workspaceCapabilityService,
+                new DeviceCredentialService(new InMemoryDeviceCredentialRepository()),
+                auditEventPublisher,
+                filesLockService);
     }
 
     public FilesFacadeService(
@@ -227,7 +261,7 @@ public class FilesFacadeService {
         String operation = "webdav-put";
         String normalizedPath = requireMutableWebDavPath(path, operation);
         PrincipalContext principal = requireContextPermission(ContextPermission.EDIT, operation);
-        enforceUnlocked(normalizedPath, ifHeader, operation);
+        enforceUnlocked(normalizedPath, ifHeader, operation, principal);
         publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_ATTEMPTED, operation, principal, normalizedPath, "PUT", "attempted");
         try {
             FilesProviderPort adapter = configuredAdapter(operation);
@@ -260,7 +294,7 @@ public class FilesFacadeService {
         String operation = "webdav-mkcol";
         String normalizedPath = requireMutableWebDavPath(path, operation);
         PrincipalContext principal = requireContextPermission(ContextPermission.EDIT, operation);
-        enforceUnlocked(normalizedPath, ifHeader, operation);
+        enforceUnlocked(normalizedPath, ifHeader, operation, principal);
         publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_ATTEMPTED, operation, principal, normalizedPath, "MKCOL", "attempted");
         try {
             FilesProviderPort adapter = configuredAdapter(operation);
@@ -290,7 +324,7 @@ public class FilesFacadeService {
         String operation = "webdav-delete";
         String normalizedPath = requireMutableWebDavPath(path, operation);
         PrincipalContext principal = requireContextPermission(ContextPermission.EDIT, operation);
-        enforceUnlocked(normalizedPath, ifHeader, operation);
+        enforceUnlocked(normalizedPath, ifHeader, operation, principal);
         publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_ATTEMPTED, operation, principal, normalizedPath, "DELETE", "attempted");
         try {
             FilesProviderPort adapter = configuredAdapter(operation);
@@ -320,7 +354,7 @@ public class FilesFacadeService {
         String normalizedSource = requireMutableWebDavPath(sourcePath, operation);
         String normalizedDestination = requireMutableWebDavPath(destinationPath, operation);
         PrincipalContext principal = requireContextPermission(ContextPermission.EDIT, operation);
-        enforceUnlocked(normalizedDestination, ifHeader, operation);
+        enforceUnlocked(normalizedDestination, ifHeader, operation, principal);
         publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_ATTEMPTED, operation, principal, normalizedSource, "COPY", "attempted");
         try {
             FilesProviderPort adapter = configuredAdapter(operation);
@@ -363,8 +397,8 @@ public class FilesFacadeService {
         String normalizedSource = requireMutableWebDavPath(sourcePath, operation);
         String normalizedDestination = requireMutableWebDavPath(destinationPath, operation);
         PrincipalContext principal = requireContextPermission(ContextPermission.EDIT, operation);
-        enforceUnlocked(normalizedSource, ifHeader, operation);
-        enforceUnlocked(normalizedDestination, ifHeader, operation);
+        enforceUnlocked(normalizedSource, ifHeader, operation, principal);
+        enforceUnlocked(normalizedDestination, ifHeader, operation, principal);
         publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_ATTEMPTED, operation, principal, normalizedSource, "MOVE", "attempted");
         try {
             FilesProviderPort adapter = configuredAdapter(operation);
@@ -388,7 +422,10 @@ public class FilesFacadeService {
             VersionedFileItem updated = firstNonNull(
                     existingVersionedItem(adapter, normalizedDestination, operation, false),
                     versioned(moved, FileVersion.unknown()));
-            webDavLocks.remove(normalizedSource);
+            requiredLockService(operation).move(
+                    principal.tenantId(), DEFAULT_CONTEXT_ID,
+                    new FilePath(normalizedSource), new FilePath(normalizedDestination),
+                    presentedLockToken(ifHeader), principal.principalRef());
             publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_COMPLETED, operation, principal, normalizedDestination, "MOVE", "completed");
             return new WebDavMutationResult(toResponse(updated.item()), etag(updated), destination == null);
         } catch (ApiErrorException exception) {
@@ -402,22 +439,30 @@ public class FilesFacadeService {
         String operation = "webdav-lock";
         String normalizedPath = requireMutableWebDavPath(path, operation);
         PrincipalContext principal = requireContextPermission(ContextPermission.EDIT, operation);
-        enforceUnlocked(normalizedPath, ifHeader, operation);
-        String token = "opaquelocktoken:" + UUID.randomUUID();
-        webDavLocks.put(normalizedPath, new WebDavLockState(normalizedPath, token, principal.principalRef(), Instant.now().plusSeconds(3600)));
-        publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_COMPLETED, operation, principal, normalizedPath, "LOCK", "completed");
-        return new WebDavLockResult(normalizedPath, token, 3600);
+        enforceUnlocked(normalizedPath, ifHeader, operation, principal);
+        try {
+            FilesLockService.GrantedLock granted = requiredLockService(operation).acquire(
+                    principal.tenantId(), DEFAULT_CONTEXT_ID, new FilePath(normalizedPath),
+                    principal.principalRef(), Duration.ofHours(1));
+            publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_COMPLETED, operation, principal, normalizedPath, "LOCK", "completed");
+            return new WebDavLockResult(normalizedPath, granted.token(),
+                    Math.toIntExact(Math.max(1, Duration.between(Instant.now(), granted.expiresAt()).toSeconds())));
+        } catch (FileLockedException exception) {
+            throw locked(operation, normalizedPath);
+        }
     }
 
     public void unlockWebDavPath(String path, String lockTokenHeader) {
         String operation = "webdav-unlock";
         String normalizedPath = requireMutableWebDavPath(path, operation);
         PrincipalContext principal = requireContextPermission(ContextPermission.EDIT, operation);
-        WebDavLockState state = webDavLocks.get(normalizedPath);
-        if (state == null || !lockTokenMatches(state, lockTokenHeader)) {
+        try {
+            requiredLockService(operation).release(
+                    principal.tenantId(), DEFAULT_CONTEXT_ID, new FilePath(normalizedPath),
+                    presentedLockToken(lockTokenHeader), principal.principalRef());
+        } catch (FileLockedException exception) {
             throw locked(operation, normalizedPath);
         }
-        webDavLocks.remove(normalizedPath);
         publishWriteAudit(AuditAction.FILES_WEBDAV_WRITE_COMPLETED, operation, principal, normalizedPath, "UNLOCK", "completed");
     }
 
@@ -656,9 +701,6 @@ public class FilesFacadeService {
     private record PrincipalContext(String tenantId, String principalRef, String subject, String username) {
     }
 
-    private record WebDavLockState(String path, String token, String principalRef, Instant expiresAt) {
-    }
-
     private FilesProviderPort configuredAdapter(String operation) {
         if (filesProviderPort == null || !filesProviderPort.configured()) {
             throw adapterNotConfigured(operation);
@@ -674,34 +716,45 @@ public class FilesFacadeService {
                 Map.of("module", "files", "operation", operation));
     }
 
-    private void enforceUnlocked(String path, String ifHeader, String operation) {
+    private void enforceUnlocked(String path, String ifHeader, String operation, PrincipalContext principal) {
         String normalizedPath = FilePathCodec.normalizeProductPath(path);
-        Instant now = Instant.now();
-        webDavLocks.entrySet().removeIf(entry -> entry.getValue().expiresAt().isBefore(now));
-        WebDavLockState matchingLock = webDavLocks.values().stream()
-                .filter(lock -> lockApplies(lock.path(), normalizedPath))
-                .findFirst()
-                .orElse(null);
-        if (matchingLock == null || lockTokenMatches(matchingLock, ifHeader)) {
-            return;
+        try {
+            requiredLockService(operation).requireUnlocked(
+                    principal.tenantId(), DEFAULT_CONTEXT_ID, new FilePath(normalizedPath),
+                    presentedLockToken(ifHeader), principal.principalRef());
+        } catch (FileLockedException exception) {
+            throw locked(operation, normalizedPath);
         }
-        throw locked(operation, normalizedPath);
     }
 
-    private boolean lockApplies(String lockedPath, String requestPath) {
-        String locked = FilePathCodec.normalizeProductPath(lockedPath);
-        String request = FilePathCodec.normalizeProductPath(requestPath);
-        return request.equals(locked)
-                || request.startsWith(locked.endsWith("/") ? locked : locked + "/")
-                || locked.startsWith(request.endsWith("/") ? request : request + "/");
+    private FilesLockService requiredLockService(String operation) {
+        if (filesLockService == null) {
+            throw new ApiErrorException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "files-lock-authority-unavailable",
+                    "The durable Files lock authority is unavailable.",
+                    Map.of("module", "files", "operation", operation, "diagnosticsRedacted", true));
+        }
+        return filesLockService;
     }
 
-    private boolean lockTokenMatches(WebDavLockState state, String headerValue) {
-        if (state == null || headerValue == null || headerValue.isBlank()) {
-            return false;
+    private String presentedLockToken(String headerValue) {
+        if (headerValue == null || headerValue.isBlank()) {
+            return null;
         }
-        String normalizedHeader = headerValue.replace("<", "").replace(">", "");
-        return normalizedHeader.contains(state.token());
+        int start = headerValue.indexOf("opaquelocktoken:");
+        if (start < 0) {
+            return null;
+        }
+        int end = start;
+        while (end < headerValue.length()) {
+            char next = headerValue.charAt(end);
+            if (Character.isWhitespace(next) || next == '>' || next == ')') {
+                break;
+            }
+            end++;
+        }
+        return headerValue.substring(start, end);
     }
 
     private ApiErrorException locked(String operation, String path) {
