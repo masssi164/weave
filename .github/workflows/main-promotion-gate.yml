@@ -37,7 +37,22 @@ jobs:
           echo "sha=${candidate}" >> "$GITHUB_OUTPUT"
           echo "Candidate SHA: ${candidate}"
 
+      - name: Resolve promotion lane
+        id: lane
+        env:
+          HEAD_REF: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || '' }}
+        run: |
+          set -euo pipefail
+          if [[ "$HEAD_REF" == hotfix/* ]]; then
+            echo "kind=hotfix" >> "$GITHUB_OUTPUT"
+            echo "Main lane: hotfix"
+          else
+            echo "kind=promotion" >> "$GITHUB_OUTPUT"
+            echo "Main lane: dev-dogfood promotion"
+          fi
+
       - name: Verify candidate is contained in dev and dogfood
+        if: steps.lane.outputs.kind == 'promotion'
         run: |
           set -euo pipefail
           candidate="${{ steps.candidate.outputs.sha }}"
@@ -52,7 +67,20 @@ jobs:
             echo "Candidate is already contained in origin/main."
           fi
 
+      - name: Verify hotfix is based on current main
+        if: steps.lane.outputs.kind == 'hotfix'
+        run: |
+          set -euo pipefail
+          candidate="${{ steps.candidate.outputs.sha }}"
+          git fetch origin main --prune
+          if ! git merge-base --is-ancestor origin/main "$candidate"; then
+            echo "::error::Hotfix candidate ${candidate} is not based on current origin/main." >&2
+            exit 1
+          fi
+          echo "Hotfix candidate is based on current origin/main and must be forward-merged to dev after merge."
+
       - name: Verify successful dogfood candidate Live Stack E2E for candidate
+        if: steps.lane.outputs.kind == 'promotion'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -69,6 +97,7 @@ jobs:
           echo "Successful dogfood candidate Live Stack E2E evidence: ${run_url}"
 
       - name: Verify successful persistent test-stack deploy for candidate
+        if: steps.lane.outputs.kind == 'promotion'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
