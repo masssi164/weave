@@ -274,6 +274,57 @@ jobs:
           cp "$credential_state" "$bootstrap_staging"
           chmod 600 "$bootstrap_staging"
           mv "$bootstrap_staging" "$generated_root/bootstrap.env"
+
+          arc_target="$generated_root/01-infrastructure/agent-runtime"
+          arc_complete=false
+          if [[ -s "$arc_target/profile-signing/runtime-profile-signing-keys.json" &&
+                -s "$arc_target/state-wrapping/runtime-state-wrapping-keys.json" &&
+                -s "$arc_target/runtime-policy.json" &&
+                -s "$arc_target/credentials/weave/agent-runtime/admin/keycloak" ]]; then
+            arc_complete=true
+          fi
+          if [[ "$arc_complete" != true ]]; then
+            [[ ! -e "$arc_target" ]] || {
+              echo "::error::Persistent ARC trust state is partial; refusing to overwrite it." >&2
+              exit 1
+            }
+            backend_mounts="$(docker inspect weave-backend --format '{{json .Mounts}}')"
+            mount_source() {
+              jq -er --arg destination "$1" '
+                [.[] | select(.Type == "bind" and .Destination == $destination) | .Source]
+                | select(length == 1) | .[0]
+              ' <<<"$backend_mounts"
+            }
+            credentials_source="$(mount_source /run/weave-agent-runtime/credentials)"
+            profile_signing_source="$(mount_source /run/weave-agent-runtime/profile-signing)"
+            state_wrapping_source="$(mount_source /run/weave-agent-runtime/state-wrapping)"
+            arc_source="$(dirname "$profile_signing_source")"
+            [[ "$(dirname "$credentials_source")" == "$arc_source" &&
+                  "$(dirname "$state_wrapping_source")" == "$arc_source" &&
+                  -s "$arc_source/runtime-policy.json" ]] || {
+              echo "::error::Running backend ARC mounts do not form one complete trust authority." >&2
+              exit 1
+            }
+            arc_staging="$generated_root/01-infrastructure/agent-runtime.recovery-${GITHUB_RUN_ID}"
+            [[ ! -e "$arc_staging" ]] || {
+              echo "::error::ARC recovery staging path already exists." >&2
+              exit 1
+            }
+            mkdir -p "$arc_staging"
+            chmod 700 "$arc_staging"
+            cp -R "$credentials_source" "$arc_staging/credentials"
+            cp -R "$profile_signing_source" "$arc_staging/profile-signing"
+            cp -R "$state_wrapping_source" "$arc_staging/state-wrapping"
+            cp "$arc_source/runtime-policy.json" "$arc_staging/runtime-policy.json"
+            [[ -s "$arc_staging/profile-signing/runtime-profile-signing-keys.json" &&
+                  -s "$arc_staging/state-wrapping/runtime-state-wrapping-keys.json" &&
+                  -s "$arc_staging/runtime-policy.json" &&
+                  -s "$arc_staging/credentials/weave/agent-runtime/admin/keycloak" ]] || {
+              echo "::error::Live-mounted ARC recovery staging is incomplete." >&2
+              exit 1
+            }
+            mv "$arc_staging" "$arc_target"
+          fi
           {
             echo "TF_VAR_caddy_tls_cert_file=$cert_root/weave.test.pem"
             echo "TF_VAR_caddy_tls_key_file=$cert_root/weave.test-key.pem"
