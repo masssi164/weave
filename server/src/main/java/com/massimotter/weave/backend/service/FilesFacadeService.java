@@ -999,7 +999,8 @@ public class FilesFacadeService {
         String auditRef = publishOperationIntentAudit(mutation, principal, operation, "failed");
         if (state == com.massimotter.weave.backend.operation.domain.OperationIntent.State.DISPATCHING
                 && ("nextcloud-unavailable".equals(exception.code())
-                || "nextcloud-request-failed".equals(exception.code()))) {
+                || "nextcloud-request-failed".equals(exception.code())
+                || "files-s3-unavailable".equals(exception.code()))) {
             filesMutationIntentService.ambiguous(mutation, operation + ":provider-outcome-unknown");
             return;
         }
@@ -1509,6 +1510,8 @@ public class FilesFacadeService {
             case "nextcloud-response-invalid" -> "files-storage-response-invalid";
             case "nextcloud-unavailable" -> "files-storage-unavailable";
             case "nextcloud-request-failed" -> "files-storage-request-failed";
+            case "files-s3-not-configured" -> "files-storage-not-configured";
+            case "files-s3-unavailable" -> "files-storage-unavailable";
             default -> exception.code();
         };
         Map<String, Object> details = new LinkedHashMap<>();

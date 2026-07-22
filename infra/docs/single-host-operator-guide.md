@@ -95,6 +95,14 @@ These are release data and must survive host replacement or operator error:
 
 Before go-live, decide whether persistence is host-local snapshots, attached volume snapshots, or backup export. The key requirement is that the choice is explicit and restore-tested.
 
+## Guarded S3/MinIO Files target
+
+The `weave-s3-minio` Files adapter is a migration target, not a second live data plane. It is disabled by default and must not be enabled alongside an active Nextcloud binding merely to test connectivity.
+
+Provider-lab configuration uses backend-only values under `WEAVE_FILES_S3_*`: `ENABLED`, `ENDPOINT`, `REGION`, `BUCKET`, `ACCESS_KEY`, `SECRET_KEY`, and `PATH_STYLE`. Keep credentials in environment-scoped secret storage; never place them in RuntimeProfile, WebDAV content, client configuration, evidence, or support bundles.
+
+An operator may activate the adapter only through the portability cutover flow after deterministic dry-run, fidelity review, copy, delta synchronization, verification, and rollback evidence. The provider-binding compare-and-swap is the authority switch. Toggling `WEAVE_FILES_S3_ENABLED` alone must never be treated as a provider change or a `Ready` claim.
+
 ## Install flow
 
 1. Provision DNS for the public hostnames.
