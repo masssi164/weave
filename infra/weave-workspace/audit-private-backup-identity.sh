@@ -109,6 +109,23 @@ sql_count() {
     psql -U "${administrator}" -d "${database}" -Atqc "${query}"
 }
 
+restore_failure_category() {
+  local log_file="$1"
+  if grep -Fq 'invalid command \\restrict' "${log_file}"; then
+    printf '%s' dump-client-incompatibility
+  elif grep -Eq 'ERROR:  role .* already exists' "${log_file}"; then
+    printf '%s' role-conflict
+  elif grep -Eq 'ERROR:  database .* already exists' "${log_file}"; then
+    printf '%s' database-conflict
+  elif grep -Fq 'ERROR:  permission denied' "${log_file}"; then
+    printf '%s' permission-denied
+  elif grep -Fq 'ERROR:' "${log_file}"; then
+    printf '%s' database-error
+  else
+    printf '%s' client-or-transport-error
+  fi
+}
+
 main() {
   if [[ "${BACKUP_DIR}" == --help || "${BACKUP_DIR}" == -h ]]; then
     usage
@@ -131,7 +148,7 @@ main() {
   python3 "${INTEGRITY_TOOL}" --backup-dir "${BACKUP_DIR}" --output "${TEMP_ROOT}/integrity.json"
   tar -C "${TEMP_ROOT}" -xzf "${BACKUP_DIR}/generated-config-secrets.tgz" .generated/bootstrap.env
   local bootstrap_file="${TEMP_ROOT}/.generated/bootstrap.env"
-  local administrator password recorded_subject audit_id ready
+  local administrator password recorded_subject audit_id ready process_one
   administrator="$(bootstrap_value TF_VAR_db_admin_username "${bootstrap_file}")"
   password="$(bootstrap_value TF_VAR_db_admin_password "${bootstrap_file}")"
   [[ "${administrator}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || fail "restored database administrator name is invalid"
@@ -153,17 +170,20 @@ main() {
 
   ready=false
   for _ in $(seq 1 60); do
-    if docker exec "${TEMP_CONTAINER}" pg_isready -U "${administrator}" -d postgres >/dev/null 2>&1; then
+    process_one="$(docker exec "${TEMP_CONTAINER}" cat /proc/1/comm 2>/dev/null || true)"
+    if [[ "${process_one}" == postgres ]] &&
+      docker exec "${TEMP_CONTAINER}" pg_isready -U "${administrator}" -d postgres >/dev/null 2>&1; then
       ready=true
       break
     fi
     sleep 1
   done
   [[ "${ready}" == true ]] || fail "temporary identity-audit database did not become ready"
-  docker exec -e "PGPASSWORD=${password}" -i "${TEMP_CONTAINER}" \
+  if ! docker exec -e "PGPASSWORD=${password}" -i "${TEMP_CONTAINER}" \
     psql -v ON_ERROR_STOP=1 -U "${administrator}" -d postgres \
-    <"${TEMP_ROOT}/postgres.sql" >"${TEMP_ROOT}/postgres-restore.log" 2>&1 ||
-    fail "private PostgreSQL replay failed"
+    <"${TEMP_ROOT}/postgres.sql" >"${TEMP_ROOT}/postgres-restore.log" 2>&1; then
+    fail "private PostgreSQL replay failed ($(restore_failure_category "${TEMP_ROOT}/postgres-restore.log"))"
+  fi
 
   local service_databases recorded_matches username_matches bootstrap_matches other_humans
   service_databases="$(sql_count postgres \
@@ -185,8 +205,14 @@ main() {
 
   [[ "${recorded_matches}" == 0 && "${username_matches}" == 0 ]] ||
     fail "backup is identity-restorable or ambiguous for the protected member"
-  [[ "${bootstrap_matches}" == 1 && "${other_humans}" == 0 ]] ||
-    fail "backup does not contain the exact sole disposable bootstrap identity boundary"
+  [[ "${other_humans}" == 0 && ("${bootstrap_matches}" == 0 || "${bootstrap_matches}" == 1) ]] ||
+    fail "backup is outside the empty-or-sole-disposable-bootstrap recovery boundary (bootstrapCount=${bootstrap_matches}, otherHumanCount=${other_humans})"
+
+  local bootstrap_retirement_required empty_human_boundary
+  bootstrap_retirement_required=false
+  empty_human_boundary=false
+  [[ "${bootstrap_matches}" == 1 ]] && bootstrap_retirement_required=true
+  [[ "${bootstrap_matches}" == 0 ]] && empty_human_boundary=true
 
   mkdir -p "$(dirname -- "${EVIDENCE_FILE}")"
   local temporary="${EVIDENCE_FILE}.tmp.$$"
@@ -194,7 +220,10 @@ main() {
     --arg backupIdSha256 "$(jq -r '.backupIdSha256' "${TEMP_ROOT}/integrity.json")" \
     --arg recordedSubjectSha256 "$(printf '%s' "${recorded_subject}" | shasum -a 256 | awk '{print $1}')" \
     --arg protectedUsernameSha256 "$(printf '%s' "${WEAVE_DOGFOOD_MEMBER_USERNAME}" | shasum -a 256 | awk '{print $1}')" \
-    --arg auditedAt "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" '
+    --arg auditedAt "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+    --arg bootstrapRetirementRequired "${bootstrap_retirement_required}" \
+    --arg emptyHumanBoundary "${empty_human_boundary}" \
+    --arg humanIdentityCount "${bootstrap_matches}" '
     {
       schemaVersion:"weave.dogfood.private-backup-identity-audit.v1",
       status:"passed",
@@ -206,7 +235,11 @@ main() {
         recordedSubjectSha256:$recordedSubjectSha256,
         protectedUsernameSha256:$protectedUsernameSha256,
         identityRestorableForRecordedMember:false,
-        soleDisposableBootstrapIdentity:true,
+        recoveryIdentityBoundaryAccepted:true,
+        soleDisposableBootstrapIdentity:($bootstrapRetirementRequired == "true"),
+        emptyHumanIdentityBoundary:($emptyHumanBoundary == "true"),
+        bootstrapRetirementRequired:($bootstrapRetirementRequired == "true"),
+        humanIdentityCount:($humanIdentityCount | tonumber),
         otherHumanIdentityCount:0
       },
       privateArtifactContentIncluded:false,
@@ -215,7 +248,7 @@ main() {
   ' >"${temporary}"
   chmod 600 "${temporary}"
   mv "${temporary}" "${EVIDENCE_FILE}"
-  log "PRIVATE_IDENTITY_AUDIT status=passed identityRestorableForRecordedMember=false soleDisposableBootstrapIdentity=true persistentRuntimeMutated=false supportSafe=true"
+  log "PRIVATE_IDENTITY_AUDIT status=passed identityRestorableForRecordedMember=false recoveryIdentityBoundaryAccepted=true bootstrapRetirementRequired=${bootstrap_retirement_required} humanIdentityCount=${bootstrap_matches} persistentRuntimeMutated=false supportSafe=true"
 }
 
 main "$@"

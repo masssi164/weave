@@ -464,6 +464,41 @@ write_bootstrap_retirement_evidence() {
   }
 }
 
+write_empty_bootstrap_boundary_evidence() {
+  local output="$1" recorded_subject="$2"
+  mkdir -p "$(dirname -- "${output}")" || return 1
+  if ! jq -n \
+    --arg realm "${REALM}" \
+    --arg recordedSubjectSha256 "$(sha256 "${recorded_subject}")" \
+    --arg protectedUsernameSha256 "$(sha256 "${WEAVE_DOGFOOD_MEMBER_USERNAME}")" \
+    --arg approvalRef "${RECOVERY_APPROVAL_REF}" \
+    --arg observedAt "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" '
+    {
+      schemaVersion:"weave.dogfood.restored-bootstrap-retirement.v1",
+      realm:$realm,
+      action:"not_required_empty_human_boundary",
+      reason:"platform-backup-has-no-human-identity",
+      recordedSubjectSha256:$recordedSubjectSha256,
+      protectedUsernameSha256:$protectedUsernameSha256,
+      protectedIdentityPresentBefore:false,
+      humanIdentityCountBefore:0,
+      humanIdentityCountAfter:0,
+      deletionBoundary:"none",
+      providerMutationPerformed:false,
+      approvalRef:$approvalRef,
+      observedAt:$observedAt,
+      supportSafe:true
+    }
+  ' >"${output}"; then
+    rm -f -- "${output}" >/dev/null 2>&1 || true
+    return 1
+  fi
+  chmod 600 "${output}" || {
+    rm -f -- "${output}" >/dev/null 2>&1 || true
+    return 1
+  }
+}
+
 retire_restored_bootstrap() {
   local base="$1" token="$2" current_user="$3" recorded humans bootstrap_user bootstrap_subject remaining
   local evidence_temporary
@@ -474,8 +509,18 @@ retire_restored_bootstrap() {
   verify_recorded_subject_absent "${base}" "${token}" "${recorded}"
 
   humans="$(realm_human_users "${base}" "${token}")"
+  if [[ "$(jq 'length' <<<"${humans}")" -eq 0 ]]; then
+    evidence_temporary="${EVIDENCE_FILE}.tmp.$$"
+    if ! (umask 077; write_empty_bootstrap_boundary_evidence "${evidence_temporary}" "${recorded}"); then
+      rm -f -- "${evidence_temporary}" >/dev/null 2>&1 || true
+      fail "support-safe empty bootstrap boundary evidence could not be prepared"
+    fi
+    mv "${evidence_temporary}" "${EVIDENCE_FILE}"
+    log "DOGFOOD_MEMBER_RECOVERY action=not_required_empty_human_boundary humanIdentityCountAfter=0 providerMutationPerformed=false supportSafe=true"
+    return
+  fi
   [[ "$(jq 'length' <<<"${humans}")" -eq 1 ]] ||
-    fail "restored realm must contain exactly one non-service identity before bootstrap retirement"
+    fail "restored realm must be empty or contain exactly one non-service identity before bootstrap retirement"
   bootstrap_user="$(jq -c --arg username "${RESTORED_BOOTSTRAP_USERNAME}" '[.[] | select(.username == $username)][0] // empty' <<<"${humans}")"
   [[ -n "${bootstrap_user}" ]] || fail "the sole restored identity is not the disposable bootstrap user"
   bootstrap_subject="$(jq -r '.id // empty' <<<"${bootstrap_user}")"
