@@ -8,6 +8,7 @@ set -euo pipefail
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd)"
 WORKFLOW="${ROOT_DIR}/.github/workflows/dogfood-pending-identity-recovery.yml"
 MEMBER_HELPER="${ROOT_DIR}/infra/weave-workspace/dogfood-member.sh"
+IDENTITY_AUDIT="${ROOT_DIR}/infra/weave-workspace/audit-private-backup-identity.sh"
 OPERATOR_RUNBOOK="${ROOT_DIR}/infra/docs/operator-runbook.md"
 
 fail() { printf '%s\n' "$*" >&2; exit 1; }
@@ -24,6 +25,7 @@ assert_workflow_order() {
 
 [[ -f "${WORKFLOW}" ]] || fail "Pending identity recovery workflow is missing"
 [[ -f "${MEMBER_HELPER}" ]] || fail "Persistent member helper is missing"
+[[ -x "${IDENTITY_AUDIT}" ]] || fail "Private backup identity audit helper is missing or not executable"
 [[ -f "${OPERATOR_RUNBOOK}" ]] || fail "Operator runbook is missing"
 require_workflow 'group: weave-live-mac-mini-exclusive'
 require_workflow 'cancel-in-progress: false'
@@ -49,13 +51,15 @@ require_workflow 'module.tenant_identity.keycloak_user.test[0]'
 require_workflow 'tofu -chdir=02-keycloak-setup init -input=false'
 require_workflow 'tofu -chdir=02-keycloak-setup state rm "$address"'
 require_workflow 'providerMutationPerformed:false'
-require_workflow 'weave.dogfood.platform-private-restore.v1'
-require_workflow 'restored_volumes=('
+require_workflow 'weave.dogfood.private-backup-identity-audit-set.v1'
+require_workflow './audit-private-backup-identity.sh "$backup_candidate"'
+require_workflow 'auditedBackupCount:length'
+require_workflow 'persistent_volumes=('
 require_workflow 'weave_matrix_chat_appservice_runtime'
-require_workflow '.postgresBootstrap.temporaryAdministratorCreated == false'
+require_workflow '.isolatedDatabaseReplay.persistentRuntimeMutated == false'
 require_workflow '.identity.identityRestorableForRecordedMember == false'
-require_workflow '.identity.soleRestoredDisposableBootstrapIdentity == true'
-require_workflow 'platformRestoreStatus:$platformRestoreStatus'
+require_workflow '.identity.soleDisposableBootstrapIdentity == true'
+require_workflow 'privateBackupIdentityAuditStatus:$identityAuditStatus'
 require_workflow '--prior-evidence "$prior_evidence"'
 require_workflow '--approval-ref "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"'
 require_helper 'retired-pending-identities'
@@ -79,6 +83,7 @@ require_runbook 'the human tester completes the Keycloak activation'
 require_runbook 'run the standard `Test Stack Deploy` workflow for the same candidate'
 assert_workflow_order 'tofu -chdir=02-keycloak-setup state rm "$address"' 'Bootstrap lost persistent runtime with the exact candidate'
 assert_workflow_order 'Bootstrap lost persistent runtime with the exact candidate' 'Retire the proven restored disposable bootstrap identity'
+assert_workflow_order 'Create private pre-recovery backup and audit identity-restorability' 'Retire the proven restored disposable bootstrap identity'
 
 upload_block="$(sed -n '/- name: Upload support-safe recovery evidence/,$p' "${WORKFLOW}")"
 if [[ "$(grep -Fc 'uses: actions/upload-artifact@' "${WORKFLOW}")" -ne 1 ]]; then
