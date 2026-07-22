@@ -36,11 +36,13 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import javax.xml.parsers.DocumentBuilderFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StreamUtils;
 import org.springframework.util.StringUtils;
@@ -79,9 +81,16 @@ public class NextcloudFilesAdapter implements FilesProviderPort {
     private final NextcloudFilesProperties properties;
     private final RestClient restClient;
 
+    @Autowired
     public NextcloudFilesAdapter(NextcloudFilesProperties properties, RestClient.Builder restClientBuilder) {
+        this(properties, restClientBuilder
+                .requestFactory(new JdkClientHttpRequestFactory())
+                .build());
+    }
+
+    NextcloudFilesAdapter(NextcloudFilesProperties properties, RestClient restClient) {
         this.properties = properties;
-        this.restClient = restClientBuilder.build();
+        this.restClient = restClient;
     }
 
     @Override

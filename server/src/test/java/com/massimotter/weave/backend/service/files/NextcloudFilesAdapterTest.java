@@ -8,6 +8,8 @@ import com.massimotter.weave.backend.files.domain.FilesDomain.FileVersion;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileWrite;
 import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedListing;
+import com.sun.net.httpserver.HttpServer;
+import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Base64;
@@ -40,7 +42,7 @@ class NextcloudFilesAdapterTest {
     void setUp() {
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
-        adapter = new NextcloudFilesAdapter(configuredProperties(), builder);
+        adapter = new NextcloudFilesAdapter(configuredProperties(), builder.build());
     }
 
     @Test
@@ -56,6 +58,49 @@ class NextcloudFilesAdapterTest {
 
         assertThat(unconfigured.configured()).isFalse();
         assertThat(unconfigured.healthProbe().state().value()).isEqualTo("unavailable");
+    }
+
+    @Test
+    void runtimeClientSupportsWebdavMethodsIndependentOfClasspathHttpFactories() throws Exception {
+        HttpServer davServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        davServer.createContext("/remote.php/dav/files/weave-service/", exchange -> {
+            byte[] response = """
+                    <?xml version="1.0" encoding="utf-8" ?>
+                    <d:multistatus xmlns:d="DAV:">
+                      <d:response>
+                        <d:href>/remote.php/dav/files/weave-service/</d:href>
+                        <d:propstat><d:prop>
+                          <d:resourcetype><d:collection /></d:resourcetype>
+                          <d:getetag>"etag-root"</d:getetag>
+                        </d:prop></d:propstat>
+                      </d:response>
+                    </d:multistatus>
+                    """.getBytes(StandardCharsets.UTF_8);
+            if (!"PROPFIND".equals(exchange.getRequestMethod())) {
+                exchange.sendResponseHeaders(HttpStatus.METHOD_NOT_ALLOWED.value(), -1);
+            } else {
+                exchange.getResponseHeaders().set(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_XML_VALUE);
+                exchange.sendResponseHeaders(HttpStatus.MULTI_STATUS.value(), response.length);
+                exchange.getResponseBody().write(response);
+            }
+            exchange.close();
+        });
+        davServer.start();
+        try {
+            NextcloudFilesAdapter runtimeAdapter = new NextcloudFilesAdapter(
+                    new NextcloudFilesProperties(
+                            "http://127.0.0.1:" + davServer.getAddress().getPort(),
+                            "/remote.php/dav/files",
+                            "backend-service-account",
+                            "weave-service",
+                            "app-password"),
+                    RestClient.builder());
+
+            assertThat(runtimeAdapter.list(new FilePath("/")).requestedVersion().value())
+                    .isEqualTo("\"etag-root\"");
+        } finally {
+            davServer.stop(0);
+        }
     }
 
     @Test
