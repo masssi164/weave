@@ -47,6 +47,7 @@ infra_main="${ROOT_DIR}/01-infrastructure/main.tf"
 infra_outputs="${ROOT_DIR}/01-infrastructure/outputs.tf"
 install_script="${ROOT_DIR}/install.sh"
 keycloak_main="${ROOT_DIR}/02-keycloak-setup/modules/tenant-identity/main.tf"
+keycloak_outputs="${ROOT_DIR}/02-keycloak-setup/modules/tenant-identity/outputs.tf"
 release_env="${ROOT_DIR}/release.env.example"
 release_verify="${ROOT_DIR}/release-verify.sh"
 admin_doc="${REPO_DIR}/docs/admin-user-activation.md"
@@ -69,7 +70,7 @@ iphone_mailpit_smoke="${ROOT_DIR}/iphone-mailpit-smoke.sh"
 keycloak_extension="${REPO_DIR}/keycloak-event-listener/src/main/java/com/massimotter/weave/keycloak/events/WeaveIdentityEventListenerProvider.java"
 keycloak_extension_dockerfile="${REPO_DIR}/keycloak-event-listener/Dockerfile"
 
-for file in "${backend_main}" "${mcp_main}" "${infra_main}" "${infra_outputs}" "${install_script}" "${release_verify}" "${keycloak_main}" "${release_env}" "${admin_doc}" "${caldav_doc}" "${connector_doc}" "${matrix_workspace_doc}" "${matrix_e2ee_doc}" "${openproject_doc}" "${openproject_compose}" "${provider_stack_compose}" "${provider_stack_check}" "${openproject_live_e2e}" "${support_bundle}" "${caddy_template}" "${local_invite_script}" "${dogfood_handoff_bundle}" "${dogfood_ios_smoke}" "${dogfood_cert_smoke}" "${iphone_mailpit_smoke}" "${keycloak_extension}" "${keycloak_extension_dockerfile}"; do
+for file in "${backend_main}" "${mcp_main}" "${infra_main}" "${infra_outputs}" "${install_script}" "${release_verify}" "${keycloak_main}" "${keycloak_outputs}" "${release_env}" "${admin_doc}" "${caldav_doc}" "${connector_doc}" "${matrix_workspace_doc}" "${matrix_e2ee_doc}" "${openproject_doc}" "${openproject_compose}" "${provider_stack_compose}" "${provider_stack_check}" "${openproject_live_e2e}" "${support_bundle}" "${caddy_template}" "${local_invite_script}" "${dogfood_handoff_bundle}" "${dogfood_ios_smoke}" "${dogfood_cert_smoke}" "${iphone_mailpit_smoke}" "${keycloak_extension}" "${keycloak_extension_dockerfile}"; do
   [[ -f "${file}" ]] || fail "Missing expected contract file: ${file}"
 done
 
@@ -96,6 +97,8 @@ assert_file_contains "${install_script}" 'reconcile_keycloak_generated_admin_cre
 assert_file_contains "${install_script}" 'weave_identity_admin_client_secret'
 assert_file_contains "${install_script}" 'weave_agent_runtime_admin_client_secret'
 assert_file_contains "${install_script}" 'Reapplying infrastructure with Keycloak-generated administrative credentials and organization authority'
+assert_file_contains "${keycloak_outputs}" 'try(keycloak_openid_client.client["weave_identity_admin"].client_secret, null)'
+assert_file_contains "${keycloak_outputs}" 'try(keycloak_openid_client.client["weave_agent_runtime_admin"].client_secret, null)'
 assert_file_absent "${keycloak_main}" 'client_secret_post'
 assert_file_absent "${keycloak_main}" 'client.secret.authentication.allowed.method'
 assert_file_contains "${keycloak_main}" 'name                   = "agent-runtime.profile.read"'

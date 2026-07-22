@@ -90,13 +90,13 @@ output "weave_agent_runtime_admin_client_id" {
 
 output "weave_identity_admin_client_secret" {
   description = "Keycloak-generated credential for the backend-only identity administrator."
-  value       = keycloak_openid_client.client["weave_identity_admin"].client_secret
+  value       = try(keycloak_openid_client.client["weave_identity_admin"].client_secret, null)
   sensitive   = true
 }
 
 output "weave_agent_runtime_admin_client_secret" {
   description = "Keycloak-generated credential for the ARC workload identity administrator."
-  value       = keycloak_openid_client.client["weave_agent_runtime_admin"].client_secret
+  value       = try(keycloak_openid_client.client["weave_agent_runtime_admin"].client_secret, null)
   sensitive   = true
 }
 
