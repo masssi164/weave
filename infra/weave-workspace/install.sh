@@ -656,6 +656,18 @@ keycloak_admin_delete() {
     "http://${LOOPBACK_HOST}:${TF_VAR_keycloak_host_port}${path}"
 }
 
+keycloak_admin_put() {
+  local path="$1"
+  local token=""
+
+  token="$(keycloak_admin_token)"
+  curl -fsS -o /dev/null -X PUT \
+    -H "Authorization: Bearer ${token}" \
+    -H 'Content-Type: application/json' \
+    --data-binary @- \
+    "http://${LOOPBACK_HOST}:${TF_VAR_keycloak_host_port}${path}"
+}
+
 keycloak_json_id_by_field() {
   local field="$1"
   local value="$2"
@@ -825,6 +837,56 @@ remove_obsolete_keycloak_contracts() {
   fi
 }
 
+keycloak_remove_named_collection_entry() {
+  local path="$1"
+  local collection="$2"
+  local name="$3"
+  local count=""
+
+  count="$(keycloak_admin_get "${path}" | python3 -c 'import json,sys
+collection, name = sys.argv[1], sys.argv[2]
+data = json.load(sys.stdin)
+print(sum(1 for item in data.get(collection, []) if item.get("name") == name))
+' "${collection}" "${name}")"
+
+  [[ "${count}" == "0" ]] && return 0
+  [[ "${count}" == "1" ]] ||
+    fail "Keycloak contains ${count} ${collection} entries named ${name}; refusing ambiguous reconciliation."
+
+  log "Removing the existing Weave-owned Keycloak ${collection} entry ${name} before canonical recreation."
+  keycloak_admin_get "${path}" |
+    python3 -c 'import json,sys
+collection, name = sys.argv[1], sys.argv[2]
+data = json.load(sys.stdin)
+data[collection] = [item for item in data.get(collection, []) if item.get("name") != name]
+json.dump(data, sys.stdout, separators=(",", ":"))
+' "${collection}" "${name}" |
+    keycloak_admin_put "${path}"
+}
+
+reconcile_unimportable_keycloak_client_policy_state() {
+  local name='weave-token-exchange-downscope'
+  local policy_address='module.tenant_identity.keycloak_realm_client_policy_profile_policy.token_exchange_downscope'
+  local profile_address='module.tenant_identity.keycloak_realm_client_policy_profile.token_exchange_downscope'
+
+  # The Keycloak provider cannot import either client-policy resource. When a
+  # restored/live realm exists but OpenTofu state does not, remove only these
+  # exact Weave-owned objects in dependency order. The following normal apply
+  # recreates them from the canonical declaration without touching identities.
+  if ! keycloak_state_has "${policy_address}"; then
+    keycloak_remove_named_collection_entry \
+      "/admin/realms/${TF_VAR_tenant_slug}/client-policies/policies" \
+      policies \
+      "${name}"
+  fi
+  if ! keycloak_state_has "${profile_address}"; then
+    keycloak_remove_named_collection_entry \
+      "/admin/realms/${TF_VAR_tenant_slug}/client-policies/profiles" \
+      profiles \
+      "${name}"
+  fi
+}
+
 ensure_existing_keycloak_terraform_state() {
   local client_scope_id=""
   local client_uuid=""
@@ -859,6 +921,8 @@ ensure_existing_keycloak_terraform_state() {
   # recreate it or deleting any member/organization data.
   log "Refreshing Keycloak OpenTofu state before exact-name adoption..."
   weave_iac "${KEYCLOAK_DIR}" apply -refresh-only -input=false -auto-approve >/dev/null
+
+  reconcile_unimportable_keycloak_client_policy_state
 
   keycloak_import_if_missing module.tenant_identity.keycloak_realm.tenant "${TF_VAR_tenant_slug}"
 
