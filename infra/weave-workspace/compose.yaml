@@ -1,0 +1,567 @@
+name: ${WEAVE_COMPOSE_PROJECT:-weave-dev}
+
+x-weave-service: &weave-service
+  restart: unless-stopped
+  labels:
+    com.massimotter.weave.managed: "true"
+    com.massimotter.weave.environment: ${WEAVE_ENVIRONMENT:-dev}
+    com.massimotter.weave.namespace: ${WEAVE_RESOURCE_PREFIX:-weave}
+    com.massimotter.weave.scope: ${WEAVE_STACK_SCOPE:-persistent}
+  networks:
+    weave:
+
+x-core-profiles: &core-profiles
+  - dev
+  - dogfood
+  - main
+
+services:
+  postgres:
+    <<: *weave-service
+    profiles: *core-profiles
+    image: ${WEAVE_POSTGRES_IMAGE:-postgres:16.9-alpine}
+    container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-db
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: ${WEAVE_DB_ADMIN_USERNAME:-weave_admin}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres-admin-password
+    secrets:
+      - postgres-admin-password
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$${POSTGRES_USER}" -d postgres
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+  postgres-reconcile:
+    profiles: *core-profiles
+    image: ${WEAVE_POSTGRES_IMAGE:-postgres:16.9-alpine}
+    container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-postgres-reconcile
+    restart: "no"
+    labels:
+      com.massimotter.weave.managed: "true"
+      com.massimotter.weave.environment: ${WEAVE_ENVIRONMENT:-dev}
+      com.massimotter.weave.namespace: ${WEAVE_RESOURCE_PREFIX:-weave}
+      com.massimotter.weave.scope: ${WEAVE_STACK_SCOPE:-persistent}
+      com.massimotter.weave.one-shot: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGDATABASE: postgres
+      PGUSER: ${WEAVE_DB_ADMIN_USERNAME:-weave_admin}
+      WEAVE_BACKEND_DB_NAME: ${WEAVE_BACKEND_DB_NAME:-weave_backend}
+      WEAVE_BACKEND_DB_USERNAME: ${WEAVE_BACKEND_DB_USERNAME:-weave_backend}
+      WEAVE_KEYCLOAK_DB_NAME: ${WEAVE_KEYCLOAK_DB_NAME:-weave_keycloak}
+      WEAVE_KEYCLOAK_DB_USERNAME: ${WEAVE_KEYCLOAK_DB_USERNAME:-keycloak}
+      WEAVE_MAS_DB_NAME: ${WEAVE_MAS_DB_NAME:-weave_mas}
+      WEAVE_MAS_DB_USERNAME: ${WEAVE_MAS_DB_USERNAME:-mas}
+      WEAVE_SYNAPSE_DB_NAME: ${WEAVE_SYNAPSE_DB_NAME:-weave_synapse}
+      WEAVE_SYNAPSE_DB_USERNAME: ${WEAVE_SYNAPSE_DB_USERNAME:-synapse}
+      WEAVE_NEXTCLOUD_DB_NAME: ${WEAVE_NEXTCLOUD_DB_NAME:-weave_nextcloud}
+      WEAVE_NEXTCLOUD_DB_USERNAME: ${WEAVE_NEXTCLOUD_DB_USERNAME:-nextcloud}
+      WEAVE_CONTROL_DB_USERNAME: ${WEAVE_CONTROL_DB_USERNAME:-weave_control}
+    entrypoint:
+      - /bin/sh
+      - /opt/weave/postgres-reconcile.sh
+    volumes:
+      - ./database/postgres-reconcile.sh:/opt/weave/postgres-reconcile.sh:ro
+    secrets:
+      - postgres-admin-password
+      - backend-db-password
+      - keycloak-db-password
+      - mas-db-password
+      - synapse-db-password
+      - nextcloud-db-password
+      - control-db-password
+    networks:
+      weave:
+
+  caddy:
+    <<: *weave-service
+    profiles: *core-profiles
+    image: ${WEAVE_CADDY_IMAGE:-caddy:2.10.0-alpine}
+    container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-proxy
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      mas:
+        condition: service_started
+      synapse:
+        condition: service_started
+      nextcloud:
+        condition: service_started
+    ports:
+      - "${WEAVE_PROXY_HTTP_HOST_PORT:-44080}:80"
+      - "${WEAVE_PROXY_HTTPS_HOST_PORT:-44443}:443"
+    networks:
+      weave:
+        aliases:
+          - ${WEAVE_TENANT_DOMAIN:-weave.test}
+          - ${WEAVE_API_SUBDOMAIN:-api}.${WEAVE_TENANT_DOMAIN:-weave.test}
+          - ${WEAVE_AUTH_SUBDOMAIN:-auth}.${WEAVE_TENANT_DOMAIN:-weave.test}
+          - ${WEAVE_MATRIX_SUBDOMAIN:-matrix}.${WEAVE_TENANT_DOMAIN:-weave.test}
+          - ${WEAVE_FILES_SUBDOMAIN:-files}.${WEAVE_TENANT_DOMAIN:-weave.test}
+    volumes:
+      - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${WEAVE_TLS_ROOT:-./.generated/dev/tls}:/certs:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    healthcheck:
+      test:
+        - CMD
+        - caddy
+        - validate
+        - --config
+        - /etc/caddy/Caddyfile
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  keycloak:
+    <<: *weave-service
+    profiles: *core-profiles
+    image: ${WEAVE_KEYCLOAK_IMAGE:-weave-keycloak:26.7.0-identity-events-v1}
+    container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-keycloak
+    depends_on:
+      postgres-reconcile:
+        condition: service_completed_successfully
+    entrypoint:
+      - /bin/bash
+      - /opt/weave/run-keycloak.sh
+    command:
+      - start-dev
+    environment:
+      KC_DB: postgres
+      KC_DB_URL_HOST: postgres
+      KC_DB_URL_PORT: "5432"
+      KC_DB_URL_DATABASE: ${WEAVE_KEYCLOAK_DB_NAME:-weave_keycloak}
+      KC_DB_SCHEMA: public
+      KC_DB_USERNAME: ${WEAVE_KEYCLOAK_DB_USERNAME:-keycloak}
+      KC_HOSTNAME: ${WEAVE_AUTH_URL:-https://auth.weave.test:44443}
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+      KC_HTTP_MANAGEMENT_PORT: "9000"
+      KC_PROXY_HEADERS: xforwarded
+      WEAVE_IDENTITY_EVENTS_ENDPOINT: http://${WEAVE_RESOURCE_PREFIX:-weave}-backend:8080/api/internal/keycloak/events
+    secrets:
+      - keycloak-db-password
+      - identity-events-hmac-secret
+    volumes:
+      - ./scripts/run-keycloak.sh:/opt/weave/run-keycloak.sh:ro
+      - keycloak-data:/opt/keycloak/data
+    ports:
+      - "127.0.0.1:${WEAVE_KEYCLOAK_HOST_PORT:-48080}:8080"
+      - "127.0.0.1:${WEAVE_KEYCLOAK_MANAGEMENT_HOST_PORT:-49000}:9000"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'exec 3<>/dev/tcp/127.0.0.1/9000; printf "GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n" >&3; grep -q "200 OK" <&3'
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+
+  mailpit:
+    <<: *weave-service
+    profiles:
+      - dev
+      - dogfood
+    image: ${WEAVE_MAILPIT_IMAGE:-axllent/mailpit:v1.27.8}
+    container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-mailpit
+    environment:
+      MP_DATABASE: /data/mailpit.db
+      MP_MAX_MESSAGES: ${WEAVE_MAILPIT_MAX_MESSAGES:-500}
+      MP_SMTP_REQUIRE_TLS: ${WEAVE_MAILPIT_REQUIRE_TLS:-false}
+      MP_SMTP_TLS_CERT: /run/mailpit/tls/cert.pem
+      MP_SMTP_TLS_KEY: /run/mailpit/tls/key.pem
+    volumes:
+      - mailpit-data:/data
+      - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/mailpit/tls:/run/mailpit/tls:ro
+    ports:
+      - "127.0.0.1:${WEAVE_MAILPIT_WEB_HOST_PORT:-48025}:8025"
+    healthcheck:
+      test:
+        - CMD
+        - /mailpit
+        - readyz
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  mas:
+    <<: *weave-service
+    profiles: *core-profiles
+    image: ${WEAVE_MAS_IMAGE:-ghcr.io/element-hq/matrix-authentication-service:1.15.0}
+    container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-mas
+    user: "${WEAVE_RUNTIME_UID:-1000}:${WEAVE_RUNTIME_GID:-1000}"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    depends_on:
+      postgres-reconcile:
+        condition: service_completed_successfully
+      keycloak:
+        condition: service_healthy
+    command:
+      - server
+      - -c
+      - /config/config.yaml
+    environment:
+      SSL_CERT_FILE: /certs/ca.pem
+      CURL_CA_BUNDLE: /certs/ca.pem
+      REQUESTS_CA_BUNDLE: /certs/ca.pem
+    volumes:
+      - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/mas/config.yaml:/config/config.yaml:ro
+      - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/mas/signing.key:/config/signing.key:ro
+      - ${WEAVE_TLS_ROOT:-./.generated/dev/tls}/ca.pem:/certs/ca.pem:ro
+    ports:
+      - "127.0.0.1:${WEAVE_MAS_HOST_PORT:-48082}:8080"
+    healthcheck:
+      test:
+        - CMD
+        - mas-cli
+        - -c
+        - /config/config.yaml
+        - doctor
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 30s
+
+  synapse-init:
+    profiles: *core-profiles
+    image: ${WEAVE_SYNAPSE_IMAGE:-matrixdotorg/synapse:v1.136.0}
+    container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-synapse-init
+    restart: "no"
+    user: "0:0"
+    labels:
+      com.massimotter.weave.managed: "true"
+      com.massimotter.weave.environment: ${WEAVE_ENVIRONMENT:-dev}
+      com.massimotter.weave.namespace: ${WEAVE_RESOURCE_PREFIX:-weave}
+      com.massimotter.weave.scope: ${WEAVE_STACK_SCOPE:-persistent}
+      com.massimotter.weave.one-shot: "true"
+    entrypoint:
+      - /bin/sh
+      - -ec
+    command:
+      - |
+        install -d -m 0750 -o ${WEAVE_SYNAPSE_UID:-991} -g ${WEAVE_SYNAPSE_GID:-991} /data /data/media_store
+        install -m 0400 -o ${WEAVE_SYNAPSE_UID:-991} -g ${WEAVE_SYNAPSE_GID:-991} /source-config/homeserver.yaml /data/homeserver.yaml
+        install -d -m 0700 /appservice
+        install -m 0400 -o ${WEAVE_SYNAPSE_UID:-991} -g ${WEAVE_SYNAPSE_GID:-991} /source/registration.yaml /appservice/registration.yaml
+        install -m 0400 -o ${WEAVE_SYNAPSE_UID:-991} -g ${WEAVE_SYNAPSE_GID:-991} /source/as-token /appservice/as-token
+        install -m 0400 -o ${WEAVE_SYNAPSE_UID:-991} -g ${WEAVE_SYNAPSE_GID:-991} /source/hs-token /appservice/hs-token
+        chown -R ${WEAVE_SYNAPSE_UID:-991}:${WEAVE_SYNAPSE_GID:-991} /data
+        chown ${WEAVE_SYNAPSE_UID:-991}:${WEAVE_SYNAPSE_GID:-991} /appservice
+        chmod 0500 /appservice
+        test -s /appservice/registration.yaml
+        test -s /appservice/as-token
+        test -s /appservice/hs-token
+        ! cmp -s /appservice/as-token /appservice/hs-token
+    volumes:
+      - synapse-data:/data
+      - matrix-appservice:/appservice
+      - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/synapse/appservice:/source:ro
+      - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/synapse/homeserver.yaml:/source-config/homeserver.yaml:ro
+    networks:
+      weave:
+
+  synapse:
+    <<: *weave-service
+    profiles: *core-profiles
+    image: ${WEAVE_SYNAPSE_IMAGE:-matrixdotorg/synapse:v1.136.0}
+    container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-synapse
+    user: "${WEAVE_SYNAPSE_UID:-991}:${WEAVE_SYNAPSE_GID:-991}"
+    depends_on:
+      postgres-reconcile:
+        condition: service_completed_successfully
+      mas:
+        condition: service_started
+      synapse-init:
+        condition: service_completed_successfully
+    environment:
+      SYNAPSE_CONFIG_PATH: /data/homeserver.yaml
+      SYNAPSE_SERVER_NAME: ${WEAVE_MATRIX_HOST:-matrix.weave.test}
+      SYNAPSE_REPORT_STATS: "no"
+      SSL_CERT_FILE: /certs/ca.pem
+      CURL_CA_BUNDLE: /certs/ca.pem
+      REQUESTS_CA_BUNDLE: /certs/ca.pem
+    volumes:
+      - ${WEAVE_TLS_ROOT:-./.generated/dev/tls}/ca.pem:/certs/ca.pem:ro
+      - synapse-data:/data
+      - matrix-appservice:/run/weave-chat-appservice:ro
+    ports:
+      - "127.0.0.1:${WEAVE_SYNAPSE_HOST_PORT:-48008}:8008"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - python -c 'import urllib.request; urllib.request.urlopen("http://127.0.0.1:8008/health", timeout=3)'
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  nextcloud:
+    <<: *weave-service
+    profiles: *core-profiles
+    image: ${WEAVE_NEXTCLOUD_IMAGE:-nextcloud:31.0.7-apache}
+    container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-nextcloud
+    depends_on:
+      postgres-reconcile:
+        condition: service_completed_successfully
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: ${WEAVE_NEXTCLOUD_DB_NAME:-weave_nextcloud}
+      POSTGRES_USER: ${WEAVE_NEXTCLOUD_DB_USERNAME:-nextcloud}
+      POSTGRES_PASSWORD_FILE: /run/secrets/nextcloud-db-password
+      NEXTCLOUD_ADMIN_USER: ${WEAVE_NEXTCLOUD_ADMIN_USERNAME:-admin}
+      NEXTCLOUD_ADMIN_PASSWORD_FILE: /run/secrets/nextcloud-admin-password
+      NEXTCLOUD_TRUSTED_DOMAINS: ${WEAVE_FILES_HOST:-files.weave.test} ${WEAVE_RESOURCE_PREFIX:-weave}-nextcloud localhost 127.0.0.1
+      OVERWRITEHOST: ${WEAVE_FILES_PUBLIC_AUTHORITY:-files.weave.test:44443}
+      OVERWRITECLIURL: ${WEAVE_FILES_URL:-https://files.weave.test:44443}
+      OVERWRITEPROTOCOL: https
+      FORWARDEDFORHEADERS: HTTP_X_FORWARDED_FOR
+    secrets:
+      - nextcloud-db-password
+      - nextcloud-admin-password
+    volumes:
+      - nextcloud-data:/var/www/html
+      - ${WEAVE_TLS_ROOT:-./.generated/dev/tls}/ca.pem:/certs/ca.pem:ro
+    ports:
+      - "127.0.0.1:${WEAVE_NEXTCLOUD_HOST_PORT:-48083}:80"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - curl -fsS http://127.0.0.1/status.php | grep -q '"installed"'
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 30s
+
+  backend:
+    <<: *weave-service
+    profiles:
+      - dogfood
+      - main
+    image: ${WEAVE_BACKEND_IMAGE:-weave-backend:local}
+    container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-backend
+    user: "${WEAVE_RUNTIME_UID:-1000}:${WEAVE_RUNTIME_GID:-1000}"
+    depends_on:
+      postgres-reconcile:
+        condition: service_completed_successfully
+      keycloak:
+        condition: service_healthy
+      synapse:
+        condition: service_healthy
+      nextcloud:
+        condition: service_healthy
+    env_file:
+      - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/backend/public.env
+    environment:
+      SPRING_CONFIG_IMPORT: configtree:/run/secrets/weave/
+    secrets:
+      - source: backend-db-password
+        target: weave/spring.datasource.password
+      - source: identity-events-hmac-secret
+        target: weave/weave.identity.invitations.events-hmac-secret
+      - source: identity-admin-client-secret
+        target: weave/weave.identity.invitations.keycloak.client-secret
+      - source: nextcloud-actor-token
+        target: weave/weave.nextcloud.files.actor-token
+      - source: nextcloud-actor-token
+        target: weave/weave.calendar.caldav.backend-token
+    volumes:
+      - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/agent-runtime-policy.json:/app/agent-runtime-policy.json:ro
+      - ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/agent-runtime:/run/secrets/agent-runtime:ro
+      - ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/matrix-appservice-as-token:/run/secrets/matrix/as-token:ro
+      - ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/matrix-appservice-hs-token:/run/secrets/matrix/hs-token:ro
+    ports:
+      - "127.0.0.1:${WEAVE_BACKEND_HOST_PORT:-48084}:8080"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - curl -fsS http://127.0.0.1:8080/api/health/ready >/dev/null
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+
+  mcp-secret-check:
+    profiles:
+      - dogfood
+      - main
+    image: ${WEAVE_MCP_IMAGE:-weave-mcp-server:local}
+    container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-mcp-secret-check
+    user: "${WEAVE_RUNTIME_UID:-1000}:${WEAVE_RUNTIME_GID:-1000}"
+    restart: "no"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    entrypoint:
+      - /bin/bash
+      - -euc
+    command:
+      - |
+        path=/run/secrets/weave/mcp-private-jwk.json
+        test -f "$${path}"
+        test ! -L "$${path}"
+        test -r "$${path}"
+        test "$$(stat -c '%a' "$${path}")" = 600
+    volumes:
+      - type: bind
+        source: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/keycloak-weave-mcp-server-jwk.json
+        target: /run/secrets/weave/mcp-private-jwk.json
+        read_only: true
+    networks:
+      weave:
+    labels:
+      com.massimotter.weave.managed: "true"
+      com.massimotter.weave.environment: ${WEAVE_ENVIRONMENT:-dev}
+      com.massimotter.weave.namespace: ${WEAVE_RESOURCE_PREFIX:-weave}
+      com.massimotter.weave.scope: ${WEAVE_STACK_SCOPE:-persistent}
+      com.massimotter.weave.one-shot: "true"
+
+  mcp-keycloak-connectivity-check:
+    profiles:
+      - dogfood
+      - main
+    image: ${WEAVE_MCP_IMAGE:-weave-mcp-server:local}
+    container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-mcp-keycloak-connectivity-check
+    restart: "no"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    entrypoint:
+      - /bin/bash
+      - -euc
+    command:
+      - |
+        curl --fail --silent --show-error http://keycloak:8080/realms/weave/protocol/openid-connect/certs >/dev/null
+        status="$$(curl --silent --output /dev/null --write-out '%{http_code}' --request POST http://keycloak:8080/realms/weave/protocol/openid-connect/token)"
+        test "$${status}" = 400
+    networks:
+      weave:
+    labels:
+      com.massimotter.weave.managed: "true"
+      com.massimotter.weave.environment: ${WEAVE_ENVIRONMENT:-dev}
+      com.massimotter.weave.namespace: ${WEAVE_RESOURCE_PREFIX:-weave}
+      com.massimotter.weave.scope: ${WEAVE_STACK_SCOPE:-persistent}
+      com.massimotter.weave.one-shot: "true"
+
+  mcp:
+    <<: *weave-service
+    profiles:
+      - dogfood
+      - main
+    image: ${WEAVE_MCP_IMAGE:-weave-mcp-server:local}
+    container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-mcp-server
+    user: "${WEAVE_RUNTIME_UID:-1000}:${WEAVE_RUNTIME_GID:-1000}"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    depends_on:
+      backend:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+      mcp-secret-check:
+        condition: service_completed_successfully
+      mcp-keycloak-connectivity-check:
+        condition: service_completed_successfully
+    env_file:
+      - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/mcp/public.env
+    volumes:
+      - type: bind
+        source: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/keycloak-weave-mcp-server-jwk.json
+        target: /run/secrets/weave/mcp-private-jwk.json
+        read_only: true
+    ports:
+      - "127.0.0.1:${WEAVE_MCP_HOST_PORT:-48085}:8091"
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - -fsS
+        - http://127.0.0.1:8091/actuator/health
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+secrets:
+  postgres-admin-password:
+    file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/postgres-admin-password
+  backend-db-password:
+    file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/backend-db-password
+  keycloak-db-password:
+    file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/keycloak-db-password
+  mas-db-password:
+    file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/mas-db-password
+  synapse-db-password:
+    file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/synapse-db-password
+  nextcloud-db-password:
+    file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/nextcloud-db-password
+  control-db-password:
+    file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/control-db-password
+  nextcloud-admin-password:
+    file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/nextcloud-admin-password
+  identity-events-hmac-secret:
+    file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/identity-events-hmac-secret
+  identity-admin-client-secret:
+    file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/keycloak-weave-identity-admin
+  nextcloud-actor-token:
+    file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/nextcloud-actor-token
+
+volumes:
+  caddy-data:
+    external: true
+    name: ${WEAVE_CADDY_DATA_VOLUME:-weave_caddy_data}
+  caddy-config:
+    external: true
+    name: ${WEAVE_CADDY_CONFIG_VOLUME:-weave_caddy_config}
+  db-data:
+    external: true
+    name: ${WEAVE_DB_DATA_VOLUME:-weave_db_data}
+  keycloak-data:
+    external: true
+    name: ${WEAVE_KEYCLOAK_DATA_VOLUME:-weave_keycloak_data}
+  mailpit-data:
+    external: true
+    name: ${WEAVE_MAILPIT_DATA_VOLUME:-weave_mailpit_data}
+  nextcloud-data:
+    external: true
+    name: ${WEAVE_NEXTCLOUD_DATA_VOLUME:-weave_nextcloud_data}
+  synapse-data:
+    external: true
+    name: ${WEAVE_SYNAPSE_DATA_VOLUME:-weave_synapse_data}
+  matrix-appservice:
+    external: true
+    name: ${WEAVE_MATRIX_APPSERVICE_VOLUME:-weave_matrix_chat_appservice_runtime}
+
+networks:
+  weave:
+    external: true
+    name: ${WEAVE_DOCKER_NETWORK:-weave_network}

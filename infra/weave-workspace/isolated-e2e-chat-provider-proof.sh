@@ -50,7 +50,7 @@ Options:
   --candidate-commit SHA     Exact 40-character candidate commit.
   --output-root PATH         Private disposable run root.
   --credentials-env PATH     Prepared private identity credential env.
-  --startup-env PATH         Prepared isolated stack/OpenTofu env.
+  --startup-env PATH         Prepared isolated Compose startup env.
   --identity-manifest PATH   Provisioned support-safe identity evidence.
   --stack-bootstrap-env PATH Private bootstrap env written by install.sh.
   --output PATH              Support-safe provider proof JSON.
@@ -148,11 +148,11 @@ proof_file_mode() {
 
 prepare_private_proof_authentication() {
   local proof_token
-  [[ "${TF_VAR_chat_e2e_proof_enabled:-false}" == "true" ]] ||
+  [[ "${WEAVE_CHAT_E2E_PROOF_ENABLED:-false}" == "true" ]] ||
     fail "proof-boundary-not-enabled"
-  [[ "${TF_VAR_chat_e2e_proof_run_id:-}" == "${RUN_ID}" ]] ||
+  [[ "${WEAVE_CHAT_E2E_PROOF_RUN_ID:-}" == "${RUN_ID}" ]] ||
     fail "proof-run-binding-mismatch"
-  PROOF_TOKEN_PATH="${TF_VAR_chat_e2e_proof_token_host_path:-}"
+  PROOF_TOKEN_PATH="${WEAVE_CHAT_E2E_PROOF_TOKEN_HOST_PATH:-}"
   [[ -n "${PROOF_TOKEN_PATH}" ]] || fail "proof-credential-path-missing"
   [[ -f "${PROOF_TOKEN_PATH}" && ! -L "${PROOF_TOKEN_PATH}" ]] ||
     fail "proof-credential-file-invalid"
@@ -160,8 +160,8 @@ prepare_private_proof_authentication() {
     fail "proof-credential-mode-invalid"
   proof_token="$(<"${PROOF_TOKEN_PATH}")"
   [[ "${proof_token}" =~ ^[0-9a-f]{96}$ ]] || fail "proof-credential-material-invalid"
-  [[ "${proof_token}" != "${TF_VAR_matrix_chat_appservice_as_token:-}" &&
-     "${proof_token}" != "${TF_VAR_matrix_chat_appservice_hs_token:-}" ]] ||
+  [[ "${proof_token}" != "${WEAVE_MATRIX_CHAT_APPSERVICE_AS_TOKEN:-}" &&
+     "${proof_token}" != "${WEAVE_MATRIX_CHAT_APPSERVICE_HS_TOKEN:-}" ]] ||
     fail "proof-credential-reuses-appservice-authority"
   PROOF_AUTH_HEADER_FILE="${PRIVATE_STATE_DIR}/proof-authorization.header"
   printf 'Authorization: Bearer %s\n' "${proof_token}" >"${PROOF_AUTH_HEADER_FILE}"
@@ -261,7 +261,7 @@ wait_synapse_listener_ready() {
   while :; do
     status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
       --connect-timeout 2 --max-time 5 \
-      "http://127.0.0.1:${TF_VAR_synapse_host_port:-48008}/health" \
+      "http://127.0.0.1:${WEAVE_SYNAPSE_HOST_PORT:-48008}/health" \
       2>/dev/null || true)"
     [[ "${status}" == "200" ]] && return 0
     (( $(date +%s) < deadline )) || return 1
@@ -399,7 +399,7 @@ validate_session_identity_binding() {
   # shellcheck disable=SC2154
   jq -e \
     --arg username "${expected_username}" \
-    --arg tenant "${TF_VAR_context_authorization_default_tenant_id}" '
+    --arg tenant "${WEAVE_CONTEXT_AUTHORIZATION_DEFAULT_TENANT_ID}" '
       .preferredUsername == $username and .tenant == $tenant and
       (.issuer | type == "string") and (.issuer | length > 0) and
       (.subject | type == "string") and (.subject | length > 0)
@@ -1258,11 +1258,11 @@ initialize_provider_proof() {
   verify_backend_rebac_runtime
   assert_provider_identity_manifest
   verify_chat_runtime
-  [[ -n "${TF_VAR_keycloak_admin_password:-}" ]] || fail "keycloak-admin-credential-missing"
-  expected_origin="http://127.0.0.1:${TF_VAR_backend_host_port:-48084}"
+  [[ -n "${WEAVE_KEYCLOAK_ADMIN_PASSWORD:-}" ]] || fail "keycloak-admin-credential-missing"
+  expected_origin="http://127.0.0.1:${WEAVE_BACKEND_HOST_PORT:-48084}"
   BACKEND_ORIGIN="${BACKEND_ORIGIN:-${expected_origin}}"
   [[ "${BACKEND_ORIGIN}" == "${expected_origin}" || \
-    "${BACKEND_ORIGIN}" == "http://localhost:${TF_VAR_backend_host_port:-48084}" ]] ||
+    "${BACKEND_ORIGIN}" == "http://localhost:${WEAVE_BACKEND_HOST_PORT:-48084}" ]] ||
     fail "backend-origin-not-isolated-loopback"
 
   PRIVATE_STATE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/weave-chat-provider-proof.XXXXXX")"

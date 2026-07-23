@@ -13,7 +13,7 @@ grep -Fq 'weave_disposable_restore_' "${SCRIPT}" || { echo "script must use disp
 grep -Fq 'assert_disposable_scope' "${SCRIPT}" || { echo "script must assert disposable scope" >&2; exit 1; }
 grep -Fq 'cleanup_volumes' "${SCRIPT}" || { echo "script must clean up disposable volumes" >&2; exit 1; }
 grep -Fq 'no_production_volumes_touched' "${SCRIPT}" || { echo "receipt must record production-volume guard" >&2; exit 1; }
-if grep -Eq 'docker volume rm (weave_(db|synapse|nextcloud|keycloak|caddy)|\$\{?TF_VAR_tenant_slug)' "${SCRIPT}"; then
+if grep -Eq 'docker volume rm (weave_(db|synapse|nextcloud|keycloak|caddy)|\$\{?WEAVE_TENANT_SLUG)' "${SCRIPT}"; then
   echo "script appears to remove non-disposable Weave volumes" >&2
   exit 1
 fi

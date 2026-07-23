@@ -46,7 +46,7 @@ Options:
   --run-id ID                   Stable ID used by identity prepare/provision.
   --output-root PATH            Private run artifact root.
   --credentials-env PATH        Prepared private identity credential env.
-  --startup-env PATH            Prepared isolated stack/OpenTofu env.
+  --startup-env PATH            Prepared isolated Compose startup env.
   --identity-manifest PATH      Provisioned support-safe identity evidence.
   --stack-bootstrap-env PATH    Private bootstrap env written by install.sh.
   --authorization-evidence PATH Support-safe authorization evidence output.
@@ -140,8 +140,8 @@ user_has_group() {
 
 resolve_calendar_editor_group() {
   local groups group_id
-  groups="$(request GET "${KEYCLOAK_API_BASE}/groups?search=$(encode weave-calendar-editors)&exact=true" "${ADMIN_ACCESS_TOKEN}")"
-  group_id="$(find_exact_id "${groups}" name weave-calendar-editors)"
+  groups="$(request GET "${KEYCLOAK_API_BASE}/groups?search=$(encode weave-calendar-editors)&exact=true&briefRepresentation=false" "${ADMIN_ACCESS_TOKEN}")"
+  group_id="$(jq -r '[.[] | select(.path == "/weave-calendar-editors") | .id] | if length == 1 then .[0] else empty end' <<<"${groups}")"
   [[ -n "${group_id}" ]] || fail "calendar editor capability group is unavailable"
   printf '%s' "${group_id}"
 }
@@ -498,9 +498,9 @@ run_authorization_probes() {
   assert_isolated_runtime
   verify_backend_rebac_runtime
   assert_provisioned_marker_evidence
-  [[ -n "${TF_VAR_keycloak_admin_password:-}" ]] || fail "isolated Keycloak admin credential is missing"
+  [[ -n "${WEAVE_KEYCLOAK_ADMIN_PASSWORD:-}" ]] || fail "isolated Keycloak admin credential is missing"
 
-  BACKEND_ORIGIN="${BACKEND_ORIGIN:-http://127.0.0.1:${TF_VAR_backend_host_port:-48081}}"
+  BACKEND_ORIGIN="${BACKEND_ORIGIN:-http://127.0.0.1:${WEAVE_BACKEND_HOST_PORT:-48081}}"
   BACKEND_ORIGIN="${BACKEND_ORIGIN%/}"
   [[ "${BACKEND_ORIGIN}" =~ ^https?:// ]] || fail "backend origin must be HTTP(S)"
 
@@ -541,7 +541,7 @@ run_authorization_probes() {
     fail "calendar editor membership removal did not verify"
   missing_token="$(mint_user_token "${COLLABORATOR_USERNAME}" "${COLLABORATOR_PASSWORD}")"
   validate_workspace_token "${missing_token}" "${COLLABORATOR_USERNAME}"
-  ! token_has_group "${missing_token}" weave-calendar-editors ||
+  ! token_has_group "${missing_token}" /weave-calendar-editors ||
     fail "fresh missing-capability token still contains the removed group"
   restore_group_now
 

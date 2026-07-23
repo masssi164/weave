@@ -1,5 +1,7 @@
 .PHONY: dev-hosts smoke release-verify operator-check backup restore-smoke support-bundle
 
+PROFILE ?= dogfood
+
 DEV_HOSTS_LINE := 127.0.0.1 weave.test api.weave.test auth.weave.test files.weave.test matrix.weave.test
 
 dev-hosts:
@@ -16,10 +18,11 @@ operator-check:
 	@bash weave-workspace/operator-check.sh
 
 backup:
-	@bash weave-workspace/backup.sh
+	@test -n "$$WEAVE_BACKUP_ROOT" || { printf '%s\n' 'WEAVE_BACKUP_ROOT is required'; exit 2; }
+	@bash weave-workspace/backup.sh $(PROFILE)
 
 restore-smoke:
 	@bash weave-workspace/restore-smoke.sh
 
 support-bundle:
-	@bash weave-workspace/support-bundle.sh
+	@bash weave-workspace/support-bundle.sh $(PROFILE)

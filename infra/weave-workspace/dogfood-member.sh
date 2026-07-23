@@ -6,7 +6,7 @@ set -euo pipefail
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 BOOTSTRAP_ENV_FILE="${WEAVE_DOGFOOD_BOOTSTRAP_ENV:-${ROOT_DIR}/.generated/bootstrap.env}"
 SUBJECT_FILE="${WEAVE_DOGFOOD_MEMBER_SUBJECT_FILE:-${ROOT_DIR}/.generated/dogfood-member.subject}"
-REALM="${TF_VAR_tenant_slug:-weave}"
+REALM="${WEAVE_TENANT_SLUG:-weave}"
 OPERATION=""
 EVIDENCE_FILE=""
 PRIOR_EVIDENCE_FILE=""
@@ -16,13 +16,15 @@ BOOTSTRAP_RETIREMENT_CONFIRMATION=""
 LIFESPAN_SECONDS="${WEAVE_DOGFOOD_MEMBER_ACTIVATION_LIFESPAN_SECONDS:-86400}"
 CLIENT_ID="weave-app"
 REDIRECT_URI="com.massimotter.weave:/oauthredirect"
-EXPECTED_GROUPS="${WEAVE_DOGFOOD_MEMBER_GROUPS:-workspace-members,weave-board-editors,weave-calendar-editors}"
+EXPECTED_GROUPS="${WEAVE_DOGFOOD_MEMBER_GROUPS:-/weave/members,/weave-board-editors,/weave-calendar-editors}"
 MAILPIT_VERIFY_TIMEOUT_SECONDS="${WEAVE_DOGFOOD_MEMBER_MAILPIT_VERIFY_TIMEOUT_SECONDS:-60}"
 MAILPIT_EXPECTED_SUBJECT="${WEAVE_DOGFOOD_MEMBER_MAIL_SUBJECT:-Complete your Weave account setup}"
 MAIL_MESSAGE_ID_SHA256=""
 MAIL_VERIFIED_AT=""
 RECOVERY_CONFIRMATION_LITERAL="retire-lost-pending-identity"
 BOOTSTRAP_RETIREMENT_CONFIRMATION_LITERAL="retire-restored-test-bootstrap"
+GROUP_ADOPTION_CONFIRMATION=""
+GROUP_ADOPTION_CONFIRMATION_LITERAL="adopt-workspace-members-to-weave-members"
 RESTORED_BOOTSTRAP_USERNAME="test"
 
 log() { printf '%s\n' "$*"; }
@@ -30,7 +32,7 @@ fail() { printf 'DOGFOOD_MEMBER_ERROR %s\n' "$*" >&2; exit 1; }
 
 usage() {
   cat <<'EOF'
-Usage: ./dogfood-member.sh status|ensure|resend-activation|recover-lost-pending|retire-restored-bootstrap [options]
+Usage: ./dogfood-member.sh status|ensure|resend-activation|migrate-legacy-member-group|recover-lost-pending|retire-restored-bootstrap [options]
 
 Manage the one persistent human dogfood member without overwriting it.
 
@@ -42,7 +44,7 @@ Required environment:
 Options:
   --evidence-file PATH   Write support-safe JSON evidence.
   --subject-file PATH    Protected runtime file holding the immutable subject.
-  --tenant-realm VALUE   Keycloak realm (default: TF_VAR_tenant_slug or weave).
+  --tenant-realm VALUE   Keycloak realm (default: WEAVE_TENANT_SLUG or weave).
   --groups CSV           Expected member/capability groups.
   --lifespan SECONDS     Initial/resend action-email lifetime (300..86400).
   --prior-evidence PATH  Last accepted support-safe member evidence (recovery only).
@@ -51,6 +53,8 @@ Options:
                          Must be 'retire-lost-pending-identity' (recovery only).
   --confirm-bootstrap-retirement VALUE
                          Must be 'retire-restored-test-bootstrap' (recovery only).
+  --confirm-group-adoption VALUE
+                         Must be 'adopt-workspace-members-to-weave-members'.
   -h, --help             Show this help.
 
 The helper creates and configures an absent identity exactly once. Existing
@@ -64,20 +68,20 @@ EOF
 }
 
 load_environment() {
-  local runtime_admin_username="${TF_VAR_keycloak_admin_username:-}"
-  local runtime_admin_password="${TF_VAR_keycloak_admin_password:-}"
+  local runtime_admin_username="${WEAVE_KEYCLOAK_ADMIN_USERNAME:-}"
+  local runtime_admin_password="${WEAVE_KEYCLOAK_ADMIN_PASSWORD:-}"
   if [[ -f "${BOOTSTRAP_ENV_FILE}" ]]; then
     # shellcheck disable=SC1090
     source "${BOOTSTRAP_ENV_FILE}"
   fi
-  [[ -z "${runtime_admin_username}" ]] || TF_VAR_keycloak_admin_username="${runtime_admin_username}"
-  [[ -z "${runtime_admin_password}" ]] || TF_VAR_keycloak_admin_password="${runtime_admin_password}"
+  [[ -z "${runtime_admin_username}" ]] || WEAVE_KEYCLOAK_ADMIN_USERNAME="${runtime_admin_username}"
+  [[ -z "${runtime_admin_password}" ]] || WEAVE_KEYCLOAK_ADMIN_PASSWORD="${runtime_admin_password}"
 }
 
 parse_args() {
   [[ $# -gt 0 ]] || { usage >&2; exit 2; }
   OPERATION="$1"; shift
-  case "${OPERATION}" in status|ensure|resend-activation|recover-lost-pending|retire-restored-bootstrap) ;; *) fail "unknown operation '${OPERATION}'" ;; esac
+  case "${OPERATION}" in status|ensure|resend-activation|migrate-legacy-member-group|recover-lost-pending|retire-restored-bootstrap) ;; *) fail "unknown operation '${OPERATION}'" ;; esac
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --evidence-file) EVIDENCE_FILE="${2:-}"; shift 2 ;;
@@ -89,6 +93,7 @@ parse_args() {
       --approval-ref) RECOVERY_APPROVAL_REF="${2:-}"; shift 2 ;;
       --confirm-retirement) RECOVERY_CONFIRMATION="${2:-}"; shift 2 ;;
       --confirm-bootstrap-retirement) BOOTSTRAP_RETIREMENT_CONFIRMATION="${2:-}"; shift 2 ;;
+      --confirm-group-adoption) GROUP_ADOPTION_CONFIRMATION="${2:-}"; shift 2 ;;
       -h|--help) usage; exit 0 ;;
       *) fail "unknown argument '$1'" ;;
     esac
@@ -118,27 +123,34 @@ validate_inputs() {
     [[ "${BOOTSTRAP_RETIREMENT_CONFIRMATION}" == "${BOOTSTRAP_RETIREMENT_CONFIRMATION_LITERAL}" ]] ||
       fail "retire-restored-bootstrap requires the exact bootstrap retirement confirmation"
   fi
+  if [[ "${OPERATION}" == migrate-legacy-member-group ]]; then
+    [[ -n "${EVIDENCE_FILE}" ]] || fail "migrate-legacy-member-group requires --evidence-file"
+    [[ "${RECOVERY_APPROVAL_REF}" =~ ^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/actions/runs/[0-9]+$ ]] ||
+      fail "migrate-legacy-member-group requires a support-safe protected GitHub Actions run URL"
+    [[ "${GROUP_ADOPTION_CONFIRMATION}" == "${GROUP_ADOPTION_CONFIRMATION_LITERAL}" ]] ||
+      fail "migrate-legacy-member-group requires the exact group-adoption confirmation"
+  fi
 }
 
 public_port_suffix() {
-  local scheme="${TF_VAR_public_scheme:-https}" port="${TF_VAR_proxy_host_port:-443}"
+  local scheme="${WEAVE_PUBLIC_SCHEME:-https}" port="${WEAVE_PROXY_HTTPS_HOST_PORT:-443}"
   if [[ "${scheme}:${port}" == "http:80" || "${scheme}:${port}" == "https:443" ]]; then printf ''; else printf ':%s' "${port}"; fi
 }
 
 keycloak_url() {
-  printf '%s://%s.%s%s' "${TF_VAR_public_scheme:-https}" "${TF_VAR_auth_subdomain:-auth}" \
-    "${TF_VAR_tenant_domain:-weave.test}" "$(public_port_suffix)"
+  printf '%s://%s.%s%s' "${WEAVE_PUBLIC_SCHEME:-https}" "${WEAVE_AUTH_SUBDOMAIN:-auth}" \
+    "${WEAVE_TENANT_DOMAIN:-weave.test}" "$(public_port_suffix)"
 }
 
 mailpit_messages_url() {
-  printf '%s://mail.%s%s/api/v1/messages' "${TF_VAR_public_scheme:-https}" \
-    "${TF_VAR_tenant_domain:-weave.test}" "$(public_port_suffix)"
+  printf '%s://mail.%s%s/api/v1/messages' "${WEAVE_PUBLIC_SCHEME:-https}" \
+    "${WEAVE_TENANT_DOMAIN:-weave.test}" "$(public_port_suffix)"
 }
 
 curl_common() {
   local -a args=(--silent --show-error --fail-with-body)
   if [[ -n "${WEAVE_TLS_CA_FILE:-}" ]]; then args+=(--cacert "${WEAVE_TLS_CA_FILE}")
-  elif [[ -n "${TF_VAR_caddy_tls_ca_file:-}" && -f "${TF_VAR_caddy_tls_ca_file}" ]]; then args+=(--cacert "${TF_VAR_caddy_tls_ca_file}"); fi
+  elif [[ -n "${WEAVE_CADDY_TLS_CA_FILE:-}" && -f "${WEAVE_CADDY_TLS_CA_FILE}" ]]; then args+=(--cacert "${WEAVE_CADDY_TLS_CA_FILE}"); fi
   printf '%s\0' "${args[@]}"
 }
 
@@ -156,7 +168,7 @@ request_http_status() {
   local method="$1" url="$2" token="${3:-}" http_status
   local -a args=(--silent --show-error --output /dev/null --write-out '%{http_code}' -X "${method}")
   if [[ -n "${WEAVE_TLS_CA_FILE:-}" ]]; then args+=(--cacert "${WEAVE_TLS_CA_FILE}")
-  elif [[ -n "${TF_VAR_caddy_tls_ca_file:-}" && -f "${TF_VAR_caddy_tls_ca_file}" ]]; then args+=(--cacert "${TF_VAR_caddy_tls_ca_file}"); fi
+  elif [[ -n "${WEAVE_CADDY_TLS_CA_FILE:-}" && -f "${WEAVE_CADDY_TLS_CA_FILE}" ]]; then args+=(--cacert "${WEAVE_CADDY_TLS_CA_FILE}"); fi
   [[ -n "${token}" ]] && args+=(-H "Authorization: Bearer ${token}")
   if ! http_status="$(curl "${args[@]}" "${url}")"; then
     fail "Keycloak subject absence could not be verified"
@@ -170,8 +182,8 @@ admin_token() {
   while IFS= read -r -d '' arg; do args+=("${arg}"); done < <(curl_common)
   curl "${args[@]}" -X POST "$(keycloak_url)/realms/master/protocol/openid-connect/token" \
     -H 'Content-Type: application/x-www-form-urlencoded' --data-urlencode 'client_id=admin-cli' \
-    --data-urlencode "username=${TF_VAR_keycloak_admin_username:-admin}" \
-    --data-urlencode "password=${TF_VAR_keycloak_admin_password:-}" --data-urlencode 'grant_type=password' |
+    --data-urlencode "username=${WEAVE_KEYCLOAK_ADMIN_USERNAME:-admin}" \
+    --data-urlencode "password=${WEAVE_KEYCLOAK_ADMIN_PASSWORD:-}" --data-urlencode 'grant_type=password' |
     jq -r '.access_token // empty'
 }
 
@@ -262,6 +274,16 @@ find_named_id() {
   printf '%s' "${id}"
 }
 
+find_group_path_id() {
+  local base="$1" token="$2" path="$3" leaf groups id
+  [[ "${path}" == /* && "${path}" != */ ]] || fail "group path '${path}' is not canonical"
+  leaf="${path##*/}"
+  groups="$(request GET "${base}/groups?search=$(encode "${leaf}")&exact=true&briefRepresentation=false" "${token}")"
+  id="$(jq -r --arg path "${path}" '[.[] | select(.path == $path) | .id] | if length == 1 then .[0] else empty end' <<<"${groups}")"
+  [[ -n "${id}" ]] || fail "group path '${path}' is unavailable or ambiguous"
+  printf '%s' "${id}"
+}
+
 resolve_org_id() {
   local base="$1" token="$2" organizations
   organizations="$(request GET "${base}/organizations?search=$(encode "${REALM}")&exact=true" "${token}")"
@@ -284,7 +306,7 @@ add_initial_access() {
   IFS=',' read -r -a groups <<<"${EXPECTED_GROUPS}"
   for group in "${groups[@]}"; do
     group="${group#"${group%%[![:space:]]*}"}"; group="${group%"${group##*[![:space:]]}"}"
-    group_id="$(find_named_id "$(request GET "${base}/groups?search=$(encode "${group}")&exact=true" "${token}")" "${group}" group)" || return 1
+    group_id="$(find_group_path_id "${base}" "${token}" "${group}")" || return 1
     request PUT "${base}/users/${subject}/groups/${group_id}" "${token}" >/dev/null || return 1
   done
 }
@@ -300,8 +322,42 @@ verify_expected_access() {
   IFS=',' read -r -a groups <<<"${EXPECTED_GROUPS}"
   for expected in "${groups[@]}"; do
     expected="${expected#"${expected%%[![:space:]]*}"}"; expected="${expected%"${expected##*[![:space:]]}"}"
-    jq -e --arg name "${expected}" 'any(.name == $name)' <<<"${memberships}" >/dev/null || fail "persistent member lacks expected group '${expected}'"
+    jq -e --arg path "${expected}" 'any(.path == $path)' <<<"${memberships}" >/dev/null ||
+      fail "persistent member lacks expected group path '${expected}'; use the explicit protected adoption operation for legacy /workspace-members membership"
   done
+}
+
+migrate_legacy_member_group() {
+  local base="$1" token="$2" user="$3" subject memberships legacy_id target_id temporary
+  [[ -n "${user}" ]] || fail "legacy group adoption requires the configured identity"
+  subject="$(jq -r '.id // empty' <<<"${user}")"
+  [[ -n "${subject}" ]] || fail "legacy group adoption could not resolve the member subject"
+  verify_subject_invariant "${user}"
+  memberships="$(request GET "${base}/users/${subject}/groups?briefRepresentation=false&max=100" "${token}")"
+  jq -e 'any(.path == "/workspace-members")' <<<"${memberships}" >/dev/null ||
+    fail "legacy /workspace-members membership is not present"
+  jq -e 'any(.path == "/weave/members") | not' <<<"${memberships}" >/dev/null ||
+    fail "canonical /weave/members membership is already present; no adoption mutation is allowed"
+  legacy_id="$(find_group_path_id "${base}" "${token}" /workspace-members)"
+  target_id="$(find_group_path_id "${base}" "${token}" /weave/members)"
+  request PUT "${base}/users/${subject}/groups/${target_id}" "${token}" >/dev/null
+  request DELETE "${base}/users/${subject}/groups/${legacy_id}" "${token}" >/dev/null || {
+    request DELETE "${base}/users/${subject}/groups/${target_id}" "${token}" >/dev/null 2>&1 || true
+    fail "legacy group detachment failed; canonical membership was rolled back"
+  }
+  memberships="$(request GET "${base}/users/${subject}/groups?briefRepresentation=false&max=100" "${token}")"
+  jq -e 'any(.path == "/weave/members") and (any(.path == "/workspace-members") | not)' <<<"${memberships}" >/dev/null ||
+    fail "legacy group adoption did not converge"
+  temporary="${EVIDENCE_FILE}.tmp.$$"
+  umask 077
+  jq -n \
+    --arg subjectSha256 "$(sha256 "${subject}")" \
+    --arg approvalRef "${RECOVERY_APPROVAL_REF}" \
+    --arg adoptedAt "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+    '{schemaVersion:"weave.dogfood.member-group-adoption.v1",subjectSha256:$subjectSha256,approvalRef:$approvalRef,fromPath:"/workspace-members",toPath:"/weave/members",targetMembershipVerified:true,legacyMembershipRemoved:true,capabilityGroupsUnchanged:true,runtimeGroupGranted:false,adoptedAt:$adoptedAt,supportSafe:true}' >"${temporary}"
+  chmod 600 "${temporary}"
+  mv "${temporary}" "${EVIDENCE_FILE}"
+  log "DOGFOOD_MEMBER_GROUP_ADOPTION from=/workspace-members to=/weave/members runtimeGroupGranted=false supportSafe=true"
 }
 
 create_pending_user() {
@@ -632,7 +688,7 @@ write_evidence() {
 main() {
   load_environment; parse_args "$@"; validate_inputs
   command -v curl >/dev/null || fail "curl is required"; command -v jq >/dev/null || fail "jq is required"
-  [[ -n "${TF_VAR_keycloak_admin_password:-}" ]] || fail "TF_VAR_keycloak_admin_password is required"
+  [[ -n "${WEAVE_KEYCLOAK_ADMIN_PASSWORD:-}" ]] || fail "WEAVE_KEYCLOAK_ADMIN_PASSWORD is required"
   local token base user state subject="" action="none" mail_before=""
   token="$(admin_token)"; [[ -n "${token}" ]] || fail "Keycloak admin authentication failed"
   base="$(api_base)"; user="$(resolve_user "${base}" "${token}")"
@@ -642,6 +698,10 @@ main() {
   fi
   if [[ "${OPERATION}" == recover-lost-pending ]]; then
     recover_lost_pending "${base}" "${token}" "${user}"
+    return
+  fi
+  if [[ "${OPERATION}" == migrate-legacy-member-group ]]; then
+    migrate_legacy_member_group "${base}" "${token}" "${user}"
     return
   fi
   verify_subject_invariant "${user}"
