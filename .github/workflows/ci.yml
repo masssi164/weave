@@ -70,11 +70,6 @@ jobs:
           python-version: '3.13'
           cache: pip
           cache-dependency-path: weave/docs/requirements.txt
-      - name: Set up OpenTofu
-        uses: opentofu/setup-opentofu@v1
-        with:
-          tofu_version: 1.10.6
-          tofu_wrapper: false
       - name: Install pinned dependencies
         run: |
           python -m pip install 'jsonschema[format]==4.23.0' 'PyYAML==6.0.3' 'rfc8785==0.1.4' 'cryptography==46.0.3'

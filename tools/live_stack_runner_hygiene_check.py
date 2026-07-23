@@ -164,20 +164,25 @@ def main() -> int:
         "identity cleanup must tolerate a failure before provider runtime creation",
     )
     require(
-        'runtime_root="${WEAVE_E2E_OUTPUT_ROOT:?}/${TF_VAR_isolated_e2e_namespace}/runtime"'
-        in workflow
+        'docker container inspect "${WEAVE_E2E_RUN_NAMESPACE}-db"' in workflow
+        and 'docker network inspect "${WEAVE_E2E_RUN_NAMESPACE}_network"' in workflow
         and "ISOLATED_STACK_TEARDOWN status=not-required" in workflow,
-        "stack teardown must tolerate a failure before OpenTofu runtime creation",
+        "stack teardown must tolerate a failure before exact Compose resources exist",
     )
     require(
-        'expected_bootstrap_env="$PWD/.generated/isolated/${TF_VAR_isolated_e2e_namespace}/bootstrap.env"'
-        in workflow
-        and 'source "$expected_bootstrap_env"' in workflow
-        and workflow.index('source "$expected_bootstrap_env"')
+        'case "${WEAVE_E2E_STARTUP_ENV_PATH:-}" in' in workflow
+        and 'source "$WEAVE_E2E_STARTUP_ENV_PATH"' in workflow
+        and workflow.rindex('source "$WEAVE_E2E_STARTUP_ENV_PATH"')
         < workflow.index(
             'WEAVE_TEARDOWN_EVIDENCE_FILE="$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-stack-teardown.json"'
         ),
-        "OpenTofu destroy must reload the exact run-scoped variables generated during apply",
+        "Compose cleanup must reload and verify the exact run-scoped startup environment",
+    )
+    require(
+        "TF_VAR_" not in workflow
+        and "./compose.sh dogfood keycloak-apply" in workflow
+        and "./compose.sh dogfood keycloak-verify" in workflow,
+        "live-stack bootstrap must use the protected Compose and Keycloak reconciliation path",
     )
     require(
         'export WEAVE_BOOTSTRAP_ENV="${WEAVE_E2E_STACK_BOOTSTRAP_ENV:?}"'

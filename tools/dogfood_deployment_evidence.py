@@ -172,10 +172,34 @@ def collect_provider_health(base_url: str, chat_state: str) -> dict[str, Any]:
 
 
 def idempotence_passed(path: Path) -> bool:
-    evidence = load_object(path, "OpenTofu idempotence evidence")
+    evidence = load_object(path, "deployment idempotence evidence")
     if evidence.get("supportSafe") is not True or not isinstance(evidence.get("noChanges"), bool):
-        raise EvidenceError(f"OpenTofu idempotence evidence is unsafe or malformed: {path}")
+        raise EvidenceError(f"deployment idempotence evidence is unsafe or malformed: {path}")
     return evidence["noChanges"]
+
+
+def adoption_gate(path: Path, candidate: str) -> tuple[bool, bool]:
+    evidence = load_object(path, "Compose adoption gate evidence")
+    required = evidence.get("adoptionRequired")
+    if (
+        evidence.get("schemaVersion") != "weave.dogfood.compose-adoption-gate.v1"
+        or evidence.get("candidateCommit") != candidate
+        or evidence.get("status") != "passed"
+        or evidence.get("supportSafe") is not True
+        or evidence.get("containsSecretValues") is not False
+        or not isinstance(required, bool)
+    ):
+        raise EvidenceError("Compose adoption gate evidence is unsafe, stale, or malformed")
+    if required:
+        if (
+            evidence.get("backupVerified") is not True
+            or evidence.get("isolatedRestoreVerified") is not True
+            or evidence.get("receiptRef") != "artifact:compose-adoption-receipt.json"
+        ):
+            raise EvidenceError("pre-existing Compose resources lack current backup/restore adoption proof")
+    elif evidence.get("persistentDatabaseVolumePresent") is not False:
+        raise EvidenceError("fresh-install adoption evidence does not prove an absent persistent database volume")
+    return True, required
 
 
 def assemble_deployment(
@@ -187,6 +211,8 @@ def assemble_deployment(
     comparison: dict[str, Any],
     provider_health: dict[str, Any],
     idempotency_passed: bool = True,
+    adoption_verified: bool = True,
+    adoption_required: bool = False,
 ) -> dict[str, Any]:
     if not COMMIT_PATTERN.fullmatch(candidate):
         raise EvidenceError("candidate commit must be a full lowercase SHA-1")
@@ -195,7 +221,7 @@ def assemble_deployment(
     ):
         raise EvidenceError("backend version and build number must be support-safe build identifiers")
     normalized_run_url = validate_run_url(run_url)
-    if comparison.get("schemaVersion") != "weave.persistent-dogfood-comparison.v1":
+    if comparison.get("schemaVersion") != "weave.persistent-dogfood-comparison.v2":
         raise EvidenceError("persistent comparison schemaVersion is unsupported")
     if comparison.get("supportSafe") is not True:
         raise EvidenceError("persistent comparison is not support-safe")
@@ -234,6 +260,7 @@ def assemble_deployment(
     deployment_passed = (
         persistent_unchanged
         and idempotency_passed
+        and adoption_verified
         and provider_overall == "available"
     )
     blockers: list[dict[str, str]] = []
@@ -252,7 +279,13 @@ def assemble_deployment(
     if not idempotency_passed:
         blockers.append({
             "code": "persistent-dogfood-not-idempotent",
-            "summary": "One or more OpenTofu stages reported drift or a failed second plan.",
+            "summary": "The Compose model, desired-state reconciliation, or repeated deployment reported drift.",
+            "candidateCommit": candidate,
+        })
+    if not adoption_verified:
+        blockers.append({
+            "code": "persistent-dogfood-adoption-unverified",
+            "summary": "Pre-existing Compose resources lack a current private backup and isolated restore rehearsal.",
             "candidateCommit": candidate,
         })
     return {
@@ -267,6 +300,8 @@ def assemble_deployment(
         "deployment": {
             "stackStatus": "passed" if deployment_passed else "blocked",
             "idempotencyStatus": "passed" if idempotency_passed else "failed",
+            "adoptionStatus": "passed" if adoption_verified else "failed",
+            "adoptionRequired": adoption_required,
             "persistentHumanUnchanged": persistent_unchanged,
             "baselineSource": baseline_source,
             "preExistingRuntimeObserved": pre_existing_runtime_observed,
@@ -282,6 +317,7 @@ def assemble_deployment(
             f"{normalized_run_url}#persistent-dogfood-two-install",
             "artifact:provider-health-summary.json",
             "artifact:persistent-dogfood-comparison.json",
+            "artifact:compose-adoption-gate.json",
         ],
         "blockers": blockers,
     }
@@ -301,7 +337,8 @@ def parser() -> argparse.ArgumentParser:
     assemble.add_argument("--run-url", required=True)
     assemble.add_argument("--persistent-comparison", type=Path, required=True)
     assemble.add_argument("--provider-health", type=Path, required=True)
-    assemble.add_argument("--tofu-idempotence", type=Path, action="append", required=True)
+    assemble.add_argument("--deployment-idempotence", type=Path, action="append", required=True)
+    assemble.add_argument("--adoption-gate", type=Path, required=True)
     assemble.add_argument("--output", type=Path, required=True)
     assemble.add_argument("--require-passed", action="store_true")
     return value
@@ -324,8 +361,12 @@ def main(argv: list[str] | None = None) -> int:
                 "providerProbeTriggered=false supportSafe=true"
             )
             return 0 if summary["overall"] == "available" else 1
-        idempotency_results = [idempotence_passed(path) for path in args.tofu_idempotence]
+        idempotency_results = [idempotence_passed(path) for path in args.deployment_idempotence]
         idempotency_is_green = all(idempotency_results)
+        adoption_is_green, adoption_is_required = adoption_gate(
+            args.adoption_gate,
+            args.candidate_commit.lower(),
+        )
         evidence = assemble_deployment(
             candidate=args.candidate_commit.lower(),
             backend_version=args.backend_version,
@@ -334,6 +375,8 @@ def main(argv: list[str] | None = None) -> int:
             comparison=load_object(args.persistent_comparison, "persistent dogfood comparison"),
             provider_health=load_object(args.provider_health, "provider health summary"),
             idempotency_passed=idempotency_is_green,
+            adoption_verified=adoption_is_green,
+            adoption_required=adoption_is_required,
         )
         write(args.output, evidence)
         status = evidence["deployment"]["stackStatus"]

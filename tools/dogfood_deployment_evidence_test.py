@@ -23,7 +23,7 @@ SPEC.loader.exec_module(module)
 class DogfoodDeploymentEvidenceTest(unittest.TestCase):
     def comparison(self, passed: bool = True) -> dict[str, object]:
         return {
-            "schemaVersion": "weave.persistent-dogfood-comparison.v1",
+            "schemaVersion": "weave.persistent-dogfood-comparison.v2",
             "status": "passed" if passed else "failed",
             "baselineSource": "pre-deploy",
             "preExistingRuntimeObserved": True,
@@ -87,7 +87,7 @@ class DogfoodDeploymentEvidenceTest(unittest.TestCase):
 
     def test_idempotence_reports_no_changes_without_rejecting_safe_failure_evidence(self):
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "tofu.json"
+            path = Path(directory) / "deployment-idempotence.json"
             path.write_text('{"supportSafe":true,"noChanges":false}', encoding="utf-8")
             self.assertFalse(module.idempotence_passed(path))
 
@@ -104,6 +104,46 @@ class DogfoodDeploymentEvidenceTest(unittest.TestCase):
         self.assertEqual(evidence["deployment"]["idempotencyStatus"], "failed")
         self.assertEqual(evidence["deployment"]["stackStatus"], "blocked")
         self.assertEqual(evidence["blockers"][0]["code"], "persistent-dogfood-not-idempotent")
+
+    def test_adoption_gate_requires_exact_candidate_backup_and_isolated_restore(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "compose-adoption-gate.json"
+            path.write_text(json.dumps({
+                "schemaVersion": "weave.dogfood.compose-adoption-gate.v1",
+                "candidateCommit": "1" * 40,
+                "status": "passed",
+                "adoptionRequired": True,
+                "backupVerified": True,
+                "isolatedRestoreVerified": True,
+                "receiptRef": "artifact:compose-adoption-receipt.json",
+                "supportSafe": True,
+                "containsSecretValues": False,
+            }), encoding="utf-8")
+            self.assertEqual(module.adoption_gate(path, "1" * 40), (True, True))
+            value = json.loads(path.read_text(encoding="utf-8"))
+            value["isolatedRestoreVerified"] = False
+            path.write_text(json.dumps(value), encoding="utf-8")
+            with self.assertRaises(module.EvidenceError):
+                module.adoption_gate(path, "1" * 40)
+
+    def test_fresh_install_adoption_gate_requires_absent_database_volume(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "compose-adoption-gate.json"
+            value = {
+                "schemaVersion": "weave.dogfood.compose-adoption-gate.v1",
+                "candidateCommit": "1" * 40,
+                "status": "passed",
+                "adoptionRequired": False,
+                "persistentDatabaseVolumePresent": False,
+                "supportSafe": True,
+                "containsSecretValues": False,
+            }
+            path.write_text(json.dumps(value), encoding="utf-8")
+            self.assertEqual(module.adoption_gate(path, "1" * 40), (True, False))
+            value["persistentDatabaseVolumePresent"] = True
+            path.write_text(json.dumps(value), encoding="utf-8")
+            with self.assertRaises(module.EvidenceError):
+                module.adoption_gate(path, "1" * 40)
 
     def test_metrics_collection_rejects_non_loopback_or_credentialed_urls(self):
         for url in (
