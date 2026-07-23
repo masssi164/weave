@@ -51,8 +51,7 @@ jobs:
           }
 
       - name: Check out weave
-        uses: actions/checkout@v5
-
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Require the deployed dogfood ref
         env:
           DISPATCH_REF: ${{ github.ref_name }}
@@ -104,7 +103,7 @@ jobs:
           } >>"${GITHUB_STEP_SUMMARY}"
 
       - name: Upload support-safe evidence
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: dogfood-member-${{ inputs.operation }}-evidence
           path: ${{ runner.temp }}/dogfood-member-evidence.json

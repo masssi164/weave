@@ -111,6 +111,8 @@ tasks.register('relationalModelParity') {
 }
 registerRootCommandTask('noExecutableOpenTofuCheck', ['python3', 'tools/no_executable_opentofu_check.py'], 'Reject executable OpenTofu, Terraform state, TF_VAR inputs, and legacy IaC commands after the Compose cutover.')
 registerRootCommandTask('noExecutableOpenTofuCheckTest', ['python3', 'tools/no_executable_opentofu_check_test.py'], 'Run fixture coverage for the executable OpenTofu retirement guard.')
+registerRootCommandTask('workflowActionRuntimeCheck', ['python3', 'tools/workflow_action_runtime_check.py'], 'Require every external GitHub Action to use its reviewed immutable commit and a supported Node 24 or composite runtime.')
+registerRootCommandTask('workflowActionRuntimeCheckTest', ['python3', 'tools/workflow_action_runtime_check_test.py'], 'Run fixture coverage for immutable GitHub Action pins and the Node 20 retirement guard.')
 registerRootCommandTask('keycloakSanitizerImageBuild', ['python3', 'infra/weave-workspace/scripts/build_sanitizer_image.py', '--root', 'infra/weave-workspace'], 'Build the pinned exact-candidate sanitizer used by protected kcadm reconciliation and print its immutable image ID.')
 registerRootCommandTask('keycloakDevImageBuild', ['python3', 'infra/weave-workspace/scripts/build_keycloak_image.py', '--root', '.'], 'Build the pinned exact-candidate Keycloak distribution and print its immutable image ID.')
 tasks.register('keycloakSupervisorInstall', Exec) {
@@ -146,7 +148,7 @@ tasks.register('keycloakSupervisorInstall', Exec) {
 }
 registerRootCommandTask('infraStatic', ['bash', '-lc', 'set -euo pipefail; for script in infra/weave-workspace/tests/*-test.sh; do bash "$script"; done; python3 -m py_compile infra/weave-workspace/scripts/*.py infra/weave-workspace/keycloak/*.py infra/weave-workspace/tests/*.py; find infra/weave-workspace -type f -name "*.sh" -print0 | xargs -0 shellcheck --severity=warning'], 'Run the complete non-mutating Compose, Keycloak, backup, support-safety, Python, and shell contract suite.')
 tasks.named('infraStatic') {
-    dependsOn 'noExecutableOpenTofuCheck', 'noExecutableOpenTofuCheckTest'
+    dependsOn 'noExecutableOpenTofuCheck', 'noExecutableOpenTofuCheckTest', 'workflowActionRuntimeCheck', 'workflowActionRuntimeCheckTest'
 }
 registerRootCommandTask('docsBuild', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; rm -rf build/docs/user build/docs/admin; "$PYTHON" -m mkdocs build --strict --site-dir build/docs/user; "$PYTHON" -m mkdocs build --strict --site-dir build/docs/admin'], 'Build deterministic user and admin MkDocs outputs with strict validation.')
 registerRootCommandTask('docsStructureCheck', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; "$PYTHON" tools/docs_check.py'], 'Run lightweight documentation structure checks.')
@@ -251,6 +253,8 @@ ext.ciEvidenceGates = [
     'adminCi',
     'mcpCi',
     'infraStatic',
+    'workflowActionRuntimeCheck',
+    'workflowActionRuntimeCheckTest',
     'docsCheck',
     'releaseNotesLabelCheck',
     'specCorpusConformance',
