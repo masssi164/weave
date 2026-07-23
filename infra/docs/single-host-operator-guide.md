@@ -51,6 +51,13 @@ Credentials are individual mode-0600 files under `WEAVE_SECRET_ROOT`; TLS materi
 `WEAVE_KEYCLOAK_SUPERVISOR` path to lifecycle commands. Never source the reviewed environment into
 the shell as a secret bag and never commit a filled copy.
 
+For protected dogfood promotions, `WEAVE_CANDIDATE_COMMIT` is the checked-out lane commit.
+`WEAVE_IMAGE_SOURCE_COMMIT` is derived from protected `origin/dev`, must be its ancestor and have
+the identical Git tree, and is used only for image revision provenance. The workflow—not a
+dispatch input—creates the support-safe mapping between both commits and the closed backend, MCP,
+Keycloak, and sanitizer image set. The persistent dogfood workflow consumes those exact image IDs
+from the successful isolated run; an unavailable, relabelled, or substituted image blocks deploy.
+
 ## Calendar boundary
 
 The Calendar facade uses the backend actor's canonical `weave-workspace` CalDAV collection for the

@@ -29,6 +29,66 @@ def ordered(document: str, fragments: tuple[str, ...], label: str) -> None:
     require(positions == sorted(positions), f"{label} stages are not ordered")
 
 
+def require_source_candidate_binding(
+    document: str,
+    evidence_directory: str,
+    label: str,
+    *,
+    builds_images: bool,
+) -> None:
+    require(
+        "fetch-depth: 0" in document
+        and "'+refs/heads/dev:refs/remotes/origin/dev'" in document
+        and "tools/candidate_source_mapping.py" in document
+        and '--lane-candidate "$WEAVE_CANDIDATE_COMMIT"' in document
+        and '--github-env "$GITHUB_ENV"' in document,
+        f"{label} does not derive its image source from protected dev ancestry",
+    )
+    require(
+        f'--output "{evidence_directory}/candidate-source-mapping.json"' in document,
+        f"{label} does not emit source/lane image evidence",
+    )
+    require(
+        "WEAVE_IMAGE_SOURCE_COMMIT:" not in document,
+        f"{label} accepts a caller-supplied image source authority",
+    )
+    if builds_images:
+        require(
+            document.count(
+                'org.opencontainers.image.revision=$WEAVE_IMAGE_SOURCE_COMMIT'
+            )
+            == 3
+            and '--candidate-commit "$WEAVE_IMAGE_SOURCE_COMMIT"' in document
+            and 'org.opencontainers.image.revision=$WEAVE_CANDIDATE_COMMIT'
+            not in document
+            and 'org.opencontainers.image.revision=$CANDIDATE_SHA' not in document,
+            f"{label} does not bind all locally built images to the protected source candidate",
+        )
+        require(
+            all(
+                fragment in document
+                for fragment in (
+                    '--image "backend=$WEAVE_BACKEND_IMAGE"',
+                    '--image "mcp=$WEAVE_MCP_IMAGE"',
+                    '--image "keycloak=$WEAVE_KEYCLOAK_IMAGE"',
+                    '--image "keycloak-sanitizer=$WEAVE_KEYCLOAK_SANITIZER_IMAGE"',
+                )
+            ),
+            f"{label} does not emit a closed immutable source/lane image mapping",
+        )
+    else:
+        require(
+            'gh run download "$ISOLATED_E2E_RUN_ID"' in document
+            and "--name weave-live-stack-acceptance-evidence" in document
+            and '--expected-mapping "$expected_mapping"' in document
+            and "--verify-local-images" in document
+            and "docker buildx build" not in document
+            and "weave_backend_image:" not in document
+            and "weave_mcp_server_image:" not in document,
+            f"{label} rebuilds or accepts substitutions instead of consuming isolated image evidence",
+        )
+
+
 def main() -> int:
     ci = read(".github/workflows/ci.yml")
     live = read(".github/workflows/live-stack-e2e.yml")
@@ -96,19 +156,24 @@ def main() -> int:
         "real Calendar failure containment is not restored and bound to evidence",
     )
     require(
-        live.count('org.opencontainers.image.revision=$WEAVE_CANDIDATE_COMMIT') == 3
-        and 'com.massimotter.weave.keycloak.version' in live
+        'com.massimotter.weave.keycloak.version' in live
         and 'echo "WEAVE_BACKEND_IMAGE=$image_id"' in live
         and 'echo "WEAVE_MCP_IMAGE=$image_id"' in live
         and 'echo "WEAVE_KEYCLOAK_IMAGE=$image_id"' in live
         and '@sha256:[0-9a-f]{64}$' in live,
-        "isolated E2E images are not immutable and bound to the exact candidate/Keycloak version",
+        "isolated E2E images are not immutable or do not prove the pinned Keycloak version",
     )
     require(
         "Build the exact-candidate Keycloak sanitizer image" in live
-        and '--candidate-commit "$WEAVE_CANDIDATE_COMMIT"' in live
+        and '--candidate-commit "$WEAVE_IMAGE_SOURCE_COMMIT"' in live
         and 'echo "WEAVE_KEYCLOAK_SANITIZER_IMAGE=$image_id"' in live,
-        "isolated E2E does not bind the protected sanitizer image to the exact candidate",
+        "isolated E2E does not bind the protected sanitizer image to the source candidate",
+    )
+    require_source_candidate_binding(
+        live,
+        "$WEAVE_ACCEPTANCE_EVIDENCE_DIR",
+        "isolated E2E",
+        builds_images=True,
     )
 
     require("workflow_run:" in deployment and "- Live Stack E2E" in deployment, "persistent deployment is not downstream of isolated E2E")
@@ -130,28 +195,34 @@ def main() -> int:
         "persistent deployment is not bound to the dogfood Compose profile and persistent scope",
     )
     require(
-        deployment.count('org.opencontainers.image.revision=$CANDIDATE_SHA') == 3
-        and 'com.massimotter.weave.keycloak.version' in deployment
-        and 'echo "WEAVE_BACKEND_IMAGE=$image_id"' in deployment
-        and 'echo "WEAVE_MCP_IMAGE=$image_id"' in deployment
-        and 'echo "WEAVE_KEYCLOAK_IMAGE=$image_id"' in deployment
-        and '@sha256:[0-9a-f]{64}$' in deployment,
-        "persistent dogfood images are not immutable and bound to the exact candidate/Keycloak version",
-    )
-    require(
         "WEAVE_CANDIDATE_COMMIT: ${{ github.event.workflow_run.head_sha || inputs.candidate_sha }}"
         in deployment
-        and "Build the exact-candidate Keycloak sanitizer image" in deployment
-        and '--candidate-commit "$WEAVE_CANDIDATE_COMMIT"' in deployment
-        and 'echo "WEAVE_KEYCLOAK_SANITIZER_IMAGE=$image_id"' in deployment,
-        "persistent dogfood does not bind every local candidate image to WEAVE_CANDIDATE_COMMIT",
+        and "--verify-local-images" in deployment,
+        "persistent dogfood does not preserve lane evidence and exact isolated image provenance",
+    )
+    require_source_candidate_binding(
+        deployment,
+        "$WEAVE_TEST_STACK_EVIDENCE_DIR",
+        "persistent dogfood",
+        builds_images=False,
     )
     require(
         "WEAVE_CANDIDATE_COMMIT: ${{ inputs.candidate_sha }}" in recovery
         and "Build the exact-candidate Keycloak sanitizer image" in recovery
-        and '--candidate-commit "$WEAVE_CANDIDATE_COMMIT"' in recovery
+        and '--candidate-commit "$WEAVE_IMAGE_SOURCE_COMMIT"' in recovery
         and 'echo "WEAVE_KEYCLOAK_SANITIZER_IMAGE=$image_id"' in recovery,
-        "protected identity recovery does not bind the sanitizer image to the exact candidate",
+        "protected identity recovery does not preserve lane evidence and source-bound sanitizer provenance",
+    )
+    require_source_candidate_binding(
+        recovery,
+        "$WEAVE_RECOVERY_EVIDENCE_DIR",
+        "protected identity recovery",
+        builds_images=True,
+    )
+    require(
+        '--candidate-source-mapping "$WEAVE_TEST_STACK_EVIDENCE_DIR/candidate-source-mapping.json"'
+        in deployment,
+        "persistent deployment evidence does not consume the exact source/lane image mapping",
     )
     require("WEAVE_TEST_PASSWORD" not in deployment, "persistent dogfood carries obsolete test-user credentials")
     persistent_credential_names = (

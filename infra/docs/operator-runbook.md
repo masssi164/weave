@@ -58,8 +58,17 @@ not invent a missing trust root.
 
 ```bash
 cd weave
+git fetch --no-tags --prune origin \
+  '+refs/heads/dev:refs/remotes/origin/dev'
 export WEAVE_ENV_FILE=/absolute/path/to/reviewed-dogfood.env
-export WEAVE_CANDIDATE_COMMIT=<exact-40-character-commit>
+export WEAVE_CANDIDATE_COMMIT="$(git rev-parse HEAD)"
+python3 tools/candidate_source_mapping.py \
+  --repository . \
+  --lane-candidate "$WEAVE_CANDIDATE_COMMIT" \
+  --output build/evidence/candidate-source-mapping.json
+export WEAVE_IMAGE_SOURCE_COMMIT="$(
+  jq -er '.sourceCandidateCommit' build/evidence/candidate-source-mapping.json
+)"
 export WEAVE_KEYCLOAK_SUPERVISOR=/opt/weave/keycloak-supervisor/<generation>/supervisor.py
 bash infra/weave-workspace/install.sh dogfood
 bash infra/weave-workspace/release-verify.sh
@@ -74,6 +83,13 @@ Notes:
   `secrets-init → render → config → prepare → keycloak-apply → up → keycloak-verify`;
 - dogfood/main require a private reviewed `WEAVE_ENV_FILE`, exact image digests, an exact candidate
   commit, and the externally installed supervisor; never use `:latest`;
+- for dogfood promotion, `WEAVE_CANDIDATE_COMMIT` remains the checked-out lane SHA used by
+  runtime, backup, deployment, and human evidence. Locally built images use
+  `WEAVE_IMAGE_SOURCE_COMMIT`, derived by the protected workflow from fetched `origin/dev`.
+  The source must be an ancestor with the same Git tree, and the closed four-image mapping is
+  recorded in `candidate-source-mapping.json`; never accept the source as workflow input. The
+  successful isolated run retains those exact IDs on the locked runner, and persistent dogfood
+  verifies and consumes them without rebuilding;
 - the supervisor installation is a separate root-reviewed operation. Candidate code receives only
   its fixed command interface and public trust key, never the Docker socket or signing key;
 - build/publish both `weave-backend` and `weave-mcp-server`; MCP is a separate workload boundary
@@ -147,6 +163,11 @@ only the services it observed running. A successful directory is named
 Every listed artifact and the manifest are private and must never be uploaded as support evidence.
 Support bundles are not backups and exclude database content, provider/member content, raw logs,
 credentials, signed assertions, and private configuration.
+
+The backup remains bound to `WEAVE_CANDIDATE_COMMIT`, the lane authority. Image provenance is a
+separate support-safe mapping from that lane commit to `WEAVE_IMAGE_SOURCE_COMMIT` and the four
+immutable image IDs; do not relabel a lane-built image or substitute the source commit in backup
+receipts.
 
 Minimum expectation before calling the stack release-ready:
 

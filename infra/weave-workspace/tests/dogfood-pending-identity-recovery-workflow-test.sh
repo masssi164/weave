@@ -45,7 +45,14 @@ require_workflow 'WEAVE_KEYCLOAK_REVIEWED_ENV_FILE: ${{ vars.WEAVE_KEYCLOAK_REVI
 require_workflow 'WEAVE_ENV_FILE: ${{ vars.WEAVE_KEYCLOAK_REVIEWED_ENV_FILE }}'
 require_workflow 'Protected recovery requires externally installed Keycloak supervisor and reviewed environment paths.'
 require_workflow 'reviewed dogfood environment must be root-owned mode 0444 or 0644'
-require_workflow 'org.opencontainers.image.revision=$CANDIDATE_SHA'
+require_workflow 'org.opencontainers.image.revision=$WEAVE_IMAGE_SOURCE_COMMIT'
+require_workflow "'+refs/heads/dev:refs/remotes/origin/dev'"
+require_workflow 'tools/candidate_source_mapping.py'
+require_workflow 'candidate-source-mapping.json'
+require_workflow '--image "keycloak-sanitizer=$WEAVE_KEYCLOAK_SANITIZER_IMAGE"'
+if grep -Fq 'org.opencontainers.image.revision=$CANDIDATE_SHA' "${WORKFLOW}"; then
+  fail "Recovery images must identify the protected dev source, not the lane commit"
+fi
 require_workflow './dogfood-member.sh recover-lost-pending'
 require_workflow './dogfood-member.sh retire-restored-bootstrap'
 require_workflow 'restored-bootstrap-retirement.json'

@@ -22,14 +22,6 @@ on:
           - status
           - ensure
           - resend-activation
-      weave_backend_image:
-        description: "Backend image source; published ghcr.io inputs must be exact @sha256 refs, while local refs are rebuilt from the checked-out commit"
-        required: false
-        default: "weave-backend:test-stack"
-      weave_mcp_server_image:
-        description: "MCP image source; published ghcr.io inputs must be exact @sha256 refs, while local refs are rebuilt from the checked-out commit"
-        required: false
-        default: "weave-mcp-server:test-stack"
 
 permissions:
   contents: read
@@ -58,8 +50,6 @@ jobs:
       CANDIDATE_SHA: ${{ github.event.workflow_run.head_sha || inputs.candidate_sha }}
       WEAVE_CANDIDATE_COMMIT: ${{ github.event.workflow_run.head_sha || inputs.candidate_sha }}
       ISOLATED_E2E_RUN_ID: ${{ github.event.workflow_run.id || '' }}
-      WEAVE_BACKEND_IMAGE: ${{ inputs.weave_backend_image || 'weave-backend:test-stack' }}
-      WEAVE_MCP_IMAGE: ${{ inputs.weave_mcp_server_image || 'weave-mcp-server:test-stack' }}
       WEAVE_ENVIRONMENT: dogfood
       WEAVE_STACK_SCOPE: persistent
       WEAVE_E2E_STACK_SCOPE: persistent
@@ -163,11 +153,32 @@ jobs:
           mkdir -p "$evidence_dir"
           echo "WEAVE_TEST_STACK_EVIDENCE_DIR=$evidence_dir" >> "$GITHUB_ENV"
 
-      - name: Set up Java
-        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
-        with:
-          distribution: temurin
-          java-version: '21'
+      - name: Consume the exact isolated E2E image set
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          source_evidence="$RUNNER_TEMP/weave-isolated-source-evidence"
+          rm -rf -- "$source_evidence"
+          mkdir -p "$source_evidence"
+          gh run download "$ISOLATED_E2E_RUN_ID" \
+            --name weave-live-stack-acceptance-evidence \
+            --dir "$source_evidence"
+          expected_mapping="$source_evidence/candidate-source-mapping.json"
+          test -s "$expected_mapping" || {
+            echo "::error::The successful isolated E2E run has no candidate image mapping." >&2
+            exit 1
+          }
+          git fetch --no-tags --prune origin \
+            '+refs/heads/dev:refs/remotes/origin/dev'
+          python3 tools/candidate_source_mapping.py \
+            --repository . \
+            --lane-candidate "$WEAVE_CANDIDATE_COMMIT" \
+            --expected-mapping "$expected_mapping" \
+            --verify-local-images \
+            --github-env "$GITHUB_ENV" \
+            --output "$WEAVE_TEST_STACK_EVIDENCE_DIR/candidate-source-mapping.json"
+          rm -rf -- "$source_evidence"
 
       - name: Set up Flutter
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
@@ -175,8 +186,6 @@ jobs:
           flutter-version: '3.44.4'
           channel: stable
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
       - name: Ensure local Weave hostnames resolve on the runner
         run: |
           set -euo pipefail
@@ -197,87 +206,6 @@ jobs:
               exit 1
             fi
           fi
-
-      - name: Build Java runtime artifacts
-        run: ./gradlew --no-daemon --max-workers=1 :server:bootJar :weave-mcp-server:bootJar
-
-      - name: Prepare backend image
-        run: |
-          set -euo pipefail
-          source_ref="${WEAVE_BACKEND_IMAGE}"
-          if [[ "$source_ref" == ghcr.io/* ]]; then
-            [[ "$source_ref" =~ @sha256:[0-9a-f]{64}$ ]] || {
-              echo "::error::Published backend input must be an exact digest reference." >&2
-              exit 1
-            }
-            docker pull "$source_ref"
-          else
-            docker buildx build --load \
-              --label "org.opencontainers.image.revision=$CANDIDATE_SHA" \
-              -t "$source_ref" -f server/Dockerfile .
-          fi
-          revision="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$source_ref")"
-          image_id="$(docker image inspect --format '{{.Id}}' "$source_ref")"
-          [[ "$revision" == "$CANDIDATE_SHA" && "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]] || {
-            echo "::error::Backend image is not bound to the exact candidate." >&2
-            exit 1
-          }
-          echo "WEAVE_BACKEND_IMAGE=$image_id" >>"$GITHUB_ENV"
-
-      - name: Prepare MCP server image
-        run: |
-          set -euo pipefail
-          source_ref="${WEAVE_MCP_IMAGE}"
-          if [[ "$source_ref" == ghcr.io/* ]]; then
-            [[ "$source_ref" =~ @sha256:[0-9a-f]{64}$ ]] || {
-              echo "::error::Published MCP input must be an exact digest reference." >&2
-              exit 1
-            }
-            docker pull "$source_ref"
-          else
-            docker buildx build --load \
-              --label "org.opencontainers.image.revision=$CANDIDATE_SHA" \
-              -t "$source_ref" -f weave-mcp-server/Dockerfile .
-          fi
-          revision="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$source_ref")"
-          image_id="$(docker image inspect --format '{{.Id}}' "$source_ref")"
-          [[ "$revision" == "$CANDIDATE_SHA" && "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]] || {
-            echo "::error::MCP image is not bound to the exact candidate." >&2
-            exit 1
-          }
-          echo "WEAVE_MCP_IMAGE=$image_id" >>"$GITHUB_ENV"
-
-      - name: Build the exact-candidate Keycloak image
-        run: |
-          set -euo pipefail
-          source_ref="weave-keycloak:test-stack-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          docker buildx build --load \
-            --label "org.opencontainers.image.revision=$CANDIDATE_SHA" \
-            -t "$source_ref" \
-            -f infra/keycloak-event-listener/Dockerfile \
-            infra/keycloak-event-listener
-          revision="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$source_ref")"
-          version="$(docker image inspect --format '{{ index .Config.Labels "com.massimotter.weave.keycloak.version" }}' "$source_ref")"
-          image_id="$(docker image inspect --format '{{.Id}}' "$source_ref")"
-          [[ "$revision" == "$CANDIDATE_SHA" && "$version" == 26.7.0 && "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]] || {
-            echo "::error::Keycloak image is not bound to the exact candidate and pinned runtime version." >&2
-            exit 1
-          }
-          echo "WEAVE_KEYCLOAK_IMAGE=$image_id" >>"$GITHUB_ENV"
-
-      - name: Build the exact-candidate Keycloak sanitizer image
-        run: |
-          set -euo pipefail
-          evidence="$WEAVE_TEST_STACK_EVIDENCE_DIR/keycloak-sanitizer-image.json"
-          image_id="$(python3 infra/weave-workspace/scripts/build_sanitizer_image.py \
-            --root infra/weave-workspace \
-            --candidate-commit "$WEAVE_CANDIDATE_COMMIT" \
-            --output "$evidence")"
-          [[ "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]] || {
-            echo "::error::Sanitizer build did not return an immutable image ID." >&2
-            exit 1
-          }
-          echo "WEAVE_KEYCLOAK_SANITIZER_IMAGE=$image_id" >>"$GITHUB_ENV"
 
       - name: Assert persistent human member before deploy
         if: ${{ env.WEAVE_DOGFOOD_MEMBER_USERNAME != '' }}
@@ -626,6 +554,7 @@ jobs:
             --persistent-comparison "$WEAVE_TEST_STACK_EVIDENCE_DIR/persistent-dogfood-comparison.json" \
             --provider-health "$WEAVE_TEST_STACK_EVIDENCE_DIR/provider-health-summary.json" \
             --adoption-gate "$WEAVE_TEST_STACK_EVIDENCE_DIR/compose-adoption-gate.json" \
+            --candidate-source-mapping "$WEAVE_TEST_STACK_EVIDENCE_DIR/candidate-source-mapping.json" \
             --deployment-idempotence "$WEAVE_TEST_STACK_EVIDENCE_DIR/compose-model-idempotence.json" \
             --deployment-idempotence "$WEAVE_TEST_STACK_EVIDENCE_DIR/keycloak-reconciliation-idempotence.json" \
             --output "$WEAVE_TEST_STACK_EVIDENCE_DIR/dogfood-deployment-evidence.json" \

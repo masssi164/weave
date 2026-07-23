@@ -166,6 +166,17 @@ jobs:
           chmod 700 "$evidence_dir"
           echo "WEAVE_RECOVERY_EVIDENCE_DIR=$evidence_dir" >>"$GITHUB_ENV"
 
+      - name: Resolve the protected dev image source
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --prune origin \
+            '+refs/heads/dev:refs/remotes/origin/dev'
+          python3 tools/candidate_source_mapping.py \
+            --repository . \
+            --lane-candidate "$WEAVE_CANDIDATE_COMMIT" \
+            --github-env "$GITHUB_ENV" \
+            --output "$WEAVE_RECOVERY_EVIDENCE_DIR/candidate-source-mapping.json"
+
       - name: Set up Java
         uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
         with:
@@ -216,7 +227,7 @@ jobs:
             docker pull "$backend_source"
           else
             docker buildx build --load \
-              --label "org.opencontainers.image.revision=$CANDIDATE_SHA" \
+              --label "org.opencontainers.image.revision=$WEAVE_IMAGE_SOURCE_COMMIT" \
               -t "$backend_source" -f server/Dockerfile .
           fi
           if [[ "$mcp_source" == ghcr.io/* ]]; then
@@ -227,21 +238,21 @@ jobs:
             docker pull "$mcp_source"
           else
             docker buildx build --load \
-              --label "org.opencontainers.image.revision=$CANDIDATE_SHA" \
+              --label "org.opencontainers.image.revision=$WEAVE_IMAGE_SOURCE_COMMIT" \
               -t "$mcp_source" -f weave-mcp-server/Dockerfile .
           fi
           for image_ref in "$backend_source" "$mcp_source"; do
             revision="$(docker image inspect \
               --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' \
               "$image_ref")"
-            [[ "$revision" == "$CANDIDATE_SHA" ]] || {
-              echo "::error::Runtime image does not identify the exact recovery candidate: $image_ref" >&2
+            [[ "$revision" == "$WEAVE_IMAGE_SOURCE_COMMIT" ]] || {
+              echo "::error::Runtime image does not identify the protected dev source candidate: $image_ref" >&2
               exit 1
             }
           done
           keycloak_source="weave-keycloak:pending-recovery-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           docker buildx build --load \
-            --label "org.opencontainers.image.revision=$CANDIDATE_SHA" \
+            --label "org.opencontainers.image.revision=$WEAVE_IMAGE_SOURCE_COMMIT" \
             -t "$keycloak_source" \
             -f infra/keycloak-event-listener/Dockerfile \
             infra/keycloak-event-listener
@@ -250,8 +261,8 @@ jobs:
           backend_id="$(docker image inspect --format '{{.Id}}' "$backend_source")"
           mcp_id="$(docker image inspect --format '{{.Id}}' "$mcp_source")"
           keycloak_id="$(docker image inspect --format '{{.Id}}' "$keycloak_source")"
-          [[ "$keycloak_revision" == "$CANDIDATE_SHA" && "$keycloak_version" == 26.7.0 ]] || {
-            echo "::error::Keycloak image is not bound to the exact recovery candidate and pinned runtime version." >&2
+          [[ "$keycloak_revision" == "$WEAVE_IMAGE_SOURCE_COMMIT" && "$keycloak_version" == 26.7.0 ]] || {
+            echo "::error::Keycloak image is not bound to the protected dev source and pinned runtime version." >&2
             exit 1
           }
           for image_id in "$backend_id" "$mcp_id" "$keycloak_id"; do
@@ -272,13 +283,25 @@ jobs:
           evidence="$WEAVE_RECOVERY_EVIDENCE_DIR/keycloak-sanitizer-image.json"
           image_id="$(python3 infra/weave-workspace/scripts/build_sanitizer_image.py \
             --root infra/weave-workspace \
-            --candidate-commit "$WEAVE_CANDIDATE_COMMIT" \
+            --candidate-commit "$WEAVE_IMAGE_SOURCE_COMMIT" \
             --output "$evidence")"
           [[ "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]] || {
             echo "::error::Sanitizer build did not return an immutable image ID." >&2
             exit 1
           }
           echo "WEAVE_KEYCLOAK_SANITIZER_IMAGE=$image_id" >>"$GITHUB_ENV"
+
+      - name: Bind immutable images to source and lane evidence
+        run: |
+          set -euo pipefail
+          python3 tools/candidate_source_mapping.py \
+            --repository . \
+            --lane-candidate "$WEAVE_CANDIDATE_COMMIT" \
+            --image "backend=$WEAVE_BACKEND_IMAGE" \
+            --image "mcp=$WEAVE_MCP_IMAGE" \
+            --image "keycloak=$WEAVE_KEYCLOAK_IMAGE" \
+            --image "keycloak-sanitizer=$WEAVE_KEYCLOAK_SANITIZER_IMAGE" \
+            --output "$WEAVE_RECOVERY_EVIDENCE_DIR/candidate-source-mapping.json"
 
       - name: Verify private pending-identity evidence before mutation
         run: |

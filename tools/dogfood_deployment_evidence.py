@@ -22,8 +22,10 @@ from urllib.request import urlopen
 
 
 COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
+IMAGE_ID_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
 BUILD_IDENTITY_PATTERN = re.compile(r"^[0-9A-Za-z][0-9A-Za-z._+-]{0,63}$")
 CAPABILITIES = ("files", "calendar")
+IMAGE_COMPONENTS = frozenset(("backend", "keycloak", "keycloak-sanitizer", "mcp"))
 STATE_BY_VALUE = {0: "unavailable", 1: "degraded", 2: "available"}
 PROVIDER_STATES = frozenset(STATE_BY_VALUE.values())
 
@@ -202,6 +204,41 @@ def adoption_gate(path: Path, candidate: str) -> tuple[bool, bool]:
     return True, required
 
 
+def candidate_source_mapping(
+    path: Path,
+    lane_candidate: str,
+) -> tuple[str, dict[str, str]]:
+    evidence = load_object(path, "candidate source mapping")
+    source_candidate = evidence.get("sourceCandidateCommit")
+    source_tree = evidence.get("sourceTree")
+    lane_tree = evidence.get("laneTree")
+    images = evidence.get("images")
+    if (
+        evidence.get("schemaVersion") != "weave.candidate-source-mapping.v1"
+        or evidence.get("status") != "passed"
+        or evidence.get("laneCandidateCommit") != lane_candidate
+        or evidence.get("supportSafe") is not True
+        or evidence.get("containsSecretValues") is not False
+        or not isinstance(source_candidate, str)
+        or not COMMIT_PATTERN.fullmatch(source_candidate)
+        or not isinstance(evidence.get("protectedDevHead"), str)
+        or not COMMIT_PATTERN.fullmatch(evidence["protectedDevHead"])
+        or not isinstance(source_tree, str)
+        or not COMMIT_PATTERN.fullmatch(source_tree)
+        or lane_tree != source_tree
+        or not isinstance(images, dict)
+        or set(images) != IMAGE_COMPONENTS
+        or any(
+            not isinstance(image_id, str) or not IMAGE_ID_PATTERN.fullmatch(image_id)
+            for image_id in images.values()
+        )
+    ):
+        raise EvidenceError(
+            "candidate source mapping is unsafe, incomplete, stale, or not tree-identical"
+        )
+    return source_candidate, dict(sorted(images.items()))
+
+
 def assemble_deployment(
     *,
     candidate: str,
@@ -210,12 +247,20 @@ def assemble_deployment(
     run_url: str,
     comparison: dict[str, Any],
     provider_health: dict[str, Any],
+    source_candidate: str,
+    candidate_images: dict[str, str],
     idempotency_passed: bool = True,
     adoption_verified: bool = True,
     adoption_required: bool = False,
 ) -> dict[str, Any]:
     if not COMMIT_PATTERN.fullmatch(candidate):
         raise EvidenceError("candidate commit must be a full lowercase SHA-1")
+    if (
+        not COMMIT_PATTERN.fullmatch(source_candidate)
+        or set(candidate_images) != IMAGE_COMPONENTS
+        or any(not IMAGE_ID_PATTERN.fullmatch(value) for value in candidate_images.values())
+    ):
+        raise EvidenceError("source candidate and immutable image mapping are incomplete")
     if not BUILD_IDENTITY_PATTERN.fullmatch(backend_version) or not BUILD_IDENTITY_PATTERN.fullmatch(
         backend_build_number
     ):
@@ -292,8 +337,10 @@ def assemble_deployment(
         "schemaVersion": 1,
         "supportSafe": True,
         "candidateCommit": candidate,
+        "sourceCandidateCommit": source_candidate,
+        "candidateImages": dict(sorted(candidate_images.items())),
         "backendBuild": {
-            "commit": candidate,
+            "commit": source_candidate,
             "version": backend_version,
             "buildNumber": backend_build_number,
         },
@@ -318,6 +365,7 @@ def assemble_deployment(
             "artifact:provider-health-summary.json",
             "artifact:persistent-dogfood-comparison.json",
             "artifact:compose-adoption-gate.json",
+            "artifact:candidate-source-mapping.json",
         ],
         "blockers": blockers,
     }
@@ -339,6 +387,7 @@ def parser() -> argparse.ArgumentParser:
     assemble.add_argument("--provider-health", type=Path, required=True)
     assemble.add_argument("--deployment-idempotence", type=Path, action="append", required=True)
     assemble.add_argument("--adoption-gate", type=Path, required=True)
+    assemble.add_argument("--candidate-source-mapping", type=Path, required=True)
     assemble.add_argument("--output", type=Path, required=True)
     assemble.add_argument("--require-passed", action="store_true")
     return value
@@ -367,6 +416,10 @@ def main(argv: list[str] | None = None) -> int:
             args.adoption_gate,
             args.candidate_commit.lower(),
         )
+        source_candidate, candidate_images = candidate_source_mapping(
+            args.candidate_source_mapping,
+            args.candidate_commit.lower(),
+        )
         evidence = assemble_deployment(
             candidate=args.candidate_commit.lower(),
             backend_version=args.backend_version,
@@ -374,6 +427,8 @@ def main(argv: list[str] | None = None) -> int:
             run_url=args.run_url,
             comparison=load_object(args.persistent_comparison, "persistent dogfood comparison"),
             provider_health=load_object(args.provider_health, "provider health summary"),
+            source_candidate=source_candidate,
+            candidate_images=candidate_images,
             idempotency_passed=idempotency_is_green,
             adoption_verified=adoption_is_green,
             adoption_required=adoption_is_required,
