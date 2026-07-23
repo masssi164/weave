@@ -1,6 +1,6 @@
 # Sprint 32 preparation — Local DNS, local server, and invitation onboarding
 
-Status: implemented locally for Sprint 32 dogfood verification. This is an implementation/evidence note, not a canonical product specification. Fachliche product truth remains the pinned Weave Specification Corpus in `specs/weave-specs.lock.json`; this plan derives the next local dogfood slice from repo state, Sprint 31 evidence, and Massimo's local DNS correction.
+Status: historical Sprint 32 implementation/evidence note. Its OpenTofu paths and commands are superseded and non-executable after the Compose/JPA/Keycloak reconciliation cutover. Current product truth remains the pinned Weave Specification Corpus in `specs/weave-specs.lock.json`; current operator commands live in `infra/README.md` and `infra/docs/operator-runbook.md`.
 
 ## Sprint goal
 
