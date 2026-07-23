@@ -1,7 +1,6 @@
 package com.massimotter.weave.mcp;
 
 import java.io.IOException;
-import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -16,7 +15,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -25,7 +23,7 @@ import java.util.Set;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
-/** RFC 8693 Standard Token Exchange V2 adapter. Incoming tokens are never relayed elsewhere. */
+/** RFC 8693 Standard Token Exchange V2 adapter. Incoming tokens are never relayed to domain or provider services. */
 final class HttpMcpBackendTokenExchange implements McpBackendTokenExchange {
     private static final String TOKEN_EXCHANGE_GRANT = "urn:ietf:params:oauth:grant-type:token-exchange";
     private static final String ACCESS_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:access_token";
@@ -62,19 +60,16 @@ final class HttpMcpBackendTokenExchange implements McpBackendTokenExchange {
                 || !Set.copyOf(properties.exchangeScopes()).equals(scopes)) {
             throw forbidden();
         }
-        byte[] secret = readCredential(properties.exchangeClientSecretFile());
-        byte[] basicMaterial = null;
-        byte[] basicEncoded = null;
+        byte[] privateJwk = readCredential(properties.exchangeClientKeyFile());
         byte[] form = null;
         try {
-            // RFC 6749 section 2.3.1 applies form encoding to both Basic
-            // credential components before their colon-delimited Base64 encoding.
-            basicMaterial = (basicCredential(properties.exchangeClientId()) + ":"
-                    + basicCredential(new String(secret, StandardCharsets.UTF_8)))
-                    .getBytes(StandardCharsets.UTF_8);
-            basicEncoded = Base64.getEncoder().encode(basicMaterial);
             Map<String, String> parameters = new LinkedHashMap<>();
             parameters.put("grant_type", TOKEN_EXCHANGE_GRANT);
+            parameters.put("client_id", properties.exchangeClientId());
+            parameters.put("client_assertion_type", PrivateKeyJwtClientAssertion.ASSERTION_TYPE);
+            parameters.put(
+                    "client_assertion",
+                    PrivateKeyJwtClientAssertion.create(properties, mapper, privateJwk, Instant.now()));
             parameters.put("subject_token", subjectToken);
             parameters.put("subject_token_type", ACCESS_TOKEN_TYPE);
             parameters.put("requested_token_type", ACCESS_TOKEN_TYPE);
@@ -85,7 +80,6 @@ final class HttpMcpBackendTokenExchange implements McpBackendTokenExchange {
                     .timeout(properties.requestTimeout())
                     .header("Accept", "application/json")
                     .header("Content-Type", "application/x-www-form-urlencoded")
-                    .header("Authorization", "Basic " + new String(basicEncoded, StandardCharsets.US_ASCII))
                     .POST(HttpRequest.BodyPublishers.ofByteArray(form))
                     .build();
             HttpResponse<byte[]> response = http.send(request, HttpResponse.BodyHandlers.ofByteArray());
@@ -102,9 +96,7 @@ final class HttpMcpBackendTokenExchange implements McpBackendTokenExchange {
             Thread.currentThread().interrupt();
             throw unavailable();
         } finally {
-            Arrays.fill(secret, (byte) 0);
-            clear(basicMaterial);
-            clear(basicEncoded);
+            clear(privateJwk);
             clear(form);
         }
     }
@@ -245,7 +237,7 @@ final class HttpMcpBackendTokenExchange implements McpBackendTokenExchange {
                 // Non-POSIX filesystems still retain the no-symlink/regular/readable checks.
             }
             byte[] bytes = Files.readAllBytes(normalized);
-            if (bytes.length == 0 || bytes.length > 4096) {
+            if (bytes.length == 0 || bytes.length > 16384) {
                 clear(bytes);
                 throw unavailable();
             }
@@ -276,10 +268,6 @@ final class HttpMcpBackendTokenExchange implements McpBackendTokenExchange {
 
     private static String encode(String value) {
         return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
-    }
-
-    private static String basicCredential(String value) {
-        return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 
     private static void clear(byte[] value) {

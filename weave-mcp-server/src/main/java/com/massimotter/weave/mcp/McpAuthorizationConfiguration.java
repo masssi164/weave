@@ -28,15 +28,18 @@ class McpAuthorizationConfiguration {
     }
 
     @Bean("mcpWorkloadBoundaryHealthIndicator")
-    HealthIndicator mcpWorkloadBoundaryHealthIndicator(McpWorkloadProperties properties) {
+    HealthIndicator mcpWorkloadBoundaryHealthIndicator(
+            McpWorkloadProperties properties,
+            JsonMapper mapper) {
         return () -> {
             byte[] credential = null;
             try {
-                credential = HttpMcpBackendTokenExchange.readCredential(properties.exchangeClientSecretFile());
+                credential = HttpMcpBackendTokenExchange.readCredential(properties.exchangeClientKeyFile());
+                PrivateKeyJwtClientAssertion.validate(properties, mapper, credential);
                 return Health.up()
                         .withDetail("authorizationPosture", "guarded-fixed-resource")
                         .withDetail("tokenExchange", "configured")
-                        .withDetail("credential", "mounted-secretref")
+                        .withDetail("credential", "mounted-private-jwk-secretref")
                         .build();
             } catch (McpAdmissionException unavailable) {
                 return Health.down()
