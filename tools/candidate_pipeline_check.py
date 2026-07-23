@@ -30,6 +30,7 @@ def ordered(document: str, fragments: tuple[str, ...], label: str) -> None:
 
 
 def main() -> int:
+    ci = read(".github/workflows/ci.yml")
     live = read(".github/workflows/live-stack-e2e.yml")
     deployment = read(".github/workflows/test-stack-deploy.yml")
     recovery = read(".github/workflows/dogfood-pending-identity-recovery.yml")
@@ -38,6 +39,24 @@ def main() -> int:
     promotion = read(".github/workflows/main-promotion-gate.yml")
     docs = read("docs/ios-dogfood-distribution.md")
     readiness_assembler = read("tools/human_testing_readiness_assemble.py")
+
+    require(
+        "push:\n    branches:\n      - dev\n      - dogfood\n      - main" in ci,
+        "root CI must run after protected-lane pushes without duplicating feature-branch PR runs",
+    )
+    require(
+        "pull_request:" in ci and "merge_group:" in ci and "workflow_dispatch:" in ci,
+        "root CI is missing a PR, merge-queue, or manual execution path",
+    )
+    require(
+        "group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-"
+        in ci
+        and "github.event.action == 'labeled'" in ci
+        and "github.event.action == 'unlabeled'" in ci
+        and "cancel-in-progress: ${{ github.event_name == 'pull_request'"
+        in ci,
+        "root CI does not isolate full and label-only concurrency or cancel superseded PR computation",
+    )
 
     require("push:\n    branches:\n      - dogfood" in live, "isolated E2E does not run on the exact dogfood commit")
     require(

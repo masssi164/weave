@@ -76,6 +76,8 @@ The root `./gradlew` is the monorepo build/delivery source of truth. GitHub Acti
 
 Each task requires the same tools and dependency setup as the underlying ecosystem command; for example docs tasks need pinned dependencies installed in `build/docs-venv` or the active Python environment from `docs/requirements.txt`, server checks need Java 21+, client checks need Flutter/Dart, and admin checks need Node/npm dependencies. `./gradlew ci` writes sanitized evidence to `build/evidence/ci-summary.json`; CI uploads `build/evidence/**` and deterministic docs outputs as artifacts. If local `./gradlew doctor` reports JDK 17, point `JAVA_HOME` at JDK 21+ rather than weakening the gate.
 
+Feature branches execute the full root CI through `pull_request` only; feature-branch `push` does not launch a duplicate build. Direct pushes and merges to `dev`, `dogfood`, and `main` retain a full post-merge run, while `merge_group` and manual dispatch remain supported. Full PR runs share a PR-scoped concurrency key and superseded computation is canceled. Label-only events use a separate key so release-note label validation cannot cancel or queue behind the full candidate build. Protected-lane and manual runs are never canceled in progress.
+
 ## Everyday Flutter workflow
 
 Use the existing generated-code workflow before analysis or tests:
