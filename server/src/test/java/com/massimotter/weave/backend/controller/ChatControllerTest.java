@@ -180,7 +180,7 @@ class ChatControllerTest {
                 .andExpect(status().isNotFound());
 
         mockMvc.perform(request(HttpMethod.POST, "/api/chat/conversations/pa-weaver/messages")
-                        .with(workspaceJwt("member", List.of("weave-weaver-runtime")))
+                        .with(workspaceJwt("member", List.of("/weave/weaver-runtime")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"text\":\"PA Weaver chat must enter through Matrix.\"}"))
                 .andExpect(status().isNotFound());

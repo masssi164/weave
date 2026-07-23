@@ -13,11 +13,8 @@ import com.massimotter.weave.backend.identity.realm.IdentityRealmDryRunEvidence;
 import com.massimotter.weave.backend.identity.realm.IdentityRealmDryRunReport;
 import com.massimotter.weave.backend.identity.realm.IdentityRealmDryRunRequest;
 import com.massimotter.weave.backend.identity.realm.IdentityRealmEvidenceRepository;
-import com.massimotter.weave.backend.identity.realm.IdentityRealmLiveApplyAdapter;
 import com.massimotter.weave.backend.identity.realm.IdentityRealmProvider;
-import com.massimotter.weave.backend.identity.realm.InMemoryIdentityRealmEvidenceRepository;
 import com.massimotter.weave.backend.identity.realm.KeycloakRealmDryRunProvider;
-import com.massimotter.weave.backend.identity.realm.KeycloakRealmLiveApplyAdapter;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyResponse;
 import com.massimotter.weave.backend.model.admin.AdminAuditEventResponse;
 import com.massimotter.weave.backend.model.admin.AdminControlPlaneResponse;
@@ -52,7 +49,6 @@ import com.massimotter.weave.backend.provider.ProviderSelectionRepository;
 import com.massimotter.weave.backend.provider.ProviderState;
 import com.massimotter.weave.backend.provider.ProviderStatusResponse;
 import com.massimotter.weave.backend.domainfacade.CanonicalDomainDefinition;
-import com.massimotter.weave.backend.service.migration.InMemoryMigrationRunEvidenceRepository;
 import com.massimotter.weave.backend.service.migration.MigrationRunEvidence;
 import com.massimotter.weave.backend.service.migration.MigrationRunEvidenceRepository;
 import java.nio.charset.StandardCharsets;
@@ -71,7 +67,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -90,21 +85,26 @@ public class AdminControlPlaneService {
             "degraded",
             "unavailable",
             "coming_later");
-    private static final Set<String> SIMULATION_ROLES = Set.of("owner", "admin", "operator", "member", "guest");
+    private static final Set<String> SIMULATION_ROLES = Set.of("owner", "admin", "member", "guest");
     private static final Set<String> SIMULATION_GROUPS = Set.of(
-            "weave-calendar-editors",
-            "weave-board-editors",
-            "weave-meeting-hosts",
-            "weave-document-editors",
-            "weave-decision-recorders",
-            "weave-weaver-runtime");
+            "/weave",
+            "/weave/owners",
+            "/weave/admins",
+            "/weave/members",
+            "/weave/guests",
+            "/weave/weaver-runtime",
+            "/weave-calendar-editors",
+            "/weave-board-editors",
+            "/weave-meeting-hosts",
+            "/weave-document-editors",
+            "/weave-decision-recorders");
     private static final Map<String, List<String>> SIMULATION_GROUP_CAPABILITIES = Map.of(
-            "weave-calendar-editors", List.of("calendar.manage_events"),
-            "weave-board-editors", List.of("boards.update_task"),
-            "weave-meeting-hosts", List.of("meetings.host"),
-            "weave-document-editors", List.of("documents.edit"),
-            "weave-decision-recorders", List.of("decisions.record"),
-            "weave-weaver-runtime", List.of("agent-runtime.entitled"));
+            "/weave-calendar-editors", List.of("calendar.manage_events"),
+            "/weave-board-editors", List.of("boards.update_task"),
+            "/weave-meeting-hosts", List.of("meetings.host"),
+            "/weave-document-editors", List.of("documents.edit"),
+            "/weave-decision-recorders", List.of("decisions.record"),
+            "/weave/weaver-runtime", List.of("agent-runtime.entitled"));
     private static final Set<String> SIMULATION_KNOWN_CAPABILITIES = Set.of(
             "chat.read", "chat.send", "files.read", "files.upload", "calendar.read", "calendar.manage_events",
             "boards.read", "boards.update_task", "meetings.join", "meetings.host", "documents.view", "documents.edit",
@@ -125,7 +125,6 @@ public class AdminControlPlaneService {
     private final MigrationRunEvidenceRepository migrationRunEvidenceRepository;
     private final List<IdentityRealmProvider> identityRealmProviders;
     private final IdentityRealmEvidenceRepository identityRealmEvidenceRepository;
-    private final List<IdentityRealmLiveApplyAdapter> identityRealmLiveApplyAdapters;
     private final IdentityRealmApplyProperties identityRealmApplyProperties;
     private final Clock clock;
 
@@ -137,28 +136,22 @@ public class AdminControlPlaneService {
             OrganizationBootstrapRepository organizationBootstrapRepository,
             AuditEventPublisher auditEventPublisher,
             List<IdentityRealmProvider> identityRealmProviders,
-            ObjectProvider<IdentityRealmEvidenceRepository> identityRealmEvidenceRepository,
-            ObjectProvider<List<IdentityRealmLiveApplyAdapter>> identityRealmLiveApplyAdapters,
-            ObjectProvider<IdentityRealmApplyProperties> identityRealmApplyProperties,
-            ObjectProvider<ProductProfileOverrideRepository> productProfileOverrideRepository,
-            ObjectProvider<MigrationRunEvidenceRepository> migrationRunEvidenceRepository) {
-        IdentityRealmApplyProperties properties = identityRealmApplyProperties.getIfAvailable(IdentityRealmApplyProperties::new);
+            IdentityRealmEvidenceRepository identityRealmEvidenceRepository,
+            IdentityRealmApplyProperties identityRealmApplyProperties,
+            ProductProfileOverrideRepository productProfileOverrideRepository,
+            MigrationRunEvidenceRepository migrationRunEvidenceRepository) {
         this.providerRegistry = providerRegistry;
         this.workspaceCapabilityService = workspaceCapabilityService;
         this.providerSelectionRepository = providerSelectionRepository;
-        this.productProfileOverrideRepository = productProfileOverrideRepository.getIfAvailable();
+        this.productProfileOverrideRepository = productProfileOverrideRepository;
         this.organizationBootstrapRepository = organizationBootstrapRepository;
         this.auditEventPublisher = auditEventPublisher;
-        this.migrationRunEvidenceRepository = migrationRunEvidenceRepository.getIfAvailable(InMemoryMigrationRunEvidenceRepository::new);
+        this.migrationRunEvidenceRepository = migrationRunEvidenceRepository;
         this.identityRealmProviders = identityRealmProviders == null || identityRealmProviders.isEmpty()
                 ? List.of(new KeycloakRealmDryRunProvider())
                 : List.copyOf(identityRealmProviders);
-        this.identityRealmEvidenceRepository = identityRealmEvidenceRepository.getIfAvailable(InMemoryIdentityRealmEvidenceRepository::new);
-        this.identityRealmApplyProperties = properties;
-        List<IdentityRealmLiveApplyAdapter> adapters = identityRealmLiveApplyAdapters.getIfAvailable(List::of);
-        this.identityRealmLiveApplyAdapters = adapters == null || adapters.isEmpty()
-                ? List.of(new KeycloakRealmLiveApplyAdapter(this.identityRealmApplyProperties))
-                : List.copyOf(adapters);
+        this.identityRealmEvidenceRepository = identityRealmEvidenceRepository;
+        this.identityRealmApplyProperties = identityRealmApplyProperties;
         this.clock = Clock.systemUTC();
     }
 
@@ -168,62 +161,32 @@ public class AdminControlPlaneService {
             ProviderSelectionRepository providerSelectionRepository,
             OrganizationBootstrapRepository organizationBootstrapRepository,
             AuditEventPublisher auditEventPublisher,
-            Clock clock) {
-        this(providerRegistry, workspaceCapabilityService, providerSelectionRepository, organizationBootstrapRepository, auditEventPublisher,
-                List.of(new KeycloakRealmDryRunProvider()), new InMemoryIdentityRealmEvidenceRepository(), List.of(new KeycloakRealmLiveApplyAdapter(new IdentityRealmApplyProperties())), new IdentityRealmApplyProperties(), clock);
-    }
-
-    AdminControlPlaneService(
-            ProviderRegistry providerRegistry,
-            WorkspaceCapabilityService workspaceCapabilityService,
-            ProviderSelectionRepository providerSelectionRepository,
-            OrganizationBootstrapRepository organizationBootstrapRepository,
-            AuditEventPublisher auditEventPublisher,
             List<IdentityRealmProvider> identityRealmProviders,
             IdentityRealmEvidenceRepository identityRealmEvidenceRepository,
-            List<IdentityRealmLiveApplyAdapter> identityRealmLiveApplyAdapters,
-            IdentityRealmApplyProperties identityRealmApplyProperties,
-            Clock clock) {
-        this(providerRegistry, workspaceCapabilityService, providerSelectionRepository, organizationBootstrapRepository, auditEventPublisher,
-                identityRealmProviders, identityRealmEvidenceRepository, identityRealmLiveApplyAdapters, identityRealmApplyProperties, clock,
-                null, new InMemoryMigrationRunEvidenceRepository());
-    }
-
-    AdminControlPlaneService(
-            ProviderRegistry providerRegistry,
-            WorkspaceCapabilityService workspaceCapabilityService,
-            ProviderSelectionRepository providerSelectionRepository,
-            OrganizationBootstrapRepository organizationBootstrapRepository,
-            AuditEventPublisher auditEventPublisher,
-            List<IdentityRealmProvider> identityRealmProviders,
-            IdentityRealmEvidenceRepository identityRealmEvidenceRepository,
-            List<IdentityRealmLiveApplyAdapter> identityRealmLiveApplyAdapters,
             IdentityRealmApplyProperties identityRealmApplyProperties,
             Clock clock,
             ProductProfileOverrideRepository productProfileOverrideRepository,
             MigrationRunEvidenceRepository migrationRunEvidenceRepository) {
-        this.providerRegistry = providerRegistry;
-        this.workspaceCapabilityService = workspaceCapabilityService;
-        this.providerSelectionRepository = providerSelectionRepository;
-        this.productProfileOverrideRepository = productProfileOverrideRepository;
-        this.organizationBootstrapRepository = organizationBootstrapRepository;
-        this.auditEventPublisher = auditEventPublisher;
-        this.migrationRunEvidenceRepository = migrationRunEvidenceRepository == null
-                ? new InMemoryMigrationRunEvidenceRepository()
-                : migrationRunEvidenceRepository;
+        this.providerRegistry = java.util.Objects.requireNonNull(providerRegistry, "providerRegistry");
+        this.workspaceCapabilityService = java.util.Objects.requireNonNull(
+                workspaceCapabilityService, "workspaceCapabilityService");
+        this.providerSelectionRepository = java.util.Objects.requireNonNull(
+                providerSelectionRepository, "providerSelectionRepository");
+        this.productProfileOverrideRepository = java.util.Objects.requireNonNull(
+                productProfileOverrideRepository, "productProfileOverrideRepository");
+        this.organizationBootstrapRepository = java.util.Objects.requireNonNull(
+                organizationBootstrapRepository, "organizationBootstrapRepository");
+        this.auditEventPublisher = java.util.Objects.requireNonNull(auditEventPublisher, "auditEventPublisher");
+        this.migrationRunEvidenceRepository = java.util.Objects.requireNonNull(
+                migrationRunEvidenceRepository, "migrationRunEvidenceRepository");
         this.identityRealmProviders = identityRealmProviders == null || identityRealmProviders.isEmpty()
                 ? List.of(new KeycloakRealmDryRunProvider())
                 : List.copyOf(identityRealmProviders);
-        this.identityRealmEvidenceRepository = identityRealmEvidenceRepository == null
-                ? new InMemoryIdentityRealmEvidenceRepository()
-                : identityRealmEvidenceRepository;
-        this.identityRealmApplyProperties = identityRealmApplyProperties == null
-                ? new IdentityRealmApplyProperties()
-                : identityRealmApplyProperties;
-        this.identityRealmLiveApplyAdapters = identityRealmLiveApplyAdapters == null || identityRealmLiveApplyAdapters.isEmpty()
-                ? List.of(new KeycloakRealmLiveApplyAdapter(this.identityRealmApplyProperties))
-                : List.copyOf(identityRealmLiveApplyAdapters);
-        this.clock = clock;
+        this.identityRealmEvidenceRepository = java.util.Objects.requireNonNull(
+                identityRealmEvidenceRepository, "identityRealmEvidenceRepository");
+        this.identityRealmApplyProperties = java.util.Objects.requireNonNull(
+                identityRealmApplyProperties, "identityRealmApplyProperties");
+        this.clock = java.util.Objects.requireNonNull(clock, "clock");
     }
 
     public AdminControlPlaneResponse overview(Jwt jwt) {
@@ -812,9 +775,6 @@ public class AdminControlPlaneService {
                         "decisions.read", "decisions.record", "manuals.read", "manuals.admin", "release_evidence.read", "release_evidence.manage",
                         "admin_control_plane.readiness_read", "admin.policy.edit", "admin.provider.configure"));
             }
-            if (roles.contains("operator")) {
-                grants.addAll(List.of("admin_control_plane.readiness_read", "operator.support_bundle.create", "release_evidence.read", "manuals.admin", "manuals.read"));
-            }
             if (roles.contains("member")) {
                 grants.addAll(List.of("chat.read", "chat.send", "files.read", "files.upload", "calendar.read", "boards.read", "meetings.join", "documents.view", "decisions.read", "manuals.read", "release_evidence.read"));
             }
@@ -964,17 +924,16 @@ public class AdminControlPlaneService {
             blocked.add("rollback/restore evidence ref is required for risky or destructive apply");
         }
         blocked.addAll(dryRun.blockers());
-        boolean guardsAccepted = blocked.isEmpty();
-        IdentityRealmLiveApplyAdapter.IdentityRealmLiveApplyResult liveApply = guardsAccepted
-                ? identityRealmLiveApplyAdapter(provider.providerKey()).apply(persistedEvidence.orElseThrow(), request)
-                : new IdentityRealmLiveApplyAdapter.IdentityRealmLiveApplyResult(false, false, "guarded-provider-apply-blocked-before-adapter", List.of(), List.of());
-        blocked.addAll(liveApply.blockedReasons());
         boolean accepted = blocked.isEmpty();
-        boolean applied = accepted && liveApply.applied();
-        boolean providerMutationPerformed = accepted && liveApply.providerMutationPerformed();
-        String executionMode = accepted ? liveApply.executionMode() : "guarded-provider-apply-blocked-before-mutation";
+        boolean applied = false;
+        boolean providerMutationPerformed = false;
+        String executionMode = accepted
+                ? "protected-keycloak-reconciler-required"
+                : "guarded-review-blocked-before-reconciliation";
         List<String> nextActions = new ArrayList<>(applyNextActions(accepted, blocked, rollbackRequired, hasRisky, hasDestructive));
-        nextActions.addAll(liveApply.nextActions());
+        if (accepted) {
+            nextActions.add("Submit the reviewed desired-state revision to the protected Keycloak reconciler; the product server never holds baseline reconciliation credentials.");
+        }
         nextActions = nextActions.stream().distinct().toList();
         String auditRef = "identity-realm-apply-" + Instant.now(clock).toEpochMilli();
         String actorRef = actorRef(jwt);
@@ -996,8 +955,9 @@ public class AdminControlPlaneService {
                         Map.entry("decision", accepted ? "accepted" : "blocked"),
                         Map.entry("result", accepted ? (applied ? "accepted-with-provider-mutation" : "accepted-without-provider-mutation") : "blocked-before-provider-mutation"),
                         Map.entry("executionMode", executionMode),
-                        Map.entry("liveApplyEnabled", identityRealmApplyProperties.liveApplyEnabled()),
-                        Map.entry("providerConfigured", identityRealmApplyProperties.providerConfigured()),
+                        Map.entry("liveApplyEnabled", false),
+                        Map.entry("providerConfigured", false),
+                        Map.entry("reconciliationAuthority", "protected-kcadm-job"),
                         Map.entry("providerMutationPerformed", providerMutationPerformed),
                         Map.entry("safeChangeCount", safeChangeCount),
                         Map.entry("riskyChangeCount", riskyChangeCount),
@@ -1093,12 +1053,10 @@ public class AdminControlPlaneService {
         profileCapabilities.put("workspace-admin", List.of(
                 "chat.read", "chat.send", "files.read", "files.upload", "calendar.read", "calendar.manage_events",
                 "boards.read", "boards.update_task", "admin.provider.configure", "admin.policy.edit"));
-        profileCapabilities.put("workspace-operator", List.of(
-                "admin_control_plane.readiness_read", "operator.support_bundle.create", "release_evidence.read", "manuals.admin"));
         profileCapabilities.put("member-default", List.of(
                 "chat.read", "chat.send", "files.read", "files.upload", "calendar.read", "boards.read"));
         profileCapabilities.put("guest-deny-default", List.of());
-        profileCapabilities.put("group:weave-weaver-runtime", List.of("agent-runtime.entitled"));
+        profileCapabilities.put("group:/weave/weaver-runtime", List.of("agent-runtime.entitled"));
         return new CapabilityWhitelistResponse(
                 policy.denyByDefault(),
                 false,
@@ -1519,13 +1477,6 @@ public class AdminControlPlaneService {
                 .filter(provider -> provider.providerKey().equals(providerKey))
                 .findFirst()
                 .orElseGet(KeycloakRealmDryRunProvider::new);
-    }
-
-    private IdentityRealmLiveApplyAdapter identityRealmLiveApplyAdapter(String providerKey) {
-        return identityRealmLiveApplyAdapters.stream()
-                .filter(adapter -> adapter.providerKey().equals(providerKey))
-                .findFirst()
-                .orElseGet(() -> new KeycloakRealmLiveApplyAdapter(identityRealmApplyProperties));
     }
 
     private ProviderSelection validateProviderSelection(ProviderSelectionRequest request, Jwt jwt) {
@@ -2032,7 +1983,11 @@ public class AdminControlPlaneService {
     }
 
     private boolean safeSimulationInputToken(String value) {
-        return value != null && value.matches("[a-z][a-z0-9_.:-]*");
+        if (value == null) {
+            return false;
+        }
+        return value.matches("[a-z][a-z0-9_.:-]*")
+                || value.matches("/[a-z0-9][a-z0-9_.:-]*(?:/[a-z0-9][a-z0-9_.:-]*)*");
     }
 
     private EffectivePolicySimulationResponse.CapabilityState simulationState(

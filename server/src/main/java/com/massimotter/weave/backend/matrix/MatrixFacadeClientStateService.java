@@ -15,11 +15,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.time.Instant;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 
@@ -34,29 +29,19 @@ public class MatrixFacadeClientStateService {
     private final ConcurrentMap<String, ConcurrentMap<String, Map<String, Object>>> filtersByUser =
             new ConcurrentHashMap<>();
     private final java.util.Set<String> revokedTokenHashes = ConcurrentHashMap.newKeySet();
-    private final JdbcTemplate jdbc;
+    private final MatrixFacadeClientStateStore stateStore;
     private final ContextAuthorizationProperties contextAuthorizationProperties;
     private final AtomicLong filterSequence = new AtomicLong();
 
-    public MatrixFacadeClientStateService(MatrixProtocolCoreService matrixProtocolCoreService) {
-        this(matrixProtocolCoreService, (JdbcTemplate) null, defaultContextAuthorizationProperties());
-    }
-
-    @Autowired
     public MatrixFacadeClientStateService(
             MatrixProtocolCoreService matrixProtocolCoreService,
-            ObjectProvider<JdbcTemplate> jdbcProvider,
+            MatrixFacadeClientStateStore stateStore,
             ContextAuthorizationProperties contextAuthorizationProperties) {
-        this(matrixProtocolCoreService, jdbcProvider.getIfAvailable(), contextAuthorizationProperties);
-    }
-
-    MatrixFacadeClientStateService(
-            MatrixProtocolCoreService matrixProtocolCoreService,
-            JdbcTemplate jdbc,
-            ContextAuthorizationProperties contextAuthorizationProperties) {
-        this.matrixProtocolCoreService = matrixProtocolCoreService;
-        this.jdbc = jdbc;
-        this.contextAuthorizationProperties = contextAuthorizationProperties;
+        this.matrixProtocolCoreService = java.util.Objects.requireNonNull(
+                matrixProtocolCoreService, "matrixProtocolCoreService");
+        this.stateStore = java.util.Objects.requireNonNull(stateStore, "stateStore");
+        this.contextAuthorizationProperties = java.util.Objects.requireNonNull(
+                contextAuthorizationProperties, "contextAuthorizationProperties");
     }
 
     public MatrixIdentity register(Jwt jwt, String requestedDeviceId) {
@@ -100,21 +85,17 @@ public class MatrixFacadeClientStateService {
         }
         ScopedMatrixUser scopedUser = new ScopedMatrixUser(tenantId, identityIssuer, userId);
         ChatResolvedIdentity cached = actorsByMatrixUserId.get(scopedUser);
-        if (cached != null || jdbc == null) {
+        if (cached != null) {
             return Optional.ofNullable(cached);
         }
-        Optional<ChatResolvedIdentity> projected = jdbc.query(
-                "select actor_ref, authorization_principal_ref from weave_matrix_identity_projection "
-                        + "where tenant_id = ? and identity_issuer = ? and matrix_user_id = ?",
-                (rs, row) -> new ChatResolvedIdentity(
+        Optional<ChatResolvedIdentity> projected = stateStore
+                .identityProjection(tenantId, identityIssuer, userId)
+                .map(projection -> new ChatResolvedIdentity(
                         new ChatIdentityRef(
                                 tenantId,
                                 identityIssuer,
-                                new ChatActorRef(rs.getString("actor_ref"))),
-                        rs.getString("authorization_principal_ref")),
-                tenantId,
-                identityIssuer,
-                userId).stream().findFirst();
+                                new ChatActorRef(projection.actorRef())),
+                        projection.authorizationPrincipalRef()));
         projected.ifPresent(identity -> actorsByMatrixUserId.putIfAbsent(scopedUser, identity));
         return projected;
     }
@@ -122,31 +103,13 @@ public class MatrixFacadeClientStateService {
     private void persistIdentityProjection(
             ScopedMatrixUser scopedUser,
             ChatResolvedIdentity identity) {
-        if (jdbc == null) {
-            return;
-        }
-        Instant now = Instant.now();
-        int updated = jdbc.update("update weave_matrix_identity_projection set actor_ref = ?, "
-                        + "authorization_principal_ref = ?, updated_at_utc = ? "
-                        + "where tenant_id = ? and identity_issuer = ? and matrix_user_id = ?",
-                identity.identity().actorRef().value(),
-                identity.authorizationPrincipalRef(),
-                utc(now),
+        stateStore.saveIdentityProjection(new MatrixFacadeClientStateStore.IdentityProjection(
                 scopedUser.tenantId(),
                 scopedUser.identityIssuer(),
-                scopedUser.userId());
-        if (updated == 0) {
-            jdbc.update("insert into weave_matrix_identity_projection "
-                            + "(tenant_id, identity_issuer, matrix_user_id, actor_ref, "
-                            + "authorization_principal_ref, updated_at_utc) values (?, ?, ?, ?, ?, ?) "
-                            + "on conflict do nothing",
-                    scopedUser.tenantId(),
-                    scopedUser.identityIssuer(),
-                    scopedUser.userId(),
-                    identity.identity().actorRef().value(),
-                    identity.authorizationPrincipalRef(),
-                    utc(now));
-        }
+                scopedUser.userId(),
+                identity.identity().actorRef().value(),
+                identity.authorizationPrincipalRef(),
+                Instant.now()));
     }
 
     public String createFilter(String userId, Map<String, Object> filter) {
@@ -182,23 +145,12 @@ public class MatrixFacadeClientStateService {
         String tokenIdentity = tokenIdentity(jwt);
         if (tokenIdentity != null) {
             String hash = tokenHash(tokenIdentity);
-            if (jdbc == null) {
-                revokedTokenHashes.add(hash);
-                return;
-            }
+            revokedTokenHashes.add(hash);
             Instant now = Instant.now();
             Instant expires = jwt.getExpiresAt() == null
                     ? now.plusSeconds(86_400)
                     : jwt.getExpiresAt();
-            int updated = jdbc.update("update weave_matrix_revoked_sessions set revoked_at_utc = ?, "
-                            + "expires_at_utc = ? where session_hash = ?",
-                    utc(now), utc(expires), hash);
-            if (updated == 0) {
-                jdbc.update("insert into weave_matrix_revoked_sessions "
-                                + "(session_hash, revoked_at_utc, expires_at_utc) values (?, ?, ?) "
-                                + "on conflict do nothing",
-                        hash, utc(now), utc(expires));
-            }
+            stateStore.revokeSession(hash, now, expires);
         }
     }
 
@@ -208,15 +160,12 @@ public class MatrixFacadeClientStateService {
             return false;
         }
         String hash = tokenHash(tokenIdentity);
-        if (jdbc == null) {
-            return revokedTokenHashes.contains(hash);
+        if (revokedTokenHashes.contains(hash)) {
+            return true;
         }
         Instant now = Instant.now();
-        jdbc.update("delete from weave_matrix_revoked_sessions where expires_at_utc <= ?", utc(now));
-        Long count = jdbc.queryForObject("select count(*) from weave_matrix_revoked_sessions "
-                        + "where session_hash = ? and expires_at_utc > ?",
-                Long.class, hash, utc(now));
-        return count != null && count > 0;
+        stateStore.deleteExpiredSessions(now);
+        return stateStore.isSessionRevoked(hash, now);
     }
 
     private Map<String, Object> immutableMap(Map<String, Object> value) {
@@ -314,10 +263,6 @@ public class MatrixFacadeClientStateService {
             throw new MatrixProtocolException("M_FORBIDDEN", "The OIDC identity issuer is missing.");
         }
         return jwt.getIssuer().toString();
-    }
-
-    private OffsetDateTime utc(Instant value) {
-        return OffsetDateTime.ofInstant(value, ZoneOffset.UTC);
     }
 
     private static ContextAuthorizationProperties defaultContextAuthorizationProperties() {

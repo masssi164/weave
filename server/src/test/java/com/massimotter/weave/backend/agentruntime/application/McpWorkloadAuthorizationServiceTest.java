@@ -238,7 +238,7 @@ class McpWorkloadAuthorizationServiceTest {
                                 "https://api.weave.test/mcp",
                                 "io.modelcontextprotocol/oauth-client-credentials",
                                 "client_credentials",
-                                List.of("mcp:tools", "calendar.read"),
+                                List.of("mcp.tools", "calendar.read"),
                                 "credentialref://weave/mcp/test",
                                 List.of("calendar.read"))),
                         List.of("calendar.read")),

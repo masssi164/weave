@@ -1,7 +1,7 @@
 package com.massimotter.weave.backend.config;
 
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
-import com.massimotter.weave.backend.context.authz.InMemoryContextAuthorizationAdapter;
+import com.massimotter.weave.backend.context.authz.ConfiguredContextAuthorizationAdapter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -16,7 +16,7 @@ public class ContextAuthorizationConfiguration {
 
     @Bean
     ContextAuthorizationPort contextAuthorizationPort(ContextAuthorizationProperties properties) {
-        return new InMemoryContextAuthorizationAdapter(
+        return new ConfiguredContextAuthorizationAdapter(
                 properties.toMemberships(),
                 properties.toRelationTuples(),
                 properties.toGraphEdges());

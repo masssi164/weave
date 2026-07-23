@@ -28,6 +28,13 @@ import java.time.Instant;
 import com.massimotter.weave.backend.service.AdminControlPlaneService;
 import com.massimotter.weave.backend.service.InMemoryOrganizationBootstrapRepository;
 import com.massimotter.weave.backend.service.OrganizationBootstrapRepository;
+import com.massimotter.weave.backend.service.ProductProfileOverride;
+import com.massimotter.weave.backend.service.ProductProfileOverrideRepository;
+import com.massimotter.weave.backend.service.migration.InMemoryMigrationRunEvidenceRepository;
+import com.massimotter.weave.backend.service.migration.MigrationRunEvidenceRepository;
+import com.massimotter.weave.backend.identity.realm.IdentityRealmEvidenceRepository;
+import com.massimotter.weave.backend.identity.realm.InMemoryIdentityRealmEvidenceRepository;
+import com.massimotter.weave.backend.identity.realm.IdentityRealmApplyProperties;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import java.util.List;
 import java.util.Map;
@@ -122,8 +129,8 @@ class AdminControlPlaneControllerTest {
                 "OIDC/SAML adapter contract; Keycloak is only the dogfood default, not product truth",
                 "OIDC role claims plus group claims from the selected IDM",
                 List.of("admin"),
-                List.of("weave-board-editors"),
-                List.of("workspace-admin", "group:weave-board-editors"),
+                List.of("/weave-board-editors"),
+                List.of("workspace-admin", "group:/weave-board-editors"),
                 List.of("chat.read", "files.read", "boards.update_task", "admin.policy.edit", "admin.provider.configure"),
                 true,
                 true,
@@ -133,10 +140,10 @@ class AdminControlPlaneControllerTest {
                 "weave-dogfood",
                 "organization",
                 List.of("https://auth.example.invalid/realms/weave"),
-                List.of("weave-board-editors"),
+                List.of("/weave-board-editors"),
                 List.of("admin"),
                 List.of("context_admin"),
-                List.of("role_claim:admin", "group_claim:weave-board-editors"),
+                List.of("role_claim:admin", "group_claim:/weave-board-editors"),
                 List.of("chat.read", "files.read", "boards.update_task", "admin.policy.edit", "admin.provider.configure"),
                 List.of(new EffectivePolicyDenyResponse("agent-runtime.entitled", "Agent Runtime Control requires current Keycloak entitlement", "deny-by-default-capability-policy")),
                 List.of("member-visible states remain available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later"),
@@ -385,7 +392,7 @@ class AdminControlPlaneControllerTest {
                 .andExpect(jsonPath("$.subject").value("admin-123"))
                 .andExpect(jsonPath("$.organization").value("weave-dogfood"))
                 .andExpect(jsonPath("$.capabilityGrants[*]", hasItems("admin.policy.edit", "admin.provider.configure")))
-                .andExpect(jsonPath("$.providerRoleMappings[*]", hasItems("role_claim:admin", "group_claim:weave-board-editors")))
+                .andExpect(jsonPath("$.providerRoleMappings[*]", hasItems("role_claim:admin", "group_claim:/weave-board-editors")))
                 .andExpect(jsonPath("$.denies[0].capability").value("agent-runtime.entitled"))
                 .andExpect(jsonPath("$.denyByDefault").value(true))
                 .andExpect(jsonPath("$.supportSafe").value(true))
@@ -402,7 +409,7 @@ class AdminControlPlaneControllerTest {
                   "subject": "alice@example.com",
                   "organizationId": "weave-dogfood",
                   "roles": ["member"],
-                  "groups": ["weave-board-editors"],
+                  "groups": ["/weave-board-editors"],
                   "requestedCapabilities": ["chat.send", "boards.update_task", "admin.provider.configure", "agent-runtime.entitled"],
                   "reason": "preview before provider change with Bearer secret-token and client_secret"
                 }
@@ -453,13 +460,13 @@ class AdminControlPlaneControllerTest {
         mockMvc.perform(post("/api/admin/policies/effective/simulations")
                         .with(memberJwt())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"roles\":[\"admin\"],\"groups\":[\"weave-board-editors\"],\"requestedCapabilities\":[\"admin.provider.configure\"]}"))
+                        .content("{\"roles\":[\"admin\"],\"groups\":[\"/weave-board-editors\"],\"requestedCapabilities\":[\"admin.provider.configure\"]}"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("capability-policy-blocked"))
                 .andExpect(jsonPath("$.details.requiredCapability").value("admin_control_plane.readiness_read"))
                 .andExpect(jsonPath("$.details.diagnosticsRedacted").value(true))
                 .andExpect(content().string(not(containsString("admin.provider.configure"))))
-                .andExpect(content().string(not(containsString("weave-board-editors"))))
+                .andExpect(content().string(not(containsString("/weave-board-editors"))))
                 .andExpect(content().string(not(containsString("keycloak-realm"))));
     }
 
@@ -473,11 +480,11 @@ class AdminControlPlaneControllerTest {
                     "enabled": true,
                     "clients": [{"clientId":"weave-app","publicClient":true,"redirectOrigins":["https://weave.test/callback","http://localhost:8080/*"],"roles":["admin","member"],"scopes":["openid","profile"]}],
                     "roles": ["admin", "member"],
-                    "groups": ["weave-board-editors"],
+                    "groups": ["/weave-board-editors"],
                     "scopes": ["openid", "profile", "weave:workspace"],
                     "claimMappers": [{"name":"tenant","sourceClaim":"weave_tenant","targetClaim":"organizationId","required":true}],
                     "redirectOrigins": ["http://localhost:8080/*"],
-                    "featureMappings": [{"featureKey":"boards","requiredRoles":["member"],"requiredGroups":["weave-board-editors"],"requiredScopes":["openid"]}]
+                    "featureMappings": [{"featureKey":"boards","requiredRoles":["member"],"requiredGroups":["/weave-board-editors"],"requiredScopes":["openid"]}]
                   },
                   "reason": "admin review before apply"
                 }
@@ -521,11 +528,11 @@ class AdminControlPlaneControllerTest {
                     "enabled": true,
                     "clients": [{"clientId":"weave-app","publicClient":true,"redirectOrigins":["https://weave.test/callback"],"roles":["owner","admin","member"],"scopes":["openid","profile","email"]}],
                     "roles": ["owner", "admin", "member"],
-                    "groups": ["weave-board-editors"],
+                    "groups": ["/weave-board-editors"],
                     "scopes": ["openid", "profile", "email", "weave:workspace"],
                     "claimMappers": [{"name":"tenant","sourceClaim":"weave_tenant","targetClaim":"organizationId","required":true}],
                     "redirectOrigins": ["https://weave.test/callback"],
-                    "featureMappings": [{"featureKey":"boards","requiredRoles":["member"],"requiredGroups":["weave-board-editors"],"requiredScopes":["openid"]}],
+                    "featureMappings": [{"featureKey":"boards","requiredRoles":["member"],"requiredGroups":["/weave-board-editors"],"requiredScopes":["openid"]}],
                     "breakGlassIdentities": [{"subjectRef":"issuer+subject:https://auth.example.invalid/realms/weave#admin-123","purpose":"last-admin recovery","breakGlass":true,"roles":["owner"]}],
                     "lastAdminSubjectRefs": ["issuer+subject:https://auth.example.invalid/realms/weave#admin-123"]
                   },
@@ -535,11 +542,11 @@ class AdminControlPlaneControllerTest {
                     "enabled": true,
                     "clients": [{"clientId":"weave-app","publicClient":true,"redirectOrigins":["https://weave.test/callback"],"roles":["owner","admin","member"],"scopes":["openid","profile","email"]}],
                     "roles": ["owner", "admin", "member"],
-                    "groups": ["weave-board-editors"],
+                    "groups": ["/weave-board-editors"],
                     "scopes": ["openid", "profile", "email", "weave:workspace"],
                     "claimMappers": [{"name":"tenant","sourceClaim":"weave_tenant","targetClaim":"organizationId","required":true}],
                     "redirectOrigins": ["https://weave.test/callback"],
-                    "featureMappings": [{"featureKey":"boards","requiredRoles":["member"],"requiredGroups":["weave-board-editors"],"requiredScopes":["openid"]}],
+                    "featureMappings": [{"featureKey":"boards","requiredRoles":["member"],"requiredGroups":["/weave-board-editors"],"requiredScopes":["openid"]}],
                     "breakGlassIdentities": [{"subjectRef":"issuer+subject:https://auth.example.invalid/realms/weave#admin-123","purpose":"last-admin recovery","breakGlass":true,"roles":["owner"]}],
                     "lastAdminSubjectRefs": ["issuer+subject:https://auth.example.invalid/realms/weave#admin-123"]
                   },
@@ -565,7 +572,7 @@ class AdminControlPlaneControllerTest {
                                   "subject": "issuer+subject:https://auth.example.invalid/realms/weave#member-123",
                                   "organizationId": "weave-dogfood",
                                   "roles": ["member"],
-                                  "groups": ["weave-board-editors"],
+                                  "groups": ["/weave-board-editors"],
                                   "requestedCapabilities": ["chat.read", "boards.update_task"],
                                   "reason": "support-safe policy simulation before realm apply"
                                 }
@@ -581,7 +588,7 @@ class AdminControlPlaneControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.providerKey").value("keycloak-realm"))
                 .andExpect(jsonPath("$.decision").value("accepted"))
-                .andExpect(jsonPath("$.executionMode").value("guarded-provider-live-apply-disabled"))
+                .andExpect(jsonPath("$.executionMode").value("protected-keycloak-reconciler-required"))
                 .andExpect(jsonPath("$.applied").value(false))
                 .andExpect(jsonPath("$.providerMutationPerformed").value(false))
                 .andExpect(jsonPath("$.supportSafe").value(true))
@@ -905,6 +912,40 @@ class AdminControlPlaneControllerTest {
         @Bean
         OrganizationBootstrapRepository organizationBootstrapRepository() {
             return new InMemoryOrganizationBootstrapRepository();
+        }
+
+        @Bean
+        IdentityRealmEvidenceRepository identityRealmEvidenceRepository() {
+            return new InMemoryIdentityRealmEvidenceRepository();
+        }
+
+        @Bean
+        IdentityRealmApplyProperties identityRealmApplyProperties() {
+            return new IdentityRealmApplyProperties();
+        }
+
+        @Bean
+        ProductProfileOverrideRepository productProfileOverrideRepository() {
+            Map<String, ProductProfileOverride> profiles = new java.util.concurrent.ConcurrentHashMap<>();
+            return new ProductProfileOverrideRepository() {
+                @Override
+                public ProductProfileOverride findByPrimaryIdentityKey(String primaryIdentityKey) {
+                    return profiles.get(primaryIdentityKey);
+                }
+
+                @Override
+                public ProductProfileOverride saveForPrimaryIdentityKey(
+                        String primaryIdentityKey,
+                        ProductProfileOverride profile) {
+                    profiles.put(primaryIdentityKey, profile);
+                    return profile;
+                }
+            };
+        }
+
+        @Bean
+        MigrationRunEvidenceRepository migrationRunEvidenceRepository() {
+            return new InMemoryMigrationRunEvidenceRepository();
         }
     }
 }

@@ -49,12 +49,13 @@ public class MemberInvitationService {
     public MemberInvitationResponse create(String organizationId, MemberInvitationRequest request, String idempotencyKey, Jwt jwt) {
         OrganizationIdentityContext actor = OrganizationIdentityContextFactory.fromJwt(jwt);
         String email = normalizeEmail(request.email());
+        List<String> groups = canonicalHumanGroups(request.role(), request.organizationGroups());
         List<ProvisioningIntent> existing = intents.findPendingByEmail(actor.organizationId(), organizationId, email);
         if (!existing.isEmpty()) throw new ApiErrorException(HttpStatus.CONFLICT, "member-invitation-already-pending",
                 "A pending provisioning intent already exists for this organization address.", Map.of());
         Instant now=clock.instant();
         ProvisioningIntent pending = new ProvisioningIntent(UUID.randomUUID(), actor.organizationId(), organizationId,
-                email, sha256(email), request.role(), request.organizationGroups(), null, jwt.getIssuer().toString(),
+                email, sha256(email), request.role(), groups, null, jwt.getIssuer().toString(),
                 actor.subject(), idempotencyKey, ProvisioningIntentStatus.PENDING, null, null,
                 now.plus(properties.defaultLifetime()), now, now);
         intents.save(pending);
@@ -144,6 +145,22 @@ public class MemberInvitationService {
                 Map.of("providerInvitationId", intent.providerInvitationId()==null?"pending":intent.providerInvitationId(),
                         "emailSha256", intent.invitedEmailSha256(), "role", intent.requestedRole(),
                         "provisioningStatus", intent.status().name().toLowerCase())));
+    }
+    private List<String> canonicalHumanGroups(String role, List<String> requestedGroups) {
+        String expected = switch (role) {
+            case "owner" -> "/weave/owners";
+            case "admin" -> "/weave/admins";
+            case "member" -> "/weave/members";
+            case "guest" -> "/weave/guests";
+            default -> throw invalidGroups();
+        };
+        if (requestedGroups == null || requestedGroups.isEmpty()) return List.of(expected);
+        if (requestedGroups.size() != 1 || !expected.equals(requestedGroups.getFirst())) throw invalidGroups();
+        return List.of(expected);
+    }
+    private ApiErrorException invalidGroups() {
+        return new ApiErrorException(HttpStatus.BAD_REQUEST, "member-invitation-groups-invalid",
+                "The requested organization groups do not match the selected member role.", Map.of());
     }
     private String normalizeEmail(String email) { return email.trim().toLowerCase(Locale.ROOT); }
     private String blankToNull(String value) { return value==null||value.isBlank()?null:value.trim(); }

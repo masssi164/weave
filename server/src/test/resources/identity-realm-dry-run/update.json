@@ -17,7 +17,7 @@
     "enabled": true,
     "clients": [{"clientId":"weave-app","publicClient":true,"redirectOrigins":["https://weave.test/callback"],"roles":["admin","member"],"scopes":["openid","profile"]}],
     "roles": ["admin", "member"],
-    "groups": ["weave-board-editors"],
+    "groups": ["/weave-board-editors"],
     "scopes": ["openid", "profile"],
     "claimMappers": [],
     "redirectOrigins": ["https://weave.test/callback"],

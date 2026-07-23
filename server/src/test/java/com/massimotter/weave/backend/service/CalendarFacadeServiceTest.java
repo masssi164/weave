@@ -555,7 +555,7 @@ class CalendarFacadeServiceTest {
                 .claim("preferred_username", "massimo")
                 .claim("weave_tenant_id", "tenant-default")
                 .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member"))))
-                .claim("groups", List.of("weave-calendar-editors"))
+                .claim("groups", List.of("/weave-calendar-editors"))
                 .build();
     }
 

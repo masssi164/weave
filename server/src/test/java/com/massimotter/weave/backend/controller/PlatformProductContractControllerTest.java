@@ -376,7 +376,7 @@ class PlatformProductContractControllerTest {
                         .claim("aud", java.util.List.of("weave-app"))
                         .claim("resource_access", java.util.Map.of(
                                 "weave-app", java.util.Map.of("roles", java.util.List.of("member"))))
-                        .claim("groups", java.util.List.of("weave-calendar-editors")))
+                        .claim("groups", java.util.List.of("/weave-calendar-editors")))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 

@@ -5,7 +5,7 @@
     "enabled": true,
     "clients": [{"clientId":"legacy-app","publicClient":true,"redirectOrigins":["https://legacy.example/callback"],"roles":["admin"],"scopes":["openid"]}],
     "roles": ["admin", "member"],
-    "groups": ["weave-board-editors"],
+    "groups": ["/weave-board-editors"],
     "scopes": ["openid", "profile"],
     "claimMappers": [],
     "redirectOrigins": ["https://legacy.example/callback"],

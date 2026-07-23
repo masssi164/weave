@@ -7,6 +7,10 @@ plugins {
 group = 'com.massimotter.weave'
 version = '0.1.0'
 
+// Spring Boot 3.2 manages Testcontainers 1.19.x, whose Docker API negotiation
+// cannot execute against the Docker 29 engine used by the integration lane.
+ext['testcontainers.version'] = '1.21.4'
+
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(21)
@@ -38,7 +42,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
-    implementation 'org.springframework:spring-jdbc'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-api:2.5.0'
     implementation 'io.github.erdtman:java-json-canonicalization:1.1'
@@ -48,25 +52,125 @@ dependencies {
     implementation 'software.amazon.awssdk:url-connection-client:2.46.8'
     implementation project(':weave-contract')
     runtimeOnly 'org.postgresql:postgresql'
+    developmentOnly 'com.h2database:h2'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.security:spring-security-test'
     testImplementation 'io.cucumber:cucumber-java:7.18.1'
     testImplementation 'io.cucumber:cucumber-spring:7.18.1'
     testImplementation 'org.junit.platform:junit-platform-suite'
-    testImplementation 'org.testcontainers:junit-jupiter:1.19.8'
-    testImplementation 'org.testcontainers:postgresql:1.19.8'
+    testImplementation 'org.testcontainers:junit-jupiter:1.21.4'
+    testImplementation 'org.testcontainers:postgresql:1.21.4'
     testRuntimeOnly 'com.h2database:h2'
     testRuntimeOnly 'io.cucumber:cucumber-junit-platform-engine:7.18.1'
 }
 
+tasks.withType(Test).configureEach {
+    // Hibernate metadata and Spring context caches are deliberately exercised by
+    // the full facade suite. Keep the worker budget explicit and evict older
+    // application contexts so local and CI execution have the same memory model.
+    maxHeapSize = '1g'
+    systemProperty 'spring.test.context.cache.maxSize', '8'
+}
+
 tasks.named('test') {
     dependsOn tasks.named('buildMatrixRustCoreJni')
-    useJUnitPlatform()
+    useJUnitPlatform {
+        excludeTags 'dev-h2-integration'
+    }
     systemProperty 'weave.matrix.core.library.path', matrixCoreLibrary.absolutePath
+    systemProperty 'spring.profiles.active', 'test'
+    filter {
+        excludeTestsMatching '*PostgresTest'
+    }
+    filter {
+        excludeTestsMatching '*DevH2JpaIntegrationTest'
+    }
     if (System.getProperty('weave.openapi.export.path') != null) {
         systemProperty 'weave.openapi.export.path', System.getProperty('weave.openapi.export.path')
     }
+}
+
+tasks.register('devH2IntegrationTest', Test) {
+    group = 'verification'
+    description = 'Boots the dev profile and proves Flyway, Hibernate validation, and JPA persistence on H2 PostgreSQL mode.'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform {
+        includeEngines 'junit-jupiter'
+        includeTags 'dev-h2-integration'
+    }
+    filter {
+        includeTestsMatching '*DevH2JpaIntegrationTest'
+        failOnNoMatchingTests = true
+    }
+    systemProperty 'spring.profiles.active', 'dev'
+    shouldRunAfter tasks.named('test')
+}
+
+tasks.register('postgresIntegrationTest', Test) {
+    group = 'verification'
+    description = 'Runs the server persistence contract tests against disposable PostgreSQL and fails when Docker is unavailable.'
+    dependsOn tasks.named('buildMatrixRustCoreJni')
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform {
+        includeEngines 'junit-jupiter'
+    }
+    filter {
+        includeTestsMatching '*PostgresTest'
+        failOnNoMatchingTests = true
+    }
+    systemProperty 'weave.matrix.core.library.path', matrixCoreLibrary.absolutePath
+    systemProperty 'spring.profiles.active', 'test'
+    doFirst {
+        if (!System.getenv('DOCKER_HOST')) {
+            def dockerHost = providers.exec {
+                commandLine 'docker', 'context', 'inspect', '--format', '{{.Endpoints.docker.Host}}'
+                ignoreExitValue = true
+            }.standardOutput.asText.get().trim()
+            if (!(dockerHost ==~ /^(unix|tcp|npipe):\/\/.+/)) {
+                throw new GradleException('PostgreSQL integration tests require a reachable Docker context or explicit DOCKER_HOST')
+            }
+            environment 'DOCKER_HOST', dockerHost
+        }
+    }
+    shouldRunAfter tasks.named('test')
+}
+
+tasks.register('relationalModelParity', Test) {
+    group = 'verification'
+    description = 'Proves exact Flyway, canonical Chen manifest, JPA entity, and repository parity.'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform {
+        includeEngines 'junit-jupiter'
+    }
+    filter {
+        includeTestsMatching '*RelationalModelParityTest'
+        failOnNoMatchingTests = true
+    }
+    systemProperty 'spring.profiles.active', 'test'
+    shouldRunAfter tasks.named('test')
+}
+
+tasks.register('verifyProductionBootJar') {
+    group = 'verification'
+    description = 'Proves that the production server artifact does not contain the dev-only H2 driver.'
+    dependsOn tasks.named('bootJar')
+    doLast {
+        def archive = tasks.named('bootJar').get().archiveFile.get().asFile
+        def h2Entries = zipTree(archive).matching { include 'BOOT-INF/lib/h2-*.jar' }.files
+        if (!h2Entries.empty) {
+            throw new GradleException("Dev-only H2 dependency leaked into ${archive.name}")
+        }
+    }
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('devH2IntegrationTest')
+    dependsOn tasks.named('relationalModelParity')
+    dependsOn tasks.named('verifyProductionBootJar')
 }
 
 tasks.named('bootRun') {

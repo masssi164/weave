@@ -140,7 +140,7 @@ class FileRuntimePolicyAuthorityTest {
                       "serverRef":"weave-mcp",
                       "endpoint":"https://api.weave.test/mcp",
                       "requestedResource":"https://api.weave.test/mcp",
-                      "requiredScopes":["mcp:tools"],
+                      "requiredScopes":["mcp.tools"],
                       "credentialRefTemplate":"credentialref://weave/runtime/{cellRef}/{workloadClientId}/mcp",
                       "allowedToolClasses":["calendar.read"]
                     }],

@@ -719,6 +719,7 @@ class FilesFacadeServiceTest {
                 contextAuthorizationPort,
                 contextAuthorizationProperties,
                 workspaceCapabilityService(),
+                new DeviceCredentialService(new InMemoryDeviceCredentialRepository()),
                 auditEventPublisher,
                 new FilesLockService(new TestFilesAuthorityRepository(), Clock.systemUTC()));
     }

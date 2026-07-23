@@ -33,7 +33,7 @@ public class SecurityConfig {
 
     private static final String WORKSPACE_SCOPE_AUTHORITY = "SCOPE_weave:workspace";
     private static final WebExpressionAuthorizationManager MIGRATION_CONTROL_PLANE_ACCESS =
-            new WebExpressionAuthorizationManager("hasAuthority('SCOPE_weave:workspace') and (hasRole('OWNER') or hasRole('ADMIN') or hasRole('OPERATOR'))");
+            new WebExpressionAuthorizationManager("hasAuthority('SCOPE_weave:workspace') and (hasRole('OWNER') or hasRole('ADMIN'))");
 
     private final ApiAuthenticationEntryPoint authenticationEntryPoint;
     private final ApiAccessDeniedHandler accessDeniedHandler;

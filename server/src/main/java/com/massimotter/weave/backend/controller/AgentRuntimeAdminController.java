@@ -35,8 +35,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Validated
 @RequestMapping("/api/admin/agent-runtimes")
 @ConditionalOnExpression(
-        "'${weave.agent-runtime.storage.mode:disabled}' == 'jdbc'"
-                + " && '${weave.agent-runtime.workload-identity.enabled:false}' == 'true'"
+        "'${weave.agent-runtime.workload-identity.enabled:false}' == 'true'"
                 + " && '${weave.agent-runtime.policy.enabled:false}' == 'true'"
                 + " && '${weave.agent-runtime.profile-signing.enabled:false}' == 'true'"
                 + " && '${weave.agent-runtime.state-store.enabled:false}' == 'true'")
