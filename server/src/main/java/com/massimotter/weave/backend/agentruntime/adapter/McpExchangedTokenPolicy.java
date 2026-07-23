@@ -16,7 +16,7 @@ public final class McpExchangedTokenPolicy {
             "openid",
             "offline_access",
             "weave:workspace",
-            "mcp:tools",
+            "mcp.tools",
             "agent-runtime.profile.read",
             "agent-runtime.admin");
 

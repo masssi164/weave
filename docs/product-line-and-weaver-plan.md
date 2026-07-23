@@ -225,7 +225,8 @@ Goal: plug the PA into an already-governed product.
 
 - Add Agent Runtime Control as an optional entitlement-bound admin capability, initially closed.
 - Provision one disposable `RuntimeCell` and dedicated `weaver-cell-{cellId}` Keycloak workload
-  client per entitled person; do not materialize dynamic clients in OpenTofu.
+  client per entitled person through the narrowly scoped ARC adapter; exclude dynamic clients from
+  the fixed Keycloak desired-state baseline and Compose deployment model.
 - Sign a short-lived `RuntimeProfile v2` from current entitlement and organization policy. The
   runtime receives references and maximum capabilities, never member/provider credentials.
 - Materialize signed `WorkspaceManifest` revisions from WebDAV into ephemeral staging. Store

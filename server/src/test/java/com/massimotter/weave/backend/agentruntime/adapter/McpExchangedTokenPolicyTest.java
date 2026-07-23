@@ -32,7 +32,7 @@ class McpExchangedTokenPolicyTest {
         assertDenied(token(Map.of("realm_access", Map.of("roles", List.of("member")))));
         assertDenied(token(Map.of("resource_access", Map.of("weave-server", Map.of("roles", List.of("member"))))));
         assertDenied(token(Map.of("realm_access", Map.of("roles", "member"))));
-        assertDenied(token(Map.of("scope", "calendar.read mcp:tools")));
+        assertDenied(token(Map.of("scope", "calendar.read mcp.tools")));
     }
 
     @Test

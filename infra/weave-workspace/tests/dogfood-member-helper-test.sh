@@ -73,12 +73,12 @@ elif [[ "${url}" == *'/organizations?'* ]]; then printf '[{"id":"org-1","name":"
 elif [[ "${url}" == *'/clients?clientId='* ]]; then printf '[{"id":"client-1","name":"weave-app","clientId":"weave-app"}]'
 elif [[ "${url}" == *'/clients/client-1/roles/member' ]]; then printf '{"id":"role-1","name":"member"}'
 elif [[ "${url}" == *'/role-mappings/clients/client-1' ]]; then printf '[{"id":"role-1","name":"member"}]'
-elif [[ "${url}" == *'/users/human-subject-'*'/groups' ]]; then printf '[{"id":"g1","name":"workspace-members"},{"id":"g2","name":"weave-board-editors"},{"id":"g3","name":"weave-calendar-editors"}]'
+elif [[ "${url}" == *'/users/human-subject-'*'/groups' ]]; then printf '[{"id":"g1","name":"members","path":"/weave/members"},{"id":"g2","name":"weave-board-editors","path":"/weave-board-editors"},{"id":"g3","name":"weave-calendar-editors","path":"/weave-calendar-editors"}]'
 elif [[ "${url}" == *'/groups?search='* ]]; then
   case "${url}" in
-    *workspace-members*) printf '[{"id":"g1","name":"workspace-members"}]' ;;
-    *weave-board-editors*) printf '[{"id":"g2","name":"weave-board-editors"}]' ;;
-    *weave-calendar-editors*) printf '[{"id":"g3","name":"weave-calendar-editors"}]' ;;
+    *members*) printf '[{"id":"g1","name":"members","path":"/weave/members"}]' ;;
+    *weave-board-editors*) printf '[{"id":"g2","name":"weave-board-editors","path":"/weave-board-editors"}]' ;;
+    *weave-calendar-editors*) printf '[{"id":"g3","name":"weave-calendar-editors","path":"/weave-calendar-editors"}]' ;;
   esac
 elif [[ "${url}" == *'/organizations/org-1/members/human-subject-'* ]]; then printf '{"id":"persistent-member"}'
 fi
@@ -90,9 +90,9 @@ export FAKE_CURL_LOG="${TMP_DIR}/curl.log"
 export FAKE_STATE="${TMP_DIR}/state"
 export FAKE_MAIL_SENT="${TMP_DIR}/mail-sent"
 bootstrap_env="${TMP_DIR}/protected-bootstrap.env"
-printf 'export TF_VAR_keycloak_admin_password=%q\n' fake-secret >"${bootstrap_env}"
+printf 'export WEAVE_KEYCLOAK_ADMIN_PASSWORD=%q\n' fake-secret >"${bootstrap_env}"
 export WEAVE_DOGFOOD_BOOTSTRAP_ENV="${bootstrap_env}"
-unset TF_VAR_keycloak_admin_password
+unset WEAVE_KEYCLOAK_ADMIN_PASSWORD
 export WEAVE_DOGFOOD_MEMBER_USERNAME=human
 export WEAVE_DOGFOOD_MEMBER_EMAIL=human@example.test
 export WEAVE_DOGFOOD_MEMBER_DISPLAY_NAME='Human Tester'

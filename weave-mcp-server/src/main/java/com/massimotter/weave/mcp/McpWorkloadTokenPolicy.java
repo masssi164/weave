@@ -33,8 +33,7 @@ final class McpWorkloadTokenPolicy {
         if (!CLIENT_ID.matcher(clientId).matches() || !clientId.equals(authorizedParty)) {
             throw forbidden();
         }
-        Set<String> requiredAudiences = Set.of(
-                properties.resourceUri().toString(), properties.exchangeClientId());
+        Set<String> requiredAudiences = Set.of(properties.resourceUri().toString());
         List<String> audiences = jwt.getAudience();
         if (audiences == null || audiences.size() != requiredAudiences.size()
                 || !new HashSet<>(audiences).equals(requiredAudiences)) {

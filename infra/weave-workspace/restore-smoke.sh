@@ -4,7 +4,9 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-readonly ROOT_DIR
+REPO_ROOT="$(cd -- "${ROOT_DIR}/../.." && pwd)"
+readonly ROOT_DIR REPO_ROOT
+readonly INTEGRITY_TOOL="${REPO_ROOT}/tools/private_backup_integrity.py"
 REPROVISION_MATRIX="${WEAVE_RESTORE_SMOKE_REPROVISION_MATRIX:-false}"
 ARTIFACTS_ONLY="${WEAVE_RESTORE_SMOKE_ARTIFACTS_ONLY:-false}"
 RESTORE_RECEIPT_OUTPUT="${WEAVE_RESTORE_RECEIPT_OUTPUT:-}"
@@ -43,22 +45,14 @@ Environment:
 USAGE
 }
 
-require_artifact() {
-  local backup_dir="$1"
-  local name="$2"
-  [[ -s "${backup_dir}/${name}" ]] || fail "Backup artifact is missing or empty: ${backup_dir}/${name}"
-}
-
-
 write_restore_receipt() {
   local backup_dir="$1"
   local validation_mode="$2"
   local status="$3"
   local destroy_performed="$4"
   local domain_data_status="$5"
-  local release_eligible="$6"
-  local chat_appservice_status="$7"
-  local agent_runtime_status="$8"
+  local chat_appservice_status="$6"
+  local agent_runtime_status="$7"
   local output="${RESTORE_RECEIPT_OUTPUT}"
   if [[ -z "${output}" ]]; then
     if [[ -n "${backup_dir}" ]]; then
@@ -68,7 +62,17 @@ write_restore_receipt() {
     fi
   fi
   mkdir -p "$(dirname -- "${output}")"
-  RESTORE_CREATED_AT="$(date -u +%Y%m%dT%H%M%SZ)"     RESTORE_BACKUP_DIR="${backup_dir}"     RESTORE_VALIDATION_MODE="${validation_mode}"     RESTORE_STATUS="${status}"     RESTORE_DESTROY_PERFORMED="${destroy_performed}"     RESTORE_DOMAIN_DATA_STATUS="${domain_data_status}"     RESTORE_RELEASE_ELIGIBLE="${release_eligible}"     RESTORE_CHAT_APPSERVICE_STATUS="${chat_appservice_status}"     RESTORE_AGENT_RUNTIME_STATUS="${agent_runtime_status}"     RESTORE_RECEIPT_OUTPUT_PATH="${output}"     python3 - <<'PYJSON'
+  RESTORE_CREATED_AT="$(date -u +%Y%m%dT%H%M%SZ)" \
+    RESTORE_BACKUP_DIR="${backup_dir}" \
+    RESTORE_VALIDATION_MODE="${validation_mode}" \
+    RESTORE_STATUS="${status}" \
+    RESTORE_DESTROY_PERFORMED="${destroy_performed}" \
+    RESTORE_DOMAIN_DATA_STATUS="${domain_data_status}" \
+    RESTORE_CHAT_APPSERVICE_STATUS="${chat_appservice_status}" \
+    RESTORE_AGENT_RUNTIME_STATUS="${agent_runtime_status}" \
+    RESTORE_RECEIPT_OUTPUT_PATH="${output}" \
+    python3 - <<'PYJSON'
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -76,28 +80,49 @@ from pathlib import Path
 backup_dir = os.environ.get("RESTORE_BACKUP_DIR") or ""
 destroy_performed = os.environ["RESTORE_DESTROY_PERFORMED"] == "true"
 domain_status = os.environ["RESTORE_DOMAIN_DATA_STATUS"]
-release_eligible = os.environ["RESTORE_RELEASE_ELIGIBLE"] == "true"
+validation_mode = os.environ["RESTORE_VALIDATION_MODE"]
+status = os.environ["RESTORE_STATUS"]
+chat_status = os.environ["RESTORE_CHAT_APPSERVICE_STATUS"]
+agent_status = os.environ["RESTORE_AGENT_RUNTIME_STATUS"]
 manifest_path = Path(backup_dir) / "BackupManifest.json" if backup_dir else None
-manifest_ref = str(manifest_path) if manifest_path and manifest_path.exists() else "not-provided"
+manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path and manifest_path.exists() else None
+manifest_digest = hashlib.sha256(manifest_path.read_bytes()).hexdigest() if manifest_path and manifest_path.exists() else None
+backup_binding = None
+if manifest is not None:
+    backup_binding = {
+        "manifestSha256": manifest_digest,
+        "backupIdSha256": hashlib.sha256(manifest["backupId"].encode("utf-8")).hexdigest(),
+        "candidateCommit": manifest["candidateCommit"],
+        "profile": manifest["profile"],
+        "composeProject": manifest["composeProject"],
+    }
+release_eligible = (
+    manifest is not None
+    and validation_mode == "post_restore_live"
+    and status == "passed"
+    and destroy_performed
+    and domain_status == "passed"
+    and chat_status == "passed"
+    and agent_status == "passed"
+)
 receipt = {
-    "artifactKind": "weave-restore-receipt-v1",
-    "issue": 639,
+    "schemaVersion": "weave.compose-restore-receipt.v2",
     "supportSafe": True,
-    "createdAt": os.environ["RESTORE_CREATED_AT"],
-    "backupManifestRef": manifest_ref,
+    "generatedAt": os.environ["RESTORE_CREATED_AT"],
+    "backupBinding": backup_binding,
     "restoreRunId": f"restore-smoke-{os.environ['RESTORE_CREATED_AT']}",
-    "validationMode": os.environ["RESTORE_VALIDATION_MODE"],
-    "status": os.environ["RESTORE_STATUS"],
+    "validationMode": validation_mode,
+    "status": status,
     "destroyStep": {
         "performed": destroy_performed,
         "reason": "operator-declared approved disposable restore rehearsal" if destroy_performed else "not performed by restore-smoke.sh",
     },
     "checks": [
         {"name": "backup_artifacts_present", "status": "passed" if backup_dir else "not_run"},
-        {"name": "backup_manifest_present", "status": "passed" if manifest_ref != "not-provided" else "not_provided"},
-        {"name": "post_restore_operator_check", "status": "passed" if os.environ["RESTORE_VALIDATION_MODE"] != "artifacts_only" else "not_run"},
-        {"name": "matrix_chat_appservice_registration_and_secret_mounts", "status": os.environ["RESTORE_CHAT_APPSERVICE_STATUS"]},
-        {"name": "agent_runtime_consistency_set_and_live_reconciliation", "status": os.environ["RESTORE_AGENT_RUNTIME_STATUS"]},
+        {"name": "backup_integrity_verified", "status": "passed" if manifest is not None else "not_provided"},
+        {"name": "post_restore_operator_check", "status": "passed" if validation_mode != "artifacts_only" else "not_run"},
+        {"name": "matrix_chat_appservice_registration_and_secret_mounts", "status": chat_status},
+        {"name": "agent_runtime_consistency_set_and_live_reconciliation", "status": agent_status},
         {"name": "domain_data_recovered", "status": domain_status},
     ],
     "provesRestoredDomainData": domain_status == "passed" and destroy_performed,
@@ -179,21 +204,8 @@ check_backup_dir() {
   local backup_dir="$1"
 
   [[ -d "${backup_dir}" ]] || fail "Backup directory not found: ${backup_dir}"
-  require_artifact "${backup_dir}" MANIFEST.txt
-  require_artifact "${backup_dir}" postgres.sql
-  require_artifact "${backup_dir}" nextcloud-data.tgz
-  require_artifact "${backup_dir}" matrix-synapse-data.tgz
-  require_artifact "${backup_dir}" caddy-data.tgz
-  require_artifact "${backup_dir}" caddy-config.tgz
-  require_artifact "${backup_dir}" keycloak-data.tgz
-  require_artifact "${backup_dir}" generated-config-secrets.tgz
-  if [[ -s "${backup_dir}/BackupManifest.json" ]]; then
-    log "Backup manifest presence check passed for ${backup_dir}/BackupManifest.json"
-  else
-    log "Backup manifest not provided for ${backup_dir}; RestoreReceipt will record backupManifestRef=not-provided."
-  fi
-
-  log "Backup artifact presence check passed for ${backup_dir}"
+  python3 "${INTEGRITY_TOOL}" --backup-dir "${backup_dir}"
+  log "Backup artifact integrity check passed for the candidate-bound Compose v2 consistency set."
 }
 
 main() {
@@ -209,7 +221,7 @@ main() {
 
   if [[ "${ARTIFACTS_ONLY}" == "true" ]]; then
     [[ -n "${backup_dir}" ]] || fail "WEAVE_RESTORE_SMOKE_ARTIFACTS_ONLY=true requires a backup directory argument."
-    write_restore_receipt "${backup_dir}" "artifacts_only" "artifact_preflight_passed_not_restore_proof" "false" "not_proven" "false" "archived_not_runtime_verified" "archived_not_runtime_verified"
+    write_restore_receipt "${backup_dir}" "artifacts_only" "artifact_preflight_passed_not_restore_proof" "false" "not_proven" "archived_not_runtime_verified" "archived_not_runtime_verified"
     log "Restore smoke artifact preflight passed. Service readiness was not checked in artifacts-only mode."
     exit 0
   fi
@@ -225,7 +237,7 @@ main() {
   verify_matrix_chat_appservice_runtime
   verify_agent_runtime_restore_boundary
 
-  write_restore_receipt "${backup_dir}" "post_restore_live" "passed" "${WEAVE_RESTORE_SMOKE_DESTROY_PERFORMED:-false}" "${WEAVE_RESTORE_SMOKE_DOMAIN_DATA_RECOVERED:-not_proven}" "${WEAVE_RESTORE_SMOKE_RELEASE_ELIGIBLE:-false}" "passed" "passed"
+  write_restore_receipt "${backup_dir}" "post_restore_live" "passed" "${WEAVE_RESTORE_SMOKE_DESTROY_PERFORMED:-false}" "${WEAVE_RESTORE_SMOKE_DOMAIN_DATA_RECOVERED:-not_proven}" "passed" "passed"
   log "Restore smoke passed: backend, Keycloak, Agent Runtime Control, Matrix/MAS, default Matrix rooms, and raw Nextcloud checks are healthy."
 }
 

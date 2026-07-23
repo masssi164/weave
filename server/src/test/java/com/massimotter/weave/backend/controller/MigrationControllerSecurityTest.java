@@ -68,7 +68,7 @@ class MigrationControllerSecurityTest {
     }
 
     @Test
-    void migrationApplyGateRejectsWorkspaceMembersWithoutAdminOperatorRole() throws Exception {
+    void migrationApplyGateRejectsWorkspaceMembersWithoutOwnerOrAdminRole() throws Exception {
         mockMvc.perform(post("/api/migration/apply-gates")
                         .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace")))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -93,7 +93,7 @@ class MigrationControllerSecurityTest {
     }
 
     @Test
-    void migrationApplyGateAllowsOperatorControlPlaneCallers() throws Exception {
+    void migrationApplyGateAllowsOwnerControlPlaneCallers() throws Exception {
         when(migrationApplyGateService.evaluate(any())).thenReturn(new MigrationApplyGateResponse(
                 "migration-chat-001",
                 "chat",
@@ -111,7 +111,7 @@ class MigrationControllerSecurityTest {
         mockMvc.perform(post("/api/migration/apply-gates")
                         .with(jwt().authorities(
                                 new SimpleGrantedAuthority("SCOPE_weave:workspace"),
-                                new SimpleGrantedAuthority("ROLE_OPERATOR")))
+                                new SimpleGrantedAuthority("ROLE_OWNER")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(applyGatePayload()))
                 .andExpect(status().isOk())

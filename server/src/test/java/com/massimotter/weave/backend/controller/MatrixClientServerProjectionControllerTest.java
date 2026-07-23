@@ -23,6 +23,7 @@ import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
 import com.massimotter.weave.backend.matrix.MatrixFacadeClientStateService;
+import com.massimotter.weave.backend.matrix.MatrixFacadeClientStateStore;
 import com.massimotter.weave.backend.matrix.MatrixE2eeStateService;
 import com.massimotter.weave.backend.matrix.MatrixProtocolCoreService;
 import java.time.Instant;
@@ -97,6 +98,9 @@ class MatrixClientServerProjectionControllerTest {
 
     @MockBean
     private ChatDomainFacadeService chatDomainFacadeService;
+
+    @MockBean
+    private MatrixFacadeClientStateStore stateStore;
 
     @Test
     void matrixClientServerProjectionRequiresWorkspaceToken() throws Exception {

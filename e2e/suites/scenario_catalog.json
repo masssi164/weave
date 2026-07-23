@@ -4884,7 +4884,7 @@
       "personas": ["operator"],
       "domains": ["operator-release", "admin-health-ops", "identity-idm"],
       "testLevel": "live-e2e",
-      "assertionFocus": ["two non-destructive installs", "OpenTofu idempotence", "cached provider health", "persistent state invariants"]
+      "assertionFocus": ["two non-destructive installs", "Compose and reconciliation idempotence", "cached provider health", "persistent state invariants"]
     },
     {
       "tag": "@human-ready-ios-distribution",

@@ -3,13 +3,13 @@ package com.massimotter.weave.backend.files.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.files.application.FilesMutationIntentService.Command;
 import com.massimotter.weave.backend.files.application.FilesMutationIntentService.ProviderBindingUnavailableException;
-import com.massimotter.weave.backend.operation.adapter.JdbcOperationIntentRepository;
+import com.massimotter.weave.backend.operation.adapter.OperationIntentJpaTestFactory;
 import com.massimotter.weave.backend.operation.application.OperationIntentService;
 import com.massimotter.weave.backend.operation.domain.OperationIntent.State;
-import com.massimotter.weave.backend.providerbinding.adapter.JdbcProviderBindingRepository;
+import com.massimotter.weave.backend.providerbinding.adapter.JpaProviderBindingRepository;
+import com.massimotter.weave.backend.providerbinding.adapter.ProviderBindingJpaTestFactory;
 import com.massimotter.weave.backend.providerbinding.application.FilesProviderBindingBootstrap;
 import com.massimotter.weave.backend.providerbinding.application.FilesProviderBindingBootstrap.ProviderBindingBootstrapConflictException;
 import com.massimotter.weave.backend.providerbinding.application.ProviderBindingBootstrapProperties;
@@ -27,7 +27,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-@Testcontainers(disabledWithoutDocker = true)
+@Testcontainers
 class FilesMutationIntentServicePostgresTest {
 
     @Container
@@ -133,14 +133,12 @@ class FilesMutationIntentServicePostgresTest {
         dataSource.setPassword(POSTGRES.getPassword());
         Flyway.configure().dataSource(dataSource).locations("classpath:db/migration").load().migrate();
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);
-        var transactions = new DataSourceTransactionManager(dataSource);
         // PostgreSQL truncates this nanosecond value to microsecond precision on round-trip.
         // A successful insert must still be reported as new rather than mistaken for a retry.
         Instant now = Instant.parse("2026-07-22T02:00:00.123456789Z");
-        var bindings = new JdbcProviderBindingRepository(jdbc, transactions);
+        var bindings = ProviderBindingJpaTestFactory.create(dataSource);
         var intents = new OperationIntentService(
-                new JdbcOperationIntentRepository(
-                        jdbc, new ObjectMapper().findAndRegisterModules(), transactions),
+                OperationIntentJpaTestFactory.create(dataSource),
                 Clock.fixed(now, ZoneOffset.UTC));
         String organizationRef = "org:test:" + UUID.randomUUID();
         return new Fixture(new FilesMutationIntentService(intents, bindings), bindings, jdbc, now, organizationRef);
@@ -148,7 +146,7 @@ class FilesMutationIntentServicePostgresTest {
 
     private record Fixture(
             FilesMutationIntentService service,
-            JdbcProviderBindingRepository bindings,
+            JpaProviderBindingRepository bindings,
             JdbcTemplate jdbc,
             Instant now,
             String organizationRef) {

@@ -4,8 +4,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
+import com.massimotter.weave.backend.audit.AuditEventJpaRepository;
 import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
-import com.massimotter.weave.backend.audit.JdbcAuditEventPublisher;
+import com.massimotter.weave.backend.audit.JpaAuditEventPublisher;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
@@ -15,7 +16,6 @@ import com.massimotter.weave.backend.identity.realm.IdentityRealmDesiredState;
 import com.massimotter.weave.backend.identity.realm.IdentityRealmDryRunRequest;
 import com.massimotter.weave.backend.identity.realm.InMemoryIdentityRealmEvidenceRepository;
 import com.massimotter.weave.backend.identity.realm.KeycloakRealmDryRunProvider;
-import com.massimotter.weave.backend.identity.realm.KeycloakRealmLiveApplyAdapter;
 import com.massimotter.weave.backend.model.admin.CapabilityWhitelistUpdateRequest;
 import com.massimotter.weave.backend.model.admin.EffectivePolicySimulationRequest;
 import com.massimotter.weave.backend.provider.InMemoryProviderSelectionRepository;
@@ -51,7 +51,12 @@ class AdminControlPlaneServiceTest {
                 new InMemoryProviderSelectionRepository(),
                 new InMemoryOrganizationBootstrapRepository(),
                 auditPublisher,
-                Clock.fixed(Instant.parse("2026-05-27T01:03:39Z"), ZoneOffset.UTC));
+                List.of(new KeycloakRealmDryRunProvider()),
+                new InMemoryIdentityRealmEvidenceRepository(),
+                new IdentityRealmApplyProperties(),
+                Clock.fixed(Instant.parse("2026-05-27T01:03:39Z"), ZoneOffset.UTC),
+                profileOverrideRepository(),
+                new InMemoryMigrationRunEvidenceRepository());
         CapabilityWhitelistUpdateRequest request = new CapabilityWhitelistUpdateRequest(
                 "workspace-admin",
                 List.of("admin.policy.edit", "admin.provider.configure"),
@@ -82,13 +87,21 @@ class AdminControlPlaneServiceTest {
     }
 
     @Test
-    void jdbcAuditPublisherFeedsAdminAuditReadback() {
-        JdbcAuditEventPublisher auditPublisher = new JdbcAuditEventPublisher(new JdbcTemplate(migratedDataSource()));
+    void jpaAuditPublisherFeedsAdminAuditReadback() {
+        DriverManagerDataSource dataSource = migratedDataSource();
+        AuditEventJpaRepository repository =
+                com.massimotter.weave.backend.testing.JpaTestDatabase.repository(
+                        dataSource,
+                        AuditEventJpaRepository.class);
+        JpaAuditEventPublisher auditPublisher =
+                new JpaAuditEventPublisher(
+                        repository,
+                        new ObjectMapper().findAndRegisterModules());
         AdminControlPlaneService service = adminControlPlaneService(auditPublisher);
         CapabilityWhitelistUpdateRequest request = new CapabilityWhitelistUpdateRequest(
                 "workspace-admin",
                 List.of("admin.policy.edit", "admin.provider.configure"),
-                "prove jdbc audit readback");
+                "prove jpa audit readback");
 
         service.updateWhitelist(request, jwt("admin"));
 
@@ -112,7 +125,7 @@ class AdminControlPlaneServiceTest {
                 "issuer+subject:https://auth.example.invalid/realms/weave#member-123",
                 "weave-dogfood",
                 List.of("member"),
-                List.of("weave-board-editors"),
+                List.of("/weave-board-editors"),
                 List.of("chat.send", "boards.update_task", "admin.provider.configure", "agent-runtime.entitled"),
                 "simulate before #233 dry-run/apply with Bearer operator-token and secretref://weave/provider/keycloak");
 
@@ -154,7 +167,7 @@ class AdminControlPlaneServiceTest {
                 "alice@example.com",
                 "weave-dogfood",
                 List.of("super-admin", "not mapped"),
-                List.of("finance-admins"),
+                List.of("finance-admins", "/weave/../admins"),
                 List.of("chat.read", "provider.internal.token", "Bearer raw-token"),
                 "unknown provider import preview");
 
@@ -168,6 +181,7 @@ class AdminControlPlaneServiceTest {
         assertThat(response.requestedCapabilities()).containsExactly("chat.read");
         assertThat(response.deniedInputs()).containsExactly(
                 "invalid-capability",
+                "invalid-group",
                 "invalid-role",
                 "unknown-capability",
                 "unknown-group",
@@ -175,7 +189,8 @@ class AdminControlPlaneServiceTest {
         assertThat(response.capabilityStates()).extracting(state -> state.state()).containsOnly("policy-blocked");
         assertThat(response.capabilityStates()).extracting(state -> state.reasonCode())
                 .containsOnly("unknown-identity-inputs-fail-closed");
-        assertThat(response.toString()).doesNotContain("super-admin", "not mapped", "finance-admins", "provider.internal.token", "raw-token");
+        assertThat(response.toString()).doesNotContain(
+                "super-admin", "not mapped", "finance-admins", "/weave/../admins", "provider.internal.token", "raw-token");
     }
 
     @Test
@@ -263,14 +278,15 @@ class AdminControlPlaneServiceTest {
                 jwt("admin")), jwt("admin"));
 
         assertThat(accepted.decision()).isEqualTo("accepted");
-        assertThat(accepted.executionMode()).isEqualTo("guarded-provider-live-apply-disabled");
+        assertThat(accepted.executionMode()).isEqualTo("protected-keycloak-reconciler-required");
         assertThat(accepted.applied()).isFalse();
         assertThat(accepted.providerMutationPerformed()).isFalse();
         assertThat(accepted.lastAdminGuardPassed()).isTrue();
         assertThat(accepted.rollbackEvidenceRequired()).isFalse();
         assertThat(accepted.blockedReasons()).isEmpty();
         assertThat(accepted.changes()).allSatisfy(change -> assertThat(change.classification()).isEqualTo("safe"));
-        assertThat(accepted.nextActions()).anySatisfy(action -> assertThat(action).contains("Live Keycloak realm apply is disabled"));
+        assertThat(accepted.nextActions()).anySatisfy(action ->
+                assertThat(action).contains("protected Keycloak reconciler"));
 
         assertThat(auditPublisher.events()).extracting(event -> event.action())
                 .contains(AuditAction.IDENTITY_REALM_APPLY_GUARDED);
@@ -397,11 +413,9 @@ class AdminControlPlaneServiceTest {
     }
 
     @Test
-    void guardedIdentityRealmApplyBlocksLiveProviderWhenReleaseEnabledButProviderUnavailable() {
+    void reviewedIdentityRealmApplyRequiresProtectedReconcilerAndNeverMutatesProvider() {
         InMemoryAuditEventPublisher auditPublisher = new InMemoryAuditEventPublisher();
         IdentityRealmApplyProperties properties = new IdentityRealmApplyProperties();
-        properties.setLiveApplyEnabled(true);
-        properties.setProviderConfigured(false);
         AdminControlPlaneService service = adminControlPlaneService(auditPublisher, properties);
         IdentityRealmDesiredState safeState = safeRealmState();
 
@@ -416,9 +430,10 @@ class AdminControlPlaneServiceTest {
                 "live provider unavailable",
                 jwt("admin")), jwt("admin"));
 
-        assertThat(unavailable.decision()).isEqualTo("blocked");
-        assertThat(unavailable.executionMode()).isEqualTo("guarded-provider-apply-blocked-before-mutation");
-        assertThat(unavailable.blockedReasons()).contains("Keycloak live apply adapter is enabled but provider runtime is not configured");
+        assertThat(unavailable.decision()).isEqualTo("accepted");
+        assertThat(unavailable.executionMode()).isEqualTo("protected-keycloak-reconciler-required");
+        assertThat(unavailable.blockedReasons()).isEmpty();
+        assertThat(unavailable.nextActions()).anyMatch(action -> action.contains("protected Keycloak reconciler"));
         assertThat(unavailable.applied()).isFalse();
         assertThat(unavailable.providerMutationPerformed()).isFalse();
     }
@@ -446,7 +461,12 @@ class AdminControlPlaneServiceTest {
                 selectionRepository,
                 new InMemoryOrganizationBootstrapRepository(),
                 new InMemoryAuditEventPublisher(),
-                Clock.fixed(Instant.parse("2026-05-31T08:00:00Z"), ZoneOffset.UTC));
+                List.of(new KeycloakRealmDryRunProvider()),
+                new InMemoryIdentityRealmEvidenceRepository(),
+                new IdentityRealmApplyProperties(),
+                Clock.fixed(Instant.parse("2026-05-31T08:00:00Z"), ZoneOffset.UTC),
+                profileOverrideRepository(),
+                new InMemoryMigrationRunEvidenceRepository());
 
         var response = service.overview(jwt("admin"));
 
@@ -492,7 +512,6 @@ class AdminControlPlaneServiceTest {
                 auditPublisher,
                 List.of(new KeycloakRealmDryRunProvider()),
                 new InMemoryIdentityRealmEvidenceRepository(),
-                List.of(new KeycloakRealmLiveApplyAdapter(new IdentityRealmApplyProperties())),
                 new IdentityRealmApplyProperties(),
                 Clock.fixed(Instant.parse("2026-05-31T08:00:00Z"), ZoneOffset.UTC),
                 profileRepository,
@@ -577,7 +596,12 @@ class AdminControlPlaneServiceTest {
                 selectionRepository,
                 new InMemoryOrganizationBootstrapRepository(),
                 new InMemoryAuditEventPublisher(),
-                Clock.fixed(Instant.parse("2026-05-31T08:00:00Z"), ZoneOffset.UTC));
+                List.of(new KeycloakRealmDryRunProvider()),
+                new InMemoryIdentityRealmEvidenceRepository(),
+                new IdentityRealmApplyProperties(),
+                Clock.fixed(Instant.parse("2026-05-31T08:00:00Z"), ZoneOffset.UTC),
+                profileOverrideRepository(),
+                new InMemoryMigrationRunEvidenceRepository());
 
         var response = service.overview(jwt("admin"));
 
@@ -660,9 +684,10 @@ class AdminControlPlaneServiceTest {
                 auditPublisher,
                 List.of(new KeycloakRealmDryRunProvider()),
                 new InMemoryIdentityRealmEvidenceRepository(),
-                List.of(new KeycloakRealmLiveApplyAdapter(properties)),
                 properties,
-                Clock.fixed(Instant.parse("2026-05-27T01:03:39Z"), ZoneOffset.UTC));
+                Clock.fixed(Instant.parse("2026-05-27T01:03:39Z"), ZoneOffset.UTC),
+                profileOverrideRepository(),
+                new InMemoryMigrationRunEvidenceRepository());
     }
 
     private DriverManagerDataSource migratedDataSource() {
@@ -726,7 +751,7 @@ class AdminControlPlaneServiceTest {
                 "issuer+subject:https://auth.example.invalid/realms/weave#member-123",
                 "weave-dogfood",
                 List.of("member"),
-                List.of("weave-board-editors"),
+                List.of("/weave-board-editors"),
                 List.of("chat.read", "boards.update_task"),
                 "support-safe policy simulation before realm apply"), jwt);
         return new IdentityRealmApplyRequest(
@@ -755,12 +780,12 @@ class AdminControlPlaneServiceTest {
                         List.of("owner", "admin", "member"),
                         List.of("openid", "profile", "email"))),
                 List.of("owner", "admin", "member"),
-                List.of("weave-board-editors"),
+                List.of("/weave-board-editors"),
                 List.of("openid", "profile", "email", "weave:workspace"),
                 List.of(new IdentityRealmDesiredState.ClaimMapper("tenant", "weave_tenant", "organizationId", true)),
                 List.of("https://weave.test/callback"),
-                List.of(new IdentityRealmDesiredState.FeatureMapping("boards", List.of("member"), List.of("weave-board-editors"), List.of("openid"))),
-                List.of(new IdentityRealmDesiredState.ServiceAccount("subject:service:backend", List.of("operator"), List.of("openid"))),
+                List.of(new IdentityRealmDesiredState.FeatureMapping("boards", List.of("member"), List.of("/weave-board-editors"), List.of("openid"))),
+                List.of(new IdentityRealmDesiredState.ServiceAccount("subject:service:backend", List.of("weaver-runtime"), List.of("openid"))),
                 List.of(new IdentityRealmDesiredState.RecoveryIdentity("issuer+subject:https://auth.example.invalid/realms/weave#admin-123", "last-admin recovery", true, List.of("owner"))),
                 List.of("issuer+subject:https://auth.example.invalid/realms/weave#admin-123"),
                 "sub",
@@ -780,12 +805,12 @@ class AdminControlPlaneServiceTest {
                         List.of("owner", "admin", "member"),
                         List.of("openid", "profile", "email"))),
                 List.of("owner", "admin", "member"),
-                List.of("weave-board-editors"),
+                List.of("/weave-board-editors"),
                 List.of("openid", "profile", "email", "weave:workspace"),
                 List.of(new IdentityRealmDesiredState.ClaimMapper("tenant", "weave_tenant", "organizationId", true)),
                 List.of("https://weave.test/callback", "http://localhost:8080/*"),
-                List.of(new IdentityRealmDesiredState.FeatureMapping("boards", List.of("member"), List.of("weave-board-editors"), List.of("openid"))),
-                List.of(new IdentityRealmDesiredState.ServiceAccount("subject:service:backend", List.of("operator"), List.of("openid"))),
+                List.of(new IdentityRealmDesiredState.FeatureMapping("boards", List.of("member"), List.of("/weave-board-editors"), List.of("openid"))),
+                List.of(new IdentityRealmDesiredState.ServiceAccount("subject:service:backend", List.of("weaver-runtime"), List.of("openid"))),
                 List.of(new IdentityRealmDesiredState.RecoveryIdentity("issuer+subject:https://auth.example.invalid/realms/weave#admin-123", "last-admin recovery", true, List.of("owner"))),
                 List.of("issuer+subject:https://auth.example.invalid/realms/weave#admin-123"),
                 "sub",

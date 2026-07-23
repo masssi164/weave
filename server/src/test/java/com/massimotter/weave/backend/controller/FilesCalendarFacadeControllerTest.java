@@ -12,6 +12,7 @@ import com.massimotter.weave.backend.calendar.domain.CalendarDomain.FreeBusyWind
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.ScopeType;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.WriteIntent;
 import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
+import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.config.ApiAccessDeniedHandler;
 import com.massimotter.weave.backend.config.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
@@ -23,6 +24,8 @@ import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
+import com.massimotter.weave.backend.files.application.FilesLockService;
+import com.massimotter.weave.backend.files.application.FilesMutationIntentService;
 import com.massimotter.weave.backend.model.calendar.CalendarEventResponse;
 import com.massimotter.weave.backend.model.calendar.CalendarScopeResponse;
 import com.massimotter.weave.backend.service.CalendarFacadeService;
@@ -137,6 +140,15 @@ class FilesCalendarFacadeControllerTest {
 
     @MockBean
     private CalendarProviderPort calendarProviderPort;
+
+    @MockBean
+    private AuditEventPublisher auditEventPublisher;
+
+    @MockBean
+    private FilesLockService filesLockService;
+
+    @MockBean
+    private FilesMutationIntentService filesMutationIntentService;
 
     @BeforeEach
     void allowContextAccess() {
@@ -972,7 +984,7 @@ class FilesCalendarFacadeControllerTest {
                 .claim("aud", java.util.List.of("weave-app"))
                 .claim("weave_tenant_id", "tenant-default")
                 .claim("resource_access", java.util.Map.of("weave-app", java.util.Map.of("roles", java.util.List.of("member"))))
-                .claim("groups", java.util.List.of("weave-calendar-editors", "weave-meeting-hosts")))
+                .claim("groups", java.util.List.of("/weave-calendar-editors", "/weave-meeting-hosts")))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 
@@ -984,7 +996,7 @@ class FilesCalendarFacadeControllerTest {
                         .claim("weave_tenant_id", "tenant-default")
                         .claim("resource_access", java.util.Map.of(
                                 "weave-app", java.util.Map.of("roles", java.util.List.of("member"))))
-                        .claim("groups", java.util.List.of("weave-meeting-hosts")))
+                        .claim("groups", java.util.List.of("/weave-meeting-hosts")))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 

@@ -18,14 +18,14 @@ class ChatRuntimeContractTest {
         String configuration = Files.readString(resource);
 
         assertThat(configuration)
-                .contains("${WEAVE_CHAT_PROVIDER:in-memory-test}")
-                .contains("${WEAVE_CHAT_STORAGE_MODE:memory}")
+                .contains("${WEAVE_CHAT_PROVIDER:matrix-synapse}")
                 .contains("${WEAVE_CHAT_MATRIX_INTERNAL_BASE_URL:}")
                 .contains("${WEAVE_CHAT_MATRIX_SERVER_NAME:}")
                 .contains("${WEAVE_CHAT_MATRIX_APPSERVICE_ID:weave-chat-synapse}")
                 .contains("${WEAVE_CHAT_MATRIX_VIRTUAL_USER_PREFIX:_weave_}")
                 .contains("${WEAVE_CHAT_MATRIX_APPSERVICE_AS_TOKEN_FILE:}")
                 .contains("${WEAVE_CHAT_MATRIX_APPSERVICE_HS_TOKEN_FILE:}")
+                .doesNotContain("WEAVE_CHAT_STORAGE_MODE")
                 .doesNotContain("WEAVE_CHAT_MATRIX_AS_TOKEN:")
                 .doesNotContain("WEAVE_CHAT_MATRIX_HS_TOKEN:");
     }

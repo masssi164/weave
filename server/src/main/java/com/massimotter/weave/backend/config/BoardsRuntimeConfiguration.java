@@ -1,8 +1,5 @@
 package com.massimotter.weave.backend.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.massimotter.weave.backend.audit.AuditEventPublisher;
-import com.massimotter.weave.backend.audit.FileAuditEventPublisher;
 import com.massimotter.weave.backend.boards.local.LocalWorkspaceBoardsRepository;
 import com.massimotter.weave.backend.boards.openproject.OpenProjectBoardsRepository;
 import com.massimotter.weave.backend.boards.openproject.OpenProjectBoardsRuntimeGate;
@@ -10,7 +7,6 @@ import com.massimotter.weave.backend.boards.port.BoardsRuntimeGuard;
 import com.massimotter.weave.backend.boards.port.BoardsRepository;
 import java.net.URI;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.RestClient;
@@ -56,14 +52,6 @@ public class BoardsRuntimeConfiguration {
                     restClientBuilder);
         }
         return new LocalWorkspaceBoardsRepository();
-    }
-
-    @Bean
-    @ConditionalOnProperty(name = "weave.audit.events.storage.mode", havingValue = "file", matchIfMissing = true)
-    AuditEventPublisher auditEventPublisher(
-            ObjectMapper objectMapper,
-            @Value("${weave.audit.events.storage.path:./data/audit-events.jsonl}") String storagePath) {
-        return new FileAuditEventPublisher(objectMapper, storagePath);
     }
 
     // Retained for direct unit tests that instantiate this configuration without a Spring RestClient.Builder bean.

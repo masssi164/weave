@@ -48,20 +48,21 @@ Exit gate:
 - client/server CI green in GitHub
 - Live Stack E2E green from the dedicated self-hosted live runner
 
-## Phase 2 — OpenTofu-first infra
+## Phase 2 — Compose and desired-state infrastructure
 
 Deliverables:
 
-- Operator scripts default to `${WEAVE_IAC_BIN:-tofu}`.
-- CI sets up OpenTofu and runs format validation.
-- Infrastructure docs use OpenTofu-first language.
-- State migration/compatibility notes are explicit.
+- One common Compose model exposes exactly `dev`, `dogfood`, and `main` profiles.
+- CI normalizes every profile, rejects unresolved inputs, and runs infrastructure contract tests.
+- The pinned `kcadm` reconciler converges Keycloak from the canonical desired-state baseline and closed environment overlay.
+- Migration from former infrastructure state is backup/restore rehearsed, adopted once, and retained only as restricted evidence.
 
 Exit gate:
 
-- `tofu fmt -check -recursive`
-- `tofu init -backend=false`
-- `tofu validate`
+- `./gradlew composeDevConfig composeDogfoodConfig composeMainConfig`
+- `./gradlew serverDevH2Test serverPostgresIntegrationTest`
+- desired-state render and security-floor validation
+- zero-diff second Keycloak reconciliation plan
 - support-bundle redaction tests pass
 
 ## Phase 3 — Professional ATDD spine

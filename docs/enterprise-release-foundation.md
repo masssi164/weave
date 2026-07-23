@@ -86,7 +86,7 @@ The live lane validates product flows. It must not become a junk drawer for admi
 
 ### `persistent-dogfood-verification`
 
-Purpose: run `persistent-dogfood-deployment` for the accepted candidate under the shared non-cancelling lock. The deployment runs twice, uses non-destructive operator checks rather than the static-user smoke suite, verifies OpenTofu/runtime idempotency, records cached provider health, and proves that the single persistent human member, captured Mailpit data, TLS identity, and existing session state were not reset. Persistent dogfood does not retain disposable automation identities.
+Purpose: run `persistent-dogfood-deployment` for the accepted candidate under the shared non-cancelling lock. The deployment runs twice, uses non-destructive operator checks rather than the static-user smoke suite, verifies normalized Compose-model, Keycloak-reconciliation, and runtime idempotency, records cached provider health, and proves that the single persistent human member, captured Mailpit data, TLS identity, and existing session state were not reset. Persistent dogfood does not retain disposable automation identities.
 
 ### `ios-dogfood-distribution`
 

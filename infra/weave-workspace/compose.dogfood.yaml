@@ -1,0 +1,13 @@
+services:
+  keycloak:
+    command:
+      - start
+      - --optimized
+
+  mailpit:
+    environment:
+      MP_SMTP_REQUIRE_TLS: "true"
+
+  backend:
+    environment:
+      WEAVE_RELEASE_POSTURE: dogfood

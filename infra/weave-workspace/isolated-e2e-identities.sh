@@ -45,7 +45,7 @@ Options:
   --run-id ID                 Stable unique ID for one disposable run.
   --output-root PATH          Private run artifact root.
   --credentials-env PATH      Private 0600 identity credential env.
-  --startup-env PATH          Startup-only isolated stack/OpenTofu env.
+  --startup-env PATH          Startup-only isolated Compose env.
   --identity-manifest PATH    Support-safe hashed identity evidence.
   --cleanup-evidence PATH     Support-safe cleanup evidence.
   --stack-bootstrap-env PATH  Private bootstrap env written by install.sh.
@@ -107,14 +107,13 @@ parse_args() {
 
 derive_paths_and_names() {
   [[ -n "${RUN_ID}" ]] || fail "--run-id is required"
-  [[ ${#RUN_ID} -le 160 ]] || fail "run ID is too long"
-  [[ "${RUN_ID}" =~ ^[A-Za-z0-9][A-Za-z0-9._:-]{7,159}$ ]] ||
-    fail "run ID must use only bounded environment-safe characters"
+  [[ "${RUN_ID}" =~ ^[a-z0-9][a-z0-9-]{5,39}$ ]] ||
+    fail "run ID must match [a-z0-9][a-z0-9-]{5,39}"
 
   local run_hash
   run_hash="$(sha256 "${RUN_ID}")"
   NAMESPACE="weave-e2e-${run_hash:0:16}"
-  REALM="${TF_VAR_tenant_slug:-weave}"
+  REALM="${WEAVE_TENANT_SLUG:-weave}"
   TENANT_ID="${NAMESPACE}-tenant"
   OUTSIDER_CONTEXT="${NAMESPACE}-outside"
   AUTHOR_USERNAME="${NAMESPACE}-author"
@@ -157,6 +156,24 @@ print_integration_variables() {
   printf 'WEAVE_E2E_AUTHORIZATION_EVIDENCE_PATH=%q\n' "${AUTHORIZATION_EVIDENCE_PATH}"
   printf 'WEAVE_E2E_STACK_BOOTSTRAP_ENV=%q\n' "${STACK_BOOTSTRAP_ENV}"
   printf 'WEAVE_TEARDOWN_OWNERSHIP_FILE=%q\n' "${TEARDOWN_OWNERSHIP_FILE}"
+  if [[ -f "${STARTUP_ENV_PATH}" ]]; then
+    (
+      # Public run coordinates only. Credential values remain exclusively in
+      # the separate mode-0600 credential environment.
+      # shellcheck disable=SC1090
+      source "${STARTUP_ENV_PATH}"
+      local name
+      for name in \
+        WEAVE_GENERATED_ROOT WEAVE_SECRET_ROOT WEAVE_TLS_ROOT \
+        WEAVE_PROXY_HTTP_HOST_PORT WEAVE_PROXY_HTTPS_HOST_PORT \
+        WEAVE_KEYCLOAK_HOST_PORT WEAVE_KEYCLOAK_MANAGEMENT_HOST_PORT \
+        WEAVE_MAILPIT_WEB_HOST_PORT WEAVE_MAS_HOST_PORT \
+        WEAVE_SYNAPSE_HOST_PORT WEAVE_NEXTCLOUD_HOST_PORT \
+        WEAVE_BACKEND_HOST_PORT WEAVE_MCP_HOST_PORT; do
+        printf '%s=%q\n' "${name}" "${!name}"
+      done
+    )
+  fi
 }
 
 require_teardown_ownership_inputs() {
@@ -309,34 +326,39 @@ prepare() {
     printf 'export WEAVE_LOCAL_TLS_STATE_DIR=%q\n' none
     printf 'export WEAVE_E2E_OUTPUT_ROOT=%q\n' "${OUTPUT_ROOT}"
     printf 'export WEAVE_E2E_RUN_ID=%q\n' "${RUN_ID}"
+    printf 'export WEAVE_E2E_STACK_SCOPE=%q\n' isolated
+    printf 'export WEAVE_E2E_RUN_NAMESPACE=%q\n' "${NAMESPACE}"
+    printf 'export WEAVE_GENERATED_ROOT=%q\n' "${ROOT_DIR}/.generated/isolated/${NAMESPACE}"
+    printf 'export WEAVE_SECRET_ROOT=%q\n' "${ROOT_DIR}/.generated/isolated/${NAMESPACE}/secrets"
+    printf 'export WEAVE_TLS_ROOT=%q\n' "${ROOT_DIR}/.generated/isolated/${NAMESPACE}/tls"
     printf 'export WEAVE_CANDIDATE_COMMIT=%q\n' "${WEAVE_CANDIDATE_COMMIT}"
     printf 'export WEAVE_CANDIDATE_EVIDENCE_REF=%q\n' "${WEAVE_CANDIDATE_EVIDENCE_REF}"
     printf 'export WEAVE_TEARDOWN_OWNERSHIP_FILE=%q\n' "${TEARDOWN_OWNERSHIP_FILE}"
-    printf 'export TF_VAR_isolated_e2e_enabled=%q\n' true
-    printf 'export TF_VAR_isolated_e2e_namespace=%q\n' "${NAMESPACE}"
-    printf 'export TF_VAR_isolated_e2e_context_memberships=%q\n' "${memberships}"
-    printf 'export TF_VAR_chat_e2e_proof_enabled=%q\n' true
-    printf 'export TF_VAR_chat_e2e_proof_token_host_path=%q\n' "${CHAT_PROOF_TOKEN_PATH}"
-    printf 'export TF_VAR_chat_e2e_proof_run_id=%q\n' "${RUN_ID}"
-    printf 'export TF_VAR_tenant_slug=%q\n' weave
-    printf 'export TF_VAR_docker_network_name=%q\n' "${NAMESPACE}_network"
-    printf 'export TF_VAR_proxy_http_host_port=%q\n' "$((port_base + 0))"
-    printf 'export TF_VAR_proxy_host_port=%q\n' "$((port_base + 1))"
-    printf 'export TF_VAR_keycloak_host_port=%q\n' "$((port_base + 2))"
-    printf 'export TF_VAR_keycloak_management_host_port=%q\n' "$((port_base + 3))"
-    printf 'export TF_VAR_mailpit_web_host_port=%q\n' "$((port_base + 4))"
-    printf 'export TF_VAR_mas_host_port=%q\n' "$((port_base + 5))"
-    printf 'export TF_VAR_synapse_host_port=%q\n' "$((port_base + 6))"
-    printf 'export TF_VAR_nextcloud_host_port=%q\n' "$((port_base + 7))"
-    printf 'export TF_VAR_backend_host_port=%q\n' "$((port_base + 8))"
-    printf 'export TF_VAR_mcp_host_port=%q\n' "$((port_base + 9))"
-    printf 'export TF_VAR_keycloak_smtp_host=%q\n' "${NAMESPACE}-mailpit"
-    printf 'export TF_VAR_create_test_user=%q\n' false
-    printf 'export TF_VAR_context_authorization_bootstrap_enabled=%q\n' false
-    printf 'export TF_VAR_context_authorization_dogfood_principal_ref=%q\n' ""
-    printf 'export TF_VAR_context_authorization_default_tenant_id=%q\n' "${TENANT_ID}"
-    printf 'export TF_VAR_context_authorization_principal_claim=%q\n' preferred_username
-    printf 'export TF_VAR_context_authorization_principal_ref_prefix=%q\n' 'user:'
+    printf 'export WEAVE_ISOLATED_E2E_ENABLED=%q\n' true
+    printf 'export WEAVE_ISOLATED_E2E_NAMESPACE=%q\n' "${NAMESPACE}"
+    printf 'export WEAVE_ISOLATED_E2E_CONTEXT_MEMBERSHIPS=%q\n' "${memberships}"
+    printf 'export WEAVE_CHAT_E2E_PROOF_ENABLED=%q\n' true
+    printf 'export WEAVE_CHAT_E2E_PROOF_TOKEN_HOST_PATH=%q\n' "${CHAT_PROOF_TOKEN_PATH}"
+    printf 'export WEAVE_CHAT_E2E_PROOF_RUN_ID=%q\n' "${RUN_ID}"
+    printf 'export WEAVE_TENANT_SLUG=%q\n' weave
+    printf 'export WEAVE_DOCKER_NETWORK_NAME=%q\n' "${NAMESPACE}_network"
+    printf 'export WEAVE_PROXY_HTTP_HOST_PORT=%q\n' "$((port_base + 0))"
+    printf 'export WEAVE_PROXY_HTTPS_HOST_PORT=%q\n' "$((port_base + 1))"
+    printf 'export WEAVE_KEYCLOAK_HOST_PORT=%q\n' "$((port_base + 2))"
+    printf 'export WEAVE_KEYCLOAK_MANAGEMENT_HOST_PORT=%q\n' "$((port_base + 3))"
+    printf 'export WEAVE_MAILPIT_WEB_HOST_PORT=%q\n' "$((port_base + 4))"
+    printf 'export WEAVE_MAS_HOST_PORT=%q\n' "$((port_base + 5))"
+    printf 'export WEAVE_SYNAPSE_HOST_PORT=%q\n' "$((port_base + 6))"
+    printf 'export WEAVE_NEXTCLOUD_HOST_PORT=%q\n' "$((port_base + 7))"
+    printf 'export WEAVE_BACKEND_HOST_PORT=%q\n' "$((port_base + 8))"
+    printf 'export WEAVE_MCP_HOST_PORT=%q\n' "$((port_base + 9))"
+    printf 'export WEAVE_KEYCLOAK_SMTP_HOST=%q\n' "${NAMESPACE}-mailpit"
+    printf 'export WEAVE_CREATE_TEST_USER=%q\n' false
+    printf 'export WEAVE_CONTEXT_AUTHORIZATION_BOOTSTRAP_ENABLED=%q\n' false
+    printf 'export WEAVE_CONTEXT_AUTHORIZATION_DOGFOOD_PRINCIPAL_REF=%q\n' ""
+    printf 'export WEAVE_CONTEXT_AUTHORIZATION_DEFAULT_TENANT_ID=%q\n' "${TENANT_ID}"
+    printf 'export WEAVE_CONTEXT_AUTHORIZATION_PRINCIPAL_CLAIM=%q\n' preferred_username
+    printf 'export WEAVE_CONTEXT_AUTHORIZATION_PRINCIPAL_REF_PREFIX=%q\n' 'user:'
   } >"${STARTUP_ENV_PATH}"
   chmod 600 "${STARTUP_ENV_PATH}"
 
@@ -345,6 +367,7 @@ prepare() {
 }
 
 load_runtime_environment() {
+  local requested_scope="${WEAVE_E2E_STACK_SCOPE:-}"
   [[ -f "${STARTUP_ENV_PATH}" ]] || fail "startup env is missing; run prepare first"
   [[ -f "${CREDENTIAL_ENV_PATH}" ]] || fail "credential env is missing; run prepare first"
   if [[ -f "${STACK_BOOTSTRAP_ENV}" ]]; then
@@ -355,6 +378,7 @@ load_runtime_environment() {
   source "${STARTUP_ENV_PATH}"
   # shellcheck disable=SC1090
   source "${CREDENTIAL_ENV_PATH}"
+  [[ -z "${requested_scope}" ]] || WEAVE_E2E_STACK_SCOPE="${requested_scope}"
 
   AUTHOR_USERNAME="${WEAVE_E2E_AUTHOR_USERNAME:-}"
   COLLABORATOR_USERNAME="${WEAVE_E2E_COLLABORATOR_USERNAME:-}"
@@ -366,13 +390,13 @@ load_runtime_environment() {
 
 assert_isolated_runtime() {
   [[ "${WEAVE_E2E_STACK_SCOPE:-}" == "isolated" ]] || fail "provision/cleanup require WEAVE_E2E_STACK_SCOPE=isolated"
-  [[ "${TF_VAR_isolated_e2e_enabled:-false}" == "true" ]] || fail "isolated E2E OpenTofu gate is not enabled"
-  [[ "${TF_VAR_isolated_e2e_namespace:-}" == "${NAMESPACE}" ]] || fail "runtime namespace does not match this run"
-  [[ "${TF_VAR_docker_network_name:-}" == "${NAMESPACE}_network" ]] || fail "runtime does not use the run-scoped Docker network"
-  [[ "${TF_VAR_create_test_user:-false}" == "false" ]] || fail "static test-user provisioning must stay disabled"
-  [[ "${TF_VAR_context_authorization_principal_claim:-}" == "preferred_username" ]] || fail "isolated ReBAC must use deterministic preferred_username principals"
-  [[ "${TF_VAR_context_authorization_bootstrap_enabled:-false}" == "false" ]] || fail "persistent/bootstrap membership mode must stay disabled"
-  [[ -z "${TF_VAR_context_authorization_dogfood_principal_ref:-}" ]] || fail "persistent dogfood principal input must be empty"
+  [[ "${WEAVE_ISOLATED_E2E_ENABLED:-false}" == "true" ]] || fail "isolated E2E Compose gate is not enabled"
+  [[ "${WEAVE_ISOLATED_E2E_NAMESPACE:-}" == "${NAMESPACE}" ]] || fail "runtime namespace does not match this run"
+  [[ "${WEAVE_DOCKER_NETWORK_NAME:-}" == "${NAMESPACE}_network" ]] || fail "runtime does not use the run-scoped Docker network"
+  [[ "${WEAVE_CREATE_TEST_USER:-false}" == "false" ]] || fail "static test-user provisioning must stay disabled"
+  [[ "${WEAVE_CONTEXT_AUTHORIZATION_PRINCIPAL_CLAIM:-}" == "preferred_username" ]] || fail "isolated ReBAC must use deterministic preferred_username principals"
+  [[ "${WEAVE_CONTEXT_AUTHORIZATION_BOOTSTRAP_ENABLED:-false}" == "false" ]] || fail "persistent/bootstrap membership mode must stay disabled"
+  [[ -z "${WEAVE_CONTEXT_AUTHORIZATION_DOGFOOD_PRINCIPAL_REF:-}" ]] || fail "persistent dogfood principal input must be empty"
   [[ "${AUTHOR_USERNAME}" == "${NAMESPACE}-author" ]] || fail "author identity is not run-scoped"
   [[ "${COLLABORATOR_USERNAME}" == "${NAMESPACE}-collaborator" ]] || fail "collaborator identity is not run-scoped"
   [[ "${OUTSIDER_USERNAME}" == "${NAMESPACE}-outsider" ]] || fail "outsider identity is not run-scoped"
@@ -380,7 +404,7 @@ assert_isolated_runtime() {
 }
 
 keycloak_admin_url() {
-  printf '%s' "${WEAVE_E2E_KEYCLOAK_ADMIN_URL:-http://127.0.0.1:${TF_VAR_keycloak_host_port:-48080}}"
+  printf '%s' "${WEAVE_E2E_KEYCLOAK_ADMIN_URL:-http://127.0.0.1:${WEAVE_KEYCLOAK_HOST_PORT:-48080}}"
 }
 
 admin_token() {
@@ -388,8 +412,8 @@ admin_token() {
     -X POST "$(keycloak_admin_url)/realms/master/protocol/openid-connect/token" \
     -H 'Content-Type: application/x-www-form-urlencoded' \
     --data-urlencode 'client_id=admin-cli' \
-    --data-urlencode "username=${TF_VAR_keycloak_admin_username:-admin}" \
-    --data-urlencode "password=${TF_VAR_keycloak_admin_password:-}" \
+    --data-urlencode "username=${WEAVE_KEYCLOAK_ADMIN_USERNAME:-admin}" \
+    --data-urlencode "password=${WEAVE_KEYCLOAK_ADMIN_PASSWORD:-}" \
     --data-urlencode 'grant_type=password' |
     jq -r '.access_token // empty'
 }
@@ -476,10 +500,11 @@ ensure_group() {
 }
 
 global_group_id() {
-  local base="$1" token="$2" name="$3" groups id
-  groups="$(request GET "${base}/groups?search=$(encode "${name}")&exact=true" "${token}")"
-  id="$(find_exact_id "${groups}" name "${name}")"
-  [[ -n "${id}" ]] || fail "required Keycloak group '${name}' is unavailable"
+  local base="$1" token="$2" path="$3" name groups id
+  name="${path##*/}"
+  groups="$(request GET "${base}/groups?search=$(encode "${name}")&exact=true&briefRepresentation=false" "${token}")"
+  id="$(jq -r --arg path "${path}" '[.[] | select(.path == $path) | .id] | if length == 1 then .[0] else empty end' <<<"${groups}")"
+  [[ -n "${id}" ]] || fail "required Keycloak group path '${path}' is unavailable or ambiguous"
   printf '%s' "${id}"
 }
 
@@ -505,9 +530,9 @@ ensure_user() {
   request PUT "${base}/users/${subject}/reset-password" "${token}" "$(jq -cn --arg value "${password}" '{type:"password",value:$value,temporary:false}')" >/dev/null
   request PUT "${base}/users/${subject}/groups/${run_group_id}" "${token}" >/dev/null
   for group_id in \
-    "$(global_group_id "${base}" "${token}" workspace-members)" \
-    "$(global_group_id "${base}" "${token}" weave-board-editors)" \
-    "$(global_group_id "${base}" "${token}" weave-calendar-editors)"; do
+    "$(global_group_id "${base}" "${token}" /weave/members)" \
+    "$(global_group_id "${base}" "${token}" /weave-board-editors)" \
+    "$(global_group_id "${base}" "${token}" /weave-calendar-editors)"; do
     request PUT "${base}/users/${subject}/groups/${group_id}" "${token}" >/dev/null
   done
 
@@ -581,7 +606,7 @@ provision() {
   command -v jq >/dev/null || fail "jq is required"
   load_runtime_environment
   assert_isolated_runtime
-  [[ -n "${TF_VAR_keycloak_admin_password:-}" ]] || fail "isolated Keycloak admin credential is missing"
+  [[ -n "${WEAVE_KEYCLOAK_ADMIN_PASSWORD:-}" ]] || fail "isolated Keycloak admin credential is missing"
 
   local token base workspace_group outside_group author_subject collaborator_subject outsider_subject
   token="$(admin_token)"
@@ -629,7 +654,7 @@ cleanup_identities() {
   command -v jq >/dev/null || fail "jq is required"
   load_runtime_environment
   assert_isolated_runtime
-  [[ -n "${TF_VAR_keycloak_admin_password:-}" ]] || fail "isolated Keycloak admin credential is missing"
+  [[ -n "${WEAVE_KEYCLOAK_ADMIN_PASSWORD:-}" ]] || fail "isolated Keycloak admin credential is missing"
 
   local token base users_deleted=0 groups_deleted=0 value completed_at
   token="$(admin_token)"

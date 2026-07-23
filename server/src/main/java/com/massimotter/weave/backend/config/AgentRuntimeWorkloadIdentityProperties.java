@@ -27,7 +27,7 @@ public class AgentRuntimeWorkloadIdentityProperties {
     private Duration entitlementObservationTtl = Duration.ofMinutes(5);
     private String workloadRole = "weaver-runtime";
     private List<String> defaultClientScopes = new ArrayList<>(List.of("weaver-runtime.workload"));
-    private List<String> optionalClientScopes = new ArrayList<>(List.of("agent-runtime.profile.read"));
+    private List<String> optionalClientScopes = new ArrayList<>(List.of("agent-runtime.profile.read", "mcp.tools"));
     private int accessTokenLifespanSeconds = 60;
 
     public boolean enabled() {

@@ -10,7 +10,7 @@ Weave is now a monorepo product stack:
 | --- | --- |
 | `client/` | Flutter mobile/desktop app shell, custom chat/files/settings UX, client validation, accessibility, deterministic screenshots. |
 | `server/` | Product API/BFF, auth/profile facade, files/calendar/boards facades, authorization, audit, readiness, and backend contract tests. |
-| `infra/` | Local/dev stack, Caddy, Keycloak, Matrix/Synapse/MAS, Nextcloud, Docker/OpenTofu orchestration, live-stack smoke and E2E environment. |
+| `infra/` | Local/dev stack, Caddy, Keycloak, Matrix/Synapse/MAS, Nextcloud, Docker Compose orchestration, desired-state reconciliation, live-stack smoke and E2E environment. |
 | `e2e/` | Binding product-language Gherkin scenarios, scenario mapping, and sanitized evidence contract. |
 | `release/` | Stack manifests and release compatibility metadata. |
 
@@ -24,7 +24,7 @@ Prerequisites:
 - Xcode/macOS or another Flutter-supported target for local app runs.
 - `make`, Python 3, Java 21+ for Gradle/backend checks, and the normal Dart/Flutter toolchain.
 - Node/npm for admin console checks.
-- Docker/OpenTofu only for live-stack validation.
+- Docker with Compose v2 for provider dependencies, integration, and live-stack validation.
 
 On macOS with Homebrew JDK 21, use the same Java line as CI before running Gradle gates:
 
@@ -59,9 +59,12 @@ The root `./gradlew` is the monorepo build/delivery source of truth. GitHub Acti
 | `doctor` | Checks required tools and pinned dependency files with actionable failures. |
 | `acceptanceContract` | Gherkin mapping and acceptance contract guard. |
 | `clientCi` | Flutter generated-code, format, analysis, tests, screenshot drift, and offline contract path. |
-| `serverCi` | Existing server Gradle test path. |
+| `serverDevH2Test` | Boots the `dev` Spring profile against H2 PostgreSQL mode and proves Flyway, JPA/Hibernate mapping validation, and a real repository round trip. |
+| `serverPostgresIntegrationTest` | Runs migration, repository, and concurrency contracts against disposable PostgreSQL. |
+| `serverCi` | Runs unit tests, the separate dev-H2 lane, production-artifact verification, and the PostgreSQL integration lane. |
 | `adminCi` | Admin console npm CI path. |
-| `infraStatic` | OpenTofu format/validate plus infrastructure script/static checks. |
+| `infraStatic` | Normalized `dev`/`dogfood`/`main` Compose models, desired-state validation, forbidden-legacy-path guard, and infrastructure script/static checks. |
+| `workflowActionRuntimeCheck` | Requires every external GitHub Action reference to match the reviewed immutable commit and Node 24/composite runtime inventory in `tools/workflow_action_runtime_manifest.json`. |
 | `docsBuild` | Strict MkDocs build with deterministic outputs under `build/docs/user` and `build/docs/admin`. |
 | `docsCheck` | Docs structure check plus strict MkDocs build. |
 | `releaseNotesLabelCheck` | Current PR release-notes label validation when `PR_LABELS_JSON` is available; skipped locally when unset. |
@@ -72,6 +75,8 @@ The root `./gradlew` is the monorepo build/delivery source of truth. GitHub Acti
 | `ci` | Canonical aggregate for the PR-safe monorepo gate set. |
 
 Each task requires the same tools and dependency setup as the underlying ecosystem command; for example docs tasks need pinned dependencies installed in `build/docs-venv` or the active Python environment from `docs/requirements.txt`, server checks need Java 21+, client checks need Flutter/Dart, and admin checks need Node/npm dependencies. `./gradlew ci` writes sanitized evidence to `build/evidence/ci-summary.json`; CI uploads `build/evidence/**` and deterministic docs outputs as artifacts. If local `./gradlew doctor` reports JDK 17, point `JAVA_HOME` at JDK 21+ rather than weakening the gate.
+
+Feature branches execute the full root CI through `pull_request` only; feature-branch `push` does not launch a duplicate build. Direct pushes and merges to `dev`, `dogfood`, and `main` retain a full post-merge run, while `merge_group` and manual dispatch remain supported. Full PR runs share a PR-scoped concurrency key and superseded computation is canceled. Label-only events use a separate key so release-note label validation cannot cancel or queue behind the full candidate build. Protected-lane and manual runs are never canceled in progress.
 
 ## Everyday Flutter workflow
 
@@ -146,7 +151,7 @@ make docs-check
 
 ## Release notes workflow
 
-Release-affecting changes must choose exactly one release-notes label in the PR. Use the fixed page categories `Added`, `Changed`, `Fixed`, `Security`, `Accessibility`, `Migration/Operator Notes`, and `Known Issues` when drafting checked-in notes. Put provider setup, SecretRef, OpenTofu/bootstrap, backup/restore, support-bundle, readiness, audit, and policy/whitelist impacts under `Migration/Operator Notes`.
+Release-affecting changes must choose exactly one release-notes label in the PR. Use the fixed page categories `Added`, `Changed`, `Fixed`, `Security`, `Accessibility`, `Migration/Operator Notes`, and `Known Issues` when drafting checked-in notes. Put provider setup, SecretRefs, Compose/reconciliation changes, backup/restore, support-bundle, readiness, audit, and policy/whitelist impacts under `Migration/Operator Notes`.
 
 Generated release notes come from merged PR metadata and labels. The local generator writes review artifacts under `build/release-notes/**` by default; checked-in README or docs mutations are explicit update steps:
 

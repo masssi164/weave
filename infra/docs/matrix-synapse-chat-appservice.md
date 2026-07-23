@@ -2,7 +2,7 @@
 
 The Weave client talks only to the Matrix Client-Server facade on the API
 origin. Spring authenticates the Keycloak member, enforces canonical
-authorization, commits canonical Chat state to JDBC, and then calls Synapse
+authorization, commits canonical Chat state through the JPA relational port, and then calls Synapse
 through the `matrix-synapse` southbound adapter. Synapse is a replaceable
 provider representation, not the northbound product boundary.
 
@@ -34,9 +34,9 @@ Docker network.
 
 ## Runtime files and backend contract
 
-`install.sh` generates or restores the two stable tokens in the private
-`.generated/bootstrap.env` authority. OpenTofu writes mode-`0600` source files,
-stages them into the private `weave_matrix_chat_appservice_runtime` volume, and
+`secrets-init` preserves the two stable tokens as separate mode-`0600` files below
+`WEAVE_SECRET_ROOT`. The deterministic Compose renderer stages them into the private
+`weave_matrix_chat_appservice_runtime` volume, and
 mounts that volume read-only at `/run/weave-chat-appservice` in only
 `weave-backend` and `weave-synapse`.
 
@@ -44,7 +44,6 @@ The backend receives only file references and support-safe adapter settings:
 
 ```text
 WEAVE_CHAT_PROVIDER=matrix-synapse
-WEAVE_CHAT_STORAGE_MODE=jdbc
 WEAVE_CHAT_MATRIX_INTERNAL_BASE_URL=http://weave-synapse:8008
 WEAVE_CHAT_MATRIX_SERVER_NAME=<configured Matrix host>
 WEAVE_CHAT_MATRIX_APPSERVICE_ID=weave-chat-synapse
@@ -53,16 +52,15 @@ WEAVE_CHAT_MATRIX_APPSERVICE_AS_TOKEN_FILE=/run/weave-chat-appservice/as-token
 WEAVE_CHAT_MATRIX_APPSERVICE_HS_TOKEN_FILE=/run/weave-chat-appservice/hs-token
 ```
 
-The token values are never placed in container environment variables, plans,
-logs, public app configuration, readiness payloads, or support bundles. OpenTofu
-marks every token-derived value sensitive. A plan can report that a sensitive
-runtime asset changes, but cannot print its content.
+The token values are never placed in container environment variables, Compose interpolation,
+logs, public app configuration, readiness payloads, or support bundles. Rendering and staging
+occur inside the private file boundary and never print token content.
 
 The disposable collaboration lane adds a separate proof boundary. Identity
 preparation creates a 384-bit run-scoped credential as a mode-`0600` host file;
-only the proof caller can read that host file, and OpenTofu bind-mounts it
+only the proof caller can read that host file, and the isolated Compose overlay bind-mounts it
 read-only into the isolated backend at `/run/weave-chat-e2e-proof/token`. The
-credential value never becomes an OpenTofu input or state value. It is distinct
+credential value never becomes a Compose variable or model value. It is distinct
 from both Application Service tokens and is never mounted into Synapse.
 
 Only that isolated backend receives:
@@ -81,11 +79,9 @@ isolated scope are absent. Public Caddy returns `404` for
 
 ## Install and rotation
 
-Ordinary installation preserves both tokens. A non-local operator supplies them
-from a chmod-`0600` private environment file as
-`TF_VAR_matrix_chat_appservice_as_token` and
-`TF_VAR_matrix_chat_appservice_hs_token`. Local/disposable installation creates
-independent 256-bit hexadecimal values when they do not already exist.
+Ordinary installation preserves both files. A non-local operator installs them under the named
+`WEAVE_SECRET_ROOT` paths `matrix-appservice-as-token` and `matrix-appservice-hs-token`.
+Dev/isolated initialization creates independent high-entropy values only when the files are absent.
 
 Rotation is one protected, coordinated operation:
 
@@ -101,13 +97,13 @@ terminal transcript, issue, workflow output, or evidence artifact.
 
 ## Backup, restore, and diagnostics
 
-`backup.sh` includes the registration and token source files in the private
-`generated-config-secrets.tgz` artifact. Canonical Chat, provider mappings,
+`backup.sh` includes the runtime projection in `matrix-appservice.tgz` and the source SecretRefs in
+the private `private-config-secrets.tgz` artifact. Canonical Chat, provider mappings,
 outbox/ledger data, and Synapse state remain in the PostgreSQL dump; Synapse
-media/local data remains in `matrix-synapse-data.tgz`. Backup artifacts contain
+media/local data remains in `synapse-data.tgz`. Backup artifacts contain
 secrets and member data and must stay encrypted/operator-readable only.
 
-After restoring those artifacts and applying OpenTofu, run:
+After a separately approved Compose/control-store restore rehearsal, run:
 
 ```sh
 bash weave-workspace/restore-smoke.sh /private/path/to/weave-backup
@@ -119,7 +115,7 @@ the backend can read two distinct non-empty token files. It never prints token
 content.
 
 `support-bundle.sh` reports only the support-safe facts that the selected adapter
-is `matrix-synapse`, canonical storage is `jdbc`, and the Application Service is
+is `matrix-synapse`, canonical storage is relational, and the Application Service is
 configured. It excludes the registration, tokens, internal URL, provider
 identifiers, callback bodies, and raw service logs.
 

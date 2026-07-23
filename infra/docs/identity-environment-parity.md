@@ -26,6 +26,6 @@ Mailpit stores up to 500 recent messages in the `weave_mailpit_data` Docker volu
 4. Open the printed HTTPS URL in Safari. The default non-standard-port URL is `https://mail.weave.test:44443`.
 5. Open the Keycloak invitation from Mailpit. Do not copy the activation URL into logs, QR codes, support bundles, or documentation.
 
-An HTTP `403` means the phone address is outside `TF_VAR_mailpit_allowed_cidrs`. A certificate warning means trust was not enabled or the certificate does not cover the configured hostname. A DNS error must be fixed in the private DNS service; an IP-address URL is not a supported substitute because it breaks the TLS and issuer contract.
+An HTTP `403` means the phone address is outside the reviewed dogfood Mailpit CIDR policy. A certificate warning means trust was not enabled or the certificate does not cover the configured hostname. A DNS error must be fixed in the private DNS service; an IP-address URL is not a supported substitute because it breaks the TLS and issuer contract.
 
 This page is an implementation projection of `WEAVE-DOMAIN-IDENTITY-IDM` and `ADR-0005-keycloak-identity-system-of-record` in the pinned specification corpus.

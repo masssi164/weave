@@ -49,7 +49,7 @@ public class JwtDecoderConfig {
     }
 
     @Bean("agentRuntimeAdminJwtDecoder")
-    @ConditionalOnProperty(name = "weave.agent-runtime.storage.mode", havingValue = "jdbc")
+    @ConditionalOnProperty(name = "weave.agent-runtime.workload-identity.enabled", havingValue = "true")
     JwtDecoder agentRuntimeAdminJwtDecoder(
             OAuth2ResourceServerProperties resourceServerProperties,
             WeaveSecurityProperties weaveSecurityProperties) {

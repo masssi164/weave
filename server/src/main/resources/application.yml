@@ -4,10 +4,19 @@ server:
 spring:
   application:
     name: weave-backend
-  autoconfigure:
-    exclude:
-      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
-      - org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
+  profiles:
+    default: dev
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
   security:
     oauth2:
       resourceserver:
@@ -34,17 +43,21 @@ management:
 
 weave:
   agent-runtime:
-    # ARC remains inert unless JDBC plus the Keycloak workload-identity adapter are
-    # selected explicitly. Long-lived credentials are SecretRefs, never env values.
-    storage:
-      mode: ${WEAVE_AGENT_RUNTIME_STORAGE_MODE:disabled}
     state-store:
-      # Runtime cells have no durable volume. The dogfood adapter envelope-encrypts
-      # every generation before PostgreSQL and requires a separately mounted key root.
+      # Runtime cells have no durable volume. State generations are envelope-encrypted
+      # before immutable S3/MinIO object storage; PostgreSQL stores only authority metadata.
       enabled: ${WEAVE_AGENT_RUNTIME_STATE_STORE_ENABLED:false}
       wrapping-key-root: ${WEAVE_AGENT_RUNTIME_STATE_WRAPPING_KEY_ROOT:}
-      chunk-size: ${WEAVE_AGENT_RUNTIME_STATE_CHUNK_SIZE:1MB}
       maximum-generation-size: ${WEAVE_AGENT_RUNTIME_STATE_MAXIMUM_GENERATION_SIZE:64MB}
+      endpoint: ${WEAVE_AGENT_RUNTIME_STATE_S3_ENDPOINT:}
+      region: ${WEAVE_AGENT_RUNTIME_STATE_S3_REGION:us-east-1}
+      bucket: ${WEAVE_AGENT_RUNTIME_STATE_S3_BUCKET:}
+      # Guarded until a durable PostgreSQL/object-store reconciliation boundary passes.
+      # Credentials are named and mounted; values are never accepted from environment variables.
+      credential-ref: ${WEAVE_AGENT_RUNTIME_STATE_S3_CREDENTIAL_REF:}
+      access-key-file: ${WEAVE_AGENT_RUNTIME_STATE_S3_ACCESS_KEY_FILE:}
+      secret-key-file: ${WEAVE_AGENT_RUNTIME_STATE_S3_SECRET_KEY_FILE:}
+      path-style-access: ${WEAVE_AGENT_RUNTIME_STATE_S3_PATH_STYLE_ACCESS:true}
     profile-signing:
       # The server never bootstraps a missing trust root. Initialize and rotate
       # the mounted SecretRef state explicitly so incomplete restores fail closed.
@@ -62,7 +75,7 @@ weave:
       # Keycloak group membership is authoritative. This configuration carries
       # no cell path, container, provider credential, or tool implementation.
       enabled: ${WEAVE_AGENT_RUNTIME_ENTITLEMENT_ENABLED:false}
-      enabled-groups: ${WEAVE_AGENT_RUNTIME_ENTITLEMENT_GROUPS:weave-weaver-runtime}
+      enabled-groups: ${WEAVE_AGENT_RUNTIME_ENTITLEMENT_GROUPS:/weave/weaver-runtime}
       allowed-capabilities: ${WEAVE_AGENT_RUNTIME_ENTITLEMENT_CAPABILITIES:calendar.read}
     workload-identity:
       enabled: ${WEAVE_AGENT_RUNTIME_WORKLOAD_IDENTITY_ENABLED:false}
@@ -80,14 +93,12 @@ weave:
       entitlement-observation-ttl: ${WEAVE_AGENT_RUNTIME_ENTITLEMENT_OBSERVATION_TTL:5m}
       workload-role: weaver-runtime
       default-client-scopes: ${WEAVE_AGENT_RUNTIME_DEFAULT_CLIENT_SCOPES:weaver-runtime.workload}
-      optional-client-scopes: ${WEAVE_AGENT_RUNTIME_OPTIONAL_CLIENT_SCOPES:agent-runtime.profile.read,mcp:tools,calendar.read}
+      optional-client-scopes: ${WEAVE_AGENT_RUNTIME_OPTIONAL_CLIENT_SCOPES:agent-runtime.profile.read,mcp.tools,calendar.read}
       access-token-lifespan-seconds: ${WEAVE_AGENT_RUNTIME_ACCESS_TOKEN_LIFESPAN_SECONDS:60}
   chat:
-    # Live and shipped stacks select matrix-synapse plus JDBC. The memory path is
-    # deliberately limited to isolated server tests and local contract fixtures.
-    provider: ${WEAVE_CHAT_PROVIDER:in-memory-test}
-    storage:
-      mode: ${WEAVE_CHAT_STORAGE_MODE:memory}
+    # The Matrix projection and the canonical relational chat ledger are independent:
+    # provider selection never changes the JPA persistence authority.
+    provider: ${WEAVE_CHAT_PROVIDER:matrix-synapse}
     e2e-proof:
       # Isolated disposable stacks only. Persistent dogfood leaves this false and
       # does not mount the independent proof token.
@@ -125,10 +136,7 @@ weave:
     required-audience: ${WEAVE_OIDC_REQUIRED_AUDIENCE:https://api.weave.test/api}
     client-id: ${WEAVE_CLIENT_ID:weave-app}
     device-credentials:
-      # Memory is reserved for local development and isolated tests. The shipped
-      # infrastructure selects JDBC so DAV credentials remain revocable after restart.
-      storage:
-        mode: ${WEAVE_DEVICE_CREDENTIAL_STORAGE_MODE:memory}
+      enabled: true
   nextcloud:
     files:
       base-url: ${WEAVE_NEXTCLOUD_BASE_URL:https://files.weave.test}
@@ -149,7 +157,7 @@ weave:
       # a delegated/sharing access model is contracted. Leave credentials blank to fail
       # safely with a normalized nextcloud-adapter-not-configured error until wired.
       base-url: ${WEAVE_CALDAV_BASE_URL:${WEAVE_NEXTCLOUD_BASE_URL:https://files.weave.test}}
-      calendar-path-template: ${WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE:/remote.php/dav/calendars/${WEAVE_CALDAV_BACKEND_USERNAME:weave-backend}/personal/}
+      calendar-path-template: ${WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE:/remote.php/dav/calendars/${WEAVE_CALDAV_BACKEND_USERNAME:weave-backend}/weave-workspace/}
       auth-mode: ${WEAVE_CALDAV_AUTH_MODE:BASIC}
       backend-username: ${WEAVE_CALDAV_BACKEND_USERNAME:}
       backend-token: ${WEAVE_CALDAV_BACKEND_TOKEN:}
@@ -166,10 +174,6 @@ weave:
     # accessibility gates are proven by Matrix-native client/smoke/E2E flows.
     federation-enabled: ${WEAVE_MATRIX_FEDERATION_ENABLED:false}
     e2ee:
-      storage:
-        # Memory is isolated-test only. Shipped infrastructure selects JDBC so
-        # public keys, to-device envelopes, and encrypted backups survive restart.
-        mode: ${WEAVE_MATRIX_E2EE_STORAGE_MODE:memory}
       encrypted-rooms-validated: ${WEAVE_MATRIX_E2EE_ENCRYPTED_ROOMS_VALIDATED:false}
       device-verification-validated: ${WEAVE_MATRIX_E2EE_DEVICE_VERIFICATION_VALIDATED:false}
       key-backup-validated: ${WEAVE_MATRIX_E2EE_KEY_BACKUP_VALIDATED:false}
@@ -224,7 +228,6 @@ weave:
         token-endpoint: ${WEAVE_LIVEKIT_TOKEN_ENDPOINT:}
   identity:
     invitations:
-      storage-mode: ${WEAVE_IDENTITY_INVITATIONS_STORAGE_MODE:memory}
       default-lifetime: ${WEAVE_IDENTITY_INVITATIONS_DEFAULT_LIFETIME:P7D}
       events-hmac-secret: ${WEAVE_IDENTITY_EVENTS_HMAC_SECRET:}
       event-freshness: ${WEAVE_IDENTITY_EVENTS_FRESHNESS:5m}
@@ -237,33 +240,13 @@ weave:
         client-secret: ${WEAVE_IDENTITY_KEYCLOAK_CLIENT_SECRET:}
         timeout: ${WEAVE_IDENTITY_KEYCLOAK_TIMEOUT:10s}
   profile:
-    # Persistent product-profile override store for mutable fields accepted by PATCH /api/profile.
-    # The default remains file-backed until relational parity, rollback, and dogfood migration
-    # notes are complete.
-    storage:
-      mode: ${WEAVE_PROFILE_STORAGE_MODE:file}
-      path: ${WEAVE_PROFILE_STORAGE_PATH:./data/profile-overrides.json}
+    persistence: relational-jpa
   provider:
     selections:
-      # Persistent Admin Console provider selections. The default remains file-backed until
-      # relational parity, rollback, and dogfood migration notes are complete.
-      storage:
-        mode: ${WEAVE_PROVIDER_SELECTIONS_STORAGE_MODE:file}
-        path: ${WEAVE_PROVIDER_SELECTIONS_STORAGE_PATH:./data/provider-selections.json}
-  persistence:
-    jdbc:
-      # Disabled unless a repository storage mode explicitly selects JDBC. H2 is local/test
-      # only; release-grade proof must use PostgreSQL-compatible migrations.
-      url: ${WEAVE_PERSISTENCE_JDBC_URL:}
-      username: ${WEAVE_PERSISTENCE_JDBC_USERNAME:}
-      password: ${WEAVE_PERSISTENCE_JDBC_PASSWORD:}
-      driver-class-name: ${WEAVE_PERSISTENCE_JDBC_DRIVER:}
+      persistence: relational-jpa
   audit:
     events:
-      # Append-only support-safe audit sink for provider/control-plane apply decisions.
-      storage:
-        mode: ${WEAVE_AUDIT_EVENTS_STORAGE_MODE:file}
-        path: ${WEAVE_AUDIT_EVENTS_STORAGE_PATH:./data/audit-events.jsonl}
+      persistence: relational-jpa
   interop:
     enabled: ${WEAVE_INTEROP_ENABLED:false}
     support-bundle-redaction-mode: ${WEAVE_INTEROP_SUPPORT_BUNDLE_REDACTION_MODE:support-safe-redacted}
@@ -283,9 +266,6 @@ weave:
   migration:
     enabled: ${WEAVE_MIGRATION_ENABLED:false}
     evidence:
-      # Persistent support-safe dry-run/apply evidence. Mount this path on durable storage for server restarts.
-      storage:
-        mode: ${WEAVE_MIGRATION_EVIDENCE_STORAGE_MODE:file}
-        path: ${WEAVE_MIGRATION_EVIDENCE_STORAGE_PATH:./data/migration-run-evidence.json}
+      persistence: relational-jpa
   connectors:
     public-sdk-enabled: ${WEAVE_CONNECTORS_PUBLIC_SDK_ENABLED:false}

@@ -10,24 +10,50 @@ SCRIPT="${ROOT_DIR}/restore-smoke.sh"
 backup_dir="$(mktemp -d)"
 trap 'rm -rf "${backup_dir}"' EXIT
 
-required_artifacts=(
-  MANIFEST.txt
-  postgres.sql
-  nextcloud-data.tgz
-  matrix-synapse-data.tgz
-  caddy-data.tgz
-  caddy-config.tgz
-  keycloak-data.tgz
-  generated-config-secrets.tgz
-)
+PYTHONPATH="${ROOT_DIR}/../../tools" python3 - "${backup_dir}" <<'PY'
+import io
+import json
+import sys
+import tarfile
+from pathlib import Path
+from private_backup_integrity import EXPECTED_ARTIFACT_KINDS, REQUIRED_ARTIFACTS, digest
 
-for artifact in "${required_artifacts[@]}"; do
-  printf 'fixture for %s\n' "${artifact}" >"${backup_dir}/${artifact}"
-done
+backup = Path(sys.argv[1])
+candidate = "a" * 40
+for name in REQUIRED_ARTIFACTS:
+    path = backup / name
+    if name.endswith(".tgz"):
+        with tarfile.open(path, "w:gz") as archive:
+            payload = name.encode("utf-8")
+            member = tarfile.TarInfo("fixture/value")
+            member.size = len(payload)
+            archive.addfile(member, io.BytesIO(payload))
+    else:
+        path.write_text(f"fixture for {name}\n", encoding="utf-8")
+artifacts = []
+for name in sorted(REQUIRED_ARTIFACTS):
+    checksum, size = digest(backup / name)
+    artifacts.append({"path": name, "kind": EXPECTED_ARTIFACT_KINDS[name], "sha256": checksum, "bytes": size})
+manifest = {
+    "schemaVersion": "weave.compose-private-backup.v2",
+    "backupId": f"weave-dogfood-20260722T120000Z-{candidate[:12]}",
+    "createdAt": "2026-07-22T12:00:00Z",
+    "candidateCommit": candidate,
+    "profile": "dogfood",
+    "composeProject": "weave-dogfood",
+    "databaseFingerprint": "sha256:" + "b" * 64,
+    "quiescedServices": ["backend", "keycloak"],
+    "runtimeInventory": [{"service": "backend", "authority": "compose"}],
+    "artifacts": artifacts,
+    "supportSafe": False,
+    "containsSecretsOrMemberData": True,
+}
+(backup / "BackupManifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+PY
 
-output="$(WEAVE_RESTORE_SMOKE_ARTIFACTS_ONLY=true bash "${SCRIPT}" "${backup_dir}")"
-[[ "${output}" == *"Backup artifact presence check passed"* ]] || {
-  echo "restore-smoke did not report artifact presence success" >&2
+output="$(WEAVE_RESTORE_SMOKE_ARTIFACTS_ONLY=true WEAVE_RESTORE_SMOKE_RELEASE_ELIGIBLE=true bash "${SCRIPT}" "${backup_dir}")"
+[[ "${output}" == *"Backup artifact integrity check passed"* ]] || {
+  echo "restore-smoke did not report artifact integrity success" >&2
   echo "${output}" >&2
   exit 1
 }
@@ -41,8 +67,9 @@ python3 - "${backup_dir}/RestoreReceipt.json" <<'PY'
 import json
 import sys
 receipt = json.load(open(sys.argv[1], encoding='utf-8'))
-assert receipt['artifactKind'] == 'weave-restore-receipt-v1'
+assert receipt['schemaVersion'] == 'weave.compose-restore-receipt.v2'
 assert receipt['validationMode'] == 'artifacts_only'
+assert receipt['backupBinding']['candidateCommit'] == 'a' * 40
 assert receipt['destroyStep']['performed'] is False
 assert receipt['provesRestoredDomainData'] is False
 assert receipt['releaseEligible'] is False
@@ -63,7 +90,7 @@ if WEAVE_RESTORE_SMOKE_ARTIFACTS_ONLY=true bash "${SCRIPT}" "${backup_dir}" >/tm
   echo "restore-smoke accepted a backup directory with a missing postgres.sql" >&2
   exit 1
 fi
-grep -Fq "Backup artifact is missing or empty" /tmp/restore-smoke-missing.out || {
+grep -Fq "required private backup artifact is missing or unsafe" /tmp/restore-smoke-missing.out || {
   echo "restore-smoke missing-artifact failure was not actionable" >&2
   cat /tmp/restore-smoke-missing.out >&2
   exit 1

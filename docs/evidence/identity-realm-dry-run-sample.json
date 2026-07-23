@@ -11,7 +11,7 @@
     {"path":"/clients/weave-app/redirectOrigins/https://weave.test/*","action":"create","classification":"risky","reasonCode":"redirect-origin-needs-admin-review","beforeValue":"absent","afterValue":"https://weave.test/*","memberImpact":"member sign-in remains backend-owned; admin must review redirect surface","applyBlocked":false}
   ],
   "readinessChecks": [
-    {"key":"apply-safety","state":"degraded","reasonCode":"risky-change-review-required","remediation":"This slice never mutates Keycloak or Terraform/OpenTofu state."}
+    {"key":"apply-safety","state":"degraded","reasonCode":"risky-change-review-required","remediation":"This product-server slice never mutates Keycloak or Compose state; use the protected desired-state reconciler."}
   ],
   "blockers": [],
   "warnings": ["redirect origin requires admin review: https://weave.test/*"],

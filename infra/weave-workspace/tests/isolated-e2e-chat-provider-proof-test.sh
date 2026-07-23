@@ -186,7 +186,7 @@ elif [[ "${url}" == */realms/weave/protocol/openid-connect/token ]]; then
       {
         sub:$sub,iss:$issuer,preferred_username:$username,weave_tenant_id:$tenant,
         aud:["https://api.weave.test/api"],scope:"openid profile email weave:workspace",
-        groups:["workspace-members"],iat:$iat,exp:$exp
+        groups:["/weave/members"],iat:$iat,exp:$exp
       }
     ')"
   token="$(printf '{"alg":"none","typ":"JWT"}' | base64url).$(printf '%s' "${payload}" | base64url).fixture${count}"
@@ -542,13 +542,13 @@ chmod +x "${MOCK_BIN}/docker"
 
 stack_bootstrap="${TMP_DIR}/stack-bootstrap.env"
 cat >"${stack_bootstrap}" <<'ENV'
-export TF_VAR_tenant_slug=weave
-export TF_VAR_keycloak_host_port=48080
-export TF_VAR_backend_host_port=48081
-export TF_VAR_keycloak_admin_username=admin
-export TF_VAR_keycloak_admin_password=fixture-admin-password
-export TF_VAR_matrix_chat_appservice_as_token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-export TF_VAR_matrix_chat_appservice_hs_token=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+export WEAVE_TENANT_SLUG=weave
+export WEAVE_KEYCLOAK_HOST_PORT=48080
+export WEAVE_BACKEND_HOST_PORT=48081
+export WEAVE_KEYCLOAK_ADMIN_USERNAME=admin
+export WEAVE_KEYCLOAK_ADMIN_PASSWORD=fixture-admin-password
+export WEAVE_MATRIX_CHAT_APPSERVICE_AS_TOKEN=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+export WEAVE_MATRIX_CHAT_APPSERVICE_HS_TOKEN=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 ENV
 
 export MOCK_STATE
@@ -565,13 +565,13 @@ export MOCK_RUN_ID="${RUN_ID}"
 export MOCK_PROOF_TOKEN
 # Populated by the prepared startup environment sourced above.
 # shellcheck disable=SC2154
-MOCK_PROOF_TOKEN="$(<"${TF_VAR_chat_e2e_proof_token_host_path}")"
+MOCK_PROOF_TOKEN="$(<"${WEAVE_CHAT_E2E_PROOF_TOKEN_HOST_PATH}")"
 # Populated by the prepared startup environment sourced above.
 # shellcheck disable=SC2154
-export MOCK_TENANT="${TF_VAR_context_authorization_default_tenant_id}"
+export MOCK_TENANT="${WEAVE_CONTEXT_AUTHORIZATION_DEFAULT_TENANT_ID}"
 export MOCK_OUTSIDE_CONTEXT
 # shellcheck disable=SC2154
-MOCK_OUTSIDE_CONTEXT="$(jq -r '.[2].context_id' <<<"${TF_VAR_isolated_e2e_context_memberships}")"
+MOCK_OUTSIDE_CONTEXT="$(jq -r '.[2].context_id' <<<"${WEAVE_ISOLATED_E2E_CONTEXT_MEMBERSHIPS}")"
 
 common_args=(
   --run-id "${RUN_ID}"
@@ -739,7 +739,7 @@ done
 assert_contains "${PROOF_SCRIPT}" 'WEAVE_E2E_STACK_SCOPE'
 assert_contains "${PROOF_SCRIPT}" '/api/internal/e2e/chat/provider-proof'
 ! grep -Fq '/api/internal/chat/matrix/appservice/evidence' "${PROOF_SCRIPT}" || fail "obsolete hs-token evidence endpoint must be absent"
-assert_contains "${PROOF_SCRIPT}" 'TF_VAR_chat_e2e_proof_token_host_path'
+assert_contains "${PROOF_SCRIPT}" 'WEAVE_CHAT_E2E_PROOF_TOKEN_HOST_PATH'
 ! grep -Fq 'preproject_outsider_fixture' "${PROOF_SCRIPT}" ||
   fail "provider proof must not create an outsider mapping fixture"
 # shellcheck disable=SC2016

@@ -3,10 +3,11 @@ package com.massimotter.weave.backend.agentruntime.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.massimotter.weave.backend.agentruntime.adapter.JdbcRuntimeCellRepository;
-import com.massimotter.weave.backend.agentruntime.adapter.JdbcRuntimeCommandRepository;
-import com.massimotter.weave.backend.agentruntime.adapter.JdbcRuntimeGovernanceRepository;
-import com.massimotter.weave.backend.agentruntime.adapter.JdbcRuntimeProfileRepository;
+import com.massimotter.weave.backend.agentruntime.adapter.JpaRuntimeCellRepository;
+import com.massimotter.weave.backend.agentruntime.adapter.JpaRuntimeCommandRepository;
+import com.massimotter.weave.backend.agentruntime.adapter.JpaRuntimeGovernanceRepository;
+import com.massimotter.weave.backend.agentruntime.adapter.JpaRuntimeProfileRepository;
+import com.massimotter.weave.backend.agentruntime.adapter.AgentRuntimeJpaTestFactory;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCell;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCellState;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
@@ -24,6 +25,7 @@ import java.time.ZoneOffset;
 import java.time.ZoneId;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ClassPathResource;
@@ -37,10 +39,10 @@ class AgentRuntimeControlServiceTest {
     private static final Instant NOW = Instant.parse("2026-07-20T09:00:00Z");
     private static final String ISSUER = "https://auth.weave.test/realms/weave";
 
-    private JdbcRuntimeCellRepository cells;
+    private JpaRuntimeCellRepository cells;
     private CountingWorkloadAdmin workloadAdmin;
     private FixedEntitlementAuthority entitlementAuthority;
-    private JdbcRuntimeGovernanceRepository governance;
+    private JpaRuntimeGovernanceRepository governance;
     private MutableClock clock;
     private AgentRuntimeControlService service;
 
@@ -48,19 +50,18 @@ class AgentRuntimeControlServiceTest {
     void setUp() {
         EmbeddedDatabase database = new EmbeddedDatabaseBuilder()
                 .setType(EmbeddedDatabaseType.H2)
-                .setName("arc-service-" + UUID.randomUUID())
+                .setName("arc-service-" + UUID.randomUUID() + ";MODE=PostgreSQL")
                 .build();
-        new ResourceDatabasePopulator(new ClassPathResource(
-                "db/migration/V011__agent_runtime_control_foundation.sql"), new ClassPathResource(
-                "db/migration/V012__agent_runtime_governance_facts.sql")).execute(database);
-        JdbcTemplate jdbc = new JdbcTemplate(database);
-        cells = new JdbcRuntimeCellRepository(jdbc);
+        Flyway.configure().dataSource(database)
+                .locations("classpath:db/migration").load().migrate();
+        var persistence = AgentRuntimeJpaTestFactory.create(database);
+        cells = persistence.cells();
         workloadAdmin = new CountingWorkloadAdmin();
         entitlementAuthority = new FixedEntitlementAuthority();
-        governance = new JdbcRuntimeGovernanceRepository(jdbc);
+        governance = persistence.governance();
         clock = new MutableClock(NOW);
         service = new AgentRuntimeControlService(
-                cells, new JdbcRuntimeCommandRepository(jdbc), new JdbcRuntimeProfileRepository(jdbc), workloadAdmin,
+                cells, persistence.commands(), persistence.profiles(), workloadAdmin,
                 entitlementAuthority, governance, clock);
     }
 

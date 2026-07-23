@@ -17,11 +17,11 @@ on:
         required: true
         type: string
       weave_backend_image:
-        description: "Backend image; ghcr.io/* is pulled, other refs are built locally from the checked-out commit"
+        description: "Backend image source; published ghcr.io inputs must be exact @sha256 refs, while local refs are rebuilt from the checked-out commit"
         required: false
         default: "weave-backend:pending-identity-recovery"
       weave_mcp_server_image:
-        description: "MCP server image; ghcr.io/* is pulled, other refs are built locally from the checked-out commit"
+        description: "MCP image source; published ghcr.io inputs must be exact @sha256 refs, while local refs are rebuilt from the checked-out commit"
         required: false
         default: "weave-mcp-server:pending-identity-recovery"
 
@@ -47,31 +47,30 @@ jobs:
       EXPECTED_RUNNER_NAME: weave-live-mac-mini
       DISPATCH_REF: ${{ github.ref_name }}
       CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+      WEAVE_CANDIDATE_COMMIT: ${{ inputs.candidate_sha }}
       RETIREMENT_CONFIRMATION: ${{ inputs.retirement_confirmation }}
       BOOTSTRAP_RETIREMENT_CONFIRMATION: ${{ inputs.bootstrap_retirement_confirmation }}
       WEAVE_BACKEND_IMAGE: ${{ inputs.weave_backend_image }}
-      WEAVE_MCP_SERVER_IMAGE: ${{ inputs.weave_mcp_server_image }}
-      TF_VAR_create_test_user: 'false'
-      TF_VAR_isolated_e2e_enabled: 'false'
-      TF_VAR_boards_runtime_enabled: 'true'
-      TF_VAR_boards_provider: local-workspace
-      TF_VAR_provider_stack_profile: local-live
-      TF_VAR_provider_stack_readiness: ready
-      TF_VAR_tenant_domain: weave.test
-      TF_VAR_proxy_http_host_port: '44080'
-      TF_VAR_proxy_host_port: '44443'
-      TF_VAR_keycloak_host_port: '48080'
-      TF_VAR_mas_host_port: '48082'
-      TF_VAR_synapse_host_port: '48008'
-      TF_VAR_nextcloud_host_port: '48083'
-      TF_VAR_backend_host_port: '48084'
+      WEAVE_MCP_IMAGE: ${{ inputs.weave_mcp_server_image }}
+      WEAVE_ENVIRONMENT: dogfood
+      WEAVE_E2E_STACK_SCOPE: persistent
+      WEAVE_TENANT_DOMAIN: weave.test
+      WEAVE_PROXY_HTTP_HOST_PORT: '44080'
+      WEAVE_PROXY_HTTPS_HOST_PORT: '44443'
+      WEAVE_KEYCLOAK_HOST_PORT: '48080'
+      WEAVE_MAS_HOST_PORT: '48082'
+      WEAVE_SYNAPSE_HOST_PORT: '48008'
+      WEAVE_NEXTCLOUD_HOST_PORT: '48083'
+      WEAVE_BACKEND_HOST_PORT: '48084'
       WEAVE_RUNNER_HYGIENE: 'false'
       WEAVE_REMOVE_VOLUMES: 'false'
-      WEAVE_DOGFOOD_DEPLOYMENT_SCOPE: persistent-dogfood
       WEAVE_DOGFOOD_MEMBER_USERNAME: ${{ vars.WEAVE_DOGFOOD_MEMBER_USERNAME }}
       WEAVE_DOGFOOD_MEMBER_EMAIL: ${{ secrets.WEAVE_DOGFOOD_MEMBER_EMAIL }}
       WEAVE_DOGFOOD_MEMBER_DISPLAY_NAME: ${{ vars.WEAVE_DOGFOOD_MEMBER_DISPLAY_NAME }}
       WEAVE_DOGFOOD_MEMBER_GROUPS: ${{ vars.WEAVE_DOGFOOD_MEMBER_GROUPS }}
+      WEAVE_KEYCLOAK_SUPERVISOR: ${{ vars.WEAVE_KEYCLOAK_SUPERVISOR }}
+      WEAVE_KEYCLOAK_REVIEWED_ENV_FILE: ${{ vars.WEAVE_KEYCLOAK_REVIEWED_ENV_FILE }}
+      WEAVE_ENV_FILE: ${{ vars.WEAVE_KEYCLOAK_REVIEWED_ENV_FILE }}
     defaults:
       run:
         shell: bash
@@ -100,12 +99,35 @@ jobs:
             echo "::error::The exact restored-bootstrap retirement confirmation was not supplied." >&2
             exit 1
           }
+          [[ "${WEAVE_KEYCLOAK_SUPERVISOR:-}" == /* && \
+             "${WEAVE_KEYCLOAK_REVIEWED_ENV_FILE:-}" == /* && \
+             "${WEAVE_ENV_FILE:-}" == "${WEAVE_KEYCLOAK_REVIEWED_ENV_FILE}" ]] || {
+            echo "::error::Protected recovery requires externally installed Keycloak supervisor and reviewed environment paths." >&2
+            exit 1
+          }
 
       - name: Check out exact candidate
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           ref: ${{ env.CANDIDATE_SHA }}
           fetch-depth: 0
+
+      - name: Resolve pinned specification corpus
+        id: spec-corpus
+        run: |
+          set -euo pipefail
+          echo "commit=$(jq -er '.specCorpus.gitCommit | select(type == \"string\" and test(\"^[0-9a-f]{40}$\"))' specs/weave-specs.lock.json)" \
+            >>"$GITHUB_OUTPUT"
+          echo "WEAVE_SPEC_CORPUS_ROOT=$GITHUB_WORKSPACE/canonical-weave-specs" >>"$GITHUB_ENV"
+
+      - name: Check out pinned Weave Specification Corpus
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          repository: ${{ github.repository_owner }}/weave-specs
+          ref: ${{ steps.spec-corpus.outputs.commit }}
+          path: canonical-weave-specs
+          ssh-key: ${{ secrets.WEAVE_SPECS_DEPLOY_KEY }}
+          persist-credentials: false
 
       - name: Verify successful exact-candidate isolated E2E and dogfood containment
         env:
@@ -116,10 +138,11 @@ jobs:
             echo "::error::The checked-out commit does not match the requested recovery candidate." >&2
             exit 1
           }
-          spec_corpus_commit="$(jq -er '
-            .specCorpus.gitCommit |
-            select(type == "string" and test("^[0-9a-f]{40}$"))
-          ' specs/weave-specs.lock.json)"
+          spec_corpus_commit="${{ steps.spec-corpus.outputs.commit }}"
+          [[ "$(git -C canonical-weave-specs rev-parse HEAD)" == "$spec_corpus_commit" ]] || {
+            echo "::error::The checked-out specification corpus does not match the implementation lock." >&2
+            exit 1
+          }
           runs="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/live-stack-e2e.yml/runs?head_sha=${CANDIDATE_SHA}&status=completed&per_page=30")"
           isolated_e2e_run_id="$(jq -r '[.workflow_runs[] | select(.conclusion == "success")][0].id // empty' <<<"$runs")"
           [[ -n "$isolated_e2e_run_id" ]] || {
@@ -144,20 +167,13 @@ jobs:
           echo "WEAVE_RECOVERY_EVIDENCE_DIR=$evidence_dir" >>"$GITHUB_ENV"
 
       - name: Set up Java
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
         with:
           distribution: temurin
           java-version: '21'
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Set up OpenTofu
-        uses: opentofu/setup-opentofu@v1
-        with:
-          tofu_version: 1.10.6
-          tofu_wrapper: false
-
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
       - name: Ensure persistent dogfood hostnames resolve
         run: |
           set -euo pipefail
@@ -190,21 +206,31 @@ jobs:
       - name: Prepare candidate images
         run: |
           set -euo pipefail
-          if [[ "$WEAVE_BACKEND_IMAGE" == ghcr.io/* ]]; then
-            docker pull "$WEAVE_BACKEND_IMAGE"
+          backend_source="$WEAVE_BACKEND_IMAGE"
+          mcp_source="$WEAVE_MCP_IMAGE"
+          if [[ "$backend_source" == ghcr.io/* ]]; then
+            [[ "$backend_source" =~ @sha256:[0-9a-f]{64}$ ]] || {
+              echo "::error::Published backend input must be an exact digest reference." >&2
+              exit 1
+            }
+            docker pull "$backend_source"
           else
             docker buildx build --load \
               --label "org.opencontainers.image.revision=$CANDIDATE_SHA" \
-              -t "$WEAVE_BACKEND_IMAGE" -f server/Dockerfile .
+              -t "$backend_source" -f server/Dockerfile .
           fi
-          if [[ "$WEAVE_MCP_SERVER_IMAGE" == ghcr.io/* ]]; then
-            docker pull "$WEAVE_MCP_SERVER_IMAGE"
+          if [[ "$mcp_source" == ghcr.io/* ]]; then
+            [[ "$mcp_source" =~ @sha256:[0-9a-f]{64}$ ]] || {
+              echo "::error::Published MCP input must be an exact digest reference." >&2
+              exit 1
+            }
+            docker pull "$mcp_source"
           else
             docker buildx build --load \
               --label "org.opencontainers.image.revision=$CANDIDATE_SHA" \
-              -t "$WEAVE_MCP_SERVER_IMAGE" -f weave-mcp-server/Dockerfile .
+              -t "$mcp_source" -f weave-mcp-server/Dockerfile .
           fi
-          for image_ref in "$WEAVE_BACKEND_IMAGE" "$WEAVE_MCP_SERVER_IMAGE"; do
+          for image_ref in "$backend_source" "$mcp_source"; do
             revision="$(docker image inspect \
               --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' \
               "$image_ref")"
@@ -213,6 +239,46 @@ jobs:
               exit 1
             }
           done
+          keycloak_source="weave-keycloak:pending-recovery-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          docker buildx build --load \
+            --label "org.opencontainers.image.revision=$CANDIDATE_SHA" \
+            -t "$keycloak_source" \
+            -f infra/keycloak-event-listener/Dockerfile \
+            infra/keycloak-event-listener
+          keycloak_revision="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$keycloak_source")"
+          keycloak_version="$(docker image inspect --format '{{ index .Config.Labels "com.massimotter.weave.keycloak.version" }}' "$keycloak_source")"
+          backend_id="$(docker image inspect --format '{{.Id}}' "$backend_source")"
+          mcp_id="$(docker image inspect --format '{{.Id}}' "$mcp_source")"
+          keycloak_id="$(docker image inspect --format '{{.Id}}' "$keycloak_source")"
+          [[ "$keycloak_revision" == "$CANDIDATE_SHA" && "$keycloak_version" == 26.7.0 ]] || {
+            echo "::error::Keycloak image is not bound to the exact recovery candidate and pinned runtime version." >&2
+            exit 1
+          }
+          for image_id in "$backend_id" "$mcp_id" "$keycloak_id"; do
+            [[ "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]] || {
+              echo "::error::Candidate image did not resolve to an immutable local image ID." >&2
+              exit 1
+            }
+          done
+          {
+            echo "WEAVE_BACKEND_IMAGE=$backend_id"
+            echo "WEAVE_MCP_IMAGE=$mcp_id"
+            echo "WEAVE_KEYCLOAK_IMAGE=$keycloak_id"
+          } >>"$GITHUB_ENV"
+
+      - name: Build the exact-candidate Keycloak sanitizer image
+        run: |
+          set -euo pipefail
+          evidence="$WEAVE_RECOVERY_EVIDENCE_DIR/keycloak-sanitizer-image.json"
+          image_id="$(python3 infra/weave-workspace/scripts/build_sanitizer_image.py \
+            --root infra/weave-workspace \
+            --candidate-commit "$WEAVE_CANDIDATE_COMMIT" \
+            --output "$evidence")"
+          [[ "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]] || {
+            echo "::error::Sanitizer build did not return an immutable image ID." >&2
+            exit 1
+          }
+          echo "WEAVE_KEYCLOAK_SANITIZER_IMAGE=$image_id" >>"$GITHUB_ENV"
 
       - name: Verify private pending-identity evidence before mutation
         run: |
@@ -244,91 +310,41 @@ jobs:
             '{schemaVersion:"weave.dogfood.pending-recovery-precondition.v1",state:"pending",subjectSha256:$subjectSha256,privateEvidencePresent:true,supportSafe:true}' \
             >"$WEAVE_RECOVERY_EVIDENCE_DIR/precondition.json"
 
-      - name: Restore persistent OpenTofu and generated workspace
+      - name: Bind the persistent Compose recovery workspace
         working-directory: infra/weave-workspace
         run: |
           set -euo pipefail
-          dogfood_root="$HOME/.weave/dogfood"
-          state_root="$dogfood_root/opentofu-state"
-          generated_root="$dogfood_root/generated"
-          credential_state="${XDG_STATE_HOME:-$HOME/.local/state}/weave/dogfood/bootstrap.env"
-          cert_root="$generated_root/01-infrastructure/caddy/certs"
-          [[ -s "$credential_state" ]] || {
-            echo "::error::Private persistent bootstrap credential state is unavailable." >&2
+          coordinates="$(PYTHONPATH=./scripts python3 - <<'PY'
+          import os
+          import stat
+          from pathlib import Path
+          from compose_env import load_context
+
+          reviewed = Path(os.environ["WEAVE_KEYCLOAK_REVIEWED_ENV_FILE"])
+          metadata = reviewed.stat()
+          if (not reviewed.is_absolute() or reviewed.is_symlink() or not reviewed.is_file()
+                  or metadata.st_uid != 0 or stat.S_IMODE(metadata.st_mode) not in {0o444, 0o644}):
+              raise SystemExit("reviewed dogfood environment must be root-owned mode 0444 or 0644")
+          context = load_context("dogfood", Path("."), str(reviewed))
+          print(context.generated_root)
+          print(context.secret_root)
+          print(context.tls_root)
+          PY
+          )"
+          generated_root="$(sed -n '1p' <<<"$coordinates")"
+          secret_root="$(sed -n '2p' <<<"$coordinates")"
+          tls_root="$(sed -n '3p' <<<"$coordinates")"
+          [[ "$generated_root" == /* && "$secret_root" == /* && "$tls_root" == /* ]] || {
+            echo "::error::Persistent recovery state roots must be absolute." >&2
             exit 1
           }
-          mkdir -p "$state_root" "$generated_root"
-          chmod 700 "$HOME/.weave" "$dogfood_root" "$state_root" "$generated_root"
-          for stage in 01-infrastructure 02-keycloak-setup; do
-            if [[ -s "$state_root/${stage}.tfstate" ]]; then
-              cp "$state_root/${stage}.tfstate" "$stage/terraform.tfstate"
-              chmod 600 "$stage/terraform.tfstate"
-            fi
-            mkdir -p "$generated_root/$stage"
-            rm -rf "$stage/.generated"
-            ln -s "$generated_root/$stage" "$stage/.generated"
-          done
-          rm -rf .generated
-          ln -s "$generated_root" .generated
-          bootstrap_staging="$generated_root/bootstrap.env.tmp"
-          cp "$credential_state" "$bootstrap_staging"
-          chmod 600 "$bootstrap_staging"
-          mv "$bootstrap_staging" "$generated_root/bootstrap.env"
-
-          arc_target="$generated_root/01-infrastructure/agent-runtime"
-          arc_complete=false
-          if [[ -s "$arc_target/profile-signing/runtime-profile-signing-keys.json" &&
-                -s "$arc_target/state-wrapping/runtime-state-wrapping-keys.json" &&
-                -s "$arc_target/runtime-policy.json" &&
-                -s "$arc_target/credentials/weave/agent-runtime/admin/keycloak" ]]; then
-            arc_complete=true
-          fi
-          if [[ "$arc_complete" != true ]]; then
-            [[ ! -e "$arc_target" ]] || {
-              echo "::error::Persistent ARC trust state is partial; refusing to overwrite it." >&2
-              exit 1
-            }
-            backend_mounts="$(docker inspect weave-backend --format '{{json .Mounts}}')"
-            mount_source() {
-              jq -er --arg destination "$1" '
-                [.[] | select(.Type == "bind" and .Destination == $destination) | .Source]
-                | select(length == 1) | .[0]
-              ' <<<"$backend_mounts"
-            }
-            credentials_source="$(mount_source /run/weave-agent-runtime/credentials)"
-            profile_signing_source="$(mount_source /run/weave-agent-runtime/profile-signing)"
-            state_wrapping_source="$(mount_source /run/weave-agent-runtime/state-wrapping)"
-            arc_source="$(dirname "$profile_signing_source")"
-            [[ "$(dirname "$credentials_source")" == "$arc_source" &&
-                  "$(dirname "$state_wrapping_source")" == "$arc_source" &&
-                  -s "$arc_source/runtime-policy.json" ]] || {
-              echo "::error::Running backend ARC mounts do not form one complete trust authority." >&2
-              exit 1
-            }
-            arc_staging="$generated_root/01-infrastructure/agent-runtime.recovery-${GITHUB_RUN_ID}"
-            [[ ! -e "$arc_staging" ]] || {
-              echo "::error::ARC recovery staging path already exists." >&2
-              exit 1
-            }
-            mkdir -p "$arc_staging"
-            chmod 700 "$arc_staging"
-            cp -R "$credentials_source" "$arc_staging/credentials"
-            cp -R "$profile_signing_source" "$arc_staging/profile-signing"
-            cp -R "$state_wrapping_source" "$arc_staging/state-wrapping"
-            cp "$arc_source/runtime-policy.json" "$arc_staging/runtime-policy.json"
-            [[ -s "$arc_staging/profile-signing/runtime-profile-signing-keys.json" &&
-                  -s "$arc_staging/state-wrapping/runtime-state-wrapping-keys.json" &&
-                  -s "$arc_staging/runtime-policy.json" &&
-                  -s "$arc_staging/credentials/weave/agent-runtime/admin/keycloak" ]] || {
-              echo "::error::Live-mounted ARC recovery staging is incomplete." >&2
-              exit 1
-            }
-            mv "$arc_staging" "$arc_target"
-          fi
+          mkdir -p "$generated_root" "$secret_root" "$tls_root"
+          chmod 700 "$generated_root" "$secret_root" "$tls_root"
           {
-            echo "TF_VAR_caddy_tls_cert_file=$cert_root/weave.test.pem"
-            echo "TF_VAR_caddy_tls_key_file=$cert_root/weave.test-key.pem"
-            echo "TF_VAR_caddy_tls_ca_file=$cert_root/weave-local-ca.pem"
+            echo "WEAVE_ENV_FILE=$WEAVE_KEYCLOAK_REVIEWED_ENV_FILE"
+            echo "WEAVE_GENERATED_ROOT=$generated_root"
+            echo "WEAVE_SECRET_ROOT=$secret_root"
+            echo "WEAVE_TLS_ROOT=$tls_root"
           } >>"$GITHUB_ENV"
 
       - name: Create private pre-recovery backup and audit identity-restorability
@@ -340,11 +356,11 @@ jobs:
           mkdir -p "$backup_root"
           chmod 700 "$backup_root"
           touch "$marker"
-          bash ./backup.sh "$backup_root"
+          WEAVE_BACKUP_ROOT="$backup_root" bash ./backup.sh dogfood
           backup_candidates=()
           while IFS= read -r backup_candidate; do
             [[ -n "$backup_candidate" ]] && backup_candidates+=("$backup_candidate")
-          done < <(find "$backup_root" -mindepth 1 -maxdepth 1 -type d -name 'weave-backup-*' -newer "$marker" -print | sort)
+          done < <(find "$backup_root" -mindepth 1 -maxdepth 1 -type d -name 'weave-dogfood-*' -newer "$marker" -print | sort)
           [[ ${#backup_candidates[@]} -eq 1 ]] || {
             echo "::error::Pre-recovery audit did not create exactly one private backup artifact set." >&2
             exit 1
@@ -356,7 +372,7 @@ jobs:
           while IFS= read -r backup_candidate; do
             [[ -n "$backup_candidate" && -s "$backup_candidate/BackupManifest.json" ]] &&
               all_backups+=("$backup_candidate")
-          done < <(find "$backup_root" -mindepth 1 -maxdepth 1 -type d -name 'weave-backup-*' -print | sort)
+          done < <(find "$backup_root" -mindepth 1 -maxdepth 1 -type d -name 'weave-dogfood-*' -print | sort)
           [[ ${#all_backups[@]} -gt 0 ]] || {
             echo "::error::No private backup is available for identity-restorability audit." >&2
             exit 1
@@ -452,26 +468,17 @@ jobs:
             exit 1
           }
 
-      - name: Detach the restored disposable bootstrap identity from stale state
-        working-directory: infra/weave-workspace
+      - name: Prove the fixed desired state does not own human identities
         run: |
           set -euo pipefail
-          address='module.tenant_identity.keycloak_user.test[0]'
-          tracked_before=false
-          tofu -chdir=02-keycloak-setup init -input=false >/dev/null
-          if tofu -chdir=02-keycloak-setup state show "$address" >/dev/null 2>&1; then
-            tracked_before=true
-            tofu -chdir=02-keycloak-setup state rm "$address" >/dev/null
-          fi
-          if tofu -chdir=02-keycloak-setup state show "$address" >/dev/null 2>&1; then
-            echo "::error::The restored disposable bootstrap identity remains managed by OpenTofu." >&2
-            exit 1
-          fi
-          jq -n --argjson trackedBefore "$tracked_before" '{
-            schemaVersion:"weave.dogfood.bootstrap-state-detachment.v1",
-            addressKind:"restored-disposable-bootstrap-identity",
-            trackedBefore:$trackedBefore,
-            trackedAfter:false,
+          jq -e '
+            .apiVersion == "weave.keycloak-desired-state/v1" and
+            (has("users") | not)
+          ' canonical-weave-specs/contracts/examples/keycloak-desired-state.valid.json >/dev/null
+          jq -n '{
+            schemaVersion:"weave.dogfood.bootstrap-state-detachment.v2",
+            authority:"keycloak-desired-state",
+            humanIdentityManaged:false,
             providerMutationPerformed:false,
             retirementBoundary:"keycloak-admin-api-exact-subject",
             supportSafe:true
@@ -479,27 +486,19 @@ jobs:
 
       - name: Bootstrap lost persistent runtime with the exact candidate
         working-directory: infra/weave-workspace
-        env:
-          TF_VAR_weave_backend_image: ${{ env.WEAVE_BACKEND_IMAGE }}
-          TF_VAR_weave_mcp_server_image: ${{ env.WEAVE_MCP_SERVER_IMAGE }}
-        run: ./install.sh
-
-      - name: Persist recovered OpenTofu state
-        if: ${{ always() }}
-        working-directory: infra/weave-workspace
         run: |
           set -euo pipefail
-          state_root="$HOME/.weave/dogfood/opentofu-state"
-          mkdir -p "$state_root"
-          chmod 700 "$HOME/.weave" "$HOME/.weave/dogfood" "$state_root"
-          for stage in 01-infrastructure 02-keycloak-setup; do
-            if [[ -s "$stage/terraform.tfstate" ]]; then
-              temporary="$state_root/${stage}.tfstate.tmp"
-              cp "$stage/terraform.tfstate" "$temporary"
-              chmod 600 "$temporary"
-              mv "$temporary" "$state_root/${stage}.tfstate"
-            fi
-          done
+          ./compose.sh dogfood secrets-init
+          ./compose.sh dogfood render
+          ./compose.sh dogfood config >"$WEAVE_RECOVERY_EVIDENCE_DIR/compose-model.json"
+          ./compose.sh dogfood prepare
+          ./compose.sh dogfood keycloak-apply
+          ./compose.sh dogfood up
+          ./compose.sh dogfood keycloak-verify
+          cp "$WEAVE_GENERATED_ROOT/keycloak/report.json" \
+            "$WEAVE_RECOVERY_EVIDENCE_DIR/keycloak-reconciliation-report.json"
+          cp "$WEAVE_GENERATED_ROOT/keycloak/signed-receipt.json" \
+            "$WEAVE_RECOVERY_EVIDENCE_DIR/keycloak-reconciliation-signed-receipt.json"
 
       - name: Verify bootstrapped stack readiness
         working-directory: infra/weave-workspace
@@ -582,11 +581,11 @@ jobs:
           mkdir -p "$backup_root"
           chmod 700 "$backup_root"
           touch "$marker"
-          bash ./backup.sh "$backup_root"
+          WEAVE_BACKUP_ROOT="$backup_root" bash ./backup.sh dogfood
           new_backups=()
           while IFS= read -r backup_candidate; do
             [[ -n "$backup_candidate" ]] && new_backups+=("$backup_candidate")
-          done < <(find "$backup_root" -mindepth 1 -maxdepth 1 -type d -name 'weave-backup-*' -newer "$marker" -print | sort)
+          done < <(find "$backup_root" -mindepth 1 -maxdepth 1 -type d -name 'weave-dogfood-*' -newer "$marker" -print | sort)
           [[ ${#new_backups[@]} -eq 1 ]] || {
             echo "::error::Recovery did not create exactly one private backup artifact set." >&2
             exit 1
@@ -690,7 +689,7 @@ jobs:
 
       - name: Upload support-safe recovery evidence
         if: ${{ always() && env.WEAVE_RECOVERY_EVIDENCE_DIR != '' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: weave-pending-identity-recovery-evidence
           path: ${{ env.WEAVE_RECOVERY_EVIDENCE_DIR }}

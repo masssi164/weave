@@ -79,7 +79,7 @@ Feature: Enterprise dogfood readiness is proven across users and delivery gates
   Scenario: Persistent dogfood deployment is non-destructive and idempotent
     Given isolated collaboration evidence is green for the candidate
     When the candidate is deployed twice to persistent dogfood
-    Then OpenTofu and runtime assets are idempotent
+    Then the Compose model Keycloak reconciliation and runtime assets are idempotent
     And the persistent member subject mail database TLS identity and active session remain unchanged
     And cached provider health is support-safe and fresh
 
