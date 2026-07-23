@@ -52,6 +52,16 @@ Admin REST request/response bodies never reach disk, stdout, logs, evidence, or 
 Any failed cleanup, partial coverage, stale fence, redaction finding, residual authority, or
 residual sensitive state quarantines the lease and cannot produce success.
 
+Promotion evidence uses two distinct commit authorities. `WEAVE_CANDIDATE_COMMIT` is the exact
+checked-out lane commit (for example, the dogfood merge commit) and binds reconciliation, backup,
+deployment, and human evidence. `WEAVE_IMAGE_SOURCE_COMMIT` is the protected `dev` ancestor whose
+tree is byte-identical to that lane commit; it binds the backend, MCP, Keycloak, and sanitizer
+image revisions. Protected workflows derive the source from the fetched `origin/dev` ref and emit
+`candidate-source-mapping.json`; it is not a dispatch input or an operator-selected replacement.
+The successful isolated E2E run retains that exact immutable four-image set on the dedicated
+locked runner. Persistent dogfood downloads the source-run mapping and verifies each local image
+ID and revision before deployment; it never rebuilds or substitutes those images.
+
 Ordinary reconciliation creates and updates but never deletes managed or unmanaged resources.
 Deletion requires one separately approved, candidate/backup/fingerprint/time-bound tombstone.
 
@@ -85,9 +95,18 @@ the only intentionally ephemeral credential and is destroyed before a receipt ma
 ./gradlew keycloakDevImageBuild keycloakSanitizerImageBuild
 ./gradlew keycloakDevPlan keycloakDevApply keycloakDevVerify
 
+git fetch --no-tags --prune origin \
+  '+refs/heads/dev:refs/remotes/origin/dev'
+export WEAVE_CANDIDATE_COMMIT="$(git rev-parse HEAD)"
+python3 tools/candidate_source_mapping.py \
+  --repository . \
+  --lane-candidate "$WEAVE_CANDIDATE_COMMIT" \
+  --output build/evidence/candidate-source-mapping.json
+export WEAVE_IMAGE_SOURCE_COMMIT="$(
+  jq -er '.sourceCandidateCommit' build/evidence/candidate-source-mapping.json
+)"
 WEAVE_ENV_FILE=/absolute/path/to/reviewed-dogfood.env \
 WEAVE_KEYCLOAK_SUPERVISOR=/opt/weave/keycloak-supervisor/<generation>/supervisor.py \
-WEAVE_CANDIDATE_COMMIT=<exact-sha> \
 ./gradlew keycloakDogfoodPlan keycloakDogfoodApply keycloakDogfoodVerify
 ```
 

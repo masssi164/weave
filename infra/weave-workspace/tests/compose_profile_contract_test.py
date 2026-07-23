@@ -20,6 +20,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from prepare_dev_dependencies import select_source_env  # noqa: E402
 from compose_env import ContractError, load_context  # noqa: E402
+from compose_runtime import _assert_local_image_provenance  # noqa: E402
 
 
 PORT_KEYS = {
@@ -108,7 +109,123 @@ def compose_model(profile: str, profile_env: Path, shell_env: dict[str, str]) ->
     return json.loads(result.stdout)
 
 
+def local_image_provenance_contract() -> None:
+    source = "1" * 40
+    lane = "2" * 40
+    tree = "3" * 40
+    image_ids = {
+        "WEAVE_BACKEND_IMAGE": "sha256:" + "a" * 64,
+        "WEAVE_KEYCLOAK_IMAGE": "sha256:" + "b" * 64,
+        "WEAVE_KEYCLOAK_SANITIZER_IMAGE": "sha256:" + "c" * 64,
+        "WEAVE_MCP_IMAGE": "sha256:" + "d" * 64,
+    }
+    context = mock.Mock()
+    context.profile = "dogfood"
+    context.repository_root = REPOSITORY
+    context.env = image_ids
+
+    def completed(
+        arguments: list[str],
+        **_: object,
+    ) -> subprocess.CompletedProcess[str]:
+        if arguments[:3] == ["docker", "image", "inspect"]:
+            image_id = arguments[3]
+            labels = {"org.opencontainers.image.revision": source}
+            if image_id == image_ids["WEAVE_KEYCLOAK_IMAGE"]:
+                labels["com.massimotter.weave.keycloak.version"] = "26.7.0"
+            if image_id == image_ids["WEAVE_KEYCLOAK_SANITIZER_IMAGE"]:
+                labels["com.massimotter.weave.component"] = "keycloak-admin-sanitizer"
+            return subprocess.CompletedProcess(
+                arguments,
+                0,
+                json.dumps({"Id": image_id, "Config": {"Labels": labels}}),
+                "",
+            )
+        if arguments[-2:] == ["rev-parse", "HEAD"]:
+            return subprocess.CompletedProcess(arguments, 0, lane + "\n", "")
+        if "merge-base" in arguments:
+            return subprocess.CompletedProcess(arguments, 0, "", "")
+        if arguments[-2:] == ["rev-parse", f"{source}^{{tree}}"]:
+            return subprocess.CompletedProcess(arguments, 0, tree + "\n", "")
+        if arguments[-2:] == ["rev-parse", f"{lane}^{{tree}}"]:
+            return subprocess.CompletedProcess(arguments, 0, tree + "\n", "")
+        raise AssertionError(f"unexpected subprocess invocation: {arguments}")
+
+    process_env = {
+        "WEAVE_CANDIDATE_COMMIT": lane,
+        "WEAVE_IMAGE_SOURCE_COMMIT": source,
+    }
+    with mock.patch.dict(os.environ, process_env, clear=True), mock.patch(
+        "compose_runtime.subprocess.run",
+        side_effect=completed,
+    ):
+        _assert_local_image_provenance(context)
+
+    def wrong_label(
+        arguments: list[str],
+        **kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        result = completed(arguments, **kwargs)
+        if arguments[:3] == ["docker", "image", "inspect"]:
+            payload = json.loads(result.stdout)
+            payload["Config"]["Labels"]["org.opencontainers.image.revision"] = lane
+            return subprocess.CompletedProcess(arguments, 0, json.dumps(payload), "")
+        return result
+
+    with mock.patch.dict(os.environ, process_env, clear=True), mock.patch(
+        "compose_runtime.subprocess.run",
+        side_effect=wrong_label,
+    ):
+        try:
+            _assert_local_image_provenance(context)
+        except ContractError as error:
+            assert "protected source candidate" in str(error)
+        else:
+            raise AssertionError("Compose accepted an image labelled with the lane commit")
+
+    def drifted_tree(
+        arguments: list[str],
+        **kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        result = completed(arguments, **kwargs)
+        if arguments[-2:] == ["rev-parse", f"{lane}^{{tree}}"]:
+            return subprocess.CompletedProcess(arguments, 0, "4" * 40 + "\n", "")
+        return result
+
+    with mock.patch.dict(os.environ, process_env, clear=True), mock.patch(
+        "compose_runtime.subprocess.run",
+        side_effect=drifted_tree,
+    ):
+        try:
+            _assert_local_image_provenance(context)
+        except ContractError as error:
+            assert "tree-identical ancestor" in str(error)
+        else:
+            raise AssertionError("Compose accepted lane content not present in the image source")
+
+    def unrelated_source(
+        arguments: list[str],
+        **kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        result = completed(arguments, **kwargs)
+        if "merge-base" in arguments:
+            return subprocess.CompletedProcess(arguments, 1, "", "")
+        return result
+
+    with mock.patch.dict(os.environ, process_env, clear=True), mock.patch(
+        "compose_runtime.subprocess.run",
+        side_effect=unrelated_source,
+    ):
+        try:
+            _assert_local_image_provenance(context)
+        except ContractError as error:
+            assert "tree-identical ancestor" in str(error)
+        else:
+            raise AssertionError("Compose accepted an unrelated image source commit")
+
+
 def main() -> None:
+    local_image_provenance_contract()
     with tempfile.TemporaryDirectory(prefix="weave-compose-contract-") as temporary:
         temp = Path(temporary)
         generated = temp / "generated"

@@ -165,6 +165,17 @@ def _assert_secret_safe_model(context: ComposeContext, model: str) -> None:
         raise ContractError(f"normalized Compose model contains retired contract {finding}")
 
 
+def _git_output(context: ComposeContext, *arguments: str) -> str:
+    result = subprocess.run(
+        ["git", "-C", str(context.repository_root), *arguments],
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+    )
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+
 def _assert_local_image_provenance(context: ComposeContext) -> None:
     local = {
         name: context.env[name]
@@ -183,6 +194,41 @@ def _assert_local_image_provenance(context: ComposeContext) -> None:
     candidate = os.environ.get("WEAVE_CANDIDATE_COMMIT", "")
     if not re.fullmatch(r"[0-9a-f]{40}", candidate):
         raise ContractError("local candidate images require exact WEAVE_CANDIDATE_COMMIT provenance")
+    source_candidate = os.environ.get("WEAVE_IMAGE_SOURCE_COMMIT", "")
+    if not source_candidate and context.profile == "dev":
+        source_candidate = candidate
+    if not re.fullmatch(r"[0-9a-f]{40}", source_candidate):
+        raise ContractError(
+            "local dogfood images require exact WEAVE_IMAGE_SOURCE_COMMIT provenance"
+        )
+    if context.profile == "dogfood":
+        observed_head = _git_output(context, "rev-parse", "HEAD")
+        if observed_head != candidate:
+            raise ContractError("checked-out HEAD does not equal WEAVE_CANDIDATE_COMMIT")
+        ancestry = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(context.repository_root),
+                "merge-base",
+                "--is-ancestor",
+                source_candidate,
+                candidate,
+            ],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        source_tree = _git_output(context, "rev-parse", f"{source_candidate}^{{tree}}")
+        candidate_tree = _git_output(context, "rev-parse", f"{candidate}^{{tree}}")
+        if (
+            ancestry.returncode != 0
+            or not re.fullmatch(r"[0-9a-f]{40}", source_tree)
+            or source_tree != candidate_tree
+        ):
+            raise ContractError(
+                "WEAVE_IMAGE_SOURCE_COMMIT is not a tree-identical ancestor of the lane candidate"
+            )
     for name, image_ref in sorted(local.items()):
         result = subprocess.run(
             ["docker", "image", "inspect", image_ref, "--format", "{{json .}}"],
@@ -196,8 +242,10 @@ def _assert_local_image_provenance(context: ComposeContext) -> None:
         if inspected.get("Id") != image_ref:
             raise ContractError(f"local image ID changed during provenance validation: {name}")
         labels = (inspected.get("Config") or {}).get("Labels") or {}
-        if labels.get("org.opencontainers.image.revision") != candidate:
-            raise ContractError(f"local image is not bound to the exact candidate: {name}")
+        if labels.get("org.opencontainers.image.revision") != source_candidate:
+            raise ContractError(
+                f"local image is not bound to the exact protected source candidate: {name}"
+            )
         if name == "WEAVE_KEYCLOAK_IMAGE" and labels.get(
             "com.massimotter.weave.keycloak.version"
         ) != "26.7.0":

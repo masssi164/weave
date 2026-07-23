@@ -160,6 +160,7 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           path: weave
+          fetch-depth: 0
 
       - name: Resolve pinned specification corpus
         id: spec-corpus
@@ -187,6 +188,18 @@ jobs:
           : > "$test_log"
           echo "WEAVE_ACCEPTANCE_EVIDENCE_DIR=$evidence_dir" >> "$GITHUB_ENV"
           echo "WEAVE_ACCEPTANCE_TEST_LOG=$test_log" >> "$GITHUB_ENV"
+
+      - name: Resolve the protected dev image source
+        working-directory: weave
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --prune origin \
+            '+refs/heads/dev:refs/remotes/origin/dev'
+          python3 tools/candidate_source_mapping.py \
+            --repository . \
+            --lane-candidate "$WEAVE_CANDIDATE_COMMIT" \
+            --github-env "$GITHUB_ENV" \
+            --output "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/candidate-source-mapping.json"
 
       - name: Prepare three disposable identity profiles
         working-directory: weave/infra/weave-workspace
@@ -313,13 +326,13 @@ jobs:
           else
             echo "Building backend runtime image from CI-built server JAR artifact."
             docker buildx build --load \
-              --label "org.opencontainers.image.revision=$WEAVE_CANDIDATE_COMMIT" \
+              --label "org.opencontainers.image.revision=$WEAVE_IMAGE_SOURCE_COMMIT" \
               -t "$source_ref" -f weave/server/Dockerfile weave
           fi
           revision="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$source_ref")"
           image_id="$(docker image inspect --format '{{.Id}}' "$source_ref")"
-          [[ "$revision" == "$WEAVE_CANDIDATE_COMMIT" && "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]] || {
-            echo "::error::Backend image is not bound to the exact candidate." >&2
+          [[ "$revision" == "$WEAVE_IMAGE_SOURCE_COMMIT" && "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]] || {
+            echo "::error::Backend image is not bound to the protected dev source candidate." >&2
             exit 1
           }
           echo "WEAVE_BACKEND_IMAGE=$image_id" >>"$GITHUB_ENV"
@@ -338,13 +351,13 @@ jobs:
           else
             echo "Building MCP server runtime image from CI-built weave-mcp-server JAR artifact."
             docker buildx build --load \
-              --label "org.opencontainers.image.revision=$WEAVE_CANDIDATE_COMMIT" \
+              --label "org.opencontainers.image.revision=$WEAVE_IMAGE_SOURCE_COMMIT" \
               -t "$source_ref" -f weave/weave-mcp-server/Dockerfile weave
           fi
           revision="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$source_ref")"
           image_id="$(docker image inspect --format '{{.Id}}' "$source_ref")"
-          [[ "$revision" == "$WEAVE_CANDIDATE_COMMIT" && "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]] || {
-            echo "::error::MCP image is not bound to the exact candidate." >&2
+          [[ "$revision" == "$WEAVE_IMAGE_SOURCE_COMMIT" && "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]] || {
+            echo "::error::MCP image is not bound to the protected dev source candidate." >&2
             exit 1
           }
           echo "WEAVE_MCP_IMAGE=$image_id" >>"$GITHUB_ENV"
@@ -354,15 +367,15 @@ jobs:
           set -euo pipefail
           source_ref="weave-keycloak:live-stack-${WEAVE_E2E_RUN_ID}"
           docker buildx build --load \
-            --label "org.opencontainers.image.revision=$WEAVE_CANDIDATE_COMMIT" \
+            --label "org.opencontainers.image.revision=$WEAVE_IMAGE_SOURCE_COMMIT" \
             -t "$source_ref" \
             -f weave/infra/keycloak-event-listener/Dockerfile \
             weave/infra/keycloak-event-listener
           revision="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$source_ref")"
           version="$(docker image inspect --format '{{ index .Config.Labels "com.massimotter.weave.keycloak.version" }}' "$source_ref")"
           image_id="$(docker image inspect --format '{{.Id}}' "$source_ref")"
-          [[ "$revision" == "$WEAVE_CANDIDATE_COMMIT" && "$version" == 26.7.0 && "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]] || {
-            echo "::error::Keycloak image is not bound to the exact candidate and pinned runtime version." >&2
+          [[ "$revision" == "$WEAVE_IMAGE_SOURCE_COMMIT" && "$version" == 26.7.0 && "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]] || {
+            echo "::error::Keycloak image is not bound to the protected dev source and pinned runtime version." >&2
             exit 1
           }
           {
@@ -376,13 +389,26 @@ jobs:
           evidence="$WEAVE_ACCEPTANCE_EVIDENCE_DIR/keycloak-sanitizer-image.json"
           image_id="$(python3 weave/infra/weave-workspace/scripts/build_sanitizer_image.py \
             --root weave/infra/weave-workspace \
-            --candidate-commit "$WEAVE_CANDIDATE_COMMIT" \
+            --candidate-commit "$WEAVE_IMAGE_SOURCE_COMMIT" \
             --output "$evidence")"
           [[ "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]] || {
             echo "::error::Sanitizer build did not return an immutable image ID." >&2
             exit 1
           }
           echo "WEAVE_KEYCLOAK_SANITIZER_IMAGE=$image_id" >>"$GITHUB_ENV"
+
+      - name: Bind immutable images to source and lane evidence
+        working-directory: weave
+        run: |
+          set -euo pipefail
+          python3 tools/candidate_source_mapping.py \
+            --repository . \
+            --lane-candidate "$WEAVE_CANDIDATE_COMMIT" \
+            --image "backend=$WEAVE_BACKEND_IMAGE" \
+            --image "mcp=$WEAVE_MCP_IMAGE" \
+            --image "keycloak=$WEAVE_KEYCLOAK_IMAGE" \
+            --image "keycloak-sanitizer=$WEAVE_KEYCLOAK_SANITIZER_IMAGE" \
+            --output "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/candidate-source-mapping.json"
 
       - name: Release Buildx cache before stack tests
         run: bash weave/tools/cleanup_orphaned_buildx.sh
@@ -1028,6 +1054,8 @@ jobs:
 
       - name: Scrub current runner-owned Weave outputs
         if: always()
+        env:
+          WEAVE_LIVE_JOB_STATUS: ${{ job.status }}
         run: |
           set -euo pipefail
           simulator_cleanup_status=0
@@ -1068,13 +1096,20 @@ jobs:
             "${WEAVE_RUNNER_EMERGENCY_RESERVE_RELEASED:-$RUNNER_TEMP/weave-live-stack-emergency-reserve-released}"; do
             remove_runner_output "$path"
           done
-          for image_ref in "$WEAVE_BACKEND_IMAGE" "$WEAVE_MCP_IMAGE"; do
-            if [[ "$image_ref" != ghcr.io/* ]]; then
+          if [[ "$WEAVE_LIVE_JOB_STATUS" == success ]]; then
+            echo "Preserving the attested immutable image set for the locked downstream dogfood deployment."
+          else
+            for image_ref in \
+              "${WEAVE_BACKEND_IMAGE:-}" \
+              "${WEAVE_MCP_IMAGE:-}" \
+              "${WEAVE_KEYCLOAK_IMAGE:-}" \
+              "${WEAVE_KEYCLOAK_SANITIZER_IMAGE:-}"; do
+              [[ "$image_ref" =~ ^sha256:[0-9a-f]{64}$ ]] || continue
               docker image rm "$image_ref" >/dev/null 2>&1 || true
+            done
+            if [[ "${WEAVE_LIVE_KEYCLOAK_BUILD_TAG:-}" =~ ^weave-keycloak:live-stack-[a-z0-9-]{6,80}$ ]]; then
+              docker image rm "$WEAVE_LIVE_KEYCLOAK_BUILD_TAG" >/dev/null 2>&1 || true
             fi
-          done
-          if [[ "${WEAVE_LIVE_KEYCLOAK_BUILD_TAG:-}" =~ ^weave-keycloak:live-stack-[a-z0-9-]{6,80}$ ]]; then
-            docker image rm "$WEAVE_LIVE_KEYCLOAK_BUILD_TAG" >/dev/null 2>&1 || true
           fi
           df -h "$RUNNER_TEMP"
           if (( simulator_cleanup_status != 0 )); then
