@@ -25,6 +25,7 @@ VOLUME_ARTIFACTS = (
     ("WEAVE_KEYCLOAK_DATA_VOLUME", "keycloak-data.tgz", "keycloak-runtime-state"),
     ("WEAVE_MATRIX_APPSERVICE_VOLUME", "matrix-appservice.tgz", "matrix-appservice-runtime"),
 )
+BACKUP_HELPER_CAPABILITIES = ("DAC_READ_SEARCH",)
 QUIESCED_SERVICES = ("caddy", "mcp", "backend", "synapse", "mas", "nextcloud", "keycloak")
 SERVICE_SUFFIXES = {
     "caddy": "proxy",
@@ -159,8 +160,12 @@ def _archive_volume(context: ComposeContext, volume: str, target: Path) -> None:
             "run",
             "--rm",
             "--read-only",
+            "--user",
+            "0:0",
             "--cap-drop",
             "ALL",
+            "--cap-add",
+            BACKUP_HELPER_CAPABILITIES[0],
             "--security-opt",
             "no-new-privileges:true",
             "--mount",

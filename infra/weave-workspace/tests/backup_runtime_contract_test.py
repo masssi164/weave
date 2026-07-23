@@ -122,6 +122,50 @@ class BackupRuntimeContractTest(unittest.TestCase):
                 backup_runtime.backup(self.context)
         start.assert_called_once_with(self.context, running, inventory)
 
+    def test_volume_archiver_has_only_the_read_capability_required_for_private_provider_data(
+        self,
+    ) -> None:
+        target = self.backup_root / "nextcloud-data.tgz"
+        target.parent.mkdir(parents=True)
+        with mock.patch.object(
+            backup_runtime.subprocess,
+            "run",
+            side_effect=[
+                mock.Mock(returncode=0),
+                mock.Mock(returncode=0),
+            ],
+        ) as run:
+            backup_runtime._archive_volume(
+                self.context,
+                "weave-nextcloud-data",
+                target,
+            )
+
+        archive_command = run.call_args_list[1].args[0]
+        self.assertEqual(archive_command[0:3], ["docker", "run", "--rm"])
+        self.assertIn("--read-only", archive_command)
+        self.assertEqual(
+            archive_command[
+                archive_command.index("--user") : archive_command.index("--user") + 2
+            ],
+            ["--user", "0:0"],
+        )
+        self.assertEqual(
+            archive_command[
+                archive_command.index("--cap-drop") : archive_command.index("--cap-drop") + 2
+            ],
+            ["--cap-drop", "ALL"],
+        )
+        self.assertEqual(
+            archive_command[
+                archive_command.index("--cap-add") : archive_command.index("--cap-add") + 2
+            ],
+            ["--cap-add", "DAC_READ_SEARCH"],
+        )
+        self.assertNotIn("DAC_OVERRIDE", archive_command)
+        self.assertIn("type=volume,src=weave-nextcloud-data,dst=/source,readonly", archive_command)
+        self.assertIn("no-new-privileges:true", archive_command)
+
     def test_dev_profile_and_unbound_candidate_fail_closed(self) -> None:
         self.context.profile = "dev"
         with mock.patch.dict(os.environ, self._environment(), clear=False):
