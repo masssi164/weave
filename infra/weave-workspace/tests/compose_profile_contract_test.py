@@ -273,7 +273,7 @@ def main() -> None:
         assert manifest["desiredStateRevision"] == desired["revision"]
         assert manifest["specificationCommit"] == lock["specCorpus"]["gitCommit"]
         assert manifest["overlayRevision"] == desired["provenance"]["overlayRevision"]
-        assert desired["apiVersion"] == "weave.keycloak-desired-state/v1"
+        assert desired["apiVersion"] == "weave.keycloak-desired-state/v2"
         assert "users" not in desired
         assert next(scope for scope in desired["clientScopes"] if scope["key"] == "scope:mcp-tools")["name"] == "mcp.tools"
         assert "mcp:tools" not in json.dumps(desired)
