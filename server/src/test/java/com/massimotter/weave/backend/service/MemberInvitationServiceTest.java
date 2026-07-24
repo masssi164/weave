@@ -38,6 +38,7 @@ class MemberInvitationServiceTest {
     void setUp() {
         intents = mock(ProvisioningIntentRepository.class);
         keycloak = mock(KeycloakIdentityAdminClient.class);
+        when(keycloak.configuredOrganizationRef()).thenReturn("weave-dogfood");
         audit = mock(AuditEventPublisher.class);
         service = new MemberInvitationService(
                 intents,
@@ -48,11 +49,11 @@ class MemberInvitationServiceTest {
     }
 
     @Test
-    void derivesTheExactCanonicalHumanGroupFromTheRequestedRole() {
-        when(intents.findPendingByEmail("weave-dogfood", "org-1", "member@example.invalid"))
+    void persistsOnlyTheCanonicalRoleAndLeavesGroupMappingToTheIamAdapter() {
+        when(intents.findPendingByEmail("weave-dogfood", "weave-dogfood", "member@example.invalid"))
                 .thenReturn(List.of());
         when(intents.save(any(ProvisioningIntent.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(keycloak.issue("org-1", "member@example.invalid", "Member Example"))
+        when(keycloak.issue("weave-dogfood", "member@example.invalid", "Member Example"))
                 .thenReturn(new ProviderInvitation(
                         "invitation-1",
                         "member@example.invalid",
@@ -62,37 +63,34 @@ class MemberInvitationServiceTest {
                         NOW));
 
         var response = service.create(
-                "org-1",
+                "weave-dogfood",
                 new MemberInvitationRequest(
                         "Member@Example.invalid",
                         "Member Example",
-                        "member",
-                        List.of()),
+                        "member"),
                 "invite-once",
                 adminJwt());
 
-        assertThat(response.organizationGroups()).containsExactly("/weave/members");
+        assertThat(response.requestedRole()).isEqualTo("member");
         ArgumentCaptor<ProvisioningIntent> saved = ArgumentCaptor.forClass(ProvisioningIntent.class);
         verify(intents, org.mockito.Mockito.atLeastOnce()).save(saved.capture());
         assertThat(saved.getAllValues()).allSatisfy(intent ->
-                assertThat(intent.organizationGroups()).containsExactly("/weave/members"));
+                assertThat(intent.requestedRole()).isEqualTo("member"));
     }
 
     @Test
-    void rejectsRoleGroupEscalationBeforeCreatingProviderOrWorkState() {
+    void rejectsCrossOrganizationInvitationBeforeCreatingProviderOrWorkState() {
         assertThatThrownBy(() -> service.create(
                 "org-1",
                 new MemberInvitationRequest(
                         "member@example.invalid",
                         null,
-                        "member",
-                        List.of("/weave/owners")),
+                        "member"),
                 "invite-escalation",
                 adminJwt()))
                 .isInstanceOfSatisfying(ApiErrorException.class, error -> {
-                    assertThat(error.status().value()).isEqualTo(400);
-                    assertThat(error.code()).isEqualTo("member-invitation-groups-invalid");
-                    assertThat(error.getMessage()).doesNotContain("/weave/owners");
+                    assertThat(error.status().value()).isEqualTo(404);
+                    assertThat(error.code()).isEqualTo("member-invitation-not-found");
                 });
 
         verifyNoInteractions(intents, keycloak, audit);

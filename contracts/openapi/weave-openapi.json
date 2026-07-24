@@ -4140,16 +4140,6 @@
             "minLength": 0,
             "type": "string"
           },
-          "organizationGroups": {
-            "items": {
-              "maxLength": 160,
-              "minLength": 0,
-              "type": "string"
-            },
-            "maxItems": 64,
-            "minItems": 0,
-            "type": "array"
-          },
           "role": {
             "minLength": 1,
             "pattern": "owner|admin|member|guest",
@@ -4180,12 +4170,6 @@
           },
           "lifecycleStatus": {
             "type": "string"
-          },
-          "organizationGroups": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
           },
           "organizationId": {
             "type": "string"

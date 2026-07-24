@@ -5119,7 +5119,6 @@ class MemberInvitationRequest {
   const MemberInvitationRequest({
     this.displayName,
     required this.email,
-    this.organizationGroups,
     required this.role,
   });
 
@@ -5127,21 +5126,16 @@ class MemberInvitationRequest {
       MemberInvitationRequest(
         displayName: json["displayName"] as String?,
         email: json["email"] as String,
-        organizationGroups: (json["organizationGroups"] as List<dynamic>?)
-            ?.map((e) => e as String)
-            .toList(),
         role: json["role"] as String,
       );
 
   final String? displayName;
   final String email;
-  final List<String>? organizationGroups;
   final String role;
 
   Map<String, dynamic> toJson() => {
     "displayName": _openApiJsonValue(displayName),
     "email": _openApiJsonValue(email),
-    "organizationGroups": _openApiJsonValue(organizationGroups),
     "role": _openApiJsonValue(role),
   };
 }
@@ -5153,7 +5147,6 @@ class MemberInvitationResponse {
     this.email,
     this.expiresAt,
     this.lifecycleStatus,
-    this.organizationGroups,
     this.organizationId,
     this.providerInvitationId,
     this.provisioningStatus,
@@ -5168,9 +5161,6 @@ class MemberInvitationResponse {
         email: json["email"] as String?,
         expiresAt: json["expiresAt"] as String?,
         lifecycleStatus: json["lifecycleStatus"] as String?,
-        organizationGroups: (json["organizationGroups"] as List<dynamic>?)
-            ?.map((e) => e as String)
-            .toList(),
         organizationId: json["organizationId"] as String?,
         providerInvitationId: json["providerInvitationId"] as String?,
         provisioningStatus: json["provisioningStatus"] as String?,
@@ -5183,7 +5173,6 @@ class MemberInvitationResponse {
   final String? email;
   final String? expiresAt;
   final String? lifecycleStatus;
-  final List<String>? organizationGroups;
   final String? organizationId;
   final String? providerInvitationId;
   final String? provisioningStatus;
@@ -5196,7 +5185,6 @@ class MemberInvitationResponse {
     "email": _openApiJsonValue(email),
     "expiresAt": _openApiJsonValue(expiresAt),
     "lifecycleStatus": _openApiJsonValue(lifecycleStatus),
-    "organizationGroups": _openApiJsonValue(organizationGroups),
     "organizationId": _openApiJsonValue(organizationId),
     "providerInvitationId": _openApiJsonValue(providerInvitationId),
     "provisioningStatus": _openApiJsonValue(provisioningStatus),

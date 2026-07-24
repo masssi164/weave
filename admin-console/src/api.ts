@@ -178,7 +178,6 @@ export interface CreateOrganizationInvitationRequest {
   email: string;
   displayName?: string;
   role: OrganizationRole;
-  organizationGroups: string[];
 }
 
 export interface OrganizationInvitation {
@@ -189,7 +188,6 @@ export interface OrganizationInvitation {
   lifecycleStatus: string;
   provisioningStatus: InvitationProvisioningStatus;
   requestedRole: OrganizationRole;
-  organizationGroups: string[];
   expiresAt?: string;
   createdAt?: string;
   updatedAt?: string;
