@@ -586,7 +586,7 @@ ProviderContainer _createAppContainer({
 
 ServerConfiguration _serverConfiguration(TestConfig config) {
   return ServerConfiguration(
-    providerType: OidcProviderType.keycloak,
+    providerType: OidcProviderType.oidc,
     oidcIssuerUrl: config.issuerUrl,
     oidcClientRegistration: OidcClientRegistration.manual(
       clientId: config.clientId,

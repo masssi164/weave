@@ -4,18 +4,6 @@
   "@appTitle": {
     "description": "Application title shown in the app bar and system task switcher"
   },
-  "welcomeTitle": "Welcome to Weave",
-  "@welcomeTitle": {
-    "description": "Main heading on the welcome screen"
-  },
-  "welcomeSubtitle": "Join your organization through an invite or sign-in handoff. Provider setup stays with your admins.",
-  "@welcomeSubtitle": {
-    "description": "Subtitle text below the welcome heading"
-  },
-  "continueButton": "Join your organization",
-  "@continueButton": {
-    "description": "Label for the primary CTA on the welcome screen"
-  },
   "setupTitle": "Organization access",
   "@setupTitle": {
     "description": "Title for the setup flow screen"
@@ -4663,19 +4651,15 @@
       }
     }
   },
-  "setupMemberHandoffTitle": "Join from an invite or organization sign-in",
-  "@setupMemberHandoffTitle": {
-    "description": "Title for the normal member handoff-first setup screen"
-  },
-  "setupMemberHandoffDescription": "Open the invite link, /join link, or organization sign-in URL your admin sent you. Weave will prepare your workspace from the organization manifest without asking you to edit provider endpoints.",
+  "setupMemberHandoffDescription": "Paste your completion link or QR content, or enter your organization's Weave address. Every option checks the same organization details before sign-in.",
   "@setupMemberHandoffDescription": {
     "description": "Description for the normal member handoff-first setup screen"
   },
-  "setupOrganizationUriLabel": "Server URI, invitation link, or QR payload",
+  "setupOrganizationUriLabel": "Weave server address, completion link, or QR content",
   "@setupOrganizationUriLabel": {
     "description": "Organization access input label"
   },
-  "setupOrganizationUriHelper": "Paste the link from your email or QR code, or enter your organization's Weave address.",
+  "setupOrganizationUriHelper": "Use the link from your email or QR code, or enter the secure Weave address provided by your organization.",
   "@setupOrganizationUriHelper": {
     "description": "Organization access input help"
   },
@@ -4687,69 +4671,46 @@
   "@setupOrganizationContinueButton": {
     "description": "Resolve organization access action"
   },
-  "setupOrganizationAccessHelp": "Your invitation email and organization QR code contain the same Weave address. After it is verified, the next screen always offers Sign in.",
+  "setupOrganizationAccessHelp": "Completion links, QR content, and the Weave server address use the same organization check. The next screen always asks you to sign in explicitly.",
   "@setupOrganizationAccessHelp": {
     "description": "Explains equivalent organization access methods"
   },
-  "setupMemberHandoffPrimaryAction": "I have an invite or sign-in link",
-  "@setupMemberHandoffPrimaryAction": {
-    "description": "Primary action label for handoff-first setup"
-  },
-  "setupMemberHandoffPrimaryGuidance": "Use the link from your browser, email, or chat. If it is missing or expired, ask your workspace admin for a new invite.",
-  "@setupMemberHandoffPrimaryGuidance": {
-    "description": "Guidance for using a member handoff link"
-  },
-  "setupMemberHandoffAdminNoteTitle": "Admins and operators",
-  "@setupMemberHandoffAdminNoteTitle": {
-    "description": "Heading for operator-only setup note"
-  },
-  "setupMemberHandoffAdminNote": "Raw provider endpoints are managed in admin or operator recovery, not during normal member onboarding.",
-  "@setupMemberHandoffAdminNote": {
-    "description": "Note explaining raw provider setup boundary"
-  },
-  "setupOpenOperatorRecoveryButton": "Open operator recovery setup",
-  "@setupOpenOperatorRecoveryButton": {
-    "description": "Button that opens admin/operator raw endpoint recovery setup"
-  },
-  "setupOperatorRecoveryTitle": "Operator recovery setup",
-  "@setupOperatorRecoveryTitle": {
-    "description": "Title for the explicit operator recovery setup mode"
-  },
-  "memberHandoffLoadingTitle": "Opening Weave invite",
+  "memberHandoffLoadingTitle": "Checking organization access",
   "@memberHandoffLoadingTitle": {
     "description": "Loading title while consuming a member handoff"
   },
-  "memberHandoffLoadingHint": "We are preparing sign-in for this workspace.",
+  "memberHandoffLoadingHint": "We are securely retrieving the sign-in details for this organization.",
   "@memberHandoffLoadingHint": {
     "description": "Loading hint while consuming a member handoff"
   },
-  "memberHandoffReadyTitle": "Workspace ready for sign-in",
+  "memberHandoffReadyTitle": "Organization ready for sign-in",
   "@memberHandoffReadyTitle": {
     "description": "Success title shown after a member handoff is consumed and before sign-in"
   },
-  "memberHandoffReadyGuidance": "Weave prepared {organization}/{workspace} from the invite. Continue with workspace sign-in next.",
+  "memberHandoffReadyGuidance": "Weave prepared organization access for {organization}. Sign in opens the secure system browser and returns you to Weave after authorization.",
   "@memberHandoffReadyGuidance": {
     "description": "Success guidance shown after a member handoff is consumed and before sign-in",
     "placeholders": {
       "organization": {
         "type": "String"
-      },
-      "workspace": {
-        "type": "String"
       }
     }
   },
-  "memberHandoffErrorTitle": "We could not open this Weave invite",
+  "memberHandoffErrorTitle": "We could not check organization access",
   "@memberHandoffErrorTitle": {
     "description": "Error title when member handoff consumption fails"
   },
-  "memberHandoffErrorGuidance": "The invite may be expired, incomplete, or not ready yet. Ask your workspace admin for a fresh invite or organization sign-in link.",
+  "memberHandoffErrorGuidance": "The link or address may be incomplete, expired, or temporarily unavailable. Check it and try again, or ask your organization for a fresh completion link.",
   "@memberHandoffErrorGuidance": {
     "description": "Support-safe guidance when member handoff consumption fails"
   },
   "memberHandoffTlsErrorGuidance": "Weave could not reach the workspace start configuration over trusted TLS. For local dogfood, install and fully trust the Weave Local Development CA on this iPhone, or ask your admin for a publicly trusted organization sign-in link.",
   "@memberHandoffTlsErrorGuidance": {
     "description": "Support-safe guidance when member handoff consumption fails because platform config TLS trust is missing"
+  },
+  "memberHandoffSignInRetryGuidance": "Your organization details are saved. Follow the guidance above, then try Sign in again.",
+  "@memberHandoffSignInRetryGuidance": {
+    "description": "Support-safe retry guidance after organization sign-in fails"
   },
   "memberHandoffErrorCode": "Error code: {code}",
   "@memberHandoffErrorCode": {

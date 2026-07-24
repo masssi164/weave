@@ -38,7 +38,7 @@ import 'package:weave/features/files/domain/entities/files_connection_state.dart
 import 'package:weave/features/files/domain/entities/files_failure.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
-import 'package:weave/features/onboarding/domain/use_cases/consume_member_handoff.dart';
+import 'package:weave/features/onboarding/domain/use_cases/discover_organization_access.dart';
 import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
 import 'package:weave/features/profile/domain/entities/user_profile.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
@@ -119,8 +119,8 @@ void main() {
             serverConfigurationRepositoryProvider.overrideWithValue(
               serverConfigurationRepository,
             ),
-            consumeMemberHandoffProvider.overrideWithValue(
-              ConsumeMemberHandoff(
+            discoverOrganizationAccessProvider.overrideWithValue(
+              DiscoverOrganizationAccess(
                 repository: serverConfigurationRepository,
                 discoveryClient: discoveryClient,
               ),
@@ -159,13 +159,15 @@ void main() {
         expect(find.text('Organization access'), findsOneWidget);
 
         await tester.enterText(
-          _textFieldWithLabel('Server URI, invitation link, or QR payload'),
+          _textFieldWithLabel(
+            'Weave server address, completion link, or QR content',
+          ),
           'https://weave.test',
         );
         await tester.tap(find.text('Continue to organization'));
         await tester.pumpAndSettle();
 
-        expect(find.text('Workspace ready for sign-in'), findsOneWidget);
+        expect(find.text('Organization ready for sign-in'), findsOneWidget);
         expect(find.text('https://matrix.weave.test'), findsNothing);
         expect(find.text('https://files.weave.test'), findsNothing);
         expect(find.text('Sign In'), findsWidgets);

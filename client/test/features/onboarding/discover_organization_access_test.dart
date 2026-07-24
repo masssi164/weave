@@ -6,7 +6,7 @@ import 'package:http/testing.dart';
 import 'package:weave/core/persistence/preferences_store.dart';
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/onboarding/domain/entities/member_auth_onboarding_state.dart';
-import 'package:weave/features/onboarding/domain/use_cases/consume_member_handoff.dart';
+import 'package:weave/features/onboarding/domain/use_cases/discover_organization_access.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 
@@ -50,6 +50,64 @@ class _RecordingPreferencesStore implements PreferencesStore {
 }
 
 void main() {
+  test(
+    'manual server URI discovers without synthetic invitation metadata',
+    () async {
+      final repository = _RecordingServerConfigurationRepository();
+      final evidenceStore = _RecordingPreferencesStore();
+      final httpClient = MockClient((request) async {
+        expect(
+          request.url.toString(),
+          'https://weave.example/api/platform/config',
+        );
+        expect(request.headers, isNot(contains('X-Weave-Handoff-Ref')));
+        expect(request.headers, isNot(contains('X-Weave-Handoff-Run-Id')));
+        return http.Response(
+          jsonEncode(
+            _manifest(
+              organizationOrigin: 'https://weave.example',
+              controlPlaneBaseUrl: 'https://api.weave.example/api',
+              issuer: 'https://auth.weave.example/realms/weave',
+              matrixClientServerBaseUrl: 'https://api.weave.example',
+            ),
+          ),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+
+      final access =
+          await DiscoverOrganizationAccess(
+            repository: repository,
+            discoveryClient: AppStartDiscoveryClient(httpClient: httpClient),
+            evidenceStore: evidenceStore,
+          ).call(
+            Uri.parse(
+              '/join?organization_origin=https%3A%2F%2Fweave.example%2F',
+            ),
+          );
+
+      expect(access.organizationOrigin, Uri.parse('https://weave.example/'));
+      expect(access.handoff, isNull);
+      expect(repository.saved, isNotNull);
+
+      final evidence =
+          jsonDecode(evidenceStore.strings[lastHandoffConsumedStorageKey]!)
+              as Map<String, dynamic>;
+      expect(evidence['accessKind'], 'server_uri');
+      expect(evidence['organizationOriginHost'], 'weave.example');
+      expect(evidence, isNot(contains('handoffRef')));
+      expect(evidence, isNot(contains('organizationSlug')));
+
+      final authState =
+          jsonDecode(evidenceStore.strings[dogfoodAuthStateStorageKey]!)
+              as Map<String, dynamic>;
+      expect(authState['state'], 'ready_for_sso');
+      expect(authState['organizationOriginHost'], 'weave.example');
+      expect(authState, isNot(contains('handoffRef')));
+    },
+  );
+
   test('saves DNS-first weave.test app-start configuration', () async {
     final repository = _RecordingServerConfigurationRepository();
     final evidenceStore = _RecordingPreferencesStore();
@@ -74,13 +132,13 @@ void main() {
       );
     });
 
-    await ConsumeMemberHandoff(
+    await DiscoverOrganizationAccess(
       repository: repository,
       discoveryClient: AppStartDiscoveryClient(httpClient: httpClient),
       evidenceStore: evidenceStore,
     ).call(
       Uri.parse(
-        'https://weave.test:44443/join?handoff_ref=invite-abc123&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-check',
+        'https://weave.test:44443/join?handoff_ref=invite-abc123&org=massimo-dogfood&workspace=home&run_id=s32-check',
       ),
     );
 
@@ -157,13 +215,13 @@ void main() {
         );
       });
 
-      await ConsumeMemberHandoff(
+      await DiscoverOrganizationAccess(
         repository: repository,
         discoveryClient: AppStartDiscoveryClient(httpClient: httpClient),
         evidenceStore: evidenceStore,
       ).call(
         Uri.parse(
-          'weave://join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-massimo-dogfood&product_base_url=https%3A%2F%2Fweave.test%3A44443&platform_config_url=https%3A%2F%2Fapi.weave.test%3A44443%2Fapi%2Fplatform%2Fconfig',
+          'weave://join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&run_id=s32-massimo-dogfood&product_base_url=https%3A%2F%2Fweave.test%3A44443&platform_config_url=https%3A%2F%2Fapi.weave.test%3A44443%2Fapi%2Fplatform%2Fconfig',
         ),
       );
 
@@ -193,13 +251,13 @@ void main() {
       });
 
       await expectLater(
-        ConsumeMemberHandoff(
+        DiscoverOrganizationAccess(
           repository: repository,
           discoveryClient: AppStartDiscoveryClient(httpClient: httpClient),
           evidenceStore: evidenceStore,
         ).call(
           Uri.parse(
-            'weave://join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-massimo-dogfood&product_base_url=https%3A%2F%2Fweave.test%3A44443&platform_config_url=https%3A%2F%2Fapi.weave.test%3A44443%2Fapi%2Fplatform%2Fconfig',
+            'weave://join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&run_id=s32-massimo-dogfood&product_base_url=https%3A%2F%2Fweave.test%3A44443&platform_config_url=https%3A%2F%2Fapi.weave.test%3A44443%2Fapi%2Fplatform%2Fconfig',
           ),
         ),
         throwsA(isA<AppFailure>()),
@@ -245,12 +303,12 @@ void main() {
       );
     });
 
-    await ConsumeMemberHandoff(
+    await DiscoverOrganizationAccess(
       repository: repository,
       discoveryClient: AppStartDiscoveryClient(httpClient: httpClient),
     ).call(
       Uri.parse(
-        'https://join.weave.example/join?handoff_ref=invite-abc123&org=acme&workspace=main&profile=production&run_id=prod-001',
+        'https://join.weave.example/join?handoff_ref=invite-abc123&org=acme&workspace=main&run_id=prod-001',
       ),
     );
 
@@ -292,12 +350,12 @@ void main() {
     });
 
     await expectLater(
-      ConsumeMemberHandoff(
+      DiscoverOrganizationAccess(
         repository: repository,
         discoveryClient: AppStartDiscoveryClient(httpClient: httpClient),
       ).call(
         Uri.parse(
-          'https://join.weave.example/join?handoff_ref=invite-abc123&org=acme&workspace=main&profile=production&run_id=prod-001',
+          'https://join.weave.example/join?handoff_ref=invite-abc123&org=acme&workspace=main&run_id=prod-001',
         ),
       ),
       throwsA(
@@ -328,12 +386,12 @@ void main() {
     });
 
     await expectLater(
-      ConsumeMemberHandoff(
+      DiscoverOrganizationAccess(
         repository: repository,
         discoveryClient: AppStartDiscoveryClient(httpClient: httpClient),
       ).call(
         Uri.parse(
-          'https://join.weave.example/join?handoff_ref=invite-abc123&org=acme&workspace=main&profile=production&run_id=prod-001',
+          'https://join.weave.example/join?handoff_ref=invite-abc123&org=acme&workspace=main&run_id=prod-001',
         ),
       ),
       throwsA(isA<AppFailure>()),
@@ -357,12 +415,12 @@ void main() {
     });
 
     await expectLater(
-      ConsumeMemberHandoff(
+      DiscoverOrganizationAccess(
         repository: repository,
         discoveryClient: AppStartDiscoveryClient(httpClient: httpClient),
       ).call(
         Uri.parse(
-          'https://join.weave.example/join?handoff_ref=invite-abc123&org=acme&workspace=main&profile=production&run_id=prod-001',
+          'https://join.weave.example/join?handoff_ref=invite-abc123&org=acme&workspace=main&run_id=prod-001',
         ),
       ),
       throwsA(

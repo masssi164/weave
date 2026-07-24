@@ -11,8 +11,8 @@ import 'package:weave/features/server_config/domain/entities/server_configuratio
 import 'package:weave/features/server_config/domain/entities/service_endpoints.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 
-class ConsumeMemberHandoff {
-  const ConsumeMemberHandoff({
+class DiscoverOrganizationAccess {
+  const DiscoverOrganizationAccess({
     required ServerConfigurationRepository repository,
     required AppStartDiscoveryClient discoveryClient,
     PreferencesStore? evidenceStore,
@@ -24,27 +24,27 @@ class ConsumeMemberHandoff {
   final AppStartDiscoveryClient _discoveryClient;
   final PreferencesStore? _evidenceStore;
 
-  Future<MemberHandoff> call(Uri uri) async {
-    final MemberHandoff handoff;
+  Future<OrganizationAccess> call(Uri uri) async {
+    final OrganizationAccess access;
     try {
-      handoff = const MemberHandoffParser().parse(uri);
+      access = const OrganizationAccessParser().parse(uri);
     } catch (error) {
-      await _recordRawHandoffFailure(uri, error);
+      await _recordRawAccessFailure(uri, error);
       rethrow;
     }
     try {
       await _recordAuthOnboardingState(
         MemberAuthOnboardingStage.handoffReceived,
-        handoff,
+        access,
       );
-      final appStart = await _discoveryClient.fetch(handoff);
+      final appStart = await _discoveryClient.fetch(access);
       await _recordAuthOnboardingState(
         MemberAuthOnboardingStage.platformConfigLoaded,
-        handoff,
+        access,
       );
       await _repository.saveConfiguration(
         ServerConfiguration(
-          providerType: OidcProviderType.keycloak,
+          providerType: OidcProviderType.oidc,
           oidcIssuerUrl: appStart.oidcIssuerUrl,
           oidcClientRegistration: OidcClientRegistration.manual(
             clientId: appStart.oidcClientId,
@@ -56,31 +56,31 @@ class ConsumeMemberHandoff {
           ),
         ),
       );
-      await _recordHandoffEvidence(handoff, result: 'saved_configuration');
+      await _recordAccessEvidence(access, result: 'saved_configuration');
       await _recordAuthOnboardingState(
         MemberAuthOnboardingStage.readyForSso,
-        handoff,
+        access,
       );
     } catch (error) {
-      await _recordHandoffEvidence(
-        handoff,
+      await _recordAccessEvidence(
+        access,
         result: 'failed',
         errorCode: supportSafeHandoffErrorCode(error),
         phase: _supportSafeFailurePhase(error),
       );
       await _recordAuthOnboardingState(
         MemberAuthOnboardingStage.recoverableError,
-        handoff,
+        access,
         errorCode: supportSafeHandoffErrorCode(error),
       );
       rethrow;
     }
-    return handoff;
+    return access;
   }
 
   Future<void> _recordAuthOnboardingState(
     MemberAuthOnboardingStage stage,
-    MemberHandoff handoff, {
+    OrganizationAccess access, {
     String? errorCode,
   }) async {
     final store = _evidenceStore;
@@ -89,11 +89,11 @@ class ConsumeMemberHandoff {
     }
     await MemberAuthOnboardingStateRecorder(
       store: store,
-    ).record(stage, handoff: handoff, errorCode: errorCode);
+    ).record(stage, access: access, errorCode: errorCode);
   }
 
-  Future<void> _recordHandoffEvidence(
-    MemberHandoff handoff, {
+  Future<void> _recordAccessEvidence(
+    OrganizationAccess access, {
     required String result,
     String? errorCode,
     String? phase,
@@ -101,8 +101,8 @@ class ConsumeMemberHandoff {
     await _evidenceStore?.setString(
       lastHandoffConsumedStorageKey,
       jsonEncode(
-        _handoffEvidence(
-          handoff,
+        _accessEvidence(
+          access,
           result: result,
           errorCode: errorCode,
           phase: phase,
@@ -111,7 +111,7 @@ class ConsumeMemberHandoff {
     );
   }
 
-  Future<void> _recordRawHandoffFailure(Uri uri, Object error) async {
+  Future<void> _recordRawAccessFailure(Uri uri, Object error) async {
     await _evidenceStore?.setString(
       lastHandoffConsumedStorageKey,
       jsonEncode(<String, Object>{
@@ -119,30 +119,34 @@ class ConsumeMemberHandoff {
         'recordedAt': DateTime.now().toUtc().toIso8601String(),
         'result': 'failed',
         'phase': 'parse',
-        'inviteScheme': uri.scheme,
-        'inviteHost': uri.host,
+        'accessScheme': uri.scheme,
+        'accessHost': uri.host,
         'errorCode': supportSafeHandoffErrorCode(error),
         'supportSafe': true,
       }),
     );
   }
 
-  Map<String, Object> _handoffEvidence(
-    MemberHandoff handoff, {
+  Map<String, Object> _accessEvidence(
+    OrganizationAccess access, {
     required String result,
     String? errorCode,
     String? phase,
   }) {
+    final handoff = access.handoff;
     return <String, Object>{
       'schemaVersion': 'weave.client.last_handoff_consumed.v1',
       'recordedAt': DateTime.now().toUtc().toIso8601String(),
-      'handoffRef': handoff.handoffRef,
-      'runId': handoff.runId,
-      'organizationSlug': handoff.organizationSlug,
-      'workspaceSlug': handoff.workspaceSlug,
-      'profile': handoff.profile,
-      'platformConfigHost': handoff.platformConfigUrl.host,
-      'platformConfigPath': handoff.platformConfigUrl.path,
+      'accessKind': handoff == null ? 'server_uri' : 'handoff',
+      'organizationOriginHost': access.organizationOrigin.host,
+      'platformConfigHost': access.platformConfigUrl.host,
+      'platformConfigPath': access.platformConfigUrl.path,
+      if (handoff != null) ...{
+        'handoffRef': handoff.handoffRef,
+        'runId': handoff.runId,
+        'organizationSlug': handoff.organizationSlug,
+        'workspaceSlug': handoff.workspaceSlug,
+      },
       'result': result,
       if (errorCode != null) 'errorCode': errorCode,
       if (phase != null) 'phase': phase,
@@ -194,26 +198,26 @@ class AppStartDiscoveryClient {
 
   final http.Client _httpClient;
 
-  Future<AppStartConfiguration> fetch(MemberHandoff handoff) async {
-    final primaryUri = handoff.platformConfigUrl;
+  Future<AppStartConfiguration> fetch(OrganizationAccess access) async {
+    final primaryUri = access.platformConfigUrl;
     try {
-      return await _fetchFrom(primaryUri, handoff);
+      return await _fetchFrom(primaryUri, access);
     } on AppFailure catch (error) {
-      final fallbackUri = _productOriginPlatformConfigUrl(handoff);
+      final fallbackUri = _productOriginPlatformConfigUrl(access);
       if (!_shouldRetryOnProductOrigin(error, primaryUri, fallbackUri)) {
         rethrow;
       }
-      return _fetchFrom(fallbackUri, handoff);
+      return _fetchFrom(fallbackUri, access);
     }
   }
 
   Future<AppStartConfiguration> _fetchFrom(
     Uri uri,
-    MemberHandoff handoff,
+    OrganizationAccess access,
   ) async {
     final http.Response response;
     try {
-      response = await _httpClient.get(uri, headers: _headers(handoff));
+      response = await _httpClient.get(uri, headers: _headers(access));
     } catch (error) {
       throw AppFailure.bootstrap(
         '${_transportErrorCode(error)}: The workspace start configuration could not be reached.',
@@ -228,19 +232,26 @@ class AppStartDiscoveryClient {
     }
 
     final payload = _decodeJsonObject(response.body);
-    return _configurationFromJson(payload, handoff);
+    return _configurationFromJson(payload, access);
   }
 
-  Map<String, String> _headers(MemberHandoff handoff) => {
-    'Accept': 'application/json',
-    'X-Weave-Handoff-Ref': handoff.handoffRef,
-    'X-Weave-Handoff-Run-Id': handoff.runId,
-  };
+  Map<String, String> _headers(OrganizationAccess access) {
+    final handoff = access.handoff;
+    return {
+      'Accept': 'application/json',
+      if (handoff != null) ...{
+        'X-Weave-Handoff-Ref': handoff.handoffRef,
+        'X-Weave-Handoff-Run-Id': handoff.runId,
+      },
+    };
+  }
 
-  Uri _productOriginPlatformConfigUrl(MemberHandoff handoff) => Uri(
-    scheme: handoff.productBaseUrl.scheme,
-    host: handoff.productBaseUrl.host,
-    port: handoff.productBaseUrl.hasPort ? handoff.productBaseUrl.port : null,
+  Uri _productOriginPlatformConfigUrl(OrganizationAccess access) => Uri(
+    scheme: access.organizationOrigin.scheme,
+    host: access.organizationOrigin.host,
+    port: access.organizationOrigin.hasPort
+        ? access.organizationOrigin.port
+        : null,
     path: '/api/platform/config',
   );
 
@@ -306,7 +317,7 @@ class AppStartDiscoveryClient {
 
   AppStartConfiguration _configurationFromJson(
     Map<String, dynamic> json,
-    MemberHandoff handoff,
+    OrganizationAccess access,
   ) {
     _requireExactKeys(json, const {
       'schemaVersion',
@@ -344,7 +355,8 @@ class AppStartDiscoveryClient {
       json['organizationOrigin'],
       fieldName: 'organizationOrigin',
     );
-    if (_apiOrigin(organizationOrigin) != _apiOrigin(handoff.productBaseUrl)) {
+    if (_apiOrigin(organizationOrigin) !=
+        _apiOrigin(access.organizationOrigin)) {
       throw const AppFailure.validation(
         'WEAVE-APP-START-DISCOVERY-INVALID: organizationOrigin must match the handoff origin.',
       );

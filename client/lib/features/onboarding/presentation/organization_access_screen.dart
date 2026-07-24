@@ -11,14 +11,15 @@ import 'package:weave/l10n/generated/app_localizations.dart';
 /// Email/app links, QR payloads and manually entered server URIs all become the
 /// same support-safe `/join` handoff. Identity-provider and operator settings
 /// deliberately do not belong in the member client.
-class SetupFlow extends StatefulWidget {
-  const SetupFlow({super.key});
+class OrganizationAccessScreen extends StatefulWidget {
+  const OrganizationAccessScreen({super.key});
 
   @override
-  State<SetupFlow> createState() => _SetupFlowState();
+  State<OrganizationAccessScreen> createState() =>
+      _OrganizationAccessScreenState();
 }
 
-class _SetupFlowState extends State<SetupFlow> {
+class _OrganizationAccessScreenState extends State<OrganizationAccessScreen> {
   final _focusNode = FocusNode();
   final _controller = TextEditingController();
   String? _error;
@@ -38,7 +39,7 @@ class _SetupFlowState extends State<SetupFlow> {
 
   void _continue() {
     final l10n = AppLocalizations.of(context);
-    final uri = _organizationHandoffUri(_controller.text);
+    final uri = _organizationAccessUri(_controller.text);
     if (uri == null) {
       setState(() => _error = l10n.setupOrganizationUriError);
       return;
@@ -139,7 +140,7 @@ class _SetupFlowState extends State<SetupFlow> {
   }
 }
 
-Uri? _organizationHandoffUri(String raw) {
+Uri? _organizationAccessUri(String raw) {
   final parsed = Uri.tryParse(raw.trim());
   if (parsed == null || !parsed.isAbsolute || parsed.host.isEmpty) return null;
   if (parsed.scheme != 'https' && parsed.scheme != 'weave') return null;
@@ -156,23 +157,14 @@ Uri? _organizationHandoffUri(String raw) {
     return null;
   }
 
-  final origin = Uri(
+  final organizationOrigin = Uri(
     scheme: parsed.scheme,
     host: parsed.host,
     port: parsed.hasPort ? parsed.port : null,
+    path: '/',
   );
-  final hostSlug = parsed.host
-      .split('.')
-      .first
-      .replaceAll(RegExp('[^A-Za-z0-9_-]'), '-');
-  return origin.replace(
+  return Uri(
     path: AppRoutes.join,
-    queryParameters: {
-      'handoff_ref': 'manual-${parsed.host.hashCode.abs()}',
-      'org': hostSlug.length >= 2 ? hostSlug : 'weave',
-      'workspace': 'default',
-      'profile': 'organization-access',
-      'run_id': 'manual-access',
-    },
+    queryParameters: {'organization_origin': organizationOrigin.toString()},
   );
 }
