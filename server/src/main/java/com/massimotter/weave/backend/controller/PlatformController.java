@@ -27,7 +27,7 @@ public class PlatformController {
     }
 
     @GetMapping("/api/platform/status")
-    @Operation(summary = "Get platform module status")
+    @Operation(operationId = "getPlatformStatus", summary = "Get platform module status")
     public PlatformStatusResponse status(HttpServletRequest request) {
         return platformContractService.status(RequestIdFilter.requestId(request));
     }

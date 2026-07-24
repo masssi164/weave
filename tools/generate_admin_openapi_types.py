@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import sys
+from argparse import ArgumentParser
 from pathlib import Path
 from typing import Any
 
@@ -97,7 +99,7 @@ def inline_object(schema: dict[str, Any]) -> str:
     return "{\n" + "\n".join(parts) + "\n}"
 
 
-def main() -> None:
+def render() -> str:
     document = json.loads(OPENAPI.read_text())
     selected = select_schema_closure(document["components"]["schemas"])
     lines = [
@@ -108,9 +110,32 @@ def main() -> None:
     for name, schema in selected.items():
         lines.append(f"export type {ts_name(name)} = {type_for(schema)};")
         lines.append("")
+    return "\n".join(lines)
+
+
+def main() -> int:
+    parser = ArgumentParser()
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="fail without changing files when the checked-in TypeScript types are stale",
+    )
+    args = parser.parse_args()
+    generated = render()
+    if args.check:
+        if not OUT.is_file() or OUT.read_text() != generated:
+            print(
+                "Admin OpenAPI generated types are stale. "
+                "Run ./gradlew generateAdminOpenApiTypes and commit the result.",
+                file=sys.stderr,
+            )
+            return 1
+        return 0
     OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text("\n".join(lines))
+    OUT.write_text(generated)
+    print(f"Generated {OUT.relative_to(ROOT)}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
