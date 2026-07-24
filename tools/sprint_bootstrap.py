@@ -90,7 +90,7 @@ def project_context(owner: str, project_number: int) -> tuple[str, dict[str, Any
 
 
 def project_items(owner: str, project_number: int) -> dict[int, dict[str, Any]]:
-    data = gh_json(["project", "item-list", str(project_number), "--owner", owner, "--format", "json", "--limit", "200"])
+    data = gh_json(["project", "item-list", str(project_number), "--owner", owner, "--format", "json", "--limit", "1000"])
     result: dict[int, dict[str, Any]] = {}
     for item in data.get("items", []):
         content = item.get("content") or {}
@@ -100,14 +100,22 @@ def project_items(owner: str, project_number: int) -> dict[int, dict[str, Any]]:
     return result
 
 
-def ensure_project_status(owner: str, project_number: int, issue_url: str, issue_number: int, status: str, apply: bool) -> tuple[str, str]:
-    items = project_items(owner, project_number)
+def ensure_project_status(
+    owner: str,
+    project_number: int,
+    issue_url: str,
+    issue_number: int,
+    status: str,
+    apply: bool,
+    items: dict[int, dict[str, Any]],
+) -> tuple[str, str]:
     item = items.get(issue_number)
     if not item:
         if not apply:
             return "missing", "not in project"
         run(["gh", "project", "item-add", str(project_number), "--owner", owner, "--url", issue_url, "--format", "json"])
-        items = project_items(owner, project_number)
+        items.clear()
+        items.update(project_items(owner, project_number))
         item = items.get(issue_number)
         if not item:
             return "missing", "project item add did not materialize"
@@ -196,6 +204,7 @@ def main() -> None:
             "html_url": milestone.get("html_url"),
         }
 
+    items = project_items(args.project_owner, args.project_number)
     for expected in plan["issues"]:
         actual = issue_view(args.repo, expected["number"]) if expected.get("number") else None
         if not actual and expected.get("title"):
@@ -211,7 +220,13 @@ def main() -> None:
         missing_labels = sorted(set(expected.get("labels", [])) - labels)
         milestone_ok = (actual.get("milestone") or {}).get("title") == milestone_title
         project_status, project_note = ensure_project_status(
-            args.project_owner, args.project_number, actual["url"], actual["number"], expected.get("projectStatus", expected_project_status), apply
+            args.project_owner,
+            args.project_number,
+            actual["url"],
+            actual["number"],
+            expected.get("projectStatus", expected_project_status),
+            apply,
+            items,
         )
         ok = not missing_labels and milestone_ok and project_status == "ok"
         if not ok:

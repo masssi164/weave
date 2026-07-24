@@ -1,0 +1,181 @@
+{
+  "schemaVersion": 1,
+  "sprint": {
+    "number": 35,
+    "goal": "Deliver v0.1.0-rc.4 as Core Release 1 with exact-candidate dogfood, physical-device, portability, security, accessibility, and evidence gates."
+  },
+  "specCorpus": {
+    "lockFile": "specs/weave-specs.lock.json",
+    "requiredGate": "./gradlew specCorpusConformance",
+    "governingIds": [
+      "WEAVE-RC-GATE",
+      "WEAVE-STEERING-DEVOPS-CONFORMANCE"
+    ]
+  },
+  "milestone": {
+    "title": "v0.1.0-rc.4 — Core Release 1",
+    "description": "Core Release 1 delivery and exact-candidate evidence train for v0.1.0-rc.4. No production publication; guarded claims remain bounded by the canonical Weave Specification Corpus."
+  },
+  "project": {
+    "owner": "masssi164",
+    "number": 2,
+    "title": "Weave Delivery Board",
+    "defaultStatus": "Todo"
+  },
+  "issueDefaults": {
+    "releaseNotes": "exactly-one-release-notes-label-per-PR",
+    "dependencyNotation": "Dependencies/Blocks section in issue body",
+    "truthOrder": [
+      "spec-corpus",
+      "implementation-repo",
+      "GitHub",
+      "CI/evidence"
+    ]
+  },
+  "issues": [
+    {
+      "number": 1233,
+      "title": "architecture: replace OpenTofu single-host runtime with Compose, JPA, and Keycloak reconciliation",
+      "labels": ["architecture", "priority:p0", "track:devops", "area:server", "area:infra", "area:e2e", "evidence:required"],
+      "projectStatus": "Todo"
+    },
+    {
+      "number": 1096,
+      "title": "epic(identity): unified enterprise invitation and organization access",
+      "labels": ["release-blocker", "priority:p0", "type:epic", "domain:identity"],
+      "projectStatus": "Todo"
+    },
+    {
+      "number": 1090,
+      "title": "identity: correct invitation and organization-access contracts",
+      "labels": ["acceptance", "priority:p0", "type:story", "domain:identity"],
+      "projectStatus": "Todo"
+    },
+    {
+      "number": 1091,
+      "title": "identity: add minimal version-pinned Keycloak lifecycle event bridge",
+      "labels": ["priority:p0", "type:story", "domain:identity", "area:infra"],
+      "projectStatus": "Todo"
+    },
+    {
+      "number": 1092,
+      "title": "server: replace invitation aggregate with provisioning intent",
+      "labels": ["priority:p0", "type:story", "domain:identity", "area:server"],
+      "projectStatus": "Todo"
+    },
+    {
+      "number": 1093,
+      "title": "client: unify welcome and Organization Access flow",
+      "labels": ["area:ux", "platform:all", "type:story", "domain:identity", "area:client"],
+      "projectStatus": "Todo"
+    },
+    {
+      "number": 1094,
+      "title": "admin: implement Keycloak-backed member invitation management",
+      "labels": ["priority:p0", "type:story", "domain:identity", "area:admin-console"],
+      "projectStatus": "Todo"
+    },
+    {
+      "number": 1095,
+      "title": "dogfood: prove iPhone Mailpit access and production-parity identity E2E",
+      "labels": ["platform:ios", "needs-live-e2e", "type:story", "domain:identity", "area:infra", "area:e2e"],
+      "projectStatus": "Todo"
+    },
+    {
+      "number": 1056,
+      "title": "Implement client-owned Matrix E2EE and durable iPhone crypto state",
+      "labels": ["release-blocker", "needs-live-e2e", "priority:p0", "area:server", "area:client", "area:e2e", "domain:chat", "domain:security"],
+      "projectStatus": "Todo"
+    },
+    {
+      "number": 1191,
+      "title": "security(identity): prove Keycloak/MAS unified SSO, logout, revocation, and step-up",
+      "labels": ["release-blocker", "priority:p0", "type:story", "domain:identity", "area:server", "area:infra", "area:e2e", "evidence:required", "guarded", "domain:security"],
+      "projectStatus": "Todo"
+    },
+    {
+      "number": 1188,
+      "title": "security(infra): add production KMS envelope encryption for ARC runtime state",
+      "labels": ["priority:p0", "type:story", "track:devops", "domain:weaver", "area:server", "area:infra", "area:e2e", "evidence:required", "guarded", "domain:security"],
+      "projectStatus": "Todo"
+    },
+    {
+      "number": 1192,
+      "title": "feat(runtime-state): migrate encrypted checkpoints from PostgreSQL blobs to MinIO",
+      "labels": ["release-blocker", "priority:p0", "type:story", "domain:weaver", "area:server", "area:infra", "area:e2e", "evidence:required", "guarded", "domain:security", "domain:recovery"],
+      "projectStatus": "Todo"
+    },
+    {
+      "number": 1184,
+      "title": "feat(infra): orchestrate zero-durable-byte Weaver cells from external authorities",
+      "labels": ["architecture", "priority:p0", "type:story", "track:devops", "domain:weaver", "area:infra", "evidence:required", "guarded", "domain:security"],
+      "projectStatus": "Todo"
+    },
+    {
+      "number": 1195,
+      "title": "security(approval): attest Matrix decisions and manage bounded durable trust",
+      "labels": ["release-blocker", "priority:p0", "type:story", "area:server", "area:e2e", "domain:decisions", "evidence:required", "guarded", "domain:security", "domain:mcp"],
+      "projectStatus": "Todo"
+    },
+    {
+      "number": 1185,
+      "title": "test(e2e): prove Weaver reconstruction, rotation, and disaster recovery",
+      "labels": ["priority:p0", "type:task", "track:devops", "domain:weaver", "area:infra", "area:e2e", "evidence:required", "guarded", "domain:security"],
+      "projectStatus": "Todo"
+    },
+    {
+      "number": 1193,
+      "title": "feat(portability): prove Nextcloud Files to Weave S3/MinIO migration",
+      "labels": ["release-blocker", "priority:p0", "type:story", "domain:portability", "area:server", "area:infra", "area:e2e", "domain:files", "evidence:required", "guarded", "domain:provider-lab"],
+      "projectStatus": "Todo"
+    },
+    {
+      "number": 1194,
+      "title": "feat(portability): prove Nextcloud Calendar to Radicale migration",
+      "labels": ["release-blocker", "priority:p0", "type:story", "domain:portability", "area:server", "area:infra", "area:e2e", "domain:calendar", "evidence:required", "guarded", "domain:provider-lab"],
+      "projectStatus": "Todo"
+    },
+    {
+      "number": 1196,
+      "title": "feat(calls): implement strict MatrixRTC Profile 0 Ruma wire projection",
+      "labels": ["release-blocker", "priority:p0", "type:story", "area:client", "area:e2e", "domain:chat", "domain:calls", "evidence:required", "guarded"],
+      "projectStatus": "Todo"
+    },
+    {
+      "number": 1199,
+      "title": "security(calls): implement RTC Authorizer and least-privilege LiveKit tokens",
+      "labels": ["release-blocker", "priority:p0", "type:story", "area:server", "area:infra", "area:e2e", "domain:calls", "evidence:required", "guarded", "domain:security"],
+      "projectStatus": "Todo"
+    },
+    {
+      "number": 1198,
+      "title": "feat(calls): deliver Flutter media and native CallKit/Core-Telecom evidence",
+      "labels": ["release-blocker", "needs-live-e2e", "priority:p0", "type:story", "area:client", "area:e2e", "domain:calls", "evidence:required", "guarded", "domain:mobile", "domain:native-os"],
+      "projectStatus": "Todo"
+    },
+    {
+      "number": 1197,
+      "title": "security(calls): prove private-call MatrixRTC media E2EE",
+      "labels": ["release-blocker", "needs-live-e2e", "priority:p0", "type:story", "area:client", "area:infra", "area:e2e", "domain:calls", "evidence:required", "guarded", "domain:security"],
+      "projectStatus": "Todo"
+    },
+    {
+      "number": 1200,
+      "title": "feat(calls): govern recording, consent, transcription, and artifact lifecycle",
+      "labels": ["release-blocker", "priority:p0", "type:story", "area:server", "area:client", "area:infra", "area:e2e", "domain:files", "domain:calls", "evidence:required", "guarded", "domain:security"],
+      "projectStatus": "Todo"
+    },
+    {
+      "number": 1201,
+      "title": "test(accessibility): complete Core manual assistive-technology release audit",
+      "labels": ["area:ux", "release-blocker", "needs-live-e2e", "priority:p0", "type:task", "area:client", "area:e2e", "evidence:required", "domain:accessibility"],
+      "projectStatus": "Todo"
+    },
+    {
+      "number": 1202,
+      "title": "release(core): assemble verified Evidence Bundle and pilot go/no-go",
+      "labels": ["release-blocker", "track:release-1", "priority:p0", "type:task", "domain:health", "area:infra", "area:e2e", "area:docs", "evidence:required", "domain:security", "domain:commercial-readiness"],
+      "projectStatus": "Todo"
+    }
+  ]
+}
