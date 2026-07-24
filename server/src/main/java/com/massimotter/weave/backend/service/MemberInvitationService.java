@@ -147,19 +147,6 @@ public class MemberInvitationService {
         }
     }
 
-    public void applyMembershipEvent(String organizationId, String subject, String emailHash) {
-        List<ProvisioningIntent> matches=intents.findPendingByEmailHash(organizationId, emailHash.toLowerCase(Locale.ROOT));
-        if (matches.size() != 1) {
-            if (matches.isEmpty()) return;
-            throw new IllegalStateException("Provisioning intent correlation is ambiguous");
-        }
-        apply(matches.getFirst(), subject);
-    }
-
-    public boolean recordMembershipEventOnce(String eventId, Instant occurredAt) {
-        return intents.recordEventOnce(eventId, occurredAt);
-    }
-
     private boolean apply(ProvisioningIntent intent, String subject) {
         if (intent.status() == ProvisioningIntentStatus.APPLIED) {
             return false;

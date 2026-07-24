@@ -1,11 +1,8 @@
 package com.massimotter.weave.backend.identity.invitation;
 
-import jakarta.persistence.PersistenceException;
-import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,21 +11,16 @@ import static java.util.Objects.requireNonNull;
 /**
  * JPA adapter for invite-first provisioning work state.
  *
- * <p>The intent is versioned in place; the event receipt is an immutable deduplication ledger.
- * Neither is an organization-membership authorization source.
+ * <p>The intent is versioned in place and is not an organization-membership authorization source.
  */
 @Repository
 @Transactional(readOnly = true)
 public class JpaProvisioningIntentRepository implements ProvisioningIntentRepository {
 
     private final ProvisioningIntentJpaRepository intents;
-    private final IdentityEventReceiptJpaRepository eventReceipts;
 
-    public JpaProvisioningIntentRepository(
-            ProvisioningIntentJpaRepository intents,
-            IdentityEventReceiptJpaRepository eventReceipts) {
+    public JpaProvisioningIntentRepository(ProvisioningIntentJpaRepository intents) {
         this.intents = requireNonNull(intents, "intents");
-        this.eventReceipts = requireNonNull(eventReceipts, "eventReceipts");
     }
 
     @Override
@@ -67,41 +59,6 @@ public class JpaProvisioningIntentRepository implements ProvisioningIntentReposi
                 .stream()
                 .map(ProvisioningIntentJpaEntity::toDomain)
                 .toList();
-    }
-
-    @Override
-    public List<ProvisioningIntent> findPendingByEmailHash(
-            String organization,
-            String hash) {
-        return intents
-                .findByOrganizationIdAndInvitedEmailSha256AndStatusOrderByCreatedAtDesc(
-                        organization,
-                        hash,
-                        ProvisioningIntentStatus.PENDING)
-                .stream()
-                .map(ProvisioningIntentJpaEntity::toDomain)
-                .toList();
-    }
-
-    @Override
-    @Transactional
-    public boolean recordEventOnce(String eventId, Instant occurredAt) {
-        String safeEventId = requireNonNull(eventId, "eventId");
-        if (eventReceipts.existsById(safeEventId)) {
-            return false;
-        }
-        try {
-            eventReceipts.saveAndFlush(IdentityEventReceiptJpaEntity.create(
-                    safeEventId,
-                    requireNonNull(occurredAt, "occurredAt"),
-                    Instant.now()));
-            return true;
-        } catch (DataIntegrityViolationException | PersistenceException duplicateOrFailure) {
-            if (eventReceipts.existsById(safeEventId)) {
-                return false;
-            }
-            throw duplicateOrFailure;
-        }
     }
 
 }

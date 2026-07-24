@@ -7,16 +7,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "weave.identity.invitations")
 public class IdentityInvitationProperties {
     private Duration defaultLifetime = Duration.ofDays(7);
-    private String eventsHmacSecret = "";
-    private Duration eventFreshness = Duration.ofMinutes(5);
     private final Keycloak keycloak = new Keycloak();
 
     public Duration defaultLifetime() { return defaultLifetime; }
     public void setDefaultLifetime(Duration defaultLifetime) { this.defaultLifetime = defaultLifetime; }
-    public String eventsHmacSecret() { return eventsHmacSecret; }
-    public void setEventsHmacSecret(String eventsHmacSecret) { this.eventsHmacSecret = eventsHmacSecret; }
-    public Duration eventFreshness() { return eventFreshness; }
-    public void setEventFreshness(Duration eventFreshness) { this.eventFreshness = eventFreshness; }
     public Keycloak keycloak() { return keycloak; }
 
     public static class Keycloak {
