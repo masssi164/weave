@@ -190,6 +190,16 @@ def main() -> int:
         "live-stack bootstrap must use the test-profile Compose and Identity Ops path",
     )
     require(
+        "WEAVE_ENV_FILE: ${{ github.workspace }}/weave/infra/weave-workspace/environments/test.env.example"
+        in workflow
+        and "WEAVE_TEST_REVIEWED_ENV_FILE" not in workflow
+        and "WEAVE_TEST_REVIEWED_ENV_FILE: ${{ vars.WEAVE_TEST_REVIEWED_ENV_FILE }}"
+        in dogfood_deploy_workflow
+        and "WEAVE_TEST_BACKUP_ROOT: ${{ vars.WEAVE_TEST_BACKUP_ROOT }}"
+        in dogfood_deploy_workflow,
+        "isolated E2E must use the versioned public test template while persistent deployment requires protected host paths",
+    )
+    require(
         'export WEAVE_BOOTSTRAP_ENV="${WEAVE_E2E_STACK_BOOTSTRAP_ENV:?}"'
         in workflow
         and "/weave-workspace/.generated/bootstrap.env" not in workflow,

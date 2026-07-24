@@ -88,8 +88,7 @@ jobs:
       WEAVE_E2E_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
       WEAVE_CANDIDATE_COMMIT: ${{ github.sha }}
       WEAVE_CANDIDATE_EVIDENCE_REF: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-      WEAVE_TEST_REVIEWED_ENV_FILE: ${{ vars.WEAVE_TEST_REVIEWED_ENV_FILE }}
-      WEAVE_ENV_FILE: ${{ vars.WEAVE_TEST_REVIEWED_ENV_FILE }}
+      WEAVE_ENV_FILE: ${{ github.workspace }}/weave/infra/weave-workspace/environments/test.env.example
 
     defaults:
       run:
@@ -104,9 +103,9 @@ jobs:
             echo "::error::Run-scoped Live Stack E2E must run on ${EXPECTED_RUNNER_NAME}; got ${RUNNER_NAME:-unknown}." >&2
             exit 1
           fi
-          [[ "${WEAVE_TEST_REVIEWED_ENV_FILE:-}" == /* && \
-             "${WEAVE_ENV_FILE:-}" == "${WEAVE_TEST_REVIEWED_ENV_FILE}" ]] || {
-            echo "::error::Live Stack E2E requires one reviewed test-profile environment path." >&2
+          expected_env_file="${GITHUB_WORKSPACE%/}/weave/infra/weave-workspace/environments/test.env.example"
+          [[ "${WEAVE_ENV_FILE:-}" == "$expected_env_file" ]] || {
+            echo "::error::Run-scoped Live Stack E2E requires the versioned public test-profile environment template." >&2
             exit 1
           }
 
