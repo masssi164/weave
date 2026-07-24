@@ -343,6 +343,13 @@ class AgentRuntimeWorkloadReconciliationServiceTest {
         }
 
         @Override
+        public void requireCurrentBinding(
+                com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadBindingAuthority.CurrentBindingCommand
+                        command) {
+            // Reconciliation tests do not perform MCP admission.
+        }
+
+        @Override
         public Snapshot scan() {
             scans.incrementAndGet();
             if (failScans) {

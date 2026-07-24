@@ -1,7 +1,6 @@
 package com.massimotter.weave.backend.agentruntime.application;
 
-import com.massimotter.weave.backend.agentruntime.adapter.McpExchangedTokenPolicy;
-import com.massimotter.weave.backend.agentruntime.adapter.McpExchangedTokenPolicy.ExchangedWorkloadToken;
+import com.massimotter.weave.backend.agentruntime.domain.ExchangedWorkloadToken;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCell;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCellState;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementObservation;
@@ -20,7 +19,7 @@ import com.massimotter.weave.backend.agentruntime.port.RuntimeEntitlementAuthori
 import com.massimotter.weave.backend.agentruntime.port.RuntimeGovernanceRepository;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileRepository;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileVerifier;
-import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityAdmin;
+import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadBindingAuthority;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityException;
 import java.time.Clock;
 import java.time.Duration;
@@ -29,7 +28,6 @@ import java.util.EnumSet;
 import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Set;
-import org.springframework.security.oauth2.jwt.Jwt;
 
 /** Resolves the typed MCP workload principal from server-owned state on every backend call. */
 public final class McpWorkloadAuthorizationService {
@@ -42,25 +40,22 @@ public final class McpWorkloadAuthorizationService {
             RuntimeCellState.SYNCING,
             RuntimeCellState.DEGRADED);
 
-    private final McpExchangedTokenPolicy tokenPolicy;
     private final RuntimeCellRepository cells;
     private final RuntimeProfileRepository profiles;
     private final RuntimeProfileVerifier verifier;
     private final RuntimeGovernanceRepository governance;
-    private final RuntimeWorkloadIdentityAdmin workloadIdentities;
+    private final RuntimeWorkloadBindingAuthority workloadIdentities;
     private final RuntimeEntitlementAuthority entitlementAuthority;
     private final Clock clock;
 
     public McpWorkloadAuthorizationService(
-            McpExchangedTokenPolicy tokenPolicy,
             RuntimeCellRepository cells,
             RuntimeProfileRepository profiles,
             RuntimeProfileVerifier verifier,
             RuntimeGovernanceRepository governance,
-            RuntimeWorkloadIdentityAdmin workloadIdentities,
+            RuntimeWorkloadBindingAuthority workloadIdentities,
             RuntimeEntitlementAuthority entitlementAuthority,
             Clock clock) {
-        this.tokenPolicy = Objects.requireNonNull(tokenPolicy, "tokenPolicy");
         this.cells = Objects.requireNonNull(cells, "cells");
         this.profiles = Objects.requireNonNull(profiles, "profiles");
         this.verifier = Objects.requireNonNull(verifier, "verifier");
@@ -70,8 +65,8 @@ public final class McpWorkloadAuthorizationService {
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
-    public WeaverWorkloadPrincipal authorize(Jwt jwt) {
-        ExchangedWorkloadToken token = tokenPolicy.resolve(jwt);
+    public WeaverWorkloadPrincipal authorize(ExchangedWorkloadToken token) {
+        Objects.requireNonNull(token, "token");
         Instant now = clock.instant();
         if (token.expiresAt().isAfter(token.issuedAt().plus(MAXIMUM_EXCHANGED_TOKEN_TTL))
                 || !now.isBefore(token.expiresAt())) {
@@ -83,7 +78,7 @@ public final class McpWorkloadAuthorizationService {
         String auditRef = "audit:mcp-workload:" + RuntimeWorkloadOwnership.fingerprint(
                 token.issuer() + "\u0000" + token.tokenId() + "\u0000" + cell.cellRef()).substring(7);
         try {
-            workloadIdentities.requireCurrentBinding(new RuntimeWorkloadIdentityAdmin.CurrentBindingCommand(
+            workloadIdentities.requireCurrentBinding(new RuntimeWorkloadBindingAuthority.CurrentBindingCommand(
                     cell.organizationRef(), cell.personRef(), cell.cellRef(), cell.workloadBinding(), auditRef));
         } catch (RuntimeWorkloadIdentityException | UnsupportedOperationException failure) {
             throw denied();
