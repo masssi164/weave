@@ -42,6 +42,7 @@ require "${ROOT_DIR}/scripts/nextcloud_reconcile.py" 'ordinary reconciliation re
 require "${ROOT_DIR}/scripts/nextcloud_reconcile.py" 'oidcManagedProjectionDigest'
 require "${ROOT_DIR}/scripts/render_config.py" 'WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE'
 require "${ROOT_DIR}/scripts/render_config.py" 'WEAVE_MATRIX_FEDERATION_ENABLED'
+require "${REPO_ROOT}/build.gradle" 'apply from: "$projectDir/gradle/tasks/environment-profiles.gradle"'
 require "${REPO_ROOT}/gradle/tasks/environment-profiles.gradle" "'serverDevH2Test'"
 require "${REPO_ROOT}/gradle/tasks/environment-profiles.gradle" "'serverPostgresIntegrationTest'"
 require "${REPO_ROOT}/gradle/tasks/environment-profiles.gradle" '"identity${profileTitle}${operationTitle}"'
