@@ -1,8 +1,8 @@
 package com.massimotter.weave.backend.audit;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.persistence.PersistenceException;
 import java.util.List;
 import java.util.Map;
@@ -119,7 +119,7 @@ public class JpaAuditEventPublisher implements AuditEventPublisher {
     private String payloadJson(Map<String, Object> payload) {
         try {
             return objectMapper.writeValueAsString(payload);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new AuditRequiredException("durable audit publication failed", exception);
         }
     }
@@ -130,7 +130,7 @@ public class JpaAuditEventPublisher implements AuditEventPublisher {
         }
         try {
             return objectMapper.readValue(payloadJson, AUDIT_PAYLOAD);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new AuditRequiredException("durable audit read failed", exception);
         }
     }

@@ -1,6 +1,7 @@
 package com.massimotter.weave.backend.audit;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -75,7 +76,7 @@ public final class FileAuditEventPublisher implements AuditEventPublisher {
     private AuditEvent readEvent(String line) {
         try {
             return objectMapper.readValue(line, AuditEvent.class);
-        } catch (IOException exception) {
+        } catch (JacksonException exception) {
             throw new AuditRequiredException("durable audit event was not readable", exception);
         }
     }

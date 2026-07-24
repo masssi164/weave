@@ -1,11 +1,12 @@
 package com.massimotter.weave.backend.chat.provider.synapse;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.TextNode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.StringNode;
 import com.massimotter.weave.backend.chat.port.CanonicalChatStore;
 import com.massimotter.weave.backend.chat.e2e.ChatE2eCallbackReplayTap;
 import com.massimotter.weave.backend.config.ChatRuntimeProperties;
@@ -154,7 +155,7 @@ public final class MatrixApplicationServiceController {
                 callbackReplayTap.captureFirst(safeTransactionId, payload);
             }
             return ResponseEntity.ok(Map.of());
-        } catch (IllegalArgumentException | IOException exception) {
+        } catch (IllegalArgumentException | JacksonException exception) {
             return matrixError(HttpStatus.BAD_REQUEST, "M_BAD_JSON", "Application Service transaction is invalid.");
         } catch (RuntimeException exception) {
             return matrixError(HttpStatus.SERVICE_UNAVAILABLE, "M_UNAVAILABLE", "Application Service processing is unavailable.");
@@ -304,7 +305,7 @@ public final class MatrixApplicationServiceController {
     private static void appendCanonicalJson(JsonNode value, StringBuilder target) {
         if (value.isObject()) {
             ArrayList<String> fields = new ArrayList<>();
-            value.fieldNames().forEachRemaining(fields::add);
+            value.propertyNames().forEach(fields::add);
             Collections.sort(fields);
             target.append('{');
             for (int index = 0; index < fields.size(); index++) {
@@ -312,7 +313,7 @@ public final class MatrixApplicationServiceController {
                     target.append(',');
                 }
                 String field = fields.get(index);
-                target.append(TextNode.valueOf(field)).append(':');
+                target.append(StringNode.valueOf(field)).append(':');
                 appendCanonicalJson(value.get(field), target);
             }
             target.append('}');

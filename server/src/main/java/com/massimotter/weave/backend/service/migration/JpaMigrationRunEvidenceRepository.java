@@ -1,8 +1,8 @@
 package com.massimotter.weave.backend.service.migration;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.persistence.PersistenceException;
 import java.time.Instant;
 import java.util.List;
@@ -106,7 +106,7 @@ public class JpaMigrationRunEvidenceRepository implements MigrationRunEvidenceRe
     private String json(Object value) {
         try {
             return objectMapper.writeValueAsString(value);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new MigrationRunEvidenceStoreException(
                     "Failed to persist durable migration run evidence.",
                     exception);
@@ -119,7 +119,7 @@ public class JpaMigrationRunEvidenceRepository implements MigrationRunEvidenceRe
         }
         try {
             return objectMapper.readValue(json, type);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new MigrationRunEvidenceStoreException(
                     "Failed to load durable migration run evidence.",
                     exception);

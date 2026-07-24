@@ -1,7 +1,8 @@
 package com.massimotter.weave.backend.provider;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -83,7 +84,7 @@ public class FileProviderSelectionRepository implements ProviderSelectionReposit
             if (loaded != null) {
                 loaded.values().forEach(selection -> selections.put(normalizeCategory(selection.category()), selection));
             }
-        } catch (IOException exception) {
+        } catch (JacksonException exception) {
             throw new ProviderSelectionStoreException(
                     "Failed to load provider selections from " + storagePath, exception);
         }
@@ -102,7 +103,7 @@ public class FileProviderSelectionRepository implements ProviderSelectionReposit
             } catch (IOException atomicMoveFailure) {
                 Files.move(tempFile, storagePath, StandardCopyOption.REPLACE_EXISTING);
             }
-        } catch (IOException exception) {
+        } catch (IOException | JacksonException exception) {
             throw new ProviderSelectionStoreException(
                     "Failed to persist provider selections to " + storagePath, exception);
         }

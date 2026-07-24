@@ -1,7 +1,8 @@
 package com.massimotter.weave.backend.service;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.model.IdentityKeyFormat;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -75,7 +76,7 @@ public class FileProductProfileOverrideRepository implements ProductProfileOverr
             if (loaded != null) {
                 profiles.putAll(loaded);
             }
-        } catch (IOException exception) {
+        } catch (JacksonException exception) {
             throw new ProductProfileStoreException(
                     "Failed to load product profile overrides from " + storagePath, exception);
         }
@@ -118,7 +119,7 @@ public class FileProductProfileOverrideRepository implements ProductProfileOverr
             } catch (IOException atomicMoveFailure) {
                 Files.move(tempFile, storagePath, StandardCopyOption.REPLACE_EXISTING);
             }
-        } catch (IOException exception) {
+        } catch (IOException | JacksonException exception) {
             throw new ProductProfileStoreException(
                     "Failed to persist product profile overrides to " + storagePath, exception);
         }

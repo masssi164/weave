@@ -4,6 +4,11 @@ server:
 spring:
   application:
     name: weave-backend
+  jackson:
+    deserialization:
+      # Preserve the published API contract where omitted optional primitive
+      # request flags mean false. Jackson 3 enables fail-on-null by default.
+      fail-on-null-for-primitives: false
   profiles:
     default: dev
   flyway:

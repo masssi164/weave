@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.agentruntime.adapter;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeProfile;
 import java.time.Instant;
@@ -146,7 +146,7 @@ final class RuntimeProfileJsonDecoder {
             throw new IllegalArgumentException("RuntimeProfile field must be an object");
         }
         Set<String> actual = new HashSet<>();
-        Iterator<String> names = node.fieldNames();
+        Iterator<String> names = node.propertyNames().iterator();
         names.forEachRemaining(actual::add);
         Set<String> allowed = new HashSet<>(required);
         allowed.addAll(optional);

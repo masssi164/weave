@@ -1,8 +1,8 @@
 package com.massimotter.weave.backend.agentruntime.adapter;
 
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.StreamReadFeature;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeProfile;
 import com.massimotter.weave.backend.agentruntime.domain.SignedRuntimeProfile;
 import com.massimotter.weave.backend.agentruntime.port.InvalidRuntimeProfileException;
@@ -33,7 +33,9 @@ public final class Ed25519JcsRuntimeProfileVerifier implements RuntimeProfileVer
         if (objectMapper == null || trustKeys == null) {
             throw new IllegalArgumentException("RuntimeProfile verifier dependencies are required");
         }
-        this.objectMapper = objectMapper.copy().enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
+        this.objectMapper = objectMapper.rebuild()
+                .enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
+                .build();
         this.trustKeys = trustKeys;
     }
 
@@ -100,7 +102,7 @@ public final class Ed25519JcsRuntimeProfileVerifier implements RuntimeProfileVer
             throw invalid("invalid-protected-header");
         }
         Set<String> actual = new HashSet<>();
-        Iterator<String> names = header.fieldNames();
+        Iterator<String> names = header.propertyNames().iterator();
         names.forEachRemaining(actual::add);
         if (!actual.equals(Set.of("alg", "typ", "kid", "contractVersion"))
                 || !"EdDSA".equals(text(header, "alg"))

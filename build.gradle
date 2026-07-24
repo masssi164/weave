@@ -66,49 +66,7 @@ tasks.register('contractAuthorityArchitectureCheck') {
     description = 'Verify the root-orchestrated server/OpenAPI contract authority baseline without running live infrastructure.'
     dependsOn ':server:test', 'mcpCi', 'docsStructureCheck', 'checkOpenApiContractFresh', 'checkAdminOpenApiTypesFresh', 'checkClientOpenApiModelsFresh'
 }
-['dev', 'dogfood', 'main'].each { profile ->
-    def profileTitle = profile.capitalize()
-    ['config', 'up', 'down'].each { operation ->
-        def operationTitle = operation.capitalize()
-        registerRootCommandTask(
-            "compose${profileTitle}${operationTitle}",
-            ['infra/weave-workspace/compose.sh', profile, operation],
-            "Run the ${operation} operation for the canonical ${profile} Docker Compose profile."
-        )
-    }
-    ['plan', 'apply', 'verify'].each { operation ->
-        def operationTitle = operation.capitalize()
-        registerRootCommandTask(
-            "keycloak${profileTitle}${operationTitle}",
-            ['infra/weave-workspace/compose.sh', profile, "keycloak-${operation}"],
-            "Run protected Keycloak desired-state ${operation} for the ${profile} Compose profile."
-        )
-    }
-}
-tasks.register('serverDevH2Test') {
-    group = 'verification'
-    description = 'Run the host-development Spring Boot test lane with H2 and Hibernate mapping validation.'
-    dependsOn ':server:devH2IntegrationTest'
-}
-registerRootCommandTask('composeDevDependenciesReady', ['python3', 'infra/weave-workspace/scripts/prepare_dev_dependencies.py', '--root', 'infra/weave-workspace'], 'Build exact local trust images and reconcile the dev Compose provider dependencies for a host Spring Boot process.')
-registerRootCommandTask('serverDevBoot', ['python3', 'infra/weave-workspace/scripts/run_host_dev_server.py', 'boot', '--root', 'infra/weave-workspace'], 'Boot the host Spring server with application-dev H2 and generated live-provider coordinates.')
-tasks.named('serverDevBoot') {
-    dependsOn 'composeDevDependenciesReady'
-}
-registerRootCommandTask('serverDevHostSmoke', ['python3', 'infra/weave-workspace/scripts/run_host_dev_server.py', 'smoke', '--root', 'infra/weave-workspace'], 'Prove host Spring Boot readiness on H2 against the reconciled dev provider dependencies.')
-tasks.named('serverDevHostSmoke') {
-    dependsOn 'composeDevDependenciesReady'
-}
-tasks.register('serverPostgresIntegrationTest') {
-    group = 'verification'
-    description = 'Run the PostgreSQL-backed Spring Boot integration and migration test lane.'
-    dependsOn ':server:postgresIntegrationTest'
-}
-tasks.register('relationalModelParity') {
-    group = 'verification'
-    description = 'Prove exact Flyway, canonical Chen manifest, JPA entity, and repository parity.'
-    dependsOn ':server:relationalModelParity'
-}
+apply from: "$projectDir/gradle/tasks/environment-profiles.gradle"
 registerRootCommandTask('noExecutableOpenTofuCheck', ['python3', 'tools/no_executable_opentofu_check.py'], 'Reject executable OpenTofu, Terraform state, TF_VAR inputs, and legacy IaC commands after the Compose cutover.')
 registerRootCommandTask('noExecutableOpenTofuCheckTest', ['python3', 'tools/no_executable_opentofu_check_test.py'], 'Run fixture coverage for the executable OpenTofu retirement guard.')
 registerRootCommandTask('workflowActionRuntimeCheck', ['python3', 'tools/workflow_action_runtime_check.py'], 'Require every external GitHub Action to use its reviewed immutable commit and a supported Node 24 or composite runtime.')

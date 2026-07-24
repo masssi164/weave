@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.matrix;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.chat.domain.ChatActorRef;
 import java.util.List;
 import java.util.Map;
@@ -15,7 +15,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class MatrixE2eeStateServicePersistenceTest {
 
-    private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+    private final ObjectMapper objectMapper = tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build();
 
     @Test
     void publicKeysToDeviceEventsAndOpaqueBackupsSurviveServiceRestart() {

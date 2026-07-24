@@ -3,7 +3,7 @@ package com.massimotter.weave.backend.identity.invitation;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.config.IdentityInvitationProperties;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -84,7 +84,7 @@ class KeycloakIdentityAdminClientTest {
         properties.keycloak().setTimeout(Duration.ofSeconds(2));
         return new KeycloakIdentityAdminClient(
                 properties,
-                new ObjectMapper().findAndRegisterModules(),
+                tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build(),
                 HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build(),
                 Clock.fixed(Instant.parse("2026-07-22T10:00:00Z"), ZoneOffset.UTC));
     }

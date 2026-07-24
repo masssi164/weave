@@ -2,9 +2,9 @@ package com.massimotter.weave.backend.bdd;
 
 import com.massimotter.weave.backend.WeaveBackendApplication;
 import io.cucumber.spring.CucumberContextConfiguration;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 
 @CucumberContextConfiguration
@@ -27,6 +27,6 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 @AutoConfigureMockMvc
 public class CucumberSpringConfiguration {
 
-    @MockBean
+    @MockitoBean
     private JwtDecoder jwtDecoder;
 }

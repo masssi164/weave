@@ -1,7 +1,8 @@
 package com.massimotter.weave.backend.agentruntime.adapter;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementObservation;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadOwnership;
@@ -239,7 +240,7 @@ public final class KeycloakRuntimeEntitlementAuthority implements RuntimeEntitle
         }
         try {
             return mapper.readTree(first.body());
-        } catch (IOException invalid) {
+        } catch (JacksonException invalid) {
             throw new RuntimeEntitlementAuthorityException(
                     "Keycloak returned an invalid entitlement response", invalid);
         }

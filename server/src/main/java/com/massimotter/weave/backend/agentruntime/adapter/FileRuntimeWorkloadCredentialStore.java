@@ -1,11 +1,12 @@
 package com.massimotter.weave.backend.agentruntime.adapter;
 
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.StreamReadFeature;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadBinding;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadCredentialState;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadCredentialState.RotationPhase;
@@ -99,10 +100,11 @@ public final class FileRuntimeWorkloadCredentialStore
             throw new IllegalArgumentException("credential root, ObjectMapper, clock, and randomness are required");
         }
         this.root = root.toAbsolutePath().normalize();
-        this.mapper = objectMapper.copy()
-                .enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
+        this.mapper = objectMapper.rebuild()
+                .enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
                 .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
-                .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
+                .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+                .build();
         this.clock = clock;
         this.secureRandom = secureRandom;
         this.localLocks = new ReentrantLock[LOCAL_LOCK_STRIPES];
@@ -307,7 +309,7 @@ public final class FileRuntimeWorkloadCredentialStore
             StoredCredential stored = mapper.readValue(bytes, StoredCredential.class);
             validate(stored, clientId);
             return Optional.of(stored);
-        } catch (IOException | RuntimeException exception) {
+        } catch (RuntimeException exception) {
             throw unavailable("The workload credential envelope is invalid", exception);
         } finally {
             Arrays.fill(bytes, (byte) 0);
@@ -331,7 +333,7 @@ public final class FileRuntimeWorkloadCredentialStore
         byte[] bytes;
         try {
             bytes = mapper.writeValueAsBytes(stored);
-        } catch (IOException exception) {
+        } catch (JacksonException exception) {
             throw unavailable("Unable to encode the workload credential envelope", exception);
         }
         Path target = pathForRef(stored.credentialRef());
@@ -397,7 +399,7 @@ public final class FileRuntimeWorkloadCredentialStore
                     mapper.writeValueAsString(jwks),
                     phase(stored),
                     stored.rotationFingerprint());
-        } catch (IOException exception) {
+        } catch (JacksonException exception) {
             throw unavailable("Unable to project the workload public key set", exception);
         }
     }

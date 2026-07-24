@@ -18,7 +18,7 @@ import org.springframework.context.annotation.Configuration;
  * Single production persistence composition root.
  *
  * <p>The deployment profile selects only the database implementation (H2 for host dev,
- * PostgreSQL for dogfood/main); it never selects an alternate repository authority.
+ * PostgreSQL for test/prod); it never selects an alternate repository authority.
  */
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(ProviderBindingBootstrapProperties.class)

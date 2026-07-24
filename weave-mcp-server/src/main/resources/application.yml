@@ -4,6 +4,8 @@ server:
 spring:
   application:
     name: weave-mcp-server
+  profiles:
+    default: dev
   security:
     oauth2:
       resourceserver:

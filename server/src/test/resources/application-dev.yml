@@ -1,6 +1,6 @@
 spring:
   datasource:
-    url: jdbc:h2:mem:weave-test;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1
+    url: jdbc:h2:mem:weave-dev;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1
     username: sa
     password: ""
     driver-class-name: org.h2.Driver
@@ -9,6 +9,6 @@ spring:
 
 weave:
   deployment:
-    profile: test
+    profile: dev
   chat:
     provider: in-memory-test

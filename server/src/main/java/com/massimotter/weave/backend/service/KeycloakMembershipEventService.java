@@ -1,11 +1,11 @@
 package com.massimotter.weave.backend.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.config.IdentityInvitationProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.model.identity.KeycloakMembershipEvent;
 import java.nio.charset.StandardCharsets;
-import java.io.IOException;
 import java.security.MessageDigest;
 import java.time.Clock;
 import java.time.Instant;
@@ -47,7 +47,7 @@ public class KeycloakMembershipEventService {
         if (!MessageDigest.isEqual(expected, supplied)) throw error(HttpStatus.UNAUTHORIZED, "keycloak-event-signature-invalid");
         KeycloakMembershipEvent event;
         try { event=objectMapper.readValue(body, KeycloakMembershipEvent.class); }
-        catch (IOException e) { throw error(HttpStatus.BAD_REQUEST, "keycloak-event-invalid"); }
+        catch (JacksonException e) { throw error(HttpStatus.BAD_REQUEST, "keycloak-event-invalid"); }
         if (event.schemaVersion()!=1 || !headerEventId.equals(event.eventId()) || event.occurredAt()==null
                 || !"organization_membership_added".equals(event.eventType()))
             throw error(HttpStatus.BAD_REQUEST, "keycloak-event-invalid");

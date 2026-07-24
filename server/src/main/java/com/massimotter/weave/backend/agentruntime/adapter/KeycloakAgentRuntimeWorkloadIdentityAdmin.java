@@ -1,10 +1,10 @@
 package com.massimotter.weave.backend.agentruntime.adapter;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadBinding;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadCredentialState;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadOwnership;
@@ -374,7 +374,7 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
             return new Snapshot(
                     RuntimeWorkloadOwnership.fingerprint(mapper.writeValueAsString(projection)),
                     ordered);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new RuntimeWorkloadIdentityException(
                     "Unable to derive the support-safe workload inventory revision", exception);
         }
@@ -398,7 +398,7 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
                 }
             }
             return Set.copyOf(result);
-        } catch (JsonProcessingException invalidPublicKeySet) {
+        } catch (JacksonException invalidPublicKeySet) {
             return Set.of();
         }
     }
@@ -490,7 +490,7 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
                 "GET", adminPath("/users/" + path(subject) + "/role-mappings"), null, Set.of(200)));
         JsonNode clientMappings = mappings.path("clientMappings");
         if (clientMappings.isObject()) {
-            clientMappings.fields().forEachRemaining(entry -> {
+            clientMappings.properties().forEach(entry -> {
                 JsonNode mapping = entry.getValue();
                 String clientUuid = requiredText(mapping, "id");
                 JsonNode roles = mapping.path("mappings");
@@ -944,7 +944,7 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
                     request.method(method, publisher).build(),
                     HttpResponse.BodyHandlers.ofByteArray());
             return new Response(response.statusCode(), response.body());
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new RuntimeWorkloadIdentityException("Unable to encode the Keycloak administration request", exception);
         } catch (IOException exception) {
             throw new RuntimeWorkloadIdentityException("Keycloak workload administration is unavailable", exception);
@@ -971,7 +971,7 @@ public final class KeycloakAgentRuntimeWorkloadIdentityAdmin
                 return mapper.nullNode();
             }
             return mapper.readTree(response.body());
-        } catch (IOException exception) {
+        } catch (JacksonException exception) {
             throw new RuntimeWorkloadIdentityException("Keycloak returned an invalid administration response", exception);
         }
     }

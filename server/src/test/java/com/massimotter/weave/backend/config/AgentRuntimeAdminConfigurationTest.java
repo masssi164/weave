@@ -3,7 +3,7 @@ package com.massimotter.weave.backend.config;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.agentruntime.application.AgentRuntimeAdminService;
 import com.massimotter.weave.backend.agentruntime.application.AgentRuntimeControlService;
 import com.massimotter.weave.backend.agentruntime.adapter.RuntimeStateJpaAuthority;

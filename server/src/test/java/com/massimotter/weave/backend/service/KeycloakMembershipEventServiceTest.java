@@ -7,7 +7,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.config.IdentityInvitationProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import java.nio.charset.StandardCharsets;
@@ -25,7 +25,7 @@ class KeycloakMembershipEventServiceTest {
     private final MemberInvitationService invitations = mock(MemberInvitationService.class);
     private final IdentityInvitationProperties properties = properties();
     private final KeycloakMembershipEventService service = new KeycloakMembershipEventService(
-            invitations, properties, new ObjectMapper().findAndRegisterModules(), Clock.fixed(NOW, ZoneOffset.UTC));
+            invitations, properties, tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build(), Clock.fixed(NOW, ZoneOffset.UTC));
 
     @Test
     void acceptsSignedMembershipEventWithoutRawEmail() throws Exception {

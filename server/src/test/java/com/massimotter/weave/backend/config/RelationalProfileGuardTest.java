@@ -9,7 +9,7 @@ import org.springframework.mock.env.MockEnvironment;
 class RelationalProfileGuardTest {
 
     @Test
-    void devAcceptsEmbeddedH2ForIsolatedServerAndE2eTesting() {
+    void devAcceptsEmbeddedH2ForIsolatedDeveloperFeedback() {
         MockEnvironment environment = environment(
                 "dev",
                 "jdbc:h2:mem:weave-dev;MODE=PostgreSQL",
@@ -20,10 +20,10 @@ class RelationalProfileGuardTest {
     }
 
     @Test
-    void dogfoodRejectsEmbeddedDatabaseEvenWhenOnlyDeploymentProfileIsSet() {
+    void testRejectsEmbeddedDatabaseEvenWhenOnlyDeploymentProfileIsSet() {
         MockEnvironment environment = environment(
-                "dogfood",
-                "jdbc:h2:mem:weave-dogfood",
+                "test",
+                "jdbc:h2:mem:weave-test",
                 "org.h2.Driver");
 
         assertThatThrownBy(() -> new RelationalProfileGuard(environment).afterSingletonsInstantiated())
@@ -32,9 +32,9 @@ class RelationalProfileGuardTest {
     }
 
     @Test
-    void mainRequiresThePostgresqlDriverAsWellAsItsUrl() {
+    void prodRequiresThePostgresqlDriverAsWellAsItsUrl() {
         MockEnvironment environment = environment(
-                "main",
+                "prod",
                 "jdbc:postgresql://postgres:5432/weave",
                 "org.h2.Driver");
 
@@ -44,9 +44,9 @@ class RelationalProfileGuardTest {
     }
 
     @Test
-    void releaseProfileAcceptsExplicitPostgresqlConfiguration() {
+    void prodAcceptsExplicitPostgresqlConfiguration() {
         MockEnvironment environment = environment(
-                "main",
+                "prod",
                 "jdbc:postgresql://postgres:5432/weave",
                 "org.postgresql.Driver");
 

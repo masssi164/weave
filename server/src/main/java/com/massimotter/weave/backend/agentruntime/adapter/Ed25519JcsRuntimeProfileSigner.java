@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.agentruntime.adapter;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeProfile;
 import com.massimotter.weave.backend.agentruntime.domain.SignedRuntimeProfile;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileSigner;

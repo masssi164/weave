@@ -6,10 +6,10 @@ import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
-/** Fails closed when a release lane is pointed at an embedded or non-PostgreSQL database. */
+/** Fails closed when a production-shaped runtime profile uses a non-PostgreSQL database. */
 @Component
 public final class RelationalProfileGuard implements SmartInitializingSingleton {
-    private static final Set<String> POSTGRES_REQUIRED_PROFILES = Set.of("dogfood", "main", "prod");
+    private static final Set<String> POSTGRES_REQUIRED_PROFILES = Set.of("test", "prod");
 
     private final Environment environment;
     public RelationalProfileGuard(Environment environment) {
@@ -28,12 +28,12 @@ public final class RelationalProfileGuard implements SmartInitializingSingleton 
         String url = environment.getProperty("spring.datasource.url");
         if (url == null || !url.startsWith("jdbc:postgresql://")) {
             throw new IllegalStateException(
-                    "The dogfood/main server profiles require a standard PostgreSQL datasource URL");
+                    "The test/prod server profiles require a standard PostgreSQL datasource URL");
         }
         String driver = environment.getProperty("spring.datasource.driver-class-name");
         if (!"org.postgresql.Driver".equals(driver)) {
             throw new IllegalStateException(
-                    "The dogfood/main server profiles require the PostgreSQL driver");
+                    "The test/prod server profiles require the PostgreSQL driver");
         }
     }
 }

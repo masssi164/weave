@@ -19,11 +19,11 @@ class AgentRuntimeStateStoreGuardTest {
 
     @Test
     void releaseProfilesCannotActivateTheCrossStoreAdapterBeforeReconciliationEvidence() {
-        Environment dogfood = mock(Environment.class);
-        when(dogfood.getActiveProfiles()).thenReturn(new String[] {"dogfood"});
-        when(dogfood.getProperty("weave.deployment.profile", "")).thenReturn("dogfood");
+        Environment prod = mock(Environment.class);
+        when(prod.getActiveProfiles()).thenReturn(new String[] {"prod"});
+        when(prod.getProperty("weave.deployment.profile", "")).thenReturn("prod");
 
-        assertThatThrownBy(() -> AgentRuntimeStateStoreConfiguration.rejectReleaseActivation(dogfood))
+        assertThatThrownBy(() -> AgentRuntimeStateStoreConfiguration.rejectReleaseActivation(prod))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("RuntimeStateStore remains Guarded until durable cross-store reconciliation evidence passes")
                 .hasMessageNotContaining("S3")

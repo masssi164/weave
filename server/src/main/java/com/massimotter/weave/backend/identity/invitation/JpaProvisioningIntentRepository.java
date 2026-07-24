@@ -1,8 +1,8 @@
 package com.massimotter.weave.backend.identity.invitation;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.persistence.PersistenceException;
 import java.time.Instant;
 import java.util.List;
@@ -117,7 +117,7 @@ public class JpaProvisioningIntentRepository implements ProvisioningIntentReposi
     private String groupsJson(List<String> values) {
         try {
             return objectMapper.writeValueAsString(values);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("Could not serialize organization groups", exception);
         }
     }
@@ -125,7 +125,7 @@ public class JpaProvisioningIntentRepository implements ProvisioningIntentReposi
     private List<String> groups(String value) {
         try {
             return objectMapper.readValue(value, STRINGS);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("Could not read organization groups", exception);
         }
     }

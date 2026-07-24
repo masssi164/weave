@@ -9,7 +9,7 @@ import com.massimotter.weave.backend.model.PlatformStatusResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
 import java.util.ArrayList;
 import java.util.List;
-import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 

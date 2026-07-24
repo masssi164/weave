@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.chat.provider.synapse;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.chat.domain.ChatEventContent;
 import com.massimotter.weave.backend.config.ChatRuntimeProperties;
 import com.massimotter.weave.backend.portability.ProviderCapabilityState;
@@ -68,7 +68,7 @@ class MatrixSynapseChatSouthboundAdapterTest {
                 AS_TOKEN,
                 Duration.ofSeconds(2),
                 HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build(),
-                new ObjectMapper().findAndRegisterModules(),
+                tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build(),
                 clock);
         adapter = new MatrixSynapseChatSouthboundAdapter(client, properties, clock);
     }

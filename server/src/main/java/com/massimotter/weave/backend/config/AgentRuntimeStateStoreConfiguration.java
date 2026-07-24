@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.agentruntime.adapter.FileRuntimeStateKeyWrapper;
 import com.massimotter.weave.backend.agentruntime.adapter.S3EncryptedRuntimeStateStore;
 import com.massimotter.weave.backend.agentruntime.adapter.RuntimeStateJpaAuthority;
@@ -55,7 +55,7 @@ public class AgentRuntimeStateStoreConfiguration {
     }
 
     static void rejectReleaseActivation(Environment environment) {
-        java.util.Set<String> releaseProfiles = java.util.Set.of("dogfood", "main", "prod");
+        java.util.Set<String> releaseProfiles = java.util.Set.of("prod");
         boolean releaseProfile = java.util.Arrays.stream(environment.getActiveProfiles())
                 .anyMatch(releaseProfiles::contains);
         String declaredProfile = environment.getProperty("weave.deployment.profile", "");

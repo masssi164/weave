@@ -1,8 +1,8 @@
 package com.massimotter.weave.backend.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import java.util.Map;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -78,7 +78,7 @@ public class JpaProductProfileOverrideRepository implements ProductProfileOverri
     private String accessibilityPreferencesJson(Map<String, String> preferences) {
         try {
             return objectMapper.writeValueAsString(preferences == null ? Map.of() : preferences);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new ProductProfileStoreException(
                     "Failed to serialize product profile accessibility preferences.",
                     exception);
@@ -91,7 +91,7 @@ public class JpaProductProfileOverrideRepository implements ProductProfileOverri
         }
         try {
             return objectMapper.readValue(preferencesJson, ACCESSIBILITY_PREFERENCES);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new ProductProfileStoreException(
                     "Failed to load product profile accessibility preferences.",
                     exception);

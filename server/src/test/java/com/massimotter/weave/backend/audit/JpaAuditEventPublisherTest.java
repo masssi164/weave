@@ -1,8 +1,8 @@
 package com.massimotter.weave.backend.audit;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
@@ -126,7 +126,7 @@ class JpaAuditEventPublisherTest {
         DriverManagerDataSource dataSource = dataSource();
         migrate(dataSource);
         ObjectMapper objectMapper = mock(ObjectMapper.class);
-        when(objectMapper.writeValueAsString(any())).thenThrow(new JsonProcessingException("secret-provider-payload") {
+        when(objectMapper.writeValueAsString(any())).thenThrow(new JacksonException("secret-provider-payload") {
         });
         var publisher = publisher(dataSource, objectMapper);
 
@@ -144,7 +144,7 @@ class JpaAuditEventPublisherTest {
         publisher(dataSource).publish(event("audit-provider-selection-payload-read-failure"));
         ObjectMapper objectMapper = mock(ObjectMapper.class);
         when(objectMapper.readValue(anyString(), any(TypeReference.class)))
-                .thenThrow(new JsonProcessingException("secret-provider-payload") {
+                .thenThrow(new JacksonException("secret-provider-payload") {
                 });
         var publisher = publisher(dataSource, objectMapper);
 
@@ -225,7 +225,7 @@ class JpaAuditEventPublisherTest {
     }
 
     private JpaAuditEventPublisher publisher(DriverManagerDataSource dataSource) {
-        return publisher(dataSource, new ObjectMapper().findAndRegisterModules());
+        return publisher(dataSource, tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build());
     }
 
     private JpaAuditEventPublisher publisher(

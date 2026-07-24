@@ -3,7 +3,7 @@ package com.massimotter.weave.backend.service.migration;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
@@ -32,7 +32,7 @@ class MigrationRunEvidenceRepositoryConfigurationTest {
     private ApplicationContextRunner contextRunner() {
         return new ApplicationContextRunner()
                 .withUserConfiguration(JpaMigrationRunEvidenceRepository.class)
-                .withBean(ObjectMapper.class, () -> new ObjectMapper().findAndRegisterModules())
+                .withBean(ObjectMapper.class, () -> tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build())
                 .withBean(
                         MigrationRunEvidenceJpaRepository.class,
                         () -> mock(MigrationRunEvidenceJpaRepository.class));

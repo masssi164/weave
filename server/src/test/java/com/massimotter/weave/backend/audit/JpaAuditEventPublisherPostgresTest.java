@@ -77,6 +77,6 @@ class JpaAuditEventPublisherPostgresTest {
                         AuditEventJpaRepository.class);
         return new JpaAuditEventPublisher(
                 springData,
-                new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules());
+                tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build());
     }
 }

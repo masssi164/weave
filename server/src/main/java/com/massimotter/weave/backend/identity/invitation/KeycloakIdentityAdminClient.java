@@ -1,7 +1,8 @@
 package com.massimotter.weave.backend.identity.invitation;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.config.IdentityInvitationProperties;
 import java.io.IOException;
 import java.net.URI;
@@ -216,7 +217,7 @@ public class KeycloakIdentityAdminClient {
         } catch (IOException e) { throw new IllegalStateException("Keycloak authentication is unavailable", e); }
         catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new IllegalStateException("Keycloak authentication was interrupted", e); }
     }
-    private JsonNode json(String body) { try { return objectMapper.readTree(body); } catch (IOException e) { throw new IllegalStateException("Keycloak returned an invalid response", e); } }
+    private JsonNode json(String body) { try { return objectMapper.readTree(body); } catch (JacksonException e) { throw new IllegalStateException("Keycloak returned an invalid response", e); } }
     private URI resolve(String path) { return properties.keycloak().baseUrl().resolve(path); }
     private String adminPath(String suffix) { return "/admin/realms/" + encode(properties.keycloak().realm()) + suffix; }
     private String form(String... values) { StringBuilder result = new StringBuilder(); for (int i=0;i<values.length;i+=2) { if (!result.isEmpty()) result.append('&'); result.append(encode(values[i])).append('=').append(encode(values[i+1])); } return result.toString(); }

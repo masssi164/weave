@@ -1,0 +1,61 @@
+['dev', 'test', 'prod'].each { profile ->
+    def profileTitle = profile.capitalize()
+    ['config', 'up', 'down'].each { operation ->
+        def operationTitle = operation.capitalize()
+        registerRootCommandTask(
+            "compose${profileTitle}${operationTitle}",
+            ['infra/weave-workspace/compose.sh', profile, operation],
+            "Run the ${operation} operation for the canonical ${profile} Docker Compose profile."
+        )
+    }
+    ['plan', 'apply', 'verify'].each { operation ->
+        def operationTitle = operation.capitalize()
+        registerRootCommandTask(
+            "keycloak${profileTitle}${operationTitle}",
+            ['infra/weave-workspace/compose.sh', profile, "keycloak-${operation}"],
+            "Run protected Keycloak desired-state ${operation} for the ${profile} Compose profile."
+        )
+    }
+}
+
+tasks.register('serverDevH2Test') {
+    group = 'verification'
+    description = 'Run the host-development Spring Boot test lane with H2 and Hibernate mapping validation.'
+    dependsOn ':server:devH2IntegrationTest'
+}
+
+registerRootCommandTask(
+    'composeDevDependenciesReady',
+    ['python3', 'infra/weave-workspace/scripts/prepare_dev_dependencies.py', '--root', 'infra/weave-workspace'],
+    'Build exact local trust images and reconcile the dev Compose provider dependencies for a host Spring Boot process.'
+)
+
+registerRootCommandTask(
+    'serverDevBoot',
+    ['python3', 'infra/weave-workspace/scripts/run_host_dev_server.py', 'boot', '--root', 'infra/weave-workspace'],
+    'Boot the host Spring server with application-dev H2 and generated live-provider coordinates.'
+)
+tasks.named('serverDevBoot') {
+    dependsOn 'composeDevDependenciesReady'
+}
+
+registerRootCommandTask(
+    'serverDevHostSmoke',
+    ['python3', 'infra/weave-workspace/scripts/run_host_dev_server.py', 'smoke', '--root', 'infra/weave-workspace'],
+    'Prove host Spring Boot readiness on H2 against the reconciled dev provider dependencies.'
+)
+tasks.named('serverDevHostSmoke') {
+    dependsOn 'composeDevDependenciesReady'
+}
+
+tasks.register('serverPostgresIntegrationTest') {
+    group = 'verification'
+    description = 'Run the PostgreSQL-backed Spring Boot integration and migration test lane.'
+    dependsOn ':server:postgresIntegrationTest'
+}
+
+tasks.register('relationalModelParity') {
+    group = 'verification'
+    description = 'Prove exact Flyway, canonical Chen manifest, JPA entity, and repository parity.'
+    dependsOn ':server:relationalModelParity'
+}

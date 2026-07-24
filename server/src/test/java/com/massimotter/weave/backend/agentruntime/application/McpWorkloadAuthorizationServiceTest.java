@@ -8,7 +8,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.agentruntime.adapter.McpExchangedTokenPolicy;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCell;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCellState;
@@ -105,7 +105,7 @@ class McpWorkloadAuthorizationServiceTest {
         verify(identities).requireCurrentBinding(any());
         verify(entitlementAuthority).observe(any());
 
-        String projection = new ObjectMapper().findAndRegisterModules()
+        String projection = tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build()
                 .writeValueAsString(McpWorkloadContextResponse.from(principal));
         assertThat(projection)
                 .contains("weave.mcp-workload-context/v2", CLIENT, PROFILE_HASH, ENTITLEMENT_REVISION)

@@ -24,5 +24,4 @@ dependencies {
     testImplementation 'org.springframework.security:spring-security-test'
 }
 
-tasks.named('test') { useJUnitPlatform() }
-tasks.withType(JavaCompile).configureEach { options.compilerArgs += ['-Xlint:deprecation'] }
+apply from: "$projectDir/gradle/tasks/verification.gradle"

@@ -1,7 +1,7 @@
 package com.massimotter.weave.backend.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.audit.AuditEventJpaRepository;
@@ -31,7 +31,7 @@ import java.util.Map;
 import java.util.UUID;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -96,7 +96,7 @@ class AdminControlPlaneServiceTest {
         JpaAuditEventPublisher auditPublisher =
                 new JpaAuditEventPublisher(
                         repository,
-                        new ObjectMapper().findAndRegisterModules());
+                        tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build());
         AdminControlPlaneService service = adminControlPlaneService(auditPublisher);
         CapabilityWhitelistUpdateRequest request = new CapabilityWhitelistUpdateRequest(
                 "workspace-admin",
@@ -155,7 +155,7 @@ class AdminControlPlaneServiceTest {
                     .containsEntry("reasonProvided", true);
             assertThat(event.payload()).doesNotContainKeys("reason", "subject", "organizationId");
         });
-        assertThat(new ObjectMapper().findAndRegisterModules().writeValueAsString(auditPublisher.events()))
+        assertThat(tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build().writeValueAsString(auditPublisher.events()))
                 .doesNotContain("operator-token", "secretref://", "simulate before #233", "member-123");
     }
 
@@ -195,7 +195,7 @@ class AdminControlPlaneServiceTest {
 
     @Test
     void checkedInSimulationFixtureIsSupportSafeAndContractShaped() throws Exception {
-        ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+        ObjectMapper objectMapper = tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build();
         try (InputStream input = getClass().getResourceAsStream("/effective-policy-simulation/admin-operator-preview.json")) {
             assertThat(input).isNotNull();
             JsonNode fixture = objectMapper.readTree(input);
@@ -290,7 +290,7 @@ class AdminControlPlaneServiceTest {
 
         assertThat(auditPublisher.events()).extracting(event -> event.action())
                 .contains(AuditAction.IDENTITY_REALM_APPLY_GUARDED);
-        var auditJson = new ObjectMapper().findAndRegisterModules().writeValueAsString(auditPublisher.events());
+        var auditJson = tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build().writeValueAsString(auditPublisher.events());
         assertThat(auditJson)
                 .contains("IDENTITY_REALM_APPLY_GUARDED", "user:admin-123", "candidateRef", "planRef", "accepted-without-provider-mutation")
                 .doesNotContain("alice@example.com", "safe apply review", "token-that-must-not-leak", "issuer+subject:https://auth.example.invalid/realms/weave#admin-123");
@@ -648,13 +648,13 @@ class AdminControlPlaneServiceTest {
             assertThat(binding.allowedTools()).contains("admin.get_readiness", "weaver.get_runtime_profile_projection", "calendar.search_events", "boards.comment");
             assertThat(binding.authRef()).startsWith("credentialref://");
         });
-        assertThat(new ObjectMapper().findAndRegisterModules().writeValueAsString(response))
+        assertThat(tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build().writeValueAsString(response))
                 .doesNotContain("openclaw.json", "Bearer ", "access_token", "rawProviderPayload", "rawMcpServerConfig");
     }
 
     @Test
     void checkedInApplyFixtureIsSupportSafeDecisionOnlyEvidence() throws Exception {
-        ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+        ObjectMapper objectMapper = tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build();
         try (InputStream input = getClass().getResourceAsStream("/identity-realm-apply/guarded-safe-accepted.json")) {
             assertThat(input).isNotNull();
             JsonNode fixture = objectMapper.readTree(input);

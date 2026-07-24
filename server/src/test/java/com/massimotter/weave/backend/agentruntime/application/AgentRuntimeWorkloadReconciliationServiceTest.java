@@ -2,7 +2,7 @@ package com.massimotter.weave.backend.agentruntime.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.agentruntime.adapter.FileRuntimeWorkloadCredentialStore;
 import com.massimotter.weave.backend.agentruntime.adapter.JpaRuntimeCellRepository;
 import com.massimotter.weave.backend.agentruntime.adapter.AgentRuntimeJpaTestFactory;
@@ -133,7 +133,7 @@ class AgentRuntimeWorkloadReconciliationServiceTest {
         int scans = identity.scans.get();
         assertThat(service.supportSafeSnapshot()).isEqualTo(report);
         assertThat(identity.scans).hasValue(scans);
-        String serialized = new ObjectMapper().findAndRegisterModules().writeValueAsString(report);
+        String serialized = tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build().writeValueAsString(report);
         assertThat(serialized)
                 .doesNotContain(ORGANIZATION, PERSON, CELL, CLIENT, SUBJECT, "provider-exact");
         assertThat(meters.get("weave.agent.runtime.workload.clients")
@@ -242,7 +242,7 @@ class AgentRuntimeWorkloadReconciliationServiceTest {
         assertThat(report.state()).isEqualTo(State.UNAVAILABLE);
         assertThat(report.blockers()).contains(Blocker.PROVIDER_UNAVAILABLE, Blocker.RECONCILE_FAILURE);
         assertThat(report.nextReconcileAt()).isEqualTo(NOW.plusSeconds(60));
-        String serialized = new ObjectMapper().findAndRegisterModules().writeValueAsString(report);
+        String serialized = tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build().writeValueAsString(report);
         assertThat(serialized).doesNotContain("private-provider-diagnostic");
         int scans = identity.scans.get();
         assertThat(service.supportSafeSnapshot()).isEqualTo(report);

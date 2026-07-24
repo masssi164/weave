@@ -1,7 +1,7 @@
 package com.massimotter.weave.backend.chat.provider.synapse;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.chat.domain.ChatEncryptedEnvelope;
 import com.massimotter.weave.backend.chat.domain.ChatEventContent;
 import com.massimotter.weave.backend.config.ChatRuntimeProperties;
@@ -34,7 +34,7 @@ class SynapseApplicationServiceClientTest {
     private static final String HS_TOKEN = "hs-token-value-0123456789";
     private static final Clock FIXED = Clock.fixed(Instant.parse("2026-07-15T10:00:00Z"), ZoneOffset.UTC);
 
-    private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+    private final ObjectMapper objectMapper = tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build();
     private final List<ObservedRequest> requests = new CopyOnWriteArrayList<>();
     private final AtomicBoolean throttleSend = new AtomicBoolean();
     private final AtomicReference<String> retryAfter = new AtomicReference<>("120");

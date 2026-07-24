@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.chat.store;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.chat.domain.ChatAccessDeniedException;
 import com.massimotter.weave.backend.chat.domain.ChatActorRef;
 import com.massimotter.weave.backend.chat.domain.ChatCallbackRetryRequiredException;
@@ -547,7 +547,7 @@ class JpaCanonicalChatStoreTest {
         Flyway.configure().dataSource(dataSource).locations("classpath:db/migration").load().migrate();
         return new JpaCanonicalChatStore(
                 CanonicalChatJpaTestFactory.authority(dataSource),
-                new ObjectMapper().findAndRegisterModules(),
+                tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build(),
                 FIXED);
     }
 

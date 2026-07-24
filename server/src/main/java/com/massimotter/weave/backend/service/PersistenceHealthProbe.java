@@ -1,8 +1,8 @@
 package com.massimotter.weave.backend.service;
 
 import javax.sql.DataSource;
-import org.springframework.boot.actuate.health.Status;
-import org.springframework.boot.actuate.jdbc.DataSourceHealthIndicator;
+import org.springframework.boot.health.contributor.Status;
+import org.springframework.boot.jdbc.health.DataSourceHealthIndicator;
 import org.springframework.stereotype.Component;
 
 /**

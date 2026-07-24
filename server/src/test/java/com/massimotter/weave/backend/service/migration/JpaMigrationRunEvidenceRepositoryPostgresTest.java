@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.service.migration;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -32,7 +32,7 @@ class JpaMigrationRunEvidenceRepositoryPostgresTest {
                         MigrationRunEvidenceJpaRepository.class);
         var repository = new JpaMigrationRunEvidenceRepository(
                 springData,
-                new ObjectMapper().findAndRegisterModules());
+                tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build());
 
         repository.save(new MigrationRunEvidence(
                 "migration-chat-postgres-001",

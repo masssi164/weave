@@ -1,7 +1,7 @@
 package com.massimotter.weave.backend.chat.e2e;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.chat.provider.synapse.MatrixApplicationServiceController;
 import com.massimotter.weave.backend.config.ChatE2eProofProperties;
 import com.massimotter.weave.backend.config.ChatE2eProofSecurityConfiguration;
@@ -104,7 +104,7 @@ public final class ChatE2eCallbackReplayController {
 
     private Set<String> fieldNames(JsonNode value) {
         java.util.Set<String> names = new java.util.HashSet<>();
-        value.fieldNames().forEachRemaining(names::add);
+        value.propertyNames().forEach(names::add);
         return Set.copyOf(names);
     }
 

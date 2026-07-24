@@ -1,7 +1,7 @@
 package com.massimotter.weave.backend.identity.realm;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.persistence.jpa.IdentityRealmEvidenceEntity;
 import com.massimotter.weave.backend.persistence.jpa.IdentityRealmEvidenceJpaRepository;
 import java.time.ZoneOffset;
@@ -33,7 +33,7 @@ public class JpaIdentityRealmEvidenceRepository implements IdentityRealmEvidence
                     evidence.realmId(),
                     objectMapper.writeValueAsString(evidence.report()),
                     evidence.createdAt().atOffset(ZoneOffset.UTC)));
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("Identity realm evidence could not be serialized", exception);
         }
     }
@@ -55,7 +55,7 @@ public class JpaIdentityRealmEvidenceRepository implements IdentityRealmEvidence
                     entity.realmId(),
                     objectMapper.readValue(entity.reportJson(), IdentityRealmDryRunReport.class),
                     entity.createdAt().toInstant());
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("Identity realm evidence could not be read", exception);
         }
     }

@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.operation.adapter;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import javax.sql.DataSource;
 
@@ -20,7 +20,7 @@ public final class OperationIntentJpaTestFactory {
                         OperationOutboxJpaRepository.class),
                 new OperationIntentLeaseNativeRepository(
                         JpaTestDatabase.entityManager(dataSource)),
-                new ObjectMapper().findAndRegisterModules(),
+                tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build(),
                 JpaTestDatabase.transactionManager(dataSource));
     }
 }
