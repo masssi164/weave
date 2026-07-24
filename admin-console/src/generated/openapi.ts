@@ -6,7 +6,7 @@ export type GeneratedAdminAuditEventResponse = {
   "actorRef"?: string;
   "idempotencyKey"?: string;
   "occurredAt"?: string;
-  "payload"?: Record<string, Record<string, unknown>>;
+  "payload"?: Record<string, unknown>;
   "redactionLevel"?: string;
   "sourceRef"?: string;
   "tenantId"?: string;
@@ -92,7 +92,7 @@ export type GeneratedChatProviderMappingRecord = {
   "selectedProviderKey"?: string;
   "selectionSource"?: string;
   "supportSafe"?: boolean;
-  "supportSafeDiagnostics"?: Record<string, Record<string, unknown>>;
+  "supportSafeDiagnostics"?: Record<string, unknown>;
 };
 
 export type GeneratedChatProviderReplacementDryRunRequest = {
@@ -133,7 +133,7 @@ export type GeneratedChatReadiness = {
   "migrationDryRunRequired"?: boolean;
   "providerMapping"?: GeneratedChatProviderMappingRecord;
   "supportSafe"?: boolean;
-  "supportSafeDiagnostics"?: Record<string, Record<string, unknown>>;
+  "supportSafeDiagnostics"?: Record<string, unknown>;
 };
 
 export type GeneratedConsequencePreview = {
@@ -169,7 +169,7 @@ export type GeneratedGoLiveReadinessResponse = {
 };
 
 export type GeneratedIdentityProviderReadinessCardResponse = {
-  "diagnostics"?: Record<string, Record<string, unknown>>;
+  "diagnostics"?: Record<string, unknown>;
   "evidenceRefs"?: string[];
   "key"?: string;
   "label"?: string;
@@ -186,7 +186,7 @@ export type GeneratedIdentityProviderReadinessResponse = {
   "cards"?: GeneratedIdentityProviderReadinessCardResponse[];
   "category"?: string;
   "contractVersion"?: string;
-  "diagnostics"?: Record<string, Record<string, unknown>>;
+  "diagnostics"?: Record<string, unknown>;
   "generatedAt"?: string;
   "memberClientMayConfigureIdentityProvider"?: boolean;
   "nextActions"?: string[];
@@ -263,7 +263,7 @@ export type GeneratedProviderAdapterReadinessEvidenceResponse = {
   "health"?: string;
   "providerRealityLevel"?: "configured" | "contract_only" | "live_read" | "live_write" | "migration_apply_ready" | "migration_dry_run" | "release_ready" | "rollback_ready";
   "reachable"?: boolean;
-  "supportSafeDiagnostics"?: Record<string, Record<string, unknown>>;
+  "supportSafeDiagnostics"?: Record<string, unknown>;
 };
 
 export type GeneratedProviderCategoryContractResponse = {
@@ -289,7 +289,7 @@ export type GeneratedProviderCategoryStatusResponse = {
   "category"?: string;
   "choiceModel"?: string;
   "contract"?: GeneratedProviderCategoryContractResponse;
-  "diagnostics"?: Record<string, Record<string, unknown>>;
+  "diagnostics"?: Record<string, unknown>;
   "label"?: string;
   "lossyMappingNotes"?: string[];
   "memberCapabilityState"?: string;
@@ -319,7 +319,7 @@ export type GeneratedProviderReadinessTestRequest = {
 
 export type GeneratedProviderReadinessTestResponse = {
   "auditEventPublished"?: boolean;
-  "diagnostics"?: Record<string, Record<string, unknown>>;
+  "diagnostics"?: Record<string, unknown>;
   "providerKey"?: string;
   "rawSecretExposed"?: boolean;
   "readiness"?: string;
@@ -434,7 +434,7 @@ export type GeneratedSuiteDomainReadinessResponse = {
   "canonicalObjectKinds"?: string[];
   "capabilityStates"?: string[];
   "domain"?: string;
-  "evidence"?: Record<string, Record<string, unknown>>;
+  "evidence"?: Record<string, unknown>;
   "label"?: string;
   "memberState"?: string;
   "nextAction"?: string;

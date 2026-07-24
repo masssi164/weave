@@ -46,7 +46,7 @@ public class InteropController {
     }
 
     @GetMapping("/api/interop/status")
-    @Operation(summary = "Get support-safe interop gateway status")
+    @Operation(operationId = "getInteropStatus", summary = "Get support-safe interop gateway status")
     public InteropStatusResponse status() {
         return interopGatewayService.status();
     }
