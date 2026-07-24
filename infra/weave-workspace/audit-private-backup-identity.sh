@@ -133,8 +133,8 @@ main() {
   TEMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/weave-identity-audit.XXXXXX")"
   chmod 700 "${TEMP_ROOT}"
   python3 "${INTEGRITY_TOOL}" --backup-dir "${BACKUP_DIR}" --output "${TEMP_ROOT}/integrity.json"
-  jq -e '.schemaVersion == "weave.compose-private-backup-integrity.v2" and .profile == "dogfood"' \
-    "${TEMP_ROOT}/integrity.json" >/dev/null || fail "backup is not a verified dogfood Compose v2 consistency set"
+  jq -e '.schemaVersion == "weave.compose-private-backup-integrity.v2" and .profile == "test"' \
+    "${TEMP_ROOT}/integrity.json" >/dev/null || fail "backup is not a verified test-profile Compose v2 consistency set"
   tar -C "${TEMP_ROOT}" -xzf "${BACKUP_DIR}/private-config-secrets.tgz" secrets/postgres-admin-password
   local database_coordinates administrator helper_image recorded_subject audit_id ready process_one
   database_coordinates="$(WEAVE_AUDIT_ROOT="${ROOT_DIR}" PYTHONPATH="${ROOT_DIR}/scripts" python3 - <<'PY'
@@ -142,7 +142,7 @@ import os
 from pathlib import Path
 from compose_env import load_context
 
-context = load_context("dogfood", Path(os.environ["WEAVE_AUDIT_ROOT"]))
+context = load_context("test", Path(os.environ["WEAVE_AUDIT_ROOT"]))
 print(context.env["WEAVE_DB_ADMIN_USERNAME"])
 print(context.env["WEAVE_POSTGRES_IMAGE"])
 PY
@@ -150,7 +150,7 @@ PY
   administrator="$(sed -n '1p' <<<"${database_coordinates}")"
   helper_image="$(sed -n '2p' <<<"${database_coordinates}")"
   [[ "${administrator}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || fail "restored database administrator name is invalid"
-  [[ "${helper_image}" =~ @sha256:[0-9a-f]{64}$ ]] || fail "identity audit requires the dogfood digest-pinned PostgreSQL image"
+  [[ "${helper_image}" =~ @sha256:[0-9a-f]{64}$ ]] || fail "identity audit requires the test-profile digest-pinned PostgreSQL image"
   [[ -s "${TEMP_ROOT}/secrets/postgres-admin-password" && ! -L "${TEMP_ROOT}/secrets/postgres-admin-password" ]] ||
     fail "restored PostgreSQL administrator SecretRef is missing or unsafe"
   recorded_subject="$(tr -d '\r\n' <"${SUBJECT_FILE}")"

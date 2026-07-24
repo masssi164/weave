@@ -150,10 +150,8 @@ services:
       KC_HEALTH_ENABLED: "true"
       KC_HTTP_MANAGEMENT_PORT: "9000"
       KC_PROXY_HEADERS: xforwarded
-      WEAVE_IDENTITY_EVENTS_ENDPOINT: http://${WEAVE_RESOURCE_PREFIX:-weave}-backend:8080/api/internal/keycloak/events
     secrets:
       - keycloak-db-password
-      - identity-events-hmac-secret
       - keycloak-bootstrap-admin-password
     volumes:
       - ./scripts/run-keycloak.sh:/opt/weave/run-keycloak.sh:ro
@@ -444,8 +442,6 @@ services:
     secrets:
       - source: backend-db-password
         target: weave/spring.datasource.password
-      - source: identity-events-hmac-secret
-        target: weave/weave.identity.invitations.events-hmac-secret
       - source: identity-admin-client-secret
         target: weave/weave.identity.invitations.keycloak.client-secret
       - source: nextcloud-actor-token
@@ -600,8 +596,6 @@ secrets:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/control-db-password
   nextcloud-admin-password:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/nextcloud-admin-password
-  identity-events-hmac-secret:
-    file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/identity-events-hmac-secret
   identity-admin-client-secret:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/keycloak-weave-identity-admin
   agent-runtime-admin-client-secret:

@@ -22,6 +22,11 @@ if find "${ROOT_DIR}/01-infrastructure" "${ROOT_DIR}/02-keycloak-setup" -type f 
   fail "Executable OpenTofu authority files were not retired"
 fi
 [[ ! -e "${ROOT_DIR}/docker-compose.yml" ]] || fail "Legacy parallel Compose model was not retired"
+if find "${REPO_ROOT}/infra/keycloak-event-listener" -type f -print -quit 2>/dev/null | grep -q .; then
+  fail "Custom Keycloak provider/theme source was not retired"
+fi
+[[ ! -e "${ROOT_DIR}/keycloak/Dockerfile.sanitizer" ]] ||
+  fail "Privileged Keycloak sanitizer authority was not retired"
 
 require "${ROOT_DIR}/compose.yaml" 'profiles: *core-profiles'
 require "${ROOT_DIR}/compose.yaml" 'POSTGRES_PASSWORD_FILE: /run/secrets/postgres-admin-password'
@@ -34,21 +39,38 @@ require "${ROOT_DIR}/scripts/compose_env.py" 'PROFILES = ("dev", "test", "prod")
 require "${ROOT_DIR}/scripts/compose_env.py" 'refusing to deploy {profile} from an example environment file'
 require "${ROOT_DIR}/scripts/compose_runtime.py" 'prod rejects WEAVE_TEST_USERS_FILE before Identity Ops mutation'
 require "${ROOT_DIR}/scripts/compose_runtime.py" 'persistent-adoption'
+require "${ROOT_DIR}/scripts/compose_runtime.py" 'WEAVE_ADOPTION_RECEIPT'
+require "${ROOT_DIR}/scripts/compose_runtime.py" 'resource inventory is incomplete or ambiguous'
 require "${ROOT_DIR}/keycloak/identity_ops.py" '/opt/keycloak/bin/kcadm.sh'
 require "${ROOT_DIR}/keycloak/Dockerfile.identity-ops" 'ARG WEAVE_KEYCLOAK_BASE=quay.io/keycloak/keycloak@sha256:'
 require "${ROOT_DIR}/keycloak/Dockerfile.identity-ops" 'ARG WEAVE_UBI9_BASE=registry.access.redhat.com/ubi9@sha256:'
 require "${ROOT_DIR}/keycloak/Dockerfile.identity-ops" 'FROM ${WEAVE_KEYCLOAK_BASE}'
+require "${ROOT_DIR}/scripts/build_keycloak_image.py" 'STOCK_KEYCLOAK_REFERENCE ='
+require "${ROOT_DIR}/scripts/build_keycloak_image.py" '"RepoDigests"'
+require "${ROOT_DIR}/scripts/build_identity_ops_image.py" 'com.massimotter.weave.component=keycloak-identity-ops'
 require "${ROOT_DIR}/scripts/nextcloud_reconcile.py" 'ordinary reconciliation refuses an implicit rotation'
 require "${ROOT_DIR}/scripts/nextcloud_reconcile.py" 'oidcManagedProjectionDigest'
 require "${ROOT_DIR}/scripts/render_config.py" 'WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE'
 require "${ROOT_DIR}/scripts/render_config.py" 'WEAVE_MATRIX_FEDERATION_ENABLED'
-require "${REPO_ROOT}/build.gradle" 'apply from: "$projectDir/gradle/tasks/environment-profiles.gradle"'
-require "${REPO_ROOT}/gradle/tasks/environment-profiles.gradle" "'serverDevH2Test'"
-require "${REPO_ROOT}/gradle/tasks/environment-profiles.gradle" "'serverPostgresIntegrationTest'"
-require "${REPO_ROOT}/gradle/tasks/environment-profiles.gradle" '"identity${profileTitle}${operationTitle}"'
+require "${REPO_ROOT}/settings.gradle" "include 'infra', 'server', 'weave-mcp-server'"
+require "${REPO_ROOT}/infra/build.gradle" 'apply from: "$projectDir/gradle/tasks/environment-profiles.gradle"'
+require "${REPO_ROOT}/infra/gradle/tasks/environment-profiles.gradle" '"identity${profileTitle}${operationTitle}"'
+require "${REPO_ROOT}/infra/gradle/tasks/environment-profiles.gradle" "'identityOpsImageBuild'"
+require "${REPO_ROOT}/infra/gradle/tasks/environment-profiles.gradle" "'keycloakStockImageResolve'"
+require "${REPO_ROOT}/server/build.gradle" 'apply from: "$projectDir/gradle/tasks/development.gradle"'
+require "${REPO_ROOT}/server/gradle/tasks/development.gradle" "'serverDevH2Test'"
+require "${REPO_ROOT}/server/gradle/tasks/development.gradle" "'serverPostgresIntegrationTest'"
+require "${REPO_ROOT}/.github/workflows/test-stack-deploy.yml" 'WEAVE_TEST_BACKUP_ROOT'
+require "${REPO_ROOT}/.github/workflows/test-stack-deploy.yml" './compose.sh test adoption-check'
+require "${REPO_ROOT}/.github/workflows/test-stack-deploy.yml" './adoption-rehearsal.sh test'
+require "${REPO_ROOT}/.github/workflows/test-stack-deploy.yml" 'WEAVE_ADOPTION_RECEIPT'
+reject "${REPO_ROOT}/build.gradle" 'gradle/tasks/environment-profiles.gradle'
 
 reject "${ROOT_DIR}/compose.yaml" 'WEAVE_CREATE_TEST_USER'
 reject "${ROOT_DIR}/compose.yaml" '/var/run/docker.sock'
 reject "${ROOT_DIR}/compose.yaml" 'OpenProject'
+reject "${ROOT_DIR}/compose.yaml" 'WEAVE_IDENTITY_EVENTS_HMAC_SECRET'
+reject "${REPO_ROOT}/server/src/main/resources/application.yml" 'WEAVE_IDENTITY_EVENTS_HMAC_SECRET'
+reject "${REPO_ROOT}/server/src/main/java/com/massimotter/weave/backend/config/SecurityConfig.java" '/api/internal/keycloak/events'
 
 printf 'V01_INFRA_CONTROL_PLANE_BOOTSTRAP status=passed infrastructure product contract tests passed\n'

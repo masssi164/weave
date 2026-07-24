@@ -4,10 +4,10 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-PROFILE="${WEAVE_PROFILE:-dogfood}"
+PROFILE="${WEAVE_PROFILE:-dev}"
 
 case "${1:-}" in
-  dev|dogfood|main) PROFILE="$1"; shift ;;
+  dev|test|prod) PROFILE="$1"; shift ;;
 esac
 
 args=("${PROFILE}" --root "${ROOT_DIR}")

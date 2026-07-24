@@ -40,7 +40,7 @@ def _assert_owned(context: ComposeContext, kind: str, name: str) -> bool:
         return False
     expected = {
         "com.massimotter.weave.managed": "true",
-        "com.massimotter.weave.environment": "dogfood",
+        "com.massimotter.weave.environment": "test",
         "com.massimotter.weave.namespace": context.env["WEAVE_RESOURCE_PREFIX"],
         "com.massimotter.weave.scope": "isolated",
     }
@@ -51,7 +51,7 @@ def _assert_owned(context: ComposeContext, kind: str, name: str) -> bool:
 
 def teardown(context: ComposeContext, *, dry_run: bool) -> dict[str, object]:
     if context.isolated_namespace is None or context.env.get("WEAVE_STACK_SCOPE") != "isolated":
-        raise ContractError("destructive teardown is restricted to a run-scoped isolated dogfood project")
+        raise ContractError("destructive teardown is restricted to a run-scoped isolated test project")
     candidate = os.environ.get("WEAVE_CANDIDATE_COMMIT", "")
     if re.fullmatch(r"[0-9a-f]{40}", candidate) is None:
         raise ContractError("isolated teardown requires exact WEAVE_CANDIDATE_COMMIT evidence")
@@ -90,7 +90,7 @@ def teardown(context: ComposeContext, *, dry_run: bool) -> dict[str, object]:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("profile", choices=("dogfood",))
+    parser.add_argument("profile", choices=("test",))
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--env-file")
     parser.add_argument("--isolated", action="store_true")

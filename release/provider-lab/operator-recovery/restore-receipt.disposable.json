@@ -6,7 +6,7 @@
     "manifestSha256": "1111111111111111111111111111111111111111111111111111111111111111",
     "backupIdSha256": "2222222222222222222222222222222222222222222222222222222222222222",
     "candidateCommit": "cccccccccccccccccccccccccccccccccccccccc",
-    "profile": "dogfood",
+    "profile": "test",
     "composeProject": "weave-disposable-proof"
   },
   "restoreRunId": "disposable-restore-proof-issue-642-local-proof",

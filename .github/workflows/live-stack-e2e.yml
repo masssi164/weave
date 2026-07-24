@@ -79,7 +79,7 @@ jobs:
       EXPECTED_RUNNER_NAME: weave-live-mac-mini
       WEAVE_BACKEND_IMAGE: ${{ inputs.weave_backend_image || github.event.inputs.weave_backend_image || 'weave-backend:live-stack-ci' }}
       WEAVE_MCP_IMAGE: ${{ inputs.weave_mcp_server_image || github.event.inputs.weave_mcp_server_image || 'weave-mcp-server:live-stack-ci' }}
-      WEAVE_ENVIRONMENT: dogfood
+      WEAVE_ENVIRONMENT: test
       WEAVE_STACK_SCOPE: isolated
       WEAVE_TENANT_DOMAIN: weave.test
       WEAVE_RUNNER_HYGIENE: 'true'
@@ -88,9 +88,8 @@ jobs:
       WEAVE_E2E_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
       WEAVE_CANDIDATE_COMMIT: ${{ github.sha }}
       WEAVE_CANDIDATE_EVIDENCE_REF: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-      WEAVE_KEYCLOAK_SUPERVISOR: ${{ vars.WEAVE_KEYCLOAK_SUPERVISOR }}
-      WEAVE_KEYCLOAK_REVIEWED_ENV_FILE: ${{ vars.WEAVE_KEYCLOAK_REVIEWED_ENV_FILE }}
-      WEAVE_ENV_FILE: ${{ vars.WEAVE_KEYCLOAK_REVIEWED_ENV_FILE }}
+      WEAVE_TEST_REVIEWED_ENV_FILE: ${{ vars.WEAVE_TEST_REVIEWED_ENV_FILE }}
+      WEAVE_ENV_FILE: ${{ vars.WEAVE_TEST_REVIEWED_ENV_FILE }}
 
     defaults:
       run:
@@ -105,10 +104,9 @@ jobs:
             echo "::error::Run-scoped Live Stack E2E must run on ${EXPECTED_RUNNER_NAME}; got ${RUNNER_NAME:-unknown}." >&2
             exit 1
           fi
-          [[ "${WEAVE_KEYCLOAK_SUPERVISOR:-}" == /* && \
-             "${WEAVE_KEYCLOAK_REVIEWED_ENV_FILE:-}" == /* && \
-             "${WEAVE_ENV_FILE:-}" == "${WEAVE_KEYCLOAK_REVIEWED_ENV_FILE}" ]] || {
-            echo "::error::Live Stack E2E requires externally installed Keycloak supervisor and reviewed dogfood environment paths." >&2
+          [[ "${WEAVE_TEST_REVIEWED_ENV_FILE:-}" == /* && \
+             "${WEAVE_ENV_FILE:-}" == "${WEAVE_TEST_REVIEWED_ENV_FILE}" ]] || {
+            echo "::error::Live Stack E2E requires one reviewed test-profile environment path." >&2
             exit 1
           }
 
@@ -311,7 +309,7 @@ jobs:
           set -euo pipefail
           # shellcheck disable=SC1090
           source "$WEAVE_E2E_STARTUP_ENV_PATH"
-          WEAVE_TEARDOWN_EVIDENCE_FILE='' bash ./teardown.sh dogfood --isolated
+          WEAVE_TEARDOWN_EVIDENCE_FILE='' bash ./teardown.sh test --isolated
 
       - name: Prepare backend image
         run: |
@@ -363,40 +361,33 @@ jobs:
           }
           echo "WEAVE_MCP_IMAGE=$image_id" >>"$GITHUB_ENV"
 
-      - name: Build the exact-candidate Keycloak image
+      - name: Resolve the approved stock Keycloak image
         run: |
           set -euo pipefail
-          source_ref="weave-keycloak:live-stack-${WEAVE_E2E_RUN_ID}"
-          docker buildx build --load \
-            --label "org.opencontainers.image.revision=$WEAVE_IMAGE_SOURCE_COMMIT" \
-            -t "$source_ref" \
-            -f weave/infra/keycloak-event-listener/Dockerfile \
-            weave/infra/keycloak-event-listener
-          revision="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$source_ref")"
-          version="$(docker image inspect --format '{{ index .Config.Labels "com.massimotter.weave.keycloak.version" }}' "$source_ref")"
-          image_id="$(docker image inspect --format '{{.Id}}' "$source_ref")"
-          [[ "$revision" == "$WEAVE_IMAGE_SOURCE_COMMIT" && "$version" == 26.7.0 && "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]] || {
-            echo "::error::Keycloak image is not bound to the protected dev source and pinned runtime version." >&2
+          evidence="$WEAVE_ACCEPTANCE_EVIDENCE_DIR/stock-keycloak-image.json"
+          image_id="$(python3 weave/infra/weave-workspace/scripts/build_keycloak_image.py \
+            --root weave \
+            --candidate-commit "$WEAVE_IMAGE_SOURCE_COMMIT" \
+            --output "$evidence")"
+          [[ "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]] || {
+            echo "::error::Stock Keycloak did not resolve to an immutable local image ID." >&2
             exit 1
           }
-          {
-            echo "WEAVE_KEYCLOAK_IMAGE=$image_id"
-            echo "WEAVE_LIVE_KEYCLOAK_BUILD_TAG=$source_ref"
-          } >>"$GITHUB_ENV"
+          echo "WEAVE_KEYCLOAK_IMAGE=$image_id" >>"$GITHUB_ENV"
 
-      - name: Build the exact-candidate Keycloak sanitizer image
+      - name: Build the exact-candidate Identity Ops image
         run: |
           set -euo pipefail
-          evidence="$WEAVE_ACCEPTANCE_EVIDENCE_DIR/keycloak-sanitizer-image.json"
-          image_id="$(python3 weave/infra/weave-workspace/scripts/build_sanitizer_image.py \
+          evidence="$WEAVE_ACCEPTANCE_EVIDENCE_DIR/identity-ops-image.json"
+          image_id="$(python3 weave/infra/weave-workspace/scripts/build_identity_ops_image.py \
             --root weave/infra/weave-workspace \
             --candidate-commit "$WEAVE_IMAGE_SOURCE_COMMIT" \
             --output "$evidence")"
           [[ "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]] || {
-            echo "::error::Sanitizer build did not return an immutable image ID." >&2
+            echo "::error::Identity Ops build did not return an immutable image ID." >&2
             exit 1
           }
-          echo "WEAVE_KEYCLOAK_SANITIZER_IMAGE=$image_id" >>"$GITHUB_ENV"
+          echo "WEAVE_IDENTITY_OPS_IMAGE=$image_id" >>"$GITHUB_ENV"
 
       - name: Bind immutable images to source and lane evidence
         working-directory: weave
@@ -408,7 +399,7 @@ jobs:
             --image "backend=$WEAVE_BACKEND_IMAGE" \
             --image "mcp=$WEAVE_MCP_IMAGE" \
             --image "keycloak=$WEAVE_KEYCLOAK_IMAGE" \
-            --image "keycloak-sanitizer=$WEAVE_KEYCLOAK_SANITIZER_IMAGE" \
+            --image "identity-ops=$WEAVE_IDENTITY_OPS_IMAGE" \
             --output "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/candidate-source-mapping.json"
 
       - name: Release Buildx cache before stack tests
@@ -420,17 +411,13 @@ jobs:
           set -euo pipefail
           # shellcheck disable=SC1090
           source "$WEAVE_E2E_STARTUP_ENV_PATH"
-          ./compose.sh dogfood secrets-init
-          ./compose.sh dogfood render
-          ./compose.sh dogfood config >"$WEAVE_ACCEPTANCE_EVIDENCE_DIR/compose-model.json"
-          ./compose.sh dogfood prepare
-          ./compose.sh dogfood keycloak-apply
-          ./compose.sh dogfood up
-          ./compose.sh dogfood keycloak-verify
-          cp "$WEAVE_GENERATED_ROOT/keycloak/report.json" \
-            "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/keycloak-reconciliation-report.json"
-          cp "$WEAVE_GENERATED_ROOT/keycloak/signed-receipt.json" \
-            "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/keycloak-reconciliation-signed-receipt.json"
+          ./compose.sh test secrets-init
+          ./compose.sh test render
+          ./compose.sh test config >"$WEAVE_ACCEPTANCE_EVIDENCE_DIR/compose-model.json"
+          ./compose.sh test up
+          ./compose.sh test identity-verify
+          cp "$WEAVE_GENERATED_ROOT/identity-ops/identity-ops.json" \
+            "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/identity-ops-verification.json"
 
       - name: Verify local test hostnames resolve on the runner
         run: |
@@ -448,7 +435,7 @@ jobs:
           set -euo pipefail
           # shellcheck disable=SC1090
           source "$WEAVE_E2E_STARTUP_ENV_PATH"
-          bash ./operator-check.sh
+          bash ./operator-check.sh test
 
       - name: Provision real Keycloak identities and verify runtime ReBAC
         working-directory: weave/infra/weave-workspace
@@ -955,7 +942,7 @@ jobs:
             WEAVE_E2E_IDENTITY_MANIFEST_PATH="$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-identities.json" \
             WEAVE_REMOVE_VOLUMES=true \
             WEAVE_CONFIRM_DESTRUCTIVE_RESET="$WEAVE_E2E_RUN_NAMESPACE" \
-            bash ./teardown.sh dogfood --isolated
+            bash ./teardown.sh test --isolated
 
       - name: Verify persistent dogfood resources were preserved
         id: persistent_preservation
@@ -1104,13 +1091,10 @@ jobs:
               "${WEAVE_BACKEND_IMAGE:-}" \
               "${WEAVE_MCP_IMAGE:-}" \
               "${WEAVE_KEYCLOAK_IMAGE:-}" \
-              "${WEAVE_KEYCLOAK_SANITIZER_IMAGE:-}"; do
+              "${WEAVE_IDENTITY_OPS_IMAGE:-}"; do
               [[ "$image_ref" =~ ^sha256:[0-9a-f]{64}$ ]] || continue
               docker image rm "$image_ref" >/dev/null 2>&1 || true
             done
-            if [[ "${WEAVE_LIVE_KEYCLOAK_BUILD_TAG:-}" =~ ^weave-keycloak:live-stack-[a-z0-9-]{6,80}$ ]]; then
-              docker image rm "$WEAVE_LIVE_KEYCLOAK_BUILD_TAG" >/dev/null 2>&1 || true
-            fi
           fi
           df -h "$RUNNER_TEMP"
           if (( simulator_cleanup_status != 0 )); then

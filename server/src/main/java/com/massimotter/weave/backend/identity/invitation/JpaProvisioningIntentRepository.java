@@ -3,12 +3,9 @@ package com.massimotter.weave.backend.identity.invitation;
 import tools.jackson.core.JacksonException;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
-import jakarta.persistence.PersistenceException;
-import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,15 +25,12 @@ public class JpaProvisioningIntentRepository implements ProvisioningIntentReposi
     };
 
     private final ProvisioningIntentJpaRepository intents;
-    private final IdentityEventReceiptJpaRepository eventReceipts;
     private final ObjectMapper objectMapper;
 
     public JpaProvisioningIntentRepository(
             ProvisioningIntentJpaRepository intents,
-            IdentityEventReceiptJpaRepository eventReceipts,
             ObjectMapper objectMapper) {
         this.intents = requireNonNull(intents, "intents");
-        this.eventReceipts = requireNonNull(eventReceipts, "eventReceipts");
         this.objectMapper = requireNonNull(objectMapper, "objectMapper");
     }
 
@@ -77,41 +71,6 @@ public class JpaProvisioningIntentRepository implements ProvisioningIntentReposi
                 .stream()
                 .map(entity -> entity.toDomain(this::groups))
                 .toList();
-    }
-
-    @Override
-    public List<ProvisioningIntent> findPendingByEmailHash(
-            String organization,
-            String hash) {
-        return intents
-                .findByOrganizationIdAndInvitedEmailSha256AndStatusOrderByCreatedAtDesc(
-                        organization,
-                        hash,
-                        ProvisioningIntentStatus.PENDING)
-                .stream()
-                .map(entity -> entity.toDomain(this::groups))
-                .toList();
-    }
-
-    @Override
-    @Transactional
-    public boolean recordEventOnce(String eventId, Instant occurredAt) {
-        String safeEventId = requireNonNull(eventId, "eventId");
-        if (eventReceipts.existsById(safeEventId)) {
-            return false;
-        }
-        try {
-            eventReceipts.saveAndFlush(IdentityEventReceiptJpaEntity.create(
-                    safeEventId,
-                    requireNonNull(occurredAt, "occurredAt"),
-                    Instant.now()));
-            return true;
-        } catch (DataIntegrityViolationException | PersistenceException duplicateOrFailure) {
-            if (eventReceipts.existsById(safeEventId)) {
-                return false;
-            }
-            throw duplicateOrFailure;
-        }
     }
 
     private String groupsJson(List<String> values) {

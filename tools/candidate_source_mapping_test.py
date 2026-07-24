@@ -189,14 +189,22 @@ class CandidateSourceMappingTest(unittest.TestCase):
             image_id = arguments[3]
             name = next(name for name, value in images.items() if value == image_id)
             labels = {"org.opencontainers.image.revision": self.source}
-            if name == "keycloak":
-                labels["com.massimotter.weave.keycloak.version"] = "26.7.0"
-            if name == "keycloak-sanitizer":
-                labels["com.massimotter.weave.component"] = "keycloak-admin-sanitizer"
+            if name == "identity-ops":
+                labels["com.massimotter.weave.component"] = "keycloak-identity-ops"
             return subprocess.CompletedProcess(
                 arguments,
                 0,
-                json.dumps({"Id": image_id, "Config": {"Labels": labels}}),
+                json.dumps(
+                    {
+                        "Id": image_id,
+                        "Config": {"Labels": labels},
+                        "RepoDigests": (
+                            [module.STOCK_KEYCLOAK_REFERENCE]
+                            if name == "keycloak"
+                            else []
+                        ),
+                    }
+                ),
                 "",
             )
 

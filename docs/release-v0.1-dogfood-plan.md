@@ -52,14 +52,17 @@ Exit gate:
 
 Deliverables:
 
-- One common Compose model exposes exactly `dev`, `dogfood`, and `main` profiles.
+- One common Compose model exposes exactly the `dev`, `test`, and `prod` runtime profiles; Git delivery remains `dev` → `dogfood` → `main`.
 - CI normalizes every profile, rejects unresolved inputs, and runs infrastructure contract tests.
-- The pinned `kcadm` reconciler converges Keycloak from the canonical desired-state baseline and closed environment overlay.
+- Rootless one-shot Identity Ops uses pinned `kcadm` against stock Keycloak and converges the
+  canonical desired-state baseline plus the closed environment overlay.
 - Migration from former infrastructure state is backup/restore rehearsed, adopted once, and retained only as restricted evidence.
 
 Exit gate:
 
-- `./gradlew composeDevConfig composeDogfoodConfig composeMainConfig`
+- `./gradlew :infra:composeDevConfig`
+- `WEAVE_ENV_FILE=<reviewed-test.env> ./gradlew :infra:composeTestConfig`
+- `WEAVE_ENV_FILE=<reviewed-prod.env> ./gradlew :infra:composeProdConfig`
 - `./gradlew serverDevH2Test serverPostgresIntegrationTest`
 - desired-state render and security-floor validation
 - zero-diff second Keycloak reconciliation plan

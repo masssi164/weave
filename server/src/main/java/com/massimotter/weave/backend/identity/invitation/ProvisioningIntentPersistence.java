@@ -182,42 +182,4 @@ interface ProvisioningIntentJpaRepository
                     String invitedEmail,
                     ProvisioningIntentStatus status);
 
-    List<ProvisioningIntentJpaEntity>
-            findByOrganizationIdAndInvitedEmailSha256AndStatusOrderByCreatedAtDesc(
-                    String organizationId,
-                    String invitedEmailSha256,
-                    ProvisioningIntentStatus status);
-}
-
-@Entity
-@Table(name = "weave_keycloak_event_receipts")
-class IdentityEventReceiptJpaEntity {
-
-    @Id
-    @Column(name = "event_id", nullable = false, length = 200, updatable = false)
-    private String eventId;
-
-    @Column(name = "occurred_at", nullable = false, updatable = false)
-    private OffsetDateTime occurredAt;
-
-    @Column(name = "received_at", nullable = false, updatable = false)
-    private OffsetDateTime receivedAt;
-
-    protected IdentityEventReceiptJpaEntity() {
-    }
-
-    static IdentityEventReceiptJpaEntity create(
-            String eventId,
-            Instant occurredAt,
-            Instant receivedAt) {
-        IdentityEventReceiptJpaEntity entity = new IdentityEventReceiptJpaEntity();
-        entity.eventId = eventId;
-        entity.occurredAt = occurredAt.atOffset(ZoneOffset.UTC);
-        entity.receivedAt = receivedAt.atOffset(ZoneOffset.UTC);
-        return entity;
-    }
-}
-
-interface IdentityEventReceiptJpaRepository
-        extends JpaRepository<IdentityEventReceiptJpaEntity, String> {
 }

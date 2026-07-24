@@ -1,115 +1,114 @@
-# Keycloak deployment and reconciliation contract
+# Keycloak and Identity Ops contract
 
-The normative authority is the pinned Weave Specification Corpus, especially ADR 0016 and the
-`weave.keycloak-desired-state/v1`, environment-overlay, sanitizer-profile, and reconciliation-
-receipt contracts. This document is their implementation/operator projection.
+The pinned Weave Specification Corpus and ADR 0017 are normative. This document is the
+operator-facing implementation projection.
 
-## Ownership
+## Architectural boundary
 
-- Keycloak is the organization identity authority and upstream authentication broker.
-- MAS is the Matrix-facing authorization server and delegates authentication to Keycloak.
-- Flutter, Admin Console, and web clients use Authorization Code with PKCE S256 through the system
-  browser. Password/direct grants and embedded login are disabled.
-- The fixed realm baseline is reconciled only by the protected Compose Keycloak path.
-- Agent Runtime Control owns dynamic `weaver-cell-{cellId}` workload clients; they are never part of
-  the fixed baseline or inferred from a human role.
-- Product server startup does not import, mutate, or carry a second realm baseline.
+Keycloak is the default self-hosted identity authority, not the Weave product API. OIDC,
+OAuth 2.0, SAML, SCIM, and LDAP are the standards-facing seams. Weave domain use cases consume
+provider-neutral identity ports, and provider adapters translate those ports to Keycloak or to
+another IDM. No client may depend on Keycloak Admin REST shapes.
 
-## Desired state
+The fixed realm baseline is reconciled only by the `infra` module. Server startup, the Flutter
+client, Admin Console, and MCP server do not import or mutate realm state. Dynamic Weaver
+workload clients remain Agent Runtime Control scope and are not inferred from a human role.
 
-`keycloak/desired_state_authority.py` loads the exact canonical examples from the pinned corpus,
-validates their RFC 8785 revisions, and renders one closed overlay for `dev`, `dogfood`, or `main`.
-The overlay may change only public HTTPS origins, SMTP transport, organization metadata, named
-SecretRefs, and the exact Keycloak image digest. It cannot add users, roles, grants, flows, token
-policy, or arbitrary client configuration.
+The organization roles are `owner`, `admin`, `member`, and `guest`. Canonical organization
+membership is represented with native Keycloak organization/group/role capabilities defined by
+the pinned desired state. Provider-specific identifiers stay behind the adapter boundary.
 
-The baseline owns the realm, Organizations feature, `owner|admin|member|guest` roles, group
-hierarchy, scopes/mappers, fixed clients, service-account grants, token-exchange policy, exact
-redirect/logout URIs, and human/workload credential separation. Dogfood/main SMTP requires
-implicit TLS; main requires external SMTP credential SecretRefs.
+## Exact runtime profiles
 
-## Protected `kcadm` boundary
+The only runtime/application profiles are:
 
-`compose.sh <profile> keycloak-plan|keycloak-apply|keycloak-verify` calls one immutable externally
-installed supervisor generation. The candidate process supplies only:
+- `dev`: local provider dependencies; Spring Boot runs on the host with H2.
+- `test`: integrated application and providers with PostgreSQL; disposable E2E or a separately
+  reviewed persistent test deployment.
+- `prod`: release-capable integrated topology with protected, externally supplied coordinates and
+  secrets.
 
-- exact profile, reviewed environment path, candidate/specification commits, nonce, and
-  reconciliation ID;
-- exact approved Keycloak and sanitizer image digests;
-- public runtime coordinates and named SecretRef roots.
+`dev`, `dogfood`, and `main` may still name Git delivery lanes. Delivery lanes are not runtime
+profiles and must not be passed to Compose, Spring, Identity Ops, backup, or teardown commands.
 
-The supervisor is root-owned and approved separately with `./gradlew keycloakSupervisorInstall`.
-It owns the Docker/host-control channel and receipt signing key; candidate code receives neither.
-Before any mutation it acquires the PostgreSQL reconciliation lease and monotonic fence, attests
-Keycloak stopped, creates one run-bound bootstrap-admin service, starts Keycloak, runs the pinned
-`kcadm` distribution only through the closed sanitizer, reads back complete state, deletes the
-temporary authority, proves new-grant denial and last-token expiry, clears transient state, and
-signs a flattened Ed25519 JWS receipt.
+## Stock Keycloak
 
-The sanitizer denies credential, installation, bulk import/export, key, user-credential, and
-unlisted endpoints before allowlisting. It emits typed projections and coverage digests only; raw
-Admin REST request/response bodies never reach disk, stdout, logs, evidence, or support bundles.
-Any failed cleanup, partial coverage, stale fence, redaction finding, residual authority, or
-residual sensitive state quarantines the lease and cannot produce success.
+The runtime uses the approved official Keycloak OCI index by exact digest. It is pulled and
+verified; it is not rebuilt, relabelled, or extended with a custom provider JAR or theme.
+Stock-image evidence records the approved reference, resolved local image ID, and RepoDigest.
+Weave source revision labels apply only to source-built backend, MCP, and Identity Ops images.
 
-Promotion evidence uses two distinct commit authorities. `WEAVE_CANDIDATE_COMMIT` is the exact
-checked-out lane commit (for example, the dogfood merge commit) and binds reconciliation, backup,
-deployment, and human evidence. `WEAVE_IMAGE_SOURCE_COMMIT` is the protected `dev` ancestor whose
-tree is byte-identical to that lane commit; it binds the backend, MCP, Keycloak, and sanitizer
-image revisions. Protected workflows derive the source from the fetched `origin/dev` ref and emit
-`candidate-source-mapping.json`; it is not a dispatch input or an operator-selected replacement.
-The successful isolated E2E run retains that exact immutable four-image set on the dedicated
-locked runner. Persistent dogfood downloads the source-run mapping and verifies each local image
-ID and revision before deployment; it never rebuilds or substitutes those images.
+Authentication uses Authorization Code with PKCE S256 through the system browser. Password/direct
+grants and embedded login are disabled. Human/public and workload clients remain separate.
 
-Ordinary reconciliation creates and updates but never deletes managed or unmanaged resources.
-Deletion requires one separately approved, candidate/backup/fingerprint/time-bound tombstone.
+## Rootless one-shot Identity Ops
 
-## Credential classes
+`infra/weave-workspace/keycloak/identity_ops.py` is the only fixed-baseline reconciler. It runs as
+a rootless, one-shot container and uses the matching official Keycloak `kcadm.sh` distribution.
+It supports exactly `plan`, `apply`, and `verify`.
 
-Human/public clients use PKCE and rotating refresh tokens. Each Weaver cell uses its own
-confidential service-account client with `private_key_jwt`, exact resource/audience, and a scope
-ceiling. There is no shared Weaver client and no public MCP client. Internal token exchange uses
-Keycloak Standard Token Exchange v2 with exact target audience downscoping; inbound bearer tokens
-are never relayed.
+The lifecycle creates one bounded bootstrap service-account credential, starts stock Keycloak,
+runs Identity Ops, verifies complete readback, and leaves no durable broad administrator. Evidence
+is written only to `WEAVE_GENERATED_ROOT/identity-ops/identity-ops.json`; it is support-safe and
+must contain no raw secret, access token, Admin REST body, member email, or provider response.
 
-Every persistent credential is a mode-0600 named file below `WEAVE_SECRET_ROOT`. The reviewed
-environment file contains no secret values. Repeated deployment preserves valid generations;
-explicit rotation is separately audited and verified. The run-specific bootstrap-admin secret is
-the only intentionally ephemeral credential and is destroyed before a receipt may succeed.
+Ordinary reconciliation creates or updates managed resources and never deletes managed or
+unmanaged resources. Destructive changes require a separate, reviewed tombstone/recovery contract
+with current backup-and-restore evidence. The former privileged supervisor, sanitizer sidecar,
+custom Keycloak event listener, and Docker-socket control plane are retired authorities.
 
-## Profile behavior
+## Reproducible module tasks
 
-- `dev`: local dependency Compose project, local image IDs permitted, Mailpit plaintext only on the
-  private container endpoint, host Spring server on H2.
-- `dogfood`: persistent named volumes, digest-pinned images, implicit-TLS Mailpit, PostgreSQL server,
-  external supervisor, federation disabled.
-- `main`: release-capable digest-pinned model, external implicit-TLS SMTP, PostgreSQL server,
-  protected publication approval, federation disabled unless a later trust profile is accepted.
-- isolated E2E: the dogfood topology under a deterministic run namespace; its clients, ports,
-  volumes, SecretRefs, identities, receipts, and cleanup cannot satisfy persistent evidence.
+The `infra` module owns environment and Identity Ops tasks under
+`infra/gradle/tasks/environment-profiles.gradle`, applied by `infra/build.gradle`.
 
-## Reproducible tasks
+```text
+./gradlew :infra:tasks --group "weave infrastructure"
 
-```bash
-./gradlew keycloakDevImageBuild keycloakSanitizerImageBuild
-./gradlew keycloakDevPlan keycloakDevApply keycloakDevVerify
+./gradlew :infra:composeDevConfig
+./gradlew :infra:composeTestConfig
+./gradlew :infra:composeProdConfig
 
-git fetch --no-tags --prune origin \
-  '+refs/heads/dev:refs/remotes/origin/dev'
-export WEAVE_CANDIDATE_COMMIT="$(git rev-parse HEAD)"
-python3 tools/candidate_source_mapping.py \
-  --repository . \
-  --lane-candidate "$WEAVE_CANDIDATE_COMMIT" \
-  --output build/evidence/candidate-source-mapping.json
-export WEAVE_IMAGE_SOURCE_COMMIT="$(
-  jq -er '.sourceCandidateCommit' build/evidence/candidate-source-mapping.json
-)"
-WEAVE_ENV_FILE=/absolute/path/to/reviewed-dogfood.env \
-WEAVE_KEYCLOAK_SUPERVISOR=/opt/weave/keycloak-supervisor/<generation>/supervisor.py \
-./gradlew keycloakDogfoodPlan keycloakDogfoodApply keycloakDogfoodVerify
+./gradlew :infra:identityDevPlan
+./gradlew :infra:identityDevApply
+./gradlew :infra:identityDevVerify
+
+./gradlew :infra:identityTestUsersFile
+./gradlew :infra:identityOpsImageBuild
+./gradlew :infra:keycloakStockImageResolve
 ```
 
-The second protected plan must be empty. Readiness requires a current verified receipt bound to
-the exact specification, candidate, image, deployment, lease/fence, desired/observed revisions,
-nonce, and verification time. A valid-looking self-selected report is not evidence.
+The same `plan`/`apply`/`verify` task family exists for `test` and `prod`. Test and prod require a
+private reviewed `WEAVE_ENV_FILE`; prod rejects a test-users file before any mutation. The
+mode-0600 test-user fixture is test-only, idempotent, and never logs its generated secret.
+
+## Session correctness
+
+Realm reconciliation and user-session reconciliation are distinct:
+
+- Identity Ops converges realm, clients, roles, groups, scopes, and fixed service accounts.
+- `POST /api/v1/identity/session/reconcile` is a provider-neutral product use case. It checks the
+  authenticated subject's current native organization entitlement and returns a typed result.
+- If the response says access changed, the client performs exactly one standard refresh-token
+  grant before workspace bootstrap. It never calls Keycloak Admin REST and never loops refreshes.
+
+A custom Keycloak event listener is not a correctness dependency. A future event adapter may
+reduce latency only after separate threat modelling and interoperability evidence.
+
+## Release evidence
+
+`WEAVE_CANDIDATE_COMMIT` binds lane, deployment, and human evidence. Source-built images bind to
+the protected, tree-equivalent `WEAVE_IMAGE_SOURCE_COMMIT`. The stock Keycloak image instead binds
+to its approved upstream OCI digest. `candidate-source-mapping.json` carries the closed four-image
+set: `backend`, `mcp`, `identity-ops`, and `keycloak`.
+
+An integrated run is acceptable only when:
+
+1. the normalized `test` Compose model is stable;
+2. Identity Ops apply and verify succeed;
+3. a second explicit Identity Ops plan has `operationCount == 0`;
+4. exact image and pinned-spec-corpus provenance is retained;
+5. teardown touches only the exact owned isolated `test` namespace; and
+6. support artifacts pass secret and identifier safety checks.
+
+Availability smoke evidence does not replace authenticated E2E behavior or physical-iPhone proof.

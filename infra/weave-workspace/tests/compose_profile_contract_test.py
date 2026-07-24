@@ -3,9 +3,11 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -13,7 +15,7 @@ import sys
 
 sys.path.insert(0, str(ROOT / "scripts"))
 from compose_env import ContractError, load_context  # noqa: E402
-from compose_runtime import test_user_volume  # noqa: E402
+from compose_runtime import resource_inventory, test_user_volume, validate_adoption_receipt  # noqa: E402
 from render_config import _image_digest, _render_desired  # noqa: E402
 
 
@@ -142,6 +144,70 @@ def main() -> None:
             pass
         else:
             raise AssertionError("prod accepted an explicitly configured test-user file input")
+        test.env["WEAVE_GENERATED_ROOT"] = str(root / "generated")
+        candidate = "b" * 40
+        receipt = test.generated_root / "adoption/adoption-receipt.json"
+        receipt.parent.mkdir(parents=True)
+        receipt_data = {
+            "schemaVersion": "weave.compose-adoption-receipt.v1",
+            "profile": "test",
+            "composeProject": test.env["WEAVE_COMPOSE_PROJECT"],
+            "candidateCommit": candidate,
+            "backupVerified": True,
+            "isolatedRestoreVerified": True,
+            "verifiedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "resources": [
+                {"kind": kind, "name": name}
+                for kind, name in sorted(resource_inventory(test))
+            ],
+            "supportSafe": True,
+            "containsSecretValues": False,
+        }
+
+        def write_receipt() -> None:
+            receipt.write_text(json.dumps(receipt_data) + "\n", encoding="utf-8")
+            os.chmod(receipt, 0o600)
+
+        def require_receipt_rejection(reason: str) -> None:
+            try:
+                validate_adoption_receipt(test, "volume", test.env["WEAVE_DB_DATA_VOLUME"])
+            except ContractError:
+                return
+            raise AssertionError(f"{reason} adoption receipt was accepted")
+
+        write_receipt()
+        previous_receipt = os.environ.get("WEAVE_ADOPTION_RECEIPT")
+        previous_candidate = os.environ.get("WEAVE_CANDIDATE_COMMIT")
+        try:
+            os.environ["WEAVE_CANDIDATE_COMMIT"] = candidate
+            os.environ.pop("WEAVE_ADOPTION_RECEIPT", None)
+            require_receipt_rejection("missing")
+            os.environ["WEAVE_ADOPTION_RECEIPT"] = str(receipt)
+            validate_adoption_receipt(test, "volume", test.env["WEAVE_DB_DATA_VOLUME"])
+            os.environ["WEAVE_CANDIDATE_COMMIT"] = "c" * 40
+            require_receipt_rejection("wrong-candidate")
+            os.environ["WEAVE_CANDIDATE_COMMIT"] = candidate
+            receipt_data["verifiedAt"] = "2020-01-01T00:00:00Z"
+            write_receipt()
+            require_receipt_rejection("stale")
+            receipt_data["verifiedAt"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+            complete_resources = receipt_data["resources"]
+            receipt_data["resources"] = complete_resources[:-1]
+            write_receipt()
+            require_receipt_rejection("resource-incomplete")
+            receipt_data["resources"] = complete_resources
+            write_receipt()
+            os.chmod(receipt, 0o644)
+            require_receipt_rejection("weakly-permissioned")
+        finally:
+            if previous_receipt is None:
+                os.environ.pop("WEAVE_ADOPTION_RECEIPT", None)
+            else:
+                os.environ["WEAVE_ADOPTION_RECEIPT"] = previous_receipt
+            if previous_candidate is None:
+                os.environ.pop("WEAVE_CANDIDATE_COMMIT", None)
+            else:
+                os.environ["WEAVE_CANDIDATE_COMMIT"] = previous_candidate
     compose = (ROOT / "compose.yaml").read_text(encoding="utf-8")
     assert "\n  - dogfood\n" not in compose
     assert "\n  - main\n" not in compose

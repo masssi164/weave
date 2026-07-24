@@ -33,7 +33,6 @@ TEXT_SECRETS = (
     "control-db-password",
     "nextcloud-admin-password",
     "nextcloud-actor-token",
-    "identity-events-hmac-secret",
     "keycloak-weave-identity-admin",
     "keycloak-weave-agent-runtime-admin",
     "keycloak-nextcloud",

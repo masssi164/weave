@@ -56,7 +56,7 @@ Feature: Enterprise target architecture evidence spine
     When the server composes its single production persistence boundary
     Then Flyway creates handwritten canonical tables and Hibernate validates the mappings
     And Spring Data JPA adapters preserve read/write and restart behavior without a production file fallback
-    And H2 is limited to development while PostgreSQL integration evidence gates dogfood and main
+    And H2 is limited to the dev runtime profile while PostgreSQL integration evidence gates test and prod
 
   @enterprise-target-audit-persistence-foundation
   Scenario: Support-safe audit events gain a gated relational persistence foundation

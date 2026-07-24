@@ -33,16 +33,12 @@ grep -Fq 'WEAVE_CONTEXT_AUTHORIZATION_DOGFOOD_PRINCIPAL_REF=' "${SCRIPT}" || fai
 
 mkdir -p "${MOCK_BIN}" "${MOCK_STATE}"
 printf '[]\n' >"${MOCK_STATE}/users.json"
-cat >"${MOCK_STATE}/groups.json" <<'JSON'
-[
-  {"id":"global-members","name":"members","path":"/weave/members","attributes":{}},
-  {"id":"global-boards","name":"weave-board-editors","path":"/weave-board-editors","attributes":{}},
-  {"id":"global-calendar","name":"weave-calendar-editors","path":"/weave-calendar-editors","attributes":{}}
-]
-JSON
+printf '[]\n' >"${MOCK_STATE}/groups.json"
 
-grep -Fq 'global_group_id "${base}" "${token}" /weave-board-editors' "${SCRIPT}" ||
-  fail "disposable members must receive the existing Boards mutation capability"
+grep -Fq 'organization_group_id "${base}" "${token}" "${org_id}" /members' "${SCRIPT}" ||
+  fail "disposable members must receive the canonical native organization membership group"
+! grep -Fq '/weave/members' "${SCRIPT}" ||
+  fail "disposable members must not depend on the retired realm-group contract"
 
 for unsafe_evidence_ref in \
   http://github.example.invalid/weave/actions/runs/42 \
@@ -160,6 +156,8 @@ elif [[ "${method}:${url}" == DELETE:*/users/* ]]; then
   id="${url##*/}"
   jq --arg id "${id}" '[.[] | select(.id != $id)]' "${users}" >"${tmp}"
   mv "${tmp}" "${users}"
+elif [[ "${method}:${url}" == GET:*/organizations/org-id/groups\?* ]]; then
+  printf '[{"id":"org-members","name":"members","path":"/members","subGroups":[]}]\n'
 elif [[ "${method}:${url}" == GET:*/groups\?* ]]; then
   jq '[.[] | {id,name}]' "${groups}"
 elif [[ "${method}:${url}" == GET:*/groups/* ]]; then
@@ -244,18 +242,18 @@ jq -e --arg namespace "${WEAVE_E2E_RUN_NAMESPACE}" '
     .email == (.username + "@example.invalid")
   )
 ' "${MOCK_STATE}/users.json" >/dev/null || fail "provisioned users are missing their standard-field run markers"
-[[ "$(jq '[.[] | select(.attributes.weave_e2e_namespace != null)] | length' "${MOCK_STATE}/groups.json")" == 2 ]] || fail "provision should create exactly two run-scoped groups"
+[[ "$(jq 'length' "${MOCK_STATE}/groups.json")" == 0 ]] || fail "provision must not create realm groups"
 
 cleanup_output="$(PATH="${MOCK_BIN}:${PATH}" WEAVE_E2E_STACK_SCOPE=isolated \
   bash "${SCRIPT}" cleanup --run-id "${RUN_ID}" --output-root "${OUTPUT_ROOT}" --stack-bootstrap-env "${stack_bootstrap}")"
-grep -Fq 'MULTI_USER_CLEANUP_RESULT status=passed usersDeleted=3 groupsDeleted=2 persistentHumanChanged=false supportSafe=true' <<<"${cleanup_output}"
-jq -e '.expectedResourcesAbsent == true and .persistentHumanIdentityChanged == false and .keycloak.usersDeleted == 3 and .keycloak.groupsDeleted == 2' \
+grep -Fq 'MULTI_USER_CLEANUP_RESULT status=passed usersDeleted=3 groupsDeleted=0 persistentHumanChanged=false supportSafe=true' <<<"${cleanup_output}"
+jq -e '.expectedResourcesAbsent == true and .persistentHumanIdentityChanged == false and .keycloak.usersDeleted == 3 and .keycloak.groupsDeleted == 0' \
   "${WEAVE_E2E_CLEANUP_EVIDENCE_PATH}" >/dev/null
 
 repeat_cleanup="$(PATH="${MOCK_BIN}:${PATH}" WEAVE_E2E_STACK_SCOPE=isolated \
   bash "${SCRIPT}" cleanup --run-id "${RUN_ID}" --output-root "${OUTPUT_ROOT}" --stack-bootstrap-env "${stack_bootstrap}")"
 grep -Fq 'usersDeleted=0 groupsDeleted=0 persistentHumanChanged=false supportSafe=true expectedResourcesAbsent=true' <<<"${repeat_cleanup}"
 [[ "$(jq 'length' "${MOCK_STATE}/users.json")" == 0 ]] || fail "cleanup left run-scoped users"
-[[ "$(jq '[.[] | select(.attributes.weave_e2e_namespace != null)] | length' "${MOCK_STATE}/groups.json")" == 0 ]] || fail "cleanup left run-scoped groups"
+[[ "$(jq 'length' "${MOCK_STATE}/groups.json")" == 0 ]] || fail "cleanup changed realm groups"
 
 printf 'isolated E2E identity lifecycle tests passed\n'

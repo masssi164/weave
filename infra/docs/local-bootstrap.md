@@ -24,12 +24,12 @@ The three closed profile environments define their own non-overlapping port bloc
 
 - `dev`: `54080/54443` gateway, `58080/59000` Keycloak, `58025` Mailpit, and
   `58082/58008/58083/58084/58085` for MAS/Synapse/Nextcloud/backend/MCP;
-- `dogfood`: `44080/44443`, `48080/49000`, `48025`, and
+- `test`: `44080/44443`, `48080/49000`, `48025`, and
   `48082/48008/48083/48084/48085`;
-- `main`: public `80/443`; service management ports remain loopback-bound and operator-reviewed.
+- `prod`: public `80/443`; service management ports remain loopback-bound and operator-reviewed.
 
 The host Spring process in `dev` listens on `127.0.0.1:8080`; the Compose backend service is not
-started in that profile. Isolated E2E uses the dogfood topology with ten caller-reserved unique
+started in that profile. Isolated E2E uses the test topology with ten caller-reserved unique
 ports and a namespace deterministically derived from the raw run ID.
 
 For a non-destructive rerun:
@@ -147,6 +147,6 @@ The backend resource server contract is:
 - expected client ID / authorized party: `weave-app`
 - public readiness endpoint: `https://api.weave.test/api/health/ready`
 - host-dev direct readiness endpoint: `http://127.0.0.1:8080/api/health/ready`
-- dogfood/main container readiness endpoint: the loopback-bound `WEAVE_BACKEND_HOST_PORT`
+- test/prod container readiness endpoint: the loopback-bound `WEAVE_BACKEND_HOST_PORT`
 
 See [../KEYCLOAK_CONTRACT.md](../KEYCLOAK_CONTRACT.md) for the full realm, client, scope, claim, and audience contract.

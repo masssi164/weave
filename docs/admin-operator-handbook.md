@@ -82,14 +82,14 @@ Evidence must stay support-safe: no raw provider bodies, provider-internal IDs, 
 
 ## Identity realm guarded apply
 
-Use `POST /api/admin/identity/realm/apply` only to record a reviewed, support-safe reconciliation intent after the dry-run report and effective policy simulation have both been reviewed. The endpoint requires a fresh backend-persisted dry-run id, a support-safe effective-policy audit ref, retained-admin proof, rollback/export evidence when risky or destructive changes exist, the audit sink, and the exact confirmation phrase. It never invokes Keycloak Admin REST and never receives a reconciliation token. The protected Compose supervisor and pinned `kcadm` reconciler are the only baseline mutation path; they consume the canonical desired-state revision and produce independently verified signed evidence.
+Use `POST /api/admin/identity/realm/apply` only to record a reviewed, support-safe reconciliation intent after the dry-run report and effective policy simulation have both been reviewed. The endpoint requires a fresh backend-persisted dry-run id, a support-safe effective-policy audit ref, retained-admin proof, rollback/export evidence when risky or destructive changes exist, the audit sink, and the exact confirmation phrase. It never invokes Keycloak Admin REST and never receives a reconciliation token. Rootless one-shot Identity Ops in the `infra` module is the only baseline mutation path; it consumes the canonical desired-state revision through the matching official `kcadm` and emits support-safe plan/apply/verify evidence.
 
 Apply is unavailable or blocked when any guard fails:
 
 - missing `confirmationPhrase=APPLY WEAVE IDENTITY REALM`;
 - no retained immutable owner/admin primary identity key such as `issuer+subject`; the retained key must also be present in desired `lastAdminSubjectRefs` or in a desired break-glass/recovery identity carrying the `owner` or `admin` role, and email addresses are not accepted as recovery keys;
 - risky changes without `approveRisky=true` and a support-safe rollback evidence reference;
-- destructive changes without an externally approved tombstone, current backup/restore proof, candidate and observed-state binding, and the protected supervisor evidence required by the canonical contract; ordinary reconciliation never deletes a resource;
+- destructive changes without an externally approved tombstone, current backup/restore proof, candidate and observed-state binding, and the separate protected recovery evidence required by the canonical contract; ordinary reconciliation never deletes a resource;
 - dry-run blockers remain, including unknown identity inputs, lockout risk, or destructive removals blocked by the dry-run slice.
 
 The audit trail records only support-safe fields and counts: authenticated actor class, realm candidate, dry-run plan ref, decision/result, reconciliation-required state, change counts, retained-admin count, rollback evidence presence, and the immutable fact that product-server provider mutation was not performed. It must not include raw reason text, rollback payloads, email primary keys, provider internals, tokens, credentials, SecretRef payloads, endpoint URLs, provider ids, or provider response bodies. A support-safe accepted-decision fixture is checked in at `server/src/test/resources/identity-realm-apply/guarded-safe-accepted.json`; only the separately signed reconciler receipt can prove provider convergence.
@@ -144,7 +144,7 @@ Required review evidence before any future promotion includes consequence counts
 
 ## Infra and bootstrap
 
-Docker Compose is the operator-facing single-host deployment authority. Use the common model with exactly one of the `dev`, `dogfood`, or `main` profiles; production publication reuses the digest-pinned `main` model with protected inputs and separate approval. Keycloak resources are reconciled from the checked-in desired state through the protected supervisor and pinned `kcadm`, not through application startup or a second infrastructure state engine.
+Docker Compose is the operator-facing single-host deployment authority. Use the common model with exactly one of the `dev`, `test`, or `prod` runtime profiles; the `dev`, `dogfood`, and `main` Git lanes remain a separate delivery concern. Production uses the digest-pinned `prod` model with protected inputs and separate approval. Keycloak resources are reconciled from the checked-in desired state through rootless one-shot Identity Ops and the matching official `kcadm`, not through application startup or a second infrastructure state engine.
 
 Use the infra tree for local/single-host stack bootstrap, smoke checks, backup/restore, rollback, and support-bundle flows. State-destructive operations require explicit operator confirmation and a backup/restore or rollback path.
 
@@ -168,5 +168,5 @@ Live Stack E2E is available by default on the dedicated self-hosted live runner.
 The product server may produce a support-safe review plan, but it does not carry a second realm
 baseline or mutate Keycloak. The one deployment baseline is the pinned
 `weave.keycloak-desired-state/v1` contract from the canonical specification corpus; Compose
-renders its closed environment overlay and the protected supervisor reconciles it through the
-version-pinned `kcadm` sanitizer boundary.
+renders its closed environment overlay and rootless one-shot Identity Ops reconciles it through
+the matching official `kcadm`.

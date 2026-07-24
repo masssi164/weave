@@ -5,8 +5,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PROFILE="${1:-}"
-[[ "${PROFILE}" == dogfood ]] || {
-  printf 'WEAVE_TEARDOWN_ERROR only an explicit dogfood --isolated teardown is supported\n' >&2
+[[ "${PROFILE}" == test ]] || {
+  printf 'WEAVE_TEARDOWN_ERROR only an explicit test --isolated teardown is supported\n' >&2
   exit 2
 }
 shift

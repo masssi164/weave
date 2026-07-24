@@ -275,7 +275,7 @@ with tarfile.open(backup_dir / "private-config-secrets.tgz", "w:gz") as tar:
 
 now = datetime.now(timezone.utc)
 created_at = now.strftime("%Y-%m-%dT%H:%M:%SZ")
-backup_id = f"weave-dogfood-{now.strftime('%Y%m%dT%H%M%SZ')}-{candidate[:12]}"
+backup_id = f"weave-test-{now.strftime('%Y%m%dT%H%M%SZ')}-{candidate[:12]}"
 artifact_entries = []
 for name, kind in [
     ("postgres.sql", "postgres-consistency-dump"),
@@ -300,7 +300,7 @@ backup_manifest = {
     "backupId": backup_id,
     "createdAt": created_at,
     "candidateCommit": candidate,
-    "profile": "dogfood",
+    "profile": "test",
     "composeProject": "weave-disposable-proof",
     "databaseFingerprint": "sha256:" + hashlib.sha256(postgres.read_bytes()).hexdigest(),
     "quiescedServices": ["backend", "synapse", "nextcloud", "keycloak"],
@@ -330,7 +330,7 @@ receipt = {
         "manifestSha256": sha256_file(manifest_path)[0],
         "backupIdSha256": hashlib.sha256(backup_id.encode("utf-8")).hexdigest(),
         "candidateCommit": candidate,
-        "profile": "dogfood",
+        "profile": "test",
         "composeProject": "weave-disposable-proof",
     },
     "restoreRunId": f"disposable-restore-proof-{run_id}",

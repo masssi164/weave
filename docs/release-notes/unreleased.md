@@ -15,7 +15,7 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Changed
 
-- Replaces the executable single-host OpenTofu path with one normalized Docker Compose model and explicit `dev`, `dogfood`, and `main` profiles. Host-run development uses Flyway/JPA/Hibernate over H2 PostgreSQL mode, while integration, dogfood, and main validate and run the same relational adapters against PostgreSQL.
+- Replaces the executable single-host OpenTofu path with one normalized Docker Compose model and explicit `dev`, `test`, and `prod` runtime profiles, separate from the `dev`, `dogfood`, and `main` Git lanes. Host-run development uses Flyway/JPA/Hibernate over H2 PostgreSQL mode, while test and prod validate and run the same relational adapters against PostgreSQL.
 - Moves the fixed Keycloak baseline out of Spring Boot and into a protected, idempotent desired-state reconciliation path using the exact pinned Keycloak `kcadm`; the product server retains only support-safe dry-run/review evidence and never receives the baseline reconciliation credential.
 - Cuts over Weaver/MCP to the pinned workload-only v2 contract: removes member-facing Weaver Scout and permission-mode UI/API, deletes the v1 member MCP catalog/runtime/bridge/token-exchange stack, and keeps the Spring AI transport dark until ARC proves per-cell Keycloak workload identity and lifecycle reconciliation.
 - Replaces the retired Sprint 24/30/32 runtime-factory, per-user tool-grant, member opt-in, and approval-oracle fixtures with backend-owned Agent Runtime Control, Keycloak entitlement, one workload client per cell, external encrypted runtime state, and empty-by-default MCP domain catalogs. Historical closure reports are not current release evidence.

@@ -1,9 +1,9 @@
 {
   "schemaVersion": "weave.compose-private-backup.v2",
-  "backupId": "weave-dogfood-20260604T054903Z-cccccccccccc",
+  "backupId": "weave-test-20260604T054903Z-cccccccccccc",
   "createdAt": "2026-06-04T05:49:03Z",
   "candidateCommit": "cccccccccccccccccccccccccccccccccccccccc",
-  "profile": "dogfood",
+  "profile": "test",
   "composeProject": "weave-disposable-proof",
   "databaseFingerprint": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
   "quiescedServices": ["backend", "synapse", "nextcloud", "keycloak"],

@@ -17,14 +17,19 @@ COMMIT = re.compile(r"^[0-9a-f]{40}$")
 IMAGE_ID = re.compile(r"^sha256:[0-9a-f]{64}$")
 IMAGE_NAMES = (
     "backend",
+    "identity-ops",
     "keycloak",
-    "keycloak-sanitizer",
     "mcp",
+)
+SOURCE_IMAGE_NAMES = {"backend", "identity-ops", "mcp"}
+STOCK_KEYCLOAK_REFERENCE = (
+    "quay.io/keycloak/keycloak@"
+    "sha256:0f198be292568439d700cdbfb893e69a6009bb43a94a06a945b1d3d506c76b13"
 )
 IMAGE_ENVIRONMENT = {
     "backend": "WEAVE_BACKEND_IMAGE",
+    "identity-ops": "WEAVE_IDENTITY_OPS_IMAGE",
     "keycloak": "WEAVE_KEYCLOAK_IMAGE",
-    "keycloak-sanitizer": "WEAVE_KEYCLOAK_SANITIZER_IMAGE",
     "mcp": "WEAVE_MCP_IMAGE",
 }
 
@@ -138,24 +143,27 @@ def assert_local_images(images: dict[str, str], source_candidate: str) -> None:
         labels = inspected["Config"].get("Labels") or {}
         if not isinstance(labels, dict):
             raise MappingError(f"Docker returned malformed image labels: {name}")
-        if (
-            inspected.get("Id") != image_id
-            or labels.get("org.opencontainers.image.revision") != source_candidate
-        ):
+        if inspected.get("Id") != image_id:
             raise MappingError(
-                f"attested image identity or source revision changed: {name}"
+                f"attested image identity changed: {name}"
             )
-        if (
-            name == "keycloak"
-            and labels.get("com.massimotter.weave.keycloak.version") != "26.7.0"
-        ):
-            raise MappingError("attested Keycloak image is not the pinned 26.7.0 distribution")
-        if (
-            name == "keycloak-sanitizer"
-            and labels.get("com.massimotter.weave.component")
-            != "keycloak-admin-sanitizer"
-        ):
-            raise MappingError("attested Keycloak sanitizer has no component provenance")
+        if name in SOURCE_IMAGE_NAMES:
+            if labels.get("org.opencontainers.image.revision") != source_candidate:
+                raise MappingError(
+                    f"attested source image revision changed: {name}"
+                )
+            if (
+                name == "identity-ops"
+                and labels.get("com.massimotter.weave.component")
+                != "keycloak-identity-ops"
+            ):
+                raise MappingError(
+                    "attested Identity Ops image has no component provenance"
+                )
+        elif STOCK_KEYCLOAK_REFERENCE not in (inspected.get("RepoDigests") or []):
+            raise MappingError(
+                "attested Keycloak image is not the approved stock upstream digest"
+            )
 
 
 def resolve(

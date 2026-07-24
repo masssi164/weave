@@ -41,7 +41,6 @@ REQUIRED_PRIVATE_FILES = (
     "nextcloud-db-password",
     "control-db-password",
     "nextcloud-actor-token",
-    "identity-events-hmac-secret",
     "keycloak-weave-identity-admin",
     "keycloak-weave-agent-runtime-admin",
     "keycloak-nextcloud",
@@ -587,7 +586,6 @@ def render(context: ComposeContext) -> None:
     _write(generated / "synapse/appservice/hs-token", _read_secret(context, "matrix-appservice-hs-token") + "\n", private=True)
     if context.profile == "dev":
         host_configtree = {
-            "weave.identity.invitations.events-hmac-secret": "identity-events-hmac-secret",
             "weave.identity.invitations.keycloak.client-secret": "keycloak-weave-identity-admin",
             "weave.nextcloud.files.actor-token": "nextcloud-actor-token",
             "weave.calendar.caldav.backend-token": "nextcloud-actor-token",

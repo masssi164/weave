@@ -27,6 +27,6 @@ Feature: Operator diagnostics and support bundles stay support-safe
   @infra-reset-guardrails
   Scenario: Destructive teardown rejects persistent projects
     Given the operator invokes the isolated teardown entry point
-    When the profile is not an exact run-scoped dogfood namespace with matching ownership labels
+    When the test deployment context is not an exact run-scoped isolated namespace with matching ownership labels
     Then no Docker volume or network is removed
     And only an exact isolated project can produce support-safe teardown evidence

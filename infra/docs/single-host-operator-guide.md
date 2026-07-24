@@ -2,7 +2,7 @@
 
 This guide describes the release-capable single-host Weave path: one Linux host, public DNS,
 trusted HTTPS, Docker Engine with Compose v2, explicit operator-managed SecretRefs, persistent
-named volumes, an externally installed protected Keycloak supervisor, and a verification workflow.
+named volumes, stock Keycloak, rootless one-shot Identity Ops, and a verification workflow.
 
 It is intentionally narrower than a later high-availability, Kubernetes, or managed-SaaS story.
 
@@ -40,22 +40,23 @@ Do not expose older public aliases for Keycloak, Nextcloud, or gateway API route
 
 ## Required operator inputs
 
-Start from `weave-workspace/environments/main.env.example`. Copy it to a private root-owned file
+Start from `weave-workspace/environments/prod.env.example`. Copy it to a private root-owned file
 outside the checkout, replace every public placeholder, and pin every image to an approved
 `@sha256` digest. The closed parser accepts public URLs, ports, volume/network names, organization
 metadata, image references, and absolute generated/secret/TLS roots. It rejects credential-shaped
 variables.
 
 Credentials are individual mode-0600 files under `WEAVE_SECRET_ROOT`; TLS material lives under
-`WEAVE_TLS_ROOT`. Supply `WEAVE_ENV_FILE`, `WEAVE_CANDIDATE_COMMIT`, and the absolute immutable
-`WEAVE_KEYCLOAK_SUPERVISOR` path to lifecycle commands. Never source the reviewed environment into
-the shell as a secret bag and never commit a filled copy.
+`WEAVE_TLS_ROOT`. Supply `WEAVE_ENV_FILE` and `WEAVE_CANDIDATE_COMMIT` to lifecycle commands.
+Identity Ops is part of the exact source-built candidate mapping; Keycloak is the approved stock
+OCI digest. Never source the reviewed environment into the shell as a secret bag and never commit
+a filled copy.
 
 For protected dogfood promotions, `WEAVE_CANDIDATE_COMMIT` is the checked-out lane commit.
 `WEAVE_IMAGE_SOURCE_COMMIT` is derived from protected `origin/dev`, must be its ancestor and have
 the identical Git tree, and is used only for image revision provenance. The workflow—not a
 dispatch input—creates the support-safe mapping between both commits and the closed backend, MCP,
-Keycloak, and sanitizer image set. The persistent dogfood workflow consumes those exact image IDs
+Identity Ops, and stock Keycloak image set. The persistent dogfood workflow consumes those exact image IDs
 from the successful isolated run; an unavailable, relabelled, or substituted image blocks deploy.
 
 ## Calendar boundary
@@ -80,8 +81,9 @@ Recommended pattern:
 
 Pin runtime images instead of relying on floating local defaults:
 
-- Pin every image in the reviewed main environment to an immutable digest.
-- Keep the Keycloak image and sanitizer digests identical to the externally approved supervisor generation.
+- Pin every image in the reviewed prod environment to an immutable digest.
+- Keep stock Keycloak pinned to the approved upstream OCI index digest; do not rebuild or relabel it.
+- Pin the source-built Identity Ops image to the exact candidate mapping.
 - Change MAS, Synapse, Nextcloud, PostgreSQL, or Caddy only after the scheduled compatibility/conformance lane passes.
 - Verify deployed container image IDs/digests against the reviewed model before readiness is accepted.
 - Record the chosen image set in the deployment change or release note.
@@ -111,12 +113,12 @@ An operator may activate the adapter only through the portability cutover flow a
 1. Provision DNS for the public hostnames.
 2. Copy a filled-in release env file onto the host.
 3. Stage TLS material on disk.
-4. Install and approve one immutable root-owned Keycloak supervisor generation.
-5. Set `WEAVE_ENV_FILE`, `WEAVE_CANDIDATE_COMMIT`, and `WEAVE_KEYCLOAK_SUPERVISOR` for the unprivileged operator process.
-6. Run `bash weave-workspace/install.sh main`.
+4. Resolve the approved stock Keycloak OCI digest and verify the exact source-built Identity Ops image.
+5. Set `WEAVE_ENV_FILE` and `WEAVE_CANDIDATE_COMMIT` for the unprivileged operator process.
+6. Run `bash weave-workspace/install.sh prod`.
 7. Run `bash weave-workspace/release-verify.sh`.
-8. Run `bash weave-workspace/operator-check.sh`.
-9. Rerun `compose.sh main keycloak-plan` and require zero diff.
+8. Run `bash weave-workspace/operator-check.sh prod`.
+9. Rerun `compose.sh prod identity-plan` and require `operationCount == 0`.
 
 ## Verify after install
 

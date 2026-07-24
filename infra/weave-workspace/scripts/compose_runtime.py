@@ -6,9 +6,11 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import stat
 import subprocess
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from compose_env import ComposeContext, ContractError, compose_environment, load_context, run
@@ -20,6 +22,7 @@ COMMANDS = (
     "config",
     "prepare",
     "provider-prepare",
+    "adoption-check",
     "up",
     "down",
     "ps",
@@ -28,6 +31,7 @@ COMMANDS = (
     "identity-apply",
     "identity-verify",
 )
+ADOPTION_RECEIPT_MAX_AGE = timedelta(hours=6)
 VOLUME_KEYS = (
     "WEAVE_CADDY_DATA_VOLUME",
     "WEAVE_CADDY_CONFIG_VOLUME",
@@ -60,7 +64,13 @@ def labels(context: ComposeContext) -> dict[str, str]:
     }
 
 
-def ensure_resource(context: ComposeContext, kind: str, name: str) -> None:
+def resource_inventory(context: ComposeContext) -> set[tuple[str, str]]:
+    resources = {("network", context.env["WEAVE_DOCKER_NETWORK"])}
+    resources.update(("volume", context.env[key]) for key in VOLUME_KEYS)
+    return resources
+
+
+def inspect_resource(context: ComposeContext, kind: str, name: str) -> tuple[bool, bool]:
     inspected = subprocess.run(
         ["docker", kind, "inspect", name, "--format", "{{json .Labels}}"],
         check=False,
@@ -68,11 +78,107 @@ def ensure_resource(context: ComposeContext, kind: str, name: str) -> None:
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
     )
-    if inspected.returncode == 0:
-        observed = json.loads(inspected.stdout) or {}
-        if all(observed.get(key) == value for key, value in labels(context).items()):
+    if inspected.returncode != 0:
+        return False, False
+    observed = json.loads(inspected.stdout) or {}
+    owned = all(observed.get(key) == value for key, value in labels(context).items())
+    return True, owned
+
+
+def adoption_status(context: ComposeContext) -> dict[str, object]:
+    resources = []
+    for kind, name in sorted(resource_inventory(context)):
+        present, owned = inspect_resource(context, kind, name)
+        resources.append(
+            {
+                "kind": kind,
+                "name": name,
+                "state": "owned" if owned else "requires-adoption" if present else "absent",
+            }
+        )
+    database_volume = context.env["WEAVE_DB_DATA_VOLUME"]
+    return {
+        "schemaVersion": "weave.compose-adoption-preflight.v1",
+        "profile": context.profile,
+        "composeProject": context.env["WEAVE_COMPOSE_PROJECT"],
+        "deploymentContext": context.env["WEAVE_DEPLOYMENT_CONTEXT"],
+        "adoptionRequired": any(item["state"] == "requires-adoption" for item in resources),
+        "databaseVolumePresent": any(
+            item["kind"] == "volume" and item["name"] == database_volume and item["state"] != "absent"
+            for item in resources
+        ),
+        "resources": resources,
+        "supportSafe": True,
+        "containsSecretValues": False,
+    }
+
+
+def validate_adoption_receipt(context: ComposeContext, kind: str, name: str) -> None:
+    supplied = os.environ.get("WEAVE_ADOPTION_RECEIPT", "")
+    canonical = (context.generated_root / "adoption/adoption-receipt.json").resolve()
+    if not supplied:
+        raise ContractError(f"persistent adoption of Docker {kind} {name} requires WEAVE_ADOPTION_RECEIPT")
+    path = Path(supplied).expanduser()
+    try:
+        metadata = path.lstat()
+    except FileNotFoundError as error:
+        raise ContractError("WEAVE_ADOPTION_RECEIPT is unavailable") from error
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+        raise ContractError("WEAVE_ADOPTION_RECEIPT must be a regular non-symlink file")
+    if path.resolve() != canonical:
+        raise ContractError("WEAVE_ADOPTION_RECEIPT must use the canonical generated-state path")
+    if metadata.st_uid != os.getuid() or stat.S_IMODE(metadata.st_mode) != 0o600:
+        raise ContractError("WEAVE_ADOPTION_RECEIPT must be owner-controlled mode-0600")
+    try:
+        receipt = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        raise ContractError("WEAVE_ADOPTION_RECEIPT is not valid JSON") from error
+    candidate = os.environ.get("WEAVE_CANDIDATE_COMMIT", "")
+    if not re.fullmatch(r"[0-9a-f]{40}", candidate):
+        raise ContractError("persistent adoption requires an exact WEAVE_CANDIDATE_COMMIT")
+    verified_at_value = receipt.get("verifiedAt", "")
+    try:
+        verified_at = datetime.fromisoformat(verified_at_value.replace("Z", "+00:00"))
+    except (AttributeError, ValueError) as error:
+        raise ContractError("WEAVE_ADOPTION_RECEIPT has an invalid verifiedAt") from error
+    now = datetime.now(timezone.utc)
+    if verified_at.tzinfo is None or verified_at > now or now - verified_at > ADOPTION_RECEIPT_MAX_AGE:
+        raise ContractError("WEAVE_ADOPTION_RECEIPT is stale or future-dated")
+    supplied_resources = receipt.get("resources")
+    if not isinstance(supplied_resources, list):
+        raise ContractError("WEAVE_ADOPTION_RECEIPT has no resource inventory")
+    try:
+        observed_inventory = {
+            (item["kind"], item["name"])
+            for item in supplied_resources
+            if isinstance(item, dict) and set(item) == {"kind", "name"}
+        }
+    except (KeyError, TypeError) as error:
+        raise ContractError("WEAVE_ADOPTION_RECEIPT has an invalid resource inventory") from error
+    expected_inventory = resource_inventory(context)
+    if len(supplied_resources) != len(expected_inventory) or observed_inventory != expected_inventory:
+        raise ContractError("WEAVE_ADOPTION_RECEIPT resource inventory is incomplete or ambiguous")
+    if (
+        receipt.get("schemaVersion") != "weave.compose-adoption-receipt.v1"
+        or receipt.get("profile") != context.profile
+        or receipt.get("composeProject") != context.env["WEAVE_COMPOSE_PROJECT"]
+        or receipt.get("candidateCommit") != candidate
+        or receipt.get("backupVerified") is not True
+        or receipt.get("isolatedRestoreVerified") is not True
+        or receipt.get("supportSafe") is not True
+        or receipt.get("containsSecretValues") is not False
+        or (kind, name) not in observed_inventory
+    ):
+        raise ContractError("WEAVE_ADOPTION_RECEIPT does not authorize this exact adoption")
+
+
+def ensure_resource(context: ComposeContext, kind: str, name: str) -> None:
+    present, owned = inspect_resource(context, kind, name)
+    if present:
+        if owned:
             return
         if context.env["WEAVE_DEPLOYMENT_CONTEXT"] == "persistent-adoption":
+            validate_adoption_receipt(context, kind, name)
             return
         raise ContractError(f"refusing unowned existing Docker {kind} {name}")
     command = ["docker", kind, "create"]
@@ -213,6 +319,8 @@ def execute(context: ComposeContext, command: str, extra: list[str]) -> None:
         prepare(context)
     elif command == "provider-prepare":
         subprocess.run([str(context.root / "provision-matrix-default-workspace.sh")], cwd=context.root, env=compose_environment(context), check=True)
+    elif command == "adoption-check":
+        print(json.dumps(adoption_status(context), indent=2, sort_keys=True))
     elif command == "up":
         test_user_volume(context)
         script(context, "init_secrets.py")

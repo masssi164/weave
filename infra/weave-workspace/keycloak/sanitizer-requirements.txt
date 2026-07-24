@@ -1,3 +1,0 @@
-psycopg2-binary==2.9.12 \
-    --hash=sha256:54a0dfecab1b48731f934e06139dfe11e24219fb6d0ceb32177cf0375f14c7b5 \
-    --hash=sha256:527e6342b3e44c2f0544f6b8e927d60de7f163f5723b8f1dfa7d2a84298738cd

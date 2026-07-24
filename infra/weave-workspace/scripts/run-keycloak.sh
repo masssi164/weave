@@ -14,7 +14,6 @@ read_secret() {
 }
 
 read_secret KC_DB_PASSWORD /run/secrets/keycloak-db-password
-read_secret WEAVE_IDENTITY_EVENTS_HMAC_SECRET /run/secrets/identity-events-hmac-secret
 
 if [[ -f /run/secrets/keycloak-bootstrap-admin-password ]]; then
   read_secret WEAVE_IDENTITY_OPS_BOOTSTRAP_SECRET /run/secrets/keycloak-bootstrap-admin-password

@@ -438,11 +438,6 @@ find_exact_id() {
     '[.[] | select(.[$field] == $value)] | if length == 1 then .[0].id else empty end' <<<"${payload}"
 }
 
-group_marker_matches() {
-  local payload="$1"
-  jq -e --arg marker "${NAMESPACE}" '(.attributes.weave_e2e_namespace // []) | index($marker) != null' <<<"${payload}" >/dev/null
-}
-
 user_role_from_username() {
   local username="$1"
   case "${username}" in
@@ -478,39 +473,19 @@ resolve_user_by_id() {
   request GET "${base}/users/${subject}" "${token}"
 }
 
-resolve_group() {
-  local base="$1" token="$2" group_id="$3"
-  request GET "${base}/groups/${group_id}" "${token}"
-}
-
-ensure_group() {
-  local base="$1" token="$2" name="$3"
-  local groups group_id group
-  groups="$(request GET "${base}/groups?search=$(encode "${name}")&exact=true" "${token}")"
-  group_id="$(find_exact_id "${groups}" name "${name}")"
-  if [[ -z "${group_id}" ]]; then
-    request POST "${base}/groups" "${token}" "$(jq -cn --arg name "${name}" --arg marker "${NAMESPACE}" '{name:$name,attributes:{weave_e2e_namespace:[$marker]}}')" >/dev/null
-    groups="$(request GET "${base}/groups?search=$(encode "${name}")&exact=true" "${token}")"
-    group_id="$(find_exact_id "${groups}" name "${name}")"
-  fi
-  [[ -n "${group_id}" ]] || fail "run-scoped Keycloak group could not be resolved"
-  group="$(resolve_group "${base}" "${token}" "${group_id}")"
-  group_marker_matches "${group}" || fail "refusing to reuse an unmarked Keycloak group"
-  printf '%s' "${group_id}"
-}
-
-global_group_id() {
-  local base="$1" token="$2" path="$3" name groups id
-  name="${path##*/}"
-  groups="$(request GET "${base}/groups?search=$(encode "${name}")&exact=true&briefRepresentation=false" "${token}")"
-  id="$(jq -r --arg path "${path}" '[.[] | select(.path == $path) | .id] | if length == 1 then .[0] else empty end' <<<"${groups}")"
-  [[ -n "${id}" ]] || fail "required Keycloak group path '${path}' is unavailable or ambiguous"
+organization_group_id() {
+  local base="$1" token="$2" organization_id="$3" path="$4" groups id
+  groups="$(request GET "${base}/organizations/${organization_id}/groups?populateHierarchy=true&briefRepresentation=false" "${token}")"
+  id="$(jq -r --arg path "${path}" \
+    '[.[] | recurse(.subGroups[]?) | select((.path // ("/" + .name)) == $path) | .id]
+     | if length == 1 then .[0] else empty end' <<<"${groups}")"
+  [[ -n "${id}" ]] || fail "required native organization group path '${path}' is unavailable or ambiguous"
   printf '%s' "${id}"
 }
 
 ensure_user() {
-  local base="$1" token="$2" role="$3" username="$4" password="$5" run_group_id="$6"
-  local users subject user client_uuid role_payload group_id org_id organizations clients
+  local base="$1" token="$2" role="$3" username="$4" password="$5"
+  local users subject user member_group_id org_id organizations
   users="$(resolve_user "${base}" "${token}" "${username}")"
   subject="$(find_exact_id "${users}" username "${username}")"
   if [[ -z "${subject}" ]]; then
@@ -528,19 +503,6 @@ ensure_user() {
   user_marker_matches "${user}" "${username}" "${role}" || fail "refusing to reuse an unmarked Keycloak user"
 
   request PUT "${base}/users/${subject}/reset-password" "${token}" "$(jq -cn --arg value "${password}" '{type:"password",value:$value,temporary:false}')" >/dev/null
-  request PUT "${base}/users/${subject}/groups/${run_group_id}" "${token}" >/dev/null
-  for group_id in \
-    "$(global_group_id "${base}" "${token}" /weave/members)" \
-    "$(global_group_id "${base}" "${token}" /weave-board-editors)" \
-    "$(global_group_id "${base}" "${token}" /weave-calendar-editors)"; do
-    request PUT "${base}/users/${subject}/groups/${group_id}" "${token}" >/dev/null
-  done
-
-  clients="$(request GET "${base}/clients?clientId=weave-app" "${token}")"
-  client_uuid="$(find_exact_id "${clients}" clientId weave-app)"
-  [[ -n "${client_uuid}" ]] || fail "weave-app client is unavailable"
-  role_payload="$(request GET "${base}/clients/${client_uuid}/roles/member" "${token}")"
-  request POST "${base}/users/${subject}/role-mappings/clients/${client_uuid}" "${token}" "[$(jq -c . <<<"${role_payload}")]" >/dev/null
 
   organizations="$(request GET "${base}/organizations?search=$(encode "${REALM}")&exact=true" "${token}")"
   org_id="$(jq -r --arg value "${REALM}" '[.[] | select(.name == $value or .alias == $value)] | if length == 1 then .[0].id else empty end' <<<"${organizations}")"
@@ -548,6 +510,8 @@ ensure_user() {
   if ! request GET "${base}/organizations/${org_id}/members/${subject}" "${token}" >/dev/null 2>&1; then
     request POST "${base}/organizations/${org_id}/members" "${token}" "$(jq -cn --arg id "${subject}" '$id')" >/dev/null
   fi
+  member_group_id="$(organization_group_id "${base}" "${token}" "${org_id}" /members)" || return 1
+  request PUT "${base}/organizations/${org_id}/groups/${member_group_id}/members/${subject}" "${token}" >/dev/null
 
   printf '%s' "${subject}"
 }
@@ -608,15 +572,16 @@ provision() {
   assert_isolated_runtime
   [[ -n "${WEAVE_KEYCLOAK_ADMIN_PASSWORD:-}" ]] || fail "isolated Keycloak admin credential is missing"
 
-  local token base workspace_group outside_group author_subject collaborator_subject outsider_subject
+  local token base author_subject collaborator_subject outsider_subject
   token="$(admin_token)"
   [[ -n "${token}" ]] || fail "isolated Keycloak admin authentication failed"
   base="$(api_base)"
-  workspace_group="$(ensure_group "${base}" "${token}" "${NAMESPACE}-workspace-a")"
-  outside_group="$(ensure_group "${base}" "${token}" "${NAMESPACE}-outside")"
-  author_subject="$(ensure_user "${base}" "${token}" author "${AUTHOR_USERNAME}" "${AUTHOR_PASSWORD}" "${workspace_group}")"
-  collaborator_subject="$(ensure_user "${base}" "${token}" collaborator "${COLLABORATOR_USERNAME}" "${COLLABORATOR_PASSWORD}" "${workspace_group}")"
-  outsider_subject="$(ensure_user "${base}" "${token}" outsider "${OUTSIDER_USERNAME}" "${OUTSIDER_PASSWORD}" "${outside_group}")"
+  author_subject="$(ensure_user "${base}" "${token}" author "${AUTHOR_USERNAME}" "${AUTHOR_PASSWORD}")" ||
+    fail "author identity provisioning failed"
+  collaborator_subject="$(ensure_user "${base}" "${token}" collaborator "${COLLABORATOR_USERNAME}" "${COLLABORATOR_PASSWORD}")" ||
+    fail "collaborator identity provisioning failed"
+  outsider_subject="$(ensure_user "${base}" "${token}" outsider "${OUTSIDER_USERNAME}" "${OUTSIDER_PASSWORD}")" ||
+    fail "outsider identity provisioning failed"
 
   verify_backend_rebac_runtime
   write_provisioned_manifest "${author_subject}" "${collaborator_subject}" "${outsider_subject}"
@@ -637,18 +602,6 @@ delete_marked_user() {
   printf '1'
 }
 
-delete_marked_group() {
-  local base="$1" token="$2" name="$3"
-  local groups id group
-  groups="$(request GET "${base}/groups?search=$(encode "${name}")&exact=true" "${token}")"
-  id="$(find_exact_id "${groups}" name "${name}")"
-  [[ -n "${id}" ]] || { printf '0'; return; }
-  group="$(resolve_group "${base}" "${token}" "${id}")"
-  group_marker_matches "${group}" || fail "refusing to delete an unmarked Keycloak group"
-  request DELETE "${base}/groups/${id}" "${token}" >/dev/null
-  printf '1'
-}
-
 cleanup_identities() {
   command -v curl >/dev/null || fail "curl is required"
   command -v jq >/dev/null || fail "jq is required"
@@ -656,33 +609,24 @@ cleanup_identities() {
   assert_isolated_runtime
   [[ -n "${WEAVE_KEYCLOAK_ADMIN_PASSWORD:-}" ]] || fail "isolated Keycloak admin credential is missing"
 
-  local token base users_deleted=0 groups_deleted=0 value completed_at
+  local token base users_deleted=0 value completed_at
   token="$(admin_token)"
   [[ -n "${token}" ]] || fail "isolated Keycloak admin authentication failed"
   base="$(api_base)"
   for value in "${AUTHOR_USERNAME}" "${COLLABORATOR_USERNAME}" "${OUTSIDER_USERNAME}"; do
     users_deleted=$((users_deleted + $(delete_marked_user "${base}" "${token}" "${value}")))
   done
-  for value in "${NAMESPACE}-workspace-a" "${NAMESPACE}-outside"; do
-    groups_deleted=$((groups_deleted + $(delete_marked_group "${base}" "${token}" "${value}")))
-  done
-
   for value in "${AUTHOR_USERNAME}" "${COLLABORATOR_USERNAME}" "${OUTSIDER_USERNAME}"; do
     [[ -z "$(find_exact_id "$(resolve_user "${base}" "${token}" "${value}")" username "${value}")" ]] ||
       fail "run-scoped Keycloak user remained after cleanup"
   done
-  for value in "${NAMESPACE}-workspace-a" "${NAMESPACE}-outside"; do
-    [[ -z "$(find_exact_id "$(request GET "${base}/groups?search=$(encode "${value}")&exact=true" "${token}")" name "${value}")" ]] ||
-      fail "run-scoped Keycloak group remained after cleanup"
-  done
-
   completed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   mkdir -p "$(dirname -- "${CLEANUP_EVIDENCE_PATH}")"
   jq -n \
     --arg completedAt "${completed_at}" \
     --arg namespaceSha256 "$(sha256 "${NAMESPACE}")" \
     --argjson usersDeleted "${users_deleted}" \
-    --argjson groupsDeleted "${groups_deleted}" \
+    --argjson groupsDeleted 0 \
     '{
       schemaVersion:"weave.isolated-e2e-identity-cleanup.v1",
       completedAt:$completedAt,
@@ -697,11 +641,11 @@ cleanup_identities() {
       rawProviderPayloadIncluded:false,
       supportSafe:true
     }' >"${CLEANUP_EVIDENCE_PATH}"
-  log "ISOLATED_E2E_IDENTITIES state=cleaned namespaceSha256=$(sha256 "${NAMESPACE}") usersDeleted=${users_deleted} groupsDeleted=${groups_deleted} supportSafe=true"
-  if [[ "${users_deleted}:${groups_deleted}" == "3:2" ]]; then
-    log "MULTI_USER_CLEANUP_RESULT status=passed usersDeleted=3 groupsDeleted=2 persistentHumanChanged=false supportSafe=true"
+  log "ISOLATED_E2E_IDENTITIES state=cleaned namespaceSha256=$(sha256 "${NAMESPACE}") usersDeleted=${users_deleted} groupsDeleted=0 persistentHumanChanged=false supportSafe=true"
+  if [[ "${users_deleted}" == "3" ]]; then
+    log "MULTI_USER_CLEANUP_RESULT status=passed usersDeleted=3 groupsDeleted=0 persistentHumanChanged=false supportSafe=true"
   else
-    log "MULTI_USER_CLEANUP_RESULT status=passed usersDeleted=${users_deleted} groupsDeleted=${groups_deleted} persistentHumanChanged=false supportSafe=true expectedResourcesAbsent=true"
+    log "MULTI_USER_CLEANUP_RESULT status=passed usersDeleted=${users_deleted} groupsDeleted=0 persistentHumanChanged=false supportSafe=true expectedResourcesAbsent=true"
   fi
   print_integration_variables
 }

@@ -131,7 +131,8 @@ def main() -> None:
     assert "FROM registry.access.redhat.com/ubi9" not in dockerfile
     builder = (ROOT / "scripts/build_identity_ops_image.py").read_text(encoding="utf-8")
     assert "keycloakBaseResolved" in builder and "ubi9BaseResolved" in builder
-    assert "resolve_oci_reference" in builder
+    assert "pinned_base" in builder and "must declare one exact OCI digest" in builder
+    assert "build inputs differ from the selected candidate commit" in builder
     assert "user: \"${WEAVE_RUNTIME_UID:-1000}:${WEAVE_RUNTIME_GID:-1000}\"" in compose
     assert "no-new-privileges:true" in compose and "cap_drop:" in compose
     assert "/var/run/docker.sock" not in compose

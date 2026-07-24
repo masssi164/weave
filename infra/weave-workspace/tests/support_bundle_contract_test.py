@@ -28,10 +28,10 @@ class SupportBundleContractTest(unittest.TestCase):
         self.output = base / "output"
         self.generated.mkdir()
         self.context = SimpleNamespace(
-            profile="dogfood",
+            profile="test",
             generated_root=self.generated,
             env={
-                "WEAVE_COMPOSE_PROJECT": "weave-dogfood",
+                "WEAVE_COMPOSE_PROJECT": "weave-test",
                 "WEAVE_ADMIN_CONSOLE_URL": "https://admin.weave.test:44443",
                 "WEAVE_PROVIDER_PROFILE": "sovereign-default",
                 "WEAVE_SECRET_VALUE": "must-never-appear",
@@ -63,7 +63,7 @@ class SupportBundleContractTest(unittest.TestCase):
             {"schemaVersion": "nextcloud.v1", "containsSecretValues": False, "supportSafe": True},
         )
         self._evidence(
-            "keycloak/signed-receipt.json",
+            "identity-ops/private-response.json",
             {"authorization": "Bearer eyJfixture.fixture.fixture", "secret": "must-never-appear"},
         )
         (self.generated / "raw.log").write_text("person@example.com must-never-appear", encoding="utf-8")

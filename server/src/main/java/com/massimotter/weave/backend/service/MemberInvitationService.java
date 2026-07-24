@@ -92,7 +92,7 @@ public class MemberInvitationService {
         publish(AuditAction.MEMBER_INVITATION_REVOKED, intent, jwt.getSubject());
     }
 
-    /** First-login fallback for a missed Keycloak event; never used to authorize the request. */
+    /** Provider-neutral first-login reconciliation; never used to authorize the current request. */
     public void reconcileAuthenticated(Jwt jwt) {
         OrganizationIdentityContext actor=OrganizationIdentityContextFactory.fromJwt(jwt);
         String email=jwt.getClaimAsString("email");
@@ -101,19 +101,6 @@ public class MemberInvitationService {
         List<ProvisioningIntent> matches=intents.findPendingByEmail(actor.organizationId(), organizationId, normalizeEmail(email));
         if (matches.size() != 1 || !keycloak.isOrganizationMember(organizationId, actor.subject())) return;
         apply(matches.getFirst(), actor.subject());
-    }
-
-    public void applyMembershipEvent(String organizationId, String subject, String emailHash) {
-        List<ProvisioningIntent> matches=intents.findPendingByEmailHash(organizationId, emailHash.toLowerCase(Locale.ROOT));
-        if (matches.size() != 1) {
-            if (matches.isEmpty()) return;
-            throw new IllegalStateException("Provisioning intent correlation is ambiguous");
-        }
-        apply(matches.getFirst(), subject);
-    }
-
-    public boolean recordMembershipEventOnce(String eventId, Instant occurredAt) {
-        return intents.recordEventOnce(eventId, occurredAt);
     }
 
     private void apply(ProvisioningIntent intent, String subject) {

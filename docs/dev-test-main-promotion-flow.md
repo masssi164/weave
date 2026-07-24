@@ -28,27 +28,43 @@ The test stack is deployed by the `Test Stack Deploy` GitHub Actions workflow:
 - platform config: `https://api.weave.test:44443/api/platform/config`
 - local CA bootstrap: `http://weave.test:44080/weave-local-ca.pem`
 
-The workflow uses the repo infrastructure scripts as implementation detail:
+The workflow and developers use the module-owned Gradle interface:
 
-- `infra/weave-workspace/install.sh`
-- `infra/weave-workspace/smoke-test.sh`
-- `infra/weave-workspace/operator-check.sh`
+- `./gradlew :infra:composeTestUp`
+- `./gradlew :infra:identityTestVerify`
+- `./gradlew :infra:composeTestReady`
 
-Humans should not need to run those directly for normal test-stack use. The visible entrypoint is the `dogfood` branch deployment result and the iPhone app pointed at the dogfood stack.
+The task implementations call the same closed scripts used by CI. Humans do not paste or
+reconstruct the underlying commands for normal test-stack use. The visible entrypoint is the
+`dogfood` delivery result and the iPhone app pointed at the persistent `test` runtime.
 
 ## Update vs reset
 
 The persistent test stack defaults to update mode:
 
-- rebuild or pull the backend/MCP runtime images;
-- run `install.sh` idempotently;
+- consume the exact backend, MCP, Identity Ops, and stock-Keycloak image mapping proven by the
+  isolated candidate run;
+- apply the `test` profile idempotently;
 - keep stack data unless a reset is explicitly requested;
-- run smoke/operator checks;
+- require a current candidate-bound private backup and isolated restore receipt before adopting
+  any pre-existing unowned resource;
+- run operator checks;
 - upload a support-safe `weave-test-stack-evidence` artifact.
 
 Persistent dogfood contains only the single configured human tester identity. Disposable author, collaborator, outsider, and legacy `test` automation identities belong only to the isolated E2E namespace and are removed with it.
 
-Destructive reset is manual only through the workflow input `reset_stack=true`. It removes local test-stack data and must not be used as the normal promotion path.
+There is no persistent reset input. Persistent state deletion is a separate protected recovery
+operation and is never part of normal promotion.
+
+The protected `dogfood` GitHub environment configures two absolute runner paths:
+
+- `WEAVE_TEST_REVIEWED_ENV_FILE`: root-owned mode `0444` or `0644`, containing only reviewed
+  public `test` coordinates;
+- `WEAVE_TEST_BACKUP_ROOT`: operator-owned mode `0700`, outside the checkout.
+
+The deployment fails before mutation if either path is absent or if the adoption receipt is
+missing, stale, weakly permissioned, symlinked, bound to another candidate/project/profile, or
+does not inventory every persistent resource.
 
 ## Dogfood candidate validation
 

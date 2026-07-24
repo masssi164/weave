@@ -30,7 +30,7 @@ require "${INFRA_ROOT}/weave-workspace/scripts/support_bundle.py" '"signed recei
 require "${INFRA_ROOT}/weave-workspace/scripts/support_bundle.py" '"containsSecretValues": False'
 require "${INFRA_ROOT}/weave-workspace/scripts/operator_check.py" 'Nextcloud authenticated DAV readiness evidence is missing'
 require "${INFRA_ROOT}/weave-workspace/scripts/operator_check.py" 'adminControlPlaneMemberDenial'
-require "${INFRA_ROOT}/weave-workspace/scripts/teardown_compose.py" 'destructive teardown is restricted to a run-scoped isolated dogfood project'
+require "${INFRA_ROOT}/weave-workspace/scripts/teardown_compose.py" 'destructive teardown is restricted to a run-scoped isolated test project'
 require "${INFRA_ROOT}/weave-workspace/scripts/teardown_compose.py" 'refusing to remove unowned Docker'
 
 if find "${INFRA_ROOT}/acceptance" -maxdepth 1 -type f -name '*openproject*' -print -quit | grep -q .; then
