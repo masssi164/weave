@@ -233,6 +233,27 @@ export type GeneratedMcpServerBindingResponse = {
   "transport"?: string;
 };
 
+export type GeneratedMemberInvitationRequest = {
+  "displayName"?: string;
+  "email": string;
+  "organizationGroups"?: string[];
+  "role": string;
+};
+
+export type GeneratedMemberInvitationResponse = {
+  "createdAt"?: string;
+  "displayName"?: string;
+  "email"?: string;
+  "expiresAt"?: string;
+  "lifecycleStatus"?: string;
+  "organizationGroups"?: string[];
+  "organizationId"?: string;
+  "providerInvitationId"?: string;
+  "provisioningStatus"?: string;
+  "requestedRole"?: string;
+  "updatedAt"?: string;
+};
+
 export type GeneratedNoUnaccountedDataLossReport = {
   "archiveOnlyCount"?: number;
   "knownLosses"?: string[];
