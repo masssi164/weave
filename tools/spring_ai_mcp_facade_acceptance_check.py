@@ -66,8 +66,32 @@ def main() -> int:
         "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/McpRequestAdmissionFilter.java",
         "CLIENT_CREDENTIALS_EXTENSION",
         "exchange.exchange(",
-        "contexts.resolve(",
-        "BACKEND_CONTEXT_ATTRIBUTE",
+        "exchangedTokens.authenticate(",
+        "authorization.authorize(",
+        "WORKLOAD_PRINCIPAL_ATTRIBUTE",
+    )
+    require(
+        "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/McpExchangedTokenAuthenticator.java",
+        "decoder.decode(",
+        "policy.resolve(jwt)",
+    )
+    require(
+        "weave-runtime-security-adapters/src/main/java/com/massimotter/weave/backend/agentruntime/adapter/McpExchangedTokenPolicy.java",
+        "Exact claim-shape policy",
+        "new HashSet<>(jwt.getAudience()).equals(Set.of(apiResource))",
+        "requireNoRoles(jwt.getClaimAsMap(\"realm_access\"))",
+        "requireNoRoles(jwt.getClaimAsMap(\"resource_access\"))",
+    )
+    require(
+        "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/McpApplicationCoreConfiguration.java",
+        "new Ed25519JcsRuntimeProfileVerifier(",
+        "new McpWorkloadAuthorizationService(",
+    )
+    require(
+        "weave-application-core/src/main/java/com/massimotter/weave/backend/agentruntime/application/McpWorkloadAuthorizationService.java",
+        "verifier.verify(envelope, now)",
+        "workloadIdentities.requireCurrentBinding(",
+        "entitlementAuthority.observe(",
     )
     require(
         "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/McpTransportConfiguration.java",
@@ -80,18 +104,6 @@ def main() -> int:
         "humanBearerCannotDiscoverTheMcpCatalog",
         "extensionNegotiationIsMandatoryForWorkloadClientCredentials",
         "boundCellIsExchangedAndDispatchedThroughTheFrameworkTransport",
-    )
-    require(
-        "server/src/main/java/com/massimotter/weave/backend/config/McpWorkloadBridgeSecurityConfiguration.java",
-        "configuredRfc9068Decoder",
-        "rfc9068AccessTokenTypeValidator",
-        "exactAudienceValidator",
-    )
-    require(
-        "server/src/main/java/com/massimotter/weave/backend/controller/AgentRuntimeMcpContextController.java",
-        '@RequestMapping("/api/internal/agent-runtime")',
-        '@PostMapping("/mcp-context")',
-        "authorization.authorize(authentication.getToken())",
     )
     require(
         "infra/weave-workspace/compose.yaml",
@@ -109,8 +121,13 @@ def main() -> int:
     require_absent("weave-mcp-server/src/main/java/com/massimotter/weave/mcp/McpJsonRpcController.java")
     require_absent("weave-mcp-server/src/main/java/com/massimotter/weave/mcp/CanonicalMcpFeatures.java")
     require_absent("weave-mcp-server/src/main/java/com/massimotter/weave/mcp/McpToolApprovalService.java")
+    require_absent("weave-mcp-server/src/main/java/com/massimotter/weave/mcp/HttpMcpBackendContextResolver.java")
+    require_absent("weave-mcp-server/src/main/java/com/massimotter/weave/mcp/McpBackendContextResolver.java")
+    require_absent("weave-mcp-server/src/main/java/com/massimotter/weave/mcp/McpBackendContext.java")
     require_absent("weave-mcp-server/src/main/java/com/massimotter/weave/mcp/WeaveTokenExchangeClient.java")
     require_absent("weave-mcp-server/src/main/java/com/massimotter/weave/mcp/WeaveServerClient.java")
+    require_absent("server/src/main/java/com/massimotter/weave/backend/config/McpWorkloadBridgeSecurityConfiguration.java")
+    require_absent("server/src/main/java/com/massimotter/weave/backend/controller/AgentRuntimeMcpContextController.java")
     require_absent("server/src/main/java/com/massimotter/weave/backend/service/WeaverMcpBridgeService.java")
     require_absent("server/src/main/java/com/massimotter/weave/backend/weaver/MemberDomainToolDispatcher.java")
     require_absent("server/src/test/java/com/massimotter/weave/backend/service/WeaverMcpBridgeServiceTest.java")

@@ -3,15 +3,10 @@ package com.massimotter.weave.backend.agentruntime.port;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadBinding;
 import java.util.Objects;
 
-public interface RuntimeWorkloadIdentityAdmin {
+public interface RuntimeWorkloadIdentityAdmin extends RuntimeWorkloadBindingAuthority {
     RuntimeWorkloadBinding ensureBinding(EnsureBindingCommand command);
 
     RuntimeWorkloadBinding reconcileBinding(ReconcileBindingCommand command);
-
-    /** Read-only authorization check. It must never create, enable, or repair a workload client. */
-    default void requireCurrentBinding(CurrentBindingCommand command) {
-        throw new UnsupportedOperationException("read-only workload binding validation is unavailable");
-    }
 
     RuntimeWorkloadBinding rotateBinding(RotateBindingCommand command);
 
@@ -66,21 +61,6 @@ public interface RuntimeWorkloadIdentityAdmin {
             RuntimeWorkloadBinding binding,
             String auditRef) {
         public ReconcileBindingCommand {
-            EnsureBindingCommand.requireText(organizationRef, "organizationRef");
-            EnsureBindingCommand.requireText(personRef, "personRef");
-            EnsureBindingCommand.requireText(cellRef, "cellRef");
-            Objects.requireNonNull(binding, "binding");
-            EnsureBindingCommand.requireText(auditRef, "auditRef");
-        }
-    }
-
-    record CurrentBindingCommand(
-            String organizationRef,
-            String personRef,
-            String cellRef,
-            RuntimeWorkloadBinding binding,
-            String auditRef) {
-        public CurrentBindingCommand {
             EnsureBindingCommand.requireText(organizationRef, "organizationRef");
             EnsureBindingCommand.requireText(personRef, "personRef");
             EnsureBindingCommand.requireText(cellRef, "cellRef");

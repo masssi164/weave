@@ -207,6 +207,13 @@ class AgentRuntimeAdminServiceTest {
         private final AtomicInteger deleteCalls = new AtomicInteger();
 
         @Override
+        public void requireCurrentBinding(
+                com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadBindingAuthority.CurrentBindingCommand
+                        command) {
+            // This test double only exercises lifecycle mutations.
+        }
+
+        @Override
         public RuntimeWorkloadBinding ensureBinding(EnsureBindingCommand command) {
             ensureCalls.incrementAndGet();
             return new RuntimeWorkloadBinding(

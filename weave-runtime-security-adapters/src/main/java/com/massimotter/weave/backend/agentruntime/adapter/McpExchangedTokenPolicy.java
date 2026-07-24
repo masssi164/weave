@@ -1,8 +1,8 @@
 package com.massimotter.weave.backend.agentruntime.adapter;
 
+import com.massimotter.weave.backend.agentruntime.domain.ExchangedWorkloadToken;
 import com.massimotter.weave.backend.agentruntime.port.McpWorkloadAuthorizationException;
 import java.net.URI;
-import java.time.Instant;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -94,13 +94,4 @@ public final class McpExchangedTokenPolicy {
         return new McpWorkloadAuthorizationException(false);
     }
 
-    public record ExchangedWorkloadToken(
-            String issuer,
-            String subject,
-            String edgeClientId,
-            Set<String> scopes,
-            Instant issuedAt,
-            Instant expiresAt,
-            String tokenId) {
-    }
 }

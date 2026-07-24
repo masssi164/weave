@@ -22,6 +22,7 @@ import java.util.Set;
 import org.erdtman.jcs.JsonCanonicalizer;
 
 public final class Ed25519JcsRuntimeProfileVerifier implements RuntimeProfileVerifier {
+    private static final String TYPE = "weave.runtime-profile+jws";
     private static final int MAX_PROTECTED_LENGTH = 4096;
     private static final int MAX_PAYLOAD_LENGTH = 1_048_576;
     private static final int MAX_SIGNATURE_LENGTH = 128;
@@ -106,7 +107,7 @@ public final class Ed25519JcsRuntimeProfileVerifier implements RuntimeProfileVer
         names.forEachRemaining(actual::add);
         if (!actual.equals(Set.of("alg", "typ", "kid", "contractVersion"))
                 || !"EdDSA".equals(text(header, "alg"))
-                || !Ed25519JcsRuntimeProfileSigner.TYPE.equals(text(header, "typ"))
+                || !TYPE.equals(text(header, "typ"))
                 || !RuntimeProfile.VERSION.equals(text(header, "contractVersion"))
                 || !expectedKeyId.equals(text(header, "kid"))) {
             throw invalid("invalid-protected-header");
