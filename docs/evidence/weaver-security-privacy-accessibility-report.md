@@ -56,5 +56,5 @@ Runtime Factory and synthetic MCP customization claims are retired.
 
 Live local-stack evidence must additionally prove per-cell client creation,
 positive token exchange/current-context admission, negative human/shared-client
-rejection, runtime-state deletion, client revocation, and convergent OpenTofu
+rejection, runtime-state deletion, client revocation, and convergent Compose plus desired-state
 apply. A green contract fixture alone is not a release-ready runtime claim.

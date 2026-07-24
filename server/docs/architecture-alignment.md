@@ -30,7 +30,7 @@ Owns server-side product APIs and orchestration:
 Owns the runnable environment and operator contract:
 
 - hostnames, TLS, ingress, and service discovery
-- OpenTofu-managed identity, routing, service config, generated app config, and provider runtime gates
+- Docker Compose profiles own topology and generated runtime config; a protected, idempotent `kcadm` reconciler owns the Keycloak baseline
 - local and single-host stack bootstrap for Keycloak, MAS, Synapse, Nextcloud, backend, Caddy, PostgreSQL, and optional providers
 - backup, restore smoke, operator checks, support-bundle redaction, and manual live-stack evidence
 
@@ -50,7 +50,7 @@ Owns product-language acceptance contracts:
 - Boards/Tasks is an active v0.1 workspace surface behind backend facade, runtime, authorization, and audit gates.
 - OpenProject is the first provider-backed workspace-sync validation path, not the visible product UX and not a direct client dependency.
 - Provider writes remain disabled/fail-closed unless a later promotion proves authorization, user consent, audit publication, support-bundle redaction, and rollback behavior.
-- Infrastructure docs and workflows should describe OpenTofu as the operator tool. Terraform-compatible names may remain only where the underlying HCL ecosystem requires them.
+- Infrastructure docs and workflows must describe the `dev`, `dogfood`, and `main` Compose profiles as the operator contract. Keycloak baseline changes run only through the protected, idempotent `kcadm` reconciler; the server may dry-run desired state but never apply it live.
 
 ## Historical gaps that this model closes
 
@@ -76,3 +76,4 @@ Examples of obsolete assumptions:
 ## Issue drafts
 
 Archived issue-ready drafts live under `server/docs/issues/`. They are preserved for implementation history and must be checked against the current README, runtime configuration, and Boards workspace contract before reuse.
+Any OpenTofu/Terraform language in historical revisions is superseded by the Compose-profile and protected-`kcadm` contract above.

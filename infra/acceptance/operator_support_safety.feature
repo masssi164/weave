@@ -4,30 +4,29 @@ Feature: Operator diagnostics and support bundles stay support-safe
   destructive reset paths by default.
 
   @infra-support-bundle-redaction
-  Scenario: Support bundle redacts secrets and provider credentials
-    Given generated bootstrap and app config contain representative service secrets
+  Scenario: Support bundle excludes secrets and provider credentials
+    Given the selected Compose profile has private mounted SecretRefs
     When the operator creates a support bundle
-    Then the bundle contains support-safe public configuration and diagnostics
-    And passwords tokens signing secrets and OpenProject credentials are redacted
+    Then the bundle contains only normalized service metadata and explicitly support-safe evidence
+    And raw logs environment values signed receipts passwords tokens and provider payloads are excluded
 
   @infra-operator-readiness
-  Scenario: Operator checks verify the local Weave product topology
-    Given the local stack is bootstrapped through the documented install path
+  Scenario: Operator checks verify the declared Compose product topology
+    Given one exact Compose profile is reconciled through the documented install path
     When the operator runs the readiness check
-    Then canonical Weave API auth Matrix and files origins are checked
-    And diagnostics avoid printing secret environment values
+    Then canonical Weave API auth Matrix and files origins and authenticated DAV evidence are checked
+    And the result is a support-safe profile and Compose-project-bound readiness document
 
   @infra-provider-stack-readiness
-  Scenario: Runner checks verify provider stack readiness fail-closed
-    Given the self-hosted or manual smoke runner boots the Weave backend stack
-    When authenticated runner checks call provider readiness through Weave
-    Then /providers/status is visible through the backend API
-    And /profile/readiness returns CEFACADE support-safe readiness
-    And DevOps Office Forms Contacts Matrix MAS and Meetings remain support-safe by default
+  Scenario: Runner checks verify provider readiness fail-closed
+    Given the runner boots the exact candidate through the selected Compose profile
+    When authenticated readiness checks inspect public endpoints and provider evidence
+    Then missing or unsuccessful authenticated DAV evidence blocks readiness
+    And a member token receives a forbidden response from the admin control plane
 
   @infra-reset-guardrails
-  Scenario: Destructive reset refuses persistent data deletion without typed confirmation
-    Given the operator asks for teardown in dry-run mode
-    When persistent volume removal is not explicitly confirmed
-    Then identity Matrix Nextcloud and generated secret data are preserved
-    And the refusal points to the backup expectations runbook
+  Scenario: Destructive teardown rejects persistent projects
+    Given the operator invokes the isolated teardown entry point
+    When the profile is not an exact run-scoped dogfood namespace with matching ownership labels
+    Then no Docker volume or network is removed
+    And only an exact isolated project can produce support-safe teardown evidence

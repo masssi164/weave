@@ -23,7 +23,7 @@ import com.massimotter.weave.backend.agentruntime.port.SecretRefAccess;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Clock;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -33,9 +33,7 @@ import org.springframework.context.annotation.Configuration;
         AgentRuntimeWorkloadIdentityProperties.class,
         AgentRuntimeEntitlementProperties.class
 })
-@ConditionalOnExpression(
-        "'${weave.agent-runtime.storage.mode:disabled}' == 'jdbc'"
-                + " && '${weave.agent-runtime.workload-identity.enabled:false}' == 'true'")
+@ConditionalOnProperty(name = "weave.agent-runtime.workload-identity.enabled", havingValue = "true")
 public class AgentRuntimeWorkloadIdentityConfiguration {
 
     @Bean

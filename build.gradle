@@ -34,7 +34,11 @@ tasks.named('matrixRustCoreTest') {
     dependsOn 'matrixSdkVendorProvenanceCheck'
 }
 registerCommandTask('clientCi', file('client'), ['bash', '-lc', 'flutter gen-l10n && dart run build_runner build --delete-conflicting-outputs && dart format --output=none --set-exit-if-changed . && flutter analyze --fatal-infos && flutter test && make marketing-screenshots && git -C .. diff --exit-code -- client/lib client/test docs/assets/marketing docs/assets/roadmap && make offline-contract-test'], 'Run Flutter generated-code, format, analysis, tests, screenshots, and offline contract checks.')
-registerRootCommandTask('serverCi', ['./gradlew', ':server:test'], 'Run server checks through the root Gradle multiproject build.')
+registerRootCommandTask(
+    'serverCi',
+    ['./gradlew', ':server:check', ':server:postgresIntegrationTest'],
+    'Run the server unit, dev-H2/JPA, production-artifact, and PostgreSQL integration lanes.'
+)
 registerCommandTask('adminCi', file('admin-console'), ['npm', 'run', 'ci'], 'Run admin console npm CI checks.')
 registerRootCommandTask('generateOpenApiContract', ['bash', 'tools/generate_openapi_contract.sh'], 'Generate the server-owned OpenAPI artifact used by typed consumers.')
 registerRootCommandTask('checkOpenApiContractFresh', ['bash', 'tools/check_openapi_contract_fresh.sh'], 'Fail when the checked-in server OpenAPI artifact is stale.')
@@ -62,7 +66,94 @@ tasks.register('contractAuthorityArchitectureCheck') {
     description = 'Verify the root-orchestrated server/OpenAPI contract authority baseline without running live infrastructure.'
     dependsOn ':server:test', 'mcpCi', 'docsStructureCheck', 'checkOpenApiContractFresh', 'checkAdminOpenApiTypesFresh', 'checkClientOpenApiModelsFresh'
 }
-registerRootCommandTask('infraStatic', ['bash', '-lc', "cd infra/weave-workspace/01-infrastructure && tofu fmt -check -recursive && tofu init -backend=false -lockfile=readonly && tofu validate && cd ../02-keycloak-setup && tofu fmt -check -recursive && tofu init -backend=false -lockfile=readonly && tofu validate && cd ../../.. && find infra/weave-workspace/tests -maxdepth 1 -type f -name '*-test.sh' -print0 | sort -z | xargs -0 -n1 bash"], 'Run OpenTofu format/validate and static infrastructure script checks without mutating provider lock files.')
+['dev', 'dogfood', 'main'].each { profile ->
+    def profileTitle = profile.capitalize()
+    ['config', 'up', 'down'].each { operation ->
+        def operationTitle = operation.capitalize()
+        registerRootCommandTask(
+            "compose${profileTitle}${operationTitle}",
+            ['infra/weave-workspace/compose.sh', profile, operation],
+            "Run the ${operation} operation for the canonical ${profile} Docker Compose profile."
+        )
+    }
+    ['plan', 'apply', 'verify'].each { operation ->
+        def operationTitle = operation.capitalize()
+        registerRootCommandTask(
+            "keycloak${profileTitle}${operationTitle}",
+            ['infra/weave-workspace/compose.sh', profile, "keycloak-${operation}"],
+            "Run protected Keycloak desired-state ${operation} for the ${profile} Compose profile."
+        )
+    }
+}
+tasks.register('serverDevH2Test') {
+    group = 'verification'
+    description = 'Run the host-development Spring Boot test lane with H2 and Hibernate mapping validation.'
+    dependsOn ':server:devH2IntegrationTest'
+}
+registerRootCommandTask('composeDevDependenciesReady', ['python3', 'infra/weave-workspace/scripts/prepare_dev_dependencies.py', '--root', 'infra/weave-workspace'], 'Build exact local trust images and reconcile the dev Compose provider dependencies for a host Spring Boot process.')
+registerRootCommandTask('serverDevBoot', ['python3', 'infra/weave-workspace/scripts/run_host_dev_server.py', 'boot', '--root', 'infra/weave-workspace'], 'Boot the host Spring server with application-dev H2 and generated live-provider coordinates.')
+tasks.named('serverDevBoot') {
+    dependsOn 'composeDevDependenciesReady'
+}
+registerRootCommandTask('serverDevHostSmoke', ['python3', 'infra/weave-workspace/scripts/run_host_dev_server.py', 'smoke', '--root', 'infra/weave-workspace'], 'Prove host Spring Boot readiness on H2 against the reconciled dev provider dependencies.')
+tasks.named('serverDevHostSmoke') {
+    dependsOn 'composeDevDependenciesReady'
+}
+tasks.register('serverPostgresIntegrationTest') {
+    group = 'verification'
+    description = 'Run the PostgreSQL-backed Spring Boot integration and migration test lane.'
+    dependsOn ':server:postgresIntegrationTest'
+}
+tasks.register('relationalModelParity') {
+    group = 'verification'
+    description = 'Prove exact Flyway, canonical Chen manifest, JPA entity, and repository parity.'
+    dependsOn ':server:relationalModelParity'
+}
+registerRootCommandTask('noExecutableOpenTofuCheck', ['python3', 'tools/no_executable_opentofu_check.py'], 'Reject executable OpenTofu, Terraform state, TF_VAR inputs, and legacy IaC commands after the Compose cutover.')
+registerRootCommandTask('noExecutableOpenTofuCheckTest', ['python3', 'tools/no_executable_opentofu_check_test.py'], 'Run fixture coverage for the executable OpenTofu retirement guard.')
+registerRootCommandTask('workflowActionRuntimeCheck', ['python3', 'tools/workflow_action_runtime_check.py'], 'Require every external GitHub Action to use its reviewed immutable commit and a supported Node 24 or composite runtime.')
+registerRootCommandTask('workflowActionRuntimeCheckTest', ['python3', 'tools/workflow_action_runtime_check_test.py'], 'Run fixture coverage for immutable GitHub Action pins and the Node 20 retirement guard.')
+registerRootCommandTask('candidateSourceMappingCheck', ['bash', '-lc', 'python3 -m py_compile tools/candidate_source_mapping.py && python3 tools/candidate_pipeline_check.py'], 'Validate protected-dev source derivation, lane-tree identity, immutable image binding, and workflow consumption.')
+registerRootCommandTask('candidateSourceMappingCheckTest', ['python3', 'tools/candidate_source_mapping_test.py'], 'Run isolated Git-history and closed image-set tests for source-to-lane candidate evidence.')
+registerRootCommandTask('keycloakSanitizerImageBuild', ['python3', 'infra/weave-workspace/scripts/build_sanitizer_image.py', '--root', 'infra/weave-workspace'], 'Build the pinned exact-candidate sanitizer used by protected kcadm reconciliation and print its immutable image ID.')
+registerRootCommandTask('keycloakDevImageBuild', ['python3', 'infra/weave-workspace/scripts/build_keycloak_image.py', '--root', '.'], 'Build the pinned exact-candidate Keycloak distribution and print its immutable image ID.')
+tasks.register('keycloakSupervisorInstall', Exec) {
+    group = 'deployment'
+    description = 'Install one reviewed, immutable root-owned Keycloak supervisor generation and export only its public trust key. Run Gradle as root.'
+    workingDir projectDir
+    doFirst {
+        def required = [
+            weaveSupervisorInstallRoot: 'absolute immutable installation directory',
+            weaveSupervisorTrustKeyOutput: 'absolute dogfood/main public trust-key destination',
+            weaveKeycloakImageDigest: 'approved sha256:<64 hex> Keycloak image digest',
+            weaveKeycloakSanitizerImageDigest: 'approved sha256:<64 hex> sanitizer image digest',
+            weaveSupervisorPackageApprovalRef: 'approval:keycloak-supervisor-package:... reference',
+            weaveKeycloakImageApprovalRef: 'approval:keycloak-image:... reference',
+            weaveSupervisorOperatorGroup: 'existing unprivileged deployment-operator group'
+        ]
+        def missing = required.findAll { name, ignored -> !project.hasProperty(name) }
+        if (!missing.isEmpty()) {
+            throw new GradleException('Missing keycloakSupervisorInstall properties: ' + missing.collect { name, help -> "-P${name}=<${help}>" }.join(', '))
+        }
+        commandLine execCommand([
+            'python3', 'infra/weave-workspace/scripts/install_keycloak_supervisor.py',
+            '--source-root', file('infra/weave-workspace/keycloak').absolutePath,
+            '--install-root', project.property('weaveSupervisorInstallRoot').toString(),
+            '--trust-key-output', project.property('weaveSupervisorTrustKeyOutput').toString(),
+            '--approved-keycloak-image-digest', project.property('weaveKeycloakImageDigest').toString(),
+            '--approved-sanitizer-image-digest', project.property('weaveKeycloakSanitizerImageDigest').toString(),
+            '--package-approval-ref', project.property('weaveSupervisorPackageApprovalRef').toString(),
+            '--image-approval-ref', project.property('weaveKeycloakImageApprovalRef').toString(),
+            '--operator-group', project.property('weaveSupervisorOperatorGroup').toString()
+        ])
+    }
+}
+registerRootCommandTask('infraStatic', ['bash', '-lc', 'set -euo pipefail; for script in infra/weave-workspace/tests/*-test.sh; do bash "$script"; done; python3 -m py_compile infra/weave-workspace/scripts/*.py infra/weave-workspace/keycloak/*.py infra/weave-workspace/tests/*.py; find infra/weave-workspace -type f -name "*.sh" -print0 | xargs -0 shellcheck --severity=warning'], 'Run the complete non-mutating Compose, Keycloak, backup, support-safety, Python, and shell contract suite.')
+tasks.named('infraStatic') {
+    dependsOn 'noExecutableOpenTofuCheck', 'noExecutableOpenTofuCheckTest',
+        'workflowActionRuntimeCheck', 'workflowActionRuntimeCheckTest',
+        'candidateSourceMappingCheck', 'candidateSourceMappingCheckTest'
+}
 registerRootCommandTask('docsBuild', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; rm -rf build/docs/user build/docs/admin; "$PYTHON" -m mkdocs build --strict --site-dir build/docs/user; "$PYTHON" -m mkdocs build --strict --site-dir build/docs/admin'], 'Build deterministic user and admin MkDocs outputs with strict validation.')
 registerRootCommandTask('docsStructureCheck', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; "$PYTHON" tools/docs_check.py'], 'Run lightweight documentation structure checks.')
 registerRootCommandTask('docsServe', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; "$PYTHON" -m mkdocs serve'], 'Serve the MkDocs site locally.')
@@ -166,6 +257,8 @@ ext.ciEvidenceGates = [
     'adminCi',
     'mcpCi',
     'infraStatic',
+    'workflowActionRuntimeCheck',
+    'workflowActionRuntimeCheckTest',
     'docsCheck',
     'releaseNotesLabelCheck',
     'specCorpusConformance',
@@ -392,7 +485,8 @@ tasks.register('doctor') {
         checkCommand('dart', ['dart', '--version'], 'Install the Dart SDK or use the Dart bundled with Flutter.')
         checkCommand('node', ['node', '--version'], 'Install Node matching the CI setup or the repo .nvm policy when added.')
         checkCommand('npm', ['npm', '--version'], 'Install npm and run npm ci in admin-console when needed.')
-        checkCommand('tofu', ['tofu', '--version'], 'Install OpenTofu for infraStatic, matching the CI setup version.')
+        checkCommand('docker', ['docker', '--version'], 'Install Docker for the canonical Compose-based infrastructure model.')
+        checkCommand('docker compose', ['docker', 'compose', 'version'], 'Install Docker Compose v2 for infraStatic and environment lifecycle tasks.')
         checkCommand('mkdocs', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; "$PYTHON" -m mkdocs --version'], 'Install pinned docs dependencies with: python3 -m pip install -r docs/requirements.txt (or use build/docs-venv).')
 
         if (!failures.isEmpty()) {

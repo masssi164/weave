@@ -1,243 +1,115 @@
-# Keycloak Contract
+# Keycloak deployment and reconciliation contract
 
-This is the local identity contract for the Weave self-hosted development stack.
+The normative authority is the pinned Weave Specification Corpus, especially ADR 0016 and the
+`weave.keycloak-desired-state/v1`, environment-overlay, sanitizer-profile, and reconciliation-
+receipt contracts. This document is their implementation/operator projection.
 
-## Realm
+## Ownership
 
-- Realm name: `weave`
-- Default public issuer URI: `https://auth.weave.test/realms/weave`
-- OpenTofu module source: `weave-workspace/02-keycloak-setup/modules/tenant-identity`
+- Keycloak is the organization identity authority and upstream authentication broker.
+- MAS is the Matrix-facing authorization server and delegates authentication to Keycloak.
+- Flutter, Admin Console, and web clients use Authorization Code with PKCE S256 through the system
+  browser. Password/direct grants and embedded login are disabled.
+- The fixed realm baseline is reconciled only by the protected Compose Keycloak path.
+- Agent Runtime Control owns dynamic `weaver-cell-{cellId}` workload clients; they are never part of
+  the fixed baseline or inferred from a human role.
+- Product server startup does not import, mutate, or carry a second realm baseline.
 
-The issuer URI follows the infrastructure inputs:
+## Desired state
 
-- `tenant_slug`: realm name, default `weave`
-- `auth_subdomain`: default `auth`
-- `tenant_domain`: default `weave.test`
-- `public_scheme`: default `https`
-- `proxy_host_port`: default `443`
+`keycloak/desired_state_authority.py` loads the exact canonical examples from the pinned corpus,
+validates their RFC 8785 revisions, and renders one closed overlay for `dev`, `dogfood`, or `main`.
+The overlay may change only public HTTPS origins, SMTP transport, organization metadata, named
+SecretRefs, and the exact Keycloak image digest. It cannot add users, roles, grants, flows, token
+policy, or arbitrary client configuration.
 
-## Integration Test User
+The baseline owns the realm, Organizations feature, `owner|admin|member|guest` roles, group
+hierarchy, scopes/mappers, fixed clients, service-account grants, token-exchange policy, exact
+redirect/logout URIs, and human/workload credential separation. Dogfood/main SMTP requires
+implicit TLS; main requires external SMTP credential SecretRefs.
 
-The Keycloak setup stage can create a local integration test user. It is disabled by default and must not be enabled in production.
+## Protected `kcadm` boundary
 
-Enable it with `TF_VAR_create_test_user=true` when running `weave-workspace/install.sh`, or by setting `create_test_user=true` for the `02-keycloak-setup` OpenTofu stage. `TF_VAR_*` remains the OpenTofu/Terraform-compatible variable environment prefix.
+`compose.sh <profile> keycloak-plan|keycloak-apply|keycloak-verify` calls one immutable externally
+installed supervisor generation. The candidate process supplies only:
 
-- Username: `test`
-- Email and login identifier: `test@weave.test`
-- First name: `Test`
-- Last name: `User`
-- Password: `<generated — see bootstrap.env>`
-- Email verified: true
-- Temporary password: false
+- exact profile, reviewed environment path, candidate/specification commits, nonce, and
+  reconciliation ID;
+- exact approved Keycloak and sanitizer image digests;
+- public runtime coordinates and named SecretRef roots.
 
-For integration tests, use:
+The supervisor is root-owned and approved separately with `./gradlew keycloakSupervisorInstall`.
+It owns the Docker/host-control channel and receipt signing key; candidate code receives neither.
+Before any mutation it acquires the PostgreSQL reconciliation lease and monotonic fence, attests
+Keycloak stopped, creates one run-bound bootstrap-admin service, starts Keycloak, runs the pinned
+`kcadm` distribution only through the closed sanitizer, reads back complete state, deletes the
+temporary authority, proves new-grant denial and last-token expiry, clears transient state, and
+signs a flattened Ed25519 JWS receipt.
+
+The sanitizer denies credential, installation, bulk import/export, key, user-credential, and
+unlisted endpoints before allowlisting. It emits typed projections and coverage digests only; raw
+Admin REST request/response bodies never reach disk, stdout, logs, evidence, or support bundles.
+Any failed cleanup, partial coverage, stale fence, redaction finding, residual authority, or
+residual sensitive state quarantines the lease and cannot produce success.
+
+Promotion evidence uses two distinct commit authorities. `WEAVE_CANDIDATE_COMMIT` is the exact
+checked-out lane commit (for example, the dogfood merge commit) and binds reconciliation, backup,
+deployment, and human evidence. `WEAVE_IMAGE_SOURCE_COMMIT` is the protected `dev` ancestor whose
+tree is byte-identical to that lane commit; it binds the backend, MCP, Keycloak, and sanitizer
+image revisions. Protected workflows derive the source from the fetched `origin/dev` ref and emit
+`candidate-source-mapping.json`; it is not a dispatch input or an operator-selected replacement.
+The successful isolated E2E run retains that exact immutable four-image set on the dedicated
+locked runner. Persistent dogfood downloads the source-run mapping and verifies each local image
+ID and revision before deployment; it never rebuilds or substitutes those images.
+
+Ordinary reconciliation creates and updates but never deletes managed or unmanaged resources.
+Deletion requires one separately approved, candidate/backup/fingerprint/time-bound tombstone.
+
+## Credential classes
+
+Human/public clients use PKCE and rotating refresh tokens. Each Weaver cell uses its own
+confidential service-account client with `private_key_jwt`, exact resource/audience, and a scope
+ceiling. There is no shared Weaver client and no public MCP client. Internal token exchange uses
+Keycloak Standard Token Exchange v2 with exact target audience downscoping; inbound bearer tokens
+are never relayed.
+
+Every persistent credential is a mode-0600 named file below `WEAVE_SECRET_ROOT`. The reviewed
+environment file contains no secret values. Repeated deployment preserves valid generations;
+explicit rotation is separately audited and verified. The run-specific bootstrap-admin secret is
+the only intentionally ephemeral credential and is destroyed before a receipt may succeed.
+
+## Profile behavior
+
+- `dev`: local dependency Compose project, local image IDs permitted, Mailpit plaintext only on the
+  private container endpoint, host Spring server on H2.
+- `dogfood`: persistent named volumes, digest-pinned images, implicit-TLS Mailpit, PostgreSQL server,
+  external supervisor, federation disabled.
+- `main`: release-capable digest-pinned model, external implicit-TLS SMTP, PostgreSQL server,
+  protected publication approval, federation disabled unless a later trust profile is accepted.
+- isolated E2E: the dogfood topology under a deterministic run namespace; its clients, ports,
+  volumes, SecretRefs, identities, receipts, and cleanup cannot satisfy persistent evidence.
+
+## Reproducible tasks
 
 ```bash
-export WEAVE_TEST_USERNAME=test@weave.test
-export WEAVE_TEST_PASSWORD='<generated — see bootstrap.env>'
+./gradlew keycloakDevImageBuild keycloakSanitizerImageBuild
+./gradlew keycloakDevPlan keycloakDevApply keycloakDevVerify
+
+git fetch --no-tags --prune origin \
+  '+refs/heads/dev:refs/remotes/origin/dev'
+export WEAVE_CANDIDATE_COMMIT="$(git rev-parse HEAD)"
+python3 tools/candidate_source_mapping.py \
+  --repository . \
+  --lane-candidate "$WEAVE_CANDIDATE_COMMIT" \
+  --output build/evidence/candidate-source-mapping.json
+export WEAVE_IMAGE_SOURCE_COMMIT="$(
+  jq -er '.sourceCandidateCommit' build/evidence/candidate-source-mapping.json
+)"
+WEAVE_ENV_FILE=/absolute/path/to/reviewed-dogfood.env \
+WEAVE_KEYCLOAK_SUPERVISOR=/opt/weave/keycloak-supervisor/<generation>/supervisor.py \
+./gradlew keycloakDogfoodPlan keycloakDogfoodApply keycloakDogfoodVerify
 ```
 
-`install.sh` also writes non-secret Flutter integration settings when the test user is enabled:
-
-```bash
-export WEAVE_API_BASE_URL=https://api.weave.test/api
-export WEAVE_BASE_URL=https://api.weave.test/api
-export WEAVE_OIDC_ISSUER_URL=https://auth.weave.test/realms/weave
-export WEAVE_OIDC_CLIENT_ID=weave-app
-```
-
-## Clients
-
-### Weave Mobile App
-
-- Keycloak display name: `weave-app`
-- OIDC client ID: `weave-app`
-- Access type: public
-- OAuth flow: authorization code
-- PKCE: required, `S256`
-- Sign-in redirect URI: `com.massimotter.weave:/oauthredirect`
-- Post-logout redirect URI: `com.massimotter.weave:/logout`
-- Default API scope: `weave:workspace`
-- Optional long-lived session scope: `offline_access`
-- Resource Owner Password Grant: disabled by default, enabled only when `create_test_user=true`
-
-The Flutter app requests `openid profile email offline_access weave:workspace` for mobile sign-in. `weave:workspace` is also assigned as a default app scope so backend-bound access tokens include it when command-line smoke tests request only `openid profile email`. Long-lived mobile sessions are intentional for normal members: the dogfood realm grants the built-in Keycloak `offline_access` role to `owner`, `admin`, `operator`, and `member` product groups, while `guest` stays excluded until a separate guest-session policy exists.
-
-`weave-app` is never assigned either Agent Runtime Control machine scope. A human token cannot request or present an MCP access token.
-
-Dogfood/local realm email is captured by Mailpit only:
-
-- SMTP endpoint: `weave-mailpit:1025` on the Docker network.
-- Operator inbox: `http://127.0.0.1:8025`.
-- No external delivery is configured for dogfood/local mail.
-
-### Weave Backend
-
-- Keycloak display name: `weave-backend`
-- Resource client ID and required audience: `${api_public_url}/api`
-- Access type: bearer-only
-- Direct member API token `azp` or `client_id`: `weave-app`
-- Backend environment:
-  - `WEAVE_OIDC_ISSUER_URI=https://auth.weave.test/realms/weave`
-  - `WEAVE_OIDC_JWK_SET_URI=http://weave-keycloak:8080/realms/weave/protocol/openid-connect/certs`
-  - `WEAVE_OIDC_REQUIRED_AUDIENCE=https://api.weave.test/api`
-  - `WEAVE_CLIENT_ID=weave-app`
-- Public API URL: `https://api.weave.test/api`
-- Direct readiness URL: `http://127.0.0.1:${TF_VAR_backend_host_port}/api/health/ready`
-
-### Weave MCP Server
-
-- Keycloak client ID: `weave-mcp-server`
-- Access type: confidential, with a service account and no realm-management or product roles
-- Browser/direct-access grants: disabled
-- Full scope: disabled
-- Standard token exchange: enabled
-- Refresh tokens for client credentials and token exchange: disabled
-- Workload access-token lifespan: 60 seconds
-- Inbound human/member tokens are forbidden. The MCP edge admits only a currently bound cell workload after the Agent Runtime Control checks described below.
-- ARC provisions one confidential service-account client per enabled Weaver cell using the `weaver-cell-{cellId}` convention and `private_key_jwt` in the self-hosted adapter.
-- Admission requires `client_id == azp`, `sub` equal to the immutable service-account subject recorded by ARC, the sole realm role `weaver-runtime`, no client roles, the exact MCP/resource-plus-requester audience set, `mcp:tools`, only allowed domain scopes, and a current server-owned cell/profile/entitlement binding. Generic or unbound service accounts remain forbidden.
-- The fixed `weave-mcp-server` client is platform baseline state, not a Weaver cell identity and not a compatibility caller.
-
-`TF_VAR_weave_mcp_client_secret` is an operator-owned credential for the MCP edge's server-side exchange only. It is never issued to a cell and is mounted from a permission-restricted file rather than exposed to human clients. Both its client ID and secret are form-encoded before HTTP Basic construction as required by RFC 6749 section 2.3.1. ARC owns dynamic per-cell key creation, rotation, revocation, cleanup, and restore reconciliation.
-
-Keycloak Standard Token Exchange V2 is active for audience-restricted downstream workload tokens; the experimental delegation feature stays disabled. The exchanged token preserves the cell service-account `sub`, sets `azp=weave-mcp-server`, has the exact backend audience and reduced domain scopes, and has no refresh or ID token. Current Keycloak does not implement RFC 8707 `resource` for this exchange, so end-to-end RFC 8707 authorization-server conformance remains **Guarded**. The MCP edge does publish RFC 9728-style protected-resource metadata and its discoverable bearer challenge. See the [Keycloak token exchange documentation](https://www.keycloak.org/securing-apps/token-exchange).
-
-### Agent Runtime administration
-
-- `weave-agent-runtime-admin` is a confidential service account used only by ARC's Keycloak workload-client adapter. Its realm-management roles are the minimum set needed to create/read/update/delete owned `weaver-cell-*` clients, service-account users, credentials, and the `weaver-runtime` mapping. The adapter rejects targets outside that namespace.
-- `weave-identity-admin` remains a separate confidential service account for organization/member lifecycle and authoritative user/group reads. ARC entitlement reads use a separately qualified provider backed by this credential; workload client lifecycle never receives it.
-- Keycloak generates both administrative client secrets. After the Keycloak stage, `install.sh` atomically reconciles the sensitive outputs into their mounted SecretRefs and reapplies the runtime stage before backend readiness; the clients authenticate with HTTP Basic and never use a form-post fallback.
-- Both credentials are mounted through separate SecretRefs. Neither is available to a cell, MCP edge, member client, or product-domain service.
-
-### Matrix Authentication Service
-
-- Client ID: `matrix-mas`
-- Access type: confidential
-- Redirect URI: `https://matrix.weave.test/upstream/callback/01JQ7N9R4QK6W3M5X8Y2ZC1DHF`
-- Web origins: `+`
-
-### Nextcloud
-
-- Client ID: `nextcloud`
-- Access type: confidential
-- Redirect URI: `https://files.weave.test/*`
-- Post-logout redirect URI: `https://files.weave.test/*`
-- Backchannel logout URL: `https://files.weave.test/index.php/apps/user_oidc/backchannel-logout/keycloak`
-- Token claims include `groups` for Nextcloud group provisioning.
-
-## Client Scopes
-
-### `weave:workspace`
-
-- Type: OpenID client scope
-- `include_in_token_scope`: true
-- Assigned to `weave-app` as a default scope
-- Purpose: API access scope for Weave workspace operations
-
-The scope carries an audience mapper:
-
-- Mapper name: `weave-backend-audience`
-- Mapper type: OIDC audience protocol mapper
-- Included client audience: `weave-backend`
-- Added to access token: true
-- Added to ID token: false
-
-### `agent-runtime.profile.read`
-
-- Machine-only optional scope assigned to managed `weaver-cell-*` clients by ARC
-- Adds the exact `https://api.weave.test/api/v1/agent-runtime` resource audience
-- Requested alone for workload-only retrieval of the cell's current signed RuntimeProfile
-- Never assigned to `weave-app` or the fixed MCP edge client
-
-### `mcp:tools`
-
-- Machine-only optional scope assigned to managed `weaver-cell-*` clients by ARC
-- Adds the exact `https://api.weave.test/mcp` resource audience
-- Requested alone when the cell opens the MCP transport
-- Never assigned to `weave-app`; it is insufficient without the exact workload identity, current cell binding, profile, entitlement, and domain authorization
-
-### `weaver-runtime.workload`
-
-- Fixed non-requestable scope attached by ARC to every managed cell client
-- Carries only the `weaver-runtime` realm-role mapping
-- Is not emitted as user-requestable product authority
-
-### `calendar.read`
-
-- Machine-only optional domain scope in the current proof slice
-- Assigned to a cell only when its current RuntimeProfile permits Calendar reads
-- Downscoped through the MCP edge; never grants direct member/admin API access
-
-### `weave-mcp-backend.exchange`
-
-- Internal non-requestable default scope attached only to `weave-mcp-server`
-- Supplies the backend audience that Keycloak Standard Token Exchange V2 can filter with its `audience` request parameter
-- `include_in_token_scope` is false, so this internal name does not appear in the exchanged token's `scope` claim
-
-### `weaver-runtime` realm role
-
-- Assigned only to the service account of an ARC-managed cell client
-- Must be that account's sole effective realm workload role
-- Is not a member/product role and never establishes a human identity or domain permission
-
-## Token Claims
-
-A mobile access token for `weave-app` must include:
-
-- `iss`: `https://auth.weave.test/realms/weave`
-- `azp`: `weave-app`
-- `client_id`: `weave-app` when present
-- `aud`: includes `weave-backend`
-- `scope`: includes `openid`, requested profile scopes, and `weave:workspace`
-- refresh token: present for mobile app sign-in when the user belongs to an offline-session-entitled product group and the app requested `offline_access`
-
-The backend accepts the token only when:
-
-- the issuer matches `WEAVE_OIDC_ISSUER_URI`
-- the `aud` claim includes `WEAVE_OIDC_REQUIRED_AUDIENCE`
-- the authorized party or client ID matches `WEAVE_CLIENT_ID`
-
-A direct cell MCP access token must instead include an RFC 9068 `typ=at+jwt` header, the exact
-MCP resource and requester audiences, `client_id == azp == weaver-cell-{cellId}`, the immutable
-service-account `sub`, the sole `weaver-runtime` realm role, no client roles, `mcp:tools`, and
-only the domain scopes granted to that cell. The exchanged backend token preserves `sub`, uses
-`azp=weave-mcp-server`, carries exactly the backend audience and reduced domain scopes, and is
-accepted only on the private MCP context security chain.
-
-## OpenTofu outputs
-
-The Keycloak setup stage exports these OpenTofu outputs:
-
-- `keycloak_realm_name`
-- `keycloak_issuer_url`
-- `weave_app_client_id`
-- `weave_app_redirect_uris`
-- `weave_app_post_logout_redirect_uris`
-- `weave_app_default_scopes`
-- `weave_app_optional_scopes`
-- `weave_workspace_scope_name`
-- `weave_backend_client_id`
-- `weave_backend_audience`
-- `weave_mcp_client_id`
-- `weave_mcp_audience`
-- `weave_agent_runtime_admin_client_id`
-- `agent_runtime_admin_scope_name`
-- `weaver_runtime_workload_scope_name`
-- `agent_runtime_resource`
-- `agent_runtime_profile_read_scope_name`
-- `mcp_tools_scope_name`
-- `nextcloud_client_id`
-- `nextcloud_client_secret`
-- `test_user_username`
-- `test_user_password`
-
-The infrastructure stage exports these OpenTofu outputs:
-
-- `weave_backend_oidc_issuer_uri`
-- `weave_backend_oidc_jwk_set_uri`
-- `weave_backend_required_audience`
-- `weave_backend_client_id`
-- `public_urls.api` with the backend available at `/api`
-- `weave_api_base_url`
-- `service_names.backend`
+The second protected plan must be empty. Readiness requires a current verified receipt bound to
+the exact specification, candidate, image, deployment, lease/fence, desired/observed revisions,
+nonce, and verification time. A valid-looking self-selected report is not evidence.

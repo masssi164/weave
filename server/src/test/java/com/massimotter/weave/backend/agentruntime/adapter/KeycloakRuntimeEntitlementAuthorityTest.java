@@ -57,7 +57,7 @@ class KeycloakRuntimeEntitlementAuthorityTest {
 
     @Test
     void derivesOpaqueShortLivedEvidenceFromTheEnabledUsersCurrentGroupMembership() {
-        keycloak.groups.add(group("group-1", "team-a", "/weave-weaver-runtime/team-a"));
+        keycloak.groups.add(group("group-1", "team-a", "/weave/weaver-runtime/team-a"));
         keycloak.groups.add(group("group-2", "unrelated", "/unrelated"));
 
         var observation = authority.observe(command(ISSUER));
@@ -65,7 +65,7 @@ class KeycloakRuntimeEntitlementAuthorityTest {
         assertThat(observation.sourceProvider()).isEqualTo("keycloak");
         assertThat(observation.sourceGroupRef()).matches("sha256:[a-f0-9]{64}");
         assertThat(observation.capabilityRevision()).matches("sha256:[a-f0-9]{64}");
-        assertThat(observation.sourceGroupRef()).doesNotContain("group-1", "weave-weaver-runtime");
+        assertThat(observation.sourceGroupRef()).doesNotContain("group-1", "weaver-runtime");
         assertThat(observation.observedAt()).isEqualTo(NOW);
         assertThat(observation.expiresAt()).isEqualTo(NOW.plusSeconds(300));
         assertThat(keycloak.lastAuthorization).isEqualTo("Bearer admin-token-1");
@@ -100,7 +100,7 @@ class KeycloakRuntimeEntitlementAuthorityTest {
                 .isInstanceOf(RuntimeEntitlementDeniedException.class)
                 .hasMessageContaining("no current Weaver entitlement");
 
-        keycloak.groups.add(group("group-1", "weave-weaver-runtime", "/weave-weaver-runtime"));
+        keycloak.groups.add(group("group-1", "weaver-runtime", "/weave/weaver-runtime"));
         keycloak.userEnabled = false;
         assertThatThrownBy(() -> authority.observe(command(ISSUER)))
                 .isInstanceOf(RuntimeEntitlementDeniedException.class)
@@ -129,7 +129,7 @@ class KeycloakRuntimeEntitlementAuthorityTest {
 
     @Test
     void oneRejectedAdminTokenIsInvalidatedAndRetriedWithoutLeakingProviderBodies() {
-        keycloak.groups.add(group("group-1", "weave-weaver-runtime", "/weave-weaver-runtime"));
+        keycloak.groups.add(group("group-1", "weaver-runtime", "/weave/weaver-runtime"));
         keycloak.rejectFirstToken = true;
 
         assertThat(authority.observe(command(ISSUER)).sourceGroupRef()).startsWith("sha256:");
@@ -148,7 +148,7 @@ class KeycloakRuntimeEntitlementAuthorityTest {
         return new KeycloakRuntimeEntitlementAuthority.Settings(
                 enabled, keycloak.baseUri(), URI.create(ISSUER), "org:example", "org-uuid", "weave",
                 Duration.ofSeconds(2),
-                Duration.ofMinutes(5), List.of("weave-weaver-runtime"),
+                Duration.ofMinutes(5), List.of("/weave/weaver-runtime"),
                 List.of("calendar.read"));
     }
 

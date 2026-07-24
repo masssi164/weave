@@ -34,7 +34,7 @@ class WorkspaceCapabilityServiceTest {
                 .subject("user-1")
                 .issuer("https://auth.weave.test/realms/weave")
                 .claim("azp", "weave-mcp-server")
-                .claim("groups", List.of("workspace-members", "weave-weaver-runtime"))
+                .claim("groups", List.of("/weave/members", "/weave/weaver-runtime"))
                 .build();
 
         assertThat(service.grantedCapabilities(delegated))
@@ -130,6 +130,36 @@ class WorkspaceCapabilityServiceTest {
                 .isEqualTo("support:workspace-capability:files:degraded:allowed:files-storage-backend-unavailable");
         assertThat(snapshot.files().grantedCapabilities()).containsExactly("files.read", "files.upload");
         assertThat(snapshot.chat().readiness()).isEqualTo(WorkspaceCapabilityReadiness.READY);
+    }
+
+    @Test
+    void aConfiguredChatRouteCannotOverrideDegradedProviderEvidence() {
+        WorkspaceCapabilityService service = new WorkspaceCapabilityService(
+                resourceServerProperties("https://auth.weave.test/realms/weave"),
+                new WeaveSecurityProperties("weave-app", "weave-app"),
+                new WorkspaceCapabilityProperties(
+                        new WorkspaceCapabilityProperties.Capability(true, null, null),
+                        new WorkspaceCapabilityProperties.Capability(
+                                true,
+                                "https://matrix.weave.test",
+                                WorkspaceCapabilityReadiness.READY),
+                        new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.test", null),
+                        null,
+                        null,
+                        null),
+                providerHealth("chat", "degraded", "chat-provider-authenticated-capability-degraded", false));
+
+        var snapshot = service.snapshot(jwt(List.of("member"), List.of("workspace-default")));
+
+        assertThat(snapshot.chat().readiness()).isEqualTo(WorkspaceCapabilityReadiness.DEGRADED);
+        assertThat(snapshot.chat().memberImpact())
+                .contains("Chat needs admin attention")
+                .doesNotContain("Synapse")
+                .doesNotContain("Matrix");
+        assertThat(snapshot.chat().supportRef())
+                .isEqualTo("support:workspace-capability:chat:degraded:allowed:"
+                        + "chat-provider-authenticated-capability-degraded");
+        assertThat(snapshot.files().readiness()).isEqualTo(WorkspaceCapabilityReadiness.READY);
     }
 
     @Test
@@ -287,13 +317,13 @@ class WorkspaceCapabilityServiceTest {
                 new WeaveSecurityProperties("weave-app", "weave-app"),
                 new WorkspaceCapabilityProperties(null, null, null, null, null, null));
 
-        var policy = service.policySnapshot(jwt(List.of("admin"), List.of("weave-board-editors")));
+        var policy = service.policySnapshot(jwt(List.of("admin"), List.of("/weave-board-editors")));
 
         assertThat(policy.defaultIdmProvider()).isEqualTo("OIDC/SAML selected IDM");
         assertThat(policy.adapterContract()).contains("OIDC/SAML");
         assertThat(policy.roles()).containsExactly("admin");
-        assertThat(policy.groups()).containsExactly("weave-board-editors");
-        assertThat(policy.profileKeys()).contains("workspace-admin", "group:weave-board-editors");
+        assertThat(policy.groups()).containsExactly("/weave-board-editors");
+        assertThat(policy.profileKeys()).contains("workspace-admin", "group:/weave-board-editors");
         assertThat(policy.grantedCapabilities()).contains("chat.read", "files.upload", "boards.update_task");
         assertThat(policy.grantedCapabilities()).doesNotContain("agent-runtime.entitled");
         assertThat(policy.denyByDefault()).isTrue();
@@ -375,7 +405,7 @@ class WorkspaceCapabilityServiceTest {
                 new WorkspaceCapabilityProperties(null, null, null, null, null, null));
 
         service.requireCapability(
-                jwt(List.of("member"), List.of("weave-calendar-editors")),
+                jwt(List.of("member"), List.of("/weave-calendar-editors")),
                 "calendar.manage_events",
                 "calendar",
                 "create-event");
@@ -394,7 +424,7 @@ class WorkspaceCapabilityServiceTest {
                         null,
                         new WorkspaceCapabilityProperties.Capability(false, null, null)));
 
-        var snapshot = service.snapshot(jwt(List.of("admin"), List.of("weave-weaver-runtime")));
+        var snapshot = service.snapshot(jwt(List.of("admin"), List.of("/weave/weaver-runtime")));
 
         assertThat(snapshot.agentRuntimeControl().enabled()).isFalse();
         assertThat(snapshot.agentRuntimeControl().readiness()).isEqualTo(WorkspaceCapabilityReadiness.UNAVAILABLE);

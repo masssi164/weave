@@ -69,7 +69,7 @@ Regular specialist scopes:
 - Client: Flutter, accessibility, localization, widget/semantics tests.
 - Server: facades, authorization, audit, provider boundaries, backend contracts.
 - Admin/policy: Admin Console, Workspace Health, IDM/RBAC, readiness, whitelisting, and policy previews.
-- Provider/infra: provider adapters, OpenTofu, live-stack runner posture, backup/restore, support bundles.
+- Provider/infra: provider adapters, Compose profiles, Keycloak desired-state reconciliation, live-stack runner posture, backup/restore, support bundles.
 - DevOps/release: Gradle, GitHub Actions, branch protection, release labels, environments.
 - QA/evidence: acceptance contracts, `scenario_mappings.json`, Live Stack E2E, dogfood evidence, sanitized artifacts.
 - Docs/release: release notes, sprint reports, developer docs, PR templates.

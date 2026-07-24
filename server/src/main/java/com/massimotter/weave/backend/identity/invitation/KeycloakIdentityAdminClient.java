@@ -12,6 +12,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -84,16 +85,65 @@ public class KeycloakIdentityAdminClient {
     }
 
     public void applyRoleAndGroups(String subject, String role, List<String> groups) {
+        String roleGroupPath = canonicalRoleGroupPath(role);
+        List<ResolvedGroup> resolvedGroups = groups.stream()
+                .map(groupPath -> {
+                    canonicalGroupName(groupPath);
+                    if (!roleGroupPath.equals(groupPath)) {
+                        throw new IllegalArgumentException(
+                                "Organization group must match the selected canonical human role");
+                    }
+                    return resolveCanonicalGroup(groupPath);
+                })
+                .toList();
         String clientUuid = exactlyOne(values(json(request("GET", adminPath("/clients?clientId=weave-app"), null, null, 200)))
                 .filter(client -> "weave-app".equals(client.path("clientId").asText())).toList(), "weave-app client").path("id").asText();
         JsonNode roleRepresentation = json(request("GET", adminPath("/clients/" + encode(clientUuid) + "/roles/" + encode(role)), null, null, 200));
         request("POST", adminPath("/users/" + encode(subject) + "/role-mappings/clients/" + encode(clientUuid)),
                 "[" + roleRepresentation.toString() + "]", "application/json", 204);
-        for (String group : groups) {
-            JsonNode resolved = exactlyOne(values(json(request("GET", adminPath("/groups?search=" + encode(group) + "&exact=true"), null, null, 200)))
-                    .filter(candidate -> group.equals(candidate.path("name").asText())).toList(), "organization group");
-            request("PUT", adminPath("/users/" + encode(subject) + "/groups/" + encode(resolved.path("id").asText())), null, null, 204);
+        for (ResolvedGroup resolved : resolvedGroups) {
+            request("PUT", adminPath("/users/" + encode(subject) + "/groups/" + encode(resolved.id())), null, null, 204);
         }
+    }
+
+    private ResolvedGroup resolveCanonicalGroup(String groupPath) {
+        String groupName = canonicalGroupName(groupPath);
+        JsonNode root = exactlyOne(values(json(request(
+                        "GET",
+                        adminPath("/groups?search=weave&exact=true&first=0&max=2"),
+                        null,
+                        null,
+                        200)))
+                .filter(candidate -> "/weave".equals(candidate.path("path").asText()))
+                .toList(), "organization group root");
+        JsonNode child = exactlyOne(values(json(request(
+                        "GET",
+                        adminPath("/groups/" + encode(root.path("id").asText())
+                                + "/children?first=0&max=100"),
+                        null,
+                        null,
+                        200)))
+                .filter(candidate -> groupName.equals(candidate.path("name").asText()))
+                .filter(candidate -> groupPath.equals(candidate.path("path").asText()))
+                .toList(), "organization group path");
+        return new ResolvedGroup(child.path("id").asText());
+    }
+
+    private String canonicalRoleGroupPath(String role) {
+        return switch (role) {
+            case "owner" -> "/weave/owners";
+            case "admin" -> "/weave/admins";
+            case "member" -> "/weave/members";
+            case "guest" -> "/weave/guests";
+            default -> throw new IllegalArgumentException("Role must be an exact canonical human role");
+        };
+    }
+
+    private String canonicalGroupName(String groupPath) {
+        if (groupPath == null || !groupPath.matches("^/weave/(owners|admins|members|guests)$")) {
+            throw new IllegalArgumentException("Organization group must be an exact canonical human group path");
+        }
+        return groupPath.substring(groupPath.lastIndexOf('/') + 1);
     }
 
     private List<ProviderInvitation> list(String organizationId, String email) {
@@ -151,10 +201,13 @@ public class KeycloakIdentityAdminClient {
     private synchronized String accessToken() {
         Instant now = clock.instant();
         if (cachedToken != null && cachedToken.refreshAfter().isAfter(now)) return cachedToken.value();
+        String authorization = "Basic " + Base64.getEncoder().encodeToString(
+                (properties.keycloak().clientId() + ":" + properties.keycloak().clientSecret())
+                        .getBytes(StandardCharsets.UTF_8));
         HttpRequest request = HttpRequest.newBuilder(resolve("/realms/" + encode(properties.keycloak().realm()) + "/protocol/openid-connect/token"))
                 .timeout(properties.keycloak().timeout()).header(HttpHeaders.CONTENT_TYPE, "application/x-www-form-urlencoded")
-                .POST(HttpRequest.BodyPublishers.ofString(form("grant_type", "client_credentials", "client_id", properties.keycloak().clientId(),
-                        "client_secret", properties.keycloak().clientSecret()))).build();
+                .header(HttpHeaders.AUTHORIZATION, authorization)
+                .POST(HttpRequest.BodyPublishers.ofString(form("grant_type", "client_credentials"))).build();
         try {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() != 200) throw new KeycloakAdminException(response.statusCode(), "Keycloak service-account authentication failed");
@@ -172,6 +225,7 @@ public class KeycloakIdentityAdminClient {
     private Stream<JsonNode> values(JsonNode node) { return StreamSupport.stream(node.spliterator(), false); }
 
     private record CachedToken(String value, Instant refreshAfter) {}
+    private record ResolvedGroup(String id) {}
     public record ProviderInvitation(String providerInvitationId, String email, String displayName,
             String lifecycleStatus, Instant expiresAt, Instant createdAt) {}
     public static final class KeycloakAdminException extends RuntimeException {

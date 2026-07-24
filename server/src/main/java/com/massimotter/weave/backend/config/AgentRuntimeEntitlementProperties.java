@@ -11,7 +11,7 @@ public record AgentRuntimeEntitlementProperties(
         List<String> allowedCapabilities) {
 
     public AgentRuntimeEntitlementProperties {
-        enabledGroups = normalized(enabledGroups, List.of("weave-weaver-runtime"));
+        enabledGroups = normalized(enabledGroups, List.of("/weave/weaver-runtime"));
         allowedCapabilities = normalized(allowedCapabilities, List.of("calendar.read"));
     }
 

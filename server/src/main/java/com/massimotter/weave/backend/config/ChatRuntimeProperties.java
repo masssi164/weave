@@ -8,34 +8,18 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "weave.chat")
 public record ChatRuntimeProperties(
         String provider,
-        Storage storage,
         Matrix matrix) {
 
     public static final String MATRIX_SYNAPSE_PROVIDER = "matrix-synapse";
     public static final String IN_MEMORY_TEST_PROVIDER = "in-memory-test";
 
     public ChatRuntimeProperties {
-        provider = normalized(provider, IN_MEMORY_TEST_PROVIDER);
-        storage = storage == null ? new Storage("memory") : storage;
+        provider = normalized(provider, MATRIX_SYNAPSE_PROVIDER);
         matrix = matrix == null ? Matrix.defaults() : matrix;
     }
 
     public boolean matrixSynapseSelected() {
         return MATRIX_SYNAPSE_PROVIDER.equals(provider);
-    }
-
-    public boolean jdbcSelected() {
-        return "jdbc".equals(storage.mode());
-    }
-
-    public record Storage(String mode) {
-
-        public Storage {
-            mode = normalized(mode, "memory");
-            if (!mode.matches("memory|jdbc")) {
-                throw new IllegalArgumentException("weave.chat.storage.mode must be memory or jdbc");
-            }
-        }
     }
 
     public record Matrix(

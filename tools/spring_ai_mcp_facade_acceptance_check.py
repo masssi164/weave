@@ -94,9 +94,17 @@ def main() -> int:
         "authorization.authorize(authentication.getToken())",
     )
     require(
-        "infra/weave-workspace/01-infrastructure/modules/mcp/main.tf",
-        '"WEAVE_OIDC_ISSUER_URI=${var.oidc_issuer_uri}"',
-        "127.0.0.1",
+        "infra/weave-workspace/compose.yaml",
+        "WEAVE_MCP_IMAGE",
+        "/run/secrets/weave/mcp-private-jwk.json",
+        '"127.0.0.1:${WEAVE_MCP_HOST_PORT:-48085}:8091"',
+    )
+    require(
+        "infra/weave-workspace/scripts/render_config.py",
+        '"WEAVE_OIDC_JWK_SET_URI": "http://keycloak:8080/realms/weave/protocol/openid-connect/certs"',
+        '"WEAVE_MCP_TOKEN_URI": "http://keycloak:8080/realms/weave/protocol/openid-connect/token"',
+        '"WEAVE_MCP_EXCHANGE_CLIENT_KEY_FILE": "/run/secrets/weave/mcp-private-jwk.json"',
+        '"WEAVE_MCP_REQUIRED_SCOPES": "mcp.tools,calendar.read"',
     )
     require_absent("weave-mcp-server/src/main/java/com/massimotter/weave/mcp/McpJsonRpcController.java")
     require_absent("weave-mcp-server/src/main/java/com/massimotter/weave/mcp/CanonicalMcpFeatures.java")

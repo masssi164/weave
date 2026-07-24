@@ -137,9 +137,12 @@ class MatrixE2eeStateServicePersistenceTest {
     }
 
     private MatrixE2eeSnapshotStore snapshotStore(JdbcTemplate jdbcTemplate) {
-        StaticListableBeanFactory beans = new StaticListableBeanFactory();
-        beans.addBean("weaveJdbcTemplate", jdbcTemplate);
-        return new MatrixE2eeSnapshotStore(beans.getBeanProvider(JdbcTemplate.class));
+        MatrixE2eeSnapshotJpaRepository springData =
+                com.massimotter.weave.backend.testing.JpaTestDatabase.repository(
+                        jdbcTemplate.getDataSource(),
+                        MatrixE2eeSnapshotJpaRepository.class);
+        return new MatrixE2eeSnapshotStore(
+                springData);
     }
 
     private MatrixFacadeClientStateService.MatrixIdentity identity(String deviceId) {

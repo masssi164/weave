@@ -15,6 +15,8 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Changed
 
+- Replaces the executable single-host OpenTofu path with one normalized Docker Compose model and explicit `dev`, `dogfood`, and `main` profiles. Host-run development uses Flyway/JPA/Hibernate over H2 PostgreSQL mode, while integration, dogfood, and main validate and run the same relational adapters against PostgreSQL.
+- Moves the fixed Keycloak baseline out of Spring Boot and into a protected, idempotent desired-state reconciliation path using the exact pinned Keycloak `kcadm`; the product server retains only support-safe dry-run/review evidence and never receives the baseline reconciliation credential.
 - Cuts over Weaver/MCP to the pinned workload-only v2 contract: removes member-facing Weaver Scout and permission-mode UI/API, deletes the v1 member MCP catalog/runtime/bridge/token-exchange stack, and keeps the Spring AI transport dark until ARC proves per-cell Keycloak workload identity and lifecycle reconciliation.
 - Replaces the retired Sprint 24/30/32 runtime-factory, per-user tool-grant, member opt-in, and approval-oracle fixtures with backend-owned Agent Runtime Control, Keycloak entitlement, one workload client per cell, external encrypted runtime state, and empty-by-default MCP domain catalogs. Historical closure reports are not current release evidence.
 - Separates process liveness, local backend readiness, and cached provider capability health; provider probes are single-flight, rate-limit aware, support-safe, and no longer run on every readiness poll.
@@ -48,7 +50,8 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Migration/Operator Notes
 
-- Persistent dogfood deployment now runs twice under a non-cancelling lock, verifies OpenTofu idempotency plus human-subject, Mailpit, TLS, and active-session invariants, and never creates or resets disposable automation identities in that environment.
+- Before adopting an existing persistent dogfood stack, operators must create the current private consistency backup and pass the run-unique isolated restore rehearsal. Former OpenTofu state is retained only as restricted migration evidence; it is neither executable nor a rollback path after Compose adoption.
+- Persistent dogfood deployment now runs twice under a non-cancelling lock, verifies normalized Compose-model and Keycloak-reconciliation idempotency plus human-subject, Mailpit, TLS, and active-session invariants, and never creates or resets disposable automation identities in that environment.
 - No production provider cutover, migration apply, Terraform/live infrastructure change, or public production release has been performed after `v0.1.0-rc.3`.
 - Sprint 30 phone dogfood uses the same profile-driven setup pipeline across profiles. `local-lan-dogfood` may be used for the first real iPhone test over LAN, but phone handoff rejects localhost, `127.0.0.1`, and Mac-only `.local` assumptions.
 - Slack and Microsoft Teams remain commercial adapter readiness candidates only; adapter implementation, production migration, rollback, and customer-ready claims are blocked until future `implementation_allowed` and `release_ready` evidence exists.

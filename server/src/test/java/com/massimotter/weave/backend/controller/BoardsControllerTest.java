@@ -14,6 +14,7 @@ import com.massimotter.weave.backend.context.authz.ContextPermission;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
 import com.massimotter.weave.backend.service.BoardsFacadeService;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
+import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
@@ -72,6 +73,9 @@ class BoardsControllerTest {
 
     @MockBean
     private ContextAuthorizationPort contextAuthorizationPort;
+
+    @MockBean
+    private AuditEventPublisher auditEventPublisher;
 
     @Test
     void boardsWorkspaceRequiresAuthenticatedWorkspaceScope() throws Exception {
@@ -218,7 +222,7 @@ class BoardsControllerTest {
                         .claim("weave_tenant_id", "tenant-default")
                         .claim("aud", java.util.List.of("weave-app"))
                         .claim("resource_access", java.util.Map.of("weave-app", java.util.Map.of("roles", java.util.List.of("member"))))
-                        .claim("groups", java.util.List.of("weave-board-editors")))
+                        .claim("groups", java.util.List.of("/weave-board-editors")))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 }

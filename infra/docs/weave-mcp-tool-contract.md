@@ -10,8 +10,8 @@ catalogs remain empty. This is not a production-ready Weaver or autonomous-actio
   forwarded user tokens, generic service accounts, and the fixed `weave-mcp-server` account are
   invalid inbound cell identities.
 - Each enabled Weaver cell receives its own confidential Keycloak workload client,
-  `weaver-cell-{cellId}`, through Agent Runtime Control (ARC). OpenTofu owns the fixed realm
-  baseline; ARC owns dynamic client creation, rotation, suspension, deletion, and restore
+  `weaver-cell-{cellId}`, through Agent Runtime Control (ARC). The protected Compose/Keycloak
+  reconciler owns the fixed realm baseline; ARC owns dynamic client creation, rotation, suspension, deletion, and restore
   reconciliation.
 - The cell uses the MCP Client Credentials extension
   `io.modelcontextprotocol/oauth-client-credentials`. It presents a short-lived RFC 9068

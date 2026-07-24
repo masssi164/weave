@@ -189,9 +189,9 @@ elif [[ "${url}" == */realms/weave/protocol/openid-connect/token ]]; then
   count=$(( $(cat "${MOCK_STATE}/token-counter") + 1 ))
   printf '%s\n' "${count}" >"${MOCK_STATE}/token-counter"
   now="$(date +%s)"
-  groups='["workspace-members","weave-calendar-editors"]'
+  groups='["/weave/members","/weave-calendar-editors"]'
   if [[ "${username}" == "${MOCK_COLLABORATOR}" && "$(cat "${MOCK_STATE}/collaborator-calendar-membership")" != true ]]; then
-    groups='["workspace-members"]'
+    groups='["/weave/members"]'
   fi
   payload="$(jq -cn \
     --arg username "${username}" \
@@ -209,7 +209,7 @@ elif [[ "${url}" == */admin/realms/weave/users\?* ]]; then
   respond 200 "$(jq '[.[] | {id,username}]' "${MOCK_STATE}/users.json")"
 elif [[ "${url}" == */admin/realms/weave/users/*/groups\?* && "${method}" == GET ]]; then
   if [[ "$(cat "${MOCK_STATE}/collaborator-calendar-membership")" == true ]]; then
-    respond 200 '[{"id":"calendar-group","name":"weave-calendar-editors"}]'
+    respond 200 '[{"id":"calendar-group","name":"weave-calendar-editors","path":"/weave-calendar-editors"}]'
   else
     respond 200 '[]'
   fi
@@ -225,7 +225,7 @@ elif [[ "${url}" == */admin/realms/weave/users/*/groups/calendar-group && "${met
   printf 'group:true\n' >>"${MOCK_STATE}/mutations.log"
   respond 204
 elif [[ "${url}" == */admin/realms/weave/groups\?* ]]; then
-  respond 200 '[{"id":"calendar-group","name":"weave-calendar-editors"}]'
+  respond 200 '[{"id":"calendar-group","name":"weave-calendar-editors","path":"/weave-calendar-editors"}]'
 elif [[ "${url}" == */admin/realms/weave/clients\?* ]]; then
   respond 200 '[{"id":"weave-app-uuid","clientId":"weave-app"}]'
 elif [[ "${url}" == */admin/realms/weave/client-scopes ]]; then
@@ -263,11 +263,11 @@ chmod +x "${MOCK_BIN}/curl"
 
 stack_bootstrap="${TMP_DIR}/stack-bootstrap.env"
 cat >"${stack_bootstrap}" <<'ENV'
-export TF_VAR_tenant_slug=weave
-export TF_VAR_keycloak_host_port=48080
-export TF_VAR_backend_host_port=48081
-export TF_VAR_keycloak_admin_username=admin
-export TF_VAR_keycloak_admin_password=fixture-admin-password
+export WEAVE_TENANT_SLUG=weave
+export WEAVE_KEYCLOAK_HOST_PORT=48080
+export WEAVE_BACKEND_HOST_PORT=48081
+export WEAVE_KEYCLOAK_ADMIN_USERNAME=admin
+export WEAVE_KEYCLOAK_ADMIN_PASSWORD=fixture-admin-password
 ENV
 
 export MOCK_STATE
@@ -278,7 +278,7 @@ export MOCK_OUTSIDER="${WEAVE_E2E_OUTSIDER_USERNAME}"
 export MOCK_OUTSIDE_CONTEXT
 # Populated by the sourced prepared startup env.
 # shellcheck disable=SC2154
-MOCK_OUTSIDE_CONTEXT="$(jq -r '.[2].context_id' <<<"${TF_VAR_isolated_e2e_context_memberships}")"
+MOCK_OUTSIDE_CONTEXT="$(jq -r '.[2].context_id' <<<"${WEAVE_ISOLATED_E2E_CONTEXT_MEMBERSHIPS}")"
 
 common_args=(
   --run-id "${RUN_ID}"

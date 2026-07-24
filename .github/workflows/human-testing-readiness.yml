@@ -125,7 +125,7 @@ jobs:
           PY
 
       - name: Check out exact Weave candidate
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           ref: ${{ inputs.candidate_sha }}
           path: weave
@@ -136,7 +136,7 @@ jobs:
         run: echo "commit=$(jq -r '.specCorpus.gitCommit' specs/weave-specs.lock.json)" >> "$GITHUB_OUTPUT"
 
       - name: Check out pinned Weave Specification Corpus
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           repository: ${{ github.repository_owner }}/weave-specs
           ref: ${{ steps.spec-corpus.outputs.commit }}
@@ -144,7 +144,7 @@ jobs:
           ssh-key: ${{ secrets.WEAVE_SPECS_DEPLOY_KEY }}
           persist-credentials: false
 
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: '3.44.4'
           channel: stable
@@ -295,7 +295,7 @@ jobs:
 
       - name: Upload readiness evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: human-testing-readiness-${{ inputs.candidate_sha }}
           path: |

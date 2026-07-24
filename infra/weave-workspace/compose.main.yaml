@@ -1,0 +1,9 @@
+services:
+  keycloak:
+    command:
+      - start
+      - --optimized
+
+  backend:
+    environment:
+      WEAVE_RELEASE_POSTURE: main

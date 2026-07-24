@@ -9,6 +9,7 @@ This check enforces the truth split:
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -130,7 +131,14 @@ def main() -> None:
     if "must not redefine" not in str(lock.get("generatedProjectionPolicy", "")):
         fail("lock generatedProjectionPolicy must state that repo projections do not redefine corpus truth")
 
-    corpus_root = (ROOT / local_path).resolve()
+    corpus_override = os.environ.get("WEAVE_SPEC_CORPUS_ROOT", "")
+    if corpus_override and not Path(corpus_override).is_absolute():
+        fail("WEAVE_SPEC_CORPUS_ROOT must be an absolute Git worktree path")
+    corpus_root = (
+        Path(corpus_override).resolve()
+        if corpus_override
+        else (ROOT / local_path).resolve()
+    )
     if not corpus_root.exists():
         fail(f"spec corpus path not found: {corpus_root}")
     if not (corpus_root / ".git").exists():

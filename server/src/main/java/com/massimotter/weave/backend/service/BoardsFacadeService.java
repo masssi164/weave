@@ -5,7 +5,6 @@ import com.massimotter.weave.backend.audit.AuditEvent;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.audit.AuditRedactionLevel;
 import com.massimotter.weave.backend.audit.AuditWriteGate;
-import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import com.massimotter.weave.backend.boards.domain.Board;
 import com.massimotter.weave.backend.boards.domain.ProviderKind;
 import com.massimotter.weave.backend.boards.domain.ProviderRef;
@@ -53,15 +52,6 @@ public class BoardsFacadeService {
     private final ContextAuthorizationProperties contextAuthorizationProperties;
     private final WorkspaceCapabilityService workspaceCapabilityService;
     private final AuditEventPublisher auditEventPublisher;
-
-    public BoardsFacadeService(
-            BoardsRuntimeGuard runtimeGuard,
-            BoardsRepository boardsRepository,
-            ContextAuthorizationPort contextAuthorizationPort,
-            ContextAuthorizationProperties contextAuthorizationProperties,
-            WorkspaceCapabilityService workspaceCapabilityService) {
-        this(runtimeGuard, boardsRepository, contextAuthorizationPort, contextAuthorizationProperties, workspaceCapabilityService, new InMemoryAuditEventPublisher());
-    }
 
     @Autowired
     public BoardsFacadeService(

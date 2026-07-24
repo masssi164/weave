@@ -20,11 +20,11 @@ on:
         default: false
         type: boolean
       weave_backend_image:
-        description: "Backend image to boot inside the infra stack; ghcr.io/* is pulled, other refs are built from CI-built server JAR artifacts"
+        description: "Backend image source; published ghcr.io inputs must be exact @sha256 refs, while local refs are rebuilt and candidate-labelled"
         required: false
         default: "weave-backend:live-stack-ci"
       weave_mcp_server_image:
-        description: "MCP server image built from CI-built weave-mcp-server JAR artifacts; ghcr.io/* is pulled"
+        description: "MCP image source; published ghcr.io inputs must be exact @sha256 refs, while local refs are rebuilt and candidate-labelled"
         required: false
         default: "weave-mcp-server:live-stack-ci"
   workflow_call:
@@ -77,32 +77,19 @@ jobs:
     env:
       EXPECTED_RUNNER_NAME: weave-live-mac-mini
       WEAVE_BACKEND_IMAGE: ${{ inputs.weave_backend_image || github.event.inputs.weave_backend_image || 'weave-backend:live-stack-ci' }}
-      WEAVE_MCP_SERVER_IMAGE: ${{ inputs.weave_mcp_server_image || github.event.inputs.weave_mcp_server_image || 'weave-mcp-server:live-stack-ci' }}
-      TF_VAR_db_admin_password: ci-db-admin-password
-      TF_VAR_keycloak_admin_password: ci-keycloak-admin-password
-      TF_VAR_keycloak_db_password: ci-keycloak-db-password
-      TF_VAR_mas_db_password: ci-mas-db-password
-      TF_VAR_synapse_db_password: ci-synapse-db-password
-      TF_VAR_nextcloud_db_password: ci-nextcloud-db-password
-      TF_VAR_nextcloud_admin_password: ci-nextcloud-admin-password
-      TF_VAR_matrix_mas_client_secret: ci-matrix-mas-client-secret
-      TF_VAR_mas_encryption_secret: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-      TF_VAR_mas_matrix_secret: ci-mas-matrix-secret
-      TF_VAR_synapse_registration_shared_secret: ci-synapse-registration-shared-secret
-      TF_VAR_synapse_macaroon_secret_key: ci-synapse-macaroon-secret-key
-      TF_VAR_synapse_form_secret: ci-synapse-form-secret
-      TF_VAR_create_test_user: 'false'
-      TF_VAR_boards_runtime_enabled: 'true'
-      TF_VAR_boards_provider: local-workspace
-      TF_VAR_provider_stack_profile: local-live
-      TF_VAR_provider_stack_readiness: ready
-      TF_VAR_tenant_domain: weave.test
+      WEAVE_MCP_IMAGE: ${{ inputs.weave_mcp_server_image || github.event.inputs.weave_mcp_server_image || 'weave-mcp-server:live-stack-ci' }}
+      WEAVE_ENVIRONMENT: dogfood
+      WEAVE_STACK_SCOPE: isolated
+      WEAVE_TENANT_DOMAIN: weave.test
       WEAVE_RUNNER_HYGIENE: 'true'
       WEAVE_REMOVE_VOLUMES: 'true'
       WEAVE_E2E_STACK_SCOPE: isolated
       WEAVE_E2E_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
       WEAVE_CANDIDATE_COMMIT: ${{ github.sha }}
       WEAVE_CANDIDATE_EVIDENCE_REF: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      WEAVE_KEYCLOAK_SUPERVISOR: ${{ vars.WEAVE_KEYCLOAK_SUPERVISOR }}
+      WEAVE_KEYCLOAK_REVIEWED_ENV_FILE: ${{ vars.WEAVE_KEYCLOAK_REVIEWED_ENV_FILE }}
+      WEAVE_ENV_FILE: ${{ vars.WEAVE_KEYCLOAK_REVIEWED_ENV_FILE }}
 
     defaults:
       run:
@@ -117,6 +104,12 @@ jobs:
             echo "::error::Run-scoped Live Stack E2E must run on ${EXPECTED_RUNNER_NAME}; got ${RUNNER_NAME:-unknown}." >&2
             exit 1
           fi
+          [[ "${WEAVE_KEYCLOAK_SUPERVISOR:-}" == /* && \
+             "${WEAVE_KEYCLOAK_REVIEWED_ENV_FILE:-}" == /* && \
+             "${WEAVE_ENV_FILE:-}" == "${WEAVE_KEYCLOAK_REVIEWED_ENV_FILE}" ]] || {
+            echo "::error::Live Stack E2E requires externally installed Keycloak supervisor and reviewed dogfood environment paths." >&2
+            exit 1
+          }
 
       - name: Remove stale runner-owned Weave outputs
         run: |
@@ -164,9 +157,27 @@ jobs:
           df -h "$RUNNER_TEMP"
 
       - name: Check out weave
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           path: weave
+          fetch-depth: 0
+
+      - name: Resolve pinned specification corpus
+        id: spec-corpus
+        working-directory: weave
+        run: |
+          set -euo pipefail
+          echo "commit=$(jq -er '.specCorpus.gitCommit | select(type == \"string\" and test(\"^[0-9a-f]{40}$\"))' specs/weave-specs.lock.json)" \
+            >>"$GITHUB_OUTPUT"
+
+      - name: Check out pinned Weave Specification Corpus
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          repository: ${{ github.repository_owner }}/weave-specs
+          ref: ${{ steps.spec-corpus.outputs.commit }}
+          path: weave-specs
+          ssh-key: ${{ secrets.WEAVE_SPECS_DEPLOY_KEY }}
+          persist-credentials: false
 
       - name: Prepare acceptance evidence directory
         run: |
@@ -177,6 +188,18 @@ jobs:
           : > "$test_log"
           echo "WEAVE_ACCEPTANCE_EVIDENCE_DIR=$evidence_dir" >> "$GITHUB_ENV"
           echo "WEAVE_ACCEPTANCE_TEST_LOG=$test_log" >> "$GITHUB_ENV"
+
+      - name: Resolve the protected dev image source
+        working-directory: weave
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --prune origin \
+            '+refs/heads/dev:refs/remotes/origin/dev'
+          python3 tools/candidate_source_mapping.py \
+            --repository . \
+            --lane-candidate "$WEAVE_CANDIDATE_COMMIT" \
+            --github-env "$GITHUB_ENV" \
+            --output "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/candidate-source-mapping.json"
 
       - name: Prepare three disposable identity profiles
         working-directory: weave/infra/weave-workspace
@@ -220,7 +243,7 @@ jobs:
         run: bash weave/tools/cleanup_orphaned_buildx.sh
 
       - name: Set up Java
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
         with:
           distribution: temurin
           java-version: '21'
@@ -239,20 +262,13 @@ jobs:
           fi
 
       - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: '3.44.4'
           channel: stable
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Set up OpenTofu
-        uses: opentofu/setup-opentofu@v1
-        with:
-          tofu_version: 1.10.6
-          tofu_wrapper: false
-
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
       - name: Build Java runtime artifacts
         working-directory: weave
         run: ./gradlew --no-daemon --max-workers=1 clean :server:bootJar :weave-mcp-server:bootJar
@@ -294,43 +310,126 @@ jobs:
           set -euo pipefail
           # shellcheck disable=SC1090
           source "$WEAVE_E2E_STARTUP_ENV_PATH"
-          WEAVE_TEARDOWN_EVIDENCE_FILE='' bash ./teardown.sh
+          WEAVE_TEARDOWN_EVIDENCE_FILE='' bash ./teardown.sh dogfood --isolated
 
       - name: Prepare backend image
         run: |
           set -euo pipefail
-          if [[ "${WEAVE_BACKEND_IMAGE}" == ghcr.io/* ]]; then
+          source_ref="${WEAVE_BACKEND_IMAGE}"
+          if [[ "$source_ref" == ghcr.io/* ]]; then
+            [[ "$source_ref" =~ @sha256:[0-9a-f]{64}$ ]] || {
+              echo "::error::Published backend input must be an exact digest reference." >&2
+              exit 1
+            }
             echo "Pulling published backend image for live-stack evidence."
-            docker --config "${DOCKER_CONFIG}" pull "${WEAVE_BACKEND_IMAGE}"
+            docker --config "${DOCKER_CONFIG}" pull "$source_ref"
           else
             echo "Building backend runtime image from CI-built server JAR artifact."
-            docker buildx build --load -t "${WEAVE_BACKEND_IMAGE}" -f weave/server/Dockerfile weave
+            docker buildx build --load \
+              --label "org.opencontainers.image.revision=$WEAVE_IMAGE_SOURCE_COMMIT" \
+              -t "$source_ref" -f weave/server/Dockerfile weave
           fi
+          revision="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$source_ref")"
+          image_id="$(docker image inspect --format '{{.Id}}' "$source_ref")"
+          [[ "$revision" == "$WEAVE_IMAGE_SOURCE_COMMIT" && "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]] || {
+            echo "::error::Backend image is not bound to the protected dev source candidate." >&2
+            exit 1
+          }
+          echo "WEAVE_BACKEND_IMAGE=$image_id" >>"$GITHUB_ENV"
 
       - name: Prepare MCP server image
         run: |
           set -euo pipefail
-          if [[ "${WEAVE_MCP_SERVER_IMAGE}" == ghcr.io/* ]]; then
+          source_ref="${WEAVE_MCP_IMAGE}"
+          if [[ "$source_ref" == ghcr.io/* ]]; then
+            [[ "$source_ref" =~ @sha256:[0-9a-f]{64}$ ]] || {
+              echo "::error::Published MCP input must be an exact digest reference." >&2
+              exit 1
+            }
             echo "Pulling published MCP server image for live-stack evidence."
-            docker --config "${DOCKER_CONFIG}" pull "${WEAVE_MCP_SERVER_IMAGE}"
+            docker --config "${DOCKER_CONFIG}" pull "$source_ref"
           else
             echo "Building MCP server runtime image from CI-built weave-mcp-server JAR artifact."
-            docker buildx build --load -t "${WEAVE_MCP_SERVER_IMAGE}" -f weave/weave-mcp-server/Dockerfile weave
+            docker buildx build --load \
+              --label "org.opencontainers.image.revision=$WEAVE_IMAGE_SOURCE_COMMIT" \
+              -t "$source_ref" -f weave/weave-mcp-server/Dockerfile weave
           fi
+          revision="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$source_ref")"
+          image_id="$(docker image inspect --format '{{.Id}}' "$source_ref")"
+          [[ "$revision" == "$WEAVE_IMAGE_SOURCE_COMMIT" && "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]] || {
+            echo "::error::MCP image is not bound to the protected dev source candidate." >&2
+            exit 1
+          }
+          echo "WEAVE_MCP_IMAGE=$image_id" >>"$GITHUB_ENV"
+
+      - name: Build the exact-candidate Keycloak image
+        run: |
+          set -euo pipefail
+          source_ref="weave-keycloak:live-stack-${WEAVE_E2E_RUN_ID}"
+          docker buildx build --load \
+            --label "org.opencontainers.image.revision=$WEAVE_IMAGE_SOURCE_COMMIT" \
+            -t "$source_ref" \
+            -f weave/infra/keycloak-event-listener/Dockerfile \
+            weave/infra/keycloak-event-listener
+          revision="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$source_ref")"
+          version="$(docker image inspect --format '{{ index .Config.Labels "com.massimotter.weave.keycloak.version" }}' "$source_ref")"
+          image_id="$(docker image inspect --format '{{.Id}}' "$source_ref")"
+          [[ "$revision" == "$WEAVE_IMAGE_SOURCE_COMMIT" && "$version" == 26.7.0 && "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]] || {
+            echo "::error::Keycloak image is not bound to the protected dev source and pinned runtime version." >&2
+            exit 1
+          }
+          {
+            echo "WEAVE_KEYCLOAK_IMAGE=$image_id"
+            echo "WEAVE_LIVE_KEYCLOAK_BUILD_TAG=$source_ref"
+          } >>"$GITHUB_ENV"
+
+      - name: Build the exact-candidate Keycloak sanitizer image
+        run: |
+          set -euo pipefail
+          evidence="$WEAVE_ACCEPTANCE_EVIDENCE_DIR/keycloak-sanitizer-image.json"
+          image_id="$(python3 weave/infra/weave-workspace/scripts/build_sanitizer_image.py \
+            --root weave/infra/weave-workspace \
+            --candidate-commit "$WEAVE_IMAGE_SOURCE_COMMIT" \
+            --output "$evidence")"
+          [[ "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]] || {
+            echo "::error::Sanitizer build did not return an immutable image ID." >&2
+            exit 1
+          }
+          echo "WEAVE_KEYCLOAK_SANITIZER_IMAGE=$image_id" >>"$GITHUB_ENV"
+
+      - name: Bind immutable images to source and lane evidence
+        working-directory: weave
+        run: |
+          set -euo pipefail
+          python3 tools/candidate_source_mapping.py \
+            --repository . \
+            --lane-candidate "$WEAVE_CANDIDATE_COMMIT" \
+            --image "backend=$WEAVE_BACKEND_IMAGE" \
+            --image "mcp=$WEAVE_MCP_IMAGE" \
+            --image "keycloak=$WEAVE_KEYCLOAK_IMAGE" \
+            --image "keycloak-sanitizer=$WEAVE_KEYCLOAK_SANITIZER_IMAGE" \
+            --output "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/candidate-source-mapping.json"
 
       - name: Release Buildx cache before stack tests
         run: bash weave/tools/cleanup_orphaned_buildx.sh
 
       - name: Bootstrap local stack
         working-directory: weave/infra/weave-workspace
-        env:
-          TF_VAR_weave_backend_image: ${{ env.WEAVE_BACKEND_IMAGE }}
-          TF_VAR_weave_mcp_server_image: ${{ env.WEAVE_MCP_SERVER_IMAGE }}
         run: |
           set -euo pipefail
           # shellcheck disable=SC1090
           source "$WEAVE_E2E_STARTUP_ENV_PATH"
-          ./install.sh
+          ./compose.sh dogfood secrets-init
+          ./compose.sh dogfood render
+          ./compose.sh dogfood config >"$WEAVE_ACCEPTANCE_EVIDENCE_DIR/compose-model.json"
+          ./compose.sh dogfood prepare
+          ./compose.sh dogfood keycloak-apply
+          ./compose.sh dogfood up
+          ./compose.sh dogfood keycloak-verify
+          cp "$WEAVE_GENERATED_ROOT/keycloak/report.json" \
+            "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/keycloak-reconciliation-report.json"
+          cp "$WEAVE_GENERATED_ROOT/keycloak/signed-receipt.json" \
+            "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/keycloak-reconciliation-signed-receipt.json"
 
       - name: Verify local test hostnames resolve on the runner
         run: |
@@ -384,8 +483,8 @@ jobs:
       - name: Expose generated local CA to Rust Matrix tests
         run: |
           set -euo pipefail
-          CA_FILE="$GITHUB_WORKSPACE/weave/infra/weave-workspace/01-infrastructure/.generated/isolated/$WEAVE_E2E_RUN_NAMESPACE/caddy/certs/weave-local-ca.pem"
-          LEAF_FILE="$GITHUB_WORKSPACE/weave/infra/weave-workspace/01-infrastructure/.generated/isolated/$WEAVE_E2E_RUN_NAMESPACE/caddy/certs/weave.test.pem"
+          CA_FILE="${WEAVE_GENERATED_ROOT:?}/tls/ca.pem"
+          LEAF_FILE="${WEAVE_GENERATED_ROOT:?}/tls/cert.pem"
           if [ ! -s "$CA_FILE" ]; then
             echo "::error::Weave local CA certificate not found at $CA_FILE"
             exit 1
@@ -518,8 +617,8 @@ jobs:
             fi
             # shellcheck disable=SC1090
             source "$WEAVE_E2E_STARTUP_ENV_PATH"
-            local proof_token_path="${TF_VAR_chat_e2e_proof_token_host_path:-}"
-            if [[ "${TF_VAR_chat_e2e_proof_enabled:-false}" != "true" || \
+            local proof_token_path="${WEAVE_CHAT_E2E_PROOF_TOKEN_HOST_PATH:-}"
+            if [[ "${WEAVE_CHAT_E2E_PROOF_ENABLED:-false}" != "true" || \
                   ! -f "$proof_token_path" || -L "$proof_token_path" ]]; then
               jq -n '{contractVersion:"matrix-to-device-proof-v1",status:"unavailable",supportSafe:true}' > "$output"
               return 0
@@ -530,7 +629,7 @@ jobs:
               --output "$private_response" --write-out '%{http_code}' \
               --connect-timeout 3 --max-time 10 \
               --header "Authorization: Bearer $proof_token" \
-              "http://127.0.0.1:${TF_VAR_backend_host_port:-48084}/api/internal/e2e/chat/provider-proof/matrix-e2ee" \
+              "http://127.0.0.1:${WEAVE_BACKEND_HOST_PORT:-48084}/api/internal/e2e/chat/provider-proof/matrix-e2ee" \
               2>/dev/null || true)"
             unset proof_token
             if [[ "$status" != "200" ]]; then
@@ -665,8 +764,8 @@ jobs:
           fi
           # shellcheck disable=SC1090
           source "$WEAVE_E2E_STARTUP_ENV_PATH"
-          proof_token_path="${TF_VAR_chat_e2e_proof_token_host_path:-}"
-          if [[ "${TF_VAR_chat_e2e_proof_enabled:-false}" != "true" || \
+          proof_token_path="${WEAVE_CHAT_E2E_PROOF_TOKEN_HOST_PATH:-}"
+          if [[ "${WEAVE_CHAT_E2E_PROOF_ENABLED:-false}" != "true" || \
                 ! -f "$proof_token_path" || -L "$proof_token_path" ]]; then
             jq -n '{contractVersion:"matrix-to-device-proof-v1",status:"unavailable",supportSafe:true}' > "$output"
             exit 0
@@ -676,7 +775,7 @@ jobs:
             --output "$private_response" --write-out '%{http_code}' \
             --connect-timeout 3 --max-time 10 \
             --header "Authorization: Bearer $proof_token" \
-            "http://127.0.0.1:${TF_VAR_backend_host_port:-48084}/api/internal/e2e/chat/provider-proof/matrix-e2ee" \
+            "http://127.0.0.1:${WEAVE_BACKEND_HOST_PORT:-48084}/api/internal/e2e/chat/provider-proof/matrix-e2ee" \
             2>/dev/null || true)"
           unset proof_token
           if [[ "$status" != "200" ]]; then
@@ -827,40 +926,35 @@ jobs:
             # shellcheck disable=SC1090
             source "$WEAVE_E2E_STARTUP_ENV_PATH"
           fi
-          : "${TF_VAR_isolated_e2e_namespace:?missing isolated E2E namespace}"
-          : "${TF_VAR_docker_network_name:?missing isolated Docker network}"
-          : "${TF_VAR_tenant_slug:?missing disposable tenant slug}"
-          runtime_root="${WEAVE_E2E_OUTPUT_ROOT:?}/${TF_VAR_isolated_e2e_namespace}/runtime"
-          if [[ ! -d "$runtime_root" ]]; then
+          : "${WEAVE_E2E_RUN_NAMESPACE:?missing isolated E2E namespace}"
+          : "${WEAVE_E2E_OUTPUT_ROOT:?missing isolated E2E output root}"
+          : "${WEAVE_GENERATED_ROOT:?missing isolated generated root}"
+          if ! docker container inspect "${WEAVE_E2E_RUN_NAMESPACE}-db" >/dev/null 2>&1 && \
+             ! docker network inspect "${WEAVE_E2E_RUN_NAMESPACE}_network" >/dev/null 2>&1; then
             echo "ISOLATED_STACK_TEARDOWN status=not-required runtimeCreated=false supportSafe=true"
             exit 0
           fi
-          expected_bootstrap_env="$PWD/.generated/isolated/${TF_VAR_isolated_e2e_namespace}/bootstrap.env"
-          if [[ "${WEAVE_E2E_STACK_BOOTSTRAP_ENV:-}" != "$expected_bootstrap_env" || \
-                ! -f "$expected_bootstrap_env" || -L "$expected_bootstrap_env" ]]; then
-            echo "::error::The exact run-scoped isolated bootstrap environment is unavailable for OpenTofu destroy." >&2
+          case "${WEAVE_E2E_STARTUP_ENV_PATH:-}" in
+            "$WEAVE_E2E_OUTPUT_ROOT/$WEAVE_E2E_RUN_NAMESPACE/"*) ;;
+            *)
+              echo "::error::The startup environment is not owned by the exact isolated namespace." >&2
+              exit 1
+              ;;
+          esac
+          if [[ ! -f "$WEAVE_E2E_STARTUP_ENV_PATH" || -L "$WEAVE_E2E_STARTUP_ENV_PATH" ]]; then
+            echo "::error::The exact run-scoped startup environment is unavailable for Compose cleanup." >&2
             exit 1
           fi
-          # install.sh generates several OpenTofu-only secrets after the
-          # startup environment is prepared. Reload the exact namespace-owned
-          # bootstrap file so destroy receives the same complete variable set
-          # as apply, then reassert the immutable run bindings below.
-          # shellcheck disable=SC1090
-          source "$expected_bootstrap_env"
           # shellcheck disable=SC1090
           source "$WEAVE_E2E_STARTUP_ENV_PATH"
-          [[ "$TF_VAR_isolated_e2e_namespace" == "${WEAVE_E2E_RUN_NAMESPACE:?}" ]]
-          [[ "$TF_VAR_docker_network_name" == "${WEAVE_E2E_RUN_NAMESPACE}_network" ]]
+          [[ "${WEAVE_E2E_STACK_SCOPE:?}" == isolated ]]
           WEAVE_TEARDOWN_EVIDENCE_FILE="$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-stack-teardown.json" \
             WEAVE_CANDIDATE_COMMIT="$GITHUB_SHA" \
             WEAVE_E2E_STACK_SCOPE=isolated \
             WEAVE_E2E_IDENTITY_MANIFEST_PATH="$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-identities.json" \
-            TF_VAR_isolated_e2e_enabled=true \
-            TF_VAR_isolated_e2e_namespace="$TF_VAR_isolated_e2e_namespace" \
-            TF_VAR_docker_network_name="$TF_VAR_docker_network_name" \
             WEAVE_REMOVE_VOLUMES=true \
-            WEAVE_CONFIRM_DESTRUCTIVE_RESET="$TF_VAR_tenant_slug" \
-            bash ./teardown.sh
+            WEAVE_CONFIRM_DESTRUCTIVE_RESET="$WEAVE_E2E_RUN_NAMESPACE" \
+            bash ./teardown.sh dogfood --isolated
 
       - name: Verify persistent dogfood resources were preserved
         id: persistent_preservation
@@ -951,7 +1045,7 @@ jobs:
 
       - name: Upload live stack acceptance evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: weave-live-stack-acceptance-evidence
           path: ${{ env.WEAVE_ACCEPTANCE_EVIDENCE_DIR }}
@@ -960,6 +1054,8 @@ jobs:
 
       - name: Scrub current runner-owned Weave outputs
         if: always()
+        env:
+          WEAVE_LIVE_JOB_STATUS: ${{ job.status }}
         run: |
           set -euo pipefail
           simulator_cleanup_status=0
@@ -1000,11 +1096,21 @@ jobs:
             "${WEAVE_RUNNER_EMERGENCY_RESERVE_RELEASED:-$RUNNER_TEMP/weave-live-stack-emergency-reserve-released}"; do
             remove_runner_output "$path"
           done
-          for image_ref in "$WEAVE_BACKEND_IMAGE" "$WEAVE_MCP_SERVER_IMAGE"; do
-            if [[ "$image_ref" != ghcr.io/* ]]; then
+          if [[ "$WEAVE_LIVE_JOB_STATUS" == success ]]; then
+            echo "Preserving the attested immutable image set for the locked downstream dogfood deployment."
+          else
+            for image_ref in \
+              "${WEAVE_BACKEND_IMAGE:-}" \
+              "${WEAVE_MCP_IMAGE:-}" \
+              "${WEAVE_KEYCLOAK_IMAGE:-}" \
+              "${WEAVE_KEYCLOAK_SANITIZER_IMAGE:-}"; do
+              [[ "$image_ref" =~ ^sha256:[0-9a-f]{64}$ ]] || continue
               docker image rm "$image_ref" >/dev/null 2>&1 || true
+            done
+            if [[ "${WEAVE_LIVE_KEYCLOAK_BUILD_TAG:-}" =~ ^weave-keycloak:live-stack-[a-z0-9-]{6,80}$ ]]; then
+              docker image rm "$WEAVE_LIVE_KEYCLOAK_BUILD_TAG" >/dev/null 2>&1 || true
             fi
-          done
+          fi
           df -h "$RUNNER_TEMP"
           if (( simulator_cleanup_status != 0 )); then
             echo "::error::The runner-owned iPhone Simulator could not be deleted." >&2

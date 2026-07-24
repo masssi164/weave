@@ -1,5 +1,7 @@
 # Enable local TLS and align public hostnames
 
+> Historical issue draft, superseded for tooling by the `dev`, `dogfood`, and `main` Docker Compose profile contract. The topology requirements remain useful; OpenTofu is not an active authority.
+
 ## Problem
 
 The Flutter app requires:
@@ -18,7 +20,7 @@ Older infrastructure revisions defaulted to an HTTP ingress on `:8090` and servi
   - `auth.<tenant_domain>` for the OIDC issuer
   - `matrix.<tenant_domain>`
   - `files.<tenant_domain>` for canonical Nextcloud URL
-- Export the final browser-facing URLs as OpenTofu outputs or generated install metadata for client/backend consumers
+- Export the final browser-facing URLs through profile-owned generated install metadata for client/backend consumers
 
 ## Acceptance criteria
 

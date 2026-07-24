@@ -46,7 +46,8 @@ class BoardsFacadeServiceTest {
                 new LocalWorkspaceBoardsRepository(),
                 request -> ContextAuthorizationDecision.allow("test allow"),
                 contextAuthorizationProperties(),
-                workspaceCapabilityService());
+                workspaceCapabilityService(),
+                new InMemoryAuditEventPublisher());
 
         assertThatThrownBy(() -> service.workspace(jwt()))
                 .isInstanceOfSatisfying(ApiErrorException.class, error -> {
@@ -65,7 +66,8 @@ class BoardsFacadeServiceTest {
                 new LocalWorkspaceBoardsRepository(),
                 request -> ContextAuthorizationDecision.deny("no matching context membership"),
                 contextAuthorizationProperties(),
-                workspaceCapabilityService());
+                workspaceCapabilityService(),
+                new InMemoryAuditEventPublisher());
 
         assertThatThrownBy(() -> service.workspace(jwt()))
                 .isInstanceOfSatisfying(ApiErrorException.class, error -> {
@@ -91,7 +93,8 @@ class BoardsFacadeServiceTest {
                     return ContextAuthorizationDecision.allow("context membership matched");
                 },
                 contextAuthorizationProperties(),
-                workspaceCapabilityService());
+                workspaceCapabilityService(),
+                new InMemoryAuditEventPublisher());
 
         service.workspace(jwtWithContext("tenant-acme", "ctx-product-channel"));
 
@@ -113,7 +116,8 @@ class BoardsFacadeServiceTest {
                     return ContextAuthorizationDecision.deny("edit denied");
                 },
                 contextAuthorizationProperties(),
-                workspaceCapabilityService());
+                workspaceCapabilityService(),
+                new InMemoryAuditEventPublisher());
 
         var createRequest = new com.massimotter.weave.backend.model.boards.BoardsCreateTaskRequest(
                 "local-column-todo",
@@ -146,7 +150,8 @@ class BoardsFacadeServiceTest {
                     return ContextAuthorizationDecision.allow("context would allow");
                 },
                 contextAuthorizationProperties(),
-                workspaceCapabilityService());
+                workspaceCapabilityService(),
+                new InMemoryAuditEventPublisher());
 
         var createRequest = new com.massimotter.weave.backend.model.boards.BoardsCreateTaskRequest(
                 "local-column-todo",
@@ -280,7 +285,8 @@ class BoardsFacadeServiceTest {
                 new EmptyBoardsRepository(ProviderKind.OPEN_PROJECT),
                 request -> ContextAuthorizationDecision.allow("test allow"),
                 contextAuthorizationProperties(),
-                workspaceCapabilityService());
+                workspaceCapabilityService(),
+                new InMemoryAuditEventPublisher());
 
         var response = service.workspace(jwt());
 
@@ -303,7 +309,8 @@ class BoardsFacadeServiceTest {
                 new EmptyBoardsRepository(ProviderKind.OPEN_PROJECT, "op:v1:c3VwcG9ydC1zYWZl"),
                 request -> ContextAuthorizationDecision.allow("test allow"),
                 contextAuthorizationProperties(),
-                workspaceCapabilityService());
+                workspaceCapabilityService(),
+                new InMemoryAuditEventPublisher());
 
         var response = service.workspace(jwt());
 
@@ -322,7 +329,8 @@ class BoardsFacadeServiceTest {
                 new EmptyBoardsRepository(ProviderKind.OPEN_PROJECT, "https://openproject.example.test/page?token=secret"),
                 request -> ContextAuthorizationDecision.allow("test allow"),
                 contextAuthorizationProperties(),
-                workspaceCapabilityService());
+                workspaceCapabilityService(),
+                new InMemoryAuditEventPublisher());
 
         assertThatThrownBy(() -> service.workspace(jwt()))
                 .isInstanceOfSatisfying(ApiErrorException.class, error -> {
@@ -364,7 +372,7 @@ class BoardsFacadeServiceTest {
                 .issuer("https://auth.example.invalid/realms/acme")
                 .claim("weave_tenant_id", "tenant-default")
                 .claim("resource_access", java.util.Map.of("weave-app", java.util.Map.of("roles", java.util.List.of("member"))))
-                .claim("groups", java.util.List.of("weave-board-editors"))
+                .claim("groups", java.util.List.of("/weave-board-editors"))
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(300))
                 .build();
@@ -393,7 +401,7 @@ class BoardsFacadeServiceTest {
                 .claim("weave_tenant_id", tenantId)
                 .claim("weave_context_id", contextId)
                 .claim("resource_access", java.util.Map.of("weave-app", java.util.Map.of("roles", java.util.List.of("member"))))
-                .claim("groups", java.util.List.of("weave-board-editors"))
+                .claim("groups", java.util.List.of("/weave-board-editors"))
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(300))
                 .build();

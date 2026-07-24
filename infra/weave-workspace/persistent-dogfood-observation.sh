@@ -27,9 +27,7 @@ states for the persistent human subject, Mailpit volume/database, TLS identity,
 and active Keycloak sessions. compare fails when either install changed them.
 
 Required guard environment:
-  WEAVE_DOGFOOD_DEPLOYMENT_SCOPE=persistent-dogfood
-  TF_VAR_create_test_user=false
-  TF_VAR_isolated_e2e_enabled=false
+  WEAVE_E2E_STACK_SCOPE=persistent
 EOF
 }
 
@@ -54,45 +52,30 @@ parse_args() {
 }
 
 load_environment() {
-  local requested_scope="${WEAVE_DOGFOOD_DEPLOYMENT_SCOPE:-}"
-  local requested_create_test_user="${TF_VAR_create_test_user:-}"
-  local requested_isolated="${TF_VAR_isolated_e2e_enabled:-}"
-  local requested_namespace_set="${TF_VAR_isolated_e2e_namespace+x}"
-  local requested_namespace="${TF_VAR_isolated_e2e_namespace:-}"
-  local requested_memberships_set="${TF_VAR_isolated_e2e_context_memberships+x}"
-  local requested_memberships="${TF_VAR_isolated_e2e_context_memberships:-}"
-  local requested_caddy_ca="${TF_VAR_caddy_tls_ca_file:-}"
-  local requested_caddy_cert="${TF_VAR_caddy_tls_cert_file:-}"
-  local requested_caddy_key="${TF_VAR_caddy_tls_key_file:-}"
+  local requested_scope="${WEAVE_E2E_STACK_SCOPE:-}"
+  local requested_run_id="${WEAVE_E2E_RUN_ID:-}"
+  local requested_run_namespace="${WEAVE_E2E_RUN_NAMESPACE:-}"
+  local requested_caddy_ca="${WEAVE_CADDY_TLS_CA_FILE:-}"
+  local requested_caddy_cert="${WEAVE_CADDY_TLS_CERT_FILE:-}"
+  local requested_caddy_key="${WEAVE_CADDY_TLS_KEY_FILE:-}"
   if [[ -f "${BOOTSTRAP_ENV_FILE}" ]]; then
     # shellcheck disable=SC1090
     source "${BOOTSTRAP_ENV_FILE}"
   fi
-  [[ -z "${requested_scope}" ]] || WEAVE_DOGFOOD_DEPLOYMENT_SCOPE="${requested_scope}"
-  [[ -z "${requested_create_test_user}" ]] || TF_VAR_create_test_user="${requested_create_test_user}"
-  [[ -z "${requested_isolated}" ]] || TF_VAR_isolated_e2e_enabled="${requested_isolated}"
-  if [[ "${requested_namespace_set}" == x ]]; then
-    TF_VAR_isolated_e2e_namespace="${requested_namespace}"
-  else
-    unset TF_VAR_isolated_e2e_namespace
-  fi
-  if [[ "${requested_memberships_set}" == x ]]; then
-    TF_VAR_isolated_e2e_context_memberships="${requested_memberships}"
-  else
-    unset TF_VAR_isolated_e2e_context_memberships
-  fi
-  [[ -z "${requested_caddy_ca}" ]] || TF_VAR_caddy_tls_ca_file="${requested_caddy_ca}"
-  [[ -z "${requested_caddy_cert}" ]] || TF_VAR_caddy_tls_cert_file="${requested_caddy_cert}"
-  [[ -z "${requested_caddy_key}" ]] || TF_VAR_caddy_tls_key_file="${requested_caddy_key}"
+  WEAVE_E2E_STACK_SCOPE="${requested_scope}"
+  WEAVE_E2E_RUN_ID="${requested_run_id}"
+  WEAVE_E2E_RUN_NAMESPACE="${requested_run_namespace}"
+  unset WEAVE_CREATE_TEST_USER WEAVE_ISOLATED_E2E_ENABLED
+  unset WEAVE_ISOLATED_E2E_NAMESPACE WEAVE_ISOLATED_E2E_CONTEXT_MEMBERSHIPS
+  [[ -z "${requested_caddy_ca}" ]] || WEAVE_CADDY_TLS_CA_FILE="${requested_caddy_ca}"
+  [[ -z "${requested_caddy_cert}" ]] || WEAVE_CADDY_TLS_CERT_FILE="${requested_caddy_cert}"
+  [[ -z "${requested_caddy_key}" ]] || WEAVE_CADDY_TLS_KEY_FILE="${requested_caddy_key}"
 }
 
 assert_persistent_scope() {
-  [[ "${WEAVE_DOGFOOD_DEPLOYMENT_SCOPE:-}" == "persistent-dogfood" ]] || fail "capture requires the explicit persistent-dogfood scope"
-  [[ "${TF_VAR_create_test_user:-false}" == "false" ]] || fail "persistent dogfood must run with TF_VAR_create_test_user=false"
-  [[ "${TF_VAR_isolated_e2e_enabled:-false}" == "false" ]] || fail "persistent dogfood cannot consume isolated E2E inputs"
-  [[ -z "${TF_VAR_isolated_e2e_namespace:-}" ]] || fail "persistent dogfood cannot carry an isolated E2E namespace"
-  [[ -z "${TF_VAR_isolated_e2e_context_memberships:-}" || "${TF_VAR_isolated_e2e_context_memberships}" == "[]" ]] ||
-    fail "persistent dogfood cannot carry isolated E2E memberships"
+  [[ "${WEAVE_E2E_STACK_SCOPE:-}" == "persistent" ]] || fail "capture requires WEAVE_E2E_STACK_SCOPE=persistent"
+  [[ -z "${WEAVE_E2E_RUN_ID:-}" ]] || fail "persistent dogfood cannot carry an isolated E2E run identifier"
+  [[ -z "${WEAVE_E2E_RUN_NAMESPACE:-}" ]] || fail "persistent dogfood cannot carry an isolated E2E namespace"
 }
 
 sha256_stream() {
@@ -106,7 +89,7 @@ certificate_sha256() {
 }
 
 keycloak_admin_url() {
-  printf '%s' "${WEAVE_DOGFOOD_KEYCLOAK_ADMIN_URL:-http://127.0.0.1:${TF_VAR_keycloak_host_port:-48080}}"
+  printf '%s' "${WEAVE_DOGFOOD_KEYCLOAK_ADMIN_URL:-http://127.0.0.1:${WEAVE_KEYCLOAK_HOST_PORT:-48080}}"
 }
 
 admin_token() {
@@ -114,14 +97,14 @@ admin_token() {
     -X POST "$(keycloak_admin_url)/realms/master/protocol/openid-connect/token" \
     -H 'Content-Type: application/x-www-form-urlencoded' \
     --data-urlencode 'client_id=admin-cli' \
-    --data-urlencode "username=${TF_VAR_keycloak_admin_username:-admin}" \
-    --data-urlencode "password=${TF_VAR_keycloak_admin_password:-}" \
+    --data-urlencode "username=${WEAVE_KEYCLOAK_ADMIN_USERNAME:-admin}" \
+    --data-urlencode "password=${WEAVE_KEYCLOAK_ADMIN_PASSWORD:-}" \
     --data-urlencode 'grant_type=password' |
     jq -r '.access_token // empty'
 }
 
 active_sessions_summary() {
-  local token="$1" subject="$2" realm="${TF_VAR_tenant_slug:-weave}" payload
+  local token="$1" subject="$2" realm="${WEAVE_TENANT_SLUG:-weave}" payload
   payload="$(curl --silent --fail \
     -H "Authorization: Bearer ${token}" \
     "$(keycloak_admin_url)/admin/realms/${realm}/users/${subject}/sessions")"
@@ -137,7 +120,7 @@ print(json.dumps(data,separators=(",",":")))
 mailpit_summary() {
   local volume_identity message_payload message_count database_size database_sha256
   volume_identity="$(docker volume inspect weave_mailpit_data --format '{{.Name}}|{{.CreatedAt}}|{{.Mountpoint}}')"
-  message_payload="$(curl --silent --show-error --fail "http://127.0.0.1:${TF_VAR_mailpit_web_host_port:-8025}/api/v1/messages")"
+  message_payload="$(curl --silent --show-error --fail "http://127.0.0.1:${WEAVE_MAILPIT_WEB_HOST_PORT:-8025}/api/v1/messages")"
   message_count="$(jq '(.total // .Total // (.messages // [] | length)) | tonumber' <<<"${message_payload}")"
   database_size="$(docker exec weave-mailpit sh -c 'if [ -f /data/mailpit.db ]; then wc -c </data/mailpit.db; else printf 0; fi' | tr -d '[:space:]')"
   [[ "${database_size}" =~ ^[0-9]+$ ]] || fail "Mailpit database size was not numeric"
@@ -160,8 +143,8 @@ capture() {
   command -v jq >/dev/null || fail "jq is required"
   command -v openssl >/dev/null || fail "openssl is required"
   [[ -f "${DOGFOOD_MEMBER_SCRIPT}" ]] || fail "dogfood member helper is unavailable"
-  : "${TF_VAR_caddy_tls_ca_file:?TF_VAR_caddy_tls_ca_file is required}"
-  : "${TF_VAR_caddy_tls_cert_file:?TF_VAR_caddy_tls_cert_file is required}"
+  : "${WEAVE_CADDY_TLS_CA_FILE:?WEAVE_CADDY_TLS_CA_FILE is required}"
+  : "${WEAVE_CADDY_TLS_CERT_FILE:?WEAVE_CADDY_TLS_CERT_FILE is required}"
   : "${WEAVE_DOGFOOD_MEMBER_SUBJECT_FILE:=${ROOT_DIR}/.generated/dogfood-member.subject}"
   export WEAVE_DOGFOOD_MEMBER_SUBJECT_FILE
   [[ -s "${WEAVE_DOGFOOD_MEMBER_SUBJECT_FILE}" ]] || fail "persistent human subject file is unavailable"
@@ -184,16 +167,16 @@ capture() {
   jq -n \
     --arg capturedAt "${captured_at}" \
     --arg subjectSha256 "$(printf '%s' "${subject}" | sha256_stream)" \
-    --arg caSha256 "$(certificate_sha256 "${TF_VAR_caddy_tls_ca_file}")" \
-    --arg leafSha256 "$(certificate_sha256 "${TF_VAR_caddy_tls_cert_file}")" \
+    --arg caSha256 "$(certificate_sha256 "${WEAVE_CADDY_TLS_CA_FILE}")" \
+    --arg leafSha256 "$(certificate_sha256 "${WEAVE_CADDY_TLS_CERT_FILE}")" \
     --argjson sessions "${sessions}" \
     --argjson mailpit "${mailpit}" \
     '{
-      schemaVersion:"weave.persistent-dogfood-observation.v1",
+      schemaVersion:"weave.persistent-dogfood-observation.v2",
       capturedAt:$capturedAt,
       deploymentScope:"persistent-dogfood",
-      staticTestUserEnabled:false,
-      isolatedE2eEnabled:false,
+      e2eStackScope:"persistent",
+      isolatedRunBound:false,
       humanMember:{state:"active",subjectSha256:$subjectSha256},
       mailpit:$mailpit,
       tls:{caSha256:$caSha256,leafSha256:$leafSha256},
@@ -211,11 +194,11 @@ compare() {
   [[ "${baseline_source}" == pre-deploy || "${baseline_source}" == first-install ]] ||
     fail "baseline source must be pre-deploy or first-install"
   jq -e '
-    .schemaVersion == "weave.persistent-dogfood-observation.v1" and
+    .schemaVersion == "weave.persistent-dogfood-observation.v2" and
     .supportSafe == true and
     .deploymentScope == "persistent-dogfood" and
-    .staticTestUserEnabled == false and
-    .isolatedE2eEnabled == false and
+    .e2eStackScope == "persistent" and
+    .isolatedRunBound == false and
     (.mailpit.databaseBytes | type == "number" and . > 0) and
     (.mailpit.databaseSha256 | type == "string" and test("^[0-9a-f]{64}$"))
   ' "${BEFORE_FILE}" "${AFTER_FILE}" >/dev/null || fail "before/after observation schema or deployment scope is invalid"
@@ -242,7 +225,7 @@ compare() {
        {gate:"active_session_set",passed:same(["activeSessions","setSha256"])}
      ] as $gates
      | {
-         schemaVersion:"weave.persistent-dogfood-comparison.v1",
+         schemaVersion:"weave.persistent-dogfood-comparison.v2",
          comparedAt:$comparedAt,
          baselineSource:$baselineSource,
          preExistingRuntimeObserved:$preExistingRuntimeObserved,

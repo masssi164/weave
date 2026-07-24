@@ -16,10 +16,10 @@ public final class OrganizationIdentityContextFactory {
 
     private static final List<String> WEAVE_ORG_ROLES = List.of("owner", "admin", "member", "guest");
     private static final Map<String, String> WEAVE_PRODUCT_ROLE_GROUPS = Map.of(
-            "workspace-owners", "owner",
-            "workspace-admins", "admin",
-            "workspace-members", "member",
-            "workspace-guests", "guest");
+            "/weave/owners", "owner",
+            "/weave/admins", "admin",
+            "/weave/members", "member",
+            "/weave/guests", "guest");
 
     private static final int MAX_IDENTITY_ISSUER_LENGTH = com.massimotter.weave.backend.model.IdentityKeyFormat.MAX_ISSUER_LENGTH;
     private static final int MAX_IDENTITY_SUBJECT_LENGTH = com.massimotter.weave.backend.model.IdentityKeyFormat.MAX_SUBJECT_LENGTH;

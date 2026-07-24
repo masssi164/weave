@@ -36,8 +36,8 @@ jobs:
       WEAVE_DOGFOOD_MEMBER_EMAIL: ${{ secrets.WEAVE_DOGFOOD_MEMBER_EMAIL }}
       WEAVE_DOGFOOD_MEMBER_DISPLAY_NAME: ${{ vars.WEAVE_DOGFOOD_MEMBER_DISPLAY_NAME }}
       WEAVE_DOGFOOD_MEMBER_GROUPS: ${{ vars.WEAVE_DOGFOOD_MEMBER_GROUPS }}
-      TF_VAR_tenant_domain: weave.test
-      TF_VAR_proxy_host_port: '44443'
+      WEAVE_TENANT_DOMAIN: weave.test
+      WEAVE_PROXY_HTTPS_HOST_PORT: '44443'
     defaults:
       run:
         shell: bash
@@ -51,8 +51,7 @@ jobs:
           }
 
       - name: Check out weave
-        uses: actions/checkout@v5
-
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Require the deployed dogfood ref
         env:
           DISPATCH_REF: ${{ github.ref_name }}
@@ -104,7 +103,7 @@ jobs:
           } >>"${GITHUB_STEP_SUMMARY}"
 
       - name: Upload support-safe evidence
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: dogfood-member-${{ inputs.operation }}-evidence
           path: ${{ runner.temp }}/dogfood-member-evidence.json

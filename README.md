@@ -107,7 +107,7 @@ The active monorepo is intentionally split by clean-architecture ownership:
 - `client/` owns the Flutter member/admin experience and consumes Weave contracts;
 - `server/` owns product APIs, authorization, audit, persistence, and provider ports/adapters;
 - `weave-mcp-server/` owns the workload-only MCP protocol edge, not product authority;
-- `infra/` owns OpenTofu, Caddy, Keycloak/provider topology, backup/restore, smoke, and support evidence;
+- `infra/` owns Docker Compose profiles, Caddy, Keycloak/provider topology, backup/restore, smoke, and support evidence;
 - `rust/` owns shared Matrix protocol/crypto shaping used through explicit JNI/Flutter bridges;
 - `e2e/`, `release/`, and `docs/` own behavioral evidence and claim boundaries.
 
