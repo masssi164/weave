@@ -39,6 +39,7 @@ import 'package:weave/integrations/weave_api/data/services/weave_api_client.dart
 import '../integration_test/helpers/live_oidc_auth_helper.dart';
 import '../integration_test/helpers/test_config.dart';
 import '../integration_test/helpers/test_http_overrides.dart';
+import 'helpers/fake_identity_session_port.dart';
 
 const _liveMatrixDeviceId = 'WEAVELIVEE2EDEVICE';
 
@@ -229,6 +230,7 @@ void main() {
         final container = _createAppContainer(
           config: liveConfig,
           session: session,
+          identitySessionPort: FakeIdentitySessionPort(),
         );
         addTearDown(container.dispose);
 
@@ -566,6 +568,7 @@ void main() {
 ProviderContainer _createAppContainer({
   required TestConfig config,
   required AuthSession session,
+  FakeIdentitySessionPort? identitySessionPort,
 }) {
   return ProviderContainer.test(
     overrides: [
@@ -580,6 +583,8 @@ ProviderContainer _createAppContainer({
         _SignedOutChatSecurityRepository(),
       ),
       filesRepositoryProvider.overrideWithValue(_DisconnectedFilesRepository()),
+      if (identitySessionPort != null)
+        identitySessionPortProvider.overrideWithValue(identitySessionPort),
     ],
   );
 }

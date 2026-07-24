@@ -17,6 +17,7 @@ import 'package:weave/features/app/domain/entities/workspace_capability_snapshot
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
 import 'package:weave/features/app/data/services/persisted_client_upgrade_service.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
+import 'package:weave/features/app/presentation/providers/app_application_providers.dart';
 import 'package:weave/features/auth/presentation/sign_in_screen.dart';
 import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
 import 'package:weave/features/calendar/domain/repositories/calendar_repository.dart';
@@ -46,6 +47,7 @@ import 'package:weave/main.dart';
 import '../../helpers/auth_test_data.dart';
 import '../../helpers/fake_chat_repository.dart';
 import '../../helpers/fake_files_repository.dart';
+import '../../helpers/fake_identity_session_port.dart';
 import '../../helpers/in_memory_stores.dart';
 import '../../helpers/server_config_test_data.dart';
 
@@ -249,6 +251,9 @@ void main() {
             (ref) => preferencesStore ?? InMemoryPreferencesStore(),
           ),
           oidcClientProvider.overrideWithValue(_FakeOidcClient()),
+          identitySessionPortProvider.overrideWithValue(
+            FakeIdentitySessionPort(),
+          ),
           chatRepositoryProvider.overrideWithValue(FakeChatRepository()),
           filesRepositoryProvider.overrideWithValue(
             FakeFilesRepository(

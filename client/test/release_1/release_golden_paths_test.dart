@@ -17,6 +17,7 @@ import 'package:weave/features/app/domain/entities/integration_invalidation.dart
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
+import 'package:weave/features/app/presentation/providers/app_application_providers.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/domain/entities/auth_session.dart';
 import 'package:weave/features/auth/domain/entities/auth_state.dart';
@@ -49,6 +50,7 @@ import 'package:weave/integrations/weave_api/presentation/providers/weave_api_pr
 import 'package:weave/main.dart';
 
 import '../helpers/in_memory_stores.dart';
+import '../helpers/fake_identity_session_port.dart';
 
 void main() {
   group('current release auth/files golden paths', () {
@@ -112,6 +114,9 @@ void main() {
         final container = ProviderContainer.test(
           overrides: [
             authSessionRepositoryProvider.overrideWithValue(authRepository),
+            identitySessionPortProvider.overrideWithValue(
+              FakeIdentitySessionPort(),
+            ),
             preferencesStoreProvider.overrideWith(
               (ref) => InMemoryPreferencesStore(),
             ),
