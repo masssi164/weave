@@ -4619,6 +4619,28 @@ class IdentityRealmDryRunRequest {
   };
 }
 
+class IdentitySessionReconcileResponse {
+  const IdentitySessionReconcileResponse({
+    required this.sessionRefreshRequired,
+    required this.state,
+  });
+
+  factory IdentitySessionReconcileResponse.fromJson(
+    Map<String, dynamic> json,
+  ) => IdentitySessionReconcileResponse(
+    sessionRefreshRequired: json["sessionRefreshRequired"] as bool,
+    state: json["state"] as String,
+  );
+
+  final bool sessionRefreshRequired;
+  final String state;
+
+  Map<String, dynamic> toJson() => {
+    "sessionRefreshRequired": _openApiJsonValue(sessionRefreshRequired),
+    "state": _openApiJsonValue(state),
+  };
+}
+
 class InventorySummary {
   const InventorySummary({
     this.channels,

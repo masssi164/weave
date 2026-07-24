@@ -91,16 +91,60 @@ public class MemberInvitationService {
         publish(AuditAction.MEMBER_INVITATION_REVOKED, intent, jwt.getSubject());
     }
 
-    /** First-login fallback for a missed Keycloak event; never used to authorize the request. */
-    public void reconcileAuthenticated(Jwt jwt) {
-        OrganizationIdentityContext actor=OrganizationIdentityContextFactory.fromJwt(jwt);
+    /**
+     * Reconciles one authenticated invitation intent before product bootstrap.
+     *
+     * <p>A {@code true} result means the caller must refresh its already-issued token. The
+     * provisioning intent is never used to augment that token or authorize the current request.
+     */
+    public boolean reconcileAuthenticated(Jwt jwt) {
+        OrganizationIdentityContext actor = OrganizationIdentityContextFactory.fromJwt(jwt);
         String email=jwt.getClaimAsString("email");
-        if (email == null || !Boolean.TRUE.equals(jwt.getClaims().get("email_verified"))) return;
+        if (email == null || !Boolean.TRUE.equals(jwt.getClaims().get("email_verified"))) {
+            throw new ApiErrorException(
+                    HttpStatus.FORBIDDEN,
+                    "identity-session-email-unverified",
+                    "The authenticated identity does not have a verified email address.",
+                    Map.of());
+        }
         String organizationId = keycloak.configuredOrganizationRef();
-        if (!organizationId.equals(actor.organizationId())) return;
-        List<ProvisioningIntent> matches=intents.findPendingByEmail(actor.organizationId(), organizationId, normalizeEmail(email));
-        if (matches.size() != 1 || !keycloak.isOrganizationMember(organizationId, actor.subject())) return;
-        apply(matches.getFirst(), actor.subject());
+        if (!organizationId.equals(actor.organizationId())) {
+            throw new ApiErrorException(
+                    HttpStatus.FORBIDDEN,
+                    "identity-session-organization-mismatch",
+                    "The authenticated identity is outside the configured organization.",
+                    Map.of());
+        }
+        List<ProvisioningIntent> matches = intents.findPendingByEmail(
+                actor.organizationId(),
+                organizationId,
+                normalizeEmail(email));
+        if (matches.isEmpty()) {
+            return false;
+        }
+        if (matches.size() != 1) {
+            throw new ApiErrorException(
+                    HttpStatus.CONFLICT,
+                    "identity-session-reconciliation-ambiguous",
+                    "The authenticated identity cannot be reconciled unambiguously.",
+                    Map.of());
+        }
+        if (!keycloak.isOrganizationMember(organizationId, actor.subject())) {
+            throw new ApiErrorException(
+                    HttpStatus.FORBIDDEN,
+                    "identity-session-membership-required",
+                    "The authenticated identity is not a current organization member.",
+                    Map.of());
+        }
+        try {
+            return apply(matches.getFirst(), actor.subject());
+        } catch (RuntimeException exception) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_GATEWAY,
+                    "identity-session-provider-unavailable",
+                    "The configured identity provider could not reconcile the authenticated session.",
+                    Map.of());
+        }
     }
 
     public void applyMembershipEvent(String organizationId, String subject, String emailHash) {
@@ -116,17 +160,18 @@ public class MemberInvitationService {
         return intents.recordEventOnce(eventId, occurredAt);
     }
 
-    private void apply(ProvisioningIntent intent, String subject) {
-        if (intent.status() == ProvisioningIntentStatus.APPLIED) return;
-        if (intent.expiresAt().isBefore(clock.instant())) { intents.save(intent.expired(clock.instant())); return; }
-        try {
-            keycloak.applyOrganizationRole(intent.organizationId(), subject, intent.requestedRole());
-            ProvisioningIntent applied=intents.save(intent.applied(subject, clock.instant()));
-            publish(AuditAction.MEMBER_INVITATION_ACCEPTED, applied, subject);
-        } catch (RuntimeException exception) {
-            intents.save(intent.failed("keycloak_provisioning_failed", clock.instant()));
-            throw exception;
+    private boolean apply(ProvisioningIntent intent, String subject) {
+        if (intent.status() == ProvisioningIntentStatus.APPLIED) {
+            return false;
         }
+        if (intent.expiresAt().isBefore(clock.instant())) {
+            intents.save(intent.expired(clock.instant()));
+            return false;
+        }
+        keycloak.applyOrganizationRole(intent.organizationId(), subject, intent.requestedRole());
+        ProvisioningIntent applied=intents.save(intent.applied(subject, clock.instant()));
+        publish(AuditAction.MEMBER_INVITATION_ACCEPTED, applied, subject);
+        return true;
     }
     private ProvisioningIntent requireIntent(String organizationId, String providerId, Jwt jwt) {
         OrganizationIdentityContext actor=requireOrganization(organizationId, jwt);
