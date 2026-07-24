@@ -214,6 +214,12 @@ class _StaticWeaveApiClient implements WeaveApiClient {
   final WorkspaceCapabilitySnapshot snapshot;
 
   @override
+  Future<IdentitySessionReconcileResult> reconcileIdentitySession({
+    required Uri baseUrl,
+    required String accessToken,
+  }) async => IdentitySessionReconcileResult.unchanged;
+
+  @override
   Future<OrganizationManifestSnapshot> fetchOrganizationManifest({
     required Uri baseUrl,
     required String accessToken,

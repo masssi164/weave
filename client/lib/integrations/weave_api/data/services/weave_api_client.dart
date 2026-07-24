@@ -16,7 +16,14 @@ import 'package:weave/integrations/weave_api/data/dtos/workspace_capabilities_re
 import 'package:weave/integrations/weave_api/data/dtos/workspace_home_response_dto.dart';
 import 'package:weave/integrations/weave_api/data/services/weave_api_uri_builder.dart';
 
+enum IdentitySessionReconcileResult { unchanged, accessUpdated }
+
 abstract interface class WeaveApiClient {
+  Future<IdentitySessionReconcileResult> reconcileIdentitySession({
+    required Uri baseUrl,
+    required String accessToken,
+  });
+
   Future<OrganizationManifestSnapshot> fetchOrganizationManifest({
     required Uri baseUrl,
     required String accessToken,
@@ -67,6 +74,40 @@ class HttpWeaveApiClient implements WeaveApiClient {
     : _httpClient = httpClient;
 
   final http.Client _httpClient;
+
+  @override
+  Future<IdentitySessionReconcileResult> reconcileIdentitySession({
+    required Uri baseUrl,
+    required String accessToken,
+  }) async {
+    final payload = await _postJson(
+      requestUri: _identitySessionReconcileUri(baseUrl),
+      accessToken: accessToken,
+      failureMessage:
+          'The Weave backend failed to reconcile organization access.',
+      invalidPayloadMessage:
+          'The Weave backend returned an invalid identity-session reconciliation payload.',
+      decodeFailureMessage:
+          'Unable to decode identity-session reconciliation from the Weave backend.',
+    );
+    final response = openapi.IdentitySessionReconcileResponse.fromJson(
+      payload.json,
+    );
+    final result = switch (response.state) {
+      'unchanged' => IdentitySessionReconcileResult.unchanged,
+      'access_updated' => IdentitySessionReconcileResult.accessUpdated,
+      _ => throw const AppFailure.unknown(
+        'The Weave backend returned an unknown identity-session reconciliation state.',
+      ),
+    };
+    if (response.sessionRefreshRequired !=
+        (result == IdentitySessionReconcileResult.accessUpdated)) {
+      throw const AppFailure.unknown(
+        'The Weave backend returned an inconsistent identity-session reconciliation state.',
+      );
+    }
+    return result;
+  }
 
   @override
   Future<OrganizationManifestSnapshot> fetchOrganizationManifest({
@@ -279,7 +320,7 @@ class HttpWeaveApiClient implements WeaveApiClient {
   Future<_HttpJsonPayload> _postJson({
     required Uri requestUri,
     required String accessToken,
-    required Map<String, Object?> body,
+    Map<String, Object?>? body,
     required String failureMessage,
     required String invalidPayloadMessage,
     required String decodeFailureMessage,
@@ -287,15 +328,18 @@ class HttpWeaveApiClient implements WeaveApiClient {
   }) async {
     late http.Response response;
     try {
+      final headers = <String, String>{
+        'Accept': 'application/json',
+        'Authorization': 'Bearer $accessToken',
+      };
+      if (body != null) {
+        headers['Content-Type'] = 'application/json';
+      }
       response = await _httpClient
           .post(
             requestUri,
-            headers: {
-              'Accept': 'application/json',
-              'Authorization': 'Bearer $accessToken',
-              'Content-Type': 'application/json',
-            },
-            body: jsonEncode(body),
+            headers: headers,
+            body: body == null ? null : jsonEncode(body),
           )
           .timeout(const Duration(seconds: 5));
     } catch (error) {
@@ -342,6 +386,16 @@ class HttpWeaveApiClient implements WeaveApiClient {
       'v1',
       'organization',
       'manifest',
+    ]);
+  }
+
+  Uri _identitySessionReconcileUri(Uri baseUrl) {
+    return weaveApiUri(baseUrl, const [
+      'api',
+      'v1',
+      'identity',
+      'session',
+      'reconcile',
     ]);
   }
 

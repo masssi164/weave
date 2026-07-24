@@ -162,6 +162,60 @@ Map<String, Object?> _organizationManifestJson({
 
 void main() {
   group('HttpWeaveApiClient', () {
+    test('reconciles identity access without sending provider input', () async {
+      late http.BaseRequest capturedRequest;
+      final client = HttpWeaveApiClient(
+        httpClient: _RecordingHttpClient((request) async {
+          capturedRequest = request;
+          return _jsonResponse({
+            'state': 'access_updated',
+            'sessionRefreshRequired': true,
+          });
+        }),
+      );
+
+      final result = await client.reconcileIdentitySession(
+        baseUrl: Uri.parse('https://api.home.internal/api'),
+        accessToken: 'token-123',
+      );
+
+      expect(result, IdentitySessionReconcileResult.accessUpdated);
+      expect(capturedRequest.method, 'POST');
+      expect(
+        capturedRequest.url.toString(),
+        'https://api.home.internal/api/v1/identity/session/reconcile',
+      );
+      expect(capturedRequest.headers['Accept'], 'application/json');
+      expect(capturedRequest.headers['Authorization'], 'Bearer token-123');
+      expect(capturedRequest.headers['Content-Type'], isNull);
+      expect((capturedRequest as http.Request).body, isEmpty);
+    });
+
+    test('rejects inconsistent identity reconciliation results', () async {
+      final client = HttpWeaveApiClient(
+        httpClient: _RecordingHttpClient((request) async {
+          return _jsonResponse({
+            'state': 'unchanged',
+            'sessionRefreshRequired': true,
+          });
+        }),
+      );
+
+      await expectLater(
+        () => client.reconcileIdentitySession(
+          baseUrl: Uri.parse('https://api.home.internal/api'),
+          accessToken: 'token-123',
+        ),
+        throwsA(
+          isA<AppFailure>().having(
+            (failure) => failure.message,
+            'message',
+            contains('inconsistent identity-session'),
+          ),
+        ),
+      );
+    });
+
     test('fetches workspace capabilities with a bearer token', () async {
       late http.BaseRequest capturedRequest;
       final client = HttpWeaveApiClient(
