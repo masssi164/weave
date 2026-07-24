@@ -68,6 +68,7 @@ jobs:
   live-stack-e2e:
     name: Bootstrap Stack And Run App E2E
     needs: isolation-gate
+    environment: dogfood
     runs-on:
       - self-hosted
       - macOS
