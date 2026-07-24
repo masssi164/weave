@@ -14,6 +14,10 @@ java {
 }
 
 dependencies {
+    implementation project(':weave-application-core')
+    implementation project(':weave-persistence-jpa')
+    implementation project(':weave-runtime-security-adapters')
+    implementation project(':weave-runtime-provider-adapters')
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-security'

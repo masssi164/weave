@@ -274,6 +274,13 @@ class AgentRuntimeControlServiceTest {
         private boolean failDisableNext;
 
         @Override
+        public void requireCurrentBinding(
+                com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadBindingAuthority.CurrentBindingCommand
+                        command) {
+            // This test double only exercises lifecycle mutations.
+        }
+
+        @Override
         public RuntimeWorkloadBinding ensureBinding(EnsureBindingCommand command) {
             calls.incrementAndGet();
             lastClientId = command.clientId();

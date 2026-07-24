@@ -52,7 +52,13 @@ require "${ROOT_DIR}/scripts/nextcloud_reconcile.py" 'ordinary reconciliation re
 require "${ROOT_DIR}/scripts/nextcloud_reconcile.py" 'oidcManagedProjectionDigest'
 require "${ROOT_DIR}/scripts/render_config.py" 'WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE'
 require "${ROOT_DIR}/scripts/render_config.py" 'WEAVE_MATRIX_FEDERATION_ENABLED'
-require "${REPO_ROOT}/settings.gradle" "include 'infra', 'server', 'weave-mcp-server'"
+require "${REPO_ROOT}/settings.gradle" "include 'infra',"
+require "${REPO_ROOT}/settings.gradle" "'weave-application-core',"
+require "${REPO_ROOT}/settings.gradle" "'weave-persistence-jpa',"
+require "${REPO_ROOT}/settings.gradle" "'weave-runtime-security-adapters',"
+require "${REPO_ROOT}/settings.gradle" "'weave-runtime-provider-adapters',"
+require "${REPO_ROOT}/settings.gradle" "'server',"
+require "${REPO_ROOT}/settings.gradle" "'weave-mcp-server'"
 require "${REPO_ROOT}/infra/build.gradle" 'apply from: "$projectDir/gradle/tasks/environment-profiles.gradle"'
 require "${REPO_ROOT}/infra/gradle/tasks/environment-profiles.gradle" '"identity${profileTitle}${operationTitle}"'
 require "${REPO_ROOT}/infra/gradle/tasks/environment-profiles.gradle" "'identityOpsImageBuild'"

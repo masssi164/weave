@@ -78,7 +78,7 @@ public class AgentRuntimeAdminSecurityConfiguration {
                 .build();
     }
 
-    private Collection<GrantedAuthority> authorities(Jwt jwt) {
+    Collection<GrantedAuthority> authorities(Jwt jwt) {
         LinkedHashSet<GrantedAuthority> authorities = new LinkedHashSet<>();
         Collection<GrantedAuthority> scopes = new JwtGrantedAuthoritiesConverter().convert(jwt);
         if (scopes != null) {
@@ -98,20 +98,6 @@ public class AgentRuntimeAdminSecurityConfiguration {
                     .map(String.class::cast)
                     .map(value -> value.trim().toUpperCase(Locale.ROOT))
                     .filter(value -> value.equals("OWNER") || value.equals("ADMIN"))
-                    .forEach(roles::add);
-        }
-        Object groups = jwt.getClaims().get("groups");
-        if (groups instanceof Collection<?> values) {
-            values.stream()
-                    .filter(String.class::isInstance)
-                    .map(String.class::cast)
-                    .map(String::trim)
-                    .map(value -> switch (value) {
-                        case "/weave/owners" -> "OWNER";
-                        case "/weave/admins" -> "ADMIN";
-                        default -> "";
-                    })
-                    .filter(value -> !value.isEmpty())
                     .forEach(roles::add);
         }
         return List.copyOf(roles);
