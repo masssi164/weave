@@ -34,6 +34,42 @@
   },
   "issues": [
     {
+      "number": 889,
+      "title": "Dogfood deploy fails Keycloak credentials login with 401",
+      "labels": ["bug", "needs-live-e2e", "area:infra", "area:e2e", "track:test"],
+      "projectStatus": "Todo"
+    },
+    {
+      "number": 940,
+      "title": "Dogfood member cannot use Chat or Files after successful iPhone login",
+      "labels": ["bug", "area:files", "area:chat", "platform:ios", "needs-live-e2e", "priority:p1", "area:server", "evidence:required", "track:sprint-33"],
+      "projectStatus": "Todo"
+    },
+    {
+      "number": 956,
+      "title": "Quality gate: accessibility and member-copy regression suite for app shell",
+      "labels": ["area:shell", "area:ux", "priority:p1", "type:story", "area:client", "evidence:required", "domain:accessibility"],
+      "projectStatus": "Todo"
+    },
+    {
+      "number": 968,
+      "title": "Migrate Calls & Meetings to Matrix-native MatrixRTC Profile 0 (Guarded)",
+      "labels": ["area:shell", "platform:ios", "platform:android", "architecture", "priority:p1", "type:story", "area:server", "area:client", "area:infra", "area:e2e", "domain:calls", "evidence:required", "guarded", "domain:security", "track:sprint-33"],
+      "projectStatus": "Todo"
+    },
+    {
+      "number": 1014,
+      "title": "Restructure: provider switch no-drift conformance kit",
+      "labels": ["status:ready", "architecture", "type:task", "evidence:required", "guarded"],
+      "projectStatus": "Todo"
+    },
+    {
+      "number": 1025,
+      "title": "Restructure: target architecture E2E feature and evidence spine",
+      "labels": ["status:ready", "architecture", "acceptance", "type:task", "area:e2e", "evidence:required", "guarded"],
+      "projectStatus": "Todo"
+    },
+    {
       "number": 1233,
       "title": "architecture: replace OpenTofu single-host runtime with Compose, JPA, and Keycloak reconciliation",
       "labels": ["architecture", "priority:p0", "track:devops", "area:server", "area:infra", "area:e2e", "evidence:required"],
@@ -97,6 +133,24 @@
       "number": 1188,
       "title": "security(infra): add production KMS envelope encryption for ARC runtime state",
       "labels": ["priority:p0", "type:story", "track:devops", "domain:weaver", "area:server", "area:infra", "area:e2e", "evidence:required", "guarded", "domain:security"],
+      "projectStatus": "Todo"
+    },
+    {
+      "number": 1154,
+      "title": "feat(architecture): implement Weave Agent Runtime Control for disposable Weaver cells",
+      "labels": ["architecture", "priority:p0", "type:epic", "domain:weaver", "area:server", "area:infra", "evidence:required", "guarded", "domain:security"],
+      "projectStatus": "Todo"
+    },
+    {
+      "number": 1176,
+      "title": "security(weaver): implement trusted OpenClaw approval evidence and canonical ActionEvidence",
+      "labels": ["priority:p0", "type:story", "area:server", "area:e2e", "evidence:required", "guarded", "domain:security", "domain:mcp"],
+      "projectStatus": "Todo"
+    },
+    {
+      "number": 1187,
+      "title": "feat(mcp): promote domain catalogs only from executable action contracts",
+      "labels": ["priority:p0", "type:story", "area:server", "area:e2e", "evidence:required", "guarded", "domain:security", "domain:mcp"],
       "projectStatus": "Todo"
     },
     {
