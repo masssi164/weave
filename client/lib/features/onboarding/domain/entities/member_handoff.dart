@@ -293,6 +293,11 @@ class MemberHandoffParser {
   void _validatePhoneReachable(Uri uri) {
     final host = uri.host.toLowerCase();
     final hostClass = _hostClass(host);
+    if (hostClass == 'rfc1918-lan-ip' || hostClass == 'lan-ipv6') {
+      throw const AppFailure.validation(
+        'WEAVE-LAN-UNREACHABLE: Use the managed organization DNS name so the phone can validate the TLS identity.',
+      );
+    }
     if (hostClass.startsWith('forbidden')) {
       throw const AppFailure.validation(
         'WEAVE-LINK-UNREACHABLE: The invite does not point to a phone-reachable address.',

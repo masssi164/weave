@@ -69,14 +69,20 @@ void main() {
       );
     });
 
-    test('rejects LAN IP invite links as non-canonical local truth', () {
+    test('rejects LAN IP invite links with a stable DNS/TLS remedy', () {
       expect(
         () => const MemberHandoffParser().parse(
           Uri.parse(
             'https://192.168.42.10:44443/join?handoff_ref=handoff-abc123&org=massimo-dogfood&workspace=home&run_id=s32-check',
           ),
         ),
-        throwsA(isA<AppFailure>()),
+        throwsA(
+          isA<AppFailure>().having(
+            (failure) => failure.message,
+            'message',
+            contains('WEAVE-LAN-UNREACHABLE'),
+          ),
+        ),
       );
     });
 
