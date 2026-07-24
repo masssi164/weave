@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://weave.example/schemas/keycloak-test-users.json",
+  "title": "Weave dev/test Keycloak test users",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["username", "secret"],
+    "properties": {
+      "username": {"type": "string", "minLength": 1},
+      "secret": {"type": "string", "minLength": 1},
+      "email": {"type": "string", "format": "email"},
+      "roles": {
+        "type": "array",
+        "items": {"enum": ["owner", "admin", "member", "guest"]},
+        "uniqueItems": true
+      },
+      "groups": {
+        "type": "array",
+        "items": {"enum": ["/owners", "/admins", "/members", "/guests"]},
+        "uniqueItems": true
+      }
+    }
+  }
+}

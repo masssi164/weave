@@ -12,9 +12,9 @@ require() { grep -Fq -- "$2" "$1" || fail "Expected $1 to contain: $2"; }
 reject() { ! grep -Fq -- "$2" "$1" || fail "Retired contract remains in $1: $2"; }
 
 for file in \
-  compose.yaml compose.dev.yaml compose.dogfood.yaml compose.main.yaml compose.sh \
+  compose.yaml compose.dev.yaml compose.test.yaml compose.prod.yaml compose.sh \
   scripts/compose_env.py scripts/compose_runtime.py scripts/render_config.py \
-  scripts/nextcloud_reconcile.py keycloak/supervisor.py keycloak/reconciler.py; do
+  scripts/nextcloud_reconcile.py keycloak/identity_ops.py keycloak/Dockerfile.identity-ops; do
   [[ -f "${ROOT_DIR}/${file}" ]] || fail "Missing Compose authority file: ${file}"
 done
 
@@ -28,21 +28,26 @@ require "${ROOT_DIR}/compose.yaml" 'POSTGRES_PASSWORD_FILE: /run/secrets/postgre
 require "${ROOT_DIR}/compose.yaml" 'SPRING_CONFIG_IMPORT: configtree:/run/secrets/weave/'
 require "${ROOT_DIR}/compose.yaml" 'com.massimotter.weave.managed: "true"'
 require "${ROOT_DIR}/compose.dev.yaml" 'host.docker.internal:host-gateway'
-require "${ROOT_DIR}/compose.dogfood.yaml" 'WEAVE_RELEASE_POSTURE: dogfood'
-require "${ROOT_DIR}/compose.main.yaml" 'WEAVE_RELEASE_POSTURE: main'
-require "${ROOT_DIR}/scripts/compose_env.py" 'PROFILES = ("dev", "dogfood", "main")'
+require "${ROOT_DIR}/compose.test.yaml" 'WEAVE_RELEASE_POSTURE: test'
+require "${ROOT_DIR}/compose.prod.yaml" 'WEAVE_RELEASE_POSTURE: prod'
+require "${ROOT_DIR}/scripts/compose_env.py" 'PROFILES = ("dev", "test", "prod")'
 require "${ROOT_DIR}/scripts/compose_env.py" 'refusing to deploy {profile} from an example environment file'
-require "${ROOT_DIR}/scripts/compose_runtime.py" 'WEAVE_KEYCLOAK_REVIEWED_ENV_FILE'
-require "${ROOT_DIR}/scripts/compose_runtime.py" 'persistent reconciliation cannot execute a supervisor from the candidate checkout'
+require "${ROOT_DIR}/scripts/compose_runtime.py" 'prod rejects WEAVE_TEST_USERS_FILE before Identity Ops mutation'
+require "${ROOT_DIR}/scripts/compose_runtime.py" 'persistent-adoption'
+require "${ROOT_DIR}/keycloak/identity_ops.py" '/opt/keycloak/bin/kcadm.sh'
+require "${ROOT_DIR}/keycloak/Dockerfile.identity-ops" 'ARG WEAVE_KEYCLOAK_BASE=quay.io/keycloak/keycloak@sha256:'
+require "${ROOT_DIR}/keycloak/Dockerfile.identity-ops" 'ARG WEAVE_UBI9_BASE=registry.access.redhat.com/ubi9@sha256:'
+require "${ROOT_DIR}/keycloak/Dockerfile.identity-ops" 'FROM ${WEAVE_KEYCLOAK_BASE}'
 require "${ROOT_DIR}/scripts/nextcloud_reconcile.py" 'ordinary reconciliation refuses an implicit rotation'
 require "${ROOT_DIR}/scripts/nextcloud_reconcile.py" 'oidcManagedProjectionDigest'
 require "${ROOT_DIR}/scripts/render_config.py" 'WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE'
 require "${ROOT_DIR}/scripts/render_config.py" 'WEAVE_MATRIX_FEDERATION_ENABLED'
-require "${REPO_ROOT}/build.gradle" "'serverDevH2Test'"
-require "${REPO_ROOT}/build.gradle" "'serverPostgresIntegrationTest'"
-require "${REPO_ROOT}/build.gradle" '"keycloak${profileTitle}${operationTitle}"'
+require "${REPO_ROOT}/gradle/tasks/environment-profiles.gradle" "'serverDevH2Test'"
+require "${REPO_ROOT}/gradle/tasks/environment-profiles.gradle" "'serverPostgresIntegrationTest'"
+require "${REPO_ROOT}/gradle/tasks/environment-profiles.gradle" '"identity${profileTitle}${operationTitle}"'
 
 reject "${ROOT_DIR}/compose.yaml" 'WEAVE_CREATE_TEST_USER'
+reject "${ROOT_DIR}/compose.yaml" '/var/run/docker.sock'
 reject "${ROOT_DIR}/compose.yaml" 'OpenProject'
 
 printf 'V01_INFRA_CONTROL_PLANE_BOOTSTRAP status=passed infrastructure product contract tests passed\n'

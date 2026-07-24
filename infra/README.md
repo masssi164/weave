@@ -49,7 +49,7 @@ Prepare provider dependencies, then run Spring Boot separately with H2:
 ./gradlew serverDevBoot
 ```
 
-`composeDevDependenciesReady` builds the exact local Keycloak and sanitizer images, initializes named SecretRefs, renders the `dev` Compose model, reconciles PostgreSQL/Keycloak/Nextcloud, and starts only provider dependencies. `serverDevBoot` starts the host process with `application-dev.yml`: Flyway owns the schema, Hibernate validates it, Open EntityManager in View is disabled, and H2 runs in PostgreSQL compatibility mode. Use `./gradlew serverDevHostSmoke` for a bounded boot/readiness/E2E smoke and `./gradlew serverPostgresIntegrationTest` for the real-PostgreSQL persistence lane.
+`composeDevDependenciesReady` builds the rootless Identity Ops image from the pinned official Keycloak distribution, initializes named SecretRefs, renders the `dev` Compose model, reconciles PostgreSQL/Keycloak/Nextcloud, and starts only provider dependencies. `serverDevBoot` starts the host process with `application-dev.yml`: Flyway owns the schema, Hibernate validates it, Open EntityManager in View is disabled, and H2 runs in PostgreSQL compatibility mode. Use `./gradlew serverDevHostSmoke` for a bounded boot/readiness/E2E smoke and `./gradlew serverPostgresIntegrationTest` for the real-PostgreSQL persistence lane.
 
 Nextcloud trusts only the exact Caddy address discovered on the active Docker network. `install.sh` pins `HTTP_X_FORWARDED_FOR`, keeps brute-force protection enabled, provisions calendars through local OCC, and then performs one bounded authenticated WebDAV check plus one CalDAV check. Backend readiness polling does not perform provider authentication, and a `429` stops without retrying.
 
@@ -62,7 +62,7 @@ For TLS trust, port modes, smoke-test inputs, and native app contracts, see [Loc
 For a real single-host deployment, start here:
 
 - [Single-host operator guide](docs/single-host-operator-guide.md): target shape, public contract, required inputs, TLS/image/persistence expectations, and verify flow.
-- [main.env.example](weave-workspace/environments/main.env.example): release-capable operator environment template; copy it outside the checkout and pin every image digest.
+- [prod.env.example](weave-workspace/environments/prod.env.example): release-capable operator environment template; copy it outside the checkout and pin every image digest.
 - [Operator runbook](docs/operator-runbook.md): install/upgrade, rotation, backup, restore, destructive reset, and triage guidance.
 - [CalDAV/CardDAV external clients](docs/calendar-caldav-external-clients.md): DAV discovery, safe external-client credential path, and blocked private calendar/addressbook/profile flows.
 - [Connector runtime guardrails](docs/connector-runtime-guardrails.md): disabled-by-default connector runtime, callback, secret, and support-bundle boundaries.
@@ -116,7 +116,7 @@ Optional providers are fail-closed by default:
 - `docs/matrix-default-workspace.md`: default Matrix space/room provisioning.
 - `docs/matrix-e2ee-posture.md`: current honest E2EE posture.
 - `docs/calendar-caldav-external-clients.md`: CalDAV/CardDAV discovery, revocable client credentials, and fail-closed profile boundaries.
-- `weave-workspace/compose.sh`: the closed `dev|dogfood|main` lifecycle and Keycloak reconciliation interface.
+- `weave-workspace/compose.sh`: the closed `dev|test|prod` lifecycle and one-shot Keycloak Identity Ops interface.
 - `weave-workspace/install.sh`: idempotent profile preparation and apply wrapper.
 - `weave-workspace/teardown.sh`: destructive cleanup for an exact isolated-E2E namespace only; persistent profiles have no destructive teardown path.
 - `weave-workspace/release-verify.sh`: public endpoint verification for non-local single-host installs.
@@ -128,8 +128,8 @@ Optional providers are fail-closed by default:
 - `weave-workspace/nextcloud-auth-security-audit.sh`: support-safe classification of recent invalid-authentication/throttle sources without counter reset or raw addresses.
 - `weave-workspace/backup.sh`, `adoption-rehearsal.sh`, `restore-private-backup.sh`, and `support-bundle.sh`: private consistency backup, isolated adoption proof, integrity-only guarded restore preflight, and support-safe diagnostics.
 - `weave-workspace/weave-mcp-tool-contract.json`: support-safe canonical domain contract and active Spring AI MCP runtime evidence.
-- `weave-workspace/compose.yaml` plus `compose.dev.yaml`, `compose.dogfood.yaml`, and `compose.main.yaml`: the one supported process graph and its three overlays.
-- `weave-workspace/keycloak/`: protected desired-state renderer, reconciler, sanitizer, receipt verifier, and externally installed supervisor package.
+- `weave-workspace/compose.yaml` plus `compose.dev.yaml`, `compose.test.yaml`, and `compose.prod.yaml`: the one supported process graph and its three overlays.
+- `weave-workspace/keycloak/`: rootless one-shot Identity Ops, test-user schema, and legacy inactive implementation history.
 
 ## Validation
 
@@ -138,8 +138,8 @@ Repository-safe validation used by CI:
 ```bash
 ./gradlew infraStatic
 ./gradlew composeDevConfig
-WEAVE_ENV_FILE=/absolute/path/to/reviewed-dogfood.env ./gradlew composeDogfoodConfig
-WEAVE_ENV_FILE=/absolute/path/to/reviewed-main.env ./gradlew composeMainConfig
+WEAVE_ENV_FILE=/absolute/path/to/reviewed-test.env ./gradlew composeTestConfig
+WEAVE_ENV_FILE=/absolute/path/to/reviewed-prod.env ./gradlew composeProdConfig
 ./gradlew serverDevH2Test serverPostgresIntegrationTest
 ```
 
@@ -154,7 +154,7 @@ GitHub Actions runs deterministic repository checks on pushes and pull requests.
 ## Operator safety
 
 - `./weave-workspace/compose.sh <profile> down` stops a profile without deleting its named volumes or SecretRefs.
-- Destructive cleanup exists only for an exact isolated-E2E project and requires its run-bound ownership evidence. Persistent dogfood/main volumes are restored or rolled back through reviewed operator procedures, never a generic teardown flag.
+- Destructive cleanup exists only for an exact isolated-E2E project and requires its run-bound ownership evidence. Persistent test/prod volumes are restored or rolled back through reviewed operator procedures, never a generic teardown flag.
 - Create an operator-owned backup before destructive maintenance:
 
 ```sh

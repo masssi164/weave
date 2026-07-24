@@ -23,6 +23,7 @@ from crypto_runtime import OPENSSL  # noqa: E402
 
 
 TEXT_SECRETS = (
+    "keycloak-bootstrap-admin-password",
     "postgres-admin-password",
     "backend-db-password",
     "keycloak-db-password",
@@ -45,7 +46,7 @@ TEXT_SECRETS = (
     "matrix-appservice-as-token",
     "matrix-appservice-hs-token",
 )
-MAIN_ONLY_SECRETS = ("smtp-username", "smtp-password")
+PROD_ONLY_SECRETS = ("smtp-username", "smtp-password")
 RSA_JWKS = (
     ("keycloak-weave-backend-jwk.json", "weave-backend-current"),
     ("keycloak-weave-mcp-server-jwk.json", "weave-mcp-server-current"),
@@ -53,7 +54,6 @@ RSA_JWKS = (
 PEM_KEYS = (
     ("mas-signing-key.pem", "RSA"),
 )
-DEV_ONLY_PEM_KEYS = (("keycloak-supervisor-signing-key.pem", "ED25519"),)
 
 
 def _mode(path: Path) -> int:
@@ -65,19 +65,6 @@ def _assert_private_file(path: Path) -> None:
         raise ContractError(f"secret must be a regular non-symlink file: {path}")
     if _mode(path) != 0o600:
         raise ContractError(f"secret must have mode 0600: {path}")
-
-
-def _assert_public_trust_key(path: Path, *, persistent: bool) -> None:
-    if path.is_symlink() or not path.is_file():
-        raise ContractError(f"supervisor public trust key is unavailable: {path}")
-    mode = _mode(path)
-    if persistent:
-        if path.stat().st_uid != 0 or mode not in {0o444, 0o644}:
-            raise ContractError("persistent supervisor trust key must be root-owned and mode 0444 or 0644")
-    elif mode != 0o600:
-        raise ContractError("development supervisor trust key must remain mode 0600")
-    if b"BEGIN PUBLIC KEY" not in path.read_bytes():
-        raise ContractError("supervisor public trust key is malformed")
 
 
 def _atomic_write(path: Path, payload: bytes) -> None:
@@ -178,19 +165,6 @@ def _pem(algorithm: str) -> bytes:
     return subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout
 
 
-def _public_supervisor_key(secret_root: Path) -> None:
-    private_path = secret_root / "keycloak-supervisor-signing-key.pem"
-    public_path = secret_root / "keycloak-supervisor-trust-key.pem"
-    if not public_path.exists():
-        payload = subprocess.run(
-            [OPENSSL, "pkey", "-in", str(private_path), "-pubout"],
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        ).stdout
-        _atomic_write(public_path, payload)
-
-
 def _generate_tls(context: ComposeContext) -> None:
     root = context.tls_root
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -232,15 +206,8 @@ def _generate_tls(context: ComposeContext) -> None:
 
 def _validate_existing(context: ComposeContext) -> None:
     required = list(TEXT_SECRETS) + [name for name, _ in RSA_JWKS] + [name for name, _ in PEM_KEYS]
-    if context.profile == "dev":
-        required.extend(name for name, _ in DEV_ONLY_PEM_KEYS)
-    elif (context.secret_root / "keycloak-supervisor-signing-key.pem").exists():
-        raise ContractError(
-            "persistent secret root contains the supervisor private signing key; "
-            "relocate it into the independently governed root-owned supervisor installation"
-        )
-    if context.profile == "main":
-        required.extend(MAIN_ONLY_SECRETS)
+    if context.profile == "prod":
+        required.extend(PROD_ONLY_SECRETS)
     for name in required:
         _assert_private_file(context.secret_root / name)
     appservice_tokens = tuple(
@@ -249,10 +216,6 @@ def _validate_existing(context: ComposeContext) -> None:
     )
     if not all(len(value) >= 64 for value in appservice_tokens) or len(set(appservice_tokens)) != 2:
         raise ContractError("Matrix Application Service tokens must be distinct high-entropy SecretRefs")
-    _assert_public_trust_key(
-        context.secret_root / "keycloak-supervisor-trust-key.pem",
-        persistent=context.profile in {"dogfood", "main"},
-    )
     for name, _ in RSA_JWKS:
         value = json.loads((context.secret_root / name).read_text(encoding="utf-8"))
         required_fields = {"kty", "kid", "n", "e", "d", "p", "q", "dp", "dq", "qi"}
@@ -270,7 +233,7 @@ def _validate_existing(context: ComposeContext) -> None:
         raise ContractError(
             f"MCP private JWK owner uid is {mcp_jwk.stat().st_uid}; runtime requires {expected_uid}"
         )
-    if context.profile == "main":
+    if context.profile == "prod":
         for name in ("ca.pem", "cert.pem", "key.pem"):
             _assert_private_file(context.tls_root / name)
 
@@ -278,7 +241,7 @@ def _validate_existing(context: ComposeContext) -> None:
 def initialize(context: ComposeContext) -> None:
     context.secret_root.mkdir(parents=True, exist_ok=True, mode=0o700)
     os.chmod(context.secret_root, 0o700)
-    if context.profile == "main":
+    if context.profile == "prod":
         _validate_existing(context)
         return
     for name in TEXT_SECRETS:
@@ -291,16 +254,6 @@ def initialize(context: ComposeContext) -> None:
         path = context.secret_root / name
         if not path.exists():
             _atomic_write(path, _pem(algorithm))
-    if context.profile == "dev":
-        for name, algorithm in DEV_ONLY_PEM_KEYS:
-            path = context.secret_root / name
-            if not path.exists():
-                _atomic_write(path, _pem(algorithm))
-        _public_supervisor_key(context.secret_root)
-    elif not (context.secret_root / "keycloak-supervisor-trust-key.pem").exists():
-        raise ContractError(
-            "dogfood requires the public trust key from the externally installed root-owned supervisor"
-        )
     _generate_tls(context)
     _validate_existing(context)
     manifest = {
@@ -319,7 +272,7 @@ def initialize(context: ComposeContext) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("profile", choices=("dev", "dogfood", "main"))
+    parser.add_argument("profile", choices=("dev", "test", "prod"))
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--env-file")
     args = parser.parse_args()

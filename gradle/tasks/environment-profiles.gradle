@@ -11,12 +11,18 @@
     ['plan', 'apply', 'verify'].each { operation ->
         def operationTitle = operation.capitalize()
         registerRootCommandTask(
-            "keycloak${profileTitle}${operationTitle}",
-            ['infra/weave-workspace/compose.sh', profile, "keycloak-${operation}"],
-            "Run protected Keycloak desired-state ${operation} for the ${profile} Compose profile."
+            "identity${profileTitle}${operationTitle}",
+            ['infra/weave-workspace/compose.sh', profile, "identity-${operation}"],
+            "Run rootless one-shot Keycloak Identity Ops ${operation} for the ${profile} Compose profile."
         )
     }
 }
+
+registerRootCommandTask(
+    'identityTestUsersFile',
+    ['python3', 'infra/weave-workspace/scripts/create_test_users_file.py', '--output', 'infra/weave-workspace/.generated/test/test-users.json'],
+    'Create the idempotent mode-0600 local member fixture used automatically by the test profile; its random secret is never logged.'
+)
 
 tasks.register('serverDevH2Test') {
     group = 'verification'

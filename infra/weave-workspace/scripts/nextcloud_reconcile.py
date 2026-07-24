@@ -333,7 +333,7 @@ def reconcile(context: ComposeContext) -> dict[str, object]:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("profile", choices=("dev", "dogfood", "main"))
+    parser.add_argument("profile", choices=("dev", "test", "prod"))
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--env-file")
     args = parser.parse_args()

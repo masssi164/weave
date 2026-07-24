@@ -36,7 +36,7 @@ class BackupRuntimeContractTest(unittest.TestCase):
             path.mkdir()
             (path / "fixture").write_text(path.name, encoding="utf-8")
         env = {
-            "WEAVE_COMPOSE_PROJECT": "weave-dogfood",
+            "WEAVE_COMPOSE_PROJECT": "weave-test",
             "WEAVE_RESOURCE_PREFIX": "weave",
             "WEAVE_DB_ADMIN_USERNAME": "weave_admin",
             "WEAVE_POSTGRES_IMAGE": "postgres@sha256:" + "b" * 64,
@@ -44,7 +44,7 @@ class BackupRuntimeContractTest(unittest.TestCase):
         for variable, _archive, _kind in backup_runtime.VOLUME_ARTIFACTS:
             env[variable] = variable.lower().replace("weave_", "weave-")
         self.context = SimpleNamespace(
-            profile="dogfood",
+            profile="test",
             repository_root=self.repository,
             root=ROOT,
             generated_root=self.generated,
@@ -94,7 +94,7 @@ class BackupRuntimeContractTest(unittest.TestCase):
         manifest = json.loads((destination / "BackupManifest.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["schemaVersion"], "weave.compose-private-backup.v2")
         self.assertEqual(manifest["candidateCommit"], self.CANDIDATE)
-        self.assertEqual(manifest["composeProject"], "weave-dogfood")
+        self.assertEqual(manifest["composeProject"], "weave-test")
         self.assertEqual(manifest["quiescedServices"], list(backup_runtime.QUIESCED_SERVICES))
         self.assertEqual(manifest["runtimeInventory"], inventory)
         self.assertFalse(manifest["supportSafe"])
@@ -169,9 +169,9 @@ class BackupRuntimeContractTest(unittest.TestCase):
     def test_dev_profile_and_unbound_candidate_fail_closed(self) -> None:
         self.context.profile = "dev"
         with mock.patch.dict(os.environ, self._environment(), clear=False):
-            with self.assertRaisesRegex(ContractError, "dogfood/main"):
+            with self.assertRaisesRegex(ContractError, "test/prod"):
                 backup_runtime.backup(self.context)
-        self.context.profile = "dogfood"
+        self.context.profile = "test"
         environment = self._environment()
         environment["WEAVE_CANDIDATE_COMMIT"] = "branch-name"
         with mock.patch.dict(os.environ, environment, clear=False):

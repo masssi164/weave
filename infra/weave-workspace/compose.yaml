@@ -12,8 +12,8 @@ x-weave-service: &weave-service
 
 x-core-profiles: &core-profiles
   - dev
-  - dogfood
-  - main
+  - test
+  - prod
 
 services:
   postgres:
@@ -128,7 +128,7 @@ services:
   keycloak:
     <<: *weave-service
     profiles: *core-profiles
-    image: ${WEAVE_KEYCLOAK_IMAGE:-weave-keycloak:26.7.0-identity-events-v1}
+    image: ${WEAVE_KEYCLOAK_IMAGE:-quay.io/keycloak/keycloak:26.7.0}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-keycloak
     depends_on:
       postgres-reconcile:
@@ -154,6 +154,7 @@ services:
     secrets:
       - keycloak-db-password
       - identity-events-hmac-secret
+      - keycloak-bootstrap-admin-password
     volumes:
       - ./scripts/run-keycloak.sh:/opt/weave/run-keycloak.sh:ro
       - keycloak-data:/opt/keycloak/data
@@ -169,11 +170,80 @@ services:
       retries: 30
       start_period: 40s
 
+  identity-ops:
+    profiles: *core-profiles
+    image: ${WEAVE_IDENTITY_OPS_IMAGE:-weave-keycloak-identity-ops:26.7.0}
+    container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-identity-ops
+    user: "${WEAVE_RUNTIME_UID:-1000}:${WEAVE_RUNTIME_GID:-1000}"
+    restart: "no"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m,mode=0700,uid=${WEAVE_RUNTIME_UID:-1000},gid=${WEAVE_RUNTIME_GID:-1000}
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    command:
+      - plan
+    environment:
+      HOME: /tmp
+      XDG_CONFIG_HOME: /tmp
+      WEAVE_IDENTITY_ROTATION_EPOCH: ${WEAVE_IDENTITY_ROTATION_EPOCH:-}
+    volumes:
+      - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/keycloak/desired-state.json:/config/desired-state.json:ro
+      - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/identity-ops:/evidence
+    secrets:
+      - source: keycloak-bootstrap-admin-password
+        uid: "${WEAVE_RUNTIME_UID:-1000}"
+        gid: "${WEAVE_RUNTIME_GID:-1000}"
+        mode: 0600
+      - source: identity-admin-client-secret
+        target: keycloak-weave-identity-admin
+        uid: "${WEAVE_RUNTIME_UID:-1000}"
+        gid: "${WEAVE_RUNTIME_GID:-1000}"
+        mode: 0600
+      - source: agent-runtime-admin-client-secret
+        target: keycloak-weave-agent-runtime-admin
+        uid: "${WEAVE_RUNTIME_UID:-1000}"
+        gid: "${WEAVE_RUNTIME_GID:-1000}"
+        mode: 0600
+      - source: backend-client-jwk
+        target: keycloak-weave-backend-jwk.json
+        uid: "${WEAVE_RUNTIME_UID:-1000}"
+        gid: "${WEAVE_RUNTIME_GID:-1000}"
+        mode: 0600
+      - source: mcp-server-client-jwk
+        target: keycloak-weave-mcp-server-jwk.json
+        uid: "${WEAVE_RUNTIME_UID:-1000}"
+        gid: "${WEAVE_RUNTIME_GID:-1000}"
+        mode: 0600
+      - source: nextcloud-client-secret
+        target: keycloak-nextcloud
+        uid: "${WEAVE_RUNTIME_UID:-1000}"
+        gid: "${WEAVE_RUNTIME_GID:-1000}"
+        mode: 0600
+      - source: matrix-mas-client-secret
+        target: keycloak-matrix-mas
+        uid: "${WEAVE_RUNTIME_UID:-1000}"
+        gid: "${WEAVE_RUNTIME_GID:-1000}"
+        mode: 0600
+    networks:
+      weave:
+    labels:
+      com.massimotter.weave.managed: "true"
+      com.massimotter.weave.environment: ${WEAVE_ENVIRONMENT:-dev}
+      com.massimotter.weave.namespace: ${WEAVE_RESOURCE_PREFIX:-weave}
+      com.massimotter.weave.scope: ${WEAVE_STACK_SCOPE:-persistent}
+      com.massimotter.weave.one-shot: "true"
+
   mailpit:
     <<: *weave-service
     profiles:
       - dev
-      - dogfood
+      - test
     image: ${WEAVE_MAILPIT_IMAGE:-axllent/mailpit:v1.27.8}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-mailpit
     environment:
@@ -353,8 +423,8 @@ services:
   backend:
     <<: *weave-service
     profiles:
-      - dogfood
-      - main
+      - test
+      - prod
     image: ${WEAVE_BACKEND_IMAGE:-weave-backend:local}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-backend
     user: "${WEAVE_RUNTIME_UID:-1000}:${WEAVE_RUNTIME_GID:-1000}"
@@ -400,8 +470,8 @@ services:
 
   mcp-secret-check:
     profiles:
-      - dogfood
-      - main
+      - test
+      - prod
     image: ${WEAVE_MCP_IMAGE:-weave-mcp-server:local}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-mcp-secret-check
     user: "${WEAVE_RUNTIME_UID:-1000}:${WEAVE_RUNTIME_GID:-1000}"
@@ -437,8 +507,8 @@ services:
 
   mcp-keycloak-connectivity-check:
     profiles:
-      - dogfood
-      - main
+      - test
+      - prod
     image: ${WEAVE_MCP_IMAGE:-weave-mcp-server:local}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-mcp-keycloak-connectivity-check
     restart: "no"
@@ -470,8 +540,8 @@ services:
   mcp:
     <<: *weave-service
     profiles:
-      - dogfood
-      - main
+      - test
+      - prod
     image: ${WEAVE_MCP_IMAGE:-weave-mcp-server:local}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-mcp-server
     user: "${WEAVE_RUNTIME_UID:-1000}:${WEAVE_RUNTIME_GID:-1000}"
@@ -518,6 +588,8 @@ secrets:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/backend-db-password
   keycloak-db-password:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/keycloak-db-password
+  keycloak-bootstrap-admin-password:
+    file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/keycloak-bootstrap-admin-password
   mas-db-password:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/mas-db-password
   synapse-db-password:
@@ -532,6 +604,16 @@ secrets:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/identity-events-hmac-secret
   identity-admin-client-secret:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/keycloak-weave-identity-admin
+  agent-runtime-admin-client-secret:
+    file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/keycloak-weave-agent-runtime-admin
+  backend-client-jwk:
+    file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/keycloak-weave-backend-jwk.json
+  mcp-server-client-jwk:
+    file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/keycloak-weave-mcp-server-jwk.json
+  nextcloud-client-secret:
+    file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/keycloak-nextcloud
+  matrix-mas-client-secret:
+    file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/keycloak-matrix-mas
   nextcloud-actor-token:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/nextcloud-actor-token
 

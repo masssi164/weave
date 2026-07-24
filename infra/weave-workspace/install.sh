@@ -8,9 +8,9 @@ readonly ROOT_DIR
 readonly PROFILE="${1:-dev}"
 
 case "${PROFILE}" in
-  dev|dogfood|main) ;;
+  dev|test|prod) ;;
   *)
-    printf 'WEAVE_INSTALL_ERROR profile must be dev, dogfood, or main\n' >&2
+    printf 'WEAVE_INSTALL_ERROR profile must be dev, test, or prod\n' >&2
     exit 2
     ;;
 esac

@@ -173,7 +173,7 @@ def _write(path: Path, value: dict[str, object]) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("profile", choices=("dev", "dogfood", "main"))
+    parser.add_argument("profile", choices=("dev", "test", "prod"))
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--env-file")
     parser.add_argument("--require-application", action="store_true")

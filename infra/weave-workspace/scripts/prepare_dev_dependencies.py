@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import subprocess
@@ -81,30 +82,26 @@ def main() -> int:
         raise SystemExit("WEAVE_DEV_PREPARE_ERROR repository HEAD is not an exact candidate")
     source_env = select_source_env(root, args.env_file or os.environ.get("WEAVE_ENV_FILE"))
     evidence = root / ".generated/dev/image-evidence"
-    keycloak_image = run_image_builder(
+    identity_evidence = evidence / "identity-ops.json"
+    identity_ops_image = run_image_builder(
         [
-            "python3", str(root / "scripts/build_keycloak_image.py"),
-            "--root", str(repository),
-            "--candidate-commit", candidate,
-            "--output", str(evidence / "keycloak.json"),
-        ]
-    )
-    sanitizer_image = run_image_builder(
-        [
-            "python3", str(root / "scripts/build_sanitizer_image.py"),
+            "python3", str(root / "scripts/build_identity_ops_image.py"),
             "--root", str(root),
             "--candidate-commit", candidate,
-            "--output", str(evidence / "sanitizer.json"),
+            "--output", str(identity_evidence),
         ]
     )
+    identity_provenance = json.loads(identity_evidence.read_text(encoding="utf-8"))
+    keycloak_base = identity_provenance.get("keycloakBaseResolved")
+    if not isinstance(keycloak_base, str) or "@sha256:" not in keycloak_base:
+        raise RuntimeError("Identity Ops build evidence did not contain a resolved Keycloak OCI reference")
     runtime_env = root / ".generated/dev/dev-runtime.env"
     write_runtime_env(
         source_env,
         runtime_env,
         {
-            "WEAVE_KEYCLOAK_IMAGE": keycloak_image,
-            "WEAVE_KEYCLOAK_IMAGE_DIGEST": keycloak_image,
-            "WEAVE_KEYCLOAK_SANITIZER_IMAGE": sanitizer_image,
+            "WEAVE_IDENTITY_OPS_IMAGE": identity_ops_image,
+            "WEAVE_KEYCLOAK_IMAGE": keycloak_base,
         },
     )
     environment = dict(os.environ)
