@@ -1,0 +1,111 @@
+name: Dogfood Member
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Persistent human member operation
+        required: true
+        default: status
+        type: choice
+        options:
+          - status
+          - ensure
+          - resend-activation
+
+permissions:
+  contents: read
+
+concurrency:
+  group: weave-live-mac-mini-exclusive
+  cancel-in-progress: false
+
+jobs:
+  dogfood-member:
+    name: Persistent Dogfood Member
+    environment: dogfood
+    runs-on:
+      - self-hosted
+      - macOS
+      - ARM64
+      - weave-live
+    timeout-minutes: 10
+    env:
+      EXPECTED_RUNNER_NAME: weave-live-mac-mini
+      WEAVE_DOGFOOD_MEMBER_USERNAME: ${{ vars.WEAVE_DOGFOOD_MEMBER_USERNAME }}
+      WEAVE_DOGFOOD_MEMBER_EMAIL: ${{ secrets.WEAVE_DOGFOOD_MEMBER_EMAIL }}
+      WEAVE_DOGFOOD_MEMBER_DISPLAY_NAME: ${{ vars.WEAVE_DOGFOOD_MEMBER_DISPLAY_NAME }}
+      WEAVE_DOGFOOD_MEMBER_GROUPS: ${{ vars.WEAVE_DOGFOOD_MEMBER_GROUPS }}
+      WEAVE_TENANT_DOMAIN: weave.test
+      WEAVE_PROXY_HTTPS_HOST_PORT: '44443'
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Verify dedicated dogfood runner
+        run: |
+          set -euo pipefail
+          [[ "${RUNNER_NAME:-}" == "${EXPECTED_RUNNER_NAME}" ]] || {
+            echo "::error::Dogfood member operations must run on ${EXPECTED_RUNNER_NAME}." >&2
+            exit 1
+          }
+
+      - name: Check out weave
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Require the deployed dogfood ref
+        env:
+          DISPATCH_REF: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          [[ "${DISPATCH_REF}" == dogfood ]] || {
+            echo "::error::Persistent member operations must be dispatched from the dogfood branch." >&2
+            exit 1
+          }
+
+      - name: Validate protected member configuration
+        run: |
+          set -euo pipefail
+          : "${WEAVE_DOGFOOD_MEMBER_USERNAME:?Configure the dogfood environment variable WEAVE_DOGFOOD_MEMBER_USERNAME}"
+          : "${WEAVE_DOGFOOD_MEMBER_EMAIL:?Configure the dogfood environment secret WEAVE_DOGFOOD_MEMBER_EMAIL}"
+          : "${WEAVE_DOGFOOD_MEMBER_DISPLAY_NAME:?Configure the dogfood environment variable WEAVE_DOGFOOD_MEMBER_DISPLAY_NAME}"
+          [[ "${WEAVE_DOGFOOD_MEMBER_USERNAME}" != test ]] || {
+            echo "::error::The persistent human member must be separate from disposable user 'test'." >&2
+            exit 1
+          }
+
+      - name: Run protected member operation
+        working-directory: infra/weave-workspace
+        env:
+          OPERATION: ${{ inputs.operation }}
+        run: |
+          set -euo pipefail
+          export WEAVE_DOGFOOD_MEMBER_SUBJECT_FILE="$HOME/.weave/dogfood/persistent-member.subject"
+          evidence="$RUNNER_TEMP/dogfood-member-evidence.json"
+          ./dogfood-member.sh "${OPERATION}" --evidence-file "${evidence}"
+          mail_visible="$(jq -r '.activation.mailVisible // false' "${evidence}")"
+          if [[ "${OPERATION}" != status && "$(jq -r '.activation.mailSent' "${evidence}")" == true ]]; then
+            [[ "${mail_visible}" == true ]] || {
+              echo "::error::Keycloak accepted the operation but no new activation message became visible through the private HTTPS Mailpit API." >&2
+              exit 1
+            }
+          fi
+          {
+            echo "## Persistent dogfood member"
+            echo
+            echo "- Operation: \`${OPERATION}\`"
+            echo "- Mail inbox: https://mail.weave.test:44443"
+            echo "- Activation mail visible through iPhone-facing HTTPS route: \`${mail_visible}\`"
+            echo "- The activation link remains in Mailpit and is never copied into workflow output."
+            echo
+            echo '```json'
+            cat "${evidence}"
+            echo '```'
+          } >>"${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload support-safe evidence
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: dogfood-member-${{ inputs.operation }}-evidence
+          path: ${{ runner.temp }}/dogfood-member-evidence.json
+          if-no-files-found: error
+          retention-days: 30
