@@ -19,7 +19,6 @@ describe("AdminControlPlaneApi provider boundary", () => {
       lifecycleStatus: "pending",
       provisioningStatus: "pending" as const,
       requestedRole: "member" as const,
-      organizationGroups: ["engineering"],
     };
     const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       calls.push({
@@ -47,7 +46,6 @@ describe("AdminControlPlaneApi provider boundary", () => {
     await api.createOrganizationInvitation("acme", {
       email: "member@example.test",
       role: "member",
-      organizationGroups: ["engineering"],
     });
     await api.resendOrganizationInvitation("acme", "invite-123");
     await api.revokeOrganizationInvitation("acme", "invite-123");
@@ -62,7 +60,6 @@ describe("AdminControlPlaneApi provider boundary", () => {
       JSON.stringify({
         email: "member@example.test",
         role: "member",
-        organizationGroups: ["engineering"],
       }),
     );
     expect(calls.slice(1).map(({ idempotencyKey }) => idempotencyKey)).toEqual([

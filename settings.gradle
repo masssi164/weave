@@ -11,4 +11,9 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = 'weave-orchestration'
-include 'server', 'weave-mcp-server'
+include 'weave-application-core',
+        'weave-persistence-jpa',
+        'weave-runtime-security-adapters',
+        'weave-runtime-provider-adapters',
+        'server',
+        'weave-mcp-server'

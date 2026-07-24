@@ -19,7 +19,6 @@ public record McpWorkloadProperties(
         String exchangeClientKeyId,
         Duration exchangeClientAssertionTtl,
         URI backendResourceUri,
-        URI backendContextUri,
         List<String> exchangeScopes,
         Duration requestTimeout,
         Duration maximumTokenTtl,
@@ -52,7 +51,6 @@ public record McpWorkloadProperties(
             throw new IllegalArgumentException("exchangeClientAssertionTtl must be between 5 and 60 seconds");
         }
         backendResourceUri = https(backendResourceUri, "backendResourceUri");
-        backendContextUri = http(backendContextUri, "backendContextUri");
         exchangeScopes = exactScopes(exchangeScopes, "exchangeScopes");
         if (!requiredScopes.containsAll(exchangeScopes)
                 || exchangeScopes.contains("mcp.tools")

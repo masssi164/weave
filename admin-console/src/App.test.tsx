@@ -177,7 +177,6 @@ function mockApi(
         lifecycleStatus: "pending",
         provisioningStatus: "pending",
         requestedRole: request.role,
-        organizationGroups: request.organizationGroups,
       }),
     ),
     resendOrganizationInvitation: vi.fn().mockResolvedValue({}),
@@ -202,7 +201,6 @@ describe("Admin Console MVP", () => {
         lifecycleStatus: "pending",
         provisioningStatus: "applied",
         requestedRole: "member",
-        organizationGroups: ["/weave/members"],
         expiresAt: "2099-01-02T12:00:00Z",
       },
     ]);
@@ -227,7 +225,7 @@ describe("Admin Console MVP", () => {
     await user.type(screen.getByLabelText(/member email/i), "new@example.test");
     await user.type(screen.getByLabelText(/display name/i), "New Member");
     expect(
-      screen.getByText(/canonical organization group is derived server-side/i),
+      screen.getByText(/IAM adapter maps the selected role/i),
     ).toBeInTheDocument();
     expect(
       screen.queryByLabelText(/organization groups/i),
@@ -241,7 +239,6 @@ describe("Admin Console MVP", () => {
           email: "new@example.test",
           displayName: "New Member",
           role: "member",
-          organizationGroups: [],
         },
       ),
     );
@@ -266,7 +263,6 @@ describe("Admin Console MVP", () => {
           lifecycleStatus: "pending",
           provisioningStatus: "pending",
           requestedRole: "member",
-          organizationGroups: ["/weave/members"],
         },
         {
           providerInvitationId: "invite-second",
@@ -275,7 +271,6 @@ describe("Admin Console MVP", () => {
           lifecycleStatus: "pending",
           provisioningStatus: "pending",
           requestedRole: "member",
-          organizationGroups: ["/weave/members"],
         },
       ]),
       resendOrganizationInvitation,

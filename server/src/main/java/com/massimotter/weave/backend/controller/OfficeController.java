@@ -38,7 +38,7 @@ public class OfficeController {
     }
 
     @GetMapping("/api/office/capabilities")
-    @Operation(summary = "Read Office provider-neutral capabilities")
+    @Operation(operationId = "getOfficeCapabilities", summary = "Read Office provider-neutral capabilities")
     @ApiResponse(responseCode = "200", description = "Secret-free Office capability metadata.",
             content = @Content(schema = @Schema(implementation = OfficeCapabilitiesResponse.class)))
     public OfficeCapabilitiesResponse capabilities(@AuthenticationPrincipal Jwt jwt) {

@@ -576,10 +576,6 @@ export default function App({
         email: invitationEmail.trim(),
         displayName: invitationDisplayName.trim() || undefined,
         role: invitationRole,
-        // The backend derives and validates the canonical human group from
-        // the selected role. Additional team groups require a future
-        // server-discovered allowlist.
-        organizationGroups: [],
       });
       await refreshInvitations();
       setInvitationEmail("");
@@ -994,7 +990,6 @@ export default function App({
                           const activeAction = invitationId
                             ? invitationActions[invitationId]
                             : undefined;
-                          const groups = invitation.organizationGroups ?? [];
                           return (
                             <ListItem
                               key={
@@ -1012,7 +1007,7 @@ export default function App({
                                       ? `${invitation.displayName} — ${invitationEmailValue}`
                                       : invitationEmailValue
                                   }
-                                  secondary={`${copy.invitationRoleLabel}: ${readableState(invitation.requestedRole ?? copy.none)}${groups.length ? ` · ${copy.invitationGroupsShortLabel}: ${groups.join(", ")}` : ""}`}
+                                  secondary={`${copy.invitationRoleLabel}: ${readableState(invitation.requestedRole ?? copy.none)}`}
                                 />
                                 <Stack
                                   direction={{ xs: "column", sm: "row" }}

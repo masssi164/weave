@@ -22,6 +22,7 @@ import org.springframework.security.oauth2.server.resource.web.authentication.Be
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.util.StringUtils;
 import tools.jackson.databind.json.JsonMapper;
+import com.massimotter.weave.backend.agentruntime.application.McpWorkloadAuthorizationService;
 
 @Configuration
 class McpSecurityConfiguration {
@@ -56,11 +57,12 @@ class McpSecurityConfiguration {
             HttpSecurity http,
             McpWorkloadProperties properties,
             McpBackendTokenExchange exchange,
-            McpBackendContextResolver contexts,
+            McpExchangedTokenAuthenticator exchangedTokens,
+            McpWorkloadAuthorizationService authorization,
             JsonMapper mapper) throws Exception {
         McpBearerChallengeWriter challenges = new McpBearerChallengeWriter(properties, mapper);
         McpRequestAdmissionFilter admission = new McpRequestAdmissionFilter(
-                properties, exchange, contexts, mapper);
+                properties, exchange, exchangedTokens, authorization, mapper);
         return http
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

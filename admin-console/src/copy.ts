@@ -55,13 +55,12 @@ export const adminConsoleMessages = {
     organizationMemberProviderConfigLabel: 'Member clients may configure providers',
     invitationsHeading: 'Member invitations',
     invitationOwnershipNotice:
-      'Keycloak owns email delivery, activation, expiry, and organization membership. Weave separately tracks temporary role and organization-group provisioning intent.',
+      'Keycloak owns email delivery, activation, expiry, and organization membership. Weave records only a temporary, provider-neutral role provisioning intent.',
     invitationEmailLabel: 'Member email',
     invitationDisplayNameLabel: 'Display name (optional)',
     invitationRoleLabel: 'Requested role',
-    invitationGroupsShortLabel: 'Groups',
     invitationCanonicalGroupHelper:
-      'The canonical organization group is derived server-side from the selected role. Additional team groups require a server-provided allowlist.',
+      'The IAM adapter maps the selected role to exactly one native organization group. Provider group paths are never part of this form or API.',
     invitationCreateButton: 'Invite member',
     invitationCreatingButton: 'Creating invitation…',
     invitationCurrentHeading: 'Current identity invitations',
@@ -234,13 +233,12 @@ export const adminConsoleMessages = {
     organizationMemberProviderConfigLabel: 'Mitglieder-Clients dürfen Provider konfigurieren',
     invitationsHeading: 'Mitgliedereinladungen',
     invitationOwnershipNotice:
-      'Keycloak verantwortet Versand, Aktivierung, Ablauf und Organisationsmitgliedschaft der Einladung. Weave verfolgt davon getrennt die temporäre Rollen- und Organisationsgruppen-Bereitstellungsabsicht.',
+      'Keycloak verantwortet Versand, Aktivierung, Ablauf und Organisationsmitgliedschaft der Einladung. Weave speichert nur eine temporäre, providerneutrale Rollen-Bereitstellungsabsicht.',
     invitationEmailLabel: 'E-Mail des Mitglieds',
     invitationDisplayNameLabel: 'Anzeigename (optional)',
     invitationRoleLabel: 'Angeforderte Rolle',
-    invitationGroupsShortLabel: 'Gruppen',
     invitationCanonicalGroupHelper:
-      'Die kanonische Organisationsgruppe wird serverseitig aus der gewählten Rolle abgeleitet. Zusätzliche Teamgruppen erfordern eine serverseitig bereitgestellte Allowlist.',
+      'Der IAM-Adapter ordnet die gewählte Rolle genau einer nativen Organisationsgruppe zu. Provider-Gruppenpfade sind nie Teil dieses Formulars oder der API.',
     invitationCreateButton: 'Mitglied einladen',
     invitationCreatingButton: 'Einladung wird erstellt…',
     invitationCurrentHeading: 'Aktuelle Identitätseinladungen',
