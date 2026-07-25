@@ -128,6 +128,38 @@ def main() -> None:
         assert prod.compose_files[1].name == "compose.prod.yaml"
         assert _image_digest(test) == "sha256:" + "a" * 64
         assert _image_digest(prod) == "sha256:" + "a" * 64
+        local_image_id = "sha256:" + "b" * 64
+        isolated_overrides = {
+            "WEAVE_E2E_STACK_SCOPE": "isolated",
+            "WEAVE_E2E_RUN_ID": "compose-profile-contract",
+            "WEAVE_BACKEND_IMAGE": local_image_id,
+            "WEAVE_MCP_IMAGE": local_image_id,
+            "WEAVE_IDENTITY_OPS_IMAGE": local_image_id,
+            "WEAVE_KEYCLOAK_IMAGE": local_image_id,
+        }
+        previous_overrides = {
+            name: os.environ.get(name) for name in isolated_overrides
+        }
+        try:
+            os.environ.update(isolated_overrides)
+            isolated = load_context("test", ROOT, str(root / "test.env"))
+            assert isolated.env["WEAVE_STACK_SCOPE"] == "isolated"
+            assert isolated.env["WEAVE_KEYCLOAK_IMAGE"] == local_image_id
+            os.environ["WEAVE_E2E_STACK_SCOPE"] = "persistent"
+            try:
+                load_context("test", ROOT, str(root / "test.env"))
+            except ContractError as error:
+                assert "WEAVE_KEYCLOAK_IMAGE" in str(error)
+            else:
+                raise AssertionError(
+                    "persistent test accepted a local Keycloak image ID"
+                )
+        finally:
+            for name, value in previous_overrides.items():
+                if value is None:
+                    os.environ.pop(name, None)
+                else:
+                    os.environ[name] = value
         runtime_source = (ROOT / "scripts/compose_runtime.py").read_text(encoding="utf-8")
         assert 'context.root / ".generated/test/test-users.json"' in runtime_source
         invalid = root / "invalid.env"
