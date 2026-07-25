@@ -21,7 +21,7 @@ import 'package:weave/core/theme/app_theme_preference_provider.dart';
 import 'package:weave/features/app/data/services/persisted_client_upgrade_service.dart';
 import 'package:weave/features/auth/data/repositories/oidc_auth_session_repository.dart';
 import 'package:weave/features/onboarding/domain/entities/member_auth_onboarding_state.dart';
-import 'package:weave/features/onboarding/domain/use_cases/consume_member_handoff.dart';
+import 'package:weave/features/onboarding/domain/use_cases/discover_organization_access.dart';
 import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
 import 'package:weave/features/profile/domain/entities/user_profile.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
@@ -135,7 +135,7 @@ class _WeaveAppState extends ConsumerState<WeaveApp>
     final uri = Uri.tryParse(pendingDeepLink);
     if (uri != null) {
       final location = initialLocationForDefaultRoute(uri.toString());
-      if (location != AppRoutes.welcome) {
+      if (location != AppRoutes.organizationAccess) {
         setStartupInitialLocation(location);
       }
       await _openAppLink(uri);
@@ -144,7 +144,7 @@ class _WeaveAppState extends ConsumerState<WeaveApp>
 
   Future<void> _openAppLink(Uri uri) async {
     final location = initialLocationForDefaultRoute(uri.toString());
-    if (location == AppRoutes.welcome || !mounted) {
+    if (location == AppRoutes.organizationAccess || !mounted) {
       return;
     }
     if (await _resetDogfoodAppStateIfRequested(uri)) {

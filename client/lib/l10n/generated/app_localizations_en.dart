@@ -12,16 +12,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appTitle => 'Weave';
 
   @override
-  String get welcomeTitle => 'Welcome to Weave';
-
-  @override
-  String get welcomeSubtitle =>
-      'Join your organization through an invite or sign-in handoff. Provider setup stays with your admins.';
-
-  @override
-  String get continueButton => 'Join your organization';
-
-  @override
   String get setupTitle => 'Organization access';
 
   @override
@@ -3801,20 +3791,16 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get setupMemberHandoffTitle =>
-      'Join from an invite or organization sign-in';
-
-  @override
   String get setupMemberHandoffDescription =>
-      'Open the invite link, /join link, or organization sign-in URL your admin sent you. Weave will prepare your workspace from the organization manifest without asking you to edit provider endpoints.';
+      'Paste your completion link or QR content, or enter your organization\'s Weave address. Every option checks the same organization details before sign-in.';
 
   @override
   String get setupOrganizationUriLabel =>
-      'Server URI, invitation link, or QR payload';
+      'Weave server address, completion link, or QR content';
 
   @override
   String get setupOrganizationUriHelper =>
-      'Paste the link from your email or QR code, or enter your organization\'s Weave address.';
+      'Use the link from your email or QR code, or enter the secure Weave address provided by your organization.';
 
   @override
   String get setupOrganizationUriError =>
@@ -3825,54 +3811,38 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get setupOrganizationAccessHelp =>
-      'Your invitation email and organization QR code contain the same Weave address. After it is verified, the next screen always offers Sign in.';
+      'Completion links, QR content, and the Weave server address use the same organization check. The next screen always asks you to sign in explicitly.';
 
   @override
-  String get setupMemberHandoffPrimaryAction =>
-      'I have an invite or sign-in link';
-
-  @override
-  String get setupMemberHandoffPrimaryGuidance =>
-      'Use the link from your browser, email, or chat. If it is missing or expired, ask your workspace admin for a new invite.';
-
-  @override
-  String get setupMemberHandoffAdminNoteTitle => 'Admins and operators';
-
-  @override
-  String get setupMemberHandoffAdminNote =>
-      'Raw provider endpoints are managed in admin or operator recovery, not during normal member onboarding.';
-
-  @override
-  String get setupOpenOperatorRecoveryButton => 'Open operator recovery setup';
-
-  @override
-  String get setupOperatorRecoveryTitle => 'Operator recovery setup';
-
-  @override
-  String get memberHandoffLoadingTitle => 'Opening Weave invite';
+  String get memberHandoffLoadingTitle => 'Checking organization access';
 
   @override
   String get memberHandoffLoadingHint =>
-      'We are preparing sign-in for this workspace.';
+      'We are securely retrieving the sign-in details for this organization.';
 
   @override
-  String get memberHandoffReadyTitle => 'Workspace ready for sign-in';
+  String get memberHandoffReadyTitle => 'Organization ready for sign-in';
 
   @override
-  String memberHandoffReadyGuidance(String organization, String workspace) {
-    return 'Weave prepared $organization/$workspace from the invite. Continue with workspace sign-in next.';
+  String memberHandoffReadyGuidance(String organization) {
+    return 'Weave prepared organization access for $organization. Sign in opens the secure system browser and returns you to Weave after authorization.';
   }
 
   @override
-  String get memberHandoffErrorTitle => 'We could not open this Weave invite';
+  String get memberHandoffErrorTitle =>
+      'We could not check organization access';
 
   @override
   String get memberHandoffErrorGuidance =>
-      'The invite may be expired, incomplete, or not ready yet. Ask your workspace admin for a fresh invite or organization sign-in link.';
+      'The link or address may be incomplete, expired, or temporarily unavailable. Check it and try again, or ask your organization for a fresh completion link.';
 
   @override
   String get memberHandoffTlsErrorGuidance =>
       'Weave could not reach the workspace start configuration over trusted TLS. For local dogfood, install and fully trust the Weave Local Development CA on this iPhone, or ask your admin for a publicly trusted organization sign-in link.';
+
+  @override
+  String get memberHandoffSignInRetryGuidance =>
+      'Your organization details are saved. Follow the guidance above, then try Sign in again.';
 
   @override
   String memberHandoffErrorCode(String code) {

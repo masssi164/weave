@@ -63,7 +63,11 @@ class ServerConfigurationDto {
     }
 
     return ServerConfiguration(
-      providerType: OidcProviderType.values.byName(providerType),
+      providerType: OidcProviderType.values.byName(
+        // Migrate the legacy provider-shaped value without retaining it as a
+        // client-domain dependency.
+        providerType == 'keycloak' ? 'oidc' : providerType,
+      ),
       oidcIssuerUrl: Uri.parse(oidcIssuerUrl),
       oidcClientRegistration: OidcClientRegistration(
         mode: OidcClientRegistrationMode.values.byName(

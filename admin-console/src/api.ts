@@ -3,6 +3,8 @@ import type {
   GeneratedAdminControlPlaneResponse,
   GeneratedCapabilityWhitelistResponse,
   GeneratedIdentityProviderReadinessResponse,
+  GeneratedMemberInvitationRequest,
+  GeneratedMemberInvitationResponse,
   GeneratedProviderReadinessTestRequest,
   GeneratedProviderReadinessTestResponse,
 } from "./generated/openapi";
@@ -168,30 +170,9 @@ export interface AuditEvent {
 }
 
 export type OrganizationRole = "owner" | "admin" | "member" | "guest";
-export type InvitationProvisioningStatus =
-  | "pending"
-  | "applied"
-  | "failed"
-  | "expired";
-
-export interface CreateOrganizationInvitationRequest {
-  email: string;
-  displayName?: string;
-  role: OrganizationRole;
-}
-
-export interface OrganizationInvitation {
-  providerInvitationId: string;
-  organizationId: string;
-  email: string;
-  displayName?: string;
-  lifecycleStatus: string;
-  provisioningStatus: InvitationProvisioningStatus;
-  requestedRole: OrganizationRole;
-  expiresAt?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
+export type CreateOrganizationInvitationRequest =
+  GeneratedMemberInvitationRequest;
+export type OrganizationInvitation = GeneratedMemberInvitationResponse;
 
 export interface SuiteDomainReadiness {
   domain: string;
@@ -441,6 +422,15 @@ export class AdminApiError extends Error {
   ) {
     super(message);
   }
+}
+
+function invitationIdempotencyKey(
+  action: "create" | "resend" | "revoke",
+): string {
+  const randomPart =
+    globalThis.crypto?.randomUUID?.() ??
+    `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return `admin-console-invitation-${action}-${randomPart}`;
 }
 
 interface ServerControlPlaneResponse {
@@ -828,7 +818,13 @@ export class AdminControlPlaneApi {
   ): Promise<OrganizationInvitation> {
     return this.request<OrganizationInvitation>(
       `/admin/organizations/${encodeURIComponent(organizationId)}/invitations`,
-      { method: "POST", body: JSON.stringify(invitation) },
+      {
+        method: "POST",
+        headers: {
+          "Idempotency-Key": invitationIdempotencyKey("create"),
+        },
+        body: JSON.stringify(invitation),
+      },
     );
   }
 
@@ -838,7 +834,12 @@ export class AdminControlPlaneApi {
   ): Promise<OrganizationInvitation> {
     return this.request<OrganizationInvitation>(
       `/admin/organizations/${encodeURIComponent(organizationId)}/invitations/${encodeURIComponent(providerInvitationId)}/resend`,
-      { method: "POST" },
+      {
+        method: "POST",
+        headers: {
+          "Idempotency-Key": invitationIdempotencyKey("resend"),
+        },
+      },
     );
   }
 
@@ -848,7 +849,12 @@ export class AdminControlPlaneApi {
   ): Promise<void> {
     await this.request<void>(
       `/admin/organizations/${encodeURIComponent(organizationId)}/invitations/${encodeURIComponent(providerInvitationId)}`,
-      { method: "DELETE" },
+      {
+        method: "DELETE",
+        headers: {
+          "Idempotency-Key": invitationIdempotencyKey("revoke"),
+        },
+      },
     );
   }
 

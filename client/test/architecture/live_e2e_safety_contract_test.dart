@@ -323,7 +323,7 @@ void main() {
       'integration_test/helpers/live_actor_session.dart',
     ).readAsStringSync();
 
-    expect(source, contains('ConsumeMemberHandoff('));
+    expect(source, contains('DiscoverOrganizationAccess('));
     expect(source, contains('AppStartDiscoveryClient('));
     expect(source, contains('SharedPreferencesServerConfigurationRepository('));
     expect(source, contains('FlutterSecureStore()'));

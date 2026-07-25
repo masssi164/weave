@@ -31,6 +31,11 @@ class _FakeAppAuthPort implements AppAuthPort {
   }
 
   @override
+  Future<AuthState> refreshSession(AuthConfiguration configuration) async {
+    return const AuthState.signedOut();
+  }
+
+  @override
   Future<AuthState> signIn(AuthConfiguration configuration) async {
     return const AuthState.signedOut();
   }

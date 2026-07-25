@@ -17,6 +17,7 @@ ADMIN_PREFIXES = (
     "ChatProviderReplacement",
     "ChatReadiness",
     "IdentityProviderReadiness",
+    "MemberInvitation",
     "ProviderReadiness",
     "ProviderReplacement",
 )
