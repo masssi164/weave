@@ -1,7 +1,7 @@
 # Keycloak deployment and reconciliation contract
 
 The normative authority is the pinned Weave Specification Corpus, especially ADR 0016 and the
-`weave.keycloak-desired-state/v1`, environment-overlay, sanitizer-profile, and reconciliation-
+`weave.keycloak-desired-state/v2`, environment-overlay, sanitizer-profile, and reconciliation-
 receipt contracts. This document is their implementation/operator projection.
 
 ## Ownership
