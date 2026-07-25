@@ -310,6 +310,11 @@ def _validate_environment(profile: str, env: Mapping[str, str]) -> None:
         local_candidate_images = {
             "WEAVE_BACKEND_IMAGE", "WEAVE_IDENTITY_OPS_IMAGE", "WEAVE_MCP_IMAGE"
         } if profile == "test" else set()
+        if profile == "test" and env.get("WEAVE_STACK_SCOPE") == "isolated":
+            # Live E2E resolves the pinned stock multi-arch index to its exact
+            # local platform image ID before Compose. Persistent test/prod
+            # still require the reviewed published digest reference.
+            local_candidate_images.add("WEAVE_KEYCLOAK_IMAGE")
         unpinned = [
             name for name in image_names
             if not PUBLISHED_DIGEST_IMAGE_RE.fullmatch(env[name])
