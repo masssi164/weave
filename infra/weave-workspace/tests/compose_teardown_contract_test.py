@@ -36,6 +36,7 @@ class ComposeTeardownContractTest(unittest.TestCase):
             isolated_namespace="weave-e2e-run-123456",
             env=env,
             root=ROOT,
+            generated_root=ROOT / ".generated/isolated/weave-e2e-run-123456",
             compose_base_command=("docker", "compose", "--project-name", "weave-e2e-run-123456"),
         )
 
@@ -72,6 +73,20 @@ class ComposeTeardownContractTest(unittest.TestCase):
         self.assertEqual(commands[-1], ["docker", "network", "rm", self.context.env["WEAVE_DOCKER_NETWORK"]])
         self.assertEqual(evidence["removedVolumeNames"], sorted(self.context.env[key] for key in teardown_compose.VOLUME_KEYS))
         self.assertTrue(evidence["networkRemoved"])
+
+
+    def test_empty_evidence_environment_uses_generated_default(self) -> None:
+        with mock.patch.dict(
+            os.environ,
+            {"WEAVE_TEARDOWN_EVIDENCE_FILE": ""},
+            clear=False,
+        ):
+            output = teardown_compose._evidence_output_path(self.context, None)
+        self.assertEqual(
+            output,
+            (self.context.generated_root / "teardown/evidence.json").resolve(),
+        )
+        self.assertNotEqual(output, self.context.root.resolve())
 
     def test_persistent_or_unbound_invocation_fails_before_docker(self) -> None:
         self.context.isolated_namespace = None

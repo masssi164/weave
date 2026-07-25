@@ -88,6 +88,15 @@ def teardown(context: ComposeContext, *, dry_run: bool) -> dict[str, object]:
     }
 
 
+def _evidence_output_path(context: ComposeContext, explicit: Path | None) -> Path:
+    if explicit is not None:
+        return explicit.resolve()
+    configured = os.environ.get("WEAVE_TEARDOWN_EVIDENCE_FILE", "")
+    if configured:
+        return Path(configured).resolve()
+    return (context.generated_root / "teardown/evidence.json").resolve()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("profile", choices=("test",))
@@ -102,10 +111,7 @@ def main() -> int:
             raise ContractError("teardown requires the explicit --isolated intent")
         context = load_context(args.profile, args.root, args.env_file)
         value = teardown(context, dry_run=args.dry_run)
-        output = args.evidence_file or Path(
-            os.environ.get("WEAVE_TEARDOWN_EVIDENCE_FILE", context.generated_root / "teardown/evidence.json")
-        )
-        output = output.resolve()
+        output = _evidence_output_path(context, args.evidence_file)
         output.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         temporary = output.with_suffix(output.suffix + ".tmp")
         temporary.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
