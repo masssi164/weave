@@ -193,11 +193,13 @@ def main() -> int:
         "WEAVE_ENV_FILE: ${{ github.workspace }}/weave/infra/weave-workspace/environments/test.env.example"
         in workflow
         and "WEAVE_TEST_REVIEWED_ENV_FILE" not in workflow
+        and "environment: dogfood" not in workflow
+        and "environment: dogfood" in dogfood_deploy_workflow
         and "WEAVE_TEST_REVIEWED_ENV_FILE: ${{ vars.WEAVE_TEST_REVIEWED_ENV_FILE }}"
         in dogfood_deploy_workflow
         and "WEAVE_TEST_BACKUP_ROOT: ${{ vars.WEAVE_TEST_BACKUP_ROOT }}"
         in dogfood_deploy_workflow,
-        "isolated E2E must use the versioned public test template while persistent deployment requires protected host paths",
+        "isolated E2E must not claim a protected deployment environment while persistent deployment requires it and its host paths",
     )
     require(
         'export WEAVE_BOOTSTRAP_ENV="${WEAVE_E2E_STACK_BOOTSTRAP_ENV:?}"'
