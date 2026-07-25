@@ -1,7 +1,8 @@
 # Keycloak and Identity Ops contract
 
 The pinned Weave Specification Corpus and ADR 0017 are normative. This document is the
-operator-facing implementation projection.
+operator-facing implementation projection of the
+`weave.keycloak-desired-state/v2` contract.
 
 ## Architectural boundary
 

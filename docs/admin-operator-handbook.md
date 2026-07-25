@@ -167,6 +167,6 @@ Live Stack E2E is available by default on the dedicated self-hosted live runner.
 
 The product server may produce a support-safe review plan, but it does not carry a second realm
 baseline or mutate Keycloak. The one deployment baseline is the pinned
-`weave.keycloak-desired-state/v1` contract from the canonical specification corpus; Compose
+`weave.keycloak-desired-state/v2` contract from the canonical specification corpus; Compose
 renders its closed environment overlay and rootless one-shot Identity Ops reconciles it through
 the matching official `kcadm`.
