@@ -11,7 +11,7 @@ import 'package:weave/features/auth/domain/entities/auth_failure.dart';
 import 'package:weave/features/auth/presentation/auth_failure_message.dart';
 import 'package:weave/features/auth/presentation/sign_in_screen.dart';
 import 'package:weave/features/onboarding/domain/entities/member_auth_onboarding_state.dart';
-import 'package:weave/features/onboarding/domain/use_cases/consume_member_handoff.dart';
+import 'package:weave/features/onboarding/domain/use_cases/discover_organization_access.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
 import '../../helpers/in_memory_stores.dart';

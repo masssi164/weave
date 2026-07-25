@@ -15,7 +15,7 @@ import 'package:weave/features/chat/domain/repositories/chat_repository.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
-import 'package:weave/features/onboarding/domain/use_cases/consume_member_handoff.dart';
+import 'package:weave/features/onboarding/domain/use_cases/discover_organization_access.dart';
 import 'package:weave/features/profile/domain/repositories/user_profile_repository.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
 import 'package:weave/features/server_config/data/repositories/shared_preferences_server_configuration_repository.dart';
@@ -192,13 +192,12 @@ class LiveActorProfile {
           'workspace': role == CollaborationActorRole.outsider
               ? 'workspace-b'
               : 'workspace-a',
-          'profile': 'local-lan-dogfood',
           'run_id': _handoffRunRef,
           'product_base_url': productBaseUrl.toString(),
           'platform_config_url': platformConfigUrl.toString(),
         },
       );
-      await ConsumeMemberHandoff(
+      await DiscoverOrganizationAccess(
         repository: _serverConfigurationRepository,
         discoveryClient: AppStartDiscoveryClient(httpClient: client),
         evidenceStore: _preferencesStore,

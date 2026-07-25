@@ -154,6 +154,7 @@ void main() {
       final loaded = await repository.loadConfiguration();
 
       expect(loaded?.oidcClientRegistration.clientId, 'weave-app');
+      expect(loaded?.providerType.name, 'oidc');
     });
 
     test(

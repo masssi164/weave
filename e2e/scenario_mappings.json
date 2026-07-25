@@ -412,7 +412,7 @@
           ]
         },
         {
-          "path": "client/test/features/onboarding/consume_member_handoff_test.dart",
+          "path": "client/test/features/onboarding/discover_organization_access_test.dart",
           "fragments": [
             "ready_for_sso",
             "recoverable_error",

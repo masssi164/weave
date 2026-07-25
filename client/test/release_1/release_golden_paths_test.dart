@@ -17,6 +17,7 @@ import 'package:weave/features/app/domain/entities/integration_invalidation.dart
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
+import 'package:weave/features/app/presentation/providers/app_application_providers.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/domain/entities/auth_session.dart';
 import 'package:weave/features/auth/domain/entities/auth_state.dart';
@@ -38,7 +39,7 @@ import 'package:weave/features/files/domain/entities/files_connection_state.dart
 import 'package:weave/features/files/domain/entities/files_failure.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
-import 'package:weave/features/onboarding/domain/use_cases/consume_member_handoff.dart';
+import 'package:weave/features/onboarding/domain/use_cases/discover_organization_access.dart';
 import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
 import 'package:weave/features/profile/domain/entities/user_profile.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
@@ -49,6 +50,7 @@ import 'package:weave/integrations/weave_api/presentation/providers/weave_api_pr
 import 'package:weave/main.dart';
 
 import '../helpers/in_memory_stores.dart';
+import '../helpers/fake_identity_session_port.dart';
 
 void main() {
   group('current release auth/files golden paths', () {
@@ -112,6 +114,9 @@ void main() {
         final container = ProviderContainer.test(
           overrides: [
             authSessionRepositoryProvider.overrideWithValue(authRepository),
+            identitySessionPortProvider.overrideWithValue(
+              FakeIdentitySessionPort(),
+            ),
             preferencesStoreProvider.overrideWith(
               (ref) => InMemoryPreferencesStore(),
             ),
@@ -119,8 +124,8 @@ void main() {
             serverConfigurationRepositoryProvider.overrideWithValue(
               serverConfigurationRepository,
             ),
-            consumeMemberHandoffProvider.overrideWithValue(
-              ConsumeMemberHandoff(
+            discoverOrganizationAccessProvider.overrideWithValue(
+              DiscoverOrganizationAccess(
                 repository: serverConfigurationRepository,
                 discoveryClient: discoveryClient,
               ),
@@ -159,13 +164,15 @@ void main() {
         expect(find.text('Organization access'), findsOneWidget);
 
         await tester.enterText(
-          _textFieldWithLabel('Server URI, invitation link, or QR payload'),
+          _textFieldWithLabel(
+            'Weave server address, completion link, or QR content',
+          ),
           'https://weave.test',
         );
         await tester.tap(find.text('Continue to organization'));
         await tester.pumpAndSettle();
 
-        expect(find.text('Workspace ready for sign-in'), findsOneWidget);
+        expect(find.text('Organization ready for sign-in'), findsOneWidget);
         expect(find.text('https://matrix.weave.test'), findsNothing);
         expect(find.text('https://files.weave.test'), findsNothing);
         expect(find.text('Sign In'), findsWidgets);

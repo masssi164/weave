@@ -13,7 +13,7 @@ import 'package:weave/features/files/presentation/files_screen.dart';
 import 'package:weave/features/help/presentation/help_screen.dart';
 import 'package:weave/features/home/presentation/home_screen.dart';
 import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
-import 'package:weave/features/onboarding/presentation/setup_flow.dart';
+import 'package:weave/features/onboarding/presentation/organization_access_screen.dart';
 import 'package:weave/features/profile/presentation/profile_screen.dart';
 import 'package:weave/features/settings/presentation/settings_screen.dart';
 import 'package:weave/features/shell/presentation/app_shell.dart';
@@ -54,12 +54,13 @@ GoRouter appRouter(Ref ref) {
       final normalizedLocation = initialLocationForDefaultRoute(
         state.uri.toString(),
       );
-      if (normalizedLocation != AppRoutes.welcome) {
+      if (normalizedLocation != AppRoutes.organizationAccess) {
         router.go(normalizedLocation);
       }
     },
     redirect: (context, state) async {
-      final onOnboarding = state.matchedLocation == AppRoutes.welcome;
+      final onOrganizationAccess =
+          state.matchedLocation == AppRoutes.organizationAccess;
       final onSignIn = state.matchedLocation == AppRoutes.signIn;
       final onJoin = state.matchedLocation == AppRoutes.join;
       switch (bootstrapState.phase) {
@@ -67,17 +68,19 @@ GoRouter appRouter(Ref ref) {
         case BootstrapPhase.error:
           return null;
         case BootstrapPhase.needsSetup:
-          return (onOnboarding || onJoin) ? null : AppRoutes.welcome;
+          return (onOrganizationAccess || onJoin)
+              ? null
+              : AppRoutes.organizationAccess;
         case BootstrapPhase.needsSignIn:
           return (onSignIn || onJoin) ? null : AppRoutes.signIn;
         case BootstrapPhase.ready:
-          return (onOnboarding || onSignIn) ? AppRoutes.home : null;
+          return (onOrganizationAccess || onSignIn) ? AppRoutes.home : null;
       }
     },
     routes: [
       GoRoute(
-        path: AppRoutes.welcome,
-        builder: (context, state) => const SetupFlow(),
+        path: AppRoutes.organizationAccess,
+        builder: (context, state) => const OrganizationAccessScreen(),
       ),
       GoRoute(
         path: AppRoutes.signIn,
@@ -166,12 +169,12 @@ GoRouter appRouter(Ref ref) {
 
 String initialLocationForDefaultRoute(String defaultRouteName) {
   if (defaultRouteName.isEmpty || defaultRouteName == '/') {
-    return AppRoutes.welcome;
+    return AppRoutes.organizationAccess;
   }
 
   final uri = Uri.tryParse(defaultRouteName);
   if (uri == null) {
-    return AppRoutes.welcome;
+    return AppRoutes.organizationAccess;
   }
 
   final normalizedJoinLocation = normalizedJoinRouteLocation(uri);
@@ -179,7 +182,7 @@ String initialLocationForDefaultRoute(String defaultRouteName) {
     return normalizedJoinLocation;
   }
 
-  return AppRoutes.welcome;
+  return AppRoutes.organizationAccess;
 }
 
 String? normalizedJoinRouteLocation(Uri uri) {
