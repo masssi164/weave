@@ -50,7 +50,10 @@ def main() -> int:
         "- name: Verify run-scoped live runtime host",
         "- name: Remove stale runner-owned Weave outputs",
         "- name: Check out weave",
+        "- name: Materialize run-scoped test environment",
         "- name: Verify runner disk headroom",
+        "- name: Bind immutable images to source and lane evidence",
+        "- name: Clean up stale stack state before bootstrap",
         "- name: Provision real Keycloak identities and verify runtime ReBAC",
         "- name: Prove missing-capability expired-token and revoked-session denials",
         "- name: Expose generated local CA to Rust Matrix tests",
@@ -199,7 +202,17 @@ def main() -> int:
     )
     require(
         "WEAVE_ENV_FILE: ${{ github.workspace }}/weave/infra/weave-workspace/environments/test.env.example"
-        in workflow
+        not in workflow
+        and "- name: Materialize run-scoped test environment" in workflow
+        and 'source_env="$PWD/environments/test.env.example"' in workflow
+        and 'runtime_env="$runtime_root/reviewed-test.env"' in workflow
+        and 'install -m 600 "$source_env" "$runtime_env"' in workflow
+        and 'echo "WEAVE_ENV_FILE=$runtime_env" >> "$GITHUB_ENV"' in workflow
+        and workflow.index("- name: Materialize run-scoped test environment")
+        < workflow.index("- name: Prepare three disposable identity profiles")
+        and workflow.index("- name: Bind immutable images to source and lane evidence")
+        < workflow.index("- name: Clean up stale stack state before bootstrap")
+        < workflow.index("- name: Bootstrap local stack")
         and "WEAVE_TEST_REVIEWED_ENV_FILE" not in workflow
         and "environment: dogfood" not in workflow
         and "environment: dogfood" in dogfood_deploy_workflow
