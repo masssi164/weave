@@ -73,6 +73,22 @@ def main() -> None:
     assert calls[1][:4] == [
         "/opt/keycloak/bin/kcadm.sh", "config", "credentials", "--config"
     ]
+
+    class FailedResult:
+        returncode = 1
+        stdout = ""
+        stderr = "HTTP 409 Conflict: sensitive provider detail"
+
+    identity_ops.subprocess.run = lambda *_args, **_kwargs: FailedResult()
+    try:
+        client.call("create", "organizations/org/groups/parent/children", "-r", "weave")
+    except identity_ops.IdentityOpsError as error:
+        assert "httpStatus=409" in str(error)
+        assert "sensitive provider detail" not in str(error)
+    else:
+        raise AssertionError("kcadm failure was silently accepted")
+    finally:
+        identity_ops.subprocess.run = original_run
     observed = identity_ops.marked_payload("client:weave-app", payload, list_values=False)
     assert identity_ops.is_current("client:weave-app", payload, observed, list_values=False)
     assert not identity_ops.is_current("client:other", payload, observed, list_values=False)
@@ -153,6 +169,7 @@ def main() -> None:
     assert 'organizations/{organization_id}/groups/{by_path[group_path]}/members/{created_user' in source
     assert '"map-org-group-role"' in source
     assert "if parent is None:" in source and "Parent groups are deliberately created" in source
+    assert "payload = wanted if parent_ref else marked_payload" in source
     assert '"add-roles", "-r", realm, "--uusername", item["username"]' not in source
     renderer = (ROOT / "scripts/render_config.py").read_text(encoding="utf-8")
     assert '"weave.keycloak-desired-state/v2"' in renderer
