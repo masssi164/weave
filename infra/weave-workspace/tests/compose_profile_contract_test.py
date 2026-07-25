@@ -126,6 +126,10 @@ def main() -> None:
         assert prod.env["WEAVE_DEPLOYMENT_CONTEXT"] == "production"
         assert test.compose_files[1].name == "compose.test.yaml"
         assert prod.compose_files[1].name == "compose.prod.yaml"
+        test_overlay = (ROOT / "compose.test.yaml").read_text(encoding="utf-8")
+        assert "  keycloak:\n" in test_overlay
+        assert "    command:\n      - start\n" in test_overlay
+        assert "--optimized" not in test_overlay
         assert _image_digest(test) == "sha256:" + "a" * 64
         assert _image_digest(prod) == "sha256:" + "a" * 64
         local_image_id = "sha256:" + "b" * 64
