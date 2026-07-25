@@ -251,16 +251,17 @@ jobs:
             echo "DOCKER_HOST=unix://$HOME/.orbstack/run/docker.sock" >> "$GITHUB_ENV"
             export DOCKER_HOST="unix://$HOME/.orbstack/run/docker.sock"
           fi
-          export DOCKER_CONFIG="$RUNNER_TEMP/weave-live-stack-docker-config"
-          mkdir -p "$DOCKER_CONFIG"
-          chmod 700 "$DOCKER_CONFIG"
+          export WEAVE_DOCKER_AUTH_CONFIG="$RUNNER_TEMP/weave-live-stack-docker-config"
+          mkdir -p "$WEAVE_DOCKER_AUTH_CONFIG"
+          chmod 700 "$WEAVE_DOCKER_AUTH_CONFIG"
           auth_b64="$(printf '%s' "${GITHUB_ACTOR}:${GHCR_TOKEN}" | base64 | tr -d '\n')"
-          cat > "$DOCKER_CONFIG/config.json" <<EOF
+          cat > "$WEAVE_DOCKER_AUTH_CONFIG/config.json" <<EOF
           {"auths":{"ghcr.io":{"auth":"${auth_b64}"}}}
           EOF
-          chmod 600 "$DOCKER_CONFIG/config.json"
-          echo "DOCKER_CONFIG=$DOCKER_CONFIG" >> "$GITHUB_ENV"
-          docker --config "$DOCKER_CONFIG" info >/dev/null
+          chmod 600 "$WEAVE_DOCKER_AUTH_CONFIG/config.json"
+          echo "WEAVE_DOCKER_AUTH_CONFIG=$WEAVE_DOCKER_AUTH_CONFIG" >> "$GITHUB_ENV"
+          docker --config "$WEAVE_DOCKER_AUTH_CONFIG" info >/dev/null
+          docker compose version >/dev/null
 
       - name: Capture persistent dogfood resource baseline
         run: |
@@ -343,7 +344,7 @@ jobs:
               exit 1
             }
             echo "Pulling published backend image for live-stack evidence."
-            docker --config "${DOCKER_CONFIG}" pull "$source_ref"
+            docker --config "${WEAVE_DOCKER_AUTH_CONFIG}" pull "$source_ref"
           else
             echo "Building backend runtime image from CI-built server JAR artifact."
             docker buildx build --load \
@@ -368,7 +369,7 @@ jobs:
               exit 1
             }
             echo "Pulling published MCP server image for live-stack evidence."
-            docker --config "${DOCKER_CONFIG}" pull "$source_ref"
+            docker --config "${WEAVE_DOCKER_AUTH_CONFIG}" pull "$source_ref"
           else
             echo "Building MCP server runtime image from CI-built weave-mcp-server JAR artifact."
             docker buildx build --load \
@@ -1108,7 +1109,7 @@ jobs:
             "$checkout_root/weave-mcp-server/build" \
             "${WEAVE_ACCEPTANCE_EVIDENCE_DIR:-$RUNNER_TEMP/weave-live-stack-acceptance-evidence}" \
             "${WEAVE_ACCEPTANCE_TEST_LOG:-$RUNNER_TEMP/weave-live-stack-e2e.log}" \
-            "${DOCKER_CONFIG:-$RUNNER_TEMP/weave-live-stack-docker-config}" \
+            "${WEAVE_DOCKER_AUTH_CONFIG:-$RUNNER_TEMP/weave-live-stack-docker-config}" \
             "$RUNNER_TEMP/weave-live-stack-identities" \
             "${WEAVE_RUNNER_EMERGENCY_RESERVE:-$RUNNER_TEMP/weave-live-stack-emergency-reserve}" \
             "${WEAVE_RUNNER_EMERGENCY_RESERVE_RELEASED:-$RUNNER_TEMP/weave-live-stack-emergency-reserve-released}"; do
