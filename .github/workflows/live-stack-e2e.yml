@@ -94,7 +94,6 @@ jobs:
       WEAVE_E2E_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
       WEAVE_CANDIDATE_COMMIT: ${{ github.sha }}
       WEAVE_CANDIDATE_EVIDENCE_REF: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-      WEAVE_ENV_FILE: ${{ github.workspace }}/weave/infra/weave-workspace/environments/test.env.example
 
     defaults:
       run:
@@ -109,11 +108,10 @@ jobs:
             echo "::error::Run-scoped Live Stack E2E must run on ${EXPECTED_RUNNER_NAME}; got ${RUNNER_NAME:-unknown}." >&2
             exit 1
           fi
-          expected_env_file="${GITHUB_WORKSPACE%/}/weave/infra/weave-workspace/environments/test.env.example"
-          [[ "${WEAVE_ENV_FILE:-}" == "$expected_env_file" ]] || {
-            echo "::error::Run-scoped Live Stack E2E requires the versioned public test-profile environment template." >&2
+          if [[ -n "${WEAVE_ENV_FILE:-}" ]]; then
+            echo "::error::Run-scoped Live Stack E2E must materialize its own reviewed test environment after checkout." >&2
             exit 1
-          }
+          fi
 
       - name: Remove stale runner-owned Weave outputs
         run: |
@@ -165,6 +163,33 @@ jobs:
         with:
           path: weave
           fetch-depth: 0
+
+      - name: Materialize run-scoped test environment
+        working-directory: weave/infra/weave-workspace
+        run: |
+          set -euo pipefail
+          source_env="$PWD/environments/test.env.example"
+          runtime_root="${RUNNER_TEMP%/}/weave-live-stack-identities"
+          runtime_env="$runtime_root/reviewed-test.env"
+          [[ -f "$source_env" && ! -L "$source_env" ]] || {
+            echo "::error::The versioned test environment template is missing or is a symlink." >&2
+            exit 1
+          }
+          case "$runtime_env" in
+            "${RUNNER_TEMP%/}"/weave-live-stack-identities/*) ;;
+            *)
+              echo "::error::The reviewed test environment escaped its runner-owned namespace." >&2
+              exit 1
+              ;;
+          esac
+          mkdir -p "$runtime_root"
+          chmod 700 "$runtime_root"
+          install -m 600 "$source_env" "$runtime_env"
+          [[ -f "$runtime_env" && ! -L "$runtime_env" ]] || {
+            echo "::error::The reviewed run-scoped test environment is not a regular private file." >&2
+            exit 1
+          }
+          echo "WEAVE_ENV_FILE=$runtime_env" >> "$GITHUB_ENV"
 
       - name: Resolve pinned specification corpus
         id: spec-corpus
@@ -308,14 +333,6 @@ jobs:
             }
           done
 
-      - name: Clean up stale stack state before bootstrap
-        working-directory: weave/infra/weave-workspace
-        run: |
-          set -euo pipefail
-          # shellcheck disable=SC1090
-          source "$WEAVE_E2E_STARTUP_ENV_PATH"
-          WEAVE_TEARDOWN_EVIDENCE_FILE='' bash ./teardown.sh test --isolated
-
       - name: Prepare backend image
         run: |
           set -euo pipefail
@@ -406,6 +423,14 @@ jobs:
             --image "keycloak=$WEAVE_KEYCLOAK_IMAGE" \
             --image "identity-ops=$WEAVE_IDENTITY_OPS_IMAGE" \
             --output "$WEAVE_ACCEPTANCE_EVIDENCE_DIR/candidate-source-mapping.json"
+
+      - name: Clean up stale stack state before bootstrap
+        working-directory: weave/infra/weave-workspace
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC1090
+          source "$WEAVE_E2E_STARTUP_ENV_PATH"
+          WEAVE_TEARDOWN_EVIDENCE_FILE='' bash ./teardown.sh test --isolated
 
       - name: Release Buildx cache before stack tests
         run: bash weave/tools/cleanup_orphaned_buildx.sh
