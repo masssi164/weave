@@ -105,6 +105,15 @@ def main() -> int:
         "destructive live-stack E2E must fail closed on the dedicated Mac runner",
     )
     require(
+        'spec_commit="$(jq -er \''
+        '.specCorpus.gitCommit | select(type == "string" and '
+        'test("^[0-9a-f]{40}$"))\' specs/weave-specs.lock.json)"'
+        in workflow
+        and 'echo "commit=$spec_commit" >>"$GITHUB_OUTPUT"' in workflow
+        and r'type == \"string\"' not in workflow,
+        "the pinned specification resolver must fail closed before publishing one exact SHA",
+    )
+    require(
         "REQUESTED_SOURCE_REF: ${{ github.ref_name }}" in workflow
         and '"$REQUESTED_SOURCE_REF" != dev' in workflow
         and '"$REQUESTED_SOURCE_REF" != dogfood' in workflow
