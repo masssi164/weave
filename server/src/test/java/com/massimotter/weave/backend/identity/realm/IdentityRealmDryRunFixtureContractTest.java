@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.identity.realm;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -9,7 +9,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class IdentityRealmDryRunFixtureContractTest {
 
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper().findAndRegisterModules();
+    private static final ObjectMapper OBJECT_MAPPER = tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build();
     private final KeycloakRealmDryRunProvider provider = new KeycloakRealmDryRunProvider();
 
     @Test

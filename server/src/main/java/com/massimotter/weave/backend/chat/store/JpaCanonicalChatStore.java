@@ -1,8 +1,8 @@
 package com.massimotter.weave.backend.chat.store;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.chat.domain.ChatAccessDeniedException;
 import com.massimotter.weave.backend.chat.domain.ChatCallbackRetryRequiredException;
 import com.massimotter.weave.backend.chat.domain.ChatActorRef;
@@ -88,7 +88,9 @@ public final class JpaCanonicalChatStore implements CanonicalChatStore {
         }
         this.jpa = jpa;
         this.transactions = new TransactionTemplate(jpa.transactionManager());
-        this.objectMapper = objectMapper == null ? new ObjectMapper().findAndRegisterModules() : objectMapper;
+        this.objectMapper = objectMapper == null
+                ? tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build()
+                : objectMapper;
         this.clock = clock == null ? Clock.systemUTC() : clock;
         this.compatibilityProfile = compatibilityProfile;
     }
@@ -1879,7 +1881,7 @@ public final class JpaCanonicalChatStore implements CanonicalChatStore {
     private ChatEventContent readContent(String contentJson) {
         try {
             return objectMapper.readValue(contentJson, ChatEventContent.class);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("Canonical Chat persistence is invalid.", exception);
         }
     }
@@ -2118,7 +2120,7 @@ public final class JpaCanonicalChatStore implements CanonicalChatStore {
         }
         try {
             return objectMapper.readValue(normalizedEventJson, ProviderCallbackEvent.class);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalArgumentException("Private callback reconciliation input is invalid.", exception);
         }
     }
@@ -2182,7 +2184,7 @@ public final class JpaCanonicalChatStore implements CanonicalChatStore {
         try {
             Map<String, String> value = objectMapper.readValue(canonicalObjectId, new TypeReference<>() { });
             return new ActorIdentity(value.get("issuer"), value.get("actorRef"));
-        } catch (JsonProcessingException | IllegalArgumentException exception) {
+        } catch (JacksonException | IllegalArgumentException exception) {
             throw new IllegalStateException("Canonical Chat actor mapping is invalid.", exception);
         }
     }
@@ -2224,7 +2226,7 @@ public final class JpaCanonicalChatStore implements CanonicalChatStore {
     private String json(Object value) {
         try {
             return objectMapper.writeValueAsString(value);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalArgumentException("Canonical Chat value could not be persisted.", exception);
         }
     }

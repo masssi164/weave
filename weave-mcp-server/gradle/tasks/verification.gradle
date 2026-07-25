@@ -1,0 +1,60 @@
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs += ['-Xlint:deprecation']
+}
+
+def forbiddenMcpRuntimeClasses = [
+        '**/ClientSecretKeycloakAdminAccessTokenProvider.class',
+        '**/KeycloakAdminAccessTokenProvider.class',
+        '**/KeycloakAgentRuntimeWorkloadIdentityAdmin.class',
+        '**/KeycloakRuntimeEntitlementAuthority.class',
+        '**/FileRuntimeWorkloadCredentialStore.class'
+]
+
+tasks.register('verifyLeastAuthorityBootJar') {
+    group = 'verification'
+    description = 'Rejects server-only identity administration adapters from the MCP runtime and boot jar.'
+    dependsOn tasks.named('bootJar')
+
+    doLast {
+        def runtimeArtifacts = configurations.runtimeClasspath.resolvedConfiguration.resolvedArtifacts
+        def providerArtifacts = runtimeArtifacts.findAll {
+            it.moduleVersion.id.name == 'weave-runtime-provider-adapters'
+        }
+        if (!providerArtifacts.isEmpty()) {
+            throw new GradleException(
+                    "MCP runtimeClasspath contains server-only provider adapters: ${providerArtifacts*.file*.name}")
+        }
+
+        def forbiddenRuntimeEntries = []
+        runtimeArtifacts.each { artifact ->
+            if (artifact.file.name.endsWith('.jar')) {
+                def matches = zipTree(artifact.file).matching {
+                    forbiddenMcpRuntimeClasses.each { include it }
+                }.files
+                matches.each { forbiddenRuntimeEntries.add("${artifact.file.name}!/${it.name}") }
+            }
+        }
+        if (!forbiddenRuntimeEntries.isEmpty()) {
+            throw new GradleException(
+                    "MCP runtimeClasspath contains server-only identity classes: ${forbiddenRuntimeEntries}")
+        }
+
+        def bootJarFile = tasks.named('bootJar').get().archiveFile.get().asFile
+        def forbiddenBootEntries = zipTree(bootJarFile).matching {
+            include 'BOOT-INF/lib/weave-runtime-provider-adapters-*.jar'
+            forbiddenMcpRuntimeClasses.each { include "BOOT-INF/classes/${it}" }
+        }.files
+        if (!forbiddenBootEntries.isEmpty()) {
+            throw new GradleException(
+                    "MCP bootJar contains server-only identity classes or modules: ${forbiddenBootEntries*.name}")
+        }
+    }
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('verifyLeastAuthorityBootJar')
+}

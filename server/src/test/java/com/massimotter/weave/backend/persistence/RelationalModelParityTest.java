@@ -2,8 +2,8 @@ package com.massimotter.weave.backend.persistence;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -108,7 +108,7 @@ class RelationalModelParityTest {
         Set<String> created = new LinkedHashSet<>();
         Set<String> dropped = new LinkedHashSet<>();
         Path migrations = repositoryRoot.resolve(
-                "server/src/main/resources/db/migration");
+                "weave-persistence-jpa/src/main/resources/db/migration");
         try (var files = Files.list(migrations)) {
             for (Path migration : files
                     .filter(path -> path.toString().endsWith(".sql"))
@@ -124,12 +124,14 @@ class RelationalModelParityTest {
 
     private String productionJava(Path repositoryRoot) throws IOException {
         StringBuilder source = new StringBuilder();
-        Path javaRoot = repositoryRoot.resolve("server/src/main/java");
-        try (var files = Files.walk(javaRoot)) {
-            for (Path file : files
-                    .filter(path -> path.toString().endsWith(".java"))
-                    .toList()) {
-                source.append(Files.readString(file)).append('\n');
+        for (String module : Set.of("server", "weave-persistence-jpa")) {
+            Path javaRoot = repositoryRoot.resolve(module + "/src/main/java");
+            try (var files = Files.walk(javaRoot)) {
+                for (Path file : files
+                        .filter(path -> path.toString().endsWith(".java"))
+                        .toList()) {
+                    source.append(Files.readString(file)).append('\n');
+                }
             }
         }
         return source.toString();

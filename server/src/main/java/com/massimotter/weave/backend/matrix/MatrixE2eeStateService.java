@@ -1,7 +1,7 @@
 package com.massimotter.weave.backend.matrix;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -690,7 +690,7 @@ public class MatrixE2eeStateService {
                     tenantId,
                     captured.highWater(),
                     objectMapper.writeValueAsString(captured.value()));
-        } catch (JsonProcessingException | RuntimeException exception) {
+        } catch (RuntimeException exception) {
             throw new MatrixProtocolException("M_UNAVAILABLE", "Matrix E2EE state could not be persisted.");
         }
     }
@@ -817,7 +817,7 @@ public class MatrixE2eeStateService {
                         new OidcSessionKey(tenantId, binding.userId(), binding.sessionHash()),
                         binding.deviceId()));
             });
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new MatrixProtocolException("M_UNAVAILABLE", "Matrix E2EE state snapshot is invalid.");
         }
     }

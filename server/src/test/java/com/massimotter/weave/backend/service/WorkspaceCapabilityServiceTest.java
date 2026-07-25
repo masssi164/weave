@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
 import org.springframework.security.oauth2.jwt.Jwt;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -24,7 +24,7 @@ class WorkspaceCapabilityServiceTest {
     // V01_IDM_RBAC_CAPABILITY_POLICY
 
     @Test
-    void delegatedMcpTokenRetainsMemberCapabilitiesThroughTheKeycloakRoleGroup() {
+    void delegatedMcpTokenRetainsMemberCapabilitiesThroughTheWeaveAppClientRole() {
         WorkspaceCapabilityService service = new WorkspaceCapabilityService(
                 resourceServerProperties("https://auth.weave.test/realms/weave"),
                 new WeaveSecurityProperties("weave-backend", "weave-app"),
@@ -34,12 +34,32 @@ class WorkspaceCapabilityServiceTest {
                 .subject("user-1")
                 .issuer("https://auth.weave.test/realms/weave")
                 .claim("azp", "weave-mcp-server")
+                .claim("resource_access", Map.of(
+                        "weave-app",
+                        Map.of("roles", List.of("member"))))
                 .claim("groups", List.of("/weave/members", "/weave/weaver-runtime"))
                 .build();
 
         assertThat(service.grantedCapabilities(delegated))
                 .contains("chat.send", "files.read", "calendar.read")
                 .doesNotContain("agent-runtime.entitled");
+    }
+
+    @Test
+    void legacyRealmGroupsCannotGrantCanonicalHumanRoles() {
+        WorkspaceCapabilityService service = new WorkspaceCapabilityService(
+                resourceServerProperties("https://auth.weave.test/realms/weave"),
+                new WeaveSecurityProperties("weave-backend", "weave-app"),
+                new WorkspaceCapabilityProperties(null, null, null, null, null, null));
+        Jwt delegated = Jwt.withTokenValue("delegated")
+                .header("alg", "none")
+                .subject("user-1")
+                .issuer("https://auth.weave.test/realms/weave")
+                .claim("azp", "weave-mcp-server")
+                .claim("groups", List.of("/weave/owners", "/weave/admins", "/weave/members"))
+                .build();
+
+        assertThat(service.grantedCapabilities(delegated)).isEmpty();
     }
 
     @Test

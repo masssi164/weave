@@ -40,9 +40,7 @@
             "type": "string"
           },
           "payload": {
-            "additionalProperties": {
-              "type": "object"
-            },
+            "additionalProperties": {},
             "type": "object"
           },
           "redactionLevel": {
@@ -151,10 +149,7 @@
             "type": "string"
           },
           "details": {
-            "additionalProperties": {
-              "description": "Non-secret diagnostic details for this failure.",
-              "type": "object"
-            },
+            "additionalProperties": {},
             "description": "Non-secret diagnostic details for this failure.",
             "type": "object"
           },
@@ -198,7 +193,6 @@
           "audience": {
             "description": "Token audience values.",
             "items": {
-              "description": "Token audience values.",
               "type": "string"
             },
             "type": "array"
@@ -206,7 +200,6 @@
           "contextRoles": {
             "description": "Context-local roles for the current organization/session.",
             "items": {
-              "description": "Context-local roles for the current organization/session.",
               "type": "string"
             },
             "type": "array"
@@ -230,7 +223,6 @@
           "groups": {
             "description": "Workspace or module groups.",
             "items": {
-              "description": "Workspace or module groups.",
               "type": "string"
             },
             "type": "array"
@@ -248,7 +240,8 @@
             "type": "string"
           },
           "moduleSyncStatus": {
-            "$ref": "#/components/schemas/ModuleSyncStatusResponse"
+            "$ref": "#/components/schemas/ModuleSyncStatusResponse",
+            "description": "Product profile sync status by module."
           },
           "organizationId": {
             "description": "Organization identifier in Weave policy space.",
@@ -261,7 +254,6 @@
           "providerRoleMappings": {
             "description": "Support-safe role/group claim mapping evidence.",
             "items": {
-              "description": "Support-safe role/group claim mapping evidence.",
               "type": "string"
             },
             "type": "array"
@@ -269,7 +261,6 @@
           "roles": {
             "description": "Canonical Weave organization roles mapped from identity-source claims.",
             "items": {
-              "description": "Canonical Weave organization roles mapped from identity-source claims.",
               "type": "string"
             },
             "type": "array"
@@ -465,6 +456,8 @@
         "properties": {
           "assigneeRefs": {
             "items": {
+              "maxLength": 128,
+              "minLength": 0,
               "type": "string"
             },
             "type": "array"
@@ -485,6 +478,8 @@
           },
           "labelRefs": {
             "items": {
+              "maxLength": 128,
+              "minLength": 0,
               "type": "string"
             },
             "type": "array"
@@ -654,7 +649,6 @@
           "notes": {
             "description": "Human-readable notes that keep the user/admin boundary honest.",
             "items": {
-              "description": "Human-readable notes that keep the user/admin boundary honest.",
               "type": "string"
             },
             "type": "array"
@@ -701,7 +695,6 @@
           "notes": {
             "description": "Human-readable setup notes for the authenticated user.",
             "items": {
-              "description": "Human-readable setup notes for the authenticated user.",
               "type": "string"
             },
             "type": "array"
@@ -722,17 +715,20 @@
         "description": "Secret-free calendar client setup metadata for native and desktop calendar apps.",
         "properties": {
           "accessModel": {
-            "$ref": "#/components/schemas/CalendarAccessModelResponse"
+            "$ref": "#/components/schemas/CalendarAccessModelResponse",
+            "description": "Explicit product/private/external-client access model."
           },
           "credentialPolicy": {
             "description": "Explicit credential policy for external clients.",
             "type": "string"
           },
           "credentialReadiness": {
-            "$ref": "#/components/schemas/CalendarCredentialReadinessResponse"
+            "$ref": "#/components/schemas/CalendarCredentialReadinessResponse",
+            "description": "Safety readiness for profile generation and tokenized subscription paths."
           },
           "endpoints": {
-            "$ref": "#/components/schemas/CalendarExternalEndpointsResponse"
+            "$ref": "#/components/schemas/CalendarExternalEndpointsResponse",
+            "description": "CalDAV/WebDAV discovery URLs that may be shown to the user without credentials."
           },
           "options": {
             "description": "Platform-specific setup options. Options never contain passwords or bearer tokens.",
@@ -742,7 +738,8 @@
             "type": "array"
           },
           "scope": {
-            "$ref": "#/components/schemas/CalendarScopeResponse"
+            "$ref": "#/components/schemas/CalendarScopeResponse",
+            "description": "Calendar ownership scope exposed by the Weave calendar facade."
           },
           "username": {
             "description": "Authenticated user's external calendar account identifier.",
@@ -773,7 +770,6 @@
           "blockers": {
             "description": "Support-safe blockers before setup artifacts may become downloadable.",
             "items": {
-              "description": "Support-safe blockers before setup artifacts may become downloadable.",
               "type": "string"
             },
             "type": "array"
@@ -833,7 +829,6 @@
           "notes": {
             "description": "Support-safe notes for member/admin setup surfaces.",
             "items": {
-              "description": "Support-safe notes for member/admin setup surfaces.",
               "type": "string"
             },
             "type": "array"
@@ -851,7 +846,6 @@
           "requiredContracts": {
             "description": "Native implementation contracts required before availability can be true.",
             "items": {
-              "description": "Native implementation contracts required before availability can be true.",
               "type": "string"
             },
             "type": "array"
@@ -880,7 +874,6 @@
           "blockedUntil": {
             "description": "Support-safe blockers before native calendar availability can be true.",
             "items": {
-              "description": "Support-safe blockers before native calendar availability can be true.",
               "type": "string"
             },
             "type": "array"
@@ -915,7 +908,6 @@
           "proofHooks": {
             "description": "Executable proof hooks that can be exercised before full native sync availability.",
             "items": {
-              "description": "Executable proof hooks that can be exercised before full native sync availability.",
               "type": "string"
             },
             "type": "array"
@@ -926,7 +918,8 @@
             "type": "boolean"
           },
           "readiness": {
-            "$ref": "#/components/schemas/WorkspaceCapabilityStatusResponse"
+            "$ref": "#/components/schemas/WorkspaceCapabilityStatusResponse",
+            "description": "Calendar capability readiness as seen by the authenticated member."
           },
           "supportSafe": {
             "description": "True when this setup contract excludes raw provider endpoints, credentials, and diagnostics.",
@@ -947,7 +940,6 @@
           "capabilities": {
             "description": "Granted user capabilities for this scope.",
             "items": {
-              "description": "Granted user capabilities for this scope.",
               "type": "string"
             },
             "type": "array"
@@ -1072,8 +1064,10 @@
           },
           "secret": {
             "description": "One-time CalDAV secret. Present only in the create response.",
-            "nullable": true,
-            "type": "string"
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "secretMaterialReturned": {
             "type": "boolean"
@@ -1327,13 +1321,13 @@
           "capabilityKeys": {
             "example": "chat.read",
             "items": {
-              "example": "chat.read",
               "type": "string"
             },
             "type": "array"
           },
           "profileKey": {
             "example": "workspace-admin",
+            "minLength": 1,
             "type": "string"
           },
           "reason": {
@@ -1482,9 +1476,7 @@
             "type": "boolean"
           },
           "supportSafeDiagnostics": {
-            "additionalProperties": {
-              "type": "object"
-            },
+            "additionalProperties": {},
             "type": "object"
           }
         },
@@ -1664,9 +1656,7 @@
             "type": "boolean"
           },
           "supportSafeDiagnostics": {
-            "additionalProperties": {
-              "type": "object"
-            },
+            "additionalProperties": {},
             "type": "object"
           }
         },
@@ -1695,7 +1685,6 @@
           "blockedUntil": {
             "description": "Support-safe blockers before this access surface can be called ready.",
             "items": {
-              "description": "Support-safe blockers before this access surface can be called ready.",
               "type": "string"
             },
             "type": "array"
@@ -1703,7 +1692,6 @@
           "lifecyclePaths": {
             "description": "Weave-owned lifecycle paths or references only; never provider URLs or raw secret refs.",
             "items": {
-              "description": "Weave-owned lifecycle paths or references only; never provider URLs or raw secret refs.",
               "type": "string"
             },
             "type": "array"
@@ -1725,7 +1713,8 @@
         "description": "Support-safe discovery metadata for a Weave domain access surface.",
         "properties": {
           "credentialLifecycle": {
-            "$ref": "#/components/schemas/ClientAccessCredentialLifecycleResponse"
+            "$ref": "#/components/schemas/ClientAccessCredentialLifecycleResponse",
+            "description": "Credential and grant lifecycle posture for this domain."
           },
           "domain": {
             "description": "Provider-neutral Weave domain key.",
@@ -1776,7 +1765,6 @@
           "notes": {
             "description": "Support-safe notes for generated clients and admins.",
             "items": {
-              "description": "Support-safe notes for generated clients and admins.",
               "type": "string"
             },
             "type": "array"
@@ -1820,12 +1808,16 @@
         "properties": {
           "capabilities": {
             "items": {
+              "maxLength": 128,
+              "minLength": 0,
               "type": "string"
             },
             "type": "array"
           },
           "commands": {
             "items": {
+              "maxLength": 128,
+              "minLength": 0,
               "type": "string"
             },
             "type": "array"
@@ -2056,6 +2048,8 @@
         "properties": {
           "followUpRefs": {
             "items": {
+              "maxLength": 160,
+              "minLength": 0,
               "type": "string"
             },
             "maxItems": 12,
@@ -2064,6 +2058,8 @@
           },
           "openQuestions": {
             "items": {
+              "maxLength": 120,
+              "minLength": 0,
               "type": "string"
             },
             "maxItems": 12,
@@ -2080,6 +2076,8 @@
           },
           "risks": {
             "items": {
+              "maxLength": 120,
+              "minLength": 0,
               "type": "string"
             },
             "maxItems": 12,
@@ -2111,7 +2109,6 @@
           "auditRefs": {
             "description": "Support-safe audit references for this decision snapshot.",
             "items": {
-              "description": "Support-safe audit references for this decision snapshot.",
               "type": "string"
             },
             "type": "array"
@@ -2256,6 +2253,7 @@
           "type": {
             "description": "Reference type in Weave vocabulary.",
             "example": "chat-message",
+            "minLength": 1,
             "pattern": "chat-message|file|meeting|task",
             "type": "string"
           }
@@ -2494,7 +2492,6 @@
         "type": "object"
       },
       "DiagnosticCheck": {
-        "description": "Normalized non-secret checks that admin UI, setup scripts, and smoke tests can render.",
         "properties": {
           "action": {
             "type": "string"
@@ -2558,9 +2555,7 @@
             "type": "boolean"
           },
           "diagnostics": {
-            "additionalProperties": {
-              "type": "object"
-            },
+            "additionalProperties": {},
             "type": "object"
           },
           "migrationSupport": {
@@ -3045,7 +3040,6 @@
           "notes": {
             "description": "Support-safe notes for member/admin setup surfaces.",
             "items": {
-              "description": "Support-safe notes for member/admin setup surfaces.",
               "type": "string"
             },
             "type": "array"
@@ -3063,7 +3057,6 @@
           "requiredContracts": {
             "description": "Native implementation contracts required before availability can be true.",
             "items": {
-              "description": "Native implementation contracts required before availability can be true.",
               "type": "string"
             },
             "type": "array"
@@ -3087,7 +3080,6 @@
           "blockedUntil": {
             "description": "Support-safe blockers before native provider availability can be true.",
             "items": {
-              "description": "Support-safe blockers before native provider availability can be true.",
               "type": "string"
             },
             "type": "array"
@@ -3127,7 +3119,6 @@
           "proofHooks": {
             "description": "Executable proof hooks that can be exercised before full OS extension availability.",
             "items": {
-              "description": "Executable proof hooks that can be exercised before full OS extension availability.",
               "type": "string"
             },
             "type": "array"
@@ -3138,7 +3129,8 @@
             "type": "boolean"
           },
           "readiness": {
-            "$ref": "#/components/schemas/WorkspaceCapabilityStatusResponse"
+            "$ref": "#/components/schemas/WorkspaceCapabilityStatusResponse",
+            "description": "Files capability readiness as seen by the authenticated member."
           },
           "supportSafe": {
             "description": "True when this setup contract excludes raw provider endpoints, credentials, and diagnostics.",
@@ -3214,8 +3206,10 @@
           },
           "secret": {
             "description": "One-time WebDAV secret. Present only in the create response.",
-            "nullable": true,
-            "type": "string"
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "secretMaterialReturned": {
             "type": "boolean"
@@ -3329,6 +3323,7 @@
             "type": "string"
           },
           "email": {
+            "format": "email",
             "maxLength": 320,
             "minLength": 0,
             "type": "string"
@@ -3366,17 +3361,13 @@
         "description": "One support-safe identity provider readiness card for Workspace Health/Admin Console.",
         "properties": {
           "diagnostics": {
-            "additionalProperties": {
-              "description": "Support-safe diagnostics booleans/counts/contract keys only.",
-              "type": "object"
-            },
+            "additionalProperties": {},
             "description": "Support-safe diagnostics booleans/counts/contract keys only.",
             "type": "object"
           },
           "evidenceRefs": {
             "description": "Support-safe evidence refs/codes only; no URLs, client ids, realm internals, secrets, or raw provider errors.",
             "items": {
-              "description": "Support-safe evidence refs/codes only; no URLs, client ids, realm internals, secrets, or raw provider errors.",
               "type": "string"
             },
             "type": "array"
@@ -3396,7 +3387,6 @@
           "nextActions": {
             "description": "Concrete next operator/admin actions.",
             "items": {
-              "description": "Concrete next operator/admin actions.",
               "type": "string"
             },
             "type": "array"
@@ -3441,9 +3431,7 @@
             "type": "string"
           },
           "diagnostics": {
-            "additionalProperties": {
-              "type": "object"
-            },
+            "additionalProperties": {},
             "type": "object"
           },
           "generatedAt": {
@@ -3765,6 +3753,30 @@
         },
         "type": "object"
       },
+      "IdentitySessionReconcileResponse": {
+        "description": "Provider-neutral result of authenticated identity-session reconciliation.",
+        "properties": {
+          "sessionRefreshRequired": {
+            "description": "Whether the caller must refresh its already-issued OIDC token before domain bootstrap.",
+            "example": false,
+            "type": "boolean"
+          },
+          "state": {
+            "description": "Closed reconciliation state. Access changes require one OIDC token refresh.",
+            "enum": [
+              "access_updated",
+              "unchanged"
+            ],
+            "example": "unchanged",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sessionRefreshRequired",
+          "state"
+        ],
+        "type": "object"
+      },
       "InventorySummary": {
         "properties": {
           "channels": {
@@ -3902,7 +3914,6 @@
           "metadataReadable": {
             "description": "Support-safe metadata classes backend diagnostics may use without implying message body access.",
             "items": {
-              "description": "Support-safe metadata classes backend diagnostics may use without implying message body access.",
               "type": "string"
             },
             "type": "array"
@@ -4015,6 +4026,8 @@
         "properties": {
           "agendaItems": {
             "items": {
+              "maxLength": 160,
+              "minLength": 0,
               "type": "string"
             },
             "maxItems": 12,
@@ -4023,6 +4036,8 @@
           },
           "followUpRefs": {
             "items": {
+              "maxLength": 160,
+              "minLength": 0,
               "type": "string"
             },
             "maxItems": 12,
@@ -4144,19 +4159,13 @@
             "type": "string"
           },
           "email": {
+            "format": "email",
             "maxLength": 320,
             "minLength": 0,
             "type": "string"
           },
-          "organizationGroups": {
-            "items": {
-              "type": "string"
-            },
-            "maxItems": 64,
-            "minItems": 0,
-            "type": "array"
-          },
           "role": {
+            "minLength": 1,
             "pattern": "owner|admin|member|guest",
             "type": "string"
           }
@@ -4185,12 +4194,6 @@
           },
           "lifecycleStatus": {
             "type": "string"
-          },
-          "organizationGroups": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
           },
           "organizationId": {
             "type": "string"
@@ -4223,6 +4226,8 @@
           },
           "auditRefs": {
             "items": {
+              "maxLength": 256,
+              "minLength": 0,
               "type": "string"
             },
             "type": "array"
@@ -4237,6 +4242,8 @@
           },
           "contentHashes": {
             "items": {
+              "maxLength": 96,
+              "minLength": 0,
               "type": "string"
             },
             "type": "array"
@@ -4288,6 +4295,8 @@
           },
           "providerDiagnostics": {
             "items": {
+              "maxLength": 512,
+              "minLength": 0,
               "type": "string"
             },
             "type": "array"
@@ -4756,7 +4765,9 @@
           "adminPrimaryIdentityKeys": {
             "description": "Immutable issuer+subject keys that retain owner/admin recovery access after bootstrap.",
             "items": {
-              "description": "Immutable issuer+subject keys that retain owner/admin recovery access after bootstrap.",
+              "maxLength": 528,
+              "minLength": 0,
+              "pattern": "issuer\\+subject:[^#\\s]{1,384}#[^#\\s]{1,128}",
               "type": "string"
             },
             "maxItems": 25,
@@ -4770,6 +4781,7 @@
           "organizationId": {
             "description": "Weave organization id to bootstrap or bind.",
             "example": "acme-prod",
+            "minLength": 1,
             "type": "string"
           },
           "reason": {
@@ -4835,13 +4847,13 @@
           "adminConsoleResponsibilities": {
             "description": "Responsibilities owned by the Organization/Admin Console.",
             "items": {
-              "description": "Responsibilities owned by the Organization/Admin Console.",
               "type": "string"
             },
             "type": "array"
           },
           "capabilities": {
-            "$ref": "#/components/schemas/WorkspaceCapabilitiesResponse"
+            "$ref": "#/components/schemas/WorkspaceCapabilitiesResponse",
+            "description": "Effective member capability snapshot; provider setup and diagnostics stay out of this contract."
           },
           "clientAccessDiscovery": {
             "additionalProperties": {
@@ -4853,7 +4865,6 @@
           "clientResponsibilities": {
             "description": "Responsibilities owned by the member Weave Client.",
             "items": {
-              "description": "Responsibilities owned by the member Weave Client.",
               "type": "string"
             },
             "type": "array"
@@ -4961,7 +4972,6 @@
           "actions": {
             "description": "Distinct operator actions for checks that are not ready.",
             "items": {
-              "description": "Distinct operator actions for checks that are not ready.",
               "type": "string"
             },
             "type": "array"
@@ -5029,7 +5039,6 @@
         "properties": {
           "accessibilityPreferences": {
             "additionalProperties": {
-              "description": "Frontend accessibility preferences owned by the product profile facade.",
               "type": "string"
             },
             "description": "Frontend accessibility preferences owned by the product profile facade.",
@@ -5056,7 +5065,8 @@
             "type": "string"
           },
           "moduleSyncStatus": {
-            "$ref": "#/components/schemas/ModuleSyncStatusResponse"
+            "$ref": "#/components/schemas/ModuleSyncStatusResponse",
+            "description": "Product profile sync status by module."
           },
           "profileVisibility": {
             "description": "Profile visibility policy for product surfaces.",
@@ -5154,7 +5164,7 @@
             "type": "string"
           },
           "providerRealityLevel": {
-            "description": "Evidence-backed implementation maturity for provider candidates. Contract-only providers are never member-available.",
+            "description": "Evidence-backed implementation maturity for this adapter candidate.",
             "enum": [
               "configured",
               "contract_only",
@@ -5172,10 +5182,7 @@
             "type": "boolean"
           },
           "supportSafeDiagnostics": {
-            "additionalProperties": {
-              "description": "Booleans/counts/stable codes only; no endpoints, secrets, tokens, or raw upstream errors.",
-              "type": "object"
-            },
+            "additionalProperties": {},
             "description": "Booleans/counts/stable codes only; no endpoints, secrets, tokens, or raw upstream errors.",
             "type": "object"
           }
@@ -5210,7 +5217,6 @@
           "adapterModules": {
             "description": "Operational provider modules that can currently report readiness for this category.",
             "items": {
-              "description": "Operational provider modules that can currently report readiness for this category.",
               "type": "string"
             },
             "type": "array"
@@ -5222,7 +5228,6 @@
           "canonicalObjects": {
             "description": "Canonical Weave domain objects that adapters must map into without leaking provider schemas.",
             "items": {
-              "description": "Canonical Weave domain objects that adapters must map into without leaking provider schemas.",
               "type": "string"
             },
             "type": "array"
@@ -5241,7 +5246,6 @@
           "defaultAdapters": {
             "description": "Current self-hosted dogfood/default adapter keys for this category.",
             "items": {
-              "description": "Current self-hosted dogfood/default adapter keys for this category.",
               "type": "string"
             },
             "type": "array"
@@ -5253,7 +5257,6 @@
           "externalAdapters": {
             "description": "External or future adapter keys proving the category is not coupled to the dogfood default.",
             "items": {
-              "description": "External or future adapter keys proving the category is not coupled to the dogfood default.",
               "type": "string"
             },
             "type": "array"
@@ -5261,7 +5264,6 @@
           "featureCapabilities": {
             "description": "Category-level feature capability keys enforced by Weave policy/facades.",
             "items": {
-              "description": "Category-level feature capability keys enforced by Weave policy/facades.",
               "type": "string"
             },
             "type": "array"
@@ -5269,7 +5271,6 @@
           "lossyMappingRisks": {
             "description": "Adapter fields or semantics that require explicit lossy mapping notes.",
             "items": {
-              "description": "Adapter fields or semantics that require explicit lossy mapping notes.",
               "type": "string"
             },
             "type": "array"
@@ -5289,7 +5290,6 @@
           "stableMemberImpactStates": {
             "description": "Member-visible impact states that must remain stable even when an admin swaps adapters.",
             "items": {
-              "description": "Member-visible impact states that must remain stable even when an admin swaps adapters.",
               "type": "string"
             },
             "type": "array"
@@ -5320,13 +5320,11 @@
             "type": "string"
           },
           "contract": {
-            "$ref": "#/components/schemas/ProviderCategoryContractResponse"
+            "$ref": "#/components/schemas/ProviderCategoryContractResponse",
+            "description": "Provider-neutral capability contract and adapter seam for this category."
           },
           "diagnostics": {
-            "additionalProperties": {
-              "description": "Support-safe diagnostics. Values are booleans/counts/keys only; no endpoints, secrets, or raw upstream errors.",
-              "type": "object"
-            },
+            "additionalProperties": {},
             "description": "Support-safe diagnostics. Values are booleans/counts/keys only; no endpoints, secrets, or raw upstream errors.",
             "type": "object"
           },
@@ -5337,7 +5335,6 @@
           "lossyMappingNotes": {
             "description": "Support-safe notes for known lossy mappings across provider families.",
             "items": {
-              "description": "Support-safe notes for known lossy mappings across provider families.",
               "type": "string"
             },
             "type": "array"
@@ -5353,13 +5350,12 @@
           "modules": {
             "description": "Provider registry modules contributing to this category.",
             "items": {
-              "description": "Provider registry modules contributing to this category.",
               "type": "string"
             },
             "type": "array"
           },
           "policyState": {
-            "description": "Support-safe policy state for an effective workspace capability.",
+            "description": "Effective capability policy state used for this category.",
             "enum": [
               "allowed",
               "disabled",
@@ -5371,13 +5367,12 @@
           "providerCandidates": {
             "description": "Support-safe provider choices/candidates for admin diagnostics.",
             "items": {
-              "description": "Support-safe provider choices/candidates for admin diagnostics.",
               "type": "string"
             },
             "type": "array"
           },
           "providerRealityLevel": {
-            "description": "Evidence-backed implementation maturity for provider candidates. Contract-only providers are never member-available.",
+            "description": "Evidence-backed provider implementation maturity for this category.",
             "enum": [
               "configured",
               "contract_only",
@@ -5391,7 +5386,7 @@
             "type": "string"
           },
           "readiness": {
-            "description": "Admin Workspace Health readiness state for one provider-neutral category.",
+            "description": "Admin readiness state for this category.",
             "enum": [
               "degraded",
               "disabled",
@@ -5422,7 +5417,6 @@
           "adapters": {
             "description": "Support-safe adapter keys covered by this choice model.",
             "items": {
-              "description": "Support-safe adapter keys covered by this choice model.",
               "type": "string"
             },
             "type": "array"
@@ -5430,7 +5424,6 @@
           "adminRiskNotes": {
             "description": "Support-safe admin/operator risk notes. No secrets, URLs, tenant IDs, or raw provider errors.",
             "items": {
-              "description": "Support-safe admin/operator risk notes. No secrets, URLs, tenant IDs, or raw provider errors.",
               "type": "string"
             },
             "type": "array"
@@ -5451,6 +5444,7 @@
         "properties": {
           "providerKey": {
             "example": "keycloak-realm",
+            "minLength": 1,
             "type": "string"
           },
           "secretRef": {
@@ -5474,9 +5468,7 @@
             "type": "boolean"
           },
           "diagnostics": {
-            "additionalProperties": {
-              "type": "object"
-            },
+            "additionalProperties": {},
             "type": "object"
           },
           "providerKey": {
@@ -5588,12 +5580,14 @@
         "description": "Support-safe provider replacement preflight. This validates an adapter swap without applying provider state.",
         "properties": {
           "category": {
+            "minLength": 1,
             "type": "string"
           },
           "choiceModel": {
             "type": "string"
           },
           "currentAdapter": {
+            "minLength": 1,
             "type": "string"
           },
           "lossyMappingNotes": {
@@ -5615,12 +5609,15 @@
             "type": "object"
           },
           "secretRef": {
+            "minLength": 1,
             "type": "string"
           },
           "sourceOfTruth": {
+            "minLength": 1,
             "type": "string"
           },
           "targetAdapter": {
+            "minLength": 1,
             "type": "string"
           }
         },
@@ -5778,6 +5775,7 @@
         "description": "Admin-selected provider mapping. This is control-plane state; bootstrap defaults are only suggestions until this request is applied.",
         "properties": {
           "category": {
+            "minLength": 1,
             "type": "string"
           },
           "choiceModel": {
@@ -5793,6 +5791,7 @@
             "type": "array"
           },
           "providerKey": {
+            "minLength": 1,
             "type": "string"
           },
           "reason": {
@@ -5876,9 +5875,7 @@
             "type": "boolean"
           },
           "diagnostics": {
-            "additionalProperties": {
-              "type": "object"
-            },
+            "additionalProperties": {},
             "type": "object"
           },
           "enabled": {
@@ -6271,6 +6268,8 @@
           },
           "scopes": {
             "items": {
+              "maxLength": 128,
+              "minLength": 0,
               "type": "string"
             },
             "type": "array"
@@ -6342,9 +6341,7 @@
             "type": "string"
           },
           "evidence": {
-            "additionalProperties": {
-              "type": "object"
-            },
+            "additionalProperties": {},
             "type": "object"
           },
           "label": {
@@ -6565,7 +6562,6 @@
         "properties": {
           "accessibilityPreferences": {
             "additionalProperties": {
-              "description": "Frontend accessibility preferences. Keep keys and values support-safe and non-secret.",
               "type": "string"
             },
             "description": "Frontend accessibility preferences. Keep keys and values support-safe and non-secret.",
@@ -6775,7 +6771,6 @@
           "grantedCapabilities": {
             "description": "Category-level capability identifiers granted to the authenticated principal.",
             "items": {
-              "description": "Category-level capability identifiers granted to the authenticated principal.",
               "type": "string"
             },
             "type": "array"
@@ -6785,7 +6780,7 @@
             "type": "string"
           },
           "policyState": {
-            "description": "Support-safe policy state for an effective workspace capability.",
+            "description": "Support-safe effective policy state for the authenticated principal.",
             "enum": [
               "allowed",
               "disabled",
@@ -6799,7 +6794,7 @@
             "type": "string"
           },
           "readiness": {
-            "description": "Readiness states returned for workspace capabilities.",
+            "description": "Current readiness state for this capability.",
             "enum": [
               "blocked",
               "degraded",
@@ -6894,7 +6889,7 @@
             "type": "array"
           },
           "readiness": {
-            "description": "Readiness states returned for workspace capabilities.",
+            "description": "Overall readiness of the daily work loop.",
             "enum": [
               "blocked",
               "degraded",
@@ -6960,7 +6955,7 @@
             "type": "string"
           },
           "readiness": {
-            "description": "Readiness states returned for workspace capabilities.",
+            "description": "Current product readiness for this section.",
             "enum": [
               "blocked",
               "degraded",
@@ -7003,7 +6998,7 @@
             "type": "string"
           },
           "readiness": {
-            "description": "Readiness states returned for workspace capabilities.",
+            "description": "Current readiness state for this check.",
             "enum": [
               "blocked",
               "degraded",
@@ -7021,7 +7016,6 @@
           "actions": {
             "description": "Outstanding operator actions extracted from the failing checks.",
             "items": {
-              "description": "Outstanding operator actions extracted from the failing checks.",
               "type": "string"
             },
             "type": "array"
@@ -7034,7 +7028,7 @@
             "type": "array"
           },
           "readiness": {
-            "description": "Readiness states returned for workspace capabilities.",
+            "description": "Overall workspace readiness for the currently configured workspace.",
             "enum": [
               "blocked",
               "degraded",
@@ -7064,7 +7058,7 @@
     "title": "Weave Backend API",
     "version": "v1"
   },
-  "openapi": "3.0.1",
+  "openapi": "3.1.0",
   "paths": {
     "/.well-known/weave": {
       "get": {
@@ -9828,11 +9822,8 @@
           "content": {
             "application/json": {
               "schema": {
-                "items": {
-                  "format": "byte",
-                  "type": "string"
-                },
-                "type": "array"
+                "format": "byte",
+                "type": "string"
               }
             }
           },
@@ -10072,7 +10063,7 @@
     },
     "/api/interop/status": {
       "get": {
-        "operationId": "status",
+        "operationId": "getInteropStatus",
         "responses": {
           "401": {
             "content": {
@@ -10263,7 +10254,7 @@
     },
     "/api/office/capabilities": {
       "get": {
-        "operationId": "capabilities",
+        "operationId": "getOfficeCapabilities",
         "responses": {
           "200": {
             "content": {
@@ -10453,7 +10444,7 @@
     },
     "/api/platform/status": {
       "get": {
-        "operationId": "status",
+        "operationId": "getPlatformStatus",
         "responses": {
           "200": {
             "content": {
@@ -11896,6 +11887,73 @@
         ]
       }
     },
+    "/api/v1/identity/session/reconcile": {
+      "post": {
+        "description": "Idempotently applies one verified pending invitation intent to the current native organization member. An access_updated result requires exactly one OIDC refresh before product-domain bootstrap.",
+        "operationId": "reconcileIdentitySessionV1",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentitySessionReconcileResponse"
+                }
+              }
+            },
+            "description": "HTTP 200"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 403"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 409"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "HTTP 502"
+          }
+        },
+        "security": [
+          {
+            "bearer-jwt": []
+          }
+        ],
+        "summary": "Reconcile authenticated invitation access",
+        "tags": [
+          "Identity session"
+        ]
+      }
+    },
     "/api/v1/organization/manifest": {
       "get": {
         "description": "Returns the support-safe org manifest consumed by Weave Client after org URL discovery and SSO. Provider setup, endpoint rotation, diagnostics, policy authoring, and whitelisting remain owned by the Organization/Admin Console.",
@@ -12442,6 +12500,10 @@
     {
       "description": "Guest identity and explicit access policy contracts.",
       "name": "Guest Access"
+    },
+    {
+      "description": "Authenticated, provider-neutral identity bootstrap.",
+      "name": "Identity session"
     },
     {
       "description": "Authenticated caller introspection endpoints.",

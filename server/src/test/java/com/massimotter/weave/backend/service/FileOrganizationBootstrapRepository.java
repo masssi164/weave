@@ -1,7 +1,8 @@
 package com.massimotter.weave.backend.service;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -67,7 +68,7 @@ public class FileOrganizationBootstrapRepository implements OrganizationBootstra
             if (loaded != null) {
                 loaded.values().forEach(record -> records.put(normalizeOrganizationId(record.organizationId()), record));
             }
-        } catch (IOException exception) {
+        } catch (JacksonException exception) {
             throw new OrganizationBootstrapStoreException(
                     "Failed to load organization bootstrap records from " + storagePath, exception);
         }
@@ -86,7 +87,7 @@ public class FileOrganizationBootstrapRepository implements OrganizationBootstra
             } catch (IOException atomicMoveFailure) {
                 Files.move(tempFile, storagePath, StandardCopyOption.REPLACE_EXISTING);
             }
-        } catch (IOException exception) {
+        } catch (IOException | JacksonException exception) {
             throw new OrganizationBootstrapStoreException(
                     "Failed to persist organization bootstrap records to " + storagePath, exception);
         }

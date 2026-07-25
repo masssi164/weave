@@ -32,7 +32,10 @@ The promise is intentionally bounded:
 - **Admin perspective:** `weave-ctrl` and the Admin Console show setup/control readiness, Weaver enablement/control, identity/RBAC posture, policy preview, adapter readiness, audit references, and release evidence without exposing raw provider setup to normal members.
 - **User perspective:** Weave Client provides the member workspace and Weaver entry point with domain-first language, handoff-first onboarding, approval prompts for shared-state changes, and accessibility evidence.
 - **Weaver perspective:** Weaver operates as a governed per-user capability with server-owned runtime profiles, policy-bound tools, approval receipts for writes/shared-state actions, support-safe audit references, and no raw provider credential exposure.
-- **Foundation perspective:** server facades, `weave-contract`, the internal Weaver bridge, adapters, migration/dry-run evidence, support bundles, and release evidence form the proof boundary. Adapter switching without unaccounted data loss is a first-class Beta requirement, not a future enhancement.
+- **Foundation perspective:** canonical domain/application services, northbound projections,
+  provider adapters, migration/dry-run evidence, support bundles, and release evidence form the
+  proof boundary. Adapter switching without unaccounted data loss is a first-class Beta
+  requirement, not a future enhancement.
 
 ## Claim matrix
 
@@ -44,8 +47,8 @@ Every Beta claim must identify a claim state and evidence source. Use `proven_be
 | Normal members enter through the Weave Client, not provider setup or raw infrastructure flows. | Weave Client onboarding, workspace/home, member settings. | CI, client tests, a11y smoke, release notes. | #834 complete; `./gradlew clientCi`; accessibility smoke evidence; `./gradlew docsCheck`; #836 release-note alignment. | Beta target, not proven by this page alone. |
 | Weaver can assist a user through governed, per-user controls and approval-required shared-state actions. | Weave Client + Weaver, server runtime profile authority, internal bridge, audit receipts. | CI, E2E, approval/audit fixtures, a11y smoke, release notes. | #833 and #834 complete; server and client gates for approval flow; #835 E2E proof; accessibility smoke; #836 release-note alignment. | Beta target. #829 is supporting foundation cleanup only. |
 | Adapter switching is reviewed through dry-run evidence and blocked when data loss is unaccounted. | server facades, adapters, migration proof, Admin Console consequence preview, evidence fixtures. | CI, migration dry-run, E2E where applicable, release notes. | #831 complete; `./gradlew portabilityContractCheck` or successor issue gate; migration dry-run artifact showing no unaccounted data loss or explicit blocker; #835/#836 evidence. | First-class Beta requirement; not optional and not implied by provider-neutral wording. |
-| Beta readiness is end-to-end across Admin, User, Weaver, and foundation components. | Admin Console/`weave-ctrl`, Weave Client, Weaver, server, `weave-contract`, internal bridge, adapters, evidence. | CI, E2E, migration dry-run, a11y smoke, release notes. | #831-#836 complete; `./gradlew docsCheck`; issue-specific CI; #835 E2E evidence; #836 release evidence; milestone closure report. | Blocked until the full issue set is closed with evidence. |
-| The internal Weaver bridge is aligned to contract DTOs and server domain facades. | server, `weave-contract`, `weave-mcp-server`, domain dispatch. | CI and server tests from #829. | #829 merged with server gate evidence. | Proven as foundation cleanup only; not a standalone Beta completion claim. |
+| Beta readiness is end-to-end across Admin, User, Weaver, and foundation components. | Admin Console/`weave-ctrl`, Weave Client, Weaver, canonical domain/application services, northbound projections, adapters, evidence. | CI, E2E, migration dry-run, a11y smoke, release notes. | #831-#836 complete; `./gradlew docsCheck`; issue-specific CI; #835 E2E evidence; #836 release evidence; milestone closure report. | Blocked until the full issue set is closed with evidence. |
+| The internal Weaver bridge is aligned to canonical application use cases and domain facades. | server, `weave-mcp-server`, shared application ports, domain dispatch. | CI and server tests from #829. | #829 merged with server gate evidence. | Proven as foundation cleanup only; not a standalone Beta completion claim. |
 
 ## Non-goals and blocked wording
 

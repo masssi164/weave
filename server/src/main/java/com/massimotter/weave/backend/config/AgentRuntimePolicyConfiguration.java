@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.agentruntime.adapter.FileRuntimePolicyAuthority;
 import com.massimotter.weave.backend.agentruntime.port.RuntimePolicyAuthority;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;

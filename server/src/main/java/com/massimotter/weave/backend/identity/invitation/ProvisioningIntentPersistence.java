@@ -13,7 +13,6 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.function.Function;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 @Entity
@@ -38,9 +37,6 @@ class ProvisioningIntentJpaEntity {
 
     @Column(name = "requested_role", nullable = false, length = 32, updatable = false)
     private String requestedRole;
-
-    @Column(name = "organization_groups", nullable = false, length = 8192, updatable = false)
-    private String organizationGroupsJson;
 
     @Column(name = "provider_invitation_id", length = 200)
     private String providerInvitationId;
@@ -80,9 +76,7 @@ class ProvisioningIntentJpaEntity {
     protected ProvisioningIntentJpaEntity() {
     }
 
-    static ProvisioningIntentJpaEntity create(
-            ProvisioningIntent intent,
-            String groupsJson) {
+    static ProvisioningIntentJpaEntity create(ProvisioningIntent intent) {
         ProvisioningIntentJpaEntity entity = new ProvisioningIntentJpaEntity();
         entity.intentId = intent.intentId();
         entity.tenantId = intent.tenantId();
@@ -90,7 +84,6 @@ class ProvisioningIntentJpaEntity {
         entity.invitedEmail = intent.invitedEmail();
         entity.invitedEmailSha256 = intent.invitedEmailSha256();
         entity.requestedRole = intent.requestedRole();
-        entity.organizationGroupsJson = groupsJson;
         entity.invitedByIssuer = intent.invitedByIssuer();
         entity.invitedBySubject = intent.invitedBySubject();
         entity.auditCorrelation = intent.auditCorrelation();
@@ -101,8 +94,8 @@ class ProvisioningIntentJpaEntity {
         return entity;
     }
 
-    void apply(ProvisioningIntent intent, String groupsJson) {
-        requireImmutableDefinition(intent, groupsJson);
+    void apply(ProvisioningIntent intent) {
+        requireImmutableDefinition(intent);
         if (providerInvitationId != null
                 && !Objects.equals(providerInvitationId, intent.providerInvitationId())) {
             throw new IllegalArgumentException("provider invitation identity cannot be rewritten");
@@ -120,7 +113,7 @@ class ProvisioningIntentJpaEntity {
         updatedAt = utc(intent.updatedAt());
     }
 
-    ProvisioningIntent toDomain(Function<String, List<String>> groupsReader) {
+    ProvisioningIntent toDomain() {
         return new ProvisioningIntent(
                 intentId,
                 tenantId,
@@ -128,7 +121,6 @@ class ProvisioningIntentJpaEntity {
                 invitedEmail,
                 invitedEmailSha256,
                 requestedRole,
-                groupsReader.apply(organizationGroupsJson),
                 providerInvitationId,
                 invitedByIssuer,
                 invitedBySubject,
@@ -141,15 +133,12 @@ class ProvisioningIntentJpaEntity {
                 updatedAt.toInstant());
     }
 
-    private void requireImmutableDefinition(
-            ProvisioningIntent intent,
-            String groupsJson) {
+    private void requireImmutableDefinition(ProvisioningIntent intent) {
         if (!Objects.equals(tenantId, intent.tenantId())
                 || !Objects.equals(organizationId, intent.organizationId())
                 || !Objects.equals(invitedEmail, intent.invitedEmail())
                 || !Objects.equals(invitedEmailSha256, intent.invitedEmailSha256())
                 || !Objects.equals(requestedRole, intent.requestedRole())
-                || !Objects.equals(organizationGroupsJson, groupsJson)
                 || !Objects.equals(invitedByIssuer, intent.invitedByIssuer())
                 || !Objects.equals(invitedBySubject, intent.invitedBySubject())
                 || !Objects.equals(auditCorrelation, intent.auditCorrelation())
@@ -182,42 +171,4 @@ interface ProvisioningIntentJpaRepository
                     String invitedEmail,
                     ProvisioningIntentStatus status);
 
-    List<ProvisioningIntentJpaEntity>
-            findByOrganizationIdAndInvitedEmailSha256AndStatusOrderByCreatedAtDesc(
-                    String organizationId,
-                    String invitedEmailSha256,
-                    ProvisioningIntentStatus status);
-}
-
-@Entity
-@Table(name = "weave_keycloak_event_receipts")
-class IdentityEventReceiptJpaEntity {
-
-    @Id
-    @Column(name = "event_id", nullable = false, length = 200, updatable = false)
-    private String eventId;
-
-    @Column(name = "occurred_at", nullable = false, updatable = false)
-    private OffsetDateTime occurredAt;
-
-    @Column(name = "received_at", nullable = false, updatable = false)
-    private OffsetDateTime receivedAt;
-
-    protected IdentityEventReceiptJpaEntity() {
-    }
-
-    static IdentityEventReceiptJpaEntity create(
-            String eventId,
-            Instant occurredAt,
-            Instant receivedAt) {
-        IdentityEventReceiptJpaEntity entity = new IdentityEventReceiptJpaEntity();
-        entity.eventId = eventId;
-        entity.occurredAt = occurredAt.atOffset(ZoneOffset.UTC);
-        entity.receivedAt = receivedAt.atOffset(ZoneOffset.UTC);
-        return entity;
-    }
-}
-
-interface IdentityEventReceiptJpaRepository
-        extends JpaRepository<IdentityEventReceiptJpaEntity, String> {
 }

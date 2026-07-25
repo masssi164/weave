@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Profile;
 
 /** Test-classpath-only chat provider for isolated Spring and acceptance tests. */
 @Configuration(proxyBeanMethods = false)
-@Profile("test")
+@Profile("dev")
 public class TestChatRuntimeConfiguration {
 
     @Bean

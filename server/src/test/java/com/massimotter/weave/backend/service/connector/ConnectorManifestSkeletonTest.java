@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.service.connector;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.config.ConnectorRuntimeProperties;
 import com.massimotter.weave.backend.model.connector.ConnectorManifestValidationRequest;
 import java.nio.file.Files;

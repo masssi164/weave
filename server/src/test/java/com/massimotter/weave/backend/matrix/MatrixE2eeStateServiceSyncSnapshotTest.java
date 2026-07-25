@@ -2,7 +2,7 @@ package com.massimotter.weave.backend.matrix;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.chat.domain.ChatActorRef;
 import java.time.Duration;
 import java.util.Map;
@@ -111,7 +111,7 @@ class MatrixE2eeStateServiceSyncSnapshotTest {
     private MatrixE2eeStateService service() {
         StaticListableBeanFactory beans = new StaticListableBeanFactory();
         return new MatrixE2eeStateService(
-                new ObjectMapper().findAndRegisterModules(),
+                tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build(),
                 beans.getBeanProvider(MatrixE2eeSnapshotStore.class));
     }
 

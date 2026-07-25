@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.model.ProductProfileResponse;
 import com.massimotter.weave.backend.model.UpdateProductProfileRequest;
 import java.nio.file.Path;

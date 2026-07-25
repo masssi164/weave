@@ -3,7 +3,7 @@ package com.massimotter.weave.backend.identity.invitation;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.config.IdentityInvitationProperties;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -19,6 +19,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,6 +29,7 @@ class KeycloakIdentityAdminClientTest {
     private HttpServer server;
     private final AtomicReference<String> tokenAuthorization = new AtomicReference<>();
     private final AtomicReference<String> tokenBody = new AtomicReference<>();
+    private final AtomicInteger membershipReads = new AtomicInteger();
     private final List<String> requests = new ArrayList<>();
 
     @BeforeEach
@@ -43,34 +45,30 @@ class KeycloakIdentityAdminClientTest {
     }
 
     @Test
-    void authenticatesWithHttpBasicAndResolvesTheExactNestedGroupPath() {
-        client().applyRoleAndGroups("subject-1", "member", List.of("/weave/members"));
+    void mapsRoleToTheNativeOrganizationGroupAndRemovesConflictingRoleGroup() {
+        client().applyOrganizationRole("weave-dogfood", "subject-1", "member");
 
         assertThat(tokenAuthorization).hasValue("Basic " + Base64.getEncoder()
                 .encodeToString("weave-identity-admin:identity-secret".getBytes(StandardCharsets.UTF_8)));
         assertThat(tokenBody).hasValue("grant_type=client_credentials");
         assertThat(requests).containsExactly(
-                "GET /admin/realms/weave/groups?search=weave&exact=true&first=0&max=2",
-                "GET /admin/realms/weave/groups/root-uuid/children?first=0&max=100",
-                "GET /admin/realms/weave/clients?clientId=weave-app",
-                "GET /admin/realms/weave/clients/client-uuid/roles/member",
-                "POST /admin/realms/weave/users/subject-1/role-mappings/clients/client-uuid",
-                "PUT /admin/realms/weave/users/subject-1/groups/members-uuid");
+                "GET /admin/realms/weave/organizations/org-uuid/groups?search=members&exact=true&first=0&max=2",
+                "GET /admin/realms/weave/organizations/org-uuid/members/subject-1/groups",
+                "DELETE /admin/realms/weave/organizations/org-uuid/groups/owners-uuid/members/subject-1",
+                "PUT /admin/realms/weave/organizations/org-uuid/groups/members-uuid/members/subject-1",
+                "GET /admin/realms/weave/organizations/org-uuid/members/subject-1/groups");
     }
 
     @Test
-    void rejectsLegacyOrWorkloadGroupNamesBeforeAnyProviderMutation() {
+    void rejectsNonHumanRolesBeforeAnyProviderRequest() {
         KeycloakIdentityAdminClient client = client();
 
-        assertThatThrownBy(() -> client.applyRoleAndGroups("subject-1", "member", List.of("workspace-members")))
+        assertThatThrownBy(() -> client.applyOrganizationRole(
+                "weave-dogfood",
+                "subject-1",
+                "weaver-runtime"))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("canonical human group path");
-        assertThatThrownBy(() -> client.applyRoleAndGroups("subject-1", "member", List.of("/weave/weaver-runtime")))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("canonical human group path");
-        assertThatThrownBy(() -> client.applyRoleAndGroups("subject-1", "member", List.of("/weave/owners")))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("match the selected canonical human role");
+                .hasMessageContaining("exact canonical human role");
         assertThat(requests).isEmpty();
         assertThat(tokenAuthorization).hasValue(null);
     }
@@ -79,12 +77,14 @@ class KeycloakIdentityAdminClientTest {
         IdentityInvitationProperties properties = new IdentityInvitationProperties();
         properties.keycloak().setBaseUrl(URI.create("http://127.0.0.1:" + server.getAddress().getPort()));
         properties.keycloak().setRealm("weave");
+        properties.keycloak().setOrganizationId("org-uuid");
+        properties.keycloak().setOrganizationAlias("weave-dogfood");
         properties.keycloak().setClientId("weave-identity-admin");
         properties.keycloak().setClientSecret("identity-secret");
         properties.keycloak().setTimeout(Duration.ofSeconds(2));
         return new KeycloakIdentityAdminClient(
                 properties,
-                new ObjectMapper().findAndRegisterModules(),
+                tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build(),
                 HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build(),
                 Clock.fixed(Instant.parse("2026-07-22T10:00:00Z"), ZoneOffset.UTC));
     }
@@ -99,17 +99,23 @@ class KeycloakIdentityAdminClientTest {
             return;
         }
         requests.add(exchange.getRequestMethod() + " " + path + (query == null ? "" : "?" + query));
-        if (path.equals("/admin/realms/weave/groups") && "search=weave&exact=true&first=0&max=2".equals(query)) {
-            respond(exchange, 200, "[{\"id\":\"root-uuid\",\"name\":\"weave\",\"path\":\"/weave\"}]");
-        } else if (path.equals("/admin/realms/weave/groups/root-uuid/children")) {
+        if (path.equals("/admin/realms/weave/organizations/org-uuid/groups")
+                && "search=members&exact=true&first=0&max=2".equals(query)) {
             respond(exchange, 200, "["
                     + "{\"id\":\"other-uuid\",\"name\":\"members\",\"path\":\"/other/members\"},"
-                    + "{\"id\":\"members-uuid\",\"name\":\"members\",\"path\":\"/weave/members\"}]");
-        } else if (path.equals("/admin/realms/weave/clients")) {
-            respond(exchange, 200, "[{\"id\":\"client-uuid\",\"clientId\":\"weave-app\"}]");
-        } else if (path.equals("/admin/realms/weave/clients/client-uuid/roles/member")) {
-            respond(exchange, 200, "{\"id\":\"role-uuid\",\"name\":\"member\"}");
-        } else if (exchange.getRequestMethod().equals("POST") || exchange.getRequestMethod().equals("PUT")) {
+                    + "{\"id\":\"members-uuid\",\"name\":\"members\",\"path\":\"/members\"}]");
+        } else if (path.equals("/admin/realms/weave/organizations/org-uuid/members/subject-1/groups")) {
+            if (membershipReads.getAndIncrement() == 0) {
+                respond(exchange, 200, "["
+                        + "{\"id\":\"owners-uuid\",\"name\":\"owners\",\"path\":\"/owners\"},"
+                        + "{\"id\":\"team-uuid\",\"name\":\"engineering\",\"path\":\"/engineering\"}]");
+            } else {
+                respond(exchange, 200, "["
+                        + "{\"id\":\"members-uuid\",\"name\":\"members\",\"path\":\"/members\"},"
+                        + "{\"id\":\"team-uuid\",\"name\":\"engineering\",\"path\":\"/engineering\"}]");
+            }
+        } else if (exchange.getRequestMethod().equals("DELETE")
+                || exchange.getRequestMethod().equals("PUT")) {
             respond(exchange, 204, "");
         } else {
             respond(exchange, 404, "{}");

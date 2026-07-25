@@ -1,7 +1,8 @@
 package com.massimotter.weave.backend.provider;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectWriter;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectWriter;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -25,7 +26,7 @@ class FileProviderSelectionRepositoryTest {
     @Test
     void providerSelectionSurvivesRepositoryRestart() {
         Path storagePath = tempDir.resolve("provider-selections.json");
-        ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+        ObjectMapper objectMapper = tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build();
         var repository = new FileProviderSelectionRepository(objectMapper, storagePath);
 
         repository.save(new ProviderSelection(
@@ -62,7 +63,7 @@ class FileProviderSelectionRepositoryTest {
         ObjectMapper objectMapper = mock(ObjectMapper.class);
         ObjectWriter writer = mock(ObjectWriter.class);
         when(objectMapper.writerWithDefaultPrettyPrinter()).thenReturn(writer);
-        doThrow(new IOException("write failed")).when(writer).writeValue(any(File.class), any());
+        doThrow(new JacksonException("write failed") {}).when(writer).writeValue(any(File.class), any());
         var repository = new FileProviderSelectionRepository(objectMapper, storagePath);
         ProviderSelection selection = new ProviderSelection(
                 "chat",

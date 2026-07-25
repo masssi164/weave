@@ -1,7 +1,7 @@
 package com.massimotter.weave.backend.chat.provider.synapse;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.chat.e2e.ChatE2eCallbackReplayTap;
 import com.massimotter.weave.backend.chat.port.CanonicalChatStore;
 import com.massimotter.weave.backend.config.ChatE2eProofProperties;
@@ -30,7 +30,7 @@ class MatrixApplicationServiceControllerTest {
     private final SynapseBackedCanonicalChatAdapter adapter = mock(SynapseBackedCanonicalChatAdapter.class);
     private final MatrixSynapseChatSouthboundAdapter provider = mock(MatrixSynapseChatSouthboundAdapter.class);
     private final ChatProviderPortAdapterResolver resolver = mock(ChatProviderPortAdapterResolver.class);
-    private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+    private final ObjectMapper objectMapper = tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build();
 
     @Test
     void callbackIsBoundedDurablyDeduplicatedAndAcknowledgedAfterProcessing() {
@@ -146,7 +146,7 @@ class MatrixApplicationServiceControllerTest {
                 }]}
                 """);
         JsonNode changed = retried.deepCopy();
-        ((com.fasterxml.jackson.databind.node.ObjectNode) changed.path("events").get(1).path("content"))
+        ((tools.jackson.databind.node.ObjectNode) changed.path("events").get(1).path("content"))
                 .put("creator", "@_weave_other:matrix.internal");
 
         assertThat(MatrixApplicationServiceController.semanticPayloadDigest(first))

@@ -3,7 +3,7 @@ package com.massimotter.weave.backend.config;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.audit.AuditEventJpaRepository;
 import com.massimotter.weave.backend.audit.FileAuditEventPublisher;
@@ -45,7 +45,7 @@ class BoardsRuntimeConfigurationTest {
     void persistenceCompositionPublishesOnlyTheJpaAuditAuthority() {
         new ApplicationContextRunner()
                 .withUserConfiguration(JpaAuditEventPublisher.class)
-                .withBean(ObjectMapper.class, () -> new ObjectMapper().findAndRegisterModules())
+                .withBean(ObjectMapper.class, () -> tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build())
                 .withBean(
                         AuditEventJpaRepository.class,
                         () -> mock(AuditEventJpaRepository.class))

@@ -13,7 +13,6 @@ import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
-import java.security.MessageDigest;
 import java.security.Signature;
 import java.security.interfaces.RSAPrivateCrtKey;
 import java.security.interfaces.RSAPublicKey;
@@ -22,7 +21,6 @@ import java.security.spec.PSSParameterSpec;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -119,7 +117,7 @@ class HttpMcpAuthorizationAdaptersTest {
         server.start();
 
         McpCellWorkloadPrincipal workload = workload();
-        ExchangedAccessToken result = new HttpMcpBackendTokenExchange(properties("/token", "/context"), mapper)
+        ExchangedAccessToken result = new HttpMcpBackendTokenExchange(properties("/token"), mapper)
                 .exchange(workload, "incoming.cell.token", Set.of("calendar.read"));
 
         assertThat(authorization.get()).isNull();
@@ -163,7 +161,7 @@ class HttpMcpAuthorizationAdaptersTest {
         });
         server.start();
 
-        assertThatThrownBy(() -> new HttpMcpBackendTokenExchange(properties("/token", "/context"), mapper)
+        assertThatThrownBy(() -> new HttpMcpBackendTokenExchange(properties("/token"), mapper)
                 .exchange(workload(), "incoming.cell.token", Set.of("calendar.read")))
                 .isInstanceOfSatisfying(McpAdmissionException.class,
                         failure -> assertThat(failure.kind()).isEqualTo(McpAdmissionException.Kind.FORBIDDEN))
@@ -189,7 +187,7 @@ class HttpMcpAuthorizationAdaptersTest {
                 Map.entry("dq", jwk.path("dq").stringValue()),
                 Map.entry("qi", jwk.path("qi").stringValue()))));
 
-        assertThatThrownBy(() -> new HttpMcpBackendTokenExchange(properties("/token", "/context"), mapper)
+        assertThatThrownBy(() -> new HttpMcpBackendTokenExchange(properties("/token"), mapper)
                 .exchange(workload(), "incoming.cell.token", Set.of("calendar.read")))
                 .isInstanceOfSatisfying(McpAdmissionException.class,
                         failure -> assertThat(failure.kind()).isEqualTo(McpAdmissionException.Kind.UNAVAILABLE))
@@ -197,73 +195,7 @@ class HttpMcpAuthorizationAdaptersTest {
                 .hasMessageNotContaining("incoming.cell.token");
     }
 
-    @Test
-    void resolvesOnlyTheExactSupportSafeBackendContextUsingTheExchangedToken() throws Exception {
-        AtomicReference<String> authorization = new AtomicReference<>();
-        String workloadHash = fingerprint(ISSUER + "\u0000" + SUBJECT + "\u0000" + CLIENT);
-        server.createContext("/context", exchange -> {
-            authorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
-            byte[] response = mapper.writeValueAsBytes(Map.ofEntries(
-                    Map.entry("schema", "weave.mcp-workload-context/v2"),
-                    Map.entry("authorizationRef", "mcp-authz:" + "a".repeat(64)),
-                    Map.entry("organizationRef", "org:test"),
-                    Map.entry("cellRef", "cell:test"),
-                    Map.entry("workloadClientId", CLIENT),
-                    Map.entry("workloadRefHash", workloadHash),
-                    Map.entry("runtimeProfileId", "rp_test"),
-                    Map.entry("runtimeProfileHash", "sha256:" + "b".repeat(64)),
-                    Map.entry("entitlementRevision", "sha256:" + "c".repeat(64)),
-                    Map.entry("authorizationExpiresAt", now.plusSeconds(30).toString()),
-                    Map.entry("grantedScopes", List.of("calendar.read")),
-                    Map.entry("visibleToolClasses", List.of("calendar.read"))));
-            exchange.getResponseHeaders().set("Content-Type", "application/json");
-            exchange.sendResponseHeaders(200, response.length);
-            exchange.getResponseBody().write(response);
-            exchange.close();
-        });
-        server.start();
-        ExchangedAccessToken token = exchanged("backend.only.token");
-
-        McpBackendContext context = new HttpMcpBackendContextResolver(
-                properties("/token", "/context"), mapper).resolve(workload(), token);
-
-        assertThat(authorization.get()).isEqualTo("Bearer backend.only.token");
-        assertThat(context.workloadRefHash()).isEqualTo(workloadHash);
-        assertThat(context.grantedScopes()).containsExactly("calendar.read");
-        assertThat(context.visibleToolClasses()).containsExactly("calendar.read");
-    }
-
-    @Test
-    void rejectsBackendContextWithUnknownFieldsOrCrossCellBinding() throws Exception {
-        server.createContext("/context", exchange -> {
-            byte[] response = mapper.writeValueAsBytes(Map.ofEntries(
-                    Map.entry("schema", "weave.mcp-workload-context/v2"),
-                    Map.entry("authorizationRef", "mcp-authz:" + "a".repeat(64)),
-                    Map.entry("organizationRef", "org:test"),
-                    Map.entry("cellRef", "cell:other"),
-                    Map.entry("workloadClientId", "weaver-cell-other"),
-                    Map.entry("workloadRefHash", "sha256:" + "d".repeat(64)),
-                    Map.entry("runtimeProfileId", "rp_test"),
-                    Map.entry("runtimeProfileHash", "sha256:" + "b".repeat(64)),
-                    Map.entry("entitlementRevision", "sha256:" + "c".repeat(64)),
-                    Map.entry("authorizationExpiresAt", now.plusSeconds(30).toString()),
-                    Map.entry("grantedScopes", List.of("calendar.read")),
-                    Map.entry("visibleToolClasses", List.of("calendar.read")),
-                    Map.entry("unexpected", "provider-secret")));
-            exchange.sendResponseHeaders(200, response.length);
-            exchange.getResponseBody().write(response);
-            exchange.close();
-        });
-        server.start();
-
-        assertThatThrownBy(() -> new HttpMcpBackendContextResolver(
-                properties("/token", "/context"), mapper).resolve(workload(), exchanged("backend.only.token")))
-                .isInstanceOfSatisfying(McpAdmissionException.class,
-                        failure -> assertThat(failure.kind()).isEqualTo(McpAdmissionException.Kind.FORBIDDEN))
-                .hasMessageNotContaining("provider-secret");
-    }
-
-    private McpWorkloadProperties properties(String tokenPath, String contextPath) {
+    private McpWorkloadProperties properties(String tokenPath) {
         String base = "http://127.0.0.1:" + server.getAddress().getPort();
         return new McpWorkloadProperties(
                 URI.create(MCP_RESOURCE),
@@ -276,7 +208,6 @@ class HttpMcpAuthorizationAdaptersTest {
                 KEY_ID,
                 Duration.ofSeconds(30),
                 URI.create(API_RESOURCE),
-                URI.create(base + contextPath),
                 List.of("calendar.read"),
                 Duration.ofSeconds(2),
                 Duration.ofSeconds(60),
@@ -292,17 +223,6 @@ class HttpMcpAuthorizationAdaptersTest {
                 now,
                 now.plusSeconds(45),
                 "cell-jti");
-    }
-
-    private ExchangedAccessToken exchanged(String value) {
-        return new ExchangedAccessToken(
-                value,
-                SUBJECT,
-                EDGE,
-                Set.of(API_RESOURCE),
-                Set.of("calendar.read"),
-                now,
-                now.plusSeconds(30));
     }
 
     private static String jwt(Map<String, Object> claims) throws Exception {
@@ -324,10 +244,6 @@ class HttpMcpAuthorizationAdaptersTest {
         return values;
     }
 
-    private static String fingerprint(String value) throws Exception {
-        return "sha256:" + HexFormat.of().formatHex(
-                MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));
-    }
 
     private void verifyClientAssertion(String assertion) throws Exception {
         assertThat(assertion).isNotBlank();

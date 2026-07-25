@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.chat.provider.synapse;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.chat.port.CanonicalChatStore;
 import com.massimotter.weave.backend.config.ChatRuntimeProperties;
 import com.massimotter.weave.backend.portability.ProviderReadiness;
@@ -65,7 +65,7 @@ class SynapseBackedCanonicalChatAdapterTest {
                 store,
                 provider,
                 ChatRuntimeProperties.Matrix.defaults(),
-                new ObjectMapper().findAndRegisterModules(),
+                tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build(),
                 Clock.systemUTC());
     }
 }

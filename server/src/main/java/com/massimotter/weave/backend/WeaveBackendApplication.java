@@ -19,13 +19,16 @@ import com.massimotter.weave.backend.config.ProviderHealthProperties;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import java.util.Arrays;
+import com.massimotter.weave.shared.persistence.SharedSchemaReadinessConfiguration;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.context.annotation.Import;
 
 @SpringBootApplication
 @EnableScheduling
+@Import(SharedSchemaReadinessConfiguration.class)
 @EnableConfigurationProperties({
         CalendarCalDavProperties.class,
         AgentRuntimeEntitlementProperties.class,

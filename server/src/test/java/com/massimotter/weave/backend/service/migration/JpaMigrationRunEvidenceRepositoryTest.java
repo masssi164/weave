@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.service.migration;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -50,7 +50,7 @@ class JpaMigrationRunEvidenceRepositoryTest {
 
     @Test
     void typedJpaPathPreservesTheCanonicalMigrationEvidenceContract() {
-        ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+        ObjectMapper objectMapper = tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build();
         Instant now = Instant.parse("2026-05-31T08:00:00Z");
         MigrationRunEvidence evidence = evidence("migration-chat-002", "chat", now);
         DriverManagerDataSource dataSource = dataSource();
@@ -170,7 +170,7 @@ class JpaMigrationRunEvidenceRepositoryTest {
         Instant now = Instant.parse("2026-05-31T08:00:00Z");
         var repository = new JpaMigrationRunEvidenceRepository(
                 springData,
-                new ObjectMapper().findAndRegisterModules());
+                tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build());
 
         assertThatThrownBy(() -> repository.save(evidence("migration-chat-transaction-failure", "chat", now)))
                 .isInstanceOf(MigrationRunEvidenceStoreException.class)
@@ -207,7 +207,7 @@ class JpaMigrationRunEvidenceRepositoryTest {
 
     private JpaMigrationRunEvidenceRepository repository(
             DriverManagerDataSource dataSource) {
-        return repository(dataSource, new ObjectMapper().findAndRegisterModules());
+        return repository(dataSource, tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build());
     }
 
     private JpaMigrationRunEvidenceRepository repository(

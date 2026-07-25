@@ -11,8 +11,8 @@ import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
+import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.core.env.Environment;
 import org.springframework.test.context.ActiveProfiles;
 
@@ -44,7 +44,7 @@ class DevH2JpaIntegrationTest {
         assertThat(environment.getRequiredProperty("spring.jpa.open-in-view"))
                 .isEqualTo("false");
         assertThat(flyway.info().current()).isNotNull();
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("018");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("019");
 
         OffsetDateTime bootstrappedAt = OffsetDateTime.of(
                 2026, 7, 22, 12, 30, 0, 0, ZoneOffset.UTC);

@@ -1,8 +1,8 @@
 package com.massimotter.weave.backend.security.device;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.Set;
 import java.util.Optional;
@@ -71,7 +71,7 @@ public class JpaDeviceCredentialRepository implements DeviceCredentialRepository
     private String capabilitiesJson(Set<String> capabilities) {
         try {
             return objectMapper.writeValueAsString(capabilities.stream().sorted().toList());
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException(
                     "Failed to serialize device credential capabilities.",
                     exception);
@@ -81,7 +81,7 @@ public class JpaDeviceCredentialRepository implements DeviceCredentialRepository
     private Set<String> capabilities(String json) {
         try {
             return objectMapper.readValue(json, CAPABILITIES);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException(
                     "Failed to read device credential capabilities.",
                     exception);

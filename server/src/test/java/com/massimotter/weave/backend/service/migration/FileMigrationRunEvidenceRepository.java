@@ -1,7 +1,8 @@
 package com.massimotter.weave.backend.service.migration;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -66,7 +67,7 @@ class FileMigrationRunEvidenceRepository implements MigrationRunEvidenceReposito
             if (loaded != null) {
                 loaded.values().forEach(evidence -> evidenceByRunAndDomain.put(key(evidence.runId(), evidence.domainKey()), evidence));
             }
-        } catch (IOException exception) {
+        } catch (JacksonException exception) {
             throw new MigrationRunEvidenceStoreException(
                     "Failed to load migration run evidence from " + storagePath, exception);
         }
@@ -85,7 +86,7 @@ class FileMigrationRunEvidenceRepository implements MigrationRunEvidenceReposito
             } catch (IOException atomicMoveFailure) {
                 Files.move(tempFile, storagePath, StandardCopyOption.REPLACE_EXISTING);
             }
-        } catch (IOException exception) {
+        } catch (IOException | JacksonException exception) {
             throw new MigrationRunEvidenceStoreException(
                     "Failed to persist migration run evidence to " + storagePath, exception);
         }

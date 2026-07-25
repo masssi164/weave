@@ -177,7 +177,6 @@ function mockApi(
         lifecycleStatus: "pending",
         provisioningStatus: "pending",
         requestedRole: request.role,
-        organizationGroups: request.organizationGroups,
       }),
     ),
     resendOrganizationInvitation: vi.fn().mockResolvedValue({}),
@@ -202,7 +201,6 @@ describe("Admin Console MVP", () => {
         lifecycleStatus: "pending",
         provisioningStatus: "applied",
         requestedRole: "member",
-        organizationGroups: ["engineering"],
       },
     ]);
     const createOrganizationInvitation = vi.fn().mockResolvedValue({});
@@ -225,10 +223,6 @@ describe("Admin Console MVP", () => {
 
     await user.type(screen.getByLabelText(/member email/i), "new@example.test");
     await user.type(screen.getByLabelText(/display name/i), "New Member");
-    await user.type(
-      screen.getByLabelText(/organization groups/i),
-      "engineering, reviewers",
-    );
     await user.click(screen.getByRole("button", { name: /invite member/i }));
 
     await waitFor(() =>
@@ -238,7 +232,6 @@ describe("Admin Console MVP", () => {
           email: "new@example.test",
           displayName: "New Member",
           role: "member",
-          organizationGroups: ["engineering", "reviewers"],
         },
       ),
     );

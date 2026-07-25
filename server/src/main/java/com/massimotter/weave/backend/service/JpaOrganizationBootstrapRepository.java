@@ -1,8 +1,8 @@
 package com.massimotter.weave.backend.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.persistence.jpa.OrganizationBootstrapEntity;
 import com.massimotter.weave.backend.persistence.jpa.OrganizationBootstrapJpaRepository;
 import java.time.ZoneOffset;
@@ -47,7 +47,7 @@ public class JpaOrganizationBootstrapRepository implements OrganizationBootstrap
                     objectMapper.writeValueAsString(record.retainedAdminPrimaryIdentityKeys()),
                     record.bootstrappedAt().atOffset(ZoneOffset.UTC)));
             return record(saved);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new OrganizationBootstrapStoreException(
                     "Failed to serialize organization bootstrap authority state", exception);
         }
@@ -61,7 +61,7 @@ public class JpaOrganizationBootstrapRepository implements OrganizationBootstrap
                     entity.actorPrimaryIdentityKey(),
                     objectMapper.readValue(entity.retainedAdminPrimaryIdentityKeysJson(), STRING_LIST),
                     entity.bootstrappedAt().toInstant());
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new OrganizationBootstrapStoreException(
                     "Failed to read organization bootstrap authority state", exception);
         }

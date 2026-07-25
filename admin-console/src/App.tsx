@@ -256,7 +256,6 @@ export default function App({
   const [invitationDisplayName, setInvitationDisplayName] = useState("");
   const [invitationRole, setInvitationRole] =
     useState<OrganizationRole>("member");
-  const [invitationGroups, setInvitationGroups] = useState("");
   const [invitationBusy, setInvitationBusy] = useState(false);
   const [invitationError, setInvitationError] = useState<string | null>(null);
 
@@ -506,15 +505,10 @@ export default function App({
         email: invitationEmail.trim(),
         displayName: invitationDisplayName.trim() || undefined,
         role: invitationRole,
-        organizationGroups: invitationGroups
-          .split(",")
-          .map((group) => group.trim())
-          .filter(Boolean),
       });
       await refreshInvitations();
       setInvitationEmail("");
       setInvitationDisplayName("");
-      setInvitationGroups("");
       setStatusMessage(
         "Invitation created. Keycloak owns delivery, activation, expiry, and membership.",
       );
@@ -782,7 +776,8 @@ export default function App({
                     <Alert severity="info" sx={{ mb: 2 }}>
                       Keycloak owns email delivery, activation, expiry, and
                       organization membership. Weave records only temporary
-                      role and organization-group provisioning intent.
+                      role provisioning intent. The IAM adapter maps that role
+                      to the native organization group.
                     </Alert>
                     {invitationError ? (
                       <Alert severity="error" sx={{ mb: 2 }}>
@@ -826,12 +821,6 @@ export default function App({
                           )}
                         </Select>
                       </FormControl>
-                      <TextField
-                        label="Organization groups (optional)"
-                        helperText="Comma-separated Keycloak organization-group aliases."
-                        value={invitationGroups}
-                        onChange={(event) => setInvitationGroups(event.target.value)}
-                      />
                       <Box>
                         <Button
                           type="submit"
@@ -887,7 +876,7 @@ export default function App({
                               primary={invitation.displayName
                                 ? `${invitation.displayName} — ${invitation.email}`
                                 : invitation.email}
-                              secondary={`Invitation: ${readableState(invitation.lifecycleStatus)} · Provisioning: ${readableState(invitation.provisioningStatus)} · Role: ${invitation.requestedRole}${invitation.organizationGroups.length ? ` · Groups: ${invitation.organizationGroups.join(", ")}` : ""}`}
+                              secondary={`Invitation: ${readableState(invitation.lifecycleStatus)} · Provisioning: ${readableState(invitation.provisioningStatus)} · Role: ${invitation.requestedRole}`}
                             />
                           </ListItem>
                         ))}

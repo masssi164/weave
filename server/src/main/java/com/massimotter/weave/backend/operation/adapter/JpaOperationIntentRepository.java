@@ -1,8 +1,8 @@
 package com.massimotter.weave.backend.operation.adapter;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.operation.domain.OperationIntent;
 import com.massimotter.weave.backend.operation.domain.OperationOutboxEvent;
 import com.massimotter.weave.backend.operation.port.OperationIntentRepository;
@@ -138,7 +138,7 @@ public class JpaOperationIntentRepository
     private String json(List<String> values) {
         try {
             return objectMapper.writeValueAsString(values);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalArgumentException(
                     "operation object references are not serializable",
                     exception);
@@ -148,7 +148,7 @@ public class JpaOperationIntentRepository
     private List<String> stringList(String value) {
         try {
             return objectMapper.readValue(value, STRING_LIST);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException(
                     "stored operation object references are invalid",
                     exception);

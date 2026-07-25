@@ -4,6 +4,11 @@ server:
 spring:
   application:
     name: weave-backend
+  jackson:
+    deserialization:
+      # Preserve the published API contract where omitted optional primitive
+      # request flags mean false. Jackson 3 enables fail-on-null by default.
+      fail-on-null-for-primitives: false
   profiles:
     default: dev
   flyway:
@@ -40,6 +45,9 @@ management:
     health:
       probes:
         enabled: true
+      group:
+        readiness:
+          include: readinessState,weaveSchemaVersion
 
 weave:
   agent-runtime:
@@ -229,8 +237,6 @@ weave:
   identity:
     invitations:
       default-lifetime: ${WEAVE_IDENTITY_INVITATIONS_DEFAULT_LIFETIME:P7D}
-      events-hmac-secret: ${WEAVE_IDENTITY_EVENTS_HMAC_SECRET:}
-      event-freshness: ${WEAVE_IDENTITY_EVENTS_FRESHNESS:5m}
       keycloak:
         base-url: ${WEAVE_IDENTITY_KEYCLOAK_BASE_URL:http://weave-keycloak:8080}
         realm: ${WEAVE_IDENTITY_KEYCLOAK_REALM:weave}

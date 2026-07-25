@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.security.device;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.util.Set;
 import java.util.UUID;
@@ -57,7 +57,7 @@ class JpaDeviceCredentialRepositoryTest {
                 dataSource,
                 new JpaDeviceCredentialRepository(
                         springData,
-                        new ObjectMapper().findAndRegisterModules()));
+                        tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build()));
     }
 
     private DeviceCredential credential() {

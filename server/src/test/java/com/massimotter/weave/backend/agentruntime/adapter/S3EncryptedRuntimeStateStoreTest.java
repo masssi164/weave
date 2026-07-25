@@ -3,7 +3,7 @@ package com.massimotter.weave.backend.agentruntime.adapter;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.agentruntime.domain.RestoredRuntimeState;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeStateGeneration;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeStateStore;
@@ -70,7 +70,7 @@ class S3EncryptedRuntimeStateStoreTest {
         jdbc = new JdbcTemplate(database);
         keys = new FileRuntimeStateKeyWrapper(
                 temporary.resolve("keys").toAbsolutePath(),
-                new ObjectMapper().findAndRegisterModules(),
+                tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build(),
                 Clock.fixed(NOW, ZoneOffset.UTC),
                 new SecureRandom());
         keys.initialize("operator:init:runtime-state");

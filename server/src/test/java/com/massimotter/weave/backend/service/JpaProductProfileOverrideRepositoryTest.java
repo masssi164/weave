@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import java.util.Map;
 import java.util.UUID;
 import org.flywaydb.core.Flyway;
@@ -128,6 +128,6 @@ class JpaProductProfileOverrideRepositoryTest {
                 dataSource,
                 new JpaProductProfileOverrideRepository(
                         springData,
-                        new ObjectMapper().findAndRegisterModules()));
+                        tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build()));
     }
 }

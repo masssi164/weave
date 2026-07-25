@@ -2,8 +2,8 @@ package com.massimotter.weave.backend.domainregistry;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -148,7 +148,7 @@ class CanonicalDomainRegistryContractTest {
 
         assertThat(registry.path("registry_version").asText()).isEqualTo(CanonicalDomainRegistry.REGISTRY_VERSION);
         assertThat(registry.path("domains")).hasSize(CANONICAL_DOMAINS.size());
-        assertThat(registry.path("domains").findValuesAsText("key")).containsExactlyElementsOf(CANONICAL_DOMAINS);
+        assertThat(registry.path("domains").findValuesAsString("key")).containsExactlyElementsOf(CANONICAL_DOMAINS);
         assertThat(registry.path("compatibility_aliases").path("boards-tasks").asText()).isEqualTo("boards");
         assertThat(registry.path("compatibility_aliases").path("meetings-calls").asText()).isEqualTo("calls");
         assertThat(registry.toString()).doesNotContain("secretref://", "Bearer ", "access_token", "client-secret");

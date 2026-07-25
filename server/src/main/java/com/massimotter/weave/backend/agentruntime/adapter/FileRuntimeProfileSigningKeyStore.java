@@ -1,8 +1,9 @@
 package com.massimotter.weave.backend.agentruntime.adapter;
 
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.StreamReadFeature;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileSigningKeyException;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileSigningKeyLifecycle;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileSigningKeyProvider;
@@ -102,10 +103,11 @@ public final class FileRuntimeProfileSigningKeyStore implements
         this.root = root.toAbsolutePath().normalize();
         this.manifestPath = this.root.resolve(MANIFEST_NAME);
         this.lockPath = this.root.resolve(LOCK_NAME);
-        this.mapper = objectMapper.copy()
-                .enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
+        this.mapper = objectMapper.rebuild()
+                .enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
                 .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
-                .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
+                .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+                .build();
         this.clock = clock;
         this.secureRandom = secureRandom;
         this.keyLifetime = keyLifetime;
@@ -431,7 +433,7 @@ public final class FileRuntimeProfileSigningKeyStore implements
             Arrays.fill(bytes, (byte) 0);
         } catch (RuntimeProfileSigningKeyException exception) {
             throw exception;
-        } catch (IOException exception) {
+        } catch (JacksonException exception) {
             throw unavailable("Unable to serialize the RuntimeProfile signing-key manifest", exception);
         }
     }

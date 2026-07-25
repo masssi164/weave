@@ -13,6 +13,9 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Set;
+import com.massimotter.weave.backend.agentruntime.application.McpWorkloadAuthorizationService;
+import com.massimotter.weave.backend.agentruntime.domain.WeaverWorkloadPrincipal;
+import com.massimotter.weave.backend.agentruntime.port.McpWorkloadAuthorizationException;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -22,24 +25,27 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 final class McpRequestAdmissionFilter extends OncePerRequestFilter {
-    static final String BACKEND_CONTEXT_ATTRIBUTE = McpBackendContext.class.getName();
+    static final String WORKLOAD_PRINCIPAL_ATTRIBUTE = WeaverWorkloadPrincipal.class.getName();
 
     private final McpWorkloadProperties properties;
     private final McpWorkloadTokenPolicy tokenPolicy;
     private final McpBackendTokenExchange exchange;
-    private final McpBackendContextResolver contexts;
+    private final McpExchangedTokenAuthenticator exchangedTokens;
+    private final McpWorkloadAuthorizationService authorization;
     private final McpBearerChallengeWriter challenges;
     private final JsonMapper mapper;
 
     McpRequestAdmissionFilter(
             McpWorkloadProperties properties,
             McpBackendTokenExchange exchange,
-            McpBackendContextResolver contexts,
+            McpExchangedTokenAuthenticator exchangedTokens,
+            McpWorkloadAuthorizationService authorization,
             JsonMapper mapper) {
         this.properties = properties;
         this.tokenPolicy = new McpWorkloadTokenPolicy(properties);
         this.exchange = exchange;
-        this.contexts = contexts;
+        this.exchangedTokens = exchangedTokens;
+        this.authorization = authorization;
         this.challenges = new McpBearerChallengeWriter(properties, mapper);
         this.mapper = mapper;
     }
@@ -69,9 +75,16 @@ final class McpRequestAdmissionFilter extends OncePerRequestFilter {
                     workload,
                     jwtAuthentication.getToken().getTokenValue(),
                     scopes);
-            McpBackendContext context = contexts.resolve(workload, exchanged);
-            effectiveRequest.setAttribute(BACKEND_CONTEXT_ATTRIBUTE, context);
+            WeaverWorkloadPrincipal principal = authorization.authorize(
+                    exchangedTokens.authenticate(workload, exchanged));
+            effectiveRequest.setAttribute(WORKLOAD_PRINCIPAL_ATTRIBUTE, principal);
             filterChain.doFilter(effectiveRequest, response);
+        } catch (McpWorkloadAuthorizationException failure) {
+            if (failure.authorityUnavailable()) {
+                challenges.unavailable(response);
+            } else {
+                challenges.forbidden(response);
+            }
         } catch (McpAdmissionException failure) {
             switch (failure.kind()) {
                 case INSUFFICIENT_SCOPE -> challenges.insufficientScope(response);

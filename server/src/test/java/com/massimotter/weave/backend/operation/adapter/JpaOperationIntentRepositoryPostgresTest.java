@@ -3,7 +3,7 @@ package com.massimotter.weave.backend.operation.adapter;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.operation.application.OperationIntentService;
 import com.massimotter.weave.backend.operation.application.OperationIntentService.BeginCommand;
 import com.massimotter.weave.backend.operation.application.OperationIntentService.IdempotencyKeyConflictException;

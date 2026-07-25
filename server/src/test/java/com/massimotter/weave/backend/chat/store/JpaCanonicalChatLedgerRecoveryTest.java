@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.chat.store;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.chat.domain.ChatActorRef;
 import com.massimotter.weave.backend.chat.domain.ChatEventContent;
 import com.massimotter.weave.backend.chat.domain.ChatEncryptionState;
@@ -445,7 +445,7 @@ class JpaCanonicalChatLedgerRecoveryTest {
             MatrixSynapseCompatibilityProfile profile) {
         return new JpaCanonicalChatStore(
                 CanonicalChatJpaTestFactory.authority(dataSource),
-                new ObjectMapper().findAndRegisterModules(),
+                tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build(),
                 FIXED,
                 profile);
     }

@@ -40,16 +40,7 @@ registerRootCommandTask(
     'Run the server unit, dev-H2/JPA, production-artifact, and PostgreSQL integration lanes.'
 )
 registerCommandTask('adminCi', file('admin-console'), ['npm', 'run', 'ci'], 'Run admin console npm CI checks.')
-registerRootCommandTask('generateOpenApiContract', ['bash', 'tools/generate_openapi_contract.sh'], 'Generate the server-owned OpenAPI artifact used by typed consumers.')
-registerRootCommandTask('checkOpenApiContractFresh', ['bash', 'tools/check_openapi_contract_fresh.sh'], 'Fail when the checked-in server OpenAPI artifact is stale.')
-registerRootCommandTask('generateAdminOpenApiTypes', ['python3', 'tools/generate_admin_openapi_types.py'], 'Generate Admin Console TypeScript types from the server-owned OpenAPI artifact.')
-registerRootCommandTask('checkAdminOpenApiTypesFresh', ['bash', '-lc', 'tmp=$(mktemp); cp admin-console/src/generated/openapi.ts "$tmp"; python3 tools/generate_admin_openapi_types.py; cmp -s "$tmp" admin-console/src/generated/openapi.ts || { echo "Admin OpenAPI generated types are stale. Run ./gradlew generateAdminOpenApiTypes and commit the result." >&2; git --no-pager diff -- admin-console/src/generated/openapi.ts >&2 || true; rm -f "$tmp"; exit 1; }; rm -f "$tmp"'], 'Fail when Admin Console generated OpenAPI types are stale.')
-registerRootCommandTask('generateClientOpenApiModels', ['bash', '-lc', 'python3 tools/generate_client_openapi_models.py && dart format client/lib/generated/openapi_models.dart'], 'Generate Flutter/Dart JSON models from the server-owned OpenAPI artifact.')
-registerRootCommandTask('checkClientOpenApiModelsFresh', ['bash', '-lc', 'tmp=$(mktemp); cp client/lib/generated/openapi_models.dart "$tmp"; python3 tools/generate_client_openapi_models.py; dart format client/lib/generated/openapi_models.dart >/dev/null; cmp -s "$tmp" client/lib/generated/openapi_models.dart || { echo "Flutter OpenAPI generated models are stale. Run ./gradlew generateClientOpenApiModels and commit the result." >&2; git --no-pager diff -- client/lib/generated/openapi_models.dart >&2 || true; rm -f "$tmp"; exit 1; }; rm -f "$tmp"'], 'Fail when Flutter/Dart generated OpenAPI models are stale.')
-registerCommandTask('clientOpenApiDriftPrevention', file('client'), ['bash', '-lc', 'FLUTTER_BIN="${FLUTTER_BIN:-$(command -v flutter || true)}"; if [ -z "$FLUTTER_BIN" ] && [ -x "$HOME/flutter/bin/flutter" ]; then FLUTTER_BIN="$HOME/flutter/bin/flutter"; fi; if [ -z "$FLUTTER_BIN" ]; then echo "flutter not found; install Flutter or set FLUTTER_BIN" >&2; exit 127; fi; "$FLUTTER_BIN" test test/architecture/openapi_drift_prevention_contract_test.dart'], 'Block client OpenAPI facade drift for DTOs, raw JSON parsing, provider reachability, and hardcoded copy.')
-tasks.named('clientCi') {
-    dependsOn 'checkClientOpenApiModelsFresh', 'clientOpenApiDriftPrevention'
-}
+apply from: "$projectDir/gradle/tasks/openapi-contract.gradle"
 tasks.register('javaMcpServerCi') {
     group = 'verification'
     description = 'Run Java weave-mcp-server checks through the root Gradle multiproject build.'
@@ -66,49 +57,7 @@ tasks.register('contractAuthorityArchitectureCheck') {
     description = 'Verify the root-orchestrated server/OpenAPI contract authority baseline without running live infrastructure.'
     dependsOn ':server:test', 'mcpCi', 'docsStructureCheck', 'checkOpenApiContractFresh', 'checkAdminOpenApiTypesFresh', 'checkClientOpenApiModelsFresh'
 }
-['dev', 'dogfood', 'main'].each { profile ->
-    def profileTitle = profile.capitalize()
-    ['config', 'up', 'down'].each { operation ->
-        def operationTitle = operation.capitalize()
-        registerRootCommandTask(
-            "compose${profileTitle}${operationTitle}",
-            ['infra/weave-workspace/compose.sh', profile, operation],
-            "Run the ${operation} operation for the canonical ${profile} Docker Compose profile."
-        )
-    }
-    ['plan', 'apply', 'verify'].each { operation ->
-        def operationTitle = operation.capitalize()
-        registerRootCommandTask(
-            "keycloak${profileTitle}${operationTitle}",
-            ['infra/weave-workspace/compose.sh', profile, "keycloak-${operation}"],
-            "Run protected Keycloak desired-state ${operation} for the ${profile} Compose profile."
-        )
-    }
-}
-tasks.register('serverDevH2Test') {
-    group = 'verification'
-    description = 'Run the host-development Spring Boot test lane with H2 and Hibernate mapping validation.'
-    dependsOn ':server:devH2IntegrationTest'
-}
-registerRootCommandTask('composeDevDependenciesReady', ['python3', 'infra/weave-workspace/scripts/prepare_dev_dependencies.py', '--root', 'infra/weave-workspace'], 'Build exact local trust images and reconcile the dev Compose provider dependencies for a host Spring Boot process.')
-registerRootCommandTask('serverDevBoot', ['python3', 'infra/weave-workspace/scripts/run_host_dev_server.py', 'boot', '--root', 'infra/weave-workspace'], 'Boot the host Spring server with application-dev H2 and generated live-provider coordinates.')
-tasks.named('serverDevBoot') {
-    dependsOn 'composeDevDependenciesReady'
-}
-registerRootCommandTask('serverDevHostSmoke', ['python3', 'infra/weave-workspace/scripts/run_host_dev_server.py', 'smoke', '--root', 'infra/weave-workspace'], 'Prove host Spring Boot readiness on H2 against the reconciled dev provider dependencies.')
-tasks.named('serverDevHostSmoke') {
-    dependsOn 'composeDevDependenciesReady'
-}
-tasks.register('serverPostgresIntegrationTest') {
-    group = 'verification'
-    description = 'Run the PostgreSQL-backed Spring Boot integration and migration test lane.'
-    dependsOn ':server:postgresIntegrationTest'
-}
-tasks.register('relationalModelParity') {
-    group = 'verification'
-    description = 'Prove exact Flyway, canonical Chen manifest, JPA entity, and repository parity.'
-    dependsOn ':server:relationalModelParity'
-}
+apply from: "$projectDir/gradle/tasks/environment-profiles.gradle"
 registerRootCommandTask('noExecutableOpenTofuCheck', ['python3', 'tools/no_executable_opentofu_check.py'], 'Reject executable OpenTofu, Terraform state, TF_VAR inputs, and legacy IaC commands after the Compose cutover.')
 registerRootCommandTask('noExecutableOpenTofuCheckTest', ['python3', 'tools/no_executable_opentofu_check_test.py'], 'Run fixture coverage for the executable OpenTofu retirement guard.')
 registerRootCommandTask('workflowActionRuntimeCheck', ['python3', 'tools/workflow_action_runtime_check.py'], 'Require every external GitHub Action to use its reviewed immutable commit and a supported Node 24 or composite runtime.')

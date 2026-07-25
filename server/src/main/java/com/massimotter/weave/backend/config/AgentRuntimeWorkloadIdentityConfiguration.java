@@ -1,21 +1,18 @@
 package com.massimotter.weave.backend.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.agentruntime.adapter.ClientSecretKeycloakAdminAccessTokenProvider;
 import com.massimotter.weave.backend.agentruntime.adapter.FileRuntimeWorkloadCredentialStore;
 import com.massimotter.weave.backend.agentruntime.adapter.KeycloakAdminAccessTokenProvider;
 import com.massimotter.weave.backend.agentruntime.adapter.KeycloakAgentRuntimeWorkloadIdentityAdmin;
 import com.massimotter.weave.backend.agentruntime.adapter.KeycloakRuntimeEntitlementAuthority;
-import com.massimotter.weave.backend.agentruntime.adapter.McpExchangedTokenPolicy;
 import com.massimotter.weave.backend.agentruntime.application.AgentRuntimeControlService;
 import com.massimotter.weave.backend.agentruntime.application.AgentRuntimeWorkloadReconciliationService;
-import com.massimotter.weave.backend.agentruntime.application.McpWorkloadAuthorizationService;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeCellRepository;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeCommandRepository;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeEntitlementAuthority;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeGovernanceRepository;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileRepository;
-import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileVerifier;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadCredentialStore;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityAdmin;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityInventory;
@@ -115,28 +112,4 @@ public class AgentRuntimeWorkloadIdentityConfiguration {
                 Clock.systemUTC());
     }
 
-    @Bean
-    McpExchangedTokenPolicy mcpExchangedTokenPolicy(PlatformContractProperties platform) {
-        return new McpExchangedTokenPolicy(platform.apiBaseUrl(), "weave-mcp-server");
-    }
-
-    @Bean
-    McpWorkloadAuthorizationService mcpWorkloadAuthorizationService(
-            McpExchangedTokenPolicy tokenPolicy,
-            RuntimeCellRepository cells,
-            RuntimeProfileRepository profiles,
-            RuntimeProfileVerifier verifier,
-            RuntimeGovernanceRepository governance,
-            RuntimeWorkloadIdentityAdmin workloadIdentityAdmin,
-            RuntimeEntitlementAuthority entitlementAuthority) {
-        return new McpWorkloadAuthorizationService(
-                tokenPolicy,
-                cells,
-                profiles,
-                verifier,
-                governance,
-                workloadIdentityAdmin,
-                entitlementAuthority,
-                Clock.systemUTC());
-    }
 }

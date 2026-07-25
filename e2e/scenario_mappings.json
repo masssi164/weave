@@ -4354,14 +4354,14 @@
           ]
         },
         {
-          "path": "server/src/main/resources/db/migration/V001__provider_selection_foundation.sql",
+          "path": "weave-persistence-jpa/src/main/resources/db/migration/V001__provider_selection_foundation.sql",
           "fragments": [
             "weave_provider_selections",
             "weave_provider_selection_notes"
           ]
         },
         {
-          "path": "server/src/main/resources/db/migration/V002__product_profile_override_foundation.sql",
+          "path": "weave-persistence-jpa/src/main/resources/db/migration/V002__product_profile_override_foundation.sql",
           "fragments": [
             "weave_product_profile_overrides",
             "accessibility_preferences_json"
@@ -4404,7 +4404,7 @@
           ]
         },
         {
-          "path": "server/src/main/resources/db/migration/V003__audit_event_persistence_foundation.sql",
+          "path": "weave-persistence-jpa/src/main/resources/db/migration/V003__audit_event_persistence_foundation.sql",
           "fragments": [
             "weave_audit_events",
             "uq_weave_audit_events_idempotency"
@@ -4446,7 +4446,7 @@
           ]
         },
         {
-          "path": "server/src/main/resources/db/migration/V004__migration_run_evidence_persistence_foundation.sql",
+          "path": "weave-persistence-jpa/src/main/resources/db/migration/V004__migration_run_evidence_persistence_foundation.sql",
           "fragments": [
             "weave_migration_run_evidence",
             "primary key (run_id, domain_key)"
@@ -5769,8 +5769,31 @@
           "fragments": [
             "CLIENT_CREDENTIALS_EXTENSION",
             "exchange.exchange(",
-            "contexts.resolve(",
-            "BACKEND_CONTEXT_ATTRIBUTE"
+            "exchangedTokens.authenticate(",
+            "authorization.authorize(",
+            "WORKLOAD_PRINCIPAL_ATTRIBUTE"
+          ]
+        },
+        {
+          "path": "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/McpExchangedTokenAuthenticator.java",
+          "fragments": [
+            "decoder.decode(",
+            "policy.resolve(jwt)"
+          ]
+        },
+        {
+          "path": "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/McpApplicationCoreConfiguration.java",
+          "fragments": [
+            "new Ed25519JcsRuntimeProfileVerifier(",
+            "new McpWorkloadAuthorizationService("
+          ]
+        },
+        {
+          "path": "weave-mcp-server/src/test/java/com/massimotter/weave/mcp/RuntimeCompositionArchitectureTest.java",
+          "fragments": [
+            "mcpHasNoAdminIdentityCredentialOrPrivateBridge",
+            ".doesNotContain(\"/api/internal/agent-runtime/mcp-context\")",
+            ".doesNotContain(\"McpBackendContextResolver\")"
           ]
         }
       ]

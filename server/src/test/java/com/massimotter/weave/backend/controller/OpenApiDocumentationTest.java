@@ -5,15 +5,14 @@ import java.nio.file.Path;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import static org.hamcrest.Matchers.hasItems;
-import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -27,20 +26,21 @@ class OpenApiDocumentationTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockBean
+    @MockitoBean
     private JwtDecoder jwtDecoder;
 
     @Test
     void exposesOpenApiDescription() throws Exception {
         MvcResult result = mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.openapi").value(startsWith("3.")))
+                .andExpect(jsonPath("$.openapi").value("3.1.0"))
                 .andExpect(jsonPath("$.info.title").value("Weave Backend API"))
                 .andExpect(jsonPath("$.paths['/api/me']").exists())
                 .andExpect(jsonPath("$.paths['/api/health/live']").exists())
                 .andExpect(jsonPath("$.paths['/api/health/ready']").exists())
                 .andExpect(jsonPath("$.paths['/api/platform/config']").exists())
                 .andExpect(jsonPath("$.paths['/api/platform/status']").exists())
+                .andExpect(jsonPath("$.paths['/api/platform/status'].get.operationId").value("getPlatformStatus"))
                 .andExpect(jsonPath("$.paths['/api/profile']").exists())
                 .andExpect(jsonPath("$.paths['/api/profile'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/profile'].get.operationId").value("getProductProfile"))
@@ -88,11 +88,14 @@ class OpenApiDocumentationTest {
                 .andExpect(jsonPath("$.paths['/api/v1/workspace/capabilities']").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/workspace/release-readiness']").exists())
                 .andExpect(jsonPath("$.paths['/api/interop/status']").exists())
+                .andExpect(jsonPath("$.paths['/api/interop/status'].get.operationId").value("getInteropStatus"))
                 .andExpect(jsonPath("$.paths['/api/interop/slack/status']").exists())
                 .andExpect(jsonPath("$.paths['/api/interop/slack/oauth/callback']").exists())
                 .andExpect(jsonPath("$.paths['/api/interop/slack/events']").exists())
                 .andExpect(jsonPath("$.paths['/api/interop/slack/messages']").exists())
                 .andExpect(jsonPath("$.paths['/api/interop/teams/contract']").exists())
+                .andExpect(jsonPath("$.paths['/api/office/capabilities'].get.operationId")
+                        .value("getOfficeCapabilities"))
                 .andExpect(jsonPath("$.paths['/api/guest/access-contract']").exists())
                 .andExpect(jsonPath("$.paths['/api/guest/invitations']").exists())
                 .andExpect(jsonPath("$.paths['/api/migration/dry-runs']").exists())

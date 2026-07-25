@@ -1,15 +1,11 @@
 plugins {
-    id 'org.springframework.boot' version '3.2.2'
-    id 'io.spring.dependency-management' version '1.1.2'
+    id 'org.springframework.boot' version '4.1.0'
+    id 'io.spring.dependency-management' version '1.1.7'
     id 'java'
 }
 
 group = 'com.massimotter.weave'
 version = '0.1.0'
-
-// Spring Boot 3.2 manages Testcontainers 1.19.x, whose Docker API negotiation
-// cannot execute against the Docker 29 engine used by the integration lane.
-ext['testcontainers.version'] = '1.21.4'
 
 java {
     toolchain {
@@ -17,182 +13,41 @@ java {
     }
 }
 
-def nativeLibraryFileName = System.getProperty('os.name').toLowerCase().contains('mac')
-        ? 'libweave_matrix_core.dylib'
-        : System.getProperty('os.name').toLowerCase().contains('win')
-                ? 'weave_matrix_core.dll'
-                : 'libweave_matrix_core.so'
-def matrixCoreLibrary = rootProject.file("target/debug/${nativeLibraryFileName}")
-
-tasks.register('buildMatrixRustCoreJni', Exec) {
-    group = 'build'
-    description = 'Build the mandatory Rust/Ruma JNI library used by the Matrix facade.'
-    workingDir rootProject.projectDir
-    commandLine 'cargo', 'build', '-p', 'weave-matrix-core', '--features', 'jni'
-    inputs.file(rootProject.file('Cargo.toml'))
-    inputs.file(rootProject.file('Cargo.lock'))
-    inputs.dir(rootProject.file('rust/matrix-core/src'))
-    inputs.file(rootProject.file('rust/matrix-core/Cargo.toml'))
-    outputs.file(matrixCoreLibrary)
-}
-
 dependencies {
+    implementation project(':weave-application-core')
+    implementation project(':weave-persistence-jpa')
+    implementation project(':weave-runtime-security-adapters')
+    implementation project(':weave-runtime-provider-adapters')
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-    implementation 'org.flywaydb:flyway-core'
-    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-api:2.5.0'
+    implementation 'org.springframework.boot:spring-boot-starter-flyway'
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-api:3.0.3'
     implementation 'io.github.erdtman:java-json-canonicalization:1.1'
     implementation('software.amazon.awssdk:s3:2.46.8') {
         exclude group: 'software.amazon.awssdk', module: 'apache-client'
     }
     implementation 'software.amazon.awssdk:url-connection-client:2.46.8'
-    implementation project(':weave-contract')
     runtimeOnly 'org.postgresql:postgresql'
-    developmentOnly 'com.h2database:h2'
+    runtimeOnly 'org.flywaydb:flyway-database-postgresql'
+    // Flyway 11.17 currently verifies H2 through 2.3.232. H2 2.4.240 retains
+    // a closed DDL session in IN-based check constraints after migration.
+    developmentOnly 'com.h2database:h2:2.3.232'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
-    testImplementation 'org.springframework.security:spring-security-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
     testImplementation 'io.cucumber:cucumber-java:7.18.1'
     testImplementation 'io.cucumber:cucumber-spring:7.18.1'
     testImplementation 'org.junit.platform:junit-platform-suite'
     testImplementation 'org.testcontainers:junit-jupiter:1.21.4'
     testImplementation 'org.testcontainers:postgresql:1.21.4'
-    testRuntimeOnly 'com.h2database:h2'
+    testRuntimeOnly 'com.h2database:h2:2.3.232'
     testRuntimeOnly 'io.cucumber:cucumber-junit-platform-engine:7.18.1'
 }
 
-tasks.withType(Test).configureEach {
-    // Hibernate metadata and Spring context caches are deliberately exercised by
-    // the full facade suite. Keep the worker budget explicit and evict older
-    // application contexts so local and CI execution have the same memory model.
-    maxHeapSize = '1g'
-    systemProperty 'spring.test.context.cache.maxSize', '8'
-}
-
-tasks.named('test') {
-    dependsOn tasks.named('buildMatrixRustCoreJni')
-    useJUnitPlatform {
-        excludeTags 'dev-h2-integration'
-    }
-    systemProperty 'weave.matrix.core.library.path', matrixCoreLibrary.absolutePath
-    systemProperty 'spring.profiles.active', 'test'
-    filter {
-        excludeTestsMatching '*PostgresTest'
-    }
-    filter {
-        excludeTestsMatching '*DevH2JpaIntegrationTest'
-    }
-    if (System.getProperty('weave.openapi.export.path') != null) {
-        systemProperty 'weave.openapi.export.path', System.getProperty('weave.openapi.export.path')
-    }
-}
-
-tasks.register('devH2IntegrationTest', Test) {
-    group = 'verification'
-    description = 'Boots the dev profile and proves Flyway, Hibernate validation, and JPA persistence on H2 PostgreSQL mode.'
-    testClassesDirs = sourceSets.test.output.classesDirs
-    classpath = sourceSets.test.runtimeClasspath
-    useJUnitPlatform {
-        includeEngines 'junit-jupiter'
-        includeTags 'dev-h2-integration'
-    }
-    filter {
-        includeTestsMatching '*DevH2JpaIntegrationTest'
-        failOnNoMatchingTests = true
-    }
-    systemProperty 'spring.profiles.active', 'dev'
-    shouldRunAfter tasks.named('test')
-}
-
-tasks.register('postgresIntegrationTest', Test) {
-    group = 'verification'
-    description = 'Runs the server persistence contract tests against disposable PostgreSQL and fails when Docker is unavailable.'
-    dependsOn tasks.named('buildMatrixRustCoreJni')
-    testClassesDirs = sourceSets.test.output.classesDirs
-    classpath = sourceSets.test.runtimeClasspath
-    useJUnitPlatform {
-        includeEngines 'junit-jupiter'
-    }
-    filter {
-        includeTestsMatching '*PostgresTest'
-        failOnNoMatchingTests = true
-    }
-    systemProperty 'weave.matrix.core.library.path', matrixCoreLibrary.absolutePath
-    systemProperty 'spring.profiles.active', 'test'
-    doFirst {
-        if (!System.getenv('DOCKER_HOST')) {
-            def dockerHost = providers.exec {
-                commandLine 'docker', 'context', 'inspect', '--format', '{{.Endpoints.docker.Host}}'
-                ignoreExitValue = true
-            }.standardOutput.asText.get().trim()
-            if (!(dockerHost ==~ /^(unix|tcp|npipe):\/\/.+/)) {
-                throw new GradleException('PostgreSQL integration tests require a reachable Docker context or explicit DOCKER_HOST')
-            }
-            environment 'DOCKER_HOST', dockerHost
-        }
-    }
-    shouldRunAfter tasks.named('test')
-}
-
-tasks.register('relationalModelParity', Test) {
-    group = 'verification'
-    description = 'Proves exact Flyway, canonical Chen manifest, JPA entity, and repository parity.'
-    testClassesDirs = sourceSets.test.output.classesDirs
-    classpath = sourceSets.test.runtimeClasspath
-    useJUnitPlatform {
-        includeEngines 'junit-jupiter'
-    }
-    filter {
-        includeTestsMatching '*RelationalModelParityTest'
-        failOnNoMatchingTests = true
-    }
-    systemProperty 'spring.profiles.active', 'test'
-    shouldRunAfter tasks.named('test')
-}
-
-tasks.register('verifyProductionBootJar') {
-    group = 'verification'
-    description = 'Proves that the production server artifact does not contain the dev-only H2 driver.'
-    dependsOn tasks.named('bootJar')
-    doLast {
-        def archive = tasks.named('bootJar').get().archiveFile.get().asFile
-        def h2Entries = zipTree(archive).matching { include 'BOOT-INF/lib/h2-*.jar' }.files
-        if (!h2Entries.empty) {
-            throw new GradleException("Dev-only H2 dependency leaked into ${archive.name}")
-        }
-    }
-}
-
-tasks.named('check') {
-    dependsOn tasks.named('devH2IntegrationTest')
-    dependsOn tasks.named('relationalModelParity')
-    dependsOn tasks.named('verifyProductionBootJar')
-}
-
-tasks.named('bootRun') {
-    dependsOn tasks.named('buildMatrixRustCoreJni')
-    systemProperty 'weave.matrix.core.library.path', matrixCoreLibrary.absolutePath
-}
-
-tasks.register('runtimeProfileSigningKeys', JavaExec) {
-    group = 'weave operations'
-    description = 'Initialize, inspect, or rotate the offline RuntimeProfile signing-key SecretRef store.'
-    classpath = sourceSets.main.runtimeClasspath
-    mainClass = 'com.massimotter.weave.backend.agentruntime.operator.RuntimeProfileSigningKeyCli'
-}
-
-tasks.register('runtimeStateWrappingKeys', JavaExec) {
-    group = 'weave operations'
-    description = 'Initialize, inspect, or rotate the offline RuntimeStateStore wrapping-key SecretRef store.'
-    classpath = sourceSets.main.runtimeClasspath
-    mainClass = 'com.massimotter.weave.backend.agentruntime.operator.RuntimeStateWrappingKeyCli'
-}
-
-tasks.matching { it.name == 'wrapper' }.configureEach {
-    gradleVersion = '8.7'
-    distributionType = Wrapper.DistributionType.ALL
-}
+apply from: "$projectDir/gradle/tasks/verification.gradle"
