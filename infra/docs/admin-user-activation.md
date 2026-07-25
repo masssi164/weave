@@ -1,6 +1,6 @@
 # Persistent Dogfood Member
 
-The protected dogfood path maintains one human client-testing member without Admin Console access, manual Keycloak editing, or an initial password. It is separate from the disposable CI `test` account and has only the `member` role plus the configured product capability groups.
+The protected dogfood path maintains one human client-testing member without Admin Console access, manual Keycloak editing, or an initial password. It is separate from the disposable CI `test` account and receives exactly the native Keycloak Organization groups `/members` and `/capabilities/weaver`. The first group maps the `weave-app` member role; the capability group is deliberately role-free.
 
 The member is Keycloak runtime data, not Compose desired state. The immutable subject reference is stored on the dedicated runner outside the Git checkout so routine checkout cleanup and deployment cannot erase the persistence invariant.
 
@@ -30,9 +30,7 @@ Required protected configuration:
 - environment variable `WEAVE_DOGFOOD_MEMBER_USERNAME`;
 - environment secret `WEAVE_DOGFOOD_MEMBER_EMAIL`;
 - environment variable `WEAVE_DOGFOOD_MEMBER_DISPLAY_NAME`;
-- optional environment variable `WEAVE_DOGFOOD_MEMBER_GROUPS`.
-
-The helper also loads the generated Keycloak bootstrap environment on the dedicated runner. Active-member verification requires the same immutable subject, Keycloak organization membership, `weave-app` `member` role, and expected groups. A missing or changed recorded subject fails closed rather than creating a replacement.
+The helper also loads the generated Keycloak bootstrap environment on the dedicated runner. Active-member verification requires the same immutable subject and the exact native organization-group memberships. It never reads realm user groups or writes direct user-role mappings. A missing or changed recorded subject fails closed rather than creating a replacement.
 
 Password and passkey recovery for an active account stays in Keycloak. It is never implemented as another invitation.
 

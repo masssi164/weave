@@ -69,17 +69,14 @@ elif [[ "${url}" == *execute-actions-email* ]]; then
   [[ "${FAKE_DROP_MAIL:-false}" == true ]] || printf sent >"${FAKE_MAIL_SENT}"
 elif [[ "${method}" == POST && "${url}" == */organizations/org-1/members ]]; then
   [[ "${FAKE_FAIL_ACCESS:-false}" != true ]] || exit 22
-elif [[ "${url}" == *'/organizations?'* ]]; then printf '[{"id":"org-1","name":"weave","alias":"weave"}]'
-elif [[ "${url}" == *'/clients?clientId='* ]]; then printf '[{"id":"client-1","name":"weave-app","clientId":"weave-app"}]'
-elif [[ "${url}" == *'/clients/client-1/roles/member' ]]; then printf '{"id":"role-1","name":"member"}'
-elif [[ "${url}" == *'/role-mappings/clients/client-1' ]]; then printf '[{"id":"role-1","name":"member"}]'
-elif [[ "${url}" == *'/users/human-subject-'*'/groups' ]]; then printf '[{"id":"g1","name":"members","path":"/weave/members"},{"id":"g2","name":"weave-board-editors","path":"/weave-board-editors"},{"id":"g3","name":"weave-calendar-editors","path":"/weave-calendar-editors"}]'
-elif [[ "${url}" == *'/groups?search='* ]]; then
+elif [[ "${url}" == *'/organizations?first=0&max=2' ]]; then printf '[{"id":"org-1","name":"weave","alias":"weave"}]'
+elif [[ "${url}" == *'/organizations/org-1/groups?search='* ]]; then
   case "${url}" in
-    *members*) printf '[{"id":"g1","name":"members","path":"/weave/members"}]' ;;
-    *weave-board-editors*) printf '[{"id":"g2","name":"weave-board-editors","path":"/weave-board-editors"}]' ;;
-    *weave-calendar-editors*) printf '[{"id":"g3","name":"weave-calendar-editors","path":"/weave-calendar-editors"}]' ;;
+    *members*) printf '[{"id":"g1","name":"members","path":"/members"}]' ;;
+    *weaver*) printf '[{"id":"g2","name":"weaver","path":"/capabilities/weaver"}]' ;;
   esac
+elif [[ "${url}" == *'/organizations/org-1/members/human-subject-'*'/groups' ]]; then
+  printf '[{"id":"g1","name":"members","path":"/members"},{"id":"g2","name":"weaver","path":"/capabilities/weaver"}]'
 elif [[ "${url}" == *'/organizations/org-1/members/human-subject-'* ]]; then printf '{"id":"persistent-member"}'
 fi
 EOF
@@ -108,6 +105,11 @@ grep -Fq 'state=pending action=created_and_activation_sent' <<<"${output}"
 [[ "$(file_mode "$(dirname "${subject_file}")")" == 700 ]]
 [[ "$(grep -c 'POST .*\/users$' "${FAKE_CURL_LOG}")" -eq 1 ]]
 [[ "$(grep -c 'PUT .*execute-actions-email' "${FAKE_CURL_LOG}")" -eq 1 ]]
+[[ "$(grep -c 'PUT .*\/organizations\/org-1\/groups\/g1\/members\/human-subject-1' "${FAKE_CURL_LOG}")" -eq 1 ]]
+[[ "$(grep -c 'PUT .*\/organizations\/org-1\/groups\/g2\/members\/human-subject-1' "${FAKE_CURL_LOG}")" -eq 1 ]]
+if grep -Eq '/users/.*/groups|/users/.*/role-mappings' "${FAKE_CURL_LOG}"; then
+  echo 'persistent member used retired realm-group or direct-role administration' >&2; exit 1
+fi
 jq -e '.state == "pending" and .action == "created_and_activation_sent" and .activation.mailSent == true and .activation.mailVisible == true and (.activation.messageIdSha256 | test("^[0-9a-f]{64}$")) and (.activation.verifiedAt | test("Z$")) and (.activation.requiredActions | contains(["UPDATE_PASSWORD"])) and .qrOrDeeplinkCarriesSecret == false and .appStoresActivationSecret == false and .supportSafe == true and (.subjectSha256 | test("^[0-9a-f]{64}$"))' "${evidence_file}" >/dev/null
 if grep -Fq human@example.test "${evidence_file}" || grep -Fq human-subject-1 "${evidence_file}" || grep -Fq mail-1 "${evidence_file}"; then
   echo 'support-safe evidence leaked direct identity data' >&2; exit 1

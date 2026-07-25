@@ -2,7 +2,7 @@ package com.massimotter.weave.backend.config;
 
 import com.massimotter.weave.backend.agentruntime.adapter.ClientSecretKeycloakAdminAccessTokenProvider;
 import com.massimotter.weave.backend.agentruntime.adapter.KeycloakAgentRuntimeWorkloadIdentityAdmin;
-import com.massimotter.weave.backend.agentruntime.adapter.KeycloakRuntimeEntitlementAuthority;
+import com.massimotter.weave.backend.agentruntime.adapter.KeycloakRuntimeIdentityAuthority;
 import java.net.URI;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -24,7 +24,6 @@ public class AgentRuntimeWorkloadIdentityProperties {
     private String entitlementCredentialRef = "";
     private Path secretRoot;
     private Duration timeout = Duration.ofSeconds(10);
-    private Duration entitlementObservationTtl = Duration.ofMinutes(5);
     private String workloadRole = "weaver-runtime";
     private List<String> defaultClientScopes = new ArrayList<>(List.of("weaver-runtime.workload"));
     private List<String> optionalClientScopes = new ArrayList<>(List.of("agent-runtime.profile.read", "mcp.tools"));
@@ -126,14 +125,6 @@ public class AgentRuntimeWorkloadIdentityProperties {
         this.timeout = timeout;
     }
 
-    public Duration entitlementObservationTtl() {
-        return entitlementObservationTtl;
-    }
-
-    public void setEntitlementObservationTtl(Duration entitlementObservationTtl) {
-        this.entitlementObservationTtl = entitlementObservationTtl;
-    }
-
     public String workloadRole() {
         return workloadRole;
     }
@@ -207,9 +198,9 @@ public class AgentRuntimeWorkloadIdentityProperties {
                 timeout);
     }
 
-    public KeycloakRuntimeEntitlementAuthority.Settings entitlementSettings(
+    public KeycloakRuntimeIdentityAuthority.Settings entitlementSettings(
             AgentRuntimeEntitlementProperties entitlement) {
-        return new KeycloakRuntimeEntitlementAuthority.Settings(
+        return new KeycloakRuntimeIdentityAuthority.Settings(
                 entitlement.enabled(),
                 keycloakAdminBaseUrl,
                 issuer,
@@ -217,8 +208,7 @@ public class AgentRuntimeWorkloadIdentityProperties {
                 keycloakOrganizationId,
                 realm,
                 timeout,
-                entitlementObservationTtl,
-                entitlement.enabledGroups(),
+                entitlement.observationTtl(),
                 entitlement.allowedCapabilities());
     }
 }

@@ -809,7 +809,7 @@ class FilesCalendarFacadeControllerTest {
     @Test
     void memberJwtWithoutCalendarEditorCapabilityCannotWriteEvenWhenRebacWouldAllow() throws Exception {
         mockMvc.perform(request(HttpMethod.valueOf("PUT"), "/caldav/workspace/missing-capability.ics")
-                        .with(workspaceJwtWithoutCalendarEditor())
+                        .with(memberWorkspaceJwt())
                         .header("If-None-Match", "*")
                         .contentType("text/calendar")
                         .content("""
@@ -833,7 +833,7 @@ class FilesCalendarFacadeControllerTest {
                         .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("remote.php"))));
 
         mockMvc.perform(post("/api/calendar/client-setup/credentials")
-                        .with(workspaceJwtWithoutCalendarEditor())
+                        .with(memberWorkspaceJwt())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"label\":\"Denied calendar\",\"clientType\":\"caldav\"}"))
                 .andExpect(status().isForbidden())
@@ -983,12 +983,12 @@ class FilesCalendarFacadeControllerTest {
                         .claim("iss", "https://auth.example.invalid/realms/acme")
                 .claim("aud", java.util.List.of("weave-app"))
                 .claim("weave_tenant_id", "tenant-default")
-                .claim("resource_access", java.util.Map.of("weave-app", java.util.Map.of("roles", java.util.List.of("member"))))
-                .claim("groups", java.util.List.of("/weave-calendar-editors", "/weave-meeting-hosts")))
+                .claim("resource_access", java.util.Map.of("weave-app", java.util.Map.of("roles", java.util.List.of("admin"))))
+                .claim("groups", java.util.List.of()))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 
-    private org.springframework.test.web.servlet.request.RequestPostProcessor workspaceJwtWithoutCalendarEditor() {
+    private org.springframework.test.web.servlet.request.RequestPostProcessor memberWorkspaceJwt() {
         return jwt().jwt(jwt -> jwt
                         .subject("user@example.com")
                         .claim("iss", "https://auth.example.invalid/realms/acme")
@@ -996,7 +996,7 @@ class FilesCalendarFacadeControllerTest {
                         .claim("weave_tenant_id", "tenant-default")
                         .claim("resource_access", java.util.Map.of(
                                 "weave-app", java.util.Map.of("roles", java.util.List.of("member"))))
-                        .claim("groups", java.util.List.of("/weave-meeting-hosts")))
+                        .claim("groups", java.util.List.of()))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 

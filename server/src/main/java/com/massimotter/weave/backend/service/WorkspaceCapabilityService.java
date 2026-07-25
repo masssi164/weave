@@ -27,6 +27,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class WorkspaceCapabilityService {
 
+    private static final String WEAVER_CAPABILITY_GROUP_PATH = "/capabilities/weaver";
     private static final List<String> OWNER_ADMIN_CAPABILITIES = List.of(
             "chat.read",
             "chat.send",
@@ -61,12 +62,6 @@ public class WorkspaceCapabilityService {
             "decisions.read",
             "manuals.read",
             "release_evidence.read");
-    private static final Map<String, List<String>> GROUP_CAPABILITIES = Map.of(
-            "/weave-calendar-editors", List.of("calendar.manage_events"),
-            "/weave-board-editors", List.of("boards.update_task"),
-            "/weave-meeting-hosts", List.of("meetings.host"),
-            "/weave-document-editors", List.of("documents.edit"),
-            "/weave-decision-recorders", List.of("decisions.record"));
     private final OAuth2ResourceServerProperties resourceServerProperties;
     private final WeaveSecurityProperties weaveSecurityProperties;
     private final WorkspaceCapabilityProperties workspaceCapabilityProperties;
@@ -565,12 +560,7 @@ public class WorkspaceCapabilityService {
             profileKeys.add("guest-deny-default");
         }
         for (String group : groups) {
-            List<String> groupCapabilities = GROUP_CAPABILITIES.get(group);
-            if (groupCapabilities != null) {
-                capabilities.addAll(groupCapabilities);
-                profileKeys.add("group:" + group);
-            }
-            if (runtimeEntitlementProperties.enabledGroups().contains(group)) {
+            if (WEAVER_CAPABILITY_GROUP_PATH.equals(group)) {
                 profileKeys.add("group:" + group);
                 if (runtimeEntitlementProperties.enabled()) {
                     capabilities.add("agent-runtime.entitled");
@@ -580,8 +570,8 @@ public class WorkspaceCapabilityService {
         if (profileKeys.isEmpty()) {
             profileKeys.add("deny-by-default");
         }
-        // ARC entitlement is deliberately absent from built-in human role profiles. Only the
-        // configured Keycloak group may contribute the member-safe entitlement capability.
+        // This is a member-visible policy projection only. ARC independently re-reads
+        // the exact native Organization group before provisioning or reconciliation.
         return new EffectivePolicy(
                 roles,
                 groups,
@@ -602,7 +592,7 @@ public class WorkspaceCapabilityService {
 
     private String denyReason(EffectivePolicy policy, String capability) {
         if (capability.equals("agent-runtime.entitled")) {
-            return "Agent Runtime Control is disabled unless current Keycloak group membership grants entitlement";
+            return "Agent Runtime Control requires current /capabilities/weaver organization membership";
         }
         return "missing mapped org role, context role, or group capability";
     }

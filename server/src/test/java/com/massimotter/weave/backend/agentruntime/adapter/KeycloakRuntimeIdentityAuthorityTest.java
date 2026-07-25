@@ -30,7 +30,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-class KeycloakRuntimeEntitlementAuthorityTest {
+class KeycloakRuntimeIdentityAuthorityTest {
     private static final Instant NOW = Instant.parse("2026-07-20T09:00:00Z");
     private static final String ISSUER = "https://auth.weave.test/realms/weave";
     private static final String SUBJECT = "member-uuid";
@@ -38,14 +38,14 @@ class KeycloakRuntimeEntitlementAuthorityTest {
     private ObjectMapper mapper;
     private FakeKeycloak keycloak;
     private RotatingTokenProvider tokens;
-    private KeycloakRuntimeEntitlementAuthority authority;
+    private KeycloakRuntimeIdentityAuthority authority;
 
     @BeforeEach
     void setUp() throws IOException {
         mapper = new ObjectMapper();
         keycloak = new FakeKeycloak(mapper);
         tokens = new RotatingTokenProvider();
-        authority = new KeycloakRuntimeEntitlementAuthority(
+        authority = new KeycloakRuntimeIdentityAuthority(
                 settings(true), tokens, mapper, HttpClient.newHttpClient(),
                 Clock.fixed(NOW, ZoneOffset.UTC));
     }
@@ -56,8 +56,8 @@ class KeycloakRuntimeEntitlementAuthorityTest {
     }
 
     @Test
-    void derivesOpaqueShortLivedEvidenceFromTheEnabledUsersCurrentGroupMembership() {
-        keycloak.groups.add(group("group-1", "team-a", "/weave/weaver-runtime/team-a"));
+    void derivesOpaqueEvidenceFromTheExactNativeOrganizationCapabilityGroup() {
+        keycloak.groups.add(group("group-1", "weaver", "/capabilities/weaver"));
         keycloak.groups.add(group("group-2", "unrelated", "/unrelated"));
 
         var observation = authority.observe(command(ISSUER));
@@ -65,10 +65,34 @@ class KeycloakRuntimeEntitlementAuthorityTest {
         assertThat(observation.sourceProvider()).isEqualTo("keycloak");
         assertThat(observation.sourceGroupRef()).matches("sha256:[a-f0-9]{64}");
         assertThat(observation.capabilityRevision()).matches("sha256:[a-f0-9]{64}");
-        assertThat(observation.sourceGroupRef()).doesNotContain("group-1", "weaver-runtime");
+        assertThat(observation.sourceGroupRef()).doesNotContain("group-1", "capabilities");
         assertThat(observation.observedAt()).isEqualTo(NOW);
         assertThat(observation.expiresAt()).isEqualTo(NOW.plusSeconds(300));
         assertThat(keycloak.lastAuthorization).isEqualTo("Bearer admin-token-1");
+        assertThat(keycloak.requestPaths)
+                .allMatch(path -> path.startsWith("/admin/realms/weave/organizations/org-uuid/"))
+                .noneMatch(path -> path.contains("/users/"));
+    }
+
+    @Test
+    void everyObservationRevalidatesGrantRevocationAndRegrantAgainstNativeOrganizationGroups() {
+        keycloak.groups.add(group("group-1", "weaver", "/capabilities/weaver"));
+
+        assertThat(authority.observe(command(ISSUER)).sourceGroupRef()).startsWith("sha256:");
+
+        keycloak.groups.clear();
+        assertThatThrownBy(() -> authority.observe(command(ISSUER)))
+                .isInstanceOf(RuntimeEntitlementDeniedException.class)
+                .hasMessageContaining("no unambiguous native Weaver capability");
+
+        keycloak.groups.add(group("group-2", "weaver", "/capabilities/weaver"));
+        var regranted = authority.observe(command(ISSUER));
+
+        assertThat(regranted.sourceGroupRef()).startsWith("sha256:");
+        assertThat(keycloak.requests).hasValue(6);
+        assertThat(keycloak.requestPaths)
+                .filteredOn(path -> path.endsWith("/groups"))
+                .hasSize(3);
     }
 
     @Test
@@ -98,19 +122,19 @@ class KeycloakRuntimeEntitlementAuthorityTest {
     void disabledAbsentWrongIssuerAndNonMemberIdentitiesFailClosed() {
         assertThatThrownBy(() -> authority.observe(command(ISSUER)))
                 .isInstanceOf(RuntimeEntitlementDeniedException.class)
-                .hasMessageContaining("no current Weaver entitlement");
+                .hasMessageContaining("no unambiguous native Weaver capability");
 
-        keycloak.groups.add(group("group-1", "weaver-runtime", "/weave/weaver-runtime"));
+        keycloak.groups.add(group("group-1", "weaver", "/capabilities/weaver"));
         keycloak.userEnabled = false;
         assertThatThrownBy(() -> authority.observe(command(ISSUER)))
                 .isInstanceOf(RuntimeEntitlementDeniedException.class)
-                .hasMessageContaining("absent or disabled");
+                .hasMessageContaining("enabled organization member");
 
         keycloak.userEnabled = true;
         keycloak.organizationMember = false;
         assertThatThrownBy(() -> authority.observe(command(ISSUER)))
                 .isInstanceOf(RuntimeEntitlementDeniedException.class)
-                .hasMessageContaining("not a current organization member");
+                .hasMessageContaining("not a current enabled organization member");
         keycloak.organizationMember = true;
 
         int requests = keycloak.requests.get();
@@ -119,7 +143,7 @@ class KeycloakRuntimeEntitlementAuthorityTest {
                 .hasMessageContaining("configured IDM");
         assertThat(keycloak.requests).hasValue(requests);
 
-        KeycloakRuntimeEntitlementAuthority disabled = new KeycloakRuntimeEntitlementAuthority(
+        KeycloakRuntimeIdentityAuthority disabled = new KeycloakRuntimeIdentityAuthority(
                 settings(false), tokens, mapper, HttpClient.newHttpClient(),
                 Clock.fixed(NOW, ZoneOffset.UTC));
         assertThatThrownBy(() -> disabled.observe(command(ISSUER)))
@@ -129,12 +153,12 @@ class KeycloakRuntimeEntitlementAuthorityTest {
 
     @Test
     void oneRejectedAdminTokenIsInvalidatedAndRetriedWithoutLeakingProviderBodies() {
-        keycloak.groups.add(group("group-1", "weaver-runtime", "/weave/weaver-runtime"));
+        keycloak.groups.add(group("group-1", "weaver", "/capabilities/weaver"));
         keycloak.rejectFirstToken = true;
 
         assertThat(authority.observe(command(ISSUER)).sourceGroupRef()).startsWith("sha256:");
         assertThat(tokens.invalidations).hasValue(1);
-        assertThat(tokens.calls).hasValue(4);
+        assertThat(tokens.calls).hasValue(3);
 
         keycloak.failureStatus = 503;
         keycloak.failureBody = "provider-secret-debug-payload";
@@ -144,12 +168,11 @@ class KeycloakRuntimeEntitlementAuthorityTest {
                 .hasMessageNotContaining("provider-secret");
     }
 
-    private KeycloakRuntimeEntitlementAuthority.Settings settings(boolean enabled) {
-        return new KeycloakRuntimeEntitlementAuthority.Settings(
+    private KeycloakRuntimeIdentityAuthority.Settings settings(boolean enabled) {
+        return new KeycloakRuntimeIdentityAuthority.Settings(
                 enabled, keycloak.baseUri(), URI.create(ISSUER), "org:example", "org-uuid", "weave",
                 Duration.ofSeconds(2),
-                Duration.ofMinutes(5), List.of("/weave/weaver-runtime"),
-                List.of("calendar.read"));
+                Duration.ofMinutes(5), List.of("calendar.read"));
     }
 
     private static ObserveEntitlementCommand command(String issuer) {
@@ -184,6 +207,7 @@ class KeycloakRuntimeEntitlementAuthorityTest {
         private final HttpServer server;
         private final AtomicInteger requests = new AtomicInteger();
         private final List<ObjectNode> groups = new java.util.ArrayList<>();
+        private final List<String> requestPaths = new java.util.concurrent.CopyOnWriteArrayList<>();
         private boolean userEnabled = true;
         private boolean organizationMember = true;
         private boolean rejectFirstToken;
@@ -215,6 +239,7 @@ class KeycloakRuntimeEntitlementAuthorityTest {
                 return;
             }
             String path = exchange.getRequestURI().getPath();
+            requestPaths.add(path);
             if (path.equals("/admin/realms/weave/organizations/org-uuid/members")) {
                 ArrayNode members = mapper.createArrayNode();
                 if (organizationMember) {
@@ -229,17 +254,14 @@ class KeycloakRuntimeEntitlementAuthorityTest {
                     return;
                 }
                 respond(exchange, 200, mapper.writeValueAsString(
-                        mapper.createObjectNode().put("id", SUBJECT)));
-                return;
-            }
-            if (path.equals("/admin/realms/weave/users/" + SUBJECT)) {
-                ObjectNode user = mapper.createObjectNode()
+                        mapper.createObjectNode()
                         .put("id", SUBJECT)
-                        .put("enabled", userEnabled);
-                respond(exchange, 200, mapper.writeValueAsString(user));
+                        .put("enabled", userEnabled)));
                 return;
             }
-            if (path.equals("/admin/realms/weave/users/" + SUBJECT + "/groups")) {
+            if (path.equals(
+                    "/admin/realms/weave/organizations/org-uuid/members/"
+                            + SUBJECT + "/groups")) {
                 ArrayNode result = mapper.createArrayNode();
                 groups.forEach(result::add);
                 respond(exchange, 200, mapper.writeValueAsString(result));

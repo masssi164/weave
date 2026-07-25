@@ -17,6 +17,10 @@ permissions, provider side effects, OpenClaw sessions, or OpenClaw approval stat
   role and `agent-runtime.admin`.
 - ARC resolves the target `acct_` person reference through the configured Keycloak organization.
   Request data cannot choose an organization, email identity, raw subject, or arbitrary owner.
+- Human Weaver entitlement is exact membership in the native Keycloak Organization group
+  `/capabilities/weaver`. ARC reads the enabled organization member and that member's groups
+  through the Organizations Admin API. Realm user groups, token claims, cached observations,
+  human roles, and the workload-only `weaver-runtime` role never grant this entitlement.
 - Every cell receives one dedicated confidential Keycloak client named `weaver-cell-{cellId}`.
   ARC creates, reconciles, rotates, disables, and deletes that client through the distinct,
   least-privileged `weave-agent-runtime-admin` service account. It never reuses the

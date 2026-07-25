@@ -99,8 +99,8 @@ class WorkspaceControllerTest {
                                 .claim("iss", "https://auth.example.invalid/realms/acme")
                                 .claim("weave_tenant_id", "weave-dogfood")
                                 .claim("weave_organization_name", "Weave Dogfood")
-                                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of())))
-                                .claim("groups", List.of("/weave-calendar-editors", "/weave-meeting-hosts")))
+                                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member"))))
+                                .claim("groups", List.of()))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.manifestVersion").value("org-manifest-v1"))
@@ -124,9 +124,9 @@ class WorkspaceControllerTest {
                         "own provider, tool, and agent whitelisting plus privacy/compliance risk notes",
                         "audit organization-wide defaults and administrative changes")))
                 .andExpect(jsonPath("$.memberCapabilityStates['idm-rbac']").value("available"))
-                .andExpect(jsonPath("$.memberCapabilityStates['chat-channels']").value("disabled_by_policy"))
+                .andExpect(jsonPath("$.memberCapabilityStates['chat-channels']").value("available"))
                 .andExpect(jsonPath("$.memberCapabilityStates['calendar-events']").value("degraded"))
-                .andExpect(jsonPath("$.memberCapabilityStates['files-docs']").value("disabled_by_policy"))
+                .andExpect(jsonPath("$.memberCapabilityStates['files-docs']").value("available"))
                 .andExpect(jsonPath("$.memberCapabilityStates['boards-tasks']").value("disabled_by_policy"))
                 .andExpect(jsonPath("$.memberCapabilityStates.meetings").value("not_configured"))
                 .andExpect(jsonPath("$.memberCapabilityStates['forms-contacts']").value("coming_later"))
@@ -179,7 +179,7 @@ class WorkspaceControllerTest {
                         .value(hasItems("experimental_guarded", "rtc_authorizer_required")))
                 .andExpect(jsonPath("$.clientAccessDiscovery['meetings-calls'].credentialLifecycle.status")
                         .value("matrix_native_oauth_distinct_from_sfu_tokens"))
-                .andExpect(jsonPath("$.capabilities.calendar.grantedCapabilities", hasItems("calendar.manage_events")))
+                .andExpect(jsonPath("$.capabilities.calendar.grantedCapabilities", hasItems("calendar.read")))
                 .andExpect(jsonPath("$.capabilities.agentRuntimeControl.policyState").value("disabled"))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("matrix.weave.test"))))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("files.weave.test"))))
@@ -201,8 +201,8 @@ class WorkspaceControllerTest {
                                     .subject("calendar-editor@example.invalid")
                                     .claim("iss", "https://auth.example.invalid/realms/acme")
                                     .claim("weave_tenant_id", "weave-dogfood")
-                                    .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of())))
-                                    .claim("groups", List.of("/weave-calendar-editors")))
+                                    .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member"))))
+                                    .claim("groups", List.of()))
                             .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                     .andExpect(status().isServiceUnavailable())
                     .andExpect(jsonPath("$.code").value("organization-manifest-invalid-auth-url"));
@@ -221,8 +221,8 @@ class WorkspaceControllerTest {
                                     .subject("calendar-editor@example.invalid")
                                     .claim("iss", "https://auth.example.invalid/realms/acme")
                                     .claim("weave_tenant_id", "weave-dogfood")
-                                    .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of())))
-                                    .claim("groups", List.of("/weave-calendar-editors")))
+                                    .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member"))))
+                                    .claim("groups", List.of()))
                             .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                     .andExpect(status().isServiceUnavailable())
                     .andExpect(jsonPath("$.code").value("organization-manifest-invalid-auth-url"));
@@ -237,8 +237,8 @@ class WorkspaceControllerTest {
                         .jwt(jwt -> jwt
                                 .subject("calendar-editor@example.invalid")
                                 .claim("iss", "https://auth.example.invalid/realms/acme")
-                                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of())))
-                                .claim("groups", List.of("/weave-calendar-editors")))
+                                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member"))))
+                                .claim("groups", List.of()))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("organization-manifest-unauthorized"));
@@ -361,7 +361,7 @@ class WorkspaceControllerTest {
                         .jwt(jwt -> jwt
                                 .claim("iss", "https://auth.example.invalid/realms/acme")
                                 .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("admin"))))
-                                .claim("groups", List.of("/weave-board-editors")))
+                                .claim("groups", List.of()))
                         .authorities(
                                 new SimpleGrantedAuthority("SCOPE_weave:workspace"),
                                 new SimpleGrantedAuthority("ROLE_ADMIN"))))

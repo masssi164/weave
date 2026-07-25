@@ -231,15 +231,42 @@ def _render_desired(baseline: dict[str, object], overlay: dict[str, object]) -> 
     if not isinstance(organization_groups, list):
         raise ContractError("desired-state v2 must declare native organizationGroups")
     observed_group_paths = {group.get("path") for group in organization_groups if isinstance(group, dict)}
-    if observed_group_paths != {"/owners", "/admins", "/members", "/guests"}:
-        raise ContractError("canonical organizationGroups must be exactly owners/admins/members/guests")
+    if observed_group_paths != {
+        "/owners",
+        "/admins",
+        "/members",
+        "/guests",
+        "/capabilities",
+        "/capabilities/weaver",
+    }:
+        raise ContractError(
+            "canonical organizationGroups must contain the four role groups and Weaver capability namespace"
+        )
     if any(
         group.get("organizationRef") != "organization:weave-primary"
-        or group.get("parentGroupRef") is not None
         for group in organization_groups
         if isinstance(group, dict)
     ):
-        raise ContractError("human roles must be top-level groups of the canonical organization")
+        raise ContractError("all canonical groups must belong to the primary organization")
+    by_path = {
+        group.get("path"): group
+        for group in organization_groups
+        if isinstance(group, dict)
+    }
+    if any(
+        by_path[path].get("parentGroupRef") is not None
+        for path in {"/owners", "/admins", "/members", "/guests", "/capabilities"}
+    ):
+        raise ContractError("role and capability namespace groups must be top-level")
+    if (
+        by_path["/capabilities/weaver"].get("parentGroupRef")
+        != "organization-group:weave-primary:capabilities"
+        or by_path["/capabilities"].get("roleRefs") != []
+        or by_path["/capabilities/weaver"].get("roleRefs") != []
+    ):
+        raise ContractError(
+            "Weaver capability must be a role-free leaf below the canonical capability namespace"
+        )
     fgap = desired.get("fineGrainedAdminPermissions")
     if not isinstance(fgap, dict) or fgap.get("enabled") is not True:
         raise ContractError("desired-state v2 must enable declared Organizations FGAP")

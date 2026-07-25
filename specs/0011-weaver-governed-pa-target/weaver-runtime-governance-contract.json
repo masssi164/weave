@@ -5,7 +5,7 @@
   "canonicalDomain": "agent-runtime-control",
   "eligibility": {
     "requiresOrganizationPolicy": true,
-    "requiresGroup": "/weave/weaver-runtime",
+    "requiresGroup": "/capabilities/weaver",
     "derivedCapability": "agent-runtime.entitled",
     "ineligibleProvisioning": "deny-runtime-cell-profile-workload-identity-and-mcp-access"
   },

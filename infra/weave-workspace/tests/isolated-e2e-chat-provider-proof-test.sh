@@ -186,7 +186,7 @@ elif [[ "${url}" == */realms/weave/protocol/openid-connect/token ]]; then
       {
         sub:$sub,iss:$issuer,preferred_username:$username,weave_tenant_id:$tenant,
         aud:["https://api.weave.test/api"],scope:"openid profile email weave:workspace",
-        groups:["/weave/members"],iat:$iat,exp:$exp
+        groups:["/members"],iat:$iat,exp:$exp
       }
     ')"
   token="$(printf '{"alg":"none","typ":"JWT"}' | base64url).$(printf '%s' "${payload}" | base64url).fixture${count}"

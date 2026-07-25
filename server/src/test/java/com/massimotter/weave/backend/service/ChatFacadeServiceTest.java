@@ -143,7 +143,7 @@ class ChatFacadeServiceTest {
     private AgentRuntimeEntitlementProperties runtimeEntitlementProperties(boolean enabled) {
         return new AgentRuntimeEntitlementProperties(
                 enabled,
-                List.of("/weave/weaver-runtime"),
+                null,
                 List.of("calendar.read"));
     }
 

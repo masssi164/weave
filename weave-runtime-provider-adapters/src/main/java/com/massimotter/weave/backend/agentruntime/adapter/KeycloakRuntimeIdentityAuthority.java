@@ -26,16 +26,20 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
-/** Read-only Keycloak 26.7 Admin REST adapter for current per-person Weaver entitlement. */
-public final class KeycloakRuntimeEntitlementAuthority implements RuntimeEntitlementAuthority, RuntimePersonDirectory {
+/**
+ * Read-only Keycloak 26.7 Organizations adapter for runtime people and their
+ * exact native Weaver capability assignment.
+ */
+public final class KeycloakRuntimeIdentityAuthority
+        implements RuntimeEntitlementAuthority, RuntimePersonDirectory {
+    public static final String WEAVER_CAPABILITY_GROUP_PATH = "/capabilities/weaver";
     private static final int PAGE_SIZE = 100;
-    private static final int MAX_GROUPS = 10_000;
+    private static final int MAX_ORGANIZATION_GROUPS = 10_000;
     private static final int MAX_ORGANIZATION_MEMBERS = 10_000;
     private static final int MAX_RESPONSE_BYTES = 1_048_576;
     private static final String SOURCE_PROVIDER = "keycloak";
@@ -46,7 +50,7 @@ public final class KeycloakRuntimeEntitlementAuthority implements RuntimeEntitle
     private final HttpClient httpClient;
     private final Clock clock;
 
-    public KeycloakRuntimeEntitlementAuthority(
+    public KeycloakRuntimeIdentityAuthority(
             Settings settings,
             KeycloakAdminAccessTokenProvider accessTokens,
             ObjectMapper mapper) {
@@ -54,7 +58,7 @@ public final class KeycloakRuntimeEntitlementAuthority implements RuntimeEntitle
                 HttpClient.newBuilder().connectTimeout(settings.timeout()).build(), Clock.systemUTC());
     }
 
-    KeycloakRuntimeEntitlementAuthority(
+    KeycloakRuntimeIdentityAuthority(
             Settings settings,
             KeycloakAdminAccessTokenProvider accessTokens,
             ObjectMapper mapper,
@@ -85,27 +89,23 @@ public final class KeycloakRuntimeEntitlementAuthority implements RuntimeEntitle
                         + path(command.memberBinding().subject()),
                 Set.of(200, 404));
         if (organizationMember == null
-                || !command.memberBinding().subject().equals(organizationMember.path("id").asText())) {
+                || !command.memberBinding().subject().equals(text(organizationMember, "id"))
+                || !organizationMember.path("enabled").asBoolean(false)) {
             throw new RuntimeEntitlementDeniedException(
-                    "The authoritative identity is not a current organization member");
+                    "The authoritative identity is not a current enabled organization member");
         }
 
-        JsonNode user = get("/users/" + path(command.memberBinding().subject()), Set.of(200, 404));
-        if (user == null
-                || !command.memberBinding().subject().equals(user.path("id").asText())
-                || !user.path("enabled").asBoolean(false)) {
-            throw new RuntimeEntitlementDeniedException("The authoritative member is absent or disabled");
-        }
-
-        List<Group> eligible = groups(command.memberBinding().subject()).stream()
-                .filter(this::isEligible)
+        List<Group> eligible = organizationGroups(command.memberBinding().subject()).stream()
+                .filter(group -> WEAVER_CAPABILITY_GROUP_PATH.equals(group.path()))
                 .sorted(Comparator.comparing(Group::path).thenComparing(Group::id))
                 .toList();
-        if (eligible.isEmpty()) {
-            throw new RuntimeEntitlementDeniedException("The member has no current Weaver entitlement group");
+        if (eligible.size() != 1) {
+            throw new RuntimeEntitlementDeniedException(
+                    "The member has no unambiguous native Weaver capability assignment");
         }
 
-        StringBuilder source = new StringBuilder("weave.agent-runtime.keycloak-groups/v1");
+        StringBuilder source =
+                new StringBuilder("weave.agent-runtime.keycloak-organization-group/v2");
         for (Group group : eligible) {
             append(source, group.id());
             append(source, group.path());
@@ -147,11 +147,9 @@ public final class KeycloakRuntimeEntitlementAuthority implements RuntimeEntitle
             JsonNode member = get(
                     "/organizations/" + path(settings.organizationId()) + "/members/" + path(subject),
                     Set.of(200, 404));
-            JsonNode user = get("/users/" + path(subject), Set.of(200, 404));
-            if (member == null || user == null
-                    || !subject.equals(member.path("id").asText())
-                    || !subject.equals(user.path("id").asText())
-                    || !user.path("enabled").asBoolean(false)) {
+            if (member == null
+                    || !subject.equals(text(member, "id"))
+                    || !member.path("enabled").asBoolean(false)) {
                 throw new RuntimePersonNotFoundException("The requested runtime person does not exist");
             }
             return new ResolvedRuntimePerson(
@@ -186,19 +184,23 @@ public final class KeycloakRuntimeEntitlementAuthority implements RuntimeEntitle
                 "The Keycloak organization member projection exceeds its safe bound");
     }
 
-    private List<Group> groups(String subject) {
+    private List<Group> organizationGroups(String subject) {
         List<Group> groups = new ArrayList<>();
-        for (int first = 0; first < MAX_GROUPS; first += PAGE_SIZE) {
-            JsonNode page = get("/users/" + path(subject) + "/groups?briefRepresentation=true&first="
-                    + first + "&max=" + PAGE_SIZE, Set.of(200));
+        for (int first = 0; first < MAX_ORGANIZATION_GROUPS; first += PAGE_SIZE) {
+            JsonNode page = get(
+                    "/organizations/" + path(settings.organizationId()) + "/members/"
+                            + path(subject) + "/groups?briefRepresentation=false&first="
+                            + first + "&max=" + PAGE_SIZE,
+                    Set.of(200));
             if (page == null || !page.isArray()) {
                 throw new RuntimeEntitlementAuthorityException(
-                        "Keycloak returned an invalid entitlement group projection");
+                        "Keycloak returned an invalid organization member-group projection");
             }
             for (JsonNode item : page) {
                 String id = text(item, "id");
                 String name = text(item, "name");
-                String groupPath = item.path("path").asText("");
+                JsonNode pathNode = item.path("path");
+                String groupPath = pathNode.isString() ? pathNode.stringValue() : "";
                 if (groupPath.isBlank()) {
                     groupPath = "/" + name;
                 }
@@ -209,19 +211,7 @@ public final class KeycloakRuntimeEntitlementAuthority implements RuntimeEntitle
             }
         }
         throw new RuntimeEntitlementAuthorityException(
-                "The Keycloak entitlement group projection exceeds its safe bound");
-    }
-
-    private boolean isEligible(Group group) {
-        for (String configured : settings.eligibleGroups()) {
-            String configuredPath = configured.startsWith("/") ? configured : "/" + configured;
-            if (group.path().equals(configuredPath)
-                    || group.path().startsWith(configuredPath + "/")
-                    || (!configured.startsWith("/") && group.name().equals(configured))) {
-                return true;
-            }
-        }
-        return false;
+                "The Keycloak organization member-group projection exceeds its safe bound");
     }
 
     private JsonNode get(String suffix, Set<Integer> acceptedStatuses) {
@@ -283,7 +273,8 @@ public final class KeycloakRuntimeEntitlementAuthority implements RuntimeEntitle
     }
 
     private static String text(JsonNode node, String field) {
-        String value = node.path(field).asText("");
+        JsonNode valueNode = node.path(field);
+        String value = valueNode.isString() ? valueNode.stringValue() : "";
         if (value.isBlank()) {
             throw new RuntimeEntitlementAuthorityException(
                     "Keycloak returned an incomplete entitlement projection");
@@ -304,7 +295,6 @@ public final class KeycloakRuntimeEntitlementAuthority implements RuntimeEntitle
             String realm,
             Duration timeout,
             Duration observationTtl,
-            List<String> eligibleGroups,
             List<String> allowedCapabilities) {
         public Settings {
             requireHttp(adminBaseUrl, "adminBaseUrl", false);
@@ -327,7 +317,6 @@ public final class KeycloakRuntimeEntitlementAuthority implements RuntimeEntitle
                     || observationTtl.compareTo(Duration.ofMinutes(15)) > 0) {
                 throw new IllegalArgumentException("observationTtl must be between 30 seconds and 15 minutes");
             }
-            eligibleGroups = normalized(eligibleGroups, "eligibleGroups");
             allowedCapabilities = normalized(allowedCapabilities, "allowedCapabilities");
         }
 
@@ -342,7 +331,7 @@ public final class KeycloakRuntimeEntitlementAuthority implements RuntimeEntitle
                 }
                 normalized.add(value.trim());
             }
-            if (normalized.size() != values.size() || new HashSet<>(normalized).size() != normalized.size()) {
+            if (normalized.size() != values.size()) {
                 throw new IllegalArgumentException(field + " must contain unique values");
             }
             return List.copyOf(normalized);

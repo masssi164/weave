@@ -18,7 +18,7 @@
       },
       "groups": {
         "type": "array",
-        "items": {"enum": ["/owners", "/admins", "/members", "/guests"]},
+        "items": {"enum": ["/owners", "/admins", "/members", "/guests", "/capabilities/weaver"]},
         "uniqueItems": true
       }
     }

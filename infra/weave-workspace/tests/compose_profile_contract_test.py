@@ -56,6 +56,21 @@ def main() -> None:
                 "roleRefs": [f"role:{name.removesuffix('s')}"],
             }
             for name in ("owners", "admins", "members", "guests")
+        ] + [
+            {
+                "key": "organization-group:weave-primary:capabilities",
+                "organizationRef": "organization:weave-primary",
+                "path": "/capabilities",
+                "parentGroupRef": None,
+                "roleRefs": [],
+            },
+            {
+                "key": "organization-group:weave-primary:capabilities-weaver",
+                "organizationRef": "organization:weave-primary",
+                "path": "/capabilities/weaver",
+                "parentGroupRef": "organization-group:weave-primary:capabilities",
+                "roleRefs": [],
+            },
         ],
         "fineGrainedAdminPermissions": {
             "enabled": True,

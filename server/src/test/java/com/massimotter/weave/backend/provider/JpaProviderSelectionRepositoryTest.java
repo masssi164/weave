@@ -112,7 +112,6 @@ class JpaProviderSelectionRepositoryTest {
                         "WEAVE_FILES_OBJECTS",
                         "WEAVE_FILE_LOCKS",
                         "WEAVE_ORGANIZATION_BOOTSTRAP",
-                        "WEAVE_IDENTITY_REALM_DRY_RUN_EVIDENCE",
                         "WEAVE_PERSON_BINDINGS",
                         "WEAVE_SPACES",
                         "WEAVE_SPACE_MEMBERSHIPS",

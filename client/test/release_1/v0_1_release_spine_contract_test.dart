@@ -144,7 +144,7 @@ void main() {
         'meetings/calls',
         'documents/collaboration',
         'Weaver',
-        'disabled without a current entitlement group',
+        'disabled without current exact `/capabilities/weaver` organization membership',
         'Keycloak/Auth',
         'Matrix/Chat',
         'Nextcloud/Files and Calendar backing',
@@ -183,7 +183,7 @@ void main() {
         'The Organization/Admin Console remains the control plane',
         'Workspace/Admin Health is organized around feature capability categories',
         'Capability policy responses are support-safe',
-        'Agent Runtime Control consumes authoritative Keycloak entitlement',
+        'Agent Runtime Control consumes authoritative Keycloak Organization membership `/capabilities/weaver`',
       ]) {
         expect(architectureText, contains(required));
       }
@@ -269,7 +269,7 @@ void main() {
       for (final required in <String>[
         '@weave-sprint8-domain-control-plane-evidence',
         'reviews canonical domain setup',
-        'runs a Keycloak desired-state dry-run',
+        'reviews support-safe Keycloak Identity Ops plan and verify evidence',
         'reviews domain-first readiness states',
         'provider switch is blocked',
         'Boards portability dry-run report',
@@ -296,7 +296,7 @@ void main() {
         'Product-ready definition',
         'Domain registry version',
         'Migration contract version',
-        'Keycloak dry-run sample',
+        'Keycloak Identity Ops evidence',
         'Calls/MatrixRTC readiness artifact',
         'ARC workload identity and lifecycle proof',
         'Weaver/OpenClaw upstream provenance',
@@ -312,7 +312,7 @@ void main() {
       for (final required in <String>[
         '@weave-product-readiness-waterfall',
         'reviews the domain registry',
-        'runs Keycloak desired-state dry-run',
+        'reviews protected Keycloak Identity Ops plan and verify evidence',
         'provider apply is blocked',
         'reviews migration dry-run, lossy report, conflict report, rollback boundary, and member impact preview',
         'grants the agent runtime entitlement through Keycloak',

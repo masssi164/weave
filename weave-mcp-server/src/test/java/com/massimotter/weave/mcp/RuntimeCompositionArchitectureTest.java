@@ -37,7 +37,7 @@ class RuntimeCompositionArchitectureTest {
         assertThat(sharedSecurity)
                 .doesNotContain("KeycloakAdminAccessTokenProvider")
                 .doesNotContain("KeycloakAgentRuntimeWorkloadIdentityAdmin")
-                .doesNotContain("KeycloakRuntimeEntitlementAuthority")
+                .doesNotContain("KeycloakRuntimeIdentityAuthority")
                 .doesNotContain("ClientSecretKeycloakAdminAccessTokenProvider")
                 .doesNotContain("FileRuntimeWorkloadCredentialStore");
     }
@@ -100,8 +100,8 @@ class RuntimeCompositionArchitectureTest {
                 .contains("weaveSchemaVersion");
         assertThat(Files.readString(root.resolve(
                 "weave-persistence-jpa/src/main/java/com/massimotter/weave/shared/persistence/SharedPersistenceModel.java")))
-                .contains("VERSION = \"019\"");
-        assertThat(migrationRoots.getFirst().resolve("V019__identity_role_only_provisioning_intent.sql"))
+                .contains("VERSION = \"020\"");
+        assertThat(migrationRoots.getFirst().resolve("V020__retire_parallel_identity_realm_evidence.sql"))
                 .isRegularFile();
     }
 

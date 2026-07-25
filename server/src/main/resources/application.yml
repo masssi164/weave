@@ -80,10 +80,10 @@ weave:
       enabled: ${WEAVE_AGENT_RUNTIME_POLICY_ENABLED:false}
       file: ${WEAVE_AGENT_RUNTIME_POLICY_FILE:}
     entitlement:
-      # Keycloak group membership is authoritative. This configuration carries
-      # no cell path, container, provider credential, or tool implementation.
+      # The exact native Keycloak Organization group /capabilities/weaver is
+      # authoritative. It is fixed by the corpus and cannot drift through env.
       enabled: ${WEAVE_AGENT_RUNTIME_ENTITLEMENT_ENABLED:false}
-      enabled-groups: ${WEAVE_AGENT_RUNTIME_ENTITLEMENT_GROUPS:/weave/weaver-runtime}
+      observation-ttl: ${WEAVE_AGENT_RUNTIME_ENTITLEMENT_OBSERVATION_TTL:5m}
       allowed-capabilities: ${WEAVE_AGENT_RUNTIME_ENTITLEMENT_CAPABILITIES:calendar.read}
     workload-identity:
       enabled: ${WEAVE_AGENT_RUNTIME_WORKLOAD_IDENTITY_ENABLED:false}
@@ -98,7 +98,6 @@ weave:
       entitlement-credential-ref: ${WEAVE_AGENT_RUNTIME_ENTITLEMENT_CREDENTIAL_REF:}
       secret-root: ${WEAVE_AGENT_RUNTIME_SECRET_ROOT:}
       timeout: ${WEAVE_AGENT_RUNTIME_KEYCLOAK_TIMEOUT:10s}
-      entitlement-observation-ttl: ${WEAVE_AGENT_RUNTIME_ENTITLEMENT_OBSERVATION_TTL:5m}
       workload-role: weaver-runtime
       default-client-scopes: ${WEAVE_AGENT_RUNTIME_DEFAULT_CLIENT_SCOPES:weaver-runtime.workload}
       optional-client-scopes: ${WEAVE_AGENT_RUNTIME_OPTIONAL_CLIENT_SCOPES:agent-runtime.profile.read,mcp.tools,calendar.read}

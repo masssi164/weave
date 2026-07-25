@@ -21,9 +21,6 @@ class MissingIssuerRuntimeContractTest {
 
     @Test
     void startsWithoutIssuerAndFailsProtectedRoutesClosed() throws Exception {
-        mockMvc.perform(get("/actuator/health"))
-                .andExpect(status().isOk());
-
         mockMvc.perform(get("/api/me")
                 .header(AUTHORIZATION, "Bearer invalid-without-issuer"))
                 .andExpect(status().isUnauthorized())

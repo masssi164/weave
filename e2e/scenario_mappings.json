@@ -960,7 +960,7 @@
           "path": "docs/admin-provisioned-first-use.md",
           "fragments": [
             "## Agent Runtime Control policy",
-            "Keycloak group membership is the sole coarse entitlement source",
+            "Exact native Keycloak Organization membership `/capabilities/weaver` is the sole self-hosted coarse entitlement source",
             "profile generation is audited"
           ]
         },
@@ -1489,7 +1489,7 @@
     },
     {
       "tag": "@weave-sprint8-domain-control-plane-evidence",
-      "scenario": "Admin validates domains, dry-runs identity, checks portability, and members see provider-neutral states",
+      "scenario": "Admin validates domains, reviews Identity Ops readiness, checks portability, and members see provider-neutral states",
       "feature": "e2e/features/sprint_8_domain_control_plane.feature",
       "executableTest": "client/test/release_1/v0_1_release_spine_contract_test.dart",
       "evidenceMarkers": [
@@ -1516,9 +1516,18 @@
         {
           "path": "server/src/test/java/com/massimotter/weave/backend/controller/AdminControlPlaneControllerTest.java",
           "fragments": [
-            "adminRealmDryRunIsBackendOwnedDeterministicAndSupportSafe",
             "providerReplacementDryRunReturnsBackendOwnedPortableSwitchContract",
-            "operatorAndMemberCannotApplyIdentityRealmWhenPolicyForbidsProviderConfiguration"
+            "identityDesiredStateRoutesAreRemovedInFavorOfProtectedIdentityOps"
+          ]
+        },
+        {
+          "path": "infra/weave-workspace/tests/identity_ops_contract_test.py",
+          "fragments": [
+            "weave.keycloak-desired-state/v2",
+            "organizationGroups",
+            "plan",
+            "apply",
+            "verify"
           ]
         },
         {
@@ -1553,7 +1562,7 @@
             "Product-ready definition",
             "Domain registry version",
             "Migration contract version",
-            "Keycloak dry-run sample",
+            "Keycloak Identity Ops evidence",
             "Calls/MatrixRTC readiness artifact",
             "ARC workload identity and lifecycle proof",
             "Weaver/OpenClaw upstream provenance",
@@ -1575,9 +1584,8 @@
         {
           "path": "server/src/test/java/com/massimotter/weave/backend/controller/AdminControlPlaneControllerTest.java",
           "fragments": [
-            "adminRealmDryRunIsBackendOwnedDeterministicAndSupportSafe",
             "providerReplacementDryRunReturnsBackendOwnedPortableSwitchContract",
-            "operatorAndMemberCannotApplyIdentityRealmWhenPolicyForbidsProviderConfiguration"
+            "identityDesiredStateRoutesAreRemovedInFavorOfProtectedIdentityOps"
           ]
         },
         {
@@ -4028,7 +4036,7 @@
         {
           "path": "specs/0011-weaver-governed-pa-target/weaver-runtime-governance-contract.json",
           "fragments": [
-            "/weave/weaver-runtime",
+            "/capabilities/weaver",
             "agent-runtime.entitled"
           ]
         },

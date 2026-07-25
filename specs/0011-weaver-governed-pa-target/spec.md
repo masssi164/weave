@@ -33,8 +33,12 @@ with their owning domains.
 
 ## Conformance requirements
 
-- Keycloak group/capability state and organization policy gate runtime entitlement; revocation
-  wins over queued work.
+- Exact native Keycloak Organization membership `/capabilities/weaver` and organization policy
+  gate runtime entitlement; the workload-only `weaver-runtime` realm role never entitles a
+  human, and revocation wins over queued work.
+- Rootless Identity Ops is the only Keycloak baseline desired-state planner, reconciler, and
+  verifier. The product server exposes support-safe identity readiness but no parallel realm
+  desired-state dry-run/apply API, no compatibility DTO, and no persisted shadow plan.
 - Each cell is isolated per person, disposable, and reconstructable from canonical WebDAV
   workspace content plus encrypted external runtime state.
 - A current signed RuntimeProfile constrains runtime configuration and discovery but cannot grant

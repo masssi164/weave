@@ -219,13 +219,13 @@ Refactors in this area must preserve:
 
 Weave derives workspace capability visibility from the selected IDM and backend-owned policy evaluation. Keycloak is the self-hosted default IDM for dogfood deployments, but the contract is adapter-friendly for OIDC/SAML providers such as Entra ID, Authentik, and Auth0.
 
-The backend consumes realm roles and groups, normalizes them into capability profiles, and grants only category-level capability keys. Examples include `chat.read`, `chat.send`, `files.read`, `files.upload`, `calendar.read`, `calendar.manage_events`, `boards.read`, `boards.update_task`, and `agent-runtime.entitled`. Unknown roles/groups are deny-by-default.
+The backend consumes normalized identity claims for member-visible capability profiles and grants only category-level capability keys. Examples include `chat.read`, `chat.send`, `files.read`, `files.upload`, `calendar.read`, `calendar.manage_events`, `boards.read`, `boards.update_task`, and `agent-runtime.entitled`. Unknown roles/groups are deny-by-default.
 
-Capability policy responses are support-safe: they expose effective policy posture and profile keys, not provider secrets or raw setup. The `agent-runtime.entitled` capability is derived only from the configured authoritative Keycloak group; built-in human roles never imply it.
+Capability policy responses are support-safe: they expose effective policy posture and profile keys, not provider secrets or raw setup. For the self-hosted authority, `agent-runtime.entitled` is derived only from exact native Keycloak Organization membership `/capabilities/weaver`; built-in human roles never imply it. ARC re-reads that membership from the Keycloak Organizations API and never treats a token projection as provisioning authority.
 
 ## Agent Runtime Control contract
 
-Agent Runtime Control consumes authoritative Keycloak entitlement and owns the support-safe lifecycle of one optional Weaver/OpenClaw cell per entitled person. RuntimeProfile v2 is a signed, short-lived desired-state projection; it is not an authorization grant and no v1 reader exists.
+Agent Runtime Control consumes authoritative Keycloak Organization membership `/capabilities/weaver` and owns the support-safe lifecycle of one optional Weaver/OpenClaw cell per entitled person. RuntimeProfile v2 is a signed, short-lived desired-state projection; it is not an authorization grant and no v1 reader exists.
 
 Each cell receives a unique Keycloak confidential client using `private_key_jwt`. MCP is workload-only, validates the exact RFC 9068 token audience and cell binding, exchanges the token to the backend audience, and revalidates current entitlement/profile context. Human and shared service-account access fails closed.
 

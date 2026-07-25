@@ -16,15 +16,13 @@ BOOTSTRAP_RETIREMENT_CONFIRMATION=""
 LIFESPAN_SECONDS="${WEAVE_DOGFOOD_MEMBER_ACTIVATION_LIFESPAN_SECONDS:-86400}"
 CLIENT_ID="weave-app"
 REDIRECT_URI="com.massimotter.weave:/oauthredirect"
-EXPECTED_GROUPS="${WEAVE_DOGFOOD_MEMBER_GROUPS:-/weave/members,/weave-board-editors,/weave-calendar-editors}"
+EXPECTED_GROUPS="/members,/capabilities/weaver"
 MAILPIT_VERIFY_TIMEOUT_SECONDS="${WEAVE_DOGFOOD_MEMBER_MAILPIT_VERIFY_TIMEOUT_SECONDS:-60}"
 MAILPIT_EXPECTED_SUBJECT="${WEAVE_DOGFOOD_MEMBER_MAIL_SUBJECT:-Complete your Weave account setup}"
 MAIL_MESSAGE_ID_SHA256=""
 MAIL_VERIFIED_AT=""
 RECOVERY_CONFIRMATION_LITERAL="retire-lost-pending-identity"
 BOOTSTRAP_RETIREMENT_CONFIRMATION_LITERAL="retire-restored-test-bootstrap"
-GROUP_ADOPTION_CONFIRMATION=""
-GROUP_ADOPTION_CONFIRMATION_LITERAL="adopt-workspace-members-to-weave-members"
 RESTORED_BOOTSTRAP_USERNAME="test"
 
 log() { printf '%s\n' "$*"; }
@@ -32,7 +30,7 @@ fail() { printf 'DOGFOOD_MEMBER_ERROR %s\n' "$*" >&2; exit 1; }
 
 usage() {
   cat <<'EOF'
-Usage: ./dogfood-member.sh status|ensure|resend-activation|migrate-legacy-member-group|recover-lost-pending|retire-restored-bootstrap [options]
+Usage: ./dogfood-member.sh status|ensure|resend-activation|recover-lost-pending|retire-restored-bootstrap [options]
 
 Manage the one persistent human dogfood member without overwriting it.
 
@@ -45,7 +43,6 @@ Options:
   --evidence-file PATH   Write support-safe JSON evidence.
   --subject-file PATH    Protected runtime file holding the immutable subject.
   --tenant-realm VALUE   Keycloak realm (default: WEAVE_TENANT_SLUG or weave).
-  --groups CSV           Expected member/capability groups.
   --lifespan SECONDS     Initial/resend action-email lifetime (300..86400).
   --prior-evidence PATH  Last accepted support-safe member evidence (recovery only).
   --approval-ref URL     Protected GitHub Actions run URL (recovery only).
@@ -53,8 +50,6 @@ Options:
                          Must be 'retire-lost-pending-identity' (recovery only).
   --confirm-bootstrap-retirement VALUE
                          Must be 'retire-restored-test-bootstrap' (recovery only).
-  --confirm-group-adoption VALUE
-                         Must be 'adopt-workspace-members-to-weave-members'.
   -h, --help             Show this help.
 
 The helper creates and configures an absent identity exactly once. Existing
@@ -81,19 +76,17 @@ load_environment() {
 parse_args() {
   [[ $# -gt 0 ]] || { usage >&2; exit 2; }
   OPERATION="$1"; shift
-  case "${OPERATION}" in status|ensure|resend-activation|migrate-legacy-member-group|recover-lost-pending|retire-restored-bootstrap) ;; *) fail "unknown operation '${OPERATION}'" ;; esac
+  case "${OPERATION}" in status|ensure|resend-activation|recover-lost-pending|retire-restored-bootstrap) ;; *) fail "unknown operation '${OPERATION}'" ;; esac
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --evidence-file) EVIDENCE_FILE="${2:-}"; shift 2 ;;
       --subject-file) SUBJECT_FILE="${2:-}"; shift 2 ;;
       --tenant-realm) REALM="${2:-}"; shift 2 ;;
-      --groups) EXPECTED_GROUPS="${2:-}"; shift 2 ;;
       --lifespan) LIFESPAN_SECONDS="${2:-}"; shift 2 ;;
       --prior-evidence) PRIOR_EVIDENCE_FILE="${2:-}"; shift 2 ;;
       --approval-ref) RECOVERY_APPROVAL_REF="${2:-}"; shift 2 ;;
       --confirm-retirement) RECOVERY_CONFIRMATION="${2:-}"; shift 2 ;;
       --confirm-bootstrap-retirement) BOOTSTRAP_RETIREMENT_CONFIRMATION="${2:-}"; shift 2 ;;
-      --confirm-group-adoption) GROUP_ADOPTION_CONFIRMATION="${2:-}"; shift 2 ;;
       -h|--help) usage; exit 0 ;;
       *) fail "unknown argument '$1'" ;;
     esac
@@ -122,13 +115,6 @@ validate_inputs() {
   if [[ "${OPERATION}" == retire-restored-bootstrap ]]; then
     [[ "${BOOTSTRAP_RETIREMENT_CONFIRMATION}" == "${BOOTSTRAP_RETIREMENT_CONFIRMATION_LITERAL}" ]] ||
       fail "retire-restored-bootstrap requires the exact bootstrap retirement confirmation"
-  fi
-  if [[ "${OPERATION}" == migrate-legacy-member-group ]]; then
-    [[ -n "${EVIDENCE_FILE}" ]] || fail "migrate-legacy-member-group requires --evidence-file"
-    [[ "${RECOVERY_APPROVAL_REF}" =~ ^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/actions/runs/[0-9]+$ ]] ||
-      fail "migrate-legacy-member-group requires a support-safe protected GitHub Actions run URL"
-    [[ "${GROUP_ADOPTION_CONFIRMATION}" == "${GROUP_ADOPTION_CONFIRMATION_LITERAL}" ]] ||
-      fail "migrate-legacy-member-group requires the exact group-adoption confirmation"
   fi
 }
 
@@ -267,97 +253,47 @@ verify_subject_invariant() {
   [[ "${subject}" == "${recorded}" ]] || fail "identity_changed"
 }
 
-find_named_id() {
-  local json="$1" name="$2" type="$3" id
-  id="$(jq -r --arg name "${name}" '.[] | select(.name == $name or .alias == $name) | .id' <<<"${json}")"
-  [[ "$(wc -l <<<"${id}" | tr -d ' ')" -eq 1 && -n "${id}" ]] || fail "${type} '${name}' is unavailable or ambiguous"
-  printf '%s' "${id}"
-}
-
 find_group_path_id() {
-  local base="$1" token="$2" path="$3" leaf groups id
+  local base="$1" token="$2" org_id="$3" path="$4" leaf groups id
   [[ "${path}" == /* && "${path}" != */ ]] || fail "group path '${path}' is not canonical"
   leaf="${path##*/}"
-  groups="$(request GET "${base}/groups?search=$(encode "${leaf}")&exact=true&briefRepresentation=false" "${token}")"
+  groups="$(request GET "${base}/organizations/${org_id}/groups?search=$(encode "${leaf}")&exact=true&first=0&max=2" "${token}")"
   id="$(jq -r --arg path "${path}" '[.[] | select(.path == $path) | .id] | if length == 1 then .[0] else empty end' <<<"${groups}")"
-  [[ -n "${id}" ]] || fail "group path '${path}' is unavailable or ambiguous"
+  [[ -n "${id}" ]] || fail "native organization group path '${path}' is unavailable or ambiguous"
   printf '%s' "${id}"
 }
 
 resolve_org_id() {
-  local base="$1" token="$2" organizations
-  organizations="$(request GET "${base}/organizations?search=$(encode "${REALM}")&exact=true" "${token}")"
-  find_named_id "${organizations}" "${REALM}" organization
-}
-
-resolve_client_id() {
-  local base="$1" token="$2" clients
-  clients="$(request GET "${base}/clients?clientId=$(encode "${CLIENT_ID}")" "${token}")"
-  find_named_id "${clients}" "${CLIENT_ID}" client
+  local base="$1" token="$2" organizations organization_id
+  organizations="$(request GET "${base}/organizations?first=0&max=2" "${token}")"
+  organization_id="$(jq -r 'if length == 1 and (.[0].id // "") != "" then .[0].id else empty end' <<<"${organizations}")"
+  [[ -n "${organization_id}" ]] || fail "the single primary organization is unavailable or ambiguous"
+  printf '%s' "${organization_id}"
 }
 
 add_initial_access() {
-  local base="$1" token="$2" subject="$3" org_id client_uuid role group group_id groups
+  local base="$1" token="$2" subject="$3" org_id group group_id groups
   org_id="$(resolve_org_id "${base}" "${token}")" || return 1
   request POST "${base}/organizations/${org_id}/members" "${token}" "$(jq -cn --arg id "${subject}" '$id')" >/dev/null || return 1
-  client_uuid="$(resolve_client_id "${base}" "${token}")" || return 1
-  role="$(request GET "${base}/clients/${client_uuid}/roles/member" "${token}")" || return 1
-  request POST "${base}/users/${subject}/role-mappings/clients/${client_uuid}" "${token}" "[$(jq -c . <<<"${role}")]" >/dev/null || return 1
   IFS=',' read -r -a groups <<<"${EXPECTED_GROUPS}"
   for group in "${groups[@]}"; do
     group="${group#"${group%%[![:space:]]*}"}"; group="${group%"${group##*[![:space:]]}"}"
-    group_id="$(find_group_path_id "${base}" "${token}" "${group}")" || return 1
-    request PUT "${base}/users/${subject}/groups/${group_id}" "${token}" >/dev/null || return 1
+    group_id="$(find_group_path_id "${base}" "${token}" "${org_id}" "${group}")" || return 1
+    request PUT "${base}/organizations/${org_id}/groups/${group_id}/members/${subject}" "${token}" >/dev/null || return 1
   done
 }
 
 verify_expected_access() {
-  local base="$1" token="$2" subject="$3" org_id client_uuid roles memberships group expected groups
+  local base="$1" token="$2" subject="$3" org_id memberships expected groups
   org_id="$(resolve_org_id "${base}" "${token}")"
   request GET "${base}/organizations/${org_id}/members/${subject}" "${token}" >/dev/null || fail "persistent member lacks organization membership"
-  client_uuid="$(resolve_client_id "${base}" "${token}")"
-  roles="$(request GET "${base}/users/${subject}/role-mappings/clients/${client_uuid}" "${token}")"
-  jq -e 'any(.name == "member")' <<<"${roles}" >/dev/null || fail "persistent member lacks member role"
-  memberships="$(request GET "${base}/users/${subject}/groups" "${token}")"
+  memberships="$(request GET "${base}/organizations/${org_id}/members/${subject}/groups" "${token}")"
   IFS=',' read -r -a groups <<<"${EXPECTED_GROUPS}"
   for expected in "${groups[@]}"; do
     expected="${expected#"${expected%%[![:space:]]*}"}"; expected="${expected%"${expected##*[![:space:]]}"}"
     jq -e --arg path "${expected}" 'any(.path == $path)' <<<"${memberships}" >/dev/null ||
-      fail "persistent member lacks expected group path '${expected}'; use the explicit protected adoption operation for legacy /workspace-members membership"
+      fail "persistent member lacks native organization group path '${expected}'"
   done
-}
-
-migrate_legacy_member_group() {
-  local base="$1" token="$2" user="$3" subject memberships legacy_id target_id temporary
-  [[ -n "${user}" ]] || fail "legacy group adoption requires the configured identity"
-  subject="$(jq -r '.id // empty' <<<"${user}")"
-  [[ -n "${subject}" ]] || fail "legacy group adoption could not resolve the member subject"
-  verify_subject_invariant "${user}"
-  memberships="$(request GET "${base}/users/${subject}/groups?briefRepresentation=false&max=100" "${token}")"
-  jq -e 'any(.path == "/workspace-members")' <<<"${memberships}" >/dev/null ||
-    fail "legacy /workspace-members membership is not present"
-  jq -e 'any(.path == "/weave/members") | not' <<<"${memberships}" >/dev/null ||
-    fail "canonical /weave/members membership is already present; no adoption mutation is allowed"
-  legacy_id="$(find_group_path_id "${base}" "${token}" /workspace-members)"
-  target_id="$(find_group_path_id "${base}" "${token}" /weave/members)"
-  request PUT "${base}/users/${subject}/groups/${target_id}" "${token}" >/dev/null
-  request DELETE "${base}/users/${subject}/groups/${legacy_id}" "${token}" >/dev/null || {
-    request DELETE "${base}/users/${subject}/groups/${target_id}" "${token}" >/dev/null 2>&1 || true
-    fail "legacy group detachment failed; canonical membership was rolled back"
-  }
-  memberships="$(request GET "${base}/users/${subject}/groups?briefRepresentation=false&max=100" "${token}")"
-  jq -e 'any(.path == "/weave/members") and (any(.path == "/workspace-members") | not)' <<<"${memberships}" >/dev/null ||
-    fail "legacy group adoption did not converge"
-  temporary="${EVIDENCE_FILE}.tmp.$$"
-  umask 077
-  jq -n \
-    --arg subjectSha256 "$(sha256 "${subject}")" \
-    --arg approvalRef "${RECOVERY_APPROVAL_REF}" \
-    --arg adoptedAt "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
-    '{schemaVersion:"weave.dogfood.member-group-adoption.v1",subjectSha256:$subjectSha256,approvalRef:$approvalRef,fromPath:"/workspace-members",toPath:"/weave/members",targetMembershipVerified:true,legacyMembershipRemoved:true,capabilityGroupsUnchanged:true,runtimeGroupGranted:false,adoptedAt:$adoptedAt,supportSafe:true}' >"${temporary}"
-  chmod 600 "${temporary}"
-  mv "${temporary}" "${EVIDENCE_FILE}"
-  log "DOGFOOD_MEMBER_GROUP_ADOPTION from=/workspace-members to=/weave/members runtimeGroupGranted=false supportSafe=true"
 }
 
 create_pending_user() {
@@ -698,10 +634,6 @@ main() {
   fi
   if [[ "${OPERATION}" == recover-lost-pending ]]; then
     recover_lost_pending "${base}" "${token}" "${user}"
-    return
-  fi
-  if [[ "${OPERATION}" == migrate-legacy-member-group ]]; then
-    migrate_legacy_member_group "${base}" "${token}" "${user}"
     return
   fi
   verify_subject_invariant "${user}"
