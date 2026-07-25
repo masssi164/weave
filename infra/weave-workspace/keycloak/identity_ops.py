@@ -8,6 +8,7 @@ import base64
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import urllib.error
@@ -101,7 +102,13 @@ class Kcadm:
             command.extend(("-b", json.dumps(payload, separators=(",", ":"))))
         result = subprocess.run(command, check=False, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if result.returncode != 0:
-            raise IdentityOpsError(f"kcadm operation failed ({arguments[0]} {arguments[1]}), output withheld")
+            diagnostic = result.stderr + "\n" + result.stdout
+            status = re.search(r"(?i)HTTP(?: error)?[^0-9]{0,12}([45][0-9]{2})", diagnostic)
+            status_label = status.group(1) if status else "unknown"
+            raise IdentityOpsError(
+                f"kcadm operation failed ({arguments[0]} {arguments[1]}), "
+                f"httpStatus={status_label}, exitCode={result.returncode}, output withheld"
+            )
         output = result.stdout.strip()
         return json.loads(output) if output else None
 
@@ -555,7 +562,13 @@ def plan(kcadm: Kcadm, desired: dict[str, Any], rotation_epoch: str | None = Non
                 endpoint = f"{group_root}/{parent['id']}/children"
             else:
                 endpoint = group_root
-            operations.append(Operation("create", key, endpoint, None, marked_payload(key, wanted, list_values=True)))
+            # Keycloak's organization-child resource is converged in two
+            # idempotent phases: create the child minimally, then apply
+            # attributes through the documented group update resource on the
+            # next round. This avoids coupling child creation to attribute
+            # persistence while keeping desired state authoritative.
+            payload = wanted if parent_ref else marked_payload(key, wanted, list_values=True)
+            operations.append(Operation("create", key, endpoint, None, payload))
             continue
         if not is_current(key, wanted, observed, list_values=True):
             operations.append(Operation("update", key, group_root, str(observed["id"]), marked_payload(key, wanted, list_values=True)))
