@@ -169,7 +169,8 @@ def main() -> None:
     assert 'organizations/{organization_id}/groups/{by_path[group_path]}/members/{created_user' in source
     assert '"map-org-group-role"' in source
     assert "if parent is None:" in source and "Parent groups are deliberately created" in source
-    assert "payload = wanted if parent_ref else marked_payload" in source
+    assert '"id": staged["id"], "name": staged["name"]' in source
+    assert "Stage the managed resource at organization" in source
     assert '"add-roles", "-r", realm, "--uusername", item["username"]' not in source
     renderer = (ROOT / "scripts/render_config.py").read_text(encoding="utf-8")
     assert '"weave.keycloak-desired-state/v2"' in renderer

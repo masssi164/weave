@@ -559,16 +559,47 @@ def plan(kcadm: Kcadm, desired: dict[str, Any], rotation_epoch: str | None = Non
                 if parent is None:
                     # Parent groups are deliberately created in an earlier convergence round.
                     continue
-                endpoint = f"{group_root}/{parent['id']}/children"
+                staged = next(
+                    (
+                        item for item in flat_groups
+                        if (item.get("attributes") or {}).get("weave.semantic-key") == [key]
+                    ),
+                    None,
+                )
+                if staged is None:
+                    # Keycloak 26.7's direct organization child creation path
+                    # can block. Stage the managed resource at organization
+                    # top level, then use the native ID-based move operation
+                    # in the next idempotent convergence round.
+                    operations.append(
+                        Operation(
+                            "create",
+                            key,
+                            group_root,
+                            None,
+                            marked_payload(key, wanted, list_values=True),
+                        )
+                    )
+                else:
+                    operations.append(
+                        Operation(
+                            "create",
+                            key,
+                            f"{group_root}/{parent['id']}/children",
+                            None,
+                            {"id": staged["id"], "name": staged["name"]},
+                        )
+                    )
             else:
-                endpoint = group_root
-            # Keycloak's organization-child resource is converged in two
-            # idempotent phases: create the child minimally, then apply
-            # attributes through the documented group update resource on the
-            # next round. This avoids coupling child creation to attribute
-            # persistence while keeping desired state authoritative.
-            payload = wanted if parent_ref else marked_payload(key, wanted, list_values=True)
-            operations.append(Operation("create", key, endpoint, None, payload))
+                operations.append(
+                    Operation(
+                        "create",
+                        key,
+                        group_root,
+                        None,
+                        marked_payload(key, wanted, list_values=True),
+                    )
+                )
             continue
         if not is_current(key, wanted, observed, list_values=True):
             operations.append(Operation("update", key, group_root, str(observed["id"]), marked_payload(key, wanted, list_values=True)))
