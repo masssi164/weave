@@ -169,8 +169,13 @@ def main() -> int:
         "Flutter/Rust native outputs must be cleaned once before and once after the run",
     )
     require(
-        workflow.count('weave-live-stack-docker-config') >= 3,
-        "workflow-owned Docker auth must be namespaced and cleaned before and after the run",
+        workflow.count('weave-live-stack-docker-config') >= 3
+        and 'echo "WEAVE_DOCKER_AUTH_CONFIG=$WEAVE_DOCKER_AUTH_CONFIG"'
+        in workflow
+        and 'docker --config "${WEAVE_DOCKER_AUTH_CONFIG}" pull' in workflow
+        and 'docker compose version >/dev/null' in workflow
+        and "DOCKER_CONFIG=" not in workflow,
+        "workflow-owned Docker auth must be namespaced without hiding host CLI plugins",
     )
     require(
         "isolated-e2e-identities.sh prepare" in workflow
