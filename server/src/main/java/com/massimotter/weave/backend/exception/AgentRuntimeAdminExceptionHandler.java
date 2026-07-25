@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.exception;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.agentruntime.port.InvalidRuntimeProfileException;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeCommandConflictException;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeEntitlementAuthorityException;

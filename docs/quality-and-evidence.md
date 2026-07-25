@@ -65,7 +65,13 @@ The live-stack path is expensive and runs on a dedicated self-hosted macOS ARM64
 There are two live lanes:
 
 - `Live Stack E2E` (`.github/workflows/live-stack-e2e.yml`) is disposable release-candidate evidence. It provisions three run-scoped identities, proves missing capability, expired token, wrong workspace, and revoked session through real isolated runtime paths, runs the collaboration suite twice on a fresh per-run iPhone Simulator, creates one controlled Calendar outage through the isolated Nextcloud/CalDAV provider, proves that degradation remains local to Calendar twice, restores Calendar, uploads support-safe acceptance evidence, and tears down only its namespace.
-- `Test Stack Deploy` (`.github/workflows/test-stack-deploy.yml`) is the persistent LAN dogfood stack for the `dogfood` branch. It starts only from successful exact-candidate isolated evidence, applies the candidate twice, runs the non-destructive operator checks without the automation-user smoke suite, proves OpenTofu and runtime idempotency plus persistent human/Mailpit/TLS/session invariants, and leaves the verified stack running for human testing.
+- `Test Stack Deploy` (`.github/workflows/test-stack-deploy.yml`) is the persistent LAN dogfood
+  stack for the `dogfood` branch, executing the production-like `test` runtime profile. It starts
+  only from successful exact-candidate isolated evidence. Before adopting a pre-existing unowned
+  network or volume it creates a private backup, proves an isolated restore, and passes the
+  owner-controlled candidate-bound receipt to the runtime gate. It then applies the candidate
+  twice, runs the non-destructive operator checks, proves normalized Compose-model, Identity Ops,
+  and runtime idempotency, and leaves the verified stack running for human testing.
 
 The persistent test stack is the required bridge between `dev` and `main`: a commit may be promoted to `main` only after it is contained in `dev`, contained in `dogfood`, and has a successful `Test Stack Deploy` run on `dogfood`. See [Dev/Dogfood/Main promotion flow](dev-test-main-promotion-flow.md).
 

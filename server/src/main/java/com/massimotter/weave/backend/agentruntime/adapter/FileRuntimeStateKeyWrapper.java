@@ -1,8 +1,9 @@
 package com.massimotter.weave.backend.agentruntime.adapter;
 
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.StreamReadFeature;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeStateKeyWrapper;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeStateStoreException;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeStateWrappingKeyLifecycle;
@@ -88,10 +89,11 @@ public final class FileRuntimeStateKeyWrapper
         this.keyDirectory = this.root.resolve(KEY_DIRECTORY);
         this.manifestPath = this.root.resolve(MANIFEST_NAME);
         this.lockPath = this.root.resolve(LOCK_NAME);
-        this.mapper = objectMapper.copy()
-                .enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
+        this.mapper = objectMapper.rebuild()
+                .enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
                 .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
-                .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
+                .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+                .build();
         this.clock = clock;
         this.secureRandom = secureRandom;
         ensureSecretDirectories();
@@ -357,7 +359,7 @@ public final class FileRuntimeStateKeyWrapper
             }
         } catch (RuntimeStateStoreException failure) {
             throw failure;
-        } catch (IOException failure) {
+        } catch (JacksonException failure) {
             throw unavailable("The runtime-state wrapping-key manifest could not be published", failure);
         }
     }

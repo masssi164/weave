@@ -1,44 +1,56 @@
-# Repository Guide
+# Infrastructure Repository Guide
 
-This repository contains one runnable workspace under `weave-workspace/`.
+`infra/weave-workspace/` is the Compose-owned single-host deployment model. The binding
+contract is the pinned Weave specification corpus, especially ADR 0017, plus the root and
+repository `AGENTS.md` files. Do not reintroduce executable OpenTofu/Terraform, HCL state,
+`TF_VAR_*` inputs, or a compatibility deployment path.
 
-## Files
+## Authority and profiles
 
-- `.gitignore`: ignores OpenTofu state, generated runtime assets, and local work directories.
-- `Makefile`: local operator helpers such as printing default host entries.
-- `README.md`: operator-focused overview, local bootstrap instructions, and single-host operator path deployment summary.
-- `KEYCLOAK_CONTRACT.md`: local realm, client, scope, claim, and audience contract.
-- `docs/single-host-operator-guide.md`: non-local single-host operator path target, required inputs, and operator runbook notes.
-- `docs/matrix-default-workspace.md`: Matrix default workspace aliases, access policy, and verification notes.
-- `docs/matrix-synapse-chat-appservice.md`: private southbound Synapse Application Service, credential, lifecycle, and proof contract.
-- `.github/AGENTS.md`: GitHub automation and workflow navigation notes.
-- `weave-workspace/.env.example`: local hostname, port, and Caddy mount defaults.
-- `weave-workspace/release.env.example`: single-host env template with explicit production-facing placeholders.
-- `weave-workspace/release-verify.sh`: public endpoint verification script for release operators.
-- `weave-workspace/backup.sh`: manually runnable backup helper for Postgres dumps, required data volumes, and generated config/secrets.
-- `weave-workspace/restore-smoke.sh`: non-destructive post-restore/reprovisioning smoke wrapper around the recovery readiness checks.
-- `weave-workspace/provision-matrix-default-workspace.sh`: idempotent default Matrix space/room provisioner invoked by install.
-- `weave-workspace/docker-compose.yml`: Caddy service definition for proxy-only iteration against the OpenTofu-created network.
-- `weave-workspace/AGENTS.md`: workspace-level navigation guide.
+- `compose.yaml` owns the common service graph.
+- `compose.dev.yaml`, `compose.test.yaml`, and `compose.prod.yaml` are the only environment
+  overlays and profiles. Production publication uses the exact digest-pinned `prod` model; it
+  is not a fourth profile.
+- `dev` runs provider dependencies in Compose and the Spring Boot server on the host. Provider
+  databases remain PostgreSQL; only the host server may use H2 for the fast development loop.
+- `test` and `prod` run the application tier with PostgreSQL. Isolated E2E uses the test
+  topology under a run-unique Compose project and resource namespace.
+- Public deployment coordinates live in reviewed environment files. Credentials are individual
+  mode-0600 files below `WEAVE_SECRET_ROOT`; never place secret values in env files, Compose
+  models, evidence, logs, or support bundles.
 
-## Working Model
+## Operator entry points
 
-- Treat `01-infrastructure` and `02-keycloak-setup` as separate OpenTofu states.
-- Keep generated runtime artifacts inside each stage’s `.generated/` directory.
-- Prefer extending existing child modules before adding more logic to a root `main.tf`.
-- Keep PostgreSQL changes at the shared-instance level in `01-infrastructure`; service isolation is handled with one database per service, not with cross-service schema juggling.
+Use `weave-workspace/compose.sh <dev|test|prod> <command>` with one of:
 
-## Monorepo / v0.1 release rules
+- `secrets-init`, `render`, `config`, `prepare`, `up`, `down`, `ps`, or `logs`;
+- `identity-plan`, `identity-apply`, or `identity-verify`.
 
-- This directory is now `infra/` inside the Weave monorepo; do not assume a separate `weave-infra` checkout.
-- OpenTofu is preferred. Operator scripts should use `${WEAVE_IAC_BIN:-tofu}` so emergency Terraform-compatible fallback remains explicit.
-- Any destructive operation must require typed confirmation and must preserve backup/rollback guidance.
-- Keep support bundles redacted and deterministic; never leak secrets, tokens, cookies, raw provider errors, generated private keys, room IDs, event IDs, filenames, usernames, or display names.
-- Map release-critical infra behavior to `../e2e/scenario_mappings.json` when it affects product acceptance.
+`test` and `prod` require `WEAVE_ENV_FILE` pointing to a private reviewed file. The normal
+deployment sequence is `secrets-init -> render -> config -> prepare -> identity-apply -> up ->
+identity-verify`. A normal `down` never removes persistent volumes.
+
+`backup.sh` creates a private, quiesced, candidate-bound backup below an operator-owned mode-0700
+directory outside the checkout. `adoption-rehearsal.sh` verifies that backup through an isolated
+restore before an unlabeled former deployment resource can be adopted. Never mutate or adopt a
+persistent test/prod resource without exact ownership labels or an explicitly selected
+`persistent-adoption` deployment context backed by a verified backup.
+
+## Validation and safety
+
+- Run `./gradlew infraStatic`, the profile-specific `compose*Config` task, and the relevant
+  protected Keycloak plan/verify task.
+- `./gradlew noExecutableOpenTofuCheck` must remain green.
+- Keep image digests pinned for test/prod, Compose resources explicitly named and labeled,
+  reconciliation idempotent, and teardown bounded to exact isolated ownership evidence.
+- Never weaken TLS, auth, provider readiness, secret permissions, backup checks, or support-safe
+  redaction to make a test pass.
+- Update root specs/contracts before changing public topology, URLs, credentials, provider
+  boundaries, CI/E2E behavior, or environment inputs.
 
 ## Global Weave agent baseline
 
-- Write agent instructions, PRs, issues, code comments, and documentation in English unless an explicit localization file requires another language.
-- Follow `docs/developer-handbook.md`, `docs/gitflow-pr-workflow.md`, `docs/weave-operating-model.md`, and relevant domain docs before coding, opening PRs, merging, or declaring work complete.
-- If the user asks to finish a sprint/milestone, derive acceptance from GitHub issues/milestones, repo specs/tasks, docs, CI policy, and evidence; do not require the user to restate issue acceptance criteria.
-- Use protected `main`, short-lived branches, exactly one `release-notes-*` label per PR, smallest meaningful local gates, green CI, fallback review evidence, and GitHub closure verification before reporting completion.
+- Write code, comments, documentation, PRs, and issues in English unless editing localization.
+- Follow the repository Gitflow and release-evidence rules; green static checks alone are not
+  human dogfood evidence.
+- Preserve unrelated user changes in the shared worktree.

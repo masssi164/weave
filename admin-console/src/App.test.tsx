@@ -177,7 +177,6 @@ function mockApi(
         lifecycleStatus: "pending",
         provisioningStatus: "pending",
         requestedRole: request.role,
-        organizationGroups: request.organizationGroups,
       }),
     ),
     resendOrganizationInvitation: vi.fn().mockResolvedValue({}),
@@ -202,7 +201,7 @@ describe("Admin Console MVP", () => {
         lifecycleStatus: "pending",
         provisioningStatus: "applied",
         requestedRole: "member",
-        organizationGroups: ["engineering"],
+        expiresAt: "2099-01-02T12:00:00Z",
       },
     ]);
     const createOrganizationInvitation = vi.fn().mockResolvedValue({});
@@ -218,17 +217,19 @@ describe("Admin Console MVP", () => {
       await screen.findByRole("heading", { name: /member invitations/i }),
     ).toBeInTheDocument();
     expect(await screen.findByText("existing@example.test")).toBeInTheDocument();
-    expect(screen.getByText(/Invitation: pending/)).toHaveTextContent(
-      /Provisioning: applied/,
-    );
+    expect(screen.getByText(/Keycloak lifecycle: pending/i)).toBeInTheDocument();
+    expect(screen.getByText(/Weave provisioning: applied/i)).toBeInTheDocument();
+    expect(screen.getByText(/Expires:/i)).toHaveTextContent(/2099/);
     expect(screen.getByText(/Keycloak owns email delivery/i)).toBeInTheDocument();
 
     await user.type(screen.getByLabelText(/member email/i), "new@example.test");
     await user.type(screen.getByLabelText(/display name/i), "New Member");
-    await user.type(
-      screen.getByLabelText(/organization groups/i),
-      "engineering, reviewers",
-    );
+    expect(
+      screen.getByText(/IAM adapter maps the selected role/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText(/organization groups/i),
+    ).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /invite member/i }));
 
     await waitFor(() =>
@@ -238,12 +239,138 @@ describe("Admin Console MVP", () => {
           email: "new@example.test",
           displayName: "New Member",
           role: "member",
-          organizationGroups: ["engineering", "reviewers"],
         },
       ),
     );
     expect(document.body).not.toHaveTextContent(/activation token|client_secret/i);
   }, 15_000);
+
+  it("keeps invitation actions scoped to their row", async () => {
+    let finishResend: (() => void) | undefined;
+    const resendOrganizationInvitation = vi.fn(
+      () =>
+        new Promise<Record<string, never>>((resolve) => {
+          finishResend = () => resolve({});
+        }),
+    );
+    const revokeOrganizationInvitation = vi.fn().mockResolvedValue(undefined);
+    const api = mockApi({
+      listOrganizationInvitations: vi.fn().mockResolvedValue([
+        {
+          providerInvitationId: "invite-first",
+          organizationId: "weave-dogfood",
+          email: "first@example.test",
+          lifecycleStatus: "pending",
+          provisioningStatus: "pending",
+          requestedRole: "member",
+        },
+        {
+          providerInvitationId: "invite-second",
+          organizationId: "weave-dogfood",
+          email: "second@example.test",
+          lifecycleStatus: "pending",
+          provisioningStatus: "pending",
+          requestedRole: "member",
+        },
+      ]),
+      resendOrganizationInvitation,
+      revokeOrganizationInvitation,
+    });
+    const user = userEvent.setup();
+
+    render(<App api={api} />);
+
+    const firstResend = await screen.findByRole("button", {
+      name: /resend invitation: first@example\.test/i,
+    });
+    const secondResend = screen.getByRole("button", {
+      name: /resend invitation: second@example\.test/i,
+    });
+    await user.click(firstResend);
+
+    await waitFor(() => expect(firstResend).toBeDisabled());
+    expect(secondResend).toBeEnabled();
+    finishResend?.();
+    await waitFor(() => expect(firstResend).toBeEnabled());
+
+    await user.click(
+      screen.getByRole("button", {
+        name: /revoke invitation: second@example\.test/i,
+      }),
+    );
+    await waitFor(() =>
+      expect(revokeOrganizationInvitation).toHaveBeenCalledWith(
+        "weave-dogfood",
+        "invite-second",
+      ),
+    );
+  });
+
+  it("announces support-safe invitation failures and moves focus", async () => {
+    const api = mockApi({
+      createOrganizationInvitation: vi
+        .fn()
+        .mockRejectedValue(
+          new Error(
+            "raw provider failure https://auth.internal/realms/weave?token=secret",
+          ),
+        ),
+    });
+    const user = userEvent.setup();
+
+    render(<App api={api} />);
+
+    await user.type(
+      await screen.findByLabelText(/member email/i),
+      "new@example.test",
+    );
+    await user.click(screen.getByRole("button", { name: /invite member/i }));
+
+    const alert = (
+      await screen.findByText(/WEAVE-ADMIN-INVITATION-UNAVAILABLE/)
+    ).closest("[tabindex='-1']");
+    if (!alert) throw new Error("Invitation error alert was not rendered.");
+    expect(alert).toHaveTextContent(/WEAVE-ADMIN-INVITATION-UNAVAILABLE/);
+    expect(alert).not.toHaveTextContent(/auth\.internal|token=secret/i);
+    await waitFor(() => expect(alert).toHaveFocus());
+  });
+
+  it("announces an accessible empty invitation state", async () => {
+    render(<App api={mockApi()} />);
+
+    const emptyState = await screen.findByText(
+      /No active member invitations were returned/i,
+    );
+    expect(emptyState.closest("[aria-live='polite']")).not.toBeNull();
+  });
+
+  it("keeps invitation list loading and retry states support-safe", async () => {
+    const listOrganizationInvitations = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new Error("raw Keycloak response from https://auth.internal/admin"),
+      )
+      .mockResolvedValueOnce([]);
+    const user = userEvent.setup();
+
+    render(<App api={mockApi({ listOrganizationInvitations })} />);
+
+    const loadingState = screen.getByText(
+      /Loading invitation lifecycle and provisioning status/i,
+    );
+    expect(loadingState.closest("[aria-live='polite']")).not.toBeNull();
+    expect(
+      await screen.findByText(/WEAVE-ADMIN-INVITATION-UNAVAILABLE/),
+    ).not.toHaveTextContent(/auth\.internal|raw Keycloak response/i);
+    await user.click(
+      screen.getByRole("button", { name: /retry invitation list/i }),
+    );
+
+    expect(
+      await screen.findByText(/No active member invitations were returned/i),
+    ).toBeInTheDocument();
+    expect(listOrganizationInvitations).toHaveBeenCalledTimes(2);
+  });
 
   it("renders organization, provider, policy, and audit sections from backend control-plane data", async () => {
     render(<App api={mockApi()} />);

@@ -189,23 +189,17 @@ Acceptance rules:
 - context roles do not automatically grant organization admin rights;
 - provider roles never directly grant Weave capabilities without a mapping record.
 
-## Keycloak realm desired-state dry-run
+## Keycloak desired state and Identity Ops
 
-The first backend-owned provider-ops slice is a dry-run contract for Keycloak-compatible realm state. Admins/operators submit `currentState` (optional) and `desiredState` to `/api/admin/identity/realm/dry-run`; the backend normalizes and compares realm basics, clients, roles, groups, scopes, redirect origins, claim mappers, and required feature mappings.
+The canonical desired state lives in `infra/weave-workspace/keycloak` and is owned exclusively by the profile-specific Identity Ops plan/apply/verify tasks. The server does not define a second realm model, persist a shadow plan, or expose realm desired-state mutation routes. This single-writer boundary prevents drift between runtime code and infrastructure reconciliation.
 
-The report is deterministic and support-safe:
+Identity Ops normalizes and verifies realm basics, OIDC clients, workload roles, native organization role/capability groups, scopes, redirect origins, claim mappings, and service-account boundaries. It uses Keycloak's supported administration surface through the pinned `kcadm` runtime. Evidence is deterministic and support-safe; destructive convergence requires a separate, explicitly approved recovery path and is never inferred from an ordinary apply.
 
-- every change record has a stable path, action (`create`, `update`, `delete`, `no-op`), classification (`safe`, `risky`, `destructive`), reason code, member-impact summary, and `applyBlocked` flag;
-- risky redirect origins degrade readiness until reviewed;
-- unknown roles, groups, scopes, or feature mappings produce `admin-action-required` and deny by default;
-- destructive removals produce `policy-blocked` and are blocked from apply in this dry-run-only slice;
-- provider bodies, provider-internal IDs, credentials, credential URLs, private keys, tokens, and raw logs are never returned.
-
-This endpoint is backend/control-plane only. Member clients consume provider-neutral readiness and capability policy; they must not call Keycloak/provider APIs directly or expose realm setup diagnostics.
+Member clients consume provider-neutral readiness and capability policy. Admin Console consumes the server's read-only readiness/evidence summary. Neither calls Keycloak administration APIs directly, accepts reconciliation credentials, nor reconstructs the desired-state plan.
 
 ## Effective policy simulation before apply
 
-`POST /api/admin/policies/effective/simulations` is the backend/admin companion to the #233 realm dry-run/apply flow and the #212 admin readiness surface. Realm dry-run compares desired provider state; readiness reports support-safe setup posture; effective policy simulation previews how selected known roles, groups, and capabilities would appear to members before provider changes are applied.
+`POST /api/admin/policies/effective/simulations` is the read-only backend/admin companion to Identity Ops and the admin readiness surface. Identity Ops compares and reconciles provider state; readiness reports support-safe setup posture; effective policy simulation previews how selected known roles, groups, and capabilities would appear to members before a reviewed Identity Ops apply.
 
 The simulation is read-only and deterministic enough for support fixtures: unknown roles, groups, or capabilities fail closed; member states stay within `available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, and `coming_later`; audit payloads record counts/support-safe booleans instead of free-text reasons; and emails, raw provider identifiers, tokens, SecretRefs, and provider internals stay out of the contract.
 

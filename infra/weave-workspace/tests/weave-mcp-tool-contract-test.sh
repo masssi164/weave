@@ -57,10 +57,10 @@ jq -e '
   and .globalControls.credentialBearingUrlsReturned == false
   and .globalControls.auditRequiredForEveryToolCall == true
   and .globalControls.approvalDecisionEvidenceRequiredForWriteDeleteExternalSendProviderSwitch == true
-  and (.canonicalDomains | length) == 7
+  and (.canonicalDomains | length) == 6
   and ([.canonicalDomains[].key] | index("calendar"))
   and ([.canonicalDomains[].key] | index("files_documents"))
-  and ([.canonicalDomains[].key] | index("boards_tasks"))
+  and ([.canonicalDomains[].key] | index("boards_tasks") | not)
   and ([.canonicalDomains[].key] | index("chat_comms"))
   and ([.canonicalDomains[].key] | index("people_identity_org"))
   and ([.canonicalDomains[].key] | index("admin_setup_providers"))
@@ -68,8 +68,7 @@ jq -e '
   and ([.canonicalDomains[] | select(.key == "admin_setup_providers") | .forbiddenOutputs[]] | index("SecretRefValues"))
   and ([.canonicalDomains[] | select(.key == "chat_comms") | .forbiddenOutputs[]] | index("mxcUris"))
   and ([.canonicalDomains[].writeToolsRequireApproval | length] | all(. > 0))
-  and .sprint16ProofSlice.implementAllAdapters == false
-  and .sprint16ProofSlice.allowedProofAdaptersMax <= 2
+  and (has("sprint16ProofSlice") | not)
   and .activeRuntimeEvidence.transport == "stateful-streamable-http-workload-active"
   and .activeRuntimeEvidence.enabled == true
   and .activeRuntimeEvidence.accessTokenType == "at+jwt"

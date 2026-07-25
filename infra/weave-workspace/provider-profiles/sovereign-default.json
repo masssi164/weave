@@ -2,7 +2,7 @@
   "profileVersion": "provider-profile-v1",
   "profileKey": "sovereign-default",
   "choiceModel": "recommended_self_hosted_default",
-  "description": "Recommended self-hosted Weave dev/demo/default organization profile. This is the default bootstrap posture, not the only supported product shape.",
+  "description": "Recommended self-hosted Weave Core organization profile. Expansion portfolios are absent until separately accepted and evidenced.",
   "adminConsoleDeployTarget": {
     "app": "organization-admin-console",
     "route": "https://admin.weave.test",
@@ -23,7 +23,7 @@
     "identity-idm": {
       "selectedAdapter": "keycloak-realm",
       "providerKey": "keycloak-realm",
-      "readinessSource": "02-keycloak-setup",
+      "readinessSource": "protected-compose-keycloak-reconciliation",
       "secretRefs": ["secretref://weave/provider/keycloak-realm/client-secret"],
       "externalAlternatives": ["entra-id", "authentik", "auth0", "generic-oidc", "generic-saml"]
     },
@@ -45,23 +45,13 @@
       "secretRefs": ["secretref://weave/provider/nextcloud-caldav/backend-token"],
       "externalAlternatives": ["microsoft-graph-calendar", "google-workspace-calendar", "generic-caldav"]
     },
-    "boards-tasks": {
-      "selectedAdapter": "openproject-primary",
-      "providerKey": "openproject-primary",
-      "secretRefs": ["secretref://weave/provider/openproject-primary/api-token"],
-      "externalAlternatives": ["microsoft-planner", "jira", "nextcloud-deck", "vikunja"]
-    },
     "meetings-calls": {
       "selectedAdapter": "livekit",
       "providerKey": "livekit",
+      "enabledByDefault": false,
+      "claimState": "Guarded",
       "secretRefs": ["secretref://weave/provider/livekit/api-key", "secretref://weave/provider/livekit/api-secret"],
       "externalAlternatives": ["microsoft-teams-meetings", "zoom", "google-meet", "jitsi"]
-    },
-    "documents-collaboration": {
-      "selectedAdapter": "onlyoffice-community",
-      "providerKey": "onlyoffice-community",
-      "secretRefs": ["secretref://weave/provider/onlyoffice-community/jwt-secret"],
-      "externalAlternatives": ["microsoft-365-office-graph", "collabora-code", "google-workspace-docs"]
     },
     "agent-runtime-control": {
       "selectedAdapter": "weaver-openclaw",

@@ -15,7 +15,7 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_CERT_DIR = ROOT / "infra/weave-workspace/01-infrastructure/.generated/caddy/certs"
+DEFAULT_CERT_DIR = ROOT / "infra/weave-workspace/.generated/dogfood/tls"
 SECRET_PATTERN = re.compile(
     r"(access[_-]?token|refresh[_-]?token|id[_-]?token|authorization|bearer\s+|"
     r"client[_-]?secret|password|credential|secretref://)",
@@ -149,8 +149,8 @@ def read_json(path: Path) -> dict[str, Any]:
 
 
 def check_certs(cert_dir: Path, handoff: dict[str, Any]) -> dict[str, Any]:
-    ca_current = cert_fingerprint(cert_dir / "weave-local-ca.pem")
-    leaf_current = cert_fingerprint(cert_dir / "weave.test.pem")
+    ca_current = cert_fingerprint(cert_dir / "ca.pem")
+    leaf_current = cert_fingerprint(cert_dir / "cert.pem")
     certificates = handoff.get("certificates", {})
     if not isinstance(certificates, dict):
         certificates = {}

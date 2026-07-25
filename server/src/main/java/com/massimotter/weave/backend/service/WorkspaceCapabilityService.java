@@ -20,13 +20,14 @@ import java.util.stream.Stream;
 import org.springframework.http.HttpStatus;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 
 @Service
 public class WorkspaceCapabilityService {
 
+    private static final String WEAVER_CAPABILITY_GROUP_PATH = "/capabilities/weaver";
     private static final List<String> OWNER_ADMIN_CAPABILITIES = List.of(
             "chat.read",
             "chat.send",
@@ -49,12 +50,6 @@ public class WorkspaceCapabilityService {
             "admin_control_plane.readiness_read",
             "admin.policy.edit",
             "admin.provider.configure");
-    private static final List<String> OPERATOR_CAPABILITIES = List.of(
-            "admin_control_plane.readiness_read",
-            "operator.support_bundle.create",
-            "release_evidence.read",
-            "manuals.admin",
-            "manuals.read");
     private static final List<String> MEMBER_CAPABILITIES = List.of(
             "chat.read",
             "chat.send",
@@ -67,13 +62,6 @@ public class WorkspaceCapabilityService {
             "decisions.read",
             "manuals.read",
             "release_evidence.read");
-    private static final Map<String, List<String>> GROUP_CAPABILITIES = Map.of(
-            "weave-calendar-editors", List.of("calendar.manage_events"),
-            "weave-board-editors", List.of("boards.update_task"),
-            "weave-meeting-hosts", List.of("meetings.host"),
-            "weave-document-editors", List.of("documents.edit"),
-            "weave-decision-recorders", List.of("decisions.record"));
-
     private final OAuth2ResourceServerProperties resourceServerProperties;
     private final WeaveSecurityProperties weaveSecurityProperties;
     private final WorkspaceCapabilityProperties workspaceCapabilityProperties;
@@ -342,15 +330,18 @@ public class WorkspaceCapabilityService {
             return status(capability, WorkspaceCapabilityReadiness.BLOCKED, category, requiredCapabilities, policy,
                     "Sign-in or workspace SSO must be ready before this capability can be used.");
         }
-        if ("files".equals(category)) {
-            ProviderCapabilityHealthResponse.CapabilityHealth filesHealth = cachedProviderHealth("files");
-            if (filesHealth != null) {
+        if ("files".equals(category) || "chat".equals(category)) {
+            ProviderCapabilityHealthResponse.CapabilityHealth providerHealth = cachedProviderHealth(category);
+            if (providerHealth != null) {
                 WorkspaceCapabilityReadiness readiness = effectiveProviderReadiness(
                         capability.readiness(),
-                        providerReadiness(filesHealth.state()));
+                        providerReadiness(providerHealth.state()));
+                String providerAttention = "files".equals(category)
+                        ? "Files need admin attention before members can use them reliably. "
+                        : "Chat needs admin attention before members can use it reliably. ";
                 String memberImpact = readiness == WorkspaceCapabilityReadiness.READY
                         ? readyImpact
-                        : "Files need admin attention before members can use them reliably. Ask an admin to inspect Workspace Health.";
+                        : providerAttention + "Ask an admin to inspect Workspace Health.";
                 return status(
                         capability,
                         readiness,
@@ -358,7 +349,7 @@ public class WorkspaceCapabilityService {
                         requiredCapabilities,
                         policy,
                         memberImpact,
-                        filesHealth.supportSafeCode());
+                        providerHealth.supportSafeCode());
             }
         }
         if (capability.readiness() != null) {
@@ -561,10 +552,6 @@ public class WorkspaceCapabilityService {
             capabilities.addAll(OWNER_ADMIN_CAPABILITIES);
             profileKeys.add("workspace-admin");
         }
-        if (roles.contains("operator")) {
-            capabilities.addAll(OPERATOR_CAPABILITIES);
-            profileKeys.add("workspace-operator");
-        }
         if (roles.contains("member")) {
             capabilities.addAll(MEMBER_CAPABILITIES);
             profileKeys.add("member-default");
@@ -573,12 +560,7 @@ public class WorkspaceCapabilityService {
             profileKeys.add("guest-deny-default");
         }
         for (String group : groups) {
-            List<String> groupCapabilities = GROUP_CAPABILITIES.get(group);
-            if (groupCapabilities != null) {
-                capabilities.addAll(groupCapabilities);
-                profileKeys.add("group:" + group);
-            }
-            if (runtimeEntitlementProperties.enabledGroups().contains(group)) {
+            if (WEAVER_CAPABILITY_GROUP_PATH.equals(group)) {
                 profileKeys.add("group:" + group);
                 if (runtimeEntitlementProperties.enabled()) {
                     capabilities.add("agent-runtime.entitled");
@@ -588,8 +570,8 @@ public class WorkspaceCapabilityService {
         if (profileKeys.isEmpty()) {
             profileKeys.add("deny-by-default");
         }
-        // ARC entitlement is deliberately absent from built-in human role profiles. Only the
-        // configured Keycloak group may contribute the member-safe entitlement capability.
+        // This is a member-visible policy projection only. ARC independently re-reads
+        // the exact native Organization group before provisioning or reconciliation.
         return new EffectivePolicy(
                 roles,
                 groups,
@@ -610,10 +592,7 @@ public class WorkspaceCapabilityService {
 
     private String denyReason(EffectivePolicy policy, String capability) {
         if (capability.equals("agent-runtime.entitled")) {
-            return "Agent Runtime Control is disabled unless current Keycloak group membership grants entitlement";
-        }
-        if (policy.roles().contains("operator")) {
-            return "operator role does not automatically grant user, provider, or policy administration";
+            return "Agent Runtime Control requires current /capabilities/weaver organization membership";
         }
         return "missing mapped org role, context role, or group capability";
     }

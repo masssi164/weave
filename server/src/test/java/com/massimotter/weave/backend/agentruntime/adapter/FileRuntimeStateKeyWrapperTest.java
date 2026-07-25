@@ -3,7 +3,7 @@ package com.massimotter.weave.backend.agentruntime.adapter;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeStateKeyWrapper;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeStateStoreException;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeStateWrappingKeyLifecycle;
@@ -29,7 +29,7 @@ class FileRuntimeStateKeyWrapperTest {
     void setUp() {
         keys = new FileRuntimeStateKeyWrapper(
                 temporary.resolve("runtime-state-keys").toAbsolutePath(),
-                new ObjectMapper().findAndRegisterModules(),
+                tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build(),
                 Clock.fixed(NOW, ZoneOffset.UTC),
                 new SecureRandom());
     }

@@ -2,16 +2,16 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-TENANT_DOMAIN="${TF_VAR_tenant_domain:-weave.test}"
-PUBLIC_SCHEME="${TF_VAR_public_scheme:-https}"
-PROXY_PORT="${TF_VAR_proxy_host_port:-443}"
+TENANT_DOMAIN="${WEAVE_TENANT_DOMAIN:-weave.test}"
+PUBLIC_SCHEME="${WEAVE_PUBLIC_SCHEME:-https}"
+PROXY_PORT="${WEAVE_PROXY_HTTPS_HOST_PORT:-443}"
 MAILPIT_HOST="mail.${TENANT_DOMAIN}"
 PORT_SUFFIX=""
 if [[ "${PUBLIC_SCHEME}" != "https" || "${PROXY_PORT}" != "443" ]]; then
   PORT_SUFFIX=":${PROXY_PORT}"
 fi
 MAILPIT_URL="${WEAVE_MAILPIT_URL:-${PUBLIC_SCHEME}://${MAILPIT_HOST}${PORT_SUFFIX}}"
-CA_FILE="${TF_VAR_caddy_tls_ca_file:-${ROOT_DIR}/01-infrastructure/.generated/caddy/certs/weave-local-ca.pem}"
+CA_FILE="${WEAVE_CADDY_TLS_CA_FILE:-${WEAVE_TLS_ROOT:-${ROOT_DIR}/.generated/dogfood/tls}/ca.pem}"
 
 fail() {
   printf 'iPhone Mailpit smoke failed: %s\n' "$*" >&2
@@ -37,7 +37,7 @@ PY
 
 openssl verify -CAfile "${CA_FILE}" "${CA_FILE}" >/dev/null || fail "local CA is not self-verifiable"
 status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' --cacert "${CA_FILE}" "${MAILPIT_URL}")"
-[[ "${status}" == "200" ]] || fail "${MAILPIT_URL} returned HTTP ${status}; the client address must be inside TF_VAR_mailpit_allowed_cidrs"
+[[ "${status}" == "200" ]] || fail "${MAILPIT_URL} returned HTTP ${status}; the client address must be inside WEAVE_MAILPIT_ALLOWED_CIDRS"
 
 printf 'Mailpit iPhone prerequisite smoke passed.\n'
 printf 'Safari URL: %s\n' "${MAILPIT_URL}"

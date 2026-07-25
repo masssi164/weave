@@ -9,16 +9,18 @@ import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.service.LocalDependencyReadinessService;
+import com.massimotter.weave.backend.service.PersistenceHealthProbe;
 import com.massimotter.weave.backend.service.PlatformContractService;
 import com.massimotter.weave.backend.service.ProviderCapabilityHealthService;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
-import org.springframework.boot.autoconfigure.security.oauth2.resource.servlet.OAuth2ResourceServerAutoConfiguration;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.TestPropertySource;
@@ -60,11 +62,19 @@ class PlatformControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockBean
+    @MockitoBean
     private JwtDecoder jwtDecoder;
 
-    @MockBean
+    @MockitoBean
     private ProviderCapabilityHealthService providerCapabilityHealthService;
+
+    @MockitoBean
+    private PersistenceHealthProbe persistenceHealth;
+
+    @BeforeEach
+    void persistenceIsReady() {
+        org.mockito.Mockito.when(persistenceHealth.ready()).thenReturn(true);
+    }
 
     @Test
     void exposesPublicPlatformConfig() throws Exception {
@@ -146,7 +156,7 @@ class PlatformControllerTest {
                 .andExpect(jsonPath("$.checks[?(@.key == 'auth')].readiness").value("ready"))
                 .andExpect(jsonPath("$.checks[?(@.key == 'matrix')]").isEmpty())
                 .andExpect(jsonPath("$.checks[?(@.key == 'files')]").isEmpty())
-                .andExpect(jsonPath("$.checks[?(@.key == 'persistence')]").isEmpty())
+                .andExpect(jsonPath("$.checks[?(@.key == 'persistence')].readiness").value("ready"))
                 .andExpect(jsonPath("$.actions").isEmpty());
 
         mockMvc.perform(get("/api/health/ready"))

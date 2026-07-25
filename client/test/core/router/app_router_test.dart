@@ -17,6 +17,7 @@ import 'package:weave/features/app/domain/entities/workspace_capability_snapshot
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
 import 'package:weave/features/app/data/services/persisted_client_upgrade_service.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
+import 'package:weave/features/app/presentation/providers/app_application_providers.dart';
 import 'package:weave/features/auth/presentation/sign_in_screen.dart';
 import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
 import 'package:weave/features/calendar/domain/repositories/calendar_repository.dart';
@@ -29,9 +30,9 @@ import 'package:weave/features/files/presentation/providers/files_repository_pro
 import 'package:weave/features/help/presentation/help_screen.dart';
 import 'package:weave/features/home/presentation/home_screen.dart';
 import 'package:weave/features/onboarding/domain/entities/member_auth_onboarding_state.dart';
-import 'package:weave/features/onboarding/domain/use_cases/consume_member_handoff.dart';
+import 'package:weave/features/onboarding/domain/use_cases/discover_organization_access.dart';
 import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
-import 'package:weave/features/onboarding/presentation/setup_flow.dart';
+import 'package:weave/features/onboarding/presentation/organization_access_screen.dart';
 import 'package:weave/features/profile/domain/entities/user_profile.dart';
 import 'package:weave/features/profile/presentation/profile_screen.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
@@ -46,6 +47,7 @@ import 'package:weave/main.dart';
 import '../../helpers/auth_test_data.dart';
 import '../../helpers/fake_chat_repository.dart';
 import '../../helpers/fake_files_repository.dart';
+import '../../helpers/fake_identity_session_port.dart';
 import '../../helpers/in_memory_stores.dart';
 import '../../helpers/server_config_test_data.dart';
 
@@ -177,9 +179,13 @@ class _FakeCalendarRepository implements CalendarRepository {
 
 void main() {
   group('AppRouter', () {
-    test('uses welcome as the normal launch route', () {
-      expect(initialLocationForDefaultRoute('/'), AppRoutes.welcome);
-      expect(initialLocationForDefaultRoute(''), AppRoutes.welcome);
+    test('uses organization access as the normal launch route', () {
+      expect(initialLocationForDefaultRoute('/'), AppRoutes.organizationAccess);
+      expect(initialLocationForDefaultRoute(''), AppRoutes.organizationAccess);
+      expect(
+        initialLocationForDefaultRoute('/welcome'),
+        AppRoutes.organizationAccess,
+      );
     });
 
     test('uses join route for installed iOS custom-scheme launch', () {
@@ -245,6 +251,9 @@ void main() {
             (ref) => preferencesStore ?? InMemoryPreferencesStore(),
           ),
           oidcClientProvider.overrideWithValue(_FakeOidcClient()),
+          identitySessionPortProvider.overrideWithValue(
+            FakeIdentitySessionPort(),
+          ),
           chatRepositoryProvider.overrideWithValue(FakeChatRepository()),
           filesRepositoryProvider.overrideWithValue(
             FakeFilesRepository(
@@ -273,7 +282,7 @@ void main() {
       return container;
     }
 
-    testWidgets('shows welcome flow when no saved configuration exists', (
+    testWidgets('shows organization access when no configuration exists', (
       tester,
     ) async {
       final container = createContainer(configuration: null);
@@ -287,7 +296,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.byType(SetupFlow), findsOneWidget);
+      expect(find.byType(OrganizationAccessScreen), findsOneWidget);
     });
 
     testWidgets('shows the sign-in gate when config exists without a session', (
@@ -747,25 +756,26 @@ void main() {
       expect(find.text('Workspace Readiness'), findsNothing);
     });
 
-    testWidgets('redirects shell routes back to welcome when setup is needed', (
-      tester,
-    ) async {
-      final container = createContainer(configuration: null);
-      addTearDown(container.dispose);
+    testWidgets(
+      'redirects shell routes to organization access when discovery is needed',
+      (tester) async {
+        final container = createContainer(configuration: null);
+        addTearDown(container.dispose);
 
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: const WeaveApp(),
-        ),
-      );
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: const WeaveApp(),
+          ),
+        );
+        await tester.pumpAndSettle();
 
-      container.read(appRouterProvider).go(AppRoutes.settings);
-      await tester.pumpAndSettle();
+        container.read(appRouterProvider).go(AppRoutes.settings);
+        await tester.pumpAndSettle();
 
-      expect(find.byType(SetupFlow), findsOneWidget);
-    });
+        expect(find.byType(OrganizationAccessScreen), findsOneWidget);
+      },
+    );
 
     testWidgets('redirects shell routes to sign-in when auth is required', (
       tester,

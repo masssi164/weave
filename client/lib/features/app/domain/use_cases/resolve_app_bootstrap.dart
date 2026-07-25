@@ -3,6 +3,7 @@ import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/app/domain/ports/app_auth_port.dart';
 import 'package:weave/features/app/domain/ports/client_upgrade_port.dart';
 import 'package:weave/features/app/domain/ports/server_configuration_port.dart';
+import 'package:weave/features/app/domain/use_cases/reconcile_identity_session.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/domain/entities/auth_failure.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
@@ -10,13 +11,16 @@ import 'package:weave/features/server_config/domain/entities/server_configuratio
 class ResolveAppBootstrap {
   const ResolveAppBootstrap({
     required AppAuthPort authPort,
+    required ReconcileIdentitySession reconcileIdentitySession,
     required ServerConfigurationPort serverConfigurationPort,
     ClientUpgradePort? clientUpgradePort,
   }) : _authPort = authPort,
+       _reconcileIdentitySession = reconcileIdentitySession,
        _serverConfigurationPort = serverConfigurationPort,
        _clientUpgradePort = clientUpgradePort;
 
   final AppAuthPort _authPort;
+  final ReconcileIdentitySession _reconcileIdentitySession;
   final ServerConfigurationPort _serverConfigurationPort;
   final ClientUpgradePort? _clientUpgradePort;
 
@@ -28,10 +32,14 @@ class ResolveAppBootstrap {
         return const BootstrapState.needsSetup();
       }
 
-      final authState = await _authPort.restoreSession(
-        _toAuthConfiguration(configuration),
-      );
+      final authConfiguration = _toAuthConfiguration(configuration);
+      final authState = await _authPort.restoreSession(authConfiguration);
       if (authState.isAuthenticated) {
+        await _reconcileIdentitySession(
+          authConfiguration: authConfiguration,
+          backendApiBaseUrl: configuration.serviceEndpoints.backendApiBaseUrl,
+          authenticated: authState,
+        );
         await _removeObsoleteAuthenticatedState();
         return const BootstrapState.ready();
       }
@@ -39,7 +47,9 @@ class ResolveAppBootstrap {
       return const BootstrapState.needsSignIn();
     } on AuthFailure catch (failure) {
       return BootstrapState.error(
-        AppFailure.storage(failure.message, cause: failure.cause),
+        failure.type == AuthFailureType.storage
+            ? AppFailure.storage(failure.message, cause: failure.cause)
+            : AppFailure.bootstrap(failure.message, cause: failure.cause),
       );
     } on AppFailure catch (failure) {
       return BootstrapState.error(failure);

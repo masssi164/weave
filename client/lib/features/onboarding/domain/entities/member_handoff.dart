@@ -3,7 +3,6 @@ import 'package:weave/core/failures/app_failure.dart';
 class MemberHandoff {
   const MemberHandoff({
     required this.handoffRef,
-    required this.profile,
     required this.runId,
     required this.organizationSlug,
     required this.workspaceSlug,
@@ -12,7 +11,6 @@ class MemberHandoff {
   });
 
   final String handoffRef;
-  final String profile;
   final String runId;
   final String organizationSlug;
   final String workspaceSlug;
@@ -30,6 +28,84 @@ class MemberHandoff {
   final Uri productBaseUrl;
 }
 
+/// Canonical, secret-free input for organization discovery.
+///
+/// A completion link or QR payload may carry a real [handoff]. A manually
+/// entered server URI carries only the organization origin. Both forms resolve
+/// the same public discovery document and never manufacture invitation data.
+class OrganizationAccess {
+  const OrganizationAccess({
+    required this.organizationOrigin,
+    required this.platformConfigUrl,
+    this.handoff,
+  });
+
+  final Uri organizationOrigin;
+  final Uri platformConfigUrl;
+  final MemberHandoff? handoff;
+
+  String get organizationLabel =>
+      handoff?.organizationSlug ?? organizationOrigin.host;
+}
+
+class OrganizationAccessParser {
+  const OrganizationAccessParser();
+
+  OrganizationAccess parse(Uri uri) {
+    final directOrigin = _directOrganizationOrigin(uri);
+    if (directOrigin != null) {
+      const handoffParser = MemberHandoffParser();
+      handoffParser._validatePhoneReachable(directOrigin);
+      return OrganizationAccess(
+        organizationOrigin: directOrigin,
+        platformConfigUrl: directOrigin.replace(path: '/api/platform/config'),
+      );
+    }
+
+    final handoff = const MemberHandoffParser().parse(uri);
+    return OrganizationAccess(
+      organizationOrigin: handoff.productBaseUrl,
+      platformConfigUrl: handoff.platformConfigUrl,
+      handoff: handoff,
+    );
+  }
+
+  Uri? _directOrganizationOrigin(Uri uri) {
+    final rawOrigin = switch ((uri.scheme, uri.host, uri.path)) {
+      ('', '', '/join') =>
+        uri.queryParameters.length == 1
+            ? uri.queryParameters['organization_origin']
+            : null,
+      ('https', _, '' || '/') when !uri.hasQuery && !uri.hasFragment =>
+        uri.toString(),
+      _ => null,
+    };
+    if (rawOrigin == null || rawOrigin.trim().isEmpty) {
+      return null;
+    }
+
+    final parsed = Uri.tryParse(rawOrigin.trim());
+    if (parsed == null ||
+        !parsed.isAbsolute ||
+        parsed.scheme != 'https' ||
+        parsed.host.isEmpty ||
+        parsed.userInfo.isNotEmpty ||
+        parsed.hasQuery ||
+        parsed.hasFragment ||
+        (parsed.path.isNotEmpty && parsed.path != '/')) {
+      throw const AppFailure.validation(
+        'WEAVE-ORGANIZATION-ACCESS-INVALID: Enter a secure Weave organization origin without credentials, path, query, or fragment data.',
+      );
+    }
+    return Uri(
+      scheme: parsed.scheme,
+      host: parsed.host,
+      port: parsed.hasPort ? parsed.port : null,
+      path: '/',
+    );
+  }
+}
+
 class MemberHandoffParser {
   const MemberHandoffParser();
 
@@ -37,29 +113,23 @@ class MemberHandoffParser {
     _validateJoinEntrypoint(uri);
     final query = uri.queryParameters;
     final handoffRef = _requiredSafeRef(query, 'handoff_ref');
-    final profile = _requiredSafeSlug(
-      query,
-      'profile',
-      fallback: 'local-lan-dogfood',
-    );
     final runId = _requiredSafeSlug(query, 'run_id', fallback: 'unknown-run');
     final org = _requiredSafeSlug(query, 'org');
     final workspace = _requiredSafeSlug(query, 'workspace');
     _rejectCredentialBearingQuery(query);
 
     final productBaseUrl = _productBaseUrlFrom(uri, query);
-    _validatePhoneReachable(productBaseUrl, profile: profile);
+    _validatePhoneReachable(productBaseUrl);
 
     final platformConfigUrl = _platformConfigUrlFrom(
       uri,
       query,
       productBaseUrl,
     );
-    _validatePhoneReachable(platformConfigUrl, profile: profile);
+    _validatePhoneReachable(platformConfigUrl);
 
     return MemberHandoff(
       handoffRef: handoffRef,
-      profile: profile,
       runId: runId,
       organizationSlug: org,
       workspaceSlug: workspace,
@@ -220,26 +290,18 @@ class MemberHandoffParser {
     }
   }
 
-  void _validatePhoneReachable(Uri uri, {required String profile}) {
+  void _validatePhoneReachable(Uri uri) {
     final host = uri.host.toLowerCase();
     final hostClass = _hostClass(host);
+    if (hostClass == 'rfc1918-lan-ip' || hostClass == 'lan-ipv6') {
+      throw const AppFailure.validation(
+        'WEAVE-LAN-UNREACHABLE: Use the managed organization DNS name so the phone can validate the TLS identity.',
+      );
+    }
     if (hostClass.startsWith('forbidden')) {
       throw const AppFailure.validation(
         'WEAVE-LINK-UNREACHABLE: The invite does not point to a phone-reachable address.',
       );
-    }
-
-    final localProfile =
-        profile == 'local-lan-dogfood' ||
-        profile == 'dev' ||
-        profile == 'local-dogfood';
-    if (localProfile) {
-      if (hostClass != 'lan-dns') {
-        throw const AppFailure.validation(
-          'WEAVE-LAN-UNREACHABLE: The local invite must point to the DNS-first LAN domain.',
-        );
-      }
-      return;
     }
 
     if (hostClass != 'dns' &&
@@ -316,7 +378,6 @@ class MemberHandoffPayloadBuilder {
     required String handoffRef,
     required String organizationSlug,
     required String workspaceSlug,
-    String profile = 'local-lan-dogfood',
     String runId = 'unknown-run',
   }) {
     final link = Uri(
@@ -328,7 +389,6 @@ class MemberHandoffPayloadBuilder {
         'handoff_ref': handoffRef,
         'org': organizationSlug,
         'workspace': workspaceSlug,
-        'profile': profile,
         'run_id': runId,
       },
     );
@@ -344,14 +404,12 @@ class MemberHandoffPayloadBuilder {
     required String handoffRef,
     required String organizationSlug,
     required String workspaceSlug,
-    String profile = 'local-lan-dogfood',
     String runId = 'unknown-run',
   }) => inviteLink(
     productBaseUrl: productBaseUrl,
     handoffRef: handoffRef,
     organizationSlug: organizationSlug,
     workspaceSlug: workspaceSlug,
-    profile: profile,
     runId: runId,
   ).toString();
 }

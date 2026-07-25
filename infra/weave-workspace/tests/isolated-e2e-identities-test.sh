@@ -5,7 +5,6 @@ set -euo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 SCRIPT="${ROOT_DIR}/isolated-e2e-identities.sh"
-INFRA_MAIN="${ROOT_DIR}/01-infrastructure/main.tf"
 # shellcheck disable=SC1090,SC1091
 source "${ROOT_DIR}/lib/runtime-namespace.sh"
 TMP_DIR="$(mktemp -d)"
@@ -28,23 +27,20 @@ file_mode() {
   fi
 }
 
-grep -Fq 'var.isolated_e2e_enabled || (var.isolated_e2e_namespace == "" && length(var.isolated_e2e_context_memberships) == 0)' "${INFRA_MAIN}"
-grep -Fq '!var.create_test_user' "${INFRA_MAIN}"
-grep -Fq 'var.context_authorization_dogfood_principal_ref == ""' "${INFRA_MAIN}"
-grep -Fq 'var.context_authorization_principal_claim == "preferred_username"' "${INFRA_MAIN}"
+grep -Fq 'WEAVE_E2E_STACK_SCOPE=isolated' "${SCRIPT}" || fail "identity lifecycle is not isolated-only"
+grep -Fq "printf 'export WEAVE_CREATE_TEST_USER=%q\\n' false" "${SCRIPT}" || fail "identity lifecycle may not use a static test user"
+grep -Fq 'WEAVE_CONTEXT_AUTHORIZATION_DOGFOOD_PRINCIPAL_REF=' "${SCRIPT}" || fail "identity lifecycle must clear the persistent dogfood principal"
 
 mkdir -p "${MOCK_BIN}" "${MOCK_STATE}"
 printf '[]\n' >"${MOCK_STATE}/users.json"
-cat >"${MOCK_STATE}/groups.json" <<'JSON'
-[
-  {"id":"global-members","name":"workspace-members","attributes":{}},
-  {"id":"global-boards","name":"weave-board-editors","attributes":{}},
-  {"id":"global-calendar","name":"weave-calendar-editors","attributes":{}}
-]
-JSON
+printf '[]\n' >"${MOCK_STATE}/groups.json"
 
-grep -Fq 'global_group_id "${base}" "${token}" weave-board-editors' "${SCRIPT}" ||
-  fail "disposable members must receive the existing Boards mutation capability"
+grep -Fq 'collaborator) organization_role_group_path="/admins"' "${SCRIPT}" ||
+  fail "the collaborator must receive the canonical native admin role group"
+grep -Fq 'author|outsider) organization_role_group_path="/members"' "${SCRIPT}" ||
+  fail "the remaining disposable actors must receive the canonical native member role group"
+! grep -Fq '/weave/members' "${SCRIPT}" ||
+  fail "disposable members must not depend on the retired realm-group contract"
 
 for unsafe_evidence_ref in \
   http://github.example.invalid/weave/actions/runs/42 \
@@ -70,33 +66,36 @@ grep -Fq 'WEAVE_E2E_IDENTITY_MANIFEST_PATH=' <<<"${prepare_output}"
 grep -Fq 'WEAVE_E2E_CLEANUP_EVIDENCE_PATH=' <<<"${prepare_output}"
 ! grep -Fq 'CHAT_PROOF_TOKEN' <<<"${prepare_output}" || fail "prepare output must not publish proof credential paths"
 grep -Fq 'WEAVE_TEARDOWN_OWNERSHIP_FILE=' <<<"${prepare_output}"
+grep -Fq 'WEAVE_TEST_USERS_FILE=' <<<"${prepare_output}"
 
 eval "${prepare_output}"
-export WEAVE_E2E_RUN_NAMESPACE WEAVE_E2E_CREDENTIAL_ENV_PATH WEAVE_E2E_STARTUP_ENV_PATH WEAVE_E2E_IDENTITY_MANIFEST_PATH WEAVE_E2E_CLEANUP_EVIDENCE_PATH WEAVE_TEARDOWN_OWNERSHIP_FILE
+export WEAVE_E2E_RUN_NAMESPACE WEAVE_E2E_CREDENTIAL_ENV_PATH WEAVE_E2E_STARTUP_ENV_PATH WEAVE_E2E_IDENTITY_MANIFEST_PATH WEAVE_E2E_CLEANUP_EVIDENCE_PATH WEAVE_TEARDOWN_OWNERSHIP_FILE WEAVE_TEST_USERS_FILE
 # shellcheck disable=SC1090
 source "${WEAVE_E2E_CREDENTIAL_ENV_PATH}"
 # shellcheck disable=SC1090
 source "${WEAVE_E2E_STARTUP_ENV_PATH}"
-: "${TF_VAR_isolated_e2e_context_memberships:?startup membership list is required}"
-[[ "${TF_VAR_tenant_slug:-}" == weave ]] || fail "isolated startup must publish the disposable tenant slug"
+: "${WEAVE_ISOLATED_E2E_CONTEXT_MEMBERSHIPS:?startup membership list is required}"
+[[ "${WEAVE_TENANT_SLUG:-}" == weave ]] || fail "isolated startup must publish the disposable tenant slug"
 
 [[ "$(weave_container_name backend)" == "${WEAVE_E2E_RUN_NAMESPACE}-backend" ]] || fail "isolated backend container name is not run-scoped"
 [[ "$(weave_volume_name nextcloud_data)" == "${WEAVE_E2E_RUN_NAMESPACE//-/_}_nextcloud_data" ]] || fail "isolated Nextcloud volume name is not run-scoped"
 [[ "$(weave_network_name)" == "${WEAVE_E2E_RUN_NAMESPACE}_network" ]] || fail "isolated network name is not run-scoped"
 [[ "$(weave_workspace_generated_dir "${ROOT_DIR}")" == "${ROOT_DIR}/.generated/isolated/${WEAVE_E2E_RUN_NAMESPACE}" ]] || fail "isolated generated assets are not run-scoped"
-[[ "$(weave_iac_state_file "${ROOT_DIR}/01-infrastructure")" == "${OUTPUT_ROOT}/${WEAVE_E2E_RUN_NAMESPACE}/runtime/opentofu/state/01-infrastructure.tfstate" ]] || fail "infrastructure state is not run-scoped"
-[[ "$(weave_iac_state_file "${ROOT_DIR}/02-keycloak-setup")" == "${OUTPUT_ROOT}/${WEAVE_E2E_RUN_NAMESPACE}/runtime/opentofu/state/02-keycloak-setup.tfstate" ]] || fail "Keycloak state is not run-scoped"
+[[ "$(weave_isolated_run_root)" == "${OUTPUT_ROOT}/${WEAVE_E2E_RUN_NAMESPACE}" ]] || fail "Compose evidence root is not run-scoped"
 
 [[ "$(file_mode "${WEAVE_E2E_CREDENTIAL_ENV_PATH}")" == 600 ]] || fail "credential env must be mode 0600"
-[[ "$(file_mode "${TF_VAR_chat_e2e_proof_token_host_path}")" == 600 ]] || fail "Chat provider proof credential must be mode 0600"
-[[ "$(<"${TF_VAR_chat_e2e_proof_token_host_path}")" =~ ^[0-9a-f]{96}$ ]] || fail "Chat provider proof credential must be independently random 384-bit hex"
+[[ "$(file_mode "${WEAVE_TEST_USERS_FILE}")" == 600 ]] || fail "test-user input must be mode 0600"
+jq -e '. | length == 3 and .[0].roles == ["member"] and .[1].roles == ["admin"] and .[2].groups == []' "${WEAVE_TEST_USERS_FILE}" >/dev/null || fail "test-user input has incorrect actor grants"
+jq -e --arg author "${WEAVE_E2E_AUTHOR_USERNAME}" --arg collaborator "${WEAVE_E2E_COLLABORATOR_USERNAME}" --arg outsider "${WEAVE_E2E_OUTSIDER_USERNAME}" '.[0].username == $author and .[1].username == $collaborator and .[2].username == $outsider' "${WEAVE_TEST_USERS_FILE}" >/dev/null || fail "test-user input is not run-scoped"
+[[ "$(file_mode "${WEAVE_CHAT_E2E_PROOF_TOKEN_HOST_PATH}")" == 600 ]] || fail "Chat provider proof credential must be mode 0600"
+[[ "$(<"${WEAVE_CHAT_E2E_PROOF_TOKEN_HOST_PATH}")" =~ ^[0-9a-f]{96}$ ]] || fail "Chat provider proof credential must be independently random 384-bit hex"
 # Sourced from the generated startup environment above.
 # shellcheck disable=SC2154
-[[ "${TF_VAR_chat_e2e_proof_enabled}" == true ]] || fail "isolated startup must enable the private Chat proof boundary"
+[[ "${WEAVE_CHAT_E2E_PROOF_ENABLED}" == true ]] || fail "isolated startup must enable the private Chat proof boundary"
 # shellcheck disable=SC2154
-[[ "$(basename -- "${TF_VAR_chat_e2e_proof_token_host_path}")" == "chat-provider-proof.token" ]] || fail "proof credential path binding is inconsistent"
+[[ "$(basename -- "${WEAVE_CHAT_E2E_PROOF_TOKEN_HOST_PATH}")" == "chat-provider-proof.token" ]] || fail "proof credential path binding is inconsistent"
 # shellcheck disable=SC2154
-[[ "${TF_VAR_chat_e2e_proof_run_id}" == "${RUN_ID}" ]] || fail "proof run binding is not exact"
+[[ "${WEAVE_CHAT_E2E_PROOF_RUN_ID}" == "${RUN_ID}" ]] || fail "proof run binding is not exact"
 [[ "$(file_mode "${WEAVE_TEARDOWN_OWNERSHIP_FILE}")" == 600 ]] || fail "teardown ownership evidence must be mode 0600"
 jq -e \
   --arg namespace "${WEAVE_E2E_RUN_NAMESPACE}" \
@@ -104,12 +103,12 @@ jq -e \
   '.scope == "isolated" and .namespace == $namespace and .candidateCommit == $candidate and .resourcePrefix == $namespace' \
   "${WEAVE_TEARDOWN_OWNERSHIP_FILE}" >/dev/null
 ports="$(
-  env | awk -F= '/^TF_VAR_(proxy_http|proxy|keycloak|keycloak_management|mailpit_web|mas|synapse|nextcloud|backend|mcp)_host_port=/{print $2}' | sort -n
+  env | awk -F= '/^WEAVE_(PROXY_HTTP|PROXY_HTTPS|KEYCLOAK|KEYCLOAK_MANAGEMENT|MAILPIT_WEB|MAS|SYNAPSE|NEXTCLOUD|BACKEND|MCP)_HOST_PORT=/{print $2}' | sort -n
 )"
 [[ "$(wc -l <<<"${ports}" | tr -d ' ')" == 10 ]] || fail "isolated startup must publish ten unique run-scoped ports"
 [[ "$(sort -u <<<"${ports}" | wc -l | tr -d ' ')" == 10 ]] || fail "isolated startup ports must be unique"
 jq -e 'length == 3 and .[0].context_id == .[1].context_id and .[2].context_id != .[0].context_id and all(.[]; .source == "isolated-live-e2e")' \
-  <<<"${TF_VAR_isolated_e2e_context_memberships}" >/dev/null
+  <<<"${WEAVE_ISOLATED_E2E_CONTEXT_MEMBERSHIPS}" >/dev/null
 jq -e '.contextAuthorization.mode == "isolated-startup-real-rebac" and .contextAuthorization.persistentDogfoodEligible == false and (.actors | length == 3)' \
   "${WEAVE_E2E_IDENTITY_MANIFEST_PATH}" >/dev/null
 if grep -Fq "${WEAVE_E2E_AUTHOR_USERNAME}" "${WEAVE_E2E_IDENTITY_MANIFEST_PATH}" ||
@@ -117,7 +116,7 @@ if grep -Fq "${WEAVE_E2E_AUTHOR_USERNAME}" "${WEAVE_E2E_IDENTITY_MANIFEST_PATH}"
   fail "support-safe identity manifest leaked an identity or credential"
 fi
 
-proof_token_before="$(<"${TF_VAR_chat_e2e_proof_token_host_path}")"
+proof_token_before="$(<"${WEAVE_CHAT_E2E_PROOF_TOKEN_HOST_PATH}")"
 second_prepare="$(
   WEAVE_E2E_STACK_SCOPE=isolated \
     WEAVE_CANDIDATE_COMMIT="${CANDIDATE_COMMIT}" \
@@ -125,7 +124,7 @@ second_prepare="$(
     bash "${SCRIPT}" prepare --run-id "${RUN_ID}" --output-root "${OUTPUT_ROOT}"
 )"
 [[ "${second_prepare}" == "${prepare_output}" ]] || fail "prepare must be idempotent for the same run ID"
-[[ "$(<"${TF_VAR_chat_e2e_proof_token_host_path}")" == "${proof_token_before}" ]] || fail "prepare must preserve the run-scoped proof credential"
+[[ "$(<"${WEAVE_CHAT_E2E_PROOF_TOKEN_HOST_PATH}")" == "${proof_token_before}" ]] || fail "prepare must preserve the run-scoped proof credential"
 
 cat >"${MOCK_BIN}/curl" <<'MOCK'
 #!/usr/bin/env bash
@@ -163,6 +162,8 @@ elif [[ "${method}:${url}" == DELETE:*/users/* ]]; then
   id="${url##*/}"
   jq --arg id "${id}" '[.[] | select(.id != $id)]' "${users}" >"${tmp}"
   mv "${tmp}" "${users}"
+elif [[ "${method}:${url}" == GET:*/organizations/org-id/groups\?* ]]; then
+  printf '[{"id":"org-members","name":"members","path":"/members","subGroups":[]},{"id":"org-admins","name":"admins","path":"/admins","subGroups":[]}]\n'
 elif [[ "${method}:${url}" == GET:*/groups\?* ]]; then
   jq '[.[] | {id,name}]' "${groups}"
 elif [[ "${method}:${url}" == GET:*/groups/* ]]; then
@@ -214,10 +215,10 @@ chmod +x "${MOCK_BIN}/docker"
 
 stack_bootstrap="${TMP_DIR}/stack-bootstrap.env"
 cat >"${stack_bootstrap}" <<'ENV'
-export TF_VAR_tenant_slug=weave
-export TF_VAR_keycloak_host_port=48080
-export TF_VAR_keycloak_admin_username=admin
-export TF_VAR_keycloak_admin_password=fixture-admin-password
+export WEAVE_TENANT_SLUG=weave
+export WEAVE_KEYCLOAK_HOST_PORT=48080
+export WEAVE_KEYCLOAK_ADMIN_USERNAME=admin
+export WEAVE_KEYCLOAK_ADMIN_PASSWORD=fixture-admin-password
 ENV
 
 export MOCK_STATE
@@ -226,7 +227,7 @@ export MOCK_AUTHOR="${WEAVE_E2E_AUTHOR_USERNAME}"
 export MOCK_COLLABORATOR="${WEAVE_E2E_COLLABORATOR_USERNAME}"
 export MOCK_OUTSIDER="${WEAVE_E2E_OUTSIDER_USERNAME}"
 export MOCK_OUTSIDE_CONTEXT
-MOCK_OUTSIDE_CONTEXT="$(jq -r '.[2].context_id' <<<"${TF_VAR_isolated_e2e_context_memberships}")"
+MOCK_OUTSIDE_CONTEXT="$(jq -r '.[2].context_id' <<<"${WEAVE_ISOLATED_E2E_CONTEXT_MEMBERSHIPS}")"
 
 if PATH="${MOCK_BIN}:${PATH}" WEAVE_E2E_STACK_SCOPE=persistent-dogfood \
   bash "${SCRIPT}" provision --run-id "${RUN_ID}" --output-root "${OUTPUT_ROOT}" --stack-bootstrap-env "${stack_bootstrap}" >/dev/null 2>&1; then
@@ -247,18 +248,18 @@ jq -e --arg namespace "${WEAVE_E2E_RUN_NAMESPACE}" '
     .email == (.username + "@example.invalid")
   )
 ' "${MOCK_STATE}/users.json" >/dev/null || fail "provisioned users are missing their standard-field run markers"
-[[ "$(jq '[.[] | select(.attributes.weave_e2e_namespace != null)] | length' "${MOCK_STATE}/groups.json")" == 2 ]] || fail "provision should create exactly two run-scoped groups"
+[[ "$(jq 'length' "${MOCK_STATE}/groups.json")" == 0 ]] || fail "provision must not create realm groups"
 
 cleanup_output="$(PATH="${MOCK_BIN}:${PATH}" WEAVE_E2E_STACK_SCOPE=isolated \
   bash "${SCRIPT}" cleanup --run-id "${RUN_ID}" --output-root "${OUTPUT_ROOT}" --stack-bootstrap-env "${stack_bootstrap}")"
-grep -Fq 'MULTI_USER_CLEANUP_RESULT status=passed usersDeleted=3 groupsDeleted=2 persistentHumanChanged=false supportSafe=true' <<<"${cleanup_output}"
-jq -e '.expectedResourcesAbsent == true and .persistentHumanIdentityChanged == false and .keycloak.usersDeleted == 3 and .keycloak.groupsDeleted == 2' \
+grep -Fq 'MULTI_USER_CLEANUP_RESULT status=passed usersDeleted=3 groupsDeleted=0 persistentHumanChanged=false supportSafe=true' <<<"${cleanup_output}"
+jq -e '.expectedResourcesAbsent == true and .persistentHumanIdentityChanged == false and .keycloak.usersDeleted == 3 and .keycloak.groupsDeleted == 0' \
   "${WEAVE_E2E_CLEANUP_EVIDENCE_PATH}" >/dev/null
 
 repeat_cleanup="$(PATH="${MOCK_BIN}:${PATH}" WEAVE_E2E_STACK_SCOPE=isolated \
   bash "${SCRIPT}" cleanup --run-id "${RUN_ID}" --output-root "${OUTPUT_ROOT}" --stack-bootstrap-env "${stack_bootstrap}")"
 grep -Fq 'usersDeleted=0 groupsDeleted=0 persistentHumanChanged=false supportSafe=true expectedResourcesAbsent=true' <<<"${repeat_cleanup}"
 [[ "$(jq 'length' "${MOCK_STATE}/users.json")" == 0 ]] || fail "cleanup left run-scoped users"
-[[ "$(jq '[.[] | select(.attributes.weave_e2e_namespace != null)] | length' "${MOCK_STATE}/groups.json")" == 0 ]] || fail "cleanup left run-scoped groups"
+[[ "$(jq 'length' "${MOCK_STATE}/groups.json")" == 0 ]] || fail "cleanup changed realm groups"
 
 printf 'isolated E2E identity lifecycle tests passed\n'

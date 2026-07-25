@@ -7,7 +7,7 @@ import 'package:weave/features/server_config/domain/entities/server_configuratio
 import 'package:weave/features/server_config/domain/entities/service_endpoints.dart';
 
 ServerConfiguration buildTestConfiguration({
-  OidcProviderType providerType = OidcProviderType.keycloak,
+  OidcProviderType providerType = OidcProviderType.oidc,
   String issuerUrl = 'https://auth.home.internal',
   String clientId = 'weave-app',
   String matrixHomeserverUrl = 'https://api.home.internal',
@@ -27,7 +27,7 @@ ServerConfiguration buildTestConfiguration({
 }
 
 String encodeTestConfiguration({
-  OidcProviderType providerType = OidcProviderType.keycloak,
+  OidcProviderType providerType = OidcProviderType.oidc,
   String issuerUrl = 'https://auth.home.internal',
   String clientId = 'weave-app',
   String matrixHomeserverUrl = 'https://api.home.internal',
@@ -49,7 +49,7 @@ String encodeTestConfiguration({
 }
 
 Map<String, Object> buildStoredConfiguration({
-  OidcProviderType providerType = OidcProviderType.keycloak,
+  OidcProviderType providerType = OidcProviderType.oidc,
   String issuerUrl = 'https://auth.home.internal',
   String clientId = 'weave-app',
   String matrixHomeserverUrl = 'https://api.home.internal',

@@ -225,7 +225,8 @@ Goal: plug the PA into an already-governed product.
 
 - Add Agent Runtime Control as an optional entitlement-bound admin capability, initially closed.
 - Provision one disposable `RuntimeCell` and dedicated `weaver-cell-{cellId}` Keycloak workload
-  client per entitled person; do not materialize dynamic clients in OpenTofu.
+  client per entitled person through the narrowly scoped ARC adapter; exclude dynamic clients from
+  the fixed Keycloak desired-state baseline and Compose deployment model.
 - Sign a short-lived `RuntimeProfile v2` from current entitlement and organization policy. The
   runtime receives references and maximum capabilities, never member/provider credentials.
 - Materialize signed `WorkspaceManifest` revisions from WebDAV into ephemeral staging. Store
@@ -271,7 +272,7 @@ Do not regress to agent-first planning. Do not assume one required provider stac
 
 The admin portal foundation owns IDM/RBAC capability profiles and whitelisting before any Weaver runtime ships. Keycloak/Auth remains the self-hosted default identity choice, but the product contract is provider-neutral: selected IDM adapters may be Keycloak, Entra ID, Authentik, Auth0, or other OIDC/SAML-compatible providers that can supply roles and groups without leaking raw setup to members.
 
-Capability profiles are deny-by-default. Roles and groups map to category-level capabilities such as chat.read, chat.send, files.read, files.upload, calendar.read, and boards.update_task. The configured authoritative Keycloak group alone derives `agent-runtime.entitled`; no human role or placeholder Weaver grant does. Admins/operators may inspect support-safe effective policy state and profile keys; normal members only see provider-neutral product impact states such as available, disabled by policy, not configured, degraded, unavailable, or coming later.
+Capability profiles are deny-by-default. Roles and groups map to category-level capabilities such as chat.read, chat.send, files.read, files.upload, calendar.read, and boards.update_task. For the self-hosted authority, exact native Keycloak Organization membership `/capabilities/weaver` alone derives `agent-runtime.entitled`; no human role, realm user group, workload role, or placeholder Weaver grant does. Admins/operators may inspect support-safe effective policy state and profile keys; normal members only see provider-neutral product impact states such as available, disabled by policy, not configured, degraded, unavailable, or coming later.
 
 Agent Runtime Control remains fail-closed without current entitlement, signed profile trust, workload identity, encrypted external state, and lifecycle reconciliation. RuntimeProfile contents never grant broad tool or collaboration-domain access.
 
@@ -285,7 +286,7 @@ outside the cell, and the cell owns zero durable bytes.
 
 The default posture remains fail-closed:
 
-- Agent Runtime Control is optional and disabled without a current entitlement group;
+- Agent Runtime Control is optional and disabled without current exact `/capabilities/weaver` organization membership;
 - profile signing, JDBC persistence, external encrypted state, and workload identity must all be
   configured before the administrative controller exists;
 - a dedicated cell workload client must match the immutable Keycloak subject/client binding;

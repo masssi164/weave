@@ -1,7 +1,7 @@
 package com.massimotter.weave.backend.controller;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import com.massimotter.weave.backend.config.ApiAccessDeniedHandler;
@@ -28,16 +28,20 @@ import java.time.Instant;
 import com.massimotter.weave.backend.service.AdminControlPlaneService;
 import com.massimotter.weave.backend.service.InMemoryOrganizationBootstrapRepository;
 import com.massimotter.weave.backend.service.OrganizationBootstrapRepository;
+import com.massimotter.weave.backend.service.ProductProfileOverride;
+import com.massimotter.weave.backend.service.ProductProfileOverrideRepository;
+import com.massimotter.weave.backend.service.migration.InMemoryMigrationRunEvidenceRepository;
+import com.massimotter.weave.backend.service.migration.MigrationRunEvidenceRepository;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.security.oauth2.resource.servlet.OAuth2ResourceServerAutoConfiguration;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerAutoConfiguration;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
@@ -49,6 +53,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
@@ -95,10 +100,10 @@ class AdminControlPlaneControllerTest {
     @Autowired
     private ObjectMapper objectMapper;
 
-    @MockBean
+    @MockitoBean
     private JwtDecoder jwtDecoder;
 
-    @MockBean
+    @MockitoBean
     private WorkspaceCapabilityService workspaceCapabilityService;
 
     @Autowired
@@ -122,8 +127,8 @@ class AdminControlPlaneControllerTest {
                 "OIDC/SAML adapter contract; Keycloak is only the dogfood default, not product truth",
                 "OIDC role claims plus group claims from the selected IDM",
                 List.of("admin"),
-                List.of("weave-board-editors"),
-                List.of("workspace-admin", "group:weave-board-editors"),
+                List.of("/admins"),
+                List.of("workspace-admin", "organization_group:/admins"),
                 List.of("chat.read", "files.read", "boards.update_task", "admin.policy.edit", "admin.provider.configure"),
                 true,
                 true,
@@ -133,10 +138,10 @@ class AdminControlPlaneControllerTest {
                 "weave-dogfood",
                 "organization",
                 List.of("https://auth.example.invalid/realms/weave"),
-                List.of("weave-board-editors"),
+                List.of("/admins"),
                 List.of("admin"),
                 List.of("context_admin"),
-                List.of("role_claim:admin", "group_claim:weave-board-editors"),
+                List.of("role_claim:admin", "organization_group_claim:/admins"),
                 List.of("chat.read", "files.read", "boards.update_task", "admin.policy.edit", "admin.provider.configure"),
                 List.of(new EffectivePolicyDenyResponse("agent-runtime.entitled", "Agent Runtime Control requires current Keycloak entitlement", "deny-by-default-capability-policy")),
                 List.of("member-visible states remain available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later"),
@@ -385,7 +390,7 @@ class AdminControlPlaneControllerTest {
                 .andExpect(jsonPath("$.subject").value("admin-123"))
                 .andExpect(jsonPath("$.organization").value("weave-dogfood"))
                 .andExpect(jsonPath("$.capabilityGrants[*]", hasItems("admin.policy.edit", "admin.provider.configure")))
-                .andExpect(jsonPath("$.providerRoleMappings[*]", hasItems("role_claim:admin", "group_claim:weave-board-editors")))
+                .andExpect(jsonPath("$.providerRoleMappings[*]", hasItems("role_claim:admin", "organization_group_claim:/admins")))
                 .andExpect(jsonPath("$.denies[0].capability").value("agent-runtime.entitled"))
                 .andExpect(jsonPath("$.denyByDefault").value(true))
                 .andExpect(jsonPath("$.supportSafe").value(true))
@@ -402,7 +407,7 @@ class AdminControlPlaneControllerTest {
                   "subject": "alice@example.com",
                   "organizationId": "weave-dogfood",
                   "roles": ["member"],
-                  "groups": ["weave-board-editors"],
+                  "groups": ["/members"],
                   "requestedCapabilities": ["chat.send", "boards.update_task", "admin.provider.configure", "agent-runtime.entitled"],
                   "reason": "preview before provider change with Bearer secret-token and client_secret"
                 }
@@ -418,7 +423,8 @@ class AdminControlPlaneControllerTest {
                 .andExpect(jsonPath("$.supportSafe").value(true))
                 .andExpect(jsonPath("$.unknownInputsFailClosed").value(false))
                 .andExpect(jsonPath("$.agentRuntimeEntitlementRequired").value(true))
-                .andExpect(jsonPath("$.grantedCapabilities[*]", hasItems("chat.send", "boards.update_task")))
+                .andExpect(jsonPath("$.grantedCapabilities[*]", hasItem("chat.send")))
+                .andExpect(jsonPath("$.grantedCapabilities[*]", not(hasItem("boards.update_task"))))
                 .andExpect(jsonPath("$.deniedInputs").isEmpty())
                 .andExpect(jsonPath("$.capabilityStates[*].state", hasItems("ready", "disabled", "policy-blocked")))
                 .andExpect(jsonPath("$.capabilityStates[?(@.capability == 'agent-runtime.entitled')].reasonCode", hasItems("agent-runtime-entitlement-required")))
@@ -453,202 +459,40 @@ class AdminControlPlaneControllerTest {
         mockMvc.perform(post("/api/admin/policies/effective/simulations")
                         .with(memberJwt())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"roles\":[\"admin\"],\"groups\":[\"weave-board-editors\"],\"requestedCapabilities\":[\"admin.provider.configure\"]}"))
+                        .content("{\"roles\":[\"admin\"],\"groups\":[\"/members\"],\"requestedCapabilities\":[\"admin.provider.configure\"]}"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("capability-policy-blocked"))
                 .andExpect(jsonPath("$.details.requiredCapability").value("admin_control_plane.readiness_read"))
                 .andExpect(jsonPath("$.details.diagnosticsRedacted").value(true))
                 .andExpect(content().string(not(containsString("admin.provider.configure"))))
-                .andExpect(content().string(not(containsString("weave-board-editors"))))
+                .andExpect(content().string(not(containsString("/members"))))
                 .andExpect(content().string(not(containsString("keycloak-realm"))));
     }
 
     @Test
-    void adminRealmDryRunIsBackendOwnedDeterministicAndSupportSafe() throws Exception {
-        String request = """
-                {
-                  "desiredState": {
-                    "realmId": "weave-dogfood",
-                    "displayName": "Weave Dogfood",
-                    "enabled": true,
-                    "clients": [{"clientId":"weave-app","publicClient":true,"redirectOrigins":["https://weave.test/callback","http://localhost:8080/*"],"roles":["admin","member"],"scopes":["openid","profile"]}],
-                    "roles": ["admin", "member"],
-                    "groups": ["weave-board-editors"],
-                    "scopes": ["openid", "profile", "weave:workspace"],
-                    "claimMappers": [{"name":"tenant","sourceClaim":"weave_tenant","targetClaim":"organizationId","required":true}],
-                    "redirectOrigins": ["http://localhost:8080/*"],
-                    "featureMappings": [{"featureKey":"boards","requiredRoles":["member"],"requiredGroups":["weave-board-editors"],"requiredScopes":["openid"]}]
-                  },
-                  "reason": "admin review before apply"
-                }
-                """;
-
+    void identityDesiredStateRoutesAreRemovedInFavorOfProtectedIdentityOps() throws Exception {
         mockMvc.perform(post("/api/admin/identity/realm/dry-run")
                         .with(adminJwt())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(request))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.providerKey").value("keycloak-realm"))
-                .andExpect(jsonPath("$.operation").value("dry-run"))
-                .andExpect(jsonPath("$.readiness").value("degraded"))
-                .andExpect(jsonPath("$.destructiveApplyAvailable").value(false))
-                .andExpect(jsonPath("$.supportSafe").value(true))
-                .andExpect(jsonPath("$.rawSecretExposed").value(false))
-                .andExpect(jsonPath("$.changes[*].classification", hasItems("safe", "risky")))
-                .andExpect(jsonPath("$.readinessChecks[*].state", hasItems("ready", "degraded")))
-                .andExpect(jsonPath("$.auditRefs[0]").exists())
-                .andExpect(content().string(not(containsString("server-test-secret-that-must-never-appear"))))
-                .andExpect(content().string(not(containsString("Authorization: Bearer"))))
-                .andExpect(content().string(not(containsString("access_token"))));
-
-        mockMvc.perform(get("/api/admin/audit/events").with(adminJwt()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[*].action", hasItems("provider.replacement.dry_run")))
-                .andExpect(jsonPath("$[*].payload.supportSafe", hasItems(true)))
-                .andExpect(jsonPath("$[*].payload.dryRunReasonPresent", hasItems(true)))
-                .andExpect(content().string(not(containsString("admin review before apply"))))
-                .andExpect(content().string(not(containsString("server-test-secret-that-must-never-appear"))));
-    }
-
-
-    @Test
-    void adminRealmApplyIsGuardedDecisionOnlySupportSafeAndAudited() throws Exception {
-        String request = """
-                {
-                  "currentState": {
-                    "realmId": "weave-dogfood",
-                    "displayName": "Weave Dogfood",
-                    "enabled": true,
-                    "clients": [{"clientId":"weave-app","publicClient":true,"redirectOrigins":["https://weave.test/callback"],"roles":["owner","admin","member"],"scopes":["openid","profile","email"]}],
-                    "roles": ["owner", "admin", "member"],
-                    "groups": ["weave-board-editors"],
-                    "scopes": ["openid", "profile", "email", "weave:workspace"],
-                    "claimMappers": [{"name":"tenant","sourceClaim":"weave_tenant","targetClaim":"organizationId","required":true}],
-                    "redirectOrigins": ["https://weave.test/callback"],
-                    "featureMappings": [{"featureKey":"boards","requiredRoles":["member"],"requiredGroups":["weave-board-editors"],"requiredScopes":["openid"]}],
-                    "breakGlassIdentities": [{"subjectRef":"issuer+subject:https://auth.example.invalid/realms/weave#admin-123","purpose":"last-admin recovery","breakGlass":true,"roles":["owner"]}],
-                    "lastAdminSubjectRefs": ["issuer+subject:https://auth.example.invalid/realms/weave#admin-123"]
-                  },
-                  "desiredState": {
-                    "realmId": "weave-dogfood",
-                    "displayName": "Weave Dogfood",
-                    "enabled": true,
-                    "clients": [{"clientId":"weave-app","publicClient":true,"redirectOrigins":["https://weave.test/callback"],"roles":["owner","admin","member"],"scopes":["openid","profile","email"]}],
-                    "roles": ["owner", "admin", "member"],
-                    "groups": ["weave-board-editors"],
-                    "scopes": ["openid", "profile", "email", "weave:workspace"],
-                    "claimMappers": [{"name":"tenant","sourceClaim":"weave_tenant","targetClaim":"organizationId","required":true}],
-                    "redirectOrigins": ["https://weave.test/callback"],
-                    "featureMappings": [{"featureKey":"boards","requiredRoles":["member"],"requiredGroups":["weave-board-editors"],"requiredScopes":["openid"]}],
-                    "breakGlassIdentities": [{"subjectRef":"issuer+subject:https://auth.example.invalid/realms/weave#admin-123","purpose":"last-admin recovery","breakGlass":true,"roles":["owner"]}],
-                    "lastAdminSubjectRefs": ["issuer+subject:https://auth.example.invalid/realms/weave#admin-123"]
-                  },
-                  "confirmationPhrase": "APPLY WEAVE IDENTITY REALM",
-                  "approveRisky": false,
-                  "approveDestructive": false,
-                  "retainedAdminPrimaryIdentityKeys": ["issuer+subject:https://auth.example.invalid/realms/weave#admin-123"],
-                  "reason": "controller apply with Bearer raw-token and secretref://raw/ref"
-                }
-                """;
-
-        String dryRunId = jsonField(mockMvc.perform(post("/api/admin/identity/realm/dry-run")
-                        .with(adminJwt())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(request))
-                .andExpect(status().isOk())
-                .andReturn(), "dryRunId");
-        String policySimulationRef = jsonArrayField(mockMvc.perform(post("/api/admin/policies/effective/simulations")
-                        .with(adminJwt())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "subject": "issuer+subject:https://auth.example.invalid/realms/weave#member-123",
-                                  "organizationId": "weave-dogfood",
-                                  "roles": ["member"],
-                                  "groups": ["weave-board-editors"],
-                                  "requestedCapabilities": ["chat.read", "boards.update_task"],
-                                  "reason": "support-safe policy simulation before realm apply"
-                                }
-                                """))
-                .andExpect(status().isOk())
-                .andReturn(), "auditRefs", 0);
-        request = request.replace("\"confirmationPhrase\":", "\"dryRunId\": \"" + dryRunId + "\",\n                  \"policySimulationRef\": \"" + policySimulationRef + "\",\n                  \"confirmationPhrase\":");
+                        .content("{}"))
+                .andExpect(status().isNotFound());
 
         mockMvc.perform(post("/api/admin/identity/realm/apply")
                         .with(adminJwt())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(request))
+                        .content("{}"))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(get("/api/admin/control-plane").with(adminJwt()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.providerKey").value("keycloak-realm"))
-                .andExpect(jsonPath("$.decision").value("accepted"))
-                .andExpect(jsonPath("$.executionMode").value("guarded-provider-live-apply-disabled"))
-                .andExpect(jsonPath("$.applied").value(false))
-                .andExpect(jsonPath("$.providerMutationPerformed").value(false))
-                .andExpect(jsonPath("$.supportSafe").value(true))
-                .andExpect(jsonPath("$.lastAdminGuardPassed").value(true))
-                .andExpect(jsonPath("$.blockedReasons").isEmpty())
-                .andExpect(jsonPath("$.auditRefs[0]").exists())
-                .andExpect(content().string(not(containsString("raw-token"))))
-                .andExpect(content().string(not(containsString("secretref://raw/ref"))));
-
-        mockMvc.perform(get("/api/admin/audit/events").with(adminJwt()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[*].action", hasItems("identity.realm.apply.guarded")))
-                .andExpect(jsonPath("$[*].payload.actorRef", hasItems("user:admin-123")))
-                .andExpect(jsonPath("$[*].payload.decision", hasItems("accepted")))
-                .andExpect(jsonPath("$[*].payload.result", hasItems("accepted-without-provider-mutation")))
-                .andExpect(jsonPath("$[*].payload.providerMutationPerformed", hasItems(false)))
-                .andExpect(content().string(not(containsString("raw-token"))))
-                .andExpect(content().string(not(containsString("secretref://raw/ref"))))
-                .andExpect(content().string(not(containsString("issuer+subject:https://auth.example.invalid/realms/weave#admin-123"))));
-    }
-
-    @Test
-    void operatorAndMemberCannotApplyIdentityRealmWhenPolicyForbidsProviderConfiguration() throws Exception {
-        String request = "{\"desiredState\":{\"realmId\":\"weave-dogfood\"},\"confirmationPhrase\":\"APPLY WEAVE IDENTITY REALM\"}";
-
-        mockMvc.perform(post("/api/admin/identity/realm/apply")
-                        .with(operatorJwt())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(request))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("capability-policy-blocked"))
-                .andExpect(jsonPath("$.details.requiredCapability").value("admin.provider.configure"));
-
-        mockMvc.perform(post("/api/admin/identity/realm/apply")
-                        .with(memberJwt())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(request))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("capability-policy-blocked"))
-                .andExpect(jsonPath("$.details.requiredCapability").value("admin.provider.configure"));
-    }
-
-    @Test
-    void memberCannotRunRealmDryRunOrSeeProviderSetupInternals() throws Exception {
-        mockMvc.perform(post("/api/admin/identity/realm/dry-run")
-                        .with(memberJwt())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"desiredState\":{\"realmId\":\"weave\"}}"))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("capability-policy-blocked"))
-                .andExpect(jsonPath("$.details.requiredCapability").value("admin_control_plane.readiness_read"))
-                .andExpect(content().string(not(containsString("keycloak-realm"))))
-                .andExpect(content().string(not(containsString("client_secret"))))
-                .andExpect(content().string(not(containsString("provider setup"))));
+                .andExpect(jsonPath("$.adminApiRoutes.identityRealmDryRun").doesNotExist())
+                .andExpect(jsonPath("$.adminApiRoutes.identityRealmApply").doesNotExist());
     }
 
     @Test
     void operatorCanReadButCannotChangeProviderOrPolicy() throws Exception {
         mockMvc.perform(get("/api/admin/control-plane").with(operatorJwt()))
                 .andExpect(status().isOk());
-
-        mockMvc.perform(post("/api/admin/identity/realm/dry-run")
-                        .with(operatorJwt())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"desiredState\":{\"realmId\":\"weave-dogfood\",\"clients\":[],\"roles\":[\"admin\"]}}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.operation").value("dry-run"));
 
         mockMvc.perform(patch("/api/admin/policies/capability-whitelist")
                         .with(operatorJwt())
@@ -905,6 +749,31 @@ class AdminControlPlaneControllerTest {
         @Bean
         OrganizationBootstrapRepository organizationBootstrapRepository() {
             return new InMemoryOrganizationBootstrapRepository();
+        }
+
+
+        @Bean
+        ProductProfileOverrideRepository productProfileOverrideRepository() {
+            Map<String, ProductProfileOverride> profiles = new java.util.concurrent.ConcurrentHashMap<>();
+            return new ProductProfileOverrideRepository() {
+                @Override
+                public ProductProfileOverride findByPrimaryIdentityKey(String primaryIdentityKey) {
+                    return profiles.get(primaryIdentityKey);
+                }
+
+                @Override
+                public ProductProfileOverride saveForPrimaryIdentityKey(
+                        String primaryIdentityKey,
+                        ProductProfileOverride profile) {
+                    profiles.put(primaryIdentityKey, profile);
+                    return profile;
+                }
+            };
+        }
+
+        @Bean
+        MigrationRunEvidenceRepository migrationRunEvidenceRepository() {
+            return new InMemoryMigrationRunEvidenceRepository();
         }
     }
 }

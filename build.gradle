@@ -34,18 +34,13 @@ tasks.named('matrixRustCoreTest') {
     dependsOn 'matrixSdkVendorProvenanceCheck'
 }
 registerCommandTask('clientCi', file('client'), ['bash', '-lc', 'flutter gen-l10n && dart run build_runner build --delete-conflicting-outputs && dart format --output=none --set-exit-if-changed . && flutter analyze --fatal-infos && flutter test && make marketing-screenshots && git -C .. diff --exit-code -- client/lib client/test docs/assets/marketing docs/assets/roadmap && make offline-contract-test'], 'Run Flutter generated-code, format, analysis, tests, screenshots, and offline contract checks.')
-registerRootCommandTask('serverCi', ['./gradlew', ':server:test'], 'Run server checks through the root Gradle multiproject build.')
+registerRootCommandTask(
+    'serverCi',
+    ['./gradlew', ':server:check', ':server:postgresIntegrationTest'],
+    'Run the server unit, dev-H2/JPA, production-artifact, and PostgreSQL integration lanes.'
+)
 registerCommandTask('adminCi', file('admin-console'), ['npm', 'run', 'ci'], 'Run admin console npm CI checks.')
-registerRootCommandTask('generateOpenApiContract', ['bash', 'tools/generate_openapi_contract.sh'], 'Generate the server-owned OpenAPI artifact used by typed consumers.')
-registerRootCommandTask('checkOpenApiContractFresh', ['bash', 'tools/check_openapi_contract_fresh.sh'], 'Fail when the checked-in server OpenAPI artifact is stale.')
-registerRootCommandTask('generateAdminOpenApiTypes', ['python3', 'tools/generate_admin_openapi_types.py'], 'Generate Admin Console TypeScript types from the server-owned OpenAPI artifact.')
-registerRootCommandTask('checkAdminOpenApiTypesFresh', ['bash', '-lc', 'tmp=$(mktemp); cp admin-console/src/generated/openapi.ts "$tmp"; python3 tools/generate_admin_openapi_types.py; cmp -s "$tmp" admin-console/src/generated/openapi.ts || { echo "Admin OpenAPI generated types are stale. Run ./gradlew generateAdminOpenApiTypes and commit the result." >&2; git --no-pager diff -- admin-console/src/generated/openapi.ts >&2 || true; rm -f "$tmp"; exit 1; }; rm -f "$tmp"'], 'Fail when Admin Console generated OpenAPI types are stale.')
-registerRootCommandTask('generateClientOpenApiModels', ['bash', '-lc', 'python3 tools/generate_client_openapi_models.py && dart format client/lib/generated/openapi_models.dart'], 'Generate Flutter/Dart JSON models from the server-owned OpenAPI artifact.')
-registerRootCommandTask('checkClientOpenApiModelsFresh', ['bash', '-lc', 'tmp=$(mktemp); cp client/lib/generated/openapi_models.dart "$tmp"; python3 tools/generate_client_openapi_models.py; dart format client/lib/generated/openapi_models.dart >/dev/null; cmp -s "$tmp" client/lib/generated/openapi_models.dart || { echo "Flutter OpenAPI generated models are stale. Run ./gradlew generateClientOpenApiModels and commit the result." >&2; git --no-pager diff -- client/lib/generated/openapi_models.dart >&2 || true; rm -f "$tmp"; exit 1; }; rm -f "$tmp"'], 'Fail when Flutter/Dart generated OpenAPI models are stale.')
-registerCommandTask('clientOpenApiDriftPrevention', file('client'), ['bash', '-lc', 'FLUTTER_BIN="${FLUTTER_BIN:-$(command -v flutter || true)}"; if [ -z "$FLUTTER_BIN" ] && [ -x "$HOME/flutter/bin/flutter" ]; then FLUTTER_BIN="$HOME/flutter/bin/flutter"; fi; if [ -z "$FLUTTER_BIN" ]; then echo "flutter not found; install Flutter or set FLUTTER_BIN" >&2; exit 127; fi; "$FLUTTER_BIN" test test/architecture/openapi_drift_prevention_contract_test.dart'], 'Block client OpenAPI facade drift for DTOs, raw JSON parsing, provider reachability, and hardcoded copy.')
-tasks.named('clientCi') {
-    dependsOn 'checkClientOpenApiModelsFresh', 'clientOpenApiDriftPrevention'
-}
+apply from: "$projectDir/gradle/tasks/openapi-contract.gradle"
 tasks.register('javaMcpServerCi') {
     group = 'verification'
     description = 'Run Java weave-mcp-server checks through the root Gradle multiproject build.'
@@ -62,7 +57,18 @@ tasks.register('contractAuthorityArchitectureCheck') {
     description = 'Verify the root-orchestrated server/OpenAPI contract authority baseline without running live infrastructure.'
     dependsOn ':server:test', 'mcpCi', 'docsStructureCheck', 'checkOpenApiContractFresh', 'checkAdminOpenApiTypesFresh', 'checkClientOpenApiModelsFresh'
 }
-registerRootCommandTask('infraStatic', ['bash', '-lc', "cd infra/weave-workspace/01-infrastructure && tofu fmt -check -recursive && tofu init -backend=false -lockfile=readonly && tofu validate && cd ../02-keycloak-setup && tofu fmt -check -recursive && tofu init -backend=false -lockfile=readonly && tofu validate && cd ../../.. && find infra/weave-workspace/tests -maxdepth 1 -type f -name '*-test.sh' -print0 | sort -z | xargs -0 -n1 bash"], 'Run OpenTofu format/validate and static infrastructure script checks without mutating provider lock files.')
+registerRootCommandTask('noExecutableOpenTofuCheck', ['python3', 'tools/no_executable_opentofu_check.py'], 'Reject executable OpenTofu, Terraform state, TF_VAR inputs, and legacy IaC commands after the Compose cutover.')
+registerRootCommandTask('noExecutableOpenTofuCheckTest', ['python3', 'tools/no_executable_opentofu_check_test.py'], 'Run fixture coverage for the executable OpenTofu retirement guard.')
+registerRootCommandTask('workflowActionRuntimeCheck', ['python3', 'tools/workflow_action_runtime_check.py'], 'Require every external GitHub Action to use its reviewed immutable commit and a supported Node 24 or composite runtime.')
+registerRootCommandTask('workflowActionRuntimeCheckTest', ['python3', 'tools/workflow_action_runtime_check_test.py'], 'Run fixture coverage for immutable GitHub Action pins and the Node 20 retirement guard.')
+registerRootCommandTask('candidateSourceMappingCheck', ['bash', '-lc', 'python3 -m py_compile tools/candidate_source_mapping.py && python3 tools/candidate_pipeline_check.py'], 'Validate protected-dev source derivation, lane-tree identity, immutable image binding, and workflow consumption.')
+registerRootCommandTask('candidateSourceMappingCheckTest', ['python3', 'tools/candidate_source_mapping_test.py'], 'Run isolated Git-history and closed image-set tests for source-to-lane candidate evidence.')
+registerRootCommandTask('infraStatic', ['bash', '-lc', 'set -euo pipefail; for script in infra/weave-workspace/tests/*-test.sh; do bash "$script"; done; python3 -m py_compile infra/weave-workspace/scripts/*.py infra/weave-workspace/keycloak/*.py infra/weave-workspace/tests/*.py; find infra/weave-workspace -type f -name "*.sh" -print0 | xargs -0 shellcheck --severity=warning'], 'Run the complete non-mutating Compose, Keycloak, backup, support-safety, Python, and shell contract suite.')
+tasks.named('infraStatic') {
+    dependsOn 'noExecutableOpenTofuCheck', 'noExecutableOpenTofuCheckTest',
+        'workflowActionRuntimeCheck', 'workflowActionRuntimeCheckTest',
+        'candidateSourceMappingCheck', 'candidateSourceMappingCheckTest'
+}
 registerRootCommandTask('docsBuild', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; rm -rf build/docs/user build/docs/admin; "$PYTHON" -m mkdocs build --strict --site-dir build/docs/user; "$PYTHON" -m mkdocs build --strict --site-dir build/docs/admin'], 'Build deterministic user and admin MkDocs outputs with strict validation.')
 registerRootCommandTask('docsStructureCheck', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; "$PYTHON" tools/docs_check.py'], 'Run lightweight documentation structure checks.')
 registerRootCommandTask('docsServe', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; "$PYTHON" -m mkdocs serve'], 'Serve the MkDocs site locally.')
@@ -166,6 +172,8 @@ ext.ciEvidenceGates = [
     'adminCi',
     'mcpCi',
     'infraStatic',
+    'workflowActionRuntimeCheck',
+    'workflowActionRuntimeCheckTest',
     'docsCheck',
     'releaseNotesLabelCheck',
     'specCorpusConformance',
@@ -392,7 +400,8 @@ tasks.register('doctor') {
         checkCommand('dart', ['dart', '--version'], 'Install the Dart SDK or use the Dart bundled with Flutter.')
         checkCommand('node', ['node', '--version'], 'Install Node matching the CI setup or the repo .nvm policy when added.')
         checkCommand('npm', ['npm', '--version'], 'Install npm and run npm ci in admin-console when needed.')
-        checkCommand('tofu', ['tofu', '--version'], 'Install OpenTofu for infraStatic, matching the CI setup version.')
+        checkCommand('docker', ['docker', '--version'], 'Install Docker for the canonical Compose-based infrastructure model.')
+        checkCommand('docker compose', ['docker', 'compose', 'version'], 'Install Docker Compose v2 for infraStatic and environment lifecycle tasks.')
         checkCommand('mkdocs', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; "$PYTHON" -m mkdocs --version'], 'Install pinned docs dependencies with: python3 -m pip install -r docs/requirements.txt (or use build/docs-venv).')
 
         if (!failures.isEmpty()) {

@@ -1,7 +1,8 @@
 package com.massimotter.weave.backend.identity.invitation;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.config.IdentityInvitationProperties;
 import java.io.IOException;
 import java.net.URI;
@@ -12,6 +13,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -24,6 +26,9 @@ import org.springframework.stereotype.Component;
 /** Concrete, backend-only Keycloak Organizations anti-corruption boundary. */
 @Component
 public class KeycloakIdentityAdminClient {
+    private static final Set<String> CANONICAL_ROLE_GROUP_PATHS =
+            Set.of("/owners", "/admins", "/members", "/guests");
+
     private final IdentityInvitationProperties properties;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
@@ -41,9 +46,10 @@ public class KeycloakIdentityAdminClient {
     }
 
     public ProviderInvitation issue(String organizationId, String email, String displayName) {
+        String providerOrganizationId = providerOrganizationId(organizationId);
         Set<String> previous = ids(list(organizationId, email));
         String[] names = splitName(displayName);
-        request("POST", adminPath("/organizations/" + encode(organizationId) + "/members/invite-user"),
+        request("POST", adminPath("/organizations/" + encode(providerOrganizationId) + "/members/invite-user"),
                 form("email", email, "firstName", names[0], "lastName", names[1]), "application/x-www-form-urlencoded", 204);
         List<ProviderInvitation> created = list(organizationId, email).stream()
                 .filter(invitation -> !previous.contains(invitation.providerInvitationId())).toList();
@@ -53,7 +59,11 @@ public class KeycloakIdentityAdminClient {
 
     public List<ProviderInvitation> list(String organizationId) { return list(organizationId, null); }
 
-    public String configuredOrganizationId() {
+    public String configuredOrganizationRef() {
+        return properties.keycloak().organizationAlias();
+    }
+
+    private String configuredProviderOrganizationId() {
         if (!properties.keycloak().organizationId().isBlank()) return properties.keycloak().organizationId();
         if (resolvedOrganizationId != null) return resolvedOrganizationId;
         List<JsonNode> matches = values(json(request("GET", adminPath("/organizations?search="
@@ -64,17 +74,19 @@ public class KeycloakIdentityAdminClient {
     }
 
     public ProviderInvitation resend(String organizationId, String providerInvitationId) {
-        request("POST", invitationPath(organizationId, providerInvitationId) + "/resend", "", "application/json", 204);
+        String providerOrganizationId = providerOrganizationId(organizationId);
+        request("POST", invitationPath(providerOrganizationId, providerInvitationId) + "/resend", "", "application/json", 204);
         return requireInvitation(organizationId, providerInvitationId);
     }
 
     public void revoke(String organizationId, String providerInvitationId) {
-        request("DELETE", invitationPath(organizationId, providerInvitationId), null, null, 204);
+        request("DELETE", invitationPath(providerOrganizationId(organizationId), providerInvitationId), null, null, 204);
     }
 
     public boolean isOrganizationMember(String organizationId, String subject) {
+        String providerOrganizationId = providerOrganizationId(organizationId);
         try {
-            JsonNode member = json(request("GET", adminPath("/organizations/" + encode(organizationId)
+            JsonNode member = json(request("GET", adminPath("/organizations/" + encode(providerOrganizationId)
                     + "/members/" + encode(subject)), null, null, 200));
             return subject.equals(member.path("id").asText());
         } catch (KeycloakAdminException exception) {
@@ -83,22 +95,107 @@ public class KeycloakIdentityAdminClient {
         }
     }
 
-    public void applyRoleAndGroups(String subject, String role, List<String> groups) {
-        String clientUuid = exactlyOne(values(json(request("GET", adminPath("/clients?clientId=weave-app"), null, null, 200)))
-                .filter(client -> "weave-app".equals(client.path("clientId").asText())).toList(), "weave-app client").path("id").asText();
-        JsonNode roleRepresentation = json(request("GET", adminPath("/clients/" + encode(clientUuid) + "/roles/" + encode(role)), null, null, 200));
-        request("POST", adminPath("/users/" + encode(subject) + "/role-mappings/clients/" + encode(clientUuid)),
-                "[" + roleRepresentation.toString() + "]", "application/json", 204);
-        for (String group : groups) {
-            JsonNode resolved = exactlyOne(values(json(request("GET", adminPath("/groups?search=" + encode(group) + "&exact=true"), null, null, 200)))
-                    .filter(candidate -> group.equals(candidate.path("name").asText())).toList(), "organization group");
-            request("PUT", adminPath("/users/" + encode(subject) + "/groups/" + encode(resolved.path("id").asText())), null, null, 204);
+    /**
+     * Applies one canonical human role through native organization-group membership.
+     *
+     * <p>The desired-state reconciler owns the group-to-client-role mapping. This adapter neither
+     * accepts group input nor writes direct user role mappings.
+     */
+    public void applyOrganizationRole(String organizationId, String subject, String role) {
+        String targetPath = canonicalRoleGroupPath(role);
+        String providerOrganizationId = providerOrganizationId(organizationId);
+        ResolvedGroup targetGroup = resolveCanonicalGroup(providerOrganizationId, targetPath);
+        List<ResolvedGroup> currentGroups = organizationGroups(providerOrganizationId, subject);
+
+        for (ResolvedGroup current : currentGroups) {
+            if (CANONICAL_ROLE_GROUP_PATHS.contains(current.path())
+                    && !targetPath.equals(current.path())) {
+                request(
+                        "DELETE",
+                        organizationGroupMemberPath(
+                                providerOrganizationId,
+                                current.id(),
+                                subject),
+                        null,
+                        null,
+                        204);
+            }
+        }
+        if (currentGroups.stream().noneMatch(group -> targetPath.equals(group.path()))) {
+            request(
+                    "PUT",
+                    organizationGroupMemberPath(providerOrganizationId, targetGroup.id(), subject),
+                    null,
+                    null,
+                    204,
+                    409);
+        }
+
+        Set<String> effectiveRoleGroups = organizationGroups(providerOrganizationId, subject).stream()
+                .map(ResolvedGroup::path)
+                .filter(CANONICAL_ROLE_GROUP_PATHS::contains)
+                .collect(java.util.stream.Collectors.toUnmodifiableSet());
+        if (!effectiveRoleGroups.equals(Set.of(targetPath))) {
+            throw new IllegalStateException(
+                    "Keycloak organization role-group reconciliation did not converge");
         }
     }
 
+    private List<ResolvedGroup> organizationGroups(
+            String providerOrganizationId,
+            String subject) {
+        return values(json(request(
+                        "GET",
+                        adminPath("/organizations/" + encode(providerOrganizationId)
+                                + "/members/" + encode(subject) + "/groups"),
+                        null,
+                        null,
+                        200)))
+                .map(node -> new ResolvedGroup(
+                        requiredGroupField(node, "id"),
+                        requiredGroupField(node, "path")))
+                .toList();
+    }
+
+    private ResolvedGroup resolveCanonicalGroup(
+            String providerOrganizationId,
+            String groupPath) {
+        String groupName = canonicalGroupName(groupPath);
+        JsonNode group = exactlyOne(values(json(request(
+                        "GET",
+                        adminPath("/organizations/" + encode(providerOrganizationId)
+                                + "/groups?search=" + encode(groupName)
+                                + "&exact=true&first=0&max=2"),
+                        null,
+                        null,
+                        200)))
+                .filter(candidate -> groupPath.equals(candidate.path("path").asText()))
+                .toList(), "organization group path");
+        return new ResolvedGroup(group.path("id").asText(), groupPath);
+    }
+
+    private String canonicalRoleGroupPath(String role) {
+        return switch (role) {
+            case "owner" -> "/owners";
+            case "admin" -> "/admins";
+            case "member" -> "/members";
+            case "guest" -> "/guests";
+            default -> throw new IllegalArgumentException("Role must be an exact canonical human role");
+        };
+    }
+
+    private String canonicalGroupName(String groupPath) {
+        if (groupPath == null || !CANONICAL_ROLE_GROUP_PATHS.contains(groupPath)) {
+            throw new IllegalArgumentException(
+                    "Organization group must be an exact canonical human role-group path");
+        }
+        return groupPath.substring(1);
+    }
+
     private List<ProviderInvitation> list(String organizationId, String email) {
+        String providerOrganizationId = providerOrganizationId(organizationId);
         String suffix = email == null ? "" : "?email=" + encode(email);
-        return values(json(request("GET", adminPath("/organizations/" + encode(organizationId) + "/invitations" + suffix), null, null, 200)))
+        return values(json(request("GET", adminPath("/organizations/" + encode(providerOrganizationId) + "/invitations" + suffix), null, null, 200)))
                 .filter(node -> email == null || email.equalsIgnoreCase(node.path("email").asText()))
                 .map(this::projection).toList();
     }
@@ -135,15 +232,42 @@ public class KeycloakIdentityAdminClient {
     private String required(JsonNode node, String field) {
         String value = node.path(field).asText(""); if (value.isBlank()) throw new IllegalStateException("Keycloak returned an invalid invitation projection"); return value;
     }
+    private String requiredGroupField(JsonNode node, String field) {
+        String value = node.path(field).asText("");
+        if (value.isBlank()) {
+            throw new IllegalStateException(
+                    "Keycloak returned an invalid organization group projection");
+        }
+        return value;
+    }
+    private String providerOrganizationId(String organizationId) {
+        if (!configuredOrganizationRef().equals(organizationId)) {
+            throw new IllegalArgumentException(
+                    "Organization reference is outside the configured Keycloak boundary");
+        }
+        return configuredProviderOrganizationId();
+    }
     private String invitationPath(String org, String id) { return adminPath("/organizations/" + encode(org) + "/invitations/" + encode(id)); }
-    private String request(String method, String path, String body, String contentType, int expected) {
+    private String organizationGroupMemberPath(
+            String providerOrganizationId,
+            String groupId,
+            String subject) {
+        return adminPath("/organizations/" + encode(providerOrganizationId)
+                + "/groups/" + encode(groupId) + "/members/" + encode(subject));
+    }
+    private String request(String method, String path, String body, String contentType, int... expectedStatuses) {
         HttpRequest.Builder builder = HttpRequest.newBuilder(resolve(path)).timeout(properties.keycloak().timeout())
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken());
         if (contentType != null) builder.header(HttpHeaders.CONTENT_TYPE, contentType);
         builder.method(method, body == null ? HttpRequest.BodyPublishers.noBody() : HttpRequest.BodyPublishers.ofString(body));
         try {
             HttpResponse<String> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() != expected) throw new KeycloakAdminException(response.statusCode(), "Keycloak administration operation failed");
+            if (java.util.Arrays.stream(expectedStatuses)
+                    .noneMatch(status -> status == response.statusCode())) {
+                throw new KeycloakAdminException(
+                        response.statusCode(),
+                        "Keycloak administration operation failed");
+            }
             return response.body();
         } catch (IOException e) { throw new IllegalStateException("Keycloak administration is unavailable", e); }
         catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new IllegalStateException("Keycloak administration was interrupted", e); }
@@ -151,10 +275,13 @@ public class KeycloakIdentityAdminClient {
     private synchronized String accessToken() {
         Instant now = clock.instant();
         if (cachedToken != null && cachedToken.refreshAfter().isAfter(now)) return cachedToken.value();
+        String authorization = "Basic " + Base64.getEncoder().encodeToString(
+                (properties.keycloak().clientId() + ":" + properties.keycloak().clientSecret())
+                        .getBytes(StandardCharsets.UTF_8));
         HttpRequest request = HttpRequest.newBuilder(resolve("/realms/" + encode(properties.keycloak().realm()) + "/protocol/openid-connect/token"))
                 .timeout(properties.keycloak().timeout()).header(HttpHeaders.CONTENT_TYPE, "application/x-www-form-urlencoded")
-                .POST(HttpRequest.BodyPublishers.ofString(form("grant_type", "client_credentials", "client_id", properties.keycloak().clientId(),
-                        "client_secret", properties.keycloak().clientSecret()))).build();
+                .header(HttpHeaders.AUTHORIZATION, authorization)
+                .POST(HttpRequest.BodyPublishers.ofString(form("grant_type", "client_credentials"))).build();
         try {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() != 200) throw new KeycloakAdminException(response.statusCode(), "Keycloak service-account authentication failed");
@@ -163,7 +290,7 @@ public class KeycloakIdentityAdminClient {
         } catch (IOException e) { throw new IllegalStateException("Keycloak authentication is unavailable", e); }
         catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new IllegalStateException("Keycloak authentication was interrupted", e); }
     }
-    private JsonNode json(String body) { try { return objectMapper.readTree(body); } catch (IOException e) { throw new IllegalStateException("Keycloak returned an invalid response", e); } }
+    private JsonNode json(String body) { try { return objectMapper.readTree(body); } catch (JacksonException e) { throw new IllegalStateException("Keycloak returned an invalid response", e); } }
     private URI resolve(String path) { return properties.keycloak().baseUrl().resolve(path); }
     private String adminPath(String suffix) { return "/admin/realms/" + encode(properties.keycloak().realm()) + suffix; }
     private String form(String... values) { StringBuilder result = new StringBuilder(); for (int i=0;i<values.length;i+=2) { if (!result.isEmpty()) result.append('&'); result.append(encode(values[i])).append('=').append(encode(values[i+1])); } return result.toString(); }
@@ -172,6 +299,7 @@ public class KeycloakIdentityAdminClient {
     private Stream<JsonNode> values(JsonNode node) { return StreamSupport.stream(node.spliterator(), false); }
 
     private record CachedToken(String value, Instant refreshAfter) {}
+    private record ResolvedGroup(String id, String path) {}
     public record ProviderInvitation(String providerInvitationId, String email, String displayName,
             String lifecycleStatus, Instant expiresAt, Instant createdAt) {}
     public static final class KeycloakAdminException extends RuntimeException {

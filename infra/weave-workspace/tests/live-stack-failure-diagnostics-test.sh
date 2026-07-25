@@ -72,6 +72,7 @@ cat >"${acceptance_dir}/scenario-mapping-results.json" <<'JSON'
 JSON
 
 PATH="${stub_bin}:${PATH}" \
+  WEAVE_PROFILE=dev \
   WEAVE_ACCEPTANCE_EVIDENCE_DIR="${acceptance_dir}" \
   WEAVE_LIVE_STACK_PRIVATE_RAW_LOGS=false \
   bash "${SCRIPT}" "${output_dir}"

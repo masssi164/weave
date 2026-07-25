@@ -11,7 +11,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_CERT_DIR = ROOT / "infra/weave-workspace/01-infrastructure/.generated/caddy/certs"
+DEFAULT_CERT_DIR = ROOT / "infra/weave-workspace/.generated/dogfood/tls"
 
 
 def fingerprint(path: Path) -> str:
@@ -26,8 +26,8 @@ def fingerprint(path: Path) -> str:
 
 def capture(cert_dir: Path) -> dict[str, str]:
     return {
-        "caSha256Fingerprint": fingerprint(cert_dir / "weave-local-ca.pem"),
-        "leafSha256Fingerprint": fingerprint(cert_dir / "weave.test.pem"),
+        "caSha256Fingerprint": fingerprint(cert_dir / "ca.pem"),
+        "leafSha256Fingerprint": fingerprint(cert_dir / "cert.pem"),
     }
 
 

@@ -8,7 +8,7 @@ import com.massimotter.weave.backend.model.WorkspaceReleaseReadinessCheckRespons
 import com.massimotter.weave.backend.model.WorkspaceReleaseReadinessResponse;
 import java.util.ArrayList;
 import java.util.List;
-import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 

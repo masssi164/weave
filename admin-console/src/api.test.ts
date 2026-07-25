@@ -1,10 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
 import { AdminControlPlaneApi, sampleControlPlane } from "./api";
+import apiSource from "./api.ts?raw";
+import generatedOpenApiSource from "./generated/openapi.ts?raw";
 
 // V01_ADMIN_CONSOLE_MVP: Admin Console may call only Weave backend admin APIs, not optional provider APIs.
 describe("AdminControlPlaneApi provider boundary", () => {
   it("uses only Weave admin APIs for Keycloak invitation lifecycle", async () => {
-    const calls: Array<{ url: string; method: string; body?: string }> = [];
+    const calls: Array<{
+      url: string;
+      method: string;
+      body?: string;
+      idempotencyKey?: string | null;
+    }> = [];
     const invitation = {
       providerInvitationId: "invite-123",
       organizationId: "acme",
@@ -12,13 +19,13 @@ describe("AdminControlPlaneApi provider boundary", () => {
       lifecycleStatus: "pending",
       provisioningStatus: "pending" as const,
       requestedRole: "member" as const,
-      organizationGroups: ["engineering"],
     };
     const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       calls.push({
         url: String(input),
         method: init?.method ?? "GET",
         body: init?.body as string | undefined,
+        idempotencyKey: new Headers(init?.headers).get("Idempotency-Key"),
       });
       if (init?.method === "DELETE") return new Response(null, { status: 204 });
       return new Response(
@@ -39,7 +46,6 @@ describe("AdminControlPlaneApi provider boundary", () => {
     await api.createOrganizationInvitation("acme", {
       email: "member@example.test",
       role: "member",
-      organizationGroups: ["engineering"],
     });
     await api.resendOrganizationInvitation("acme", "invite-123");
     await api.revokeOrganizationInvitation("acme", "invite-123");
@@ -54,11 +60,29 @@ describe("AdminControlPlaneApi provider boundary", () => {
       JSON.stringify({
         email: "member@example.test",
         role: "member",
-        organizationGroups: ["engineering"],
       }),
     );
+    expect(calls.slice(1).map(({ idempotencyKey }) => idempotencyKey)).toEqual([
+      expect.stringMatching(/^admin-console-invitation-create-/),
+      expect.stringMatching(/^admin-console-invitation-resend-/),
+      expect.stringMatching(/^admin-console-invitation-revoke-/),
+    ]);
     expect(calls.map(({ url }) => url).join("\n")).not.toMatch(
       /auth\.example|keycloak|activation/i,
+    );
+  });
+
+  it("uses generated OpenAPI invitation contracts without parallel DTOs", () => {
+    expect(generatedOpenApiSource).toContain(
+      "export type GeneratedMemberInvitationRequest",
+    );
+    expect(generatedOpenApiSource).toContain(
+      "export type GeneratedMemberInvitationResponse",
+    );
+    expect(apiSource).toContain("GeneratedMemberInvitationRequest");
+    expect(apiSource).toContain("GeneratedMemberInvitationResponse");
+    expect(apiSource).not.toMatch(
+      /interface (CreateOrganizationInvitationRequest|OrganizationInvitation)/,
     );
   });
 
@@ -93,9 +117,9 @@ describe("AdminControlPlaneApi provider boundary", () => {
                 state: "admin-action-required",
                 summary: "Select an identity provider mapping.",
                 memberImpact: "degraded",
-                remediation: "Run backend realm dry-run.",
-                nextActions: ["Run dry-run"],
-                evidenceRefs: ["identity-realm-dry-run"],
+                remediation: "Run profile-specific Identity Ops plan and verify tasks.",
+                nextActions: ["Run Identity Ops plan and verify"],
+                evidenceRefs: ["keycloak-identity-ops-plan", "keycloak-identity-ops-verify"],
               },
               {
                 key: "provisioning-source-readiness",
@@ -361,7 +385,7 @@ describe("AdminControlPlaneApi provider boundary", () => {
             providerKey: "keycloak-realm",
             choiceModel: "recommended_self_hosted_default",
             dryRun: true,
-            evidenceRef: "identity-keycloak-realm-dry-run",
+            evidenceRef: "identity-keycloak-ops-plan",
           }
         : {};
       return new Response(JSON.stringify(body), {

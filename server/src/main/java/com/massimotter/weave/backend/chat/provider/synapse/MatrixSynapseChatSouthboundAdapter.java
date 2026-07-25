@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.chat.provider.synapse;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.chat.domain.ChatEventContent;
 import com.massimotter.weave.backend.chat.port.ChatSouthboundProvider;
 import com.massimotter.weave.backend.config.ChatRuntimeProperties;

@@ -1,49 +1,28 @@
 {
-  "artifactKind": "weave-restore-receipt-v1",
-  "issue": 639,
-  "relatedGateIssue": 642,
+  "schemaVersion": "weave.compose-restore-receipt.v2",
   "supportSafe": true,
-  "createdAt": "2026-06-04T05:49:03Z",
-  "backupManifestRef": "release/provider-lab/operator-recovery/backup-manifest.disposable.json",
+  "generatedAt": "2026-06-04T05:49:03Z",
+  "backupBinding": {
+    "manifestSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+    "backupIdSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+    "candidateCommit": "cccccccccccccccccccccccccccccccccccccccc",
+    "profile": "test",
+    "composeProject": "weave-disposable-proof"
+  },
   "restoreRunId": "disposable-restore-proof-issue-642-local-proof",
   "validationMode": "disposable_stack_rehearsal",
   "status": "passed",
-  "destroyStep": {
-    "performed": true,
-    "reason": "approved disposable restore rehearsal using isolated weave_disposable_restore_* Docker volumes"
-  },
+  "destroyStep": {"performed": true, "reason": "approved isolated disposable fixture-volume restore rehearsal"},
   "checks": [
-    {
-      "name": "backup_artifacts_present",
-      "status": "passed"
-    },
-    {
-      "name": "backup_manifest_present",
-      "status": "passed"
-    },
-    {
-      "name": "post_restore_operator_check",
-      "status": "passed"
-    },
-    {
-      "name": "domain_data_recovered",
-      "status": "passed"
-    },
-    {
-      "name": "no_production_volumes_touched",
-      "status": "passed"
-    }
+    {"name": "backup_integrity_verified", "status": "passed"},
+    {"name": "post_restore_operator_check", "status": "passed"},
+    {"name": "domain_data_recovered", "status": "passed"},
+    {"name": "no_production_volumes_touched", "status": "passed"}
   ],
   "domainDataProof": {
     "method": "seeded disposable domain fixture hashes matched after backup, destroy, restore, and validate",
     "hashProofRef": "release/provider-lab/operator-recovery/domain-data-hashes.disposable.json",
-    "domains": [
-      "identity-idm",
-      "chat",
-      "files",
-      "calendar",
-      "health"
-    ]
+    "domains": ["identity-idm", "chat", "files", "calendar", "health"]
   },
   "provesRestoredDomainData": true,
   "releaseEligible": true,

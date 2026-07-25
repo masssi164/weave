@@ -82,7 +82,7 @@ JSON
 cat >"${MOCK_STATE}/workspace-mappers.json" <<'JSON'
 [{"id":"workspace-audience-mapper-uuid","name":"weave-backend-audience","protocol":"openid-connect","protocolMapper":"oidc-audience-mapper","config":{"included.client.audience":"https://api.weave.test/api"}}]
 JSON
-printf 'true\n' >"${MOCK_STATE}/collaborator-calendar-membership"
+printf 'true\n' >"${MOCK_STATE}/collaborator-admin-membership"
 printf '0\n' >"${MOCK_STATE}/token-counter"
 printf 'false\n' >"${MOCK_STATE}/revoked"
 : >"${MOCK_STATE}/mutations.log"
@@ -189,43 +189,48 @@ elif [[ "${url}" == */realms/weave/protocol/openid-connect/token ]]; then
   count=$(( $(cat "${MOCK_STATE}/token-counter") + 1 ))
   printf '%s\n' "${count}" >"${MOCK_STATE}/token-counter"
   now="$(date +%s)"
-  groups='["workspace-members","weave-calendar-editors"]'
-  if [[ "${username}" == "${MOCK_COLLABORATOR}" && "$(cat "${MOCK_STATE}/collaborator-calendar-membership")" != true ]]; then
-    groups='["workspace-members"]'
+  roles='["member"]'
+  if [[ "${username}" == "${MOCK_COLLABORATOR}" ]]; then
+    roles='["admin"]'
+    if [[ "$(cat "${MOCK_STATE}/collaborator-admin-membership")" != true ]]; then
+      roles='[]'
+    fi
   fi
   payload="$(jq -cn \
     --arg username "${username}" \
     --arg subject "subject-${count}" \
     --arg scope 'openid profile email weave:workspace' \
-    --argjson groups "${groups}" \
+    --argjson roles "${roles}" \
     --argjson iat "${now}" \
     --argjson exp "$((now + lifespan))" \
     --arg jti "fixture-${count}" \
-    '{sub:$subject,preferred_username:$username,aud:["https://api.weave.test/api"],scope:$scope,groups:$groups,iat:$iat,exp:$exp,jti:$jti}')"
+    '{sub:$subject,preferred_username:$username,aud:["https://api.weave.test/api"],scope:$scope,resource_access:{"weave-app":{roles:$roles}},iat:$iat,exp:$exp,jti:$jti}')"
   token="$(printf '{"alg":"none","typ":"JWT"}' | encode_segment).$(printf '%s' "${payload}" | encode_segment).fixture"
   printf '%s' "${token}" >"${MOCK_STATE}/token-${count}"
   respond 200 "$(jq -cn --arg token "${token}" '{access_token:$token}')"
 elif [[ "${url}" == */admin/realms/weave/users\?* ]]; then
   respond 200 "$(jq '[.[] | {id,username}]' "${MOCK_STATE}/users.json")"
-elif [[ "${url}" == */admin/realms/weave/users/*/groups\?* && "${method}" == GET ]]; then
-  if [[ "$(cat "${MOCK_STATE}/collaborator-calendar-membership")" == true ]]; then
-    respond 200 '[{"id":"calendar-group","name":"weave-calendar-editors"}]'
+elif [[ "${url}" == */admin/realms/weave/organizations\?search=weave\&exact=true && "${method}" == GET ]]; then
+  respond 200 '[{"id":"org-1","name":"weave","alias":"weave"}]'
+elif [[ "${url}" == */admin/realms/weave/organizations/org-1/groups\?populateHierarchy=true\&briefRepresentation=false && "${method}" == GET ]]; then
+  respond 200 '[{"id":"members-group","name":"members","path":"/members"},{"id":"admins-group","name":"admins","path":"/admins"}]'
+elif [[ "${url}" == */admin/realms/weave/organizations/org-1/members/*/groups && "${method}" == GET ]]; then
+  if [[ "$(cat "${MOCK_STATE}/collaborator-admin-membership")" == true ]]; then
+    respond 200 '[{"id":"admins-group","name":"admins","path":"/admins"}]'
   else
     respond 200 '[]'
   fi
 elif [[ "${url}" =~ /admin/realms/weave/users/[^/]+$ && "${method}" == GET ]]; then
   id="${url##*/}"
   respond 200 "$(jq -c --arg id "${id}" '.[] | select(.id == $id)' "${MOCK_STATE}/users.json")"
-elif [[ "${url}" == */admin/realms/weave/users/*/groups/calendar-group && "${method}" == DELETE ]]; then
-  printf 'false\n' >"${MOCK_STATE}/collaborator-calendar-membership"
+elif [[ "${url}" == */admin/realms/weave/organizations/org-1/groups/admins-group/members/* && "${method}" == DELETE ]]; then
+  printf 'false\n' >"${MOCK_STATE}/collaborator-admin-membership"
   printf 'group:false\n' >>"${MOCK_STATE}/mutations.log"
   respond 204
-elif [[ "${url}" == */admin/realms/weave/users/*/groups/calendar-group && "${method}" == PUT ]]; then
-  printf 'true\n' >"${MOCK_STATE}/collaborator-calendar-membership"
+elif [[ "${url}" == */admin/realms/weave/organizations/org-1/groups/admins-group/members/* && "${method}" == PUT ]]; then
+  printf 'true\n' >"${MOCK_STATE}/collaborator-admin-membership"
   printf 'group:true\n' >>"${MOCK_STATE}/mutations.log"
   respond 204
-elif [[ "${url}" == */admin/realms/weave/groups\?* ]]; then
-  respond 200 '[{"id":"calendar-group","name":"weave-calendar-editors"}]'
 elif [[ "${url}" == */admin/realms/weave/clients\?* ]]; then
   respond 200 '[{"id":"weave-app-uuid","clientId":"weave-app"}]'
 elif [[ "${url}" == */admin/realms/weave/client-scopes ]]; then
@@ -263,11 +268,11 @@ chmod +x "${MOCK_BIN}/curl"
 
 stack_bootstrap="${TMP_DIR}/stack-bootstrap.env"
 cat >"${stack_bootstrap}" <<'ENV'
-export TF_VAR_tenant_slug=weave
-export TF_VAR_keycloak_host_port=48080
-export TF_VAR_backend_host_port=48081
-export TF_VAR_keycloak_admin_username=admin
-export TF_VAR_keycloak_admin_password=fixture-admin-password
+export WEAVE_TENANT_SLUG=weave
+export WEAVE_KEYCLOAK_HOST_PORT=48080
+export WEAVE_BACKEND_HOST_PORT=48081
+export WEAVE_KEYCLOAK_ADMIN_USERNAME=admin
+export WEAVE_KEYCLOAK_ADMIN_PASSWORD=fixture-admin-password
 ENV
 
 export MOCK_STATE
@@ -278,7 +283,7 @@ export MOCK_OUTSIDER="${WEAVE_E2E_OUTSIDER_USERNAME}"
 export MOCK_OUTSIDE_CONTEXT
 # Populated by the sourced prepared startup env.
 # shellcheck disable=SC2154
-MOCK_OUTSIDE_CONTEXT="$(jq -r '.[2].context_id' <<<"${TF_VAR_isolated_e2e_context_memberships}")"
+MOCK_OUTSIDE_CONTEXT="$(jq -r '.[2].context_id' <<<"${WEAVE_ISOLATED_E2E_CONTEXT_MEMBERSHIPS}")"
 
 common_args=(
   --run-id "${RUN_ID}"
@@ -332,7 +337,7 @@ if grep -Fq "${WEAVE_E2E_AUTHOR_USERNAME}" "${evidence}" ||
   grep -Fq 'fixture-admin-token' "${evidence}"; then
   fail "authorization evidence leaked a raw identity or token"
 fi
-[[ "$(cat "${MOCK_STATE}/collaborator-calendar-membership")" == true ]] || fail "calendar membership was not restored"
+[[ "$(cat "${MOCK_STATE}/collaborator-admin-membership")" == true ]] || fail "native admin role-group membership was not restored"
 [[ "$(jq -r '.accessTokenLifespan' "${MOCK_STATE}/realm.json")" == 300 ]] || fail "realm lifespan was not restored"
 [[ "$(jq -r '.directAccessGrantsEnabled' "${MOCK_STATE}/client.json")" == false ]] || fail "client direct grants were not restored"
 realm_restore_line="$(grep -n '^realm:300$' "${MOCK_STATE}/mutations.log" | tail -1 | cut -d: -f1)"
@@ -345,7 +350,7 @@ persistent_after="$(jq -c --arg id "${persistent_subject}" '.[] | select(.id == 
 
 # A failure while the collaborator group is absent must restore both the group
 # and temporary direct-grant client setting through the EXIT trap.
-printf 'true\n' >"${MOCK_STATE}/collaborator-calendar-membership"
+printf 'true\n' >"${MOCK_STATE}/collaborator-admin-membership"
 printf '0\n' >"${MOCK_STATE}/token-counter"
 printf 'false\n' >"${MOCK_STATE}/revoked"
 jq '.accessTokenLifespan = 300' "${MOCK_STATE}/realm.json" >"${MOCK_STATE}/tmp.json"
@@ -359,12 +364,12 @@ if PATH="${MOCK_BIN}:${PATH}" WEAVE_E2E_STACK_SCOPE=isolated MOCK_FAIL_COLLABORA
   fail "collaborator-token mint failure fixture unexpectedly passed"
 fi
 [[ ! -e "${group_failure_evidence}" ]] || fail "failed group-restoration run wrote passing evidence"
-[[ "$(cat "${MOCK_STATE}/collaborator-calendar-membership")" == true ]] || fail "failure trap did not restore group membership"
+[[ "$(cat "${MOCK_STATE}/collaborator-admin-membership")" == true ]] || fail "failure trap did not restore group membership"
 [[ "$(jq -r '.directAccessGrantsEnabled' "${MOCK_STATE}/client.json")" == false ]] || fail "failure trap did not restore direct grants"
 
 # A failure while the bounded realm lifetime is active must still restore both
 # the realm and temporary direct-grant client setting through the EXIT trap.
-printf 'true\n' >"${MOCK_STATE}/collaborator-calendar-membership"
+printf 'true\n' >"${MOCK_STATE}/collaborator-admin-membership"
 printf '0\n' >"${MOCK_STATE}/token-counter"
 printf 'false\n' >"${MOCK_STATE}/revoked"
 jq '.accessTokenLifespan = 300' "${MOCK_STATE}/realm.json" >"${MOCK_STATE}/tmp.json"
@@ -378,7 +383,7 @@ if PATH="${MOCK_BIN}:${PATH}" WEAVE_E2E_STACK_SCOPE=isolated MOCK_FAIL_SHORT_TOK
   fail "short-token mint failure fixture unexpectedly passed"
 fi
 [[ ! -e "${failure_evidence}" ]] || fail "failed authorization run wrote passing evidence"
-[[ "$(cat "${MOCK_STATE}/collaborator-calendar-membership")" == true ]] || fail "failure trap did not restore group membership"
+[[ "$(cat "${MOCK_STATE}/collaborator-admin-membership")" == true ]] || fail "failure trap did not restore group membership"
 [[ "$(jq -r '.accessTokenLifespan' "${MOCK_STATE}/realm.json")" == 300 ]] || fail "failure trap did not restore realm lifespan"
 [[ "$(jq -r '.directAccessGrantsEnabled' "${MOCK_STATE}/client.json")" == false ]] || fail "failure trap did not restore direct grants"
 

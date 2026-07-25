@@ -71,7 +71,7 @@ cleanup_volumes() {
 
   local volume
   docker volume ls --format '{{.Name}}' \
-    | grep -E "^${VOLUME_PREFIX}_(nextcloud|synapse|caddy_data|caddy_config|keycloak)$" \
+    | grep -E "^${VOLUME_PREFIX}_(nextcloud|synapse|caddy_data|caddy_config|keycloak|matrix_appservice)$" \
     | while IFS= read -r volume; do
         [[ -n "${volume}" ]] || continue
         docker volume rm "${volume}" >/dev/null 2>&1 || true
@@ -101,6 +101,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import tarfile
@@ -111,6 +112,15 @@ run_dir = Path(os.environ["RUN_DIR"]).resolve()
 run_id = os.environ["RUN_ID"]
 volume_prefix = os.environ["VOLUME_PREFIX"]
 helper_image = os.environ["HELPER_IMAGE"]
+repository = Path(os.environ["ROOT_DIR"]).resolve().parents[1]
+candidate = subprocess.run(
+    ["git", "-C", str(repository), "rev-parse", "HEAD"],
+    check=True,
+    text=True,
+    stdout=subprocess.PIPE,
+).stdout.strip()
+if not re.fullmatch(r"[0-9a-f]{40}", candidate):
+    raise SystemExit("disposable restore proof requires an exact candidate commit")
 
 seed_dir = run_dir / "seed-domain-data"
 backup_dir = run_dir / "backup-artifacts"
@@ -120,10 +130,11 @@ for path in [seed_dir, backup_dir, restored_dir]:
 
 volumes = {
     "nextcloud": (f"{volume_prefix}_nextcloud", "nextcloud-data.tgz", "Files and calendar fixture data"),
-    "synapse": (f"{volume_prefix}_synapse", "matrix-synapse-data.tgz", "Matrix room history and media fixture data"),
+    "synapse": (f"{volume_prefix}_synapse", "synapse-data.tgz", "Matrix room history and media fixture data"),
     "caddy_data": (f"{volume_prefix}_caddy_data", "caddy-data.tgz", "Caddy runtime fixture data"),
     "caddy_config": (f"{volume_prefix}_caddy_config", "caddy-config.tgz", "Caddy config fixture data"),
     "keycloak": (f"{volume_prefix}_keycloak", "keycloak-data.tgz", "Identity fixture data"),
+    "matrix_appservice": (f"{volume_prefix}_matrix_appservice", "matrix-appservice.tgz", "Matrix application-service fixture data"),
 }
 
 fixture_files = {
@@ -134,6 +145,7 @@ fixture_files = {
     "keycloak/realm/weave-users.json": json.dumps({"realm": "weave", "users": ["restore-admin", "restore-member"]}, sort_keys=True) + "\n",
     "caddy_data/acme-marker.txt": "disposable acme continuity marker\n",
     "caddy_config/caddy-config-marker.txt": "disposable caddy config continuity marker\n",
+    "matrix_appservice/registration.yaml": "id: weave-chat-appservice\nrate_limited: true\n",
 }
 for relative, content in fixture_files.items():
     target = seed_dir / relative
@@ -155,15 +167,6 @@ postgres.write_text(
     ),
     encoding="utf-8",
 )
-
-manifest_txt = backup_dir / "MANIFEST.txt"
-manifest_txt.write_text(
-    "Weave disposable restore proof backup\n"
-    f"Run ID: {run_id}\n"
-    "SECURITY: fixture data only; no production data was read.\n",
-    encoding="utf-8",
-)
-
 
 def run(args: list[str]) -> None:
     subprocess.run(args, check=True)
@@ -259,56 +262,55 @@ if expected_restored_hashes != restored_hashes:
 if "INSERT INTO restore_proof.domain_objects" not in postgres.read_text(encoding="utf-8"):
     raise SystemExit("postgres fixture dump missing domain objects")
 
-# Write archive containing generated config fixture after validation inputs exist.
-generated_config = seed_dir / "generated-config"
-generated_config.mkdir(exist_ok=True)
-(generated_config / "bootstrap.env.redacted").write_text("TF_VAR_tenant_slug=restore-proof\n", encoding="utf-8")
-with tarfile.open(backup_dir / "generated-config-secrets.tgz", "w:gz") as tar:
-    tar.add(generated_config, arcname="generated-config")
+# Write the canonical private configuration consistency-set shape using fixture-only values.
+private_config = seed_dir / "private-config"
+for directory in ("generated", "secrets", "tls"):
+    (private_config / directory).mkdir(parents=True, exist_ok=True)
+(private_config / "generated" / "fixture.env").write_text("WEAVE_TENANT_SLUG=restore-proof\n", encoding="utf-8")
+(private_config / "secrets" / "postgres-admin-password").write_text("fixture-only-not-a-credential\n", encoding="utf-8")
+(private_config / "tls" / "ca.pem").write_text("fixture-only-ca\n", encoding="utf-8")
+with tarfile.open(backup_dir / "private-config-secrets.tgz", "w:gz") as tar:
+    for directory in ("generated", "secrets", "tls"):
+        tar.add(private_config / directory, arcname=directory)
 
-created_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+now = datetime.now(timezone.utc)
+created_at = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+backup_id = f"weave-test-{now.strftime('%Y%m%dT%H%M%SZ')}-{candidate[:12]}"
 artifact_entries = []
-for name, kind, description in [
-    ("MANIFEST.txt", "text-manifest", "Disposable proof manifest"),
-    ("postgres.sql", "postgres-dump", "PostgreSQL domain object fixture dump"),
-    ("nextcloud-data.tgz", "docker-volume-archive", "Restored files/calendar fixture archive"),
-    ("matrix-synapse-data.tgz", "docker-volume-archive", "Restored chat/media fixture archive"),
-    ("caddy-data.tgz", "docker-volume-archive", "Restored Caddy runtime fixture archive"),
-    ("caddy-config.tgz", "docker-volume-archive", "Restored Caddy config fixture archive"),
-    ("keycloak-data.tgz", "docker-volume-archive", "Restored identity fixture archive"),
-    ("generated-config-secrets.tgz", "generated-config-secrets", "Generated config fixture archive"),
+for name, kind in [
+    ("postgres.sql", "postgres-consistency-dump"),
+    ("nextcloud-data.tgz", "files-calendar-provider-data"),
+    ("synapse-data.tgz", "matrix-media-and-local-state"),
+    ("caddy-data.tgz", "gateway-runtime-state"),
+    ("caddy-config.tgz", "gateway-config-state"),
+    ("keycloak-data.tgz", "keycloak-runtime-state"),
+    ("matrix-appservice.tgz", "matrix-appservice-runtime"),
+    ("private-config-secrets.tgz", "private-config-secretrefs"),
 ]:
     digest, size = sha256_file(backup_dir / name)
     artifact_entries.append({
         "path": name,
         "kind": kind,
-        "description": description,
         "sha256": digest,
         "bytes": size,
-        "requiredForRestore": True,
     })
 
 backup_manifest = {
-    "artifactKind": "weave-backup-manifest-v1",
-    "issue": 639,
-    "relatedGateIssue": 642,
-    "supportSafe": False,
+    "schemaVersion": "weave.compose-private-backup.v2",
+    "backupId": backup_id,
     "createdAt": created_at,
-    "backupId": f"disposable-restore-proof-{run_id}",
-    "scope": {
-        "environment": "disposable-stack-rehearsal",
-        "domains": ["identity-idm", "chat", "files", "calendar", "health"],
-        "artifactsContainSecretsOrMemberData": True,
-        "shareExternally": False,
-        "disposableOnly": True,
-    },
-    "artifacts": artifact_entries,
-    "limitations": [
-        "This manifest was generated from support-safe disposable fixture data, not production data.",
-        "It proves the destroy/restore validation path for fixture domain data; production restore still requires operator approval and private evidence.",
-    ],
+    "candidateCommit": candidate,
+    "profile": "test",
+    "composeProject": "weave-disposable-proof",
+    "databaseFingerprint": "sha256:" + hashlib.sha256(postgres.read_bytes()).hexdigest(),
+    "quiescedServices": ["backend", "synapse", "nextcloud", "keycloak"],
+    "runtimeInventory": [{"service": "provider-fixtures", "authority": "isolated-disposable-proof", "container": "none"}],
+    "artifacts": sorted(artifact_entries, key=lambda item: item["path"]),
+    "supportSafe": False,
+    "containsSecretsOrMemberData": True,
 }
-(run_dir / "BackupManifest.json").write_text(json.dumps(backup_manifest, indent=2) + "\n", encoding="utf-8")
+manifest_path = run_dir / "BackupManifest.json"
+manifest_path.write_text(json.dumps(backup_manifest, indent=2) + "\n", encoding="utf-8")
 
 hash_proof = {
     "artifactKind": "weave-disposable-domain-data-hash-proof-v1",
@@ -321,12 +323,16 @@ hash_proof = {
 (run_dir / "domain-data-hashes.json").write_text(json.dumps(hash_proof, indent=2) + "\n", encoding="utf-8")
 
 receipt = {
-    "artifactKind": "weave-restore-receipt-v1",
-    "issue": 639,
-    "relatedGateIssue": 642,
+    "schemaVersion": "weave.compose-restore-receipt.v2",
     "supportSafe": True,
-    "createdAt": created_at,
-    "backupManifestRef": "BackupManifest.json",
+    "generatedAt": created_at,
+    "backupBinding": {
+        "manifestSha256": sha256_file(manifest_path)[0],
+        "backupIdSha256": hashlib.sha256(backup_id.encode("utf-8")).hexdigest(),
+        "candidateCommit": candidate,
+        "profile": "test",
+        "composeProject": "weave-disposable-proof",
+    },
     "restoreRunId": f"disposable-restore-proof-{run_id}",
     "validationMode": "disposable_stack_rehearsal",
     "status": "passed",
@@ -335,8 +341,7 @@ receipt = {
         "reason": "approved disposable restore rehearsal using isolated weave_disposable_restore_* Docker volumes",
     },
     "checks": [
-        {"name": "backup_artifacts_present", "status": "passed"},
-        {"name": "backup_manifest_present", "status": "passed"},
+        {"name": "backup_integrity_verified", "status": "passed"},
         {"name": "post_restore_operator_check", "status": "passed"},
         {"name": "domain_data_recovered", "status": "passed"},
         {"name": "no_production_volumes_touched", "status": "passed"},

@@ -15,9 +15,10 @@ public record McpWorkloadProperties(
         List<String> requiredScopes,
         URI tokenUri,
         String exchangeClientId,
-        Path exchangeClientSecretFile,
+        Path exchangeClientKeyFile,
+        String exchangeClientKeyId,
+        Duration exchangeClientAssertionTtl,
         URI backendResourceUri,
-        URI backendContextUri,
         List<String> exchangeScopes,
         Duration requestTimeout,
         Duration maximumTokenTtl,
@@ -35,14 +36,24 @@ public record McpWorkloadProperties(
         if (!"weave-mcp-server".equals(exchangeClientId)) {
             throw new IllegalArgumentException("exchangeClientId must be weave-mcp-server");
         }
-        if (exchangeClientSecretFile == null || !exchangeClientSecretFile.isAbsolute()) {
-            throw new IllegalArgumentException("exchangeClientSecretFile must be an absolute SecretRef path");
+        if (exchangeClientKeyFile == null || !exchangeClientKeyFile.isAbsolute()) {
+            throw new IllegalArgumentException("exchangeClientKeyFile must be an absolute SecretRef path");
+        }
+        if (exchangeClientKeyId == null
+                || !exchangeClientKeyId.matches("[A-Za-z0-9][A-Za-z0-9._:-]{0,127}")) {
+            throw new IllegalArgumentException("exchangeClientKeyId is malformed");
+        }
+        exchangeClientAssertionTtl = exchangeClientAssertionTtl == null
+                ? Duration.ofSeconds(30)
+                : exchangeClientAssertionTtl;
+        if (exchangeClientAssertionTtl.compareTo(Duration.ofSeconds(5)) < 0
+                || exchangeClientAssertionTtl.compareTo(Duration.ofSeconds(60)) > 0) {
+            throw new IllegalArgumentException("exchangeClientAssertionTtl must be between 5 and 60 seconds");
         }
         backendResourceUri = https(backendResourceUri, "backendResourceUri");
-        backendContextUri = http(backendContextUri, "backendContextUri");
         exchangeScopes = exactScopes(exchangeScopes, "exchangeScopes");
         if (!requiredScopes.containsAll(exchangeScopes)
-                || exchangeScopes.contains("mcp:tools")
+                || exchangeScopes.contains("mcp.tools")
                 || exchangeScopes.contains("agent-runtime.profile.read")) {
             throw new IllegalArgumentException("exchangeScopes must be a domain-only subset of requiredScopes");
         }

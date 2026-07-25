@@ -412,7 +412,7 @@
           ]
         },
         {
-          "path": "client/test/features/onboarding/consume_member_handoff_test.dart",
+          "path": "client/test/features/onboarding/discover_organization_access_test.dart",
           "fragments": [
             "ready_for_sso",
             "recoverable_error",
@@ -537,20 +537,20 @@
           ]
         },
         {
-          "path": "infra/weave-workspace/restore-private-backup.sh",
+          "path": "infra/weave-workspace/audit-private-backup-identity.sh",
           "fragments": [
-            "PRIVATE_DOGFOOD_RESTORE",
+            "PRIVATE_IDENTITY_AUDIT",
             "identityRestorableForRecordedMember",
-            "soleRestoredDisposableBootstrapIdentity"
+            "soleDisposableBootstrapIdentity"
           ]
         },
         {
           "path": ".github/workflows/dogfood-pending-identity-recovery.yml",
           "fragments": [
-            "retire-restored-test-bootstrap",
-            "retire-lost-pending-identity",
-            "humanTestingReady:false",
-            "two-install-dogfood-deployment-required"
+            "Dogfood Pending Identity Recovery (Guarded)",
+            "acknowledge-recovery-is-guarded",
+            "Pending-identity retirement is guarded.",
+            "Use normal invitation resend and authenticated session reconciliation"
           ]
         }
       ]
@@ -960,7 +960,7 @@
           "path": "docs/admin-provisioned-first-use.md",
           "fragments": [
             "## Agent Runtime Control policy",
-            "Keycloak group membership is the sole coarse entitlement source",
+            "Exact native Keycloak Organization membership `/capabilities/weaver` is the sole self-hosted coarse entitlement source",
             "profile generation is audited"
           ]
         },
@@ -1489,7 +1489,7 @@
     },
     {
       "tag": "@weave-sprint8-domain-control-plane-evidence",
-      "scenario": "Admin validates domains, dry-runs identity, checks portability, and members see provider-neutral states",
+      "scenario": "Admin validates domains, reviews Identity Ops readiness, checks portability, and members see provider-neutral states",
       "feature": "e2e/features/sprint_8_domain_control_plane.feature",
       "executableTest": "client/test/release_1/v0_1_release_spine_contract_test.dart",
       "evidenceMarkers": [
@@ -1516,9 +1516,18 @@
         {
           "path": "server/src/test/java/com/massimotter/weave/backend/controller/AdminControlPlaneControllerTest.java",
           "fragments": [
-            "adminRealmDryRunIsBackendOwnedDeterministicAndSupportSafe",
             "providerReplacementDryRunReturnsBackendOwnedPortableSwitchContract",
-            "operatorAndMemberCannotApplyIdentityRealmWhenPolicyForbidsProviderConfiguration"
+            "identityDesiredStateRoutesAreRemovedInFavorOfProtectedIdentityOps"
+          ]
+        },
+        {
+          "path": "infra/weave-workspace/tests/identity_ops_contract_test.py",
+          "fragments": [
+            "weave.keycloak-desired-state/v2",
+            "organizationGroups",
+            "plan",
+            "apply",
+            "verify"
           ]
         },
         {
@@ -1553,7 +1562,7 @@
             "Product-ready definition",
             "Domain registry version",
             "Migration contract version",
-            "Keycloak dry-run sample",
+            "Keycloak Identity Ops evidence",
             "Calls/MatrixRTC readiness artifact",
             "ARC workload identity and lifecycle proof",
             "Weaver/OpenClaw upstream provenance",
@@ -1575,9 +1584,8 @@
         {
           "path": "server/src/test/java/com/massimotter/weave/backend/controller/AdminControlPlaneControllerTest.java",
           "fragments": [
-            "adminRealmDryRunIsBackendOwnedDeterministicAndSupportSafe",
             "providerReplacementDryRunReturnsBackendOwnedPortableSwitchContract",
-            "operatorAndMemberCannotApplyIdentityRealmWhenPolicyForbidsProviderConfiguration"
+            "identityDesiredStateRoutesAreRemovedInFavorOfProtectedIdentityOps"
           ]
         },
         {
@@ -4028,7 +4036,7 @@
         {
           "path": "specs/0011-weaver-governed-pa-target/weaver-runtime-governance-contract.json",
           "fragments": [
-            "weave-weaver-runtime",
+            "/capabilities/weaver",
             "agent-runtime.entitled"
           ]
         },
@@ -4339,7 +4347,7 @@
       "tag": "@enterprise-target-persistence-foundation",
       "scenario": "Strategic control-plane state gains a gated relational persistence foundation",
       "feature": "e2e/features/enterprise_target_architecture.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/provider/JdbcProviderSelectionRepositoryTest.java",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/provider/JpaProviderSelectionRepositoryTest.java",
       "evidenceMarkers": [
         "ENTERPRISE_TARGET_PERSISTENCE_FOUNDATION"
       ],
@@ -4350,37 +4358,37 @@
           "fragments": [
             "Flyway Core",
             "Testcontainers PostgreSQL",
-            "H2 proof must not be described as PostgreSQL production readiness"
+            "H2 cannot satisfy a PostgreSQL or release claim"
           ]
         },
         {
-          "path": "server/src/main/resources/db/migration/V001__provider_selection_foundation.sql",
+          "path": "weave-persistence-jpa/src/main/resources/db/migration/V001__provider_selection_foundation.sql",
           "fragments": [
             "weave_provider_selections",
             "weave_provider_selection_notes"
           ]
         },
         {
-          "path": "server/src/main/resources/db/migration/V002__product_profile_override_foundation.sql",
+          "path": "weave-persistence-jpa/src/main/resources/db/migration/V002__product_profile_override_foundation.sql",
           "fragments": [
             "weave_product_profile_overrides",
             "accessibility_preferences_json"
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/provider/JdbcProviderSelectionRepositoryTest.java",
+          "path": "server/src/test/java/com/massimotter/weave/backend/provider/JpaProviderSelectionRepositoryTest.java",
           "fragments": [
             "relationalProviderSelectionSurvivesRepositoryRestart",
-            "relationalPathMatchesExistingFileRepositoryContractForProviderSelections",
-            "postgresql-production-ready"
+            "relationalPathPreservesTheCanonicalProviderSelectionContract",
+            "testcontainersPostgresDependencyIsPresentButProductionReadinessIsNotClaimedByH2Proof"
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/service/JdbcProductProfileOverrideRepositoryTest.java",
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/JpaProductProfileOverrideRepositoryTest.java",
           "fragments": [
             "relationalProductProfileOverrideSurvivesRepositoryRestart",
-            "relationalPathMatchesCurrentPrimaryKeyFileRepositoryContractForProfileOverrides",
-            "postgresql-production-ready"
+            "relationalPathPreservesTheCanonicalProfileOverrideContract",
+            "durable-relational-jpa-flyway"
           ]
         }
       ]
@@ -4389,7 +4397,7 @@
       "tag": "@enterprise-target-audit-persistence-foundation",
       "scenario": "Support-safe audit events gain a gated relational persistence foundation",
       "feature": "e2e/features/enterprise_target_architecture.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/audit/JdbcAuditEventPublisherTest.java",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/audit/JpaAuditEventPublisherTest.java",
       "evidenceMarkers": [
         "ENTERPRISE_TARGET_AUDIT_PERSISTENCE_FOUNDATION"
       ],
@@ -4398,20 +4406,20 @@
         {
           "path": "docs/architecture/adr-007-persistence-entity-strategy.md",
           "fragments": [
-            "weave.audit.events.storage.mode=file",
-            "weave.audit.events.storage.mode=jdbc",
+            "single production persistence composition root",
+            "JpaAuditEventPublisher",
             "#1019"
           ]
         },
         {
-          "path": "server/src/main/resources/db/migration/V003__audit_event_persistence_foundation.sql",
+          "path": "weave-persistence-jpa/src/main/resources/db/migration/V003__audit_event_persistence_foundation.sql",
           "fragments": [
             "weave_audit_events",
             "uq_weave_audit_events_idempotency"
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/audit/JdbcAuditEventPublisherTest.java",
+          "path": "server/src/test/java/com/massimotter/weave/backend/audit/JpaAuditEventPublisherTest.java",
           "fragments": [
             "relationalAuditEventsSurvivePublisherRestart",
             "relationalAuditEventsAreRetrySafeByIdempotencyKey",
@@ -4419,10 +4427,10 @@
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/config/BoardsRuntimeConfigurationTest.java",
+          "path": "server/src/test/java/com/massimotter/weave/backend/architecture/ServerArchitectureBoundaryTest.java",
           "fragments": [
-            "auditEventsDefaultToFileBackedPublisher",
-            "jdbcAuditStorageModeDisablesFilePublisherAndEnablesJdbcPublisher"
+            "productionCannotReintroduceVolatileOrFilePersistenceFallbacks",
+            "FileAuditEventPublisher"
           ]
         }
       ]
@@ -4431,7 +4439,7 @@
       "tag": "@enterprise-target-migration-evidence-persistence-foundation",
       "scenario": "Provider-switch migration run evidence gains a gated relational persistence foundation",
       "feature": "e2e/features/enterprise_target_architecture.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/service/migration/JdbcMigrationRunEvidenceRepositoryTest.java",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/service/migration/JpaMigrationRunEvidenceRepositoryTest.java",
       "evidenceMarkers": [
         "ENTERPRISE_TARGET_MIGRATION_EVIDENCE_PERSISTENCE_FOUNDATION"
       ],
@@ -4440,30 +4448,30 @@
         {
           "path": "docs/architecture/adr-007-persistence-entity-strategy.md",
           "fragments": [
-            "weave.migration.evidence.storage.mode=file",
-            "weave.migration.evidence.storage.mode=jdbc",
+            "JpaMigrationRunEvidenceRepository",
+            "strategic file/JSON",
             "#1019"
           ]
         },
         {
-          "path": "server/src/main/resources/db/migration/V004__migration_run_evidence_persistence_foundation.sql",
+          "path": "weave-persistence-jpa/src/main/resources/db/migration/V004__migration_run_evidence_persistence_foundation.sql",
           "fragments": [
             "weave_migration_run_evidence",
             "primary key (run_id, domain_key)"
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/service/migration/JdbcMigrationRunEvidenceRepositoryTest.java",
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/migration/JpaMigrationRunEvidenceRepositoryTest.java",
           "fragments": [
             "relationalMigrationRunEvidenceSurvivesRepositoryRestartAndExpiresFailClosed",
-            "relationalPathMatchesExistingFileRepositoryContractForMigrationEvidence",
+            "typedJpaPathPreservesTheCanonicalMigrationEvidenceContract",
             "relationalMigrationRunEvidenceCanBeReplacedByRunAndDomain"
           ]
         },
         {
-          "path": "server/src/main/java/com/massimotter/weave/backend/service/migration/JdbcMigrationRunEvidenceRepository.java",
+          "path": "server/src/main/java/com/massimotter/weave/backend/service/migration/JpaMigrationRunEvidenceRepository.java",
           "fragments": [
-            "durable-relational-flyway",
+            "durable-relational-jpa-flyway",
             "Failed to persist durable migration run evidence.",
             "Failed to load durable migration run evidence."
           ]
@@ -4653,7 +4661,7 @@
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/security/device/JdbcDeviceCredentialRepositoryTest.java",
+          "path": "server/src/test/java/com/massimotter/weave/backend/security/device/JpaDeviceCredentialRepositoryTest.java",
           "fragments": [
             "revokedAt"
           ]
@@ -4679,7 +4687,7 @@
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/security/device/JdbcDeviceCredentialRepositoryTest.java",
+          "path": "server/src/test/java/com/massimotter/weave/backend/security/device/JpaDeviceCredentialRepositoryTest.java",
           "fragments": [
             "revokedAt"
           ]
@@ -5747,7 +5755,8 @@
             "missingBearerReceivesDiscoverableRfc9728Challenge",
             "humanBearerCannotDiscoverTheMcpCatalog",
             "status().isUnauthorized()",
-            "audience(human ? List.of(\"https://api.weave.test/api\") : List.of(RESOURCE, EDGE))",
+            "workloadBearerWithWrongOrAdditionalAudienceCannotDiscoverTheCatalog",
+            "multipleAudiences ? List.of(RESOURCE, EDGE) : List.of(RESOURCE)",
             "weaver-runtime"
           ]
         }
@@ -5768,8 +5777,31 @@
           "fragments": [
             "CLIENT_CREDENTIALS_EXTENSION",
             "exchange.exchange(",
-            "contexts.resolve(",
-            "BACKEND_CONTEXT_ATTRIBUTE"
+            "exchangedTokens.authenticate(",
+            "authorization.authorize(",
+            "WORKLOAD_PRINCIPAL_ATTRIBUTE"
+          ]
+        },
+        {
+          "path": "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/McpExchangedTokenAuthenticator.java",
+          "fragments": [
+            "decoder.decode(",
+            "policy.resolve(jwt)"
+          ]
+        },
+        {
+          "path": "weave-mcp-server/src/main/java/com/massimotter/weave/mcp/McpApplicationCoreConfiguration.java",
+          "fragments": [
+            "new Ed25519JcsRuntimeProfileVerifier(",
+            "new McpWorkloadAuthorizationService("
+          ]
+        },
+        {
+          "path": "weave-mcp-server/src/test/java/com/massimotter/weave/mcp/RuntimeCompositionArchitectureTest.java",
+          "fragments": [
+            "mcpHasNoAdminIdentityCredentialOrPrivateBridge",
+            ".doesNotContain(\"/api/internal/agent-runtime/mcp-context\")",
+            ".doesNotContain(\"McpBackendContextResolver\")"
           ]
         }
       ]

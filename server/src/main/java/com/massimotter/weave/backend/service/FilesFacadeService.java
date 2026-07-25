@@ -4,7 +4,6 @@ import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.AuditEvent;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.audit.AuditRedactionLevel;
-import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
@@ -45,7 +44,6 @@ import com.massimotter.weave.backend.service.files.WebDavMutationResult;
 import com.massimotter.weave.backend.security.device.DeviceCredential;
 import com.massimotter.weave.backend.security.device.DeviceCredentialException;
 import com.massimotter.weave.backend.security.device.DeviceCredentialService;
-import com.massimotter.weave.backend.security.device.InMemoryDeviceCredentialRepository;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -94,18 +92,17 @@ public class FilesFacadeService {
             ContextAuthorizationProperties contextAuthorizationProperties,
             WorkspaceCapabilityService workspaceCapabilityService,
             DeviceCredentialService deviceCredentialService,
-            ObjectProvider<AuditEventPublisher> auditEventPublisherProvider,
-            ObjectProvider<FilesLockService> filesLockServiceProvider,
-            ObjectProvider<FilesMutationIntentService> filesMutationIntentServiceProvider) {
-        this(
-                filesProviderPortProvider,
-                contextAuthorizationPort,
-                contextAuthorizationProperties,
-                workspaceCapabilityService,
-                deviceCredentialService,
-                auditEventPublisherProvider.getIfAvailable(InMemoryAuditEventPublisher::new),
-                filesLockServiceProvider.getIfAvailable(),
-                filesMutationIntentServiceProvider.getIfAvailable());
+            AuditEventPublisher auditEventPublisher,
+            FilesLockService filesLockService,
+            FilesMutationIntentService filesMutationIntentService) {
+        this.filesProviderPort = filesProviderPortProvider.getIfAvailable();
+        this.contextAuthorizationPort = contextAuthorizationPort;
+        this.contextAuthorizationProperties = contextAuthorizationProperties;
+        this.workspaceCapabilityService = workspaceCapabilityService;
+        this.deviceCredentialService = deviceCredentialService;
+        this.auditEventPublisher = auditEventPublisher;
+        this.filesLockService = filesLockService;
+        this.filesMutationIntentService = filesMutationIntentService;
     }
 
     public FilesFacadeService(
@@ -129,72 +126,6 @@ public class FilesFacadeService {
             FilesLockService filesLockService) {
         this(filesProviderPortProvider, contextAuthorizationPort, contextAuthorizationProperties,
                 workspaceCapabilityService, deviceCredentialService, auditEventPublisher, filesLockService, null);
-    }
-
-    public FilesFacadeService(
-            ObjectProvider<FilesProviderPort> filesProviderPortProvider,
-            ContextAuthorizationPort contextAuthorizationPort,
-            ContextAuthorizationProperties contextAuthorizationProperties,
-            WorkspaceCapabilityService workspaceCapabilityService,
-            DeviceCredentialService deviceCredentialService,
-            AuditEventPublisher auditEventPublisher,
-            FilesLockService filesLockService,
-            FilesMutationIntentService filesMutationIntentService) {
-        this.filesProviderPort = filesProviderPortProvider.getIfAvailable();
-        this.contextAuthorizationPort = contextAuthorizationPort;
-        this.contextAuthorizationProperties = contextAuthorizationProperties;
-        this.workspaceCapabilityService = workspaceCapabilityService;
-        this.deviceCredentialService = deviceCredentialService;
-        this.auditEventPublisher = auditEventPublisher;
-        this.filesLockService = filesLockService;
-        this.filesMutationIntentService = filesMutationIntentService;
-    }
-
-    public FilesFacadeService(
-            ObjectProvider<FilesProviderPort> filesProviderPortProvider,
-            ContextAuthorizationPort contextAuthorizationPort,
-            ContextAuthorizationProperties contextAuthorizationProperties,
-            WorkspaceCapabilityService workspaceCapabilityService,
-            AuditEventPublisher auditEventPublisher) {
-        this(
-                filesProviderPortProvider,
-                contextAuthorizationPort,
-                contextAuthorizationProperties,
-                workspaceCapabilityService,
-                new DeviceCredentialService(new InMemoryDeviceCredentialRepository()),
-                auditEventPublisher);
-    }
-
-    public FilesFacadeService(
-            ObjectProvider<FilesProviderPort> filesProviderPortProvider,
-            ContextAuthorizationPort contextAuthorizationPort,
-            ContextAuthorizationProperties contextAuthorizationProperties,
-            WorkspaceCapabilityService workspaceCapabilityService,
-            AuditEventPublisher auditEventPublisher,
-            FilesLockService filesLockService) {
-        this(
-                filesProviderPortProvider,
-                contextAuthorizationPort,
-                contextAuthorizationProperties,
-                workspaceCapabilityService,
-                new DeviceCredentialService(new InMemoryDeviceCredentialRepository()),
-                auditEventPublisher,
-                filesLockService,
-                null);
-    }
-
-    public FilesFacadeService(
-            ObjectProvider<FilesProviderPort> filesProviderPortProvider,
-            ContextAuthorizationPort contextAuthorizationPort,
-            ContextAuthorizationProperties contextAuthorizationProperties,
-            WorkspaceCapabilityService workspaceCapabilityService) {
-        this(
-                filesProviderPortProvider,
-                contextAuthorizationPort,
-                contextAuthorizationProperties,
-                workspaceCapabilityService,
-                new DeviceCredentialService(new InMemoryDeviceCredentialRepository()),
-                new InMemoryAuditEventPublisher());
     }
 
     public FileListResponse list(String path) {

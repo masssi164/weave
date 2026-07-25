@@ -78,7 +78,7 @@ void main() {
     (tester) async {
       requireIsolatedStackScope();
       final serverConfig = ServerConfiguration(
-        providerType: OidcProviderType.keycloak,
+        providerType: OidcProviderType.oidc,
         oidcIssuerUrl: config.issuerUrl,
         oidcClientRegistration: OidcClientRegistration.manual(
           clientId: config.clientId,

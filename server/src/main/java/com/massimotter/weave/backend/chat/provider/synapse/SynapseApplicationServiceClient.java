@@ -1,8 +1,8 @@
 package com.massimotter.weave.backend.chat.provider.synapse;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.chat.domain.ChatEncryptedEnvelope;
 import com.massimotter.weave.backend.chat.domain.ChatEventContent;
 import com.massimotter.weave.backend.chat.domain.ChatEventKind;
@@ -287,7 +287,7 @@ final class SynapseApplicationServiceClient {
             }
         }
         List<String> joinedIds = new ArrayList<>();
-        joined.path("joined").fieldNames().forEachRemaining(joinedIds::add);
+        joined.path("joined").propertyNames().forEach(joinedIds::add);
         boolean membershipExact = exactSet(joinedIds, expectedJoinedActors);
         return new ProviderRoomEvidence(
                 membershipExact,
@@ -440,7 +440,7 @@ final class SynapseApplicationServiceClient {
         }
         try {
             return objectMapper.readTree(bytes);
-        } catch (IOException exception) {
+        } catch (JacksonException exception) {
             throw new SynapseProviderException("chat-provider-response-invalid", null);
         }
     }
@@ -453,7 +453,7 @@ final class SynapseApplicationServiceClient {
             JsonNode value = objectMapper.readTree(bytes);
             String errcode = value.path("errcode").asText(null);
             return errcode != null && errcode.matches("M_[A-Z0-9_]{1,80}") ? errcode : null;
-        } catch (IOException exception) {
+        } catch (JacksonException exception) {
             return null;
         }
     }
@@ -502,7 +502,7 @@ final class SynapseApplicationServiceClient {
     private String json(Object value) {
         try {
             return objectMapper.writeValueAsString(value);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalArgumentException("provider request could not be serialized", exception);
         }
     }

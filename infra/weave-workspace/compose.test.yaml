@@ -1,0 +1,14 @@
+services:
+  keycloak:
+    # The pinned upstream image is the standard distribution, not a
+    # PostgreSQL-augmented image produced by `kc.sh build`.
+    command:
+      - start
+
+  mailpit:
+    environment:
+      MP_SMTP_REQUIRE_TLS: "true"
+
+  backend:
+    environment:
+      WEAVE_RELEASE_POSTURE: test

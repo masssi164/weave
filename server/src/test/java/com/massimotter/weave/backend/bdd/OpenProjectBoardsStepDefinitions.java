@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.bdd;
 
+import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.containsString;
@@ -9,7 +10,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.boards.domain.BoardCapability;
 import com.massimotter.weave.backend.boards.openproject.OpenProjectBoardsRepository;
 import com.massimotter.weave.backend.boards.openproject.OpenProjectBoardsRuntimeGate;
@@ -35,7 +36,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Map;
-import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
@@ -47,7 +48,7 @@ public class OpenProjectBoardsStepDefinitions {
 
     private static final String BASE_URL = "https://openproject.example.test";
     private static final String API_TOKEN = "secret-api-token";
-    private static final ObjectMapper JSON = new ObjectMapper().findAndRegisterModules();
+    private static final ObjectMapper JSON = tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build();
 
     private RestClient.Builder restClientBuilder;
     private MockRestServiceServer server;
@@ -255,7 +256,8 @@ public class OpenProjectBoardsStepDefinitions {
                         ? ContextAuthorizationDecision.deny("no matching context membership")
                         : ContextAuthorizationDecision.allow("context membership matched"),
                 new ContextAuthorizationProperties(null, null, null, null, null, null, null, null),
-                workspaceCapabilityService());
+                workspaceCapabilityService(),
+                new InMemoryAuditEventPublisher());
     }
 
     private void ensureScenarioState() {
@@ -319,8 +321,8 @@ public class OpenProjectBoardsStepDefinitions {
                 .issuer("https://auth.example.invalid/realms/acme")
                 .claim("weave_tenant_id", "tenant-acme")
                 .claim("weave_context_id", "ctx-product-channel")
-                .claim("resource_access", java.util.Map.of("weave-app", java.util.Map.of("roles", java.util.List.of("member"))))
-                .claim("groups", java.util.List.of("weave-board-editors"))
+                .claim("resource_access", java.util.Map.of("weave-app", java.util.Map.of("roles", java.util.List.of("admin"))))
+                .claim("groups", java.util.List.of())
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(300))
                 .build();

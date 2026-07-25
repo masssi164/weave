@@ -4,9 +4,21 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-readonly SCRIPT_DIR
-# shellcheck source=infra/weave-workspace/support-bundle.sh
-source "${SCRIPT_DIR}/support-bundle.sh"
+ROOT_DIR="${SCRIPT_DIR}"
+readonly SCRIPT_DIR ROOT_DIR
+RESOURCE_PREFIX="${WEAVE_RESOURCE_PREFIX:-weave}"
+readonly RESOURCE_PREFIX
+readonly DEFAULT_CONTAINERS=(
+  "${RESOURCE_PREFIX}-proxy"
+  "${RESOURCE_PREFIX}-keycloak"
+  "${RESOURCE_PREFIX}-backend"
+  "${RESOURCE_PREFIX}-mcp-server"
+  "${RESOURCE_PREFIX}-mas"
+  "${RESOURCE_PREFIX}-synapse"
+  "${RESOURCE_PREFIX}-nextcloud"
+  "${RESOURCE_PREFIX}-mailpit"
+  "${RESOURCE_PREFIX}-db"
+)
 
 OUTPUT_DIR="${1:-${WEAVE_LIVE_STACK_FAILURE_DIAGNOSTICS_DIR:-${ROOT_DIR}/.generated/live-stack-failure-diagnostics}}"
 CREATED_AT_ISO="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -15,6 +27,34 @@ PRIVATE_RAW_LOGS_DIR="${WEAVE_PRIVATE_RAW_LOGS_DIR:-${RUNNER_TEMP:-${TMPDIR:-/tm
 
 log() {
   printf '%s\n' "$*"
+}
+
+redact_stream() {
+  perl -0pe '
+    s/-----BEGIN [^-]*PRIVATE KEY-----.*?-----END [^-]*PRIVATE KEY-----/<redacted-private-key>/gs;
+    s#([a-z][a-z0-9+.-]*://)([^\s/@:]+):([^\s/@]+)@#${1}<redacted>@#gi;
+    s/(Authorization:\s*)(Bearer|Basic)\s+[^\r\n]+/${1}<redacted>/gi;
+    s/((?:Set-)?Cookie:\s*)[^\r\n]+/${1}<redacted>/gi;
+    s/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/<redacted-email>/gi;
+    s/\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/<redacted-cloud-token>/g;
+    s/\b(?:ghp|gho|ghu|ghs|ghr|github_pat|glpat|xox[baprs])-[-_A-Za-z0-9]{20,}\b/<redacted-cloud-token>/g;
+    s#\bsecretref://[^\s\r\n"'"'"']+#<redacted-secret-ref>#gi;
+    s#\bcredentialref://[^\s\r\n"'"'"']+#<redacted-credential-ref>#gi;
+    s/\b(?:rpk|rsk)_[A-Za-z0-9_-]{20,64}\b/<redacted-key-ref>/g;
+    s/\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/<redacted-jwt>/g;
+    s/(([A-Za-z0-9_]*(?:password|passwd|token|secret|private[_-]?key|signing[_-]?key|credential|authorization|cookie)[A-Za-z0-9_]*\s*[=:]\s*)([^\s\r\n"'"'"']+))/${2}<redacted>/gi;
+  '
+}
+
+scan_for_unredacted_secrets() {
+  local path="$1" findings
+  findings="$(grep -RIliE \
+    'BEGIN ((RSA|EC|OPENSSH) )?PRIVATE KEY|[a-z][a-z0-9+.-]*://[^[:space:]/@:]+:[^[:space:]/@]+@|Authorization:[[:space:]]+(Bearer|Basic)[[:space:]]+[^<[:space:]]|([A-Za-z0-9_]*(PASSWORD|TOKEN|SECRET|PRIVATE_KEY|SIGNING_KEY|CREDENTIAL)[A-Za-z0-9_]*[=:][[:space:]]*[^<[:space:]]+)|[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}' \
+    "${path}" 2>/dev/null || true)"
+  if [[ -n "${findings}" ]]; then
+    printf 'Failure diagnostics redaction check failed; possible secret material remains in:\n%s\n' "${findings}" >&2
+    return 1
+  fi
 }
 
 json_escape() {
@@ -64,7 +104,7 @@ write_operator_check() {
   local status_target="$2"
   mkdir -p "$(dirname -- "${target}")"
   set +e
-  bash "${ROOT_DIR}/operator-check.sh" 2>&1 | redact_stream >"${target}"
+  bash "${ROOT_DIR}/operator-check.sh" "${WEAVE_PROFILE:-test}" 2>&1 | redact_stream >"${target}"
   local status=${PIPESTATUS[0]}
   set -e
   printf '%s\n' "${status}" >"${status_target}"
@@ -95,13 +135,13 @@ write_support_bundle() {
   set +e
   WEAVE_SUPPORT_BUNDLE_RUN_CHECKS=true \
     WEAVE_SUPPORT_BUNDLE_LOG_LINES="${WEAVE_LIVE_STACK_SUPPORT_BUNDLE_LOG_LINES:-80}" \
-    bash "${ROOT_DIR}/support-bundle.sh" "${target_dir}" >"${target_dir}/support-bundle-command.txt" 2>&1
+    bash "${ROOT_DIR}/support-bundle.sh" "${WEAVE_PROFILE:-test}" "${target_dir}" >"${target_dir}/support-bundle-command.txt" 2>&1
   local status=$?
   set -e
   redact_stream <"${target_dir}/support-bundle-command.txt" >"${target_dir}/support-bundle-command.redacted.txt"
   mv "${target_dir}/support-bundle-command.redacted.txt" "${target_dir}/support-bundle-command.txt"
   printf '%s\n' "${status}" >"${target_dir}/support-bundle-exit-status.txt"
-  find "${target_dir}" -maxdepth 1 -name 'weave-support-*.tar.gz' -print -quit
+  find "${target_dir}" -maxdepth 1 -name 'weave-compose-support-*.tar.gz' -print -quit
 }
 
 write_private_raw_logs_if_requested() {

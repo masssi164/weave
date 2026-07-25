@@ -12,16 +12,6 @@ class AppLocalizationsDe extends AppLocalizations {
   String get appTitle => 'Weave';
 
   @override
-  String get welcomeTitle => 'Willkommen bei Weave';
-
-  @override
-  String get welcomeSubtitle =>
-      'Tritt deiner Organisation über eine Einladung oder Anmelde-Übergabe bei. Anbieter-Setup bleibt bei den Admins.';
-
-  @override
-  String get continueButton => 'Organisation beitreten';
-
-  @override
   String get setupTitle => 'Organisationszugang';
 
   @override
@@ -3851,20 +3841,16 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get setupMemberHandoffTitle =>
-      'Über Einladung oder Organisationsanmeldung beitreten';
-
-  @override
   String get setupMemberHandoffDescription =>
-      'Öffne den Einladungslink, /join-Link oder die Organisations-Anmelde-URL, die dein Admin gesendet hat. Weave bereitet deinen Workspace aus dem Organisationsmanifest vor, ohne dass du Anbieter-Endpunkte bearbeiten musst.';
+      'Füge deinen Abschlusslink oder QR-Inhalt ein oder gib die Weave-Adresse deiner Organisation ein. Jede Option prüft vor der Anmeldung dieselben Organisationsangaben.';
 
   @override
   String get setupOrganizationUriLabel =>
-      'Server-URI, Einladungslink oder QR-Inhalt';
+      'Weave-Serveradresse, Abschlusslink oder QR-Inhalt';
 
   @override
   String get setupOrganizationUriHelper =>
-      'Füge den Link aus E-Mail oder QR-Code ein oder gib die Weave-Adresse deiner Organisation ein.';
+      'Nutze den Link aus deiner E-Mail oder dem QR-Code oder gib die sichere Weave-Adresse deiner Organisation ein.';
 
   @override
   String get setupOrganizationUriError =>
@@ -3875,56 +3861,38 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get setupOrganizationAccessHelp =>
-      'Deine Einladungs-E-Mail und der Organisations-QR-Code enthalten dieselbe Weave-Adresse. Nach der Prüfung bietet der nächste Bildschirm immer Anmelden an.';
+      'Abschlusslinks, QR-Inhalte und die Weave-Serveradresse verwenden dieselbe Organisationsprüfung. Der nächste Bildschirm fordert dich immer ausdrücklich zum Anmelden auf.';
 
   @override
-  String get setupMemberHandoffPrimaryAction =>
-      'Ich habe eine Einladung oder einen Anmeldelink';
-
-  @override
-  String get setupMemberHandoffPrimaryGuidance =>
-      'Nutze den Link aus Browser, E-Mail oder Chat. Wenn er fehlt oder abgelaufen ist, bitte deinen Workspace-Admin um eine neue Einladung.';
-
-  @override
-  String get setupMemberHandoffAdminNoteTitle => 'Admins und Operatoren';
-
-  @override
-  String get setupMemberHandoffAdminNote =>
-      'Rohdaten zu Anbieter-Endpunkten werden im Admin- oder Operator-Recovery verwaltet, nicht im normalen Mitglieder-Onboarding.';
-
-  @override
-  String get setupOpenOperatorRecoveryButton =>
-      'Operator-Recovery-Setup öffnen';
-
-  @override
-  String get setupOperatorRecoveryTitle => 'Operator-Recovery-Setup';
-
-  @override
-  String get memberHandoffLoadingTitle => 'Weave-Einladung wird geöffnet';
+  String get memberHandoffLoadingTitle => 'Organisationszugang wird geprüft';
 
   @override
   String get memberHandoffLoadingHint =>
-      'Wir bereiten die Anmeldung für diesen Workspace vor.';
+      'Wir rufen die Anmeldeinformationen für diese Organisation sicher ab.';
 
   @override
-  String get memberHandoffReadyTitle => 'Workspace bereit zur Anmeldung';
+  String get memberHandoffReadyTitle => 'Organisation bereit zur Anmeldung';
 
   @override
-  String memberHandoffReadyGuidance(String organization, String workspace) {
-    return 'Weave hat $organization/$workspace aus der Einladung vorbereitet. Fahre als Nächstes mit der Workspace-Anmeldung fort.';
+  String memberHandoffReadyGuidance(String organization) {
+    return 'Weave hat den Organisationszugang für $organization vorbereitet. Die Anmeldung öffnet den sicheren Systembrowser und führt dich nach der Autorisierung zu Weave zurück.';
   }
 
   @override
   String get memberHandoffErrorTitle =>
-      'Diese Weave-Einladung konnte nicht geöffnet werden';
+      'Der Organisationszugang konnte nicht geprüft werden';
 
   @override
   String get memberHandoffErrorGuidance =>
-      'Die Einladung ist möglicherweise abgelaufen, unvollständig oder noch nicht bereit. Bitte deinen Workspace-Admin um eine neue Einladung oder Organisations-Anmelde-URL.';
+      'Der Link oder die Adresse ist möglicherweise unvollständig, abgelaufen oder vorübergehend nicht erreichbar. Prüfe die Eingabe und versuche es erneut oder bitte deine Organisation um einen neuen Abschlusslink.';
 
   @override
   String get memberHandoffTlsErrorGuidance =>
       'Weave konnte die Startkonfiguration des Workspaces nicht über vertrauenswürdiges TLS erreichen. Für lokales Dogfood installiere die Weave Local Development CA auf diesem iPhone und aktiviere volles Vertrauen, oder bitte deinen Admin um eine öffentlich vertrauenswürdige Organisations-Anmelde-URL.';
+
+  @override
+  String get memberHandoffSignInRetryGuidance =>
+      'Deine Organisationsangaben sind gespeichert. Folge den Hinweisen oben und versuche dann erneut, dich anzumelden.';
 
   @override
   String memberHandoffErrorCode(String code) {

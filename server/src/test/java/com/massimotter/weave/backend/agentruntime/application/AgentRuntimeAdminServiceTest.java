@@ -8,10 +8,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-import com.massimotter.weave.backend.agentruntime.adapter.JdbcRuntimeCellRepository;
-import com.massimotter.weave.backend.agentruntime.adapter.JdbcRuntimeCommandRepository;
-import com.massimotter.weave.backend.agentruntime.adapter.JdbcRuntimeGovernanceRepository;
-import com.massimotter.weave.backend.agentruntime.adapter.JdbcRuntimeProfileRepository;
+import com.massimotter.weave.backend.agentruntime.adapter.JpaRuntimeCellRepository;
+import com.massimotter.weave.backend.agentruntime.adapter.JpaRuntimeCommandRepository;
+import com.massimotter.weave.backend.agentruntime.adapter.JpaRuntimeGovernanceRepository;
+import com.massimotter.weave.backend.agentruntime.adapter.JpaRuntimeProfileRepository;
+import com.massimotter.weave.backend.agentruntime.adapter.AgentRuntimeJpaTestFactory;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCell;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCellState;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementObservation;
@@ -33,6 +34,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ClassPathResource;
@@ -57,8 +59,8 @@ class AgentRuntimeAdminServiceTest {
                     ORGANIZATION, "issuer+subject:https://auth.weave.test/realms/weave#admin-1",
                     "audit:another-request");
 
-    private JdbcRuntimeCellRepository cells;
-    private JdbcRuntimeProfileRepository profiles;
+    private JpaRuntimeCellRepository cells;
+    private JpaRuntimeProfileRepository profiles;
     private RuntimeProfileIssuanceService issuance;
     private CountingWorkloadAdmin workloads;
     private CountingStateAdmin state;
@@ -68,17 +70,15 @@ class AgentRuntimeAdminServiceTest {
     void setUp() {
         EmbeddedDatabase database = new EmbeddedDatabaseBuilder()
                 .setType(EmbeddedDatabaseType.H2)
-                .setName("arc-admin-" + UUID.randomUUID())
+                .setName("arc-admin-" + UUID.randomUUID() + ";MODE=PostgreSQL")
                 .build();
-        new ResourceDatabasePopulator(
-                new ClassPathResource("db/migration/V011__agent_runtime_control_foundation.sql"),
-                new ClassPathResource("db/migration/V012__agent_runtime_governance_facts.sql"))
-                .execute(database);
-        JdbcTemplate jdbc = new JdbcTemplate(database);
-        cells = new JdbcRuntimeCellRepository(jdbc);
-        JdbcRuntimeCommandRepository commands = new JdbcRuntimeCommandRepository(jdbc);
-        profiles = new JdbcRuntimeProfileRepository(jdbc);
-        JdbcRuntimeGovernanceRepository governance = new JdbcRuntimeGovernanceRepository(jdbc);
+        Flyway.configure().dataSource(database)
+                .locations("classpath:db/migration").load().migrate();
+        var persistence = AgentRuntimeJpaTestFactory.create(database);
+        cells = persistence.cells();
+        JpaRuntimeCommandRepository commands = persistence.commands();
+        profiles = persistence.profiles();
+        JpaRuntimeGovernanceRepository governance = persistence.governance();
         workloads = new CountingWorkloadAdmin();
         RuntimeEntitlementAuthority entitlement = command -> new RuntimeEntitlementObservation(
                 command.organizationRef(), command.personRef(), command.memberBinding(), "keycloak",
@@ -205,6 +205,13 @@ class AgentRuntimeAdminServiceTest {
     private static final class CountingWorkloadAdmin implements RuntimeWorkloadIdentityAdmin {
         private final AtomicInteger ensureCalls = new AtomicInteger();
         private final AtomicInteger deleteCalls = new AtomicInteger();
+
+        @Override
+        public void requireCurrentBinding(
+                com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadBindingAuthority.CurrentBindingCommand
+                        command) {
+            // This test double only exercises lifecycle mutations.
+        }
 
         @Override
         public RuntimeWorkloadBinding ensureBinding(EnsureBindingCommand command) {

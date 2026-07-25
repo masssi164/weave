@@ -1,21 +1,19 @@
 package com.massimotter.weave.backend.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.agentruntime.adapter.Ed25519JcsRuntimeProfileSigner;
 import com.massimotter.weave.backend.agentruntime.adapter.FileRuntimeProfileSigningKeyStore;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileSigner;
 import java.security.SecureRandom;
 import java.time.Clock;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(AgentRuntimeProfileSigningProperties.class)
-@ConditionalOnExpression(
-        "'${weave.agent-runtime.storage.mode:disabled}' == 'jdbc'"
-                + " && '${weave.agent-runtime.profile-signing.enabled:false}' == 'true'")
+@ConditionalOnProperty(name = "weave.agent-runtime.profile-signing.enabled", havingValue = "true")
 public class AgentRuntimeProfileSigningConfiguration {
 
     @Bean

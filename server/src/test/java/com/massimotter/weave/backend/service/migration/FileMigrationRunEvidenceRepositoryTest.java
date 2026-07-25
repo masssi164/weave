@@ -1,7 +1,8 @@
 package com.massimotter.weave.backend.service.migration;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectWriter;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectWriter;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -26,7 +27,7 @@ class FileMigrationRunEvidenceRepositoryTest {
     @Test
     void migrationRunEvidenceSurvivesRepositoryRestartAndExpiresFailClosed() {
         Path storagePath = tempDir.resolve("migration-run-evidence.json");
-        ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+        ObjectMapper objectMapper = tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build();
         Instant now = Instant.parse("2026-05-31T08:00:00Z");
         var repository = new FileMigrationRunEvidenceRepository(objectMapper, storagePath);
 
@@ -66,7 +67,7 @@ class FileMigrationRunEvidenceRepositoryTest {
         ObjectMapper objectMapper = mock(ObjectMapper.class);
         ObjectWriter writer = mock(ObjectWriter.class);
         when(objectMapper.writerWithDefaultPrettyPrinter()).thenReturn(writer);
-        doThrow(new IOException("write failed")).when(writer).writeValue(any(File.class), any());
+        doThrow(new JacksonException("write failed") {}).when(writer).writeValue(any(File.class), any());
         Instant now = Instant.parse("2026-05-31T08:00:00Z");
         var repository = new FileMigrationRunEvidenceRepository(objectMapper, storagePath);
         MigrationRunEvidence evidence = new MigrationRunEvidence(

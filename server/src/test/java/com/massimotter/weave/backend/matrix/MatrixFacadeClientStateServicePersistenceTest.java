@@ -21,7 +21,6 @@ class MatrixFacadeClientStateServicePersistenceTest {
     void keycloakDerivedIdentityProjectionSurvivesBackendRestart() {
         DriverManagerDataSource dataSource = dataSource();
         Flyway.configure().dataSource(dataSource).locations("classpath:db/migration").load().migrate();
-        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
         MatrixProtocolCoreService protocol = mock(MatrixProtocolCoreService.class);
         String matrixUserId = "@user_projection:api.weave.test";
         when(protocol.whoami("subject-projection", "WEAVEDEVICEPROJECTION"))
@@ -35,11 +34,14 @@ class MatrixFacadeClientStateServicePersistenceTest {
                 List.of(),
                 List.of(),
                 List.of());
-        MatrixFacadeClientStateService first = new MatrixFacadeClientStateService(protocol, jdbc, authorization);
+        MatrixFacadeClientStateStore stateStore = stateStore(dataSource);
+        MatrixFacadeClientStateService first =
+                new MatrixFacadeClientStateService(protocol, stateStore, authorization);
 
         MatrixFacadeClientStateService.MatrixIdentity registered =
                 first.register(jwt(), "WEAVEDEVICEPROJECTION");
-        MatrixFacadeClientStateService restarted = new MatrixFacadeClientStateService(protocol, jdbc, authorization);
+        MatrixFacadeClientStateService restarted =
+                new MatrixFacadeClientStateService(protocol, stateStore(dataSource), authorization);
 
         assertThat(registered.userId()).isEqualTo(matrixUserId);
         assertThat(restarted.identityForMatrixUserId(
@@ -73,5 +75,18 @@ class MatrixFacadeClientStateServicePersistenceTest {
         dataSource.setUsername("sa");
         dataSource.setPassword("");
         return dataSource;
+    }
+
+    private MatrixFacadeClientStateStore stateStore(
+            DriverManagerDataSource dataSource) {
+        MatrixIdentityProjectionJpaRepository identities =
+                com.massimotter.weave.backend.testing.JpaTestDatabase.repository(
+                        dataSource,
+                        MatrixIdentityProjectionJpaRepository.class);
+        MatrixRevokedSessionJpaRepository revocations =
+                com.massimotter.weave.backend.testing.JpaTestDatabase.repository(
+                        dataSource,
+                        MatrixRevokedSessionJpaRepository.class);
+        return new JpaMatrixFacadeClientStateStore(identities, revocations);
     }
 }

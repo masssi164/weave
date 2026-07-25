@@ -3,7 +3,7 @@ package com.massimotter.weave.backend.agentruntime.adapter;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCell;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeProfile;
@@ -140,7 +140,7 @@ class FileRuntimePolicyAuthorityTest {
                       "serverRef":"weave-mcp",
                       "endpoint":"https://api.weave.test/mcp",
                       "requestedResource":"https://api.weave.test/mcp",
-                      "requiredScopes":["mcp:tools"],
+                      "requiredScopes":["mcp.tools"],
                       "credentialRefTemplate":"credentialref://weave/runtime/{cellRef}/{workloadClientId}/mcp",
                       "allowedToolClasses":["calendar.read"]
                     }],

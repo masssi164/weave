@@ -50,7 +50,10 @@ def main() -> int:
         "- name: Verify run-scoped live runtime host",
         "- name: Remove stale runner-owned Weave outputs",
         "- name: Check out weave",
+        "- name: Materialize run-scoped test environment",
         "- name: Verify runner disk headroom",
+        "- name: Bind immutable images to source and lane evidence",
+        "- name: Clean up stale stack state before bootstrap",
         "- name: Provision real Keycloak identities and verify runtime ReBAC",
         "- name: Prove missing-capability expired-token and revoked-session denials",
         "- name: Expose generated local CA to Rust Matrix tests",
@@ -78,7 +81,6 @@ def main() -> int:
                 workflow,
                 dogfood_deploy_workflow,
                 dogfood_member_workflow,
-                dogfood_recovery_workflow,
                 ios_dogfood_workflow,
             )
         ),
@@ -87,15 +89,37 @@ def main() -> int:
     require(
         "cancel-in-progress: false" in dogfood_deploy_workflow
         and "cancel-in-progress: false" in dogfood_member_workflow
-        and "cancel-in-progress: false" in dogfood_recovery_workflow
         and "cancel-in-progress: false" in workflow,
         "Mac runner mutations must never cancel one another",
+    )
+    require(
+        "runs-on: ubuntu-24.04" in dogfood_recovery_workflow
+        and "- self-hosted" not in dogfood_recovery_workflow
+        and "Pending-identity retirement is guarded." in dogfood_recovery_workflow,
+        "guarded recovery must not consume or mutate the dedicated Mac runner",
     )
     require(
         "- weave-live" in workflow
         and "needs: isolation-gate" in workflow
         and "Fail closed without run-scoped runtime approval" in workflow,
         "destructive live-stack E2E must fail closed on the dedicated Mac runner",
+    )
+    require(
+        'spec_commit="$(jq -er \''
+        '.specCorpus.gitCommit | select(type == "string" and '
+        'test("^[0-9a-f]{40}$"))\' specs/weave-specs.lock.json)"'
+        in workflow
+        and 'echo "commit=$spec_commit" >>"$GITHUB_OUTPUT"' in workflow
+        and r'type == \"string\"' not in workflow,
+        "the pinned specification resolver must fail closed before publishing one exact SHA",
+    )
+    require(
+        "REQUESTED_SOURCE_REF: ${{ github.ref_name }}" in workflow
+        and '"$REQUESTED_SOURCE_REF" != dev' in workflow
+        and '"$REQUESTED_SOURCE_REF" != dogfood' in workflow
+        and "feature-branch trees are PR evidence, not release-lane candidates"
+        in workflow,
+        "manual feature-branch dispatch must fail before it consumes the dedicated Mac runner",
     )
     require(
         "EXPECTED_RUNNER_NAME: weave-live-mac-mini" in workflow
@@ -145,8 +169,19 @@ def main() -> int:
         "Flutter/Rust native outputs must be cleaned once before and once after the run",
     )
     require(
-        workflow.count('weave-live-stack-docker-config') >= 3,
-        "workflow-owned Docker auth must be namespaced and cleaned before and after the run",
+        workflow.count('weave-live-stack-docker-config') >= 3
+        and 'echo "WEAVE_DOCKER_AUTH_CONFIG=$WEAVE_DOCKER_AUTH_CONFIG"'
+        in workflow
+        and 'docker --config "${WEAVE_DOCKER_AUTH_CONFIG}" pull' in workflow
+        and 'docker compose version >/dev/null' in workflow
+        and "DOCKER_CONFIG=" not in workflow,
+        "workflow-owned Docker auth must be namespaced without hiding host CLI plugins",
+    )
+    require(
+        "env -u WEAVE_TEARDOWN_EVIDENCE_FILE bash ./teardown.sh test --isolated"
+        in workflow
+        and "WEAVE_TEARDOWN_EVIDENCE_FILE='' bash ./teardown.sh" not in workflow,
+        "pre-bootstrap teardown must treat optional evidence output as unset, never as the workspace path",
     )
     require(
         "isolated-e2e-identities.sh prepare" in workflow
@@ -164,20 +199,48 @@ def main() -> int:
         "identity cleanup must tolerate a failure before provider runtime creation",
     )
     require(
-        'runtime_root="${WEAVE_E2E_OUTPUT_ROOT:?}/${TF_VAR_isolated_e2e_namespace}/runtime"'
-        in workflow
+        'docker container inspect "${WEAVE_E2E_RUN_NAMESPACE}-db"' in workflow
+        and 'docker network inspect "${WEAVE_E2E_RUN_NAMESPACE}_network"' in workflow
         and "ISOLATED_STACK_TEARDOWN status=not-required" in workflow,
-        "stack teardown must tolerate a failure before OpenTofu runtime creation",
+        "stack teardown must tolerate a failure before exact Compose resources exist",
     )
     require(
-        'expected_bootstrap_env="$PWD/.generated/isolated/${TF_VAR_isolated_e2e_namespace}/bootstrap.env"'
-        in workflow
-        and 'source "$expected_bootstrap_env"' in workflow
-        and workflow.index('source "$expected_bootstrap_env"')
+        'case "${WEAVE_E2E_STARTUP_ENV_PATH:-}" in' in workflow
+        and 'source "$WEAVE_E2E_STARTUP_ENV_PATH"' in workflow
+        and workflow.rindex('source "$WEAVE_E2E_STARTUP_ENV_PATH"')
         < workflow.index(
             'WEAVE_TEARDOWN_EVIDENCE_FILE="$WEAVE_ACCEPTANCE_EVIDENCE_DIR/isolated-stack-teardown.json"'
         ),
-        "OpenTofu destroy must reload the exact run-scoped variables generated during apply",
+        "Compose cleanup must reload and verify the exact run-scoped startup environment",
+    )
+    require(
+        "TF_VAR_" not in workflow
+        and "./compose.sh test up" in workflow
+        and "./compose.sh test identity-verify" in workflow
+        and "./compose.sh dogfood" not in workflow,
+        "live-stack bootstrap must use the test-profile Compose and Identity Ops path",
+    )
+    require(
+        "WEAVE_ENV_FILE: ${{ github.workspace }}/weave/infra/weave-workspace/environments/test.env.example"
+        not in workflow
+        and "- name: Materialize run-scoped test environment" in workflow
+        and 'source_env="$PWD/environments/test.env.example"' in workflow
+        and 'runtime_env="$runtime_root/reviewed-test.env"' in workflow
+        and 'install -m 600 "$source_env" "$runtime_env"' in workflow
+        and 'echo "WEAVE_ENV_FILE=$runtime_env" >> "$GITHUB_ENV"' in workflow
+        and workflow.index("- name: Materialize run-scoped test environment")
+        < workflow.index("- name: Prepare three disposable identity profiles")
+        and workflow.index("- name: Bind immutable images to source and lane evidence")
+        < workflow.index("- name: Clean up stale stack state before bootstrap")
+        < workflow.index("- name: Bootstrap local stack")
+        and "WEAVE_TEST_REVIEWED_ENV_FILE" not in workflow
+        and "environment: dogfood" not in workflow
+        and "environment: dogfood" in dogfood_deploy_workflow
+        and "WEAVE_TEST_REVIEWED_ENV_FILE: ${{ vars.WEAVE_TEST_REVIEWED_ENV_FILE }}"
+        in dogfood_deploy_workflow
+        and "WEAVE_TEST_BACKUP_ROOT: ${{ vars.WEAVE_TEST_BACKUP_ROOT }}"
+        in dogfood_deploy_workflow,
+        "isolated E2E must not claim a protected deployment environment while persistent deployment requires it and its host paths",
     )
     require(
         'export WEAVE_BOOTSTRAP_ENV="${WEAVE_E2E_STACK_BOOTSTRAP_ENV:?}"'
@@ -341,8 +404,8 @@ def main() -> int:
     require("if: always()" in finalizer, "runner-output finalizer must run on failure")
     require(
         finalizer.index('"${WEAVE_ACCEPTANCE_EVIDENCE_DIR:-$RUNNER_TEMP/weave-live-stack-acceptance-evidence}"')
-        < finalizer.index('docker image rm "$image_ref"'),
-        "finalizer must remove evidence-local output before local image tags",
+        < finalizer.index('if [[ "$WEAVE_LIVE_JOB_STATUS" == success ]]'),
+        "finalizer must remove evidence-local output before deciding candidate image retention",
     )
     require(
         '"${WEAVE_ACCEPTANCE_TEST_LOG:-$RUNNER_TEMP/weave-live-stack-e2e.log}"'
@@ -350,8 +413,12 @@ def main() -> int:
         "finalizer must tolerate failure before evidence environment setup",
     )
     require(
-        'if [[ "$image_ref" != ghcr.io/* ]]' in finalizer,
-        "finalizer must preserve pulled registry images",
+        "WEAVE_LIVE_JOB_STATUS: ${{ job.status }}" in finalizer
+        and "Preserving the attested immutable image set for the locked downstream dogfood deployment."
+        in finalizer
+        and '"${WEAVE_IDENTITY_OPS_IMAGE:-}"' in finalizer
+        and 'docker image rm "$image_ref"' in finalizer,
+        "finalizer must retain successful candidate images for dogfood and clean failed partial sets",
     )
     require(
         'openssl verify -CAfile "$CA_FILE" "$LEAF_FILE"'

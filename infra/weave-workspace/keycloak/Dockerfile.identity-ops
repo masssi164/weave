@@ -1,0 +1,12 @@
+ARG WEAVE_UBI9_BASE=registry.access.redhat.com/ubi9@sha256:2a6bd6971e6026177b2439655282660519198870e9063c4a03a208de88be2e9e
+ARG WEAVE_KEYCLOAK_BASE=quay.io/keycloak/keycloak@sha256:0f198be292568439d700cdbfb893e69a6009bb43a94a06a945b1d3d506c76b13
+FROM ${WEAVE_UBI9_BASE} AS python-root
+RUN mkdir -p /mnt/rootfs \
+    && dnf install -y --installroot /mnt/rootfs --releasever 9 --setopt install_weak_deps=false --setopt keepcache=false python3 \
+    && rm -rf /mnt/rootfs/var/cache/dnf
+
+FROM ${WEAVE_KEYCLOAK_BASE}
+COPY --from=python-root /mnt/rootfs /
+COPY --chown=1000:1000 identity_ops.py /opt/weave/identity_ops.py
+USER 1000:1000
+ENTRYPOINT ["python3", "/opt/weave/identity_ops.py"]

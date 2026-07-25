@@ -18,6 +18,9 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import com.massimotter.weave.backend.agentruntime.application.McpWorkloadAuthorizationService;
+import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
+import com.massimotter.weave.backend.agentruntime.domain.WeaverWorkloadPrincipal;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,7 +36,9 @@ import org.springframework.test.web.servlet.MockMvc;
 @SpringBootTest(properties = {
         "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.weave.test/realms/weave",
         "spring.security.oauth2.resourceserver.jwt.jwk-set-uri=https://auth.weave.test/realms/weave/protocol/openid-connect/certs",
-        "weave.mcp.exchange-client-secret-file=/tmp/weave-mcp-test-secret"
+        "weave.mcp.exchange-client-key-file=/tmp/weave-mcp-test-private-jwk.json",
+        "weave.mcp.application-core.enabled=false",
+        "management.endpoint.health.group.readiness.include=readinessState,mcpWorkloadBoundary"
 })
 @AutoConfigureMockMvc
 class SpringAiMcpTransportTest {
@@ -54,7 +59,10 @@ class SpringAiMcpTransportTest {
     private McpBackendTokenExchange exchange;
 
     @MockitoBean
-    private McpBackendContextResolver contexts;
+    private McpExchangedJwtDecoder exchangedJwtDecoder;
+
+    @MockitoBean
+    private McpWorkloadAuthorizationService authorization;
 
     private ExchangedAccessToken exchanged;
 
@@ -71,12 +79,16 @@ class SpringAiMcpTransportTest {
                 now,
                 now.plusSeconds(30));
         when(exchange.exchange(any(), anyString(), eq(DOMAIN_SCOPES))).thenReturn(exchanged);
-        when(contexts.resolve(any(), eq(exchanged))).thenReturn(new McpBackendContext(
-                "mcp-authz:" + "a".repeat(64),
-                "org:test",
-                "cell:test",
+        when(exchangedJwtDecoder.decode("backend-token")).thenReturn(exchangedToken(now));
+        when(authorization.authorize(any())).thenReturn(new WeaverWorkloadPrincipal(
+                "https://auth.weave.test/realms/weave",
+                SUBJECT,
                 CELL,
-                "sha256:" + "b".repeat(64),
+                EDGE,
+                "org:test",
+                "person:test",
+                new RuntimeMemberBinding("https://auth.weave.test/realms/weave", "member-subject"),
+                "cell:test",
                 "rp_test",
                 "sha256:" + "c".repeat(64),
                 "sha256:" + "d".repeat(64),
@@ -92,7 +104,7 @@ class SpringAiMcpTransportTest {
                 .andExpect(header().string(HttpHeaders.CACHE_CONTROL, containsString("no-store")))
                 .andExpect(jsonPath("$.resource", is(RESOURCE)))
                 .andExpect(jsonPath("$.authorization_servers[0]", is("https://auth.weave.test/realms/weave")))
-                .andExpect(jsonPath("$.scopes_supported[0]", is("mcp:tools")))
+                .andExpect(jsonPath("$.scopes_supported[0]", is("mcp.tools")))
                 .andExpect(jsonPath("$.scopes_supported[1]", is("calendar.read")));
     }
 
@@ -114,11 +126,20 @@ class SpringAiMcpTransportTest {
     }
 
     @Test
+    void workloadBearerWithWrongOrAdditionalAudienceCannotDiscoverTheCatalog() throws Exception {
+        mvc.perform(mcpInitialize("wrong-audience", true))
+                .andExpect(status().isForbidden());
+        mvc.perform(mcpInitialize("multiple-audiences", true))
+                .andExpect(status().isForbidden());
+        verify(exchange, never()).exchange(any(), anyString(), any());
+    }
+
+    @Test
     void insufficientToolScopesReceiveAnOAuthScopeChallenge() throws Exception {
         mvc.perform(mcpInitialize("insufficient", true))
                 .andExpect(status().isForbidden())
                 .andExpect(header().string(HttpHeaders.WWW_AUTHENTICATE, containsString("error=\"insufficient_scope\"")))
-                .andExpect(header().string(HttpHeaders.WWW_AUTHENTICATE, containsString("scope=\"mcp:tools calendar.read\"")));
+                .andExpect(header().string(HttpHeaders.WWW_AUTHENTICATE, containsString("scope=\"mcp.tools calendar.read\"")));
         verify(exchange, never()).exchange(any(), anyString(), any());
     }
 
@@ -138,7 +159,26 @@ class SpringAiMcpTransportTest {
                         is(Map.of())));
 
         verify(exchange).exchange(any(McpCellWorkloadPrincipal.class), eq("valid"), eq(DOMAIN_SCOPES));
-        verify(contexts).resolve(any(McpCellWorkloadPrincipal.class), eq(exchanged));
+        verify(exchangedJwtDecoder).decode("backend-token");
+        verify(authorization).authorize(any());
+    }
+
+    private static Jwt exchangedToken(Instant now) {
+        return Jwt.withTokenValue("backend-token")
+                .header("alg", "RS256")
+                .header("typ", "at+jwt")
+                .issuer("https://auth.weave.test/realms/weave")
+                .subject(SUBJECT)
+                .audience(List.of("https://api.weave.test/api"))
+                .claim("azp", EDGE)
+                .claim("client_id", EDGE)
+                .claim("scope", "calendar.read")
+                .claim("realm_access", Map.of())
+                .claim("resource_access", Map.of())
+                .jti("exchange-jti")
+                .issuedAt(now)
+                .expiresAt(now.plusSeconds(30))
+                .build();
     }
 
     private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder mcpInitialize(
@@ -157,14 +197,19 @@ class SpringAiMcpTransportTest {
         Instant now = Instant.now().minusSeconds(1);
         boolean human = "human".equals(tokenValue);
         boolean insufficient = "insufficient".equals(tokenValue);
+        boolean wrongAudience = "wrong-audience".equals(tokenValue);
+        boolean multipleAudiences = "multiple-audiences".equals(tokenValue);
         String clientId = human ? "weave-app" : CELL;
-        String scope = insufficient ? "mcp:tools" : "mcp:tools calendar.read";
+        String scope = insufficient ? "mcp.tools" : "mcp.tools calendar.read";
+        List<String> audience = human || wrongAudience
+                ? List.of("https://api.weave.test/api")
+                : multipleAudiences ? List.of(RESOURCE, EDGE) : List.of(RESOURCE);
         return Jwt.withTokenValue(tokenValue)
                 .header("alg", "RS256")
                 .header("typ", "at+jwt")
                 .issuer("https://auth.weave.test/realms/weave")
                 .subject(human ? "member-subject" : SUBJECT)
-                .audience(human ? List.of("https://api.weave.test/api") : List.of(RESOURCE, EDGE))
+                .audience(audience)
                 .claim("client_id", clientId)
                 .claim("azp", clientId)
                 .claim("scope", scope)

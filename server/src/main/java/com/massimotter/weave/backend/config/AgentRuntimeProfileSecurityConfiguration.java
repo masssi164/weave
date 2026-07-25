@@ -1,8 +1,8 @@
 package com.massimotter.weave.backend.config;
 
 import com.massimotter.weave.backend.agentruntime.adapter.AgentRuntimeWorkloadTokenPolicy;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -22,7 +22,9 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.util.StringUtils;
 
 @Configuration(proxyBeanMethods = false)
-@ConditionalOnProperty(name = "weave.agent-runtime.storage.mode", havingValue = "jdbc")
+@ConditionalOnExpression(
+        "'${weave.agent-runtime.workload-identity.enabled:false}' == 'true'"
+                + " && '${weave.agent-runtime.profile-signing.enabled:false}' == 'true'")
 public class AgentRuntimeProfileSecurityConfiguration {
     public static final String PROFILE_PATH = "/api/v1/agent-runtime/runtime-profiles/**";
     public static final String TRUST_PATH = "/api/v1/agent-runtime/trust/jwks.json";

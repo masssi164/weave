@@ -38,7 +38,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
-import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -402,7 +402,7 @@ class CalendarFacadeServiceTest {
             }
         };
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(
-                jwtWithoutCalendarEditor(), null));
+                memberJwtWithoutCalendarManagement(), null));
 
         assertThatThrownBy(() -> service(adapter, request -> {
                     contextChecked.set(true);
@@ -554,12 +554,12 @@ class CalendarFacadeServiceTest {
                 .subject("user-123")
                 .claim("preferred_username", "massimo")
                 .claim("weave_tenant_id", "tenant-default")
-                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("member"))))
-                .claim("groups", List.of("weave-calendar-editors"))
+                .claim("resource_access", Map.of("weave-app", Map.of("roles", List.of("admin"))))
+                .claim("groups", List.of())
                 .build();
     }
 
-    private Jwt jwtWithoutCalendarEditor() {
+    private Jwt memberJwtWithoutCalendarManagement() {
         return Jwt.withTokenValue("token")
                 .header("alg", "none")
                 .issuer("https://auth.weave.test/realms/weave")

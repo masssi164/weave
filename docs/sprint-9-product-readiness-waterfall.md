@@ -34,12 +34,12 @@ The `@weave-product-readiness-waterfall` scenario maps to this support-safe bund
 | --- | --- | --- |
 | Domain registry version | `canonical-domain-facade-v1` from `CanonicalDomainDefinition` and `CanonicalDomainFacadeServicesTest` | Registry read is proven through backend domain-facade contracts for files/documents, calendar/meetings, boards/tasks, and identity/admin policy. |
 | Migration contract version | `provider-switch-portability-v1` release evidence name covering preflight, portable export/import, cutover, rollback, and recovery | Apply remains a guarded decision; full automated cross-provider migration is not claimed. |
-| Keycloak dry-run sample | `AdminControlPlaneControllerTest.adminRealmDryRunIsBackendOwnedDeterministicAndSupportSafe` and `KeycloakRealmDryRunProviderTest.plansRealmImportWithoutEnablingDestructiveApply` | Desired-state dry-run is deterministic, support-safe, and does not enable destructive apply. |
-| Provider apply blocked state | `AdminControlPlaneControllerTest.operatorAndMemberCannotApplyIdentityRealmWhenPolicyForbidsProviderConfiguration` | Provider apply requires an authorized owner/admin role and is decision-only in this slice. |
+| Keycloak Identity Ops evidence | `identity_ops_contract_test.py`, the profile-specific `identityPlan*`/`identityVerify*` Gradle tasks, and `AdminControlPlaneControllerTest.identityDesiredStateRoutesAreRemovedInFavorOfProtectedIdentityOps` | Desired-state planning, apply, and verify have one reproducible owner outside the product server; Admin Health exposes only support-safe readiness. |
+| Provider replacement dry-run state | `AdminControlPlaneControllerTest.providerReplacementDryRunReturnsBackendOwnedPortableSwitchContract` | Product-provider migration planning remains a domain control-plane contract and is separate from Keycloak baseline reconciliation. |
 | Boards/OpenProject portability report | `DomainAdapterRegistryMapperTest.coreProductDomainsCarryExecutableAdapterFitContracts` and the Boards portability fragments in `ProviderCapabilityContracts` | Boards portability is dry-run/report evidence, not live data movement. |
 | Calls/MatrixRTC readiness artifact | `docs/meeting-architecture-decision.md` and `docs/roadmap-and-guarded-surfaces.md` | MatrixRTC Profile 0 is the member signaling target and LiveKit is only a replaceable SFU; join/start stays fail-closed until RTC authorization, TURN, media E2EE, support, and accessibility evidence passes. |
 | ARC workload identity and lifecycle proof | `AgentRuntimeAdminControllerTest`, `AgentRuntimeAdminServiceTest`, `McpWorkloadAuthorizationServiceTest`, and `SpringAiMcpTransportTest` | An entitled cell receives its own Keycloak workload client; MCP admits only the exchanged, cell-bound workload context; deletion revokes the client and runtime state without deleting provider data. |
-| Entitlement and empty-catalog fail-closed proof | `KeycloakRuntimeEntitlementAuthorityTest`, `McpWorkloadAuthorizationServiceTest`, and `SpringAiMcpTransportTest` | Keycloak is the entitlement authority. RuntimeProfile and OpenClaw approval data are not domain grants, and MCP domain catalogs remain empty until their owning domain action contracts are implemented. |
+| Entitlement and empty-catalog fail-closed proof | `KeycloakRuntimeIdentityAuthorityTest`, `McpWorkloadAuthorizationServiceTest`, and `SpringAiMcpTransportTest` | Keycloak Organizations are the entitlement authority. RuntimeProfile and OpenClaw approval data are not domain grants, and MCP domain catalogs remain empty until their owning domain action contracts are implemented. |
 | Weaver/OpenClaw upstream provenance | `weaver/UPSTREAM.md`, `weaver/weaver.fork-policy.json`, and `pnpm check:weaver-fork` on the pinned `v2026.7.1` baseline | The thin-fork source delta and upstream commit are reviewable. An executable release still requires immutable runtime image digest, SBOM, and scan artifacts; missing artifacts are blockers, never placeholder evidence. |
 
 ## Security report
@@ -83,7 +83,7 @@ Every Sprint 9 release bundle must include:
 
 - `domainRegistryVersion`: `canonical-domain-facade-v1`.
 - `migrationContractVersion`: `provider-switch-portability-v1`.
-- `keycloakDryRunSample`: support-safe desired-state dry-run reference only.
+- `keycloakIdentityOpsEvidence`: support-safe protected Identity Ops plan/apply/verify references only.
 - `callsMatrixRtcReadinessArtifact`: meeting architecture and guarded-surface evidence refs.
 - `arcWorkloadIdentityProof`: per-cell Keycloak provisioning, token exchange, MCP admission, backend context revalidation, and revocation evidence refs.
 - `runtimeProviderProvenanceRefs`: pinned OpenClaw tag/commit plus the checked thin-fork budget; an executable runtime release must also include non-placeholder image digest, SBOM, and scan refs.

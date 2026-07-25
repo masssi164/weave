@@ -5,7 +5,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -25,7 +25,11 @@ import org.springframework.security.web.access.expression.WebExpressionAuthoriza
 
 /** Exact interactive-admin OIDC boundary; this chain never grants MCP workload access. */
 @Configuration(proxyBeanMethods = false)
-@ConditionalOnProperty(name = "weave.agent-runtime.storage.mode", havingValue = "jdbc")
+@ConditionalOnExpression(
+        "'${weave.agent-runtime.workload-identity.enabled:false}' == 'true'"
+                + " && '${weave.agent-runtime.policy.enabled:false}' == 'true'"
+                + " && '${weave.agent-runtime.profile-signing.enabled:false}' == 'true'"
+                + " && '${weave.agent-runtime.state-store.enabled:false}' == 'true'")
 public class AgentRuntimeAdminSecurityConfiguration {
     public static final String ADMIN_PATH = "/api/admin/agent-runtimes/**";
     public static final String ADMIN_SCOPE = "agent-runtime.admin";
@@ -74,7 +78,7 @@ public class AgentRuntimeAdminSecurityConfiguration {
                 .build();
     }
 
-    private Collection<GrantedAuthority> authorities(Jwt jwt) {
+    Collection<GrantedAuthority> authorities(Jwt jwt) {
         LinkedHashSet<GrantedAuthority> authorities = new LinkedHashSet<>();
         Collection<GrantedAuthority> scopes = new JwtGrantedAuthoritiesConverter().convert(jwt);
         if (scopes != null) {
@@ -94,20 +98,6 @@ public class AgentRuntimeAdminSecurityConfiguration {
                     .map(String.class::cast)
                     .map(value -> value.trim().toUpperCase(Locale.ROOT))
                     .filter(value -> value.equals("OWNER") || value.equals("ADMIN"))
-                    .forEach(roles::add);
-        }
-        Object groups = jwt.getClaims().get("groups");
-        if (groups instanceof Collection<?> values) {
-            values.stream()
-                    .filter(String.class::isInstance)
-                    .map(String.class::cast)
-                    .map(String::trim)
-                    .map(value -> switch (value) {
-                        case "workspace-owners", "/workspace-owners" -> "OWNER";
-                        case "workspace-admins", "/workspace-admins" -> "ADMIN";
-                        default -> "";
-                    })
-                    .filter(value -> !value.isEmpty())
                     .forEach(roles::add);
         }
         return List.copyOf(roles);

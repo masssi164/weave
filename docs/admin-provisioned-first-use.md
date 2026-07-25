@@ -47,7 +47,7 @@ v0.1 keeps the compact role vocabulary below, while the strategy contract sharpe
 | `member` | Lands in the ready workspace after invite/activation. | No OIDC/provider/infra setup. Sees only complete capabilities or simple impact/fallback states such as “Calendar is unavailable; ask an admin.” |
 | `guest` | Lands only in explicitly permitted guest scopes. | No workspace setup, provider diagnostics, or member/admin affordances. |
 
-The current realm/role generator contract lives in `infra/KEYCLOAK_CONTRACT.md` and `infra/weave-workspace/02-keycloak-setup`. The protected persistent-member helper documented in `infra/docs/admin-user-activation.md` creates one normal dogfood member, can resend only while activation is pending, and rejects initial-password distribution or active-account mutation. Those operator paths are not normal-user help.
+The current realm/role desired-state contract lives in `infra/KEYCLOAK_CONTRACT.md` and the checked-in `infra/weave-workspace/keycloak/` baseline. The protected persistent-member helper documented in `infra/docs/admin-user-activation.md` creates one normal dogfood member, can resend only while activation is pending, and rejects initial-password distribution or active-account mutation. Human users are deliberately excluded from the fixed baseline, and those operator paths are not normal-user help.
 
 ## Capability state taxonomy
 
@@ -104,7 +104,7 @@ Members only see provider-neutral manifest states: `available`, `disabled_by_pol
 
 ## Agent Runtime Control policy
 
-Weaver/OpenClaw is an optional product runtime behind Agent Runtime Control. Keycloak group membership is the sole coarse entitlement source; collaboration domains still authorize every content operation under their own contracts.
+Weaver/OpenClaw is an optional product runtime behind Agent Runtime Control. Exact native Keycloak Organization membership `/capabilities/weaver` is the sole self-hosted coarse entitlement source; collaboration domains still authorize every content operation under their own contracts. The workload-only `weaver-runtime` realm role never entitles a human.
 
 Admins/operators control entitlement mapping and the provision/start/stop/suspend/reconcile/revoke/delete-state lifecycle. Normal members do not configure containers, OpenClaw plugins, OIDC clients, provider adapters, service endpoints, or secrets. Human roles do not imply `agent-runtime.entitled`.
 

@@ -14,14 +14,14 @@ OUTPUT_ROOT="${TMP_DIR}/output"
 NAMESPACE="weave-e2e-0123456789abcdef"
 NETWORK="${NAMESPACE}_network"
 ACTOR="fixture-backend-actor"
-CALENDAR_ID="weave-e2e-workspace"
+CALENDAR_ID="weave-workspace-${NAMESPACE}"
 STATE_FILE="${OUTPUT_ROOT}/${NAMESPACE}/calendar-outage-state.json"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
 fail() { printf '%s\n' "$*" >&2; exit 1; }
 sha256() { printf '%s' "$1" | shasum -a 256 | awk '{print $1}'; }
 
-[[ "$(weave_backend_actor_workspace_calendar_id '')" == personal ]] ||
+[[ "$(weave_backend_actor_workspace_calendar_id '')" == weave-workspace ]] ||
   fail "persistent workspace collection mapping changed"
 [[ "$(weave_backend_actor_workspace_calendar_id "${NAMESPACE}")" == "${CALENDAR_ID}" ]] ||
   fail "isolated workspace collection mapping is not dedicated"
@@ -35,18 +35,18 @@ printf '2\n' >"${MOCK_STATE}/files-status"
 
 startup_env="${TMP_DIR}/startup.env"
 cat >"${startup_env}" <<ENV
-export TF_VAR_isolated_e2e_enabled=true
-export TF_VAR_isolated_e2e_namespace=${NAMESPACE}
-export TF_VAR_docker_network_name=${NETWORK}
-export TF_VAR_create_test_user=false
-export TF_VAR_context_authorization_dogfood_principal_ref=''
+export WEAVE_ISOLATED_E2E_ENABLED=true
+export WEAVE_ISOLATED_E2E_NAMESPACE=${NAMESPACE}
+export WEAVE_DOCKER_NETWORK_NAME=${NETWORK}
+export WEAVE_CREATE_TEST_USER=false
+export WEAVE_CONTEXT_AUTHORIZATION_DOGFOOD_PRINCIPAL_REF=''
 ENV
 
 bootstrap_env="${TMP_DIR}/bootstrap.env"
 cat >"${bootstrap_env}" <<ENV
-export TF_VAR_backend_host_port=48084
-export TF_VAR_nextcloud_backend_actor_username=${ACTOR}
-export TF_VAR_nextcloud_backend_actor_token=fixture-secret-never-output
+export WEAVE_BACKEND_HOST_PORT=48084
+export WEAVE_NEXTCLOUD_BACKEND_ACTOR_USERNAME=${ACTOR}
+export WEAVE_NEXTCLOUD_BACKEND_ACTOR_TOKEN=fixture-secret-never-output
 ENV
 
 cat >"${MOCK_BIN}/docker" <<'MOCK'

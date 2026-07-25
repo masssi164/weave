@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.boards.openproject;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.massimotter.weave.backend.boards.port.BoardPage;
 import com.massimotter.weave.backend.boards.port.BoardQuery;
 import com.massimotter.weave.backend.boards.port.TaskQuery;

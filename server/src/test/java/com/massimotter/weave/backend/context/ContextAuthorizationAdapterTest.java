@@ -8,7 +8,7 @@ import com.massimotter.weave.backend.context.authz.ContextPermission;
 import com.massimotter.weave.backend.context.authz.ContextRelation;
 import com.massimotter.weave.backend.context.authz.ContextRelationTuple;
 import com.massimotter.weave.backend.context.authz.ContextRole;
-import com.massimotter.weave.backend.context.authz.InMemoryContextAuthorizationAdapter;
+import com.massimotter.weave.backend.context.authz.ConfiguredContextAuthorizationAdapter;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -25,7 +25,7 @@ class ContextAuthorizationAdapterTest {
 
     @Test
     void directMembershipMapsToDeterministicViewEditAdminPermissions() {
-        var adapter = new InMemoryContextAuthorizationAdapter(
+        var adapter = new ConfiguredContextAuthorizationAdapter(
                 List.of(
                         new ContextMembership(TENANT, WORKSPACE, "user:owner", ContextRole.OWNER, "keycloak"),
                         new ContextMembership(TENANT, WORKSPACE, "user:member", ContextRole.MEMBER, "keycloak"),
@@ -46,7 +46,7 @@ class ContextAuthorizationAdapterTest {
 
     @Test
     void tenantIsolationIgnoresMembershipsEdgesAndTuplesFromOtherTenants() {
-        var adapter = new InMemoryContextAuthorizationAdapter(
+        var adapter = new ConfiguredContextAuthorizationAdapter(
                 List.of(new ContextMembership(OTHER_TENANT, WORKSPACE, MASSIMO, ContextRole.OWNER, "keycloak")),
                 List.of(ContextRelationTuple.contextTuple(OTHER_TENANT, WORKSPACE, ContextRelation.CONTEXT_ADMIN, MASSIMO)),
                 List.of(new ContextGraphEdge(OTHER_TENANT, WORKSPACE, CHANNEL, ContextGraphRelation.CONTAINS)));
@@ -59,7 +59,7 @@ class ContextAuthorizationAdapterTest {
 
     @Test
     void membershipProjectsFromParentContextAcrossContainsEdges() {
-        var adapter = new InMemoryContextAuthorizationAdapter(
+        var adapter = new ConfiguredContextAuthorizationAdapter(
                 List.of(new ContextMembership(TENANT, WORKSPACE, MASSIMO, ContextRole.MEMBER, "keycloak")),
                 List.of(),
                 List.of(new ContextGraphEdge(TENANT, WORKSPACE, CHANNEL, ContextGraphRelation.CONTAINS)));
@@ -74,7 +74,7 @@ class ContextAuthorizationAdapterTest {
 
     @Test
     void contextRelationTuplesGrantKnownRelationsAndFailClosedForUnknownRelation() {
-        var adapter = new InMemoryContextAuthorizationAdapter(
+        var adapter = new ConfiguredContextAuthorizationAdapter(
                 List.of(),
                 List.of(
                         ContextRelationTuple.contextTuple(TENANT, WORKSPACE, ContextRelation.CONTEXT_VIEWER, "user:viewer"),
@@ -88,7 +88,7 @@ class ContextAuthorizationAdapterTest {
 
     @Test
     void rawProviderBindingTuplesDoNotBypassContextAuthorization() {
-        var adapter = new InMemoryContextAuthorizationAdapter(
+        var adapter = new ConfiguredContextAuthorizationAdapter(
                 List.of(),
                 List.of(new ContextRelationTuple(TENANT, "provider_binding:openproject:project-1", "context_admin", MASSIMO, null)),
                 List.of());

@@ -2,9 +2,10 @@ package com.massimotter.weave.backend.agentruntime.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.agentruntime.adapter.FileRuntimeWorkloadCredentialStore;
-import com.massimotter.weave.backend.agentruntime.adapter.JdbcRuntimeCellRepository;
+import com.massimotter.weave.backend.agentruntime.adapter.JpaRuntimeCellRepository;
+import com.massimotter.weave.backend.agentruntime.adapter.AgentRuntimeJpaTestFactory;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCell;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadBinding;
@@ -34,6 +35,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -56,7 +58,7 @@ class AgentRuntimeWorkloadReconciliationServiceTest {
     @TempDir
     Path temporary;
 
-    private JdbcRuntimeCellRepository cells;
+    private JpaRuntimeCellRepository cells;
     private FileRuntimeWorkloadCredentialStore credentials;
     private FakeIdentityBoundary identity;
     private AgentRuntimeWorkloadReconciliationService service;
@@ -67,11 +69,12 @@ class AgentRuntimeWorkloadReconciliationServiceTest {
     void setUp() {
         EmbeddedDatabase database = new EmbeddedDatabaseBuilder()
                 .setType(EmbeddedDatabaseType.H2)
-                .setName("arc-reconcile-" + UUID.randomUUID())
+                .setName("arc-reconcile-" + UUID.randomUUID() + ";MODE=PostgreSQL")
                 .build();
         new ResourceDatabasePopulator(new ClassPathResource(
-                "db/migration/V011__agent_runtime_control_foundation.sql")).execute(database);
-        cells = new JdbcRuntimeCellRepository(new JdbcTemplate(database));
+                "db/migration/V011__agent_runtime_control_foundation.sql"))
+                .execute(database);
+        cells = AgentRuntimeJpaTestFactory.create(database).cells();
         credentials = new FileRuntimeWorkloadCredentialStore(
                 temporary, new ObjectMapper(), Clock.fixed(NOW.minusSeconds(60), ZoneOffset.UTC));
         String owner = owner();
@@ -130,7 +133,7 @@ class AgentRuntimeWorkloadReconciliationServiceTest {
         int scans = identity.scans.get();
         assertThat(service.supportSafeSnapshot()).isEqualTo(report);
         assertThat(identity.scans).hasValue(scans);
-        String serialized = new ObjectMapper().findAndRegisterModules().writeValueAsString(report);
+        String serialized = tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build().writeValueAsString(report);
         assertThat(serialized)
                 .doesNotContain(ORGANIZATION, PERSON, CELL, CLIENT, SUBJECT, "provider-exact");
         assertThat(meters.get("weave.agent.runtime.workload.clients")
@@ -239,7 +242,7 @@ class AgentRuntimeWorkloadReconciliationServiceTest {
         assertThat(report.state()).isEqualTo(State.UNAVAILABLE);
         assertThat(report.blockers()).contains(Blocker.PROVIDER_UNAVAILABLE, Blocker.RECONCILE_FAILURE);
         assertThat(report.nextReconcileAt()).isEqualTo(NOW.plusSeconds(60));
-        String serialized = new ObjectMapper().findAndRegisterModules().writeValueAsString(report);
+        String serialized = tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build().writeValueAsString(report);
         assertThat(serialized).doesNotContain("private-provider-diagnostic");
         int scans = identity.scans.get();
         assertThat(service.supportSafeSnapshot()).isEqualTo(report);
@@ -337,6 +340,13 @@ class AgentRuntimeWorkloadReconciliationServiceTest {
 
         ClientObservation observation(String providerRef) {
             return clients.get(providerRef);
+        }
+
+        @Override
+        public void requireCurrentBinding(
+                com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadBindingAuthority.CurrentBindingCommand
+                        command) {
+            // Reconciliation tests do not perform MCP admission.
         }
 
         @Override

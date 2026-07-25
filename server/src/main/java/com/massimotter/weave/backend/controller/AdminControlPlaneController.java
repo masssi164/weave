@@ -1,9 +1,5 @@
 package com.massimotter.weave.backend.controller;
 
-import com.massimotter.weave.backend.identity.realm.IdentityRealmApplyReport;
-import com.massimotter.weave.backend.identity.realm.IdentityRealmApplyRequest;
-import com.massimotter.weave.backend.identity.realm.IdentityRealmDryRunReport;
-import com.massimotter.weave.backend.identity.realm.IdentityRealmDryRunRequest;
 import com.massimotter.weave.backend.model.ApiErrorResponse;
 import com.massimotter.weave.backend.model.admin.AdminAuditEventResponse;
 import com.massimotter.weave.backend.model.admin.AdminControlPlaneResponse;
@@ -102,28 +98,6 @@ public class AdminControlPlaneController {
             content = @Content(schema = @Schema(implementation = IdentityProviderReadinessResponse.class)))
     public IdentityProviderReadinessResponse identityProviderReadiness(@AuthenticationPrincipal Jwt jwt) {
         return adminControlPlaneService.identityProviderReadiness(jwt);
-    }
-
-    @PostMapping({"/api/admin/identity/realm/dry-run", "/api/v1/admin/identity/realm/dry-run"})
-    @PreAuthorize("hasAuthority('SCOPE_weave:workspace')")
-    @Operation(operationId = "dryRunIdentityRealm", summary = "Dry-run a support-safe identity realm desired state without provider mutation")
-    @ApiResponse(responseCode = "200", description = "Deterministic realm desired-state dry-run.",
-            content = @Content(schema = @Schema(implementation = IdentityRealmDryRunReport.class)))
-    public IdentityRealmDryRunReport dryRunIdentityRealm(
-            @Valid @RequestBody IdentityRealmDryRunRequest request,
-            @AuthenticationPrincipal Jwt jwt) {
-        return adminControlPlaneService.dryRunIdentityRealm(request, jwt);
-    }
-
-    @PostMapping({"/api/admin/identity/realm/apply", "/api/v1/admin/identity/realm/apply"})
-    @PreAuthorize("hasAuthority('SCOPE_weave:workspace')")
-    @Operation(operationId = "applyIdentityRealm", summary = "Guarded identity realm apply path with last-admin and rollback checks")
-    @ApiResponse(responseCode = "200", description = "Support-safe guarded apply decision.",
-            content = @Content(schema = @Schema(implementation = IdentityRealmApplyReport.class)))
-    public IdentityRealmApplyReport applyIdentityRealm(
-            @Valid @RequestBody IdentityRealmApplyRequest request,
-            @AuthenticationPrincipal Jwt jwt) {
-        return adminControlPlaneService.applyIdentityRealm(request, jwt);
     }
 
     @PostMapping({"/api/admin/organizations/bootstrap", "/api/v1/admin/organizations/bootstrap"})

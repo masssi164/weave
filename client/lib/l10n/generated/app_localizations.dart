@@ -104,24 +104,6 @@ abstract class AppLocalizations {
   /// **'Weave'**
   String get appTitle;
 
-  /// Main heading on the welcome screen
-  ///
-  /// In en, this message translates to:
-  /// **'Welcome to Weave'**
-  String get welcomeTitle;
-
-  /// Subtitle text below the welcome heading
-  ///
-  /// In en, this message translates to:
-  /// **'Join your organization through an invite or sign-in handoff. Provider setup stays with your admins.'**
-  String get welcomeSubtitle;
-
-  /// Label for the primary CTA on the welcome screen
-  ///
-  /// In en, this message translates to:
-  /// **'Join your organization'**
-  String get continueButton;
-
   /// Title for the setup flow screen
   ///
   /// In en, this message translates to:
@@ -6151,28 +6133,22 @@ abstract class AppLocalizations {
     String connectionState,
   );
 
-  /// Title for the normal member handoff-first setup screen
-  ///
-  /// In en, this message translates to:
-  /// **'Join from an invite or organization sign-in'**
-  String get setupMemberHandoffTitle;
-
   /// Description for the normal member handoff-first setup screen
   ///
   /// In en, this message translates to:
-  /// **'Open the invite link, /join link, or organization sign-in URL your admin sent you. Weave will prepare your workspace from the organization manifest without asking you to edit provider endpoints.'**
+  /// **'Paste your completion link or QR content, or enter your organization\'s Weave address. Every option checks the same organization details before sign-in.'**
   String get setupMemberHandoffDescription;
 
   /// Organization access input label
   ///
   /// In en, this message translates to:
-  /// **'Server URI, invitation link, or QR payload'**
+  /// **'Weave server address, completion link, or QR content'**
   String get setupOrganizationUriLabel;
 
   /// Organization access input help
   ///
   /// In en, this message translates to:
-  /// **'Paste the link from your email or QR code, or enter your organization\'s Weave address.'**
+  /// **'Use the link from your email or QR code, or enter the secure Weave address provided by your organization.'**
   String get setupOrganizationUriHelper;
 
   /// Invalid organization access input
@@ -6190,79 +6166,43 @@ abstract class AppLocalizations {
   /// Explains equivalent organization access methods
   ///
   /// In en, this message translates to:
-  /// **'Your invitation email and organization QR code contain the same Weave address. After it is verified, the next screen always offers Sign in.'**
+  /// **'Completion links, QR content, and the Weave server address use the same organization check. The next screen always asks you to sign in explicitly.'**
   String get setupOrganizationAccessHelp;
-
-  /// Primary action label for handoff-first setup
-  ///
-  /// In en, this message translates to:
-  /// **'I have an invite or sign-in link'**
-  String get setupMemberHandoffPrimaryAction;
-
-  /// Guidance for using a member handoff link
-  ///
-  /// In en, this message translates to:
-  /// **'Use the link from your browser, email, or chat. If it is missing or expired, ask your workspace admin for a new invite.'**
-  String get setupMemberHandoffPrimaryGuidance;
-
-  /// Heading for operator-only setup note
-  ///
-  /// In en, this message translates to:
-  /// **'Admins and operators'**
-  String get setupMemberHandoffAdminNoteTitle;
-
-  /// Note explaining raw provider setup boundary
-  ///
-  /// In en, this message translates to:
-  /// **'Raw provider endpoints are managed in admin or operator recovery, not during normal member onboarding.'**
-  String get setupMemberHandoffAdminNote;
-
-  /// Button that opens admin/operator raw endpoint recovery setup
-  ///
-  /// In en, this message translates to:
-  /// **'Open operator recovery setup'**
-  String get setupOpenOperatorRecoveryButton;
-
-  /// Title for the explicit operator recovery setup mode
-  ///
-  /// In en, this message translates to:
-  /// **'Operator recovery setup'**
-  String get setupOperatorRecoveryTitle;
 
   /// Loading title while consuming a member handoff
   ///
   /// In en, this message translates to:
-  /// **'Opening Weave invite'**
+  /// **'Checking organization access'**
   String get memberHandoffLoadingTitle;
 
   /// Loading hint while consuming a member handoff
   ///
   /// In en, this message translates to:
-  /// **'We are preparing sign-in for this workspace.'**
+  /// **'We are securely retrieving the sign-in details for this organization.'**
   String get memberHandoffLoadingHint;
 
   /// Success title shown after a member handoff is consumed and before sign-in
   ///
   /// In en, this message translates to:
-  /// **'Workspace ready for sign-in'**
+  /// **'Organization ready for sign-in'**
   String get memberHandoffReadyTitle;
 
   /// Success guidance shown after a member handoff is consumed and before sign-in
   ///
   /// In en, this message translates to:
-  /// **'Weave prepared {organization}/{workspace} from the invite. Continue with workspace sign-in next.'**
-  String memberHandoffReadyGuidance(String organization, String workspace);
+  /// **'Weave prepared organization access for {organization}. Sign in opens the secure system browser and returns you to Weave after authorization.'**
+  String memberHandoffReadyGuidance(String organization);
 
   /// Error title when member handoff consumption fails
   ///
   /// In en, this message translates to:
-  /// **'We could not open this Weave invite'**
+  /// **'We could not check organization access'**
   String get memberHandoffErrorTitle;
 
   /// Support-safe guidance when member handoff consumption fails
   ///
   /// In en, this message translates to:
-  /// **'The invite may be expired, incomplete, or not ready yet. Ask your workspace admin for a fresh invite or organization sign-in link.'**
+  /// **'The link or address may be incomplete, expired, or temporarily unavailable. Check it and try again, or ask your organization for a fresh completion link.'**
   String get memberHandoffErrorGuidance;
 
   /// Support-safe guidance when member handoff consumption fails because platform config TLS trust is missing
@@ -6270,6 +6210,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Weave could not reach the workspace start configuration over trusted TLS. For local dogfood, install and fully trust the Weave Local Development CA on this iPhone, or ask your admin for a publicly trusted organization sign-in link.'**
   String get memberHandoffTlsErrorGuidance;
+
+  /// Support-safe retry guidance after organization sign-in fails
+  ///
+  /// In en, this message translates to:
+  /// **'Your organization details are saved. Follow the guidance above, then try Sign in again.'**
+  String get memberHandoffSignInRetryGuidance;
 
   /// Support-safe handoff failure code shown with the member handoff error
   ///

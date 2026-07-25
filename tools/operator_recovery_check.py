@@ -22,14 +22,14 @@ LIMITATIONS = ROOT / "docs" / "operator-recovery-known-limitations.md"
 EVIDENCE_REPORT = ROOT / "docs" / "evidence" / "operator-recovery-report.md"
 
 REQUIRED_BACKUP_ARTIFACTS = {
-    "MANIFEST.txt",
-    "postgres.sql",
-    "nextcloud-data.tgz",
-    "matrix-synapse-data.tgz",
-    "caddy-data.tgz",
-    "caddy-config.tgz",
-    "keycloak-data.tgz",
-    "generated-config-secrets.tgz",
+    "postgres.sql": "postgres-consistency-dump",
+    "nextcloud-data.tgz": "files-calendar-provider-data",
+    "synapse-data.tgz": "matrix-media-and-local-state",
+    "caddy-data.tgz": "gateway-runtime-state",
+    "caddy-config.tgz": "gateway-config-state",
+    "keycloak-data.tgz": "keycloak-runtime-state",
+    "matrix-appservice.tgz": "matrix-appservice-runtime",
+    "private-config-secrets.tgz": "private-config-secretrefs",
 }
 REQUIRED_REDACTION_CHECKS = {
     "tokens_and_authorization_headers",
@@ -102,15 +102,20 @@ def sha256_file(path: Path) -> str:
 
 
 def validate_backup_manifest(manifest: dict[str, Any], *, fixture: bool) -> None:
-    if manifest.get("artifactKind") != "weave-backup-manifest-v1":
-        fail("BackupManifest kind mismatch")
-    if manifest.get("issue") != 639:
-        fail("BackupManifest must link issue #639")
-    scope = manifest.get("scope")
-    if not isinstance(scope, dict):
-        fail("BackupManifest must include scope")
-    if scope.get("artifactsContainSecretsOrMemberData") is not True:
+    if manifest.get("schemaVersion") != "weave.compose-private-backup.v2":
+        fail("BackupManifest schema mismatch")
+    if manifest.get("supportSafe") is not False or manifest.get("containsSecretsOrMemberData") is not True:
         fail("BackupManifest must declare backup artifacts private")
+    if not isinstance(manifest.get("candidateCommit"), str) or not re.fullmatch(r"[0-9a-f]{40}", manifest["candidateCommit"]):
+        fail("BackupManifest must bind an exact candidate commit")
+    if manifest.get("profile") not in {"test", "prod"}:
+        fail("BackupManifest profile must be test or prod")
+    if not isinstance(manifest.get("composeProject"), str) or not re.fullmatch(r"[a-z0-9][a-z0-9_-]{1,62}", manifest["composeProject"]):
+        fail("BackupManifest Compose project is invalid")
+    if not isinstance(manifest.get("databaseFingerprint"), str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", manifest["databaseFingerprint"]):
+        fail("BackupManifest database fingerprint is invalid")
+    if not isinstance(manifest.get("quiescedServices"), list) or not isinstance(manifest.get("runtimeInventory"), list):
+        fail("BackupManifest runtime consistency boundary is missing")
     artifacts = manifest.get("artifacts")
     if not isinstance(artifacts, list):
         fail("BackupManifest artifacts must be a list")
@@ -119,19 +124,20 @@ def validate_backup_manifest(manifest: dict[str, Any], *, fixture: bool) -> None
         if not isinstance(item, dict):
             fail("BackupManifest artifact entries must be objects")
         path = item.get("path")
-        if not isinstance(path, str) or not path:
+        if not isinstance(path, str) or path not in REQUIRED_BACKUP_ARTIFACTS:
             fail("BackupManifest artifact entry missing path")
         if path in by_path:
             fail(f"duplicate backup artifact {path}")
         by_path[path] = item
+        if item.get("kind") != REQUIRED_BACKUP_ARTIFACTS[path]:
+            fail(f"backup artifact {path} has the wrong canonical kind")
         checksum = item.get("sha256")
         if not isinstance(checksum, str) or not re.fullmatch(r"[0-9a-f]{64}", checksum):
             fail(f"backup artifact {path} missing sha256 checksum")
         if not isinstance(item.get("bytes"), int) or item["bytes"] <= 0:
             fail(f"backup artifact {path} must include positive bytes")
-    missing = REQUIRED_BACKUP_ARTIFACTS - set(by_path)
-    if missing:
-        fail(f"BackupManifest missing required artifacts: {', '.join(sorted(missing))}")
+    if set(by_path) != set(REQUIRED_BACKUP_ARTIFACTS):
+        fail("BackupManifest artifact inventory does not match the canonical Compose v2 set")
     if not fixture:
         # In a real evidence directory the private BackupManifest checksums and sizes
         # must match the backup artifacts next to the manifest.
@@ -151,18 +157,24 @@ def validate_backup_manifest(manifest: dict[str, Any], *, fixture: bool) -> None
 
 
 def validate_restore_receipt(receipt: dict[str, Any], *, require_live: bool) -> None:
-    if receipt.get("artifactKind") != "weave-restore-receipt-v1":
-        fail("RestoreReceipt kind mismatch")
-    if receipt.get("issue") != 639:
-        fail("RestoreReceipt must link issue #639")
+    if receipt.get("schemaVersion") != "weave.compose-restore-receipt.v2":
+        fail("RestoreReceipt schema mismatch")
     if receipt.get("supportSafe") is not True:
         fail("RestoreReceipt must be support-safe")
+    binding = receipt.get("backupBinding")
+    if not isinstance(binding, dict):
+        fail("RestoreReceipt must bind the private backup without exposing its path")
+    for key in ("manifestSha256", "backupIdSha256"):
+        if not isinstance(binding.get(key), str) or not re.fullmatch(r"[0-9a-f]{64}", binding[key]):
+            fail(f"RestoreReceipt backup binding has invalid {key}")
+    if not isinstance(binding.get("candidateCommit"), str) or not re.fullmatch(r"[0-9a-f]{40}", binding["candidateCommit"]):
+        fail("RestoreReceipt backup binding has invalid candidateCommit")
     assert_support_safe(receipt, "RestoreReceipt")
     checks = receipt.get("checks")
     if not isinstance(checks, list) or not checks:
         fail("RestoreReceipt must list checks")
     check_map = {item.get("name"): item.get("status") for item in checks if isinstance(item, dict)}
-    for name in ["backup_artifacts_present", "post_restore_operator_check", "domain_data_recovered"]:
+    for name in ["backup_integrity_verified", "post_restore_operator_check", "domain_data_recovered"]:
         if name not in check_map:
             fail(f"RestoreReceipt missing check {name}")
     if require_live:
@@ -174,7 +186,7 @@ def validate_restore_receipt(receipt: dict[str, Any], *, require_live: bool) -> 
             fail("live release evidence must prove restored domain data")
         if receipt.get("releaseEligible") is not True:
             fail("live release evidence must be releaseEligible=true")
-        if any(check_map.get(name) != "passed" for name in ["backup_artifacts_present", "post_restore_operator_check", "domain_data_recovered"]):
+        if any(check_map.get(name) != "passed" for name in ["backup_integrity_verified", "post_restore_operator_check", "domain_data_recovered"]):
             fail("live release evidence requires all restore checks passed")
 
 
@@ -283,7 +295,7 @@ def validate_evidence_dir(path: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--evidence-dir", type=Path, help="Validate a real operator evidence directory: private BackupManifest.json plus private backup artifacts, support-safe RestoreReceipt.json, and support-safe support-redaction-report.json.")
+    parser.add_argument("--evidence-dir", type=Path, help="Validate a real Compose v2 operator evidence directory: private BackupManifest.json plus private backup artifacts, support-safe RestoreReceipt.json, and support-safe support-redaction-report.json.")
     args = parser.parse_args()
     if args.evidence_dir:
         validate_evidence_dir(args.evidence_dir)

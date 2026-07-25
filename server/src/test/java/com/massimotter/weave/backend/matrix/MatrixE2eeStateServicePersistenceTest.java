@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.matrix;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.chat.domain.ChatActorRef;
 import java.util.List;
 import java.util.Map;
@@ -15,7 +15,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class MatrixE2eeStateServicePersistenceTest {
 
-    private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+    private final ObjectMapper objectMapper = tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build();
 
     @Test
     void publicKeysToDeviceEventsAndOpaqueBackupsSurviveServiceRestart() {
@@ -137,9 +137,12 @@ class MatrixE2eeStateServicePersistenceTest {
     }
 
     private MatrixE2eeSnapshotStore snapshotStore(JdbcTemplate jdbcTemplate) {
-        StaticListableBeanFactory beans = new StaticListableBeanFactory();
-        beans.addBean("weaveJdbcTemplate", jdbcTemplate);
-        return new MatrixE2eeSnapshotStore(beans.getBeanProvider(JdbcTemplate.class));
+        MatrixE2eeSnapshotJpaRepository springData =
+                com.massimotter.weave.backend.testing.JpaTestDatabase.repository(
+                        jdbcTemplate.getDataSource(),
+                        MatrixE2eeSnapshotJpaRepository.class);
+        return new MatrixE2eeSnapshotStore(
+                springData);
     }
 
     private MatrixFacadeClientStateService.MatrixIdentity identity(String deviceId) {

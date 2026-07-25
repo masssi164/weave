@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.agentruntime.adapter.AgentRuntimeWorkloadTokenPolicy;
 import com.massimotter.weave.backend.agentruntime.adapter.Ed25519JcsRuntimeProfileVerifier;
 import com.massimotter.weave.backend.agentruntime.adapter.Ed25519RuntimeProfileTrustBundlePublisher;
@@ -12,13 +12,15 @@ import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileTrustBundle
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileTrustKeyProvider;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileVerifier;
 import java.time.Clock;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration(proxyBeanMethods = false)
-@ConditionalOnProperty(name = "weave.agent-runtime.storage.mode", havingValue = "jdbc")
+@ConditionalOnExpression(
+        "'${weave.agent-runtime.workload-identity.enabled:false}' == 'true'"
+                + " && '${weave.agent-runtime.profile-signing.enabled:false}' == 'true'")
 public class AgentRuntimeProfileConfiguration {
 
     @Bean

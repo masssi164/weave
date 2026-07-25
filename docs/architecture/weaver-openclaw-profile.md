@@ -63,19 +63,23 @@ separated:
   channel/plugin state, Matrix device/crypto state, and recovery journal generations;
 - Secret Manager/KMS owns credentials, recovery material, and encryption keys.
 
-The dogfood RuntimeStateStore encrypts each generation with AES-256-GCM, wraps the random data key
-with a separately mounted AES-KWP key, chunks ciphertext in PostgreSQL, and advances state through
-compare-and-swap. The file-key adapter remains Guarded; production needs an external KMS/secret
-manager plus cross-node reconstruction, corruption, rollback, and migration evidence.
+The target RuntimeStateStore encrypts each generation with AES-256-GCM, wraps the random data key,
+writes immutable ciphertext to S3/MinIO, keeps only authority metadata in PostgreSQL, and advances
+state through compare-and-swap. The S3 adapter and mounted SecretRef credential/key boundary are
+implemented but remain `Guarded`: dogfood/main activation fails closed until a durable cross-store
+commit outbox/reconciler prevents orphaned objects or metadata that points at a deleted object.
+Promotion additionally requires OpenBao/KMS, completed PostgreSQL-blob migration, cross-node
+reconstruction, corruption, rollback, retention, and deletion evidence.
 
 ## Workload and MCP path
 
 Each cell receives only its dedicated `weaver-cell-{cellId}` private-key credential reference. A
 profile-read token has the exact ARC audience and sole `agent-runtime.profile.read` scope. An MCP
-token has the exact MCP/requester audience set, `mcp:tools`, and only the profile's current domain
+token has the sole exact MCP resource audience, `mcp.tools`, and only the profile's current domain
 scopes. Both are RFC 9068 access tokens; human and generic service-account tokens are rejected.
 
-The MCP edge negotiates the MCP Client Credentials extension, validates the bound workload, uses
+The MCP edge negotiates the MCP Client Credentials extension, validates the bound workload,
+authenticates its own confidential client with a mounted private JWK and `private_key_jwt`, uses
 Keycloak Standard Token Exchange V2 to mint a reduced exact-audience backend token, and resolves
 current ARC context before Spring AI protocol dispatch. It exchanges rather than relays the bearer.
 The domain catalogs remain empty until discovery and approval/action-evidence gates are complete.

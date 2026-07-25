@@ -3,19 +3,17 @@ package com.massimotter.weave.backend.controller;
 import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.model.PlatformStatusResponse;
 import com.massimotter.weave.backend.service.LocalDependencyReadinessService;
+import com.massimotter.weave.backend.service.PersistenceHealthProbe;
 import com.massimotter.weave.backend.service.PlatformContractService;
 import com.massimotter.weave.backend.service.ProviderCapabilityHealthService;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
-import org.springframework.dao.DataAccessResourceFailureException;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.core.StatementCallback;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -37,16 +35,16 @@ class HealthControllerPersistenceTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockBean
+    @MockitoBean
     private PlatformContractService platformContractService;
 
-    @MockBean
-    private JdbcTemplate jdbcTemplate;
+    @MockitoBean
+    private PersistenceHealthProbe persistenceHealth;
 
-    @MockBean
+    @MockitoBean
     private ProviderCapabilityHealthService providerCapabilityHealthService;
 
-    @MockBean
+    @MockitoBean
     private JwtDecoder jwtDecoder;
 
     @BeforeEach
@@ -55,9 +53,8 @@ class HealthControllerPersistenceTest {
     }
 
     @Test
-    @SuppressWarnings("unchecked")
-    void reportsReadyWhenConfiguredJdbcPersistenceIsReachable() throws Exception {
-        when(jdbcTemplate.execute(any(StatementCallback.class))).thenReturn(1);
+    void reportsReadyWhenConfiguredJpaPersistenceIsReachable() throws Exception {
+        when(persistenceHealth.ready()).thenReturn(true);
 
         mockMvc.perform(get("/api/health/ready").header("X-Request-Id", "jdbc-ready"))
                 .andExpect(status().isOk())
@@ -71,10 +68,9 @@ class HealthControllerPersistenceTest {
     }
 
     @Test
-    @SuppressWarnings("unchecked")
     void reportsServiceUnavailableWithSupportSafePersistenceFailure() throws Exception {
-        when(jdbcTemplate.execute(any(StatementCallback.class)))
-                .thenThrow(new DataAccessResourceFailureException(
+        when(persistenceHealth.ready())
+                .thenThrow(new IllegalStateException(
                         "jdbc:postgresql://db.internal/weave?password=do-not-expose"));
 
         mockMvc.perform(get("/api/health/ready").header("X-Request-Id", "jdbc-failed"))
@@ -99,7 +95,7 @@ class HealthControllerPersistenceTest {
                 .andExpect(jsonPath("$.requestId").value("live-process-only"))
                 .andExpect(jsonPath("$.checks[0].key").value("backend"));
 
-        verifyNoInteractions(platformContractService, jdbcTemplate, providerCapabilityHealthService);
+        verifyNoInteractions(platformContractService, persistenceHealth, providerCapabilityHealthService);
     }
 
     private PlatformStatusResponse readyStatus(String requestId) {
