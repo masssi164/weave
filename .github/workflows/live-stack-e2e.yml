@@ -58,10 +58,17 @@ jobs:
       - name: Fail closed without run-scoped runtime approval
         env:
           ENABLE_RUN_SCOPED_E2E: ${{ github.event_name != 'workflow_dispatch' || inputs.enable_run_scoped_e2e }}
+          REQUESTED_SOURCE_REF: ${{ github.ref_name }}
         run: |
           set -euo pipefail
           if [[ "$ENABLE_RUN_SCOPED_E2E" != "true" ]]; then
             echo "::error::Live Stack E2E requires explicit approval for run-scoped containers, networks, volumes, state, ports, users, Simulator, and cleanup." >&2
+            exit 1
+          fi
+          if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch && \
+                "$REQUESTED_SOURCE_REF" != dev && \
+                "$REQUESTED_SOURCE_REF" != dogfood ]]; then
+            echo "::error::Manual Live Stack E2E requires the protected dev or dogfood ref; feature-branch trees are PR evidence, not release-lane candidates." >&2
             exit 1
           fi
 

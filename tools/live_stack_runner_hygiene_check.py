@@ -102,6 +102,14 @@ def main() -> int:
         "destructive live-stack E2E must fail closed on the dedicated Mac runner",
     )
     require(
+        "REQUESTED_SOURCE_REF: ${{ github.ref_name }}" in workflow
+        and '"$REQUESTED_SOURCE_REF" != dev' in workflow
+        and '"$REQUESTED_SOURCE_REF" != dogfood' in workflow
+        and "feature-branch trees are PR evidence, not release-lane candidates"
+        in workflow,
+        "manual feature-branch dispatch must fail before it consumes the dedicated Mac runner",
+    )
+    require(
         "EXPECTED_RUNNER_NAME: weave-live-mac-mini" in workflow
         and '"${RUNNER_NAME:-}" != "${EXPECTED_RUNNER_NAME}"' in workflow,
         "live-stack E2E must explicitly require the single configured Mac runner",
