@@ -80,20 +80,29 @@ a Weave CalDAV/iCalendar projection; Chat may use Matrix for transport and
 federation. These projections must use Weave facades and never become provider
 pass-throughs.
 
-## Keycloak desired-state dry-run direction
+## Keycloak Identity Ops direction
 
-Sprint 8 identity work uses Keycloak as the concrete desired-state dry-run profile. The dry-run must compare a desired realm/client/role/group mapping with the current support-safe snapshot and report planned create/update/delete/no-op actions without mutating a live realm.
+Keycloak baseline reconciliation has one writer: the profile-specific Identity Ops
+tasks owned by `infra/weave-workspace`. Identity Ops compares the checked-in
+`weave.keycloak-desired-state/v2` contract with the current support-safe provider
+snapshot and exposes separate `plan`, `apply`, and `verify` operations. The product
+server does not define or persist a second realm model and exposes no realm
+desired-state mutation route.
 
-Minimum dry-run evidence:
+Minimum Identity Ops evidence:
 
 - realm/client presence and redirect/origin policy status;
-- role/group mapping to Weave capability profiles;
-- last-admin and lockout protection;
-- immutable subject strategy and email-rename handling;
-- raw secret and provider-payload redaction;
-- audit event names for dry-run and any future guarded apply.
+- exact native Organization role groups `/owners`, `/admins`, `/members`, and
+  `/guests`;
+- the role-free `/capabilities` parent and exact `/capabilities/weaver` human
+  entitlement;
+- workload-only role and service-account boundaries;
+- an empty second plan after apply and an independently reproducible verify;
+- raw secret and provider-payload redaction.
 
-Apply remains out of scope until readiness, approval, rollback, and audit gates exist.
+Ordinary apply converges only the declared managed surface. Destructive recovery,
+implicit secret rotation, and a parallel server-side executor are not compatibility
+paths.
 
 ## Sprint 12 provider portability schema v2
 

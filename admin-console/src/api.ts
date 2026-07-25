@@ -1025,7 +1025,7 @@ function normalizeReleaseClaimControl(
     candidateTag: claim?.candidateTag ?? "candidate-not-selected",
     pinnedSpecCorpusRef:
       claim?.pinnedSpecCorpusRef ??
-      "specs/weave-specs.lock.json#24c746c674da7d98e5c6abc1f1abac033a8774f2",
+      "specs/weave-specs.lock.json#cffee4494b63b42b448642d4b2a6e91f5aa94af9",
     releaseNotesSource:
       claim?.releaseNotesSource ??
       "release notes must be generated from merged PR metadata",
@@ -1789,7 +1789,7 @@ export const sampleControlPlane: ControlPlaneResponse = {
       {
         requiredNextAction:
           "Keep identity mapping evidence current before any provider switch.",
-        evidenceRefs: ["identity-realm-dry-run", "effective-policy-simulation"],
+        evidenceRefs: ["keycloak-identity-ops-plan", "keycloak-identity-ops-verify", "effective-policy-simulation"],
         applyGates: allApplyGatesPassed,
         lastCheckedAt: "2026-05-24T18:00:00Z",
         secretRefs: ["secretref://weave/provider/keycloak-realm/client-secret"],
@@ -1939,7 +1939,7 @@ export const sampleControlPlane: ControlPlaneResponse = {
       claimState: "admin-action-required",
       candidateTag: "v0.1.0-rc.next",
       pinnedSpecCorpusRef:
-        "specs/weave-specs.lock.json#24c746c674da7d98e5c6abc1f1abac033a8774f2",
+        "specs/weave-specs.lock.json#cffee4494b63b42b448642d4b2a6e91f5aa94af9",
       releaseNotesSource: "merged PR release-notes labels and generated draft",
       supportBundleRef: "support-bundle://admin-health/go-live-redacted-sample",
       accessibilityEvidenceRef:
@@ -1975,12 +1975,12 @@ export const sampleControlPlane: ControlPlaneResponse = {
         label: "Realm import readiness",
         state: "ready",
         summary:
-          "Backend dry-run evidence confirms realm desired-state readiness without exposing realm internals.",
+          "Identity Ops plan and verification evidence confirms realm readiness without exposing realm internals.",
         memberImpact: "ready",
         remediation:
-          "Run the realm dry-run again before apply if drift is suspected.",
-        nextActions: ["Run /api/admin/identity/realm/dry-run before apply"],
-        evidenceRefs: ["identity-realm-dry-run"],
+          "Run the profile-specific Identity Ops plan and verify tasks if drift is suspected.",
+        nextActions: ["Run Identity Ops plan and verify before apply"],
+        evidenceRefs: ["keycloak-identity-ops-plan", "keycloak-identity-ops-verify"],
       },
       {
         key: "oidc-client-readiness",
@@ -1990,7 +1990,7 @@ export const sampleControlPlane: ControlPlaneResponse = {
           "OIDC client readiness is summarized by backend contracts; client identifiers are redacted from support views.",
         memberImpact: "ready",
         remediation: "Keep client secrets as SecretRef handles only.",
-        nextActions: ["Validate client scopes through backend dry-run output"],
+        nextActions: ["Validate client scopes through Identity Ops verification evidence"],
         evidenceRefs: ["identity-client-contract"],
       },
       {

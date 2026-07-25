@@ -25,7 +25,7 @@ This replaces ambiguous "mail catcher/mailkit-style" wording with one concrete l
 
 ## Persistent human dogfood member
 
-The iPhone tester uses one persistent Keycloak organization member with the `member` role. This identity is distinct from disposable automation principals and is not part of the fixed Keycloak desired-state baseline. Protected dogfood automation may create it once, report its support-safe state, or resend activation while it is pending. Once active, deployment only verifies its immutable subject, organization membership, role, and expected capability groups; it never re-invites, recreates, or rewrites the account.
+The iPhone tester uses one persistent Keycloak organization member in exactly `/members` and `/capabilities/weaver`. The role group maps the `weave-app` `member` role; the Weaver capability group maps no role. This identity is distinct from disposable automation principals and is not part of the fixed Keycloak desired-state baseline. Protected dogfood automation may create it once, report its support-safe state, or resend activation while it is pending. Once active, deployment only verifies its immutable subject and native organization-group memberships; it never re-invites, recreates, rewrites the account, reads realm user groups, or assigns direct user roles.
 
 The tester does not need Admin Console access. The supported remote path is the protected GitHub dogfood-member workflow for initial ensure/status/pending activation resend, Safari at `https://mail.weave.test:44443`, and normal OIDC sign-in in Weave. Active-account password or passkey recovery stays in Keycloak.
 

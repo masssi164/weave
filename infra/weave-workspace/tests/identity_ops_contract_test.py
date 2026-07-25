@@ -164,11 +164,13 @@ def main() -> None:
     assert '"organizationInvitationLifecycle"' not in renderer
     assert 'desired.get("clientPolicies") != []' in renderer
     assert 'desired.get("clientPolicies") != []' in source
+    assert 'choices=("plan", "apply", "verify")' in source
+    assert '"verification found a non-empty plan"' in source
     generator = (ROOT / "scripts/create_test_users_file.py").read_text(encoding="utf-8")
     assert "secrets.token_urlsafe(32)" in generator
     assert "weave-test-member" in generator and "weave-dev-member" not in generator
     assert '"roles": ["member"]' in generator
-    assert '"groups"' not in generator
+    assert '"groups": ["/capabilities/weaver"]' in generator
     with tempfile.TemporaryDirectory() as temporary:
         fixture = Path(temporary) / "test-users.json"
         command = ["python3", str(ROOT / "scripts/create_test_users_file.py"), "--output", str(fixture)]

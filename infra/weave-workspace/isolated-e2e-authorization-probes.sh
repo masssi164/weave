@@ -20,7 +20,8 @@ ADMIN_ACCESS_TOKEN=""
 KEYCLOAK_API_BASE=""
 AUTHOR_SUBJECT=""
 COLLABORATOR_SUBJECT=""
-CALENDAR_EDITOR_GROUP_ID=""
+ORGANIZATION_ID=""
+ADMIN_GROUP_ID=""
 WEAVE_APP_CLIENT_ID=""
 WORKSPACE_RESOURCE_AUDIENCE=""
 GROUP_RESTORE_PENDING="false"
@@ -134,16 +135,18 @@ resolve_marked_subject() {
 
 user_has_group() {
   local subject="$1" group_id="$2" groups
-  groups="$(request GET "${KEYCLOAK_API_BASE}/users/${subject}/groups?briefRepresentation=false&max=1000" "${ADMIN_ACCESS_TOKEN}")"
+  groups="$(request GET "${KEYCLOAK_API_BASE}/organizations/${ORGANIZATION_ID}/members/${subject}/groups" "${ADMIN_ACCESS_TOKEN}")"
   jq -e --arg id "${group_id}" 'any(.[]; .id == $id)' <<<"${groups}" >/dev/null
 }
 
-resolve_calendar_editor_group() {
-  local groups group_id
-  groups="$(request GET "${KEYCLOAK_API_BASE}/groups?search=$(encode weave-calendar-editors)&exact=true&briefRepresentation=false" "${ADMIN_ACCESS_TOKEN}")"
-  group_id="$(jq -r '[.[] | select(.path == "/weave-calendar-editors") | .id] | if length == 1 then .[0] else empty end' <<<"${groups}")"
-  [[ -n "${group_id}" ]] || fail "calendar editor capability group is unavailable"
-  printf '%s' "${group_id}"
+resolve_organization_id() {
+  local organizations organization_id
+  organizations="$(request GET "${KEYCLOAK_API_BASE}/organizations?search=$(encode "${REALM}")&exact=true" "${ADMIN_ACCESS_TOKEN}")"
+  organization_id="$(jq -r --arg value "${REALM}" \
+    '[.[] | select(.name == $value or .alias == $value)] | if length == 1 then .[0].id else empty end' \
+    <<<"${organizations}")"
+  [[ -n "${organization_id}" ]] || fail "tenant organization is unavailable or ambiguous"
+  printf '%s' "${organization_id}"
 }
 
 resolve_weave_app_client() {
@@ -180,10 +183,10 @@ resolve_workspace_resource_audience() {
 
 restore_group_now() {
   [[ "${GROUP_RESTORE_PENDING}" == "true" ]] || { GROUP_RESTORED="true"; return; }
-  request PUT "${KEYCLOAK_API_BASE}/users/${COLLABORATOR_SUBJECT}/groups/${CALENDAR_EDITOR_GROUP_ID}" \
+  request PUT "${KEYCLOAK_API_BASE}/organizations/${ORGANIZATION_ID}/groups/${ADMIN_GROUP_ID}/members/${COLLABORATOR_SUBJECT}" \
     "${ADMIN_ACCESS_TOKEN}" >/dev/null
-  user_has_group "${COLLABORATOR_SUBJECT}" "${CALENDAR_EDITOR_GROUP_ID}" ||
-    fail "calendar editor membership restoration did not verify"
+  user_has_group "${COLLABORATOR_SUBJECT}" "${ADMIN_GROUP_ID}" ||
+    fail "native admin role-group restoration did not verify"
   GROUP_RESTORE_PENDING="false"
   GROUP_RESTORED="true"
 }
@@ -217,7 +220,7 @@ restore_pending_state() {
   local failed=0 refreshed="" current=""
   set +e
   if [[ "${GROUP_RESTORE_PENDING}" == "true" ]]; then
-    request PUT "${KEYCLOAK_API_BASE}/users/${COLLABORATOR_SUBJECT}/groups/${CALENDAR_EDITOR_GROUP_ID}" \
+    request PUT "${KEYCLOAK_API_BASE}/organizations/${ORGANIZATION_ID}/groups/${ADMIN_GROUP_ID}/members/${COLLABORATOR_SUBJECT}" \
       "${ADMIN_ACCESS_TOKEN}" >/dev/null || failed=1
   fi
   if [[ "${REALM_RESTORE_PENDING}" == "true" && -f "${PRIVATE_STATE_DIR}/realm-original.json" ]]; then
@@ -234,7 +237,7 @@ restore_pending_state() {
       ADMIN_ACCESS_TOKEN="${refreshed}"
       failed=0
       [[ "${GROUP_RESTORE_PENDING}" != "true" ]] ||
-        request PUT "${KEYCLOAK_API_BASE}/users/${COLLABORATOR_SUBJECT}/groups/${CALENDAR_EDITOR_GROUP_ID}" \
+        request PUT "${KEYCLOAK_API_BASE}/organizations/${ORGANIZATION_ID}/groups/${ADMIN_GROUP_ID}/members/${COLLABORATOR_SUBJECT}" \
           "${ADMIN_ACCESS_TOKEN}" >/dev/null || failed=1
       [[ "${REALM_RESTORE_PENDING}" != "true" || ! -f "${PRIVATE_STATE_DIR}/realm-original.json" ]] ||
         request PUT "${KEYCLOAK_API_BASE}" "${ADMIN_ACCESS_TOKEN}" \
@@ -245,7 +248,7 @@ restore_pending_state() {
     fi
   fi
   if ((failed == 0)) && [[ "${GROUP_RESTORE_PENDING}" == "true" ]]; then
-    user_has_group "${COLLABORATOR_SUBJECT}" "${CALENDAR_EDITOR_GROUP_ID}" || failed=1
+    user_has_group "${COLLABORATOR_SUBJECT}" "${ADMIN_GROUP_ID}" || failed=1
   fi
   if ((failed == 0)) && [[ "${REALM_RESTORE_PENDING}" == "true" ]]; then
     current="$(request GET "${KEYCLOAK_API_BASE}" "${ADMIN_ACCESS_TOKEN}" 2>/dev/null)" || failed=1
@@ -344,9 +347,10 @@ validate_workspace_token() {
   ' <<<"${payload}" >/dev/null || fail "minted token does not satisfy the real workspace JWT contract"
 }
 
-token_has_group() {
-  local token="$1" group="$2"
-  jwt_payload "${token}" | jq -e --arg group "${group}" '(.groups // []) | index($group) != null' >/dev/null
+token_has_weave_app_role() {
+  local token="$1" role="$2"
+  jwt_payload "${token}" |
+    jq -e --arg role "${role}" '(.resource_access["weave-app"].roles // []) | index($role) != null' >/dev/null
 }
 
 token_lifetime_seconds() {
@@ -517,9 +521,10 @@ run_authorization_probes() {
   COLLABORATOR_SUBJECT="$(resolve_marked_subject "${COLLABORATOR_USERNAME}")"
   resolve_marked_subject "${OUTSIDER_USERNAME}" >/dev/null
   assert_subject_hash_bindings
-  CALENDAR_EDITOR_GROUP_ID="$(resolve_calendar_editor_group)"
-  user_has_group "${COLLABORATOR_SUBJECT}" "${CALENDAR_EDITOR_GROUP_ID}" ||
-    fail "collaborator must start in the calendar editor group"
+  ORGANIZATION_ID="$(resolve_organization_id)"
+  ADMIN_GROUP_ID="$(organization_group_id "${KEYCLOAK_API_BASE}" "${ADMIN_ACCESS_TOKEN}" "${ORGANIZATION_ID}" /admins)"
+  user_has_group "${COLLABORATOR_SUBJECT}" "${ADMIN_GROUP_ID}" ||
+    fail "collaborator must start in the native admin organization role group"
 
   enable_direct_grants_for_token_minting
   WORKSPACE_RESOURCE_AUDIENCE="$(resolve_workspace_resource_audience)"
@@ -535,14 +540,14 @@ run_authorization_probes() {
     fail "revocation token lifetime is too short to distinguish revocation from expiry"
 
   GROUP_RESTORE_PENDING="true"
-  request DELETE "${KEYCLOAK_API_BASE}/users/${COLLABORATOR_SUBJECT}/groups/${CALENDAR_EDITOR_GROUP_ID}" \
+  request DELETE "${KEYCLOAK_API_BASE}/organizations/${ORGANIZATION_ID}/groups/${ADMIN_GROUP_ID}/members/${COLLABORATOR_SUBJECT}" \
     "${ADMIN_ACCESS_TOKEN}" >/dev/null
-  ! user_has_group "${COLLABORATOR_SUBJECT}" "${CALENDAR_EDITOR_GROUP_ID}" ||
-    fail "calendar editor membership removal did not verify"
+  ! user_has_group "${COLLABORATOR_SUBJECT}" "${ADMIN_GROUP_ID}" ||
+    fail "native admin role-group removal did not verify"
   missing_token="$(mint_user_token "${COLLABORATOR_USERNAME}" "${COLLABORATOR_PASSWORD}")"
   validate_workspace_token "${missing_token}" "${COLLABORATOR_USERNAME}"
-  ! token_has_group "${missing_token}" /weave-calendar-editors ||
-    fail "fresh missing-capability token still contains the removed group"
+  ! token_has_weave_app_role "${missing_token}" admin ||
+    fail "fresh missing-capability token still contains the removed admin role"
   restore_group_now
 
   set_short_realm_lifespan

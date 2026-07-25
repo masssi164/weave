@@ -485,7 +485,7 @@ organization_group_id() {
 
 ensure_user() {
   local base="$1" token="$2" role="$3" username="$4" password="$5"
-  local users subject user member_group_id org_id organizations
+  local users subject user organization_role_group_id organization_role_group_path org_id organizations
   users="$(resolve_user "${base}" "${token}" "${username}")"
   subject="$(find_exact_id "${users}" username "${username}")"
   if [[ -z "${subject}" ]]; then
@@ -510,8 +510,15 @@ ensure_user() {
   if ! request GET "${base}/organizations/${org_id}/members/${subject}" "${token}" >/dev/null 2>&1; then
     request POST "${base}/organizations/${org_id}/members" "${token}" "$(jq -cn --arg id "${subject}" '$id')" >/dev/null
   fi
-  member_group_id="$(organization_group_id "${base}" "${token}" "${org_id}" /members)" || return 1
-  request PUT "${base}/organizations/${org_id}/groups/${member_group_id}/members/${subject}" "${token}" >/dev/null
+  case "${role}" in
+    collaborator) organization_role_group_path="/admins" ;;
+    author|outsider) organization_role_group_path="/members" ;;
+    *) fail "unsupported isolated actor role '${role}'" ;;
+  esac
+  organization_role_group_id="$(
+    organization_group_id "${base}" "${token}" "${org_id}" "${organization_role_group_path}"
+  )" || return 1
+  request PUT "${base}/organizations/${org_id}/groups/${organization_role_group_id}/members/${subject}" "${token}" >/dev/null
 
   printf '%s' "${subject}"
 }

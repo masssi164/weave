@@ -1,5 +1,5 @@
 {
-  "artifactVersion": "keycloak-realm-contract-v1",
+  "artifactVersion": "keycloak-realm-contract-v2",
   "realm": "weave",
   "issuer": "https://auth.weave.test/realms/weave",
   "recommendedIdentityBroker": "keycloak",
@@ -30,16 +30,22 @@
       "accessType": "BEARER-ONLY"
     }
   ],
-  "realmRoles": ["owner", "admin", "operator", "member", "guest"],
-  "groups": [
-    { "name": "workspace-owners", "roles": ["owner"] },
-    { "name": "workspace-admins", "roles": ["admin"] },
-    { "name": "workspace-operators", "roles": ["operator"] },
-    { "name": "workspace-members", "roles": ["member"] },
-    { "name": "workspace-guests", "roles": ["guest"] },
-    { "name": "weave-board-editors", "capabilities": ["boards.update_task"] },
-    { "name": "weave-calendar-editors", "capabilities": ["calendar.manage_events"] },
-    { "name": "weave-weaver-runtime", "capabilities": ["agent-runtime.entitled"] }
+  "realmRoles": ["weaver-runtime"],
+  "clientRoles": {
+    "weave-app": ["owner", "admin", "member", "guest"]
+  },
+  "organizationGroups": [
+    { "path": "/owners", "clientRoles": ["weave-app:owner"] },
+    { "path": "/admins", "clientRoles": ["weave-app:admin"] },
+    { "path": "/members", "clientRoles": ["weave-app:member"] },
+    { "path": "/guests", "clientRoles": ["weave-app:guest"] },
+    { "path": "/capabilities", "clientRoles": [] },
+    {
+      "path": "/capabilities/weaver",
+      "parentPath": "/capabilities",
+      "clientRoles": [],
+      "capabilities": ["agent-runtime.entitled"]
+    }
   ],
   "secretRefs": [
     "secretref://weave/provider/keycloak-realm/admin-password",

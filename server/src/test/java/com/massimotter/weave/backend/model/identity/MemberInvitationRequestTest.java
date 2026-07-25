@@ -33,7 +33,7 @@ class MemberInvitationRequestTest {
                 {
                   "email": "member@example.invalid",
                   "role": "member",
-                  "organizationGroups": ["/weave/owners"]
+                  "organizationGroups": ["/owners"]
                 }
                 """,
                 MemberInvitationRequest.class))

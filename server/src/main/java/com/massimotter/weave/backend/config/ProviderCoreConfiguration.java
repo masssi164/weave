@@ -33,7 +33,7 @@ public class ProviderCoreConfiguration {
                 "keycloak-realm",
                 configured,
                 "Keycloak is the mandatory identity gateway; external LDAP/AD and OIDC/SAML sources remain behind its federation and brokering boundaries.",
-                Set.of("realm-readiness", "realm-dry-run", "client-scope-diff", "role-diff"),
+                Set.of("realm-readiness", "identity-ops-plan-evidence", "identity-ops-verify-evidence"),
                 Set.of("direct-frontend-keycloak-admin", "secret-export", "live-realm-mutation-without-audit"),
                 List.of("keycloak", "entra-id", "authentik", "auth0", "generic-oidc", "generic-saml", "scim-ldap"),
                 configured ? ProviderRealityLevel.CONFIGURED : ProviderRealityLevel.CONTRACT_ONLY,

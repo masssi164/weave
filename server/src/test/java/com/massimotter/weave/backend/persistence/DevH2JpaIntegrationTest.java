@@ -44,7 +44,7 @@ class DevH2JpaIntegrationTest {
         assertThat(environment.getRequiredProperty("spring.jpa.open-in-view"))
                 .isEqualTo("false");
         assertThat(flyway.info().current()).isNotNull();
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("019");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("020");
 
         OffsetDateTime bootstrappedAt = OffsetDateTime.of(
                 2026, 7, 22, 12, 30, 0, 0, ZoneOffset.UTC);

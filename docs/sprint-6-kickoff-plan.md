@@ -1,6 +1,8 @@
 # Sprint 6 kickoff: release candidate and provider operations
 
-Status: active kickoff plan, 2026-05-27.
+Status: historical kickoff plan, 2026-05-27. The server-side realm-provider direction
+described below was later retired without a compatibility API; current baseline
+reconciliation is owned exclusively by the profile-specific Infra Identity Ops tasks.
 
 Sprint 6 starts from `main` at `e5aa689` after PR #359 merged the enterprise README readiness work for #354. The milestone is **Sprint 6 — Release Candidate & Provider Operations**.
 
@@ -24,7 +26,7 @@ Sprint 6 starts with the narrow provider/ops path:
 1. **Enterprise release foundation:** release lanes, machine-checked gate contract, Live Stack manifest, support-safe artifact contract, and waiver semantics wired into `releaseEvidenceCheck`.
 2. **RC gate:** #360 — credentialed Live Stack E2E on the release-candidate head. A green sanitized artifact or explicit release-owner waiver is required before any RC promotion/tag.
 3. **Admin-owned identity setup:** #212 — keep OIDC/realm setup in owner/admin workflows and keep normal member onboarding to sign-in only.
-4. **Keycloak realm provider dry-run:** #233 — introduce a backend/provisioner contract for desired realm state, dry-run/diff/readiness, and later gated apply.
+4. **Historical Keycloak realm provider dry-run:** #233 originally introduced a backend/provisioner contract. That implementation is retired; current Keycloak baseline changes use Infra Identity Ops `plan`/`apply`/`verify`, while the server exposes read-only readiness.
 
 Why this slice: it advances release-candidate readiness and the admin/provider boundary already proven in Sprint 5. It is narrow, fail-closed, and evidence-preserving. It does not broaden member UX, does not claim generic provider marketplace support, and does not make Weaver active by default.
 

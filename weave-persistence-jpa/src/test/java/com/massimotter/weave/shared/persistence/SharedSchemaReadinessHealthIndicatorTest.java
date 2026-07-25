@@ -20,11 +20,11 @@ class SharedSchemaReadinessHealthIndicatorTest {
                 .containsEntry("schemaVersion", SharedPersistenceModel.VERSION)
                 .containsEntry("migrationOwner", "weave-server");
 
-        jdbc.update("update flyway_schema_history set version = '020' where version = '019'");
+        jdbc.update("update flyway_schema_history set version = '021' where version = '020'");
         assertThat(readiness.health().getStatus().getCode()).isEqualTo("DOWN");
         assertThat(readiness.health().getDetails())
                 .containsEntry("expectedSchemaVersion", SharedPersistenceModel.VERSION)
-                .containsEntry("observedSchemaVersion", "020");
+                .containsEntry("observedSchemaVersion", "021");
     }
 
     @Test
@@ -34,7 +34,7 @@ class SharedSchemaReadinessHealthIndicatorTest {
         assertThat(absent.health().getStatus().getCode()).isEqualTo("DOWN");
 
         JdbcTemplate jdbc = migratedDatabase();
-        jdbc.update("update flyway_schema_history set success = false where version = '019'");
+        jdbc.update("update flyway_schema_history set success = false where version = '020'");
         assertThat(new SharedSchemaReadinessHealthIndicator(jdbc).health().getStatus().getCode())
                 .isEqualTo("DOWN");
     }

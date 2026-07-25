@@ -117,9 +117,9 @@ describe("AdminControlPlaneApi provider boundary", () => {
                 state: "admin-action-required",
                 summary: "Select an identity provider mapping.",
                 memberImpact: "degraded",
-                remediation: "Run backend realm dry-run.",
-                nextActions: ["Run dry-run"],
-                evidenceRefs: ["identity-realm-dry-run"],
+                remediation: "Run profile-specific Identity Ops plan and verify tasks.",
+                nextActions: ["Run Identity Ops plan and verify"],
+                evidenceRefs: ["keycloak-identity-ops-plan", "keycloak-identity-ops-verify"],
               },
               {
                 key: "provisioning-source-readiness",
@@ -385,7 +385,7 @@ describe("AdminControlPlaneApi provider boundary", () => {
             providerKey: "keycloak-realm",
             choiceModel: "recommended_self_hosted_default",
             dryRun: true,
-            evidenceRef: "identity-keycloak-realm-dry-run",
+            evidenceRef: "identity-keycloak-ops-plan",
           }
         : {};
       return new Response(JSON.stringify(body), {

@@ -104,7 +104,7 @@ Members only see provider-neutral manifest states: `available`, `disabled_by_pol
 
 ## Agent Runtime Control policy
 
-Weaver/OpenClaw is an optional product runtime behind Agent Runtime Control. Keycloak group membership is the sole coarse entitlement source; collaboration domains still authorize every content operation under their own contracts.
+Weaver/OpenClaw is an optional product runtime behind Agent Runtime Control. Exact native Keycloak Organization membership `/capabilities/weaver` is the sole self-hosted coarse entitlement source; collaboration domains still authorize every content operation under their own contracts. The workload-only `weaver-runtime` realm role never entitles a human.
 
 Admins/operators control entitlement mapping and the provision/start/stop/suspend/reconcile/revoke/delete-state lifecycle. Normal members do not configure containers, OpenClaw plugins, OIDC clients, provider adapters, service endpoints, or secrets. Human roles do not imply `agent-runtime.entitled`.
 

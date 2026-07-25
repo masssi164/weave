@@ -35,8 +35,10 @@ mkdir -p "${MOCK_BIN}" "${MOCK_STATE}"
 printf '[]\n' >"${MOCK_STATE}/users.json"
 printf '[]\n' >"${MOCK_STATE}/groups.json"
 
-grep -Fq 'organization_group_id "${base}" "${token}" "${org_id}" /members' "${SCRIPT}" ||
-  fail "disposable members must receive the canonical native organization membership group"
+grep -Fq 'collaborator) organization_role_group_path="/admins"' "${SCRIPT}" ||
+  fail "the collaborator must receive the canonical native admin role group"
+grep -Fq 'author|outsider) organization_role_group_path="/members"' "${SCRIPT}" ||
+  fail "the remaining disposable actors must receive the canonical native member role group"
 ! grep -Fq '/weave/members' "${SCRIPT}" ||
   fail "disposable members must not depend on the retired realm-group contract"
 
@@ -157,7 +159,7 @@ elif [[ "${method}:${url}" == DELETE:*/users/* ]]; then
   jq --arg id "${id}" '[.[] | select(.id != $id)]' "${users}" >"${tmp}"
   mv "${tmp}" "${users}"
 elif [[ "${method}:${url}" == GET:*/organizations/org-id/groups\?* ]]; then
-  printf '[{"id":"org-members","name":"members","path":"/members","subGroups":[]}]\n'
+  printf '[{"id":"org-members","name":"members","path":"/members","subGroups":[]},{"id":"org-admins","name":"admins","path":"/admins","subGroups":[]}]\n'
 elif [[ "${method}:${url}" == GET:*/groups\?* ]]; then
   jq '[.[] | {id,name}]' "${groups}"
 elif [[ "${method}:${url}" == GET:*/groups/* ]]; then

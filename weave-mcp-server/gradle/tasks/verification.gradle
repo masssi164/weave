@@ -10,7 +10,7 @@ def forbiddenMcpRuntimeClasses = [
         '**/ClientSecretKeycloakAdminAccessTokenProvider.class',
         '**/KeycloakAdminAccessTokenProvider.class',
         '**/KeycloakAgentRuntimeWorkloadIdentityAdmin.class',
-        '**/KeycloakRuntimeEntitlementAuthority.class',
+        '**/KeycloakRuntimeIdentityAuthority.class',
         '**/FileRuntimeWorkloadCredentialStore.class'
 ]
 

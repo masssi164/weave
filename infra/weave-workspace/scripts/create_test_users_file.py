@@ -21,7 +21,13 @@ def main() -> int:
         if path.is_symlink() or not path.is_file() or metadata.st_mode & 0o777 != 0o600:
             raise SystemExit("WEAVE_TEST_USERS_ERROR existing output must be a regular mode-0600 non-symlink file")
         value = json.loads(path.read_text(encoding="utf-8"))
-        if not isinstance(value, list) or len(value) != 1 or value[0].get("username") != "weave-test-member":
+        if (
+            not isinstance(value, list)
+            or len(value) != 1
+            or value[0].get("username") != "weave-test-member"
+            or value[0].get("roles") != ["member"]
+            or value[0].get("groups") != ["/capabilities/weaver"]
+        ):
             raise SystemExit("WEAVE_TEST_USERS_ERROR existing fixture is not the canonical local member")
     else:
         value = [
@@ -30,6 +36,7 @@ def main() -> int:
                 "email": "weave-test-member@weave.test",
                 "secret": secrets.token_urlsafe(32),
                 "roles": ["member"],
+                "groups": ["/capabilities/weaver"],
             }
         ]
         descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)

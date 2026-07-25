@@ -67,7 +67,7 @@ class DogfoodActivationMailCheckTest(unittest.TestCase):
                     "usernameSha256": hashlib.sha256(b"massimo").hexdigest(),
                     "emailSha256": hashlib.sha256(email.encode("utf-8")).hexdigest(),
                     "role": "member",
-                    "workspaceGroup": "/weave/members",
+                    "workspaceGroup": "/members",
                     "inviteRef": "handoff-s32-massimo-dogfood-home",
                     "activation": {
                         "mode": "keycloak-required-actions-email",

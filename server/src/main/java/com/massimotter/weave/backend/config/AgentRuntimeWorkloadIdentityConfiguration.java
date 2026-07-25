@@ -5,7 +5,7 @@ import com.massimotter.weave.backend.agentruntime.adapter.ClientSecretKeycloakAd
 import com.massimotter.weave.backend.agentruntime.adapter.FileRuntimeWorkloadCredentialStore;
 import com.massimotter.weave.backend.agentruntime.adapter.KeycloakAdminAccessTokenProvider;
 import com.massimotter.weave.backend.agentruntime.adapter.KeycloakAgentRuntimeWorkloadIdentityAdmin;
-import com.massimotter.weave.backend.agentruntime.adapter.KeycloakRuntimeEntitlementAuthority;
+import com.massimotter.weave.backend.agentruntime.adapter.KeycloakRuntimeIdentityAuthority;
 import com.massimotter.weave.backend.agentruntime.application.AgentRuntimeControlService;
 import com.massimotter.weave.backend.agentruntime.application.AgentRuntimeWorkloadReconciliationService;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeCellRepository;
@@ -70,13 +70,13 @@ public class AgentRuntimeWorkloadIdentityConfiguration {
     }
 
     @Bean
-    KeycloakRuntimeEntitlementAuthority runtimeEntitlementAuthority(
+    KeycloakRuntimeIdentityAuthority runtimeIdentityAuthority(
             AgentRuntimeWorkloadIdentityProperties properties,
             AgentRuntimeEntitlementProperties entitlement,
             @Qualifier("keycloakAgentRuntimeEntitlementAccessTokenProvider")
             KeycloakAdminAccessTokenProvider accessTokens,
             ObjectMapper objectMapper) {
-        return new KeycloakRuntimeEntitlementAuthority(
+        return new KeycloakRuntimeIdentityAuthority(
                 properties.entitlementSettings(entitlement), accessTokens, objectMapper);
     }
 
