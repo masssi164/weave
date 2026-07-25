@@ -178,6 +178,12 @@ def main() -> int:
         "workflow-owned Docker auth must be namespaced without hiding host CLI plugins",
     )
     require(
+        "env -u WEAVE_TEARDOWN_EVIDENCE_FILE bash ./teardown.sh test --isolated"
+        in workflow
+        and "WEAVE_TEARDOWN_EVIDENCE_FILE='' bash ./teardown.sh" not in workflow,
+        "pre-bootstrap teardown must treat optional evidence output as unset, never as the workspace path",
+    )
+    require(
         "isolated-e2e-identities.sh prepare" in workflow
         and "isolated-e2e-identities.sh provision" in workflow
         and "isolated-e2e-identities.sh cleanup" in workflow,

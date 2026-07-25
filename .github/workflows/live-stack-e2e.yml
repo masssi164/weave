@@ -431,7 +431,7 @@ jobs:
           set -euo pipefail
           # shellcheck disable=SC1090
           source "$WEAVE_E2E_STARTUP_ENV_PATH"
-          WEAVE_TEARDOWN_EVIDENCE_FILE='' bash ./teardown.sh test --isolated
+          env -u WEAVE_TEARDOWN_EVIDENCE_FILE bash ./teardown.sh test --isolated
 
       - name: Release Buildx cache before stack tests
         run: bash weave/tools/cleanup_orphaned_buildx.sh
