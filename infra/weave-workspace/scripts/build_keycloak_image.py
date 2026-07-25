@@ -54,6 +54,7 @@ def main() -> int:
     subprocess.run(
         ["docker", "pull", STOCK_KEYCLOAK_REFERENCE],
         check=True,
+        stdout=subprocess.DEVNULL,
     )
     inspected = json.loads(
         subprocess.run(
