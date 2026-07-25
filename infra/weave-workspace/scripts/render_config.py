@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import copy
-import hashlib
 import json
 import os
 import re
@@ -42,7 +41,6 @@ REQUIRED_PRIVATE_FILES = (
     "nextcloud-db-password",
     "control-db-password",
     "nextcloud-actor-token",
-    "identity-events-hmac-secret",
     "keycloak-weave-identity-admin",
     "keycloak-weave-agent-runtime-admin",
     "keycloak-nextcloud",
@@ -118,12 +116,13 @@ def _origin(value: str) -> str:
 
 def _image_digest(context: ComposeContext) -> str:
     image = context.env["WEAVE_KEYCLOAK_IMAGE"]
-    if "@sha256:" in image:
-        return "sha256:" + image.rsplit("@sha256:", 1)[1]
-    digest = context.env.get("WEAVE_KEYCLOAK_IMAGE_DIGEST", "")
-    if not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
-        raise ContractError("dev requires WEAVE_KEYCLOAK_IMAGE_DIGEST for the locally built pinned Keycloak image")
-    return digest
+    digest_match = re.fullmatch(r"(quay\.io/keycloak/keycloak)@(sha256:[0-9a-f]{64})", image)
+    if digest_match:
+        return digest_match.group(2)
+    raise ContractError(
+        f"{context.profile} render requires quay.io/keycloak/keycloak@sha256:<approved-26.7.0-digest>; "
+        "the dev preparation task resolves the reviewed 26.7.0 tag before render"
+    )
 
 
 def _overlay(context: ComposeContext, baseline_revision: str) -> dict[str, object]:
@@ -138,7 +137,7 @@ def _overlay(context: ComposeContext, baseline_revision: str) -> dict[str, objec
             "ssl": False,
             "startTls": False,
         }
-    elif profile == "dogfood":
+    elif profile == "test":
         smtp = {
             "host": "mailpit",
             "port": 1025,
@@ -150,7 +149,7 @@ def _overlay(context: ComposeContext, baseline_revision: str) -> dict[str, objec
     else:
         host = context.env.get("WEAVE_SMTP_HOST", "")
         if not host or host == "mailpit":
-            raise ContractError("main requires an external implicit-TLS WEAVE_SMTP_HOST")
+            raise ContractError("prod requires an external implicit-TLS WEAVE_SMTP_HOST")
         smtp = {
             "host": host,
             "port": int(context.env.get("WEAVE_SMTP_PORT", "465")),
@@ -218,6 +217,46 @@ def _render_desired(baseline: dict[str, object], overlay: dict[str, object]) -> 
     )
     desired = _replace_strings(desired, replacements)
     assert isinstance(desired, dict)
+    if desired.get("apiVersion") != "weave.keycloak-desired-state/v2":
+        raise ContractError("Identity Ops requires the canonical Keycloak desired-state v2 corpus")
+    if desired.get("keycloakVersion") != "26.7.0":
+        raise ContractError("canonical desired state must pin Keycloak 26.7.0")
+    if "groups" in desired:
+        raise ContractError("desired-state v2 must not contain legacy human realm groups")
+    if desired.get("clientPolicies") != []:
+        raise ContractError(
+            "Identity Ops supports stock Standard Token Exchange V2 only; custom clientPolicies must be empty"
+        )
+    organization_groups = desired.get("organizationGroups")
+    if not isinstance(organization_groups, list):
+        raise ContractError("desired-state v2 must declare native organizationGroups")
+    observed_group_paths = {group.get("path") for group in organization_groups if isinstance(group, dict)}
+    if observed_group_paths != {"/owners", "/admins", "/members", "/guests"}:
+        raise ContractError("canonical organizationGroups must be exactly owners/admins/members/guests")
+    if any(
+        group.get("organizationRef") != "organization:weave-primary"
+        or group.get("parentGroupRef") is not None
+        for group in organization_groups
+        if isinstance(group, dict)
+    ):
+        raise ContractError("human roles must be top-level groups of the canonical organization")
+    fgap = desired.get("fineGrainedAdminPermissions")
+    if not isinstance(fgap, dict) or fgap.get("enabled") is not True:
+        raise ContractError("desired-state v2 must enable declared Organizations FGAP")
+    grants = desired.get("serviceAccountRoleGrants")
+    if not isinstance(grants, list):
+        raise ContractError("desired-state v2 service-account grants are missing")
+    identity_grants = [
+        grant for grant in grants
+        if isinstance(grant, dict) and grant.get("clientKey") == "client:weave-identity-admin"
+    ]
+    if len(identity_grants) != 1 or identity_grants[0].get("roleRefs") != [
+        "builtin-role:realm-management:query-organizations"
+    ]:
+        raise ContractError("identity admin must have only query-organizations plus declared FGAP")
+    realm_contract = desired.get("realm")
+    if not isinstance(realm_contract, dict) or realm_contract.get("adminPermissionsEnabled") is not True:
+        raise ContractError("desired-state v2 must enable Keycloak admin permissions")
     desired["environment"] = overlay["environment"]
     provenance = desired["provenance"]
     assert isinstance(provenance, dict)
@@ -518,24 +557,20 @@ def render(context: ComposeContext) -> None:
     corpus_root, specification_commit = specification_context(context)
     examples = corpus_root / "contracts/examples"
     baseline_path = examples / "keycloak-desired-state.valid.json"
-    sanitizer_path = examples / "keycloak-admin-sanitizer-profile.valid.json"
     baseline = _json(baseline_path)
-    sanitizer = _json(sanitizer_path)
     assert_revision(baseline, baseline_path)
-    assert_revision(sanitizer, sanitizer_path)
     baseline_revision = str(baseline["provenance"]["baselineRevision"])
     overlay = _overlay(context, baseline_revision)
     desired = _render_desired(baseline, overlay)
     for name in REQUIRED_PRIVATE_FILES:
         _read_secret(context, name)
-    if context.profile == "main":
+    if context.profile == "prod":
         _read_secret(context, "smtp-username")
         _read_secret(context, "smtp-password")
     generated = context.generated_root
     runtime_owner = (int(context.env["WEAVE_RUNTIME_UID"]), int(context.env["WEAVE_RUNTIME_GID"]))
     _write(generated / "keycloak/overlay.json", json.dumps(overlay, indent=2, sort_keys=True) + "\n", private=False)
     _write(generated / "keycloak/desired-state.json", json.dumps(desired, indent=2, sort_keys=True) + "\n", private=False)
-    _write(generated / "keycloak/sanitizer-profile.json", json.dumps(sanitizer, indent=2, sort_keys=True) + "\n", private=False)
     secret_index = {
         "schemaVersion": "weave.keycloak-secretref-index.v1",
         "desiredStateRevision": desired["revision"],
@@ -551,7 +586,6 @@ def render(context: ComposeContext) -> None:
     _write(generated / "synapse/appservice/hs-token", _read_secret(context, "matrix-appservice-hs-token") + "\n", private=True)
     if context.profile == "dev":
         host_configtree = {
-            "weave.identity.invitations.events-hmac-secret": "identity-events-hmac-secret",
             "weave.identity.invitations.keycloak.client-secret": "keycloak-weave-identity-admin",
             "weave.nextcloud.files.actor-token": "nextcloud-actor-token",
             "weave.calendar.caldav.backend-token": "nextcloud-actor-token",
@@ -584,7 +618,6 @@ def render(context: ComposeContext) -> None:
         "baselineRevision": baseline_revision,
         "overlayRevision": overlay["revision"],
         "desiredStateRevision": desired["revision"],
-        "sanitizerRevision": sanitizer["revision"],
         "keycloakImageDigest": overlay["imageDigest"],
         "containsSecretValues": False,
     }
@@ -593,7 +626,7 @@ def render(context: ComposeContext) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("profile", choices=("dev", "dogfood", "main"))
+    parser.add_argument("profile", choices=("dev", "test", "prod"))
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--env-file")
     args = parser.parse_args()

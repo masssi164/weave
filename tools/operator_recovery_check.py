@@ -108,8 +108,8 @@ def validate_backup_manifest(manifest: dict[str, Any], *, fixture: bool) -> None
         fail("BackupManifest must declare backup artifacts private")
     if not isinstance(manifest.get("candidateCommit"), str) or not re.fullmatch(r"[0-9a-f]{40}", manifest["candidateCommit"]):
         fail("BackupManifest must bind an exact candidate commit")
-    if manifest.get("profile") not in {"dogfood", "main"}:
-        fail("BackupManifest profile must be dogfood or main")
+    if manifest.get("profile") not in {"test", "prod"}:
+        fail("BackupManifest profile must be test or prod")
     if not isinstance(manifest.get("composeProject"), str) or not re.fullmatch(r"[a-z0-9][a-z0-9_-]{1,62}", manifest["composeProject"]):
         fail("BackupManifest Compose project is invalid")
     if not isinstance(manifest.get("databaseFingerprint"), str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", manifest["databaseFingerprint"]):

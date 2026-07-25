@@ -547,10 +547,10 @@
         {
           "path": ".github/workflows/dogfood-pending-identity-recovery.yml",
           "fragments": [
-            "retire-restored-test-bootstrap",
-            "retire-lost-pending-identity",
-            "humanTestingReady:false",
-            "two-install-dogfood-deployment-required"
+            "Dogfood Pending Identity Recovery (Guarded)",
+            "acknowledge-recovery-is-guarded",
+            "Pending-identity retirement is guarded.",
+            "Use normal invitation resend and authenticated session reconciliation"
           ]
         }
       ]

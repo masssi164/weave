@@ -6,8 +6,8 @@
     "manifestSha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
     "backupIdSha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
     "candidateCommit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-    "profile": "dogfood",
-    "composeProject": "weave-dogfood"
+    "profile": "test",
+    "composeProject": "weave-test"
   },
   "restoreRunId": "fixture-artifact-preflight-20260604T020500Z",
   "validationMode": "artifacts_only",

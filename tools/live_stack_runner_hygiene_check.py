@@ -78,7 +78,6 @@ def main() -> int:
                 workflow,
                 dogfood_deploy_workflow,
                 dogfood_member_workflow,
-                dogfood_recovery_workflow,
                 ios_dogfood_workflow,
             )
         ),
@@ -87,15 +86,28 @@ def main() -> int:
     require(
         "cancel-in-progress: false" in dogfood_deploy_workflow
         and "cancel-in-progress: false" in dogfood_member_workflow
-        and "cancel-in-progress: false" in dogfood_recovery_workflow
         and "cancel-in-progress: false" in workflow,
         "Mac runner mutations must never cancel one another",
+    )
+    require(
+        "runs-on: ubuntu-24.04" in dogfood_recovery_workflow
+        and "- self-hosted" not in dogfood_recovery_workflow
+        and "Pending-identity retirement is guarded." in dogfood_recovery_workflow,
+        "guarded recovery must not consume or mutate the dedicated Mac runner",
     )
     require(
         "- weave-live" in workflow
         and "needs: isolation-gate" in workflow
         and "Fail closed without run-scoped runtime approval" in workflow,
         "destructive live-stack E2E must fail closed on the dedicated Mac runner",
+    )
+    require(
+        "REQUESTED_SOURCE_REF: ${{ github.ref_name }}" in workflow
+        and '"$REQUESTED_SOURCE_REF" != dev' in workflow
+        and '"$REQUESTED_SOURCE_REF" != dogfood' in workflow
+        and "feature-branch trees are PR evidence, not release-lane candidates"
+        in workflow,
+        "manual feature-branch dispatch must fail before it consumes the dedicated Mac runner",
     )
     require(
         "EXPECTED_RUNNER_NAME: weave-live-mac-mini" in workflow
@@ -180,9 +192,22 @@ def main() -> int:
     )
     require(
         "TF_VAR_" not in workflow
-        and "./compose.sh dogfood keycloak-apply" in workflow
-        and "./compose.sh dogfood keycloak-verify" in workflow,
-        "live-stack bootstrap must use the protected Compose and Keycloak reconciliation path",
+        and "./compose.sh test up" in workflow
+        and "./compose.sh test identity-verify" in workflow
+        and "./compose.sh dogfood" not in workflow,
+        "live-stack bootstrap must use the test-profile Compose and Identity Ops path",
+    )
+    require(
+        "WEAVE_ENV_FILE: ${{ github.workspace }}/weave/infra/weave-workspace/environments/test.env.example"
+        in workflow
+        and "WEAVE_TEST_REVIEWED_ENV_FILE" not in workflow
+        and "environment: dogfood" not in workflow
+        and "environment: dogfood" in dogfood_deploy_workflow
+        and "WEAVE_TEST_REVIEWED_ENV_FILE: ${{ vars.WEAVE_TEST_REVIEWED_ENV_FILE }}"
+        in dogfood_deploy_workflow
+        and "WEAVE_TEST_BACKUP_ROOT: ${{ vars.WEAVE_TEST_BACKUP_ROOT }}"
+        in dogfood_deploy_workflow,
+        "isolated E2E must not claim a protected deployment environment while persistent deployment requires it and its host paths",
     )
     require(
         'export WEAVE_BOOTSTRAP_ENV="${WEAVE_E2E_STACK_BOOTSTRAP_ENV:?}"'
@@ -358,7 +383,7 @@ def main() -> int:
         "WEAVE_LIVE_JOB_STATUS: ${{ job.status }}" in finalizer
         and "Preserving the attested immutable image set for the locked downstream dogfood deployment."
         in finalizer
-        and '"${WEAVE_KEYCLOAK_SANITIZER_IMAGE:-}"' in finalizer
+        and '"${WEAVE_IDENTITY_OPS_IMAGE:-}"' in finalizer
         and 'docker image rm "$image_ref"' in finalizer,
         "finalizer must retain successful candidate images for dogfood and clean failed partial sets",
     )

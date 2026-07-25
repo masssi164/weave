@@ -25,7 +25,7 @@ COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 IMAGE_ID_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
 BUILD_IDENTITY_PATTERN = re.compile(r"^[0-9A-Za-z][0-9A-Za-z._+-]{0,63}$")
 CAPABILITIES = ("files", "calendar")
-IMAGE_COMPONENTS = frozenset(("backend", "keycloak", "keycloak-sanitizer", "mcp"))
+IMAGE_COMPONENTS = frozenset(("backend", "identity-ops", "keycloak", "mcp"))
 STATE_BY_VALUE = {0: "unavailable", 1: "degraded", 2: "available"}
 PROVIDER_STATES = frozenset(STATE_BY_VALUE.values())
 

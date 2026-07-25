@@ -6,8 +6,6 @@ services:
   keycloak:
     command:
       - start-dev
-    environment:
-      WEAVE_IDENTITY_EVENTS_ENDPOINT: http://host.docker.internal:${WEAVE_HOST_DEV_BACKEND_PORT:-8080}/api/internal/keycloak/events
 
   synapse:
     extra_hosts:

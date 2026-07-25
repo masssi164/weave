@@ -51,3 +51,4 @@ dependencies {
 }
 
 apply from: "$projectDir/gradle/tasks/verification.gradle"
+apply from: "$projectDir/gradle/tasks/development.gradle"

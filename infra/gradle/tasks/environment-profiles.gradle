@@ -1,0 +1,62 @@
+['dev', 'test', 'prod'].each { profile ->
+    def profileTitle = profile.capitalize()
+    ['config', 'up', 'down'].each { operation ->
+        def operationTitle = operation.capitalize()
+        registerInfraCommandTask(
+            "compose${profileTitle}${operationTitle}",
+            ['infra/weave-workspace/compose.sh', profile, operation],
+            "Run the ${operation} operation for the canonical ${profile} Docker Compose profile."
+        )
+    }
+    registerInfraCommandTask(
+        "compose${profileTitle}AdoptionCheck",
+        ['infra/weave-workspace/compose.sh', profile, 'adoption-check'],
+        "Inspect the canonical ${profile} Compose resources and emit the support-safe adoption preflight."
+    )
+    registerInfraCommandTask(
+        "compose${profileTitle}Ready",
+        ['infra/weave-workspace/operator-check.sh', profile],
+        "Verify runtime and provider readiness for the canonical ${profile} profile."
+    )
+    ['plan', 'apply', 'verify'].each { operation ->
+        def operationTitle = operation.capitalize()
+        registerInfraCommandTask(
+            "identity${profileTitle}${operationTitle}",
+            ['infra/weave-workspace/compose.sh', profile, "identity-${operation}"],
+            "Run rootless one-shot Keycloak Identity Ops ${operation} for the ${profile} Compose profile."
+        )
+    }
+}
+
+['test', 'prod'].each { profile ->
+    def profileTitle = profile.capitalize()
+    registerInfraCommandTask(
+        "compose${profileTitle}AdoptionRehearsal",
+        ['infra/weave-workspace/adoption-rehearsal.sh', profile],
+        "Create a private backup and isolated restore receipt before adopting ${profile} resources."
+    )
+}
+
+registerInfraCommandTask(
+    'identityTestUsersFile',
+    ['python3', 'infra/weave-workspace/scripts/create_test_users_file.py', '--output', 'infra/weave-workspace/.generated/test/test-users.json'],
+    'Create the idempotent mode-0600 local member fixture used automatically by the test profile; its random secret is never logged.'
+)
+
+registerInfraCommandTask(
+    'composeDevDependenciesReady',
+    ['python3', 'infra/weave-workspace/scripts/prepare_dev_dependencies.py', '--root', 'infra/weave-workspace'],
+    'Build exact local trust images and reconcile the dev Compose provider dependencies for a host Spring Boot process.'
+)
+
+registerInfraCommandTask(
+    'identityOpsImageBuild',
+    ['python3', 'infra/weave-workspace/scripts/build_identity_ops_image.py', '--root', 'infra/weave-workspace'],
+    'Build the rootless Identity Ops runner from the exact checked-out Weave source.'
+)
+
+registerInfraCommandTask(
+    'keycloakStockImageResolve',
+    ['python3', 'infra/weave-workspace/scripts/build_keycloak_image.py', '--root', '.'],
+    'Pull and verify the approved stock Keycloak OCI index digest without rebuilding or relabelling it.'
+)

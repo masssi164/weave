@@ -10,4 +10,4 @@ services:
 
   backend:
     environment:
-      WEAVE_RELEASE_POSTURE: dogfood
+      WEAVE_RELEASE_POSTURE: test

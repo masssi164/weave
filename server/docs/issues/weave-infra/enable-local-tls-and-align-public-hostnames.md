@@ -1,6 +1,6 @@
 # Enable local TLS and align public hostnames
 
-> Historical issue draft, superseded for tooling by the `dev`, `dogfood`, and `main` Docker Compose profile contract. The topology requirements remain useful; OpenTofu is not an active authority.
+> Historical issue draft, superseded for tooling by the `dev`, `test`, and `prod` Docker Compose runtime-profile contract. The `dev`, `dogfood`, and `main` names are Git delivery lanes. The topology requirements remain useful; OpenTofu is not an active authority.
 
 ## Problem
 

@@ -26,7 +26,7 @@ EXPECTED_ARTIFACT_KINDS = {
 }
 REQUIRED_ARTIFACTS = frozenset(EXPECTED_ARTIFACT_KINDS)
 COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
-BACKUP_ID_RE = re.compile(r"^weave-(dogfood|main)-\d{8}T\d{6}Z-[0-9a-f]{12}$")
+BACKUP_ID_RE = re.compile(r"^weave-(test|prod)-\d{8}T\d{6}Z-[0-9a-f]{12}$")
 PROJECT_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{1,62}$")
 DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
 
@@ -91,7 +91,7 @@ def validate_backup(backup_dir: Path) -> dict[str, Any]:
     backup_id = manifest.get("backupId")
     if not isinstance(candidate, str) or not COMMIT_RE.fullmatch(candidate):
         raise IntegrityError("backup manifest candidate commit is invalid")
-    if profile not in {"dogfood", "main"}:
+    if profile not in {"test", "prod"}:
         raise IntegrityError("backup manifest profile is invalid")
     if (
         not isinstance(backup_id, str)

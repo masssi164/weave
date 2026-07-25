@@ -45,11 +45,11 @@ Add local host entries before opening browser-facing URLs:
 Prepare provider dependencies, then run Spring Boot separately with H2:
 
 ```bash
-./gradlew composeDevDependenciesReady
-./gradlew serverDevBoot
+./gradlew :infra:composeDevDependenciesReady
+./gradlew :server:serverDevBoot
 ```
 
-`composeDevDependenciesReady` builds the exact local Keycloak and sanitizer images, initializes named SecretRefs, renders the `dev` Compose model, reconciles PostgreSQL/Keycloak/Nextcloud, and starts only provider dependencies. `serverDevBoot` starts the host process with `application-dev.yml`: Flyway owns the schema, Hibernate validates it, Open EntityManager in View is disabled, and H2 runs in PostgreSQL compatibility mode. Use `./gradlew serverDevHostSmoke` for a bounded boot/readiness/E2E smoke and `./gradlew serverPostgresIntegrationTest` for the real-PostgreSQL persistence lane.
+`composeDevDependenciesReady` builds the rootless Identity Ops image from the pinned official Keycloak distribution, initializes named SecretRefs, renders the `dev` Compose model, reconciles PostgreSQL/Keycloak/Nextcloud, and starts only provider dependencies. `serverDevBoot` starts the host process with `application-dev.yml`: Flyway owns the schema, Hibernate validates it, Open EntityManager in View is disabled, and H2 runs in PostgreSQL compatibility mode. Use `./gradlew :server:serverDevHostSmoke` for a bounded boot/readiness/E2E smoke and `./gradlew :server:serverPostgresIntegrationTest` for the real-PostgreSQL persistence lane.
 
 Nextcloud trusts only the exact Caddy address discovered on the active Docker network. `install.sh` pins `HTTP_X_FORWARDED_FOR`, keeps brute-force protection enabled, provisions calendars through local OCC, and then performs one bounded authenticated WebDAV check plus one CalDAV check. Backend readiness polling does not perform provider authentication, and a `429` stops without retrying.
 
@@ -62,14 +62,14 @@ For TLS trust, port modes, smoke-test inputs, and native app contracts, see [Loc
 For a real single-host deployment, start here:
 
 - [Single-host operator guide](docs/single-host-operator-guide.md): target shape, public contract, required inputs, TLS/image/persistence expectations, and verify flow.
-- [main.env.example](weave-workspace/environments/main.env.example): release-capable operator environment template; copy it outside the checkout and pin every image digest.
+- [prod.env.example](weave-workspace/environments/prod.env.example): release-capable operator environment template; copy it outside the checkout and pin every image digest.
 - [Operator runbook](docs/operator-runbook.md): install/upgrade, rotation, backup, restore, destructive reset, and triage guidance.
 - [CalDAV/CardDAV external clients](docs/calendar-caldav-external-clients.md): DAV discovery, safe external-client credential path, and blocked private calendar/addressbook/profile flows.
 - [Connector runtime guardrails](docs/connector-runtime-guardrails.md): disabled-by-default connector runtime, callback, secret, and support-bundle boundaries.
 - [Matrix/Synapse southbound Chat Application Service](docs/matrix-synapse-chat-appservice.md): private provider credential, namespace, callback, backup/restore, and isolated proof boundaries.
 - [Weaver runtime lifecycle](docs/weaver-runtime-lifecycle.md): Agent Runtime Control cell lifecycle, signed RuntimeProfile v2 input, zero durable cell-byte boundary, external encrypted state, per-cell Keycloak workload identity, and deletion evidence.
 - [Weave MCP workload contract](docs/weave-mcp-tool-contract.md): Spring AI transport, workload-only OIDC admission, protected-resource discovery, token exchange, current ARC context, and fail-closed empty catalogs.
-- [Identity environment parity](docs/identity-environment-parity.md): one dogfood/production identity flow, the narrow Keycloak extension boundary, and iPhone Mailpit verification.
+- [Identity environment parity](docs/identity-environment-parity.md): one stock-Keycloak/Identity-Ops model across test and production, plus the iPhone Mailpit verification boundary.
 
 After installation, verify public and host-local state:
 
@@ -85,7 +85,7 @@ Default local names resolve to loopback; non-local installs derive the same patt
 - `https://<tenant_domain>`: Weave product gateway, including `/files` and `/calendar` product routes.
 - `https://api.<tenant_domain>/api`: canonical backend API origin.
 - `https://auth.<tenant_domain>`: Keycloak.
-- `https://mail.<tenant_domain>`: private-CIDR dogfood Mailpit inbox only; absent in production.
+- `https://mail.<tenant_domain>`: private-CIDR test deployment Mailpit inbox only; absent in production.
 - `https://matrix.<tenant_domain>`: Matrix/Synapse/MAS behind the matrix hostname.
 - `https://files.<tenant_domain>`: raw Nextcloud technical/admin/protocol fallback.
 
@@ -116,7 +116,7 @@ Optional providers are fail-closed by default:
 - `docs/matrix-default-workspace.md`: default Matrix space/room provisioning.
 - `docs/matrix-e2ee-posture.md`: current honest E2EE posture.
 - `docs/calendar-caldav-external-clients.md`: CalDAV/CardDAV discovery, revocable client credentials, and fail-closed profile boundaries.
-- `weave-workspace/compose.sh`: the closed `dev|dogfood|main` lifecycle and Keycloak reconciliation interface.
+- `weave-workspace/compose.sh`: the closed `dev|test|prod` lifecycle and one-shot Keycloak Identity Ops interface.
 - `weave-workspace/install.sh`: idempotent profile preparation and apply wrapper.
 - `weave-workspace/teardown.sh`: destructive cleanup for an exact isolated-E2E namespace only; persistent profiles have no destructive teardown path.
 - `weave-workspace/release-verify.sh`: public endpoint verification for non-local single-host installs.
@@ -128,8 +128,8 @@ Optional providers are fail-closed by default:
 - `weave-workspace/nextcloud-auth-security-audit.sh`: support-safe classification of recent invalid-authentication/throttle sources without counter reset or raw addresses.
 - `weave-workspace/backup.sh`, `adoption-rehearsal.sh`, `restore-private-backup.sh`, and `support-bundle.sh`: private consistency backup, isolated adoption proof, integrity-only guarded restore preflight, and support-safe diagnostics.
 - `weave-workspace/weave-mcp-tool-contract.json`: support-safe canonical domain contract and active Spring AI MCP runtime evidence.
-- `weave-workspace/compose.yaml` plus `compose.dev.yaml`, `compose.dogfood.yaml`, and `compose.main.yaml`: the one supported process graph and its three overlays.
-- `weave-workspace/keycloak/`: protected desired-state renderer, reconciler, sanitizer, receipt verifier, and externally installed supervisor package.
+- `weave-workspace/compose.yaml` plus `compose.dev.yaml`, `compose.test.yaml`, and `compose.prod.yaml`: the one supported process graph and its three overlays.
+- `weave-workspace/keycloak/`: rootless one-shot Identity Ops and its test-user schema.
 
 ## Validation
 
@@ -137,16 +137,19 @@ Repository-safe validation used by CI:
 
 ```bash
 ./gradlew infraStatic
-./gradlew composeDevConfig
-WEAVE_ENV_FILE=/absolute/path/to/reviewed-dogfood.env ./gradlew composeDogfoodConfig
-WEAVE_ENV_FILE=/absolute/path/to/reviewed-main.env ./gradlew composeMainConfig
-./gradlew serverDevH2Test serverPostgresIntegrationTest
+./gradlew :infra:tasks --group "weave infrastructure"
+./gradlew :infra:composeDevConfig
+WEAVE_ENV_FILE=/absolute/path/to/reviewed-test.env ./gradlew :infra:composeTestConfig
+WEAVE_ENV_FILE=/absolute/path/to/reviewed-prod.env ./gradlew :infra:composeProdConfig
+WEAVE_ENV_FILE=/absolute/path/to/reviewed-test.env ./gradlew :infra:composeTestAdoptionCheck
+WEAVE_ENV_FILE=/absolute/path/to/reviewed-test.env ./gradlew :infra:composeTestReady
+./gradlew :server:serverDevH2Test :server:serverPostgresIntegrationTest
 ```
 
 Local host-server validation when Docker is available:
 
 ```bash
-./gradlew serverDevHostSmoke
+./gradlew :server:serverDevHostSmoke
 ```
 
 GitHub Actions runs deterministic repository checks on pushes and pull requests. Docker-backed full-stack smoke is manual-only and asks the dispatcher to confirm power/storage budget before it starts.
@@ -154,24 +157,24 @@ GitHub Actions runs deterministic repository checks on pushes and pull requests.
 ## Operator safety
 
 - `./weave-workspace/compose.sh <profile> down` stops a profile without deleting its named volumes or SecretRefs.
-- Destructive cleanup exists only for an exact isolated-E2E project and requires its run-bound ownership evidence. Persistent dogfood/main volumes are restored or rolled back through reviewed operator procedures, never a generic teardown flag.
+- Destructive cleanup exists only for an exact isolated-E2E project and requires its run-bound ownership evidence. Persistent test/prod volumes are restored or rolled back through reviewed operator procedures, never a generic teardown flag.
 - Create an operator-owned backup before destructive maintenance:
 
 ```sh
 WEAVE_CANDIDATE_COMMIT=<exact-sha> \
 WEAVE_BACKUP_ROOT=/var/backups/weave \
-WEAVE_ENV_FILE=/absolute/path/to/reviewed-dogfood.env \
-bash weave-workspace/backup.sh dogfood
+WEAVE_ENV_FILE=/absolute/path/to/reviewed-test.env \
+bash weave-workspace/backup.sh test
 ```
 
 - Validate the private v2 consistency set without applying it:
 
 ```sh
 WEAVE_RESTORE_PREFLIGHT_ONLY=true \
-bash weave-workspace/restore-private-backup.sh /var/backups/weave/<weave-dogfood-timestamp-sha>
+bash weave-workspace/restore-private-backup.sh /var/backups/weave/<weave-test-timestamp-sha>
 ```
 
-Direct restore apply remains `Guarded` until the reviewed Compose/control-store restore workflow has destructive rehearsal evidence. `adoption-rehearsal.sh dogfood` is the one-time former-runtime adoption proof; it backs up the running stack and verifies database plus volume restoration in an isolated namespace before any existing persistent resource receives Compose ownership labels.
+Direct restore apply remains `Guarded` until the reviewed Compose/control-store restore workflow has destructive rehearsal evidence. `adoption-rehearsal.sh test` is the one-time former-runtime adoption proof; it backs up the running stack and verifies database plus volume restoration in an isolated namespace before any existing persistent resource receives Compose ownership labels.
 
 - Create a redacted diagnostics bundle before sharing logs manually:
 

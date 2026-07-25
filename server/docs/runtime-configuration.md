@@ -118,7 +118,7 @@ When required actor credentials are missing or a private-personal template is co
 
 ## Profile persistence
 
-Profile facade endpoints are protected by the same first-party bearer-token contract as `/api/me`. `PATCH /api/profile` accepts partial updates for `displayName`, `avatar`, `locale`, `timezone`, `accessibilityPreferences`, and `profileVisibility`. Mutable profile state is persisted through the Flyway-managed JPA composition: host development may use fresh H2 in PostgreSQL compatibility mode, while integration, dogfood, and main require PostgreSQL. No file-path storage variable or production JSON fallback is supported.
+Profile facade endpoints are protected by the same first-party bearer-token contract as `/api/me`. `PATCH /api/profile` accepts partial updates for `displayName`, `avatar`, `locale`, `timezone`, `accessibilityPreferences`, and `profileVisibility`. Mutable profile state is persisted through the Flyway-managed JPA composition: the host-only `dev` runtime profile may use fresh H2 in PostgreSQL compatibility mode, while the `test` and `prod` runtime profiles require PostgreSQL. No file-path storage variable or production JSON fallback is supported.
 
 ## Interop gateway, Slack on-ramp, guests, and migration previews
 

@@ -2,10 +2,9 @@
 """Resolve the OpenSSL runtime required by Weave's Ed25519 contracts.
 
 macOS still ships LibreSSL as ``/usr/bin/openssl`` while Homebrew exposes a
-current OpenSSL earlier in an interactive shell.  CI login shells can reverse
-that ordering.  Resolve and capability-probe the executable once so key
-generation, receipt signing, verification, and supervisor installation all
-use the same implementation.
+current OpenSSL earlier in an interactive shell. CI login shells can reverse
+that ordering. Resolve and capability-probe the executable once so local
+SecretRef key generation uses one verified implementation.
 """
 
 from __future__ import annotations

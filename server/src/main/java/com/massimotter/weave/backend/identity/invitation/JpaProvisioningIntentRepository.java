@@ -60,5 +60,4 @@ public class JpaProvisioningIntentRepository implements ProvisioningIntentReposi
                 .map(ProvisioningIntentJpaEntity::toDomain)
                 .toList();
     }
-
 }

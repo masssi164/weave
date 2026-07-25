@@ -32,7 +32,7 @@ class ComposeTeardownContractTest(unittest.TestCase):
         for key in teardown_compose.VOLUME_KEYS:
             env[key] = "weave_e2e_run_123456_" + key.removeprefix("WEAVE_").removesuffix("_VOLUME").lower()
         self.context = SimpleNamespace(
-            profile="dogfood",
+            profile="test",
             isolated_namespace="weave-e2e-run-123456",
             env=env,
             root=ROOT,

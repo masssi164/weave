@@ -14,7 +14,12 @@ from typing import Iterable, Mapping
 from urllib.parse import urlsplit
 
 
-PROFILES = ("dev", "dogfood", "main")
+PROFILES = ("dev", "test", "prod")
+DEPLOYMENT_CONTEXTS = {
+    "dev": {"developer", "disposable"},
+    "test": {"disposable", "persistent-adoption"},
+    "prod": {"production", "persistent-adoption"},
+}
 KEY_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
 ISOLATED_RUN_RE = re.compile(r"^[a-z0-9][a-z0-9-]{5,39}$")
 PUBLISHED_DIGEST_IMAGE_RE = re.compile(r"^[^\s@]+@sha256:[0-9a-f]{64}$")
@@ -30,7 +35,7 @@ PUBLIC_PROCESS_COORDINATES = {
 DEPLOYMENT_PROCESS_OVERRIDES = {
     "WEAVE_BACKEND_IMAGE",
     "WEAVE_KEYCLOAK_IMAGE",
-    "WEAVE_KEYCLOAK_SANITIZER_IMAGE",
+    "WEAVE_IDENTITY_OPS_IMAGE",
     "WEAVE_MCP_IMAGE",
 }
 OPERATOR_PROCESS_INPUTS = {
@@ -41,8 +46,8 @@ OPERATOR_PROCESS_INPUTS = {
     "WEAVE_E2E_RUN_ID",
     "WEAVE_E2E_RUN_NAMESPACE",
     "WEAVE_E2E_STACK_SCOPE",
-    "WEAVE_KEYCLOAK_SUPERVISOR",
-    "WEAVE_RECONCILIATION_NONCE",
+    "WEAVE_TEST_USERS_FILE",
+    "WEAVE_IDENTITY_ROTATION_EPOCH",
     "WEAVE_SPEC_CORPUS_ROOT",
 }
 PROCESS_RUNTIME_COORDINATES = {
@@ -149,8 +154,8 @@ def _isolated_overrides(profile: str, env: dict[str, str]) -> tuple[dict[str, st
     if scope != "isolated":
         env["WEAVE_STACK_SCOPE"] = "persistent"
         return env, None
-    if profile != "dogfood":
-        fail("isolated E2E uses the dogfood topology")
+    if profile != "test":
+        fail("isolated E2E uses the test topology")
     run_id = os.environ.get("WEAVE_E2E_RUN_ID", "")
     if not ISOLATED_RUN_RE.fullmatch(run_id):
         fail("isolated E2E requires WEAVE_E2E_RUN_ID matching [a-z0-9][a-z0-9-]{5,39}")
@@ -162,7 +167,8 @@ def _isolated_overrides(profile: str, env: dict[str, str]) -> tuple[dict[str, st
     volume_prefix = namespace.replace("-", "_")
     env.update(
         {
-            "WEAVE_ENVIRONMENT": "dogfood",
+            "WEAVE_ENVIRONMENT": "test",
+            "WEAVE_DEPLOYMENT_CONTEXT": "disposable",
             "WEAVE_DEPLOYMENT_SCOPE": "isolated-e2e",
             "WEAVE_DEPLOYMENT_INSTANCE": namespace,
             "WEAVE_COMPOSE_PROJECT": namespace,
@@ -217,6 +223,13 @@ def load_context(profile: str, root: Path, supplied_env_file: str | None = None)
     selected = _profile_file(root, profile, supplied_env_file or os.environ.get("WEAVE_ENV_FILE"))
     env = parse_env_file(common)
     env.update(parse_env_file(selected))
+    if "WEAVE_TEST_USERS_FILE" in os.environ:
+        env["WEAVE_TEST_USERS_FILE"] = os.environ["WEAVE_TEST_USERS_FILE"]
+    if "WEAVE_IDENTITY_ROTATION_EPOCH" in os.environ:
+        epoch = os.environ["WEAVE_IDENTITY_ROTATION_EPOCH"]
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{7,127}", epoch):
+            fail("WEAVE_IDENTITY_ROTATION_EPOCH is not a valid explicit operator epoch")
+        env["WEAVE_IDENTITY_ROTATION_EPOCH"] = epoch
     for name in DEPLOYMENT_PROCESS_OVERRIDES:
         value = os.environ.get(name)
         if value:
@@ -255,8 +268,14 @@ def _validate_environment(profile: str, env: Mapping[str, str]) -> None:
     missing = [name for name in required if not env.get(name)]
     if missing:
         fail(f"missing public deployment inputs: {', '.join(missing)}")
+    deployment_context = env.get("WEAVE_DEPLOYMENT_CONTEXT", "")
+    if deployment_context not in DEPLOYMENT_CONTEXTS[profile]:
+        fail(
+            f"{profile} requires WEAVE_DEPLOYMENT_CONTEXT to be one of: "
+            + ", ".join(sorted(DEPLOYMENT_CONTEXTS[profile]))
+        )
     expected_scope = "isolated-e2e" if env.get("WEAVE_STACK_SCOPE") == "isolated" else {
-        "dev": "developer", "dogfood": "persistent-dogfood", "main": "main"
+        "dev": "developer", "test": "persistent-test", "prod": "production"
     }[profile]
     if env.get("WEAVE_DEPLOYMENT_SCOPE") != expected_scope:
         fail(f"{profile} requires WEAVE_DEPLOYMENT_SCOPE={expected_scope}")
@@ -274,24 +293,23 @@ def _validate_environment(profile: str, env: Mapping[str, str]) -> None:
             fail(f"{name} must not carry credentials, query, fragment, or backslash")
     if env["WEAVE_PROVIDER_PROFILE"] != "sovereign-default":
         fail("Core Compose profiles require WEAVE_PROVIDER_PROFILE=sovereign-default")
-    if profile in ("dogfood", "main"):
+    if profile in ("test", "prod"):
         image_names = [
             "WEAVE_POSTGRES_IMAGE",
             "WEAVE_CADDY_IMAGE",
             "WEAVE_KEYCLOAK_IMAGE",
-            "WEAVE_KEYCLOAK_SANITIZER_IMAGE",
+            "WEAVE_IDENTITY_OPS_IMAGE",
             "WEAVE_MAS_IMAGE",
             "WEAVE_SYNAPSE_IMAGE",
             "WEAVE_NEXTCLOUD_IMAGE",
             "WEAVE_BACKEND_IMAGE",
             "WEAVE_MCP_IMAGE",
         ]
-        if profile == "dogfood":
+        if profile == "test":
             image_names.append("WEAVE_MAILPIT_IMAGE")
         local_candidate_images = {
-            "WEAVE_BACKEND_IMAGE", "WEAVE_KEYCLOAK_IMAGE",
-            "WEAVE_KEYCLOAK_SANITIZER_IMAGE", "WEAVE_MCP_IMAGE"
-        } if profile == "dogfood" else set()
+            "WEAVE_BACKEND_IMAGE", "WEAVE_IDENTITY_OPS_IMAGE", "WEAVE_MCP_IMAGE"
+        } if profile == "test" else set()
         unpinned = [
             name for name in image_names
             if not PUBLISHED_DIGEST_IMAGE_RE.fullmatch(env[name])

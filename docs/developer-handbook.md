@@ -63,7 +63,7 @@ The root `./gradlew` is the monorepo build/delivery source of truth. GitHub Acti
 | `serverPostgresIntegrationTest` | Runs migration, repository, and concurrency contracts against disposable PostgreSQL. |
 | `serverCi` | Runs unit tests, the separate dev-H2 lane, production-artifact verification, and the PostgreSQL integration lane. |
 | `adminCi` | Admin console npm CI path. |
-| `infraStatic` | Normalized `dev`/`dogfood`/`main` Compose models, desired-state validation, forbidden-legacy-path guard, and infrastructure script/static checks. |
+| `infraStatic` | Normalized `dev`/`test`/`prod` Compose models, desired-state validation, forbidden-legacy-path guard, and infrastructure script/static checks. Profile and Identity Ops tasks are owned by `:infra`; server development tasks are owned by `:server`. |
 | `workflowActionRuntimeCheck` | Requires every external GitHub Action reference to match the reviewed immutable commit and Node 24/composite runtime inventory in `tools/workflow_action_runtime_manifest.json`. |
 | `docsBuild` | Strict MkDocs build with deterministic outputs under `build/docs/user` and `build/docs/admin`. |
 | `docsCheck` | Docs structure check plus strict MkDocs build. |

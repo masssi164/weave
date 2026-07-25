@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the pinned Weave Keycloak distribution for an exact candidate."""
+"""Resolve the approved stock Keycloak distribution without rebuilding it."""
 
 from __future__ import annotations
 
@@ -13,6 +13,10 @@ from pathlib import Path
 
 COMMIT = re.compile(r"^[0-9a-f]{40}$")
 IMAGE_ID = re.compile(r"^sha256:[0-9a-f]{64}$")
+STOCK_KEYCLOAK_REFERENCE = (
+    "quay.io/keycloak/keycloak@"
+    "sha256:0f198be292568439d700cdbfb893e69a6009bb43a94a06a945b1d3d506c76b13"
+)
 
 
 def atomic_write(path: Path, value: dict[str, object]) -> None:
@@ -47,35 +51,40 @@ def main() -> int:
     ).stdout.strip()
     if not COMMIT.fullmatch(candidate):
         raise SystemExit("WEAVE_KEYCLOAK_BUILD_ERROR candidate commit must be an exact lowercase SHA")
-    tag = f"weave-keycloak:{candidate}"
     subprocess.run(
-        [
-            "docker", "build",
-            "--file", str(repository / "infra/keycloak-event-listener/Dockerfile"),
-            "--label", f"org.opencontainers.image.revision={candidate}",
-            "--tag", tag,
-            str(repository / "infra/keycloak-event-listener"),
-        ],
+        ["docker", "pull", STOCK_KEYCLOAK_REFERENCE],
         check=True,
     )
     inspected = json.loads(
         subprocess.run(
-            ["docker", "image", "inspect", tag, "--format", "{{json .}}"],
+            [
+                "docker",
+                "image",
+                "inspect",
+                STOCK_KEYCLOAK_REFERENCE,
+                "--format",
+                "{{json .}}",
+            ],
             check=True,
             text=True,
             stdout=subprocess.PIPE,
         ).stdout
     )
     image_id = str(inspected.get("Id", ""))
-    labels = (inspected.get("Config") or {}).get("Labels") or {}
-    if not IMAGE_ID.fullmatch(image_id) or labels.get("com.massimotter.weave.keycloak.version") != "26.7.0":
-        raise SystemExit("WEAVE_KEYCLOAK_BUILD_ERROR image provenance is invalid")
+    repo_digests = inspected.get("RepoDigests") or []
+    if (
+        not IMAGE_ID.fullmatch(image_id)
+        or STOCK_KEYCLOAK_REFERENCE not in repo_digests
+    ):
+        raise SystemExit(
+            "WEAVE_KEYCLOAK_BUILD_ERROR stock upstream digest provenance is invalid"
+        )
     evidence = {
-        "schemaVersion": "weave.keycloak-image.v1",
-        "candidateCommit": candidate,
+        "schemaVersion": "weave.stock-keycloak-image.v1",
+        "evidenceForCandidateCommit": candidate,
         "keycloakVersion": "26.7.0",
+        "upstreamReference": STOCK_KEYCLOAK_REFERENCE,
         "imageId": image_id,
-        "tag": tag,
         "containsSecretValues": False,
         "supportSafe": True,
     }

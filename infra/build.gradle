@@ -1,0 +1,21 @@
+plugins {
+    id 'base'
+}
+
+import org.gradle.internal.os.OperatingSystem
+
+def platformCommand = { List<String> args ->
+    OperatingSystem.current().isWindows() ? ['cmd', '/c'] + args : args
+}
+
+ext.registerInfraCommandTask = { String taskName, List<String> args, String taskDescription ->
+    tasks.register(taskName, Exec) {
+        group = 'weave infrastructure'
+        description = taskDescription
+        workingDir rootProject.projectDir
+        commandLine platformCommand(args)
+        outputs.upToDateWhen { false }
+    }
+}
+
+apply from: "$projectDir/gradle/tasks/environment-profiles.gradle"

@@ -8,12 +8,11 @@ It is meant to remove the remaining tribal knowledge around install, verify, rec
 Prepare these explicitly:
 
 - DNS for `<tenant_domain>`, `api`, `auth`, `matrix`, and the raw `files` protocol/admin fallback;
-- a private reviewed copy of `weave-workspace/environments/dogfood.env.example` or
-  `main.env.example`, stored outside the checkout;
-- exact digest references for every dogfood/main image;
+- a private reviewed copy of `weave-workspace/environments/test.env.example` or
+  `prod.env.example`, stored outside the checkout;
+- exact digest references for every test/prod image;
 - absolute `WEAVE_GENERATED_ROOT`, `WEAVE_SECRET_ROOT`, and `WEAVE_TLS_ROOT` paths;
-- the immutable root-owned Keycloak supervisor generation and its public verification key;
-- an unprivileged deployment-operator group authorized to invoke only that supervisor;
+- an unprivileged deployment operator able to run the rootless one-shot Identity Ops container;
 - TLS certificate/key material and an operator-owned mode-0700 backup root outside the checkout.
 
 Recommended file permissions on the host:
@@ -36,7 +35,7 @@ RuntimeProfile signing and RuntimeState wrapping keys; ARC administration creden
 per-cell workload private keys.
 
 Repeated `secrets-init`, `prepare`, and install operations preserve an existing valid generation.
-A missing, symlinked, empty, over-readable, or ambiguous SecretRef fails closed. Dogfood/main do
+A missing, symlinked, empty, over-readable, or ambiguous SecretRef fails closed. Test/prod do
 not invent a replacement credential during ordinary deployment.
 
 Rotation guidance:
@@ -60,7 +59,7 @@ not invent a missing trust root.
 cd weave
 git fetch --no-tags --prune origin \
   '+refs/heads/dev:refs/remotes/origin/dev'
-export WEAVE_ENV_FILE=/absolute/path/to/reviewed-dogfood.env
+export WEAVE_ENV_FILE=/absolute/path/to/reviewed-test.env
 export WEAVE_CANDIDATE_COMMIT="$(git rev-parse HEAD)"
 python3 tools/candidate_source_mapping.py \
   --repository . \
@@ -69,20 +68,19 @@ python3 tools/candidate_source_mapping.py \
 export WEAVE_IMAGE_SOURCE_COMMIT="$(
   jq -er '.sourceCandidateCommit' build/evidence/candidate-source-mapping.json
 )"
-export WEAVE_KEYCLOAK_SUPERVISOR=/opt/weave/keycloak-supervisor/<generation>/supervisor.py
-bash infra/weave-workspace/install.sh dogfood
+bash infra/weave-workspace/install.sh test
 bash infra/weave-workspace/release-verify.sh
-bash infra/weave-workspace/operator-check.sh
+bash infra/weave-workspace/operator-check.sh test
 ```
 
 Notes:
 
-- `compose.yaml` plus exactly one of `compose.dev.yaml`, `compose.dogfood.yaml`, or
-  `compose.main.yaml` is the only deployment model;
+- `compose.yaml` plus exactly one of `compose.dev.yaml`, `compose.test.yaml`, or
+  `compose.prod.yaml` is the only deployment model;
 - `install.sh <profile>` is the supported idempotent apply path and runs
-  `secrets-init → render → config → prepare → keycloak-apply → up → keycloak-verify`;
-- dogfood/main require a private reviewed `WEAVE_ENV_FILE`, exact image digests, an exact candidate
-  commit, and the externally installed supervisor; never use `:latest`;
+  `secrets-init → render → config → prepare → identity-apply → up → identity-verify`;
+- test/prod require a private reviewed `WEAVE_ENV_FILE`, exact image digests, and an exact candidate
+  commit; never use `:latest`;
 - for dogfood promotion, `WEAVE_CANDIDATE_COMMIT` remains the checked-out lane SHA used by
   runtime, backup, deployment, and human evidence. Locally built images use
   `WEAVE_IMAGE_SOURCE_COMMIT`, derived by the protected workflow from fetched `origin/dev`.
@@ -90,11 +88,11 @@ Notes:
   recorded in `candidate-source-mapping.json`; never accept the source as workflow input. The
   successful isolated run retains those exact IDs on the locked runner, and persistent dogfood
   verifies and consumes them without rebuilding;
-- the supervisor installation is a separate root-reviewed operation. Candidate code receives only
-  its fixed command interface and public trust key, never the Docker socket or signing key;
+- Identity Ops runs rootless, one-shot, without the Docker socket, and removes its temporary
+  bootstrap authority after every operation;
 - build/publish both `weave-backend` and `weave-mcp-server`; MCP is a separate workload boundary
   and must not be folded into the member API process;
-- repeat `keycloak-plan` after apply and require zero diff. Repeated `install.sh` must preserve
+- repeat `identity-plan` after apply and require zero diff. Repeated `install.sh` must preserve
   volume identity, credentials, organization/person identity, and sessions;
 - Nextcloud trusts only the exact Caddy container address on the deployment network. Do not widen
   trusted proxies or disable brute-force protection;
@@ -104,21 +102,21 @@ Notes:
 For development, run provider dependencies separately from the host server:
 
 ```bash
-./gradlew composeDevDependenciesReady
-./gradlew serverDevBoot
-./gradlew serverDevHostSmoke
+./gradlew :infra:composeDevDependenciesReady
+./gradlew :server:serverDevBoot
+./gradlew :server:serverDevHostSmoke
 ```
 
 Only this `dev` host process uses H2. Flyway still owns its schema and Hibernate still uses
-`ddl-auto=validate`. PostgreSQL remains mandatory for providers, integration tests, dogfood,
-main, backup/recovery, and every release claim.
+`ddl-auto=validate`. PostgreSQL remains mandatory for providers, integration tests, test,
+prod, backup/recovery, and every release claim.
 
 ## 4. Routine verification
 
 Use these in order:
 
 1. `WEAVE_ENV_FILE=<reviewed-env> bash weave-workspace/release-verify.sh`
-2. `WEAVE_ENV_FILE=<reviewed-env> bash weave-workspace/operator-check.sh`
+2. `WEAVE_ENV_FILE=<reviewed-env> bash weave-workspace/operator-check.sh <test|prod>`
 3. `WEAVE_ENV_FILE=<reviewed-env> weave-workspace/compose.sh <profile> ps`
 
 What `operator-check.sh` adds beyond `release-verify.sh`:
@@ -143,8 +141,8 @@ outside the checkout and binds every private consistency set to the exact candid
 ```bash
 WEAVE_CANDIDATE_COMMIT=<exact-sha> \
 WEAVE_BACKUP_ROOT=/var/backups/weave \
-WEAVE_ENV_FILE=/absolute/path/to/reviewed-dogfood.env \
-bash weave-workspace/backup.sh dogfood
+WEAVE_ENV_FILE=/absolute/path/to/reviewed-test.env \
+bash weave-workspace/backup.sh test
 ```
 
 The helper quiesces the application/provider writers, writes the consistency set, and restarts
@@ -197,15 +195,17 @@ For the one-time migration from the former unlabeled runtime, run:
 ```bash
 WEAVE_CANDIDATE_COMMIT=<exact-sha> \
 WEAVE_BACKUP_ROOT=/var/backups/weave \
-WEAVE_ENV_FILE=/absolute/path/to/reviewed-dogfood.env \
-bash weave-workspace/adoption-rehearsal.sh dogfood
+WEAVE_ENV_FILE=/absolute/path/to/reviewed-test.env \
+bash weave-workspace/adoption-rehearsal.sh test
 ```
 
 This backs up the existing exact-named runtime, restores all volume inventories and PostgreSQL
 service databases in an isolated namespace, verifies the Weave realm and private SecretRef
-continuity, and emits a signed/candidate-bound adoption receipt. Only that current receipt may be
-passed to the Compose adoption path. The former state is retained as restricted migration evidence,
-not an executable rollback engine.
+continuity, and emits an owner-controlled mode-`0600`, candidate-bound adoption receipt at the
+canonical generated-state path. Export that exact path as `WEAVE_ADOPTION_RECEIPT` for the
+subsequent `:infra:composeTestUp`; the runtime rejects a missing, stale, symlinked, weakly permissioned,
+wrong-candidate, wrong-project, or resource-incomplete receipt. The former state is retained as
+restricted migration evidence, not an executable rollback engine.
 
 `restore-smoke.sh` does not restore or delete data. After a separately approved restore/rehearsal it
 revalidates the v2 consistency set, runs `operator-check.sh`, and verifies Matrix Application Service
@@ -228,21 +228,23 @@ WEAVE_RESTORE_SMOKE_ARTIFACTS_ONLY=true bash weave-workspace/restore-smoke.sh <b
 Artifact-only mode performs full manifest/hash/archive integrity verification, emits a non-release
 receipt, and explicitly records that no restore or service readiness was proven.
 
-### Exceptional retirement of a lost pending dogfood identity
+### Lost or expired pending identity
 
-Restoring the private Keycloak database is always the first recovery path. A backup that restores platform/provider data but predates the recorded protected subject is not identity-restorable for that member and must not be described as session preservation. When the persistent runtime is already running and no older identity-restorable artifact exists, the protected `Dogfood Pending Identity Recovery` workflow first creates a new private backup, verifies every required artifact hash, and runs `audit-private-backup-identity.sh` against every available private generation. Each audit replays PostgreSQL into a uniquely named disposable Docker volume after the helper database has completed its entrypoint startup. The complete audit set must prove that neither the recorded subject nor configured username is present in any generation and that every generation contains either no human identity or exactly the historical disposable `test` identity with no other human identity; it never mutates the running persistent volume. The newest backup records whether exact-subject bootstrap retirement is expected, and the Keycloak helper rechecks the live realm immediately before acting. An already-empty human boundary records a no-mutation retirement receipt instead of issuing a delete. Use the protected workflow only when that support-safe private-backup audit and the last accepted evidence prove that the persistent human identity never completed activation. The evidence must still describe the recorded subject as pending with `VERIFY_EMAIL` and `UPDATE_PASSWORD`, no later active evidence may exist, and neither the configured username/email nor the recorded subject may resolve in the current realm. An active, disabled, ambiguous, previously authenticated, or insufficiently evidenced identity must never be replaced.
+Use Keycloak's normal invitation resend/revoke lifecycle first. An expired email link is not a
+reason to delete or replace the user. After a successful OIDC sign-in, the provider-neutral
+session-reconciliation use case updates native organization entitlement and the client performs at
+most one standard refresh-token grant before workspace bootstrap.
 
-If the replayed platform backup contains the historical disposable `test` bootstrap identity, the workflow additionally requires the typed confirmation `retire-restored-test-bootstrap`. It removes that exact subject through the Keycloak administration API only after proving the protected username and recorded subject are absent and `test` is the realm's sole non-service identity. It fails closed for any other, additional, or ambiguous human identity; direct database deletion and broad realm cleanup are forbidden.
+The former `Dogfood Pending Identity Recovery` mutation path is deliberately guarded. Its root
+supervisor, sanitizer image, custom provider JAR, direct member helper, and runtime-profile
+assumptions are retired authorities. The workflow refuses execution and cannot emit readiness.
+A future destructive retirement path must be designed against the `test` profile, run through
+Identity Ops, prove current private backup and isolated restore rehearsal, bind an exact subject
+and tombstone, and remain unable to delete active or ambiguous identities.
 
-The workflow requires an exact candidate already contained in `dogfood`, successful exact-commit isolated Live Stack E2E evidence, the protected `dogfood` environment, the shared non-cancelling persistent deployment lock, and the typed confirmation `retire-lost-pending-identity`. Do not call `dogfood-member.sh recover-lost-pending`, `retire-restored-bootstrap`, or `audit-private-backup-identity.sh` from routine deployment or an unprotected operator shell. The protected operation keeps disposable identity inputs and destructive volume removal disabled, archives the previous raw subject only in mode-`0600` private operator state, creates one new pending Keycloak identity, verifies its activation mail, and creates a private post-recovery backup plus restore-smoke receipt. Both the pre-recovery and post-recovery backup artifacts remain private. Raw subjects, mail, database dumps, and backup archives are never uploaded; shared evidence contains hashes and support-safe status only.
-
-Successful recovery is deliberately not human-testing readiness. Its manifest remains `overallState=blocked` and `humanTestingReady=false`. Continue in this order:
-
-1. the human tester completes the Keycloak activation from the private Mailpit message;
-2. the tester performs an explicit normal OIDC sign-in on the physical iPhone so an active Keycloak session exists; and
-3. run the standard `Test Stack Deploy` workflow for the same candidate; that workflow applies the persistent deployment twice, verifies the active immutable subject/session and idempotency, and remains the only path to green persistent dogfood deployment evidence.
-
-Only the normal readiness chain after those steps can advance toward iOS distribution and physical-device VoiceOver acceptance. The exceptional recovery workflow itself can never emit `humanTestingReady=true`.
+Physical-iPhone readiness still requires the normal user to complete the current invitation,
+perform a normal OIDC sign-in, and pass the standard Test Stack Deploy plus physical-device
+acceptance chain. Neither an email resend nor a guarded recovery dispatch proves readiness.
 
 ## 7. Stop, clean rebuild, and destructive reset
 
@@ -254,11 +256,11 @@ Use the least destructive action that solves the problem:
    sequence. Require the second plan to be empty.
 3. **Rollback:** restore the previous coherent application image set and control/data snapshot under
    the reviewed release procedure. Do not rely on old/new API coexistence.
-4. **Isolated E2E cleanup only:** `teardown.sh dogfood --isolated` requires the deterministic run
+4. **Isolated E2E cleanup only:** `teardown.sh test --isolated` requires the deterministic run
    namespace, exact ownership labels, exact candidate, identity evidence, and explicit volume-removal
    confirmation. It refuses persistent resources and any label mismatch.
 
-There is no generic persistent destructive reset or clean-rebuild command. Persistent dogfood/main
+There is no generic persistent destructive reset or clean-rebuild command. Persistent test/prod
 deletion, crypto-shred, or full restore requires its own step-up, backup, evidence, and approval
 workflow. Never delete named volumes, generated trust, or credentials merely to repair a failed
 deployment.

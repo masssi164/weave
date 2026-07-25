@@ -36,11 +36,11 @@ for name in sorted(REQUIRED_ARTIFACTS):
     artifacts.append({"path": name, "kind": EXPECTED_ARTIFACT_KINDS[name], "sha256": checksum, "bytes": size})
 manifest = {
     "schemaVersion": "weave.compose-private-backup.v2",
-    "backupId": f"weave-dogfood-20260722T120000Z-{candidate[:12]}",
+    "backupId": f"weave-test-20260722T120000Z-{candidate[:12]}",
     "createdAt": "2026-07-22T12:00:00Z",
     "candidateCommit": candidate,
-    "profile": "dogfood",
-    "composeProject": "weave-dogfood",
+    "profile": "test",
+    "composeProject": "weave-test",
     "databaseFingerprint": "sha256:" + "b" * 64,
     "quiescedServices": ["backend", "keycloak"],
     "runtimeInventory": [{"service": "backend", "authority": "compose"}],

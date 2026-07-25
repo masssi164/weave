@@ -239,8 +239,8 @@ def _archive_private_config(context: ComposeContext, target: Path) -> None:
 
 
 def backup(context: ComposeContext) -> Path:
-    if context.profile not in ("dogfood", "main"):
-        raise ContractError("private consistency backups are required for dogfood/main, not H2 host-dev")
+    if context.profile not in ("test", "prod"):
+        raise ContractError("private consistency backups are required for test/prod, not H2 host-dev")
     candidate = os.environ.get("WEAVE_CANDIDATE_COMMIT", "")
     if not re.fullmatch(r"[0-9a-f]{40}", candidate):
         raise ContractError("WEAVE_CANDIDATE_COMMIT must bind the private backup to an exact candidate")
@@ -300,7 +300,7 @@ def backup(context: ComposeContext) -> Path:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("profile", choices=("dev", "dogfood", "main"))
+    parser.add_argument("profile", choices=("dev", "test", "prod"))
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--env-file")
     args = parser.parse_args()
