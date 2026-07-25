@@ -803,8 +803,9 @@ def provision_test_users(kcadm: Kcadm, desired: dict[str, Any], path: Path) -> i
             for name in ("username", "secret")
         ):
             raise IdentityOpsError("each test user requires non-empty username and secret")
-        if "email" in item and (not isinstance(item["email"], str) or not item["email"]):
-            raise IdentityOpsError("optional test-user email must be a non-empty string")
+        for name in ("email", "firstName", "lastName"):
+            if name in item and (not isinstance(item[name], str) or not item[name]):
+                raise IdentityOpsError(f"optional test-user {name} must be a non-empty string")
         for name in ("roles", "groups"):
             if name in item and (
                 not isinstance(item[name], list)
@@ -822,6 +823,9 @@ def provision_test_users(kcadm: Kcadm, desired: dict[str, Any], path: Path) -> i
             }
             if item.get("email"):
                 user_payload["email"] = item["email"]
+            for name in ("firstName", "lastName"):
+                if item.get(name):
+                    user_payload[name] = item[name]
             kcadm.call("create", "users", "-r", realm, payload=user_payload)
             kcadm.call(
                 "set-password",

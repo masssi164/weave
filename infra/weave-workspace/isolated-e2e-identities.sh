@@ -19,6 +19,7 @@ AUTHORIZATION_EVIDENCE_PATH="${WEAVE_E2E_AUTHORIZATION_EVIDENCE_PATH:-}"
 CHAT_PROOF_TOKEN_PATH=""
 TEARDOWN_OWNERSHIP_FILE="${WEAVE_TEARDOWN_OWNERSHIP_FILE:-}"
 STACK_BOOTSTRAP_ENV="${WEAVE_E2E_STACK_BOOTSTRAP_ENV:-}"
+TEST_USERS_FILE="${WEAVE_TEST_USERS_FILE:-}"
 
 NAMESPACE=""
 REALM=""
@@ -80,6 +81,15 @@ random_proof_token() {
   openssl rand -hex 48
 }
 
+private_file_mode() {
+  local path="$1"
+  if stat -c '%a' "${path}" >/dev/null 2>&1; then
+    stat -c '%a' "${path}"
+  else
+    stat -f '%Lp' "${path}"
+  fi
+}
+
 parse_args() {
   [[ $# -gt 0 ]] || { usage >&2; exit 2; }
   OPERATION="$1"
@@ -129,6 +139,7 @@ derive_paths_and_names() {
   CHAT_PROOF_TOKEN_PATH="${CHAT_PROOF_TOKEN_PATH:-${run_dir}/chat-provider-proof.token}"
   TEARDOWN_OWNERSHIP_FILE="${TEARDOWN_OWNERSHIP_FILE:-${run_dir}/teardown-ownership.json}"
   STACK_BOOTSTRAP_ENV="${STACK_BOOTSTRAP_ENV:-${ROOT_DIR}/.generated/isolated/${NAMESPACE}/bootstrap.env}"
+  TEST_USERS_FILE="${TEST_USERS_FILE:-${run_dir}/test-users.json}"
 }
 
 validate_private_path() {
@@ -144,6 +155,7 @@ validate_paths() {
   validate_private_path "${AUTHORIZATION_EVIDENCE_PATH}"
   validate_private_path "${CHAT_PROOF_TOKEN_PATH}"
   validate_private_path "${TEARDOWN_OWNERSHIP_FILE}"
+  validate_private_path "${TEST_USERS_FILE}"
 }
 
 print_integration_variables() {
@@ -156,6 +168,7 @@ print_integration_variables() {
   printf 'WEAVE_E2E_AUTHORIZATION_EVIDENCE_PATH=%q\n' "${AUTHORIZATION_EVIDENCE_PATH}"
   printf 'WEAVE_E2E_STACK_BOOTSTRAP_ENV=%q\n' "${STACK_BOOTSTRAP_ENV}"
   printf 'WEAVE_TEARDOWN_OWNERSHIP_FILE=%q\n' "${TEARDOWN_OWNERSHIP_FILE}"
+  printf 'WEAVE_TEST_USERS_FILE=%q\n' "${TEST_USERS_FILE}"
   if [[ -f "${STARTUP_ENV_PATH}" ]]; then
     (
       # Public run coordinates only. Credential values remain exclusively in
@@ -257,6 +270,63 @@ write_prepare_manifest() {
     }' >"${IDENTITY_MANIFEST_PATH}"
 }
 
+write_or_validate_test_users() {
+  if [[ -e "${TEST_USERS_FILE}" ]]; then
+    [[ -f "${TEST_USERS_FILE}" && ! -L "${TEST_USERS_FILE}" ]] ||
+      fail "existing test-user input is not a regular private file"
+    [[ "$(private_file_mode "${TEST_USERS_FILE}")" == 600 ]] ||
+      fail "existing test-user input must be mode 0600"
+  else
+    umask 077
+    jq -n \
+      --arg authorUsername "${AUTHOR_USERNAME}" \
+      --arg authorEmail "${AUTHOR_USERNAME}@example.invalid" \
+      --arg authorSecret "${AUTHOR_PASSWORD}" \
+      --arg collaboratorUsername "${COLLABORATOR_USERNAME}" \
+      --arg collaboratorEmail "${COLLABORATOR_USERNAME}@example.invalid" \
+      --arg collaboratorSecret "${COLLABORATOR_PASSWORD}" \
+      --arg outsiderUsername "${OUTSIDER_USERNAME}" \
+      --arg outsiderEmail "${OUTSIDER_USERNAME}@example.invalid" \
+      --arg outsiderSecret "${OUTSIDER_PASSWORD}" \
+      --arg namespace "${NAMESPACE}" \
+      '[
+        {
+          username:$authorUsername,email:$authorEmail,secret:$authorSecret,
+          firstName:"Weave E2E",lastName:($namespace + ":author"),
+          roles:["member"],groups:["/capabilities/weaver"]
+        },
+        {
+          username:$collaboratorUsername,email:$collaboratorEmail,secret:$collaboratorSecret,
+          firstName:"Weave E2E",lastName:($namespace + ":collaborator"),
+          roles:["admin"],groups:["/capabilities/weaver"]
+        },
+        {
+          username:$outsiderUsername,email:$outsiderEmail,secret:$outsiderSecret,
+          firstName:"Weave E2E",lastName:($namespace + ":outsider"),
+          roles:["member"],groups:[]
+        }
+      ]' >"${TEST_USERS_FILE}"
+    chmod 600 "${TEST_USERS_FILE}"
+  fi
+
+  jq -e \
+    --arg authorUsername "${AUTHOR_USERNAME}" \
+    --arg authorSecret "${AUTHOR_PASSWORD}" \
+    --arg collaboratorUsername "${COLLABORATOR_USERNAME}" \
+    --arg collaboratorSecret "${COLLABORATOR_PASSWORD}" \
+    --arg outsiderUsername "${OUTSIDER_USERNAME}" \
+    --arg outsiderSecret "${OUTSIDER_PASSWORD}" '
+      length == 3 and
+      .[0].username == $authorUsername and .[0].secret == $authorSecret and
+      .[0].roles == ["member"] and .[0].groups == ["/capabilities/weaver"] and
+      .[1].username == $collaboratorUsername and .[1].secret == $collaboratorSecret and
+      .[1].roles == ["admin"] and .[1].groups == ["/capabilities/weaver"] and
+      .[2].username == $outsiderUsername and .[2].secret == $outsiderSecret and
+      .[2].roles == ["member"] and .[2].groups == []
+    ' "${TEST_USERS_FILE}" >/dev/null ||
+    fail "test-user input does not match the exact disposable identity run"
+}
+
 prepare() {
   command -v jq >/dev/null || fail "jq is required"
   command -v openssl >/dev/null || fail "openssl is required"
@@ -293,6 +363,8 @@ prepare() {
     chmod 600 "${CREDENTIAL_ENV_PATH}"
   fi
 
+  write_or_validate_test_users
+
   if [[ -e "${CHAT_PROOF_TOKEN_PATH}" ]]; then
     [[ -f "${CHAT_PROOF_TOKEN_PATH}" && ! -L "${CHAT_PROOF_TOKEN_PATH}" ]] ||
       fail "existing Chat proof credential is not a regular private file"
@@ -325,6 +397,7 @@ prepare() {
     printf 'export WEAVE_LOCAL_CREDENTIAL_STATE_FILE=%q\n' none
     printf 'export WEAVE_LOCAL_TLS_STATE_DIR=%q\n' none
     printf 'export WEAVE_E2E_OUTPUT_ROOT=%q\n' "${OUTPUT_ROOT}"
+    printf 'export WEAVE_TEST_USERS_FILE=%q\n' "${TEST_USERS_FILE}"
     printf 'export WEAVE_E2E_RUN_ID=%q\n' "${RUN_ID}"
     printf 'export WEAVE_E2E_STACK_SCOPE=%q\n' isolated
     printf 'export WEAVE_E2E_RUN_NAMESPACE=%q\n' "${NAMESPACE}"
@@ -394,6 +467,7 @@ assert_isolated_runtime() {
   [[ "${WEAVE_ISOLATED_E2E_NAMESPACE:-}" == "${NAMESPACE}" ]] || fail "runtime namespace does not match this run"
   [[ "${WEAVE_DOCKER_NETWORK_NAME:-}" == "${NAMESPACE}_network" ]] || fail "runtime does not use the run-scoped Docker network"
   [[ "${WEAVE_CREATE_TEST_USER:-false}" == "false" ]] || fail "static test-user provisioning must stay disabled"
+  [[ "${WEAVE_TEST_USERS_FILE:-}" == "${TEST_USERS_FILE}" ]] || fail "Identity Ops test-user input is not bound to this isolated run"
   [[ "${WEAVE_CONTEXT_AUTHORIZATION_PRINCIPAL_CLAIM:-}" == "preferred_username" ]] || fail "isolated ReBAC must use deterministic preferred_username principals"
   [[ "${WEAVE_CONTEXT_AUTHORIZATION_BOOTSTRAP_ENABLED:-false}" == "false" ]] || fail "persistent/bootstrap membership mode must stay disabled"
   [[ -z "${WEAVE_CONTEXT_AUTHORIZATION_DOGFOOD_PRINCIPAL_REF:-}" ]] || fail "persistent dogfood principal input must be empty"

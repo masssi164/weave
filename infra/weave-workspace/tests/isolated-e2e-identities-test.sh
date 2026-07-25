@@ -66,9 +66,10 @@ grep -Fq 'WEAVE_E2E_IDENTITY_MANIFEST_PATH=' <<<"${prepare_output}"
 grep -Fq 'WEAVE_E2E_CLEANUP_EVIDENCE_PATH=' <<<"${prepare_output}"
 ! grep -Fq 'CHAT_PROOF_TOKEN' <<<"${prepare_output}" || fail "prepare output must not publish proof credential paths"
 grep -Fq 'WEAVE_TEARDOWN_OWNERSHIP_FILE=' <<<"${prepare_output}"
+grep -Fq 'WEAVE_TEST_USERS_FILE=' <<<"${prepare_output}"
 
 eval "${prepare_output}"
-export WEAVE_E2E_RUN_NAMESPACE WEAVE_E2E_CREDENTIAL_ENV_PATH WEAVE_E2E_STARTUP_ENV_PATH WEAVE_E2E_IDENTITY_MANIFEST_PATH WEAVE_E2E_CLEANUP_EVIDENCE_PATH WEAVE_TEARDOWN_OWNERSHIP_FILE
+export WEAVE_E2E_RUN_NAMESPACE WEAVE_E2E_CREDENTIAL_ENV_PATH WEAVE_E2E_STARTUP_ENV_PATH WEAVE_E2E_IDENTITY_MANIFEST_PATH WEAVE_E2E_CLEANUP_EVIDENCE_PATH WEAVE_TEARDOWN_OWNERSHIP_FILE WEAVE_TEST_USERS_FILE
 # shellcheck disable=SC1090
 source "${WEAVE_E2E_CREDENTIAL_ENV_PATH}"
 # shellcheck disable=SC1090
@@ -83,6 +84,9 @@ source "${WEAVE_E2E_STARTUP_ENV_PATH}"
 [[ "$(weave_isolated_run_root)" == "${OUTPUT_ROOT}/${WEAVE_E2E_RUN_NAMESPACE}" ]] || fail "Compose evidence root is not run-scoped"
 
 [[ "$(file_mode "${WEAVE_E2E_CREDENTIAL_ENV_PATH}")" == 600 ]] || fail "credential env must be mode 0600"
+[[ "$(file_mode "${WEAVE_TEST_USERS_FILE}")" == 600 ]] || fail "test-user input must be mode 0600"
+jq -e '. | length == 3 and .[0].roles == ["member"] and .[1].roles == ["admin"] and .[2].groups == []' "${WEAVE_TEST_USERS_FILE}" >/dev/null || fail "test-user input has incorrect actor grants"
+jq -e --arg author "${WEAVE_E2E_AUTHOR_USERNAME}" --arg collaborator "${WEAVE_E2E_COLLABORATOR_USERNAME}" --arg outsider "${WEAVE_E2E_OUTSIDER_USERNAME}" '.[0].username == $author and .[1].username == $collaborator and .[2].username == $outsider' "${WEAVE_TEST_USERS_FILE}" >/dev/null || fail "test-user input is not run-scoped"
 [[ "$(file_mode "${WEAVE_CHAT_E2E_PROOF_TOKEN_HOST_PATH}")" == 600 ]] || fail "Chat provider proof credential must be mode 0600"
 [[ "$(<"${WEAVE_CHAT_E2E_PROOF_TOKEN_HOST_PATH}")" =~ ^[0-9a-f]{96}$ ]] || fail "Chat provider proof credential must be independently random 384-bit hex"
 # Sourced from the generated startup environment above.
