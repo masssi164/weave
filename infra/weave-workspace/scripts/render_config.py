@@ -119,6 +119,15 @@ def _image_digest(context: ComposeContext) -> str:
     digest_match = re.fullmatch(r"(quay\.io/keycloak/keycloak)@(sha256:[0-9a-f]{64})", image)
     if digest_match:
         return digest_match.group(2)
+    if (
+        context.profile == "test"
+        and context.isolated_namespace is not None
+        and re.fullmatch(r"sha256:[0-9a-f]{64}", image)
+    ):
+        # compose_env already limits a local Keycloak image ID to the isolated
+        # test boundary. Preserve that exact content digest in desired-state
+        # provenance instead of reintroducing a conflicting registry-only rule.
+        return image
     raise ContractError(
         f"{context.profile} render requires quay.io/keycloak/keycloak@sha256:<approved-26.7.0-digest>; "
         "the dev preparation task resolves the reviewed 26.7.0 tag before render"
