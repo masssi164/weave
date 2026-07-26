@@ -112,6 +112,40 @@ def main() -> None:
     assert not identity_ops.is_current("client:other", payload, observed, list_values=False)
     group = identity_ops.marked_payload("group:members", {"name": "members"}, list_values=True)
     assert group["attributes"]["weave.semantic-key"] == ["group:members"]
+    wanted_mapper = identity_ops.mapper_payload(
+        {
+            "name": "weave-api-audience",
+            "mapperType": "audience",
+            "includedCustomAudience": "weave-api",
+        }
+    )
+    observed_mapper = {
+        **wanted_mapper,
+        "id": "mapper-id",
+        "config": {
+            **wanted_mapper["config"],
+            "lightweight.claim": "false",
+        },
+    }
+    assert identity_ops.mapper_is_current(wanted_mapper, observed_mapper)
+    assert not identity_ops.mapper_is_current(
+        wanted_mapper,
+        {
+            **observed_mapper,
+            "config": {
+                **observed_mapper["config"],
+                "included.custom.audience": "wrong",
+            },
+        },
+    )
+    assert identity_ops.projected_fields_are_current(
+        {"alias": "weave", "name": "Weave"},
+        {"id": "organization-id", "alias": "weave", "name": "Weave"},
+    )
+    assert not identity_ops.projected_fields_are_current(
+        {"alias": "weave", "name": "Weave"},
+        {"id": "organization-id", "alias": "weave", "name": "Drift"},
+    )
     hierarchy = identity_ops.flatten_groups(
         [{"id": "parent", "name": "people", "subGroups": [{"id": "child", "name": "members"}]}]
     )
@@ -148,6 +182,41 @@ def main() -> None:
     ]
     assert all("populateHierarchy=true" not in call for call in inventory_kcadm.calls)
     assert all("first=0" in call and "max=100" in call for call in inventory_kcadm.calls)
+
+    class PermissionRelationshipsKcadm:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, ...]] = []
+
+        def call(self, *arguments: str, payload: object = None) -> object:
+            assert payload is None
+            self.calls.append(arguments)
+            endpoint = arguments[1]
+            if endpoint.endswith("/resources"):
+                return [{"_id": "resource-id", "name": "organization-id"}]
+            if endpoint.endswith("/scopes"):
+                return [
+                    {"id": "manage-id", "name": "manage"},
+                    {"id": "view-id", "name": "view"},
+                ]
+            if endpoint.endswith("/associatedPolicies"):
+                return [{"id": "policy-id", "name": "identity organization policy"}]
+            raise AssertionError(f"unexpected permission relationship read: {endpoint}")
+
+    relationship_kcadm = PermissionRelationshipsKcadm()
+    assert identity_ops.permission_relationships(
+        relationship_kcadm,
+        "clients/admin/authz/resource-server/permission/scope/permission-id",
+        "weave",
+    ) == (
+        {"organization-id"},
+        {"manage", "view"},
+        {"identity organization policy"},
+    )
+    assert [call[1].rsplit("/", 1)[-1] for call in relationship_kcadm.calls] == [
+        "resources",
+        "scopes",
+        "associatedPolicies",
+    ]
 
     child_create = identity_ops.organization_group_create_operation(
         {

@@ -461,6 +461,61 @@ def mapper_payload(mapper: dict[str, Any]) -> dict[str, Any]:
     return {**common, "config": config}
 
 
+def mapper_is_current(wanted: dict[str, Any], observed: dict[str, Any]) -> bool:
+    if any(
+        observed.get(field) != wanted.get(field)
+        for field in ("name", "protocol", "protocolMapper")
+    ):
+        return False
+    wanted_config = wanted.get("config")
+    observed_config = observed.get("config")
+    if not isinstance(wanted_config, dict) or not isinstance(observed_config, dict):
+        return False
+    return all(observed_config.get(key) == value for key, value in wanted_config.items())
+
+
+def projected_fields_are_current(
+    wanted: dict[str, Any],
+    observed: dict[str, Any],
+) -> bool:
+    return all(observed.get(key) == value for key, value in wanted.items())
+
+
+def complete_relationship_names(
+    kcadm: Kcadm,
+    endpoint: str,
+    realm: str,
+) -> set[str]:
+    response = kcadm.call("get", endpoint, "-r", realm) or []
+    if not isinstance(response, list) or any(not isinstance(item, dict) for item in response):
+        raise IdentityOpsError(f"kcadm relationship response is invalid for {endpoint}")
+    names: list[str] = []
+    for item in response:
+        name = item.get("name")
+        if not isinstance(name, str) or not name:
+            raise IdentityOpsError(f"kcadm relationship response has no semantic name for {endpoint}")
+        names.append(name)
+    if len(names) != len(set(names)):
+        raise IdentityOpsError(f"kcadm relationship response repeats a semantic name for {endpoint}")
+    return set(names)
+
+
+def permission_relationships(
+    kcadm: Kcadm,
+    permission_endpoint: str,
+    realm: str,
+) -> tuple[set[str], set[str], set[str]]:
+    return (
+        complete_relationship_names(kcadm, f"{permission_endpoint}/resources", realm),
+        complete_relationship_names(kcadm, f"{permission_endpoint}/scopes", realm),
+        complete_relationship_names(
+            kcadm,
+            f"{permission_endpoint}/associatedPolicies",
+            realm,
+        ),
+    )
+
+
 def plan(kcadm: Kcadm, desired: dict[str, Any], rotation_epoch: str | None = None) -> list[Operation]:
     operations: list[Operation] = []
     if desired.get("apiVersion") != "weave.keycloak-desired-state/v2" or "groups" in desired:
@@ -580,10 +635,7 @@ def plan(kcadm: Kcadm, desired: dict[str, Any], rotation_epoch: str | None = Non
             )
             if observed_mapper is None:
                 operations.append(Operation("create", mapper["key"], mapper_endpoint, None, wanted_mapper))
-            elif (
-                observed_mapper.get("protocolMapper") != wanted_mapper["protocolMapper"]
-                or observed_mapper.get("config") != wanted_mapper["config"]
-            ):
+            elif not mapper_is_current(wanted_mapper, observed_mapper):
                 operations.append(
                     Operation(
                         "update",
@@ -657,11 +709,19 @@ def plan(kcadm: Kcadm, desired: dict[str, Any], rotation_epoch: str | None = Non
             "organization",
         )
         if observed is None:
-            operations.append(Operation("create", key, "organizations", None, marked_payload(key, wanted, list_values=True)))
+            operations.append(Operation("create", key, "organizations", None, wanted))
         else:
             organizations_by_key[key] = observed
-            if not is_current(key, wanted, observed, list_values=True):
-                operations.append(Operation("update", key, "organizations", str(observed["id"]), marked_payload(key, wanted, list_values=True)))
+            if not projected_fields_are_current(wanted, observed):
+                operations.append(
+                    Operation(
+                        "update",
+                        key,
+                        "organizations",
+                        str(observed["id"]),
+                        {**wanted, "id": observed["id"]},
+                    )
+                )
 
     group_inventories: dict[str, list[dict[str, Any]]] = {}
     for group in desired.get("organizationGroups", []):
@@ -807,7 +867,7 @@ def plan(kcadm: Kcadm, desired: dict[str, Any], rotation_epoch: str | None = Non
                 continue
             base = f"clients/{admin_permissions['id']}/authz/resource-server"
             policy_name = str(subject_policy["name"])
-            policies = kcadm.call("get", f"{base}/policy/user", "-r", realm_name) or []
+            policies = paged_get(kcadm, f"{base}/policy/user", realm_name)
             policy = exact([item for item in policies if item.get("name") == policy_name], policy_name, "FGAP policy")
             wanted_policy = {
                 "name": policy_name,
@@ -823,7 +883,7 @@ def plan(kcadm: Kcadm, desired: dict[str, Any], rotation_epoch: str | None = Non
                 operations.append(Operation("update", subject_policy["key"], f"{base}/policy/user", str(policy["id"]), {**wanted_policy, "id": policy["id"]}))
 
             permission_name = str(permission_contract["name"])
-            permissions = kcadm.call("get", f"{base}/permission/scope", "-r", realm_name) or []
+            permissions = paged_get(kcadm, f"{base}/permission/scope", realm_name)
             permission = exact(
                 [item for item in permissions if item.get("name") == permission_name],
                 permission_name,
@@ -840,13 +900,29 @@ def plan(kcadm: Kcadm, desired: dict[str, Any], rotation_epoch: str | None = Non
                 continue
             if permission is None:
                 operations.append(Operation("create", permission_contract["key"], f"{base}/permission/scope", None, wanted_permission))
-            elif (
-                permission.get("resourceType") != "Organizations"
-                or set(permission.get("scopes") or []) != {"manage", "view"}
-                or set(permission.get("resources") or []) != {str(organization["id"])}
-                or set(permission.get("policies") or []) != {policy_name}
-            ):
-                operations.append(Operation("update", permission_contract["key"], f"{base}/permission/scope", str(permission["id"]), {**wanted_permission, "id": permission["id"]}))
+            else:
+                permission_endpoint = f"{base}/permission/scope/{permission['id']}"
+                resources, scopes, associated_policies = permission_relationships(
+                    kcadm,
+                    permission_endpoint,
+                    realm_name,
+                )
+                permission_config = permission.get("config")
+                default_resource_type = (
+                    permission.get("resourceType")
+                    or (
+                        permission_config.get("defaultResourceType")
+                        if isinstance(permission_config, dict)
+                        else None
+                    )
+                )
+                if (
+                    default_resource_type != "Organizations"
+                    or scopes != {"manage", "view"}
+                    or resources != {str(organization["id"])}
+                    or associated_policies != {policy_name}
+                ):
+                    operations.append(Operation("update", permission_contract["key"], f"{base}/permission/scope", str(permission["id"]), {**wanted_permission, "id": permission["id"]}))
     return operations
 
 
