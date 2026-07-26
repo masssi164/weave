@@ -14,6 +14,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
@@ -90,6 +91,20 @@ public class ApiExceptionHandler {
                 HttpStatus.BAD_REQUEST,
                 "invalid-request-body",
                 "Request body could not be parsed.");
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public void handleNoResource(
+            NoResourceFoundException exception,
+            HttpServletRequest request,
+            HttpServletResponse response)
+            throws IOException {
+        errorResponseWriter.write(
+                request,
+                response,
+                HttpStatus.NOT_FOUND,
+                "not-found",
+                "The requested resource does not exist.");
     }
 
     @ExceptionHandler(Exception.class)

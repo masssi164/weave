@@ -559,6 +559,9 @@ def _backend_env(context: ComposeContext) -> str:
         "WEAVE_CALDAV_BACKEND_USERNAME": env["WEAVE_NEXTCLOUD_ACTOR_USERNAME"],
         "WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE": calendar_path,
         "WEAVE_IDENTITY_KEYCLOAK_BASE_URL": keycloak_base,
+        "WEAVE_IDENTITY_KEYCLOAK_TOKEN_URI": (
+            f"{keycloak_base}/realms/weave/protocol/openid-connect/token"
+        ),
         "WEAVE_IDENTITY_KEYCLOAK_ORGANIZATION_ALIAS": env["WEAVE_ORGANIZATION_ALIAS"],
         "WEAVE_MATRIX_BASE_URL": matrix_base,
         "WEAVE_WORKSPACE_CHAT_ENABLED": "true",

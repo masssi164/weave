@@ -67,7 +67,7 @@ public class IdentityInvitationProperties {
   }
 
   public static class Keycloak {
-    private URI baseUrl = URI.create("http://weave-keycloak:8080");
+    private URI baseUrl = URI.create("http://keycloak:8080");
     private String realm = "weave";
     private String organizationId = "";
     private String organizationAlias = "weave";

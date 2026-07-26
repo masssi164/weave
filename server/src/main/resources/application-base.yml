@@ -26,7 +26,7 @@ spring:
       client:
         provider:
           weave-identity-admin:
-            token-uri: ${WEAVE_IDENTITY_KEYCLOAK_TOKEN_URI:http://weave-keycloak:8080/realms/weave/protocol/openid-connect/token}
+            token-uri: ${WEAVE_IDENTITY_KEYCLOAK_TOKEN_URI:http://keycloak:8080/realms/weave/protocol/openid-connect/token}
         registration:
           weave-identity-admin:
             provider: weave-identity-admin
@@ -249,7 +249,7 @@ weave:
         token-file: ${WEAVE_IDENTITY_BOOTSTRAP_OWNER_TOKEN_FILE:}
         tenant-id: ${WEAVE_CONTEXT_AUTHORIZATION_DEFAULT_TENANT_ID:tenant-default}
       keycloak:
-        base-url: ${WEAVE_IDENTITY_KEYCLOAK_BASE_URL:http://weave-keycloak:8080}
+        base-url: ${WEAVE_IDENTITY_KEYCLOAK_BASE_URL:http://keycloak:8080}
         realm: ${WEAVE_IDENTITY_KEYCLOAK_REALM:weave}
         organization-id: ${WEAVE_IDENTITY_KEYCLOAK_ORGANIZATION_ID:}
         organization-alias: ${WEAVE_IDENTITY_KEYCLOAK_ORGANIZATION_ALIAS:weave}

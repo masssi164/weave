@@ -55,6 +55,7 @@ require "${ROOT_DIR}/scripts/nextcloud_reconcile.py" 'ordinary reconciliation re
 require "${ROOT_DIR}/scripts/nextcloud_reconcile.py" 'oidcManagedProjectionDigest'
 require "${ROOT_DIR}/scripts/render_config.py" 'WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE'
 require "${ROOT_DIR}/scripts/render_config.py" 'WEAVE_MATRIX_FEDERATION_ENABLED'
+require "${ROOT_DIR}/scripts/render_config.py" '"WEAVE_IDENTITY_KEYCLOAK_TOKEN_URI"'
 require "${ROOT_DIR}/scripts/render_config.py" \
   '"spring.security.oauth2.client.registration.weave-identity-admin.client-secret": "keycloak-weave-identity-admin"'
 require "${REPO_ROOT}/settings.gradle" "include 'weave-application-core',"
@@ -88,6 +89,9 @@ reject "${ROOT_DIR}/compose.yaml" 'weave/weave.identity.invitations.keycloak.cli
 reject "${ROOT_DIR}/scripts/render_config.py" \
   '"weave.identity.invitations.keycloak.client-secret": "keycloak-weave-identity-admin"'
 reject "${REPO_ROOT}/server/src/main/resources/application.yml" 'WEAVE_IDENTITY_EVENTS_HMAC_SECRET'
+reject "${REPO_ROOT}/server/src/main/resources/application-base.yml" 'weave-keycloak:8080'
+reject "${REPO_ROOT}/server/src/main/java/com/massimotter/weave/backend/config/IdentityInvitationProperties.java" \
+  'weave-keycloak:8080'
 reject "${REPO_ROOT}/server/src/main/java/com/massimotter/weave/backend/config/SecurityConfig.java" '/api/internal/keycloak/events'
 
 printf 'V01_INFRA_CONTROL_PLANE_BOOTSTRAP status=passed infrastructure product contract tests passed\n'
