@@ -8,6 +8,7 @@ import com.massimotter.weave.backend.config.IdentityInvitationProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.identity.invitation.KeycloakIdentityAdminClient;
 import com.massimotter.weave.backend.identity.IdentityOpaqueReferenceCodec;
+import com.massimotter.weave.backend.identity.invitation.KeycloakIdentityAdminClient.KeycloakAdminException;
 import com.massimotter.weave.backend.identity.invitation.KeycloakIdentityAdminClient.ProviderInvitation;
 import com.massimotter.weave.backend.identity.invitation.ProvisioningIntent;
 import com.massimotter.weave.backend.identity.invitation.ProvisioningIntentRepository;
@@ -29,9 +30,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 public class MemberInvitationService {
+  private static final Logger LOGGER = LoggerFactory.getLogger(MemberInvitationService.class);
   private static final String BOOTSTRAP_ISSUER = "urn:weave:identity-bootstrap";
   private static final String BOOTSTRAP_SUBJECT = "bootstrap-owner-invitation";
 
@@ -255,6 +259,13 @@ public class MemberInvitationService {
       publish(AuditAction.MEMBER_INVITATION_CREATED, linked, actorSubject);
       return response(provider, linked);
     } catch (RuntimeException providerFailure) {
+      ProviderFailureReference failureReference = providerFailureReference(providerFailure);
+      LOGGER.warn(
+          "WEAVE_IDENTITY_INVITATION_PROVIDER_FAILURE category={} operation={} status={} failureType={}",
+          failureReference.category(),
+          failureReference.operation(),
+          failureReference.status(),
+          providerFailure.getClass().getSimpleName());
       intents.save(pending.failed("provider_issue_failed", clock.instant()));
       throw new ApiErrorException(
           HttpStatus.BAD_GATEWAY,
@@ -263,6 +274,44 @@ public class MemberInvitationService {
           Map.of());
     }
   }
+
+  private static ProviderFailureReference providerFailureReference(RuntimeException failure) {
+    if (failure instanceof KeycloakAdminException provider) {
+      return new ProviderFailureReference(
+          "provider-http", provider.operation(), provider.status());
+    }
+    if (failure instanceof IllegalStateException
+        && "Keycloak invitation result was ambiguous".equals(failure.getMessage())) {
+      return new ProviderFailureReference("provider-correlation", "invitation-inventory", 0);
+    }
+    if (failure instanceof IllegalStateException) {
+      String message = failure.getMessage();
+      if ("Keycloak returned an invalid invitation projection".equals(message)) {
+        return new ProviderFailureReference(
+            "provider-invitation-shape", "invitation-inventory", 0);
+      }
+      if ("Keycloak returned an invalid collection response".equals(message)) {
+        return new ProviderFailureReference(
+            "provider-collection-shape", "invitation-inventory", 0);
+      }
+      if ("Keycloak returned an invalid response".equals(message)) {
+        return new ProviderFailureReference("provider-json-shape", "invitation-inventory", 0);
+      }
+    }
+    for (Throwable current = failure; current != null; current = current.getCause()) {
+      String type = current.getClass().getName();
+      if (type.startsWith("org.springframework.security.oauth2.")) {
+        return new ProviderFailureReference("oauth2-client", "invitation-create", 0);
+      }
+      if (type.startsWith("org.springframework.web.client.")
+          || type.startsWith("java.net.")) {
+        return new ProviderFailureReference("provider-transport", "invitation-create", 0);
+      }
+    }
+    return new ProviderFailureReference("provider-projection", "invitation-inventory", 0);
+  }
+
+  private record ProviderFailureReference(String category, String operation, int status) {}
 
   private void apply(ProvisioningIntent intent, String subject) {
     if (intent.status() == ProvisioningIntentStatus.APPLIED) {
