@@ -368,8 +368,12 @@ http:// {{
     respond `{{"m.homeserver":{{"base_url":"{env['WEAVE_MATRIX_URL']}"}}}}` 200
   }}
   @synapse path /_matrix/* /_synapse/client/* /_synapse/mas/*
-  handle @synapse {{ reverse_proxy synapse:8008 }}
-  handle {{ reverse_proxy mas:8080 }}
+  handle @synapse {{
+    reverse_proxy synapse:8008
+  }}
+  handle {{
+    reverse_proxy mas:8080
+  }}
 }}
 
 {env['WEAVE_FILES_URL']} {{
